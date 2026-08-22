@@ -1,11 +1,11 @@
 # 4C W-01 — Reference Study and Structural Hypotheses
 
-> **Status:** `CANDIDATE EVIDENCE / W-01 4C-6 → 4C-7F / NOT LOCKED`
+> **Status:** `CANDIDATE EVIDENCE / W-01 4C-6 → 4C-7F / OPERATOR-REVISED / NOT LOCKED`
 > **Block:** `W-01` — Projects + source-complete create / Inception / candidate+approved Baseline
 > **Inherited authority:** `GF-01 H1-R2 = LOCKED`; `4C-F02 = OPERATOR ACCEPTED / GREEN`.
 > **Implementation authority:** none.
 
-This record derives only the W-01 structural candidate after the Journey-B authority preflight was corrected and made GREEN. It does not add Product operations, Project metadata, backend state, SDK/runtime choices or final visual design.
+This record derives only the W-01 structural candidate after the Journey-B authority preflight was corrected and made GREEN. The operator subsequently revised only the Projects collection presentation: the earlier GF-01 simple-card treatment is preferred over the compact list. This direct human Evidence reopens only the W-01 collection hypothesis; it does not add Product operations, Project metadata, backend state, SDK/runtime choices or final visual design.
 
 ## 1. Exact human job
 
@@ -46,7 +46,7 @@ The current `ProjectSummary` carries exactly:
 ProjectSummary = projectId + workspaceId + name + archived
 ```
 
-Therefore W-01 has no authority to decorate the collection with release state, recent activity, framework/runtime, setup progress, source provider or other inferred metadata.
+Therefore W-01 has no authority to decorate the collection with release state, recent activity, framework/runtime, setup progress, source provider, ownership metadata or other inferred metadata. A card is presentation only; it does not create a richer Project summary model.
 
 Current creation truth is closed:
 
@@ -72,50 +72,27 @@ candidateBaselineDigest != approved baselineDigest by semantic role
 
 The browser may use the exact candidate digest as `URL_NAVIGATION` so refresh/re-entry can resolve `PRJ-23`; browser state never becomes candidate authority.
 
-## 3. Bounded reference observations
+## 3. Bounded reference + human Evidence
 
-Current official product references were reviewed only for the same human task: locating Projects and starting a new Project from new/existing source.
+Current official product references were reviewed only for the same human task: locating Projects and starting a new Project from new/existing source. They support keeping source establishment inside a focused creation path rather than turning the Projects collection into an onboarding surface. They do not authorize Conexus metadata.
 
-### Vercel
+The stronger current structural Evidence is the operator revision:
 
-Observation:
-- project creation starts from an explicit Add New / Project flow;
-- importing/selecting a Git repository belongs to Project creation rather than a later generic source-settings CRUD flow.
+```text
+earlier GF-01 fixture presentation = simple Project cards/grid
+operator preference                = preserve that simpler Project recognition model
+truth boundary                     = PRJ-01 name + archived only
+```
 
-Useful property for Conexus:
-- source selection can be a creation concern without turning the Projects collection itself into an onboarding wizard.
-
-Not copied:
-- framework/deployment metadata, continuous provider-specific Git integration semantics and deployment-centric card content are not Conexus authority.
-
-### Render
-
-Observation:
-- service/project creation connects/selects repository during the create path;
-- workspace/dashboard browsing remains a separate context from the focused create form.
-
-Useful property for Conexus:
-- keep Workspace browse stable while moving source-establishment complexity into a focused creation flow.
-
-Not copied:
-- service type, deploy branch/runtime/environment fields are not admitted W-01 Product meaning.
-
-### Replit
-
-Observation:
-- an entry path may begin from a blank/new project or imported existing code.
-
-Useful property for Conexus:
-- presenting the two source-bootstrap modes as a first-class choice is recognizable.
-
-Not copied:
-- provider-specific import mechanics or editor-first experience.
-
-Reference products are Evidence only. Current Conexus Product/wire authority decides the actual fields, sequence and semantics.
+The operator revision is a presentation preference, not Product authority. Therefore the Global-Maximum/YAGNI response is the smallest card that improves recognition without adding filler fields.
 
 ## 4. Project collection hypotheses
 
-### H1 — compact structured Project list — **LEADING / CANDIDATE**
+### H2 — simple Project cards/grid — **LEADING / CANDIDATE**
+
+```text
+cards/grid = LEADING / CANDIDATE
+```
 
 Structure:
 
@@ -123,52 +100,38 @@ Structure:
 Projects heading + Create Project
 local name filter
 All | Active | Archived local view filter
-────────────────────────────────────
-Project name                    state   Open
-Project name                    state   Open
-...
+
+┌──────────────────────────┐  ┌──────────────────────────┐
+│ Project name      Active │  │ Project name    Archived │
+│                     Open │  │                     Open │
+└──────────────────────────┘  └──────────────────────────┘
 ```
 
-Why leading:
-- truthful with the sparse `ProjectSummary` authority;
-- fast vertical scanning as Project count grows;
-- name and archive state remain legible without decorative empty space;
-- compact action affordance preserves Projects as the primary Workspace work entry;
-- responsive collapse is straightforward;
-- does not pressure the Product into inventing richer collection metadata just to fill a visual container.
+Why leading after operator revision:
+- matches direct operator recognition preference from the earlier GF-01 fixture;
+- gives each Project a simple spatial target without implying a richer comparison model;
+- remains fully truthful with sparse `ProjectSummary` authority because each card contains only name, derived Active/Archived presentation and navigation;
+- keeps `Create Project` visually distinct from browsing existing Projects;
+- allows two-column desktop scanning and one-column narrow reflow without horizontal scrolling;
+- YAGNI forbids adding secondary card content merely to fill space.
 
-Local filtering is `LOCAL_UI` over the already-disclosed `PRJ-01` result. It is not Product/global search.
+Local name/archive filtering remains `LOCAL_UI` over the already-disclosed `PRJ-01` result. It is not Product/global search.
 
-### H2 — Project card grid
-
-Disposition:
+### H1 — compact structured Project list
 
 ```text
-cards/grid = REJECTED AS LEADING
+structured list = REJECTED AS LEADING
 ```
 
-Reason:
-- the current summary has too little meaningful metadata to justify a rich card;
-- cards would be mostly empty presentation chrome or tempt invented fields;
-- vertical scanning/comparison degrades as the Workspace grows;
-- the card representation visible in GF-01 was explicitly fixture-only and was never locked as W-01 collection authority.
-
-Reopen only if future accepted collection truth supplies genuinely useful repeated metadata and real human evidence shows card recognition is superior.
+The list remains authority-safe and scale-efficient, but direct operator Evidence prefers the simpler card recognition model for the current Product experience. It remains a bounded fallback if later real scale/scan Evidence falsifies the card representation; it is not the current W-01 candidate.
 
 ### H3 — dense Project table
-
-Disposition:
 
 ```text
 dense table = REJECTED AS LEADING
 ```
 
-Reason:
-- only `name` and `archived` are materially displayable now;
-- column/header chrome would imply a comparison model richer than current authority;
-- responsive cost is higher than the compact structured list for no current information gain.
-
-Reopen if a future accepted Project collection exposes several genuinely comparable fields and scale makes columnar comparison materially useful.
+Only `name` and `archived` are materially displayable now. Column/header chrome would imply a comparison model richer than current authority and carries greater responsive cost for no information gain.
 
 ## 5. Create / Inception / Baseline composition hypotheses
 
@@ -205,15 +168,15 @@ Why leading:
 
 ### C2 — one long modal/drawer for create + Inception + approval
 
-**REJECTED AS LEADING.** It compresses a durable multi-owner-state journey into transient overlay state, makes refresh/re-entry and error recovery fragile, and would pressure the client to own progression state.
+**REJECTED AS LEADING.** It compresses a durable journey into transient overlay state, makes refresh/re-entry and recovery fragile, and pressures the client to own progression state.
 
 ### C3 — inline Inception inside Workspace Projects collection
 
 **REJECTED AS LEADING.** It mixes Workspace browsing with Project-owned semantic investigation and makes the collection responsible for one selected Project's Inception lifecycle.
 
-### C4 — Project row shows setup/progress state and resumes onboarding
+### C4 — Project card shows setup/progress/release/activity metadata
 
-**REJECTED.** No current `PRJ-01` truth exposes such a state. Adding a badge would manufacture backend truth from frontend desire.
+**REJECTED.** No current `PRJ-01` truth exposes those fields. A card must not manufacture backend truth from frontend presentation preference.
 
 ## 6. Authority-feasibility recheck
 
@@ -237,7 +200,7 @@ Material negative laws survive:
 hidden/disabled != authorization
 browser candidate cache != Baseline authority
 CreateProject failure -X-> half-created Project success
-Project row -X-> fabricated setup/release/activity truth
+Project card -X-> fabricated setup/release/activity/framework truth
 local filter -X-> global Product search
 candidate review -X-> candidate CRUD/workflow
 ```
@@ -246,20 +209,23 @@ candidate review -X-> candidate CRUD/workflow
 
 The locked GF-01 single rail remains unchanged.
 
-- desktop: structured list uses one primary vertical reading/scanning line;
-- narrow viewport: status and action wrap below the Project name without horizontal table scrolling;
+- desktop: simple card grid uses two columns at the current W-01 content width;
+- narrow viewport: cards reflow to one column, preserving name → state → Open reading/action order;
+- card content is not click-only: each Project retains an explicit `Open` button;
+- filters remain labeled local controls;
 - create/source mode uses radio controls; conditional locator receives an explicit label;
 - Inception `intent` is a labeled textarea;
 - candidate/approved Baselines use headings and labeled definition rows rather than color-only distinction;
-- modal-only progression is avoided, so focus/re-entry is ordinary document/navigation behavior;
 - rail/drawer behavior remains inherited from locked GF-01.
 
 ## 8. Current decision boundary
 
 ```text
-H1 structured list = LEADING / CANDIDATE
-C1 focused create→Inception→Baseline = LEADING / CANDIDATE
-operator LOCKED = NOT YET
+H2 simple cards/grid = LEADING / CANDIDATE
+H1 structured list   = REJECTED AS LEADING
+H3 dense table       = REJECTED AS LEADING
+C1 Journey-B         = LEADING / CANDIDATE
+operator LOCKED      = NOT YET
 ```
 
-Next proof is a bounded HTML/CSS low-fidelity P8 artifact. Only operator visual adjudication may set W-01 `LOCKED`.
+Next proof is the bounded HTML/CSS low-fidelity P8 artifact with only the Projects collection representation revised. Only operator visual adjudication may set W-01 `LOCKED`.

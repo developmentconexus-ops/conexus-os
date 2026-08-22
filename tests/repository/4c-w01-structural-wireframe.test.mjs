@@ -23,10 +23,10 @@ test('W-01 structural candidate is a bounded HTML proof over accepted Journey-B 
 
   for (const decision of [
     'H1 — compact structured Project list',
-    'H2 — Project card grid',
+    'H2 — simple Project cards/grid',
     'H3 — dense Project table',
-    'LEADING / CANDIDATE',
-    'cards/grid = REJECTED AS LEADING',
+    'cards/grid = LEADING / CANDIDATE',
+    'structured list = REJECTED AS LEADING',
     'dense table = REJECTED AS LEADING',
     'ProjectSummary = projectId + workspaceId + name + archived',
     'PRJ-03 → PRJ-07 → PRJ-23 / PRJ-08 → PRJ-09',
@@ -37,7 +37,8 @@ test('W-01 structural candidate is a bounded HTML proof over accepted Journey-B 
   }
 
   for (const structural of [
-    'data-project-collection="structured-list"',
+    'data-project-collection="simple-card-grid"',
+    'data-project-card="true"',
     'data-project-filter="local-name"',
     'data-source-mode="NEW"',
     'data-source-mode="EXISTING_GIT"',
@@ -52,11 +53,17 @@ test('W-01 structural candidate is a bounded HTML proof over accepted Journey-B 
     'data-navigation="candidate-digest-url"',
   ]) requireText(html, structural, `W-01 HTML missing structural proof: ${structural}`)
 
+  const projectCards = [...html.matchAll(/<article class="project-card"[^>]*data-project-card="true"/g)]
+  if (projectCards.length < 2) throw new Error('W-01 cards/grid must expose multiple simple Project cards for structural inspection')
+
   if (/<script[^>]+src=|react|vue|svelte|next\/|@tanstack/i.test(html)) {
     throw new Error('W-01 P8 must remain HTML/CSS + bounded vanilla JS only')
   }
-  if (/data-project-card=|last activity|last updated|latest release|framework|setup status/i.test(html)) {
-    throw new Error('W-01 Project collection must not invent richer ProjectSummary metadata or regress to card fixtures')
+  if (/last activity|last updated|latest release|framework|setup status|source provider|ownership metadata/i.test(html)) {
+    throw new Error('W-01 Project cards must not invent richer ProjectSummary metadata')
+  }
+  if (/Disclosed Project · collection metadata intentionally incomplete/i.test(html)) {
+    throw new Error('W-01 must not copy GF-01 fixture filler into the accepted card candidate')
   }
   if (/global search|search all projects and resources/i.test(html)) {
     throw new Error('W-01 must not invent global Product search')
