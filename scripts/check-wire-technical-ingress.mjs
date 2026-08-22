@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 const technicalSource = 'contracts/api/technical/openapi.yaml';
 const technicalBundle = '/tmp/conexus-technical-openapi.bundle.json';
 const productBundle = '/tmp/conexus-product-openapi.bundle.json';
+const expectedProductOperations = 112;
 
 if (!fs.existsSync(technicalSource)) {
   throw new Error('Technical Ingress contract is missing');
@@ -39,6 +40,9 @@ function collectOperations(oas) {
 }
 
 const productOperations = collectOperations(product);
+if (productOperations.length !== expectedProductOperations) {
+  throw new Error(`Technical Ingress proof expects the current ${expectedProductOperations}-operation Product census, found ${productOperations.length}`);
+}
 const productOperationIds = new Set(productOperations.map(({ operation }) => operation?.operationId).filter(Boolean));
 const technicalOperations = collectOperations(technical);
 
@@ -204,4 +208,4 @@ for (const { path } of technicalOperations) {
   }
 }
 
-console.log('Technical Ingress contract passed (3 protocol-only operations; Product census remains 111 and schedule/MAR/runtime mechanics remain internal).');
+console.log(`Technical Ingress contract passed (3 protocol-only operations; Product-count impact remains 0 over the current ${expectedProductOperations}-operation Product census, and schedule/MAR/runtime mechanics remain internal).`);
