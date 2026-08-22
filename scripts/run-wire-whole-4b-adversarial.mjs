@@ -8,6 +8,7 @@ const budgetOasPath = '/tmp/conexus-budget-analyzer.openapi.generated.json';
 const projectionPath = '/tmp/conexus-wire-projection-a.json';
 const projectSchemaPath = 'contracts/api/project-operation.schema.json';
 const projectGenerator = 'scripts/generate-project-openapi.mjs';
+const expectedProductOperations = 112;
 
 for (const required of [productBundlePath, technicalBundlePath, budgetOasPath, projectionPath, projectSchemaPath, projectGenerator]) {
   if (!fs.existsSync(required)) throw new Error(`whole-4B prerequisite missing: ${required}`);
@@ -51,13 +52,13 @@ function assertWhole(currentProduct, currentTechnical, currentProject, currentPr
   const technicalOps = collectOperations(currentTechnical);
   const projectOps = collectOperations(currentProject);
 
-  if (productOps.length !== 111) throw new Error(`whole-4B Product census drifted: ${productOps.length}`);
+  if (productOps.length !== expectedProductOperations) throw new Error(`whole-4B Product census drifted: ${productOps.length}`);
   if (technicalOps.length !== 3) throw new Error(`whole-4B Technical census drifted: ${technicalOps.length}`);
   if (projectOps.length !== 2) throw new Error(`whole-4B Budget proving census drifted: ${projectOps.length}`);
   if (currentProject['x-conexus-generated'] !== true) throw new Error('Project OAD must remain a generated projection');
   if (currentProjection.authority !== 'PROJECTION_ONLY') throw new Error('wire projection must remain PROJECTION_ONLY');
-  if (!Array.isArray(currentProjection.operations) || currentProjection.operations.length !== 111) {
-    throw new Error('wire projection must remain an exact 111-operation projection');
+  if (!Array.isArray(currentProjection.operations) || currentProjection.operations.length !== expectedProductOperations) {
+    throw new Error(`wire projection must remain an exact ${expectedProductOperations}-operation projection`);
   }
 
   const productOperationIds = new Set();
@@ -71,6 +72,9 @@ function assertWhole(currentProduct, currentTechnical, currentProject, currentPr
     productOperationIds.add(value.operation.operationId);
     productAuthorityIds.add(value.operation['x-conexus-4a-id']);
     productPairs.add(pair(value));
+  }
+  if (!productOperationIds.has('GetProjectBaselineCandidate') || !productAuthorityIds.has('PRJ-23')) {
+    throw new Error('whole-4B Product wire lost accepted PRJ-23 candidate Baseline read');
   }
 
   const technicalPairs = new Set();
@@ -121,7 +125,7 @@ function assertWhole(currentProduct, currentTechnical, currentProject, currentPr
   for (const candidate of projectPairs) if (productPairs.has(candidate)) throw new Error(`Project-generated method+path collided with fixed Product wire: ${candidate}`);
 
   const projectedById = new Map(currentProjection.operations.map((value) => [value.operationId, value]));
-  if (projectedById.size !== 111) throw new Error('wire projection duplicated Product operationId');
+  if (projectedById.size !== expectedProductOperations) throw new Error('wire projection duplicated Product operationId');
   for (const value of productOps) {
     const projected = projectedById.get(value.operation.operationId);
     if (!projected) throw new Error(`wire projection lost Product operation ${value.operation.operationId}`);
@@ -284,4 +288,4 @@ fs.writeFileSync(genericPath, `${JSON.stringify(genericDeclaration, null, 2)}\n`
 run('npx', ['--yes', 'ajv-cli@5.0.0', 'validate', '--spec=draft2020', '-s', projectSchemaPath, '-d', genericPath]);
 expectCommandFailure('Project generator rejects generic execute dispatch after valid declaration admission', 'node', [projectGenerator, genericDir, path.join(probeRoot, 'generic.json'), '--write']);
 
-console.log('Whole 4B adversarial proof passed (cross-surface separation, Project grammar/HTTP projection, generated authority and negative controls).');
+console.log(`Whole 4B adversarial proof passed (${expectedProductOperations} fixed Product operations; cross-surface separation, Project grammar/HTTP projection, generated authority and negative controls).`);
