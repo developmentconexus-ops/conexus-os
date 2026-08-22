@@ -53,6 +53,8 @@ test('operator-approved GF-01 H1-R2 is locked and closed through exact P9/P10 tr
   ]) requireText(contract, law, `GF-01 closure missing law: ${law}`)
 
   requireText(roadmap, 'GF-01 LOCKED', 'roadmap must show GF-01 locked')
-  requireText(roadmap, 'W-01 PREFLIGHT', 'roadmap must remain within W-01 while the next block is being proven')
-  if (/W-02[^\n|]*OPEN|P-01[^\n|]*OPEN/.test(roadmap)) throw new Error('GF-01 lock must not permit opening dependent blocks before W-01 closes')
+  requireText(roadmap, 'W-01', 'roadmap must remain within W-01 while the next material block is being proven')
+  if (/W-02[^\n|]*OPEN|W-03[^\n|]*OPEN|W-04[^\n|]*OPEN|P-01[^\n|]*OPEN/.test(roadmap)) {
+    throw new Error('GF-01 lock must not permit opening dependent blocks before W-01 closes')
+  }
 })
