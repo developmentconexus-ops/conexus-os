@@ -37,6 +37,7 @@ Product implementation = BLOCKED
 
 `GF-01 H1-R2` remains operator-locked. W-01 Projects cards, Create/source bootstrap and Inception structure are operator-approved; Baseline review remains open.
 
+- [GF-01 approved P8 HTML](evidence/4c/gf01-global-frame-wireframe.html)
 - [GF-01 Screen Contract](evidence/4c/gf01-screen-contract.md)
 - [`4C-F02` W-01 authority correction](evidence/4c/w01-authority-feasibility-preflight.md)
 - [W-01 structural hypotheses](evidence/4c/w01-reference-and-structural-hypotheses.md)
