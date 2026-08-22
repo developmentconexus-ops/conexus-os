@@ -15,7 +15,7 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 first-build skeleton retained as Phase-4 input | Material Phase-4 Evidence falsifies it |
 | 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `4B-F01` + `4C-F01` + `4C-F02` BOUNDED CORRECTIONS ACCEPTED | Current `N_platform=112`; Journey-B source bootstrap, Inception intent and exact candidate-Baseline read are admitted without new owner/Permission domain | Accepted interaction needs further Product meaning/owner/trust or current authority is falsified |
 | 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `4C-F02` RECOMPILED | Current canonical fixed Product wire is `112↔112`; Project slice is 22 operations; generated projection/Kubb/whole-wire proof recompiled | 4A changes materially or Evidence falsifies the wire/proof boundary |
-| 4C — Frontend Interaction & Authority Realization | OPEN / ACTIVE / `GF-01 LOCKED` / `4C-F02 GREEN` / `W-01 STRUCTURAL WORK ACTIVE` | Human flows/interactions trace to accepted Product/wire authority with operator-locked structural Evidence and zero invented frontend authority | Real interaction exposes a material 4A/4B gap or coherent UX requires invented authority |
+| 4C — Frontend Interaction & Authority Realization | OPEN / ACTIVE / `GF-01 LOCKED` / `4C-F02 GREEN` / `W-01 H1+C1 HTML CANDIDATE` | Human flows/interactions trace to accepted Product/wire authority with operator-locked structural Evidence and zero invented frontend authority | Real interaction exposes a material 4A/4B gap or coherent UX requires invented authority |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Exact scaffold/Paved Road/runtime/persistence/deployment/conformance contract ratified before implementation graph | Required property cannot be realized without changing accepted authority |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Product/wire/frontend/Paved Road/runtime compose into falsifiable golden flows | Composed flow reveals contradiction/missing authority |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | R1–R7 rederived against exact 4A–4E contracts into implementation/proof slices | Realized contracts require a different graph/order |
@@ -29,7 +29,7 @@ C-015 = REFINED / KEYCLOAK AUTHENTICATION SELECTED / OPERATOR APPROVED
 Realization Planning = ACCEPTED / OPERATOR ACCEPTED
 4A = CLOSED / CURRENT N_platform=112 / 4C-F02 ACCEPTED
 4B = CLOSED / CURRENT 112↔112 / 4C-F02 RECOMPILED
-4C = OPEN / GF-01 LOCKED / 4C-F02 GREEN / W-01 STRUCTURAL WORK ACTIVE
+4C = OPEN / GF-01 LOCKED / 4C-F02 GREEN / W-01 H1+C1 HTML CANDIDATE
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
@@ -42,26 +42,40 @@ Product implementation = BLOCKED
 - [GF-01 structural lock](evidence/4c/gf01-structural-hypotheses.md)
 - [GF-01 Screen Contract / P10 closure](evidence/4c/gf01-screen-contract.md)
 
-Current accepted W-01 authority correction:
+Current W-01 evidence:
 
 - [`4C-F02` Journey-B authority feasibility / Global-Maximum adjudication](evidence/4c/w01-authority-feasibility-preflight.md)
+- [W-01 reference study + structural hypotheses](evidence/4c/w01-reference-and-structural-hypotheses.md)
+- [W-01 H1+C1 lo-fi HTML candidate](evidence/4c/w01-projects-inception-wireframe.html)
 - [`4C` cross-layer methodology rule](evidence/4c/cross-layer-methodology-rule.md)
 
 Carry-forwards remain not opened: `W-04` Workspace Agent catalog; `4C-S06` pending exact ApprovalRequest discoverability.
 
 ## Exact next action
 
-Resume `W-01` — **Projects + source-complete create / Inception / candidate+approved Baseline** — from the now-GREEN authority preflight.
+**Operator visual/interactive adjudication of the W-01 H1+C1 HTML candidate.**
 
-Required sequence:
+Current candidate:
 
 ```text
-bounded current reference study where structural ambiguity is material
-→ compare Projects collection hypotheses (cards/grid vs structured list/table)
-→ compare create/Inception/Baseline composition without inventing backend state
-→ authority-feasibility recheck against current PRJ-01/03/07/08/09/23
-→ render one bounded HTML/CSS lo-fi P8 candidate under locked GF-01 shell
-→ operator visual adjudication: LOCKED | REVISE | REJECTED
+H1 Projects collection
+= compact structured list
+= local name + All/Active/Archived filtering over disclosed PRJ-01 result
+= no invented collection metadata
+
+C1 Journey-B structure
+= focused Project create
+→ exact Project Inception intent
+→ exact candidate/current Baseline review
+→ exact candidate approval
 ```
 
-No `W-02`, `W-03`, `W-04`, `P-01`–`P-05`, `PA-01`, `BUD-01`, 4D or Product implementation may begin in parallel without explicit operator authorization.
+Allowed operator decision:
+
+```text
+LOCKED   → accept current W-01 H1+C1 as the planning baseline, then open W-01 exact Screen Contract/P10 only
+REVISE   → specify the material structural change; keep W-01 open
+REJECTED → derive a bounded alternative from the stated reason
+```
+
+Do not begin `W-02`, `W-03`, `W-04`, `P-01`–`P-05`, `PA-01`, `BUD-01`, 4D or Product implementation before this W-01 operator decision unless the operator explicitly authorizes parallel candidate work.
