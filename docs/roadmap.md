@@ -15,7 +15,7 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 first-build skeleton retained as Phase-4 input | Material Phase-4 Evidence falsifies it |
 | 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `4B-F01` + `4C-F01` + `4C-F02` BOUNDED CORRECTIONS ACCEPTED | Current `N_platform=112`; Journey-B source bootstrap, Inception intent and exact candidate-Baseline read are admitted without new owner/Permission domain | Accepted interaction needs further Product meaning/owner/trust or current authority is falsified |
 | 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `4C-F02` RECOMPILED | Current canonical fixed Product wire is `112↔112`; Project slice is 22 operations; generated projection/Kubb/whole-wire proof recompiled | 4A changes materially or Evidence falsifies the wire/proof boundary |
-| 4C — Frontend Interaction & Authority Realization | OPEN / ACTIVE / `GF-01 LOCKED` / `4C-F02 GREEN` / `W-01 PARTIAL OPERATOR APPROVED` / `4C-F03 PREFLIGHT` | Human flows/interactions trace to accepted Product/wire authority with operator-locked structural Evidence and zero invented frontend authority | Real interaction exposes a material 4A/4B gap or coherent UX requires invented authority |
+| 4C — Frontend Interaction & Authority Realization | OPEN / ACTIVE / `GF-01 LOCKED` / `4C-F02 GREEN` / `W-01 PARTIAL OPERATOR APPROVED` / `4C-F03 CLEAN RED` | Human flows/interactions trace to accepted Product/wire authority with operator-locked structural Evidence and zero invented frontend authority | Real interaction exposes a material 4A/4B gap or coherent UX requires invented authority |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Exact scaffold/Paved Road/runtime/persistence/deployment/conformance contract ratified before implementation graph | Required property cannot be realized without changing accepted authority |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Product/wire/frontend/Paved Road/runtime compose into falsifiable golden flows | Composed flow reveals contradiction/missing authority |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | R1–R7 rederived against exact 4A–4E contracts into implementation/proof slices | Realized contracts require a different graph/order |
@@ -29,7 +29,7 @@ C-015 = REFINED / KEYCLOAK AUTHENTICATION SELECTED / OPERATOR APPROVED
 Realization Planning = ACCEPTED / OPERATOR ACCEPTED
 4A = CLOSED / CURRENT N_platform=112 / 4C-F02 ACCEPTED
 4B = CLOSED / CURRENT 112↔112 / 4C-F02 RECOMPILED
-4C = OPEN / GF-01 LOCKED / 4C-F02 GREEN / W-01 PARTIAL APPROVAL / 4C-F03 PREFLIGHT
+4C = OPEN / GF-01 LOCKED / 4C-F02 GREEN / W-01 PARTIAL APPROVAL / 4C-F03 CLEAN RED
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
@@ -48,7 +48,7 @@ Current W-01 state:
 Projects collection H2 simple cards/grid = OPERATOR APPROVED
 Create Project / source bootstrap          = OPERATOR APPROVED
 Project Inception intent structure         = OPERATOR APPROVED
-Baseline review experience                 = OPEN
+Baseline review experience                 = OPEN / 4C-F03
 W-01 overall                               = NOT YET LOCKED
 ```
 
@@ -62,43 +62,73 @@ Current W-01 evidence:
 
 Carry-forwards remain not opened: `W-04` Workspace Agent catalog; `4C-S06` pending exact ApprovalRequest discoverability.
 
+## `4C-F03` clean RED proof
+
+```text
+Verify #499 = EXPECTED FAILURE
+candidate HEAD = 4ac00882117f682fbfbbea01fe3fce0f39d2b3e7
+repository tests = 54
+prior/current unaffected tests = 52 PASS
+F03 falsifiers = 2 FAIL exactly
+
+F03-A exact reviewed-candidate + explicit feedback refinement carrier missing
+F03-B exact candidate-bound contextual question for Baseline-management authority missing
+```
+
+Repository hygiene, documentation routing, architecture verification, qualification provenance, GF-01, W-01 source bootstrap/Inception/candidate-read and structural-card proof all remained green before the two deliberate failures stopped `npm run verify`.
+
 ## Exact next action
 
-Execute and adjudicate **`4C-F03` — Baseline visual review + contextual refinement authority feasibility**.
+**Operator adjudication of the bounded `4C-F03` Product correction.**
 
-The operator approved the Lavish premise only as a property/reference direction, not as a Product dependency or implementation choice.
-
-Current Global-Maximum hypothesis:
+Global-Maximum result:
 
 ```text
-exact immutable Baseline candidate
-→ deterministic visual review projection
-→ candidate-local selection / live contextual discussion
-→ local/Mastra cognitive state only
-→ explicit human Apply refinements boundary
-→ Project/Inception owner generates a new immutable candidate
-→ re-review
-→ approve exact reviewed digest
+Lavish direct Product dependency            = REJECT
+full Conexus review/comment subsystem       = REJECT / YAGNI
+Lavish collaboration properties             = ADAPT / KEEP
+Mastra Agent + streaming + bounded memory   = viable mechanism, not authority
+generated candidate-local visual anchors    = 4C mechanism, no new owner/durable record
+
+Product gap A
+= PRJ-07 cannot bind refinement feedback to the exact prior candidate
+
+Product gap B
+= no exact candidate-bound contextual question is available to a project.manage Baseline reviewer
 ```
 
-Current preflight falsifiers:
+Leading smallest correction for operator decision:
 
 ```text
-F03-A exact reviewed-candidate + explicit feedback refinement carrier
-F03-B exact candidate-bound contextual question usable by Baseline-management authority
-F03-C generated visual anchor without new Product owner
-F03-D stale candidate/feedback behavior
-F03-E Mastra thread/RequestContext authority separation
-F03-F no review/comment/session CRUD without independent consumer
-F03-G Lavish direct vs adapt vs build disposition
+A. enrich existing PRJ-07 refinement input
+   → exact priorCandidateBaselineDigest
+   → explicit non-blank reviewFeedback
+   → existing Project/Inception owner produces a new immutable candidate
+
+B. admit one exact Project-owned candidate-Baseline contextual read/assistant interaction
+   → exact candidateBaselineDigest subject
+   → question + bounded candidate-local review context
+   → project.manage
+   → no mutation / approval / new grant
+
+preserve:
+semantic owner classes          unchanged
+ordinary Permission vocabulary unchanged (25)
+principal/ingress classes       unchanged
+new durable record classes      0
+candidate immutability          unchanged
+exact-digest approval           unchanged
+BLD-16 Builder assistant        unchanged
 ```
 
-Allowed next operator decision after clean RED:
+If correction B requires one new fixed Product read, counts must be derived/recompiled rather than targeted; current `112↔112` and Project `22` remain authority until operator acceptance.
+
+Allowed operator decision:
 
 ```text
-ACCEPT CORRECTION → reopen only the smallest exact Project/4A+4B authority required, then RED→GREEN and recompile affected 4C
+ACCEPT CORRECTION → reopen only exact Project/4A+4B authority, RED→GREEN, recompile affected 4C
 REVISE            → change the protected property/alternative; keep 4C-F03 open
-REJECT            → abandon the live visual-review/refinement premise or derive a different bounded path
+REJECT            → abandon or rederive the live Baseline review/refinement path
 ```
 
 Do not begin `W-02`, `W-03`, `W-04`, `P-01`–`P-05`, `PA-01`, `BUD-01`, 4D or Product implementation while `4C-F03` is unresolved unless the operator explicitly authorizes parallel candidate work.
