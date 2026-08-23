@@ -15,7 +15,7 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 first-build skeleton retained as Phase-4 input | Material Phase-4 Evidence falsifies it |
 | 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / 4C-F03 ACCEPTED | `N_platform=113`; accepted Product authority | 4C finding proves missing Product meaning/identity/trust |
 | 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / 4C-F03 RECOMPILED | fixed Product wire `113↔113`; Project=23 | 4A change or wire falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / `GF-01 LOCKED` / `W-01 LOCKED` / `W-02 OPEN` / `4C-F04 CLEAN RED` | Human interaction closes without invented frontend authority | Material 4A/4B gap → smallest-owner reopen |
+| 4C — Frontend Interaction & Authority Realization | OPEN / `GF-01 LOCKED` / `W-01 LOCKED` / `W-02 OPEN` / `4C-F04 GLOBAL-MAXIMUM OPERATOR GATE` | Human interaction closes without invented frontend authority | Material 4A/4B gap → reopen the smallest owner that contains the root cause, then seek the Global Maximum inside that decision |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Scaffold/Paved Road/runtime/persistence/deployment/conformance ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable golden/negative flows | Composed flow reveals contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | R1–R7 rederived into implementation/proof slices | Realized contracts require different graph |
@@ -25,7 +25,7 @@ This is the single current phase/status authority.
 ```text
 4A = CLOSED / N_platform=113
 4B = CLOSED / 113↔113 / Project=23
-4C = OPEN / GF-01 LOCKED / W-01 LOCKED / W-02 OPEN / 4C-F04 CLEAN RED
+4C = OPEN / GF-01 LOCKED / W-01 LOCKED / W-02 OPEN / 4C-F04 GLOBAL-MAXIMUM OPERATOR GATE
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
@@ -39,28 +39,44 @@ W-02A = Workspace Brain
 W-02B = Connections
 ```
 
-Current W-02 reference study exposed `4C-F04`: current `Connection`/`CON-05` authority lacks a stable human-readable Connection presentation identity, while multiple same-provider logical Connections are permitted. IDs or provider-specific configuration are not valid substitute human identity.
+Current W-02 reference study exposed `4C-F04`: the canonical logical Connection has no provider-independent human presentation identity even though multiple same-provider logical Connections are structurally possible. IDs, provider identity, provider-specific configuration or secret/account heuristics are not accepted substitutes.
 
-Leading bounded correction, **not yet admitted**:
+The finding is **not** authority for a preselected schema patch. The current decision follows the full Engineering Method loop:
 
 ```text
-Connection.name
-→ required non-blank at CON-05 creation
-→ projected on canonical Connection reads
-→ immutable after creation in F1
-→ no rename/update metadata operation
-→ no uniqueness/routing/authorization semantics
-→ operation count / Permissions unchanged
+Evidence
+→ Root Cause
+→ Target Invariant
+→ Credible Alternatives
+→ Local Maximum vs Global Maximum
+→ Essential vs Accidental Complexity
+→ YAGNI / Future Cost
+→ owner / boundary
+→ proof
+→ operator decision
 ```
+
+The bounded Global-Maximum assessment currently concludes:
+
+```text
+CURRENT STRUCTURE CONFIRMED
+→ logical Connection remains the correct semantic owner
+→ a provider-independent human presentation identity is the missing essential property
+→ no new presentation/profile domain is justified
+→ rename capability is DEFERRED until a real rename consumer appears
+```
+
+`Connection.name` is the **leading realization candidate**, not yet admitted Product authority. If accepted, a selected-realization RED must be derived before changing 4A/4B.
 
 Evidence:
 - [W-02 authority preflight](evidence/4c/w02-authority-feasibility-preflight.md)
 - [4C-F04 Connection identity finding](evidence/4c/w02-connection-human-identity-finding.md)
+- [4C-F04 Global-Maximum assessment](evidence/4c/w02-connection-human-identity-global-maximum.md)
 
 Preserved carry-forwards: `W-04` Workspace Agent catalog; `4C-S06` ApprovalRequest discoverability; 4D review-projection version/anchor mismatch semantics; P-01 real Plan visual grammar before any shared Baseline/Plan renderer.
 
 ## Exact next action
 
-**Operator adjudication of `4C-F04`: `ACCEPT CORRECTION | REVISE | REJECT`.**
+**Operator adjudication of `4C-F04` Global-Maximum candidate: `ACCEPT GLOBAL-MAXIMUM CANDIDATE | REVISE | REJECT`.**
 
 Do not modify 4A/4B for F04, draw W-02B, open W-03/W-04/P-01, begin 4D, merge PR #57 or implement Product code before that decision.
