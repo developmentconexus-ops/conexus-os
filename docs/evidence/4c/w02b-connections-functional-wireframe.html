@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en" data-wireframe="w-02b-connections">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>W-02B · Connections · functional lo-fi candidate</title>
+  <style>
+    :root{
+      --ink:#191919;--muted:#666;--line:#b8b8b8;--strong:#686868;--paper:#fff;--soft:#f3f3f3;--soft2:#e7e7e7;
+      --rail:224px;--top:56px;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:var(--paper)
+    }
+    *{box-sizing:border-box}body{margin:0;background:#ececec}button,input,textarea,select{font:inherit;color:inherit}button{cursor:pointer}[hidden]{display:none!important}
+    button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid #333;outline-offset:2px}
+    .note{max-width:1440px;margin:18px auto 8px;padding:12px 16px;border:1px solid var(--strong);background:var(--paper);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}.note strong{font-size:14px}.note small{color:var(--muted)}.badge{border:1px solid var(--strong);padding:5px 8px;font-size:12px;font-weight:700}
+    .shell{max-width:1440px;min-height:840px;margin:0 auto 24px;border:2px solid #333;background:var(--paper);display:grid;grid-template-columns:var(--rail) minmax(0,1fr);grid-template-rows:var(--top) minmax(0,1fr);grid-template-areas:"top top" "rail stage";position:relative;overflow:hidden}
+    .topbar{grid-area:top;border-bottom:1px solid var(--strong);background:var(--soft);display:flex;align-items:center;gap:10px;padding:0 14px;z-index:20}.brand{font-weight:700}.menu-toggle{display:none;width:38px;height:34px;border:1px solid var(--strong);background:var(--paper)}
+    .context{display:flex;align-items:center;gap:5px;min-width:0;flex:1}.context button{border:1px solid transparent;background:transparent;padding:7px 8px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}.account{margin-left:auto;border:1px solid var(--strong);background:var(--paper);border-radius:18px;padding:7px 12px}
+    .rail{grid-area:rail;background:var(--soft);border-right:1px solid var(--strong);padding:12px 10px 18px;overflow:auto;z-index:15}.rail-title{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:14px 8px 6px}.rail-btn{display:block;width:100%;text-align:left;border:1px solid transparent;background:transparent;padding:8px 10px;margin:1px 0;border-radius:4px}.rail-btn:hover{border-color:var(--strong)}.rail-btn[aria-current="page"]{background:var(--soft2);border-color:var(--line);font-weight:700}
+    .stage{grid-area:stage;min-width:0;overflow:auto}.main{padding:26px 32px 42px;max-width:1160px}.crumb{font-size:12px;color:var(--muted);margin-bottom:8px}h1{font-size:24px;margin:0 0 6px}h2{font-size:18px;margin:0 0 8px}h3{font-size:15px;margin:0 0 8px}.lede{color:var(--muted);font-size:13px;margin:0 0 16px;max-width:860px}.fixture{border:1px dashed var(--strong);padding:9px 11px;margin:0 0 16px;color:var(--muted);font-size:12px;background:#fcfcfc}.fixture strong{color:var(--ink)}
+    .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}.toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:18px;flex-wrap:wrap}.field{display:grid;gap:5px}.field label,.field .label{font-size:12px;font-weight:700}.field input,.field textarea,.field select{border:1px solid var(--strong);background:var(--paper);padding:9px 10px}.field input,.field select{min-width:290px}.field textarea{min-height:110px;resize:vertical;width:min(760px,100%)}
+    .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px}.primary,.secondary,.danger,.text-action{border:1px solid #444;background:var(--paper);padding:9px 12px}.primary{background:var(--soft2);font-weight:700}.danger{border-style:dashed}.text-action{border-color:transparent;text-decoration:underline;background:transparent;padding-left:0}.primary:disabled,.secondary:disabled{cursor:not-allowed;opacity:.45}
+    .status{display:inline-block;border:1px solid var(--line);padding:4px 7px;font-size:11px;font-weight:700}.status.attention{border-style:dashed}.hint{color:var(--muted);font-size:12px;line-height:1.45}.law{border:1px dashed var(--strong);background:#fcfcfc;padding:10px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:1.6;margin:14px 0}.success,.problem{padding:11px 12px;border:1px solid var(--strong);margin:12px 0;font-size:12px}.success{background:var(--soft2)}.problem{background:var(--soft);border-style:dashed}
+    .connection-list{display:grid;gap:10px}.connection-card{border:1px solid var(--strong);background:var(--paper);padding:14px;text-align:left;width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}.connection-card:hover{background:#fafafa}.connection-card strong{display:block;font-size:15px;margin-bottom:5px}.connection-card small{display:block;color:var(--muted);line-height:1.45}.connection-card .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.empty{padding:30px 12px;color:var(--muted);text-align:center;border:1px dashed var(--line)}
+    .back{border:1px solid transparent;background:transparent;text-decoration:underline;padding:4px 0;margin-bottom:10px}.split{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px}.panel{border:1px solid var(--strong);padding:16px;background:var(--paper);margin-bottom:14px}.panel header{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:10px}.panel p{font-size:13px;line-height:1.5}.meta-list{display:grid;grid-template-columns:150px minmax(0,1fr);gap:7px 10px;margin:0}.meta-list dt{color:var(--muted);font-size:12px}.meta-list dd{margin:0;font-size:12px;overflow-wrap:anywhere}.technical{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;overflow-wrap:anywhere}.config-grid{display:grid;gap:8px}.config-row{display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px;border-bottom:1px solid #ddd;padding:7px 0}.config-row:last-child{border-bottom:0}.config-row span:first-child{font-size:12px;color:var(--muted)}.config-row span:last-child{font-size:12px;overflow-wrap:anywhere}.task-grid{display:grid;gap:10px}.task{border:1px solid var(--line);padding:12px;background:#fff}.task strong{display:block;margin-bottom:5px}.task p{margin:0 0 9px;color:var(--muted);font-size:12px;line-height:1.45}.task button{border:1px solid var(--strong);background:var(--paper);padding:8px 10px}
+    .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.form-grid .field input,.form-grid .field select{min-width:0;width:100%}.full{grid-column:1/-1}.readonly{background:var(--soft)!important}.schema-note{font-size:11px;color:var(--muted);border-left:2px solid var(--line);padding-left:8px}.qualification-card{border:1px solid var(--strong);padding:14px;background:#fff}.evidence-list{margin:8px 0 0;padding-left:20px;font-size:12px}.scrim{display:none}
+    @media(max-width:900px){.split{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.full{grid-column:auto}}
+    @media(max-width:760px){body{background:var(--paper)}.note{margin:0;border-width:0 0 1px}.shell{width:100%;min-height:100vh;margin:0;border:0;grid-template-columns:1fr;grid-template-rows:var(--top) minmax(0,1fr);grid-template-areas:"top" "stage"}.brand{display:none}.menu-toggle{display:inline-block}.topbar{padding:0 8px;gap:4px}.context button{max-width:170px;padding:7px 5px}.account{font-size:0;width:34px;height:34px;padding:0}.account::after{content:"A";font-size:13px}.rail{position:absolute;z-index:40;top:var(--top);left:0;bottom:0;width:min(82vw,310px);transform:translateX(-102%);transition:transform 120ms linear;box-shadow:2px 0 0 #bbb}.shell[data-drawer-open="true"] .rail{transform:translateX(0)}.scrim{position:absolute;z-index:35;inset:var(--top) 0 0;background:rgba(0,0,0,.16);border:0}.shell[data-drawer-open="true"] .scrim{display:block}.main{padding:20px 16px 32px}.field input,.field select{min-width:0;width:100%}.page-head{flex-direction:column}.meta-list,.config-row{grid-template-columns:1fr;gap:3px}.connection-card{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <!-- W-02B P8 Evidence only. Fixture interaction only. No backend/runtime behavior is claimed. -->
+  <aside class="note" aria-label="Wireframe status">
+    <div><strong>W-02B · Connections</strong><br><small>Functional low-fidelity P8 candidate · Connection-first hypothesis A.</small></div>
+    <span class="badge">CANDIDATE · NOT LOCKED</span>
+  </aside>
+
+  <div class="shell" id="shell" data-drawer-open="false" data-owner-scope="WORKSPACE">
+    <header class="topbar">
+      <button class="menu-toggle" id="menuToggle" type="button" aria-label="Open navigation" aria-controls="rail" aria-expanded="false">☰</button>
+      <div class="brand">Conexus</div>
+      <nav class="context" aria-label="Current Workspace context"><button type="button">Metal Nobre ▾</button></nav>
+      <button class="account" type="button" aria-label="Account and session">Account</button>
+    </header>
+
+    <nav class="rail" id="rail" aria-label="Workspace navigation">
+      <div class="rail-title">Work</div>
+      <button class="rail-btn" type="button">Projects</button>
+      <button class="rail-btn" type="button">Agents</button>
+      <div class="rail-title">Shared context</div>
+      <button class="rail-btn" type="button">Brain</button>
+      <button class="rail-btn" type="button" aria-current="page">Connections</button>
+      <div class="rail-title">Admin / investigate</div>
+      <button class="rail-btn" type="button">People &amp; access</button>
+      <button class="rail-btn" type="button">Audit</button>
+    </nav>
+
+    <button class="scrim" id="scrim" type="button" aria-label="Close navigation"></button>
+
+    <main class="stage" id="stage">
+      <div class="main">
+        <div class="crumb" id="crumb">Metal Nobre / Connections</div>
+        <div class="fixture"><strong>Fixture interaction only.</strong> No backend/runtime behavior is claimed. Refresh resets local demonstration state. <strong>Connection.name</strong> is the human identity; provider, configuration, credential and qualification are distinct facts/tasks.</div>
+        <div class="law">configured != qualified != bound != healthy != caller-authorized</div>
+
+        <section id="listView" data-operation="CON-03">
+          <div class="page-head">
+            <div><h1>Connections</h1><p class="lede">Workspace-owned external-system relationships disclosed in this exact Workspace scope. This is not an aggregate of Project-private Connections.</p></div>
+            <button class="primary" id="createConnection" type="button">New connection</button>
+          </div>
+          <div class="toolbar">
+            <div class="field"><label for="connectionSearch">Search connections</label><input id="connectionSearch" type="search" placeholder="Search by Connection name or provider" autocomplete="off"></div>
+            <span class="hint">Local findability over already-disclosed CON-03 rows only.</span>
+          </div>
+          <div class="connection-list" id="connectionList"></div>
+        </section>
+
+        <section id="detailView" data-operation="CON-04" hidden>
+          <button class="back" id="backToConnections" type="button">← Back to Connections</button>
+          <div class="page-head"><div><h1 id="detailName">Connection</h1><p class="lede">One logical Connection. Configuration, credential presence and qualification remain separate truths.</p></div><span class="status" id="detailScope">WORKSPACE</span></div>
+          <div class="split">
+            <div>
+              <section class="panel">
+                <header><h2>Connection</h2><span class="status">server truth</span></header>
+                <dl class="meta-list">
+                  <dt>Connector</dt><dd id="detailConnector"></dd>
+                  <dt>Owner scope</dt><dd id="detailOwner"></dd>
+                  <dt>currentRevisionId</dt><dd id="detailRevision" class="technical"></dd>
+                  <dt>credentialConfigured</dt><dd id="detailCredentialPresence"></dd>
+                </dl>
+              </section>
+
+              <section class="panel">
+                <header><h2>Current configuration</h2><span class="status">non-secret</span></header>
+                <div class="config-grid" id="detailConfiguration"></div>
+                <p class="hint">This configuration is the current non-secret projection bound to the exact currentRevisionId. Credential material is not part of this read.</p>
+                <div class="actions"><button class="secondary" id="editConfiguration" type="button">Edit configuration</button></div>
+              </section>
+
+              <section class="panel" id="sessionQualificationPanel" hidden>
+                <header><h2>This session's exact qualification</h2><span class="status">fixture coordinate</span></header>
+                <p class="hint">This link exists only because this browser fixture just created an exact qualification subject through CON-08. It is not a server-derived latest/history relation.</p>
+                <button class="secondary" id="reopenQualification" type="button">Re-open exact qualification</button>
+              </section>
+            </div>
+
+            <aside>
+              <section class="panel">
+                <header><h2>Tasks</h2><span class="status">separate boundaries</span></header>
+                <div class="task-grid">
+                  <div class="task"><strong>Configuration</strong><p>Revise non-secret configuration from the exact current revision.</p><button type="button" id="taskEditConfig">Revise configuration</button></div>
+                  <div class="task"><strong>Credential</strong><p>The secret cannot be viewed. A write only ingress replaces credential material without reading it back.</p><button type="button" id="taskCredential">Update credential</button></div>
+                  <div class="task"><strong>Qualification</strong><p>Run proof against an exact immutable revision and an admitted ConnectorDefinition environment.</p><button type="button" id="taskQualification">Qualify current revision</button></div>
+                </div>
+              </section>
+              <section class="panel"><h3>Not inferred here</h3><p class="hint">Project binding, Gateway/runtime health and caller authorization live behind different owners and are intentionally absent from this Connection detail.</p></section>
+            </aside>
+          </div>
+        </section>
+
+        <section id="createView" data-operation="CON-05" hidden>
+          <button class="back" id="cancelCreate" type="button">← Back to Connections</button>
+          <div class="page-head"><div><h1>New connection</h1><p class="lede">Create the logical Connection and its initial non-secret configuration. Credential and qualification remain separate follow-up tasks.</p></div></div>
+          <form id="createForm">
+            <div class="form-grid">
+              <div class="field" data-operation="CON-01"><label for="createConnector">Connector definition</label><select id="createConnector" required></select><div class="schema-note">CON-01 supplies admitted Connector definitions.</div></div>
+              <div class="field"><label for="createName">Connection name</label><input id="createName" required placeholder="e.g. Sankhya Production"><div class="schema-note">Provider-independent Connection.name.</div></div>
+              <div class="full panel" data-operation="CON-02"><header><h2>Configuration</h2><span class="status">ConnectorDefinition schema</span></header><div class="form-grid" id="createConfigurationFields"></div></div>
+            </div>
+            <div class="actions"><button class="primary" type="submit">Create connection</button><button class="secondary" type="button" id="cancelCreate2">Cancel</button></div>
+          </form>
+        </section>
+
+        <section id="configurationView" data-operation="CON-06" hidden>
+          <button class="back" id="cancelConfiguration" type="button">← Back to Connection</button>
+          <div class="page-head"><div><h1>Revise configuration</h1><p class="lede">The draft starts from exact current server configuration. Saving creates a new immutable fixture revision; it does not mutate the old revision.</p></div></div>
+          <form id="configurationForm">
+            <div class="field"><label for="expectedRevision">Expected current revision</label><input id="expectedRevision" class="readonly technical" readonly></div>
+            <div class="panel"><header><h2>Non-secret configuration draft</h2><span class="status">FORM_DRAFT</span></header><div class="form-grid" id="editConfigurationFields"></div></div>
+            <div id="configurationProblem" class="problem" hidden><strong>Stale revision.</strong> Your form is based on an older currentRevisionId. The fixture will not silently overwrite current truth.<div class="actions"><button class="secondary" id="reloadConfiguration" type="button">Reload current configuration</button></div></div>
+            <div id="configurationSuccess" class="success" hidden></div>
+            <div class="actions"><button class="primary" type="submit">Save new revision</button><button class="secondary" id="simulateStaleRevision" type="button">Simulate concurrent revision</button><button class="secondary" id="cancelConfiguration2" type="button">Cancel</button></div>
+          </form>
+        </section>
+
+        <section id="credentialView" data-operation="CON-07" hidden>
+          <button class="back" id="cancelCredential" type="button">← Back to Connection</button>
+          <div class="page-head"><div><h1>Update credential</h1><p class="lede">Trusted write-only administration ingress. Existing secret values are never loaded into this form.</p></div><span class="status">write-only</span></div>
+          <form id="credentialForm">
+            <div class="panel"><header><h2>Credential input</h2><span class="status">credentialInputSchema</span></header><p class="hint">Fields are generated from the exact ConnectorDefinition credentialInputSchema. The secret cannot be viewed before or after submission.</p><div class="form-grid" id="credentialFields"></div></div>
+            <div id="credentialSuccess" class="success" hidden>Credential accepted by the fixture. Only credentialConfigured changed; no secret value was returned.</div>
+            <div class="actions"><button class="primary" type="submit">Update credential</button><button class="secondary" id="cancelCredential2" type="button">Cancel</button></div>
+          </form>
+        </section>
+
+        <section id="qualificationView" data-operation="CON-08" hidden>
+          <button class="back" id="cancelQualification" type="button">← Back to Connection</button>
+          <div class="page-head"><div><h1>Qualify connection</h1><p class="lede">Run proof for the exact current immutable Connection revision in one admitted environment.</p></div></div>
+          <form id="qualificationForm">
+            <div class="form-grid">
+              <div class="field"><label for="qualificationRevision">connectionRevisionId</label><input id="qualificationRevision" class="readonly technical" readonly></div>
+              <div class="field"><label for="qualificationEnvironment">Environment</label><select id="qualificationEnvironment" required></select><div class="schema-note">Options come only from ConnectorDefinition environments.</div></div>
+            </div>
+            <p class="hint">Qualification does not create Project binding, runtime health or caller authorization.</p>
+            <div class="actions"><button class="primary" type="submit">Run qualification</button><button class="secondary" id="cancelQualification2" type="button">Cancel</button></div>
+          </form>
+        </section>
+
+        <section id="qualificationDetailView" data-operation="CON-09" hidden>
+          <button class="back" id="backFromQualification" type="button">← Back to Connection</button>
+          <div class="page-head"><div><h1>Qualification</h1><p class="lede">One exact qualification subject. This page does not claim a latest relation or history browser.</p></div><span class="status">exact qualification</span></div>
+          <div class="qualification-card">
+            <dl class="meta-list">
+              <dt>qualificationId</dt><dd id="qualificationId" class="technical"></dd>
+              <dt>Connection</dt><dd id="qualificationConnection"></dd>
+              <dt>connectionRevisionId</dt><dd id="qualificationDetailRevision" class="technical"></dd>
+              <dt>Environment</dt><dd id="qualificationDetailEnvironment"></dd>
+              <dt>qualificationState</dt><dd id="qualificationState"></dd>
+              <dt>evidenceRefs</dt><dd><ul id="evidenceRefs" class="evidence-list"></ul></dd>
+            </dl>
+          </div>
+        </section>
+
+        <div hidden aria-hidden="true" id="operationTrace">
+          <span data-operation="CON-01">ListConnectorDefinitions</span>
+          <span data-operation="CON-02">GetConnectorDefinition</span>
+          <span data-operation="CON-03">ListConnections</span>
+          <span data-operation="CON-04">GetConnection</span>
+          <span data-operation="CON-05">CreateConnection</span>
+          <span data-operation="CON-06">ReviseConnection</span>
+          <span data-operation="CON-07">SetConnectionCredential</span>
+          <span data-operation="CON-08">QualifyConnection</span>
+          <span data-operation="CON-09">GetConnectionQualification</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const connectorDefinitions = {
+      'sankhya-oracle': {
+        connectorDefinitionId:'sankhya-oracle', connectorVersion:'2.1', provider:'Sankhya',
+        configurationSchema:{fields:[
+          {key:'host',label:'Host',type:'text',required:true},
+          {key:'port',label:'Port',type:'number',required:true},
+          {key:'service',label:'Service',type:'text',required:true}
+        ]},
+        credentialInputSchema:{fields:[
+          {key:'username',label:'Username',type:'text',required:true},
+          {key:'password',label:'Password',type:'password',required:true}
+        ]},
+        environments:['PRODUCTION','HOMOLOGATION'], operationIds:['query','sync']
+      },
+      'salesforce-rest': {
+        connectorDefinitionId:'salesforce-rest', connectorVersion:'1.4', provider:'Salesforce',
+        configurationSchema:{fields:[
+          {key:'baseUrl',label:'Base URL',type:'text',required:true},
+          {key:'apiVersion',label:'API version',type:'text',required:true}
+        ]},
+        credentialInputSchema:{fields:[
+          {key:'clientId',label:'Client ID',type:'text',required:true},
+          {key:'clientSecret',label:'Client secret',type:'password',required:true}
+        ]},
+        environments:['PRODUCTION','SANDBOX'], operationIds:['query','action']
+      }
+    };
+
+    const connections = [
+      {connectionId:'conn-sankhya-prod',name:'Sankhya Production',ownerScopeKind:'WORKSPACE',ownerId:'ws-metal-nobre',connectorDefinitionId:'sankhya-oracle',connectorVersion:'2.1',currentRevisionId:'rev-18',credentialConfigured:true},
+      {connectionId:'conn-sankhya-hml',name:'Sankhya Homologation',ownerScopeKind:'WORKSPACE',ownerId:'ws-metal-nobre',connectorDefinitionId:'sankhya-oracle',connectorVersion:'2.1',currentRevisionId:'rev-7',credentialConfigured:false},
+      {connectionId:'conn-salesforce-prod',name:'Salesforce Commercial',ownerScopeKind:'WORKSPACE',ownerId:'ws-metal-nobre',connectorDefinitionId:'salesforce-rest',connectorVersion:'1.4',currentRevisionId:'rev-3',credentialConfigured:true}
+    ];
+
+    const connectionDetails = {
+      'conn-sankhya-prod':{configuration:{host:'oracle.internal',port:'1521',service:'SANKHYA'}},
+      'conn-sankhya-hml':{configuration:{host:'oracle-hml.internal',port:'1521',service:'SANKHYA_HML'}},
+      'conn-salesforce-prod':{configuration:{baseUrl:'https://example.salesforce.invalid',apiVersion:'v62.0'}}
+    };
+
+    const state = {
+      view:'list', selectedConnectionId:null, selectedQualificationId:null,
+      qualifications:{}, sessionQualificationRefByConnection:{},
+      editExpectedRevisionId:null, revisionCounter:30, qualificationCounter:500, connectionCounter:20
+    };
+
+    const shell = document.getElementById('shell');
+    const menuToggle = document.getElementById('menuToggle');
+    const scrim = document.getElementById('scrim');
+    const views = {
+      list:document.getElementById('listView'), detail:document.getElementById('detailView'), create:document.getElementById('createView'),
+      configuration:document.getElementById('configurationView'), credential:document.getElementById('credentialView'), qualification:document.getElementById('qualificationView'), qualificationDetail:document.getElementById('qualificationDetailView')
+    };
+
+    function setDrawer(open){ shell.dataset.drawerOpen=String(open); menuToggle.setAttribute('aria-expanded',String(open)); }
+    menuToggle.addEventListener('click',()=>setDrawer(shell.dataset.drawerOpen!=='true')); scrim.addEventListener('click',()=>setDrawer(false));
+
+    function showView(name){ Object.entries(views).forEach(([key,node])=>node.hidden=key!==name); state.view=name; window.scrollTo?.(0,0); }
+    function getConnection(){ return connections.find(c=>c.connectionId===state.selectedConnectionId); }
+    function getDetail(){ return connectionDetails[state.selectedConnectionId]; }
+    function getConnector(connection=getConnection()){ return connection ? connectorDefinitions[connection.connectorDefinitionId] : null; }
+    function nextRevisionId(){ state.revisionCounter += 1; return `rev-${state.revisionCounter}`; }
+
+    function renderConnectionList(){
+      const q=document.getElementById('connectionSearch').value.trim().toLowerCase();
+      const list=document.getElementById('connectionList');
+      const rows=connections.filter(c=>{
+        const connector=connectorDefinitions[c.connectorDefinitionId];
+        return !q || c.name.toLowerCase().includes(q) || connector.provider.toLowerCase().includes(q);
+      });
+      if(!rows.length){ list.innerHTML='<div class="empty">No disclosed Connections match this local filter.</div>'; return; }
+      list.innerHTML=rows.map(c=>{
+        const connector=connectorDefinitions[c.connectorDefinitionId];
+        return `<button class="connection-card" type="button" data-connection-id="${c.connectionId}"><span><strong>${c.name}</strong><small>${connector.provider} · Connector ${c.connectorVersion}</small><span class="meta"><span class="status">${c.ownerScopeKind}</span><span class="status">credentialConfigured: ${c.credentialConfigured}</span></span></span><span class="technical">${c.currentRevisionId}</span></button>`;
+      }).join('');
+      list.querySelectorAll('[data-connection-id]').forEach(btn=>btn.addEventListener('click',()=>openConnection(btn.dataset.connectionId)));
+    }
+
+    function openConnection(id){ state.selectedConnectionId=id; state.selectedQualificationId=null; renderDetail(); showView('detail'); }
+
+    function renderDetail(){
+      const c=getConnection(), d=getDetail(), connector=getConnector(); if(!c||!d||!connector)return;
+      document.getElementById('detailName').textContent=c.name;
+      document.getElementById('detailScope').textContent=c.ownerScopeKind;
+      document.getElementById('detailConnector').textContent=`${connector.provider} · ${c.connectorDefinitionId} · v${c.connectorVersion}`;
+      document.getElementById('detailOwner').textContent=`${c.ownerScopeKind} · ${c.ownerId}`;
+      document.getElementById('detailRevision').textContent=c.currentRevisionId;
+      document.getElementById('detailCredentialPresence').textContent=String(c.credentialConfigured);
+      document.getElementById('detailConfiguration').innerHTML=Object.entries(d.configuration).map(([key,value])=>`<div class="config-row"><span>${key}</span><span>${String(value)}</span></div>`).join('');
+      const ref=state.sessionQualificationRefByConnection[c.connectionId];
+      const panel=document.getElementById('sessionQualificationPanel'); panel.hidden=!ref;
+      if(ref) document.getElementById('reopenQualification').textContent=`Re-open exact qualification ${ref}`;
+    }
+
+    function schemaFields(container,schema,values={},prefix='field'){
+      container.innerHTML=schema.fields.map(field=>`<div class="field"><label for="${prefix}-${field.key}">${field.label}</label><input id="${prefix}-${field.key}" name="${field.key}" type="${field.type}" ${field.required?'required':''} value="${values[field.key]??''}"></div>`).join('');
+    }
+
+    function formObject(form,fields){ const data=new FormData(form); return Object.fromEntries(fields.map(f=>[f.key,data.get(f.key)])); }
+
+    function populateCreateConnector(){
+      const select=document.getElementById('createConnector');
+      select.innerHTML=Object.values(connectorDefinitions).map(d=>`<option value="${d.connectorDefinitionId}">${d.provider} · ${d.connectorDefinitionId} · v${d.connectorVersion}</option>`).join('');
+      renderCreateConfiguration();
+    }
+    function renderCreateConfiguration(){ const d=connectorDefinitions[document.getElementById('createConnector').value]; schemaFields(document.getElementById('createConfigurationFields'),d.configurationSchema,{},'create-config'); }
+
+    function openCreate(){ populateCreateConnector(); document.getElementById('createName').value=''; showView('create'); }
+    function createConnectionFromForm(event){
+      event.preventDefault(); const definition=connectorDefinitions[document.getElementById('createConnector').value];
+      const name=document.getElementById('createName').value.trim(); if(!name)return;
+      state.connectionCounter += 1; const connectionId=`conn-fixture-${state.connectionCounter}`; const revisionId=nextRevisionId();
+      const configuration=formObject(document.getElementById('createForm'),definition.configurationSchema.fields);
+      connections.push({connectionId,name,ownerScopeKind:'WORKSPACE',ownerId:'ws-metal-nobre',connectorDefinitionId:definition.connectorDefinitionId,connectorVersion:definition.connectorVersion,currentRevisionId:revisionId,credentialConfigured:false});
+      connectionDetails[connectionId]={configuration}; renderConnectionList(); openConnection(connectionId);
+    }
+
+    function openConfiguration(){
+      const c=getConnection(), d=getDetail(), connector=getConnector();
+      state.editExpectedRevisionId=c.currentRevisionId; document.getElementById('expectedRevision').value=state.editExpectedRevisionId;
+      schemaFields(document.getElementById('editConfigurationFields'),connector.configurationSchema,d.configuration,'edit-config');
+      document.getElementById('configurationProblem').hidden=true; document.getElementById('configurationSuccess').hidden=true; showView('configuration');
+    }
+
+    function simulateStaleRevision(){
+      const c=getConnection(); c.currentRevisionId=nextRevisionId();
+      document.getElementById('configurationSuccess').hidden=true;
+      const problem=document.getElementById('configurationProblem'); problem.hidden=false;
+    }
+
+    function reloadCurrentConfiguration(){
+      const c=getConnection(),d=getDetail(),connector=getConnector();
+      state.editExpectedRevisionId=c.currentRevisionId; document.getElementById('expectedRevision').value=c.currentRevisionId;
+      schemaFields(document.getElementById('editConfigurationFields'),connector.configurationSchema,d.configuration,'edit-config');
+      document.getElementById('configurationProblem').hidden=true;
+    }
+
+    function saveConfigurationRevision(event){
+      event.preventDefault(); const c=getConnection(), d=getDetail(), connector=getConnector();
+      if(state.editExpectedRevisionId!==c.currentRevisionId){ document.getElementById('configurationProblem').hidden=false; return; }
+      const configuration=formObject(document.getElementById('configurationForm'),connector.configurationSchema.fields);
+      const prior=c.currentRevisionId; c.currentRevisionId=nextRevisionId(); d.configuration=configuration; state.editExpectedRevisionId=c.currentRevisionId;
+      document.getElementById('expectedRevision').value=c.currentRevisionId; document.getElementById('configurationProblem').hidden=true;
+      const success=document.getElementById('configurationSuccess'); success.hidden=false; success.textContent=`Created new immutable fixture revision ${c.currentRevisionId}. Prior ${prior} remains unchanged as an old subject.`;
+    }
+
+    function openCredential(){
+      const connector=getConnector(); const credentialForm=document.getElementById('credentialForm');
+      schemaFields(document.getElementById('credentialFields'),connector.credentialInputSchema,{},'credential'); credentialForm.reset();
+      document.getElementById('credentialSuccess').hidden=true; showView('credential');
+    }
+
+    function setCredential(event){
+      event.preventDefault(); const credentialForm=document.getElementById('credentialForm');
+      const credentialInput = credentialForm.querySelector('input[type="password"]');
+      getConnection().credentialConfigured=true;
+      credentialForm.reset();
+      if (credentialInput) credentialInput.value = '';
+      document.getElementById('credentialSuccess').hidden=false;
+      renderDetail();
+    }
+
+    function openQualification(){
+      const c=getConnection(), connector=getConnector(); document.getElementById('qualificationRevision').value=c.currentRevisionId;
+      document.getElementById('qualificationEnvironment').innerHTML=connector.environments.map(env=>`<option value="${env}">${env}</option>`).join('');
+      showView('qualification');
+    }
+
+    function runQualification(event){
+      event.preventDefault(); const c=getConnection(); const environment=document.getElementById('qualificationEnvironment').value;
+      state.qualificationCounter += 1; const qualificationId=`q-${state.qualificationCounter}`;
+      state.qualifications[qualificationId]={qualificationId,connectionId:c.connectionId,connectionRevisionId:c.currentRevisionId,environment,qualificationState:'PROVED_FOR_FIXTURE',evidenceRefs:[`evidence://${qualificationId}/connection`, `evidence://${qualificationId}/environment`]};
+      state.selectedQualificationId=qualificationId; state.sessionQualificationRefByConnection[c.connectionId]=qualificationId; renderQualificationDetail(); showView('qualificationDetail');
+    }
+
+    function renderQualificationDetail(){
+      const q=state.qualifications[state.selectedQualificationId], c=connections.find(x=>x.connectionId===q?.connectionId); if(!q||!c)return;
+      document.getElementById('qualificationId').textContent=q.qualificationId; document.getElementById('qualificationConnection').textContent=c.name;
+      document.getElementById('qualificationDetailRevision').textContent=q.connectionRevisionId; document.getElementById('qualificationDetailEnvironment').textContent=q.environment;
+      document.getElementById('qualificationState').textContent=q.qualificationState; document.getElementById('evidenceRefs').innerHTML=q.evidenceRefs.map(ref=>`<li class="technical">${ref}</li>`).join('');
+    }
+
+    function reopenSessionQualification(){ const ref=state.sessionQualificationRefByConnection[state.selectedConnectionId]; if(!ref)return; state.selectedQualificationId=ref; renderQualificationDetail(); showView('qualificationDetail'); }
+    function backToDetail(){ renderDetail(); showView('detail'); }
+    function backToList(){ renderConnectionList(); showView('list'); }
+
+    document.getElementById('connectionSearch').addEventListener('input',renderConnectionList);
+    document.getElementById('createConnection').addEventListener('click',openCreate);
+    document.getElementById('createConnector').addEventListener('change',renderCreateConfiguration);
+    document.getElementById('createForm').addEventListener('submit',createConnectionFromForm);
+    ['cancelCreate','cancelCreate2'].forEach(id=>document.getElementById(id).addEventListener('click',backToList));
+    document.getElementById('backToConnections').addEventListener('click',backToList);
+    document.getElementById('editConfiguration').addEventListener('click',openConfiguration); document.getElementById('taskEditConfig').addEventListener('click',openConfiguration);
+    document.getElementById('configurationForm').addEventListener('submit',saveConfigurationRevision);
+    document.getElementById('simulateStaleRevision').addEventListener('click',simulateStaleRevision); document.getElementById('reloadConfiguration').addEventListener('click',reloadCurrentConfiguration);
+    ['cancelConfiguration','cancelConfiguration2'].forEach(id=>document.getElementById(id).addEventListener('click',backToDetail));
+    document.getElementById('taskCredential').addEventListener('click',openCredential); document.getElementById('credentialForm').addEventListener('submit',setCredential);
+    ['cancelCredential','cancelCredential2'].forEach(id=>document.getElementById(id).addEventListener('click',backToDetail));
+    document.getElementById('taskQualification').addEventListener('click',openQualification); document.getElementById('qualificationForm').addEventListener('submit',runQualification);
+    ['cancelQualification','cancelQualification2'].forEach(id=>document.getElementById(id).addEventListener('click',backToDetail));
+    document.getElementById('backFromQualification').addEventListener('click',backToDetail); document.getElementById('reopenQualification').addEventListener('click',reopenSessionQualification);
+
+    renderConnectionList();
+  </script>
+</body>
+</html>
