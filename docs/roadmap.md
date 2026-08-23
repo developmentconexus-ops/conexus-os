@@ -50,6 +50,13 @@ W-02B = Connections
 
 Initial operation/Permission/owner/trust topology was sound. `F04`–`F06` are operator-accepted GREEN bounded recompiles inside the existing Connections/Brain owners; fixed Product/wire remains `113↔113`, Brain=11, Connections=9, ordinary Permissions=25.
 
+Preserved bounded follow-up history:
+
+```text
+F04 Connection human presentation identity = OPERATOR ACCEPTED / GREEN
+F05 Brain Discovery proposal intake         = OPERATOR ACCEPTED / GREEN
+```
+
 W-02A P7 operator-approved candidate:
 
 ```text
