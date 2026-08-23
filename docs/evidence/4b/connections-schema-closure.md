@@ -231,9 +231,13 @@ Verify #651 = intermediate expected failure
 Verify #652 = intermediate expected failure
 → F09 4A authority + wire + checker accepted
 → exact remaining downstream gap: W-02 P7 preflight had not yet recompiled F09 GREEN
+
+Verify #655 = SUCCESS
+HEAD = ebdd023e3fbabefccda789a7fe1fb1891624db2d
+→ selected F09 Product authority + ConnectionDetail wire + Connections checker + generated/whole-wire proof GREEN
 ```
 
-Current whole-platform invariants targeted by the final GREEN remain:
+Current whole-platform invariants remain:
 
 ```text
 fixed Product operations = 113
@@ -248,7 +252,7 @@ new F09 durable records  = 0
 ## 7. Current result
 
 ```text
-Connections     = CLOSED inside 4B / F09 BOUNDED RECOMPILE
+Connections     = CLOSED inside 4B / F09 BOUNDED RECOMPILE GREEN
 Product code    = BLOCKED
 ```
 
