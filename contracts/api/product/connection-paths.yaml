@@ -62,7 +62,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Connections owned by the exact Workspace or Project scope and currently disclosable to the caller.
+          description: Connections owned by the exact Workspace or Project scope and currently disclosable to the caller, including logical Connection human presentation identity.
           content:
             application/json:
               schema:
@@ -91,8 +91,13 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [connectorDefinitionId, connectorVersion, configuration]
+              required: [name, connectorDefinitionId, connectorVersion, configuration]
               properties:
+                name:
+                  type: string
+                  minLength: 1
+                  pattern: '.*\S.*'
+                  description: Required provider-independent human presentation identity of the logical Connection; not routing, authorization, uniqueness or revision identity.
                 connectorDefinitionId:
                   type: string
                   minLength: 1
@@ -106,7 +111,7 @@ paths:
                   description: Provider-specific non-secret configuration validated against the exact selected ConnectorDefinition/version.
       responses:
         '201':
-          description: Logical Connection established in the exact owner scope with an initial immutable revision; credential material remains absent until separately written.
+          description: Logical Connection established in the exact owner scope with explicit human presentation identity and an initial immutable revision; credential material remains absent until separately written.
           content:
             application/json:
               schema:
@@ -134,7 +139,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Current logical Connection owner/definition/revision facts with non-secret credential-presence projection only.
+          description: Current logical Connection human identity plus owner/definition/revision facts with non-secret credential-presence projection only.
           content:
             application/json:
               schema:
@@ -172,10 +177,10 @@ paths:
                   type: object
                   additionalProperties: true
                   x-conexus-schema-source: CONNECTOR_DEFINITION_CONFIGURATION_SCHEMA
-                  description: New provider-specific non-secret configuration validated against the current Connection's exact ConnectorDefinition/version.
+                  description: New provider-specific non-secret configuration validated against the current Connection's exact ConnectorDefinition/version. Logical Connection human identity is not revision-owned and is unchanged by this command.
       responses:
         '201':
-          description: New immutable ConnectionRevision created from the exact current logical Connection revision.
+          description: New immutable ConnectionRevision created from the exact current logical Connection revision; the logical Connection name remains unchanged.
           content:
             application/json:
               schema:
@@ -399,11 +404,16 @@ components:
     Connection:
       type: object
       additionalProperties: false
-      required: [connectionId, ownerScopeKind, ownerId, connectorDefinitionId, connectorVersion, currentRevisionId, credentialConfigured]
+      required: [connectionId, name, ownerScopeKind, ownerId, connectorDefinitionId, connectorVersion, currentRevisionId, credentialConfigured]
       properties:
         connectionId:
           type: string
           minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Server-owned provider-independent human presentation identity of the logical Connection; stable across ConnectionRevision changes and never routing, authorization, containment or uniqueness authority.
         ownerScopeKind:
           type: string
           enum: [WORKSPACE, PROJECT]
