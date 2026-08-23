@@ -1,6 +1,6 @@
 # 4C — Candidate Screen / Material-Surface Inventory
 
-> **Status:** CANDIDATE / 4C-5 / `4C-F02` COVERAGE RECOMPILED
+> **Status:** CANDIDATE / 4C-5 / `4C-F02` + `4C-F03` COVERAGE RECOMPILED
 > **Authority posture:** derived from the operator-accepted-for-progression 4C-4 candidate IA, the current 4C-0→4C-3 foundation and accepted Product authority. This document does not create Product operations, DTOs, authorization, runtime behavior, implementation authority or final visual structure.
 > **Method:** `docs/development/frontend-product-experience-planning-method.md` v2.1 profiled by the Conexus 4C contract.
 
@@ -21,7 +21,7 @@ At the original 4C-5 closure:
 Product implementation               = BLOCKED
 ```
 
-Later block work may recompile coverage when a valid upstream finding changes the operation set. `4C-F02` does exactly that: it adds `PRJ-23` to the already-existing Baseline-review surface rather than inventing another screen merely because the operation count changed.
+Later block work may recompile coverage when a valid upstream finding changes the operation set. `4C-F02` added `PRJ-23` and `4C-F03` adds `PRJ-24` to the already-existing Baseline-review job rather than inventing another screen merely because the operation count changed. `4C-F03` also enriches `PRJ-07` so explicit review feedback is bound to the exact prior candidate before a new candidate is produced.
 
 ---
 
@@ -90,8 +90,8 @@ No generic Workspace `Settings` screen is created by symmetry. Current authority
 | Surface ID | Candidate surface | Kind | Human job / truth | Material boundary / reason |
 | --- | --- | --- | --- | --- |
 | PRJ-S00 | Project context frame | `INLINE_COMPOSITION` | understand exact current Project context and disclosure | identity/context projection only; no generic metadata editor |
-| PRJ-S01 | Project Inception / investigation | `ROUTE_PAGE` | supply current business intent, inspect objective/users/constraints/source reality and run bounded investigation | Journey B is not a fake Change; source admission already occurred at Project birth |
-| PRJ-S02 | Candidate + approved Baseline review / decision | `MATERIAL_REGION` or focused route candidate | inspect exact candidate on first response or re-entry, distinguish it from current approved Baseline, approve only exact candidate subject | `PRJ-23` durable candidate read + `PRJ-08` approved read + `PRJ-09` exact decision; stale/candidate/current semantics justify one coherent Baseline block |
+| PRJ-S01 | Project Inception / investigation | `ROUTE_PAGE` | supply current business intent, inspect objective/users/constraints/source reality, run bounded investigation and explicitly apply feedback against one exact prior candidate when refinement is needed | Journey B is not a fake Change; source admission already occurred at Project birth; Candidate A remains immutable while refinement produces Candidate B |
+| PRJ-S02 | Candidate + approved Baseline visual review / decision | `MATERIAL_REGION` or focused route candidate | inspect a deterministic visual projection of the exact candidate, select bounded candidate-local context, ask Conexus about that exact candidate, distinguish it from current approved Baseline and approve only the exact reviewed candidate subject | `PRJ-23` durable read + `PRJ-24` candidate-bound contextual read + `PRJ-08` approved read + `PRJ-09` exact decision; local/HTML/Mastra review state is never Product authority |
 | PRJ-S03 | Build workspace | `ROUTE_PAGE` | state Change intent, inspect current Change/progress and keep build work centered | Hub truth, not model narration |
 | PRJ-S04 | Plan + checkpoint review | `MATERIAL_REGION` | inspect exact Plan revision and make eligible checkpoint decision | decision/current-subject semantics |
 | PRJ-S05 | Preview lens | `ALTERNATE_VIEW` | inspect last-good/current candidate Preview honestly | Preview ready != verified/live |
@@ -99,7 +99,7 @@ No generic Workspace `Settings` screen is created by symmetry. Current authority
 | PRJ-S07 | Diff lens | `ALTERNATE_VIEW` | inspect exact candidate/result lineage | immutable/source lineage truth |
 | PRJ-S08 | Findings + Evidence | `MATERIAL_REGION` / drawers candidate | inspect Findings/Evidence and close only with current resolution authority | review/provenance + exact decision |
 | PRJ-S09 | Change execution detail | `MATERIAL_REGION` / detail drawer | inspect subordinate WorkUnit/ActorRun facts | progressive platform detail, not separate owner |
-| PRJ-S10 | Contextual Conexus assistant | `INLINE_COMPOSITION` | ask about selected authorized Project context / next safe action | helper; grants no new authority |
+| PRJ-S10 | Builder contextual Conexus assistant | `INLINE_COMPOSITION` | ask about selected authorized Builder/Project context / next safe action | `BLD-16` helper under `project.build`; distinct from Baseline-management `PRJ-24`; grants no new authority |
 | PRJ-S11 | Data | `ROUTE_PAGE` with master-detail candidate | inspect declared Product/read-model resources, grain, freshness, coverage and provenance | never generic DB explorer |
 | PRJ-S12 | Analytic Query interaction | `MATERIAL_REGION` / `APP_COMPOSED_SURFACE` | ask governed semantic analytical questions over exact Brain/dataset scope | placement remains block-level question |
 | PRJ-S13 | Capabilities | `ROUTE_PAGE` with detail candidate | inspect authored/Release Queries/Actions without gaining invocation by inspection | capability identity differs from source/integration mechanics |
@@ -146,7 +146,7 @@ Published Applications do not inherit Control Plane navigation. Their exact busi
 | Surface family | Required material distinctions carried forward |
 | --- | --- |
 | Global/session | unauthenticated vs authenticated; denied vs absent/non-disclosable; session expiry/reauthentication |
-| Project creation/Inception | NEW vs EXISTING_GIT source bootstrap; invalid/unavailable source fails without half-created Project; intent validation; candidate vs approved Baseline |
+| Project creation/Inception | NEW vs EXISTING_GIT source bootstrap; invalid/unavailable source fails without half-created Project; intent validation; exact Candidate A vs Candidate B refinement lineage vs approved Baseline; visual/chat review state never authority |
 | Build | working vs blocked vs waiting-for-user vs completed; Hub truth vs model narration |
 | Preview | last-good inspectable Preview vs next candidate building; ready vs verified vs live |
 | Brain | inferred/proposed vs reviewed/published; UNVERIFIED/VALID/SUSPECT/INVALID/CHECK_ERROR |
@@ -165,7 +165,7 @@ These are later Screen Contract/wireframe obligations, not client-owned lifecycl
 | Block | Candidate scope | Why grouped | Reference / hypothesis trigger |
 | --- | --- | --- | --- |
 | `GF-01` | global frame + Workspace/Project navigation | whole-product coherence checkpoint | now `LOCKED / H1-R2`; later blocks inherit it unless a material falsifier reopens it |
-| `W-01` | Projects + source-complete create + Inception + candidate/approved Baseline | one continuous Journey-B entry/outcome | current active block; 4C-F02 corrected authority before structural work |
+| `W-01` | Projects + source-complete create + Inception + candidate/approved Baseline | one continuous Journey-B entry/outcome | current active block; 4C-F02 + 4C-F03 corrected Baseline authority before the revised visual-review P8 candidate |
 | `W-02` | Workspace Brain + Connections | reusable enterprise context/resources | separate sub-blocks if review vs secret/qualification semantics demand it |
 | `W-03` | People/access + audit | governance/admin work | conventional unless complexity proves ambiguity |
 | `W-04` | Workspace Agent catalog | access-filtered browse of Project-owned Agents | added after GF-01 Fable review so WS-S03 has an explicit proving block; not open |
@@ -203,7 +203,7 @@ The set below must equal the current frontend-reachable concrete operation set. 
 | WS-S11 / PRJ-S27 | `OBS-04`, `OBS-05` |
 | PRJ-S00 | `PRJ-02` |
 | PRJ-S01 | `PRJ-07` |
-| PRJ-S02 | `PRJ-08`, `PRJ-09`, `PRJ-23` |
+| PRJ-S02 | `PRJ-08`, `PRJ-09`, `PRJ-23`, `PRJ-24` |
 | PRJ-S03 | `BLD-01`, `BLD-02`, `BLD-03`, `BLD-06` |
 | PRJ-S04 | `BLD-04`, `BLD-05` |
 | PRJ-S05 | `BLD-10` |
@@ -265,7 +265,7 @@ A browser control that is navigation, projection, local view state or modal pres
 
 ## 9. Findings / questions carried into block work
 
-The original 4C-5 inventory exposed no upstream gap. W-01 later exposed `4C-F02`, now operator-accepted and being recompiled into this coverage. Structural questions remain bounded:
+The original 4C-5 inventory exposed no upstream gap. W-01 later exposed `4C-F02` and `4C-F03`, both now operator-accepted and recompiled into this coverage. Structural questions remain bounded:
 
 | ID | Candidate question | Next proving block |
 | --- | --- | --- |
@@ -280,10 +280,10 @@ The original 4C-5 inventory exposed no upstream gap. W-01 later exposed `4C-F02`
 
 ---
 
-## 10. Candidate closure result after 4C-F02 coverage recompile
+## 10. Candidate closure result after 4C-F03 coverage recompile
 
 ```text
-frontend-reachable concrete operations expected = 113
+frontend-reachable concrete operations expected = 114
 frontend-reachable concrete operations mapped   = mechanically checked by repository test
 PAR-05 browser surface                          = 0
 invented user needs                             = 0
@@ -293,4 +293,4 @@ parallel Product DTO authority                  = 0
 Product implementation                          = 0
 ```
 
-This remains a **candidate inventory**, not a global structural lock. `GF-01` alone has subsequently been operator-locked. W-01 must complete its own authority-feasibility, reference/hypothesis, HTML P8 and operator-adjudication cycle before another block inherits W-01 structure.
+This remains a **candidate inventory**, not a global structural lock. `GF-01` alone has subsequently been operator-locked. W-01 must complete its revised Baseline visual-review HTML P8 and operator-adjudication cycle before another block inherits W-01 structure.
