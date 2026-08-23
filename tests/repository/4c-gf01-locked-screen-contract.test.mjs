@@ -16,7 +16,7 @@ function gitBlobSha(text) {
   return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')
 }
 
-test('operator-approved GF-01 H1-R2 is locked and closed through exact P9/P10 trace', () => {
+test('operator-approved GF-01 H1-R2 remains locked through exact P9/P10 trace as later blocks advance', () => {
   const htmlPath = 'docs/evidence/4c/gf01-global-frame-wireframe.html'
   const contractPath = 'docs/evidence/4c/gf01-screen-contract.md'
   if (!existsSync(path(contractPath))) throw new Error('GF-01 exact Screen Contract must exist after operator lock')
@@ -53,8 +53,8 @@ test('operator-approved GF-01 H1-R2 is locked and closed through exact P9/P10 tr
   ]) requireText(contract, law, `GF-01 closure missing law: ${law}`)
 
   requireText(roadmap, 'GF-01 LOCKED', 'roadmap must show GF-01 locked')
-  requireText(roadmap, 'W-01', 'roadmap must remain within W-01 while the next material block is being proven')
-  if (/W-02[^\n|]*OPEN|W-03[^\n|]*OPEN|W-04[^\n|]*OPEN|P-01[^\n|]*OPEN/.test(roadmap)) {
-    throw new Error('GF-01 lock must not permit opening dependent blocks before W-01 closes')
+  requireText(roadmap, 'W-01 LOCKED', 'dependent material blocks may advance only after W-01 is locked')
+  if (/W-03[^\n|]*OPEN|W-04[^\n|]*OPEN|P-01[^\n|]*OPEN/.test(roadmap)) {
+    throw new Error('GF-01 lock must not permit skipping past the current W-02 material block')
   }
 })
