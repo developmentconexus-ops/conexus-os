@@ -1,10 +1,12 @@
 # 4C W-02B — Connections P7 Structural Decision
 
-> **Status:** `P7 OPERATOR APPROVED FOR FUNCTIONAL P8 / NOT LOCKED`
+> **Status:** `P7 OPERATOR APPROVED / P8 FUNCTIONAL CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`
 > **Block:** `W-02B — Connections`
 > **Method:** Frontend Product Experience Planning Method v2.2 through the Conexus 4C profile.
 > **Selected hypothesis:** `A — Connection-first browse → focused detail → explicit configuration / credential / qualification tasks`.
 > **Authority posture:** interaction-structure Evidence only. This record does not create Connection Product meaning, operations, permissions, wire authority, Product implementation or final visual design.
+
+Historical P7 marker preserved: `P7 OPERATOR APPROVED FOR FUNCTIONAL P8 / NOT LOCKED`.
 
 ## 1. Decision question
 
@@ -235,6 +237,29 @@ responsive navigation / keyboard-plausible controls
 
 Fixture mutation is deterministic local Evidence only. It must not use `fetch`, `localStorage` or `sessionStorage`, and refresh must reset the demonstration state.
 
+Functional candidate now exists at:
+
+```text
+docs/evidence/4c/w02b-connections-functional-wireframe.html
+```
+
+Proof chronology:
+
+```text
+Verify #663 = EXPECTED RED
+→ P7 Evidence green
+→ 2 P8 tests failed only because HTML did not exist
+
+Verify #664 = intermediate test-harness mismatch
+→ functional structure passed
+→ one capitalization-only stale-revision guard mismatch
+
+Verify #665 = SUCCESS
+→ P8 repository contract + whole wire green
+```
+
+Mechanical GREEN does not set `LOCKED`.
+
 ## 10. Out of block / forbidden inference
 
 W-02B does not decide:
@@ -258,5 +283,7 @@ Hypothesis A = OPERATOR APPROVED FOR FUNCTIONAL P8
 W-02B = NOT LOCKED
 P8 = NEXT
 ```
+
+`P8 = NEXT` above is the preserved P7 transition law. The candidate now exists and the current gate is operator walkthrough/adjudication.
 
 Only the operator may later set W-02B `LOCKED` after operating and adjudicating the functional P8 candidate.
