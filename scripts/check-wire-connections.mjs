@@ -76,6 +76,12 @@ function successSchema(id, status = '200') {
   return resolveSchema(op(id).responses?.[status]?.content?.['application/json']?.schema);
 }
 
+function successArrayItemSchema(id, status = '200') {
+  const schema = successSchema(id, status);
+  if (schema?.type !== 'array') throw new Error(`${id} ${status} must be an array`);
+  return resolveSchema(schema.items);
+}
+
 function assertClosedObject(schema, label) {
   const resolved = resolveSchema(schema);
   if (!resolved || resolved.type !== 'object' || resolved.additionalProperties !== false) {
@@ -129,16 +135,32 @@ for (const forbidden of ['ownerScopeKind', 'ownerId', 'shareWithWorkspaceId', 's
   if (create.properties?.[forbidden]) throw new Error(`CON-05 must not accept ${forbidden}`);
 }
 
-// Logical Connection read exposes server-owned human identity plus current owner/definition/revision facts and only a non-secret credential-presence projection.
-const connection = assertClosedObject(successSchema('CON-04'), 'CON-04 success');
-required(connection, 'connectionId', 'name', 'ownerScopeKind', 'ownerId', 'connectorDefinitionId', 'connectorVersion', 'currentRevisionId', 'credentialConfigured');
+// Lightweight Connection remains the browse/create projection; F09 does not make every list row carry provider configuration.
+for (const [label, lightweight] of [
+  ['CON-03 list item', assertClosedObject(successArrayItemSchema('CON-03'), 'CON-03 list item')],
+  ['CON-05 success', assertClosedObject(successSchema('CON-05', '201'), 'CON-05 success')],
+]) {
+  required(lightweight, 'connectionId', 'name', 'ownerScopeKind', 'ownerId', 'connectorDefinitionId', 'connectorVersion', 'currentRevisionId', 'credentialConfigured');
+  if (lightweight.properties?.configuration) throw new Error(`${label} must remain lightweight and omit configuration`);
+}
+
+// F09: exact Connection detail carries the current non-secret configuration bound to currentRevisionId, while secret/readiness truths remain separate.
+const connection = assertClosedObject(successSchema('CON-04'), 'CON-04 ConnectionDetail');
+required(connection, 'connectionId', 'name', 'ownerScopeKind', 'ownerId', 'connectorDefinitionId', 'connectorVersion', 'currentRevisionId', 'credentialConfigured', 'configuration');
 const connectionName = property(connection, 'name');
 if (connectionName?.type !== 'string' || connectionName?.minLength !== 1 || connectionName?.pattern !== '.*\\S.*') {
   throw new Error('Connection.name must remain required non-blank server-owned presentation identity');
 }
 exactEnum(property(connection, 'ownerScopeKind'), ['WORKSPACE', 'PROJECT'], 'Connection ownerScopeKind response');
-for (const forbidden of ['credential', 'secret', 'credentialHandle', 'ciphertext', 'accessToken', 'refreshToken', 'overallStatus', 'authorized']) {
-  if (connection.properties?.[forbidden]) throw new Error(`CON-04 must not expose ${forbidden}`);
+const currentConfiguration = property(connection, 'configuration');
+if (currentConfiguration?.type !== 'object' || currentConfiguration?.['x-conexus-schema-source'] !== 'CONNECTOR_DEFINITION_CONFIGURATION_SCHEMA') {
+  throw new Error('ConnectionDetail configuration must be a schema-bound non-secret object');
+}
+if (!String(connection.properties?.configuration?.description ?? '').includes('currentRevisionId')) {
+  throw new Error('ConnectionDetail configuration must be explicitly bound to currentRevisionId');
+}
+for (const forbidden of ['credential', 'secret', 'credentialHandle', 'ciphertext', 'accessToken', 'refreshToken', 'password', 'overallStatus', 'authorized', 'qualified', 'bound', 'healthy']) {
+  if (connection.properties?.[forbidden]) throw new Error(`CON-04 ConnectionDetail must not expose/collapse ${forbidden}`);
 }
 
 // Revision is immutable/new-revision semantics protected by an explicit current revision, not false cross-resource If-Match or hidden rename authority.
@@ -184,4 +206,4 @@ for (const forbidden of ['bound', 'healthy', 'authorized', 'ready', 'credential'
   if (qualification.properties?.[forbidden]) throw new Error(`CON-09 must not collapse/expose ${forbidden}`);
 }
 
-console.log('Connections schema closure passed (9 operations; human identity/scope/revision/write-only secret/qualification boundaries closed).');
+console.log('Connections schema closure passed (9 operations; human identity/scope/current configuration/revision/write-only secret/qualification boundaries closed).');
