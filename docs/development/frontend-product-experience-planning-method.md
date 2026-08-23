@@ -2,122 +2,77 @@
 id: frontend-product-experience-planning-method
 kind: methodology
 owner: development
-summary: Reusable authority-to-UX planning method for deriving coherent information architecture, screen structure, interaction patterns and functional prototypes before production frontend implementation.
+summary: Reusable authority-to-UX planning method for designing and proving frontend experience block-by-block with functional low-fidelity HTML before production implementation.
 ---
 
 # Frontend Product Experience Planning Method
 
-**Version:** 2.1  
+**Version:** 2.2  
 **Scope:** reusable across products and repositories  
-**Purpose:** make frontend implementation a realization of already-reviewed product, UX and system decisions instead of a new design/architecture phase performed while coding.
+**Purpose:** make production frontend implementation a realization of already-reviewed Product, UX, interaction and system decisions instead of a new design phase performed while coding.
 
----
+## 1. Core idea
 
-## 1. Why this method exists
+The frontend is the human-operable projection of accepted Product architecture, but good UX is not mechanically determined by backend structure.
 
-A frontend can be technically connected to the backend and still be a poor product. It can also be visually attractive and still be architecturally wrong.
-
-Typical failures include:
+The method moves the expensive questions earlier:
 
 ```text
-screens generated before understanding user goals
-navigation shaped by backend nouns instead of user mental models
-a table chosen only because data is list-shaped
-cards chosen only because they look modern
-important information hidden because hierarchy was never studied
-screen exists but backend cannot supply required truth
-button exists but no accepted operation owns the action
-route exists only because the UI wanted one
-frontend invents lifecycle/business state
-frontend authorization diverges from server authorization
-same interaction pattern is implemented several different ways
-component abstractions are created before repeated semantics are proven
-API is changed merely to make one screen easier
-failure/concurrency states appear only during implementation
-backend is declared complete before its user-facing journey exists
-visual design silently changes information architecture or behavior
-LLM implements the product by improvising missing UX decisions in code
-wireframe and implementation drift because no vertical trace exists
-```
-
-The target is not a collection of wireframes. The target is a reviewed chain of reasoning:
-
-```text
-accepted product/system authority
+accepted Product/system authority
 → actors + user needs
-→ end-to-end user flows
+→ complete user flows
 → frontend coverage
 → candidate information architecture
-→ screen/surface inventory
-→ reference study
-→ competing layout hypotheses
-→ operator-reviewed visual structural wireframes
-→ exact screen/backend contracts
-→ derived reusable interaction patterns
-→ interactive low-fidelity prototype
-→ adversarial walkthrough
+→ material screen/surface inventory
+→ block-by-block design
+→ functional low-fidelity HTML
+→ operator use / iteration / LOCK
+→ exact screen/backend contract
+→ pattern consolidation
+→ assembled low-fidelity product
+→ adversarial whole-product walkthrough
 → visual-design handoff
-→ structural-conformance review
 → implementation readiness
 ```
 
----
-
-## 2. Core principle
-
-> The frontend is the human-operable projection of accepted product architecture, but its information architecture and interaction structure must still be deliberately designed for humans.
-
-Backend authority does **not** uniquely determine good UX.
-
-A backend collection may legitimately become a table, grid, structured list, master-detail view, categorized browse view, search-first interface or a justified combination. The choice depends on user goals, frequency, scale, recognition needs, comparison needs, density, preview needs, context and accepted future seams.
-
-Therefore:
+Three distinctions are binding:
 
 ```text
 backend coherence != UX coherence
+static plausibility != interaction coherence
+block coherence != whole-product coherence
 ```
 
-Both must be proven before implementation.
+## 2. Success condition
 
----
+Planning is complete only when a production implementer can build the frontend without inventing material decisions in code.
 
-## 3. Success condition
-
-Frontend planning is complete only when a future implementer can build the production frontend without inventing material decisions in code.
-
-For every material screen, region and interaction, the team must be able to answer:
+For every material screen/interaction, the team can answer:
 
 ```text
 who is the user?
-what are they trying to accomplish?
+what outcome do they need?
 why does this screen/region exist?
 why is the information organized this way?
-why is this presentation pattern appropriate?
-what alternatives were considered when ambiguity was real?
-what accepted product capability does it serve?
+what accepted Product capability does it serve?
 what backend/system truth supplies it?
-what operation/action does it invoke?
+what operation owns each material action?
 where does every required identity come from?
-what state is authoritative?
+what is authoritative state?
 what happens on success?
 what happens on material failure?
-what must the user understand after that failure?
-what screen/state follows?
-which reusable interaction pattern does it use, if any?
+what must the user understand after failure?
+what interaction/state follows?
 what changes responsively?
-what accessibility constraints shaped the structure?
+what accessibility constraints shaped the design?
 what may the frontend NOT infer or own?
 ```
 
-If a material answer is missing, the frontend is **not implementation-ready**.
+If a material answer is missing, the frontend is not implementation-ready.
 
----
+# 3. Method laws
 
-# 4. Method laws
-
-## 4.1 Human needs before screens
-
-Never start with a screen inventory merely because backend capabilities are known.
+## 3.1 Human needs before screens
 
 ```text
 actor
@@ -127,11 +82,9 @@ actor
 → end-to-end flow
 ```
 
-A user need describes an outcome/problem, not a predetermined interface.
+Never start from backend nouns or endpoint inventory.
 
-## 4.2 Coverage before layout
-
-Before choosing tables, cards, drawers or page structures, prove every accepted human capability has a coherent frontend home.
+## 3.2 Coverage before layout
 
 ```text
 accepted capability / human goal
@@ -140,82 +93,79 @@ accepted capability / human goal
 → candidate frontend context
 ```
 
-Coverage tells us **what must be representable**, not how it should look.
+Coverage says what must be representable, not how it should look.
 
-## 4.3 Information architecture before screen composition
+## 3.3 IA before screen composition
 
-Navigation and grouping are product decisions. Before drawing screens, create a candidate model for how users understand and find tasks/objects.
+Navigation, grouping, search and browse are Product-experience decisions. Do not expose backend topology as navigation merely because it exists.
 
-Consider:
+## 3.4 References are evidence, not authority
 
-```text
-user mental models
-core objects
-frequent tasks
-relationships
-browse hierarchy
-search
-filters
-cross-links
-global vs contextual navigation
-primary vs secondary destinations
-accepted future seams
-```
+For unfamiliar or consequential ambiguous blocks, study relevant mature products/design systems by task pattern, not visual fashion.
 
-Do not expose backend package/domain topology as navigation merely because it exists.
+## 3.5 Competing hypotheses only when ambiguity is real
 
-## 4.4 Reference study before layout commitment
+Compare 2–3 credible structures when there is a real choice. Do not manufacture alternatives for ceremony.
 
-For material ambiguous blocks, study relevant mature products and design systems. References are **evidence**, not authority.
+Static sketches, screenshots, ASCII, diagrams or rough HTML are allowed during hypothesis exploration. They are not P8 lock evidence.
 
-Analyze task patterns, not visual fashion.
-
-## 4.5 Competing hypotheses only when ambiguity is real
-
-For consequential blocks with real structural ambiguity, create 2–3 plausible alternatives and compare them against explicit criteria.
-
-Do **not** manufacture alternatives for ceremony. When one conventional pattern is clearly adequate, record one sentence in the block ledger explaining why no competing hypothesis is needed.
-
-## 4.6 Operator-only LOCK and progression
-
-`LOCKED` is an **operator-only** decision status.
+## 3.6 Operator-only LOCK
 
 ```text
 assistant / reviewer / tool
-  may propose CANDIDATE, FINDING or REJECTED
+  may propose CANDIDATE / FINDING / REJECTED
   MUST NOT set LOCKED
 
-operator / designated human product decision owner
-  is the only actor that may set LOCKED
+operator / designated human Product decision owner
+  alone may set LOCKED
 ```
 
-The next material block must not be presented or generated as baseline until the current material block is `LOCKED`.
+No next material block becomes baseline before the current block is LOCKED, unless the operator explicitly authorizes parallel candidate work.
 
-Exception:
+## 3.7 No all-at-once wireframing
+
+Prohibited for non-trivial products:
 
 ```text
-operator explicitly authorizes parallel progression
-→ current block remains CANDIDATE
-→ dependent decisions may not be treated as locked authority
+inventory all screens
+→ generate all screens
+→ review everything only at the end
 ```
 
-There is no assistant-judged substitute such as “sufficiently coherent.”
+Important blocks are designed, operated and LOCKED before downstream blocks inherit them.
 
-## 4.7 No all-at-once wireframing
+## 3.8 P8 is functional low-fidelity
 
-For non-trivial products, this is prohibited:
+For a material interactive block, canonical P8 evidence is a **browser-operable low-fidelity HTML wireframe**.
+
+Default medium:
 
 ```text
-screen inventory
-→ generate every screen in one pass
-→ review finished prototype afterwards
+HTML
+CSS
+vanilla JavaScript when interaction exists
+deterministic local fixtures/state simulation
 ```
 
-The operator must visually review important blocks before downstream structure inherits them.
+A static image, screenshot, ASCII layout, markdown table, box diagram, prose description, non-interactive HTML mockup, or HTML page containing several static storyboard screens cannot receive P8 LOCK when material interactions exist.
 
-## 4.8 Hard no screen-shaped API
+## 3.9 Behaviorally truthful, technically disposable
 
-A screen being inconvenient to implement is not authority to create a backend operation.
+P8 may simulate accepted server truth locally, but prototype code is Evidence only.
+
+P8 must not become:
+
+```text
+production React code
+real API integration
+parallel Product state authority
+parallel Authorization engine
+production component/design-system authority
+```
+
+## 3.10 Hard no screen-shaped API
+
+A difficult UI is not authority for a convenience endpoint.
 
 ```text
 prove user need
@@ -225,191 +175,181 @@ prove user need
 → reopen only the smallest owning decision when evidence demands it
 ```
 
-## 4.9 Frontend never becomes parallel business authority
+## 3.11 Frontend never becomes parallel business authority
 
-Unless explicitly accepted, frontend planning must not create:
+Unless explicitly accepted, frontend planning does not own:
 
 ```text
-client lifecycle state machine
-client authorization evaluator
+business lifecycle state machine
+authorization evaluation
 parallel DTO/schema registry
-parallel normalized business-entity truth store
-provider mechanism state as product truth
-history/audit projection as current-resource truth
-optimistic fabrication of consequential business state
+normalized business-entity truth mirror
+history/audit as current-resource truth
+provider mechanism state as Product truth
 ```
 
-## 4.10 Patterns are derived, not invented upfront
+## 3.12 Patterns are derived from locked evidence
 
-Repeated protected behavior may become a shared pattern. Cosmetic similarity alone is not enough.
+Shared patterns graduate only after repeated protected behavior is observed. Cosmetic similarity is insufficient.
 
-Pattern consolidation happens only after reviewed/locked evidence exists.
+## 3.13 Accessibility/responsive are structural
 
-## 4.11 Visual design cannot silently redesign UX
+A block cannot LOCK if its interaction model has no plausible accessible/responsive realization.
 
-Visual design may refine palette, typography, spacing, radius, shadow, iconography, tone and motion polish.
+## 3.14 Visual design cannot silently redesign UX
 
-A proposal that changes navigation, IA, material fields, action meaning, reading order, region priority, density class or workflow returns to the smallest affected UX stage.
+Visual design may change aesthetics. It may not silently change navigation, material fields/actions, reading order, region priority, interaction model, density class or workflow.
 
-## 4.12 Accessibility and responsive behavior are structural
-
-A candidate cannot be locked if its interaction model has no plausible accessible or responsive realization.
-
----
-
-# 5. Evidence posture and assumption register
-
-The method distinguishes four inputs.
-
-## 5.1 Accepted authority
-
-Binding product/system decisions: product boundary, capabilities, ownership, lifecycle, identity, permissions/disclosure, API/wire, persistence/concurrency and runtime boundaries.
-
-## 5.2 User evidence
-
-Examples:
+## 3.15 P8 proves the block; P11 proves the product
 
 ```text
-interviews
-observation
-existing workflows
-analytics/search logs
-support tickets
-operational reports
-known user feedback
-validated domain/operator experience
+P8
+  one bounded block
+  material local interactions work
+  operator uses / revises / LOCKs it
+
+P11
+  assembles already-LOCKED blocks
+  cross-block navigation works
+  complete journeys are testable
 ```
 
-Where direct evidence is unavailable, assumptions are allowed only when explicitly registered.
+P11 is not the first time the Product becomes clickable.
 
-Required assumption register:
+# 4. Evidence and decision vocabulary
 
-| Assumption | Evidence level | Phases/blocks influenced | P12 probe | Status |
-|---|---|---|---|---|
-| ... | operator/domain/direct-user | ... | ... | OPEN / VALIDATED / REJECTED |
+Inputs:
 
-A material assumption may influence a candidate, but it must be explicitly probed during P12 or remain an open finding. Unresolved material assumptions block P14 closure.
+```text
+ACCEPTED AUTHORITY
+USER / OPERATOR EVIDENCE
+REFERENCE EVIDENCE
+ASSUMPTIONS
+```
 
-## 5.3 Reference evidence
+Material assumptions must be registered and later validated, rejected or carried as FINDING.
 
-External products/design systems inform alternatives but never become product authority.
-
-## 5.4 Operator adjudication
-
-The designated human operator/product decision owner chooses among evidence-backed candidates and alone may set `LOCKED`.
-
----
-
-# 6. Decision vocabulary
+Decision vocabulary:
 
 ```text
 LOCKED
-  operator-approved current planning baseline; operator-only status
-
 CANDIDATE
-  plausible leading design; not approved
-
 FINDING
-  material unresolved question/contradiction
-
 REJECTED
-  alternative considered and deliberately not selected
-
 DEFERRED
-  known future seam with no current consumer; not implemented now
-
 NOT-HUMAN-FACING
-  backend/system behavior explicitly adjudicated as having no direct human UI consumer
 ```
 
-Never write a `CANDIDATE` as though it were accepted authority.
-
----
-
-# 7. Proportionality / tailoring
-
-The method scales with risk and ambiguity; its core protections do not disappear on small work.
-
-## Always required for any material frontend change
+When rejecting an artifact, record why:
 
 ```text
-method laws in §4
-bounded authority recovery
-explicit user need/outcome
-operator adjudication before LOCK
-visual structural artifact for the changed screen/block
-Screen Contract + vertical backend trace
-no screen-shaped API / no parallel frontend authority
+REJECTED — wrong structure
+REJECTED — wrong representation medium
+REJECTED — insufficient interaction evidence
+REJECTED — missing backend truth
 ```
 
-## Activate only on named triggers
+Rejecting one wireframe does not automatically reject its underlying Product requirement.
 
-| Phase/instrument | Trigger |
-|---|---|
-| P4 IA work | new/changed navigation context, grouping, findability model or major collection |
-| P6 reference study | unfamiliar/high-impact UX problem or meaningful pattern uncertainty |
-| P7 competing hypotheses | genuine structural ambiguity with more than one credible solution |
-| card sorting/tree testing | high-impact IA uncertainty that cannot be resolved confidently from existing evidence |
-| multi-block ledger | more than one material block or dependencies between screens |
-| full assembled P11 prototype | cross-screen flow/interaction needs realistic integrated testing |
+# 5. Frontend Planning Program
 
-## Small single-block delta
+The `P0–P14` method defines **how** to plan frontend experience.
 
-A small change to a converged product may collapse to:
+Each consuming repository should separately define **where it is** through a frontend program in its sole status/roadmap authority.
+
+Recommended macro-program:
 
 ```text
-P0 bounded authority
-→ P1 user-need delta
-→ P8 rendered structural delta + operator LOCK
-→ P9 Screen Contract/trace delta
-→ P11 interaction delta when material
-→ affected tests/review
+FP0 — Frontend Foundation
+      P0–P5
+
+FP1 — Block-by-block Product Experience
+      B01...Bnn using P6–P10
+
+FP2 — Integrated Low-Fidelity Product
+      P11
+
+FP3 — Whole-Product Adversarial Review
+      P12
+
+FP4 — Visual Handoff + Implementation Readiness
+      P13–P14
 ```
 
-Do not force product-wide matrices or reference research when no trigger exists.
+`FP*` is a recommended naming scheme, not universal Product ontology.
 
----
+## 5.1 Enumerate the blocks
 
-# 8. Phase P0 — Recover accepted authority
+For a non-trivial product, name the real future blocks before deep execution when they are already knowable.
 
-Recover only the smallest authority pack needed for the current frontend problem.
-
-Collect where applicable:
+Example only:
 
 ```text
-product scope
-actors/human capabilities
-semantic/business owners
+B01 App shell + global IA
+B02 Primary discovery
+B03 Primary resource detail
+B04 Authoring
+B05 Personal work queue
+B06 Governance/decision
+B07 History/evidence
+B08 Notifications inbox
+B09 Audit
+B10 Organization administration
+...
+```
+
+Avoid opaque roadmap entries such as `B04+ NOT OPEN` when the block inventory is already knowable.
+
+## 5.2 Status ownership
+
+The methodology is not a project status authority.
+
+The consuming repository roadmap should answer:
+
+```text
+current FP stage
+current Bxx block
+which blocks are LOCKED
+which findings block progression
+next exact gate
+whether implementation is allowed
+```
+
+## 5.3 Bounded rebaseline after authority change
+
+When accepted Product/backend authority changes during frontend planning:
+
+```text
+new material authority
+→ bounded FP0 rebaseline
+→ update only affected flows/coverage/surface inventory/program mapping
+→ preserve valid LOCKED blocks unless new evidence falsifies them
+```
+
+Do not restart the whole frontend automatically.
+
+# 6. P0 — Recover accepted authority
+
+Recover the smallest authority pack required:
+
+```text
+Product scope
+actors/capabilities
+semantic owners
 state/lifecycle
+identity
 permissions/disclosure
-backend/module boundaries
 API/read models
 concurrency/idempotency
-external dependency semantics
+runtime/external-effect constraints
 accepted route/lens constraints
-proof obligations
 ```
 
-Exit: every known frontend requirement traces to current authority or is explicitly classified as unknown/assumption.
+Exit: every frontend requirement traces to authority or is explicitly unknown/assumed.
 
----
+# 7. P1 — Actors, jobs and user needs
 
-# 9. Phase P1 — Actors, jobs and user needs
-
-For each human actor capture:
-
-```text
-actor / role context
-trigger / situation
-need / job-to-be-done
-desired outcome
-frequency / urgency
-information needed to decide
-common friction
-handoffs
-```
-
-Recommended need format:
+Recommended format:
 
 ```text
 When <context>,
@@ -417,43 +357,37 @@ I need to <goal>,
 so that <outcome>.
 ```
 
-Do not confuse access roles with personas unless evidence supports it.
+Capture frequency/urgency, information needed to decide, common friction and handoffs.
 
-Exit: human goals are independent from proposed pages/components, and material assumptions are in the register.
+Exit: human goals are independent from proposed components/pages.
 
----
-
-# 10. Phase P2 — End-to-end user-flow inventory
+# 8. P2 — End-to-end user flows
 
 For each goal:
 
 ```text
-entry context
+entry
 → understand state
-→ decision
-→ action
+→ decide
+→ act
 → system response
 → handoff if any
 → outcome
 → next likely task
 ```
 
-Capture alternate/failure branches when they change safe behavior.
+Capture material failure/alternate branches.
 
-Do not split implementation planning at a point that leaves a real human goal unfinished.
+Exit: each accepted human goal has a complete flow.
 
-Exit: each accepted human goal has at least one complete end-to-end flow.
+# 9. P3 — Frontend Coverage Matrix
 
----
+Minimum:
 
-# 11. Phase P3 — Frontend Coverage Matrix
-
-Minimum matrix:
-
-| Capability / user need | Owner | User flow | Candidate context | Reads | Writes | Access/security | UX obligations | Status |
+| User need/capability | Owner | Flow | Candidate context | Reads | Writes | Access/security | UX obligations | Status |
 |---|---|---|---|---|---|---|---|---|
 
-Cross-cutting system invariants become UX obligations, e.g.:
+Cross-cutting obligations may include:
 
 ```text
 unknown != known-empty
@@ -461,179 +395,78 @@ projection != mutation authority
 hidden control != authorization
 ambiguous outcome != known failure
 stale write != silent overwrite
-external mechanism success != product success
+provider success != Product success
 ```
 
-## Orphan backend human operation disposition
-
-A backend/application operation with a human trust class but no discovered user need must resolve by exactly one of:
+A human-class backend operation with no user need must be:
 
 ```text
-A. real evidenced user need + frontend home
-B. operator-adjudicated NOT-HUMAN-FACING or DEFERRED disposition in the ledger
-C. UPSTREAM finding that accepted capability is excess/misaligned
+mapped to a real user need
+or NOT-HUMAN-FACING / DEFERRED
+or an UPSTREAM excess-capability finding
 ```
 
-Never invent a screen or user need merely to make an orphan count reach zero.
+Never invent UI merely to reach zero orphans.
 
-Exit:
+# 10. P4 — Candidate Information Architecture
+
+Design:
 
 ```text
-accepted human capabilities mapped
-human-consumer backend operations mapped or explicitly dispositioned
-no invented capability
-material findings named
+global navigation
+context navigation
+home/default landing
+work queues
+browse hierarchy
+search/filter entry
+cross-links
+breadcrumbs when real
 ```
 
----
+Maintain a user-language terminology glossary.
 
-# 12. Phase P4 — Candidate Information Architecture
+P4 exits `CANDIDATE`, never LOCKED.
 
-Design how users find, understand and move among product information/tasks **before final screen composition**.
+Global IA LOCK occurs through the first global-frame block after functional P8 review.
 
-## 12.1 Durable terminology glossary
+# 11. P5 — Screen/material-surface inventory
 
-Create and maintain a user-language glossary for material objects, actions and states.
-
-| Concept/action | User-facing term | Avoid/synonyms | Notes |
-|---|---|---|---|
-| ... | ... | ... | ... |
-
-This prevents implementation-time terminology drift. Final marketing/content polish is not required here.
-
-## 12.2 Object/task inventory
-
-For each concept:
-
-```text
-name in user language
-why users care
-primary actions
-relationships
-frequency
-browse/search/filter role
-whether independent navigation is justified
-```
-
-Do not mirror domain aggregates, DB entities or API families automatically.
-
-## 12.3 Navigation model
-
-Evaluate global navigation, local/context navigation, home/default landing, primary work queues, browse hierarchy, search entry, cross-context links and breadcrumbs only where hierarchy genuinely exists.
-
-## 12.4 Findability
-
-For important collections decide intentionally among:
-
-```text
-browse
-search
-filter
-group
-sort
-alternate view
-saved view
-recent context
-```
-
-Do not add all mechanisms by default.
-
-## 12.5 Mental-model validation
-
-When IA is uncertain/high-impact, use the smallest useful technique: category naming review, card sorting, tree testing, first-click testing or operator/domain walkthrough.
-
-## 12.6 Future seams
-
-Future concepts may shape extensibility but must not become live screens/routes without current authority.
-
-## P4 exit law
-
-P4 exits with **CANDIDATE IA**, never `LOCKED` IA.
-
-Global IA becomes `LOCKED` only through the first global-frame block cycle (for example an App Shell + global IA block) after reference study when triggered, structural hypotheses when ambiguity is real, a rendered visual artifact and explicit operator adjudication.
-
-This first global-frame lock is the first mandatory whole-product coherence checkpoint because later blocks inherit it.
-
----
-
-# 13. Phase P5 — Screen and material-surface inventory
-
-Derive screens from user flows + candidate IA, not endpoints.
+Derive surfaces from flows + IA, not endpoints.
 
 Distinguish:
 
 ```text
 route/page
-material surface inside a route
+material sub-surface
 drawer/modal
-inline composition region
-alternate view of one collection
+inline region
+alternate collection view
 material state variant
 ```
 
-Create a separate material surface when one changes:
+Create a distinct material surface when semantic truth, safe action, owner/write, identity, concurrency, disclosure, recovery or editor/viewer mode materially changes.
 
-```text
-primary semantic truth
-safe user action
-write owner
-identity needed
-concurrency/idempotency behavior
-content-integrity/exactness guarantees
-security/disclosure context
-recovery path
-editor/viewer mode
-```
+# 12. P6 — Reference Study (conditional, per block)
 
-Do not split screens merely because loading style, spacing, component file or responsive arrangement differs.
-
-Exit: every human-flow step/material decision has a candidate screen/surface home.
-
----
-
-# 14. Phase P6 — Reference Study (per block, conditional)
-
-Study how mature products solve the **same user task** before committing to a layout.
-
-Select approximately 3–6 useful references when available; fewer is fine when the problem is conventional or evidence is limited. Stop when additional references are repeating the same useful patterns.
-
-Potential sources:
-
-```text
-direct competitors
-adjacent enterprise/SaaS products
-high-quality products with analogous jobs
-design systems with relevant task patterns
-platform conventions familiar to target users
-```
+Use relevant references when uncertainty justifies it.
 
 Analyze:
 
 ```text
-user problem solved
-navigation model
-information hierarchy
+user problem
+hierarchy
 primary/secondary actions
 collection representation
 search/filter strategy
-list/grid/master-detail usage
 progressive disclosure
-selection/action behavior
-empty/loading/error patterns
+selection behavior
+failure states
 responsive behavior
 density
-strong pattern
-mismatch/risk for our product
+mismatch/risk
 ```
 
-Evidence matrix:
-
-| Reference | Relevant job | Pattern | Benefit | Risk/mismatch | Candidate lesson |
-|---|---|---|---|---|---|
-
-Where useful, include at least one disconfirming observation: where the leading pattern performs poorly or does not fit. Research should challenge, not merely confirm.
-
-Always separate:
+Separate:
 
 ```text
 SOURCE OBSERVATION
@@ -641,694 +474,443 @@ INFERENCE
 PRODUCT DECISION
 ```
 
-Exit: enough evidence-informed structural possibilities exist for the current block; no unbounded browsing requirement remains.
+Stop when additional references stop changing the decision space.
 
----
+# 13. P7 — Layout Hypotheses + lightweight feasibility
 
-# 15. Phase P7 — Competing Layout Hypotheses + lightweight data feasibility
-
-For consequential blocks with genuine ambiguity, compare 2–3 plausible structures.
-
-Examples:
+When ambiguity is real, compare credible alternatives against:
 
 ```text
-dense table
-cards/grid
-structured list
-master-detail
-category-first browse
-search-first
-mixed browse + list
-```
-
-Evaluation variables should be chosen for the block and may include:
-
-```text
-task completion speed
-recognition
-comparison
+task completion
 scanability
-information density
+recognition/comparison
+density
 cognitive load
-frequency
-scale / number of records
-preview needs
-bulk actions
 context preservation
-error recovery
 accessibility
 responsive viability
-accepted future extensibility
-implementation complexity
-data volatility / refresh behavior
-realistic cold-start / small-collection behavior
-export/print/reporting needs when current product need exists
+scale
+preview needs
+error recovery
 backend truth fit
 ```
 
-## 15.1 Data-feasibility line — required before P8 LOCK
+Static exploration is allowed here.
 
-Each **leading** hypothesis must explicitly state the material data/action assumptions it needs:
+Before P8 LOCK, the leading hypothesis states required:
 
 ```text
-fields / summaries
+fields/summaries
 identity sources
-scale/pagination expectations
+pagination/scale assumptions
 sort/filter needs
-preview/thumbnail/content truth
-material writes/actions
+preview/content truth
+material writes
 ```
 
-For each assumption mark:
+Each is `PRESENT-IN-AUTHORITY` or `FINDING`.
+
+Exit: one leading hypothesis is ready for functional P8 exploration.
+
+# 14. P8 — Functional Low-Fidelity HTML Wireframe
+
+## 14.1 Goal
+
+P8 is the **design-learning loop for one block**.
+
+The operator does not approve an imagined interaction. The operator operates the candidate.
+
+## 14.2 Canonical medium
+
+For web applications:
 
 ```text
-PRESENT-IN-AUTHORITY
-or
-FINDING
+.html
+CSS
+vanilla JavaScript for material behavior
+deterministic local fixtures/state simulation
 ```
 
-This is a lightweight feasibility gate, not a full Screen Contract. The full exact contract remains P9 because its detail depends on the structure selected.
+No production framework is required or desired.
 
-## 15.2 Example: table vs cards
+## 14.3 Material controls must work
 
-Table leads when users primarily compare structured attributes, scan many rows, sort/filter repeatedly or perform row/batch actions.
-
-Cards/grid lead when recognition/preview dominates cross-row comparison and items need more heterogeneous summaries.
-
-Alternate list/grid views exist only when both tasks are genuinely important.
-
-Exit: one leading candidate is ready for structural wireframing, or a named finding remains. If no real ambiguity existed, the ledger records the one-line reason for using a single hypothesis.
-
----
-
-# 16. Phase P8 — Block-by-block rendered Structural Wireframing
-
-## Goal
-
-Turn the selected hypothesis into a low-fidelity **viewable structural design** that the operator can actually inspect.
-
-P8 freezes structure, not brand styling.
-
-## 16.1 Wireframe medium — mandatory visual artifact
-
-A P8 candidate MUST be rendered/viewable by the operator. Prose, markdown tables or textual boxes alone do not satisfy P8.
-
-Acceptable media include:
+Any local interaction capable of falsifying the structure must work, e.g.:
 
 ```text
-schematic image
-SVG / box-layout diagram
-wireframing tool capture
-unstyled grayscale HTML/CSS structural skeleton
-other rendered visual equivalent
-```
-
-A deliberately unstyled per-screen HTML skeleton is permitted at P8 when it is the easiest shared medium.
-
-### P8 vs P11 boundary
-
-The boundary is **scope/fidelity**, not technology.
-
-```text
-P8
-  one bounded screen/block
-  structural hierarchy and proportions
-  placeholder/local fixture content
-  no brand styling
-  no obligation for complete cross-flow navigation
-  used to explore and LOCK structure
-
-P11
-  realizes already-locked screens together
-  material interaction/navigation works
-  negative/recovery states are inspectable
-  supports realistic end-to-end flow testing
-```
-
-HTML may therefore appear in P8 without turning P8 into the final functional prototype phase.
-
-## 16.2 Structural wireframe decisions
-
-```text
-screen hierarchy
-major regions
-relative width/height
-primary reading order
-navigation placement
-information grouping
-card/table/list/master-detail choice
-density class
-primary/secondary action placement
+open/close
+tabs/lenses
+drawers/modals
 progressive disclosure
-dialog/drawer vs inline editing
-empty/error/conflict region placement
-responsive transformation rules
-keyboard/focus-order plausibility
-heading/label structure
-disclosure reachability
-non-drag alternative for essential drag interactions
+selection
+local forms
+typeahead/mention
+deep-link/anchor
+viewer entry/exit
+empty/error/conflict state switching
+responsive menu/sheet behavior
 ```
 
-## 16.3 Block review cycle
+A destination belonging to a future unopened block may terminate at an explicit boundary:
 
 ```text
-BLOCK INPUT
-  user goals + candidate IA + coverage + local authority
-
-REFERENCE STUDY when triggered
-
-LAYOUT HYPOTHESES when ambiguity is real
-
-LEADING HYPOTHESIS DATA-FEASIBILITY CHECK
-
-RENDERED CANDIDATE STRUCTURAL WIREFRAME
-
-OPERATOR VISUAL WALKTHROUGH
-  layout, hierarchy, position, size, density, discoverability, task flow
-
-FINDINGS / REVISION
-
-OPERATOR LOCK
-or continue iterating
+[Open work]
+→ "continues in B04"
 ```
 
-The next material block does not become baseline until this block is `LOCKED`, unless the operator explicitly authorizes parallel candidate work under §4.6.
+Do not secretly design unopened blocks.
 
-## 16.4 Operator walkthrough questions
+## 14.4 Low-fidelity discipline
+
+P8 does not freeze:
 
 ```text
-Can I find what I came here to do?
-Is the most important information visible first?
-Does the screen expose too much at once?
-Do I understand where I am and where I can go next?
-Are primary actions obvious without being dangerous?
-Would I rather compare, recognize or preview these items?
-Does density match the task?
-Should this be a page, drawer or inline region?
-Do I need prior-screen context while acting?
-Would users repeatedly open records merely to find the right one?
-Does backend structure leak into the UI?
-Can the primary workflow be completed by keyboard without relying on hover-only disclosure?
-Is focus/read order plausible and understandable?
-If an interaction uses drag, is an equivalent non-drag path clear?
-What happens structurally at narrow widths without hiding the only material action?
+final palette
+final typography
+final spacing/radius/shadow
+final iconography
+design tokens
+production components
+production animation
 ```
 
-Exit: operator explicitly sets `LOCKED`, or findings remain open.
+It freezes interaction structure only after operator LOCK.
 
----
-
-# 17. Phase P9 — Screen Contract and vertical backend trace
-
-After structural LOCK, prove every material region/control is realizable by accepted authority.
-
-Every material Screen Contract answers, where relevant:
+## 14.5 Iteration loop
 
 ```text
-GOAL / USER FLOW
+leading hypothesis
+→ functional low-fi HTML
+→ operator uses it
+→ discuss failures/friction
+→ revise same block
+→ operator uses it again
+→ repeat
+→ operator LOCK
+```
+
+## 14.6 Exit
+
+```text
+functional HTML exists
+material local interactions work
+important local states are inspectable
+responsive/accessibility structure is plausible
+no blocking finding remains
+operator explicitly LOCKS
+```
+
+# 15. P9 — Screen Contract + bidirectional backend trace
+
+After P8 LOCK, bind each material region/control to accepted authority:
+
+```text
+GOAL / FLOW
 ROUTE / SURFACE
-INFORMATION HIERARCHY ROLE
+INFORMATION ROLE
 OWNER + READ TRUTH
-WRITE CONTROLS
+WRITE CONTROL
 IDENTITY SOURCE
 CLIENT STATE CLASS
 WIRE MECHANICS
-MATERIAL STATES / FAILURES
+MATERIAL FAILURES
 FAILURE MESSAGE INTENT
 SUCCESS CONSEQUENCE
 AUTHZ / DISCLOSURE
-PROOF
 FORBIDDEN FRONTEND AUTHORITY
 BACKEND SUFFICIENCY
 ```
 
-### Failure message intent
-
-For each material failure define what the user must understand and what safe next action must be possible. This is **not** final copywriting; it prevents the implementer from inventing contradictory error semantics.
-
-Example abstraction:
-
-```text
-state: stale write
-intent: user must understand that server truth changed, local input is preserved, and review is required before resubmission
-```
-
-## Bidirectional law
+Bidirectional law:
 
 ```text
 Product/backend → frontend
-capability → owner → operation/read model → screen/region/control
+capability → owner → operation/read model → screen/control
 
-Frontend → Product/backend
-screen/control → operation/read truth → owner → accepted capability
+frontend → Product/backend
+screen/control → operation/read truth → owner → capability
 ```
 
-A one-way trace can hide orphan operations or invented UI behavior.
+If P9 exposes a contradiction that invalidates the P8 lock, reopen only the smallest affected P7/P8 scope.
 
-Exit: each material screen/control is `READY` or blocked by explicit finding.
+# 16. P10 — Pattern consolidation
 
----
-
-# 18. Phase P10 — Incremental + terminal Component/Interaction Pattern Vocabulary
-
-Pattern vocabulary evolves from **locked evidence**, not upfront design-system speculation.
-
-## 18.1 After each block LOCK
-
-Run a bounded consolidation pass:
+After each block LOCK:
 
 ```text
-local patterns observed
-→ compare against already locked screens
-→ if ≥2 locked screens share the same purpose/state ownership/protected semantics/accessibility/failure class
-→ candidate shared pattern may graduate
+observe local patterns
+→ compare with prior locked blocks
+→ share only repeated semantic/protected behavior
 ```
 
-Do not graduate a shared pattern mid-block.
+Do not create a speculative design system upfront.
 
-## 18.2 Pattern entry
+Before final closure, reconcile duplicate/false abstractions globally.
+
+# 17. P11 — Assembled Interactive Low-Fidelity Product
+
+P11 assembles already-LOCKED block prototypes.
 
 ```text
-purpose
-locked screens using it
-required inputs
-states/variants
-material interactions
-validation timing semantics when form-like
-accessibility expectation
-responsive behavior
-what it does NOT own
+B01 locked P8
++ B02 locked P8
++ B03 locked P8
++ ...
+→ integrated low-fi product
 ```
 
-## 18.3 Terminal P10 reconciliation
-
-Before whole-product prototype closure, reconcile the vocabulary globally:
+P11 proves:
 
 ```text
-unexplained semantic duplicates = 0
-false abstractions = 0
-local-only patterns remain local when sharing would be wrong
+cross-block navigation
+complete journeys
+deep links
+shared shell/overlay behavior
+cross-block negative/recovery flows
+cross-block responsive behavior
 ```
 
-When later evidence falsifies an earlier abstraction, refine it deliberately rather than preserving a bad component boundary for consistency.
+P11 does not redesign every block.
 
----
-
-# 19. Phase P11 — Interactive Low-Fidelity Prototype
-
-Create a navigable representation of **already-locked** structures.
-
-Default technical baseline when code is useful:
+If integration falsifies a lock:
 
 ```text
-HTML
-CSS
-vanilla JavaScript
-local deterministic fixtures/state simulation
+FINDING
+→ smallest affected block/phase
+→ revise
+→ operator re-LOCK
+→ reassemble affected path
 ```
 
-Avoid the production framework unless plain browser technology is genuinely insufficient. Prototype code is evidence, not production code.
+# 18. P12 — Adversarial UX + Architecture Walkthrough
 
-P11 may be realized per locked block and then assembled.
-
-It must preserve:
+Attack the assembled product as:
 
 ```text
-accepted navigation
-locked hierarchy/proportions
-material fields/regions
-action placement
-pattern identity
-material dialogs/drawers
-negative/recovery states
-read-only vs editable regions
-responsive structural rules
+target user
+Product owner
+Principal Product Designer
+Information Architect
+Senior Frontend Architect
+backend/domain owner
+accessibility reviewer
+adversarial architecture reviewer
 ```
 
-Material buttons/links/forms/dialogs must work when they change state/navigation; no decorative dead controls.
-
-Use deterministic scenarios for success, empty, denied, not-found/non-disclosable, stale concurrency, ambiguous outcome, dependency failure, admission/integrity failure and lifecycle transitions as relevant.
-
-Where useful, material controls carry machine-readable trace metadata such as:
-
-```html
-<button
-  data-surface="..."
-  data-owner="..."
-  data-operation="..."
-  data-pattern="..."
-  data-id-source="..."
-  data-concurrency="..."
-  data-idempotency="..."
->
-  Action
-</button>
-```
-
-P11 does not reopen visual layout exploration by default. If realistic interaction falsifies a locked structure, record a finding and return to the smallest affected phase.
-
-Exit: reviewed flows are realistically navigable without the prototype inventing product authority.
-
----
-
-# 20. Phase P12 — Adversarial UX + Architecture Walkthrough
-
-Attack the assembled experience from target-user, product-owner, principal-designer, IA, frontend, backend/domain, accessibility and adversarial-reviewer perspectives.
-
-UX attack examples:
+Look for:
 
 ```text
-Can users find the right place without backend terminology?
-Are frequent tasks unnecessarily deep?
-Are decision-critical facts hidden by progressive disclosure?
-Does table/card/master-detail choice match the task?
-Does the interface force recall where recognition is possible?
-Are similar interactions inconsistent without reason?
-Are screens optimized for a demo rather than repeated use?
+findability failure
+unnecessary depth
+hidden decision-critical facts
+wrong density/pattern
+block-local optimum that fails globally
+missing source/identity
+screen-shaped API
+frontend AuthZ
+fixture state masquerading as Product truth
+broken concurrency/idempotency/recovery semantics
 ```
 
-Architecture attack examples:
+Every material assumption becomes `VALIDATED`, `REJECTED`, or `FINDING`.
 
-```text
-Does every material field have a source?
-Does every write have accepted owner/operation?
-Does fixture state accidentally become product truth?
-Did convenience API sneak in?
-Does UI visibility pretend to authorize?
-Are concurrency/idempotency/recovery semantics preserved?
-Does navigation depend on unavailable IDs?
-```
+# 19. P13 — Visual Design Handoff + conformance
 
-## Mandatory assumption probe
-
-Every material assumption in the register must be explicitly:
-
-```text
-VALIDATED
-REJECTED
-or carried as FINDING
-```
-
-Any material assumption left OPEN blocks P14.
-
-## Finding classes
-
-```text
-UX-LAYOUT
-IA
-PATTERN
-SCREEN-CONTRACT
-UPSTREAM
-VISUAL-DESIGN
-```
-
-Upstream reopen remains the last resort after layout, IA, pattern, contract and allowed read-composition options are exhausted.
-
-Exit: no unresolved material UX/IA/contract contradiction remains in reviewed scope.
-
----
-
-# 21. Phase P13 — Visual Design Handoff + structural-conformance review
-
-Handoff includes:
+Handoff contains:
 
 ```text
 locked IA
-locked flows
-locked structural wireframes
+locked functional P8 blocks
+assembled P11 prototype
 terminology glossary
 pattern vocabulary
-functional prototype
 Screen Contracts
-material state/message-intent inventory
+material state/failure intent
 responsive structure
 ```
 
-Visual design may change aesthetic treatment but may not silently change navigation, IA, material fields, action semantics, reading order, region priority or density class.
-
-## Required structural-conformance check
-
-After visual design, compare designed screens against locked structural wireframes for at least:
+After visual design, verify no silent structural change in:
 
 ```text
 reading order
 region priority
-primary/secondary action placement
+action placement
+interaction model
 density class
 navigation meaning
 material information visibility
-responsive structural behavior
+responsive behavior
 ```
 
-Mismatch is classified using the normal finding law and returns to the smallest affected phase.
+# 20. P14 — Implementation-Readiness Closure
 
-If visual design occurs during production implementation (for example an LLM-built product), this structural-conformance check transfers into implementation review as an explicit obligation; it does not disappear.
-
----
-
-# 22. Phase P14 — Frontend Implementation-Readiness Closure
-
-Close only when project-specific counts reconcile exactly.
-
-Generic closure requirements:
+Close only when:
 
 ```text
-accepted human goals                         complete
-end-to-end flows                             complete
-information architecture                    operator-adjudicated / locked where applicable
-terminology glossary                        coherent for material concepts/actions
-material screens/surfaces                   complete
-reference study                             complete where triggered
-layout hypotheses                           adjudicated where triggered
-structural visual wireframes                operator-locked
-Screen Contracts                            complete
-material controls                           100% bound
-navigation identities                        100% sourced
-component/interaction patterns              reconciled
-interactive prototype                       complete for accepted scope
-negative/material states                    represented
-material failure message intent             defined
-frontend ↔ backend trace                     complete
-backend human operations without disposition 0
-invented frontend Product operations        0
-screen-shaped APIs                          0
-material assumptions left OPEN              0
-post-design structural-conformance defects  0 unresolved
-unresolved material UX findings             0
-unresolved architecture findings            0
+accepted human goals                           complete
+end-to-end flows                               complete
+IA                                             locked where applicable
+block roadmap                                  complete/dispositioned
+functional P8 blocks                           operator-locked
+Screen Contracts                               complete
+material controls                              100% bound
+navigation identities                          100% sourced
+patterns                                       reconciled
+assembled P11                                  complete
+negative/material states                       represented
+failure message intent                         defined
+frontend ↔ backend trace                       complete
+backend human ops without disposition          0
+invented Product operations                    0
+screen-shaped APIs                             0
+material assumptions OPEN                      0
+unresolved material UX/architecture findings   0
+post-design conformance defects                0
 ```
 
-Product-specific invariants are added by the consuming repository.
+# 21. Block operating protocol
 
----
+For each `Bxx`, record:
 
-# 23. Block operating protocol
-
-For non-trivial products maintain a block ledger.
-
-Example names only:
-
-```text
-B01 — App shell + global IA
-B02 — primary discovery/browse
-B03 — primary resource detail
-B04 — authoring/editing
-B05 — personal work/queue
-B06 — decision/governance
-B07 — history/evidence
-B08 — administration
-```
-
-Actual blocks are product-derived.
-
-Required block record:
-
-| Field | Required |
+| Field | Requirement |
 |---|---|
 | Block | stable planning ID |
 | User goals | explicit |
 | Authority pack | bounded |
+| Dependencies | explicit |
 | Assumptions | linked |
-| Reference study | complete when triggered |
-| Hypotheses | 1–3 depending on ambiguity |
-| Single-hypothesis justification | required when alternatives are skipped |
-| Leading-candidate data feasibility | present/finding |
-| Rendered visual wireframe | required |
+| References | when triggered |
+| Hypotheses | 1–3 when justified |
+| Data feasibility | PRESENT-IN-AUTHORITY / FINDING |
+| Canonical P8 HTML | required |
+| Material interactions | working |
 | Operator walkthrough | explicit |
 | Findings | explicit |
-| Decision | LOCKED / CANDIDATE / FINDING |
-| Screen Contracts | after structure |
-| Pattern consolidation | after LOCK |
-| Interactive realization | after LOCK when material |
+| Decision | LOCKED / CANDIDATE / FINDING / REJECTED |
+| P9 Screen Contract | after LOCK |
+| P10 pattern pass | after LOCK |
+| P11 integration path | when assembled |
 
-Progression follows §4.6 exactly: next material baseline block requires current `LOCKED`, unless explicit operator authorization permits parallel candidate work.
-
----
-
-# 24. Phase scope — global vs per-block
+# 22. Phase scope
 
 | Phase | Scope |
 |---|---|
-| P0–P3 | global/bounded product foundation |
-| P4 | global candidate IA; exits CANDIDATE |
-| P5 | global candidate screen/surface inventory |
-| P6–P9 | **per block** inside the operator review loop |
-| P10 | incremental consolidation after each block LOCK + terminal global reconciliation |
-| P11 | per locked block, then assembled when integrated flow testing is needed |
-| P12–P14 | global/assembled closure |
+| P0–P3 | global/bounded foundation |
+| P4 | global candidate IA |
+| P5 | global candidate surface inventory |
+| P6–P8 | per-block iterative design loop |
+| P9 | per-block exact contract after LOCK |
+| P10 | incremental + terminal |
+| P11 | assembled product from LOCKED blocks |
+| P12–P14 | global closure |
 
-This table governs over any linear shorthand diagram.
-
-First whole-product coherence checkpoint: global-frame/B01 lock.  
-Terminal whole-product coherence checkpoint: P12 assembled walkthrough.
-
----
-
-# 25. Minimum artifact inventory
-
-Repositories may consolidate files, but the following logical records must exist where triggered:
-
-| Artifact | Minimum content |
-|---|---|
-| Authority map | bounded current sources |
-| Need/assumption register | actors, goals, assumptions, evidence |
-| User-flow inventory | complete outcomes + material branches |
-| Coverage matrix | capability ↔ owner ↔ frontend home/disposition |
-| Candidate IA + glossary | navigation/findability + user terms |
-| Block ledger | status, evidence, decisions |
-| Reference notes | only when P6 triggered |
-| Hypothesis comparison | only when P7 triggered |
-| Rendered structural wireframe | operator-viewable candidate/locked artifact |
-| Screen Contract/trace | material regions/controls ↔ authority |
-| Pattern vocabulary | derived shared/local patterns |
-| Interactive prototype | when P11 interaction testing is material |
-| Adversarial findings | P12 outcome |
-| Structural-conformance result | post-visual-design check |
-
-The method does not require one file per row.
-
----
-
-# 26. Accessibility is structural, not polish
-
-Wireframes/prototypes must consider keyboard navigation, semantic control choice, focus order, heading hierarchy, labels/instructions, error association, non-color-only meaning, target viability, responsive reflow, screen-reader comprehensibility and non-drag alternatives for essential interactions.
-
-A layout that cannot reasonably become accessible is not a valid locked candidate merely because it looks efficient.
-
----
-
-# 27. Responsive planning
-
-Do not defer structural responsive behavior to production CSS.
-
-Define:
+Recommended program mapping:
 
 ```text
-what remains primary
+FP0 = P0–P5
+FP1 = Bxx loops using P6–P10
+FP2 = P11
+FP3 = P12
+FP4 = P13–P14
+```
+
+# 23. Minimum artifact inventory
+
+Logical artifacts where triggered:
+
+```text
+authority map
+need/assumption register
+user-flow inventory
+coverage matrix
+candidate IA + glossary
+Frontend Planning Program / block roadmap
+block ledger
+reference notes
+hypothesis comparison
+functional P8 HTML
+Screen Contract/trace
+pattern vocabulary
+assembled P11 prototype
+P12 findings
+post-design conformance result
+```
+
+The method does not require one file per artifact.
+
+# 24. Accessibility, responsive and density
+
+Accessibility is structural. P8 must consider keyboard path, focus order, semantic controls, labels, non-color-only meaning, non-drag alternatives and screen-reader plausibility.
+
+Responsive behavior is structural. Define and, when material, demonstrate:
+
+```text
+what stays primary
 what stacks
 what collapses
-what becomes a drawer/menu
-what becomes locally scrollable
+what becomes drawer/menu/sheet
+what becomes scrollable
 what must stay visible
-how tables/lists/cards transform
+how collections transform
 ```
 
-Responsive transformation must not change product semantics or hide the only material action.
+Density is task-driven, not aesthetic. Progressive disclosure must never hide facts required for the current decision.
 
----
-
-# 28. Density and progressive disclosure
-
-Density is a user-task decision.
-
-Use higher density for rapid scanning/comparison across many records; more whitespace/preview when recognition/comprehension dominate.
-
-Progressive disclosure may hide secondary information but must not hide facts required for the current decision merely to make a screen look clean.
-
----
-
-# 29. Search, browse and filters
-
-Do not assume search replaces IA or vice versa.
+# 25. Search/browse and collection patterns
 
 ```text
-known-item lookup → search may dominate
-exploratory discovery → browse/grouping may dominate
-large structured collection → filter/sort may dominate
-mixed use → combine carefully
+known-item lookup      → search may dominate
+exploratory discovery  → browse/group may dominate
+large structured set   → filter/sort may dominate
+mixed use              → combine carefully
 ```
 
-Filter controls require human-understandable value sources. An API parameter accepting an opaque ID does not prove a coherent selector exists.
-
----
-
-# 30. Tables, cards, lists and master-detail
-
-These are task patterns, not aesthetics.
-
-### Data table
-Strong for comparable attributes, many rows, repeated sort/filter, precise comparison and row/batch actions.
-
-### Card/grid
-Strong for recognition, preview/thumbnail, heterogeneous summaries and lower cross-row comparison needs.
-
-### Structured list
-Strong for compact simple records with one main label plus small metadata/action.
-
-### Master-detail
-Strong when users inspect many records sequentially and should preserve list/context while doing so.
-
-### Multiple views
-Offer alternate views only when distinct important user tasks justify them.
-
----
-
-# 31. Findings and smallest-reopen law
-
-When a screen fails, classify in order:
+Presentation patterns:
 
 ```text
-1. UX/layout issue?
-2. IA issue?
-3. wrong candidate pattern?
+table           comparable dense attributes
+cards/grid      recognition/preview
+structured list compact records
+master-detail   repeated sequential inspection
+```
+
+Offer alternate views only when distinct important tasks justify them.
+
+# 26. Findings and smallest-reopen law
+
+Classify failures in order:
+
+```text
+1. P8 interaction/structure?
+2. IA?
+3. wrong pattern?
 4. incomplete Screen Contract?
-5. missing read composition already allowed by authority?
-6. excess/misaligned accepted backend capability?
+5. missing read composition already allowed?
+6. excess/misaligned backend capability?
 7. genuinely missing Product/API capability?
 ```
 
-Only the smallest evidence-backed owner is reopened.
+Reopen only the smallest evidence-backed scope.
 
-For excess capability, use the orphan disposition law rather than manufacturing UI.
+# 27. Independent review
 
-After correction, redraw/re-review only affected blocks unless the finding invalidates global assumptions.
-
----
-
-# 32. Adversarial independent review protocol
-
-When governance supports it, review the methodology/major frontend plan independently from the stance of Principal Product Designer + Information Architect + Senior UX/Service Design + Senior Frontend Architect + accessibility-aware adversarial reviewer.
+For material methodology/program changes, an independent adversarial review is recommended where repository governance supports it.
 
 Attack:
 
 ```text
 missing user-centered discovery
 weak IA
-premature screen inventory
-premature pattern vocabulary
-single-solution wireframing
-lack of useful reference study
-poor operator feedback loop
+static approval before interaction learning
+poor operator loop
 all-at-once generation
-screen-shaped API risk
+screen-shaped API
 frontend authority duplication
-component duplication
 YAGNI / overengineering
-unprovable backend-screen mappings
-missing failure/recovery UX
-accessibility/responsive deferral
 untracked assumptions
-visual design structural drift
+accessibility/responsive deferral
+visual-design drift
+program/roadmap ambiguity
 ```
 
 Severity:
@@ -1340,158 +922,76 @@ OPTIONAL
 UNSUPPORTED PREFERENCE
 ```
 
-Correct only evidence-backed findings.
+Reviewer output is Evidence, never authority.
 
----
-
-# 33. Reusable closure checklist
-
-## User/product
-- [ ] Human actors/needs are explicit before screens.
-- [ ] User needs describe outcomes, not predetermined UI solutions.
-- [ ] End-to-end flows cover complete human goals.
-- [ ] Material assumptions are registered.
-
-## IA
-- [ ] Navigation reflects tasks/mental models, not backend topology.
-- [ ] P4 IA remained CANDIDATE until operator visual lock in the global-frame block.
-- [ ] Browse/search/filter strategy is deliberate.
-- [ ] Terminology glossary is coherent.
-
-## Reference/layout
-- [ ] P6/P7 ran only where triggered.
-- [ ] References are analyzed by task/pattern, not copied visually.
-- [ ] A disconfirming observation was considered where useful.
-- [ ] Consequential alternatives were compared when real ambiguity existed.
-- [ ] Single-hypothesis decisions have a short justification.
-- [ ] Leading hypothesis passed the lightweight data-feasibility line.
-- [ ] Table/card/list/master-detail choice is task-justified.
-- [ ] Density/progressive disclosure are deliberate.
-
-## Operator visual loop
-- [ ] Every material block has a rendered visual artifact.
-- [ ] Major blocks were reviewed individually with the operator.
-- [ ] Only the operator set LOCKED.
-- [ ] No next material block became baseline before LOCK or explicit parallel authorization.
-
-## Architecture
-- [ ] Every material read/write/identity has accepted source/owner.
-- [ ] No client state became Product authority.
-- [ ] No screen-shaped API was added for convenience.
-- [ ] Orphan backend human operations are mapped or explicitly dispositioned.
-- [ ] Concurrency/idempotency/recovery semantics are represented.
-- [ ] Material failure message intent is defined.
-
-## Accessibility/responsive
-- [ ] Accessibility was checked during P8, not only after prototype.
-- [ ] Keyboard/focus/non-drag paths are structurally plausible.
-- [ ] Responsive transformation is defined.
-
-## Patterns
-- [ ] Pattern consolidation happened after block locks, not mid-block.
-- [ ] Shared patterns have ≥2 locked semantic consumers or equivalent evidence.
-- [ ] Duplicate semantic patterns are reconciled.
-- [ ] Cosmetic similarity did not force abstraction.
-
-## Prototype/design
-- [ ] P11 realizes locked structure rather than inventing it.
-- [ ] Material interactions/negative states are inspectable.
-- [ ] Material assumptions were probed in P12.
-- [ ] Visual design passed structural-conformance review.
-
-## Closure
-- [ ] Frontend ↔ backend trace is complete.
-- [ ] Backend human operations without disposition = 0.
-- [ ] Invented operations = 0.
-- [ ] Material assumptions left OPEN = 0.
-- [ ] Unresolved material UX/IA/architecture findings = 0.
-- [ ] Implementation can proceed without material UX invention in code.
-
----
-
-# 34. Compact process
+# 28. Compact process
 
 ```text
-GLOBAL FOUNDATION
-P0  Recover accepted authority
- ↓
-P1  Actors / jobs / user needs + assumptions
- ↓
-P2  End-to-end user flows
- ↓
-P3  Frontend Coverage Matrix
- ↓
-P4  Candidate Information Architecture + glossary
- ↓
-P5  Candidate screen/material-surface inventory
+FP0 — GLOBAL FOUNDATION
+P0 Authority
+→ P1 Needs
+→ P2 Flows
+→ P3 Coverage
+→ P4 Candidate IA
+→ P5 Surface inventory
+→ enumerate B01...Bnn
 
-PER-BLOCK LOOP
-P6  Reference Study when triggered
- ↓
-P7  Competing Layout Hypotheses when triggered
-    + lightweight data-feasibility line
- ↓
-P8  Rendered Structural Wireframe
-    + operator visual adjudication / LOCK
- ↓
-P9  Screen Contract + bidirectional backend trace
- ↓
-P10 bounded pattern consolidation
- ↓
-P11 interactive realization when material
- ↓
-NEXT BLOCK only after operator LOCK (or explicit parallel-candidate authorization)
+FP1 — BLOCK-BY-BLOCK EXPERIENCE
+For each Bxx:
+  P6 References when triggered
+  → P7 Hypotheses + feasibility
+  → P8 FUNCTIONAL LOW-FI HTML
+       build → operate → discuss → revise → operate
+       → OPERATOR LOCK
+  → P9 Screen Contract / backend trace
+  → P10 pattern pass
+  → next block only after LOCK
 
-ASSEMBLED CLOSURE
-P10 terminal pattern reconciliation
- ↓
-P11 assembled prototype when needed
- ↓
-P12 Adversarial UX + Architecture Walkthrough
- ↓
-P13 Visual Design Handoff + structural-conformance review
- ↓
-P14 Frontend Implementation-Readiness Closure
+FP2 — INTEGRATED LOW-FI PRODUCT
+P11 assemble already-LOCKED blocks
+→ test cross-block journeys
+
+FP3 — WHOLE-PRODUCT CHALLENGE
+P12 adversarial walkthrough
+
+FP4 — HANDOFF / READINESS
+P13 visual design + conformance
+→ P14 implementation-readiness closure
 ```
 
-A finding returns only to the smallest affected phase. Do not restart the entire method unless the finding invalidates global assumptions.
+# 29. Adoption guidance for other repositories
 
----
+A consuming repository should:
 
-# 35. Research basis
+1. cite `Frontend Product Experience Planning Method v2.2`;
+2. keep mutable status in its own roadmap, not this method;
+3. define FP0–FP4 or an equivalent non-conflicting program;
+4. enumerate real `B01...Bnn` blocks;
+5. use functional low-fi HTML/CSS/JS as canonical P8 evidence for interactive web blocks;
+6. require explicit operator LOCK;
+7. treat prototype fixtures/code as Evidence, never Product authority;
+8. record justified local deviations rather than silently forking the method.
 
-This methodology synthesizes established principles without making any external product authority:
+Recommended onboarding statement:
 
 ```text
-GOV.UK Service Manual
-  understand users and their whole problem
-  prototype before committing to build
-  test multiple approaches when uncertainty is real
+Frontend planning follows Frontend Product Experience Planning Method v2.2.
 
-Nielsen Norman Group / established IA practice
-  user mental models
-  recognition over recall
-  findability / scanability
-  card sorting / tree testing when useful
+For material interactive web blocks:
+P8 canonical evidence = functional low-fidelity HTML/CSS/JavaScript.
+P11 = assembled integration of already-LOCKED blocks.
 
-Enterprise design systems such as Carbon
-  data tables for dense structured comparison
-  alternate views for distinct user tasks
-  progressive disclosure for secondary information
+Project status and block sequence are owned by this repository's roadmap.
 ```
 
-External evidence informs hypotheses. Accepted product authority + user evidence + operator adjudication determine the actual frontend.
-
----
-
-# 36. Final principle
+# 30. Final principle
 
 A strong frontend plan should make production coding feel almost boring.
 
-Implementation should mostly be:
+Production implementation should mostly be:
 
 ```text
-realize operator-locked structure
+realize operator-locked interaction structure
 → bind accepted contracts
 → implement reviewed patterns
 → preserve responsive/accessibility behavior
@@ -1503,11 +1003,10 @@ not:
 ```text
 invent navigation
 → invent screens
-→ invent components
-→ discover missing APIs
-→ invent user-facing failure semantics
-→ redesign workflows
+→ discover interaction only after static approval
+→ invent missing APIs
+→ redesign workflows in production
 → reconcile backend/frontend after the fact
 ```
 
-> **Frontend implementation readiness means the important product, IA, layout, interaction, language-intent and system-contract decisions have already been made visibly, reviewed deliberately, operator-locked where required and traced to evidence.**
+> **Frontend implementation readiness means the important Product, IA, layout, interaction and system-contract decisions have already been made in a functional low-fidelity browser experience, deliberately reviewed, operator-locked, assembled across blocks, and traced to evidence.**
