@@ -28,7 +28,11 @@ test('4C-F01 recompiles creation-time human identity without resurrecting generi
   const projectSchemas = project.slice(project.indexOf('    ProjectSummary:'))
 
   requirePattern(accessContext, /required:\s*\[workspaceId, name\]/, 'IAM-01 Workspace projection must require workspaceId + name')
-  requirePattern(accessContext, /required:\s*\[projectId, workspaceId, name\]/, 'IAM-01 Project projection must require projectId + workspaceId + name')
+  requirePattern(
+    accessContext,
+    /(?:required:\s*\[projectId, workspaceId, name\]|\$ref:\s*['"]?\.\/project-paths\.yaml#\/components\/schemas\/ProjectSummary['"]?)/,
+    'IAM-01 Project projection must use the canonical ProjectSummary or inline projectId + workspaceId + name'
+  )
 
   requirePattern(createWorkspace, /requestBody:[\s\S]*required:\s*\[name\]/, 'WS-01 must require creation-time name')
   requirePattern(createWorkspace, /name:\s*\n\s*type:\s*string[\s\S]*pattern:/, 'WS-01 name must be an explicit non-blank string schema')
