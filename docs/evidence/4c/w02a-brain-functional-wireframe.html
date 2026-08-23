@@ -9,8 +9,8 @@
       --ink:#191919;--muted:#666;--line:#b8b8b8;--strong:#686868;--paper:#fff;--soft:#f3f3f3;--soft2:#e7e7e7;
       --rail:224px;--top:56px;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:var(--paper)
     }
-    *{box-sizing:border-box}body{margin:0;background:#ececec}button,input,textarea{font:inherit;color:inherit}button{cursor:pointer}[hidden]{display:none!important}
-    button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #333;outline-offset:2px}
+    *{box-sizing:border-box}body{margin:0;background:#ececec}button,input,textarea,select{font:inherit;color:inherit}button{cursor:pointer}[hidden]{display:none!important}
+    button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid #333;outline-offset:2px}
     .note{max-width:1440px;margin:18px auto 8px;padding:12px 16px;border:1px solid var(--strong);background:var(--paper);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}.note strong{font-size:14px}.note small{color:var(--muted)}.badge{border:1px solid var(--strong);padding:5px 8px;font-size:12px;font-weight:700}
     .shell{max-width:1440px;min-height:830px;margin:0 auto 24px;border:2px solid #333;background:var(--paper);display:grid;grid-template-columns:var(--rail) minmax(0,1fr);grid-template-rows:var(--top) minmax(0,1fr);grid-template-areas:"top top" "rail stage";position:relative;overflow:hidden}
     .topbar{grid-area:top;border-bottom:1px solid var(--strong);background:var(--soft);display:flex;align-items:center;gap:10px;padding:0 14px;z-index:20}.brand{font-weight:700}.menu-toggle{display:none;width:38px;height:34px;border:1px solid var(--strong);background:var(--paper)}
@@ -18,7 +18,7 @@
     .rail{grid-area:rail;background:var(--soft);border-right:1px solid var(--strong);padding:12px 10px 18px;overflow:auto;z-index:15}.rail-title{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:14px 8px 6px}.rail-btn{display:block;width:100%;text-align:left;border:1px solid transparent;background:transparent;padding:8px 10px;margin:1px 0;border-radius:4px}.rail-btn:hover{border-color:var(--strong)}.rail-btn[aria-current="page"]{background:var(--soft2);border-color:var(--line);font-weight:700}
     .stage{grid-area:stage;min-width:0;overflow:auto}.main{padding:26px 32px 42px;max-width:1160px}.crumb{font-size:12px;color:var(--muted);margin-bottom:8px}h1{font-size:24px;margin:0 0 6px}h2{font-size:18px;margin:0 0 8px}h3{font-size:15px;margin:0 0 8px}h4{font-size:13px;margin:0 0 6px}.lede{color:var(--muted);font-size:13px;margin:0 0 16px;max-width:850px}.fixture{border:1px dashed var(--strong);padding:9px 11px;margin:0 0 16px;color:var(--muted);font-size:12px;background:#fcfcfc}.fixture strong{color:var(--ink)}
     .brain-nav{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:20px}.brain-nav button{border:1px solid transparent;background:transparent;padding:8px 10px}.brain-nav button:hover{border-color:var(--line)}.brain-nav button[aria-current="page"]{border-color:var(--strong);background:var(--soft2);font-weight:700}.count{display:inline-block;min-width:18px;text-align:center;border:1px solid var(--line);font-size:10px;padding:1px 4px;margin-left:4px}
-    .toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:18px;flex-wrap:wrap}.field{display:grid;gap:5px}.field label,.field .label{font-size:12px;font-weight:700}.field input,.field textarea{border:1px solid var(--strong);background:var(--paper);padding:9px 10px}.field input{min-width:300px}.field textarea{min-height:120px;resize:vertical;width:min(760px,100%)}.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px}.primary,.secondary,.danger,.text-action{border:1px solid #444;background:var(--paper);padding:9px 12px}.primary{background:var(--soft2);font-weight:700}.danger{border-style:dashed}.text-action{border-color:transparent;text-decoration:underline;background:transparent;padding-left:0}.primary:disabled,.secondary:disabled{cursor:not-allowed;opacity:.45}
+    .toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:18px;flex-wrap:wrap}.field{display:grid;gap:5px}.field label,.field .label{font-size:12px;font-weight:700}.field input,.field textarea,.field select{border:1px solid var(--strong);background:var(--paper);padding:9px 10px}.field input,.field select{min-width:300px}.field textarea{min-height:120px;resize:vertical;width:min(760px,100%)}.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px}.primary,.secondary,.danger,.text-action{border:1px solid #444;background:var(--paper);padding:9px 12px}.primary{background:var(--soft2);font-weight:700}.danger{border-style:dashed}.text-action{border-color:transparent;text-decoration:underline;background:transparent;padding-left:0}.primary:disabled,.secondary:disabled{cursor:not-allowed;opacity:.45}
     .summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 20px}.summary{border:1px solid var(--line);padding:13px;background:var(--paper)}.summary small{display:block;color:var(--muted);margin-bottom:5px}.summary strong{font-size:15px}.status{display:inline-block;border:1px solid var(--line);padding:4px 7px;font-size:11px;font-weight:700}.status.attention{border-style:dashed}
     .domain-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.domain-card,.concept-card,.candidate-card,.proposal-card,.revision-card,.health-card{border:1px solid var(--strong);background:var(--paper);padding:14px;text-align:left}.domain-card:hover,.concept-card:hover,.candidate-card:hover,.proposal-card:hover,.revision-card:hover{background:#fafafa}.domain-card strong,.concept-card strong,.candidate-card strong,.proposal-card strong{display:block;font-size:15px;margin-bottom:5px}.domain-card small,.concept-card small,.candidate-card small,.proposal-card small{display:block;color:var(--muted);line-height:1.4}.domain-card .meta,.concept-card .meta{margin-top:10px;font-size:11px;color:var(--muted)}
     .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}.back{border:1px solid transparent;background:transparent;text-decoration:underline;padding:4px 0}.split{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px}.panel{border:1px solid var(--strong);padding:16px;background:var(--paper);margin-bottom:14px}.panel p,.panel li{font-size:13px;line-height:1.5}.panel p{margin:6px 0}.panel ul{margin:6px 0;padding-left:20px}.panel header{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:10px}.class-tag{font-size:10px;border:1px solid var(--line);padding:3px 5px;color:var(--muted)}.concept-sections{display:grid;gap:10px}.concept-section{border:1px solid var(--line);padding:13px}.concept-section p{margin:4px 0}.technical{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;overflow-wrap:anywhere}.meta-list{display:grid;grid-template-columns:130px minmax(0,1fr);gap:7px 10px;margin:0}.meta-list dt{color:var(--muted);font-size:12px}.meta-list dd{margin:0;font-size:12px;overflow-wrap:anywhere}
@@ -26,7 +26,7 @@
     .candidate-list,.proposal-list,.revision-list,.health-list{display:grid;gap:10px}.candidate-card[aria-current="true"],.proposal-card[aria-current="true"]{background:var(--soft2)}.provenance{border:1px dashed var(--line);padding:10px;margin-top:10px;font-size:12px}.provenance strong{display:block;margin-bottom:4px}.resolution{margin-top:14px}.resolution textarea{width:100%;min-height:120px;border:1px solid var(--strong);padding:10px;resize:vertical}.hint{color:var(--muted);font-size:12px;line-height:1.45}.problem{border:1px solid var(--strong);background:var(--soft);padding:12px;margin:12px 0;font-size:12px}.success{border:1px solid var(--strong);background:var(--soft2);padding:12px;margin:12px 0;font-size:12px}.flow-law{border:1px dashed var(--strong);padding:10px;font-size:11px;line-height:1.55;background:#fcfcfc;margin-top:12px}.review-text{white-space:pre-wrap;font-size:13px;line-height:1.55;border-left:3px solid var(--line);padding-left:12px}.decision-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.publish-zone{border-top:1px solid var(--line);padding-top:14px;margin-top:16px}.publish-zone .status{margin-right:8px}.health-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}.health-card p{margin:4px 0;color:var(--muted);font-size:12px}.revision-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}.revision-card small{color:var(--muted)}
     .scrim{display:none}
     @media(max-width:900px){.split{grid-template-columns:1fr}.summary-grid{grid-template-columns:1fr 1fr}.domain-grid{grid-template-columns:1fr}}
-    @media(max-width:760px){body{background:var(--paper)}.note{margin:0;border-width:0 0 1px}.shell{width:100%;min-height:100vh;margin:0;border:0;grid-template-columns:1fr;grid-template-rows:var(--top) minmax(0,1fr);grid-template-areas:"top" "stage"}.brand{display:none}.menu-toggle{display:inline-block}.topbar{padding:0 8px;gap:4px}.context button{max-width:170px;padding:7px 5px}.account{font-size:0;width:34px;height:34px;padding:0}.account::after{content:"A";font-size:13px}.rail{position:absolute;z-index:40;top:var(--top);left:0;bottom:0;width:min(82vw,310px);transform:translateX(-102%);transition:transform 120ms linear;box-shadow:2px 0 0 #bbb}.shell[data-drawer-open="true"] .rail{transform:translateX(0)}.scrim{position:absolute;z-index:35;inset:var(--top) 0 0;background:rgba(0,0,0,.16);border:0}.shell[data-drawer-open="true"] .scrim{display:block}.main{padding:20px 16px 32px}.brain-nav{flex-wrap:nowrap;overflow-x:auto}.brain-nav button{white-space:nowrap}.summary-grid{grid-template-columns:1fr}.field input{min-width:0;width:100%}.page-head{flex-direction:column}.meta-list{grid-template-columns:1fr;gap:3px}.meta-list dd{margin-bottom:6px}}
+    @media(max-width:760px){body{background:var(--paper)}.note{margin:0;border-width:0 0 1px}.shell{width:100%;min-height:100vh;margin:0;border:0;grid-template-columns:1fr;grid-template-rows:var(--top) minmax(0,1fr);grid-template-areas:"top" "stage"}.brand{display:none}.menu-toggle{display:inline-block}.topbar{padding:0 8px;gap:4px}.context button{max-width:170px;padding:7px 5px}.account{font-size:0;width:34px;height:34px;padding:0}.account::after{content:"A";font-size:13px}.rail{position:absolute;z-index:40;top:var(--top);left:0;bottom:0;width:min(82vw,310px);transform:translateX(-102%);transition:transform 120ms linear;box-shadow:2px 0 0 #bbb}.shell[data-drawer-open="true"] .rail{transform:translateX(0)}.scrim{position:absolute;z-index:35;inset:var(--top) 0 0;background:rgba(0,0,0,.16);border:0}.shell[data-drawer-open="true"] .scrim{display:block}.main{padding:20px 16px 32px}.brain-nav{flex-wrap:nowrap;overflow-x:auto}.brain-nav button{white-space:nowrap}.summary-grid{grid-template-columns:1fr}.field input,.field select{min-width:0;width:100%}.page-head{flex-direction:column}.meta-list{grid-template-columns:1fr;gap:3px}.meta-list dd{margin-bottom:6px}}
   </style>
 </head>
 <body>
@@ -72,7 +72,7 @@
         </div>
 
         <div class="fixture">
-          <strong>Fixture interaction only.</strong> Fixture domains and concepts are demonstration data only. No backend/runtime behavior is claimed. Refresh resets the local demonstration state.
+          <strong>Fixture interaction only.</strong> Fixture domains, concepts and Projects are demonstration data only. No backend/runtime behavior is claimed. Refresh resets the local demonstration state.
         </div>
 
         <nav class="brain-nav" aria-label="Brain sections">
@@ -131,10 +131,23 @@
         <section data-brain-view="discovery" id="discoveryView" hidden>
           <div class="page-head">
             <div><h2>Discovery</h2><p class="lede">Inspect machine-proposed hypotheses, then explicitly resolve what cannot be inferred before a durable proposal exists.</p></div>
-            <button class="primary" id="runDiscoveryButton" type="button" data-operation="BRN-04">Run discovery</button>
           </div>
+          <div class="panel" aria-label="Discovery Project context">
+            <div class="field">
+              <label for="discoveryProject">Project context</label>
+              <select id="discoveryProject" data-read-operation="PRJ-01">
+                <option value="">Select a Project</option>
+              </select>
+              <span class="hint">Project identity comes from already-disclosed PRJ-01 ProjectSummary truth. The selection is FORM_DRAFT until Run discovery.</span>
+            </div>
+            <p class="hint"><strong>Context only.</strong> Brain resolves the already-admitted source / Connection context server-side. Choosing a Project does not select a source, Connection or credential.</p>
+            <div class="actions">
+              <button class="primary" id="runDiscoveryButton" type="button" data-operation="BRN-04" disabled>Run discovery</button>
+            </div>
+          </div>
+          <div id="discoveryContextSummary" class="fixture" hidden></div>
           <div class="flow-law">source reality → Discovery hypothesis → explicit human resolution → KnowledgeProposal<br>machine hypothesis != KnowledgeProposal</div>
-          <div id="discoveryEmpty" class="empty">Run the fixture discovery to reveal provenance-bearing hypotheses.</div>
+          <div id="discoveryEmpty" class="empty">Select a Project context before running fixture discovery.</div>
           <div id="discoveryResults" class="split" hidden>
             <div>
               <h3>Potential business concepts</h3>
@@ -184,6 +197,12 @@
   </div>
 
   <script>
+    const projectFixtures = [
+      { projectId:'prj-budget-analyzer', workspaceId:'ws-metal-nobre', name:'Budget Analyzer', archived:false },
+      { projectId:'prj-fiscal-intelligence', workspaceId:'ws-metal-nobre', name:'Fiscal Intelligence', archived:false },
+      { projectId:'prj-legacy-analysis', workspaceId:'ws-metal-nobre', name:'Legacy Analysis', archived:true }
+    ]
+
     const domainFixtures = {
       commercial: {
         name: 'Commercial',
@@ -227,6 +246,7 @@
       view:'knowledge',
       domain:null,
       concept:null,
+      selectedProjectId:null,
       discoveryRan:false,
       selectedDiscovery:null,
       selectedProposal:'kp-existing',
@@ -246,6 +266,8 @@
     const scrim = document.getElementById('scrim')
     const views = [...document.querySelectorAll('[data-brain-view]')]
     const viewButtons = [...document.querySelectorAll('[data-view-target]')]
+    const discoveryProject = document.getElementById('discoveryProject')
+    const runDiscoveryButton = document.getElementById('runDiscoveryButton')
 
     function setView(view) {
       state.view = view
@@ -326,8 +348,37 @@
     document.getElementById('knowledgeSearch').addEventListener('input', event => applySearch(event.target.value))
     document.querySelectorAll('[data-domain-id]').forEach(button => button.addEventListener('click',()=>openDomain(button.dataset.domainId)))
 
+    function renderDiscoveryProjects() {
+      discoveryProject.innerHTML = '<option value="">Select a Project</option>' + projectFixtures.map(project => `<option value="${project.projectId}">${project.name}${project.archived ? ' · Archived' : ''}</option>`).join('')
+      runDiscoveryButton.disabled = !state.selectedProjectId
+    }
+
+    function resetDiscoveryForProjectContext() {
+      state.discoveryRan = false
+      state.selectedDiscovery = null
+      document.getElementById('discoveryContextSummary').hidden = true
+      document.getElementById('discoveryResults').hidden = true
+      const empty = document.getElementById('discoveryEmpty')
+      empty.hidden = false
+      empty.textContent = state.selectedProjectId ? 'Run the fixture discovery for this explicit Project context.' : 'Select a Project context before running fixture discovery.'
+      document.getElementById('candidateList').innerHTML = ''
+      document.getElementById('candidateInspector').innerHTML = '<h3>Select a hypothesis</h3><p class="hint">A hypothesis is not canonical knowledge and is not yet a KnowledgeProposal.</p>'
+    }
+
+    discoveryProject.addEventListener('change', () => {
+      state.selectedProjectId = discoveryProject.value || null
+      runDiscoveryButton.disabled = !state.selectedProjectId
+      resetDiscoveryForProjectContext()
+    })
+
     function runDiscovery() {
+      if (!state.selectedProjectId) return
+      const project = projectFixtures.find(item => item.projectId === state.selectedProjectId)
+      if (!project) return
       state.discoveryRan = true
+      const contextSummary = document.getElementById('discoveryContextSummary')
+      contextSummary.hidden = false
+      contextSummary.innerHTML = `<strong>Discovery context:</strong> ${project.name}${project.archived ? ' · Archived' : ''} <span class="technical">(${project.projectId})</span><br>Project selection is an untrusted context reference; Brain/server authority resolves the admitted source and Connection.`
       document.getElementById('discoveryEmpty').hidden = true
       document.getElementById('discoveryResults').hidden = false
       const list = document.getElementById('candidateList')
@@ -424,8 +475,8 @@
       list.innerHTML = state.revisions.map(r=>`<article class="revision-card"><div><strong>Brain revision ${r.id}</strong><br><small>${r.note}</small><div class="technical" style="margin-top:7px">sourceRevision: ${r.source}</div></div><span class="status">${r.status}</span></article>`).join('')
     }
 
-    document.getElementById('runDiscoveryButton').addEventListener('click',runDiscovery)
-    renderProposals(); renderRevisions(); updateCounts()
+    runDiscoveryButton.addEventListener('click',runDiscovery)
+    renderDiscoveryProjects(); renderProposals(); renderRevisions(); updateCounts()
   </script>
 </body>
 </html>
