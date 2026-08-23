@@ -1,9 +1,9 @@
 # 4C W-02B — Connections P7/P8 Structural Decision
 
-> **Status:** `P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR RE-WALKTHROUGH / NOT LOCKED`
+> **Status:** `P7 OPERATOR APPROVED / P8 CONTEXT-PANEL CANDIDATE / OPERATOR RE-WALKTHROUGH / NOT LOCKED`
 > **Block:** `W-02B — Connections`
 > **Method:** Frontend Product Experience Planning Method v2.2 through the Conexus 4C profile.
-> **Selected hypothesis:** `A — Connection-first browse → focused detail → explicit configuration / credential / qualification tasks`.
+> **Selected hypothesis:** `A — Connection-first browse → focused detail`, refined to a context-preserving Connection panel with inline maintenance.
 > **Authority posture:** interaction Evidence only; no Product implementation or final visual-design authority.
 
 Historical P7 marker preserved: `P7 OPERATOR APPROVED FOR FUNCTIONAL P8 / NOT LOCKED`.
@@ -14,11 +14,16 @@ Historical P7 marker preserved: `P7 OPERATOR APPROVED FOR FUNCTIONAL P8 / NOT LO
 exact current owner scope
 → Connections collection
 → recognize by Connection.name
-→ focused Connection detail
-→ separate configuration / access credential / connection-test tasks
+→ select one Connection
+→ focused contextual Connection panel
+→ inspect / edit configuration inline
+→ inspect / replace credentials inline
+→ test / diagnose in the same Connection context
 ```
 
-The logical Connection is the primary human object. Provider is context, not identity. Hypothesis B (wizard-first) and C (provider-first) remain rejected as root architecture.
+The logical Connection remains the primary human object. Provider is context, not identity. Hypothesis B (wizard-first) and C (provider-first) remain rejected as root architecture.
+
+The operator's second P8 walkthrough did **not** falsify Connection-first structure. It falsified the navigation cost of expressing routine maintenance as repeated page/task round-trips.
 
 Binding law remains:
 
@@ -75,7 +80,7 @@ INDETERMINATE
 
 A previous test becomes `NEEDS_RETEST` when either current configuration revision or server-owned logical credential generation changes. Old qualification Evidence remains durable.
 
-Exact qualification now carries:
+Exact qualification carries:
 
 ```text
 connectionRevisionId
@@ -92,20 +97,68 @@ evidenceRefs
 
 The browser never chooses credential generation and never parses raw Evidence into diagnostic authority.
 
-## 4. Revised P8 human model
+## 4. Operator interaction finding and selected revision
 
-The operator's first P8 walkthrough returned `REVISE` with these accepted observations:
+The first P8 walkthrough had already accepted these local improvements:
 
 ```text
-browse should feel like modern cards, not infrastructure rows
-technical identifiers should not dominate normal use
-Sankhya must be represented as an API connector, not Oracle DB configuration
-Test connection must be obvious
-failure must explain what happened and what to fix
-configuration/credential change must visibly require retest
+card-based Connection browse
+human-first labels
+Sankhya API distinct from Oracle Database
+obvious Test connection
+human failure diagnostic + remediation
+Needs retest after configuration/credential change
+technical coordinates behind collapsed Technical details
 ```
 
-The revised candidate therefore proves:
+The second operator walkthrough returned `REVISE` on interaction efficiency:
+
+```text
+structure is sound
+BUT
+routine edit / credential / test work causes repeated enter → task screen → return loops
+→ user loses collection context
+→ maintenance feels heavier than the underlying task
+```
+
+Root-cause classification:
+
+```text
+Product meaning gap         = NO
+4A operation gap            = NO
+4B wire gap                 = NO
+Permission/owner gap        = NO
+interaction architecture    = YES
+```
+
+Alternatives considered:
+
+```text
+A. preserve separate detail/task views
+   → rejected: preserves avoidable navigation round-trips
+
+B. make Connection cards directly editable
+   → rejected: overloads browse/comparison surface and increases accidental-edit risk
+
+C. card browse + broad contextual Connection panel + inline maintenance
+   → SELECTED / OPERATOR APPROVED FOR P8 REVISION
+```
+
+Selected interaction law:
+
+```text
+routine work on one Connection
+→ preserve the Connections collection, search and browse context
+→ open one contextual Connection panel
+→ edit configuration inline
+→ replace credentials inline
+→ test and diagnose inline
+→ close panel back to the unchanged collection context
+```
+
+The panel is a focused Connection detail surface, not a new semantic owner. The same accepted operations remain responsible for every material read/write.
+
+## 5. Context-preserving P8 human model
 
 ```text
 Connections
@@ -115,20 +168,36 @@ Connections
 → Not tested | Needs retest | Last test passed | Last test failed | Indeterminate
 → Open | Test connection | View problem when relevant
 
-Connection detail
+Open
+→ contextual Connection panel over the collection
 → Connection test first
-→ human Configuration
-→ human Access / credentials
+→ Configuration read + inline Edit / Save / Cancel
+→ Access read + inline Update credentials / Save / Cancel
 → Technical details collapsed
 
-Failure
+configuration save
+→ panel stays open
+→ current revision advances
+→ Needs retest
+→ “Connection updated. Test again”
+→ Test connection remains in the same panel
+
+credential save
+→ secret remains write-only
+→ panel stays open
+→ logical credential generation advances server-side in Product semantics
+→ Needs retest
+→ “Credentials updated. Test again”
+→ Test connection remains in the same panel
+
+failure
+→ View problem in the same panel
 → human diagnostic
 → remediation
-→ Update credentials / Test again
 → exact qualification coordinates remain under Technical details
 ```
 
-The fixture now distinguishes:
+The fixture continues to distinguish:
 
 ```text
 Sankhya API
@@ -139,9 +208,9 @@ Oracle Database
 → host + port + service
 ```
 
-Those fixture fields prove the UI distinction only; concrete connector auth/configuration realization remains later authority.
+Those fixture fields prove UI distinction only; concrete connector auth/configuration realization remains later authority.
 
-## 5. Client-state law
+## 6. Client-state law
 
 ```text
 SERVER
@@ -163,12 +232,14 @@ FORM_DRAFT
 EPHEMERAL_UI
 → local filtering
 → card interaction
+→ Connection panel open/close
+→ inline editor expansion
 → expanded Technical details
 ```
 
-No fifth state class is admitted. No `fetch`, `localStorage` or `sessionStorage` is used by P8 Evidence.
+No fifth state class is admitted. The panel does not create independent Product truth. No network/runtime or browser persistence mechanism is claimed by P8 Evidence.
 
-## 6. Proof chronology
+## 7. Proof chronology
 
 First P8:
 
@@ -187,27 +258,31 @@ Verify #680 = SUCCESS
 → 113↔113 / Connections=9 / Permissions=25
 ```
 
-User-friendly revised P8:
+First user-friendly revision:
 
 ```text
 Verify #683 = EXPECTED RED
-→ 80 tests / 78 pass / 2 fail
-→ only card-grid + actionable failure/retest revision absent
-
+→ 80 tests / 78 pass / 2 expected failures
 Verify #684 = SUCCESS
-→ revised HTML satisfies repository + whole-wire proof
+→ operator re-walkthrough = REVISE on navigation/context switching
 ```
 
-Revised functional candidate:
+Context-preserving revision:
 
 ```text
-docs/evidence/4c/w02b-connections-functional-wireframe.html
-blob = 99dc5b1413e0ad0ae79727ce857340b9cc9178bf
+Verify #687 = EXPECTED RED
+→ 82 tests / 80 pass / 2 expected failures
+→ missing contextual panel + inline maintenance
+
+Verify #688 = SUCCESS
+→ context-preserving P8 + existing repository/wire proof GREEN
+
+candidate blob = 421f5b8e08d6e5c96f5a56d8c24123902cbe3fab
 ```
 
 Mechanical GREEN does not set `LOCKED`.
 
-## 7. Out of block
+## 8. Out of block
 
 ```text
 ProjectConnectionBinding UI semantics
@@ -223,12 +298,13 @@ final visual design
 Product implementation
 ```
 
-## 8. Operator disposition
+## 9. Operator disposition
 
 ```text
 Hypothesis A = OPERATOR APPROVED FOR FUNCTIONAL P8
+context-preserving panel direction = OPERATOR APPROVED FOR P8 REVISION
 W-02B = NOT LOCKED
 P8 = NEXT
 ```
 
-`P8 = NEXT` is the preserved historical P7 transition marker. The current gate is **operator re-walkthrough of the revised P8**. Only the operator may later authorize `LOCKED`, after which P9/P10 may run.
+`P8 = NEXT` is the preserved historical P7 transition marker. The current gate is **operator walkthrough/adjudication of the new context-preserving P8 candidate**. Only the operator may later authorize `LOCKED`, after which P9/P10 may run.
