@@ -23,6 +23,8 @@ Product implementation               = BLOCKED
 
 Later block work may recompile coverage when a valid upstream finding changes the operation set. `4C-F02` added `PRJ-23` and `4C-F03` adds `PRJ-24` to the already-existing Baseline-review job rather than inventing another screen merely because the operation count changed. `4C-F03` also enriches `PRJ-07` so explicit review feedback is bound to the exact prior candidate before a new candidate is produced.
 
+The operator-approved W-02B P8 later proved a context-preserving Connections structure without changing Product operations: `WS-S06..09` are therefore recompiled below from page/task round-trips into card browse + contextual detail + inline maintenance while the concrete operation coverage remains unchanged.
+
 ---
 
 ## 1. Surface-splitting law
@@ -71,10 +73,10 @@ Exact URL paths, component boundaries, responsive placement, visual density and 
 | WS-S03 | Workspace Agent catalog | `ROUTE_PAGE` | browse accessible Project-owned Agents across Workspace | filtered projection only; never a fleet owner |
 | WS-S04 | Workspace Brain overview | `ROUTE_PAGE` | inspect Brain identity, immutable revisions and health/provenance | Workspace semantic authority differs from Project binding |
 | WS-S05 | Brain discovery + proposal review | `ROUTE_PAGE` with material review regions | run bounded discovery, inspect proposals, decide/publish reviewed meaning | machine-propose/human-decide and publication states |
-| WS-S06 | Connections browse / detail | `ROUTE_PAGE` | browse Connector definitions, Connections, revisions and qualification truth | Connection lifecycle owner truth; ownerScope visible |
-| WS-S07 | Connection create / revise | `MATERIAL_REGION` or `DRAWER_MODAL` candidate | establish or revise a Connection without changing its semantic owner | consequential/current-revision semantics differ from browse |
-| WS-S08 | Connection credential entry | `MATERIAL_REGION` / secure form | set credential through write-only secret boundary | no secret readback |
-| WS-S09 | Connection qualification | `MATERIAL_REGION` | run real-environment qualification and inspect result | proof operation, not generic Save/Test URL |
+| WS-S06 | Connections browse + contextual detail | `ROUTE_PAGE` + `DRAWER_MODAL` | browse Connector definitions and Connections; open exact Connection detail while preserving collection/search context | Connection lifecycle owner truth; ownerScope and current test applicability remain explicit |
+| WS-S07 | Connection create / inline revise | `DRAWER_MODAL` + `MATERIAL_REGION` | establish a Connection in a bounded create flow or revise its current non-secret configuration inline in the contextual panel | create identity and exact current-revision write semantics remain distinct without page round-trips |
+| WS-S08 | Connection credential entry | `MATERIAL_REGION` inside contextual panel | replace credential material through the write-only secret boundary without leaving Connection context | no secret readback; credential write stays distinct from configuration |
+| WS-S09 | Connection qualification | `MATERIAL_REGION` inside contextual panel | run exact-environment Test connection and inspect result/problem/remediation in the same Connection context | proof operation, not generic Save/Test URL or runtime-health claim |
 | WS-S10 | People & access | `ROUTE_PAGE` | administer Workspace membership, Areas and Project access | does not imply Published-App business access |
 | WS-S10A | Workspace membership | `MATERIAL_REGION` | list/add/remove Workspace members | membership current-authority subject |
 | WS-S10B | Areas + Area Project access | `MATERIAL_REGION` | list/create Areas and grant/revoke Area Project access | Area is grouping, not software owner |
@@ -165,8 +167,8 @@ These are later Screen Contract/wireframe obligations, not client-owned lifecycl
 | Block | Candidate scope | Why grouped | Reference / hypothesis trigger |
 | --- | --- | --- | --- |
 | `GF-01` | global frame + Workspace/Project navigation | whole-product coherence checkpoint | now `LOCKED / H1-R2`; later blocks inherit it unless a material falsifier reopens it |
-| `W-01` | Projects + source-complete create + Inception + candidate/approved Baseline | one continuous Journey-B entry/outcome | current active block; 4C-F02 + 4C-F03 corrected Baseline authority before the revised visual-review P8 candidate |
-| `W-02` | Workspace Brain + Connections | reusable enterprise context/resources | separate sub-blocks if review vs secret/qualification semantics demand it |
+| `W-01` | Projects + source-complete create + Inception + candidate/approved Baseline | one continuous Journey-B entry/outcome | W-01 C1-R1 now LOCKED; 4C-F02 + 4C-F03 remain its accepted bounded authority corrections |
+| `W-02` | Workspace Brain + Connections | reusable enterprise context/resources | W-02A Brain LOCKED; W-02B Connections LOCKED; later P11 assembly only after remaining material blocks |
 | `W-03` | People/access + audit | governance/admin work | conventional unless complexity proves ambiguity |
 | `W-04` | Workspace Agent catalog | access-filtered browse of Project-owned Agents | added after GF-01 Fable review so WS-S03 has an explicit proving block; not open |
 | `P-01` | Build + Plan/Preview/Code/Diff/Findings/Evidence/assistant | primary Project workspace | reference study / competing hypotheses triggered |
@@ -293,4 +295,4 @@ parallel Product DTO authority                  = 0
 Product implementation                          = 0
 ```
 
-This remains a **candidate inventory**, not a global structural lock. `GF-01` alone has subsequently been operator-locked. W-01 must complete its revised Baseline visual-review HTML P8 and operator-adjudication cycle before another block inherits W-01 structure.
+This remains a **candidate inventory**, not a global structural lock. `GF-01`, `W-01`, `W-02A Brain` and `W-02B Connections` are now individually operator-locked where their exact block Evidence applies. `W-03 — People/access + audit` is the next unopened material block; later blocks remain candidates until their own P8/P9/P10 cycle.
