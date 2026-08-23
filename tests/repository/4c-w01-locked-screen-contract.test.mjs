@@ -55,8 +55,10 @@ test('operator-approved W-01 C1-R1 is locked and closed through exact P9/P10 tra
   ]) requireText(contract, law, `W-01 closure missing law: ${law}`)
 
   requireText(roadmap, 'W-01 LOCKED', 'roadmap must show W-01 locked')
-  requireText(roadmap, 'W-02', 'roadmap must route the next material block to W-02')
-  if (/W-03[^\n|]*OPEN|W-04[^\n|]*OPEN|P-01[^\n|]*OPEN|4D[^\n|]*OPEN/.test(roadmap)) {
-    throw new Error('W-01 lock must not skip the routed W-02 material block')
+  requireText(roadmap, 'W-02A LOCKED', 'W-01 progression must preserve the locked Brain sub-block')
+  requireText(roadmap, 'W-02B LOCKED', 'W-01 progression must preserve the locked Connections sub-block')
+  requireText(roadmap, 'W-03 = NEXT / NOT OPEN', 'W-01 progression must stop at the next unopened W-03 block')
+  if (/W-04\s*=\s*OPEN|P-01\s*=\s*OPEN|4D[^\n|]*\|\s*OPEN/.test(roadmap)) {
+    throw new Error('W-01 lock must not skip the routed W-03 material block')
   }
 })
