@@ -58,7 +58,7 @@ test('operator-approved W-02B Connections is locked and closed through exact P9/
     'configuration draft = FORM_DRAFT',
     'credential draft = FORM_DRAFT',
     'test environment = FORM_DRAFT',
-    'local filter = EPHEMERAL_UI',
+    '| local filter | `EPHEMERAL_UI` |',
     'P10 graduated shared patterns = 0',
     'P11 = LATER ASSEMBLED PRODUCT',
   ]) requireText(contract, law, `W-02B closure missing law: ${law}`)
