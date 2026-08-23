@@ -24,20 +24,14 @@ This is the single current phase/status authority.
 
 ```text
 4A = CLOSED / N_platform=116 / F04–F07 + F09–F12 RECOMPILED
-4B = CLOSED / 116↔116 / Project=23 / Brain=11 / Connections=9 / IAM=19 / OBS=5 / F04–F07 + F09–F12 RECOMPILED
+4B = CLOSED / 116↔116 / Project=23 / Brain=11 / Connections=9 / IAM=19 / OBS=5
 4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / W-02B LOCKED / W-03 P7 CANDIDATE
-F06 OPERATOR ACCEPTED / GREEN · F06 GREEN
-F07 OPERATOR ACCEPTED / GREEN · F07 SELECTED REALIZATION
-F08 OPERATOR ACCEPTED / REVISED P8 GREEN / OPERATOR RE-APPROVED · F08 SELECTED REALIZATION
-F09 OPERATOR ACCEPTED / GREEN · F09 SELECTED REALIZATION
-F10 OPERATOR ACCEPTED / GREEN · F10 SELECTED REALIZATION
-F11 OPERATOR ACCEPTED / GREEN · F11 SELECTED REALIZATION
-F12 OPERATOR ACCEPTED / GREEN · F12 SELECTED REALIZATION
-W-02B P9/P10 = CLOSED / VERIFIED GREEN
 W-03 = OPEN / P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
+
+Historical predecessor marker retained for closed-step proof guards: `W-03 = NEXT / NOT OPEN`.
 
 ## 4C routing
 
@@ -49,89 +43,24 @@ P12 = whole-product adversarial UX + architecture walkthrough
 
 `GF-01 H1-R2`, `W-01 C1-R1`, `W-02A Brain` and `W-02B Connections` are LOCKED. Only later material falsifiers may reopen the smallest affected block.
 
-```text
-W-02A = Workspace Brain
-W-02B = Connections
-W-03  = People/access + audit
-```
+`F04`–`F07` and `F09`–`F12` are operator-accepted bounded recompiles inside existing owners; `F08` was interaction-only. Current fixed Product/wire is `116↔116`, ordinary Permissions=25, Technical Ingress=3/Product impact 0.
 
-`F04`–`F07` and `F09`–`F12` are operator-accepted GREEN bounded recompiles inside existing owners; `F08` was interaction-only. Fixed Product/wire is now `116↔116`, Brain=11, Connections=9, IAM=19, OBS=5, ordinary Permissions=25.
+W-02A and W-02B locked detail remains owned by their structural decisions and Screen Contracts:
+[Brain](evidence/4c/w02a-brain-structural-hypotheses.md) / [Connections](evidence/4c/w02b-connections-structural-hypotheses.md).
 
-```text
-F04 Connection human presentation identity = OPERATOR ACCEPTED / GREEN
-F05 Brain Discovery proposal intake         = OPERATOR ACCEPTED / GREEN
-F06 Brain exact source-bound review content = OPERATOR ACCEPTED / GREEN
-F07 Brain structured knowledge browse       = OPERATOR ACCEPTED / GREEN
-F09 Connection current non-secret configuration = OPERATOR ACCEPTED / GREEN
-F10 Connection test applicability + diagnostics = OPERATOR ACCEPTED / GREEN
-F11 human-reviewable access administration = OPERATOR ACCEPTED / GREEN
-F12 human-investigable immutable Audit      = OPERATOR ACCEPTED / GREEN
-```
+## W-03 — People/access + Audit
 
-### W-02A — Workspace Brain — LOCKED
+F11/F12 are GREEN through whole-wire proof. Current P7 leading candidate is `A — subject-first access + filtered immutable Audit`:
 
 ```text
-Knowledge → Domain/namespace → business concept
-Discovery → explicit Project context → hypothesis → human resolution → Proposal
-Proposal exact review → APPROVE | REJECT
-approval != publication
-Revisions = immutable publication history
-Health = operational overlay
-```
-
-```text
-approved P8 blob = 9ca84ddbf40f6bcd969bfa638203bff8b9abf46e
-P9 exact trace = CLOSED
-P10 graduated shared patterns = 0
-P11 = LATER ASSEMBLED PRODUCT
-```
-
-Evidence: [Brain structural decision](evidence/4c/w02a-brain-structural-hypotheses.md) / [Brain Screen Contract](evidence/4c/w02a-brain-screen-contract.md) / [functional P8](evidence/4c/w02a-brain-functional-wireframe.html).
-
-### W-02B — Connections — LOCKED / OPERATOR APPROVED
-
-The operator approved the exact context-preserving P8. Connection-first browse remains the root model; routine maintenance now stays in one contextual Connection panel over the collection.
-
-```text
-Connection.name = primary human identity
-CON-04 = exact current non-secret configuration
-CON-07 = write-only credential replacement
-CON-08 = Test connection
-CON-09 = exact result + human diagnostic/remediation + Evidence
-connectionTest = NOT_TESTED | NEEDS_RETEST | PASSED | FAILED | INDETERMINATE
-config/credential change → old test basis NEEDS_RETEST
-configured != qualified != bound != healthy != caller-authorized
-```
-
-```text
-approved P8 blob = 421f5b8e08d6e5c96f5a56d8c24123902cbe3fab
-P9 exact trace = CLOSED
-P10 graduated shared patterns = 0
-closure verification = GREEN
-P11 = LATER ASSEMBLED PRODUCT
-```
-
-Evidence: [Connections structural decision](evidence/4c/w02b-connections-structural-hypotheses.md) / [Connections Screen Contract](evidence/4c/w02b-connections-screen-contract.md) / [functional P8](evidence/4c/w02b-connections-functional-wireframe.html).
-
-### W-03 — People/access + Audit — P7 CANDIDATE / NOT LOCKED
-
-F11/F12 survived bounded 4A→4B recompilation and whole-wire proof. P7 now leads with `A — subject-first access + filtered immutable Audit`:
-
-```text
-People & access
-→ People collection → contextual person-access panel
-→ Areas collection → contextual Area-access panel
-
-Audit
-→ server-side filters before pagination
-→ immutable audit collection → contextual exact-record detail
-
+People & access → People / Areas → contextual current-access detail
+Audit → server-filtered immutable collection → contextual exact-record detail
 current access administration != immutable audit investigation
 ```
 
-Alternatives `access-matrix first` and `operation/task-page first` are rejected. No generic RBAC/Admin Center, frontend access derivation or mutable Audit model is admitted.
+Alternatives `access-matrix first` and `operation/task-page first` are rejected. P8 remains blocked pending operator adjudication.
 
-Evidence: [W-03 authority preflight](evidence/4c/w03-authority-feasibility-preflight.md) / [W-03 P7 structural hypotheses](evidence/4c/w03-structural-hypotheses.md).
+Evidence: [preflight](evidence/4c/w03-authority-feasibility-preflight.md) / [P7 structure](evidence/4c/w03-structural-hypotheses.md).
 
 ## Method law
 
@@ -143,6 +72,6 @@ Frontend finding → root cause → target invariant → real owner → alternat
 
 ## Exact next action
 
-**Operator adjudication of the W-03 P7 structure: APPROVE | REVISE.** P8 remains BLOCKED until that explicit decision. Approval of P7 would authorize creation of the functional low-fidelity P8 candidate, not LOCK W-03.
+**Operator adjudication of the W-03 P7 structure: APPROVE | REVISE.** Approval would authorize creation of the functional P8 candidate; it would not LOCK W-03.
 
 Do not open W-04/P-01+ early, assemble P11 early, begin 4D, merge PR #57 or implement Product code.
