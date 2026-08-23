@@ -23,7 +23,7 @@ Product implementation               = BLOCKED
 
 Later block work may recompile coverage when a valid upstream finding changes Product/wire authority. `4C-F02` added `PRJ-23`; `4C-F03` added `PRJ-24` and bounded exact-candidate refinement semantics. W-02B later recompiled `WS-S06..09` into card browse + contextual detail + inline maintenance without operation-count change.
 
-W-03 authority-feasibility subsequently exposed two accepted findings. `4C-F11` adds human Account/Area presentation plus `IAM-18..20` so access administration can inspect exact current subjects and I&A-derived effective access without frontend pseudo-authority. `4C-F12` keeps `OBS-04/05` as the Audit owner while making immutable Audit server-filterable and historically human-readable. These findings recompile only the affected W-03 candidate surfaces below; they do not pre-lock W-03 layout.
+W-03 authority-feasibility subsequently exposed two accepted findings. `4C-F11` adds human Account/Area presentation plus `IAM-18..20` so access administration can inspect exact current subjects and I&A-derived effective access without frontend pseudo-authority. `4C-F12` keeps `OBS-04/05` as the Audit owner while making immutable Audit server-filterable and historically human-readable. After those bounded corrections went GREEN, the operator approved W-03 P7 and the exact functional P8; `WS-S10..11` below now reflect the locked subject-first/context-preserving interaction shapes without widening Product authority.
 
 ---
 
@@ -78,10 +78,10 @@ Exact URL paths, component boundaries, responsive placement, visual density and 
 | WS-S08 | Connection credential entry | `MATERIAL_REGION` inside contextual panel | replace credential material through the write-only secret boundary without leaving Connection context | no secret readback; credential write stays distinct from configuration |
 | WS-S09 | Connection qualification | `MATERIAL_REGION` inside contextual panel | run exact-environment Test connection and inspect result/problem/remediation in the same Connection context | proof operation, not generic Save/Test URL or runtime-health claim |
 | WS-S10 | People & access | `ROUTE_PAGE` | understand and administer exact Workspace membership, Areas and Project access without frontend-derived authorization | current I&A authority work; does not imply Published-App business access or generic RBAC |
-| WS-S10A | People / Workspace membership + member access | `MATERIAL_REGION` + contextual detail candidate | list human-recognizable members, find an existing membership candidate, add/remove membership and inspect one member's exact Area/direct/effective Project access with source explanation | `IAM-04/18/19` read truth stays I&A-owned; effective access is server-derived before writes |
-| WS-S10B | Areas + Area access | `MATERIAL_REGION` + contextual detail candidate | list/create human-recognizable Areas; inspect exact current Area members and Project grants; add/remove Area membership and Project grants | Area is grouping, not software owner; `IAM-20` exposes current access truth without grant CRUD symmetry |
-| WS-S10C | Direct Account Project access | `MATERIAL_REGION` within exact member access context | grant/revoke exact Account access to exact contained Project | direct access remains a separate current-authority source; summary disclosure grants no Project content authority |
-| WS-S11 | Audit investigation | `ROUTE_PAGE` + contextual immutable detail | filter the admitted Workspace Audit server-side by period/actor/action/Project, scan human summaries, and inspect one exact immutable fact + Evidence | filters apply before pagination; historical presentation is snapshot Evidence; Audit never becomes current business-state authority |
+| WS-S10A | People / Workspace membership + member access | `MATERIAL_REGION` + `DRAWER_MODAL` | list human-recognizable members, find an existing membership candidate, add/remove membership and inspect one member's exact Area/direct/effective Project access while preserving People context | `IAM-04/18/19` read truth stays I&A-owned; effective access is server-derived and all DIRECT/AREA sources remain visible |
+| WS-S10B | Areas + Area access | `MATERIAL_REGION` + `DRAWER_MODAL` | list/create human-recognizable Areas; inspect exact current Area members and Project grants in a contextual Area panel; add/remove Area membership and Project grants | Area is grouping, not software owner; `IAM-20` exposes current access truth without grant CRUD symmetry |
+| WS-S10C | Direct Account Project access | `MATERIAL_REGION` inside contextual person panel | grant/revoke exact Account access to exact contained Project while preserving all server-returned effective sources | direct access remains one current-authority source; summary disclosure grants no Project content authority |
+| WS-S11 | Audit investigation | `ROUTE_PAGE` + `DRAWER_MODAL` | apply server-side period/actor/action/exact-known-Project filters, scan immutable human summaries, and inspect one exact immutable fact + Evidence while preserving filtered collection context | filters apply before pagination; historical presentation is append-time snapshot Evidence; Audit never becomes current business-state authority |
 
 No generic Workspace `Settings` screen is created by symmetry. `4C-F11` adds evidence-driven Area creation/read presentation, not generic Workspace/Area metadata mutation or `WS-06` resurrection.
 
@@ -171,8 +171,8 @@ These are later Screen Contract/wireframe obligations, not client-owned lifecycl
 | `GF-01` | global frame + Workspace/Project navigation | whole-product coherence checkpoint | now `LOCKED / H1-R2`; later blocks inherit it unless a material falsifier reopens it |
 | `W-01` | Projects + source-complete create + Inception + candidate/approved Baseline | one continuous Journey-B entry/outcome | W-01 C1-R1 LOCKED; 4C-F02 + 4C-F03 remain its accepted bounded authority corrections |
 | `W-02` | Workspace Brain + Connections | reusable enterprise context/resources | W-02A Brain LOCKED; W-02B Connections LOCKED; later P11 assembly only after remaining material blocks |
-| `W-03` | People/access + audit | current authorization administration vs immutable investigation | OPEN at P7; F11/F12 backend/wire recompile required before structural adjudication and P8 |
-| `W-04` | Workspace Agent catalog | access-filtered browse of Project-owned Agents | added after GF-01 Fable review so WS-S03 has an explicit proving block; not open |
+| `W-03` | People/access + audit | current authorization administration vs immutable investigation | LOCKED / OPERATOR APPROVED; F11/F12 GREEN; P8 blob `7434c561ef0cfbc43c81ab8dd1f72b13cf032135`; P9/P10 closed |
+| `W-04` | Workspace Agent catalog | access-filtered browse of Project-owned Agents | NEXT / NOT OPEN; added after GF-01 Fable review so WS-S03 has an explicit proving block |
 | `P-01` | Build + Plan/Preview/Code/Diff/Findings/Evidence/assistant | primary Project workspace | reference study / competing hypotheses triggered |
 | `P-02` | Data + Capabilities + Integrations + Project Connections + Brain binding | inspectable Product resources | AnalyticQuery placement and Connection findability explicit questions |
 | `P-03` | Agents + triggers + runs + exact approvals | Product Agent lifecycle/runtime human work | approval discovery/placement trust-critical |
@@ -287,19 +287,19 @@ The original 4C-5 inventory exposed no upstream gap. W-01 later exposed `4C-F02`
 | `4C-S04` | exact ApprovalRequest host | `P-03` / `PA-01` |
 | `4C-S05` | Budget drilldown route vs master-detail | `BUD-01` |
 | `4C-S06` | discover pending exact ApprovalRequest without universal Approval Center or invented aggregate authority | `P-03`, cross-check `P-04` / `PA-01` |
-| `4C-S07` | W-03A People-first vs Area-first vs matrix-root interaction structure | `W-03A` P7 structural adjudication after F11 GREEN |
-| `4C-S08` | W-03B chronological audit + filter/detail density | `W-03B` P7 structural adjudication after F12 GREEN |
+| `4C-S07` | W-03A People-first vs Area-first vs matrix-root interaction structure | resolved by W-03 subject-first operator lock |
+| `4C-S08` | W-03B chronological audit + filter/detail density | resolved by W-03 filtered immutable Audit operator lock |
 
 `4C-A02` relative frequency/urgency remains open only where it materially affects ordering/density.
 
 ---
 
-## 10. Candidate closure result after 4C-F11/F12 coverage recompile
+## 10. Candidate closure result after W-03 lock
 
 ```text
-fixed Product operations                       = 116
-fixed browser-reachable operations             = 115
-Budget browser-reachable operations            = 2
+fixed Product operations                        = 116
+fixed browser-reachable operations              = 115
+Budget browser-reachable operations             = 2
 frontend-reachable concrete operations expected = 117
 frontend-reachable concrete operations mapped   = mechanically checked by repository test
 PAR-05 browser surface                          = 0
@@ -310,4 +310,4 @@ parallel Product DTO authority                  = 0
 Product implementation                          = 0
 ```
 
-This remains a **candidate inventory**, not a global structural lock. `GF-01`, `W-01`, `W-02A Brain` and `W-02B Connections` are individually operator-locked where their exact block Evidence applies. `W-03 — People/access + audit` is OPEN at P7 with F11/F12 backend authority recompilation in progress; no W-03 P8 artifact is authorized until the recompile is GREEN and the structural direction is adjudicated.
+This remains a **candidate inventory**, not a global structural lock. `GF-01`, `W-01`, `W-02A Brain`, `W-02B Connections` and `W-03 People/access + Audit` are individually operator-locked where their exact block Evidence applies. W-03 exact P8 is pinned by its Screen Contract; W-04 is the next material block but remains NOT OPEN.
