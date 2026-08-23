@@ -57,8 +57,9 @@ test('operator-approved W-01 C1-R1 is locked and closed through exact P9/P10 tra
   requireText(roadmap, 'W-01 LOCKED', 'roadmap must show W-01 locked')
   requireText(roadmap, 'W-02A LOCKED', 'W-01 progression must preserve the locked Brain sub-block')
   requireText(roadmap, 'W-02B LOCKED', 'W-01 progression must preserve the locked Connections sub-block')
-  requireText(roadmap, 'W-03 = NEXT / NOT OPEN', 'W-01 progression must stop at the next unopened W-03 block')
-  if (/W-04\s*=\s*OPEN|P-01\s*=\s*OPEN|4D[^\n|]*\|\s*OPEN/.test(roadmap)) {
-    throw new Error('W-01 lock must not skip the routed W-03 material block')
+  requireText(roadmap, 'W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN', 'W-01 progression beyond W-03 requires the exact W-03 lock')
+  requireText(roadmap, 'W-03 = NEXT / NOT OPEN', 'W-01 must preserve the historical W-03 predecessor marker')
+  if (/P-01\s*=\s*OPEN|4D[^\n|]*\|\s*OPEN/.test(roadmap)) {
+    throw new Error('W-01 lock must not skip the routed W-04 material block into P-01/4D')
   }
 })
