@@ -85,8 +85,11 @@ test('selected F13 wire makes PRJ-20/21/22 self-contained for human Agent and ow
   }
 
   const catalogSchema = wire.slice(catalogStart)
+  requireText(catalogSchema, 'type: object', 'F13 Workspace catalog item must be an explicit closed composition object')
+  requireText(catalogSchema, 'additionalProperties: false', 'F13 Workspace catalog item must remain closed')
+  requireText(catalogSchema, 'required: [agent, project]', 'F13 Workspace catalog item must require exact Agent + Project context')
+  requireText(catalogSchema, 'agent:', 'F13 Workspace catalog item missing canonical Agent field')
   requireText(catalogSchema, "$ref: '#/components/schemas/ProjectProductAgent'", 'F13 Workspace catalog item must reuse canonical ProjectProductAgent')
-  requireText(catalogSchema, 'required: [project]', 'F13 Workspace catalog item must require canonical Project context')
   requireText(catalogSchema, 'project:', 'F13 Workspace catalog item missing project field')
   requireText(catalogSchema, "$ref: '#/components/schemas/ProjectSummary'", 'F13 Workspace catalog item must use canonical ProjectSummary')
 
