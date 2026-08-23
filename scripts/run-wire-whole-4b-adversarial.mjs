@@ -8,7 +8,7 @@ const budgetOasPath = '/tmp/conexus-budget-analyzer.openapi.generated.json';
 const projectionPath = '/tmp/conexus-wire-projection-a.json';
 const projectSchemaPath = 'contracts/api/project-operation.schema.json';
 const projectGenerator = 'scripts/generate-project-openapi.mjs';
-const expectedProductOperations = 112;
+const expectedProductOperations = 113;
 
 for (const required of [productBundlePath, technicalBundlePath, budgetOasPath, projectionPath, projectSchemaPath, projectGenerator]) {
   if (!fs.existsSync(required)) throw new Error(`whole-4B prerequisite missing: ${required}`);
@@ -75,6 +75,9 @@ function assertWhole(currentProduct, currentTechnical, currentProject, currentPr
   }
   if (!productOperationIds.has('GetProjectBaselineCandidate') || !productAuthorityIds.has('PRJ-23')) {
     throw new Error('whole-4B Product wire lost accepted PRJ-23 candidate Baseline read');
+  }
+  if (!productOperationIds.has('AskConexusAboutBaselineCandidate') || !productAuthorityIds.has('PRJ-24')) {
+    throw new Error('whole-4B Product wire lost accepted PRJ-24 candidate Baseline contextual read');
   }
 
   const technicalPairs = new Set();
