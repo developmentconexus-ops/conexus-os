@@ -1,14 +1,14 @@
-# 4C W-02 — Workspace Brain + Connections Authority-Feasibility Preflight
+# 4C W-02 — Workspace Brain + Connections Authority/Data Feasibility
 
-> **Status:** `W-02 / 4C-7F / PREFLIGHT GREEN + F04/F05 FOLLOW-UP RECOMPILED`
-> **Inherited baseline:** `GF-01 H1-R2 = LOCKED`; `W-01 C1-R1 = LOCKED`; current Product/wire operation topology remains `113↔113` with 25 ordinary Permissions.
-> **Scope:** Workspace Brain and Workspace/Project-scoped Connections human work only. No structural layout, Product implementation, 4D mechanism, SDK/runtime or final visual design is admitted here.
+> **Status:** `W-02 / v2.2 P7 FEASIBILITY / GREEN AFTER F04+F05+F06 RECOMPILE`
+> **Inherited baseline:** `GF-01 H1-R2 = LOCKED`; `W-01 C1-R1 = LOCKED`; fixed Product/wire topology `113↔113`; 25 ordinary Permissions.
+> **Scope:** Workspace Brain and Workspace/Project-scoped Connections human work only. No Product implementation, 4D mechanism, SDK/runtime or final visual design is admitted here.
 
 ## 1. Decision question
 
-Can current accepted Product/wire authority support truthful human interaction for Workspace Brain and Connections without inventing an aggregate Settings/resource owner, exposing secret material, conflating proposal with publication, or turning qualification/binding/health into one status?
+Can current Product/wire authority supply the fields, identity, preview/content truth and material writes needed for honest W-02 functional P8 interaction without inventing an aggregate Settings owner, exposing secrets, conflating proposal/publication, or flattening Connection qualification/binding/authorization?
 
-This preflight answers operation/owner/trust feasibility. Later reference/structural study may still falsify a missing **property or input expressibility** inside an otherwise correct owner. That happened in `4C-F04` for Connection human identity and in `4C-F05` for Brain Discovery-backed proposal intake.
+Under frontend method v2.2, every material P7 requirement must be `PRESENT-IN-AUTHORITY` or a `FINDING` before P8 LOCK.
 
 ## 2. Split decision
 
@@ -18,14 +18,9 @@ W-02B — Connections
 W-02 split = REQUIRED
 ```
 
-The split is structural-methodological, not a new Product domain. The two jobs have materially different decisions, trust boundaries and failure semantics:
+Brain and Connections remain separate because their human decisions, trust boundaries and failure semantics differ materially.
 
-- Brain: inspect semantic knowledge, investigate sources, resolve machine hypotheses, review provenance-bearing proposals, decide reviewed meaning, publish immutable revisions, inspect health;
-- Connections: inspect Connector/Connection truth, create/revise configuration, cross a write-only credential boundary, qualify an exact revision/environment and keep use/binding/health distinct.
-
-They may remain adjacent Workspace destinations through the locked GF-01 rail, but each needs its own structural proof.
-
-## 3. W-02A — Workspace Brain exact authority
+## 3. W-02A — Workspace Brain
 
 Human-facing operations:
 
@@ -59,16 +54,15 @@ BRN-11 RunBrainHealthProbe = NOT-HUMAN-FACING / SYSTEM_OWNER_TRANSITION
 BRN-12 RunAnalyticQuery = P-02 / NOT W-02
 ```
 
-`brain.bind` likewise belongs to Project adoption in P-02 rather than Workspace Brain administration.
-
 Binding laws:
 
 ```text
 machine hypothesis != KnowledgeProposal
 proposal != reviewed meaning != published Brain revision
 BRN-04 Discovery = read-only hypothesis/provenance work
-BRN-08 = exact proposal review decision
-BRN-09 = exact reviewed-candidate publication
+BRN-08 = exact proposalRevision review decision
+BRN-09 = exact candidateSourceRevision publication
+reviewText != source/decision identity
 ```
 
 Health remains:
@@ -77,41 +71,57 @@ Health remains:
 UNVERIFIED | VALID | SUSPECT | INVALID | CHECK_ERROR
 ```
 
-### `4C-F05` follow-up — Discovery-backed human resolution
+### F05 — Discovery-backed human resolution — GREEN
 
-Reference/interaction derivation exposed a caller-expressibility falsifier after the initial topology preflight:
-
-```text
-accepted journey:
-BRN-04 machine hypothesis
-→ explicit human resolution
-→ durable KnowledgeProposal
-→ BRN-08 review decision
-→ BRN-09 publication
-
-pre-F05 wire:
-BRN-04 → candidateRef + hypothesis + provenanceRefs
-BRN-07 ← pre-existing candidateSourceRevision + provenanceRefs
-```
-
-The browser could not honestly manufacture the missing Brain source revision, and Builder/Project Git could not be reused without owner inversion.
-
-Global-Maximum analysis confirmed the existing Brain owner and the existing `BRN-07 SubmitKnowledgeProposal` semantic job. Operator-accepted realization keeps two mutually exclusive proposal-intake forms:
+Operator-accepted `BRN-07` has two mutually exclusive forms:
 
 ```text
 SOURCE_BACKED
-→ candidateSourceRevision + provenanceRefs
+candidateSourceRevision + provenanceRefs
 
 DISCOVERY_BACKED
-→ exact discoveryCandidateRef + explicit non-blank humanResolution
-→ Brain re-resolves discovery provenance/context
+discoveryCandidateRef + nonblank humanResolution
+→ Brain re-resolves Discovery provenance/context
 → Brain materializes candidateSourceRevision
 → same durable KnowledgeProposal
 ```
 
-No `ResolveBrainDiscoveryCandidate`, `BrainDraft`, `DiscoverySession`, new Permission, new owner or new durable record class is admitted.
+No intermediate resolve operation, BrainDraft, DiscoverySession, new Permission, owner or durable record is admitted.
 
-## 4. W-02B — Connections exact authority
+### F06 — exact review-content inspectability — GREEN
+
+P7 `preview/content truth` initially failed:
+
+```text
+BRN-03/06 had exact IDs/state/provenance
+but no caller-readable exact-source meaning
+```
+
+The operator accepted `CURRENT STRUCTURE CONFIRMED`. Current exact detail reads now provide:
+
+```text
+BRN-03 BrainRevision
+→ sourceRevision + nonblank reviewText
+
+BRN-06 KnowledgeProposal
+→ candidateSourceRevision + nonblank reviewText
+```
+
+`reviewText` is a deterministic Brain-owned human-readable projection of the exact named source revision. It survives refresh/re-entry and does not require browser-local Discovery state, Workspace Brain Git access or Builder source reads.
+
+Protected negative laws:
+
+```text
+reviewText -X-> canonical Brain source
+reviewText -X-> proposalRevision/candidateSourceRevision identity
+reviewText -X-> BRN-08 decision input
+reviewText -X-> BRN-09 publication input
+DOM / generated anchor -X-> Brain authority
+```
+
+Rich rendering/sectioning/diff remains P8/4D mechanism unless a new semantic truth requirement is proven.
+
+## 4. W-02B — Connections
 
 Human-facing operations:
 
@@ -148,41 +158,34 @@ Credential boundary:
 credential write = write-only / no secret readback
 ```
 
-Rejected by accepted authority:
-
-```text
-arbitrary TestURL
-secret fetch/readback
-generic credential executor
-cross-Workspace share by convenience
-generic Connector/Connection mutation outside admitted fields/revision semantics
-```
-
-### `4C-F04` follow-up — human Connection identity
-
-Reference study exposed a property-level falsifier:
-
-```text
-multiple same-provider logical Connections are valid
-+ Connection had machine/operational identity only
-→ no provider-independent server-owned human recognition source
-```
-
-Global-Maximum analysis confirmed the existing logical Connection owner. Operator-accepted realization:
+### F04 — human Connection identity — GREEN
 
 ```text
 Connection.name
-→ explicit creation-time human presentation identity
+→ creation-time provider-independent human identity
 → canonical Connection read projection
 → stable across ConnectionRevision changes
 → no rename authority in current F1
 ```
 
-The Connections topology remains 9 operations and the Permission/trust model is unchanged.
+Connections remain 9 operations; Permission/trust topology is unchanged.
 
-## 5. Surface / owner fit
+Qualification remains exact-subject truth. Current authority does **not** justify `latest qualification`, a qualification-history browser or a generic `Connected` badge merely for UI convenience.
 
-Current 4C inventory routes:
+## 5. v2.2 P7 feasibility matrix
+
+| Requirement | W-02A Brain | W-02B Connections | Status |
+| --- | --- | --- | --- |
+| fields/summaries | overview/revision/proposal/discovery/health fields present | connector/connection/config/credential/qualification fields present | PRESENT-IN-AUTHORITY |
+| identity sources | Workspace, revision, proposal, candidate source exact; reviewText non-authoritative | ConnectorDefinition + Connection.name + exact revision/qualification subjects | PRESENT-IN-AUTHORITY |
+| pagination/scale | no unproved scale-driven new mechanism admitted; P8 may use bounded fixtures | same; no speculative pagination API | PRESENT-IN-AUTHORITY for current F1 / scale assumption remains bounded |
+| sort/filter | no Product truth requires new sort/filter write authority; local view filtering may be EPHEMERAL_UI | same | PRESENT-IN-AUTHORITY for current block |
+| preview/content truth | F06 reviewText supplies exact source-bound human meaning | Connection configuration/qualification projections already available; secrets never readable | PRESENT-IN-AUTHORITY |
+| material writes | BRN-04/07/08/09 exact owner operations | CON-05/06/07/08 exact owner operations | PRESENT-IN-AUTHORITY |
+
+Any P8 need outside this matrix becomes a new `FINDING`; it is not permission to fabricate fixture-only Product truth.
+
+## 6. Surface / owner fit
 
 ```text
 WS-S04 Brain overview              → BRN-01/02/03/10
@@ -194,28 +197,54 @@ WS-S08 credential entry            → CON-07
 WS-S09 qualification               → CON-08
 ```
 
-Project Brain binding and Project Connection binding remain P-02 responsibilities. Workspace placement never changes semantic ownership.
+Project Brain/Connection bindings remain P-02 responsibilities. Workspace placement never changes semantic ownership.
 
-## 6. Generic Settings rejection
+## 7. Client-state boundaries
 
 ```text
-generic Workspace Settings = REJECTED
+SERVER
+→ Brain/revision/reviewText/proposal/health/Connection/qualification truth
+→ Connection.name
+
+URL_NAVIGATION
+→ exact revision/proposal/Connection/Connector/qualification subjects when route identity is material
+
+FORM_DRAFT
+→ Discovery humanResolution before submit
+→ Connection name/configuration draft
+→ credential input before submit
+
+EPHEMERAL_UI
+→ tabs/filtering/expanded detail/local selection
 ```
 
-Brain semantic review/publication and Connection identity/configuration/secret/qualification are owner-specific consequential work, not generic settings mutation.
+Secret input remains transient. `reviewText` is server projection, not editable form authority.
 
-## 7. Current authority-feasibility result
-
-Initial operation/Permission/owner/trust topology was sound. Later reference/interaction work found two bounded defects inside correct existing owners:
+## 8. Structural study / P8 boundary
 
 ```text
-F04 Connection human presentation identity = OPERATOR ACCEPTED / GREEN
-F05 Brain Discovery proposal intake         = OPERATOR ACCEPTED / GREEN
+reference study = TRIGGERED
 ```
 
-Preserved after both recompiles:
+W-02A must make hypothesis → human resolution → exact proposal review → publication legible without a generic editor. W-02B must keep connector, Connection, credential, qualification and downstream binding meanings visually distinct.
+
+Explicitly avoid:
 
 ```text
+universal resource/settings workbench
+secret readback
+Brain editor/canvas just because references have one
+generic Connected badge
+shared ReviewProjection Product domain before repeated locked Evidence
+4D SDK/runtime/package decisions
+```
+
+## 9. Current result
+
+```text
+F04 = OPERATOR ACCEPTED / GREEN
+F05 = OPERATOR ACCEPTED / GREEN
+F06 = OPERATOR ACCEPTED / GREEN
 fixed Product operations = 113
 fixed Product wire       = 113 ↔ 113
 Brain operations         = 11
@@ -224,72 +253,4 @@ ordinary Permissions     = 25
 new semantic owner       = 0
 ```
 
-No current falsifier shows that a human must directly invoke BRN-11, run BRN-12 from Workspace Brain administration, read Connection secrets, gain Connection use merely from qualification, mutate generic Workspace settings, rename Connection after creation, or create a separate Brain draft/session domain.
-
-## 8. Client-state boundaries
-
-```text
-SERVER
-→ Brain/revision/proposal/health/Connection/qualification truth
-→ Connection.name
-→ KnowledgeProposal produced by either BRN-07 intake
-
-URL_NAVIGATION
-→ exact revision/proposal/Connection/Connector subjects when route identity is material
-
-FORM_DRAFT
-→ Discovery human-resolution input before submit
-→ source-backed proposal input before submit
-→ Connection name/configuration
-→ credential input before submit
-
-EPHEMERAL_UI
-→ tabs/filtering/expanded detail/local selection
-```
-
-A secret field remains transient form input. Human-resolution draft text is not Brain authority until successful BRN-07 submission.
-
-## 9. Reference-study trigger
-
-```text
-reference study = TRIGGERED
-```
-
-Remaining structural questions:
-
-### W-02A Brain
-- how to make hypothesis/provenance → explicit human resolution → proposal review → publication legible without a generic document editor;
-- how revision/provenance/health remain inspectable;
-- whether overview and focused review need separate routes/material regions.
-
-### W-02B Connections
-- how connector definition, logical Connection, write-only credential entry, qualification and downstream binding remain visually distinct;
-- how credential-update success is communicated without readback;
-- how qualification/current-revision facts remain honest without a generic `Connected` badge;
-- how `Connection.name` and provider-specific secondary facts cooperate without configuration becoming identity authority.
-
-Reference observations remain Evidence only.
-
-## 10. Global-Maximum / YAGNI boundary before P8
-
-```text
-W-02A and W-02B studied separately
-→ resolve any further authority falsifier first
-→ compare only real structural alternatives
-→ preserve owner-specific truth
-→ render bounded HTML candidates
-→ operator adjudicates each material structure
-```
-
-Explicitly avoid:
-
-```text
-universal resource/settings workbench
-secret manager UI with readback
-Brain canvas/editor because competitors have one
-integration marketplace semantics without accepted consumer
-shared review framework generalized before repeated locked evidence
-4D SDK/runtime/package decisions
-```
-
-F04/F05 are proof that the preflight does not freeze downstream inquiry. Any further material falsifier returns to its real owner and Global-Maximum decision before P8.
+W-02A and W-02B are now eligible to resume v2.2 P7 structural hypothesis selection and **functional P8 HTML**. Eligibility is not LOCK.
