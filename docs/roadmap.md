@@ -13,9 +13,9 @@ This is the single current phase/status authority.
 | C-018 | RATIFIED / OPERATOR RATIFIED | Final Product architecture continuity ratified | Material Product/architecture falsifier |
 | C-015 refinement | REFINED / KEYCLOAK SELECTED / OPERATOR APPROVED | Authentication selected; Conexus owns authorization | Material identity/security falsifier |
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
-| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F10` RECOMPILED | `N_platform=113` | Interaction Evidence proves missing Product meaning/authority |
-| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F10` RECOMPILED | `113↔113`; Project=23; Brain=11; Connections=9 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01 LOCKED` / `W-01 LOCKED` / `W-02A LOCKED` / `W-02B LOCKED` / `W-03 NEXT` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F12` RECOMPILED | `N_platform=116` | Interaction Evidence proves missing Product meaning/authority |
+| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F12` RECOMPILED | `116↔116`; Project=23; Brain=11; Connections=9; IAM=19; OBS=5 | 4A change or wire/proof falsifier |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01 LOCKED` / `W-01 LOCKED` / `W-02A LOCKED` / `W-02B LOCKED` / `W-03 P7 CANDIDATE` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -23,16 +23,18 @@ This is the single current phase/status authority.
 | Product implementation | BLOCKED | Requires 4A–4G + explicit operator grant | No historical grant carries forward |
 
 ```text
-4A = CLOSED / N_platform=113 / F04–F07 + F09–F10 RECOMPILED
-4B = CLOSED / 113↔113 / Project=23 / Brain=11 / Connections=9 / F04–F07 + F09–F10 RECOMPILED
-4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / W-02B LOCKED / W-03 NEXT
+4A = CLOSED / N_platform=116 / F04–F07 + F09–F12 RECOMPILED
+4B = CLOSED / 116↔116 / Project=23 / Brain=11 / Connections=9 / IAM=19 / OBS=5 / F04–F07 + F09–F12 RECOMPILED
+4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / W-02B LOCKED / W-03 P7 CANDIDATE
 F06 OPERATOR ACCEPTED / GREEN · F06 GREEN
 F07 OPERATOR ACCEPTED / GREEN · F07 SELECTED REALIZATION
 F08 OPERATOR ACCEPTED / REVISED P8 GREEN / OPERATOR RE-APPROVED · F08 SELECTED REALIZATION
 F09 OPERATOR ACCEPTED / GREEN · F09 SELECTED REALIZATION
 F10 OPERATOR ACCEPTED / GREEN · F10 SELECTED REALIZATION
+F11 OPERATOR ACCEPTED / GREEN · F11 SELECTED REALIZATION
+F12 OPERATOR ACCEPTED / GREEN · F12 SELECTED REALIZATION
 W-02B P9/P10 = CLOSED / VERIFIED GREEN
-W-03 = NEXT / NOT OPEN
+W-03 = OPEN / P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
@@ -53,7 +55,7 @@ W-02B = Connections
 W-03  = People/access + audit
 ```
 
-`F04`–`F07` and `F09`–`F10` are operator-accepted GREEN bounded recompiles inside existing owners; `F08` was interaction-only. Fixed Product/wire remains `113↔113`, Brain=11, Connections=9, ordinary Permissions=25.
+`F04`–`F07` and `F09`–`F12` are operator-accepted GREEN bounded recompiles inside existing owners; `F08` was interaction-only. Fixed Product/wire is now `116↔116`, Brain=11, Connections=9, IAM=19, OBS=5, ordinary Permissions=25.
 
 ```text
 F04 Connection human presentation identity = OPERATOR ACCEPTED / GREEN
@@ -62,6 +64,8 @@ F06 Brain exact source-bound review content = OPERATOR ACCEPTED / GREEN
 F07 Brain structured knowledge browse       = OPERATOR ACCEPTED / GREEN
 F09 Connection current non-secret configuration = OPERATOR ACCEPTED / GREEN
 F10 Connection test applicability + diagnostics = OPERATOR ACCEPTED / GREEN
+F11 human-reviewable access administration = OPERATOR ACCEPTED / GREEN
+F12 human-investigable immutable Audit      = OPERATOR ACCEPTED / GREEN
 ```
 
 ### W-02A — Workspace Brain — LOCKED
@@ -109,6 +113,26 @@ P11 = LATER ASSEMBLED PRODUCT
 
 Evidence: [Connections structural decision](evidence/4c/w02b-connections-structural-hypotheses.md) / [Connections Screen Contract](evidence/4c/w02b-connections-screen-contract.md) / [functional P8](evidence/4c/w02b-connections-functional-wireframe.html).
 
+### W-03 — People/access + Audit — P7 CANDIDATE / NOT LOCKED
+
+F11/F12 survived bounded 4A→4B recompilation and whole-wire proof. P7 now leads with `A — subject-first access + filtered immutable Audit`:
+
+```text
+People & access
+→ People collection → contextual person-access panel
+→ Areas collection → contextual Area-access panel
+
+Audit
+→ server-side filters before pagination
+→ immutable audit collection → contextual exact-record detail
+
+current access administration != immutable audit investigation
+```
+
+Alternatives `access-matrix first` and `operation/task-page first` are rejected. No generic RBAC/Admin Center, frontend access derivation or mutable Audit model is admitted.
+
+Evidence: [W-03 authority preflight](evidence/4c/w03-authority-feasibility-preflight.md) / [W-03 P7 structural hypotheses](evidence/4c/w03-structural-hypotheses.md).
+
 ## Method law
 
 ```text
@@ -119,6 +143,6 @@ Frontend finding → root cause → target invariant → real owner → alternat
 
 ## Exact next action
 
-**Open W-03 — People/access + audit.** Begin its bounded FP1 entry with P6 reference-trigger assessment and P7 hypotheses/authority-feasibility before any P8 artifact. `W-03` is NEXT / NOT OPEN until that transition begins.
+**Operator adjudication of the W-03 P7 structure: APPROVE | REVISE.** P8 remains BLOCKED until that explicit decision. Approval of P7 would authorize creation of the functional low-fidelity P8 candidate, not LOCK W-03.
 
 Do not open W-04/P-01+ early, assemble P11 early, begin 4D, merge PR #57 or implement Product code.
