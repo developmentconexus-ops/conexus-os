@@ -51,8 +51,6 @@ W-02B = Connections
 
 Initial operation/Permission/owner/trust topology remains sound. `F04`–`F07` are operator-accepted GREEN bounded recompiles inside existing Connections/Brain owners; fixed Product/wire remains `113↔113`, Brain=11, Connections=9, ordinary Permissions=25.
 
-Preserved bounded follow-up history:
-
 ```text
 F04 Connection human presentation identity = OPERATOR ACCEPTED / GREEN
 F05 Brain Discovery proposal intake         = OPERATOR ACCEPTED / GREEN
@@ -71,11 +69,9 @@ Health = operational overlay
 physical Brain-Git topology = NOT SELECTED by 4C
 ```
 
-Functional P8: [Brain wireframe](evidence/4c/w02a-brain-functional-wireframe.html). P7 Evidence: [Brain structural decision](evidence/4c/w02a-brain-structural-hypotheses.md).
-
 ### F07 — structured Brain knowledge browse — GREEN
 
-P9 exposed that plain `reviewText` could not truthfully implement `Knowledge → Domain → Concept`. The operator accepted preserving Brain + `BRN-03 GetBrainRevision` and adding only an exact-revision structured source-bound `knowledgeBrowse` detail projection.
+P9 exposed that plain `reviewText` could not truthfully implement `Knowledge → Domain → Concept`. Accepted result:
 
 ```text
 BRN-03 → BrainRevisionDetail
@@ -83,39 +79,31 @@ BRN-03 → BrainRevisionDetail
 + knowledgeBrowse → domains[] → concepts[] → contentClasses[] / sections[] / provenanceRefs[]
 ```
 
-Projection coordinates remain revision-scoped presentation coordinates, not semantic/source or decision identities. `BRN-02` and `BRN-09` remain bounded summary/publication responses. Dedicated Brain catalog/search/pagination stays deferred.
-
-Proof:
+Projection coordinates remain revision-scoped presentation only. `BRN-02` / `BRN-09` remain bounded summaries; remote Brain catalog/search/pagination stays deferred.
 
 ```text
 Verify #615 = EXPECTED RED
-→ 68 tests / 67 pass / 1 fail exactly BRN-03 detail shape
-
-Verify #619 = SUCCESS
-→ full repository + generated/whole-wire proof GREEN
-→ fixed Product wire remains 113↔113 / Brain=11
+Verify #619 = SUCCESS / fixed Product wire 113↔113 / Brain=11
 ```
 
 Evidence: [finding](evidence/4c/w02a-brain-knowledge-browse-finding.md) / [Global Maximum](evidence/4c/w02a-brain-knowledge-browse-global-maximum.md) / [selected realization](evidence/4c/w02a-brain-knowledge-browse-selected-realization.md).
 
 ### F08 — explicit Brain Discovery Project context — OPERATOR GATE
 
-P9 then exposed an interaction-level gap: `BRN-04 StartBrainDiscovery` requires the Project whose admitted source/Connection context Brain will use, but the approved P8 exposes only `Run discovery` and does not tell the human which Project is selected.
+`BRN-04 StartBrainDiscovery` requires the Project whose admitted source/Connection context Brain will use, but the approved P8 does not tell the human which Project is selected.
 
-Existing authority is already sufficient:
+Existing authority is sufficient:
 
 ```text
-PRJ-01 ListProjects
-→ ProjectSummary { projectId, workspaceId, name, archived }
-
+PRJ-01 ListProjects → ProjectSummary { projectId, workspaceId, name, archived }
 selected projectId = untrusted FORM_DRAFT
 → BRN-04 StartBrainDiscovery
 → Brain resolves source / Connection context server-side
 ```
 
-Leading Global-Maximum candidate: add an explicit Project context selector inside the existing Brain Discovery region using only current PRJ-01 human Project identity; no backend/wire/Permission/owner change. Knowledge/Proposal/Revisions/Health and F07 remain unchanged.
+Leading candidate: explicit Project context selector inside Brain Discovery using PRJ-01 human identity; no backend/wire/Permission/owner change. Knowledge/Proposal/Revisions/Health and F07 stay unchanged.
 
-Because the context is material to the action, an accepted F08 requires a revised functional P8 and operator re-walkthrough before final W-02A LOCK.
+Accepted F08 would require a revised functional P8 and operator re-walkthrough before final W-02A LOCK.
 
 Evidence: [F08 finding](evidence/4c/w02a-brain-discovery-project-context-finding.md) / [F08 Global Maximum](evidence/4c/w02a-brain-discovery-project-context-global-maximum.md).
 
@@ -131,6 +119,6 @@ Frontend finding → root cause → target invariant → real owner → alternat
 
 **Operator adjudication of F08: `ACCEPT GLOBAL-MAXIMUM CANDIDATE | REVISE | REJECT`.**
 
-If accepted: revise only W-02A Discovery entry/context in functional HTML, prove Project selection + BRN-04 interaction with deterministic fixtures, then require operator re-walkthrough/re-approval. Only after the revised P8 and P9 trace close may W-02A become LOCKED and P10 close.
+If accepted: revise only W-02A Discovery entry/context in functional HTML, prove Project selection + BRN-04 interaction with deterministic fixtures, then require operator re-walkthrough/re-approval. Only after revised P8 + P9 close may W-02A become LOCKED and P10 close.
 
 Do not advance W-02B as baseline, begin 4D, merge PR #57 or implement Product code.
