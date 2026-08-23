@@ -84,7 +84,7 @@ test('W-02B functional P8 keeps credential write-only and qualification exact-su
     'qualificationState',
     'evidenceRefs',
     'exact qualification',
-    'stale revision',
+    'Stale revision.',
     'Reload current configuration',
   ]) requireText(html, token, `W-02B P8 missing trust/recovery evidence: ${token}`)
 
