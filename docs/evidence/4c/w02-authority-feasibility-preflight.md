@@ -52,7 +52,14 @@ brain.review
 brain.publish
 ```
 
-`brain.bind` belongs to Project adoption in P-02. `BRN-11 RunBrainHealthProbe` remains system-only. `BRN-12 RunAnalyticQuery` belongs to P-02, not Workspace Brain administration.
+Explicit out-of-block dispositions:
+
+```text
+BRN-11 RunBrainHealthProbe = NOT-HUMAN-FACING / SYSTEM_OWNER_TRANSITION
+BRN-12 RunAnalyticQuery = P-02 / NOT W-02
+```
+
+`brain.bind` likewise belongs to Project adoption in P-02 rather than Workspace Brain administration.
 
 Binding laws:
 
