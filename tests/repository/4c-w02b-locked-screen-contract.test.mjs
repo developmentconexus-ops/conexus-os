@@ -24,6 +24,7 @@ test('operator-approved W-02B Connections is locked and closed through exact P9/
   const html = read(htmlPath)
   const hypotheses = read('docs/evidence/4c/w02b-connections-structural-hypotheses.md')
   const contract = read(contractPath)
+  const inventory = read('docs/evidence/4c/candidate-screen-surface-inventory.md')
   const roadmap = read('docs/roadmap.md')
 
   const approvedBlob = '421f5b8e08d6e5c96f5a56d8c24123902cbe3fab'
@@ -62,9 +63,16 @@ test('operator-approved W-02B Connections is locked and closed through exact P9/
     'P11 = LATER ASSEMBLED PRODUCT',
   ]) requireText(contract, law, `W-02B closure missing law: ${law}`)
 
-  for (const forbidden of ['CON-10', 'qualification history', 'generic Connected/Healthy', 'secret readback']) {
+  for (const forbidden of ['CON-10', 'generic Connected/Healthy', 'credential read operation']) {
     if (contract.includes(forbidden)) throw new Error(`W-02B Screen Contract invents forbidden scope: ${forbidden}`)
   }
+
+  for (const recompiledSurface of [
+    '| WS-S06 | Connections browse + contextual detail | `ROUTE_PAGE` + `DRAWER_MODAL` |',
+    '| WS-S07 | Connection create / inline revise | `DRAWER_MODAL` + `MATERIAL_REGION` |',
+    '| WS-S08 | Connection credential entry | `MATERIAL_REGION` inside contextual panel |',
+    '| WS-S09 | Connection qualification | `MATERIAL_REGION` inside contextual panel |',
+  ]) requireText(inventory, recompiledSurface, `W-02B lock must recompile affected surface inventory: ${recompiledSurface}`)
 
   requireText(roadmap, 'W-02B LOCKED', 'roadmap must show W-02B locked')
   requireText(roadmap, 'W-03 = NEXT / NOT OPEN', 'roadmap must route the next material 4C block to W-03')
