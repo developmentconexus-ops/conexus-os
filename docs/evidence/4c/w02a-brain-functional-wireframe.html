@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en" data-wireframe="w-02a-brain">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>W-02A · Workspace Brain · functional lo-fi candidate</title>
+  <style>
+    :root{
+      --ink:#191919;--muted:#666;--line:#b8b8b8;--strong:#686868;--paper:#fff;--soft:#f3f3f3;--soft2:#e7e7e7;
+      --rail:224px;--top:56px;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:var(--paper)
+    }
+    *{box-sizing:border-box}body{margin:0;background:#ececec}button,input,textarea{font:inherit;color:inherit}button{cursor:pointer}[hidden]{display:none!important}
+    button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #333;outline-offset:2px}
+    .note{max-width:1440px;margin:18px auto 8px;padding:12px 16px;border:1px solid var(--strong);background:var(--paper);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}.note strong{font-size:14px}.note small{color:var(--muted)}.badge{border:1px solid var(--strong);padding:5px 8px;font-size:12px;font-weight:700}
+    .shell{max-width:1440px;min-height:830px;margin:0 auto 24px;border:2px solid #333;background:var(--paper);display:grid;grid-template-columns:var(--rail) minmax(0,1fr);grid-template-rows:var(--top) minmax(0,1fr);grid-template-areas:"top top" "rail stage";position:relative;overflow:hidden}
+    .topbar{grid-area:top;border-bottom:1px solid var(--strong);background:var(--soft);display:flex;align-items:center;gap:10px;padding:0 14px;z-index:20}.brand{font-weight:700}.menu-toggle{display:none;width:38px;height:34px;border:1px solid var(--strong);background:var(--paper)}
+    .context{display:flex;align-items:center;gap:5px;min-width:0;flex:1}.context button{border:1px solid transparent;background:transparent;padding:7px 8px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}.context button:hover{border-color:var(--strong);background:var(--paper)}.account{margin-left:auto;border:1px solid var(--strong);background:var(--paper);border-radius:18px;padding:7px 12px}
+    .rail{grid-area:rail;background:var(--soft);border-right:1px solid var(--strong);padding:12px 10px 18px;overflow:auto;z-index:15}.rail-title{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:14px 8px 6px}.rail-btn{display:block;width:100%;text-align:left;border:1px solid transparent;background:transparent;padding:8px 10px;margin:1px 0;border-radius:4px}.rail-btn:hover{border-color:var(--strong)}.rail-btn[aria-current="page"]{background:var(--soft2);border-color:var(--line);font-weight:700}
+    .stage{grid-area:stage;min-width:0;overflow:auto}.main{padding:26px 32px 42px;max-width:1160px}.crumb{font-size:12px;color:var(--muted);margin-bottom:8px}h1{font-size:24px;margin:0 0 6px}h2{font-size:18px;margin:0 0 8px}h3{font-size:15px;margin:0 0 8px}h4{font-size:13px;margin:0 0 6px}.lede{color:var(--muted);font-size:13px;margin:0 0 16px;max-width:850px}.fixture{border:1px dashed var(--strong);padding:9px 11px;margin:0 0 16px;color:var(--muted);font-size:12px;background:#fcfcfc}.fixture strong{color:var(--ink)}
+    .brain-nav{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:20px}.brain-nav button{border:1px solid transparent;background:transparent;padding:8px 10px}.brain-nav button:hover{border-color:var(--line)}.brain-nav button[aria-current="page"]{border-color:var(--strong);background:var(--soft2);font-weight:700}.count{display:inline-block;min-width:18px;text-align:center;border:1px solid var(--line);font-size:10px;padding:1px 4px;margin-left:4px}
+    .toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:18px;flex-wrap:wrap}.field{display:grid;gap:5px}.field label,.field .label{font-size:12px;font-weight:700}.field input,.field textarea{border:1px solid var(--strong);background:var(--paper);padding:9px 10px}.field input{min-width:300px}.field textarea{min-height:120px;resize:vertical;width:min(760px,100%)}.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px}.primary,.secondary,.danger,.text-action{border:1px solid #444;background:var(--paper);padding:9px 12px}.primary{background:var(--soft2);font-weight:700}.danger{border-style:dashed}.text-action{border-color:transparent;text-decoration:underline;background:transparent;padding-left:0}.primary:disabled,.secondary:disabled{cursor:not-allowed;opacity:.45}
+    .summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 20px}.summary{border:1px solid var(--line);padding:13px;background:var(--paper)}.summary small{display:block;color:var(--muted);margin-bottom:5px}.summary strong{font-size:15px}.status{display:inline-block;border:1px solid var(--line);padding:4px 7px;font-size:11px;font-weight:700}.status.attention{border-style:dashed}
+    .domain-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.domain-card,.concept-card,.candidate-card,.proposal-card,.revision-card,.health-card{border:1px solid var(--strong);background:var(--paper);padding:14px;text-align:left}.domain-card:hover,.concept-card:hover,.candidate-card:hover,.proposal-card:hover,.revision-card:hover{background:#fafafa}.domain-card strong,.concept-card strong,.candidate-card strong,.proposal-card strong{display:block;font-size:15px;margin-bottom:5px}.domain-card small,.concept-card small,.candidate-card small,.proposal-card small{display:block;color:var(--muted);line-height:1.4}.domain-card .meta,.concept-card .meta{margin-top:10px;font-size:11px;color:var(--muted)}
+    .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}.back{border:1px solid transparent;background:transparent;text-decoration:underline;padding:4px 0}.split{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px}.panel{border:1px solid var(--strong);padding:16px;background:var(--paper);margin-bottom:14px}.panel p,.panel li{font-size:13px;line-height:1.5}.panel p{margin:6px 0}.panel ul{margin:6px 0;padding-left:20px}.panel header{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:10px}.class-tag{font-size:10px;border:1px solid var(--line);padding:3px 5px;color:var(--muted)}.concept-sections{display:grid;gap:10px}.concept-section{border:1px solid var(--line);padding:13px}.concept-section p{margin:4px 0}.technical{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;overflow-wrap:anywhere}.meta-list{display:grid;grid-template-columns:130px minmax(0,1fr);gap:7px 10px;margin:0}.meta-list dt{color:var(--muted);font-size:12px}.meta-list dd{margin:0;font-size:12px;overflow-wrap:anywhere}
+    .search-results{display:grid;gap:8px}.search-result{border:1px solid var(--line);padding:10px;background:var(--paper);text-align:left}.empty{padding:30px 12px;color:var(--muted);text-align:center;border:1px dashed var(--line)}
+    .candidate-list,.proposal-list,.revision-list,.health-list{display:grid;gap:10px}.candidate-card[aria-current="true"],.proposal-card[aria-current="true"]{background:var(--soft2)}.provenance{border:1px dashed var(--line);padding:10px;margin-top:10px;font-size:12px}.provenance strong{display:block;margin-bottom:4px}.resolution{margin-top:14px}.resolution textarea{width:100%;min-height:120px;border:1px solid var(--strong);padding:10px;resize:vertical}.hint{color:var(--muted);font-size:12px;line-height:1.45}.problem{border:1px solid var(--strong);background:var(--soft);padding:12px;margin:12px 0;font-size:12px}.success{border:1px solid var(--strong);background:var(--soft2);padding:12px;margin:12px 0;font-size:12px}.flow-law{border:1px dashed var(--strong);padding:10px;font-size:11px;line-height:1.55;background:#fcfcfc;margin-top:12px}.review-text{white-space:pre-wrap;font-size:13px;line-height:1.55;border-left:3px solid var(--line);padding-left:12px}.decision-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.publish-zone{border-top:1px solid var(--line);padding-top:14px;margin-top:16px}.publish-zone .status{margin-right:8px}.health-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}.health-card p{margin:4px 0;color:var(--muted);font-size:12px}.revision-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}.revision-card small{color:var(--muted)}
+    .scrim{display:none}
+    @media(max-width:900px){.split{grid-template-columns:1fr}.summary-grid{grid-template-columns:1fr 1fr}.domain-grid{grid-template-columns:1fr}}
+    @media(max-width:760px){body{background:var(--paper)}.note{margin:0;border-width:0 0 1px}.shell{width:100%;min-height:100vh;margin:0;border:0;grid-template-columns:1fr;grid-template-rows:var(--top) minmax(0,1fr);grid-template-areas:"top" "stage"}.brand{display:none}.menu-toggle{display:inline-block}.topbar{padding:0 8px;gap:4px}.context button{max-width:170px;padding:7px 5px}.account{font-size:0;width:34px;height:34px;padding:0}.account::after{content:"A";font-size:13px}.rail{position:absolute;z-index:40;top:var(--top);left:0;bottom:0;width:min(82vw,310px);transform:translateX(-102%);transition:transform 120ms linear;box-shadow:2px 0 0 #bbb}.shell[data-drawer-open="true"] .rail{transform:translateX(0)}.scrim{position:absolute;z-index:35;inset:var(--top) 0 0;background:rgba(0,0,0,.16);border:0}.shell[data-drawer-open="true"] .scrim{display:block}.main{padding:20px 16px 32px}.brain-nav{flex-wrap:nowrap;overflow-x:auto}.brain-nav button{white-space:nowrap}.summary-grid{grid-template-columns:1fr}.field input{min-width:0;width:100%}.page-head{flex-direction:column}.meta-list{grid-template-columns:1fr;gap:3px}.meta-list dd{margin-bottom:6px}}
+  </style>
+</head>
+<body>
+  <!-- W-02A P8 Evidence only. Fixture interaction only. No backend/runtime behavior is claimed. -->
+  <aside class="note" aria-label="Wireframe status">
+    <div><strong>W-02A · Workspace Brain</strong><br><small>Functional low-fidelity P8 candidate · knowledge-first structural hypothesis.</small></div>
+    <span class="badge">CANDIDATE · NOT LOCKED</span>
+  </aside>
+
+  <div class="shell" id="shell" data-drawer-open="false" data-scope="workspace">
+    <header class="topbar">
+      <button class="menu-toggle" id="menuToggle" type="button" aria-label="Open navigation" aria-controls="rail" aria-expanded="false">☰</button>
+      <div class="brand">Conexus</div>
+      <nav class="context" aria-label="Current Workspace context">
+        <button type="button">Metal Nobre ▾</button>
+      </nav>
+      <button class="account" type="button" aria-label="Account and session">Account</button>
+    </header>
+
+    <nav class="rail" id="rail" aria-label="Workspace navigation">
+      <div class="rail-title">Work</div>
+      <button class="rail-btn" type="button">Projects</button>
+      <button class="rail-btn" type="button">Agents</button>
+      <div class="rail-title">Shared context</div>
+      <button class="rail-btn" type="button" aria-current="page">Brain</button>
+      <button class="rail-btn" type="button">Connections</button>
+      <div class="rail-title">Admin / investigate</div>
+      <button class="rail-btn" type="button">People &amp; access</button>
+      <button class="rail-btn" type="button">Audit</button>
+    </nav>
+
+    <button class="scrim" id="scrim" type="button" aria-label="Close navigation"></button>
+
+    <main class="stage" id="stage">
+      <div class="main">
+        <div class="crumb">Metal Nobre / Brain</div>
+        <div class="page-head">
+          <div>
+            <h1>Brain</h1>
+            <p class="lede">Canonical organizational knowledge. Browse what the organization knows separately from the workflows that evolve that knowledge.</p>
+          </div>
+          <span class="status">revision 42 · VALID</span>
+        </div>
+
+        <div class="fixture">
+          <strong>Fixture interaction only.</strong> Fixture domains and concepts are demonstration data only. No backend/runtime behavior is claimed. Refresh resets the local demonstration state.
+        </div>
+
+        <nav class="brain-nav" aria-label="Brain sections">
+          <button type="button" data-view-target="knowledge" aria-current="page">Knowledge</button>
+          <button type="button" data-view-target="discovery">Discovery</button>
+          <button type="button" data-view-target="proposals">Proposals <span class="count" id="proposalCount">1</span></button>
+          <button type="button" data-view-target="revisions">Revisions</button>
+          <button type="button" data-view-target="health">Health</button>
+        </nav>
+
+        <section data-brain-view="knowledge" id="knowledgeView">
+          <div id="knowledgeHome">
+            <div class="toolbar">
+              <div class="field">
+                <label for="knowledgeSearch">Search organizational knowledge</label>
+                <input id="knowledgeSearch" type="search" placeholder="Search concepts, rules or domains" autocomplete="off">
+              </div>
+              <span class="hint">Search is fixture findability only; it is not Brain authority.</span>
+            </div>
+
+            <div class="summary-grid" aria-label="Brain summary">
+              <div class="summary"><small>Published knowledge</small><strong>Revision 42</strong></div>
+              <div class="summary"><small>Operational health</small><strong>VALID</strong></div>
+              <div class="summary"><small>Needs attention</small><strong>3 hypotheses · <span id="attentionProposalCount">1</span> proposal</strong></div>
+            </div>
+
+            <div id="searchArea" hidden>
+              <h2>Search results</h2>
+              <div class="search-results" id="searchResults"></div>
+            </div>
+
+            <div id="domainArea">
+              <h2>Domains</h2>
+              <p class="lede">Business-aligned namespaces organize content inside one canonical Workspace Brain; they do not create separate Brain authorities.</p>
+              <div class="domain-grid" id="domainGrid">
+                <button class="domain-card" type="button" data-domain-id="commercial">
+                  <strong>Commercial</strong><small>Customers · Sales · Budgets · Commissions</small><div class="meta">3 fixture concepts</div>
+                </button>
+                <button class="domain-card" type="button" data-domain-id="products">
+                  <strong>Products</strong><small>Products · Categories · Inventory</small><div class="meta">2 fixture concepts</div>
+                </button>
+                <button class="domain-card" type="button" data-domain-id="finance">
+                  <strong>Finance</strong><small>Receivables · Payments · Credit</small><div class="meta">1 fixture concept</div>
+                </button>
+                <button class="domain-card" type="button" data-domain-id="logistics">
+                  <strong>Logistics</strong><small>Delivery · Pickup · Carriers</small><div class="meta">1 fixture concept</div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div id="domainDetail" hidden></div>
+          <div id="conceptDetail" hidden></div>
+        </section>
+
+        <section data-brain-view="discovery" id="discoveryView" hidden>
+          <div class="page-head">
+            <div><h2>Discovery</h2><p class="lede">Inspect machine-proposed hypotheses, then explicitly resolve what cannot be inferred before a durable proposal exists.</p></div>
+            <button class="primary" id="runDiscoveryButton" type="button" data-operation="BRN-04">Run discovery</button>
+          </div>
+          <div class="flow-law">source reality → Discovery hypothesis → explicit human resolution → KnowledgeProposal<br>machine hypothesis != KnowledgeProposal</div>
+          <div id="discoveryEmpty" class="empty">Run the fixture discovery to reveal provenance-bearing hypotheses.</div>
+          <div id="discoveryResults" class="split" hidden>
+            <div>
+              <h3>Potential business concepts</h3>
+              <div class="candidate-list" id="candidateList"></div>
+            </div>
+            <aside class="panel" id="candidateInspector" aria-live="polite">
+              <h3>Select a hypothesis</h3>
+              <p class="hint">A hypothesis is not canonical knowledge and is not yet a KnowledgeProposal.</p>
+            </aside>
+          </div>
+        </section>
+
+        <section data-brain-view="proposals" id="proposalsView" hidden>
+          <div class="page-head">
+            <div><h2>Proposals</h2><p class="lede">Durable candidate knowledge waiting for exact human review. Approval and publication remain separate actions.</p></div>
+          </div>
+          <div class="flow-law">proposal approval != publication · reviewText != decision identity</div>
+          <div class="split">
+            <div>
+              <h3>Review queue</h3>
+              <div class="proposal-list" id="proposalList"></div>
+            </div>
+            <aside class="panel" id="proposalInspector" aria-live="polite">
+              <h3>Select a proposal</h3>
+              <p class="hint">Open an exact proposal to inspect its reviewText, provenance and decision subject.</p>
+            </aside>
+          </div>
+        </section>
+
+        <section data-brain-view="revisions" id="revisionsView" hidden>
+          <div class="page-head"><div><h2>Revisions</h2><p class="lede">Immutable published Brain revisions. A new publication does not silently rebind Projects.</p></div></div>
+          <div class="revision-list" id="revisionList"></div>
+        </section>
+
+        <section data-brain-view="health" id="healthView" hidden>
+          <div class="page-head"><div><h2>Health</h2><p class="lede">Operational overlay for exact published knowledge. Health can change without rewriting immutable Brain content.</p></div></div>
+          <div class="summary-grid"><div class="summary"><small>Brain revision</small><strong>42</strong></div><div class="summary"><small>Health snapshot</small><strong>health-42-a</strong></div><div class="summary"><small>Overall</small><strong>VALID</strong></div></div>
+          <div class="health-list">
+            <div class="health-card"><div><strong>Net Revenue</strong><p>Critical semantic definition and evidence specification.</p></div><span class="status">VALID</span></div>
+            <div class="health-card"><div><strong>Customer</strong><p>Business Partner classification rule.</p></div><span class="status">VALID</span></div>
+            <div class="health-card"><div><strong>Pending Budget</strong><p>Current analytical definition requires a follow-up source check.</p></div><span class="status attention">SUSPECT</span></div>
+          </div>
+          <div class="flow-law">UNVERIFIED | VALID | SUSPECT | INVALID | CHECK_ERROR<br>health overlay -X→ immutable Brain source mutation</div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const domainFixtures = {
+      commercial: {
+        name: 'Commercial',
+        description: 'Customer, sales and budget meaning used across the Workspace.',
+        concepts: ['customer', 'net-revenue', 'pending-budget']
+      },
+      products: {
+        name: 'Products',
+        description: 'Product and inventory meaning.',
+        concepts: ['product', 'available-stock']
+      },
+      finance: {
+        name: 'Finance',
+        description: 'Receivable and payment meaning.',
+        concepts: ['receivable']
+      },
+      logistics: {
+        name: 'Logistics',
+        description: 'Delivery and pickup meaning.',
+        concepts: ['delivery']
+      }
+    }
+
+    const conceptFixtures = {
+      'customer': { domain:'commercial', name:'Customer', summary:'A business party classified as a customer under accepted commercial rules.', definition:'A business party eligible to be treated as a customer for commercial analysis.', businessMeaning:'Customer is a business concept; it is not a direct alias for every row in TGFPAR.', grain:'Business party', relationships:'Sales, Budgets, Receivables', rules:['A TGFPAR row can represent more than a customer.','Customer classification must use accepted business rules rather than table existence alone.'], caveats:['Partner master data mixes multiple business-party roles.'], evidence:['Check accepted classification fields against known synthetic/golden fixtures.'], provenance:['Sankhya dictionary/catalog metadata','Human-reviewed classification rule'] },
+      'net-revenue': { domain:'commercial', name:'Net Revenue', summary:'Effective billed revenue after eligible returns.', definition:'Eligible billed sales value minus eligible returns.', businessMeaning:'Represents revenue actually recognized by the accepted commercial definition, not every outbound document.', grain:'Invoice / eligible commercial operation', relationships:'Customer, Product, Seller, Date', rules:['STATUSNOTA = L.','TOP 305 is delivery of an existing order and does not create a new sale.','Eligible returns reduce the result.'], caveats:['Operation/TOP semantics must remain explicit; delivery documents cannot be double-counted.'], evidence:['Reconcile TGFCAB/TGFITE under admitted sale TOPs.','Verify known return TOPs 791, 220, 120 and 91.','Use golden cases without real ERP values in Brain source.'], provenance:['Sankhya dictionary/catalog metadata','Accepted Metal Nobre operation semantics','Human-reviewed Brain publication'] },
+      'pending-budget': { domain:'commercial', name:'Pending Budget', summary:'Budget/order subject that remains pending under the exact Budget Analyzer contract.', definition:'A currently eligible pending budget under the Project-defined Budget Analyzer semantic contract.', businessMeaning:'Used by the first published Budget Analyzer vertical; it is not a generic query-builder concept.', grain:'Budget / order', relationships:'Customer, Seller, Date', rules:['Result coordinates and freshness must remain visible.'], caveats:['Cross-call snapshot pinning is not promised in F1.'], evidence:['Reconcile exact Project query results against the admitted source coordinate.'], provenance:['Budget Analyzer semantic contract'] },
+      'product': { domain:'products', name:'Product', summary:'Sellable product identity under accepted catalog meaning.', definition:'Canonical business product identity.', businessMeaning:'Product meaning is distinct from physical source-table structure.', grain:'Product', relationships:'Category, Inventory, Sales', rules:['Source identifiers are provenance, not human primary identity.'], caveats:['Provider-specific catalog fields may differ.'], evidence:['Check stable product identity against synthetic fixtures.'], provenance:['Product catalog metadata'] },
+      'available-stock': { domain:'products', name:'Available Stock', summary:'Current stock meaning for admitted inventory use.', definition:'Available quantity under the current accepted inventory definition.', businessMeaning:'Availability is contextual and must not be inferred from an arbitrary field by UI convenience.', grain:'Product × admitted stock context', relationships:'Product, Location', rules:['Unknown or stale inventory is not zero.'], caveats:['Physical location semantics depend on admitted source context.'], evidence:['Compare read-model result with governed source reconciliation.'], provenance:['Inventory source contract'] },
+      'receivable': { domain:'finance', name:'Receivable', summary:'Financial amount expected to be collected.', definition:'An admitted financial receivable subject.', businessMeaning:'Receivable meaning is distinct from sale creation and delivery documents.', grain:'Financial installment', relationships:'Customer, Sale, Due date', rules:['Missing financial data is not zero.'], caveats:['Settlement state must be interpreted from accepted finance semantics.'], evidence:['Reconcile governed finance read model against source.'], provenance:['Financial source contract'] },
+      'delivery': { domain:'logistics', name:'Delivery', summary:'Physical fulfillment of an already-admitted sale/order.', definition:'A logistics fulfillment event.', businessMeaning:'Delivery is not automatically a new commercial sale.', grain:'Delivery occurrence', relationships:'Order, Customer, Carrier', rules:['Delivery documents must not be double-counted as new revenue.'], caveats:['Transport and route state remain owner-specific.'], evidence:['Verify delivery linkage against known synthetic cases.'], provenance:['Logistics operation semantics'] }
+    }
+
+    const discoveryFixtures = [
+      { id:'disc-net-revenue', concept:'Net Revenue', hypothesis:'TGFCAB/TGFITE activity appears to represent a revenue concept, but delivery and return operation semantics require human resolution.', provenance:['TGFCAB catalog','TGFITE catalog','Observed TOP references'], suggested:'Sales value minus returns.' },
+      { id:'disc-customer', concept:'Customer', hypothesis:'TGFPAR appears to contain business parties; not every row can safely be classified as Customer.', provenance:['TGFPAR catalog','Partner classification metadata'], suggested:'Business Partner classified as customer.' },
+      { id:'disc-delivery', concept:'Delivery', hypothesis:'Outbound documents include a fulfillment concept distinct from a new sale.', provenance:['TGFCAB catalog','TOP metadata'], suggested:'Physical fulfillment event.' }
+    ]
+
+    const state = {
+      view:'knowledge',
+      domain:null,
+      concept:null,
+      discoveryRan:false,
+      selectedDiscovery:null,
+      selectedProposal:'kp-existing',
+      proposals:[{
+        proposalId:'kp-existing', proposalRevision:'proposal-r7', candidateSourceRevision:'brain-candidate-r7', title:'Pending Budget wording', status:'PENDING', published:false,
+        reviewText:'Pending Budget\n\nDefinition: A currently eligible pending budget under the exact Budget Analyzer semantic contract.\n\nCaveat: result coordinates and freshness remain visible.',
+        provenanceRefs:['Budget Analyzer semantic contract','brain-discovery-previous']
+      }],
+      revisions:[
+        { id:'42', source:'brain-source-42', status:'CURRENT', note:'Current published Workspace Brain.' },
+        { id:'41', source:'brain-source-41', status:'AVAILABLE', note:'Prior immutable publication.' }
+      ]
+    }
+
+    const shell = document.getElementById('shell')
+    const menuToggle = document.getElementById('menuToggle')
+    const scrim = document.getElementById('scrim')
+    const views = [...document.querySelectorAll('[data-brain-view]')]
+    const viewButtons = [...document.querySelectorAll('[data-view-target]')]
+
+    function setView(view) {
+      state.view = view
+      views.forEach(section => section.hidden = section.dataset.brainView !== view)
+      viewButtons.forEach(button => button.setAttribute('aria-current', button.dataset.viewTarget === view ? 'page' : 'false'))
+      if (view === 'proposals') renderProposals()
+      if (view === 'revisions') renderRevisions()
+      closeDrawer()
+    }
+
+    function openDrawer(){ shell.dataset.drawerOpen='true'; menuToggle.setAttribute('aria-expanded','true') }
+    function closeDrawer(){ shell.dataset.drawerOpen='false'; menuToggle.setAttribute('aria-expanded','false') }
+    menuToggle.addEventListener('click', () => shell.dataset.drawerOpen === 'true' ? closeDrawer() : openDrawer())
+    scrim.addEventListener('click', closeDrawer)
+    viewButtons.forEach(button => button.addEventListener('click', () => setView(button.dataset.viewTarget)))
+
+    function conceptCard(id) {
+      const concept = conceptFixtures[id]
+      return `<button class="concept-card" type="button" data-concept-id="${id}"><strong>${concept.name}</strong><small>${concept.summary}</small><div class="meta">${concept.grain}</div></button>`
+    }
+
+    function openDomain(domainId) {
+      const domain = domainFixtures[domainId]
+      if (!domain) return
+      state.domain = domainId
+      state.concept = null
+      document.getElementById('knowledgeHome').hidden = true
+      document.getElementById('conceptDetail').hidden = true
+      const target = document.getElementById('domainDetail')
+      target.hidden = false
+      target.innerHTML = `<div class="page-head"><div><button class="back" type="button" id="backKnowledge">← Knowledge</button><h2>${domain.name}</h2><p class="lede">${domain.description}</p></div><span class="status">Domain fixture</span></div><div class="domain-grid">${domain.concepts.map(conceptCard).join('')}</div>`
+      document.getElementById('backKnowledge').addEventListener('click', showKnowledgeHome)
+      target.querySelectorAll('[data-concept-id]').forEach(button => button.addEventListener('click', () => openConcept(button.dataset.conceptId)))
+    }
+
+    function showKnowledgeHome() {
+      state.domain = null; state.concept = null
+      document.getElementById('knowledgeHome').hidden = false
+      document.getElementById('domainDetail').hidden = true
+      document.getElementById('conceptDetail').hidden = true
+    }
+
+    function openConcept(conceptId) {
+      const concept = conceptFixtures[conceptId]
+      if (!concept) return
+      state.concept = conceptId
+      document.getElementById('knowledgeHome').hidden = true
+      document.getElementById('domainDetail').hidden = true
+      const target = document.getElementById('conceptDetail')
+      target.hidden = false
+      target.innerHTML = `
+        <div class="page-head"><div><button class="back" type="button" id="backDomain">← ${domainFixtures[concept.domain].name}</button><h2>${concept.name}</h2><p class="lede">${concept.summary}</p></div><span class="status">published · revision 42</span></div>
+        <div class="split"><div class="concept-sections">
+          <section class="concept-section" data-content-class="SEMANTIC"><header><h3>Definition</h3><span class="class-tag">SEMANTIC</span></header><p>${concept.definition}</p></section>
+          <section class="concept-section" data-content-class="KNOWLEDGE"><header><h3>Business meaning</h3><span class="class-tag">KNOWLEDGE</span></header><p>${concept.businessMeaning}</p></section>
+          <section class="concept-section" data-content-class="SEMANTIC"><header><h3>Grain</h3><span class="class-tag">SEMANTIC</span></header><p>${concept.grain}</p></section>
+          <section class="concept-section" data-content-class="SEMANTIC"><header><h3>Relationships</h3><span class="class-tag">SEMANTIC</span></header><p>${concept.relationships}</p></section>
+          <section class="concept-section" data-content-class="KNOWLEDGE"><header><h3>Business rules</h3><span class="class-tag">KNOWLEDGE</span></header><ul>${concept.rules.map(x=>`<li>${x}</li>`).join('')}</ul></section>
+          <section class="concept-section" data-content-class="KNOWLEDGE"><header><h3>Caveats</h3><span class="class-tag">KNOWLEDGE</span></header><ul>${concept.caveats.map(x=>`<li>${x}</li>`).join('')}</ul></section>
+          <section class="concept-section" data-content-class="EVIDENCE_SPEC"><header><h3>How this is verified</h3><span class="class-tag">EVIDENCE_SPEC</span></header><ul>${concept.evidence.map(x=>`<li>${x}</li>`).join('')}</ul></section>
+          <section class="concept-section"><header><h3>Provenance</h3><span class="class-tag">READ-ONLY</span></header><ul>${concept.provenance.map(x=>`<li>${x}</li>`).join('')}</ul></section>
+        </div><aside class="panel"><h3>Exact publication</h3><dl class="meta-list"><dt>Brain revision</dt><dd>42</dd><dt>Source revision</dt><dd class="technical">brain-source-42</dd><dt>Health</dt><dd>VALID</dd><dt>Domain</dt><dd>${domainFixtures[concept.domain].name}</dd></dl><div class="flow-law">Human presentation of exact published meaning.<br>DOM / card position -X→ Brain identity.</div></aside></div>`
+      document.getElementById('backDomain').addEventListener('click', () => openDomain(concept.domain))
+    }
+
+    function applySearch(query) {
+      const q = query.trim().toLowerCase()
+      const searchArea = document.getElementById('searchArea')
+      const domainArea = document.getElementById('domainArea')
+      if (!q) { searchArea.hidden = true; domainArea.hidden = false; return }
+      const matches = Object.entries(conceptFixtures).filter(([id,c]) => `${c.name} ${c.summary} ${domainFixtures[c.domain].name} ${c.rules.join(' ')}`.toLowerCase().includes(q))
+      domainArea.hidden = true; searchArea.hidden = false
+      const target = document.getElementById('searchResults')
+      target.innerHTML = matches.length ? matches.map(([id,c]) => `<button class="search-result" type="button" data-search-concept="${id}"><strong>${c.name}</strong><br><small>${domainFixtures[c.domain].name} · ${c.summary}</small></button>`).join('') : '<div class="empty">No fixture concepts match this search.</div>'
+      target.querySelectorAll('[data-search-concept]').forEach(button => button.addEventListener('click',()=>openConcept(button.dataset.searchConcept)))
+    }
+
+    document.getElementById('knowledgeSearch').addEventListener('input', event => applySearch(event.target.value))
+    document.querySelectorAll('[data-domain-id]').forEach(button => button.addEventListener('click',()=>openDomain(button.dataset.domainId)))
+
+    function runDiscovery() {
+      state.discoveryRan = true
+      document.getElementById('discoveryEmpty').hidden = true
+      document.getElementById('discoveryResults').hidden = false
+      const list = document.getElementById('candidateList')
+      list.innerHTML = discoveryFixtures.map(item => `<button class="candidate-card" type="button" data-discovery-id="${item.id}"><strong>${item.concept}</strong><small>${item.hypothesis}</small></button>`).join('')
+      list.querySelectorAll('[data-discovery-id]').forEach(button => button.addEventListener('click',()=>selectHypothesis(button.dataset.discoveryId)))
+      selectHypothesis(discoveryFixtures[0].id)
+    }
+
+    function selectHypothesis(id) {
+      state.selectedDiscovery = id
+      document.querySelectorAll('[data-discovery-id]').forEach(button => button.setAttribute('aria-current', button.dataset.discoveryId === id ? 'true' : 'false'))
+      const item = discoveryFixtures.find(x=>x.id===id)
+      const inspector = document.getElementById('candidateInspector')
+      inspector.innerHTML = `<h3>${item.concept}</h3><p>${item.hypothesis}</p><div class="provenance"><strong>Why Conexus thinks this</strong>${item.provenance.map(x=>`<div>${x}</div>`).join('')}</div><div class="resolution"><label for="humanResolution"><strong>Your resolution</strong></label><p class="hint">Confirm, correct or explain what the machine could not infer. This is FORM_DRAFT until successful proposal submission.</p><textarea id="humanResolution">${item.concept==='Net Revenue' ? 'Almost correct. Exclude TOP 305, include eligible returns, and require STATUSNOTA=L.' : ''}</textarea><div class="actions"><button class="primary" id="submitProposal" type="button" data-operation="BRN-07">Submit as proposal</button></div><div id="resolutionMessage" aria-live="polite"></div></div>`
+      document.getElementById('submitProposal').addEventListener('click',submitDiscoveryProposal)
+    }
+
+    function submitDiscoveryProposal() {
+      const input = document.getElementById('humanResolution')
+      const resolution = input.value.trim()
+      const message = document.getElementById('resolutionMessage')
+      if (!resolution) { message.innerHTML='<div class="problem"><strong>Human resolution required</strong>Explain what should be confirmed or corrected before the hypothesis can become a durable proposal.</div>'; input.focus(); return }
+      const item = discoveryFixtures.find(x=>x.id===state.selectedDiscovery)
+      const proposalId = `kp-${item.id}`
+      const existing = state.proposals.find(x=>x.proposalId===proposalId)
+      const reviewText = `${item.concept}\n\nMachine hypothesis\n${item.suggested}\n\nHuman resolution\n${resolution}\n\nStatus\nCandidate knowledge for exact human review; not published.`
+      const proposal = existing || { proposalId, proposalRevision:`proposal-${item.id}-r1`, candidateSourceRevision:`brain-candidate-${item.id}-r1`, title:item.concept, status:'PENDING', published:false, reviewText, provenanceRefs:[...item.provenance,'explicit human resolution'] }
+      if (!existing) state.proposals.unshift(proposal)
+      state.selectedProposal = proposalId
+      updateCounts()
+      message.innerHTML='<div class="success"><strong>Fixture proposal created</strong>The hypothesis is now represented as a durable-proposal fixture. Publication has not happened.</div>'
+      setTimeout(()=>{ setView('proposals'); openProposal(proposalId) }, 250)
+    }
+
+    function updateCounts() {
+      const pending = state.proposals.filter(p=>p.status==='PENDING').length
+      document.getElementById('proposalCount').textContent=String(pending)
+      document.getElementById('attentionProposalCount').textContent=String(pending)
+    }
+
+    function renderProposals() {
+      const list = document.getElementById('proposalList')
+      list.innerHTML = state.proposals.map(p => `<button class="proposal-card" type="button" data-proposal-id="${p.proposalId}" aria-current="${p.proposalId===state.selectedProposal?'true':'false'}"><strong>${p.title}</strong><small>${p.proposalRevision}</small><div class="meta"><span class="status">${p.published?'PUBLISHED':p.status}</span></div></button>`).join('')
+      list.querySelectorAll('[data-proposal-id]').forEach(button=>button.addEventListener('click',()=>openProposal(button.dataset.proposalId)))
+      if (state.selectedProposal && state.proposals.some(p=>p.proposalId===state.selectedProposal)) openProposal(state.selectedProposal)
+    }
+
+    function openProposal(proposalId) {
+      state.selectedProposal = proposalId
+      document.querySelectorAll('[data-proposal-id]').forEach(button=>button.setAttribute('aria-current',button.dataset.proposalId===proposalId?'true':'false'))
+      const p = state.proposals.find(x=>x.proposalId===proposalId)
+      const statusLabel = p.published ? 'PUBLISHED' : p.status === 'APPROVED' ? 'APPROVED · NOT PUBLISHED' : p.status
+      const inspector = document.getElementById('proposalInspector')
+      inspector.innerHTML = `<header><div><h3>${p.title}</h3><small>Exact proposal review</small></div><span class="status">${statusLabel}</span></header><div class="review-text">${p.reviewText}</div><div class="provenance"><strong>Provenance</strong>${p.provenanceRefs.map(x=>`<div>${x}</div>`).join('')}</div><dl class="meta-list" style="margin-top:12px"><dt>proposalRevision</dt><dd class="technical">${p.proposalRevision}</dd><dt>candidateSourceRevision</dt><dd class="technical">${p.candidateSourceRevision}</dd><dt>reviewText</dt><dd>Human-readable source-bound projection; not decision identity.</dd></dl><div id="proposalDecisionArea"></div>`
+      renderProposalDecision(p)
+    }
+
+    function renderProposalDecision(p) {
+      const area = document.getElementById('proposalDecisionArea')
+      if (!area) return
+      if (p.status === 'PENDING') {
+        area.innerHTML = `<div class="decision-row"><button class="danger" id="rejectProposal" type="button" data-operation="BRN-08">Reject</button><button class="primary" id="approveProposal" type="button" data-operation="BRN-08">Approve</button></div><p class="hint">Decision binds the exact proposalRevision above. reviewText != decision identity.</p>`
+        document.getElementById('approveProposal').addEventListener('click',()=>decideProposal('APPROVE'))
+        document.getElementById('rejectProposal').addEventListener('click',()=>decideProposal('REJECT'))
+      } else if (p.status === 'APPROVED' && !p.published) {
+        area.innerHTML = `<div class="publish-zone"><span class="status">APPROVED · NOT PUBLISHED</span><p class="hint">The proposal decision is complete, but canonical Brain publication is a separate owner action.</p><button class="primary" id="publishProposal" type="button" data-operation="BRN-09">Publish approved candidate</button></div>`
+        document.getElementById('publishProposal').addEventListener('click',publishApprovedProposal)
+      } else if (p.status === 'REJECTED') {
+        area.innerHTML = '<div class="problem"><strong>REJECTED</strong>This exact proposal revision cannot be published by the fixture. Discovery may produce a different future proposal.</div>'
+      } else if (p.published) {
+        area.innerHTML = '<div class="success"><strong>PUBLISHED</strong>A new immutable Brain revision fixture was created. No Project binding changed automatically.</div>'
+      }
+    }
+
+    function decideProposal(decision) {
+      const p = state.proposals.find(x=>x.proposalId===state.selectedProposal)
+      if (!p || p.status!=='PENDING') return
+      p.status = decision === 'APPROVE' ? 'APPROVED' : 'REJECTED'
+      updateCounts(); renderProposals(); openProposal(p.proposalId)
+    }
+
+    function publishApprovedProposal() {
+      const p = state.proposals.find(x=>x.proposalId===state.selectedProposal)
+      if (!p || p.status!=='APPROVED' || p.published) return
+      p.published = true
+      const nextId = String(Math.max(...state.revisions.map(r=>Number(r.id)))+1)
+      state.revisions.forEach(r=>{ if(r.status==='CURRENT') r.status='AVAILABLE' })
+      state.revisions.unshift({ id:nextId, source:p.candidateSourceRevision, status:'CURRENT', note:`Published from ${p.proposalId}; Projects remain independently pinned.` })
+      renderProposals(); openProposal(p.proposalId)
+    }
+
+    function renderRevisions() {
+      const list = document.getElementById('revisionList')
+      list.innerHTML = state.revisions.map(r=>`<article class="revision-card"><div><strong>Brain revision ${r.id}</strong><br><small>${r.note}</small><div class="technical" style="margin-top:7px">sourceRevision: ${r.source}</div></div><span class="status">${r.status}</span></article>`).join('')
+    }
+
+    document.getElementById('runDiscoveryButton').addEventListener('click',runDiscovery)
+    renderProposals(); renderRevisions(); updateCounts()
+  </script>
+</body>
+</html>
