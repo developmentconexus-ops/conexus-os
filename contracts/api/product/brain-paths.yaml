@@ -162,23 +162,12 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required: [candidateSourceRevision, provenanceRefs]
-              properties:
-                candidateSourceRevision:
-                  type: string
-                  minLength: 1
-                provenanceRefs:
-                  type: array
-                  minItems: 1
-                  uniqueItems: true
-                  items:
-                    type: string
-                    minLength: 1
+              oneOf:
+                - $ref: '#/components/schemas/SourceBackedKnowledgeProposalInput'
+                - $ref: '#/components/schemas/DiscoveryBackedKnowledgeProposalInput'
       responses:
         '201':
-          description: KnowledgeProposal submitted for human review; submission cannot self-publish Brain authority.
+          description: KnowledgeProposal submitted for human review. Source-backed intake preserves an existing Brain candidate revision; Discovery-backed intake revalidates the exact discovery candidate and explicit human resolution before Brain materializes the candidate source. Submission never self-publishes Brain authority.
           content:
             application/json:
               schema:
@@ -479,6 +468,35 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/BrainDiscoveryCandidate'
+    SourceBackedKnowledgeProposalInput:
+      type: object
+      additionalProperties: false
+      required: [candidateSourceRevision, provenanceRefs]
+      properties:
+        candidateSourceRevision:
+          type: string
+          minLength: 1
+          description: Exact existing Brain-owned candidate source revision to submit for review.
+        provenanceRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+    DiscoveryBackedKnowledgeProposalInput:
+      type: object
+      additionalProperties: false
+      required: [discoveryCandidateRef, humanResolution]
+      properties:
+        discoveryCandidateRef:
+          type: string
+          minLength: 1
+          description: Untrusted exact Brain Discovery candidate reference; Brain re-resolves current Workspace/discovery containment and provenance server-side.
+        humanResolution:
+          type: string
+          minLength: 1
+          description: Explicit human confirmation/correction/resolution of the exact discovery hypothesis. It is semantic input for Brain-owned candidate-source materialization, not raw Git/source authority.
     KnowledgeProposal:
       type: object
       additionalProperties: false
