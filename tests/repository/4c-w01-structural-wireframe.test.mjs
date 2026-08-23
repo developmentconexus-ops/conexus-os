@@ -10,10 +10,10 @@ function requireText(text, needle, message) {
   if (!text.includes(needle)) throw new Error(message)
 }
 
-test('W-01 structural candidate is a bounded HTML proof over accepted Journey-B authority', () => {
+test('W-01 locked structural baseline is a bounded HTML proof over accepted Journey-B authority', () => {
   const evidencePath = 'docs/evidence/4c/w01-reference-and-structural-hypotheses.md'
   const htmlPath = 'docs/evidence/4c/w01-projects-inception-wireframe.html'
-  if (!existsSync(path(evidencePath))) throw new Error('W-01 reference/hypothesis evidence must exist before P8 candidate can close')
+  if (!existsSync(path(evidencePath))) throw new Error('W-01 reference/hypothesis evidence must exist')
   if (!existsSync(path(htmlPath))) throw new Error('W-01 P8 HTML wireframe must exist')
 
   const evidence = read(evidencePath)
@@ -25,11 +25,11 @@ test('W-01 structural candidate is a bounded HTML proof over accepted Journey-B 
     'H1 — compact structured Project list',
     'H2 — simple Project cards/grid',
     'H3 — dense Project table',
-    'cards/grid = LEADING / CANDIDATE',
+    'cards/grid = LOCKED / OPERATOR APPROVED',
     'structured list = REJECTED AS LEADING',
     'dense table = REJECTED AS LEADING',
     'ProjectSummary = projectId + workspaceId + name + archived',
-    'C1-R1 — visual Baseline review + contextual refinement — **LEADING / CANDIDATE**',
+    'C1-R1 — visual Baseline review + contextual refinement — **LOCKED / OPERATOR APPROVED**',
     'PRJ-03 → PRJ-07 → PRJ-23 / PRJ-24 / PRJ-08 → PRJ-09',
   ]) requireText(evidence, decision, `W-01 structural evidence missing decision: ${decision}`)
 
@@ -75,7 +75,7 @@ test('W-01 structural candidate is a bounded HTML proof over accepted Journey-B 
     throw new Error('W-01 Project cards must not invent richer ProjectSummary metadata')
   }
   if (/Disclosed Project · collection metadata intentionally incomplete/i.test(html)) {
-    throw new Error('W-01 must not copy GF-01 fixture filler into the accepted card candidate')
+    throw new Error('W-01 must not copy GF-01 fixture filler into the accepted card baseline')
   }
   if (/global search|search all projects and resources/i.test(html)) {
     throw new Error('W-01 must not invent global Product search')
