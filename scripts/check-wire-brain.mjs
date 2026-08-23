@@ -126,12 +126,12 @@ required(discoveryResult, 'projectId', 'candidates');
 const candidate = resolveSchema(property(discoveryResult, 'candidates')?.items);
 if (candidate) {
   required(candidate, 'candidateRef', 'hypothesis', 'provenanceRefs');
-  for (const forbidden of ['accuracyPercent', 'verifiedPercent', 'canonical']) {
-    if (candidate.properties?.[forbidden]) throw new Error(`Brain Discovery candidate must not manufacture certainty via ${forbidden}`);
+  for (const forbidden of ['accuracyPercent', 'verifiedPercent', 'canonical', 'candidateSourceRevision']) {
+    if (candidate.properties?.[forbidden]) throw new Error(`Brain Discovery candidate must not manufacture authority/certainty via ${forbidden}`);
   }
 }
 
-// Proposals are exact Git/source candidates with provenance and remain hypotheses until human decision/publication.
+// Proposals are exact Brain-owned source candidates with provenance and remain hypotheses until human decision/publication.
 const proposal = assertClosedObject(successSchema('BRN-06'), 'BRN-06 success');
 required(proposal, 'proposalId', 'proposalRevision', 'candidateSourceRevision', 'provenanceRefs', 'hypothesisState', 'reviewState');
 if (property(proposal, 'hypothesisState')?.enum || property(proposal, 'reviewState')?.enum) {
@@ -141,12 +141,37 @@ for (const forbidden of ['accuracyPercent', 'autoPublished', 'machineApproved'])
   if (proposal.properties?.[forbidden]) throw new Error(`BRN-06 must not expose false Brain authority ${forbidden}`);
 }
 
-const submitProposal = assertClosedObject(requestSchema('BRN-07'), 'BRN-07 request');
-required(submitProposal, 'candidateSourceRevision', 'provenanceRefs');
-if (!hasRequiredParameter('BRN-07', 'header', 'Idempotency-Key')) throw new Error('BRN-07 must require Idempotency-Key');
-for (const forbidden of ['publish', 'autoPublish', 'approved', 'machineDecision']) {
-  if (submitProposal.properties?.[forbidden]) throw new Error(`BRN-07 must never self-publish via ${forbidden}`);
+// F05: SubmitKnowledgeProposal keeps one semantic operation with two exclusive intake forms.
+// Source-backed preserves an existing Brain candidate source; Discovery-backed binds exact candidate + explicit human resolution,
+// while Brain re-resolves provenance and materializes candidate source authority server-side.
+const submitProposal = requestSchema('BRN-07');
+const submitForms = submitProposal?.oneOf;
+if (!Array.isArray(submitForms) || submitForms.length !== 2) {
+  throw new Error('BRN-07 must have exactly two mutually exclusive source-backed/discovery-backed input forms');
 }
+const resolvedSubmitForms = submitForms.map(resolveSchema);
+const sourceBacked = resolvedSubmitForms.find((schema) => schema?.properties?.candidateSourceRevision);
+const discoveryBacked = resolvedSubmitForms.find((schema) => schema?.properties?.discoveryCandidateRef);
+if (!sourceBacked || !discoveryBacked) throw new Error('BRN-07 input union must contain source-backed and Discovery-backed forms');
+assertClosedObject(sourceBacked, 'BRN-07 source-backed input');
+assertClosedObject(discoveryBacked, 'BRN-07 Discovery-backed input');
+required(sourceBacked, 'candidateSourceRevision', 'provenanceRefs');
+required(discoveryBacked, 'discoveryCandidateRef', 'humanResolution');
+if ((property(discoveryBacked, 'humanResolution')?.minLength ?? 0) < 1) throw new Error('BRN-07 Discovery-backed humanResolution must be non-blank');
+for (const forbidden of ['discoveryCandidateRef', 'humanResolution']) {
+  if (sourceBacked.properties?.[forbidden]) throw new Error(`BRN-07 source-backed input must not absorb ${forbidden}`);
+}
+for (const forbidden of ['candidateSourceRevision', 'provenanceRefs', 'publish', 'autoPublish', 'approved', 'machineDecision']) {
+  if (discoveryBacked.properties?.[forbidden]) throw new Error(`BRN-07 Discovery-backed browser input must not accept ${forbidden}`);
+}
+for (const form of [sourceBacked, discoveryBacked]) {
+  for (const forbidden of ['publish', 'autoPublish', 'approved', 'machineDecision']) {
+    if (form.properties?.[forbidden]) throw new Error(`BRN-07 must never self-publish via ${forbidden}`);
+  }
+}
+if (!hasRequiredParameter('BRN-07', 'header', 'Idempotency-Key')) throw new Error('BRN-07 must require Idempotency-Key');
+const submittedProposal = assertClosedObject(successSchema('BRN-07', '201'), 'BRN-07 success');
+required(submittedProposal, 'proposalId', 'proposalRevision', 'candidateSourceRevision', 'provenanceRefs', 'hypothesisState', 'reviewState');
 
 const decideProposal = assertClosedObject(requestSchema('BRN-08'), 'BRN-08 request');
 required(decideProposal, 'expectedProposalRevision', 'decision');
@@ -190,4 +215,4 @@ for (const forbidden of ['rawSql', 'executedSql', 'physicalTable', 'credential']
   if (analyticResult.properties?.[forbidden]) throw new Error(`BRN-12 response must not expose physical/secret authority ${forbidden}`);
 }
 
-console.log('Brain schema closure passed (11 Product operations; BRN-11 remains owner transition; publication/health/AnalyticQuery boundaries closed).');
+console.log('Brain schema closure passed (11 Product operations; F05 source/discovery proposal intake closed; BRN-11 remains owner transition; publication/health/AnalyticQuery boundaries closed).');
