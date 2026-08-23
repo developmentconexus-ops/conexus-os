@@ -1,7 +1,7 @@
 # Conexus OS — Product Operation Ledger
 
-> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` BOUNDED CORRECTIONS ACCEPTED
-> **Authority:** derived only from current accepted Product/architecture authority routed by `docs/index.md`, the 4A contract, the operator-approved first Budget Analyzer semantic contract and the operator-approved bounded downstream corrections `4B-F01`, `4C-F02` and `4C-F03`.
+> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F05` BOUNDED CORRECTIONS ACCEPTED
+> **Authority:** derived only from current accepted Product/architecture authority routed by `docs/index.md`, the 4A contract, the operator-approved first Budget Analyzer semantic contract and the operator-approved bounded downstream corrections `4B-F01`, `4C-F02`, `4C-F03` and `4C-F05`.
 > **Mutable program status:** owned only by `docs/roadmap.md`.
 
 This ledger is the canonical 4A Product-operation authority. It is intentionally **not** HTTP/OpenAPI, frontend, database, SDK or runtime design and it does not authorize Product implementation.
@@ -15,7 +15,7 @@ first Budget Analyzer operations  = 2
 ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
 ```
 
-The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. During executable-wire derivation, `4B-F01` materially falsified three generic mutation rows because no accepted Product authority defined their mutable property sets; the operator explicitly approved their bounded subtraction. During W-01 frontend authority-feasibility work, `4C-F02` then proved that accepted Journey B could not be completed truthfully without creation-time source bootstrap, caller-expressible Inception intent and one durable exact candidate-Baseline read. The later operator-approved `4C-F03` proved that a coherent visual Baseline review loop additionally requires exact-candidate refinement input and one exact candidate-bound contextual explanation surface under Baseline-management authority. All unaffected 4A semantics remain preserved.
+The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. During executable-wire derivation, `4B-F01` materially falsified three generic mutation rows because no accepted Product authority defined their mutable property sets; the operator explicitly approved their bounded subtraction. During W-01 frontend authority-feasibility work, `4C-F02` then proved that accepted Journey B could not be completed truthfully without creation-time source bootstrap, caller-expressible Inception intent and one durable exact candidate-Baseline read. The later operator-approved `4C-F03` proved that a coherent visual Baseline review loop additionally requires exact-candidate refinement input and one exact candidate-bound contextual explanation surface under Baseline-management authority. During W-02 Brain authority-to-interaction derivation, operator-approved `4C-F05` proved that the existing `SubmitKnowledgeProposal` job must admit a caller-expressible Discovery-backed human-resolution intake in addition to the existing source-backed path; Brain ownership and operation count remain unchanged. All unaffected 4A semantics remain preserved.
 
 ---
 
@@ -344,13 +344,48 @@ A generic `AcceptChange` is rejected. `bld.change_acceptance` remains an owner c
 | `BRN-04` | `StartBrainDiscovery` | Brain | exact Workspace/Project + admitted read-only source scope; proposals remain hypotheses | investigation command |
 | `BRN-05` | `ListKnowledgeProposals` | Brain | exact Workspace Brain review visibility | read/review |
 | `BRN-06` | `GetKnowledgeProposal` | Brain | exact proposal + provenance/hypothesis state | read/review |
-| `BRN-07` | `SubmitKnowledgeProposal` | Brain | exact Workspace Brain + provenance; never self-publishes | command |
+| `BRN-07` | `SubmitKnowledgeProposal` | Brain | source-backed exact candidate+provenance **or** Discovery-backed exact discovery candidate + explicit human resolution; Brain re-resolves provenance/materializes candidate source; never self-publishes | command |
 | `BRN-08` | `DecideKnowledgeProposal` | Brain | exact proposal + current human review authority | decision/current-state |
 | `BRN-09` | `PublishBrainRevision` | Brain | exact reviewed/validated candidate → immutable revision | consequential command/current-proof |
 | `BRN-10` | `GetBrainHealth` | Brain | exact Brain/binding context; preserves `UNVERIFIED/VALID/SUSPECT/INVALID/CHECK_ERROR` | read/provenance |
 | `BRN-12` | `RunAnalyticQuery` | Brain/Gateway governed read regime | exact Project + Brain binding + curated dataset + semantic IDs + admitted caller route | analytic read |
 
 `BRN-11 RunBrainHealthProbe` is `SYSTEM_OWNER_TRANSITION`: owner/proof orchestration may produce health Evidence but is not a caller Product command. No generic discovery-session owner, vector/RAG search operation, free-form SQL, memory publication or machine semantic approval is admitted.
+
+### 5.5.1 `4C-F05` — Discovery-backed KnowledgeProposal intake
+
+W-02A proved that accepted Brain Discovery could not reach durable proposal review truthfully when `BRN-07` required a pre-existing source revision for every caller. The operator accepted the Global-Maximum outcome `CURRENT STRUCTURE CONFIRMED`: Brain remains the semantic owner and `BRN-07 SubmitKnowledgeProposal` remains the one proposal-intake operation.
+
+Two mutually exclusive semantic intake forms are admitted:
+
+```text
+source-backed
+→ exact existing candidateSourceRevision + provenance
+→ submit that Brain-owned candidate for review
+
+Discovery-backed
+→ exact discovery candidate
++ explicit human resolution
+→ Brain owner revalidates exact discovery context/provenance
+→ Brain owner materializes the exact candidateSourceRevision
+→ same durable KnowledgeProposal result
+```
+
+Binding laws:
+
+```text
+BRN-04 Discovery remains read-only hypothesis/provenance work
+Discovery-backed browser input -X-> candidateSourceRevision authority
+Discovery-backed browser input -X-> caller-supplied provenance authority
+human resolution = explicit non-blank semantic confirmation/correction/resolution
+KnowledgeProposal remains durable proposal truth after submission
+BRN-08 remains exact proposal review decision
+BRN-09 remains exact reviewed-candidate publication
+proposal submission -X-> publication
+Project Builder / Project Git -X-> Workspace Brain source ownership
+```
+
+No `ResolveBrainDiscoveryCandidate`, `BrainDraft`, `DiscoverySession`, interview-thread Product domain, new operation, new ordinary Permission, new principal class or new durable record class is admitted by `4C-F05`. If a real durable pre-submission draft/collaboration consumer appears later, reopen only that exact Brain-authoring decision.
 
 ## 5.6 Connections — 9
 
@@ -588,7 +623,7 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | `BRN-01..03,BRN-10` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.read` | exact Workspace Brain/revision/binding context | `PROVENANCE_READ` | `IC0` |
 | `BRN-04` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.discover`; plus `connection.use` for external source | exact Workspace/Project/source scope; hypotheses only | `PROOF` | `IC3` |
 | `BRN-05,BRN-06,BRN-08` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.review` | exact proposal/review subject + current reviewer authority | reads `READ`; decision `DECISION` | reads `IC0`; decision `IC2` |
-| `BRN-07` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.propose` | exact Workspace Brain + provenance; cannot self-publish | `COMMAND` | `IC3` |
+| `BRN-07` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.propose` | exact Workspace Brain; source-backed exact candidate/provenance or Discovery-backed exact candidate + explicit human resolution; Brain re-resolves Discovery provenance/materializes candidate source; cannot self-publish | `COMMAND` | `IC3` |
 | `BRN-09` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.publish` | exact reviewed/validated candidate + current publication authority | `DECISION` | `IC2` |
 | `BRN-12` Control Plane route | `HUMAN_ACCOUNT_SESSION / CP` | `brain.read + project.data.read` | exact Project + Brain binding + curated dataset + semantic IDs + current Project grant | `ANALYTIC` | `IC0` |
 | `BRN-12` Published-App route | `PUBLISHED_APP_HUMAN / PA` | exact Release-declared app role subset | exact active Release + app access + Brain/dataset projection | `ANALYTIC` | `IC0` |
@@ -669,7 +704,19 @@ W-01 visual-review feasibility then produced operator-approved `4C-F03`:
 = 113 current fixed Conexus platform Product operations
 ```
 
-`PRJ-03` and `PRJ-07` gained only bounded missing semantics required by Journey B and the exact-candidate refinement loop; they remain the same Product operations and do not add count. No rename/settings replacement, Repository CRUD, source-switching operation, Baseline comment/thread/session CRUD or generic assistant owner was admitted.
+W-02A Brain Discovery feasibility then produced operator-approved `4C-F05` without changing the count:
+
+```text
+113
++ 0 operations
+→ BRN-07 keeps the same semantic job
+→ preserve source-backed intake
+→ add Discovery-backed exact candidate + explicit human resolution intake
+→ Brain re-resolves provenance and materializes candidate source authority
+= 113 current fixed Conexus platform Product operations
+```
+
+`PRJ-03`, `PRJ-07` and `BRN-07` gained only bounded missing semantics required by their already-accepted human journeys; they remain the same Product operations. No rename/settings replacement, Repository CRUD, source-switching operation, Baseline comment/thread/session CRUD, generic assistant owner, BrainDraft, DiscoverySession or intermediate Discovery-resolution operation was admitted.
 
 Kept after attack because their exact detail has independent Product meaning:
 
@@ -712,6 +759,9 @@ ListProjectBaselineCandidates
 CreateBaselineComment
 CreateBaselineThread
 PersistBaselineReviewSession
+ResolveBrainDiscoveryCandidate
+CreateBrainDraft
+CreateDiscoverySession
 ```
 
 ---
@@ -747,7 +797,7 @@ possible UX labels/modes               = 4C only; labels cannot create authority
 Paved Road realization                 = 4D
 ```
 
-The bounded SoftwareForge review itself adds no Product operation, Permission, owner or trust boundary. `4C-F02` and `4C-F03` are independent W-01 interaction falsifiers whose current accepted corrections raise the fixed-operation count from 111 → 112 → 113 while preserving the existing owner/Permission model.
+The bounded SoftwareForge review itself adds no Product operation, Permission, owner or trust boundary. `4C-F02` and `4C-F03` are independent W-01 interaction falsifiers whose current accepted corrections raise the fixed-operation count from 111 → 112 → 113 while preserving the existing owner/Permission model. `4C-F05` is a W-02A interaction falsifier that enriches the existing Brain proposal intake without changing that count or owner model.
 
 ---
 
@@ -804,8 +854,15 @@ That review record remains historical Evidence of the 114-operation ratified clo
 → add PRJ-24 AskConexusAboutBaselineCandidate under existing Project/project.manage authority
 → keep generated visual anchors and Mastra conversation state non-authoritative
 → N_platform 112 → 113
+
+4C-F05 OPERATOR ACCEPT
+→ preserve BRN-07 source-backed proposal intake
+→ add Discovery-backed exact candidate + explicit human resolution intake to the same operation
+→ Brain re-resolves provenance and materializes candidate source authority
+→ no new operation / Permission / owner / principal / durable record class
+→ N_platform remains 113
 ```
 
-`4C-F03` creates one new read/assistant operation and zero new Permissions, owners, principal classes, trust boundaries or durable record classes. 4B must recompile its machine wire/checkers against this corrected current ledger before W-01 visual structural work resumes.
+`4C-F03` creates one new read/assistant operation. `4C-F05` creates zero new operations and only closes an already-accepted Brain Discovery consumer path. Both preserve the existing Permission, owner, principal and trust-boundary model. 4B must recompile its machine wire/checkers against this corrected current ledger before W-02A visual structural work resumes.
 
-4A remains **operator-ratified as boundedly corrected by `4B-F01`, `4C-F02` and `4C-F03`**. Product implementation remains blocked.
+4A remains **operator-ratified as boundedly corrected by `4B-F01`, `4C-F02`, `4C-F03` and `4C-F05`**. Product implementation remains blocked.
