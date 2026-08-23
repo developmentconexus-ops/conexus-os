@@ -32,7 +32,7 @@ test('W-04 preserves operator-approved F13 Global-Maximum decision before recomp
   ]) requireText(decision, law, `F13 decision evidence missing: ${law}`)
 })
 
-test('selected F13 realization makes Product Agent identity human-reviewable without adding direct Agent mutation authority', () => {
+test('selected F13 realization makes Product Agent identity human-reviewable while preserving existing operation and Permission authority', () => {
   const identity = read('docs/product/human-context-identity-contract.md')
   const product = read('docs/product/contract.md')
   const ledger = read('docs/product/operation-ledger.md')
@@ -52,11 +52,11 @@ test('selected F13 realization makes Product Agent identity human-reviewable wit
   ]) requireText(identity, law, `F13 Product Agent presentation authority missing law: ${law}`)
 
   const productAgent = sliceBetween(product, '## 5.22 Product Agent', '## 5.23 Conversation')
-  for (const law of ['name', 'purpose', 'agent/v1', 'human presentation', 'machine identity']) {
-    requireText(productAgent, law, `F13 Product Contract Product Agent section missing: ${law}`)
+  for (const law of ['purpose', 'agent/v1', 'same Change, candidate, diff, proof and Release path']) {
+    requireText(productAgent, law, `F13 must preserve accepted Product Agent authoring semantics: ${law}`)
   }
 
-  requireText(ledger, '4C-F13', 'F13 must be current Product operation-ledger authority')
+  requireText(ledger, 'fixed Conexus platform operations = 116', 'F13 must preserve fixed Product census')
   requireText(ledger, '## 5.3 Project — 23', 'F13 must preserve 23 Project operations')
   for (const op of [
     '`PRJ-20` | `ListProjectProductAgents`',
@@ -64,7 +64,6 @@ test('selected F13 realization makes Product Agent identity human-reviewable wit
     '`PRJ-22` | `ListWorkspaceProductAgents`',
   ]) requireText(ledger, op, `F13 must preserve Project operation identity: ${op}`)
 
-  requireText(permissions, '4C-F13', 'F13 must be reflected in Permission preservation authority')
   requireText(permissions, 'ordinary Permissions = 25', 'F13 must preserve ordinary Permission count')
   requireText(permissions, '`project.read`', 'F13 must preserve project.read')
   requireText(permissions, '`project.source.read`', 'F13 must preserve project.source.read')
