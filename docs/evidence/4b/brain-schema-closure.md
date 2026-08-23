@@ -1,12 +1,12 @@
 # 4B Evidence — Brain Schema Closure
 
 > **Kind:** bounded 4B executable Evidence; not Product authority by itself.
-> **Accepted semantic source:** current 4A Product authority plus accepted Brain/knowledge/data contracts.
+> **Accepted semantic source:** current 4A Product authority plus accepted Brain/knowledge/data contracts and operator-accepted bounded `4C-F05` / `4C-F06` / `4C-F07` corrections.
 > **Machine authority under proof:** `contracts/api/product/openapi.yaml` resolved graph.
 
 ## 1. Decision question
 
-> Can the current Brain Product surface be given exact wire shapes without turning Brain into self-publishing memory, arbitrary SQL/text-to-SQL authority, or a new credential/data owner?
+> Can the current Brain Product surface be given exact wire shapes without turning Brain into self-publishing memory, arbitrary SQL/text-to-SQL authority, a frontend-owned semantic catalog, or a new credential/data owner?
 
 ## 2. Exact Product slice
 
@@ -33,15 +33,17 @@ contracts/api/product/brain-paths.yaml
 
 They become authority only through the canonical `contracts/api/product/openapi.yaml` entrypoint and resolved bundle.
 
-## 3. Closure laws proved
+## 3. Current closure laws proved
 
 ### 3.1 One Workspace Brain authority
 
 `GetWorkspaceBrain` projects the canonical Workspace Brain publication state only. Brain does not absorb runtime conversation memory, vector/RAG indexes, tool authority, Permissions or Product authorization.
 
-### 3.2 Published Brain revisions are immutable and human-inspectable
+### 3.2 Published Brain revision detail is exact-source human-inspectable and structurally browseable
 
-Published Brain revision detail carries exact artifact/source identity plus the accepted F06 review projection:
+`BRN-02 ListBrainRevisions` and `BRN-09 PublishBrainRevision` remain bounded `BrainRevision` summary/publication projections.
+
+The exact `BRN-03 GetBrainRevision` detail now returns `BrainRevisionDetail`:
 
 ```text
 brainRevisionId
@@ -49,15 +51,48 @@ brainDigest
 sourceRevision
 availability = AVAILABLE
 reviewText
+knowledgeBrowse
+  → domains[]
+    → domainRef + label
+    → concepts[]
+      → conceptRef + label + summary
+      → contentClasses[]
+      → sections[] { kind, text }
+      → provenanceRefs[]
 ```
 
-`reviewText` is a nonblank deterministic Brain-owned human-readable projection of the exact `sourceRevision`. It is read-only presentation content, not canonical Brain source, digest/revision identity or a decision subject.
+`reviewText` remains a nonblank deterministic Brain-owned human-readable projection of the exact `sourceRevision`.
 
-`AVAILABLE` does not mean live inheritance. Projects remain explicitly pinned to exact Brain revisions through Project-owned binding authority.
+`knowledgeBrowse` is likewise deterministic and source-bound. It lets the approved frontend render business-aligned domain/namespace → concept organization without parsing review prose or DOM. `domainRef` / `conceptRef` are revision-scoped projection coordinates only; they are not canonical semantic/source identity, mutation targets, proposal decision subjects or publication subjects.
 
-### 3.3 Discovery remains read-only and provenance-first
+Current content classes are exactly:
 
-`StartBrainDiscovery` receives only the Project reference whose already-admitted source/Connection context is resolved server-side.
+```text
+SEMANTIC
+KNOWLEDGE
+EVIDENCE_SPEC
+```
+
+Current human presentation section roles are exactly:
+
+```text
+DEFINITION
+BUSINESS_MEANING
+CALCULATION
+GRAIN
+RELATIONSHIPS
+BUSINESS_RULES
+CAVEATS
+VERIFICATION
+```
+
+A concept need not contain every section. `provenanceRefs` may truthfully be empty. Empty `domains` is a known-empty projection, never a transport/error substitute.
+
+`AVAILABLE` still does not mean live inheritance. Projects remain explicitly pinned to exact Brain revisions through Project-owned binding authority.
+
+### 3.3 Discovery remains Project-context, read-only and provenance-first
+
+`StartBrainDiscovery` receives only the untrusted `projectId` whose already-admitted source/Connection context is resolved server-side.
 
 The request does not admit caller-selected:
 
@@ -77,7 +112,7 @@ Discovery candidates remain hypotheses bound to provenance. Unsupported mappings
 
 KnowledgeProposal carries exact proposal/candidate/provenance coordinates. Its hypothesis/review states remain owner-issued strings because current Product authority does not ratify a lifecycle enum.
 
-After F06, the exact proposal detail also carries nonblank `reviewText` derived deterministically from its exact `candidateSourceRevision`, so re-entry does not depend on browser-local Discovery text or foreign-owner Git access.
+The exact proposal detail carries nonblank `reviewText` derived deterministically from its exact `candidateSourceRevision`, so re-entry does not depend on browser-local Discovery text or foreign-owner Git access.
 
 Submission cannot self-publish. Decision still requires only the exact current proposal revision plus:
 
@@ -85,11 +120,13 @@ Submission cannot self-publish. Decision still requires only the exact current p
 APPROVE | REJECT
 ```
 
-`reviewText` is forbidden as decision identity/input. Machine confidence never replaces current human review authority.
+`reviewText`, `knowledgeBrowse`, `domainRef` and `conceptRef` are forbidden as decision/publication identity/input. Machine confidence never replaces current human review authority.
 
 ### 3.5 Publication creates a new immutable AVAILABLE revision
 
-`PublishBrainRevision` names the exact reviewed `candidateSourceRevision` and produces an immutable Brain revision. Publication input does not accept `reviewText`; the returned BrainRevision carries the deterministic review projection associated with its exact source.
+`PublishBrainRevision` names the exact reviewed `candidateSourceRevision` and produces a bounded immutable `BrainRevision` summary. Publication input does not accept review/browse presentation carriers.
+
+A consumer that needs the rich knowledge browse resolves the exact new revision through `BRN-03`; publication therefore does not inflate every response with the whole knowledge projection.
 
 Publication does not silently rebind Projects or mutate existing revisions.
 
@@ -148,9 +185,12 @@ provisional Brain response authority
 Brain memory/vector/tool/Permission ownership creep
 mutable/live-inherited Brain revisions
 BRN-03 or BRN-06 missing nonblank exact-source reviewText
-reviewText accepted as BRN-07 proposal input
-reviewText accepted as BRN-08 decision input
-reviewText accepted as BRN-09 publication input
+BRN-03 missing exact-source knowledgeBrowse detail
+knowledgeBrowse widened onto BRN-02 list summaries or BRN-09 publication summary
+content-class vocabulary drift beyond SEMANTIC|KNOWLEDGE|EVIDENCE_SPEC
+knowledge-section role drift beyond the selected F07 closed union
+empty/duplicate invalid F07 carriers
+reviewText / knowledgeBrowse / domainRef / conceptRef accepted as BRN-07/08/09 authority inputs
 Discovery credential/arbitrary-source/full-scan escape hatches
 unsupported accuracy percentages or auto-canonical discovery output
 KnowledgeProposal self-publish/machine-approval authority
@@ -204,94 +244,76 @@ Missing semantics remain a falsifier/reopen trigger rather than permission to in
 
 ## 7. `4C-F05` bounded Brain-wire recompile
 
-W-02A later proved that the accepted Discovery journey was not caller-expressible between `BRN-04` hypothesis output and the pre-existing source-only `BRN-07` proposal intake. Global-Maximum analysis confirmed Brain as the existing owner and the operator accepted enrichment of the existing `SubmitKnowledgeProposal` operation rather than a new operation/domain.
-
-Current `BRN-07` wire is one semantic operation with two mutually exclusive closed request forms:
+W-02A proved that the accepted Discovery journey was not caller-expressible between `BRN-04` hypothesis output and the pre-existing source-only `BRN-07` proposal intake. Brain remained owner and the operator accepted one `BRN-07` operation with two mutually exclusive closed request forms:
 
 ```text
 SOURCE_BACKED
 candidateSourceRevision + provenanceRefs
-→ existing Brain candidate submitted for review
 
 DISCOVERY_BACKED
 discoveryCandidateRef + non-blank humanResolution
 → Brain re-resolves exact discovery provenance/context
-→ Brain materializes the candidateSourceRevision
+→ Brain materializes candidateSourceRevision
 → same KnowledgeProposal result
-```
-
-Preserved negative laws:
-
-```text
-BRN-04 remains read-only hypothesis/provenance discovery
-Discovery-backed caller -X-> candidateSourceRevision authority
-Discovery-backed caller -X-> provenanceRefs authority
-BRN-07 -X-> self-publish
-BRN-08 remains APPROVE|REJECT proposal decision
-BRN-09 remains reviewed candidate publication
-Project Builder / Project Git -X-> Workspace Brain source ownership
-Brain Product operations remain 11
 ```
 
 Selected-realization proof:
 
 ```text
 Verify #559 = EXPECTED RED
-→ repository tests 60 / pass 58 / fail 2 exactly F05 selected-realization assertions
-
 Verify #563 = SUCCESS
-HEAD = 09ba434d8e8561487b9159422f873e826d9f4a43
-→ selected F05 Product authority + oneOf wire + Brain checker + generated/whole-wire proof GREEN
 ```
+
+No new Brain operation/owner/Permission/record.
 
 ## 8. `4C-F06` bounded Brain-wire recompile
 
-W-02A P7/data-feasibility later proved that `BRN-03` and `BRN-06` carried exact identities/state/provenance but no reconstructible human-readable content for the exact source being reviewed. Global-Maximum analysis confirmed Brain and the existing detail reads as the right owner/surface; the operator accepted the bounded `reviewText` realization rather than raw Brain-Git access, Builder reuse, a Brain editor or a generic ReviewProjection Product domain.
-
-Current wire:
-
-```text
-BrainRevision.required
-→ brainRevisionId + brainDigest + sourceRevision + availability + reviewText
-
-KnowledgeProposal.required
-→ proposalId + proposalRevision + candidateSourceRevision
-  + provenanceRefs + hypothesisState + reviewState + reviewText
-```
+W-02A later proved that exact revision/proposal identity alone was not enough for a reviewer to know what was being reviewed after re-entry. Brain and the existing exact detail reads remained correct; the accepted wire property was nonblank exact-source `reviewText` on `BRN-03` and `BRN-06`.
 
 Protected boundary:
 
 ```text
 reviewText = deterministic human-readable projection of exact named source revision
 reviewText -X-> canonical source
-reviewText -X-> identity/digest/revision authority
-reviewText -X-> BRN-08 decision input
-reviewText -X-> BRN-09 publication input
-DOM / visual anchors -X-> Brain authority
+reviewText -X-> decision/publication identity
 ```
 
 Selected-realization proof:
 
 ```text
 Verify #585 = EXPECTED RED
-→ 63 tests / 62 pass / 1 fail exactly F06 selected-realization authority assertion
-
 Verify #588 = SUCCESS
-HEAD = 1a84b5ec2bc31f2df90d376100918c15d829b0e7
-→ 4A Brain semantics + BRN-03/06 wire + Brain checker + generated/whole-wire proof GREEN
 ```
 
-Current whole-platform counts remain:
+No new Brain operation/owner/Permission/record.
+
+## 9. `4C-F07` bounded Brain-wire recompile
+
+P9 of the operator-approved W-02A functional Brain candidate proved that plain `reviewText` could not support the approved `Knowledge → Domain → Concept` browse without making the frontend infer semantic hierarchy from prose/DOM or read Brain Git directly.
+
+Global-Maximum adjudication preserved the existing Brain owner and `BRN-03` exact detail read. Only that exact revision detail was widened to `BrainRevisionDetail + knowledgeBrowse`; `BRN-02` and `BRN-09` remain bounded summaries and no remote catalog/search/pagination family was introduced.
+
+Selected TDD chronology:
 
 ```text
-fixed Product operations = 113
-fixed Product wire       = 113 ↔ 113
-Brain Product operations = 11
-ordinary Permissions     = 25
-new F05 operations       = 0
-new F06 operations       = 0
-new F05/F06 owners       = 0
-new F05/F06 durable records = 0
+Verify #615 = EXPECTED RED
+→ 68 tests / 67 pass / 1 fail
+→ only failure: BRN-03 must return BrainRevisionDetail
+
+Verify #619 = SUCCESS
+→ selected 4A semantic property + BRN-03 detail schema + Brain checker + generated/whole-wire proof GREEN
 ```
 
-F05 closes proposal-intake expressibility; F06 closes exact-source human inspectability. Neither creates Product implementation authority.
+Current whole-platform closure remains:
+
+```text
+fixed Product operations     = 113
+fixed Product wire           = 113 ↔ 113
+Brain Product operations     = 11
+ordinary Permissions         = 25
+new F05/F06/F07 operations   = 0
+new F05/F06/F07 owners       = 0
+new F05/F06/F07 records      = 0
+```
+
+F05 closes proposal-intake expressibility; F06 closes exact-source human inspectability; F07 closes exact-revision structured knowledge browse. None creates Product implementation authority.
