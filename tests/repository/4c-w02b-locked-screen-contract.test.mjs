@@ -59,7 +59,7 @@ test('operator-approved W-02B Connections is locked and closed through exact P9/
     'test environment = FORM_DRAFT',
     'local filter = EPHEMERAL_UI',
     'P10 graduated shared patterns = 0',
-    'P11 = NEXT ASSEMBLED PRODUCT',
+    'P11 = LATER ASSEMBLED PRODUCT',
   ]) requireText(contract, law, `W-02B closure missing law: ${law}`)
 
   for (const forbidden of ['CON-10', 'qualification history', 'generic Connected/Healthy', 'secret readback']) {
@@ -67,6 +67,6 @@ test('operator-approved W-02B Connections is locked and closed through exact P9/
   }
 
   requireText(roadmap, 'W-02B LOCKED', 'roadmap must show W-02B locked')
-  requireText(roadmap, 'P11 = NEXT', 'roadmap must route the next 4C gate to assembled P11')
-  if (/4D[^\n|]*OPEN/.test(roadmap)) throw new Error('W-02B lock must not open 4D before P11/P12 and 4C closure')
+  requireText(roadmap, 'W-03 = NEXT / NOT OPEN', 'roadmap must route the next material 4C block to W-03')
+  if (/4D[^\n|]*OPEN/.test(roadmap)) throw new Error('W-02B lock must not open 4D before remaining 4C blocks, P11/P12 and closure')
 })
