@@ -66,11 +66,11 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact immutable published Brain revision with a deterministic human-readable projection of that exact source revision. AVAILABLE does not mean any Project silently adopts it.
+          description: Exact immutable published Brain revision with deterministic source-bound human review text plus structured knowledge-browse projection. AVAILABLE does not mean any Project silently adopts it.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BrainRevision'
+                $ref: '#/components/schemas/BrainRevisionDetail'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
@@ -442,6 +442,103 @@ components:
           type: string
           minLength: 1
           description: Deterministic Brain-owned human-readable projection of this exact sourceRevision for review/inspection; not canonical Brain source, source identity, digest or decision authority.
+    BrainRevisionDetail:
+      type: object
+      additionalProperties: false
+      required: [brainRevisionId, brainDigest, sourceRevision, availability, reviewText, knowledgeBrowse]
+      properties:
+        brainRevisionId:
+          type: string
+          minLength: 1
+        brainDigest:
+          type: string
+          minLength: 1
+        sourceRevision:
+          type: string
+          minLength: 1
+        availability:
+          type: string
+          const: AVAILABLE
+        reviewText:
+          type: string
+          minLength: 1
+          description: Deterministic Brain-owned human-readable projection of this exact sourceRevision for review/inspection; not canonical Brain source, source identity, digest or decision authority.
+        knowledgeBrowse:
+          $ref: '#/components/schemas/BrainKnowledgeBrowseProjection'
+    BrainKnowledgeBrowseProjection:
+      type: object
+      additionalProperties: false
+      required: [domains]
+      properties:
+        domains:
+          type: array
+          items:
+            $ref: '#/components/schemas/BrainKnowledgeDomainProjection'
+          description: Business-aligned domain/namespace presentation resolved deterministically from the exact sourceRevision. Empty is a truthful known-empty projection, not an unknown/error substitute.
+    BrainKnowledgeDomainProjection:
+      type: object
+      additionalProperties: false
+      required: [domainRef, label, concepts]
+      properties:
+        domainRef:
+          type: string
+          minLength: 1
+          description: Brain-issued coordinate scoped to this exact sourceRevision projection; not canonical source identity or a decision subject.
+        label:
+          type: string
+          minLength: 1
+        concepts:
+          type: array
+          items:
+            $ref: '#/components/schemas/BrainKnowledgeConceptProjection'
+    BrainKnowledgeConceptProjection:
+      type: object
+      additionalProperties: false
+      required: [conceptRef, label, summary, contentClasses, sections, provenanceRefs]
+      properties:
+        conceptRef:
+          type: string
+          minLength: 1
+          description: Brain-issued coordinate scoped to this exact sourceRevision projection; supports local browse/navigation only and is not canonical semantic/source identity.
+        label:
+          type: string
+          minLength: 1
+        summary:
+          type: string
+          minLength: 1
+        contentClasses:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BrainKnowledgeContentClass'
+        sections:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/BrainKnowledgeSectionProjection'
+        provenanceRefs:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+    BrainKnowledgeSectionProjection:
+      type: object
+      additionalProperties: false
+      required: [kind, text]
+      properties:
+        kind:
+          $ref: '#/components/schemas/BrainKnowledgeSectionKind'
+        text:
+          type: string
+          minLength: 1
+    BrainKnowledgeSectionKind:
+      type: string
+      enum: [DEFINITION, BUSINESS_MEANING, CALCULATION, GRAIN, RELATIONSHIPS, BUSINESS_RULES, CAVEATS, VERIFICATION]
+    BrainKnowledgeContentClass:
+      type: string
+      enum: [SEMANTIC, KNOWLEDGE, EVIDENCE_SPEC]
     BrainDiscoveryCandidate:
       type: object
       additionalProperties: false
