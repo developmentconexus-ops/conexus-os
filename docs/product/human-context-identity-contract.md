@@ -74,6 +74,7 @@ Account.email = optional human presentation/contact data
 displayName != authorization
 email != authorization
 email != stable identity
+Area.name != authorization
 Keycloak role/group/organization != Conexus authorization
 ```
 
@@ -89,7 +90,13 @@ Area.name           != areaId
 Account.displayName != accountId
 ```
 
-For Connection specifically, `Connection.name` remains stable across `ConnectionRevision` changes; the revision does not re-own or derive it.
+For Connection specifically:
+
+```text
+Connection.name = stable across ConnectionRevision changes
+```
+
+The revision does not re-own or derive it.
 
 ## 3. Creation / provisioning
 
