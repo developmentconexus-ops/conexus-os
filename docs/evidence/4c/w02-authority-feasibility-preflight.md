@@ -21,6 +21,8 @@ generic Workspace Settings = REJECTED
 
 Brain and Connections remain separate because their human decisions, trust boundaries and failure semantics differ materially. A generic Workspace Settings editor is still rejected: it would flatten Brain semantic review/publication and Connection credential/qualification work into one false mutation domain.
 
+Initial operation/Permission/owner/trust topology was sound. Later P7/reference work validly exposed bounded property/input/read-shape gaps inside those already-correct owners; F04–F06 therefore recompiled the affected semantics without replacing the Brain/Connections owner topology.
+
 ## 3. W-02A — Workspace Brain
 
 Human-facing operations:
