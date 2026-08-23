@@ -276,16 +276,18 @@ This is the authority-feasibility preflight. A difficult UI is never automatic a
 
 ## 11. P8 — functional low-fidelity HTML + operator-only LOCK
 
-For material interactive web blocks, canonical P8 Evidence is **functional low-fidelity HTML**:
+For material interactive web blocks, canonical P8 Evidence is **functional low-fidelity HTML**.
+
+The preserved Conexus medium decision is:
 
 ```text
-unbranded HTML
-+ CSS
-+ vanilla JavaScript when interaction exists
-+ deterministic local fixtures/state simulation
+primary structural wireframe = unbranded HTML + CSS
+bounded vanilla JavaScript    = required when material interaction must be operated/falsified
+production frontend framework = forbidden in P8 Evidence
+static image / SVG             = not current wireframe authority
 ```
 
-Production React/framework code is forbidden in P8 Evidence. Static image/SVG, screenshot, ASCII, prose, non-interactive HTML or several static storyboard screens cannot receive P8 LOCK when material interactions exist.
+A static image/SVG, screenshot, ASCII, prose, non-interactive HTML or several static storyboard screens cannot receive P8 LOCK when material interactions exist.
 
 P8 must make every local interaction capable of falsifying the structure operable when relevant, for example:
 
