@@ -1,7 +1,7 @@
 # Conexus OS — Product Operation Ledger
 
-> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F05` + `4C-F06` + `4C-F07` + `4C-F09` + `4C-F10` BOUNDED CORRECTIONS ACCEPTED
-> **Authority:** derived only from current accepted Product/architecture authority routed by `docs/index.md`, the 4A contract, the operator-approved first Budget Analyzer semantic contract and the operator-approved bounded downstream corrections `4B-F01`, `4C-F02`, `4C-F03`, `4C-F05`, `4C-F06`, `4C-F07`, `4C-F09` and `4C-F10`.
+> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F05` + `4C-F06` + `4C-F07` + `4C-F09` + `4C-F10` + `4C-F11` + `4C-F12` BOUNDED CORRECTIONS ACCEPTED
+> **Authority:** derived only from current accepted Product/architecture authority routed by `docs/index.md`, the 4A contract, the operator-approved first Budget Analyzer semantic contract and the operator-approved bounded downstream corrections named above.
 > **Mutable program status:** owned only by `docs/roadmap.md`.
 
 This ledger is the canonical 4A Product-operation authority. It is intentionally **not** HTTP/OpenAPI, frontend, database, SDK or runtime design and it does not authorize Product implementation.
@@ -9,13 +9,13 @@ This ledger is the canonical 4A Product-operation authority. It is intentionally
 The ledger closes three different surfaces because Conexus is a software-publishing platform rather than one fixed business application:
 
 ```text
-fixed Conexus platform operations = 113
+fixed Conexus platform operations = 116
 Project-defined operations        = exact finite Ops(R) admitted by the grammar in §4
 first Budget Analyzer operations  = 2
 ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
 ```
 
-The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. During executable-wire derivation, `4B-F01` materially falsified three generic mutation rows because no accepted Product authority defined their mutable property sets; the operator explicitly approved their bounded subtraction. During W-01 frontend authority-feasibility work, `4C-F02` then proved that accepted Journey B could not be completed truthfully without creation-time source bootstrap, caller-expressible Inception intent and one durable exact candidate-Baseline read. The later operator-approved `4C-F03` proved that a coherent visual Baseline review loop additionally requires exact-candidate refinement input and one exact candidate-bound contextual explanation surface under Baseline-management authority. During W-02 Brain authority-to-interaction derivation, operator-approved `4C-F05` proved that the existing `SubmitKnowledgeProposal` job must admit a caller-expressible Discovery-backed human-resolution intake in addition to the existing source-backed path; Brain ownership and operation count remain unchanged. Operator-approved `4C-F06` then proved that the existing exact Brain revision/proposal detail reads must carry deterministic human-readable content derived from their exact source revisions so an authorized human can inspect what is being reviewed without browser-local or foreign-owner source authority. Operator-approved `4C-F07` further proved that the exact published Brain revision read must expose a deterministic **structured source-bound** knowledge-browse projection so the approved `Knowledge → Domain → Concept` experience can render exact Brain truth without parsing prose/DOM or reading Brain Git. During W-02B Connections P7 feasibility, operator-approved `4C-F09` proved that `CON-04 GetConnection` must expose the provider-specific **current non-secret configuration** bound to its exact `currentRevisionId` so an authorized human can inspect and intentionally revise current Connection truth after refresh/re-entry without browser pseudo-authority or secret readback. During the W-02B functional P8 walkthrough, operator-approved `4C-F10` further proved that the existing qualification job/result must expose a current-applicability projection and human-readable diagnostic/remediation so a human can test a Connection and understand failure without inventing browser-local health or parsing raw Evidence. All unaffected 4A semantics remain preserved.
+The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. During executable-wire derivation, `4B-F01` materially falsified three generic mutation rows because no accepted Product authority defined their mutable property sets; the operator explicitly approved their bounded subtraction. During W-01 frontend authority-feasibility work, `4C-F02` then proved that accepted Journey B could not be completed truthfully without creation-time source bootstrap, caller-expressible Inception intent and one durable exact candidate-Baseline read. The later operator-approved `4C-F03` proved that a coherent visual Baseline review loop additionally requires exact-candidate refinement input and one exact candidate-bound contextual explanation surface under Baseline-management authority. During W-02 Brain authority-to-interaction derivation, operator-approved `4C-F05`, `4C-F06` and `4C-F07` enriched existing Brain intake/detail reads without changing Brain ownership or operation count. During W-02B, operator-approved `4C-F09` and `4C-F10` enriched existing Connections current configuration, test applicability and human diagnostics without changing Connections topology. During W-03 authority-feasibility, operator-approved `4C-F11` proved that access administration requires human Account/Area presentation plus three purpose-built I&A reads for membership candidates, exact member effective access and exact Area access; `4C-F12` proved that immutable Audit must be server-filterable and preserve append-time human presentation snapshots rather than relying on browser-local filtering or current-name lookup. All unaffected 4A semantics remain preserved.
 
 ---
 
@@ -24,10 +24,10 @@ The numbers are derivation results, not targets. The original 4A candidate survi
 ### 1.1 Fixed platform census
 
 ```text
-N_platform = 113
-platform operations with named owner       = 113
-platform operations with real consumer     = 113
-platform operations with authority mapping = 113
+N_platform = 116
+platform operations with named owner       = 116
+platform operations with real consumer     = 116
+platform operations with authority mapping = 116
 orphaned platform operations                = 0
 speculative platform operations             = 0
 ```
@@ -155,16 +155,16 @@ Attachments/private bytes are carrier properties of exact owning operations, nev
 
 # 5. Fixed Conexus platform census
 
-The tables below are the exact 113 current Product operations. IDs deliberately remain stable around subtracted candidates so review history does not silently renumber authority.
+The tables below are the exact 116 current Product operations. IDs deliberately remain stable around subtracted candidates so review history does not silently renumber authority.
 
-## 5.1 Identity & Access — 16
+## 5.1 Identity & Access — 19
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
 | `IAM-01` | `GetControlPlaneAccessContext` | I&A | Control Plane shell; current Account session and disclosable context | read |
 | `IAM-02` | `EndSession` | I&A | authenticated human; exact current Conexus session | command |
-| `IAM-03` | `ProvisionAccount` | I&A | trusted platform operator/admin | command |
-| `IAM-04` | `ListWorkspaceMembers` | I&A | Workspace administration | read |
+| `IAM-03` | `ProvisionAccount` | I&A | trusted platform operator/admin; stable external identity + bounded human presentation | command |
+| `IAM-04` | `ListWorkspaceMembers` | I&A | Workspace access administration; human Account summaries | read |
 | `IAM-05` | `AddWorkspaceMember` | I&A | exact Workspace membership administration | command/current-authority |
 | `IAM-06` | `RemoveWorkspaceMember` | I&A | exact Workspace; narrowing | narrowing command/current-authority |
 | `IAM-07` | `GrantAccountProjectAccess` | I&A | exact Workspace + contained Project | command/current-authority |
@@ -177,8 +177,75 @@ The tables below are the exact 113 current Product operations. IDs deliberately 
 | `IAM-14` | `ListPublishedAppAccess` | I&A | Project/app administration; business use not implied | read |
 | `IAM-15` | `SetPublishedAppAccess` | I&A | exact Project/app + Account + `{admin,member}` + expected current grant state, including explicit absent state on create | command/current-authority |
 | `IAM-17` | `RevokePublishedAppAccess` | I&A | exact current app grant; narrowing | narrowing command/current-authority |
+| `IAM-18` | `ListWorkspaceMembershipCandidates` | I&A | exact Workspace access administration; currently disclosable existing Account candidates | read |
+| `IAM-19` | `GetWorkspaceMemberAccess` | I&A | exact Workspace + member Account; current Area memberships, direct grants and I&A-derived effective Project access with exact sources | read/current-authority projection |
+| `IAM-20` | `GetAreaAccess` | I&A | exact Workspace + Area; current members and Area→Project grants with human summaries | read/current-authority projection |
 
 `IAM-16 ChangePublishedAppAccessRole` was subtracted into `IAM-15`: grant and role change are one Product meaning over `iam.published_app_access`; wire-level create/update/precondition detail belongs to 4B.
+
+### 5.1.1 `4C-F11` — human-reviewable access administration
+
+W-03A P7 proved that the accepted membership/grant writes cannot be safely operated from a human frontend while Account and Area presentation is opaque and the I&A owner exposes no exact current effective-access reads.
+
+The operator accepted `CURRENT OWNERS CONFIRMED`:
+
+```text
+iam.account
+→ accountId remains stable machine identity
+→ verified external identity mapping remains authentication identity
+→ required nonblank displayName
+→ optional email presentation/contact
+
+ws.area
+→ required nonblank Area.name at creation
+
+IAM-18
+→ human existing Account candidates for exact Workspace membership administration
+
+IAM-19
+→ exact member current access
+→ Area memberships
+→ direct Project grants
+→ effective Project access derived by I&A
+→ exact source set DIRECT and/or AREA + exact Area identity
+
+IAM-20
+→ exact Area current members + Project grants
+```
+
+Access composition law:
+
+```text
+I&A current membership/grant facts
+→ I&A derives effective Project access + source set
+→ browser renders that projection
+
+browser-local joins -X-> effective authorization authority
+```
+
+Narrow cross-owner summary disclosure is admitted only for the existing access-administration job:
+
+```text
+WS-04 ListAreas
+→ workspace.manage ordinary route
+OR workspace.access.manage summary-only route
+
+PRJ-01 ListProjects
+→ project.read ordinary route
+OR workspace.access.manage exact-Workspace ProjectSummary-only route
+```
+
+The alternate `PRJ-01` route does not confer Project content/source/data/build authority. Account/Area labels never authorize, email is never Account identity, and Keycloak role/group/organization remains authentication-provider state rather than Conexus authorization.
+
+No `Person`, `UserProfile`, generic RBAC/custom-role engine, generic grant CRUD family, `UpdateAccountProfile`, `RenameArea`, `WS-06` resurrection, new Permission, new semantic owner, new principal class, new trust boundary or new durable record class is admitted by F11.
+
+```text
+N_platform 113 → 116
+IAM 16 → 19
+Permissions = 25
+records = 46
+owners = 13
+```
 
 ## 5.2 Workspace — 4
 
@@ -186,10 +253,10 @@ The tables below are the exact 113 current Product operations. IDs deliberately 
 | --- | --- | --- | --- | --- |
 | `WS-01` | `CreateWorkspace` | Workspace | trusted F1 operator/first-access flow | command |
 | `WS-02` | `GetWorkspace` | Workspace | current Workspace member/admin disclosure | read |
-| `WS-04` | `ListAreas` | Workspace | exact Workspace administration | read |
-| `WS-05` | `CreateArea` | Workspace | exact Workspace administration | command |
+| `WS-04` | `ListAreas` | Workspace | exact Workspace structure administration **or** narrow access-administration AreaSummary disclosure | read |
+| `WS-05` | `CreateArea` | Workspace | exact Workspace administration; explicit human Area name at creation | command |
 
-`WS-03 UpdateWorkspace` and `WS-06 UpdateArea` were subtracted by operator-approved `4B-F01`: 4B could not derive a closed request schema because accepted Product authority contained no mutable Workspace/Area property inventory. No speculative rename/settings replacement is admitted.
+`WS-03 UpdateWorkspace` and `WS-06 UpdateArea` remain subtracted by operator-approved `4B-F01`. F11 proves creation/read presentation (`Area.name`) and does not admit generic mutation or rename authority.
 
 No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default Workspace operation is admitted.
 
@@ -197,7 +264,7 @@ No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default 
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
-| `PRJ-01` | `ListProjects` | Project | Workspace Projects surface; current disclosure/grants | read |
+| `PRJ-01` | `ListProjects` | Project | Workspace Projects surface under ordinary disclosure **or** exact-Workspace access-administration ProjectSummary-only disclosure | read |
 | `PRJ-02` | `GetProject` | Project | exact Project disclosure/access | read |
 | `PRJ-03` | `CreateProject` | Project + accepted L7 composition | exact Workspace; atomically establishes Project + initial I&A grant + one canonical Project source bootstrap | command/cross-owner atomic |
 | `PRJ-05` | `ArchiveProject` | Project | exact Project archive authority; does not unpublish/stop automations | command/current-state |
@@ -221,9 +288,9 @@ No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default 
 | `PRJ-23` | `GetProjectBaselineCandidate` | Project | exact candidate Baseline human review/re-entry by Project + candidate digest before approval | read |
 | `PRJ-24` | `AskConexusAboutBaselineCandidate` | Project | exact immutable candidate Baseline contextual explanation for the current Baseline-management reviewer; generated visual-selection context is untrusted and revalidated | read/assistant interaction |
 
-`PRJ-04 UpdateProject` was subtracted by operator-approved `4B-F01`: no accepted Product authority defined a closed generic Project metadata/property mutation. A future real rename/metadata consumer must be admitted explicitly rather than inferred here.
+`PRJ-04 UpdateProject` remains subtracted. F11's alternate PRJ-01 access-administration route reveals only exact contained `ProjectSummary` identity needed to administer grants; it is not generic `project.read` and does not restore Project mutation.
 
-`PRJ-18/19` are declared data-resource projections, not a generic database explorer.
+`PRJ-18/19` remain declared data-resource projections, not a generic database explorer.
 
 ### 5.3.1 `4C-F02` — Project source/Inception/Baseline correction
 
@@ -514,7 +581,7 @@ configured != qualified != bound != healthy != caller-authorized
 
 `CON-03 ListConnections` and `CON-05 CreateConnection` remain lightweight projections and do not carry full provider configuration merely by schema reuse. `CON-07` remains write-only with no plaintext/ciphertext/handle readback. Current F1 does not admit a generic Connection revision-history browser, rollback, `GetConnectionConfiguration`, `GetConnectionRevision`, rename/delete authority, qualification history or synthesized `latestQualification` merely to implement this current-detail consumer.
 
-No new Product operation, ordinary Permission, semantic owner, principal class, trust boundary or durable record class is admitted by `4C-F09`; `N_platform` remains 113.
+No new Product operation, ordinary Permission, semantic owner, principal class, trust boundary or durable record class is admitted by `4C-F09`; at its closure `N_platform` remained 113.
 
 ### 5.6.2 `4C-F10` — current test applicability and human diagnostics
 
@@ -571,7 +638,7 @@ configuration or credential change -X-> old qualification remains current
 
 The Control Plane may label `CON-08 QualifyConnection` as **Test connection** and `CON-09` as **Test result / View problem** without creating a second Product operation.
 
-No new Product operation, ordinary Permission, semantic owner, principal class, trust boundary or durable record class is admitted by `4C-F10`. No qualification-history/list/pagination family, generic ConnectionHealth owner, background monitor, Active/Inactive lifecycle, automatic retry or credential readback is admitted. `N_platform` remains 113.
+No new Product operation, ordinary Permission, semantic owner, principal class, trust boundary or durable record class is admitted by `4C-F10`. At its closure `N_platform` remained 113; F11 later raises the current whole-platform count independently.
 
 ## 5.7 Release / Promotion / serving — 7
 
@@ -647,10 +714,58 @@ Queue/redelivery/catch-up/single-flight mechanics remain owner/runtime behavior.
 | `OBS-01` | `ListProjectActivity` | OBS/Audit projection | exact Project disclosure; entries reference owner facts | read |
 | `OBS-02` | `GetExecutionObservationDetail` | OBS/Audit projection | exact closed typed execution subject + technical disclosure | read/evidence |
 | `OBS-03` | `GetProjectUsageCostSummary` | OBS/Audit projection | exact Project/period + provenance; missing != zero | read/provenance |
-| `OBS-04` | `ListAuditRecords` | OBS/Audit | exact Workspace/Project audit scope | read/audit |
-| `OBS-05` | `GetAuditRecord` | OBS/Audit | exact immutable audit fact | read/audit |
+| `OBS-04` | `ListAuditRecords` | OBS/Audit | exact Workspace audit investigation with bounded server-side period/actor/action/Project filters applied before pagination; immutable human snapshots/summary | read/audit |
+| `OBS-05` | `GetAuditRecord` | OBS/Audit | exact immutable audit fact + append-time human presentation snapshots + deterministic human summary + Evidence | read/audit |
 
 Telemetry/evidence never becomes current owner truth.
+
+### 5.11.1 `4C-F12` — human-investigable immutable Audit
+
+W-03B P7 proved that `OBS-04/05` already own the correct immutable audit surface, but the previous list shape could not honestly support whole-set investigation from a paginated browser and exact `kind/ref` alone was insufficient human presentation.
+
+The operator accepted `CURRENT OWNER CONFIRMED`:
+
+```text
+OBS-04
+→ same Product operation
+→ optional from / to / actorQuery / actionQuery / projectId / pageToken
+→ filters apply to the currently disclosable Workspace audit set before pagination
+
+OBS-owned audit subject snapshot
+→ kind
+→ ref
+→ append-time label
+
+AuditRecordSummary / AuditRecord
+→ exact actor/subject snapshots
+→ action + occurredAt
+→ deterministic nonblank human summary
+→ exact detail retains Evidence
+```
+
+Historical presentation law:
+
+```text
+append-time actor/subject label snapshot
+= immutable human Evidence presentation
+
+current resource/account name
+-X-> rewrite historical audit presentation
+
+loaded browser page
+-X-> audit search universe
+
+label/summary
+-X-> authorization
+```
+
+The audit-specific snapshot does not widen the generic `OwnerSubjectRef` used by other OBS projections. No `SearchAudit` operation, generic Event/Search owner, new Permission, new semantic owner, new durable record class, retry/undo mutation or current business-state authority is admitted.
+
+```text
+F12 new operations = 0
+OBS remains 5
+N_platform remains 116 after F11
+```
 
 ---
 
@@ -766,16 +881,17 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | --- | --- | --- | --- | --- | --- |
 | `IAM-01` | `HUMAN_ACCOUNT_SESSION / CP` | `authenticated` | exact current Conexus session; server resolves only disclosable Workspace/Project context | `READ` | `IC0` |
 | `IAM-02` | `HUMAN_ACCOUNT_SESSION / CP` | `authenticated` | exact current session subject | `COMMAND` | `IC1` |
-| `IAM-03` | `HUMAN_ACCOUNT_SESSION / CP` | trusted `platform_operator` | trusted F1 provisioning boundary; stable provisioned human identity/uniqueness prevents duplicate Account creation; no public signup | `COMMAND` | `IC3` |
-| `IAM-04..12` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.access.manage` | exact Workspace/Area/Project containment; grant/revoke target and current authority rechecked at commit | read rows `READ`; writes `COMMAND` | reads `IC0`; writes `IC1` |
+| `IAM-03` | `HUMAN_ACCOUNT_SESSION / CP` | trusted `platform_operator` | trusted F1 provisioning boundary; stable provisioned external identity + human presentation/uniqueness prevents duplicate Account creation; no public signup | `COMMAND` | `IC3` |
+| `IAM-04..12,IAM-18..20` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.access.manage` | exact Workspace/Area/Project containment; access reads are exact current I&A projections; grant/revoke target and current authority rechecked at commit | read rows `READ`; writes `COMMAND` | reads `IC0`; writes `IC1` |
 | `IAM-13` | `PUBLISHED_APP_HUMAN / PA` | exact app access + role | exact Published App + active Release; app role never implies Control Plane authority | `READ` | `IC0` |
 | `IAM-14` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app administration | `READ` | `IC0` |
 | `IAM-15,IAM-17` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app/Account subject; current grant state includes explicit absent state for create and exact current role/grant for change/revoke | `COMMAND` | `IC2` |
 | `WS-01` | `HUMAN_ACCOUNT_SESSION / CP` | trusted `platform_operator` | trusted first-access Workspace creation | `COMMAND` | `IC3` |
 | `WS-02` | `HUMAN_ACCOUNT_SESSION / CP` | current Workspace membership | exact Workspace disclosure | `READ` | `IC0` |
-| `WS-04` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.manage` | exact Workspace administration/disclosure | `READ` | `IC0` |
-| `WS-05` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.manage` | exact Workspace + stable create intake/subject identity; duplicate intake cannot create duplicate Area | `COMMAND` | `IC3` |
-| `PRJ-01,PRJ-02` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` + exact Project grant where applicable | current Workspace/Project disclosure | `READ` | `IC0` |
+| `WS-04` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.manage` **or** narrow `workspace.access.manage` access-administration summary disclosure | exact Workspace; alternate route reveals AreaSummary identity only for access administration | `READ` | `IC0` |
+| `WS-05` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.manage` | exact Workspace + explicit human Area name + stable create intake; duplicate intake cannot create duplicate Area | `COMMAND` | `IC3` |
+| `PRJ-01` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `project.read` **or** narrow `workspace.access.manage` access-administration summary disclosure | ordinary route applies current Project disclosure; alternate route exposes only contained ProjectSummary identities in exact Workspace | `READ` | `IC0` |
+| `PRJ-02` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` + exact Project grant | exact Project disclosure | `READ` | `IC0` |
 | `PRJ-03` | `HUMAN_ACCOUNT_SESSION / CP` | `project.create` | destination Workspace + atomic Project/initial-grant + one canonical source-bootstrap admission; success implies a source-complete Project | `COMMAND` | `IC3` |
 | `PRJ-05` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact current Project; archive preserves independent serving/automation laws | `COMMAND` | `IC2` |
 | `PRJ-06` | `HUMAN_ACCOUNT_SESSION / CP` | source `project.manage` + destination `project.create` | source Project + destination Workspace; NO DATA/no credentials/no bindings by default | `COMMAND` | `IC3` |
@@ -815,7 +931,7 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | `MAR-01,MAR-02` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` | exact Project/Release/job/JobRun | `MAR-02` `PROVENANCE_READ`; `MAR-01` `READ` | `IC0` |
 | `MAR-03` | `HUMAN_ACCOUNT_SESSION / CP` | `job.run` | exact currently served Release + admitted job + normal single-flight/coalesce laws | `COMMAND` | `IC3` |
 | `OBS-01,OBS-03` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` | exact Project/current disclosure; usage result preserves provenance | `OBS-03` `PROVENANCE_READ`; `OBS-01` `READ` | `IC0` |
-| `OBS-02,OBS-04,OBS-05` | `HUMAN_ACCOUNT_SESSION / CP` | `audit.read` | exact closed typed execution/audit subject + current disclosure | `PROVENANCE_READ` | `IC0` |
+| `OBS-02,OBS-04,OBS-05` | `HUMAN_ACCOUNT_SESSION / CP` | `audit.read` | exact closed typed execution/audit subject + current disclosure; OBS-04 filtering is server-side before pagination; audit labels/summaries are immutable presentation Evidence, never current authorization | `PROVENANCE_READ` | `IC0` |
 
 ### 8.4 Budget Analyzer authority matrix
 
@@ -843,16 +959,13 @@ The first candidate had 117 admitted fixed-platform rows. The original ratified 
 = 114 operator-ratified 4A fixed operations
 ```
 
-Executable-wire derivation then produced the operator-approved bounded downstream falsifier `4B-F01`:
+Executable-wire derivation then produced operator-approved `4B-F01`:
 
 ```text
 114
 - 1 WS-03 UpdateWorkspace
-    → no closed mutable Workspace property set / no distinct current consumer
 - 1 WS-06 UpdateArea
-    → no closed mutable Area property set / no distinct current consumer
 - 1 PRJ-04 UpdateProject
-    → no closed mutable Project property set / no distinct current consumer
 = 111 fixed operations after 4B-F01
 ```
 
@@ -861,7 +974,6 @@ W-01 authority-feasibility then produced operator-approved `4C-F02`:
 ```text
 111
 + 1 PRJ-23 GetProjectBaselineCandidate
-    → real human review/re-entry consumer requires a durable exact candidate read
 = 112 fixed operations after 4C-F02
 ```
 
@@ -870,80 +982,32 @@ W-01 visual-review feasibility then produced operator-approved `4C-F03`:
 ```text
 112
 + 1 PRJ-24 AskConexusAboutBaselineCandidate
-    → exact Baseline-management reviewer needs candidate-bound contextual explanation without Builder authority
-= 113 current fixed Conexus platform Product operations
+= 113 fixed operations after 4C-F03
 ```
 
-W-02A Brain Discovery feasibility then produced operator-approved `4C-F05` without changing the count:
+W-02A/W-02B bounded findings `4C-F05`, `4C-F06`, `4C-F07`, `4C-F09`, `4C-F10` each added zero operations while enriching existing accepted operations; the count remained 113 through W-02B closure.
+
+W-03A authority-feasibility then produced operator-approved `4C-F11`:
 
 ```text
 113
-+ 0 operations
-→ BRN-07 keeps the same semantic job
-→ preserve source-backed intake
-→ add Discovery-backed exact candidate + explicit human resolution intake
-→ Brain re-resolves provenance and materializes candidate source authority
-= 113 current fixed Conexus platform Product operations
++ 1 IAM-18 ListWorkspaceMembershipCandidates
++ 1 IAM-19 GetWorkspaceMemberAccess
++ 1 IAM-20 GetAreaAccess
+= 116 current fixed Conexus platform Product operations
 ```
 
-W-02A review-content feasibility then produced operator-approved `4C-F06` without changing the count:
+W-03B authority-feasibility then produced operator-approved `4C-F12` without changing the count:
 
 ```text
-113
+116
 + 0 operations
-→ BRN-03 remains exact published Brain revision detail read
-→ BRN-06 remains exact KnowledgeProposal detail read
-→ both expose deterministic human-readable content of their exact source revision
-→ decision/publication identities remain unchanged
-= 113 current fixed Conexus platform Product operations
+→ OBS-04 remains the audit collection read and gains bounded server-side investigation filters
+→ OBS-04/05 gain immutable append-time subject labels + deterministic human summaries
+= 116 current fixed Conexus platform Product operations
 ```
 
-W-02A P9 knowledge-browse feasibility then produced operator-approved `4C-F07` without changing the count:
-
-```text
-113
-+ 0 operations
-→ BRN-03 remains exact published Brain revision detail read
-→ exact sourceRevision additionally yields deterministic structured domain/concept browse truth
-→ frontend no longer parses reviewText/DOM into semantic hierarchy
-→ no dedicated Brain catalog/search/pagination Product family is admitted without a real scale consumer
-= 113 current fixed Conexus platform Product operations
-```
-
-W-02B P7 current-configuration feasibility then produced operator-approved `4C-F09` without changing the count:
-
-```text
-113
-+ 0 operations
-→ CON-04 remains exact logical Connection detail read
-→ exact currentRevisionId additionally yields provider-specific current non-secret configuration
-→ CON-03/CON-05 stay lightweight and CON-07 stays write-only
-→ no revision-history/configuration API family is admitted without a real consumer
-= 113 current fixed Conexus platform Product operations
-```
-
-W-02B P8 test/diagnostics feasibility then produced operator-approved `4C-F10` without changing the count:
-
-```text
-113
-+ 0 operations
-→ CON-08 remains the exact qualification/test operation
-→ qualification additionally binds server-resolved logical credential generation + testedAt + stable human outcome
-→ CON-09 additionally exposes deterministic human diagnostic/remediation
-→ CON-03/CON-04 expose only a derived five-state current test-applicability projection
-→ no TestConnection/health/history Product family is admitted
-= 113 current fixed Conexus platform Product operations
-```
-
-`PRJ-03`, `PRJ-07`, `BRN-03`, `BRN-06`, `BRN-07`, `CON-03`, `CON-04`, `CON-07`, `CON-08` and `CON-09` gained only bounded missing semantics required by already-real human journeys; they remain the same Product operations. No rename/settings replacement, Repository CRUD, source-switching operation, Baseline comment/thread/session CRUD, generic assistant owner, BrainDraft, DiscoverySession, intermediate Discovery-resolution operation, generic Brain source editor, speculative Brain catalog/search domain, generic Connection-revision/configuration domain or Connection-health domain was admitted.
-
-Kept after attack because their exact detail has independent Product meaning:
-
-```text
-GetConnectionQualification
-List/Get EffectAttempt
-purpose-built list/detail pairs where detail is materially richer or immutable/exact-subject scoped
-```
+`PRJ-03`, `PRJ-07`, `BRN-03`, `BRN-06`, `BRN-07`, `CON-03`, `CON-04`, `CON-07`, `CON-08`, `CON-09`, `OBS-04` and `OBS-05` gained only bounded missing semantics required by real consumers; they remain the same Product operations. F11 adds exactly three purpose-built reads because three independent access-administration read jobs are now proven.
 
 Rejected convenience/mechanism operations include:
 
@@ -994,6 +1058,14 @@ CreateReviewProjectionDomain
 SearchBrainKnowledge
 ListBrainKnowledgeDomains
 GetBrainKnowledgeConcept
+GetAccessDashboard
+ListAreaMembers
+ListAreaProjectGrants
+ListAccountProjectGrants
+SearchAudit
+CreateRole
+UpdateAccountProfile
+RenameArea
 ```
 
 ---
@@ -1009,6 +1081,8 @@ record classes requiring CRUD by symmetry   = 0
 mutable foreign-owner mirrors required      = 0
 semantic owner boundaries preserved         = 13/13
 ```
+
+F11 reuses existing `iam.account`, membership/grant records and `ws.area`; F12 reuses existing `obs.audit_record`. Neither admits a new durable record class or owner.
 
 Artifact Registry remains semantic projection rather than Universal Artifact CRUD. Attachments/Blob remain owner-bound carriers. Gateway remains last-mile effect authority rather than a second business-command owner. PAR owns runtime, not authored Agent definition. MAR owns serving/job-run mechanics, not a generic scheduler Product domain.
 
@@ -1029,103 +1103,68 @@ possible UX labels/modes               = 4C only; labels cannot create authority
 Paved Road realization                 = 4D
 ```
 
-The bounded SoftwareForge review itself adds no Product operation, Permission, owner or trust boundary. `4C-F02` and `4C-F03` are independent W-01 interaction falsifiers whose current accepted corrections raise the fixed-operation count from 111 → 112 → 113 while preserving the existing owner/Permission model. `4C-F05`, `4C-F06` and `4C-F07` are W-02A interaction/P9 falsifiers that enrich existing Brain proposal/detail reads without changing that count or owner model. `4C-F09` and `4C-F10` are W-02B interaction falsifiers that enrich existing Connections reads/qualification truth without changing the count, Permission vocabulary, owner model or durable-record inventory.
+The bounded SoftwareForge review itself adds no Product operation, Permission, owner or trust boundary. F11/F12 are later W-03 interaction falsifiers and remain bounded to existing I&A/Workspace/Project/OBS owners.
 
 ---
 
 # 12. Closure assertions after independent review + bounded downstream corrections
 
 ```text
-N_platform                              = 113
+N_platform                              = 116
 N_budget                                = 2
 ordinary Permissions                    = 25
-fixed operations with semantic owner    = 113/113
-fixed operations with consumer          = 113/113
-fixed operations with principal/ingress = 113/113
-fixed operations with auth/scope route  = 113/113
-fixed operations with outcome profile   = 113/113
-fixed operations with exact IC profile  = 113/113
+fixed operations with semantic owner    = 116/116
+fixed operations with consumer          = 116/116
+fixed operations with principal/ingress = 116/116
+fixed operations with auth/scope route  = 116/116
+fixed operations with outcome profile   = 116/116
+fixed operations with exact IC profile  = 116/116
 Budget operations with all fields       = 2/2
 Project grammar exact-Release pinned     = yes
 universal execute authority              = rejected
 orphan concrete operations               = 0
 speculative concrete operations          = 0
-independent trust-critical falsifiers    = survived
 unresolved material 4A review findings   = 0
 ```
 
-The original independent Fable review found two material consistency defects and five minor precision defects. Lead adjudication accepted all seven because they narrowed or made explicit already-admitted authority without adding an operation, Permission, owner or trust boundary:
-
-```text
-4A-IR-01 ACCEPT → PAR-08 is approver-list only; audit investigator route remains PAR-09 exact-subject read
-4A-IR-02 ACCEPT → remove unsupported retained cross-call/page snapshot guarantee; every response/page discloses its own system coordinate
-4A-IR-03 ACCEPT → bind WS-03/04/05/06 IC profiles exactly; REL-06 requires IC2 AND IC3
-4A-IR-04 ACCEPT → IAM-03 creation uses IC3; IAM-15 absent/create state is explicit under IC2
-4A-IR-05 ACCEPT → PAR-01 wording aligned to its PA-only matrix route
-4A-IR-06 ACCEPT → project.read explicitly lists PAR-06/07 Control-Plane consumers in permission-contract.md
-4A-IR-07 ACCEPT → negative Budget age is never clamped/banded; PARTIAL or UNVERIFIED/INDETERMINATE preserves truth
-```
-
-That review record remains historical Evidence of the 114-operation ratified closure. Later bounded downstream corrections preserve that history while changing current authority:
+The original independent Fable review remains historical Evidence. Later bounded corrections preserve that history while changing current authority only where new downstream falsifiers proved it.
 
 ```text
 4B-F01 OPERATOR ACCEPT
-→ subtract WS-03 UpdateWorkspace
-→ subtract WS-06 UpdateArea
-→ subtract PRJ-04 UpdateProject
-→ N_platform 114 → 111
+→ N_platform 114 → 111 by subtracting unclosed generic Workspace/Area/Project updates
 
 4C-F02 OPERATOR ACCEPT
-→ enrich PRJ-03 with creation-time NEW|EXISTING_GIT source bootstrap
-→ enrich PRJ-07 with required non-blank Inception intent
-→ add PRJ-23 GetProjectBaselineCandidate
+→ add PRJ-23 and source-complete Project/Inception semantics
 → N_platform 111 → 112
 
 4C-F03 OPERATOR ACCEPT
-→ enrich PRJ-07 with all-or-nothing exact prior-candidate + human review-feedback refinement input
-→ add PRJ-24 AskConexusAboutBaselineCandidate under existing Project/project.manage authority
-→ keep generated visual anchors and Mastra conversation state non-authoritative
+→ add PRJ-24 and exact-candidate refinement semantics
 → N_platform 112 → 113
 
-4C-F05 OPERATOR ACCEPT
-→ preserve BRN-07 source-backed proposal intake
-→ add Discovery-backed exact candidate + explicit human resolution intake to the same operation
-→ Brain re-resolves provenance and materializes candidate source authority
-→ no new operation / Permission / owner / principal / durable record class
+4C-F05 / F06 / F07 OPERATOR ACCEPT
+→ bounded Brain enrichment only
 → N_platform remains 113
 
-4C-F06 OPERATOR ACCEPT
-→ preserve BRN-03 / BRN-06 as the exact Brain revision/proposal detail reads
-→ add deterministic human-readable exact-source review content to those reads
-→ preserve BRN-08 proposalRevision decision subject and BRN-09 candidateSourceRevision publication subject
-→ no new operation / Permission / owner / principal / durable record class
+4C-F09 / F10 OPERATOR ACCEPT
+→ bounded Connections enrichment only
 → N_platform remains 113
 
-4C-F07 OPERATOR ACCEPT
-→ preserve Brain owner + BRN-03 exact published-revision detail read
-→ add deterministic structured source-bound domain/concept browse projection to that exact revision read
-→ keep projection coordinates/presentation outside canonical semantic/source and decision identity
-→ defer dedicated Brain catalog/search/pagination operations until a real scale/partial-fetch consumer exists
-→ no new operation / Permission / owner / principal / durable record class
-→ N_platform remains 113
+4C-F11 OPERATOR ACCEPT
+→ admit Account/Area human presentation
+→ add IAM-18 ListWorkspaceMembershipCandidates
+→ add IAM-19 GetWorkspaceMemberAccess
+→ add IAM-20 GetAreaAccess
+→ I&A derives effective Project access + exact DIRECT|AREA sources
+→ admit narrow WS-04 / PRJ-01 access-administration summary disclosure
+→ no new Permission / owner / principal / trust boundary / durable record class
+→ N_platform 113 → 116
 
-4C-F09 OPERATOR ACCEPT
-→ preserve Connections owner + CON-04 exact logical Connection detail read
-→ add current provider-specific non-secret configuration bound to exact currentRevisionId
-→ preserve lightweight CON-03/CON-05 projections and CON-07 write-only secret boundary
-→ keep configuration distinct from qualification/binding/health/authorization
+4C-F12 OPERATOR ACCEPT
+→ preserve OBS-04 / OBS-05
+→ add server-side period/actor/action/Project audit filters before pagination
+→ add immutable append-time actor/subject presentation snapshots + human summary
 → no new operation / Permission / owner / principal / durable record class
-→ N_platform remains 113
-
-4C-F10 OPERATOR ACCEPT
-→ preserve CON-08 as the one exact qualification/test operation and CON-09 as its exact detail read
-→ bind qualification to server-resolved logical credential generation + exact revision/environment + testedAt
-→ add stable PASSED|FAILED|INDETERMINATE human outcome + diagnostic/remediation
-→ derive NOT_TESTED|NEEDS_RETEST|PASSED|FAILED|INDETERMINATE current test projection on CON-03/04
-→ no TestConnection/history/health operation or new durable record
-→ N_platform remains 113
+→ N_platform remains 116
 ```
 
-`4C-F03` creates one new read/assistant operation. `4C-F05`, `4C-F06`, `4C-F07`, `4C-F09` and `4C-F10` create zero new operations and close already-accepted human consumers. All preserve the existing Permission, owner, principal, trust-boundary and durable-record model. 4B must recompile its machine wire/checkers against the corrected current ledger before the corresponding 4C block can close.
-
-4A remains **operator-ratified as boundedly corrected by `4B-F01`, `4C-F02`, `4C-F03`, `4C-F05`, `4C-F06`, `4C-F07`, `4C-F09` and `4C-F10`**. Product implementation remains blocked.
+4A remains **operator-ratified as boundedly corrected through `4C-F12`**. 4B must recompile its machine wire/checkers against this corrected current ledger before W-03 P7 can close. Product implementation remains blocked.
