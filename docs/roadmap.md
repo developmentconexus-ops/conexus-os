@@ -15,7 +15,7 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
 | 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F10` RECOMPILED | `N_platform=113` | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F10` RECOMPILED | `113↔113`; Project=23; Brain=11; Connections=9 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01 LOCKED` / `W-01 LOCKED` / `W-02A LOCKED` / `F10 GREEN` / `W-02B P8 REVISE` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01 LOCKED` / `W-01 LOCKED` / `W-02A LOCKED` / `F10 GREEN` / `W-02B P8 REVISED CANDIDATE` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -25,7 +25,7 @@ This is the single current phase/status authority.
 ```text
 4A = CLOSED / N_platform=113 / F04–F07 + F09–F10 RECOMPILED
 4B = CLOSED / 113↔113 / Project=23 / Brain=11 / Connections=9 / F04–F07 + F09–F10 RECOMPILED
-4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / F10 GREEN / W-02B P8 REVISE
+4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / F10 GREEN / W-02B P8 REVISED CANDIDATE
 F06 OPERATOR ACCEPTED / GREEN · F06 GREEN
 F07 OPERATOR ACCEPTED / GREEN · F07 SELECTED REALIZATION
 F08 OPERATOR ACCEPTED / REVISED P8 GREEN / OPERATOR RE-APPROVED · F08 SELECTED REALIZATION
@@ -81,9 +81,9 @@ P11 = LATER ASSEMBLED PRODUCT
 
 Evidence: [Brain structural decision](evidence/4c/w02a-brain-structural-hypotheses.md) / [Brain Screen Contract](evidence/4c/w02a-brain-screen-contract.md) / [functional P8](evidence/4c/w02a-brain-functional-wireframe.html).
 
-### W-02B — Connections — P8 REVISE / NOT LOCKED
+### W-02B — Connections — P8 REVISED CANDIDATE / RE-WALKTHROUGH / NOT LOCKED
 
-Approved P7 remains Connection-first. First P8 walkthrough produced F10 plus local UX findings.
+Approved P7 remains Connection-first. First P8 walkthrough produced F10 plus local UX findings; both backend and revised interaction are now mechanically GREEN.
 
 ```text
 Connection.name = primary human identity
@@ -94,8 +94,16 @@ config/credential change → old test basis NEEDS_RETEST
 configured != qualified != bound != healthy != caller-authorized
 ```
 
-P8 revision must use card-based browse, human-first labels, collapsed technical details and a Sankhya **API** fixture rather than Oracle-like DB configuration. Do not invent Active/Inactive, generic Connected/Healthy, qualification history, secret readback or background monitoring.
+Revised P8 uses a card grid, human-first labels, collapsed Technical details and distinct Sankhya API vs Oracle Database fixtures. It does not invent Active/Inactive, generic Connected/Healthy, qualification history, secret readback or background monitoring.
 
+```text
+F10 backend GREEN = Verify #680
+P8 UX RED          = Verify #683 / 80 tests / 78 pass / 2 expected failures
+P8 revised GREEN   = Verify #684
+revised P8 blob    = 99dc5b1413e0ad0ae79727ce857340b9cc9178bf
+```
+
+Functional candidate: [Connections P8](evidence/4c/w02b-connections-functional-wireframe.html).
 F10 Evidence: [finding](evidence/4c/w02b-connection-test-diagnostics-finding.md) / [Global Maximum](evidence/4c/w02b-connection-test-diagnostics-global-maximum.md) / [selected realization](evidence/4c/w02b-connection-test-diagnostics-selected-realization.md).
 
 ## Method law
@@ -108,6 +116,6 @@ Frontend finding → root cause → target invariant → real owner → alternat
 
 ## Exact next action
 
-**Revise the W-02B functional P8, prove GREEN, then return it for operator re-walkthrough.** Only explicit operator approval after that walkthrough may permit LOCK/P9/P10.
+**Operator re-walkthrough/adjudication of the revised W-02B Connections P8: APPROVE | REVISE.** Only explicit operator approval after operating this revised artifact may permit LOCK/P9/P10.
 
 Do not auto-LOCK W-02B, assemble P11 early, begin 4D, merge PR #57 or implement Product code.
