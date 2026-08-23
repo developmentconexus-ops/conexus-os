@@ -60,7 +60,6 @@ Verify #523 = SUCCESS on revised visual Baseline HTML
 Verify #525 = SUCCESS on pre-review exact candidate HEAD 89baef196b7ac9f567e645207b857de9adfb495a
 Fable independent Linux reproduction = 54/54 / material findings 0 / verdict SURVIVES
 Lead adjudication = 0 required candidate corrections
-Verify #527 = SUCCESS on adjudicated HEAD 64b45bfe2334b2c47295922da07ab6ad37d9f193
 ```
 
 ## Exact next action
