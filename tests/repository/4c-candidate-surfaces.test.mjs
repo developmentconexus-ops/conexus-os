@@ -29,11 +29,11 @@ test('4C-5 candidate surface inventory covers exactly current frontend-reachable
   assert.doesNotMatch(inventory, /universal Approval Center\s*=\s*CANDIDATE/)
 
   const expected = fixedOperationIds(ledger)
-  assert.equal(expected.size, 112, 'current fixed Product authority must contain 112 operations after 4C-F02')
+  assert.equal(expected.size, 113, 'current fixed Product authority must contain 113 operations after 4C-F03')
   assert.equal(expected.delete('PAR-05'), true, 'PAR-05 must remain the one no-direct-browser fixed operation')
   expected.add('BUD-01')
   expected.add('BUD-02')
-  assert.equal(expected.size, 113, 'frontend-reachable concrete operation set must be 113 after PRJ-23')
+  assert.equal(expected.size, 114, 'frontend-reachable concrete operation set must be 114 after PRJ-24')
 
   const coverageStart = inventory.indexOf('## 7. Concrete operation-to-surface coverage')
   const coverageEnd = inventory.indexOf('\n---\n\n## 8.', coverageStart)
