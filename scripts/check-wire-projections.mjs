@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 const productBundle = '/tmp/conexus-product-openapi.bundle.json';
 const generator = 'scripts/generate-wire-projection.mjs';
 const kubbProbe = 'scripts/run-kubb-wire-probe.mjs';
-const expectedProductOperations = 112;
+const expectedProductOperations = 113;
 
 if (!fs.existsSync(productBundle)) {
   throw new Error('Product bundle must exist before generated projection verification');
@@ -61,7 +61,7 @@ for (const operation of manifest.operations) {
   }
 }
 
-for (const requiredId of ['GetProject', 'GetProjectBaselineCandidate', 'ClearProjectBrainBinding', 'RunManagedJobNow', 'GetProjectUsageCostSummary']) {
+for (const requiredId of ['GetProject', 'GetProjectBaselineCandidate', 'AskConexusAboutBaselineCandidate', 'ClearProjectBrainBinding', 'RunManagedJobNow', 'GetProjectUsageCostSummary']) {
   if (!operationIds.has(requiredId)) throw new Error(`Generated projection is missing ${requiredId}`);
 }
 
