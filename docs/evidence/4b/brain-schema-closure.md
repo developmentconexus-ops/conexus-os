@@ -39,16 +39,19 @@ They become authority only through the canonical `contracts/api/product/openapi.
 
 `GetWorkspaceBrain` projects the canonical Workspace Brain publication state only. Brain does not absorb runtime conversation memory, vector/RAG indexes, tool authority, Permissions or Product authorization.
 
-### 3.2 Published Brain revisions are immutable
+### 3.2 Published Brain revisions are immutable and human-inspectable
 
-Published Brain revision detail carries exact artifact/source identity:
+Published Brain revision detail carries exact artifact/source identity plus the accepted F06 review projection:
 
 ```text
 brainRevisionId
 brainDigest
 sourceRevision
 availability = AVAILABLE
+reviewText
 ```
+
+`reviewText` is a nonblank deterministic Brain-owned human-readable projection of the exact `sourceRevision`. It is read-only presentation content, not canonical Brain source, digest/revision identity or a decision subject.
 
 `AVAILABLE` does not mean live inheritance. Projects remain explicitly pinned to exact Brain revisions through Project-owned binding authority.
 
@@ -70,21 +73,25 @@ fullScan
 
 Discovery candidates remain hypotheses bound to provenance. Unsupported mappings do not become canonical truth and no percentage accuracy is manufactured without measured Evidence.
 
-### 3.4 KnowledgeProposal requires human review
+### 3.4 KnowledgeProposal requires human review and exposes exact candidate meaning
 
 KnowledgeProposal carries exact proposal/candidate/provenance coordinates. Its hypothesis/review states remain owner-issued strings because current Product authority does not ratify a lifecycle enum.
 
-Submission cannot self-publish. Decision requires the exact current proposal revision plus:
+After F06, the exact proposal detail also carries nonblank `reviewText` derived deterministically from its exact `candidateSourceRevision`, so re-entry does not depend on browser-local Discovery text or foreign-owner Git access.
+
+Submission cannot self-publish. Decision still requires only the exact current proposal revision plus:
 
 ```text
 APPROVE | REJECT
 ```
 
-Machine confidence never replaces current human review authority.
+`reviewText` is forbidden as decision identity/input. Machine confidence never replaces current human review authority.
 
 ### 3.5 Publication creates a new immutable AVAILABLE revision
 
-`PublishBrainRevision` names the exact reviewed candidate source revision and produces an immutable Brain revision. Publication does not silently rebind Projects or mutate existing revisions.
+`PublishBrainRevision` names the exact reviewed `candidateSourceRevision` and produces an immutable Brain revision. Publication input does not accept `reviewText`; the returned BrainRevision carries the deterministic review projection associated with its exact source.
+
+Publication does not silently rebind Projects or mutate existing revisions.
 
 ### 3.6 Health is an overlay, not content mutation
 
@@ -140,6 +147,10 @@ BRN-11 appearing in caller Product wire
 provisional Brain response authority
 Brain memory/vector/tool/Permission ownership creep
 mutable/live-inherited Brain revisions
+BRN-03 or BRN-06 missing nonblank exact-source reviewText
+reviewText accepted as BRN-07 proposal input
+reviewText accepted as BRN-08 decision input
+reviewText accepted as BRN-09 publication input
 Discovery credential/arbitrary-source/full-scan escape hatches
 unsupported accuracy percentages or auto-canonical discovery output
 KnowledgeProposal self-publish/machine-approval authority
@@ -233,6 +244,43 @@ HEAD = 09ba434d8e8561487b9159422f873e826d9f4a43
 → selected F05 Product authority + oneOf wire + Brain checker + generated/whole-wire proof GREEN
 ```
 
+## 8. `4C-F06` bounded Brain-wire recompile
+
+W-02A P7/data-feasibility later proved that `BRN-03` and `BRN-06` carried exact identities/state/provenance but no reconstructible human-readable content for the exact source being reviewed. Global-Maximum analysis confirmed Brain and the existing detail reads as the right owner/surface; the operator accepted the bounded `reviewText` realization rather than raw Brain-Git access, Builder reuse, a Brain editor or a generic ReviewProjection Product domain.
+
+Current wire:
+
+```text
+BrainRevision.required
+→ brainRevisionId + brainDigest + sourceRevision + availability + reviewText
+
+KnowledgeProposal.required
+→ proposalId + proposalRevision + candidateSourceRevision
+  + provenanceRefs + hypothesisState + reviewState + reviewText
+```
+
+Protected boundary:
+
+```text
+reviewText = deterministic human-readable projection of exact named source revision
+reviewText -X-> canonical source
+reviewText -X-> identity/digest/revision authority
+reviewText -X-> BRN-08 decision input
+reviewText -X-> BRN-09 publication input
+DOM / visual anchors -X-> Brain authority
+```
+
+Selected-realization proof:
+
+```text
+Verify #585 = EXPECTED RED
+→ 63 tests / 62 pass / 1 fail exactly F06 selected-realization authority assertion
+
+Verify #588 = SUCCESS
+HEAD = 1a84b5ec2bc31f2df90d376100918c15d829b0e7
+→ 4A Brain semantics + BRN-03/06 wire + Brain checker + generated/whole-wire proof GREEN
+```
+
 Current whole-platform counts remain:
 
 ```text
@@ -240,9 +288,10 @@ fixed Product operations = 113
 fixed Product wire       = 113 ↔ 113
 Brain Product operations = 11
 ordinary Permissions     = 25
-new F05 operation        = 0
-new F05 owner            = 0
-new F05 durable record   = 0
+new F05 operations       = 0
+new F06 operations       = 0
+new F05/F06 owners       = 0
+new F05/F06 durable records = 0
 ```
 
-`4C-F05` changes proposal-intake expressibility only; it does not create Product implementation authority.
+F05 closes proposal-intake expressibility; F06 closes exact-source human inspectability. Neither creates Product implementation authority.
