@@ -99,6 +99,11 @@ function exactEnum(schema, expected, label) {
   if (actual.join(',') !== want.join(',')) throw new Error(`${label} must be exactly ${want.join('/')}; got ${actual.join(',')}`);
 }
 
+function nonBlankStringProperty(schema, name, label) {
+  const value = property(schema, name);
+  if (value?.type !== 'string' || (value?.minLength ?? 0) < 1) throw new Error(`${label} must be a non-blank string`);
+}
+
 // Canonical Workspace Brain is one authority, not memory/vector/search runtime authority.
 const brain = assertClosedObject(successSchema('BRN-01'), 'BRN-01 success');
 required(brain, 'workspaceId', 'publishedBrainRevisionId');
@@ -106,9 +111,10 @@ for (const forbidden of ['memory', 'conversationMemory', 'vectorIndex', 'ragInde
   if (brain.properties?.[forbidden]) throw new Error(`BRN-01 must not expose non-Brain authority ${forbidden}`);
 }
 
-// Published Brain revisions are immutable exact artifact/source identities and AVAILABLE is not live adoption.
+// Published Brain revisions are immutable exact artifact/source identities. F06 adds human-readable exact-source review content only.
 const revision = assertClosedObject(successSchema('BRN-03'), 'BRN-03 success');
-required(revision, 'brainRevisionId', 'brainDigest', 'sourceRevision', 'availability');
+required(revision, 'brainRevisionId', 'brainDigest', 'sourceRevision', 'availability', 'reviewText');
+nonBlankStringProperty(revision, 'reviewText', 'BRN-03 reviewText');
 if (property(revision, 'availability')?.const !== 'AVAILABLE') throw new Error('BRN-03 immutable published revision availability must be AVAILABLE');
 for (const forbidden of ['activeEverywhere', 'liveInherited', 'mutable', 'latest']) {
   if (revision.properties?.[forbidden]) throw new Error(`BRN-03 must not imply mutable/live inheritance via ${forbidden}`);
@@ -131,9 +137,10 @@ if (candidate) {
   }
 }
 
-// Proposals are exact Brain-owned source candidates with provenance and remain hypotheses until human decision/publication.
+// Proposals are exact Brain-owned source candidates. F06 makes the exact candidate meaning human-readable without changing proposal identity.
 const proposal = assertClosedObject(successSchema('BRN-06'), 'BRN-06 success');
-required(proposal, 'proposalId', 'proposalRevision', 'candidateSourceRevision', 'provenanceRefs', 'hypothesisState', 'reviewState');
+required(proposal, 'proposalId', 'proposalRevision', 'candidateSourceRevision', 'provenanceRefs', 'hypothesisState', 'reviewState', 'reviewText');
+nonBlankStringProperty(proposal, 'reviewText', 'BRN-06 reviewText');
 if (property(proposal, 'hypothesisState')?.enum || property(proposal, 'reviewState')?.enum) {
   throw new Error('BRN-06 proposal states must remain owner-issued until Product authority ratifies exact lifecycle vocabularies');
 }
@@ -142,8 +149,6 @@ for (const forbidden of ['accuracyPercent', 'autoPublished', 'machineApproved'])
 }
 
 // F05: SubmitKnowledgeProposal keeps one semantic operation with two exclusive intake forms.
-// Source-backed preserves an existing Brain candidate source; Discovery-backed binds exact candidate + explicit human resolution,
-// while Brain re-resolves provenance and materializes candidate source authority server-side.
 const submitProposal = requestSchema('BRN-07');
 const submitForms = submitProposal?.oneOf;
 if (!Array.isArray(submitForms) || submitForms.length !== 2) {
@@ -161,29 +166,33 @@ if ((property(discoveryBacked, 'humanResolution')?.minLength ?? 0) < 1) throw ne
 for (const forbidden of ['discoveryCandidateRef', 'humanResolution']) {
   if (sourceBacked.properties?.[forbidden]) throw new Error(`BRN-07 source-backed input must not absorb ${forbidden}`);
 }
-for (const forbidden of ['candidateSourceRevision', 'provenanceRefs', 'publish', 'autoPublish', 'approved', 'machineDecision']) {
+for (const forbidden of ['candidateSourceRevision', 'provenanceRefs', 'publish', 'autoPublish', 'approved', 'machineDecision', 'reviewText']) {
   if (discoveryBacked.properties?.[forbidden]) throw new Error(`BRN-07 Discovery-backed browser input must not accept ${forbidden}`);
 }
 for (const form of [sourceBacked, discoveryBacked]) {
-  for (const forbidden of ['publish', 'autoPublish', 'approved', 'machineDecision']) {
-    if (form.properties?.[forbidden]) throw new Error(`BRN-07 must never self-publish via ${forbidden}`);
+  for (const forbidden of ['publish', 'autoPublish', 'approved', 'machineDecision', 'reviewText']) {
+    if (form.properties?.[forbidden]) throw new Error(`BRN-07 must never accept presentation/authority shortcut ${forbidden}`);
   }
 }
 if (!hasRequiredParameter('BRN-07', 'header', 'Idempotency-Key')) throw new Error('BRN-07 must require Idempotency-Key');
 const submittedProposal = assertClosedObject(successSchema('BRN-07', '201'), 'BRN-07 success');
-required(submittedProposal, 'proposalId', 'proposalRevision', 'candidateSourceRevision', 'provenanceRefs', 'hypothesisState', 'reviewState');
+required(submittedProposal, 'proposalId', 'proposalRevision', 'candidateSourceRevision', 'provenanceRefs', 'hypothesisState', 'reviewState', 'reviewText');
 
+// F06: reviewText is output presentation content only. It never becomes a decision/publication identity or input.
 const decideProposal = assertClosedObject(requestSchema('BRN-08'), 'BRN-08 request');
 required(decideProposal, 'expectedProposalRevision', 'decision');
 exactEnum(property(decideProposal, 'decision'), ['APPROVE', 'REJECT'], 'BRN-08 decision');
+if (decideProposal.properties?.reviewText) throw new Error('BRN-08 must not accept reviewText as decision identity/input');
 if (decideProposal.properties?.machineApproved || decideProposal.properties?.confidenceThreshold) {
   throw new Error('BRN-08 must preserve human review authority');
 }
 
 const publish = assertClosedObject(requestSchema('BRN-09'), 'BRN-09 request');
 required(publish, 'candidateSourceRevision');
+if (publish.properties?.reviewText) throw new Error('BRN-09 must not accept reviewText as publication identity/input');
 const published = assertClosedObject(successSchema('BRN-09', '201'), 'BRN-09 success');
-required(published, 'brainRevisionId', 'brainDigest', 'sourceRevision', 'availability');
+required(published, 'brainRevisionId', 'brainDigest', 'sourceRevision', 'availability', 'reviewText');
+nonBlankStringProperty(published, 'reviewText', 'BRN-09 published BrainRevision reviewText');
 if (property(published, 'availability')?.const !== 'AVAILABLE') throw new Error('BRN-09 must produce immutable AVAILABLE revision, not live adoption');
 
 // Brain operational health has an accepted exact state vocabulary and never mutates immutable Brain content.
@@ -215,4 +224,4 @@ for (const forbidden of ['rawSql', 'executedSql', 'physicalTable', 'credential']
   if (analyticResult.properties?.[forbidden]) throw new Error(`BRN-12 response must not expose physical/secret authority ${forbidden}`);
 }
 
-console.log('Brain schema closure passed (11 Product operations; F05 source/discovery proposal intake closed; BRN-11 remains owner transition; publication/health/AnalyticQuery boundaries closed).');
+console.log('Brain schema closure passed (11 Product operations; F05 proposal intake + F06 exact-source review content closed; BRN-11 remains owner transition; publication/health/AnalyticQuery boundaries closed).');
