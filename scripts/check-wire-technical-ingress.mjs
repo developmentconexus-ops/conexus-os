@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 const technicalSource = 'contracts/api/technical/openapi.yaml';
 const technicalBundle = '/tmp/conexus-technical-openapi.bundle.json';
 const productBundle = '/tmp/conexus-product-openapi.bundle.json';
-const expectedProductOperations = 112;
+const expectedProductOperations = 113;
 
 if (!fs.existsSync(technicalSource)) {
   throw new Error('Technical Ingress contract is missing');
