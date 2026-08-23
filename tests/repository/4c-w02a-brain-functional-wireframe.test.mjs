@@ -13,12 +13,13 @@ function requireText(text, needle, message) {
 const evidencePath = 'docs/evidence/4c/w02a-brain-structural-hypotheses.md'
 const htmlPath = 'docs/evidence/4c/w02a-brain-functional-wireframe.html'
 
-test('W-02A P7 records the operator-approved knowledge-first Brain structure without locking it', () => {
-  if (!existsSync(path(evidencePath))) throw new Error('W-02A P7 structural decision evidence is missing')
+test('W-02A structural record preserves the approved knowledge-first decision through operator lock', () => {
+  if (!existsSync(path(evidencePath))) throw new Error('W-02A structural decision evidence is missing')
   const evidence = read(evidencePath)
 
   for (const law of [
-    'P7 OPERATOR APPROVED FOR FUNCTIONAL P8 / NOT LOCKED',
+    'LOCKED / OPERATOR APPROVED',
+    'domain/concept first + separate governance work',
     'Knowledge                         ← primary mental model',
     'WHAT THE ORGANIZATION KNOWS',
     'HOW THAT KNOWLEDGE EVOLVES',
@@ -26,8 +27,9 @@ test('W-02A P7 records the operator-approved knowledge-first Brain structure wit
     'KNOWLEDGE',
     'EVIDENCE_SPEC',
     'Fixture domain names',
-    'P8 = NEXT',
-  ]) requireText(evidence, law, `W-02A P7 evidence missing law: ${law}`)
+    'W-02A = LOCKED',
+    'NEXT = W-02B Connections P7',
+  ]) requireText(evidence, law, `W-02A structural evidence missing law: ${law}`)
 })
 
 test('W-02A functional P8 makes organizational knowledge navigable by domain and business concept', () => {
