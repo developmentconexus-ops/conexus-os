@@ -1,15 +1,15 @@
 # 4C-F13 — Product Agent Human Identity + Workspace Catalog Context
 
-> **Status:** `OPERATOR ACCEPTED / CURRENT OWNERS CONFIRMED / SELECTED REALIZATION / RED REQUIRED`
+> **Status:** `OPERATOR ACCEPTED / CURRENT OWNERS CONFIRMED / SELECTED REALIZATION GREEN`
 > **Block:** `W-04 — Workspace Agent catalog`.
-> **Selected realization:** Product Agent owns human `name` plus its already-accepted semantic `purpose`; `PRJ-22` carries the exact owning `ProjectSummary`.
+> **Selected realization:** Product Agent owns human `name` plus its already-accepted semantic `purpose`; `PRJ-22` carries the canonical Agent projection and exact owning `ProjectSummary`.
 > **Authority posture:** bounded 4A→4B contract correction only; no Product implementation, W-04 P8, LOCK, P-01, P11, 4D or merge authority.
 
 ## 1. Evidence / falsifier
 
 Current accepted Product already defines a Product Agent as Project-owned, git-first, Release-pinned, authored through `agent/v1`, with semantic `purpose`, instructions, model policy, tools, Brain context, policies, approvals, budgets, verification and known limitations.
 
-Before F13, the canonical Project wire exposes:
+Before F13, the canonical Project wire exposed:
 
 ```text
 ProjectProductAgent
@@ -19,24 +19,24 @@ ProjectProductAgent
 → activeReleaseId?
 
 WorkspaceProductAgentCatalogItem
-→ ProjectProductAgent
+→ machine-oriented Agent projection
 → projectId
 ```
 
 `PRJ-22 ListWorkspaceProductAgents` is an access-filtered Workspace projection over Project-owned Agents; it is deliberately **not** a Workspace Agent/fleet owner.
 
-That projection is insufficient for a human catalog because the operator would have to recognize Agents and owning Projects primarily from opaque machine IDs. This repeats the already-proven human-recognition defect class from Workspace/Project/Connection/Account/Area.
+That projection was insufficient for a human catalog because the operator would have to recognize Agents and owning Projects primarily from opaque machine IDs. This repeats the already-proven human-recognition defect class from Workspace/Project/Connection/Account/Area.
 
 ## 2. Root cause
 
-The Project-owned Agent semantics and ownership are sound. The defect is a missing human presentation projection at the existing owner boundary:
+The Project-owned Agent semantics and ownership were sound. The defect was missing human presentation at the existing owner boundary:
 
 ```text
 human must find one Product Agent across several Projects
 + Agent remains Project-owned
 + agentId / revision / Release refs are machine coordinates
-+ PRJ-22 is the only admitted Workspace catalog projection
-→ the catalog requires owner-issued human Agent identity + semantic purpose + human Project context
++ PRJ-22 is the admitted Workspace catalog projection
+→ catalog requires owner-issued human Agent identity + semantic purpose + human Project context
 ```
 
 A frontend-only label map, local `PRJ-01` join, inferred name from source/slug, or generic Workspace Agent owner would preserve or worsen the root cause by creating parallel presentation/authority.
@@ -69,7 +69,7 @@ activeReleaseId -X-> runtime health
 activeReleaseId -X-> “Agent is running”
 ```
 
-## 4. Constraints to preserve
+## 4. Constraints preserved
 
 - Product Agent remains Project-owned and git-first.
 - Agent authoring remains Builder/Change → candidate/diff/proof → immutable artifact revision → Release.
@@ -109,11 +109,13 @@ ProjectProductAgent
 → activeReleaseId?
 
 WorkspaceProductAgentCatalogItem
-→ ProjectProductAgent
+→ agent: ProjectProductAgent
 → project: ProjectSummary
 ```
 
-This fixes recognition at the existing semantic owner and reuses the canonical `ProjectSummary` instead of adding `projectName` or requiring frontend composition.
+The explicit closed `{ agent, project }` composition is intentional. The pre-F13 `allOf` extension shape was not retained because extending a closed `ProjectProductAgent` (`additionalProperties:false`) with sibling Project fields is structurally unsafe under JSON Schema/OpenAPI 3.1 composition. The nested shape preserves the approved semantics while keeping both canonical sub-schemas closed and reusable.
+
+This fixes recognition at the existing semantic owner and reuses canonical `ProjectSummary` instead of adding `projectName` or requiring frontend composition.
 
 ### E — add direct rename/update Agent metadata operations now
 
@@ -125,8 +127,8 @@ This fixes recognition at the existing semantic owner and reuses the canonical `
 CURRENT OWNERS CONFIRMED
 → Product Agent owner = Project-authored agent/v1 / Project projection
 → missing property = human Agent presentation identity
-→ existing semantic purpose is projected explicitly
-→ Workspace catalog carries canonical owning ProjectSummary
+→ existing semantic purpose projected explicitly
+→ Workspace catalog carries canonical Agent + owning ProjectSummary
 → no new Product operation/domain required
 ```
 
@@ -192,29 +194,43 @@ Deployed successfully
 
 `activeReleaseId` proves only inclusion in the Project projection's active Release coordinate; it does not prove PAR execution, serving health or deployment verification.
 
-## 9. Proof strategy
+## 9. Proof chronology
 
-Selected-realization RED must establish that current Product/wire has **not yet** been recompiled for:
+```text
+Verify #754 = EXPECTED initial selected-realization RED
+→ 94 tests / 92 pass / 2 expected F13 failures
 
-1. Product Agent human `name`;
-2. explicit projected existing `purpose`;
-3. PRJ-20/21 canonical Agent projections carrying both;
-4. PRJ-22 carrying the same Agent projection plus canonical `ProjectSummary`;
-5. no operation/Permission/count drift;
-6. `project.read` vs `project.source.read` separation;
-7. no direct Agent metadata mutation authority.
+RED refinement
+→ preserved unaffected operation-ledger / Permission authority rather than ceremonial status churn
+→ bounded affected owners only
 
-After bounded recompilation, whole 4B wire/generated/adversarial proof must remain GREEN before W-04 P7 can be durable authority.
+Verify #755 = EXPECTED selected-realization RED
+→ 94 tests / 92 pass / 2 expected failures
+→ human presentation authority + Project wire only
+
+bounded GREEN
+→ human-context-identity-contract
+→ ProjectProductAgent name + purpose
+→ PRJ-22 closed { agent, project } composition
+→ existing Project checker preserved byte-for-byte
+→ bounded F13 Project sub-checker added to wire:project
+
+Verify #763 = SUCCESS
+→ full repository + canonical Product wire + generated/whole-4B proof GREEN
+→ Product wire remains 116 ↔ 116
+→ Project operations remain 23
+→ ordinary Permissions remain 25
+```
 
 ## 10. Operator decision
 
 ```text
 OPERATOR ACCEPTED
-→ F13 selected
+→ F13 selected and GREEN
 → ProductAgent.name + existing ProductAgent.purpose
-→ PRJ-22 owns self-contained ProjectSummary catalog context
+→ PRJ-22 owns self-contained canonical Agent + ProjectSummary context
 → +0 operations / +0 Permissions / +0 owners / +0 records
-→ hypothesis A selected for later P7 durable candidate
+→ hypothesis A selected for W-04 P7 candidate
 ```
 
-This approval authorizes selected-realization RED and bounded contract recompilation only. P8 remains blocked until the later W-04 P7 operator gate.
+F13 GREEN removes the authority blocker for W-04 P7. It does not authorize P8 by itself; P8 remains blocked pending the W-04 P7 operator adjudication.
