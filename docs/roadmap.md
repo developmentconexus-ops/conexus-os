@@ -15,7 +15,7 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
 | 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` RECOMPILED | `N_platform=113` | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` RECOMPILED | `113↔113`; Project=23; Brain=11; Connections=9 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 REBASELINED / `GF-01 LOCKED` / `W-01 LOCKED` / `W-02A P8 OPERATOR APPROVED` / `F07 GREEN` / `F08 OPERATOR GATE` / `W-02A NOT LOCKED` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01 LOCKED` / `W-01 LOCKED` / `W-02A P8 OPERATOR APPROVED` / `F07 GREEN` / `F08 SELECTED REALIZATION` / `W-02A NOT LOCKED` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -25,9 +25,10 @@ This is the single current phase/status authority.
 ```text
 4A = CLOSED / N_platform=113 / F04–F07 RECOMPILED
 4B = CLOSED / 113↔113 / Project=23 / Brain=11 / Connections=9 / F04–F07 RECOMPILED
-4C = OPEN / METHOD v2.2 REBASELINED / GF-01 LOCKED / W-01 LOCKED / W-02 OPEN / W-02A P8 OPERATOR APPROVED / W-02A NOT LOCKED / F07 GREEN / F08 OPERATOR GATE
+4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02 OPEN / W-02A P8 OPERATOR APPROVED / W-02A NOT LOCKED / F07 GREEN / F08 SELECTED REALIZATION
 F06 OPERATOR ACCEPTED / GREEN · F06 GREEN
 F07 OPERATOR ACCEPTED / GREEN · F07 SELECTED REALIZATION
+F08 OPERATOR ACCEPTED / SELECTED REALIZATION
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
@@ -42,7 +43,7 @@ P11 = assembled interactive low-fidelity Product
 P12 = whole-product adversarial UX + architecture walkthrough
 ```
 
-`GF-01 H1-R2` and `W-01 C1-R1` remain LOCKED; the v2.2 rebaseline did not falsify them.
+`GF-01 H1-R2` and `W-01 C1-R1` remain LOCKED; v2.2 did not falsify them.
 
 ```text
 W-02A = Workspace Brain
@@ -58,7 +59,7 @@ F06 Brain exact source-bound review content = OPERATOR ACCEPTED / GREEN
 F07 Brain structured knowledge browse       = OPERATOR ACCEPTED / GREEN
 ```
 
-W-02A P8 direction is operator approved:
+W-02A P8 direction remains operator approved:
 
 ```text
 primary mental model = organizational knowledge
@@ -71,7 +72,7 @@ physical Brain-Git topology = NOT SELECTED by 4C
 
 ### F07 — structured Brain knowledge browse — GREEN
 
-P9 exposed that plain `reviewText` could not truthfully implement `Knowledge → Domain → Concept`. Accepted result:
+Accepted result:
 
 ```text
 BRN-03 → BrainRevisionDetail
@@ -88,11 +89,9 @@ Verify #619 = SUCCESS / fixed Product wire 113↔113 / Brain=11
 
 Evidence: [finding](evidence/4c/w02a-brain-knowledge-browse-finding.md) / [Global Maximum](evidence/4c/w02a-brain-knowledge-browse-global-maximum.md) / [selected realization](evidence/4c/w02a-brain-knowledge-browse-selected-realization.md).
 
-### F08 — explicit Brain Discovery Project context — OPERATOR GATE
+### F08 — explicit Brain Discovery Project context — SELECTED REALIZATION
 
-`BRN-04 StartBrainDiscovery` requires the Project whose admitted source/Connection context Brain will use, but the approved P8 does not tell the human which Project is selected.
-
-Existing authority is sufficient:
+Operator accepted candidate C. Existing backend/wire remains sufficient:
 
 ```text
 PRJ-01 ListProjects → ProjectSummary { projectId, workspaceId, name, archived }
@@ -101,11 +100,9 @@ selected projectId = untrusted FORM_DRAFT
 → Brain resolves source / Connection context server-side
 ```
 
-Leading candidate: explicit Project context selector inside Brain Discovery using PRJ-01 human identity; no backend/wire/Permission/owner change. Knowledge/Proposal/Revisions/Health and F07 stay unchanged.
+Revise only the Discovery entry/context: labeled Project selector from PRJ-01 truth, no hidden/default Project, Run disabled until explicit selection, archived shown as truth rather than client eligibility policy. Knowledge/Proposal/Revisions/Health and F07 remain unchanged.
 
-Accepted F08 would require a revised functional P8 and operator re-walkthrough before final W-02A LOCK.
-
-Evidence: [F08 finding](evidence/4c/w02a-brain-discovery-project-context-finding.md) / [F08 Global Maximum](evidence/4c/w02a-brain-discovery-project-context-global-maximum.md).
+Evidence: [finding](evidence/4c/w02a-brain-discovery-project-context-finding.md) / [Global Maximum](evidence/4c/w02a-brain-discovery-project-context-global-maximum.md) / [selected realization](evidence/4c/w02a-brain-discovery-project-context-selected-realization.md).
 
 ## Method law
 
@@ -117,8 +114,6 @@ Frontend finding → root cause → target invariant → real owner → alternat
 
 ## Exact next action
 
-**Operator adjudication of F08: `ACCEPT GLOBAL-MAXIMUM CANDIDATE | REVISE | REJECT`.**
+**F08 revised P8 RED → revise only W-02A Discovery Project context → GREEN → operator re-walkthrough/re-approval.**
 
-If accepted: revise only W-02A Discovery entry/context in functional HTML, prove Project selection + BRN-04 interaction with deterministic fixtures, then require operator re-walkthrough/re-approval. Only after revised P8 + P9 close may W-02A become LOCKED and P10 close.
-
-Do not advance W-02B as baseline, begin 4D, merge PR #57 or implement Product code.
+Only after revised P8 + P9 close may W-02A become LOCKED and P10 close. Do not advance W-02B as baseline, begin 4D, merge PR #57 or implement Product code.
