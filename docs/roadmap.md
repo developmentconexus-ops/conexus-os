@@ -83,46 +83,18 @@ Evidence: [Brain structural decision](evidence/4c/w02a-brain-structural-hypothes
 
 ### W-02B — Connections — CONTEXT-PANEL P8 CANDIDATE / RE-WALKTHROUGH / NOT LOCKED
 
-Approved P7 remains Connection-first. The first walkthrough produced F10 and human-first card revisions. The next operator walkthrough accepted the structure but falsified repeated collection → detail/task → return navigation for routine Connection maintenance.
-
-The bounded interaction revision is now mechanically GREEN without any 4A/4B reopen:
+P7 remains Connection-first. The latest operator walkthrough accepted the structure but rejected repeated navigation for routine edit/test work. The bounded P8 revision keeps card browse visible behind one contextual Connection panel; configuration, write-only credential replacement, test and remediation now stay in that panel. No Product/wire/Permission/owner change was required.
 
 ```text
-Connection.name = primary human identity
-CON-03/04 connectionTest = NOT_TESTED | NEEDS_RETEST | PASSED | FAILED | INDETERMINATE
-CON-08 QualifyConnection = human label “Test connection”
-CON-09 = exact result + human diagnostic/remediation + Evidence
-config/credential change → old test basis NEEDS_RETEST
-configured != qualified != bound != healthy != caller-authorized
-```
-
-Current P8 interaction:
-
-```text
-Connection cards remain the browse surface
-→ Open selects one Connection into a broad contextual panel
-→ the collection/search context remains behind the panel
-→ configuration edits inline in that panel
-→ credential replacement stays write-only and inline in that panel
-→ Test connection + View problem stay in that panel
-→ configuration/credential save keeps the panel open and surfaces Needs retest
-→ Technical details stay collapsed
-```
-
-This does not invent Active/Inactive, generic Connected/Healthy, qualification history, secret readback, background monitoring, new Product operations, new Permissions, new semantic owners or new durable records.
-
-```text
-F10 backend GREEN       = Verify #680
-first P8 UX RED         = Verify #683
-first P8 UX GREEN       = Verify #684
-context-preserving RED  = Verify #687 / 82 tests / 80 pass / 2 expected failures
-context-preserving GREEN= Verify #688
-current P8 blob         = 421f5b8e08d6e5c96f5a56d8c24123902cbe3fab
+F10 GREEN                = Verify #680
+first P8 UX GREEN        = Verify #684
+context-preserving RED   = Verify #687 / 80 pass / 2 expected failures
+context-preserving GREEN = Verify #688
+current P8 blob          = 421f5b8e08d6e5c96f5a56d8c24123902cbe3fab
 ```
 
 Functional candidate: [Connections P8](evidence/4c/w02b-connections-functional-wireframe.html).
 Structural decision: [Connections P7/P8](evidence/4c/w02b-connections-structural-hypotheses.md).
-F10 Evidence: [finding](evidence/4c/w02b-connection-test-diagnostics-finding.md) / [Global Maximum](evidence/4c/w02b-connection-test-diagnostics-global-maximum.md) / [selected realization](evidence/4c/w02b-connection-test-diagnostics-selected-realization.md).
 
 ## Method law
 
