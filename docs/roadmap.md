@@ -25,7 +25,7 @@ This is the single current phase/status authority.
 ```text
 4A = CLOSED / N_platform=113 / F04–F07 + F09 RECOMPILED
 4B = CLOSED / 113↔113 / Project=23 / Brain=11 / Connections=9 / F04–F07 + F09 RECOMPILED
-4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02 OPEN / W-02A LOCKED / F09 GREEN / W-02B P7 NEXT
+4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / F09 GREEN / W-02B P7 NEXT
 F06 OPERATOR ACCEPTED / GREEN · F06 GREEN
 F07 OPERATOR ACCEPTED / GREEN · F07 SELECTED REALIZATION
 F08 OPERATOR ACCEPTED / REVISED P8 GREEN / OPERATOR RE-APPROVED · F08 SELECTED REALIZATION
@@ -87,7 +87,7 @@ Evidence: [Brain structural decision](evidence/4c/w02a-brain-structural-hypothes
 
 ### F09 — Connection current non-secret configuration — GREEN
 
-W-02B P7 revalidation proved that create/revise accepted non-secret configuration but the exact Connection detail read could not recover it after refresh/re-entry. Accepted bounded result:
+Accepted bounded F09 result:
 
 ```text
 CON-03 ListConnections → lightweight Connection[]
@@ -119,8 +119,6 @@ HEAD = ebdd023e3fbabefccda789a7fe1fb1891624db2d
 Evidence: [F09 finding](evidence/4c/w02b-connection-current-configuration-finding.md) / [Global Maximum](evidence/4c/w02b-connection-current-configuration-global-maximum.md) / [selected realization](evidence/4c/w02b-connection-current-configuration-selected-realization.md).
 
 ### W-02B — Connections — P7 NEXT
-
-Current authority now supports truthful inspection/re-entry:
 
 ```text
 browse Connections by human Connection.name
