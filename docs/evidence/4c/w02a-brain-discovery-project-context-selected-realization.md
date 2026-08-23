@@ -1,6 +1,6 @@
 # 4C-F08 — Brain Discovery Project-context selected realization
 
-> **Status:** `OPERATOR ACCEPTED / SELECTED REALIZATION / REVISED P8 GREEN / OPERATOR RE-WALKTHROUGH REQUIRED`
+> **Status:** `OPERATOR ACCEPTED / SELECTED REALIZATION / REVISED P8 GREEN / OPERATOR RE-APPROVED`
 > **Block:** `W-02A — Workspace Brain`
 > **Selected alternative:** `C — explicit Project context selector inside Brain Discovery using PRJ-01`.
 > **Authority posture:** frontend interaction realization only. No Product operation, Permission, owner, record or wire semantic changes.
@@ -19,6 +19,8 @@ PRJ-01 ListProjects
 → BRN-04 StartBrainDiscovery { projectId }
 → Brain resolves admitted source / Connection context server-side
 ```
+
+The revised functional P8 was then operated and explicitly re-approved by the operator. That re-approval closes F08 and permits the final W-02A lock; it does not change backend authority.
 
 ## 2. Exact revised P8 contract
 
@@ -48,7 +50,7 @@ The helper text makes the ownership boundary visible before action: choosing a P
 
 ## 3. Preserved P8 authority
 
-F08 revises only the Discovery entry/context region. It does not reopen:
+F08 revised only the Discovery entry/context region. It did not reopen:
 
 ```text
 Knowledge → Domain → Concept
@@ -91,17 +93,18 @@ Revised P8:
 docs/evidence/4c/w02a-brain-functional-wireframe.html
 blob = 9ca84ddbf40f6bcd969bfa638203bff8b9abf46e
 Verify #633 = SUCCESS
+Verify #636 = final pre-lock SUCCESS
 ```
 
-The revised artifact proves the selected interaction mechanically. It does not create final operator lock by itself.
+The revised artifact proved the selected interaction mechanically; the operator then re-operated and explicitly re-approved it.
 
-## 6. Remaining gate
+## 6. Closure
 
 ```text
 revised P8 GREEN
 → operator re-walkthrough / re-approval
-→ rerun exact P9 trace
-→ only then W-02A LOCK + P10 closure
+→ exact P9 trace
+→ W-02A LOCK + P10 closure
 ```
 
-The prior P8 approval remains valid for preserved regions; the revised Discovery context requires explicit operator re-approval before final lock.
+F08 is now closed. The prior P8 approval remains preserved for all unchanged regions; the revised Discovery context is included in the final W-02A lock.
