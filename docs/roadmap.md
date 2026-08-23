@@ -50,12 +50,13 @@ Current proof chain:
 
 ```text
 4C-F03 authority/wire correction
-Verify #520 = SUCCESS on exact correction/documentation HEAD
+Verify #520 = SUCCESS
 113↔113 / Project=23 / Permissions=25 / Kubb=113 / whole-4B GREEN
 
 W-01 C1-R1 structural P8
 Verify #521 = EXPECTED RED (53/54; missing C1-R1 hypothesis only)
-Verify #523 = SUCCESS on revised visual Baseline HTML candidate
+Verify #523 = SUCCESS on revised visual Baseline HTML
+Verify #524 = SUCCESS on exact adjudication-ready HEAD 70b405d72d200dbf8b09abf3656dc4ed2b303dda
 ```
 
 ## Exact next action
