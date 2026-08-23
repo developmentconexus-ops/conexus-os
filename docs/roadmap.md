@@ -105,11 +105,15 @@ configured != qualified != bound != healthy != caller-authorized
 
 No new Product operation, Permission, owner, record, revision-history API, `latestQualification`, secret readback or generic `Connected` status was admitted.
 
-Historical selected RED:
+Proof:
 
 ```text
 Verify #649 = EXPECTED RED / 73 tests / 72 pass / 1 fail
 → only CON-04 lacked ConnectionDetail
+
+Verify #655 = SUCCESS
+HEAD = ebdd023e3fbabefccda789a7fe1fb1891624db2d
+→ 113↔113 / Connections=9 / ordinary Permissions=25
 ```
 
 Evidence: [F09 finding](evidence/4c/w02b-connection-current-configuration-finding.md) / [Global Maximum](evidence/4c/w02b-connection-current-configuration-global-maximum.md) / [selected realization](evidence/4c/w02b-connection-current-configuration-selected-realization.md).
