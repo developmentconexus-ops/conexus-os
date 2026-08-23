@@ -13,9 +13,9 @@ This is the single current phase/status authority.
 | C-018 | RATIFIED / OPERATOR RATIFIED | Final Product architecture continuity ratified | Material Product/architecture falsifier |
 | C-015 refinement | REFINED / KEYCLOAK SELECTED / OPERATOR APPROVED | Authentication selected; Conexus owns authorization | Material identity/security falsifier |
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
-| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` RECOMPILED | `N_platform=113` | Interaction Evidence proves missing Product meaning/authority |
-| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` RECOMPILED | `113↔113`; Project=23; Brain=11; Connections=9 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01 LOCKED` / `W-01 LOCKED` / `W-02A LOCKED` / `W-02B P7 NEXT` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09` RECOMPILED | `N_platform=113` | Interaction Evidence proves missing Product meaning/authority |
+| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09` RECOMPILED | `113↔113`; Project=23; Brain=11; Connections=9 | 4A change or wire/proof falsifier |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01 LOCKED` / `W-01 LOCKED` / `W-02A LOCKED` / `F09 GREEN` / `W-02B P7 NEXT` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -23,12 +23,13 @@ This is the single current phase/status authority.
 | Product implementation | BLOCKED | Requires 4A–4G + explicit operator grant | No historical grant carries forward |
 
 ```text
-4A = CLOSED / N_platform=113 / F04–F07 RECOMPILED
-4B = CLOSED / 113↔113 / Project=23 / Brain=11 / Connections=9 / F04–F07 RECOMPILED
-4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02 OPEN / W-02A LOCKED / W-02B P7 NEXT
+4A = CLOSED / N_platform=113 / F04–F07 + F09 RECOMPILED
+4B = CLOSED / 113↔113 / Project=23 / Brain=11 / Connections=9 / F04–F07 + F09 RECOMPILED
+4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02 OPEN / W-02A LOCKED / F09 GREEN / W-02B P7 NEXT
 F06 OPERATOR ACCEPTED / GREEN · F06 GREEN
 F07 OPERATOR ACCEPTED / GREEN · F07 SELECTED REALIZATION
 F08 OPERATOR ACCEPTED / REVISED P8 GREEN / OPERATOR RE-APPROVED · F08 SELECTED REALIZATION
+F09 OPERATOR ACCEPTED / GREEN · F09 SELECTED REALIZATION
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
@@ -50,13 +51,14 @@ W-02A = Workspace Brain
 W-02B = Connections
 ```
 
-Initial operation/Permission/owner/trust topology remains sound. `F04`–`F07` are operator-accepted GREEN bounded recompiles inside existing Connections/Brain owners; `F08` was interaction-only and changed no backend/wire authority. Fixed Product/wire remains `113↔113`, Brain=11, Connections=9, ordinary Permissions=25.
+Initial operation/Permission/owner/trust topology remains sound. `F04`–`F07` and `F09` are operator-accepted GREEN bounded recompiles inside existing Connections/Brain owners; `F08` was interaction-only and changed no backend/wire authority. Fixed Product/wire remains `113↔113`, Brain=11, Connections=9, ordinary Permissions=25.
 
 ```text
 F04 Connection human presentation identity = OPERATOR ACCEPTED / GREEN
 F05 Brain Discovery proposal intake         = OPERATOR ACCEPTED / GREEN
 F06 Brain exact source-bound review content = OPERATOR ACCEPTED / GREEN
 F07 Brain structured knowledge browse       = OPERATOR ACCEPTED / GREEN
+F09 Connection current non-secret configuration = OPERATOR ACCEPTED / GREEN
 ```
 
 ### W-02A — Workspace Brain — LOCKED
@@ -83,19 +85,47 @@ P11 = LATER ASSEMBLED PRODUCT
 
 Evidence: [Brain structural decision](evidence/4c/w02a-brain-structural-hypotheses.md) / [Brain Screen Contract](evidence/4c/w02a-brain-screen-contract.md) / [functional P8](evidence/4c/w02a-brain-functional-wireframe.html).
 
-### W-02B — Connections — P7 NEXT
+### F09 — Connection current non-secret configuration — GREEN
 
-Preserved direction from W-02 preflight:
+W-02B P7 revalidation proved that create/revise accepted non-secret configuration but the exact Connection detail read could not recover it after refresh/re-entry. Accepted bounded result:
 
 ```text
-browse Connections by human Connection.name
-→ focused Connection detail
-→ explicit configuration / write-only credential / qualification tasks
+CON-03 ListConnections → lightweight Connection[]
+CON-04 GetConnection → ConnectionDetail
+→ exact currentRevisionId + provider-specific current non-secret configuration
+CON-05 CreateConnection → lightweight Connection
+CON-07 SetConnectionCredential → write-only / no readback
+```
 
+Protected law remains:
+
+```text
 configured != qualified != bound != healthy != caller-authorized
 ```
 
-P7 must adjudicate the exact structural hypothesis against current `CON-01..09` authority before any functional P8 is created. Do not invent `latestQualification`, generic qualification history, secret readback or a permanent generic `Connected` badge.
+No new Product operation, Permission, owner, record, revision-history API, `latestQualification`, secret readback or generic `Connected` status was admitted.
+
+Historical selected RED:
+
+```text
+Verify #649 = EXPECTED RED / 73 tests / 72 pass / 1 fail
+→ only CON-04 lacked ConnectionDetail
+```
+
+Evidence: [F09 finding](evidence/4c/w02b-connection-current-configuration-finding.md) / [Global Maximum](evidence/4c/w02b-connection-current-configuration-global-maximum.md) / [selected realization](evidence/4c/w02b-connection-current-configuration-selected-realization.md).
+
+### W-02B — Connections — P7 NEXT
+
+Current authority now supports truthful inspection/re-entry:
+
+```text
+browse Connections by human Connection.name
+→ focused exact Connection detail
+→ inspect current non-secret configuration
+→ explicit configuration / write-only credential / qualification tasks
+```
+
+P7 must adjudicate the structural hypothesis against current `CON-01..09` authority before any functional P8 is created. Do not invent `latestQualification`, generic qualification history, secret readback, revision-history/rollback or a permanent generic `Connected` badge.
 
 ## Method law
 
