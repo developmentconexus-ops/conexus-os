@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 const productBundle = '/tmp/conexus-product-openapi.bundle.json';
 const generator = 'scripts/generate-wire-projection.mjs';
 const kubbProbe = 'scripts/run-kubb-wire-probe.mjs';
-const expectedProductOperations = 113;
+const expectedProductOperations = 116;
 
 if (!fs.existsSync(productBundle)) {
   throw new Error('Product bundle must exist before generated projection verification');
@@ -61,10 +61,22 @@ for (const operation of manifest.operations) {
   }
 }
 
-for (const requiredId of ['GetProject', 'GetProjectBaselineCandidate', 'AskConexusAboutBaselineCandidate', 'ClearProjectBrainBinding', 'RunManagedJobNow', 'GetProjectUsageCostSummary']) {
+for (const requiredId of [
+  'GetProject',
+  'GetProjectBaselineCandidate',
+  'AskConexusAboutBaselineCandidate',
+  'ListWorkspaceMembershipCandidates',
+  'GetWorkspaceMemberAccess',
+  'GetAreaAccess',
+  'ListAuditRecords',
+  'GetAuditRecord',
+  'ClearProjectBrainBinding',
+  'RunManagedJobNow',
+  'GetProjectUsageCostSummary',
+]) {
   if (!operationIds.has(requiredId)) throw new Error(`Generated projection is missing ${requiredId}`);
 }
 
 run('node', [kubbProbe, productBundle]);
 
-console.log(`Generated projection/no-parallel-DTO proof passed (${expectedProductOperations} deterministic Product entries + real Kubb probe).`);
+console.log(`Generated projection/no-parallel-DTO proof passed (${expectedProductOperations} deterministic Product entries + F11/F12 consumers + real Kubb probe).`);
