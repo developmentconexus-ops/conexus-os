@@ -11,7 +11,7 @@ const removed = new Map([
   ['PRJ-04', 'UpdateProject']
 ])
 
-test('operator-approved 4B-F01 subtraction remains preserved after later bounded 4C-F02 and 4C-F03', () => {
+test('operator-approved 4B-F01 subtraction remains preserved after later bounded 4C corrections through F11/F12', () => {
   const ledger = read('docs/product/operation-ledger.md')
   const sectionStart = ledger.indexOf('# 5. Fixed Conexus platform census')
   const sectionEnd = ledger.indexOf('\n---\n\n## 6. Product-visible Published Application boundary', sectionStart)
@@ -19,7 +19,7 @@ test('operator-approved 4B-F01 subtraction remains preserved after later bounded
 
   const fixedSection = ledger.slice(sectionStart, sectionEnd)
   const rows = [...fixedSection.matchAll(/^\| `([A-Z]+-\d+)` \| `([A-Za-z][A-Za-z0-9]+)` \|/gm)]
-  if (rows.length !== 113) throw new Error(`expected 113 current fixed 4A operations after accepted 4C-F03, found ${rows.length}`)
+  if (rows.length !== 116) throw new Error(`expected 116 current fixed 4A operations after accepted 4C-F11/F12, found ${rows.length}`)
 
   for (const [id, operationId] of removed) {
     if (fixedSection.includes(`\`${id}\``) || fixedSection.includes(`\`${operationId}\``)) {
@@ -27,17 +27,21 @@ test('operator-approved 4B-F01 subtraction remains preserved after later bounded
     }
   }
 
-  if (!fixedSection.includes('`PRJ-23` | `GetProjectBaselineCandidate`')) {
-    throw new Error('current census must preserve accepted PRJ-23 exact candidate read')
-  }
-  if (!fixedSection.includes('`PRJ-24` | `AskConexusAboutBaselineCandidate`')) {
-    throw new Error('current census must add accepted PRJ-24 exact candidate contextual read')
+  for (const current of [
+    '`PRJ-23` | `GetProjectBaselineCandidate`',
+    '`PRJ-24` | `AskConexusAboutBaselineCandidate`',
+    '`IAM-18` | `ListWorkspaceMembershipCandidates`',
+    '`IAM-19` | `GetWorkspaceMemberAccess`',
+    '`IAM-20` | `GetAreaAccess`',
+  ]) {
+    if (!fixedSection.includes(current)) throw new Error(`current census missing accepted operation: ${current}`)
   }
 
   for (const historical of [
     '= 111 fixed operations after 4B-F01',
     '= 112 fixed operations after 4C-F02',
-    '= 113 current fixed Conexus platform Product operations'
+    '= 113 fixed operations after 4C-F03',
+    '= 116 current fixed Conexus platform Product operations'
   ]) {
     if (!ledger.includes(historical)) throw new Error(`operation ledger must preserve bounded correction chronology: ${historical}`)
   }
