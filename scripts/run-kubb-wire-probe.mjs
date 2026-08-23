@@ -9,7 +9,7 @@ const versions = {
   kubb: '5.0.0',
   typescript: '7.0.2',
 };
-const expectedProductOperations = 113;
+const expectedProductOperations = 116;
 const root = '/tmp/conexus-kubb-real-oas-probe';
 const outputA = path.join(root, 'generated-a');
 const outputB = path.join(root, 'generated-b');
@@ -154,7 +154,13 @@ for (const carrier of ['If-Match', 'Idempotency-Key']) {
 if (!allGeneratedText.includes('__Host-conexus_session')) {
   throw new Error('Kubb generated client lost ConexusSession cookie security scheme');
 }
-for (const operationId of ['GetProjectBaselineCandidate', 'AskConexusAboutBaselineCandidate']) {
+for (const operationId of [
+  'GetProjectBaselineCandidate',
+  'AskConexusAboutBaselineCandidate',
+  'ListWorkspaceMembershipCandidates',
+  'GetWorkspaceMemberAccess',
+  'GetAreaAccess',
+]) {
   if (!allGeneratedText.includes(operationId)) {
     throw new Error(`Kubb generated projection lost accepted ${operationId}`);
   }
