@@ -10,7 +10,7 @@ function requireText(text, needle, message) {
   if (!text.includes(needle)) throw new Error(message)
 }
 
-test('W-02 authority preflight separates Brain review from Connection secret/qualification work without inventing Product authority', () => {
+test('W-02 authority preflight separates Brain review from Connection secret/qualification work and preserves bounded follow-up falsifiers', () => {
   const evidencePath = 'docs/evidence/4c/w02-authority-feasibility-preflight.md'
   if (!existsSync(path(evidencePath))) throw new Error('W-02 authority-feasibility preflight must exist before structural hypotheses')
 
@@ -30,7 +30,9 @@ test('W-02 authority preflight separates Brain review from Connection secret/qua
     'configured != qualified != bound != healthy != caller-authorized',
     'credential write = write-only / no secret readback',
     'generic Workspace Settings = REJECTED',
-    '4A/4B upstream correction = NOT REQUIRED',
+    'Initial operation/Permission/owner/trust topology was sound.',
+    'F04 Connection human presentation identity = OPERATOR ACCEPTED / GREEN',
+    'F05 Brain Discovery proposal intake         = OPERATOR ACCEPTED / GREEN',
     'reference study = TRIGGERED',
   ]) requireText(evidence, law, `W-02 preflight missing law: ${law}`)
 
