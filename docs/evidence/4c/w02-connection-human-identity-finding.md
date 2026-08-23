@@ -1,8 +1,8 @@
 # 4C-F04 — Connection Human-Readable Identity Finding
 
-> **Status:** `OPEN / MATERIAL FINDING / RED REQUIRED / NOT YET ADMITTED`
+> **Status:** `OPEN / MATERIAL FINDING / GLOBAL-MAXIMUM OPERATOR GATE / NOT YET ADMITTED`
 > **Exposed by:** W-02B Connections reference/structural study after W-02 authority preflight.
-> **Smallest implicated owner:** Connections Product semantic identity + exact 4B Connection wire projection.
+> **Smallest implicated owner:** Connections Product semantic identity + exact 4B Connection projection, unless the Global-Maximum analysis proves a different owner.
 > **Implementation authority:** none.
 
 ## 1. Human falsifier
@@ -21,86 +21,77 @@ credentialConfigured
 
 No stable human-readable Connection presentation identity is admitted.
 
-The Product also permits repeated Connection creation for the same owner scope / Connector definition; no current law proves one Connection per provider, and mature integration products explicitly support multiple named app instances/connections. Therefore a real human list may need to distinguish, for example, two same-provider Connections representing different accounts/environments.
+The Product also permits repeated Connection creation for the same owner scope / Connector definition; no current law proves one Connection per provider. Therefore a real human list may need to distinguish two or more same-provider logical Connections.
 
-## 2. Why current substitutes fail
+## 2. Root defect
 
-### A — display `connectionId`
+The current Product gives the frontend machine identity and operational facts, but no provider-independent human recognition source.
 
-**REJECT.** Stable opaque identity is necessary for routing/authority but insufficient as primary human recognition.
-
-### B — derive a label from provider-specific `configuration`
-
-**REJECT.** Configuration shape is Connector-specific, may not contain a suitable label, may change by revision, and is not admitted as universal Connection presentation identity. The frontend would invent identity semantics from provider payloads.
-
-### C — use Connector provider/definition name only
-
-**REJECT.** Multiple Connections may use the same Connector definition/provider; provider identity cannot distinguish logical Connection instances.
-
-### D — create a generic Connection metadata/update subsystem
-
-**REJECT / YAGNI.** The human need is recognition, not arbitrary metadata CRUD.
-
-## 3. External reference Evidence
-
-Current official Workato documentation explicitly models multiple connections when users have multiple app instances (for example production and testing), and its Connections API includes a human `name` alongside provider and authorization state. This is reference Evidence that same-provider logical connection instances need a human recognition label; it is not Conexus authority.
-
-The finding does not import Workato's connection lifecycle or status vocabulary.
-
-## 4. Leading smallest correction — NOT YET OPERATOR ACCEPTED
+Target invariant:
 
 ```text
-Connection.name
+stable human recognition
++ server-owned presentation identity
++ provider-independent semantics
++ continuity across ConnectionRevision changes
 ```
 
-Proposed bounded semantics:
-
-- required non-blank human-readable presentation identity;
-- supplied explicitly on `CON-05 CreateConnection`;
-- returned on `Connection` projections from `CON-03/04` and any response already using that canonical representation;
-- independent from stable opaque `connectionId`;
-- never authorization, containment, Connector selection or uniqueness authority;
-- not required to be unique by this correction;
-- immutable after creation in F1 because no current rename consumer has been proven;
-- no new Product operation, Permission, owner, trust boundary or durable record class.
-
-Explicitly not admitted:
+The identity:
 
 ```text
-RenameConnection
-UpdateConnectionMetadata
-generic Connection patch
-name-derived routing/slug
-global or owner-scope name uniqueness
-frontend ID→name registry
-configuration-derived fallback identity
+must not be derived from provider-specific configuration
+must not require secret readback
+must not become routing, containment or authorization authority
 ```
 
-`CON-06 ReviseConnection` remains configuration-revision authority only and does not become a rename path.
+## 3. Why current substitutes fail
 
-## 5. Expected derived impact if accepted
+Opaque `connectionId`, provider/Connector identity and provider-specific configuration are Evidence inputs, not a universal human-identity contract. A frontend-derived label would create a second, unstable authority.
+
+A generic metadata subsystem is also not implied by the finding.
+
+## 4. Global-Maximum decision required
+
+The finding does **not** preselect `Connection.name` or any other schema change.
+
+The bounded assessment is:
 
 ```text
-fixed Product operation count = unchanged (113)
-Connections operations        = unchanged (9)
-ordinary Permissions          = unchanged (25)
-new operation                 = 0
-new owner                     = 0
-new durable record class      = 0
+docs/evidence/4c/w02-connection-human-identity-global-maximum.md
 ```
 
-Only existing creation/read payload semantics would recompile.
-
-## 6. RED contract
-
-Executable falsifiers should fail exactly because:
+It compares:
 
 ```text
-F04-A current Product human-identity authority does not admit Connection.name
-F04-B current CON-05 / Connection wire does not require/project Connection.name
+A opaque ID / provider
+B configuration or external-account derived identity
+C ConnectorDefinition-owned label derivation
+D explicit human identity owned by logical Connection
+E mutable name + rename authority now
+F new ConnectionProfile / presentation-owner domain
 ```
 
-All W-01 locks, W-02 split laws, Connection secret/qualification boundaries, 113↔113 bijection and prior whole-wire proofs must otherwise remain green.
+The current leading candidate after that comparison is explicit human presentation identity owned by the logical Connection, with `Connection.name` as the leading spelling. That is **Decision Evidence only** until the operator accepts it.
+
+**The solution is not admitted by finding existence.**
+
+## 5. External Evidence
+
+Current official Workato and Zapier documentation confirms that mature integration products support multiple connections/accounts for the same app and use human-recognizable names/renames to distinguish them. This proves the problem class is real; it does not import their lifecycle or API design into Conexus.
+
+## 6. Current proof state
+
+The current-state falsifier should prove:
+
+```text
+same-provider instances are structurally possible
+current Connection projection has no provider-independent human presentation identity
+frontend/provider/secret heuristics are not accepted authority
+```
+
+It should **not** fail merely because a preselected field such as `Connection.name` is absent before the Global-Maximum decision.
+
+After operator acceptance of an exact outcome, derive a new selected-realization RED before changing Product/wire authority.
 
 ## 7. Decision boundary
 
@@ -108,7 +99,7 @@ Do not modify 4A/4B yet.
 
 ```text
 operator decision required:
-ACCEPT CORRECTION | REVISE | REJECT
+ACCEPT GLOBAL-MAXIMUM CANDIDATE | REVISE | REJECT
 ```
 
-If accepted, reopen only the bounded human-identity Product contract + CON-05/Connection wire and exact affected checks, then recompile W-02 authority Evidence before structural hypotheses.
+If accepted, reopen only the owner/contract actually selected by the Global-Maximum assessment, then recompile affected downstream artifacts. If the assessment is revised to a different owner or strategy, the implementation scope follows that decision rather than the currently leading schema candidate.
