@@ -1,14 +1,14 @@
 # 4C W-02 — Workspace Brain + Connections Authority/Data Feasibility
 
-> **Status:** `W-02 / v2.2 P7 FEASIBILITY / GREEN AFTER F04+F05+F06+F09 RECOMPILE`
+> **Status:** `W-02 / v2.2 P7/P8 FEASIBILITY / GREEN AFTER F04+F05+F06+F09+F10 RECOMPILE`
 > **Inherited baseline:** `GF-01 H1-R2 = LOCKED`; `W-01 C1-R1 = LOCKED`; `W-02A Brain = LOCKED`; fixed Product/wire topology `113↔113`; 25 ordinary Permissions.
 > **Scope:** Workspace Brain and Workspace/Project-scoped Connections human work only. No Product implementation, 4D mechanism, SDK/runtime or final visual design is admitted here.
 
 ## 1. Decision question
 
-Can current Product/wire authority supply the fields, identity, preview/content truth and material writes needed for honest W-02 functional P8 interaction without inventing an aggregate Settings owner, exposing secrets, conflating proposal/publication, or flattening Connection qualification/binding/authorization?
+Can current Product/wire authority supply the fields, identity, preview/content truth, test diagnostics and material writes needed for honest W-02 functional P8 interaction without inventing an aggregate Settings owner, exposing secrets, conflating proposal/publication, or flattening Connection qualification/binding/health/authorization?
 
-Under frontend method v2.2, every material P7 requirement must be `PRESENT-IN-AUTHORITY` or a `FINDING` before P8 LOCK.
+Under frontend method v2.2, every material P7/P8 requirement must be `PRESENT-IN-AUTHORITY` or a `FINDING` before P8 LOCK.
 
 ## 2. Split decision
 
@@ -21,13 +21,14 @@ generic Workspace Settings = REJECTED
 
 Brain and Connections remain separate because their human decisions, trust boundaries and failure semantics differ materially. A generic Workspace Settings editor is still rejected: it would flatten Brain semantic review/publication and Connection credential/qualification work into one false mutation domain.
 
-Initial operation/Permission/owner/trust topology was sound. Later P7/P9 work validly exposed bounded property/input/read-shape gaps inside those already-correct owners; F04–F07 and F09 therefore recompiled only the affected semantics without replacing the Brain/Connections owner topology. F08 was interaction-only.
+Initial operation/Permission/owner/trust topology was sound. Later P7/P8/P9 work validly exposed bounded property/input/read-shape gaps inside those already-correct owners; F04–F07, F09 and F10 therefore recompiled only the affected semantics without replacing the Brain/Connections owner topology. F08 was interaction-only.
 
 ```text
 F04 Connection human presentation identity = OPERATOR ACCEPTED / GREEN
 F05 Brain Discovery proposal intake         = OPERATOR ACCEPTED / GREEN
 F06 Brain exact review-content inspectability = OPERATOR ACCEPTED / GREEN
 F09 Connection current non-secret configuration = OPERATOR ACCEPTED / GREEN
+F10 Connection test applicability + diagnostics = OPERATOR ACCEPTED / GREEN
 ```
 
 ## 3. W-02A — Workspace Brain — LOCKED
@@ -104,8 +105,8 @@ CON-04 GetConnection
 CON-05 CreateConnection
 CON-06 ReviseConnection
 CON-07 SetConnectionCredential
-CON-08 QualifyConnection
-CON-09 GetConnectionQualification
+CON-08 QualifyConnection       ← human UX: Test connection
+CON-09 GetConnectionQualification ← human UX: Test result / View problem
 ```
 
 Permissions:
@@ -127,6 +128,7 @@ Credential boundary:
 
 ```text
 credential write = write-only / no secret readback
+logical credential generation = non-secret server-owned coordinate only
 ```
 
 ### F04 — human Connection identity — GREEN
@@ -143,24 +145,13 @@ Connections remain 9 operations; Permission/trust topology is unchanged.
 
 ### F09 — current non-secret configuration — GREEN
 
-P7 revalidation falsified the previous preflight assumption that current configuration values were already inspectable. `CON-05` / `CON-06` accepted provider-specific non-secret configuration, but the previous `CON-04` detail exposed only identity/owner/definition/revision/credential-presence facts.
-
-Operator-accepted bounded correction:
+P7 revalidation falsified the previous preflight assumption that current configuration values were already inspectable. The operator-accepted bounded correction keeps:
 
 ```text
-CON-03 ListConnections
-→ lightweight Connection[]
-
-CON-04 GetConnection
-→ ConnectionDetail
-→ exact currentRevisionId
-+ provider-specific current non-secret configuration for that exact revision
-
-CON-05 CreateConnection
-→ lightweight Connection response remains sufficient
-
-CON-07 SetConnectionCredential
-→ write-only secret ingress remains unchanged
+CON-03 → lightweight Connection[]
+CON-04 → ConnectionDetail + exact currentRevisionId-bound current non-secret configuration
+CON-05 → lightweight Connection
+CON-07 → write-only secret ingress
 ```
 
 Protected negative laws:
@@ -172,19 +163,61 @@ credentialConfigured -X-> qualification
 configuration -X-> binding / health / authorization
 ```
 
-No new Product operation, Permission, owner, record, revision-history family or synthesized readiness state is admitted.
+### F10 — current test applicability + human diagnostics — GREEN
 
-Qualification remains exact-subject truth. Current authority does **not** justify `latest qualification`, a qualification-history browser or a generic `Connected` badge merely for UI convenience.
+The first functional P8 walkthrough proved that raw qualification coordinates/Evidence were not enough for the human job “does this Connection work now, and if not why?”. The accepted bounded correction preserves `CON-08/09` and the existing `ConnectionQualification` durable owner.
 
-## 5. v2.2 P7 feasibility matrix
+```text
+CON-03 / CON-04
+→ Connections-derived connectionTest
+→ NOT_TESTED | NEEDS_RETEST | PASSED | FAILED | INDETERMINATE
+
+CON-08 QualifyConnection
+→ caller still supplies exact connectionRevisionId + environment only
+→ Connections resolves current logical credential generation server-side
+→ existing ConnectionQualification binds revision + credential generation + environment + testedAt
+
+CON-09 GetConnectionQualification
+→ exact qualificationState + outcome + diagnostic/remediation + evidenceRefs
+```
+
+Applicability law:
+
+```text
+no prior qualification
+→ NOT_TESTED
+
+prior qualification + current revision/credential-generation mismatch
+→ NEEDS_RETEST
+
+exact current basis
+→ PASSED | FAILED | INDETERMINATE from exact qualification outcome
+```
+
+Changing non-secret configuration or replacing credential does not delete old Evidence. It makes that older basis non-current.
+
+Protected negative laws:
+
+```text
+connectionTest -X-> Active / Inactive lifecycle
+qualification passed -X-> Connected / Ready / Healthy
+qualification passed -X-> Project binding
+qualification passed -X-> caller authorization
+frontend evidenceRefs parsing -X-> diagnostic authority
+credentialGeneration -X-> secret/token readback
+```
+
+No new `TestConnection`, ConnectionHealth owner, qualification-history/list API, Permission, durable record or background monitor is admitted.
+
+## 5. v2.2 feasibility matrix
 
 | Requirement | W-02A Brain | W-02B Connections | Status |
 | --- | --- | --- | --- |
-| fields/summaries | locked Brain overview/revision/proposal/discovery/health fields | connector/Connection/config/credential-presence/qualification fields | PRESENT-IN-AUTHORITY |
+| fields/summaries | locked Brain overview/revision/proposal/discovery/health fields | connector/Connection/config/credential-presence/current-test/qualification fields | PRESENT-IN-AUTHORITY |
 | identity sources | Workspace, revision, proposal, candidate source exact; reviewText/projection coordinates non-authoritative | ConnectorDefinition + Connection.name + exact currentRevisionId/qualification subjects | PRESENT-IN-AUTHORITY |
 | pagination/scale | locked block; no speculative new mechanism | no unproved scale-driven new mechanism; P8 may use bounded fixtures | PRESENT-IN-AUTHORITY for current F1 / scale assumption remains bounded |
-| sort/filter | locked local findability only over disclosed truth | no Product truth requires new sort/filter write authority; local filtering may be EPHEMERAL_UI | PRESENT-IN-AUTHORITY |
-| preview/content truth | F06/F07 supply exact source-bound human meaning/browse | F09 CON-04 supplies exact current non-secret configuration; CON-09 supplies exact qualification; secrets never readable | PRESENT-IN-AUTHORITY |
+| sort/filter | locked local findability only over disclosed truth | local filtering/card layout may be EPHEMERAL_UI; no new Product write authority | PRESENT-IN-AUTHORITY |
+| preview/content truth | F06/F07 supply exact source-bound human meaning/browse | F09 supplies current non-secret config; F10 supplies current test applicability + exact human diagnostic/remediation; secrets never readable | PRESENT-IN-AUTHORITY |
 | material writes | locked BRN-04/07/08/09 owner operations | CON-05/06/07/08 exact owner operations | PRESENT-IN-AUTHORITY |
 
 Any P8 need outside this matrix becomes a new `FINDING`; it is not permission to fabricate fixture-only Product truth.
@@ -198,7 +231,7 @@ WS-S05 Brain discovery/proposals   → BRN-04/05/06/07/08/09
 WS-S06 Connections browse/detail   → CON-01/02/03/04/09
 WS-S07 Connection create/revise    → CON-05/06
 WS-S08 credential entry            → CON-07
-WS-S09 qualification               → CON-08
+WS-S09 test/qualification          → CON-08
 ```
 
 Project Brain/Connection bindings remain P-02 responsibilities. Workspace placement never changes semantic ownership.
@@ -208,7 +241,8 @@ Project Brain/Connection bindings remain P-02 responsibilities. Workspace placem
 ```text
 SERVER
 → Brain/revision/reviewText/proposal/health truth
-→ Connection / Connection.name / current non-secret configuration / qualification truth
+→ Connection / Connection.name / current non-secret configuration
+→ credentialConfigured / connectionTest / exact qualification + diagnostic truth
 
 URL_NAVIGATION
 → exact revision/proposal/Connection/Connector/qualification subjects when route identity is material
@@ -216,12 +250,13 @@ URL_NAVIGATION
 FORM_DRAFT
 → Connection name/configuration draft
 → credential input before submit
+→ qualification environment before CON-08
 
 EPHEMERAL_UI
-→ tabs/filtering/expanded detail/local selection
+→ tabs/filtering/cards/expanded technical detail/local selection
 ```
 
-Credential input remains transient. Current configuration becomes a form draft only after server truth initializes an explicit revise interaction; browser draft never replaces `currentRevisionId` or successful `CON-06` truth.
+Credential input remains transient. Current configuration becomes a form draft only after server truth initializes an explicit revise interaction; browser draft never replaces `currentRevisionId` or successful `CON-06` truth. Browser state never decides whether a qualification remains current.
 
 ## 8. Structural study / P8 boundary
 
@@ -229,15 +264,16 @@ Credential input remains transient. Current configuration becomes a form draft o
 reference study = TRIGGERED
 ```
 
-W-02A is locked. W-02B must now keep connector, logical Connection, current non-secret configuration, write-only credential, qualification and downstream binding meanings visually distinct.
+W-02A is locked. W-02B must present connector, logical Connection, configuration, access/credential and test result in human language while keeping the technical subjects available only where useful for troubleshooting/proof.
 
 Explicitly avoid:
 
 ```text
 universal resource/settings workbench
 secret readback
-generic Connected badge
-latestQualification or generic qualification history
+generic Connected / Active / Healthy badge
+frontend-derived test applicability
+qualification history browser without a real consumer
 revision-history/rollback UI without a real consumer
 4D SDK/runtime/package decisions
 ```
@@ -251,12 +287,14 @@ F06 = OPERATOR ACCEPTED / GREEN
 F07 = OPERATOR ACCEPTED / GREEN
 F08 = OPERATOR ACCEPTED / GREEN / INTERACTION-ONLY
 F09 = OPERATOR ACCEPTED / GREEN
+F10 = OPERATOR ACCEPTED / GREEN
 fixed Product operations = 113
 fixed Product wire       = 113 ↔ 113
 Brain operations         = 11
 Connections operations   = 9
 ordinary Permissions     = 25
 new semantic owner       = 0
+new durable record       = 0
 ```
 
-W-02A is LOCKED. W-02B is now eligible for v2.2 P7 structural hypothesis adjudication and, only after operator P7 approval, functional P8 HTML. Eligibility is not LOCK.
+W-02A is LOCKED. W-02B must now revise its functional P8 from the operator walkthrough: card-based browse, human-first labels, Sankhya API fixture rather than Oracle-like database configuration, `Test connection`, current test applicability and failure diagnostics. The revised P8 still requires operator re-walkthrough and is **not LOCKED**.
