@@ -1,6 +1,6 @@
 # Conexus OS — Permission Contract
 
-> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` BOUNDED CORRECTIONS ACCEPTED
+> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` BOUNDED CORRECTIONS ACCEPTED
 > **Purpose:** derive the smallest ordinary Permission vocabulary needed by the exact Conexus platform operation authority without turning personas, screens, Keycloak claims or Published-App roles into a universal policy system.
 > **Operation authority:** [operation-ledger.md](operation-ledger.md).
 > **Mutable program status:** owned only by [../roadmap.md](../roadmap.md).
@@ -57,7 +57,7 @@ The vocabulary is not a universal policy language and does not imply a custom Ro
 
 ## 3. Ordinary Permission vocabulary
 
-The vocabulary remains exactly **25** after operator-approved `4B-F01` and `4C-F02`. `4C-F02` adds one exact Project read and enriches two existing Project commands but proves no new reusable authority distinction.
+The vocabulary remains exactly **25** after operator-approved `4B-F01`, `4C-F02` and `4C-F03`. `4C-F03` adds one exact Project-owned candidate-Baseline contextual read and enriches the existing Inception command for exact-candidate refinement, but proves no new reusable authority distinction.
 
 ### 3.1 Workspace and access
 
@@ -76,11 +76,11 @@ The vocabulary remains exactly **25** after operator-approved `4B-F01` and `4C-F
 | `project.read` | inspect ordinary Project-level Product truth/projections | `PRJ-01/02/16/17/22`; `PAR-06/07` Control-Plane run inspection; ordinary Release/Promotion/serving/job/activity reads |
 | `project.source.read` | inspect Project source/diff/authored definitions without write authority | `BLD-07..09`, `PRJ-20/21` |
 | `project.data.read` | inspect declared Product/read-model/source resources without becoming a generic DB console | `PRJ-18/19`; Control-Plane `BRN-12` together with `brain.read` |
-| `project.manage` | administer Project lifecycle, Inception/Baseline decisions and exact candidate review, bindings and independent Published-App access configuration | `PRJ-05..15` where mapped, `PRJ-23`; `IAM-14/15/17`; source side of `PRJ-06` |
+| `project.manage` | administer Project lifecycle, Inception/Baseline decisions, exact candidate review/refinement and candidate-bound contextual explanation, bindings and independent Published-App access configuration | `PRJ-05..15` where mapped, `PRJ-23/24`; `IAM-14/15/17`; source side of `PRJ-06` |
 | `project.build` | create/evolve accepted Project Product/Agent intent through Change/Builder | `BLD-01..04/06/10/16/17` |
 | `project.review` | participate in exact Plan/Change checkpoint, Finding and Evidence review | `BLD-05/11..15` |
 
-`project.manage` does **not** imply `project.build`, `project.review`, Published-App business use, Brain publication, Connection use or Release promotion. `4B-F01` removed generic `UpdateProject`; it did not remove the distinct lifecycle/Baseline/binding/app-access consumers that justify this Permission. `4C-F02` keeps `PRJ-23` under `project.manage` because candidate Baseline review is part of the exact Baseline-management job, not a new reusable Permission class.
+`project.manage` does **not** imply `project.build`, `project.review`, Published-App business use, Brain publication, Connection use or Release promotion. `4B-F01` removed generic `UpdateProject`; it did not remove the distinct lifecycle/Baseline/binding/app-access consumers that justify this Permission. `4C-F02` keeps `PRJ-23` under `project.manage` because candidate Baseline review is part of the exact Baseline-management job. `4C-F03` likewise keeps `PRJ-24 AskConexusAboutBaselineCandidate` under `project.manage`: asking about an exact immutable Baseline candidate is a read-only part of that review job and must not silently require the distinct Builder `project.build` authority used by `BLD-16`.
 
 ### 3.3 Release, managed execution and audit
 
@@ -182,7 +182,7 @@ agent.effect.approve
 
 ```text
 ordinary Permissions = 25
-status = CURRENT / OPERATOR RATIFIED / 4B-F01 + 4C-F02 CORRECTED
+status = CURRENT / OPERATOR RATIFIED / 4B-F01 + 4C-F02 + 4C-F03 CORRECTED
 ```
 
 The number 25 has no independent value. It survives because the current operation mapping still requires each distinction and no accepted operation requires a 26th ordinary Permission.
@@ -199,6 +199,7 @@ account.manage
 area.read
 area.manage
 baseline.approve
+baseline.chat
 finding.close
 evidence.read
 preview.read
@@ -239,7 +240,7 @@ DecideApprovalRequest
 → current ingress may be CP or an exact admitted PA approval surface; PA role alone grants nothing
 ```
 
-`CreateProject` source bootstrap does not create a `git.import`, `repository.manage` or network Permission. The caller still needs only `project.create`; repository locator admission is bounded input validation and GitInfra remains mechanism under current server policy. `GetProjectBaselineCandidate` likewise uses `project.manage`; the read does not justify `baseline.read`/`baseline.approve` Permission proliferation.
+`CreateProject` source bootstrap does not create a `git.import`, `repository.manage` or network Permission. The caller still needs only `project.create`; repository locator admission is bounded input validation and GitInfra remains mechanism under current server policy. `GetProjectBaselineCandidate` and `AskConexusAboutBaselineCandidate` likewise use `project.manage`; neither exact candidate read justifies `baseline.read`/`baseline.approve`/`baseline.chat` Permission proliferation. `BLD-16 AskConexusAboutContext` remains separately governed by `project.build` because it serves Builder context rather than Baseline administration.
 
 ---
 
