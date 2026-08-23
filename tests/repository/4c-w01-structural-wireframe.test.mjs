@@ -29,10 +29,11 @@ test('W-01 structural candidate is a bounded HTML proof over accepted Journey-B 
     'structured list = REJECTED AS LEADING',
     'dense table = REJECTED AS LEADING',
     'ProjectSummary = projectId + workspaceId + name + archived',
-    'PRJ-03 → PRJ-07 → PRJ-23 / PRJ-08 → PRJ-09',
+    'C1-R1 — visual Baseline review + contextual refinement — **LEADING / CANDIDATE**',
+    'PRJ-03 → PRJ-07 → PRJ-23 / PRJ-24 / PRJ-08 → PRJ-09',
   ]) requireText(evidence, decision, `W-01 structural evidence missing decision: ${decision}`)
 
-  for (const trace of ['PRJ-01', 'PRJ-03', 'PRJ-07', 'PRJ-08', 'PRJ-09', 'PRJ-23']) {
+  for (const trace of ['PRJ-01', 'PRJ-03', 'PRJ-07', 'PRJ-08', 'PRJ-09', 'PRJ-23', 'PRJ-24']) {
     requireText(html, `data-operation="${trace}"`, `W-01 HTML missing ${trace} trace`)
   }
 
@@ -46,6 +47,14 @@ test('W-01 structural candidate is a bounded HTML proof over accepted Journey-B 
     'name="intent"',
     'data-baseline-view="candidate"',
     'data-baseline-view="approved"',
+    'data-baseline-review="visual-candidate"',
+    'data-review-anchor=',
+    'data-review-context="candidate-local"',
+    'data-contextual-assistant="baseline-candidate"',
+    'name="baselineQuestion"',
+    'data-refinement-queue="local-draft"',
+    'data-action="queue-refinement"',
+    'data-action="apply-refinements"',
     'candidateBaselineDigest',
     'sourceRevision',
     'applicationRuntimeProfile',
@@ -55,6 +64,9 @@ test('W-01 structural candidate is a bounded HTML proof over accepted Journey-B 
 
   const projectCards = [...html.matchAll(/<article class="project-card"[^>]*data-project-card="true"/g)]
   if (projectCards.length < 2) throw new Error('W-01 cards/grid must expose multiple simple Project cards for structural inspection')
+
+  const reviewAnchors = [...html.matchAll(/data-review-anchor="[^"]+"/g)]
+  if (reviewAnchors.length < 3) throw new Error('W-01 visual Baseline must expose multiple candidate-local review anchors')
 
   if (/<script[^>]+src=|react|vue|svelte|next\/|@tanstack/i.test(html)) {
     throw new Error('W-01 P8 must remain HTML/CSS + bounded vanilla JS only')
@@ -71,6 +83,12 @@ test('W-01 structural candidate is a bounded HTML proof over accepted Journey-B 
   if (/data-action="reject-candidate"/.test(html)) {
     throw new Error('W-01 must not invent a Baseline rejection Product command')
   }
+  if (/data-action="edit-baseline"|data-product-review-session|data-baseline-comment-id|data-baseline-thread-id/i.test(html)) {
+    throw new Error('W-01 must not invent direct Baseline editing or review/comment/session Product authority')
+  }
+  if (/data-mastra-|mastra-thread|mastra-memory/i.test(html)) {
+    throw new Error('W-01 P8 must not claim Mastra realization as Product/frontend authority proof')
+  }
 
   if (!gf01.includes('data-context-switcher="breadcrumb"')) throw new Error('GF-01 locked shell precondition lost')
   requireText(html, 'data-context-switcher="breadcrumb"', 'W-01 must inherit locked GF-01 breadcrumb shell')
@@ -81,6 +99,10 @@ test('W-01 structural candidate is a bounded HTML proof over accepted Journey-B 
     'const: EXISTING_GIT',
     'repositoryLocator:',
     'required: [intent]',
+    'priorCandidateBaselineDigest:',
+    'reviewFeedback:',
+    'dependentRequired:',
     'operationId: GetProjectBaselineCandidate',
+    'operationId: AskConexusAboutBaselineCandidate',
   ]) requireText(wire, sourceLaw, `W-01 test precondition lost from current wire: ${sourceLaw}`)
 })
