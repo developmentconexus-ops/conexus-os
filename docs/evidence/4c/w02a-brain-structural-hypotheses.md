@@ -1,9 +1,9 @@
 # 4C W-02A — Workspace Brain P7 Structural Decision
 
-> **Status:** `P7 OPERATOR APPROVED FOR FUNCTIONAL P8 / NOT LOCKED`
+> **Status:** `LOCKED / OPERATOR APPROVED` · functional P8 operated and re-approved after F07/F08 · exact Screen Contract owns P9/P10 closure
 > **Block:** `W-02A — Workspace Brain`
 > **Method:** Frontend Product Experience Planning Method v2.2 through the Conexus 4C profile.
-> **Authority posture:** interaction-structure Evidence only. This record does not create Brain Product meaning, operations, permissions, wire authority, Product implementation or physical Brain-Git topology.
+> **Authority posture:** locked interaction-structure Evidence only. This record does not create Brain Product meaning, operations, permissions, Product implementation or physical Brain-Git topology.
 
 ## 1. Decision question
 
@@ -49,7 +49,7 @@ Brain
 
 ### C — domain/concept first + separate governance work
 
-**OPERATOR APPROVED FOR P8.**
+**LOCKED / OPERATOR APPROVED.**
 
 ```text
 Brain
@@ -125,7 +125,7 @@ Search is a findability mechanism over currently disclosable Brain knowledge. It
 
 ## 5. Governance-flow law
 
-The functional P8 must make this progression operable and visually distinct:
+The functional P8 makes this progression operable and visually distinct:
 
 ```text
 source reality
@@ -149,13 +149,26 @@ BRN-09 publication subject = exact candidateSourceRevision
 browser fixture state != Product authority
 ```
 
+F08 adds the locked entry law:
+
+```text
+PRJ-01 disclosed ProjectSummary[]
+→ explicit human Project context
+→ untrusted projectId
+→ BRN-04
+→ Brain resolves admitted source / Connection context server-side
+```
+
+No hidden/default Project, source selector, Connection selector or credential choice is admitted.
+
 ## 6. P8 proving interaction
 
-The P8 candidate must be a deterministic unbranded HTML/CSS + bounded vanilla-JS artifact inheriting the locked GF-01 shell grammar where applicable. It must let the operator actually exercise at least:
+The locked P8 is a deterministic unbranded HTML/CSS + bounded vanilla-JS artifact inheriting the locked GF-01 shell grammar where applicable. It lets the operator actually exercise at least:
 
 ```text
 Knowledge → Domain → Concept detail
 search/findability over fixture concepts
+explicit Project context before Discovery
 Discovery → inspect hypothesis
 enter explicit human resolution
 submit the Discovery-backed proposal
@@ -168,12 +181,13 @@ inspect Brain health separately from immutable content
 responsive navigation / keyboard-plausible controls
 ```
 
-The fixture may mutate deterministic local state to make the flow inspectable. It MUST NOT claim backend, authorization, persistence, codegen or runtime proof.
+The fixture mutates deterministic local state only to make the flow inspectable. It does not claim backend, authorization, persistence, codegen or runtime proof.
 
-Functional candidate now exists at:
+Locked artifact:
 
 ```text
 docs/evidence/4c/w02a-brain-functional-wireframe.html
+approved blob = 9ca84ddbf40f6bcd969bfa638203bff8b9abf46e
 ```
 
 TDD/proof chronology:
@@ -183,10 +197,22 @@ Verify #599 = EXPECTED RED
 → P7 law green; 2 P8 tests failed only because HTML did not exist
 
 Verify #601 = functional candidate repository/wire GREEN
-Verify #604 = SUCCESS on the current pre-walkthrough authority/status line
+Verify #604 = SUCCESS on pre-walkthrough authority/status
+
+F07 P9 falsifier
+→ Verify #615 = EXPECTED RED
+→ Verify #619 = GREEN after exact BRN-03 structured browse correction
+
+F08 P9 falsifier
+→ Verify #631 = EXPECTED RED / 70 tests / 69 pass / 1 fail
+→ Verify #633 = revised P8 GREEN
+→ Verify #636 = final pre-lock GREEN
+
+operator then re-operated/re-approved revised P8
+→ W-02A LOCKED
 ```
 
-Mechanical GREEN proves the artifact obeys the selected P8 contract; it does **not** constitute operator visual approval or `LOCKED`.
+Mechanical GREEN never substituted for operator approval; the final lock is the explicit operator decision after the revised P8 walkthrough.
 
 ## 7. Physical representation boundary
 
@@ -205,11 +231,11 @@ Physical source/package representation remains a later realization decision cons
 ## 8. Operator disposition
 
 ```text
-P7 structural hypothesis C = OPERATOR APPROVED FOR FUNCTIONAL P8
-W-02A = NOT LOCKED
-P8 = NEXT
+P7 structural hypothesis C = LOCKED / OPERATOR APPROVED
+P8 revised functional artifact = OPERATED / OPERATOR APPROVED
+W-02A = LOCKED
+P9/P10 = CLOSED BY w02a-brain-screen-contract.md
+NEXT = W-02B Connections P7
 ```
 
-`P8 = NEXT` above is the preserved P7 transition law; the P8 candidate now exists and the current roadmap routes to operator walkthrough/adjudication.
-
-Only the operator may later set W-02A `LOCKED` after actually operating and adjudicating the functional P8 candidate.
+Only a later material falsifier may reopen W-02A. Visual preference, framework convenience or speculative scale does not.
