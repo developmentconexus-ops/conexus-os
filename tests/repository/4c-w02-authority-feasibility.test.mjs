@@ -55,8 +55,9 @@ test('W-02 authority preflight separates Brain review from Connection secret/qua
   requireText(roadmap, 'W-01 LOCKED', 'W-02 may open only after W-01 lock')
   requireText(roadmap, 'W-02A LOCKED', 'W-02 preflight must preserve the locked Brain sub-block')
   requireText(roadmap, 'W-02B LOCKED', 'W-02 preflight must preserve the locked Connections sub-block')
-  requireText(roadmap, 'W-03 = NEXT / NOT OPEN', 'completed W-02 must route to the next unopened W-03 material block')
-  if (/W-04\s*=\s*OPEN|P-01\s*=\s*OPEN|4D[^\n|]*\|\s*OPEN/.test(roadmap)) {
-    throw new Error('W-02 closure must not skip ahead beyond W-03')
+  requireText(roadmap, 'W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN', 'W-02 progression beyond W-03 requires the exact W-03 lock')
+  requireText(roadmap, 'W-03 = NEXT / NOT OPEN', 'W-02 must preserve the historical W-03 predecessor marker')
+  if (/P-01\s*=\s*OPEN|4D[^\n|]*\|\s*OPEN/.test(roadmap)) {
+    throw new Error('W-02 closure must not skip beyond the routed W-04 material block into P-01/4D')
   }
 })
