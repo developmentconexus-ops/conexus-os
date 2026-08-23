@@ -13,9 +13,9 @@ This is the single current phase/status authority.
 | C-018 | RATIFIED / OPERATOR RATIFIED | Final Product architecture continuity ratified | Material Product/architecture falsifier |
 | C-015 refinement | REFINED / KEYCLOAK SELECTED / OPERATOR APPROVED | Authentication selected; Conexus owns authorization | Material identity/security falsifier |
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
-| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`+`F05`+`F06` RECOMPILED | `N_platform=113` | Interaction Evidence proves missing Product meaning/authority |
-| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`+`F05`+`F06` RECOMPILED | `113↔113`; Project=23; Brain=11; Connections=9 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 REBASELINED / `GF-01 LOCKED` / `W-01 LOCKED` / `W-02A P8 OPERATOR APPROVED` / `P9 F07 OPERATOR GATE` / `W-02A NOT LOCKED` / `F04–F06 GREEN` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`+`F05`+`F06`+`F07` RECOMPILED CANDIDATE | `N_platform=113` | Interaction Evidence proves missing Product meaning/authority |
+| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`+`F05`+`F06` GREEN / `F07` RECOMPILE CANDIDATE | `113↔113`; Project=23; Brain=11; Connections=9 | 4A change or wire/proof falsifier |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 REBASELINED / `GF-01 LOCKED` / `W-01 LOCKED` / `W-02A P8 OPERATOR APPROVED` / `F07 SELECTED REALIZATION` / `W-02A NOT LOCKED` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -23,10 +23,11 @@ This is the single current phase/status authority.
 | Product implementation | BLOCKED | Requires 4A–4G + explicit operator grant | No historical grant carries forward |
 
 ```text
-4A = CLOSED / N_platform=113 / F04+F05+F06 RECOMPILED
-4B = CLOSED / 113↔113 / Project=23 / Brain=11 / Connections=9 / F04+F05+F06 RECOMPILED
-4C = OPEN / METHOD v2.2 REBASELINED / GF-01 LOCKED / W-01 LOCKED / W-02 OPEN / W-02A P8 OPERATOR APPROVED / W-02A NOT LOCKED / F07 OPERATOR GATE / F04 GREEN / F05 GREEN / F06 GREEN
+4A = CLOSED / N_platform=113 / F04+F05+F06 GREEN / F07 RECOMPILED CANDIDATE
+4B = CLOSED / 113↔113 / Project=23 / Brain=11 / Connections=9 / F04+F05+F06 GREEN / F07 RECOMPILE CANDIDATE
+4C = OPEN / METHOD v2.2 REBASELINED / GF-01 LOCKED / W-01 LOCKED / W-02 OPEN / W-02A P8 OPERATOR APPROVED / W-02A NOT LOCKED / F07 SELECTED REALIZATION
 F06 OPERATOR ACCEPTED / GREEN
+F07 OPERATOR ACCEPTED / SELECTED REALIZATION
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
@@ -71,19 +72,39 @@ physical Brain-Git topology = NOT SELECTED by 4C
 
 Functional P8: [Brain wireframe](evidence/4c/w02a-brain-functional-wireframe.html). P7 Evidence: [Brain structural decision](evidence/4c/w02a-brain-structural-hypotheses.md).
 
-### F07 — structured Brain knowledge browse — OPERATOR GATE
+### F07 — structured Brain knowledge browse — OPERATOR ACCEPTED / SELECTED REALIZATION
 
-P9 exposed that current `BRN-03 GetBrainRevision` supplies exact revision identity plus plain `reviewText`, but no source-bound structured domain/concept projection. Production UI cannot truthfully implement the approved `Knowledge → Domain → Concept` experience by parsing prose/DOM or reading Brain Git.
+P9 exposed that plain `reviewText` cannot truthfully implement the approved `Knowledge → Domain → Concept` browse without frontend semantic inference. The operator accepted the Global-Maximum candidate that preserves Brain + `BRN-03 GetBrainRevision` and enriches only that exact revision detail read with deterministic structured source-bound browse/review truth.
+
+Selected 4B shape:
 
 ```text
-P8 UX direction = OPERATOR APPROVED
-P9 trace = MATERIAL F07
-W-02A = NOT LOCKED until F07 closes
+BRN-03
+→ BrainRevisionDetail
+→ reviewText
++ knowledgeBrowse
+  → domains[]
+    → concepts[]
+      → contentClasses[]
+      → sections[]
+      → provenanceRefs[]
 ```
 
-Leading Global-Maximum candidate preserves Brain + BRN-03 and enriches the exact revision read with a deterministic structured source-bound browse/review projection; no new Product operation/domain is currently justified.
+`domainRef` / `conceptRef` are revision-scoped projection coordinates, never canonical semantic/source or decision identities. `BRN-02` and `BRN-09` remain bounded revision-summary/publication responses; dedicated Brain catalog/search/pagination operations remain deferred until a real scale/partial-fetch consumer exists.
 
-Evidence: [F07 finding](evidence/4c/w02a-brain-knowledge-browse-finding.md) / [F07 Global Maximum](evidence/4c/w02a-brain-knowledge-browse-global-maximum.md).
+Evidence: [F07 finding](evidence/4c/w02a-brain-knowledge-browse-finding.md) / [F07 Global Maximum](evidence/4c/w02a-brain-knowledge-browse-global-maximum.md) / [F07 selected realization](evidence/4c/w02a-brain-knowledge-browse-selected-realization.md).
+
+Current selected-realization chronology:
+
+```text
+Verify #615 = EXPECTED RED
+→ 68 tests / 67 pass / 1 fail
+→ only failure: BRN-03 did not yet return BrainRevisionDetail
+
+4A bounded recompile = candidate written
+4B BRN-03 schema/checker recompile = candidate written
+GREEN = PENDING fresh whole Verify
+```
 
 ## Method law
 
@@ -95,8 +116,6 @@ Frontend finding → root cause → target invariant → real owner → alternat
 
 ## Exact next action
 
-**Operator adjudication of F07: `ACCEPT GLOBAL-MAXIMUM CANDIDATE | REVISE | REJECT`.**
-
-If accepted: derive the exact structured source-bound projection shape, create selected-realization RED, then boundedly recompile 4A/4B/checkers/generated/whole-wire before rerunning W-02A P9. Only after P9 closes may the approved P8 blob be recorded as fully `LOCKED` and P10 close.
+**Run fresh whole Verify over the F07 selected recompile.** If GREEN, rerun W-02A P9 exact Screen Contract trace. Only if P9 closes may the already-approved P8 blob become `W-02A LOCKED`, after which P10 closes the block and W-02B/Connections becomes next.
 
 Do not advance W-02B as baseline, begin 4D, merge PR #57 or implement Product code.
