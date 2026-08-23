@@ -1,6 +1,6 @@
 # 4C W-03 — People/access + audit authority-feasibility preflight
 
-> **Status:** `W-03 OPEN / P6 COMPLETE / P7 AUTHORITY FINDINGS ACCEPTED / P8 BLOCKED`
+> **Status:** `W-03 OPEN / P6 COMPLETE / F11+F12 RECOMPILED GREEN / P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED`
 > **Split:** `W-03A — People & access` + `W-03B — Audit`
 > **Method:** Frontend Product Experience Planning Method v2.2 + DevelopmentConexus Engineering Method.
 > **Implementation authority:** none.
@@ -29,9 +29,9 @@ References are Evidence only; Conexus Product authority remains repository-owned
 
 ### F11 — human-reviewable access administration
 
-Current writes exist for Workspace membership, Area membership, direct Account→Project grants and Area→Project grants, but current read/presentation authority is insufficient for a human to review the exact subject and current effective access safely.
+The pre-correction wire had writes for Workspace membership, Area membership, direct Account→Project grants and Area→Project grants, but read/presentation authority was insufficient for a human to review the exact subject and current effective access safely.
 
-Material defects:
+Material defects proved by the finding:
 
 ```text
 IAM-04 member presentation = opaque accountId only
@@ -44,7 +44,7 @@ no exact Area access projection with members + Project grants
 
 ### F12 — human-investigable immutable Audit
 
-`OBS-04/05` own the correct immutable audit surface, but current list filtering and presentation are insufficient for honest investigation:
+The pre-correction `OBS-04/05` owned the correct immutable audit surface, but list filtering and presentation were insufficient for honest investigation:
 
 ```text
 OBS-04 filters = projectId? + pageToken? only
@@ -73,10 +73,11 @@ F12
 → no new Audit operation/domain/Permission/record
 ```
 
-Selected target topology after F11/F12:
+Current topology after F11/F12:
 
 ```text
 fixed Product operations = 116
+canonical fixed Product wire = 116 ↔ 116
 IAM operations = 19
 ordinary Permissions = 25
 durable record classes = 46
@@ -84,20 +85,52 @@ semantic owners = 13
 Project operations = 23
 Brain operations = 11
 Connections operations = 9
+OBS operations = 5
+Technical Ingress = 3 / Product impact 0
 ```
 
-## 5. Gate
-
-The operator approved F11 and F12 for bounded 4A→4B recompilation.
+## 5. Recompile proof
 
 ```text
 selected-realization RED
-→ bounded 4A semantic recompile
-→ bounded 4B OAS/checker recompile
-→ whole-wire GREEN
-→ W-03 P7 recompile
-→ operator structural adjudication
-→ P8 only later
+→ Verify #715 / expected F11+F12 failures only
+
+bounded 4A + 4B recompile
+→ AccountSummary / AreaSummary
+→ IAM-18 / IAM-19 / IAM-20
+→ effective DIRECT|AREA source truth
+→ OBS-04 server filters before pagination
+→ AuditSubjectSnapshotRef + deterministic summary
+
+whole-wire GREEN
+→ Verify #737 = SUCCESS
+→ 116 ↔ 116 schema-closed
+→ Technical Ingress remains 3 / Product impact 0
+→ generated projection/Kubb GREEN
+→ Budget proof GREEN
+→ whole-4B adversarial GREEN
+
+P7 structural RED
+→ Verify #738 / 87 tests / 86 pass / 1 expected failure
+→ missing W-03 structural record only
+
+P7 structural candidate
+→ Verify #739 = SUCCESS
 ```
 
-No W-03 P8 HTML may be created until F11/F12 are GREEN and P7 has been recompiled. W-04/P-01+, P11, 4D, merge and Product implementation remain blocked.
+F11/F12 therefore no longer block P7. No new Permission, semantic owner, trust boundary or durable record class was introduced.
+
+## 6. Current gate
+
+The recompiled P7 candidate is owned by [W-03 structural hypotheses](w03-structural-hypotheses.md).
+
+```text
+Hypothesis A = LEADING CANDIDATE
+W-03 = NOT LOCKED
+P8 BLOCKED
+exact next decision = APPROVE | REVISE P7 structure
+```
+
+Only explicit operator approval of the P7 structure may authorize creation of a functional low-fidelity P8 candidate. That approval would not itself LOCK W-03; the exact P8 must later be operated and explicitly adjudicated.
+
+W-04/P-01+, P11, 4D, merge and Product implementation remain blocked.
