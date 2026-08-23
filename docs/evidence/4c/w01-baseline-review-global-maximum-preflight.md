@@ -1,128 +1,68 @@
 # 4C W-01 — Baseline Visual Review + Contextual Refinement Global-Maximum Preflight
 
-> **Status:** `4C-F03 / OPEN / OPERATOR-AUTHORIZED PREFLIGHT / EXPECTED RED`
-> **Block:** `W-01` — exact candidate Baseline review only. Projects collection, source-complete create and Inception structure remain operator-approved.
+> **Status:** `4C-F03 / OPERATOR ACCEPTED / GREEN`
+> **Block:** `W-01` — exact candidate Baseline visual review/refinement only.
 > **Inherited authority:** `GF-01 H1-R2 = LOCKED`; `4C-F02 = OPERATOR ACCEPTED / GREEN`.
-> **Implementation authority:** none. Product code, 4D and later 4C blocks remain blocked.
+> **Implementation authority:** none. Product code, W-02, 4D and later implementation stages remain blocked.
 
 ## 1. Human need
 
-The operator refined W-01 with a Product-level need inspired by Lavish: an exact Baseline candidate should be reviewable as a rich visual artifact, with contextual selection/conversation and an explicit refinement loop, without allowing the browser, HTML, model memory or review UI to become Project authority.
-
-Required human job:
+The operator refined W-01 with a Product-level need inspired by Lavish: an exact Baseline candidate must be reviewable as a rich visual artifact, with contextual selection/conversation and an explicit refinement loop, without allowing HTML, browser state, model memory, Mastra state or review UI to become Project authority.
 
 ```text
-exact immutable candidate Baseline
-→ inspect a visual projection
-→ select a section/text/diagram context
-→ ask Conexus questions about that exact context
-→ accumulate proposed refinements without mutating authority
-→ explicitly apply selected feedback
-→ produce a new exact immutable candidate when meaning changes
-→ review again
-→ approve only the exact candidate actually reviewed
+exact immutable Candidate A
+→ deterministic visual projection
+→ select section/text/diagram context
+→ ask Conexus about that exact candidate/context
+→ accumulate proposed refinements without mutation
+→ explicitly apply selected human feedback
+→ Project/Inception owner produces immutable Candidate B
+→ re-render/review
+→ approve only the exact reviewed digest
 ```
 
-Not required and currently rejected by YAGNI:
+Rejected by YAGNI:
 
 ```text
 editable HTML as Baseline truth
-BaselineComment CRUD
-BaselineThread owner
-annotation/session durable Product domain
+BaselineComment / BaselineThread CRUD
+ReviewSession Product owner
+annotation durable Product domain
 generic collaborative whiteboard domain
-model memory as review authority
 implicit mutation on each chat message
+model/Mastra memory as authority
 ```
 
-## 2. Current accepted authority
+## 2. Reference / mechanism disposition
 
-Current Project wire closes:
+### Lavish
 
-```text
-PRJ-07 RunInceptionInvestigation
-  request = intent only
-  result  = exact ProjectBaselineCandidate
-
-PRJ-23 GetProjectBaselineCandidate
-  subject = exact Project + candidateBaselineDigest
-  result  = candidateBaselineDigest + sourceRevision + sourceText + applicationRuntimeProfile
-
-PRJ-09 ApproveProjectBaselineRevision
-  request = exact candidateBaselineDigest
-  result  = ApprovedBaseline
-```
-
-Candidate immutability and digest-bound approval are already strong enough to keep HTML/browser state from becoming Baseline authority.
-
-Current contextual assistant authority is different:
+Current `kunchenguid/lavish-axi` source was inspected during the preflight. Useful properties retained as Evidence:
 
 ```text
-BLD-16 AskConexusAboutContext
-  owner      = Builder
-  Permission = project.build
-  request    = question only
-```
-
-The accepted Permission contract explicitly separates `project.manage` (Inception/Baseline administration and exact candidate review) from `project.build`; neither implies the other.
-
-GF-01 already locks only the **contextual assistant frame seam**. Opening the panel is LOCAL_UI and does not invoke `BLD-16`; the exact downstream surface must admit any real contextual question.
-
-## 3. Reference: Lavish properties
-
-Current official `kunchenguid/lavish-axi` source was inspected at the 2026-08-22 preflight. `package.json` on `main` reports `lavish-axi 0.1.56`, MIT, Node >=22.
-
-Useful observed properties:
-
-```text
-agent-generated portable HTML artifact
-sandboxed review rendering
-selected-element / selected-text annotation
-conversation without leaving the artifact
+portable rich HTML review
+selected element / selected text context
+conversation beside the artifact
 feedback queue before agent action
-live reload preserving bounded unsent review context
-native feedback controls / explicit queue action
-Mermaid visual editing returns feedback; source remains agent-owned
-```
-
-Mechanics not adopted as Conexus architecture by reference:
-
-```text
-CLI as Product boundary
-canonical file-path session identity
-local Express server authority
-agent polling protocol
-Lavish session as Product truth
-third-party share service
-HTML/DOM as canonical Project meaning
+live re-projection while preserving bounded draft review context
+visual diagram feedback without making rendered state canonical
 ```
 
 Disposition:
 
 ```text
 ADOPT Lavish directly as Product architecture = REJECT
-BUILD a full Conexus visual-review editor now    = REJECT / OVER-SCOPE
-ADAPT protected collaboration properties         = LEADING
+BUILD a full Conexus review editor now         = REJECT / OVER-SCOPE
+ADAPT protected collaboration properties       = ACCEPTED
 ```
 
-Lavish is Evidence/mechanism reference only.
+Lavish CLI/file-path/local-server/polling/session mechanics are not Conexus Product authority.
 
-## 4. Mastra realization boundary
+### Mastra
 
-Current Mastra documentation was revalidated for this preflight.
+Current Mastra documentation was revalidated. Agent + streaming + RequestContext + bounded thread memory are mechanically suitable for contextual discussion. Structured output may later help shape proposed refinements; Workflow is not required merely for visual symmetry.
 
-Useful primitives:
-
-```text
-Agent          → open-ended contextual discussion/tool use
-streaming      → live assistant response UX
-RequestContext → runtime correlation/context carriage
-thread memory  → conversational continuity
-structured output → bounded machine-readable proposed refinements when useful
-Workflow       → only if a deterministic multi-step subflow later proves necessary
-```
-
-Binding Conexus law remains:
+Binding law:
 
 ```text
 Mastra RequestContext -X-> Product authority
@@ -130,163 +70,182 @@ Mastra thread/memory   -X-> Baseline truth
 model output           -X-> accepted refinement
 ```
 
-Every deciding candidate/context reference must be re-resolved through current Conexus owners/tools. Hub/Project owns current authority; Mastra remains cognition/runtime mechanics.
+Every deciding candidate/context reference is re-resolved through current Conexus owners. Hub/Project owns authority; Mastra remains cognition/runtime mechanics.
 
-## 5. Falsifier results
+## 3. RED falsifiers
 
-### F03-A — exact-candidate refinement is not caller-expressible — RED
+The pre-correction authority had two exact gaps.
 
-Current `PRJ-07` accepts only `intent`. No current Product request binds a refinement instruction to both:
+### F03-A — exact-candidate refinement
+
+Pre-correction `PRJ-07 RunInceptionInvestigation` accepted only free-form `intent`. No Product carrier bound human review feedback to the exact immutable candidate that was reviewed.
+
+Rejected substitute:
 
 ```text
-exact prior candidateBaselineDigest
-+ explicit human review feedback
+put candidate digest / review transcript inside free-form intent
 ```
 
-Encoding a digest or review transcript into free-form `intent` would hide deciding identity inside prose and is rejected.
+because deciding identity would be hidden in prose.
 
-This means the Product cannot yet prove:
+### F03-B — exact-candidate contextual question
 
-```text
-Candidate A reviewed
-+ feedback specifically about A
-→ governed investigation
-→ Candidate B
-```
+Pre-correction `BLD-16 AskConexusAboutContext` was Builder-owned, required `project.build`, accepted only `question`, and was Project-context-only. The W-01 Baseline reviewer operates under `project.manage`; those Permissions intentionally do not imply each other.
 
-without losing exact candidate lineage.
-
-### F03-B — exact-candidate contextual question under Baseline authority is not caller-expressible — RED
-
-`BLD-16` accepts only `question`, belongs to Builder, and requires `project.build`.
-
-The real W-01 consumer is a Baseline reviewer under `project.manage`. Therefore these are invalid substitutes:
+Rejected substitutes:
 
 ```text
-frontend inserts candidate identity into question prose
+frontend hides candidate identity inside prompt text
 frontend assumes current selected candidate server-side
 Baseline reviewer silently acquires project.build
-BLD-16 becomes a global assistant owner by UI convenience
+BLD-16 becomes universal assistant authority
 ```
 
-Current Product authority has no exact candidate-bound contextual-question operation usable by the Baseline-management consumer.
+### Clean RED evidence
 
-### F03-C — visual selection anchor requires no new Product owner — GREEN / 4C MECHANISM
+```text
+Verify #502 = EXPECTED RED
+HEAD = 1923f441df6742e1c6249f064313f275610fbfa0
+repository tests = 54
+PASS = 52
+FAIL = 2 exactly: F03-A + F03-B
+bootstrap_bytes = 18577
+```
 
-A review selection can remain GENERATED and candidate-local:
+All prior repository/GF-01/W-01/F02 properties remained green.
+
+## 4. Global-Maximum correction
+
+The operator accepted the smallest owner-preserving correction.
+
+### 4.1 `PRJ-07` refinement enrichment
+
+```text
+ordinary first investigation:
+intent
+→ Candidate A
+
+explicit refinement:
+intent
++ priorCandidateBaselineDigest
++ reviewFeedback
+→ new Candidate B
+```
+
+Rules:
+
+- `priorCandidateBaselineDigest` and `reviewFeedback` are optional **together**, never independently;
+- review feedback is explicit non-blank human input;
+- server re-resolves the exact prior candidate inside the current Project;
+- Candidate A remains immutable;
+- successful refinement produces a new immutable candidate/digest;
+- source selection remains server-resolved from already-admitted Project authority.
+
+### 4.2 `PRJ-24 AskConexusAboutBaselineCandidate`
+
+One new Project-owned read/assistant interaction is admitted:
+
+```text
+exact Project
++ exact candidateBaselineDigest
++ non-blank question
++ optional generated candidate-local review context
+→ candidate-bound contextual answer + provenance
+```
+
+Rules:
+
+- owner = Project;
+- existing Permission = `project.manage`;
+- ingress/principal = existing Control Plane human route;
+- read-only: no mutation, approval, grant or hidden state transition;
+- optional `projectionAnchor` / selected rendered text are untrusted review context and must be revalidated against the exact candidate;
+- HTML/DOM identity never becomes Product identity;
+- `BLD-16` remains unchanged under Builder/`project.build`.
+
+## 5. Properties that required no Product expansion
+
+### Visual anchoring
+
+A visual selection remains a generated candidate-local mechanism:
 
 ```text
 candidateBaselineDigest
 + deterministic projection version
-+ exact selected text/range or generated structural anchor
-→ review context reference
++ generated structural anchor / selected text
+→ review context
 ```
 
-Because a candidate is immutable, the projection may deterministically recreate the same candidate-local anchor on reload. A new candidate produces a new review subject; anchors are never silently carried forward as authority.
+A new candidate is a new review subject. Anchors never silently carry authority across candidates.
 
-No `BaselineSection`, `Annotation`, `Comment` or durable review record class is justified.
+### Staleness
 
-### F03-D — stale review behavior is preservable — GREEN WITH F03-A CARRIER
+Exact candidate digests already provide the required stale boundary. Feedback bound to Candidate A cannot be silently applied as if it described Candidate B.
 
-Existing candidate immutability and exact digest identity already distinguish Candidate A from Candidate B. Once refinement input is explicitly bound to the reviewed candidate, stale/mismatched feedback can fail closed instead of being reinterpreted against another candidate.
+### Conversation continuity
 
-### F03-E — Mastra live conversation is mechanically viable without authority transfer — GREEN
+Local UI/Mastra thread state may preserve conversational convenience, but durable Product review-session/comment state is not required.
 
-Agent + streaming + RequestContext + bounded thread memory are sufficient mechanics for live contextual discussion. Current authority must still be fetched/revalidated through Conexus tools; memory is convenience only.
+## 6. Derived current closure
 
-### F03-F — review/comment CRUD domain is unnecessary — GREEN / REJECT EXPANSION
-
-The current human need is satisfied by:
+The correction changes one fixed Product-operation count and no authority vocabulary class:
 
 ```text
-local draft conversation/selection state
-+ explicit feedback application
-+ immutable regenerated candidate
+N_platform                 = 113
+Project fixed operations   = 23
+ordinary Permissions       = 25
+semantic owner classes     = unchanged
+principal / ingress classes= unchanged
+new durable record classes = 0
+candidate immutability     = preserved
+approval by exact digest   = preserved
+BLD-16 Builder assistant   = unchanged
+Technical Ingress          = 3 / Product-count impact 0
 ```
 
-No separate review lifecycle owner has a current independent consumer.
-
-### F03-G — Lavish mechanism choice — ADAPT LEADING
-
-Direct Lavish reuse would import file-path/local-server/polling/session assumptions that do not match Conexus Hub-owned multi-user Product authority. Rebuilding all Lavish features would violate YAGNI. Preserve the proven collaboration properties and derive the smallest Conexus-native realization later.
-
-## 6. Alternatives / Global-Maximum adjudication
-
-### A — reuse `BLD-16` unchanged
-
-**REJECT.** Candidate identity is implicit and `project.build` is a distinct authority from Baseline administration.
-
-### B — let frontend compose candidate context into prompt text
-
-**REJECT.** DOM/current-screen context becomes hidden deciding authority and cannot be mechanically revalidated.
-
-### C — create Baseline comment/thread/session CRUD
-
-**REJECT.** New lifecycle/owner/durable state without a current independent consumer.
-
-### D — enrich Inception refinement + admit the smallest candidate-bound contextual read
-
-**LEADING.** Preserve existing owners and immutable-candidate model:
+Chronology remains explicit:
 
 ```text
-refinement:
-  existing PRJ-07 remains the investigation owner
-  add exact prior-candidate reference + bounded review feedback carrier
-
-conversation:
-  exact candidate-bound read/assistant interaction
-  Project/Baseline consumer authority
-  no mutation, no approval, no new grant
+4B-F01 114 → 111
+4C-F02 111 → 112
+4C-F03 112 → 113
 ```
 
-The exact wire shape and whether the contextual read is one new Project operation remain operator decisions after RED. No correction is admitted by this preflight.
+## 7. GREEN proof
 
-## 7. Smallest possible authority impact if the leading correction is accepted
-
-Likely bounded impact:
+After operator acceptance, 4A authority, 4B executable wire and affected 4C projections were recompiled through the existing RED contracts.
 
 ```text
-semantic owner                 = Project unchanged
-ordinary Permission            = project.manage unchanged
-principal / ingress            = unchanged
-new durable record class       = 0
-PRJ-07 meaning                 = enriched refinement input only
-candidate immutability         = unchanged
-approval by exact digest       = unchanged
-possible new Product read      = +1 candidate-bound contextual query
+Verify #518 = SUCCESS
+correction-proof HEAD = ded8b7aa1dc86b58222f91f94ca46146f40c5928
+repository tests = 54 / 54 GREEN
+4A ↔ OAS = 113 ↔ 113
+Project schema closure = 23 operations
+Technical Ingress = 3 / Product-count impact 0
+generated projection = 113 deterministic Product entries
+real Kubb 5.0.0 probe = 113 operations / strict TypeScript compile GREEN
+Budget Analyzer proving instance = GREEN
+whole-4B adversarial + executable proof = GREEN
 ```
 
-If one new exact Product read is required, the derived census would be recomputed rather than targeted; current 112/22 counts remain authority until operator acceptance and recompile.
+No new Product owner, Permission, trust boundary, review/comment CRUD domain or durable record was introduced.
 
-## 8. RED proof contract
+## 8. Closure / next action
 
-Repository falsifiers must fail only on:
+`4C-F03` is **CLOSED / OPERATOR ACCEPTED / GREEN**.
+
+The next bounded work returns to W-01 P8 only:
 
 ```text
-F03-A exact-candidate-bound refinement carrier missing
-F03-B exact-candidate-bound contextual question for Baseline-management authority missing
+revise Baseline review portion of the existing lo-fi HTML
+→ deterministic visual candidate projection
+→ candidate-local selection/context
+→ contextual Conexus seam
+→ explicit proposed-refinement queue/apply boundary
+→ exact candidate approval
+→ operator visual/interactive adjudication
 ```
 
-All existing 4A/4B/GF-01/W-01 source-bootstrap/Inception/candidate-read proofs must remain green.
+This next P8 artifact remains HTML/CSS + bounded vanilla JS Evidence only. It is not Product implementation or Mastra/backend proof.
 
-## 9. Decision boundary
-
-Current preflight conclusion:
-
-```text
-Lavish premise                     = ADAPT / KEEP
-visual candidate projection        = 4C GENERATED/LOCAL-UI mechanism candidate
-Mastra live conversation           = viable mechanism, not authority
-exact-candidate refinement         = PRODUCT GAP / F03-A
-exact-candidate contextual question= PRODUCT GAP / F03-B
-```
-
-Next action after clean RED:
-
-```text
-operator decides whether to admit the bounded F03 correction
-→ if accepted: reopen only exact Project/4A+4B rows, RED→GREEN, recompile affected 4C
-→ if rejected: derive another bounded alternative
-```
-
-Do not open W-02, 4D, implement Product code, or generalize a reusable visual-review framework before this finding is adjudicated.
+Do not open W-02, 4D, merge PR #57 or implement Product code.
