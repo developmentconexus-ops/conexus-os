@@ -15,7 +15,7 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
 | 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F10` RECOMPILED | `N_platform=113` | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F10` RECOMPILED | `113↔113`; Project=23; Brain=11; Connections=9 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01 LOCKED` / `W-01 LOCKED` / `W-02A LOCKED` / `F10 GREEN` / `W-02B P8 REVISED CANDIDATE` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01 LOCKED` / `W-01 LOCKED` / `W-02A LOCKED` / `F10 GREEN` / `W-02B CONTEXT-PANEL P8 CANDIDATE` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -25,7 +25,7 @@ This is the single current phase/status authority.
 ```text
 4A = CLOSED / N_platform=113 / F04–F07 + F09–F10 RECOMPILED
 4B = CLOSED / 113↔113 / Project=23 / Brain=11 / Connections=9 / F04–F07 + F09–F10 RECOMPILED
-4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / F10 GREEN / W-02B P8 REVISED CANDIDATE
+4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / F10 GREEN / W-02B CONTEXT-PANEL P8 CANDIDATE
 F06 OPERATOR ACCEPTED / GREEN · F06 GREEN
 F07 OPERATOR ACCEPTED / GREEN · F07 SELECTED REALIZATION
 F08 OPERATOR ACCEPTED / REVISED P8 GREEN / OPERATOR RE-APPROVED · F08 SELECTED REALIZATION
@@ -81,9 +81,11 @@ P11 = LATER ASSEMBLED PRODUCT
 
 Evidence: [Brain structural decision](evidence/4c/w02a-brain-structural-hypotheses.md) / [Brain Screen Contract](evidence/4c/w02a-brain-screen-contract.md) / [functional P8](evidence/4c/w02a-brain-functional-wireframe.html).
 
-### W-02B — Connections — P8 REVISED CANDIDATE / RE-WALKTHROUGH / NOT LOCKED
+### W-02B — Connections — CONTEXT-PANEL P8 CANDIDATE / RE-WALKTHROUGH / NOT LOCKED
 
-Approved P7 remains Connection-first. First P8 walkthrough produced F10 plus local UX findings; both backend and revised interaction are now mechanically GREEN.
+Approved P7 remains Connection-first. The first walkthrough produced F10 and human-first card revisions. The next operator walkthrough accepted the structure but falsified repeated collection → detail/task → return navigation for routine Connection maintenance.
+
+The bounded interaction revision is now mechanically GREEN without any 4A/4B reopen:
 
 ```text
 Connection.name = primary human identity
@@ -94,16 +96,32 @@ config/credential change → old test basis NEEDS_RETEST
 configured != qualified != bound != healthy != caller-authorized
 ```
 
-Revised P8 uses a card grid, human-first labels, collapsed Technical details and distinct Sankhya API vs Oracle Database fixtures. It does not invent Active/Inactive, generic Connected/Healthy, qualification history, secret readback or background monitoring.
+Current P8 interaction:
 
 ```text
-F10 backend GREEN = Verify #680
-P8 UX RED          = Verify #683 / 80 tests / 78 pass / 2 expected failures
-P8 revised GREEN   = Verify #684
-revised P8 blob    = 99dc5b1413e0ad0ae79727ce857340b9cc9178bf
+Connection cards remain the browse surface
+→ Open selects one Connection into a broad contextual panel
+→ the collection/search context remains behind the panel
+→ configuration edits inline in that panel
+→ credential replacement stays write-only and inline in that panel
+→ Test connection + View problem stay in that panel
+→ configuration/credential save keeps the panel open and surfaces Needs retest
+→ Technical details stay collapsed
+```
+
+This does not invent Active/Inactive, generic Connected/Healthy, qualification history, secret readback, background monitoring, new Product operations, new Permissions, new semantic owners or new durable records.
+
+```text
+F10 backend GREEN       = Verify #680
+first P8 UX RED         = Verify #683
+first P8 UX GREEN       = Verify #684
+context-preserving RED  = Verify #687 / 82 tests / 80 pass / 2 expected failures
+context-preserving GREEN= Verify #688
+current P8 blob         = 421f5b8e08d6e5c96f5a56d8c24123902cbe3fab
 ```
 
 Functional candidate: [Connections P8](evidence/4c/w02b-connections-functional-wireframe.html).
+Structural decision: [Connections P7/P8](evidence/4c/w02b-connections-structural-hypotheses.md).
 F10 Evidence: [finding](evidence/4c/w02b-connection-test-diagnostics-finding.md) / [Global Maximum](evidence/4c/w02b-connection-test-diagnostics-global-maximum.md) / [selected realization](evidence/4c/w02b-connection-test-diagnostics-selected-realization.md).
 
 ## Method law
@@ -116,6 +134,6 @@ Frontend finding → root cause → target invariant → real owner → alternat
 
 ## Exact next action
 
-**Operator re-walkthrough/adjudication of the revised W-02B Connections P8: APPROVE | REVISE.** Only explicit operator approval after operating this revised artifact may permit LOCK/P9/P10.
+**Operator walkthrough/adjudication of the context-preserving W-02B Connections P8: APPROVE | REVISE.** Only explicit operator approval after operating this exact candidate may permit W-02B LOCK/P9/P10.
 
 Do not auto-LOCK W-02B, assemble P11 early, begin 4D, merge PR #57 or implement Product code.
