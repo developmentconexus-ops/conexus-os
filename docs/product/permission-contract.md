@@ -1,6 +1,6 @@
 # Conexus OS — Permission Contract
 
-> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` BOUNDED CORRECTIONS ACCEPTED
+> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F11` + `4C-F12` BOUNDED CORRECTIONS ACCEPTED
 > **Purpose:** derive the smallest ordinary Permission vocabulary needed by the exact Conexus platform operation authority without turning personas, screens, Keycloak claims or Published-App roles into a universal policy system.
 > **Operation authority:** [operation-ledger.md](operation-ledger.md).
 > **Mutable program status:** owned only by [../roadmap.md](../roadmap.md).
@@ -57,23 +57,40 @@ The vocabulary is not a universal policy language and does not imply a custom Ro
 
 ## 3. Ordinary Permission vocabulary
 
-The vocabulary remains exactly **25** after operator-approved `4B-F01`, `4C-F02` and `4C-F03`. `4C-F03` adds one exact Project-owned candidate-Baseline contextual read and enriches the existing Inception command for exact-candidate refinement, but proves no new reusable authority distinction.
+The vocabulary remains exactly **25** after the current operator-approved bounded corrections, including `4C-F11` and `4C-F12`. F11 adds three exact I&A reads and narrow access-administration summary disclosure through existing Workspace/Project list reads, but proves no new reusable authority class. F12 enriches existing `audit.read` consumers and likewise adds no Permission.
 
 ### 3.1 Workspace and access
 
 | Permission | Meaning | Material current consumers |
 | --- | --- | --- |
-| `workspace.manage` | administer the admitted Workspace/Area structure | `WS-04`, `WS-05` |
-| `workspace.access.manage` | administer Workspace membership, Area membership and Workspace-derived Project grants | `IAM-04..12` |
+| `workspace.manage` | administer the admitted Workspace/Area structure | `WS-04`, `WS-05` through ordinary structure-administration route |
+| `workspace.access.manage` | administer Workspace membership, Area membership and Workspace-derived/direct Project access; inspect only the bounded identities/current access needed to perform that administration | `IAM-04..12`, `IAM-18..20`; narrow access-administration summary disclosure through `WS-04` and `PRJ-01` |
 | `project.create` | create a source-complete Project in an exact Workspace or duplicate into an admitted destination Workspace | `PRJ-03` including its creation-time canonical source bootstrap; destination side of `PRJ-06` |
 
-`4B-F01` removed generic Workspace/Area updates rather than inventing rename/settings payloads. `workspace.manage` remains justified by the distinct current Area administration consumers above.
+`4B-F01` removed generic Workspace/Area updates rather than inventing rename/settings payloads. `workspace.manage` remains justified by the distinct Area administration consumers above.
+
+`4C-F11` does **not** make `workspace.access.manage` a generic Workspace or Project read capability. Its alternate disclosure is intentionally summary-only:
+
+```text
+WS-04 under workspace.access.manage
+→ exact Workspace AreaSummary identities needed to administer access
+
+PRJ-01 under workspace.access.manage
+→ exact contained ProjectSummary identities needed to administer access
+
+access-administration summary disclosure
+-X-> Workspace settings mutation
+-X-> Project content/source/data/build/read authority
+-X-> arbitrary cross-Workspace enumeration
+```
+
+`IAM-18..20` remain I&A-owned access-administration reads. They do not create `account.read`, `area.read`, `grant.read` or a generic RBAC/role-management Permission.
 
 ### 3.2 Project
 
 | Permission | Meaning | Material current consumers |
 | --- | --- | --- |
-| `project.read` | inspect ordinary Project-level Product truth/projections | `PRJ-01/02/16/17/22`; `PAR-06/07` Control-Plane run inspection; ordinary Release/Promotion/serving/job/activity reads |
+| `project.read` | inspect ordinary Project-level Product truth/projections | ordinary `PRJ-01/02/16/17/22`; `PAR-06/07` Control-Plane run inspection; ordinary Release/Promotion/serving/job/activity reads |
 | `project.source.read` | inspect Project source/diff/authored definitions without write authority | `BLD-07..09`, `PRJ-20/21` |
 | `project.data.read` | inspect declared Product/read-model/source resources without becoming a generic DB console | `PRJ-18/19`; Control-Plane `BRN-12` together with `brain.read` |
 | `project.manage` | administer Project lifecycle, Inception/Baseline decisions, exact candidate review/refinement and candidate-bound contextual explanation, bindings and independent Published-App access configuration | `PRJ-05..15` where mapped, `PRJ-23`, `PRJ-24`; `IAM-14/15/17`; source side of `PRJ-06` |
@@ -81,6 +98,8 @@ The vocabulary remains exactly **25** after operator-approved `4B-F01`, `4C-F02`
 | `project.review` | participate in exact Plan/Change checkpoint, Finding and Evidence review | `BLD-05/11..15` |
 
 `project.manage` does **not** imply `project.build`, `project.review`, Published-App business use, Brain publication, Connection use or Release promotion. `4B-F01` removed generic `UpdateProject`; it did not remove the distinct lifecycle/Baseline/binding/app-access consumers that justify this Permission. `4C-F02` keeps `PRJ-23` under `project.manage` because candidate Baseline review is part of the exact Baseline-management job. `4C-F03` likewise keeps `PRJ-24 AskConexusAboutBaselineCandidate` under `project.manage`: asking about an exact immutable Baseline candidate is a read-only part of that review job and must not silently require the distinct Builder `project.build` authority used by `BLD-16`.
+
+The F11 access-administration route to `PRJ-01` is **not** `project.read`; it is a separately admitted narrow disclosure path under `workspace.access.manage` that returns contained Project summaries only for grant administration. It never confers ordinary Project inspection authority.
 
 ### 3.3 Release, managed execution and audit
 
@@ -91,6 +110,8 @@ The vocabulary remains exactly **25** after operator-approved `4B-F01`, `4C-F02`
 | `audit.read` | inspect audit/effect/technical execution Evidence and exact decision subjects through read-only investigator paths beyond ordinary owner views | `OBS-02/04/05`, `GW-01/02`, investigator route of `PAR-09` |
 
 Release composition is an owner/system transition gated by exact accepted proof; there is no `release.compose` Permission. Ordinary Release/Promotion history and serving/job-run projections use `project.read` where disclosed.
+
+`4C-F12` keeps `OBS-04/05` under the same `audit.read` authority while making the admitted immutable audit set server-filterable and human-reviewable. Search/filter shape and immutable presentation snapshots do not create a broader `audit.search` or `event.read` Permission.
 
 ### 3.4 Brain
 
@@ -182,7 +203,7 @@ agent.effect.approve
 
 ```text
 ordinary Permissions = 25
-status = CURRENT / OPERATOR RATIFIED / 4B-F01 + 4C-F02 + 4C-F03 CORRECTED
+status = CURRENT / OPERATOR RATIFIED / 4B-F01 + 4C-F02 + 4C-F03 + 4C-F11 + 4C-F12 CORRECTED
 ```
 
 The number 25 has no independent value. It survives because the current operation mapping still requires each distinction and no accepted operation requires a 26th ordinary Permission.
@@ -198,6 +219,9 @@ account.read
 account.manage
 area.read
 area.manage
+grant.read
+grant.manage
+role.manage
 baseline.approve
 baseline.chat
 finding.close
@@ -241,6 +265,8 @@ DecideApprovalRequest
 ```
 
 `CreateProject` source bootstrap does not create a `git.import`, `repository.manage` or network Permission. The caller still needs only `project.create`; repository locator admission is bounded input validation and GitInfra remains mechanism under current server policy. `GetProjectBaselineCandidate` and `AskConexusAboutBaselineCandidate` likewise use `project.manage`; neither exact candidate read justifies `baseline.read`/`baseline.approve`/`baseline.chat` Permission proliferation. `BLD-16 AskConexusAboutContext` remains separately governed by `project.build` because it serves Builder context rather than Baseline administration.
+
+F11 likewise does not create Account/Area/grant CRUD Permissions. `workspace.access.manage` already represents the reusable authority distinction required to administer those exact membership/grant facts; the new reads merely make that existing authority safely inspectable.
 
 ---
 
