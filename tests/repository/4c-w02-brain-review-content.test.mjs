@@ -17,23 +17,12 @@ function sliceBetween(text, startNeedle, endNeedle) {
   return text.slice(start, end < 0 ? undefined : end)
 }
 
-function propertyNames(schemaSlice) {
-  const start = schemaSlice.indexOf('      properties:\n')
-  if (start < 0) return []
-  const lines = schemaSlice.slice(start + '      properties:\n'.length).split('\n')
-  const names = []
-  for (const line of lines) {
-    const match = line.match(/^        ([A-Za-z][A-Za-z0-9]*):\s*$/)
-    if (match) names.push(match[1])
-  }
-  return names
-}
-
-test('F06 proves exact Brain detail reads carry identity/state but not yet human-reviewable source-bound content', () => {
+test('F06 preserves the accepted Brain review-content finding and Global-Maximum decision history', () => {
   const product = read('docs/product/contract.md')
   const permissions = read('docs/product/permission-contract.md')
-  const wire = read('contracts/api/product/brain-paths.yaml')
   const finding = read('docs/evidence/4c/w02-brain-review-content-finding.md')
+  const assessment = read('docs/evidence/4c/w02-brain-review-content-global-maximum.md')
+  const selected = read('docs/evidence/4c/w02-brain-review-content-selected-realization.md')
 
   for (const accepted of [
     'The Product must visibly distinguish inferred/proposed from confirmed knowledge.',
@@ -42,37 +31,12 @@ test('F06 proves exact Brain detail reads carry identity/state but not yet human
   requireText(permissions, 'inspect current Workspace Brain, immutable revisions and health/conformance projections', 'F06 lost brain.read inspectability authority')
   requireText(permissions, 'inspect/review/decide exact KnowledgeProposal subjects', 'F06 lost brain.review authority')
 
-  const revision = sliceBetween(wire, '    BrainRevision:\n', '    BrainDiscoveryCandidate:\n')
-  const proposal = sliceBetween(wire, '    KnowledgeProposal:\n', '    BrainHealthState:\n')
-  const revisionProps = propertyNames(revision).sort()
-  const proposalProps = propertyNames(proposal).sort()
-
-  const expectedRevision = ['availability', 'brainDigest', 'brainRevisionId', 'sourceRevision'].sort()
-  const expectedProposal = ['candidateSourceRevision', 'hypothesisState', 'proposalId', 'proposalRevision', 'provenanceRefs', 'reviewState'].sort()
-  if (revisionProps.join(',') !== expectedRevision.join(',')) throw new Error(`F06 current-state premise changed for BrainRevision: ${revisionProps.join(',')}`)
-  if (proposalProps.join(',') !== expectedProposal.join(',')) throw new Error(`F06 current-state premise changed for KnowledgeProposal: ${proposalProps.join(',')}`)
-
   for (const invariant of [
     'human can inspect the meaning/content represented by the exact source revision',
     'canonical Workspace Brain source remains authority',
     're-entry does not depend on browser-local state',
     'Project Builder / Project Git are not reused as Workspace Brain source authority',
   ]) requireText(finding, invariant, `F06 finding missing invariant: ${invariant}`)
-})
-
-test('F06 remains a Global-Maximum decision rather than a preselected review field or source API', () => {
-  const assessment = read('docs/evidence/4c/w02-brain-review-content-global-maximum.md')
-  const roadmap = read('docs/roadmap.md')
-
-  for (const section of [
-    'Root Cause',
-    'Target Invariant',
-    'Credible Alternatives',
-    'Global Maximum',
-    'Essential vs Accidental Complexity',
-    'YAGNI / Future Cost',
-    'Reopen triggers',
-  ]) requireText(assessment, section, `F06 assessment missing ${section}`)
 
   for (const alternative of [
     'A — show only IDs/digests/source revisions',
@@ -83,6 +47,40 @@ test('F06 remains a Global-Maximum decision rather than a preselected review fie
     'F — create a generic shared ReviewProjection Product domain because Baseline also has visual review',
   ]) requireText(assessment, alternative, `F06 assessment missing alternative: ${alternative}`)
 
-  requireText(assessment, 'DECISION EVIDENCE / OPERATOR GATE / NOT PRODUCT AUTHORITY', 'F06 assessment must remain non-authoritative before operator decision')
-  requireText(roadmap, 'F06 OPERATOR GATE', 'roadmap must expose the current F06 decision gate')
+  requireText(assessment, 'DECISION EVIDENCE / OPERATOR GATE / NOT PRODUCT AUTHORITY', 'F06 historical assessment must preserve its pre-decision status')
+  requireText(selected, 'OPERATOR ACCEPTED / SELECTED REALIZATION', 'F06 selected realization must record operator acceptance')
+  requireText(selected, 'reviewText', 'F06 selected realization must name the exact bounded wire property')
+})
+
+test('selected F06 realization makes exact Brain detail reads human-reviewable without changing decision identity or Brain topology', () => {
+  const ledger = read('docs/product/operation-ledger.md')
+  const wire = read('contracts/api/product/brain-paths.yaml')
+  const selected = read('docs/evidence/4c/w02-brain-review-content-selected-realization.md')
+  const roadmap = read('docs/roadmap.md')
+
+  requireText(selected, 'reviewText -X-> decision identity', 'F06 selected realization must keep presentation content outside decision identity')
+  requireText(selected, 'reviewText -X-> source authority', 'F06 selected realization must keep canonical source authority separate')
+
+  requireText(ledger, '4C-F06', 'F06-A Product authority must record the accepted Brain review-content correction')
+  requireText(ledger, 'deterministic human-readable', 'F06-A Product authority must define the review projection property')
+  requireText(ledger, 'BRN-03', 'F06-A must keep BRN-03 as the revision detail read')
+  requireText(ledger, 'BRN-06', 'F06-A must keep BRN-06 as the proposal detail read')
+
+  const revision = sliceBetween(wire, '    BrainRevision:\n', '    BrainDiscoveryCandidate:\n')
+  const proposal = sliceBetween(wire, '    KnowledgeProposal:\n', '    BrainHealthState:\n')
+  for (const [label, schema] of [['BrainRevision', revision], ['KnowledgeProposal', proposal]]) {
+    requireText(schema, 'reviewText:', `F06-B ${label} must expose reviewText`)
+    requireText(schema, 'minLength: 1', `F06-B ${label} reviewText must be nonblank`)
+  }
+
+  const decide = sliceBetween(wire, 'summary: DecideKnowledgeProposal', '\n  /api/control/workspaces/{workspaceId}/brain/publications:')
+  requireText(decide, 'required: [expectedProposalRevision, decision]', 'F06-B BRN-08 decision subject must remain proposalRevision + decision')
+  if (decide.includes('reviewText:')) throw new Error('F06-B reviewText must never become BRN-08 decision input')
+
+  const publish = sliceBetween(wire, 'summary: PublishBrainRevision', '\n  /api/control/workspaces/{workspaceId}/brain/health:')
+  requireText(publish, 'required: [candidateSourceRevision]', 'F06-B BRN-09 publication subject must remain candidateSourceRevision')
+  if (publish.includes('reviewText:')) throw new Error('F06-B reviewText must never become BRN-09 publication input')
+
+  requireText(roadmap, 'F06 OPERATOR ACCEPTED', 'roadmap must project the accepted F06 decision')
+  requireText(roadmap, 'F06 SELECTED REALIZATION RED', 'roadmap must expose selected-realization TDD before authority recompile')
 })
