@@ -76,7 +76,7 @@ The vocabulary remains exactly **25** after operator-approved `4B-F01`, `4C-F02`
 | `project.read` | inspect ordinary Project-level Product truth/projections | `PRJ-01/02/16/17/22`; `PAR-06/07` Control-Plane run inspection; ordinary Release/Promotion/serving/job/activity reads |
 | `project.source.read` | inspect Project source/diff/authored definitions without write authority | `BLD-07..09`, `PRJ-20/21` |
 | `project.data.read` | inspect declared Product/read-model/source resources without becoming a generic DB console | `PRJ-18/19`; Control-Plane `BRN-12` together with `brain.read` |
-| `project.manage` | administer Project lifecycle, Inception/Baseline decisions, exact candidate review/refinement and candidate-bound contextual explanation, bindings and independent Published-App access configuration | `PRJ-05..15` where mapped, `PRJ-23/24`; `IAM-14/15/17`; source side of `PRJ-06` |
+| `project.manage` | administer Project lifecycle, Inception/Baseline decisions, exact candidate review/refinement and candidate-bound contextual explanation, bindings and independent Published-App access configuration | `PRJ-05..15` where mapped, `PRJ-23`, `PRJ-24`; `IAM-14/15/17`; source side of `PRJ-06` |
 | `project.build` | create/evolve accepted Project Product/Agent intent through Change/Builder | `BLD-01..04/06/10/16/17` |
 | `project.review` | participate in exact Plan/Change checkpoint, Finding and Evidence review | `BLD-05/11..15` |
 
