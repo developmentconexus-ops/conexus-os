@@ -62,7 +62,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Connections owned by the exact Workspace or Project scope and currently disclosable to the caller, including logical Connection human presentation identity.
+          description: Connections owned by the exact Workspace or Project scope and currently disclosable to the caller, including logical human identity and a Connections-derived current test-applicability projection that is not runtime health, binding or authorization.
           content:
             application/json:
               schema:
@@ -111,7 +111,7 @@ paths:
                   description: Provider-specific non-secret configuration validated against the exact selected ConnectorDefinition/version.
       responses:
         '201':
-          description: Logical Connection established in the exact owner scope with explicit human presentation identity and an initial immutable revision; credential material remains absent until separately written.
+          description: Logical Connection established in the exact owner scope with explicit human presentation identity, initial immutable revision and NOT_TESTED current test projection; credential material remains absent until separately written.
           content:
             application/json:
               schema:
@@ -139,7 +139,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Current logical Connection identity/owner/definition/revision facts plus the non-secret configuration bound to the exact currentRevisionId and credential-presence fact; credential material is never returned.
+          description: Current logical Connection identity/owner/definition/revision facts, non-secret configuration bound to the exact currentRevisionId, credential-presence fact and Connections-derived current test applicability; credential material is never returned and test applicability is not runtime health/binding/authorization.
           content:
             application/json:
               schema:
@@ -180,7 +180,7 @@ paths:
                   description: New provider-specific non-secret configuration validated against the current Connection's exact ConnectorDefinition/version. Logical Connection human identity is not revision-owned and is unchanged by this command.
       responses:
         '201':
-          description: New immutable ConnectionRevision created from the exact current logical Connection revision; the logical Connection name remains unchanged.
+          description: New immutable ConnectionRevision created from the exact current logical Connection revision; the logical Connection name remains unchanged and any prior qualification basis no longer applies to the new revision.
           content:
             application/json:
               schema:
@@ -227,7 +227,7 @@ paths:
                   description: Provider-specific plaintext secret input accepted only on the trusted write-only ingress and validated against the exact ConnectorDefinition/version.
       responses:
         '204':
-          description: Credential material stored behind the Connection owner boundary. No plaintext, ciphertext or credential handle is returned.
+          description: Credential material stored behind the Connection owner boundary and server-owned logical credential generation advanced. No plaintext, ciphertext or credential handle/generation is returned; a prior qualification basis is no longer current after credential replacement.
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
@@ -268,7 +268,7 @@ paths:
                   minLength: 1
       responses:
         '201':
-          description: Qualification attempt/result bound to the exact immutable ConnectionRevision and real environment with provenance.
+          description: Qualification attempt/result bound to the exact immutable ConnectionRevision, exact environment and server-resolved current logical credential generation, with stable human outcome/diagnostic and provenance. The caller never selects credential generation.
           content:
             application/json:
               schema:
@@ -299,7 +299,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact ConnectionQualification state and provenance. Qualification is not Project binding, runtime health or caller authorization.
+          description: Exact ConnectionQualification basis, stable human outcome, diagnostic/remediation and provenance. Qualification/test result is not Project binding, runtime health or caller authorization.
           content:
             application/json:
               schema:
@@ -404,7 +404,7 @@ components:
     Connection:
       type: object
       additionalProperties: false
-      required: [connectionId, name, ownerScopeKind, ownerId, connectorDefinitionId, connectorVersion, currentRevisionId, credentialConfigured]
+      required: [connectionId, name, ownerScopeKind, ownerId, connectorDefinitionId, connectorVersion, currentRevisionId, credentialConfigured, connectionTest]
       properties:
         connectionId:
           type: string
@@ -432,10 +432,12 @@ components:
         credentialConfigured:
           type: boolean
           description: Non-secret presence fact only; does not imply qualification, binding, health or caller authorization.
+        connectionTest:
+          $ref: '#/components/schemas/ConnectionTestSummary'
     ConnectionDetail:
       type: object
       additionalProperties: false
-      required: [connectionId, name, ownerScopeKind, ownerId, connectorDefinitionId, connectorVersion, currentRevisionId, credentialConfigured, configuration]
+      required: [connectionId, name, ownerScopeKind, ownerId, connectorDefinitionId, connectorVersion, currentRevisionId, credentialConfigured, configuration, connectionTest]
       properties:
         connectionId:
           type: string
@@ -468,6 +470,29 @@ components:
           additionalProperties: true
           x-conexus-schema-source: CONNECTOR_DEFINITION_CONFIGURATION_SCHEMA
           description: Server-owned provider-specific non-secret configuration of this exact currentRevisionId, suitable for inspection and revision-form initialization; never credential material or qualification/binding/health/authorization truth.
+        connectionTest:
+          $ref: '#/components/schemas/ConnectionTestSummary'
+    ConnectionTestSummary:
+      type: object
+      additionalProperties: false
+      required: [state]
+      description: Connections-derived current qualification/test applicability. It is never generic Connection lifecycle, runtime health, Project binding or caller authorization.
+      properties:
+        state:
+          type: string
+          enum: [NOT_TESTED, NEEDS_RETEST, PASSED, FAILED, INDETERMINATE]
+        qualificationId:
+          type: string
+          minLength: 1
+          description: Exact qualification subject when a prior/current qualification is relevant; absent only when NOT_TESTED.
+        environment:
+          type: string
+          minLength: 1
+          description: Exact environment of the relevant qualification when present.
+        testedAt:
+          type: string
+          format: date-time
+          description: Server-owned time of the relevant qualification when present.
     ConnectionRevision:
       type: object
       additionalProperties: false
@@ -488,7 +513,7 @@ components:
     ConnectionQualification:
       type: object
       additionalProperties: false
-      required: [qualificationId, connectionId, connectionRevisionId, environment, qualificationState, evidenceRefs]
+      required: [qualificationId, connectionId, connectionRevisionId, credentialGeneration, environment, qualificationState, outcome, testedAt, diagnostic, evidenceRefs]
       properties:
         qualificationId:
           type: string
@@ -499,13 +524,43 @@ components:
         connectionRevisionId:
           type: string
           minLength: 1
+        credentialGeneration:
+          type: [string, 'null']
+          minLength: 1
+          description: Server-resolved non-secret logical credential-generation coordinate used by this qualification, or null when the exact Connector qualification has no logical credential generation. Never credential bytes, crypto-key version or transient provider access token.
         environment:
           type: string
           minLength: 1
         qualificationState:
           type: string
           minLength: 1
-          description: Connection-owner qualification state; 4B does not invent an unratified lifecycle enum.
+          description: Connection-owner qualification state; 4B does not invent a closed provider/internal lifecycle enum.
+        outcome:
+          type: string
+          enum: [PASSED, FAILED, INDETERMINATE]
+          description: Stable Product-facing result category for this exact qualification; does not imply binding, health or authorization.
+        testedAt:
+          type: string
+          format: date-time
+        diagnostic:
+          type: object
+          additionalProperties: false
+          required: [title, message]
+          description: Connections-owned human-readable exact-result explanation; the frontend never derives it by parsing Evidence.
+          properties:
+            title:
+              type: string
+              minLength: 1
+              pattern: '.*\S.*'
+            message:
+              type: string
+              minLength: 1
+              pattern: '.*\S.*'
+            remediation:
+              type: string
+              minLength: 1
+              pattern: '.*\S.*'
+              description: Optional human corrective guidance when the exact result supports one.
         evidenceRefs:
           type: array
           minItems: 1
