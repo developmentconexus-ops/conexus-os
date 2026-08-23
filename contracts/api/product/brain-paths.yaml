@@ -66,7 +66,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact immutable published Brain revision. AVAILABLE does not mean any Project silently adopts it.
+          description: Exact immutable published Brain revision with a deterministic human-readable projection of that exact source revision. AVAILABLE does not mean any Project silently adopts it.
           content:
             application/json:
               schema:
@@ -196,7 +196,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact KnowledgeProposal candidate/provenance with current Brain-owner review state.
+          description: Exact KnowledgeProposal candidate/provenance with current Brain-owner review state and deterministic human-readable projection of the exact candidate source revision.
           content:
             application/json:
               schema:
@@ -424,7 +424,7 @@ components:
     BrainRevision:
       type: object
       additionalProperties: false
-      required: [brainRevisionId, brainDigest, sourceRevision, availability]
+      required: [brainRevisionId, brainDigest, sourceRevision, availability, reviewText]
       properties:
         brainRevisionId:
           type: string
@@ -438,6 +438,10 @@ components:
         availability:
           type: string
           const: AVAILABLE
+        reviewText:
+          type: string
+          minLength: 1
+          description: Deterministic Brain-owned human-readable projection of this exact sourceRevision for review/inspection; not canonical Brain source, source identity, digest or decision authority.
     BrainDiscoveryCandidate:
       type: object
       additionalProperties: false
@@ -500,7 +504,7 @@ components:
     KnowledgeProposal:
       type: object
       additionalProperties: false
-      required: [proposalId, proposalRevision, candidateSourceRevision, provenanceRefs, hypothesisState, reviewState]
+      required: [proposalId, proposalRevision, candidateSourceRevision, provenanceRefs, hypothesisState, reviewState, reviewText]
       properties:
         proposalId:
           type: string
@@ -526,6 +530,10 @@ components:
           type: string
           minLength: 1
           description: Brain-owner review state; no lifecycle enum is invented by 4B.
+        reviewText:
+          type: string
+          minLength: 1
+          description: Deterministic Brain-owned human-readable projection of this exact candidateSourceRevision for review/inspection; not canonical Brain source or proposal/decision identity.
     BrainHealthState:
       type: string
       enum: [UNVERIFIED, VALID, SUSPECT, INVALID, CHECK_ERROR]
