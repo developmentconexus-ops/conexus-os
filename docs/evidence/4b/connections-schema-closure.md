@@ -46,7 +46,7 @@ Connector definitions are declarative platform-pack projections. The wire expose
 
 `CreateConnection` names the exact Connector definition/version and accepts provider-specific **non-secret** configuration validated against that exact definition. It does not accept owner reassignment, sibling sharing or credential material.
 
-### 3.3 Connection revisions remain immutable
+### 3.3 Connection revisions remain immutable and current configuration is inspectable
 
 `ReviseConnection` requires the exact current logical revision through:
 
@@ -55,6 +55,19 @@ expectedCurrentRevisionId
 ```
 
 and creates a new immutable `ConnectionRevision`. It does not mutate an old revision, alter owner scope, accept secret material, or manufacture a false cross-resource `If-Match` contract.
+
+After operator-accepted `4C-F09`, the exact `CON-04 GetConnection` detail read returns `ConnectionDetail`:
+
+```text
+existing logical Connection identity/owner/definition facts
++ currentRevisionId
++ credentialConfigured
++ configuration
+```
+
+`configuration` is the provider-specific **non-secret** configuration of that exact `currentRevisionId`, shaped against the exact ConnectorDefinition configuration schema. It exists so an authorized human can inspect/re-enter current Connection truth and initialize an intentional `CON-06` revision draft after refresh/re-entry.
+
+The lightweight `Connection` projection remains used by `CON-03 ListConnections` and `CON-05 CreateConnection`; those responses do not carry provider configuration merely by schema reuse.
 
 ### 3.4 Credential ingress is write-only
 
@@ -68,7 +81,7 @@ Logical credential presence may be projected as the non-secret fact:
 credentialConfigured
 ```
 
-That fact does not imply qualification, Project binding, runtime health or caller authorization.
+That fact does not imply qualification, Project binding, runtime health or caller authorization. F09 configuration inspectability does not widen this boundary: configuration is non-secret and can never carry credential material.
 
 ### 3.5 Qualification is exact and provenance-bearing
 
@@ -105,6 +118,14 @@ configured
 != authorized
 ```
 
+In particular:
+
+```text
+configuration presence -X-> qualification
+credentialConfigured -X-> qualification
+configuration -X-> Project binding / runtime health / caller authorization
+```
+
 Connections does not absorb Project-owned `ProjectConnectionBinding`, Gateway runtime health/effect admission, or Product authorization.
 
 ## 4. Executable falsifiers
@@ -116,7 +137,11 @@ any CON-01..09 operation not SCHEMA_CLOSED
 provisional Connections response authority
 ownerScope outside WORKSPACE | PROJECT
 caller-smuggled owner/share fields
+CON-04 missing current non-secret configuration after F09
+configuration not bound to currentRevisionId / exact ConnectorDefinition schema
+configuration leaking into CON-03/CON-05 lightweight projections
 secret or credential readback
+credential/token/password fields in ConnectionDetail
 credential material on CreateConnection / ReviseConnection / qualification
 mutable-revision semantics or false cross-resource If-Match
 qualification against arbitrary URL / SQL / binding selection
@@ -140,7 +165,7 @@ https://spec.openapis.org/oas/v3.1.2.html#path-item-object
 https://spec.openapis.org/oas/v3.1.2.html#operation-object
 ```
 
-## 5. TDD proof
+## 5. Original 4B TDD proof
 
 ```text
 Verify #283 = FAILURE
@@ -158,7 +183,7 @@ HEAD = 176b4bd608630e567714f3e839ebdcb7cca5e36b
 → checker fixed to interpret OAS Path Item parameter inheritance without weakening any semantic assertion
 ```
 
-Final established counts:
+Historical established counts at that point:
 
 ```text
 fixed 4A operations      = 111
@@ -175,19 +200,56 @@ duplicate                = 0
 literal IF_MATCH          = { PRJ-12, PAR-14 }
 ```
 
-The same successful full Verify preserved the two-operation Budget Analyzer declaration/codegen proof and all truth-state positive/negative controls.
+Those are historical Evidence of the original 4B closure, not the current whole-platform count after accepted 4C corrections.
 
-## 6. Result
+## 6. `4C-F09` bounded Connections-wire recompile
+
+W-02B P7 authority/data revalidation exposed that `CON-05/06` accepted durable non-secret configuration but the exact `CON-04` read did not recover the current revision's configuration after refresh/re-entry. The operator accepted the Global-Maximum outcome that Connections and `CON-04` remain the correct owner/read surface rather than adding browser persistence, blank destructive re-entry, a revision-history family or a new configuration operation.
+
+Selected realization:
 
 ```text
-IAM + Workspace = CLOSED inside 4B
-Project         = CLOSED inside 4B
-Builder         = CLOSED inside 4B
-Brain           = CLOSED inside 4B
-Connections     = CLOSED inside 4B
-schema-closed   = 78 / 111
-4B overall      = OPEN / ACTIVE
+CON-03 → lightweight Connection[]
+CON-04 → ConnectionDetail
+  → currentRevisionId
+  + current provider-specific non-secret configuration
+CON-05 → lightweight Connection
+CON-07 → unchanged write-only credential ingress
+```
+
+Selected-realization proof history:
+
+```text
+Verify #649 = EXPECTED RED
+→ 73 tests / 72 pass / 1 fail
+→ exact failure: CON-04 must return ConnectionDetail
+
+Verify #651 = intermediate expected failure
+→ F09 wire + checker shape accepted by repository tests
+→ exact remaining owner gap: 4A had not yet recorded F09
+
+Verify #652 = intermediate expected failure
+→ F09 4A authority + wire + checker accepted
+→ exact remaining downstream gap: W-02 P7 preflight had not yet recompiled F09 GREEN
+```
+
+Current whole-platform invariants targeted by the final GREEN remain:
+
+```text
+fixed Product operations = 113
+fixed Product wire       = 113 ↔ 113
+Connections operations   = 9
+ordinary Permissions     = 25
+new F09 operations       = 0
+new F09 owners           = 0
+new F09 durable records  = 0
+```
+
+## 7. Current result
+
+```text
+Connections     = CLOSED inside 4B / F09 BOUNDED RECOMPILE
 Product code    = BLOCKED
 ```
 
-No Product meaning, Permission, owner, trust boundary, runtime choice, persistence choice or Paved-Road/SDK decision was added by this closure.
+F09 changes only exact current non-secret configuration inspectability. It does not admit secret readback, revision history/rollback, rename/delete, `latestQualification`, generic qualification history or a collapsed readiness status.
