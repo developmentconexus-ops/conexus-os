@@ -1,7 +1,7 @@
 # Conexus OS — Product Operation Ledger
 
-> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F05` + `4C-F06` + `4C-F07` + `4C-F09` BOUNDED CORRECTIONS ACCEPTED
-> **Authority:** derived only from current accepted Product/architecture authority routed by `docs/index.md`, the 4A contract, the operator-approved first Budget Analyzer semantic contract and the operator-approved bounded downstream corrections `4B-F01`, `4C-F02`, `4C-F03`, `4C-F05`, `4C-F06`, `4C-F07` and `4C-F09`.
+> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F05` + `4C-F06` + `4C-F07` + `4C-F09` + `4C-F10` BOUNDED CORRECTIONS ACCEPTED
+> **Authority:** derived only from current accepted Product/architecture authority routed by `docs/index.md`, the 4A contract, the operator-approved first Budget Analyzer semantic contract and the operator-approved bounded downstream corrections `4B-F01`, `4C-F02`, `4C-F03`, `4C-F05`, `4C-F06`, `4C-F07`, `4C-F09` and `4C-F10`.
 > **Mutable program status:** owned only by `docs/roadmap.md`.
 
 This ledger is the canonical 4A Product-operation authority. It is intentionally **not** HTTP/OpenAPI, frontend, database, SDK or runtime design and it does not authorize Product implementation.
@@ -15,7 +15,7 @@ first Budget Analyzer operations  = 2
 ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
 ```
 
-The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. During executable-wire derivation, `4B-F01` materially falsified three generic mutation rows because no accepted Product authority defined their mutable property sets; the operator explicitly approved their bounded subtraction. During W-01 frontend authority-feasibility work, `4C-F02` then proved that accepted Journey B could not be completed truthfully without creation-time source bootstrap, caller-expressible Inception intent and one durable exact candidate-Baseline read. The later operator-approved `4C-F03` proved that a coherent visual Baseline review loop additionally requires exact-candidate refinement input and one exact candidate-bound contextual explanation surface under Baseline-management authority. During W-02 Brain authority-to-interaction derivation, operator-approved `4C-F05` proved that the existing `SubmitKnowledgeProposal` job must admit a caller-expressible Discovery-backed human-resolution intake in addition to the existing source-backed path; Brain ownership and operation count remain unchanged. Operator-approved `4C-F06` then proved that the existing exact Brain revision/proposal detail reads must carry deterministic human-readable content derived from their exact source revisions so an authorized human can inspect what is being reviewed without browser-local or foreign-owner source authority. Operator-approved `4C-F07` further proved that the exact published Brain revision read must expose a deterministic **structured source-bound** knowledge-browse projection so the approved `Knowledge → Domain → Concept` experience can render exact Brain truth without parsing prose/DOM or reading Brain Git. During W-02B Connections P7 feasibility, operator-approved `4C-F09` proved that `CON-04 GetConnection` must expose the provider-specific **current non-secret configuration** bound to its exact `currentRevisionId` so an authorized human can inspect and intentionally revise current Connection truth after refresh/re-entry without browser pseudo-authority or secret readback. All unaffected 4A semantics remain preserved.
+The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. During executable-wire derivation, `4B-F01` materially falsified three generic mutation rows because no accepted Product authority defined their mutable property sets; the operator explicitly approved their bounded subtraction. During W-01 frontend authority-feasibility work, `4C-F02` then proved that accepted Journey B could not be completed truthfully without creation-time source bootstrap, caller-expressible Inception intent and one durable exact candidate-Baseline read. The later operator-approved `4C-F03` proved that a coherent visual Baseline review loop additionally requires exact-candidate refinement input and one exact candidate-bound contextual explanation surface under Baseline-management authority. During W-02 Brain authority-to-interaction derivation, operator-approved `4C-F05` proved that the existing `SubmitKnowledgeProposal` job must admit a caller-expressible Discovery-backed human-resolution intake in addition to the existing source-backed path; Brain ownership and operation count remain unchanged. Operator-approved `4C-F06` then proved that the existing exact Brain revision/proposal detail reads must carry deterministic human-readable content derived from their exact source revisions so an authorized human can inspect what is being reviewed without browser-local or foreign-owner source authority. Operator-approved `4C-F07` further proved that the exact published Brain revision read must expose a deterministic **structured source-bound** knowledge-browse projection so the approved `Knowledge → Domain → Concept` experience can render exact Brain truth without parsing prose/DOM or reading Brain Git. During W-02B Connections P7 feasibility, operator-approved `4C-F09` proved that `CON-04 GetConnection` must expose the provider-specific **current non-secret configuration** bound to its exact `currentRevisionId` so an authorized human can inspect and intentionally revise current Connection truth after refresh/re-entry without browser pseudo-authority or secret readback. During the W-02B functional P8 walkthrough, operator-approved `4C-F10` further proved that the existing qualification job/result must expose a current-applicability projection and human-readable diagnostic/remediation so a human can test a Connection and understand failure without inventing browser-local health or parsing raw Evidence. All unaffected 4A semantics remain preserved.
 
 ---
 
@@ -472,13 +472,13 @@ No new Product operation, Permission, semantic owner, principal class, trust bou
 | --- | --- | --- | --- | --- |
 | `CON-01` | `ListConnectorDefinitions` | Connections/platform-pack projection | admitted Connector definitions | read |
 | `CON-02` | `GetConnectorDefinition` | Connections/platform-pack projection | exact Connector version/definition | read |
-| `CON-03` | `ListConnections` | Connections | exact Workspace/Project scope | read |
-| `CON-04` | `GetConnection` | Connections | exact Connection + ownerScope containment + exact currentRevisionId-bound non-secret configuration | read |
+| `CON-03` | `ListConnections` | Connections | exact Workspace/Project scope + current derived Connection-test applicability | read |
+| `CON-04` | `GetConnection` | Connections | exact Connection + ownerScope containment + exact currentRevisionId-bound non-secret configuration + current derived Connection-test applicability | read |
 | `CON-05` | `CreateConnection` | Connections | exact ownerScope/owner + Connector; no sibling reuse | command |
-| `CON-06` | `ReviseConnection` | Connections | exact current logical Connection → immutable/new revision semantics | command/current-state |
-| `CON-07` | `SetConnectionCredential` | Connections + CredentialBackend boundary | exact Connection; write-only secret boundary | consequential write-only command |
-| `CON-08` | `QualifyConnection` | Connections | exact ConnectionRevision/environment + real source Evidence | proof command |
-| `CON-09` | `GetConnectionQualification` | Connections | exact revision/environment; configured/qualified/bound/healthy remain distinct | read/provenance |
+| `CON-06` | `ReviseConnection` | Connections | exact current logical Connection → immutable/new revision semantics; successful revision makes prior test basis stale | command/current-state |
+| `CON-07` | `SetConnectionCredential` | Connections + CredentialBackend boundary | exact Connection; write-only secret boundary; successful replacement advances server-owned logical credential generation and makes prior test basis stale | consequential write-only command |
+| `CON-08` | `QualifyConnection` | Connections | exact ConnectionRevision/environment + server-resolved current logical credential generation + real source Evidence | proof command |
+| `CON-09` | `GetConnectionQualification` | Connections | exact revision/credential-generation/environment test result + human diagnostic/remediation + Evidence; configured/qualified/bound/healthy remain distinct | read/provenance |
 
 No secret read, arbitrary TestURL, generic credential fetch/executor or cross-Workspace share operation is admitted.
 
@@ -515,6 +515,63 @@ configured != qualified != bound != healthy != caller-authorized
 `CON-03 ListConnections` and `CON-05 CreateConnection` remain lightweight projections and do not carry full provider configuration merely by schema reuse. `CON-07` remains write-only with no plaintext/ciphertext/handle readback. Current F1 does not admit a generic Connection revision-history browser, rollback, `GetConnectionConfiguration`, `GetConnectionRevision`, rename/delete authority, qualification history or synthesized `latestQualification` merely to implement this current-detail consumer.
 
 No new Product operation, ordinary Permission, semantic owner, principal class, trust boundary or durable record class is admitted by `4C-F09`; `N_platform` remains 113.
+
+### 5.6.2 `4C-F10` — current test applicability and human diagnostics
+
+The W-02B functional P8 walkthrough proved that exact qualification Evidence alone does not close the human job “does this Connection work now, and if not why?” after refresh/re-entry. The operator accepted `CURRENT STRUCTURE CONFIRMED`: Connections remains the owner; `CON-08 QualifyConnection` remains the one real provider/source proof job; `CON-09 GetConnectionQualification` remains the exact result read.
+
+Binding semantic properties:
+
+```text
+CON-08
+→ caller supplies exact connectionRevisionId + environment only
+→ Connections resolves the current logical credential generation server-side
+→ existing ConnectionQualification binds exact revision + credential generation + environment + testedAt
+
+CON-09
+→ exact qualification result preserves owner-specific qualificationState + Evidence
+→ additionally exposes stable human outcome PASSED | FAILED | INDETERMINATE
+→ additionally exposes deterministic human diagnostic title/message and optional remediation
+```
+
+Connections derives a small current test-applicability projection for `CON-03` / `CON-04`:
+
+```text
+NOT_TESTED
+= no prior qualification is available
+
+NEEDS_RETEST
+= prior qualification exists but its exact ConnectionRevision and/or logical credential generation no longer match current Connection truth
+
+PASSED | FAILED | INDETERMINATE
+= the projected qualification basis still matches the current revision + logical credential generation
+```
+
+This is **test applicability**, never a generic Connection lifecycle or runtime-health state. Old qualification Evidence remains durable when configuration or credentials change; only its current applicability changes.
+
+Logical credential generation is a non-secret Connections-owned coordinate:
+
+```text
+logical credential generation -X-> credential bytes
+logical credential generation -X-> crypto key version
+logical credential generation -X-> transient provider access token
+caller -X-> choose credential generation for CON-08
+```
+
+Protected negative laws:
+
+```text
+qualification passed -X-> Connected
+qualification passed -X-> Active / Ready / Healthy
+qualification passed -X-> Project bound
+qualification passed -X-> caller authorized
+frontend evidenceRefs parsing -X-> diagnostic authority
+configuration or credential change -X-> old qualification remains current
+```
+
+The Control Plane may label `CON-08 QualifyConnection` as **Test connection** and `CON-09` as **Test result / View problem** without creating a second Product operation.
+
+No new Product operation, ordinary Permission, semantic owner, principal class, trust boundary or durable record class is admitted by `4C-F10`. No qualification-history/list/pagination family, generic ConnectionHealth owner, background monitor, Active/Inactive lifecycle, automatic retry or credential readback is admitted. `N_platform` remains 113.
 
 ## 5.7 Release / Promotion / serving — 7
 
@@ -741,9 +798,9 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | `BRN-12` Control Plane route | `HUMAN_ACCOUNT_SESSION / CP` | `brain.read + project.data.read` | exact Project + Brain binding + curated dataset + semantic IDs + current Project grant | `ANALYTIC` | `IC0` |
 | `BRN-12` Published-App route | `PUBLISHED_APP_HUMAN / PA` | exact Release-declared app role subset | exact active Release + app access + Brain/dataset projection | `ANALYTIC` | `IC0` |
 | `BRN-12` Agent route | `PAR_AGENT_RUN_CONTEXT / PAR_TOOL` | exact ToolProjection | exact active AgentRun/Release/Brain/dataset projection | `ANALYTIC` | `IC0` |
-| `CON-01..04,CON-09` | `HUMAN_ACCOUNT_SESSION / CP` | `connection.read` | exact Connector/Connection/revision/environment/ownerScope; CON-04 additionally exposes the current non-secret configuration bound to its exact currentRevisionId | `CON-09` `PROVENANCE_READ`; others `READ` | `IC0` |
-| `CON-05..07` | `HUMAN_ACCOUNT_SESSION / CP` | `connection.manage` | exact ownerScope/current Connection; credential is write-only; no sibling reuse | `COMMAND`/`CONSEQUENTIAL` | `CON-05` `IC3`; `CON-06` `IC2`; `CON-07` `IC3` |
-| `CON-08` | `HUMAN_ACCOUNT_SESSION / CP` | `connection.qualify` | exact ConnectionRevision/environment + real provider/source Evidence | `PROOF` | `IC3` |
+| `CON-01..04,CON-09` | `HUMAN_ACCOUNT_SESSION / CP` | `connection.read` | exact Connector/Connection/revision/environment/ownerScope; CON-03/04 expose Connections-derived current test applicability; CON-04 additionally exposes current non-secret configuration; CON-09 exposes exact test basis + human diagnostic/remediation + Evidence | `CON-09` `PROVENANCE_READ`; others `READ` | `IC0` |
+| `CON-05..07` | `HUMAN_ACCOUNT_SESSION / CP` | `connection.manage` | exact ownerScope/current Connection; credential is write-only; CON-06 revision or CON-07 credential replacement makes an older test basis non-current | `COMMAND`/`CONSEQUENTIAL` | `CON-05` `IC3`; `CON-06` `IC2`; `CON-07` `IC3` |
+| `CON-08` | `HUMAN_ACCOUNT_SESSION / CP` | `connection.qualify` | exact ConnectionRevision/environment + server-resolved current logical credential generation + real provider/source Evidence | `PROOF` | `IC3` |
 | `REL-01,REL-02,REL-04,REL-05,REL-07` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` | exact Project/Release/Promotion/serving disclosure | `REL-07` `PROVENANCE_READ`; others `READ` | `IC0` |
 | `REL-06` | `HUMAN_ACCOUNT_SESSION / CP` | `release.promote` | exact Release/environment + current proof/conformance + expected pointer generation; repeatable promotion intake cannot manufacture duplicate Promotion/effect | `CONSEQUENTIAL` | `IC2 AND IC3` |
 | `REL-08` | `HUMAN_ACCOUNT_SESSION / CP` | `release.promote` | exact target-environment conformance subject; read grants no pointer mutation | `PROOF` | `IC0` |
@@ -865,7 +922,20 @@ W-02B P7 current-configuration feasibility then produced operator-approved `4C-F
 = 113 current fixed Conexus platform Product operations
 ```
 
-`PRJ-03`, `PRJ-07`, `BRN-03`, `BRN-06`, `BRN-07` and `CON-04` gained only bounded missing semantics required by their already-accepted human journeys; they remain the same Product operations. No rename/settings replacement, Repository CRUD, source-switching operation, Baseline comment/thread/session CRUD, generic assistant owner, BrainDraft, DiscoverySession, intermediate Discovery-resolution operation, generic Brain source editor, speculative Brain catalog/search domain or generic Connection-revision/configuration domain was admitted.
+W-02B P8 test/diagnostics feasibility then produced operator-approved `4C-F10` without changing the count:
+
+```text
+113
++ 0 operations
+→ CON-08 remains the exact qualification/test operation
+→ qualification additionally binds server-resolved logical credential generation + testedAt + stable human outcome
+→ CON-09 additionally exposes deterministic human diagnostic/remediation
+→ CON-03/CON-04 expose only a derived five-state current test-applicability projection
+→ no TestConnection/health/history Product family is admitted
+= 113 current fixed Conexus platform Product operations
+```
+
+`PRJ-03`, `PRJ-07`, `BRN-03`, `BRN-06`, `BRN-07`, `CON-03`, `CON-04`, `CON-07`, `CON-08` and `CON-09` gained only bounded missing semantics required by already-real human journeys; they remain the same Product operations. No rename/settings replacement, Repository CRUD, source-switching operation, Baseline comment/thread/session CRUD, generic assistant owner, BrainDraft, DiscoverySession, intermediate Discovery-resolution operation, generic Brain source editor, speculative Brain catalog/search domain, generic Connection-revision/configuration domain or Connection-health domain was admitted.
 
 Kept after attack because their exact detail has independent Product meaning:
 
@@ -892,6 +962,10 @@ ReadConnectionSecret
 GetConnectionConfiguration
 GetConnectionRevision
 ListConnectionRevisions
+TestConnection
+ListConnectionQualifications
+GetConnectionHealth
+SetConnectionActive
 SetCurrentReleaseWithoutPromotion
 MarkServedVerified
 MarkChangeVerified
@@ -955,7 +1029,7 @@ possible UX labels/modes               = 4C only; labels cannot create authority
 Paved Road realization                 = 4D
 ```
 
-The bounded SoftwareForge review itself adds no Product operation, Permission, owner or trust boundary. `4C-F02` and `4C-F03` are independent W-01 interaction falsifiers whose current accepted corrections raise the fixed-operation count from 111 → 112 → 113 while preserving the existing owner/Permission model. `4C-F05`, `4C-F06` and `4C-F07` are W-02A interaction/P9 falsifiers that enrich existing Brain proposal/detail reads without changing that count or owner model. `4C-F09` is a W-02B P7 interaction falsifier that enriches the existing exact Connection detail read with current non-secret revision configuration without changing the count, Permission vocabulary or owner model.
+The bounded SoftwareForge review itself adds no Product operation, Permission, owner or trust boundary. `4C-F02` and `4C-F03` are independent W-01 interaction falsifiers whose current accepted corrections raise the fixed-operation count from 111 → 112 → 113 while preserving the existing owner/Permission model. `4C-F05`, `4C-F06` and `4C-F07` are W-02A interaction/P9 falsifiers that enrich existing Brain proposal/detail reads without changing that count or owner model. `4C-F09` and `4C-F10` are W-02B interaction falsifiers that enrich existing Connections reads/qualification truth without changing the count, Permission vocabulary, owner model or durable-record inventory.
 
 ---
 
@@ -1042,8 +1116,16 @@ That review record remains historical Evidence of the 114-operation ratified clo
 → keep configuration distinct from qualification/binding/health/authorization
 → no new operation / Permission / owner / principal / durable record class
 → N_platform remains 113
+
+4C-F10 OPERATOR ACCEPT
+→ preserve CON-08 as the one exact qualification/test operation and CON-09 as its exact detail read
+→ bind qualification to server-resolved logical credential generation + exact revision/environment + testedAt
+→ add stable PASSED|FAILED|INDETERMINATE human outcome + diagnostic/remediation
+→ derive NOT_TESTED|NEEDS_RETEST|PASSED|FAILED|INDETERMINATE current test projection on CON-03/04
+→ no TestConnection/history/health operation or new durable record
+→ N_platform remains 113
 ```
 
-`4C-F03` creates one new read/assistant operation. `4C-F05`, `4C-F06`, `4C-F07` and `4C-F09` create zero new operations and close already-accepted human consumers. All preserve the existing Permission, owner, principal and trust-boundary model. 4B must recompile its machine wire/checkers against the corrected current ledger before the corresponding 4C block can close.
+`4C-F03` creates one new read/assistant operation. `4C-F05`, `4C-F06`, `4C-F07`, `4C-F09` and `4C-F10` create zero new operations and close already-accepted human consumers. All preserve the existing Permission, owner, principal, trust-boundary and durable-record model. 4B must recompile its machine wire/checkers against the corrected current ledger before the corresponding 4C block can close.
 
-4A remains **operator-ratified as boundedly corrected by `4B-F01`, `4C-F02`, `4C-F03`, `4C-F05`, `4C-F06`, `4C-F07` and `4C-F09`**. Product implementation remains blocked.
+4A remains **operator-ratified as boundedly corrected by `4B-F01`, `4C-F02`, `4C-F03`, `4C-F05`, `4C-F06`, `4C-F07`, `4C-F09` and `4C-F10`**. Product implementation remains blocked.
