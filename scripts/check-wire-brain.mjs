@@ -104,6 +104,12 @@ function nonBlankStringProperty(schema, name, label) {
   if (value?.type !== 'string' || (value?.minLength ?? 0) < 1) throw new Error(`${label} must be a non-blank string`);
 }
 
+function arrayProperty(schema, name, label) {
+  const value = property(schema, name);
+  if (value?.type !== 'array') throw new Error(`${label} must be an array`);
+  return value;
+}
+
 // Canonical Workspace Brain is one authority, not memory/vector/search runtime authority.
 const brain = assertClosedObject(successSchema('BRN-01'), 'BRN-01 success');
 required(brain, 'workspaceId', 'publishedBrainRevisionId');
@@ -111,13 +117,48 @@ for (const forbidden of ['memory', 'conversationMemory', 'vectorIndex', 'ragInde
   if (brain.properties?.[forbidden]) throw new Error(`BRN-01 must not expose non-Brain authority ${forbidden}`);
 }
 
-// Published Brain revisions are immutable exact artifact/source identities. F06 adds human-readable exact-source review content only.
-const revision = assertClosedObject(successSchema('BRN-03'), 'BRN-03 success');
-required(revision, 'brainRevisionId', 'brainDigest', 'sourceRevision', 'availability', 'reviewText');
+// Published revision list/publication responses stay bounded summaries; F07 detail browse belongs to exact BRN-03 only.
+const revisionList = successSchema('BRN-02');
+if (revisionList?.type !== 'array') throw new Error('BRN-02 success must remain an array');
+const revisionSummary = assertClosedObject(resolveSchema(revisionList.items), 'BRN-02 BrainRevision summary');
+required(revisionSummary, 'brainRevisionId', 'brainDigest', 'sourceRevision', 'availability', 'reviewText');
+if (revisionSummary.properties?.knowledgeBrowse) throw new Error('BRN-02 must not widen every revision summary with F07 knowledgeBrowse');
+
+// F06/F07: exact BRN-03 detail carries human-readable exact-source content plus Brain-owned structured knowledge browse.
+const revision = assertClosedObject(successSchema('BRN-03'), 'BRN-03 success BrainRevisionDetail');
+required(revision, 'brainRevisionId', 'brainDigest', 'sourceRevision', 'availability', 'reviewText', 'knowledgeBrowse');
 nonBlankStringProperty(revision, 'reviewText', 'BRN-03 reviewText');
 if (property(revision, 'availability')?.const !== 'AVAILABLE') throw new Error('BRN-03 immutable published revision availability must be AVAILABLE');
 for (const forbidden of ['activeEverywhere', 'liveInherited', 'mutable', 'latest']) {
   if (revision.properties?.[forbidden]) throw new Error(`BRN-03 must not imply mutable/live inheritance via ${forbidden}`);
+}
+
+const browse = assertClosedObject(property(revision, 'knowledgeBrowse'), 'BRN-03 knowledgeBrowse');
+required(browse, 'domains');
+const domains = arrayProperty(browse, 'domains', 'BRN-03 knowledgeBrowse.domains');
+const domain = assertClosedObject(resolveSchema(domains.items), 'Brain knowledge domain projection');
+required(domain, 'domainRef', 'label', 'concepts');
+nonBlankStringProperty(domain, 'domainRef', 'Brain knowledge domainRef');
+nonBlankStringProperty(domain, 'label', 'Brain knowledge domain label');
+const concepts = arrayProperty(domain, 'concepts', 'Brain knowledge domain concepts');
+const concept = assertClosedObject(resolveSchema(concepts.items), 'Brain knowledge concept projection');
+required(concept, 'conceptRef', 'label', 'summary', 'contentClasses', 'sections', 'provenanceRefs');
+nonBlankStringProperty(concept, 'conceptRef', 'Brain knowledge conceptRef');
+nonBlankStringProperty(concept, 'label', 'Brain knowledge concept label');
+nonBlankStringProperty(concept, 'summary', 'Brain knowledge concept summary');
+const contentClasses = arrayProperty(concept, 'contentClasses', 'Brain knowledge concept contentClasses');
+if ((contentClasses.minItems ?? 0) < 1 || contentClasses.uniqueItems !== true) throw new Error('Brain knowledge contentClasses must be non-empty and unique');
+exactEnum(resolveSchema(contentClasses.items), ['SEMANTIC', 'KNOWLEDGE', 'EVIDENCE_SPEC'], 'Brain knowledge content class');
+const sections = arrayProperty(concept, 'sections', 'Brain knowledge concept sections');
+if ((sections.minItems ?? 0) < 1) throw new Error('Brain knowledge concept sections must be non-empty');
+const section = assertClosedObject(resolveSchema(sections.items), 'Brain knowledge section projection');
+required(section, 'kind', 'text');
+exactEnum(property(section, 'kind'), ['DEFINITION', 'BUSINESS_MEANING', 'CALCULATION', 'GRAIN', 'RELATIONSHIPS', 'BUSINESS_RULES', 'CAVEATS', 'VERIFICATION'], 'Brain knowledge section kind');
+nonBlankStringProperty(section, 'text', 'Brain knowledge section text');
+const provenanceRefs = arrayProperty(concept, 'provenanceRefs', 'Brain knowledge concept provenanceRefs');
+if (provenanceRefs.uniqueItems !== true) throw new Error('Brain knowledge concept provenanceRefs must be unique when present');
+if (resolveSchema(provenanceRefs.items)?.type !== 'string' || (resolveSchema(provenanceRefs.items)?.minLength ?? 0) < 1) {
+  throw new Error('Brain knowledge concept provenanceRefs items must be non-blank strings');
 }
 
 // Discovery is read-only over admitted Project source authority. Credentials/arbitrary source selectors/full scans are not caller input.
@@ -166,11 +207,11 @@ if ((property(discoveryBacked, 'humanResolution')?.minLength ?? 0) < 1) throw ne
 for (const forbidden of ['discoveryCandidateRef', 'humanResolution']) {
   if (sourceBacked.properties?.[forbidden]) throw new Error(`BRN-07 source-backed input must not absorb ${forbidden}`);
 }
-for (const forbidden of ['candidateSourceRevision', 'provenanceRefs', 'publish', 'autoPublish', 'approved', 'machineDecision', 'reviewText']) {
+for (const forbidden of ['candidateSourceRevision', 'provenanceRefs', 'publish', 'autoPublish', 'approved', 'machineDecision', 'reviewText', 'knowledgeBrowse']) {
   if (discoveryBacked.properties?.[forbidden]) throw new Error(`BRN-07 Discovery-backed browser input must not accept ${forbidden}`);
 }
 for (const form of [sourceBacked, discoveryBacked]) {
-  for (const forbidden of ['publish', 'autoPublish', 'approved', 'machineDecision', 'reviewText']) {
+  for (const forbidden of ['publish', 'autoPublish', 'approved', 'machineDecision', 'reviewText', 'knowledgeBrowse']) {
     if (form.properties?.[forbidden]) throw new Error(`BRN-07 must never accept presentation/authority shortcut ${forbidden}`);
   }
 }
@@ -178,21 +219,26 @@ if (!hasRequiredParameter('BRN-07', 'header', 'Idempotency-Key')) throw new Erro
 const submittedProposal = assertClosedObject(successSchema('BRN-07', '201'), 'BRN-07 success');
 required(submittedProposal, 'proposalId', 'proposalRevision', 'candidateSourceRevision', 'provenanceRefs', 'hypothesisState', 'reviewState', 'reviewText');
 
-// F06: reviewText is output presentation content only. It never becomes a decision/publication identity or input.
+// F06/F07 projections are output presentation content only. They never become a decision/publication identity or input.
 const decideProposal = assertClosedObject(requestSchema('BRN-08'), 'BRN-08 request');
 required(decideProposal, 'expectedProposalRevision', 'decision');
 exactEnum(property(decideProposal, 'decision'), ['APPROVE', 'REJECT'], 'BRN-08 decision');
-if (decideProposal.properties?.reviewText) throw new Error('BRN-08 must not accept reviewText as decision identity/input');
+for (const forbidden of ['reviewText', 'knowledgeBrowse', 'domainRef', 'conceptRef']) {
+  if (decideProposal.properties?.[forbidden]) throw new Error(`BRN-08 must not accept ${forbidden} as decision identity/input`);
+}
 if (decideProposal.properties?.machineApproved || decideProposal.properties?.confidenceThreshold) {
   throw new Error('BRN-08 must preserve human review authority');
 }
 
 const publish = assertClosedObject(requestSchema('BRN-09'), 'BRN-09 request');
 required(publish, 'candidateSourceRevision');
-if (publish.properties?.reviewText) throw new Error('BRN-09 must not accept reviewText as publication identity/input');
+for (const forbidden of ['reviewText', 'knowledgeBrowse', 'domainRef', 'conceptRef']) {
+  if (publish.properties?.[forbidden]) throw new Error(`BRN-09 must not accept ${forbidden} as publication identity/input`);
+}
 const published = assertClosedObject(successSchema('BRN-09', '201'), 'BRN-09 success');
 required(published, 'brainRevisionId', 'brainDigest', 'sourceRevision', 'availability', 'reviewText');
 nonBlankStringProperty(published, 'reviewText', 'BRN-09 published BrainRevision reviewText');
+if (published.properties?.knowledgeBrowse) throw new Error('BRN-09 publication response must not widen into the F07 exact-detail browse projection');
 if (property(published, 'availability')?.const !== 'AVAILABLE') throw new Error('BRN-09 must produce immutable AVAILABLE revision, not live adoption');
 
 // Brain operational health has an accepted exact state vocabulary and never mutates immutable Brain content.
@@ -224,4 +270,4 @@ for (const forbidden of ['rawSql', 'executedSql', 'physicalTable', 'credential']
   if (analyticResult.properties?.[forbidden]) throw new Error(`BRN-12 response must not expose physical/secret authority ${forbidden}`);
 }
 
-console.log('Brain schema closure passed (11 Product operations; F05 proposal intake + F06 exact-source review content closed; BRN-11 remains owner transition; publication/health/AnalyticQuery boundaries closed).');
+console.log('Brain schema closure passed (11 Product operations; F05 proposal intake + F06 exact-source review content + F07 exact-revision structured knowledge browse closed; BRN-11 remains owner transition; publication/health/AnalyticQuery boundaries closed).');
