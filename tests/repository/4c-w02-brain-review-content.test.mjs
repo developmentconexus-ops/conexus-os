@@ -81,6 +81,6 @@ test('selected F06 realization makes exact Brain detail reads human-reviewable w
   requireText(publish, 'required: [candidateSourceRevision]', 'F06-B BRN-09 publication subject must remain candidateSourceRevision')
   if (publish.includes('reviewText:')) throw new Error('F06-B reviewText must never become BRN-09 publication input')
 
-  requireText(roadmap, 'F06 OPERATOR ACCEPTED', 'roadmap must project the accepted F06 decision')
-  requireText(roadmap, 'F06 SELECTED REALIZATION RED', 'roadmap must expose selected-realization TDD before authority recompile')
+  requireText(roadmap, 'F06 OPERATOR ACCEPTED', 'roadmap must preserve accepted F06 decision')
+  requireText(roadmap, 'F06 GREEN', 'roadmap must project F06 as GREEN after the bounded 4A/4B recompile')
 })
