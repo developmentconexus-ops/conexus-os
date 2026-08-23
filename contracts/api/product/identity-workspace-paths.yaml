@@ -38,17 +38,7 @@ paths:
                   projects:
                     type: array
                     items:
-                      type: object
-                      additionalProperties: false
-                      required: [projectId, workspaceId, name]
-                      properties:
-                        projectId: { type: string, minLength: 1 }
-                        workspaceId: { type: string, minLength: 1 }
-                        name:
-                          type: string
-                          minLength: 1
-                          pattern: '.*\S.*'
-                          description: Human-readable Project identity; presentation-only and never authorization.
+                      $ref: './project-paths.yaml#/components/schemas/ProjectSummary'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
 
@@ -83,23 +73,28 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [externalSubject]
+              required: [externalSubject, displayName]
               properties:
                 externalSubject:
                   type: string
                   minLength: 1
                   description: Stable subject from the single server-pinned configured authentication issuer; caller cannot select issuer/provider authority.
+                displayName:
+                  type: string
+                  minLength: 1
+                  pattern: '.*\S.*'
+                  description: Required Conexus-owned human presentation for this Account; never authentication identity or authorization.
+                email:
+                  type: string
+                  format: email
+                  description: Optional human presentation/contact value; never Account identity or authorization.
       responses:
         '201':
-          description: Conexus Account provisioned or the same admitted intake resolved to its already-created Account.
+          description: Conexus Account provisioned or the same admitted intake resolved to its already-created Account; Account presentation is returned without exposing provider authorization state.
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: false
-                required: [accountId]
-                properties:
-                  accountId: { type: string, minLength: 1 }
+                $ref: '#/components/schemas/AccountSummary'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
@@ -111,11 +106,7 @@ paths:
 
   /api/control/workspaces/{workspaceId}/members:
     parameters:
-      - name: workspaceId
-        in: path
-        required: true
-        description: Untrusted reference only; current containment and disclosure are resolved server-side.
-        schema: { type: string, minLength: 1 }
+      - $ref: '#/components/parameters/WorkspaceId'
     get:
       summary: ListWorkspaceMembers
       operationId: ListWorkspaceMembers
@@ -125,7 +116,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Current disclosable Workspace members.
+          description: Current disclosable Workspace members with bounded human presentation from I&A; labels never confer authority.
           content:
             application/json:
               schema:
@@ -136,11 +127,7 @@ paths:
                   items:
                     type: array
                     items:
-                      type: object
-                      additionalProperties: false
-                      required: [accountId]
-                      properties:
-                        accountId: { type: string, minLength: 1 }
+                      $ref: '#/components/schemas/AccountSummary'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
@@ -148,18 +135,46 @@ paths:
         '404':
           $ref: './openapi.yaml#/components/responses/Problem404'
 
+  /api/control/workspaces/{workspaceId}/membership-candidates:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      summary: ListWorkspaceMembershipCandidates
+      operationId: ListWorkspaceMembershipCandidates
+      x-conexus-4a-id: IAM-18
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      parameters:
+        - name: query
+          in: query
+          required: false
+          description: Optional human lookup text over server-owned Account presentation. It is never Account identity or authorization input.
+          schema:
+            type: string
+            minLength: 1
+        - name: pageToken
+          in: query
+          required: false
+          description: Opaque continuation for the same currently admitted candidate-disclosure query.
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Existing Accounts currently disclosable as membership candidates for this exact Workspace access-administration context; inclusion is server-resolved and does not itself establish membership.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountSummaryPage'
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+
   /api/control/workspaces/{workspaceId}/members/{accountId}:
     parameters:
-      - name: workspaceId
-        in: path
-        required: true
-        description: Untrusted reference only; current containment and authority are resolved server-side.
-        schema: { type: string, minLength: 1 }
-      - name: accountId
-        in: path
-        required: true
-        description: Untrusted reference only; current containment and authority are resolved server-side.
-        schema: { type: string, minLength: 1 }
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AccountId'
     put:
       summary: AddWorkspaceMember
       operationId: AddWorkspaceMember
@@ -187,6 +202,28 @@ paths:
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
         '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
 
+  /api/control/workspaces/{workspaceId}/members/{accountId}/access:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      summary: GetWorkspaceMemberAccess
+      operationId: GetWorkspaceMemberAccess
+      x-conexus-4a-id: IAM-19
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: Exact current Workspace-member access projection. I&A derives effective Project access and preserves every contributing DIRECT/AREA source; the caller/browser never computes authorization from local joins.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceMemberAccess'
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+
   /api/control/projects/{projectId}/account-grants/{accountId}:
     parameters:
       - name: projectId
@@ -194,11 +231,7 @@ paths:
         required: true
         description: Untrusted reference only; current containment and authority are resolved server-side.
         schema: { type: string, minLength: 1 }
-      - name: accountId
-        in: path
-        required: true
-        description: Untrusted reference only; current containment and authority are resolved server-side.
-        schema: { type: string, minLength: 1 }
+      - $ref: '#/components/parameters/AccountId'
     put:
       summary: GrantAccountProjectAccess
       operationId: GrantAccountProjectAccess
@@ -228,21 +261,9 @@ paths:
 
   /api/control/workspaces/{workspaceId}/areas/{areaId}/members/{accountId}:
     parameters:
-      - name: workspaceId
-        in: path
-        required: true
-        description: Untrusted reference only; current containment and authority are resolved server-side.
-        schema: { type: string, minLength: 1 }
-      - name: areaId
-        in: path
-        required: true
-        description: Untrusted reference only; current containment and authority are resolved server-side.
-        schema: { type: string, minLength: 1 }
-      - name: accountId
-        in: path
-        required: true
-        description: Untrusted reference only; current containment and authority are resolved server-side.
-        schema: { type: string, minLength: 1 }
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AreaId'
+      - $ref: '#/components/parameters/AccountId'
     put:
       summary: AddAreaMember
       operationId: AddAreaMember
@@ -270,6 +291,28 @@ paths:
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
         '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
 
+  /api/control/workspaces/{workspaceId}/areas/{areaId}/access:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AreaId'
+    get:
+      summary: GetAreaAccess
+      operationId: GetAreaAccess
+      x-conexus-4a-id: IAM-20
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: Exact current Area access projection containing human member summaries and currently granted Project summaries; it grants no Project content authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AreaAccess'
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+
   /api/control/projects/{projectId}/area-grants/{areaId}:
     parameters:
       - name: projectId
@@ -277,11 +320,7 @@ paths:
         required: true
         description: Untrusted reference only; current containment and authority are resolved server-side.
         schema: { type: string, minLength: 1 }
-      - name: areaId
-        in: path
-        required: true
-        description: Untrusted reference only; current containment and authority are resolved server-side.
-        schema: { type: string, minLength: 1 }
+      - $ref: '#/components/parameters/AreaId'
     put:
       summary: GrantAreaProjectAccess
       operationId: GrantAreaProjectAccess
@@ -384,11 +423,7 @@ paths:
         required: true
         description: Untrusted reference only; current Project/app administration scope is resolved server-side.
         schema: { type: string, minLength: 1 }
-      - name: accountId
-        in: path
-        required: true
-        description: Untrusted reference only; current grant subject and authority are resolved server-side.
-        schema: { type: string, minLength: 1 }
+      - $ref: '#/components/parameters/AccountId'
     put:
       summary: SetPublishedAppAccess
       operationId: SetPublishedAppAccess
@@ -504,11 +539,7 @@ paths:
 
   /api/control/workspaces/{workspaceId}:
     parameters:
-      - name: workspaceId
-        in: path
-        required: true
-        description: Untrusted reference only; current containment and disclosure are resolved server-side.
-        schema: { type: string, minLength: 1 }
+      - $ref: '#/components/parameters/WorkspaceId'
     get:
       summary: GetWorkspace
       operationId: GetWorkspace
@@ -537,11 +568,7 @@ paths:
 
   /api/control/workspaces/{workspaceId}/areas:
     parameters:
-      - name: workspaceId
-        in: path
-        required: true
-        description: Untrusted reference only; current containment and authority are resolved server-side.
-        schema: { type: string, minLength: 1 }
+      - $ref: '#/components/parameters/WorkspaceId'
     get:
       summary: ListAreas
       operationId: ListAreas
@@ -549,9 +576,10 @@ paths:
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
+      x-conexus-authority-routes: [workspace.manage, workspace.access.manage]
       responses:
         '200':
-          description: Current disclosable Areas in the exact Workspace.
+          description: Current disclosable Area summaries in the exact Workspace. Under workspace.access.manage this is access-administration summary disclosure only and grants no Workspace structure mutation authority.
           content:
             application/json:
               schema:
@@ -562,11 +590,7 @@ paths:
                   items:
                     type: array
                     items:
-                      type: object
-                      additionalProperties: false
-                      required: [areaId]
-                      properties:
-                        areaId: { type: string, minLength: 1 }
+                      $ref: '#/components/schemas/AreaSummary'
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
@@ -579,18 +603,161 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       parameters:
         - $ref: './openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  pattern: '.*\S.*'
+                  description: Required human-readable Area identity fixed at F1 creation; not a grant, unique key, or rename authority.
       responses:
         '201':
-          description: Area created within the exact Workspace.
+          description: Area created within the exact Workspace with human presentation identity.
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: false
-                required: [areaId]
-                properties:
-                  areaId: { type: string, minLength: 1 }
+                $ref: '#/components/schemas/AreaSummary'
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
         '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
+        '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
+
+components:
+  parameters:
+    WorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      description: Untrusted Workspace reference only; current containment, disclosure and authority are resolved server-side.
+      schema: { type: string, minLength: 1 }
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      description: Untrusted Account reference only; current identity, containment, disclosure and authority are resolved server-side.
+      schema: { type: string, minLength: 1 }
+    AreaId:
+      name: areaId
+      in: path
+      required: true
+      description: Untrusted Area reference only; current Workspace containment, disclosure and authority are resolved server-side.
+      schema: { type: string, minLength: 1 }
+  schemas:
+    AccountSummary:
+      type: object
+      additionalProperties: false
+      required: [accountId, displayName]
+      properties:
+        accountId:
+          type: string
+          minLength: 1
+          description: Stable Conexus Account identity; presentation values never replace this identity.
+        displayName:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: I&A-owned human presentation; never authentication or authorization.
+        email:
+          type: string
+          format: email
+          description: Optional presentation/contact data; never Account identity or authorization.
+    AccountSummaryPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountSummary'
+        nextPageToken:
+          type: string
+          minLength: 1
+          description: Opaque continuation for the same admitted membership-candidate query.
+    AreaSummary:
+      type: object
+      additionalProperties: false
+      required: [areaId, name]
+      properties:
+        areaId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable Area identity; presentation-only and never authorization.
+    DirectAccessSource:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind: { const: DIRECT }
+    AreaAccessSource:
+      type: object
+      additionalProperties: false
+      required: [kind, area]
+      properties:
+        kind: { const: AREA }
+        area:
+          $ref: '#/components/schemas/AreaSummary'
+    EffectiveProjectAccess:
+      type: object
+      additionalProperties: false
+      required: [project, sources]
+      properties:
+        project:
+          $ref: './project-paths.yaml#/components/schemas/ProjectSummary'
+        sources:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/DirectAccessSource'
+              - $ref: '#/components/schemas/AreaAccessSource'
+          description: Complete I&A-derived set of current access sources. Multiple sources are preserved rather than collapsed.
+    WorkspaceMemberAccess:
+      type: object
+      additionalProperties: false
+      required: [account, areas, directProjects, effectiveProjects]
+      properties:
+        account:
+          $ref: '#/components/schemas/AccountSummary'
+        areas:
+          type: array
+          items:
+            $ref: '#/components/schemas/AreaSummary'
+        directProjects:
+          type: array
+          items:
+            $ref: './project-paths.yaml#/components/schemas/ProjectSummary'
+        effectiveProjects:
+          type: array
+          items:
+            $ref: '#/components/schemas/EffectiveProjectAccess'
+          description: Current effective access derived by I&A from current direct and Area grant facts; browser-local recomputation is not authority.
+    AreaAccess:
+      type: object
+      additionalProperties: false
+      required: [area, members, projects]
+      properties:
+        area:
+          $ref: '#/components/schemas/AreaSummary'
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountSummary'
+        projects:
+          type: array
+          items:
+            $ref: './project-paths.yaml#/components/schemas/ProjectSummary'
+          description: Current Projects granted through this exact Area; summaries grant no Project content authority.
