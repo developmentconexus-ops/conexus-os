@@ -1,11 +1,11 @@
 # 4C W-01 — Reference Study and Structural Hypotheses
 
 > **Status:** `CANDIDATE EVIDENCE / W-01 4C-6 → 4C-7F / OPERATOR-REVISED / NOT LOCKED`
-> **Block:** `W-01` — Projects + source-complete create / Inception / candidate+approved Baseline
-> **Inherited authority:** `GF-01 H1-R2 = LOCKED`; `4C-F02 = OPERATOR ACCEPTED / GREEN`.
+> **Block:** `W-01` — Projects + source-complete create / Inception / visual candidate+approved Baseline
+> **Inherited authority:** `GF-01 H1-R2 = LOCKED`; `4C-F02 = OPERATOR ACCEPTED / GREEN`; `4C-F03 = OPERATOR ACCEPTED / GREEN`.
 > **Implementation authority:** none.
 
-This record derives only the W-01 structural candidate after the Journey-B authority preflight was corrected and made GREEN. The operator subsequently revised only the Projects collection presentation: the earlier GF-01 simple-card treatment is preferred over the compact list. This direct human Evidence reopens only the W-01 collection hypothesis; it does not add Product operations, Project metadata, backend state, SDK/runtime choices or final visual design.
+This record derives only the W-01 structural candidate. The operator has already approved the Projects cards/grid, focused Project creation/source bootstrap and Inception structure. `4C-F03` reopened only the Baseline-review portion after direct human Evidence established the need for a rich visual candidate, contextual discussion and explicit refinement boundary. No Product implementation, final visual design, SDK/runtime choice or generic review domain is admitted here.
 
 ## 1. Exact human job
 
@@ -16,9 +16,13 @@ OR create one source-complete Project
 → enter exact Project Inception
 → state current business intent
 → run governed investigation over already-admitted source/context
-→ inspect exact candidate Baseline
+→ inspect exact immutable candidate as a human-readable visual projection
+→ select candidate-local context and ask Conexus about that exact candidate
+→ accumulate proposed refinements without mutating authority
+→ explicitly apply feedback when refinement is desired
+→ receive a new exact immutable candidate
 → compare against current approved Baseline when one exists
-→ approve exact candidate digest when satisfied
+→ approve only the exact candidate digest actually reviewed
 ```
 
 Current operation trace:
@@ -26,8 +30,9 @@ Current operation trace:
 ```text
 PRJ-01 browse disclosed Projects
 PRJ-03 source-complete Project creation
-PRJ-07 Inception from human intent + server-resolved source/context
+PRJ-07 Inception from human intent + optional exact-candidate refinement feedback
 PRJ-23 durable exact candidate Baseline review/re-entry
+PRJ-24 exact candidate-bound contextual explanation
 PRJ-08 current approved Baseline read
 PRJ-09 exact candidate digest approval
 ```
@@ -35,7 +40,7 @@ PRJ-09 exact candidate digest approval
 Compact journey shorthand used by this block:
 
 ```text
-PRJ-03 → PRJ-07 → PRJ-23 / PRJ-08 → PRJ-09
+PRJ-03 → PRJ-07 → PRJ-23 / PRJ-24 / PRJ-08 → PRJ-09
 ```
 
 ## 2. Authority facts that constrain structure
@@ -48,21 +53,24 @@ ProjectSummary = projectId + workspaceId + name + archived
 
 Therefore W-01 has no authority to decorate the collection with release state, recent activity, framework/runtime, setup progress, source provider, ownership metadata or other inferred metadata. A card is presentation only; it does not create a richer Project summary model.
 
-Current creation truth is closed:
+Current creation truth:
 
 ```text
 sourceBootstrap.mode = NEW | EXISTING_GIT
 EXISTING_GIT → repositoryLocator
 ```
 
-Current Inception truth is closed:
+Current Inception/refinement truth:
 
 ```text
 intent = required non-blank human input
 source choice = already admitted / server-resolved
+optional refinement = priorCandidateBaselineDigest + reviewFeedback together
+Candidate A remains immutable
+successful refinement → new immutable Candidate B
 ```
 
-Current Baseline truth is closed:
+Current Baseline truth:
 
 ```text
 candidate = exact unapproved ProjectBaselineCandidate
@@ -70,21 +78,42 @@ approved  = exact current ApprovedBaseline
 candidateBaselineDigest != approved baselineDigest by semantic role
 ```
 
-The browser may use the exact candidate digest as `URL_NAVIGATION` so refresh/re-entry can resolve `PRJ-23`; browser state never becomes candidate authority.
+Current contextual-review truth:
+
+```text
+PRJ-24 subject = exact Project + candidateBaselineDigest
+question = required non-blank human input
+optional reviewContext = generated candidate-local presentation context only
+answer = read-only + provenance
+```
+
+The browser may use the exact candidate digest as `URL_NAVIGATION` so refresh/re-entry can resolve `PRJ-23`. Generated visual anchors, selected rendered text, HTML/DOM state, local refinement drafts and conversational memory never become candidate or Project authority.
 
 ## 3. Bounded reference + human Evidence
 
-Current official product references were reviewed only for the same human task: locating Projects and starting a new Project from new/existing source. They support keeping source establishment inside a focused creation path rather than turning the Projects collection into an onboarding surface. They do not authorize Conexus metadata.
+For the Projects collection, direct operator Evidence prefers the simple GF-01-style cards/grid while preserving only `ProjectSummary` truth.
 
-The stronger current structural Evidence is the operator revision:
+For Baseline review, Lavish was evaluated as a reference for collaboration properties, not as Conexus architecture. The useful properties are:
 
 ```text
-earlier GF-01 fixture presentation = simple Project cards/grid
-operator preference                = preserve that simpler Project recognition model
-truth boundary                     = PRJ-01 name + archived only
+rich portable visual artifact
+precise selected-context discussion
+conversation beside the artifact
+feedback queue before agent action
+live re-projection after the canonical source changes
 ```
 
-The operator revision is a presentation preference, not Product authority. Therefore the Global-Maximum/YAGNI response is the smallest card that improves recognition without adding filler fields.
+Rejected as Conexus Product authority:
+
+```text
+HTML/DOM as canonical truth
+file-path session identity
+local CLI/server/polling as Product boundary
+review/comment/session CRUD
+browser edit mutates Baseline
+```
+
+Mastra Agent/streaming/thread mechanics are viable future cognition/runtime mechanisms, but P8 must not claim them as implemented or authoritative.
 
 ## 4. Project collection hypotheses
 
@@ -107,15 +136,15 @@ All | Active | Archived local view filter
 └──────────────────────────┘  └──────────────────────────┘
 ```
 
-Why leading after operator revision:
-- matches direct operator recognition preference from the earlier GF-01 fixture;
+Why leading:
+- matches direct operator recognition preference;
 - gives each Project a simple spatial target without implying a richer comparison model;
-- remains fully truthful with sparse `ProjectSummary` authority because each card contains only name, derived Active/Archived presentation and navigation;
-- keeps `Create Project` visually distinct from browsing existing Projects;
-- allows two-column desktop scanning and one-column narrow reflow without horizontal scrolling;
-- YAGNI forbids adding secondary card content merely to fill space.
+- contains only name, derived Active/Archived presentation and navigation;
+- keeps `Create Project` distinct from browsing existing Projects;
+- reflows from two columns to one without horizontal scrolling;
+- YAGNI forbids filler fields.
 
-Local name/archive filtering remains `LOCAL_UI` over the already-disclosed `PRJ-01` result. It is not Product/global search.
+Local name/archive filtering remains `LOCAL_UI` over the disclosed `PRJ-01` result, never Product/global search.
 
 ### H1 — compact structured Project list
 
@@ -123,7 +152,7 @@ Local name/archive filtering remains `LOCAL_UI` over the already-disclosed `PRJ-
 structured list = REJECTED AS LEADING
 ```
 
-The list remains authority-safe and scale-efficient, but direct operator Evidence prefers the simpler card recognition model for the current Product experience. It remains a bounded fallback if later real scale/scan Evidence falsifies the card representation; it is not the current W-01 candidate.
+Authority-safe and scale-efficient, but not the operator-preferred current presentation. It remains a fallback only if later scale Evidence falsifies cards.
 
 ### H3 — dense Project table
 
@@ -131,15 +160,17 @@ The list remains authority-safe and scale-efficient, but direct operator Evidenc
 dense table = REJECTED AS LEADING
 ```
 
-Only `name` and `archived` are materially displayable now. Column/header chrome would imply a comparison model richer than current authority and carries greater responsive cost for no information gain.
+Only `name` and `archived` are materially displayable now; table chrome would imply a richer comparison model for no information gain.
 
 ## 5. Create / Inception / Baseline composition hypotheses
 
-### C1 — focused create → Project Inception → exact Baseline review — **LEADING / CANDIDATE**
+### C1-R1 — visual Baseline review + contextual refinement — **LEADING / CANDIDATE**
+
+This refines the earlier C1 only at the Baseline-review step. Projects, focused Create Project and Inception remain operator-approved.
 
 ```text
 Workspace / Projects
-→ focused Create Project surface
+→ focused Create Project
    name
    source: NEW | EXISTING_GIT
    EXISTING_GIT → repositoryLocator
@@ -147,36 +178,80 @@ Workspace / Projects
 → exact Project / Inception
    intent
 → PRJ-07
-→ exact candidate Baseline surface
-   candidate digest
-   source revision
-   readable source
-   runtime profile
-   current approved Baseline when available
+→ exact Candidate Baseline review
+   human-readable visual sections
+   generated candidate-local review anchors
+   exact candidate identity available but secondary to human content
+   optional current approved Baseline as comparison truth
+→ select a candidate section/text
+→ contextual Conexus panel over exact Candidate via PRJ-24
+   explanation only
+   proposed refinement can be queued locally
+→ explicit Apply refinements
+   priorCandidateBaselineDigest + reviewFeedback → PRJ-07
+   Candidate A remains immutable
+   new Candidate B is rendered/reviewed
 → PRJ-23 on refresh/re-entry
-→ PRJ-09 approve exact candidate
+→ PRJ-09 approve exact reviewed candidate
 ```
 
-A second investigation is expressed as navigation back to Inception and another `PRJ-07`; W-01 does **not** invent `RejectProjectBaselineCandidate`.
+Structural sketch only:
+
+```text
+┌───────────────────────────────────────────────────────────────┐
+│ Baseline candidate                                           │
+│ Confirm what Conexus understood before building.             │
+│                                                               │
+│ Objective                                                     │
+│ [human-readable candidate section]                    Ask →   │
+│                                                               │
+│ Users                                                         │
+│ [human-readable candidate section]                    Ask →   │
+│                                                               │
+│ Constraints                                                   │
+│ [human-readable candidate section]                    Ask →   │
+│                                                               │
+│ Technical identity ▸ digest / sourceRevision / profile        │
+│                                                               │
+│ [Approve exact candidate]                                     │
+├──────────────────────────────────────────────┬────────────────┤
+│ proposed refinements (when any)              │ Conexus panel  │
+│ [Apply refinements]                          │ exact context   │
+└──────────────────────────────────────────────┴────────────────┘
+```
 
 Why leading:
-- Workspace browse, Project creation and Project-owned Inception remain distinct mental contexts;
-- long-lived candidate review receives a durable URL identity rather than modal/browser cache custody;
-- exact candidate and exact approved truth can be visually distinguished without overloading `PRJ-08`;
-- recoverable errors have enough space for meaningful next action;
-- each step traces directly to accepted owner/wire authority.
+- centers the human decision — “is this what we are building?” — instead of hashes;
+- preserves exact digest/source/runtime identity without making technical fields the primary reading order;
+- reuses the locked GF-01 contextual-assistant seam rather than inventing another global chat IA;
+- visual selection is generated presentation context and cannot mutate authority;
+- conversation remains read-only until the human explicitly queues/refines;
+- one explicit Apply boundary makes Candidate A → Candidate B lineage inspectable;
+- no `RejectProjectBaselineCandidate`, direct Baseline editing, comment/thread owner or hidden workflow is required.
+
+### C1 — focused create → Project Inception → exact Baseline review
+
+The original C1 remains the accepted journey backbone. `C1-R1` supersedes only its Baseline-review presentation/interaction details after `4C-F03`.
 
 ### C2 — one long modal/drawer for create + Inception + approval
 
-**REJECTED AS LEADING.** It compresses a durable journey into transient overlay state, makes refresh/re-entry and recovery fragile, and pressures the client to own progression state.
+**REJECTED AS LEADING.** It compresses a durable journey into transient overlay state and pressures the client to own progression state.
 
 ### C3 — inline Inception inside Workspace Projects collection
 
-**REJECTED AS LEADING.** It mixes Workspace browsing with Project-owned semantic investigation and makes the collection responsible for one selected Project's Inception lifecycle.
+**REJECTED AS LEADING.** It mixes Workspace browsing with Project-owned semantic investigation.
 
 ### C4 — Project card shows setup/progress/release/activity metadata
 
-**REJECTED.** No current `PRJ-01` truth exposes those fields. A card must not manufacture backend truth from frontend presentation preference.
+**REJECTED.** No current `PRJ-01` truth exposes those fields.
+
+### C5 — direct visual editing of candidate source
+
+**REJECTED.** Rendered HTML/DOM is a projection. Direct editing would bypass Inception ownership, exact candidate lineage and the explicit refinement boundary.
+
+### C6 — durable Baseline comments/threads/review session
+
+**REJECTED / YAGNI.** The current human job is closed by local/cognitive draft state + explicit feedback application + immutable regenerated candidate. No independent durable lifecycle consumer exists.
 
 ## 6. Authority-feasibility recheck
 
@@ -185,16 +260,19 @@ Why leading:
 | load Projects | `PRODUCT_READ` | `PRJ-01` | `SERVER` projection/cache only |
 | local name/archive filtering | `LOCAL_UI` | no Product operation | `EPHEMERAL_UI` |
 | open Project | `NAVIGATION` | exact disclosed projectId reference | `URL_NAVIGATION` |
-| start Create Project | `NAVIGATION` / form | no Product operation until submit | `FORM_DRAFT` |
-| create NEW / EXISTING_GIT Project | `PRODUCT_COMMAND` | `PRJ-03` | committed truth = `SERVER`; draft fields = `FORM_DRAFT` |
+| start Create Project | navigation/form | no Product operation until submit | `FORM_DRAFT` |
+| create NEW / EXISTING_GIT Project | `PRODUCT_COMMAND` | `PRJ-03` | committed truth = `SERVER`; draft = `FORM_DRAFT` |
 | state Inception intent | form | no Product operation until submit | `FORM_DRAFT` |
-| run Inception | `PRODUCT_COMMAND` / proof | `PRJ-07` | result = `SERVER` |
-| open candidate by digest | `NAVIGATION` + `PRODUCT_READ` | `PRJ-23` | digest = `URL_NAVIGATION`; candidate = `SERVER` |
+| run first Inception | `PRODUCT_COMMAND` / proof | `PRJ-07` | result = `SERVER` |
+| open candidate by digest | navigation + `PRODUCT_READ` | `PRJ-23` | digest = `URL_NAVIGATION`; candidate = `SERVER` |
+| select visual candidate context | `LOCAL_UI` | no Product operation | generated/ephemeral candidate-local presentation context |
+| ask about exact candidate | `PRODUCT_READ` / assistant interaction | `PRJ-24` | candidate/answer = `SERVER`; panel draft/history may be local/cognitive |
+| queue proposed refinement | `LOCAL_UI` / form draft | no Product operation | `FORM_DRAFT` / `EPHEMERAL_UI` |
+| apply explicit feedback | `PRODUCT_COMMAND` / proof | `PRJ-07` with exact prior candidate + feedback | new candidate = `SERVER`; prior candidate immutable |
 | read current approved Baseline | `PRODUCT_READ` | `PRJ-08` | `SERVER` |
-| approve candidate | `PRODUCT_COMMAND` / decision | `PRJ-09` | `SERVER`; client never marks approved optimistically |
-| run another investigation | `NAVIGATION` then `PRJ-07` | no candidate reject command | URL/form state only |
+| approve candidate | `PRODUCT_COMMAND` / decision | `PRJ-09` | `SERVER`; never optimistic client truth |
 
-Material negative laws survive:
+Material negative laws:
 
 ```text
 hidden/disabled != authorization
@@ -202,30 +280,37 @@ browser candidate cache != Baseline authority
 CreateProject failure -X-> half-created Project success
 Project card -X-> fabricated setup/release/activity/framework truth
 local filter -X-> global Product search
-candidate review -X-> candidate CRUD/workflow
+candidate visual projection -X-> editable Baseline authority
+chat message -X-> Candidate mutation
+visual anchor / selected text -X-> Product identity
+Mastra/local memory -X-> Baseline truth
+candidate review -X-> candidate/comment/thread CRUD domain
 ```
 
 ## 7. Responsive / accessibility hypothesis
 
 The locked GF-01 single rail remains unchanged.
 
-- desktop: simple card grid uses two columns at the current W-01 content width;
-- narrow viewport: cards reflow to one column, preserving name → state → Open reading/action order;
-- card content is not click-only: each Project retains an explicit `Open` button;
-- filters remain labeled local controls;
-- create/source mode uses radio controls; conditional locator receives an explicit label;
-- Inception `intent` is a labeled textarea;
-- candidate/approved Baselines use headings and labeled definition rows rather than color-only distinction;
-- rail/drawer behavior remains inherited from locked GF-01.
+- desktop Projects grid: two columns; narrow: one column;
+- Project cards retain explicit Open actions;
+- Create/source controls and Inception intent remain labeled;
+- Baseline candidate sections are ordinary keyboard-focusable/selectable review targets, never pointer-only truth;
+- contextual assistant uses the existing GF-01 cooperation seam: side panel/push where space permits, overlay/full-width at narrow viewports;
+- selected context must be named in text, not color-only;
+- panel has explicit close and composer labels;
+- proposed refinements remain visible before Apply;
+- technical candidate identity is inspectable but secondary to the human-readable specification;
+- candidate vs approved truth remains programmatically/textually distinguishable.
 
 ## 8. Current decision boundary
 
 ```text
-H2 simple cards/grid = LEADING / CANDIDATE
-H1 structured list   = REJECTED AS LEADING
-H3 dense table       = REJECTED AS LEADING
-C1 Journey-B         = LEADING / CANDIDATE
-operator LOCKED      = NOT YET
+H2 simple cards/grid                  = OPERATOR APPROVED / preserved
+Create/source bootstrap structure     = OPERATOR APPROVED / preserved
+Inception structure                   = OPERATOR APPROVED / preserved
+C1 Journey-B backbone                 = preserved
+C1-R1 visual Baseline review          = LEADING / CANDIDATE
+operator W-01 LOCKED                  = NOT YET
 ```
 
-Next proof is the bounded HTML/CSS low-fidelity P8 artifact with only the Projects collection representation revised. Only operator visual adjudication may set W-01 `LOCKED`.
+Next proof is the revised bounded HTML/CSS + vanilla-JS P8 artifact changing only the Baseline-review portion. Only operator visual/interactive adjudication may set W-01 `LOCKED`.
