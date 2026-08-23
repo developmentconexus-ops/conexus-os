@@ -1,27 +1,21 @@
 # Conexus OS — Human Context & Resource Presentation Identity Contract
 
-> **Status:** CURRENT / `4C-F01` + `4C-F04` OPERATOR ACCEPTED / BOUNDED 4A PROPERTY AUTHORITY
-> **Scope:** human-readable presentation identity only for the currently proven Workspace, Project and logical Connection consumers.
-> **Operation impact:** none; `N_platform` remains 113.
+> **Status:** CURRENT / `4C-F01` + `4C-F04` + `4C-F11` OPERATOR ACCEPTED / BOUNDED 4A PROPERTY AUTHORITY
+> **Scope:** human-readable presentation identity only for currently proven Workspace, Project, logical Connection, Account and Area consumers.
+> **Operation impact:** `4C-F11` adds three I&A reads; `N_platform=116` after the bounded correction.
 > **Implementation authority:** none.
 
-This contract owns the smallest sustainable Product semantics needed for humans to recognize exact server-owned resources without turning presentation labels into machine identity, routing, authorization, containment or generic metadata authority.
+This contract owns the smallest sustainable Product semantics needed for humans to recognize exact server-owned resources and people without turning presentation labels into machine identity, routing, authorization, containment or generic metadata authority.
 
-`4C-F01` first admitted this property class for Workspace and Project. `4C-F04` later proved the same essential property is required for the existing logical Connection owner after W-02B exposed repeated same-provider Connection instances with no provider-independent human recognition source. The Global-Maximum assessment confirmed the logical Connection owner rather than creating a new presentation domain or frontend heuristic.
+`4C-F01` admitted this property class for Workspace and Project. `4C-F04` proved the same essential property for logical Connection. `4C-F11` now proves that access administration cannot be safe or human-reviewable while Accounts and Areas are exposed only through opaque IDs. The Global-Maximum assessment confirms the existing `iam.account` and Workspace Area owners rather than creating a Person/UserProfile domain, mirroring Keycloak authorization, or inventing frontend identity heuristics.
 
 ## 1. Falsifiers
 
 ### Workspace / Project — `4C-F01`
 
-Current authority already provides stable opaque Workspace/Project identifiers and server-derived disclosure, but humans must recognize which Workspace and Project context they are entering or switching among.
-
-Opaque identifiers alone are not sufficient human presentation identity.
+Opaque identifiers alone are not sufficient human presentation identity for entering or switching Workspace/Project context.
 
 ### Logical Connection — `4C-F04`
-
-Current Connections authority already provides stable `connectionId`, exact owner scope, Connector definition/version, immutable revision identity and non-secret credential-presence truth. It also permits more than one logical Connection in an owner scope without proving one instance per provider.
-
-Therefore:
 
 ```text
 human chooses one logical Connection
@@ -30,46 +24,74 @@ human chooses one logical Connection
 → logical Connection must expose provider-independent human presentation identity
 ```
 
+### Account / Area — `4C-F11`
+
+```text
+human administrator chooses/reviews another Account
++ Workspace membership and Project grants use stable accountId
++ authentication provider attributes are not Conexus authorization authority
+→ iam.account must expose server-owned human presentation
+```
+
+and:
+
+```text
+Area membership / Area→Project grants are real current authority
++ an administrator must understand which Area is being changed
+→ Workspace Area must expose human presentation identity
+```
+
 ## 2. Accepted bounded semantics
 
-The operator accepts these exact presentation-identity properties:
+The operator accepts these presentation properties:
 
 ```text
 Workspace.name
 Project.name
 Connection.name
+Account.displayName
+Account.email?
+Area.name
 ```
 
-Shared law:
+Shared resource-name law for Workspace, Project, Connection and Area:
 
 - required human-readable presentation identity;
 - non-blank string;
-- server-owned and returned only when the underlying resource itself is currently disclosable;
+- server-owned and returned only when the underlying subject is currently disclosable;
 - independent from stable opaque machine identity;
-- never an authorization, containment, routing, slug or uniqueness source;
-- not required to be globally or owner-scope unique by this contract;
-- immutable after creation in F1 because no current rename consumer has been admitted.
+- never authorization, containment, routing, slug or uniqueness authority;
+- immutable after creation in F1 because no current rename consumer is admitted.
+
+Account-specific law:
+
+```text
+accountId = stable Conexus machine identity
+(issuer, subject) = verified authentication mapping
+Account.displayName = required nonblank human presentation
+Account.email = optional human presentation/contact data
+
+displayName != authorization
+email != authorization
+email != stable identity
+Keycloak role/group/organization != Conexus authorization
+```
+
+The I&A owner may retain the accepted verified external identity mapping while storing the bounded Account presentation needed by Conexus Product consumers. Keycloak remains authentication provider, not a second authorization/presentation owner consulted directly by the browser.
 
 Resource-specific machine identities remain authoritative:
 
 ```text
-Workspace.name   != workspaceId
-Project.name     != projectId
-Connection.name  != connectionId
+Workspace.name      != workspaceId
+Project.name        != projectId
+Connection.name     != connectionId
+Area.name           != areaId
+Account.displayName != accountId
 ```
 
-For Connection specifically:
+For Connection specifically, `Connection.name` remains stable across `ConnectionRevision` changes; the revision does not re-own or derive it.
 
-```text
-Connection.name = logical Connection presentation identity
-stable across ConnectionRevision changes
-```
-
-`ConnectionRevision` does not re-own, version or derive the name. Connector/provider identity, provider-specific configuration, external account fields and secret material may never substitute for the canonical logical Connection name.
-
-Exact authorization continues to use server-owned Account/session/membership/grant/owner facts, operation Permissions and stable resource identifiers.
-
-## 3. Creation and duplication
+## 3. Creation / provisioning
 
 ```text
 WS-01 CreateWorkspace
@@ -82,19 +104,25 @@ PRJ-03 CreateProject
 
 PRJ-06 DuplicateProject
 → requires destinationWorkspaceId + explicit destination name
-→ destination name is not silently copied from source Project authority
 
 CON-05 CreateConnection
 → requires explicit name
-→ establishes one logical Connection with stable human presentation identity
 → returns canonical Connection including name
+
+IAM-03 ProvisionAccount
+→ requires externalSubject + displayName
+→ accepts optional email
+→ returns canonical AccountSummary
+→ caller cannot select issuer/provider authority
+
+WS-05 CreateArea
+→ requires explicit nonblank name
+→ returns AreaSummary
 ```
 
-An implementation may suggest a local default, but the admitted create command must carry the explicit `name` selected for the new resource. No source/provider/configuration field becomes hidden presentation-identity authority.
+`IAM-03` presentation input does not replace the stable external identity key and does not create profile-update authority. Area naming does not resurrect generic `WS-06 UpdateArea`.
 
 ## 4. Required read projection
-
-Current generated wire must make the accepted human identity available through the canonical resource projections.
 
 Workspace / Project:
 
@@ -117,16 +145,27 @@ Logical Connection:
 
 ```text
 CON-03 ListConnections
-  → each canonical Connection includes connectionId + name
-
 CON-04 GetConnection
-  → canonical Connection includes connectionId + name
-
 CON-05 CreateConnection
-  → created canonical Connection includes connectionId + name
+→ canonical Connection includes connectionId + name
 ```
 
-Any response already defined in terms of the same canonical representation inherits that representation; this does not create parallel DTO authority.
+Account / Area access administration:
+
+```text
+IAM-04 ListWorkspaceMembers
+IAM-18 ListWorkspaceMembershipCandidates
+IAM-19 GetWorkspaceMemberAccess
+IAM-20 GetAreaAccess
+→ AccountSummary = accountId + displayName + email?
+
+WS-04 ListAreas
+IAM-19 GetWorkspaceMemberAccess
+IAM-20 GetAreaAccess
+→ AreaSummary = areaId + name
+```
+
+Any response already defined in terms of the same canonical summary representation inherits that representation; this does not create parallel DTO authority.
 
 ## 5. Explicit non-authority
 
@@ -135,35 +174,37 @@ These presentation identities do **not** admit:
 ```text
 WS-03 UpdateWorkspace
 PRJ-04 UpdateProject
+WS-06 UpdateArea
 RenameWorkspace
 RenameProject
 RenameConnection
+RenameArea
+UpdateAccountProfile
 UpdateConnectionMetadata
 generic metadata/settings patch
 name uniqueness semantics
 name-derived routing
 name-derived authorization
+email-derived authorization
+email as Account identity
 slug/URL authority derived from name
 frontend-owned ID→name registry
+frontend direct Keycloak directory authority
+Keycloak role/group/org as Conexus grant authority
 repo name as Project Product identity
 provider/configuration-derived fallback Connection identity
-secret/account-derived Connection identity
 ```
 
-`CON-06 ReviseConnection` remains configuration-revision authority only. It cannot rename the logical Connection or move presentation identity into `ConnectionRevision`.
-
-Area semantics remain unchanged. `WS-06 UpdateArea` remains subtracted and no Area name is introduced by this contract.
-
-A future real rename/relabel consumer must reopen only that exact mutation semantic with current-state/concurrency obligations. The existence of creation-time `name` is not rename authority.
+A future real rename/relabel/profile-sync consumer must reopen only that exact mutation semantic with current-state/concurrency obligations.
 
 ## 6. Preservation assertions
 
 ```text
-N_platform                              = 113
+N_platform                              = 116
 N_budget                                = 2
+IAM Product operations                  = 19
 Connections Product operations          = 9
 ordinary Permissions                    = 25
-new Product operations                  = 0
 resurrected generic mutation operations = 0
 new semantic owners                     = 0
 new trust boundaries                    = 0
@@ -171,44 +212,31 @@ new durable record classes              = 0
 Product implementation authority        = 0
 ```
 
-The historical `4B-F01` finding remains correct for the authority that existed when it closed. `4C-F01` and `4C-F04` are later evidence-driven creation/read property additions and do not rewrite that historical Evidence or resurrect generic update APIs.
+The historical `4B-F01` finding remains correct for the authority that existed when it closed. `4C-F11` adds evidence-driven creation/read presentation and three real access-administration reads; it does not resurrect generic update APIs.
 
 ## 7. Global-Maximum disposition
 
-`4C-F04` compared opaque/provider identity, provider-configuration derivation, ConnectorDefinition label derivation, explicit logical Connection identity, rename-now authority and a separate presentation owner.
+For F11 the rejected alternatives were opaque IDs plus UI heuristics, frontend/Keycloak directory ownership, generic Person/UserProfile + RBAC, record-shaped grant CRUD, and one screen-shaped access dashboard.
 
 Accepted outcome:
 
 ```text
-CURRENT STRUCTURE CONFIRMED
-→ logical Connection remains the semantic owner
-→ missing essential property = provider-independent human presentation identity
-→ selected realization = Connection.name
-→ rename = DEFER SAFELY until a real consumer appears
+CURRENT OWNERS CONFIRMED
+→ human Account presentation belongs to iam.account
+→ human Area presentation belongs to Workspace Area
+→ AccountSummary / AreaSummary are bounded server-owned read projections
+→ access composition remains I&A authority
+→ no generic profile/role/group domain
 ```
-
-This is not selected because it is the smallest textual patch. It is selected because it fixes the root defect at the correct existing owner without introducing provider heuristics, duplicate authority or unsupported lifecycle machinery.
 
 ## 8. Recompile obligation
 
-Accepted semantic chains:
-
 ```text
-Workspace/Project presentation identity
-→ current fixed 4B OpenAPI projections
+Account / Area presentation identity
+→ IAM-03 / IAM-04 / IAM-18..20 / WS-04 / WS-05
+→ canonical 4B Identity/Workspace wire
 → generated frontend/server projections
-→ GF-01 / W-01 human recognition
-
-Connection presentation identity
-→ CON-05 + canonical Connection 4B projection
-→ generated frontend/server projections
-→ W-02B human browse/select/create interactions
+→ W-03A human recognition + access review
 ```
 
-Repository proof must preserve exact operation counts, no generic mutation resurrection, write-only Connection secrets, immutable Connection revisions and the distinction:
-
-```text
-configured != qualified != bound != healthy != authorized
-```
-
-Product implementation remains blocked by the Phase-4 program.
+Repository proof must preserve no generic mutation resurrection, Keycloak authentication-provider separation, exact current access authority at I&A, and Product implementation blockade.
