@@ -36,7 +36,7 @@ test('F08 preserves the P9 finding and Global-Maximum decision history', () => {
     'PRJ-01 ListProjects',
     'BRN-04 StartBrainDiscovery',
     'browser projectId remains an untrusted reference',
-    'Source / Connection resolution remains server-owned',
+    'source / Connection resolution remains server-owned',
   ]) requireText(finding, law, `F08 finding missing law: ${law}`)
 
   for (const alternative of [
