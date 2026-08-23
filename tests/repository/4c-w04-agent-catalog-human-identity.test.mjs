@@ -74,7 +74,7 @@ test('selected F13 realization makes Product Agent identity human-reviewable whi
 
 test('selected F13 wire makes PRJ-20/21/22 self-contained for human Agent and owning-Project recognition', () => {
   const wire = read('contracts/api/product/project-paths.yaml')
-  const checker = read('scripts/check-wire-project.mjs')
+  const checker = read('scripts/check-wire-project-agent-catalog.mjs')
 
   const agentStart = wire.indexOf('    ProjectProductAgent:\n')
   const catalogStart = wire.indexOf('    WorkspaceProductAgentCatalogItem:\n', agentStart)
