@@ -1,12 +1,14 @@
 # 4C W-02 — Workspace Brain + Connections Authority-Feasibility Preflight
 
-> **Status:** `W-02 / 4C-7F / AUTHORITY PREFLIGHT`
-> **Inherited baseline:** `GF-01 H1-R2 = LOCKED`; `W-01 C1-R1 = LOCKED`; 4A/4B current authority remains `113↔113` with 25 ordinary Permissions.
+> **Status:** `W-02 / 4C-7F / PREFLIGHT GREEN + 4C-F04 FOLLOW-UP RECOMPILED`
+> **Inherited baseline:** `GF-01 H1-R2 = LOCKED`; `W-01 C1-R1 = LOCKED`; current Product/wire operation topology remains `113↔113` with 25 ordinary Permissions.
 > **Scope:** Workspace Brain and Workspace/Project-scoped Connections human work only. No structural layout, Product implementation, 4D mechanism, SDK/runtime or final visual design is admitted here.
 
 ## 1. Decision question
 
 Can current accepted Product/wire authority support truthful human interaction for Workspace Brain and Connections without inventing an aggregate Settings/resource owner, exposing secret material, conflating proposal with publication, or turning qualification/binding/health into one status?
+
+This preflight answers operation/owner/trust feasibility. Later reference/structural study remains allowed to falsify missing **properties** inside an otherwise correct owner. That happened once in `4C-F04` for logical Connection human presentation identity.
 
 ## 2. Split decision
 
@@ -81,6 +83,8 @@ BRN-12 RunAnalyticQuery = P-02 / NOT W-02
 
 `BRN-11` may produce owner/proof Evidence but is not a caller Product command. `BRN-12` is an analytic consumer over an exact Project + Brain binding + curated dataset and therefore belongs with Project Data/Capabilities/Brain binding in P-02, not Workspace Brain administration/review.
 
+No W-02A Product/owner/Permission gap has been found so far.
+
 ## 4. W-02B — Connections exact authority
 
 Current human-facing operations:
@@ -142,9 +146,33 @@ cross-Workspace share by convenience
 generic Connector/Connection mutation outside admitted fields/revision semantics
 ```
 
+### `4C-F04` follow-up — human Connection identity
+
+The operation/owner/trust preflight was initially sufficient, but reference/structural study then exposed a property-level falsifier:
+
+```text
+multiple same-provider logical Connections are valid
++ Connection had machine/operational identity only
+→ no provider-independent server-owned human recognition source
+```
+
+Global-Maximum analysis confirmed the **existing logical Connection** as the correct owner and rejected provider/configuration heuristics, rename-now machinery and a new presentation domain.
+
+Operator-accepted realization:
+
+```text
+Connection.name
+→ explicit creation-time human presentation identity
+→ canonical Connection read projection
+→ stable across ConnectionRevision changes
+→ no rename authority in current F1
+```
+
+This is a bounded 4A property + 4B projection correction. It does not change the 9-operation Connections topology or the Permission/trust model established by this preflight.
+
 ## 5. Surface / owner fit
 
-Current 4C surface inventory already routes:
+Current 4C surface inventory routes:
 
 ```text
 WS-S04 Brain overview              → BRN-01/02/03/10
@@ -158,6 +186,8 @@ WS-S09 qualification               → CON-08
 
 Project-scoped Connection lifecycle may reuse the Connections owner through `PRJ-S15` later, but W-02B must not turn Workspace placement into universal Workspace ownership. `ownerScope` remains current server truth.
 
+`Connection.name` improves human recognition inside the existing surfaces; it does not create another screen or owner merely because a new property is present.
+
 ## 6. Generic Settings rejection
 
 ```text
@@ -167,7 +197,7 @@ generic Workspace Settings = REJECTED
 Reason:
 
 - Brain semantic review/publication is not generic settings mutation;
-- Connection secret/qualification work is not generic settings mutation;
+- Connection identity/configuration/secret/qualification work is not generic settings mutation;
 - current 4A explicitly lacks generic Workspace/Area metadata update authority after `4B-F01`;
 - grouping consequential owner-specific operations under a generic editor would create screen-shaped authority and obscure Permission differences.
 
@@ -175,10 +205,28 @@ The locked GF-01 rail may expose `Brain` and `Connections` as adjacent Workspace
 
 ## 7. Authority sufficiency / falsifier result
 
-Current exact operation and Permission sets cover the human jobs above without requiring a new Product operation, Permission, owner, principal, durable record class or trust boundary.
+### Initial 4C-7F result
+
+The operation, Permission, owner, principal, durable-record and trust-boundary sets were sufficient. No new operation/Permission/owner was required.
+
+That part remains GREEN.
+
+### Later W-02B reference-study falsifier
+
+The later human-recognition study validly falsified one **property** inside the existing Connection owner. Therefore the old broad statement:
 
 ```text
 4A/4B upstream correction = NOT REQUIRED
+```
+
+is superseded for this exact property only.
+
+Current result:
+
+```text
+operation/Permission/owner/trust correction = NOT REQUIRED
+Connection human presentation property      = 4C-F04 OPERATOR ACCEPTED
+exact 4B Connection projection             = RECOMPILE REQUIRED
 ```
 
 No current falsifier shows that a human must:
@@ -188,18 +236,19 @@ No current falsifier shows that a human must:
 - read back a Connection secret;
 - use a Connection merely because it is qualified;
 - mutate generic Workspace settings;
-- merge Brain and Connections lifecycle under one Product owner.
+- merge Brain and Connections lifecycle under one Product owner;
+- rename a Connection after creation.
 
-If later structural work demonstrates such a need, stop and reopen only the exact owner rather than hiding it in frontend state.
+If later structural work demonstrates such a need, stop and reopen only the exact owner/property rather than hiding it in frontend state.
 
 ## 8. Client-state boundaries carried into hypotheses
 
 Likely state classes remain sufficient:
 
 ```text
-SERVER        → Brain/revision/proposal/health/Connection/qualification truth
+SERVER        → Brain/revision/proposal/health/Connection/qualification truth, including Connection.name
 URL_NAVIGATION→ exact revision/proposal/Connection/Connector subjects where route identity is material
-FORM_DRAFT    → proposal text, Connection configuration draft, credential input before submit
+FORM_DRAFT    → proposal text, Connection name/configuration draft, credential input before submit
 EPHEMERAL_UI  → tabs/filtering/expanded detail/local selection
 ```
 
@@ -211,7 +260,7 @@ A secret field is transient form input; it must not become cached/server-read Pr
 reference study = TRIGGERED
 ```
 
-Both sub-blocks are structurally ambiguous/high-impact enough to justify bounded current references before hypotheses:
+Both sub-blocks are structurally ambiguous/high-impact enough to justify bounded current references before hypotheses.
 
 ### W-02A Brain study questions
 
@@ -223,7 +272,8 @@ Both sub-blocks are structurally ambiguous/high-impact enough to justify bounded
 
 - how mature integration platforms separate connector definition, logical connection/configuration, credential entry, qualification/test and downstream use/binding;
 - how write-only credential UX communicates update success without readback;
-- how to present qualification/current-revision status without flattening configured/qualified/bound/healthy/authorized semantics.
+- how to present qualification/current-revision status without flattening configured/qualified/bound/healthy/authorized semantics;
+- how a stable human Connection name and provider-specific secondary facts should cooperate without configuration becoming identity authority.
 
 Reference observations remain Evidence only. They cannot add Conexus Product meaning, provider-specific Product vocabulary or new operations.
 
@@ -250,4 +300,4 @@ shared review framework generalized from Baseline + Brain before repeated locked
 4D SDK/runtime/package decisions
 ```
 
-No structural candidate is selected by this preflight. The next stage is bounded reference study, then competing hypotheses only where the studies preserve genuine ambiguity.
+No structural candidate is selected by this preflight. After F04 recompilation is GREEN, continue bounded reference/hypothesis work rather than reopening Product by taste.
