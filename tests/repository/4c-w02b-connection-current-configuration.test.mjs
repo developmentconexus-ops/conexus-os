@@ -33,7 +33,7 @@ test('F09 preserves the Connection current-configuration finding and Global-Maxi
     'F09 = OPEN / MATERIAL W-02B P7 FINDING',
     'currentRevisionId',
     'current non-secret configuration',
-    'credential material is never part of this read',
+    'Credential material is never part of this read',
     'configured != qualified != bound != healthy != caller-authorized',
   ]) requireText(finding, law, `F09 finding missing law: ${law}`)
 
