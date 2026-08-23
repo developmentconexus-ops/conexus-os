@@ -1,11 +1,11 @@
 # 4C W-01 — Reference Study and Structural Hypotheses
 
-> **Status:** `CANDIDATE EVIDENCE / W-01 4C-6 → 4C-7F / OPERATOR-REVISED / NOT LOCKED`
+> **Status:** `LOCKED EVIDENCE / W-01 4C-6 → 4C-8 / OPERATOR APPROVED`
 > **Block:** `W-01` — Projects + source-complete create / Inception / visual candidate+approved Baseline
 > **Inherited authority:** `GF-01 H1-R2 = LOCKED`; `4C-F02 = OPERATOR ACCEPTED / GREEN`; `4C-F03 = OPERATOR ACCEPTED / GREEN`.
 > **Implementation authority:** none.
 
-This record derives only the W-01 structural candidate. The operator has already approved the Projects cards/grid, focused Project creation/source bootstrap and Inception structure. `4C-F03` reopened only the Baseline-review portion after direct human Evidence established the need for a rich visual candidate, contextual discussion and explicit refinement boundary. No Product implementation, final visual design, SDK/runtime choice or generic review domain is admitted here.
+This record derives the W-01 structural baseline. The operator approved the Projects cards/grid, focused Project creation/source bootstrap and Inception structure, then approved `C1-R1` after the revised Baseline-review candidate survived independent Fable challenge with zero material findings and Lead adjudication required zero corrections. No Product implementation, final visual design, SDK/runtime choice or generic review domain is admitted here.
 
 ## 1. Exact human job
 
@@ -117,10 +117,10 @@ Mastra Agent/streaming/thread mechanics are viable future cognition/runtime mech
 
 ## 4. Project collection hypotheses
 
-### H2 — simple Project cards/grid — **LEADING / CANDIDATE**
+### H2 — simple Project cards/grid — **LOCKED / OPERATOR APPROVED**
 
 ```text
-cards/grid = LEADING / CANDIDATE
+cards/grid = LOCKED / OPERATOR APPROVED
 ```
 
 Structure:
@@ -136,7 +136,7 @@ All | Active | Archived local view filter
 └──────────────────────────┘  └──────────────────────────┘
 ```
 
-Why leading:
+Why selected:
 - matches direct operator recognition preference;
 - gives each Project a simple spatial target without implying a richer comparison model;
 - contains only name, derived Active/Archived presentation and navigation;
@@ -164,7 +164,7 @@ Only `name` and `archived` are materially displayable now; table chrome would im
 
 ## 5. Create / Inception / Baseline composition hypotheses
 
-### C1-R1 — visual Baseline review + contextual refinement — **LEADING / CANDIDATE**
+### C1-R1 — visual Baseline review + contextual refinement — **LOCKED / OPERATOR APPROVED**
 
 This refines the earlier C1 only at the Baseline-review step. Projects, focused Create Project and Inception remain operator-approved.
 
@@ -220,7 +220,7 @@ Structural sketch only:
 └──────────────────────────────────────────────┴────────────────┘
 ```
 
-Why leading:
+Why selected:
 - centers the human decision — “is this what we are building?” — instead of hashes;
 - preserves exact digest/source/runtime identity without making technical fields the primary reading order;
 - reuses the locked GF-01 contextual-assistant seam rather than inventing another global chat IA;
@@ -305,12 +305,12 @@ The locked GF-01 single rail remains unchanged.
 ## 8. Current decision boundary
 
 ```text
-H2 simple cards/grid                  = OPERATOR APPROVED / preserved
-Create/source bootstrap structure     = OPERATOR APPROVED / preserved
-Inception structure                   = OPERATOR APPROVED / preserved
-C1 Journey-B backbone                 = preserved
-C1-R1 visual Baseline review          = LEADING / CANDIDATE
-operator W-01 LOCKED                  = NOT YET
+H2 simple cards/grid                  = LOCKED / OPERATOR APPROVED
+Create/source bootstrap structure     = LOCKED / OPERATOR APPROVED
+Inception structure                   = LOCKED / OPERATOR APPROVED
+C1 Journey-B backbone                 = LOCKED / preserved
+C1-R1 visual Baseline review          = LOCKED / OPERATOR APPROVED
+operator W-01 LOCKED                  = YES
 ```
 
-Next proof is the revised bounded HTML/CSS + vanilla-JS P8 artifact changing only the Baseline-review portion. Only operator visual/interactive adjudication may set W-01 `LOCKED`.
+P9 exact vertical trace and P10 bounded pattern consolidation are closed in `w01-screen-contract.md`. P11 is not separately triggered. W-01 is now an inherited baseline; the next routed material block is `W-02`.
