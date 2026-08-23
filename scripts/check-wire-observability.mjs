@@ -115,6 +115,13 @@ function assertOpaqueString(schema, label) {
   }
 }
 
+function assertNonblankHumanString(schema, label) {
+  const resolved = resolveSchema(schema);
+  if (!resolved || resolved.type !== 'string' || resolved.minLength !== 1 || typeof resolved.pattern !== 'string') {
+    throw new Error(`${label} must be an explicit non-blank human string`);
+  }
+}
+
 function assertStringEnum(schema, label, exact) {
   const resolved = resolveSchema(schema);
   const actual = [...(resolved?.enum ?? [])].sort();
@@ -156,6 +163,23 @@ function assertOwnerSubject(schema, label) {
     throw new Error(`${label}.kind must remain an owner-issued typed kind, not a universal telemetry lifecycle enum`);
   }
   assertOpaqueString(property(subject, 'ref'), `${label}.ref`);
+  if (subject.properties?.label) throw new Error(`${label} must not inherit AuditSubjectSnapshotRef presentation`);
+  rejectProperties(subject, label, authorityEscapeFields);
+  return subject;
+}
+
+// 4C-F12: immutable audit facts use a dedicated append-time presentation snapshot rather than widening OwnerSubjectRef.
+function assertAuditSubjectSnapshot(schema, label) {
+  const subject = assertClosedObject(schema, label);
+  required(subject, 'kind', 'ref', 'label');
+  const kind = property(subject, 'kind');
+  if (kind?.type !== 'string' || kind?.enum || kind?.minLength !== 1) {
+    throw new Error(`${label}.kind must remain exact owner-issued subject class`);
+  }
+  assertOpaqueString(property(subject, 'ref'), `${label}.ref`);
+  assertNonblankHumanString(property(subject, 'label'), `${label}.label`);
+  const labelDescription = subject.properties?.label?.description ?? '';
+  if (!labelDescription.includes('append-time')) throw new Error(`${label}.label must be immutable append-time presentation Evidence`);
   rejectProperties(subject, label, authorityEscapeFields);
   return subject;
 }
@@ -256,49 +280,59 @@ if (!(usageSummary.description ?? '').includes('missing != zero')) {
   throw new Error('OBS-03 schema must explicitly preserve missing != zero semantics');
 }
 
-// OBS-04: immutable audit list, bounded only by Workspace, optional Project scope and continuation.
+// 4C-F12 / OBS-04: server-side human investigation over the admitted audit set; filters apply before pagination.
 const auditListQuery = resolvedParameters('OBS-04').filter((candidate) => candidate?.in === 'query');
-const allowedAuditQuery = new Set(['projectId', 'pageToken']);
+const allowedAuditQuery = new Set(['from', 'to', 'actorQuery', 'actionQuery', 'projectId', 'pageToken']);
 for (const candidate of auditListQuery) {
   if (!allowedAuditQuery.has(candidate.name)) throw new Error(`OBS-04 must not invent audit query language ${candidate.name}`);
+  if (candidate.required === true) throw new Error(`OBS-04 filter ${candidate.name} must remain optional`);
 }
-const auditProject = parameter('OBS-04', 'query', 'projectId');
-if (auditProject) {
-  if (auditProject.required === true) throw new Error('OBS-04 projectId scope must remain optional');
-  assertOpaqueString(auditProject.schema, 'OBS-04 projectId');
+for (const name of ['from', 'to']) {
+  const candidate = parameter('OBS-04', 'query', name);
+  if (!candidate) throw new Error(`OBS-04 must admit optional ${name} period filter`);
+  const schema = resolveSchema(candidate.schema);
+  if (schema?.type !== 'string' || schema?.format !== 'date-time') throw new Error(`OBS-04 ${name} must be RFC3339 date-time`);
 }
-const auditToken = parameter('OBS-04', 'query', 'pageToken');
-if (auditToken) {
-  if (auditToken.required === true) throw new Error('OBS-04 pageToken must remain optional');
-  assertOpaqueString(auditToken.schema, 'OBS-04 pageToken');
+for (const name of ['actorQuery', 'actionQuery', 'projectId', 'pageToken']) {
+  const candidate = parameter('OBS-04', 'query', name);
+  if (!candidate) throw new Error(`OBS-04 must admit optional ${name}`);
+  assertOpaqueString(candidate.schema, `OBS-04 ${name}`);
 }
+const auditTokenDescription = parameter('OBS-04', 'query', 'pageToken')?.description ?? '';
+const auditResponseDescription = op('OBS-04').responses?.['200']?.description ?? '';
+if (!auditTokenDescription.includes('before pagination') && !auditResponseDescription.includes('before pagination')) {
+  throw new Error('OBS-04 must state that admitted filters are applied before pagination');
+}
+
 const auditPage = assertClosedObject(successSchema('OBS-04'), 'OBS-04 success');
 required(auditPage, 'items');
 const auditItems = property(auditPage, 'items');
 if (auditItems?.type !== 'array' || !auditItems.items) throw new Error('OBS-04 items must be an array');
 const auditSummary = assertClosedObject(auditItems.items, 'OBS-04 AuditRecordSummary');
-required(auditSummary, 'auditRecordId', 'workspaceId', 'actor', 'action', 'subject', 'occurredAt');
+required(auditSummary, 'auditRecordId', 'workspaceId', 'actor', 'action', 'subject', 'occurredAt', 'summary');
 assertOpaqueString(property(auditSummary, 'auditRecordId'), 'OBS-04 auditRecordId');
 assertOpaqueString(property(auditSummary, 'workspaceId'), 'OBS-04 workspaceId');
-assertOwnerSubject(property(auditSummary, 'actor'), 'OBS-04 actor');
-assertOwnerSubject(property(auditSummary, 'subject'), 'OBS-04 subject');
+assertAuditSubjectSnapshot(property(auditSummary, 'actor'), 'OBS-04 actor AuditSubjectSnapshotRef');
+assertAuditSubjectSnapshot(property(auditSummary, 'subject'), 'OBS-04 subject AuditSubjectSnapshotRef');
 const auditAction = property(auditSummary, 'action');
 if (auditAction?.type !== 'string' || auditAction?.enum || auditAction?.minLength !== 1) {
   throw new Error('OBS-04 action must remain owner-issued rather than a universal audit action enum');
 }
+assertNonblankHumanString(property(auditSummary, 'summary'), 'OBS-04 summary');
 rejectProperties(auditSummary, 'OBS-04 AuditRecordSummary', authorityEscapeFields);
 const auditNext = property(auditPage, 'nextPageToken');
 if (auditNext) assertOpaqueString(auditNext, 'OBS-04 nextPageToken');
 
-// OBS-05: exact immutable audit fact; no correction/mutation authority is exposed.
+// 4C-F12 / OBS-05: exact immutable audit fact retains append-time human snapshot + Evidence and no correction authority.
 if (resolvedParameters('OBS-05').some((candidate) => candidate?.in === 'query')) throw new Error('OBS-05 must not invent query controls');
 const audit = assertClosedObject(successSchema('OBS-05'), 'OBS-05 success');
-required(audit, 'auditRecordId', 'workspaceId', 'actor', 'action', 'subject', 'occurredAt', 'evidenceRefs');
+required(audit, 'auditRecordId', 'workspaceId', 'actor', 'action', 'subject', 'occurredAt', 'summary', 'evidenceRefs');
 assertOpaqueString(property(audit, 'auditRecordId'), 'OBS-05 auditRecordId');
 assertOpaqueString(property(audit, 'workspaceId'), 'OBS-05 workspaceId');
-assertOwnerSubject(property(audit, 'actor'), 'OBS-05 actor');
-assertOwnerSubject(property(audit, 'subject'), 'OBS-05 subject');
+assertAuditSubjectSnapshot(property(audit, 'actor'), 'OBS-05 actor AuditSubjectSnapshotRef');
+assertAuditSubjectSnapshot(property(audit, 'subject'), 'OBS-05 subject AuditSubjectSnapshotRef');
 assertStringArray(property(audit, 'evidenceRefs'), 'OBS-05 evidenceRefs');
+assertNonblankHumanString(property(audit, 'summary'), 'OBS-05 summary');
 const auditDetailAction = property(audit, 'action');
 if (auditDetailAction?.type !== 'string' || auditDetailAction?.enum || auditDetailAction?.minLength !== 1) {
   throw new Error('OBS-05 action must remain owner-issued rather than a universal audit action enum');
@@ -310,4 +344,4 @@ for (const id of Object.keys(expected)) {
   if (parameter(id, 'header', 'Idempotency-Key')) throw new Error(`${id} must not expose an idempotency mutation carrier`);
 }
 
-console.log('Observability & Audit schema closure passed (5 operations; non-authoritative telemetry, truthful usage/cost, immutable audit inspection).');
+console.log('Observability & Audit schema closure passed (5 operations; F12 server-side filters before pagination + immutable AuditSubjectSnapshotRef presentation; no telemetry authority inflation).');
