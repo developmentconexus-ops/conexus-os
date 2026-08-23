@@ -48,7 +48,7 @@ human chooses/recognizes exact Project context
 → Brain resolves admitted source / Connection context server-side
 ```
 
-The browser projectId remains an untrusted reference. Source / Connection resolution remains server-owned.
+The browser projectId remains an untrusted reference. source / Connection resolution remains server-owned.
 
 ## 3. Existing sufficient authority
 
