@@ -64,6 +64,14 @@ Rejected/deferred: IDs-only UX; browser Brain-Git access; Builder reuse; generic
 
 Evidence: [F06 finding](evidence/4c/w02-brain-review-content-finding.md) / [Global Maximum](evidence/4c/w02-brain-review-content-global-maximum.md).
 
+Proof:
+
+```text
+F04: #545 inquiry GREEN → #546 selected RED → #552 GREEN
+F05: #555 inquiry GREEN → #559 selected RED → #563 GREEN
+F06: #572 inquiry GREEN → #573 exact-head GREEN
+```
+
 ## Method law
 
 ```text
