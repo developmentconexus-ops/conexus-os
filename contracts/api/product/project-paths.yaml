@@ -13,9 +13,10 @@ paths:
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
+      x-conexus-authority-routes: [project.read, workspace.access.manage]
       responses:
         '200':
-          description: Projects currently disclosable to the caller in the Workspace.
+          description: Projects currently disclosable to the caller in the Workspace. The normal project.read route follows ordinary Project disclosure; the workspace.access.manage route is access-administration summary disclosure only and returns exact contained ProjectSummary identities without granting Project content/source/data/build authority.
           content:
             application/json:
               schema:
