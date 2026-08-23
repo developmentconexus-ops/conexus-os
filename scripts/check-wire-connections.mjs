@@ -116,8 +116,12 @@ for (const field of ['configurationSchema', 'credentialInputSchema']) {
 const ownerScope = parameter('CON-03', 'path', 'ownerScopeKind') ?? parameter('CON-05', 'path', 'ownerScopeKind');
 exactEnum(ownerScope?.schema, ['WORKSPACE', 'PROJECT'], 'Connection ownerScopeKind');
 const create = assertClosedObject(requestSchema('CON-05'), 'CON-05 request');
-required(create, 'connectorDefinitionId', 'connectorVersion', 'configuration');
+required(create, 'name', 'connectorDefinitionId', 'connectorVersion', 'configuration');
 if (!hasRequiredParameter('CON-05', 'header', 'Idempotency-Key')) throw new Error('CON-05 must require Idempotency-Key');
+const createName = property(create, 'name');
+if (createName?.type !== 'string' || createName?.minLength !== 1 || createName?.pattern !== '.*\\S.*') {
+  throw new Error('CON-05 name must be a required non-blank human presentation identity');
+}
 if (property(create, 'configuration')?.['x-conexus-schema-source'] !== 'CONNECTOR_DEFINITION_CONFIGURATION_SCHEMA') {
   throw new Error('CON-05 configuration must be validated by the exact ConnectorDefinition configuration schema');
 }
@@ -125,15 +129,19 @@ for (const forbidden of ['ownerScopeKind', 'ownerId', 'shareWithWorkspaceId', 's
   if (create.properties?.[forbidden]) throw new Error(`CON-05 must not accept ${forbidden}`);
 }
 
-// Logical Connection read exposes current owner/definition/revision facts and only a non-secret credential-presence projection.
+// Logical Connection read exposes server-owned human identity plus current owner/definition/revision facts and only a non-secret credential-presence projection.
 const connection = assertClosedObject(successSchema('CON-04'), 'CON-04 success');
-required(connection, 'connectionId', 'ownerScopeKind', 'ownerId', 'connectorDefinitionId', 'connectorVersion', 'currentRevisionId', 'credentialConfigured');
+required(connection, 'connectionId', 'name', 'ownerScopeKind', 'ownerId', 'connectorDefinitionId', 'connectorVersion', 'currentRevisionId', 'credentialConfigured');
+const connectionName = property(connection, 'name');
+if (connectionName?.type !== 'string' || connectionName?.minLength !== 1 || connectionName?.pattern !== '.*\\S.*') {
+  throw new Error('Connection.name must remain required non-blank server-owned presentation identity');
+}
 exactEnum(property(connection, 'ownerScopeKind'), ['WORKSPACE', 'PROJECT'], 'Connection ownerScopeKind response');
 for (const forbidden of ['credential', 'secret', 'credentialHandle', 'ciphertext', 'accessToken', 'refreshToken', 'overallStatus', 'authorized']) {
   if (connection.properties?.[forbidden]) throw new Error(`CON-04 must not expose ${forbidden}`);
 }
 
-// Revision is immutable/new-revision semantics protected by an explicit current revision, not false cross-resource If-Match.
+// Revision is immutable/new-revision semantics protected by an explicit current revision, not false cross-resource If-Match or hidden rename authority.
 if (op('CON-06')['x-conexus-current-state-carrier'] !== 'EXPLICIT_CURRENT_REVISION') throw new Error('CON-06 must use EXPLICIT_CURRENT_REVISION');
 if (parameter('CON-06', 'header', 'If-Match')) throw new Error('CON-06 must not use cross-resource If-Match');
 const revise = assertClosedObject(requestSchema('CON-06'), 'CON-06 request');
@@ -141,11 +149,12 @@ required(revise, 'expectedCurrentRevisionId', 'configuration');
 if (property(revise, 'configuration')?.['x-conexus-schema-source'] !== 'CONNECTOR_DEFINITION_CONFIGURATION_SCHEMA') {
   throw new Error('CON-06 configuration must be validated by the exact ConnectorDefinition configuration schema');
 }
-for (const forbidden of ['credential', 'secret', 'ownerScopeKind', 'ownerId']) {
+for (const forbidden of ['name', 'credential', 'secret', 'ownerScopeKind', 'ownerId']) {
   if (revise.properties?.[forbidden]) throw new Error(`CON-06 must not accept ${forbidden}`);
 }
 const revision = assertClosedObject(successSchema('CON-06', '201'), 'CON-06 success');
 required(revision, 'connectionId', 'connectionRevisionId', 'connectorDefinitionId', 'connectorVersion');
+if (revision.properties?.name) throw new Error('ConnectionRevision must not re-own logical Connection human identity');
 
 // Secret plaintext is write-only trusted ingress. The response must not provide any read-back body or logical secret handle.
 const credential = assertClosedObject(requestSchema('CON-07'), 'CON-07 request');
@@ -175,4 +184,4 @@ for (const forbidden of ['bound', 'healthy', 'authorized', 'ready', 'credential'
   if (qualification.properties?.[forbidden]) throw new Error(`CON-09 must not collapse/expose ${forbidden}`);
 }
 
-console.log('Connections schema closure passed (9 operations; scope/revision/write-only secret/qualification boundaries closed).');
+console.log('Connections schema closure passed (9 operations; human identity/scope/revision/write-only secret/qualification boundaries closed).');
