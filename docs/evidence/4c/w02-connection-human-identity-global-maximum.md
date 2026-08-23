@@ -1,14 +1,14 @@
 # 4C-F04 — Connection Human Identity Global-Maximum Assessment
 
-> **Status:** `DECISION EVIDENCE / OPERATOR GATE / NOT PRODUCT AUTHORITY`
+> **Status:** `OPERATOR ACCEPTED / CURRENT STRUCTURE CONFIRMED / SELECTED REALIZATION = Connection.name`
 > **Scope:** only the human-recognition defect exposed by W-02B Connections.
-> **Implementation authority:** none.
+> **Implementation authority:** none; this acceptance authorizes bounded 4A→4B contract recompilation only.
 
-This assessment applies the DevelopmentConexus Engineering Method decision core before any 4A/4B correction is admitted.
+This assessment applies the DevelopmentConexus Engineering Method decision core before and during the bounded 4A/4B correction.
 
 ## 1. Evidence
 
-Current canonical `Connection` projects:
+Before F04 recompilation, canonical `Connection` projected:
 
 ```text
 connectionId
@@ -31,7 +31,7 @@ These references prove the human-recognition problem is real in mature integrati
 
 ## 2. Root Cause
 
-The logical Connection owner is structurally sound for lifecycle/configuration/credential/qualification authority, but its current Product representation models machine identity and operational facts without any provider-independent human presentation identity.
+The logical Connection owner is structurally sound for lifecycle/configuration/credential/qualification authority, but its prior Product representation modeled machine identity and operational facts without provider-independent human presentation identity.
 
 The defect class is broader than a missing frontend label:
 
@@ -39,7 +39,7 @@ The defect class is broader than a missing frontend label:
 human must choose one logical Connection
 + same-provider instances are valid
 + provider/configuration/secret cannot be universal identity
-→ frontend has no authoritative recognition source
+→ frontend needs an authoritative recognition source
 ```
 
 A UI-only label, provider-specific heuristic or secret/account-derived fallback would preserve the root cause by creating a second, unstable presentation authority outside the Connection owner.
@@ -92,7 +92,7 @@ Smallest diff, but not a sustainable solution. Same-provider instances remain am
 
 Examples would be host, tenant, database, email or account name. This is not universal across Connector definitions; values can change with revisions; some values may be sensitive; and the frontend would have to invent provider-specific recognition semantics.
 
-This is a Local Maximum inside the existing schema and preserves the root cause.
+This is a Local Maximum inside the prior schema and preserves the root cause.
 
 ### C — ConnectorDefinition-owned label derivation rule
 
@@ -105,13 +105,13 @@ A platform-pack rule could declare which non-secret configuration fields form a 
 - still fails when a connector has no suitable field;
 - creates formatting/fallback mechanics before a second real consumer proves the need.
 
-Prepare this seam later if richer provider-specific summaries are evidenced; do not use it to repair missing logical identity.
+Prepare this seam later if richer provider-specific summaries are evidenced; do not use it to repair logical identity.
 
 ### D — logical Connection owns explicit human presentation identity
 
-**LEADING GLOBAL-MAXIMUM CANDIDATE.**
+**ACCEPTED GLOBAL MAXIMUM.**
 
-Add one provider-independent human presentation property to the existing logical Connection owner. The exact field name is a semantic naming choice; `name` is the current leading spelling because Workspace/Project already use the same bounded presentation-identity concept.
+The existing logical Connection owner receives one provider-independent human presentation property. The selected spelling is `name`, consistent with the already accepted bounded Workspace/Project presentation-identity concept.
 
 Properties:
 
@@ -150,12 +150,13 @@ This duplicates Connection identity/ownership to solve a property that naturally
 CURRENT STRUCTURE CONFIRMED
 → correct owner = logical Connection
 → missing property = provider-independent human presentation identity
+→ selected realization = Connection.name
 → no new domain required
 ```
 
-The Global Maximum is **not** “the smallest patch because it is small.” It is to preserve the existing Connection owner because adversarial comparison does not expose a structural ownership defect, while adding the missing essential property at that owner.
+The Global Maximum is **not** “the smallest patch because it is small.” It preserves the existing Connection owner because adversarial comparison exposed no ownership defect, while adding the missing essential property at that owner.
 
-Current leading realization if operator-admitted:
+Operator-accepted realization:
 
 ```text
 Connection.name
@@ -164,8 +165,6 @@ Connection.name
 → stable across configuration revisions
 → immutable in current F1 authority
 ```
-
-`name` remains a candidate spelling until operator acceptance of this assessment. Finding existence alone does not authorize it.
 
 ## 7. Essential vs Accidental Complexity
 
@@ -185,7 +184,7 @@ Accidental now:
 
 ## 8. YAGNI / Future Cost
 
-The recommended structure removes the known defect without forcing foreseeable rearchitecture.
+The accepted structure removes the known defect without forcing foreseeable rearchitecture.
 
 ```text
 creation-time identity now
@@ -206,14 +205,21 @@ full mutable metadata subsystem now without consumers
 
 ## 9. Proof Strategy
 
-Before realization, prove:
+Selected-realization proof must establish:
 
-1. current Connection representation lacks a provider-independent human recognition source;
-2. same-provider instances are not prohibited;
-3. the selected owner is logical Connection rather than ConnectionRevision/ConnectorDefinition/frontend;
-4. the accepted realization does not add secret readback, routing/auth semantics, generic metadata CRUD or operation-count drift unless separately justified.
+1. `Connection.name` is admitted by current Product human-presentation identity authority;
+2. `CON-05` requires explicit non-blank `name`;
+3. canonical `Connection` reads/projected responses carry `name`;
+4. `CON-06` does not accept `name` and `ConnectionRevision` does not own it;
+5. no secret readback, routing/auth semantics, generic metadata CRUD, new Permission/owner or operation-count drift appears;
+6. whole 4B wire/codegen/adversarial proof remains green.
 
-After operator acceptance, replace the current-state falsifier with an exact selected-realization RED, then recompile 4A → 4B → W-02 and whole-wire proof.
+TDD chain:
+
+```text
+Verify #546 = EXPECTED RED
+→ 58 tests / 56 pass / 2 fail exactly on selected F04 realization before 4A/4B recompilation
+```
 
 ## 10. Reopen Triggers
 
@@ -229,13 +235,11 @@ Reopen this decision if:
 ## 11. Operator decision
 
 ```text
-ACCEPT GLOBAL-MAXIMUM CANDIDATE
-→ admit explicit logical Connection human presentation identity
-→ current leading spelling/realization: Connection.name, creation-time + read projection only
-
-REVISE
-→ change target invariant, owner, or alternative disposition
-
-REJECT
-→ finding remains unresolved; W-02B cannot wireframe a fabricated identity
+OPERATOR ACCEPTED
+→ explicit logical Connection human presentation identity admitted
+→ selected spelling/realization: Connection.name
+→ creation-time + canonical read projection only
+→ rename remains deferred
 ```
+
+This decision authorizes the bounded contract recompile only. It does not authorize Product implementation, W-02B structural lock, 4D, or merge.
