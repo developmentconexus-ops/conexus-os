@@ -30,12 +30,18 @@ paths:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1accounts'
   /api/control/workspaces/{workspaceId}/members:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1members'
+  /api/control/workspaces/{workspaceId}/membership-candidates:
+    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1membership-candidates'
   /api/control/workspaces/{workspaceId}/members/{accountId}:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1members~1{accountId}'
+  /api/control/workspaces/{workspaceId}/members/{accountId}/access:
+    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1members~1{accountId}~1access'
   /api/control/projects/{projectId}/account-grants/{accountId}:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1account-grants~1{accountId}'
   /api/control/workspaces/{workspaceId}/areas/{areaId}/members/{accountId}:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1areas~1{areaId}~1members~1{accountId}'
+  /api/control/workspaces/{workspaceId}/areas/{areaId}/access:
+    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1areas~1{areaId}~1access'
   /api/control/projects/{projectId}/area-grants/{areaId}:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1area-grants~1{areaId}'
   /api/apps/{projectId}/access-context:
