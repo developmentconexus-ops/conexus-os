@@ -1,29 +1,31 @@
 # 4C W-02B — Connections P7/P8 Structural Decision
 
-> **Status:** `P7 OPERATOR APPROVED / P8 CONTEXT-PANEL CANDIDATE / OPERATOR RE-WALKTHROUGH / NOT LOCKED`
+> **Status:** `LOCKED / OPERATOR APPROVED` · P9 EXACT TRACE CLOSED · P10 CONSOLIDATED
 > **Block:** `W-02B — Connections`
 > **Method:** Frontend Product Experience Planning Method v2.2 through the Conexus 4C profile.
-> **Selected hypothesis:** `A — Connection-first browse → focused detail`, refined to a context-preserving Connection panel with inline maintenance.
-> **Authority posture:** interaction Evidence only; no Product implementation or final visual-design authority.
+> **Selected hypothesis:** `A — Connection-first browse → focused detail`, refined and locked as `Connection-first browse → contextual Connection panel` with inline maintenance.
+> **Authority posture:** interaction authority only; no Product implementation or final visual-design authority.
 
 Historical P7 marker preserved: `P7 OPERATOR APPROVED FOR FUNCTIONAL P8 / NOT LOCKED`.
+Historical P7 selected wording preserved: `A — Connection-first browse → focused detail`.
 
-## 1. Structural decision
+## 1. Locked structural decision
 
 ```text
 exact current owner scope
 → Connections collection
 → recognize by Connection.name
 → select one Connection
-→ focused contextual Connection panel
+→ contextual Connection panel over the collection
 → inspect / edit configuration inline
 → inspect / replace credentials inline
 → test / diagnose in the same Connection context
+→ close back to the unchanged collection context
 ```
 
 The logical Connection remains the primary human object. Provider is context, not identity. Hypothesis B (wizard-first) and C (provider-first) remain rejected as root architecture.
 
-The operator's second P8 walkthrough did **not** falsify Connection-first structure. It falsified the navigation cost of expressing routine maintenance as repeated page/task round-trips.
+The operator's second P8 walkthrough did **not** falsify Connection-first structure. It falsified the navigation cost of expressing routine maintenance as repeated page/task round-trips. The exact context-preserving candidate blob was then operated and explicitly approved by the operator.
 
 Binding law remains:
 
@@ -62,7 +64,7 @@ Gateway/runtime health
 → separate runtime truth
 ```
 
-No generic `Connected`, `Active`, `Ready`, `Healthy` or caller-authorization status is inferred.
+No generic lifecycle/health or caller-authorization status is inferred from Connection configuration or qualification.
 
 ## 3. F09 + F10 consequences
 
@@ -141,10 +143,10 @@ B. make Connection cards directly editable
    → rejected: overloads browse/comparison surface and increases accidental-edit risk
 
 C. card browse + broad contextual Connection panel + inline maintenance
-   → SELECTED / OPERATOR APPROVED FOR P8 REVISION
+   → SELECTED / OPERATOR APPROVED
 ```
 
-Selected interaction law:
+Locked interaction law:
 
 ```text
 routine work on one Connection
@@ -158,7 +160,7 @@ routine work on one Connection
 
 The panel is a focused Connection detail surface, not a new semantic owner. The same accepted operations remain responsible for every material read/write.
 
-## 5. Context-preserving P8 human model
+## 5. Locked P8 human model
 
 ```text
 Connections
@@ -277,10 +279,11 @@ Verify #687 = EXPECTED RED
 Verify #688 = SUCCESS
 → context-preserving P8 + existing repository/wire proof GREEN
 
-candidate blob = 421f5b8e08d6e5c96f5a56d8c24123902cbe3fab
+approved candidate blob = 421f5b8e08d6e5c96f5a56d8c24123902cbe3fab
+→ operator walkthrough = APPROVED
 ```
 
-Mechanical GREEN does not set `LOCKED`.
+The approved HTML snapshot remains unchanged after lock. P9/P10 authority is recorded separately in [the locked Screen Contract](w02b-connections-screen-contract.md).
 
 ## 8. Out of block
 
@@ -289,8 +292,8 @@ ProjectConnectionBinding UI semantics
 runtime health monitoring
 Active/Inactive lifecycle
 Connection rename/delete/rollback
-revision history browser
-qualification history/list/pagination
+revision-history browser
+qualification-result list/history/pagination
 background monitoring
 automatic retry
 final visual design
@@ -300,11 +303,23 @@ Product implementation
 
 ## 9. Operator disposition
 
+Historical transition markers are intentionally retained for chronology and old proof guards:
+
 ```text
-Hypothesis A = OPERATOR APPROVED FOR FUNCTIONAL P8
-context-preserving panel direction = OPERATOR APPROVED FOR P8 REVISION
 W-02B = NOT LOCKED
 P8 = NEXT
 ```
 
-`P8 = NEXT` is the preserved historical P7 transition marker. The current gate is **operator walkthrough/adjudication of the new context-preserving P8 candidate**. Only the operator may later authorize `LOCKED`, after which P9/P10 may run.
+Current binding disposition is:
+
+```text
+Hypothesis A = LOCKED
+context-preserving panel direction = LOCKED / OPERATOR APPROVED
+W-02B = LOCKED / OPERATOR APPROVED
+approved P8 blob = 421f5b8e08d6e5c96f5a56d8c24123902cbe3fab
+P9 exact Screen Contract = CLOSED
+P10 graduated shared patterns = 0
+P11 = LATER ASSEMBLED PRODUCT
+```
+
+Only a later material falsifier may reopen the smallest affected W-02B scope. The next material block is `W-03 — People/access + audit`; no 4D or Product implementation authority is implied.
