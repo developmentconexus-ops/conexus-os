@@ -170,6 +170,24 @@ responsive navigation / keyboard-plausible controls
 
 The fixture may mutate deterministic local state to make the flow inspectable. It MUST NOT claim backend, authorization, persistence, codegen or runtime proof.
 
+Functional candidate now exists at:
+
+```text
+docs/evidence/4c/w02a-brain-functional-wireframe.html
+```
+
+TDD/proof chronology:
+
+```text
+Verify #599 = EXPECTED RED
+→ P7 law green; 2 P8 tests failed only because HTML did not exist
+
+Verify #601 = functional candidate repository/wire GREEN
+Verify #604 = SUCCESS on the current pre-walkthrough authority/status line
+```
+
+Mechanical GREEN proves the artifact obeys the selected P8 contract; it does **not** constitute operator visual approval or `LOCKED`.
+
 ## 7. Physical representation boundary
 
 4C does **not** select a canonical Brain-Git folder/file format from the UI hierarchy.
@@ -191,5 +209,7 @@ P7 structural hypothesis C = OPERATOR APPROVED FOR FUNCTIONAL P8
 W-02A = NOT LOCKED
 P8 = NEXT
 ```
+
+`P8 = NEXT` above is the preserved P7 transition law; the P8 candidate now exists and the current roadmap routes to operator walkthrough/adjudication.
 
 Only the operator may later set W-02A `LOCKED` after actually operating and adjudicating the functional P8 candidate.
