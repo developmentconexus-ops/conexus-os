@@ -44,7 +44,6 @@ test('W-02A functional P8 makes organizational knowledge navigable by domain and
     'Health',
     'data-brain-view="knowledge"',
     'data-domain-id="commercial"',
-    'data-concept-id="net-revenue"',
     'Search organizational knowledge',
     'Definition',
     'Business meaning',
@@ -57,6 +56,8 @@ test('W-02A functional P8 makes organizational knowledge navigable by domain and
     'Fixture domains and concepts are demonstration data only',
   ]) requireText(html, token, `W-02A P8 missing knowledge-navigation evidence: ${token}`)
 
+  requireText(html, "'net-revenue': {", 'W-02A P8 fixture must include the representative Net Revenue business concept')
+  requireText(html, 'data-concept-id="${id}"', 'W-02A P8 concept renderer must bind each fixture concept ID into human navigation')
   requireText(html, 'data-content-class="SEMANTIC"', 'W-02A P8 must expose SEMANTIC as concept metadata, not primary navigation')
   requireText(html, 'data-content-class="KNOWLEDGE"', 'W-02A P8 must expose KNOWLEDGE as concept metadata, not primary navigation')
   requireText(html, 'data-content-class="EVIDENCE_SPEC"', 'W-02A P8 must expose EVIDENCE_SPEC as concept metadata, not primary navigation')
