@@ -139,11 +139,11 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Current logical Connection human identity plus owner/definition/revision facts with non-secret credential-presence projection only.
+          description: Current logical Connection identity/owner/definition/revision facts plus the non-secret configuration bound to the exact currentRevisionId and credential-presence fact; credential material is never returned.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Connection'
+                $ref: '#/components/schemas/ConnectionDetail'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
@@ -432,6 +432,42 @@ components:
         credentialConfigured:
           type: boolean
           description: Non-secret presence fact only; does not imply qualification, binding, health or caller authorization.
+    ConnectionDetail:
+      type: object
+      additionalProperties: false
+      required: [connectionId, name, ownerScopeKind, ownerId, connectorDefinitionId, connectorVersion, currentRevisionId, credentialConfigured, configuration]
+      properties:
+        connectionId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Server-owned provider-independent human presentation identity of the logical Connection; stable across ConnectionRevision changes and never routing, authorization, containment or uniqueness authority.
+        ownerScopeKind:
+          type: string
+          enum: [WORKSPACE, PROJECT]
+        ownerId:
+          type: string
+          minLength: 1
+        connectorDefinitionId:
+          type: string
+          minLength: 1
+        connectorVersion:
+          type: string
+          minLength: 1
+        currentRevisionId:
+          type: string
+          minLength: 1
+        credentialConfigured:
+          type: boolean
+          description: Non-secret presence fact only; does not imply qualification, binding, health or caller authorization.
+        configuration:
+          type: object
+          additionalProperties: true
+          x-conexus-schema-source: CONNECTOR_DEFINITION_CONFIGURATION_SCHEMA
+          description: Server-owned provider-specific non-secret configuration of this exact currentRevisionId, suitable for inspection and revision-form initialization; never credential material or qualification/binding/health/authorization truth.
     ConnectionRevision:
       type: object
       additionalProperties: false
