@@ -1,6 +1,6 @@
 # 4C-F09 — Connection current-configuration selected realization
 
-> **Status:** `OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED`
+> **Status:** `OPERATOR ACCEPTED / SELECTED REALIZATION / GREEN`
 > **Block:** `W-02B — Connections`
 > **Selected alternative:** `F — enrich CON-04 GetConnection with current non-secret configuration`.
 > **Authority posture:** bounded Connections-owner recompile only; no Product implementation authority.
@@ -29,7 +29,7 @@ CON-07 SetConnectionCredential
 
 ## 2. Exact new property
 
-`ConnectionDetail.configuration` must be:
+`ConnectionDetail.configuration` is:
 
 ```text
 provider-specific non-secret object
@@ -61,7 +61,7 @@ configured != qualified != bound != healthy != caller-authorized
 
 ## 4. Wire realization
 
-Add one schema:
+One detail schema is admitted:
 
 ```text
 ConnectionDetail
@@ -91,23 +91,43 @@ rename/delete/rollback authority
 new operation/Permission/owner/record
 ```
 
-## 6. Proof target
+## 6. RED → GREEN proof
 
-Selected RED must fail while:
+Historical selected marker:
 
 ```text
-CON-04 still returns Connection
-OR ConnectionDetail is absent
-OR ConnectionDetail lacks configuration
-OR configuration is not explicitly non-secret/schema-bound/currentRevision-bound
-OR secret/readiness-collapse protections regress
+OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED
 ```
 
-Then the bounded 4A/4B recompile must restore whole-wire GREEN with:
+Clean selected RED:
 
 ```text
+Verify #649 = EXPECTED RED
+→ 73 tests / 72 pass / 1 fail
+→ exact failure: F09 RED: CON-04 must return ConnectionDetail
+```
+
+Bounded recompile then progressed owner-first:
+
+```text
+Verify #651 = expected intermediate failure
+→ wire/checker shape present
+→ 4A F09 property still missing
+
+Verify #652 = expected intermediate failure
+→ 4A + wire/checker accepted
+→ W-02 P7 preflight still stale
+```
+
+Final selected proof:
+
+```text
+Verify #655 = SUCCESS
+HEAD = ebdd023e3fbabefccda789a7fe1fb1891624db2d
 fixed Product operations = 113
 fixed Product wire = 113 ↔ 113
 Connections operations = 9
 ordinary Permissions = 25
 ```
+
+F09 is GREEN. The next action is W-02B P7 structural adjudication; this proof does not approve any Connections frontend structure or P8.
