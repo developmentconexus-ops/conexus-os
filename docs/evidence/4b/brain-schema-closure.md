@@ -157,7 +157,7 @@ Machine guard:
 scripts/check-wire-brain.mjs
 ```
 
-## 5. TDD proof
+## 5. Original 4B TDD proof
 
 ```text
 Verify #276 = FAILURE
@@ -168,34 +168,81 @@ Verify #278 = SUCCESS
 HEAD = 057094bbf4663a5350df1a43eff400e146d43881
 ```
 
-Final established counts:
+Historical established counts at that point:
 
 ```text
 fixed 4A operations      = 111
 fixed OAS operations     = 111
 schema-closed operations = 69
-IAM + Workspace          = 20 / 20
-Project                  = 21 / 21
-Builder                  = 17 / 17
 Brain Product            = 11 / 11
 missing                  = 0
 extra                    = 0
 duplicate                = 0
-literal IF_MATCH          = { PRJ-12, PAR-14 }
 ```
 
-Budget Analyzer declaration/codegen/truth-state positive and negative controls remained part of the same successful full Verify.
+Those counts are historical Evidence of the original 4B closure, not the current whole-platform count after later accepted 4C corrections.
 
-## 6. Result
+## 6. Original result
 
 ```text
-IAM + Workspace = CLOSED inside 4B
-Project         = CLOSED inside 4B
-Builder         = CLOSED inside 4B
 Brain           = CLOSED inside 4B
-schema-closed   = 69 / 111
-4B overall      = OPEN / ACTIVE
 Product code    = BLOCKED
 ```
 
-The next owner slice must continue compiling accepted authority into the same OAD. Missing semantics remain a falsifier/reopen trigger rather than permission to invent DTO meaning.
+Missing semantics remain a falsifier/reopen trigger rather than permission to invent DTO meaning.
+
+## 7. `4C-F05` bounded Brain-wire recompile
+
+W-02A later proved that the accepted Discovery journey was not caller-expressible between `BRN-04` hypothesis output and the pre-existing source-only `BRN-07` proposal intake. Global-Maximum analysis confirmed Brain as the existing owner and the operator accepted enrichment of the existing `SubmitKnowledgeProposal` operation rather than a new operation/domain.
+
+Current `BRN-07` wire is one semantic operation with two mutually exclusive closed request forms:
+
+```text
+SOURCE_BACKED
+candidateSourceRevision + provenanceRefs
+→ existing Brain candidate submitted for review
+
+DISCOVERY_BACKED
+discoveryCandidateRef + non-blank humanResolution
+→ Brain re-resolves exact discovery provenance/context
+→ Brain materializes the candidateSourceRevision
+→ same KnowledgeProposal result
+```
+
+Preserved negative laws:
+
+```text
+BRN-04 remains read-only hypothesis/provenance discovery
+Discovery-backed caller -X-> candidateSourceRevision authority
+Discovery-backed caller -X-> provenanceRefs authority
+BRN-07 -X-> self-publish
+BRN-08 remains APPROVE|REJECT proposal decision
+BRN-09 remains reviewed candidate publication
+Project Builder / Project Git -X-> Workspace Brain source ownership
+Brain Product operations remain 11
+```
+
+Selected-realization proof:
+
+```text
+Verify #559 = EXPECTED RED
+→ repository tests 60 / pass 58 / fail 2 exactly F05 selected-realization assertions
+
+Verify #563 = SUCCESS
+HEAD = 09ba434d8e8561487b9159422f873e826d9f4a43
+→ selected F05 Product authority + oneOf wire + Brain checker + generated/whole-wire proof GREEN
+```
+
+Current whole-platform counts remain:
+
+```text
+fixed Product operations = 113
+fixed Product wire       = 113 ↔ 113
+Brain Product operations = 11
+ordinary Permissions     = 25
+new F05 operation        = 0
+new F05 owner            = 0
+new F05 durable record   = 0
+```
+
+`4C-F05` changes proposal-intake expressibility only; it does not create Product implementation authority.
