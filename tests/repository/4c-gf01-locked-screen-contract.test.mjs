@@ -56,8 +56,9 @@ test('operator-approved GF-01 H1-R2 remains locked through exact P9/P10 trace as
   requireText(roadmap, 'W-01 LOCKED', 'dependent material blocks may advance only after W-01 is locked')
   requireText(roadmap, 'W-02A LOCKED', 'GF-01 progression guard must preserve the locked Brain sub-block')
   requireText(roadmap, 'W-02B LOCKED', 'GF-01 progression guard must preserve the locked Connections sub-block')
-  requireText(roadmap, 'W-03 = NEXT / NOT OPEN', 'GF-01 progression must stop at the next unopened W-03 block')
-  if (/W-04\s*=\s*OPEN|P-01\s*=\s*OPEN|4D[^\n|]*\|\s*OPEN/.test(roadmap)) {
-    throw new Error('GF-01 lock must not permit skipping past the current W-03 material block')
+  requireText(roadmap, 'W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN', 'GF-01 progression beyond W-03 requires the exact W-03 lock')
+  requireText(roadmap, 'W-03 = NEXT / NOT OPEN', 'GF-01 must preserve the historical W-03 predecessor marker')
+  if (/P-01\s*=\s*OPEN|4D[^\n|]*\|\s*OPEN/.test(roadmap)) {
+    throw new Error('GF-01 lock must not permit skipping past the current W-04 material block into P-01/4D')
   }
 })
