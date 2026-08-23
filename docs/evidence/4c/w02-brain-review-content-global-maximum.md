@@ -203,7 +203,18 @@ Proposal review
 
 Without this property, any P8 Brain review UI would be decorative or frontend-invented.
 
-## 10. Reopen triggers
+## 10. Inquiry proof
+
+```text
+solution-neutral F06 finding + alternatives only
+Product/wire unchanged by F06
+pre-proof HEAD = 47e2aecfb522465cdc2adfcca554e847751f85df
+Verify #572 = SUCCESS
+```
+
+The proof establishes that current exact detail schemas still lack human-readable review content while F04/F05 and all prior gates remain green.
+
+## 11. Reopen triggers
 
 Reopen if:
 
@@ -214,7 +225,7 @@ Reopen if:
 - another owner is proven to be the true source of reviewed content;
 - repeated locked consumers prove a genuinely shared cross-domain projection mechanism.
 
-## 11. Operator decision
+## 12. Operator decision
 
 ```text
 ACCEPT GLOBAL-MAXIMUM CANDIDATE
