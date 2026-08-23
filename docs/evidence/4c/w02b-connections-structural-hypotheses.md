@@ -1,282 +1,229 @@
-# 4C W-02B — Connections P7 Structural Decision
+# 4C W-02B — Connections P7/P8 Structural Decision
 
-> **Status:** `P7 OPERATOR APPROVED / P8 FUNCTIONAL CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`
+> **Status:** `P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR RE-WALKTHROUGH / NOT LOCKED`
 > **Block:** `W-02B — Connections`
 > **Method:** Frontend Product Experience Planning Method v2.2 through the Conexus 4C profile.
 > **Selected hypothesis:** `A — Connection-first browse → focused detail → explicit configuration / credential / qualification tasks`.
-> **Authority posture:** interaction-structure Evidence only. This record does not create Connection Product meaning, operations, permissions, wire authority, Product implementation or final visual design.
+> **Authority posture:** interaction Evidence only; no Product implementation or final visual-design authority.
 
 Historical P7 marker preserved: `P7 OPERATOR APPROVED FOR FUNCTIONAL P8 / NOT LOCKED`.
 
-## 1. Decision question
-
-How should a human manage external-system relationships without collapsing logical Connection identity, non-secret configuration, write-only credential material, qualification Evidence, Project binding, runtime health and caller authorization into one false `Connected` lifecycle?
-
-Current authority fixes:
-
-```text
-Connection = logical Connections-owned resource
-Connection.name = provider-independent human presentation identity
-Connection.ownerScope = WORKSPACE | PROJECT
-currentRevisionId = exact current immutable revision coordinate
-CON-04 detail = current non-secret configuration after 4C-F09
-credentialConfigured = non-secret presence fact only
-credential write = CON-07 write-only / no secret readback
-qualification = exact ConnectionRevision + exact environment + provenance
-configured != qualified != bound != healthy != caller-authorized
-```
-
-## 2. Compared hypotheses
-
-### A — Connection-first browse + focused detail
-
-**OPERATOR APPROVED FOR P8.**
+## 1. Structural decision
 
 ```text
 exact current owner scope
 → Connections collection
 → recognize by Connection.name
 → focused Connection detail
-   ├── Connector / owner / current revision
-   ├── current non-secret configuration
-   ├── credential presence + explicit write-only update task
-   └── qualification task/result for exact revision + environment
+→ separate configuration / access credential / connection-test tasks
 ```
 
-The logical Connection is the primary human object. Provider is metadata/filtering context, not the semantic owner.
+The logical Connection is the primary human object. Provider is context, not identity. Hypothesis B (wizard-first) and C (provider-first) remain rejected as root architecture.
 
-### B — setup wizard first
+Binding law remains:
 
 ```text
-choose provider
-→ configure
-→ credential
-→ qualify
-→ done
+configured != qualified != bound != healthy != caller-authorized
 ```
 
-**REJECTED as root architecture.** It implies a false single linear lifecycle and encourages `done ≈ connected ≈ ready`, contradicting the accepted truth-state separation. A bounded onboarding assistant may be reconsidered later inside Create Connection if a real operator-use finding proves it useful.
-
-### C — provider-first tree
+Credential law remains:
 
 ```text
-provider
-→ environment / connection instances
+credential write = CON-07 write-only / no secret readback
 ```
 
-**REJECTED as primary mental model.** It displaces `Connection.name`, overweights provider identity and becomes fragile when multiple logical Connections share one provider but differ by purpose, owner scope or configuration.
-
-## 3. Locked-for-P8 human structure
-
-The P8 candidate must prove this structure without yet setting `LOCKED`:
-
-```text
-CONNECTIONS
-→ browse exact current owner scope
-→ Connection.name is primary recognition
-→ open one exact Connection
-
-CONNECTION DETAIL
-→ Connector identity/version
-→ owner scope
-→ currentRevisionId
-→ current non-secret configuration
-→ credentialConfigured
-→ explicit tasks
-
-TASK: REVISE CONFIGURATION
-→ initialize from exact CON-04 current configuration
-→ FORM_DRAFT
-→ CON-06 expectedCurrentRevisionId + complete new configuration
-→ successful result creates new immutable revision
-→ stale current revision cannot silently overwrite
-
-TASK: UPDATE CREDENTIAL
-→ provider-specific credential input from ConnectorDefinition credentialInputSchema
-→ transient FORM_DRAFT only
-→ CON-07 write-only ingress
-→ clear secret input after submit
-→ no plaintext/ciphertext/token/handle readback
-
-TASK: QUALIFY
-→ exact current ConnectionRevision
-→ environment selected only from ConnectorDefinition environments
-→ CON-08 creates exact qualification result
-→ result can re-enter through exact qualificationId + CON-09
-```
-
-## 4. Collection / detail law
-
-`CON-03 ListConnections` remains a lightweight collection read. P8 may locally filter only already-disclosed rows.
-
-Allowed collection truth includes:
+## 2. Exact owner boundaries
 
 ```text
 Connection.name
-connectorDefinitionId / connectorVersion
-ownerScopeKind / ownerId
-currentRevisionId
-credentialConfigured
-```
+→ provider-independent human identity
 
-The collection must not invent:
+CON-04
+→ exact current non-secret configuration
 
-```text
-Connected
-Ready
-Healthy
-Qualified
-latest qualification
-qualification history
-Project-bound status
-caller-authorized status
-```
+CON-07
+→ write-only credential replacement
 
-`CON-04 GetConnection` is the exact detail read and may display the current non-secret configuration bound to its exact `currentRevisionId` after F09.
-
-## 5. Owner-scope law
-
-The P8 must not fabricate an all-Workspace/all-Project aggregate. `CON-03` operates on one exact owner scope:
-
-```text
-WORKSPACE
-→ reusable organizational Connection
-
-PROJECT
-→ private Project Connection
-```
-
-Workspace placement and Project Integrations placement may share future visual grammar only after repeated LOCKED Evidence. One P8 consumer does not graduate a reusable component/Product abstraction.
-
-## 6. Credential law
-
-Credential is not configuration metadata.
-
-```text
-credentialConfigured = SERVER non-secret presence fact
-credential input      = transient FORM_DRAFT
-credential bytes      = never readable Product truth
-CON-07 success        = credential accepted/stored only
-```
-
-Forbidden P8 claims after credential submit:
-
-```text
-Connected
-Qualified
-Healthy
-Ready
-Authorized
-```
-
-## 7. Qualification law
-
-Qualification is an exact proof subject, not a generic status badge.
-
-```text
-CON-08
-→ exact connectionRevisionId
-+ exact admitted environment
-→ ConnectionQualification
+CON-08 QualifyConnection
+→ human UX label: Test connection
 
 CON-09
-→ exact connectionId + qualificationId
-→ exact qualification state + evidenceRefs
+→ exact test result + human diagnostic/remediation + Evidence
+
+ProjectConnectionBinding
+→ separate Project owner truth
+
+Gateway/runtime health
+→ separate runtime truth
 ```
 
-Current authority does not admit a latest-qualification relation, a qualification-history list or a closed qualification-state enum merely for UI convenience.
+No generic `Connected`, `Active`, `Ready`, `Healthy` or caller-authorization status is inferred.
 
-## 8. Client-state law
+## 3. F09 + F10 consequences
+
+F09 makes current non-secret configuration inspectable after refresh/re-entry.
+
+F10 makes current test applicability honest:
+
+```text
+NOT_TESTED
+NEEDS_RETEST
+PASSED
+FAILED
+INDETERMINATE
+```
+
+A previous test becomes `NEEDS_RETEST` when either current configuration revision or server-owned logical credential generation changes. Old qualification Evidence remains durable.
+
+Exact qualification now carries:
+
+```text
+connectionRevisionId
+credentialGeneration
+environment
+testedAt
+qualificationState
+outcome
+diagnostic.title
+diagnostic.message
+diagnostic.remediation?
+evidenceRefs
+```
+
+The browser never chooses credential generation and never parses raw Evidence into diagnostic authority.
+
+## 4. Revised P8 human model
+
+The operator's first P8 walkthrough returned `REVISE` with these accepted observations:
+
+```text
+browse should feel like modern cards, not infrastructure rows
+technical identifiers should not dominate normal use
+Sankhya must be represented as an API connector, not Oracle DB configuration
+Test connection must be obvious
+failure must explain what happened and what to fix
+configuration/credential change must visibly require retest
+```
+
+The revised candidate therefore proves:
+
+```text
+Connections
+→ card grid
+→ human Connection name + provider
+→ credentials added/needed
+→ Not tested | Needs retest | Last test passed | Last test failed | Indeterminate
+→ Open | Test connection | View problem when relevant
+
+Connection detail
+→ Connection test first
+→ human Configuration
+→ human Access / credentials
+→ Technical details collapsed
+
+Failure
+→ human diagnostic
+→ remediation
+→ Update credentials / Test again
+→ exact qualification coordinates remain under Technical details
+```
+
+The fixture now distinguishes:
+
+```text
+Sankhya API
+→ API URL + Company
+→ Client ID + Client secret credential input
+
+Oracle Database
+→ host + port + service
+```
+
+Those fixture fields prove the UI distinction only; concrete connector auth/configuration realization remains later authority.
+
+## 5. Client-state law
 
 ```text
 SERVER
 → ConnectorDefinition
 → Connection collection/detail
-→ current non-secret configuration
+→ configuration
 → credentialConfigured
-→ exact qualification result
+→ connectionTest
+→ exact qualification + diagnostic
 
 URL_NAVIGATION
-→ exact Connection / Connector / qualification subjects where re-entry is material
+→ exact Connection / qualification subjects where re-entry is material
 
 FORM_DRAFT
-→ Create Connection name/configuration
-→ revised configuration before CON-06
-→ credential input before CON-07
-→ qualification environment before CON-08
+→ create/revise configuration
+→ write-only credential input
+→ test environment
 
 EPHEMERAL_UI
-→ local filters
-→ expanded panels
-→ selected local task/tab
+→ local filtering
+→ card interaction
+→ expanded Technical details
 ```
 
-No fifth client-state class is admitted.
+No fifth state class is admitted. No `fetch`, `localStorage` or `sessionStorage` is used by P8 Evidence.
 
-## 9. P8 proving interaction
+## 6. Proof chronology
 
-The functional low-fi HTML must let the operator actually exercise at least:
+First P8:
 
 ```text
-browse Connections by Connection.name
-local filter over disclosed Connection rows
-open exact Connection detail
-inspect current non-secret configuration
-enter Edit configuration with current values prefilled
-save a new immutable fixture revision
-simulate stale-revision conflict and recovery
-open write-only credential task
-submit credential and prove secret input is cleared / never readable
-run qualification only after selecting an admitted ConnectorDefinition environment
-inspect exact qualificationId / revision / environment / evidenceRefs
-re-enter exact qualification within the fixture
-create a new Connection from ConnectorDefinition-driven configuration fields
-return to detail without a fake Connected/Ready/Healthy status
-responsive navigation / keyboard-plausible controls
+Verify #663 = EXPECTED RED before HTML
+Verify #665 = SUCCESS
+→ operator walkthrough = REVISE
 ```
 
-Fixture mutation is deterministic local Evidence only. It must not use `fetch`, `localStorage` or `sessionStorage`, and refresh must reset the demonstration state.
+F10:
 
-Functional candidate now exists at:
+```text
+Verify #674 = EXPECTED RED
+→ lightweight Connection lacked connectionTest
+Verify #680 = SUCCESS
+→ 113↔113 / Connections=9 / Permissions=25
+```
+
+User-friendly revised P8:
+
+```text
+Verify #683 = EXPECTED RED
+→ 80 tests / 78 pass / 2 fail
+→ only card-grid + actionable failure/retest revision absent
+
+Verify #684 = SUCCESS
+→ revised HTML satisfies repository + whole-wire proof
+```
+
+Revised functional candidate:
 
 ```text
 docs/evidence/4c/w02b-connections-functional-wireframe.html
-```
-
-Proof chronology:
-
-```text
-Verify #663 = EXPECTED RED
-→ P7 Evidence green
-→ 2 P8 tests failed only because HTML did not exist
-
-Verify #664 = intermediate test-harness mismatch
-→ functional structure passed
-→ one capitalization-only stale-revision guard mismatch
-
-Verify #665 = SUCCESS
-→ P8 repository contract + whole wire green
+blob = 99dc5b1413e0ad0ae79727ce857340b9cc9178bf
 ```
 
 Mechanical GREEN does not set `LOCKED`.
 
-## 10. Out of block / forbidden inference
-
-W-02B does not decide:
+## 7. Out of block
 
 ```text
-ProjectConnectionBinding UI semantics beyond preserving it as separate Project owner truth
-runtime Gateway health/effect admission
-caller authorization
+ProjectConnectionBinding UI semantics
+runtime health monitoring
+Active/Inactive lifecycle
 Connection rename/delete/rollback
 revision history browser
-qualification history / latestQualification
-final brand / typography / spacing / iconography
-final SDK/query/cache abstractions
+qualification history/list/pagination
+background monitoring
+automatic retry
+final visual design
+4D SDK/runtime realization
 Product implementation
 ```
 
-## 11. Operator disposition
+## 8. Operator disposition
 
 ```text
 Hypothesis A = OPERATOR APPROVED FOR FUNCTIONAL P8
@@ -284,6 +231,4 @@ W-02B = NOT LOCKED
 P8 = NEXT
 ```
 
-`P8 = NEXT` above is the preserved P7 transition law. The candidate now exists and the current gate is operator walkthrough/adjudication.
-
-Only the operator may later set W-02B `LOCKED` after operating and adjudicating the functional P8 candidate.
+`P8 = NEXT` is the preserved historical P7 transition marker. The current gate is **operator re-walkthrough of the revised P8**. Only the operator may later authorize `LOCKED`, after which P9/P10 may run.
