@@ -1,19 +1,24 @@
 # 4C — Frontend Foundation and Coverage
 
-> **Status:** CANDIDATE EVIDENCE / FP0 P0–P3 / v2.2 BOUNDED REBASELINE / `4C-F02` + `4C-F03` + `4C-F04` + `4C-F05` + `4C-F06` RECOMPILED
+> **Status:** CANDIDATE EVIDENCE / FP0 P0–P3 / v2.2 BOUNDED REBASELINE / `4C-F02`–`F12` APPLICABLE CORRECTIONS RECOMPILED
 > **Authority:** evidence derived from current accepted Product/architecture authority; this document does not create Product meaning, operations, DTOs, routes, screens, authorization or implementation authority.
 > **Method:** `docs/development/frontend-product-experience-planning-method.md` v2.2 through the Conexus-specific 4C contract.
 
 This record owns the pre-IA human-flow and frontend-reachability foundation. It is boundedly recompiled when later frontend Evidence changes accepted Product/wire authority; valid earlier flows/counts are preserved rather than restarting FP0.
 
-Current bounded corrections relevant to this foundation:
+Current bounded corrections relevant to this foundation include:
 
 ```text
 4C-F02 → durable exact candidate-Baseline read + source/Inception expressibility
 4C-F03 → exact candidate contextual explanation/refinement
-4C-F04 → logical Connection human presentation identity (`Connection.name`)
+4C-F04 → logical Connection human presentation identity
 4C-F05 → caller-expressible Discovery-backed KnowledgeProposal intake
-4C-F06 → exact-source human-readable Brain revision/proposal review content
+4C-F06 → exact-source human-readable Brain review content
+4C-F07 → exact-source structured Brain knowledge browse
+4C-F09 → exact current non-secret Connection configuration
+4C-F10 → current Connection test applicability + diagnostics
+4C-F11 → human Account/Area presentation + three exact access-administration reads
+4C-F12 → server-filterable immutable Audit + append-time human snapshots
 ```
 
 ```text
@@ -36,7 +41,7 @@ The foundation uses the smallest current pack needed for the question:
 | `docs/phases/4c-frontend-interaction-and-authority-realization.md` | Conexus 4C/v2.2 profile, working order and proof boundary | current 4C contract |
 | `docs/development/frontend-product-experience-planning-method.md` | reusable authority-to-UX planning method | v2.2 methodology, not Product authority |
 | `docs/product/contract.md` | accepted human actors, Product journeys and truth laws | accepted Product authority |
-| `docs/product/operation-ledger.md` | exact operation census, principals, ingress, owners and authority matrix | current 4A authority through accepted F06 |
+| `docs/product/operation-ledger.md` | exact operation census, principals, ingress, owners and authority matrix | current 4A authority through accepted F12 |
 | `docs/reference/frontend-and-product-surfaces.md` | accepted semantic frontend surfaces and projection laws | architecture/reference authority |
 
 Exact 4B request/response/path schema is loaded when a concrete interaction reaches P7 authority/data feasibility or P9 Screen Contract work; the foundation does not infer wire shape from operation names.
@@ -44,7 +49,7 @@ Exact 4B request/response/path schema is loaded when a concrete interaction reac
 Current recovered facts:
 
 ```text
-fixed Conexus platform Product operations = 113
+fixed Conexus platform Product operations = 116
 first Budget Analyzer Project operations  = 2
 ordinary Permissions                       = 25
 Technical Ingress                          = protocol-only / Product-count impact 0
@@ -58,7 +63,9 @@ Historical count chronology remains explicit:
 4B-F01 114 → 111 by subtracting three ungrounded generic mutations
 4C-F02 111 → 112 by adding one real Journey-B candidate-Baseline read
 4C-F03 112 → 113 by adding one exact candidate-bound Baseline contextual read
-4C-F04/F05/F06 = property/input/read-shape corrections; operation count remains 113
+4C-F04/F05/F06/F07/F09/F10 = bounded property/input/read-shape corrections; count remains 113
+4C-F11 113 → 116 by adding IAM-18 / IAM-19 / IAM-20
+4C-F12 = bounded OBS-04/05 read-shape correction; count remains 116
 ```
 
 Counts are derivation results, never planning targets.
@@ -112,6 +119,8 @@ The Product contract owns fifteen whole-product journeys. 4C preserves them rath
 | N — first vertical Budget Analyzer | Metal Nobre Workspace + Brain + Sankhya Connection/binding/read model support exact Budget Analyzer Queries and Published-App result. | Read-only vertical; truth/freshness/coverage/coordinates stay honest. |
 | O — maintenance/reusable learning | New request, bug, source change, Finding or Brain update returns through governed Change against current context/proof. | Reusable learning stays in correct owners rather than hidden mutable agent memory. |
 
+W-03 adds no new whole-product Journey. F11/F12 make already-admitted Workspace administration and audit-investigation work truthful and human-operable inside the existing actor/journey closure.
+
 ---
 
 ## 4. P3 — Frontend reachability and consumer/disposition census
@@ -133,7 +142,7 @@ Multi-route operations count once in the fixed Product census.
 
 | Family | Fixed operations | Frontend-reachable now | No-direct-browser disposition |
 | --- | ---: | ---: | ---: |
-| Identity & Access | 16 | 16 | 0 |
+| Identity & Access | 19 | 19 | 0 |
 | Workspace | 4 | 4 | 0 |
 | Project | 23 | 23 | 0 |
 | Builder | 17 | 17 | 0 |
@@ -144,7 +153,7 @@ Multi-route operations count once in the fixed Product census.
 | Gateway inspection | 2 | 2 | 0 |
 | Managed Application Runtime | 3 | 3 | 0 |
 | Observability & Audit | 5 | 5 | 0 |
-| **Fixed total** | **113** | **112** | **1** |
+| **Fixed total** | **116** | **115** | **1** |
 
 The sole fixed operation without a current browser-human route remains:
 
@@ -154,7 +163,7 @@ principal / ingress = HUMAN_ACCOUNT_SESSION / HEADLESS
 4C disposition      = NOT-HUMAN-FACING for direct browser UX
 ```
 
-`PRJ-23`/`PRJ-24` serve Journey-B review. `BRN-03`/`BRN-06` now carry exact-source human-readable review content rather than requiring another screen-shaped read operation. `BRN-07` supports both source-backed and Discovery-backed proposal intake under the same semantic operation. `CON-03/04/05` use `Connection.name` for provider-independent human recognition. None changes the fixed census.
+`IAM-18/19/20` are now real W-03A browser-human reads. Their addition does not imply one screen per operation: the candidate surface inventory composes them into People/member and Area access work. `OBS-04/05` remain the same two Audit operations after F12. Existing bounded F04–F10 enrichments do not otherwise change the fixed census.
 
 ### 4.3 First Budget Analyzer
 
@@ -178,6 +187,9 @@ Current operations may be grouped only by accepted semantic consumer context:
 ```text
 Control Plane shell / session context
 Workspace administration and access
+People/member current access review + mutation
+Area current access review + mutation
+immutable Audit investigation
 Project lifecycle / source bootstrap / Inception / exact candidate review+contextual explanation+refinement / approved Baseline / bindings / inspectability
 Builder / review / Preview / source / Evidence
 Brain Discovery / human resolution / exact proposal review / exact revision inspection / publication / analytic use
@@ -189,7 +201,7 @@ owner-specific approval context
 Product-Agent trigger administration
 Gateway effect evidence
 managed job inspection/run-now
-Project activity / usage / audit investigation
+Project activity / usage
 Budget Analyzer Published Application
 ```
 
@@ -208,16 +220,25 @@ F04 Connection human identity
 → logical Connection owner confirmed
 → Connection.name
 
-F05 Discovery → proposal human-resolution bridge
-→ Brain/BRN-07 owner/job confirmed
-→ two mutually exclusive intake forms
+F05/F06/F07 Brain interaction feasibility
+→ Brain owner/jobs confirmed
+→ caller-expressible proposal intake + exact human/structured read projections
 
-F06 exact Brain review-content inspectability
-→ Brain/BRN-03/BRN-06 owner/reads confirmed
-→ deterministic exact-source human review projection
+F09/F10 Connections interaction feasibility
+→ Connections owner/jobs confirmed
+→ exact current configuration + test applicability/diagnostics
+
+F11 People/access feasibility
+→ I&A / Workspace / Project summary owners confirmed
+→ Account/Area human presentation + IAM-18/19/20
+→ I&A-derived effective access + exact sources
+
+F12 Audit feasibility
+→ OBS owner/read family confirmed
+→ server-side filters before pagination + immutable human snapshots
 ```
 
-Under v2.2 this is a **bounded FP0 rebaseline**, not a restart. Operation census, human actor count and unaffected flows remain valid. GF-01 and W-01 remain LOCKED because none of F04–F06 falsifies their protected properties.
+Under v2.2 this is a **bounded FP0 rebaseline**, not a restart. Human actor count, whole-product journey count and unaffected locked blocks remain valid. GF-01, W-01, W-02A and W-02B remain LOCKED because F11/F12 do not falsify their protected properties.
 
 ---
 
@@ -226,11 +247,11 @@ Under v2.2 this is a **bounded FP0 rebaseline**, not a restart. Operation census
 ```text
 human_actor_contexts = 7
 accepted_human_product_flows = 15
-fixed_platform_operations = 113
-fixed_frontend_reachable = 112
+fixed_platform_operations = 116
+fixed_frontend_reachable = 115
 fixed_not_human_facing = 1 (PAR-05 RunProductAgentHeadless)
 budget_frontend_reachable = 2
-total_frontend_reachable_concrete_operations = 114
+total_frontend_reachable_concrete_operations = 117
 invented_frontend_product_operations = 0
 invented_user_needs = 0
 screen_shaped_product_authority = 0
