@@ -1,6 +1,6 @@
 # 4C-F10 — Connection test applicability and diagnostics selected realization
 
-> **Status:** `OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED`
+> **Status:** `OPERATOR ACCEPTED / SELECTED REALIZATION / GREEN`
 > **Block:** `W-02B — Connections`
 > **Selected alternative:** `F — preserve CON-08/09 and enrich qualification basis/result + current Connection test projection`.
 > **Authority posture:** bounded Connections-owner recompile only; no Product implementation authority.
@@ -159,28 +159,43 @@ caller-supplied credentialGeneration
 qualification pass becoming runtime-health/authorization/binding truth
 ```
 
-## 7. Proof target
+## 7. Proof chronology
 
-Selected RED must fail while any of these remain absent:
+Historical selected state before the recompile:
 
 ```text
-Connection.connectionTest
-ConnectionDetail.connectionTest
-stable five-state current-test vocabulary
-ConnectionQualification credentialGeneration
-ConnectionQualification outcome
-testedAt
-human diagnostic/remediation
-CON-08 server-resolved credential generation semantics
-CON-09 exact diagnostic read semantics
+OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED
 ```
 
-Then bounded 4A/4B recompile must restore whole-wire GREEN with:
+Executable proof:
 
 ```text
+Verify #674 = EXPECTED RED
+→ 78 tests / 77 pass / 1 fail
+→ exact failure: lightweight Connection lacked connectionTest
+
+Verify #677 = intermediate expected failure
+→ F10 4A + wire + checker reached 4C projection stage
+→ one historical F04 text guard required additive-safe repair
+→ W-02 preflight had not yet projected F10 GREEN
+
+Verify #680 = SUCCESS
+→ bounded F10 recompile is whole-wire GREEN
+→ fixed Product wire remains 113 ↔ 113
+→ Connections remains 9 operations
+→ ordinary Permissions remain 25
+→ durable record inventory unchanged
+```
+
+## 8. Result
+
+```text
+F10 = OPERATOR ACCEPTED / GREEN
 fixed Product operations = 113
 fixed Product wire = 113 ↔ 113
 Connections operations = 9
 ordinary Permissions = 25
 new durable records = 0
 ```
+
+The next work is interaction-only recompilation of the W-02B P8: card-based browse, human-first labels, Sankhya API fixture, Test connection and exact failure troubleshooting. W-02B remains NOT LOCKED until operator re-walkthrough.
