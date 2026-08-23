@@ -62,9 +62,10 @@ For Connection specifically:
 
 ```text
 Connection.name = logical Connection presentation identity
+stable across ConnectionRevision changes
 ```
 
-It is stable across `ConnectionRevision` changes. `ConnectionRevision` does not re-own, version or derive the name. Connector/provider identity, provider-specific configuration, external account fields and secret material may never substitute for the canonical logical Connection name.
+`ConnectionRevision` does not re-own, version or derive the name. Connector/provider identity, provider-specific configuration, external account fields and secret material may never substitute for the canonical logical Connection name.
 
 Exact authorization continues to use server-owned Account/session/membership/grant/owner facts, operation Permissions and stable resource identifiers.
 
