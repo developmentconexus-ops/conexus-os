@@ -29,10 +29,11 @@ test('operator-approved W-03 People/access + Audit is locked and closed through 
 
   const approvedBlob = '7434c561ef0cfbc43c81ab8dd1f72b13cf032135'
   if (gitBlobSha(html) !== approvedBlob) throw new Error('operator-approved W-03 HTML artifact changed after lock')
+  requireText(contract, 'LOCKED / OPERATOR APPROVED', 'W-03 Screen Contract must own the operator-only lock')
   requireText(contract, `approved P8 artifact blob = ${approvedBlob}`, 'W-03 Screen Contract must pin the exact approved HTML blob')
 
-  requireText(hypotheses, 'LOCKED / OPERATOR APPROVED', 'W-03 structural record must preserve the operator-only lock')
-  requireText(hypotheses, 'A — subject-first access + filtered immutable Audit', 'W-03 lock must preserve the approved P7 structure')
+  requireText(hypotheses, 'P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED', 'W-03 P7 record must remain immutable historical candidate Evidence')
+  requireText(hypotheses, 'A — subject-first access + filtered immutable Audit', 'W-03 historical P7 must preserve the selected structure')
 
   for (const exactTrace of [
     'IAM-04 ListWorkspaceMembers',
