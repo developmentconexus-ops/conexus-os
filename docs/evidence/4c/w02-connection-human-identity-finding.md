@@ -1,13 +1,13 @@
 # 4C-F04 — Connection Human-Readable Identity Finding
 
-> **Status:** `OPEN / MATERIAL FINDING / GLOBAL-MAXIMUM OPERATOR GATE / NOT YET ADMITTED`
+> **Status:** `OPERATOR ACCEPTED / GLOBAL-MAXIMUM ADJUDICATED / 4A→4B RECOMPILE ACTIVE`
 > **Exposed by:** W-02B Connections reference/structural study after W-02 authority preflight.
-> **Smallest implicated owner:** Connections Product semantic identity + exact 4B Connection projection, unless the Global-Maximum analysis proves a different owner.
+> **Selected owner:** existing logical Connection Product semantic identity + exact 4B Connection projection.
 > **Implementation authority:** none.
 
 ## 1. Human falsifier
 
-W-02B must let an authorized human browse and choose among Connections in an exact Workspace or Project scope. Current `CON-03 ListConnections` returns `Connection` projections containing:
+W-02B must let an authorized human browse and choose among Connections in an exact Workspace or Project scope. Before F04 recompilation, `CON-03 ListConnections` returned `Connection` projections containing:
 
 ```text
 connectionId
@@ -19,13 +19,13 @@ currentRevisionId
 credentialConfigured
 ```
 
-No stable human-readable Connection presentation identity is admitted.
+No stable human-readable Connection presentation identity was admitted.
 
-The Product also permits repeated Connection creation for the same owner scope / Connector definition; no current law proves one Connection per provider. Therefore a real human list may need to distinguish two or more same-provider logical Connections.
+The Product permits repeated Connection creation for the same owner scope / Connector definition; no law proves one Connection per provider. Therefore a real human list may need to distinguish two or more same-provider logical Connections.
 
 ## 2. Root defect
 
-The current Product gives the frontend machine identity and operational facts, but no provider-independent human recognition source.
+The Product gave the frontend machine identity and operational facts, but no provider-independent human recognition source.
 
 Target invariant:
 
@@ -44,15 +44,7 @@ must not require secret readback
 must not become routing, containment or authorization authority
 ```
 
-## 3. Why current substitutes fail
-
-Opaque `connectionId`, provider/Connector identity and provider-specific configuration are Evidence inputs, not a universal human-identity contract. A frontend-derived label would create a second, unstable authority.
-
-A generic metadata subsystem is also not implied by the finding.
-
-## 4. Global-Maximum decision required
-
-The finding does **not** preselect `Connection.name` or any other schema change.
+## 3. Global-Maximum adjudication
 
 The bounded assessment is:
 
@@ -60,7 +52,7 @@ The bounded assessment is:
 docs/evidence/4c/w02-connection-human-identity-global-maximum.md
 ```
 
-It compares:
+It compared:
 
 ```text
 A opaque ID / provider
@@ -71,35 +63,90 @@ E mutable name + rename authority now
 F new ConnectionProfile / presentation-owner domain
 ```
 
-The current leading candidate after that comparison is explicit human presentation identity owned by the logical Connection, with `Connection.name` as the leading spelling. That is **Decision Evidence only** until the operator accepts it.
+Operator-accepted outcome:
 
-**The solution is not admitted by finding existence.**
+```text
+CURRENT STRUCTURE CONFIRMED
+→ logical Connection remains the correct owner
+→ explicit provider-independent human presentation identity is essential
+→ selected realization = Connection.name
+→ rename = DEFER SAFELY
+```
+
+This outcome is accepted because it fixes the root defect at the existing semantic owner with the lowest sustainable total complexity, not because it is the smallest textual patch.
+
+## 4. Selected bounded semantics
+
+```text
+Connection.name
+```
+
+Accepted properties:
+
+- required non-blank human-readable presentation identity;
+- explicit on `CON-05 CreateConnection`;
+- returned by the canonical logical `Connection` projection used by `CON-03/04/05`;
+- independent from `connectionId`;
+- stable across `ConnectionRevision` changes;
+- immutable after creation in current F1 authority;
+- not authorization, containment, routing, slug or uniqueness authority.
+
+Explicitly not admitted:
+
+```text
+RenameConnection
+UpdateConnectionMetadata
+generic Connection metadata patch
+name-derived routing or authorization
+provider/configuration-derived fallback identity
+secret/account-derived identity
+ConnectionRevision-owned name
+```
+
+`CON-06 ReviseConnection` remains configuration-revision authority only.
 
 ## 5. External Evidence
 
 Current official Workato and Zapier documentation confirms that mature integration products support multiple connections/accounts for the same app and use human-recognizable names/renames to distinguish them. This proves the problem class is real; it does not import their lifecycle or API design into Conexus.
 
-## 6. Current proof state
+## 6. Proof state
 
-The current-state falsifier should prove:
+Solution-neutral inquiry proof:
 
 ```text
-same-provider instances are structurally possible
-current Connection projection has no provider-independent human presentation identity
-frontend/provider/secret heuristics are not accepted authority
+Verify #545 = SUCCESS
+→ finding isolated from realization
+→ Product/wire remained unchanged during Global-Maximum decision
 ```
 
-It should **not** fail merely because a preselected field such as `Connection.name` is absent before the Global-Maximum decision.
+Selected-realization RED:
 
-After operator acceptance of an exact outcome, derive a new selected-realization RED before changing Product/wire authority.
+```text
+Verify #546 = EXPECTED RED
+→ repository tests = 58
+→ PASS = 56
+→ FAIL = 2 exactly
+→ F04-A Product human identity not yet recompiled
+→ F04-B CON-05 / canonical Connection wire not yet recompiled
+```
+
+Current bounded GREEN work must recompile only the selected 4A property authority, exact 4B Connection wire/checker and downstream W-02 evidence while preserving counts and protected Connection boundaries.
 
 ## 7. Decision boundary
 
-Do not modify 4A/4B yet.
+Accepted:
 
 ```text
-operator decision required:
-ACCEPT GLOBAL-MAXIMUM CANDIDATE | REVISE | REJECT
+4C-F04 GLOBAL MAXIMUM = OPERATOR ACCEPTED
 ```
 
-If accepted, reopen only the owner/contract actually selected by the Global-Maximum assessment, then recompile affected downstream artifacts. If the assessment is revised to a different owner or strategy, the implementation scope follows that decision rather than the currently leading schema candidate.
+Not authorized by this decision:
+
+```text
+Product implementation
+Connection rename lifecycle
+W-02B structural lock
+W-03/W-04/P-01
+4D
+PR #57 merge
+```
