@@ -87,6 +87,8 @@ function assertProjectProductAgent(schema, label) {
   return agent;
 }
 
+// Canonical schemas guarded by this bounded Project sub-checker:
+// ProjectProductAgent, WorkspaceProductAgentCatalogItem and ProjectSummary.
 // 4C-F13: PRJ-20 and PRJ-21 expose the same Project-owned authored Agent projection.
 const projectAgentList = successSchema('PRJ-20');
 if (projectAgentList?.type !== 'array') throw new Error('PRJ-20 must return an Agent array');
