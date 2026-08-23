@@ -13,9 +13,9 @@ This is the single current phase/status authority.
 | C-018 | RATIFIED / OPERATOR RATIFIED | Final Product architecture continuity ratified after exact-head R1–R7 review | Material Product/architecture/qualification falsifier |
 | C-015 refinement | REFINED / KEYCLOAK AUTHENTICATION SELECTED / OPERATOR APPROVED | Keycloak OIDC authentication boundary selected; Conexus retains authorization sovereignty | Material identity/security/recovery falsifier |
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 first-build skeleton retained as Phase-4 input | Material Phase-4 Evidence falsifies it |
-| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `4B-F01` + `4C-F01` + `4C-F02` BOUNDED CORRECTIONS ACCEPTED | Current `N_platform=112`; Journey-B source bootstrap, Inception intent and exact candidate-Baseline read are admitted without new owner/Permission domain | Accepted interaction needs further Product meaning/owner/trust or current authority is falsified |
-| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `4C-F02` RECOMPILED | Current canonical fixed Product wire is `112↔112`; Project slice is 22 operations; generated projection/Kubb/whole-wire proof recompiled | 4A changes materially or Evidence falsifies the wire/proof boundary |
-| 4C — Frontend Interaction & Authority Realization | OPEN / ACTIVE / `GF-01 LOCKED` / `W-01 PARTIAL APPROVED` / `4C-F03 CLEAN RED` | Human flows/interactions trace to accepted Product/wire authority with operator-locked structural Evidence and zero invented frontend authority | Real interaction exposes a material 4A/4B gap or coherent UX requires invented authority |
+| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `4B-F01` + `4C-F01` + `4C-F02` + `4C-F03` BOUNDED CORRECTIONS ACCEPTED | Current `N_platform=113`; Journey-B source bootstrap, Inception/refinement and exact candidate review/contextual explanation are admitted without new owner/Permission domain | Accepted interaction needs further Product meaning/owner/trust or current authority is falsified |
+| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `4C-F03` RECOMPILED | Current canonical fixed Product wire is `113↔113`; Project slice is 23 operations; generated projection/Kubb/whole-wire proof green | 4A changes materially or Evidence falsifies the wire/proof boundary |
+| 4C — Frontend Interaction & Authority Realization | OPEN / ACTIVE / `GF-01 LOCKED` / `W-01 PARTIAL APPROVED` / `4C-F03 GREEN` | Human flows/interactions trace to accepted Product/wire authority with operator-locked structural Evidence and zero invented frontend authority | Real interaction exposes a material 4A/4B gap or coherent UX requires invented authority |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Exact scaffold/Paved Road/runtime/persistence/deployment/conformance contract ratified before implementation graph | Required property cannot be realized without changing accepted authority |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Product/wire/frontend/Paved Road/runtime compose into falsifiable golden flows | Composed flow reveals contradiction/missing authority |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | R1–R7 rederived against exact 4A–4E contracts into implementation/proof slices | Realized contracts require a different graph/order |
@@ -26,35 +26,55 @@ This is the single current phase/status authority.
 3A–3O = CLOSED
 C-018 = RATIFIED / OPERATOR RATIFIED
 Realization Planning = ACCEPTED / OPERATOR ACCEPTED
-4A = CLOSED / N_platform=112 / 4C-F02 ACCEPTED
-4B = CLOSED / 112↔112 / 4C-F02 RECOMPILED
-4C = OPEN / GF-01 LOCKED / W-01 PARTIAL APPROVAL / 4C-F03 CLEAN RED
+4A = CLOSED / N_platform=113 / 4C-F03 ACCEPTED
+4B = CLOSED / 113↔113 / Project=23 / 4C-F03 RECOMPILED
+4C = OPEN / GF-01 LOCKED / W-01 PARTIAL APPROVAL / 4C-F03 GREEN
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
 
 ## Current 4C baseline
 
-`GF-01 H1-R2` remains operator-locked. W-01 Projects cards, Create/source bootstrap and Inception structure are operator-approved; Baseline review remains open.
+`GF-01 H1-R2` remains operator-locked. W-01 Projects cards, Create/source bootstrap and Inception structure are operator-approved. The Baseline visual-review structure remains the only open W-01 portion.
 
 - [GF-01 approved P8 HTML](evidence/4c/gf01-global-frame-wireframe.html)
 - [GF-01 Screen Contract](evidence/4c/gf01-screen-contract.md)
 - [`4C-F02` W-01 authority correction](evidence/4c/w01-authority-feasibility-preflight.md)
+- [`4C-F03` Baseline visual-review correction](evidence/4c/w01-baseline-review-global-maximum-preflight.md)
 - [W-01 structural hypotheses](evidence/4c/w01-reference-and-structural-hypotheses.md)
 - [W-01 HTML candidate](evidence/4c/w01-projects-inception-wireframe.html)
-- [`4C-F03` Baseline visual-review Global-Maximum preflight](evidence/4c/w01-baseline-review-global-maximum-preflight.md)
 
 Carry-forwards remain unopened: `W-04` Workspace Agent catalog and `4C-S06` ApprovalRequest discoverability.
 
-## Exact next action
-
-**Operator adjudication of `4C-F03`.** Verify #499 proved exactly two RED gaps while 52 prior/current repository tests stayed green:
+`4C-F03` executable correction proof:
 
 ```text
-F03-A exact reviewed-candidate + feedback refinement carrier missing
-F03-B exact candidate-bound contextual question under Baseline-management authority missing
+Verify #518 = SUCCESS
+correction-proof HEAD = ded8b7aa1dc86b58222f91f94ca46146f40c5928
+54/54 repository tests
+113↔113 fixed Product wire
+Project = 23
+Permissions = 25
+Technical Ingress = 3 / Product-count impact 0
+Kubb real-OAS probe = 113 / strict TypeScript compile GREEN
+whole-4B = GREEN
 ```
 
-Leading bounded correction: enrich existing `PRJ-07` with exact prior-candidate + review-feedback input, and admit the smallest Project-owned candidate-bound contextual read under existing `project.manage`. Lavish properties are adapted as Evidence; Mastra remains cognition/mechanics; no review/comment CRUD or new durable record is justified.
+## Exact next action
 
-Do not open W-02, 4D or Product implementation before operator adjudication unless explicitly authorized.
+**Revise only the W-01 Baseline-review portion of the existing lo-fi HTML for operator visual/interactive adjudication.**
+
+Required structure now has accepted authority for:
+
+```text
+exact immutable candidate
+→ deterministic visual review projection
+→ candidate-local selected context
+→ contextual Conexus explanation
+→ proposed refinements remain non-authoritative
+→ explicit Apply refinements boundary
+→ new immutable candidate
+→ exact candidate approval
+```
+
+Lavish properties are adapted as Evidence; Mastra remains cognition/mechanics rather than authority. Do not open W-02, 4D, merge PR #57 or implement Product code.
