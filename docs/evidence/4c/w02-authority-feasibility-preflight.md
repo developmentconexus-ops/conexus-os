@@ -16,9 +16,10 @@ Under frontend method v2.2, every material P7 requirement must be `PRESENT-IN-AU
 W-02A — Workspace Brain
 W-02B — Connections
 W-02 split = REQUIRED
+generic Workspace Settings = REJECTED
 ```
 
-Brain and Connections remain separate because their human decisions, trust boundaries and failure semantics differ materially.
+Brain and Connections remain separate because their human decisions, trust boundaries and failure semantics differ materially. A generic Workspace Settings editor is still rejected: it would flatten Brain semantic review/publication and Connection credential/qualification work into one false mutation domain.
 
 ## 3. W-02A — Workspace Brain
 
