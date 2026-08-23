@@ -37,7 +37,7 @@ test('4C foundation closes human flows and frontend reachability from current Pr
   assert.ok(fixedStart >= 0 && fixedEnd > fixedStart, 'unable to locate fixed-platform census')
   const fixedSection = ledger.slice(fixedStart, fixedEnd)
   const fixedIds = new Set([...fixedSection.matchAll(/^\| `([A-Z]+-\d+)` \|/gm)].map(match => match[1]))
-  assert.equal(fixedIds.size, 113, '4C must derive from the exact 113-operation current fixed census after 4C-F03')
+  assert.equal(fixedIds.size, 116, '4C must derive from the exact 116-operation current fixed census after F11/F12')
 
   const matrixStart = ledger.indexOf('### 8.3 Complete fixed-platform authority matrix')
   const matrixEnd = ledger.indexOf('\n### 8.4 Budget Analyzer authority matrix', matrixStart)
@@ -55,7 +55,7 @@ test('4C foundation closes human flows and frontend reachability from current Pr
   }
 
   assert.deepEqual([...matrixIds].sort(), [...fixedIds].sort(), '4C reachability must classify every fixed Product operation exactly once or by an explicit multi-route union')
-  assert.equal(browserReachable.size, 112, 'exactly 112 fixed Product operations currently have a browser-human CP or PA route after PRJ-24')
+  assert.equal(browserReachable.size, 115, 'exactly 115 fixed Product operations currently have a browser-human CP or PA route after F11/F12')
   const notBrowserReachable = [...fixedIds].filter(id => !browserReachable.has(id)).sort()
   assert.deepEqual(notBrowserReachable, ['PAR-05'], 'PAR-05 RunProductAgentHeadless must remain the sole fixed headless-only Product operation')
 
@@ -79,11 +79,11 @@ test('4C foundation closes human flows and frontend reachability from current Pr
   for (const required of [
     'human_actor_contexts = 7',
     'accepted_human_product_flows = 15',
-    'fixed_platform_operations = 113',
-    'fixed_frontend_reachable = 112',
+    'fixed_platform_operations = 116',
+    'fixed_frontend_reachable = 115',
     'fixed_not_human_facing = 1 (PAR-05 RunProductAgentHeadless)',
     'budget_frontend_reachable = 2',
-    'total_frontend_reachable_concrete_operations = 114',
+    'total_frontend_reachable_concrete_operations = 117',
     'invented_frontend_product_operations = 0'
   ]) {
     assert.match(evidence, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `4C foundation evidence missing closure assertion: ${required}`)
