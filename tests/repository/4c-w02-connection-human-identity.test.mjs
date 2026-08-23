@@ -10,60 +10,56 @@ function requireText(text, needle, message) {
   if (!text.includes(needle)) throw new Error(message)
 }
 
-test('W-02B human-identity finding proves the current Connection representation cannot safely identify repeated same-provider instances', () => {
-  const wire = read('contracts/api/product/connection-paths.yaml')
-  const finding = read('docs/evidence/4c/w02-connection-human-identity-finding.md')
+test('operator-accepted F04 makes logical Connection own stable human presentation identity without widening its lifecycle', () => {
+  const identity = read('docs/product/human-context-identity-contract.md')
+  const assessment = read('docs/evidence/4c/w02-connection-human-identity-global-maximum.md')
 
-  for (const invariant of [
-    'stable human recognition',
-    'server-owned presentation identity',
-    'must not be derived from provider-specific configuration',
-    'must not become routing, containment or authorization authority',
-  ]) requireText(finding, invariant, `F04 finding missing target invariant: ${invariant}`)
+  requireText(assessment, 'OPERATOR ACCEPTED', 'F04 selected realization must record operator acceptance before Product authority changes')
+  requireText(assessment, 'Connection.name', 'F04 accepted realization must identify the selected spelling')
+
+  for (const law of [
+    'Connection.name',
+    'CON-05 CreateConnection',
+    'CON-03 ListConnections',
+    'CON-04 GetConnection',
+    'stable across ConnectionRevision changes',
+    'immutable after creation in F1',
+  ]) requireText(identity, law, `F04-A human-identity authority missing law: ${law}`)
+
+  for (const forbidden of [
+    'RenameConnection',
+    'UpdateConnectionMetadata',
+    'name-derived routing',
+    'name-derived authorization',
+  ]) requireText(identity, forbidden, `F04-A must explicitly preserve non-authority: ${forbidden}`)
+})
+
+test('selected Connection.name realization recompiles CON-05 and canonical Connection reads without operation or revision-owner drift', () => {
+  const wire = read('contracts/api/product/connection-paths.yaml')
+  const ledger = read('docs/product/operation-ledger.md')
+
+  const createStart = wire.indexOf('summary: CreateConnection')
+  const connectionRouteStart = wire.indexOf('\n  /api/control/connections/{connectionId}:', createStart)
+  const createSlice = wire.slice(createStart, connectionRouteStart)
+  requireText(createSlice, 'required: [name, connectorDefinitionId, connectorVersion, configuration]', 'F04-B CON-05 must require explicit human Connection name')
+  requireText(createSlice, 'name:', 'F04-B CON-05 missing name property')
+  requireText(createSlice, 'minLength: 1', 'F04-B Connection name must be non-blank-capable schema input')
 
   const connectionStart = wire.indexOf('    Connection:\n')
   const revisionStart = wire.indexOf('    ConnectionRevision:\n', connectionStart)
   const connectionSchema = wire.slice(connectionStart, revisionStart)
+  requireText(connectionSchema, 'required: [connectionId, name, ownerScopeKind, ownerId, connectorDefinitionId, connectorVersion, currentRevisionId, credentialConfigured]', 'F04-B canonical Connection projection must require human name')
+  requireText(connectionSchema, 'name:', 'F04-B canonical Connection projection missing name')
 
-  for (const existing of [
-    'connectionId',
-    'ownerScopeKind',
-    'ownerId',
-    'connectorDefinitionId',
-    'connectorVersion',
-    'currentRevisionId',
-    'credentialConfigured',
-  ]) requireText(connectionSchema, existing, `F04 falsifier precondition lost Connection field: ${existing}`)
+  const reviseStart = wire.indexOf('summary: ReviseConnection')
+  const credentialRouteStart = wire.indexOf('\n  /api/control/connections/{connectionId}/credential:', reviseStart)
+  const reviseSlice = wire.slice(reviseStart, credentialRouteStart)
+  if (/\n\s+name:/.test(reviseSlice)) throw new Error('F04-B CON-06 must remain configuration-revision authority, not hidden rename authority')
 
-  if (/\n\s+(name|displayName|label):/.test(connectionSchema)) {
-    throw new Error('F04 current-state falsifier must be recompiled after a human-identity realization is operator-admitted')
-  }
-})
+  const qualificationSchemaStart = wire.indexOf('    ConnectionQualification:\n', revisionStart)
+  const revisionSchema = wire.slice(revisionStart, qualificationSchemaStart)
+  if (/\n\s+name:/.test(revisionSchema)) throw new Error('F04-B ConnectionRevision must not re-own logical Connection human identity')
 
-test('4C-F04 remains a Global-Maximum decision rather than a preselected schema patch', () => {
-  const finding = read('docs/evidence/4c/w02-connection-human-identity-finding.md')
-  const assessment = read('docs/evidence/4c/w02-connection-human-identity-global-maximum.md')
-  const roadmap = read('docs/roadmap.md')
-
-  for (const decisionCore of [
-    'Root Cause',
-    'Target Invariant',
-    'Credible Alternatives',
-    'Global Maximum',
-    'Essential vs Accidental Complexity',
-    'YAGNI / Future Cost',
-    'Reopen Triggers',
-  ]) requireText(assessment, decisionCore, `F04 Global-Maximum assessment missing ${decisionCore}`)
-
-  for (const alternative of [
-    'A — opaque ID / provider as human identity',
-    'B — derive identity from provider configuration or external account data',
-    'C — ConnectorDefinition-owned label derivation rule',
-    'D — logical Connection owns explicit human presentation identity',
-    'E — mutable Connection name + rename authority now',
-    'F — new ConnectionProfile / presentation-owner domain',
-  ]) requireText(assessment, alternative, `F04 assessment missing alternative: ${alternative}`)
-
-  requireText(finding, 'solution is not admitted by finding existence', 'F04 finding must not convert Evidence into Product authority')
-  requireText(roadmap, '4C-F04 GLOBAL-MAXIMUM OPERATOR GATE', 'roadmap must expose the current F04 decision gate')
+  requireText(ledger, '## 5.6 Connections — 9', 'F04 must not change Connections operation count')
+  requireText(ledger, '`CON-05` | `CreateConnection`', 'F04 must preserve CON-05 operation identity')
 })
