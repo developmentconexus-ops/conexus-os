@@ -23,6 +23,12 @@ Brain and Connections remain separate because their human decisions, trust bound
 
 Initial operation/Permission/owner/trust topology was sound. Later P7/reference work validly exposed bounded property/input/read-shape gaps inside those already-correct owners; F04–F06 therefore recompiled the affected semantics without replacing the Brain/Connections owner topology.
 
+```text
+F04 Connection human presentation identity = OPERATOR ACCEPTED / GREEN
+F05 Brain Discovery proposal intake         = OPERATOR ACCEPTED / GREEN
+F06 Brain exact review-content inspectability = OPERATOR ACCEPTED / GREEN
+```
+
 ## 3. W-02A — Workspace Brain
 
 Human-facing operations:
