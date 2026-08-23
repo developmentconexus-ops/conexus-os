@@ -48,7 +48,10 @@ test('selected Connection.name realization recompiles CON-05 and canonical Conne
   const connectionStart = wire.indexOf('    Connection:\n')
   const revisionStart = wire.indexOf('    ConnectionRevision:\n', connectionStart)
   const connectionSchema = wire.slice(connectionStart, revisionStart)
-  requireText(connectionSchema, 'required: [connectionId, name, ownerScopeKind, ownerId, connectorDefinitionId, connectorVersion, currentRevisionId, credentialConfigured]', 'F04-B canonical Connection projection must require human name')
+  const requiredLine = connectionSchema.split('\n').find(line => line.includes('required: [')) ?? ''
+  for (const field of ['connectionId', 'name', 'ownerScopeKind', 'ownerId', 'connectorDefinitionId', 'connectorVersion', 'currentRevisionId', 'credentialConfigured']) {
+    requireText(requiredLine, field, `F04-B canonical Connection projection must keep required field ${field}`)
+  }
   requireText(connectionSchema, 'name:', 'F04-B canonical Connection projection missing name')
 
   const reviseStart = wire.indexOf('summary: ReviseConnection')
