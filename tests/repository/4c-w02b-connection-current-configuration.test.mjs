@@ -48,7 +48,7 @@ test('F09 preserves the Connection current-configuration finding and Global-Maxi
 
   requireText(gm, 'LEADING GLOBAL-MAXIMUM CANDIDATE / OPERATOR ACCEPTED', 'F09 must preserve operator acceptance of candidate F')
   requireText(selected, 'OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED', 'F09 selected realization must preserve accepted RED state')
-  requireText(selected, 'CON-04 alone returns `ConnectionDetail`', 'F09 selected realization must keep detail enrichment bounded to CON-04')
+  requireText(selected, '`CON-04` alone returns `ConnectionDetail`', 'F09 selected realization must keep detail enrichment bounded to CON-04')
 })
 
 test('selected F09 realization exposes current non-secret configuration only on exact Connection detail', () => {
