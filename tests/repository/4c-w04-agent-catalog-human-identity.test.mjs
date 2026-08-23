@@ -67,7 +67,7 @@ test('selected F13 realization makes Product Agent identity human-reviewable whi
   requireText(permissions, 'ordinary Permissions = 25', 'F13 must preserve ordinary Permission count')
   requireText(permissions, '`project.read`', 'F13 must preserve project.read')
   requireText(permissions, '`project.source.read`', 'F13 must preserve project.source.read')
-  requireText(permissions, 'PRJ-22', 'F13 must preserve PRJ-22 under ordinary Project read')
+  requireText(permissions, 'PRJ-01/02/16/17/22', 'F13 must preserve PRJ-22 inside the canonical project.read consumer set')
   requireText(permissions, 'PRJ-20/21', 'F13 must preserve PRJ-20/21 under source read')
   requireText(permissions, 'agent.manage', 'F13 must preserve rejection of generic agent.manage')
 })
