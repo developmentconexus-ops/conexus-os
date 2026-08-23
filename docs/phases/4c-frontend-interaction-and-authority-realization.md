@@ -6,19 +6,17 @@ Current mutable status and exact next action live only in [../roadmap.md](../roa
 
 > What is the smallest complete human-experience and frontend-authority contract that lets accepted human Product journeys become coherent, operator-reviewed browser interactions while every material read/write remains bidirectionally traceable to accepted Product/wire authority?
 
-4C is frontend Product/interaction realization. It is not Product implementation, final visual design, component-library design, Paved-Road selection, runtime selection or persistence design.
+4C is frontend Product/interaction realization. It is not Product implementation, final branded visual design, component-library design, Paved-Road selection, runtime selection or persistence design.
 
 ## 2. Root failures to prevent
 
-4C must prevent both failure classes:
+4C must prevent all three failure classes:
 
 ```text
 accepted backend/wire authority
 → mechanically mirrored screens/navigation
 → technically connected but incoherent human Product
 ```
-
-and:
 
 ```text
 attractive screen/interaction
@@ -27,16 +25,24 @@ attractive screen/interaction
 → screen convenience becomes Product authority
 ```
 
+```text
+individually coherent blocks
+→ no assembled interactive Product proof
+→ cross-block journeys fail only after implementation begins
+```
+
 Therefore:
 
 ```text
 backend coherence != UX coherence
+static plausibility != interaction coherence
+block coherence != whole-product coherence
 UX coherence != authority to change backend meaning
 ```
 
-Both must close before 4D.
+All must close through the applicable Phase-4 gates before Product implementation.
 
-## 3. Binding inputs
+## 3. Binding inputs and methodology profile
 
 Derive only from current accepted repository authority, principally:
 
@@ -49,24 +55,86 @@ Derive only from current accepted repository authority, principally:
 - [Frontend and Product Surfaces](../reference/frontend-and-product-surfaces.md);
 - one exact owning Product/security/reference document only when a concrete frontend question requires it.
 
-The operator-approved **Frontend Product Experience Planning Method v2.1** is adopted as reusable planning methodology, not as independent Conexus Product authority. This 4C contract is the Conexus-specific profile that preserves repository authority, Phase-4 boundaries and exact 4A/4B contracts.
+The operator-approved **Frontend Product Experience Planning Method v2.2** is the reusable planning methodology. This document is the Conexus-specific profile and status-independent contract. Repository Product/architecture authority remains stronger than methodology, and methodology never creates Product meaning by itself.
 
-External references, design systems, mature products, framework documentation and reviewer findings are Evidence. They may challenge or inform interaction hypotheses but cannot add Product meaning.
-
-Current fixed upstream facts include:
+Current fixed upstream facts after accepted bounded 4C findings include:
 
 ```text
-fixed Conexus platform Product operations = 111
+fixed Conexus platform Product operations = 113
 first Budget Analyzer Project operations  = 2
 ordinary Permissions                       = 25
 Technical Ingress HTTP operations          = 3 / Product-count impact 0
-canonical fixed Product wire               = 111 ↔ 111 schema-closed
+canonical fixed Product wire               = 113 ↔ 113 schema-closed
 parallel Product DTO authority              = forbidden
 ```
 
-## 4. Core derivation law
+External references, mature products, design systems and reviewer findings are Evidence, not Product authority.
 
-Frontend planning is bidirectional.
+## 4. v2.2 bounded rebaseline law
+
+When accepted Product/backend/method authority changes during frontend planning:
+
+```text
+new material authority
+→ bounded rebaseline
+→ update only affected flows / coverage / surface inventory / program mapping
+→ preserve valid LOCKED blocks unless the new Evidence falsifies them
+```
+
+A methodology revision is not permission to restart the Product or reopen operator decisions ceremonially.
+
+For the v2.2 adoption:
+
+```text
+GF-01 H1-R2 = preserved LOCKED baseline
+W-01 C1-R1 = preserved LOCKED baseline
+```
+
+because their HTML already makes their material interaction/structure inspectable and no v2.2 property currently falsifies those locked decisions. If later assembled P11/P12 Evidence exposes a contradiction, reopen only the smallest affected block.
+
+## 5. Conexus mapping to FP0–FP4 / P0–P14
+
+The reusable method defines how frontend experience is proved. The Conexus Phase-4 roadmap defines where that proof sits in the larger implementation-readiness program.
+
+```text
+FP0 / P0–P5
+→ 4C foundation
+→ authority, needs, flows, coverage, candidate IA, surface/block inventory
+
+FP1 / P6–P10
+→ 4C block-by-block experience
+→ references, hypotheses/feasibility, functional P8, operator LOCK, P9, P10
+
+FP2 / P11
+→ 4C assembled interactive low-fidelity Product
+→ assemble already-LOCKED blocks; test complete cross-block journeys
+
+FP3 / P12
+→ 4C whole-product adversarial UX + architecture walkthrough
+
+FP4 / P13–P14
+→ split across the broader Phase-4 program rather than creating a second roadmap
+→ 4C produces the visual-design handoff inputs and structural conformance obligations
+→ 4D realizes frontend/backend/runtime Paved Roads
+→ 4E composes whole-system golden/negative flows
+→ 4F derives the implementation graph
+→ 4G performs final adversarial implementation-readiness closure
+→ Product code still requires explicit operator grant
+```
+
+This is a justified Conexus profile of v2.2: `P14 implementation readiness` is not claimed by 4C alone because the Conexus Product additionally requires 4D–4G.
+
+Binding distinction:
+
+```text
+P8 proves the block; P11 proves the product
+```
+
+P11 is never the first time an interactive Product becomes clickable.
+
+## 6. Core bidirectional derivation law
+
+Frontend planning is bidirectional:
 
 ```text
 accepted Product journey
@@ -81,7 +149,7 @@ accepted Product journey
 → exact 4B wire
 ```
 
-and in reverse:
+and:
 
 ```text
 frontend-reachable admitted operation
@@ -94,7 +162,7 @@ frontend-reachable admitted operation
 
 A one-way trace is insufficient because it can hide orphan operations, fabricated user needs or invented UI behavior.
 
-## 5. Interaction classification law
+## 7. Interaction classification law
 
 Every material interaction must be classified before implementation topology is derived:
 
@@ -110,143 +178,73 @@ PROJECTION_ONLY
 
 Rules:
 
-- `PRODUCT_READ`, `PRODUCT_COMMAND` and `PROJECT_CAPABILITY` require exact accepted Product authority and exact canonical/generated wire consumption where network transport applies;
-- `TECHNICAL_INGRESS` remains protocol/technical boundary and never enters the 111 Product census by UI convenience;
-- `LOCAL_UI`, `NAVIGATION` and `PROJECTION_ONLY` must not receive fabricated Product operations merely because a control exists;
-- OIDC/Keycloak protocol mechanics remain authentication protocol, not Product operation authority.
+- Product reads/commands/capabilities require exact accepted Product authority and canonical/generated wire consumption;
+- `TECHNICAL_INGRESS` remains protocol-only and never enters the Product census by UI convenience;
+- `LOCAL_UI`, `NAVIGATION` and `PROJECTION_ONLY` do not receive fabricated Product operations;
+- Keycloak/OIDC is authentication protocol, not Conexus Product authorization authority.
 
-## 6. Human evidence and assumptions
+## 8. Human needs, flows and coverage
 
-4C must begin from human goals rather than screen inventory.
+4C begins from human goals, not endpoint or screen inventory.
 
-For every material human actor/context, derive where available:
+For material actors derive where Evidence permits:
 
 ```text
-trigger / situation
+trigger / context
 need / job
-intended outcome
+desired outcome
 frequency / urgency
-information needed for safe decision
-common friction / handoff
+information required for a safe decision
+friction / handoff
 ```
 
-Direct user/operator/domain Evidence is preferred. A material assumption may influence a candidate only when explicitly registered with:
+Material assumptions are explicit and eventually `VALIDATED | REJECTED | FINDING`.
+
+Every admitted human goal receives a complete flow:
 
 ```text
-assumption
-evidence level
-influenced block(s)
-planned adversarial probe
-OPEN | VALIDATED | REJECTED
+entry
+→ understand state
+→ decide
+→ act
+→ system response
+→ handoff when real
+→ outcome
+→ next likely task
 ```
 
-Unresolved material assumptions block 4C closure.
-
-Access roles are not automatically UX personas.
-
-## 7. Coverage and orphan disposition
-
-Before layout selection, 4C must classify frontend reachability and consumer coverage.
-
-For every accepted human capability and every concrete operation with a plausible human consumer, derive:
+A human-class backend operation without a real user need must resolve to:
 
 ```text
-human need / capability
-semantic owner
-flow
-candidate frontend context
-reads
-writes
-Permission / scope / disclosure obligations
-UX truth/failure obligations
-frontend disposition
+real evidenced need + frontend home
+OR NOT-HUMAN-FACING / DEFERRED
+OR upstream excess-capability FINDING
 ```
 
-A backend/application operation without a discovered human need must resolve by exactly one of:
+Never invent a screen or user need to eliminate an orphan count.
 
-```text
-A. evidenced real human need + frontend home
-B. operator-adjudicated NOT-HUMAN-FACING or DEFERRED disposition
-C. UPSTREAM finding that accepted capability is excess/misaligned
-```
+## 9. IA and material surfaces
 
-Forbidden:
+IA comes before final screen composition. Evaluate user language, core tasks/objects, relationships, browse hierarchy, search/filter entry, global/context navigation, cross-links, home/work queues and real breadcrumbs.
 
-```text
-orphan operation
-→ invent user need
-→ invent screen
-→ claim coverage
-```
+Existing backend/module topology is an authority input, never automatic navigation.
 
-Required closure eventually includes:
-
-```text
-frontend-reachable admitted concrete operations with consumers = complete
-frontend-nonreachable human-class operations with explicit disposition = complete
-invented user needs to consume orphan operations = 0
-invented frontend Product operations = 0
-```
-
-## 8. Information architecture before screen composition
-
-4C must derive candidate information architecture from user mental models, tasks and relationships rather than backend package/domain topology.
-
-Where material, evaluate:
-
-```text
-user-facing terminology
-primary objects/tasks
-frequent tasks
-relationships
-browse hierarchy
-search/filter/findability
-cross-links
-global vs contextual navigation
-primary vs secondary destinations
-accepted future seams
-```
-
-Existing semantic Workspace/Project surfaces are authority inputs, not automatic navbar labels/order. Exact labels/order/components remain realization questions until operator-adjudicated here.
-
-Future seams may shape extensibility but cannot create live routes/screens without current authority.
-
-## 9. Candidate surfaces and routes
-
-Screens derive from human flows + candidate IA, not endpoint count.
-
-Distinguish only where materially useful:
+Material surfaces derive from flows + candidate IA and may be:
 
 ```text
 route/page
-material region inside a route
+material sub-surface
 drawer/modal
-inline composition region
-alternate view of one collection
+inline region
+alternate collection view
 material state variant
 ```
 
-A separate material surface is justified when one or more of these change materially:
+Split only when semantic truth, safe action, owner/write, identity, concurrency, disclosure, recovery, exactness or viewer/editor mode changes materially.
 
-```text
-primary semantic truth
-safe user action
-write owner
-identity source
-concurrency/idempotency behavior
-content exactness/integrity
-security/disclosure context
-recovery path
-viewer/editor mode
-```
+## 10. Per-block P6/P7 — references, hypotheses and feasibility
 
-Do not split surfaces for implementation-file convenience or cosmetic layout differences.
-
-## 10. Reference study and competing hypotheses
-
-Reference study is conditional, not ceremonial.
-
-Use bounded current references only when a material block is unfamiliar, high-impact or structurally ambiguous. Analyze the same user task/pattern rather than visual fashion. Separate:
+Reference study is conditional, not ceremonial. Study the same user task/pattern and separate:
 
 ```text
 SOURCE OBSERVATION
@@ -254,85 +252,96 @@ INFERENCE
 CONEXUS CANDIDATE DECISION
 ```
 
-When real structural ambiguity exists, compare 2–3 plausible hypotheses against criteria such as task completion, recognition, comparison, scanability, density, scale, preview need, context preservation, failure recovery, accessibility, responsive viability and backend-truth fit.
+When ambiguity is real, compare 2–3 credible structures against task completion, scanability, recognition/comparison, density, context preservation, accessibility, responsive viability, scale, preview needs, error recovery and backend-truth fit.
 
-Do not manufacture alternatives where one conventional structure is clearly sufficient; record the bounded reason instead.
-
-## 11. Authority feasibility preflight before structural lock
-
-Before a leading structural candidate can be presented for operator `LOCKED`, it must pass a lightweight authority-feasibility preflight.
-
-At minimum, every material region/action must establish:
+Before P8 LOCK, the leading hypothesis must state required:
 
 ```text
-required read truth exists or FINDING
-required Product operation exists or FINDING
-required identity source exists or FINDING
-Permission/scope/disclosure class exists or FINDING
-concurrency/idempotency obligation known where applicable
-material outcome/failure classes known where applicable
+fields / summaries
+identity sources
+pagination / scale assumptions
+sort / filter needs
+preview / content truth
+material writes
 ```
 
-This is deliberately lighter than the full Screen Contract. It prevents operator-locking a structure that already depends on nonexistent Product authority without allowing backend shape to dictate UX.
-
-## 12. Rendered structural wireframe + operator-only lock
-
-Each material block requires a rendered/viewable low-fidelity structural artifact before it becomes baseline authority.
-
-For **Conexus 4C**, the operator has selected a stricter P8 medium than the reusable methodology requires:
+Every material requirement is:
 
 ```text
-primary structural wireframe = unbranded HTML + CSS
-bounded vanilla JavaScript    = allowed only when needed to inspect navigation/responsive structure
-production frontend framework = forbidden in P8 Evidence
-static image / SVG             = not current wireframe authority
+PRESENT-IN-AUTHORITY
+OR FINDING
 ```
 
-This remains P8 rather than P11: one bounded block may use browser interaction to make hierarchy, navigation and responsive transformation inspectable, but it does not claim complete cross-screen flows, backend behavior or production implementation.
+This is the authority-feasibility preflight. A difficult UI is never automatic authority for a convenience endpoint.
 
-The artifact proves/exposes structure, not brand design. It should make inspectable where relevant:
+## 11. P8 — functional low-fidelity HTML + operator-only LOCK
+
+For material interactive web blocks, canonical P8 Evidence is **functional low-fidelity HTML**:
 
 ```text
-hierarchy and reading order
-major regions / relative proportions
-navigation placement
-information grouping
-collection representation
-primary/secondary action placement
-density / progressive disclosure
-error/conflict/recovery region placement
-responsive transformation
-keyboard/focus plausibility
-heading/label structure
-non-drag path for essential interactions
+unbranded HTML
++ CSS
++ vanilla JavaScript when interaction exists
++ deterministic local fixtures/state simulation
 ```
 
-Decision vocabulary:
+Production React/framework code is forbidden in P8 Evidence. Static image/SVG, screenshot, ASCII, prose, non-interactive HTML or several static storyboard screens cannot receive P8 LOCK when material interactions exist.
+
+P8 must make every local interaction capable of falsifying the structure operable when relevant, for example:
 
 ```text
-LOCKED       operator-approved current planning baseline; operator-only
-CANDIDATE    plausible leading structure; not approved
-FINDING      material unresolved question/contradiction
-REJECTED     considered and deliberately not selected
-DEFERRED     accepted future seam without current consumer
-NOT-HUMAN-FACING explicit no-direct-human-consumer disposition
+open / close
+selection
+progressive disclosure
+tabs / lenses
+drawer / modal
+local form
+question / refinement draft
+empty / error / conflict state switching
+deep-link / anchor behavior
+responsive menu / sheet behavior
 ```
 
-Assistant, reviewer and tool output MUST NOT set `LOCKED`.
+Exit requires:
 
-The next dependent material block may not inherit the current block as baseline until the operator sets `LOCKED`, unless the operator explicitly authorizes parallel candidate progression. Parallel candidate work does not silently promote dependencies to authority.
+```text
+functional HTML exists
+material local interactions work
+important local states are inspectable
+responsive/accessibility structure is plausible
+blocking finding = 0
+operator explicitly LOCKS
+```
 
-## 13. Exact Screen Contract
+The operator uses the candidate. The assistant/reviewer/tool may only mark `CANDIDATE | FINDING | REJECTED | DEFERRED | NOT-HUMAN-FACING`.
 
-After structural lock, every material screen/region/control must receive exact vertical trace where relevant:
+P8 fixture behavior is technically disposable Evidence. It does not prove backend behavior, authorization, wire integration, concurrency or external-effect correctness and must not become parallel Product authority.
+
+The loop is:
+
+```text
+leading hypothesis
+→ functional low-fi HTML
+→ operator operates it
+→ discuss friction/failure
+→ revise the same block
+→ operate again
+→ explicit operator LOCK
+```
+
+Do not secretly design future unopened blocks; a destination may terminate at an explicit future-block boundary.
+
+## 12. P9 — exact Screen Contract / backend trace
+
+After P8 LOCK, every material screen/region/control receives exact trace where relevant:
 
 ```text
 GOAL / USER FLOW
 ROUTE / SURFACE
-INFORMATION-HIERARCHY ROLE
+INFORMATION ROLE
 INTERACTION CLASS
 OWNER + READ TRUTH
-WRITE CONTROL / admitted operationId
+WRITE CONTROL / operationId
 IDENTITY SOURCE
 CLIENT STATE CLASS
 CANONICAL / GENERATED WIRE CONSUMPTION
@@ -340,19 +349,92 @@ MATERIAL STATES / FAILURES
 FAILURE MESSAGE INTENT
 SUCCESS CONSEQUENCE
 AUTHZ / DISCLOSURE
-CONCURRENCY / IDEMPOTENCY carriage when applicable
+CONCURRENCY / IDEMPOTENCY
 PROOF / FALSIFIER
 FORBIDDEN FRONTEND AUTHORITY
 BACKEND SUFFICIENCY
 ```
 
-Failure-message intent states what the user must understand and what safe next action must remain possible. It is not final copywriting.
+Bidirectional law:
 
-No screen/control may be marked ready while its exact trace contains a material `FINDING`.
+```text
+Product/backend → frontend
+capability → owner → operation/read model → screen/control
 
-## 14. Generated transport law
+frontend → Product/backend
+screen/control → operation/read truth → owner → capability
+```
 
-All Product network interaction must preserve 4B custody:
+If P9 falsifies a P8 lock, reopen only the smallest affected P7/P8 scope.
+
+## 13. P10 — pattern consolidation
+
+After each block LOCK:
+
+```text
+observe local behavior
+→ compare with prior LOCKED consumers
+→ graduate only repeated semantic/protected behavior
+```
+
+Cosmetic similarity is insufficient. Do not create a speculative component system, generic review domain, hooks/store/SDK abstractions or framework utility here. Concrete realization belongs to 4D.
+
+## 14. P11 — assembled interactive low-fidelity Product
+
+After the material blocks are LOCKED:
+
+```text
+locked functional P8 blocks
+→ assembled interactive low-fi Product
+```
+
+P11 proves:
+
+```text
+cross-block navigation
+complete journeys
+deep links
+shared shell/overlay behavior
+cross-block negative/recovery flows
+cross-block responsive behavior
+```
+
+P11 does not redesign every block. If assembly falsifies a lock:
+
+```text
+FINDING
+→ smallest affected block/stage
+→ revise
+→ operator re-LOCK
+→ reassemble affected path
+```
+
+## 15. P12 — adversarial whole-product walkthrough
+
+Attack the assembled Product as target user, Product owner, Product Designer, Information Architect, senior frontend architect, backend/domain owner, accessibility reviewer and adversarial architecture reviewer.
+
+Challenge at least:
+
+```text
+findability
+unnecessary depth
+hidden decision-critical facts
+wrong density/pattern
+block-local optimum that fails globally
+missing source / identity
+screen-shaped API
+frontend authorization
+fixture state masquerading as Product truth
+broken stale/concurrency/idempotency/recovery semantics
+untracked assumptions
+accessibility/responsive failure
+```
+
+Every material assumption ends `VALIDATED | REJECTED | FINDING`.
+
+## 16. Generated transport and client-state custody
+
+All Product network interaction preserves:
 
 ```text
 accepted 4A semantics
@@ -364,19 +446,15 @@ accepted 4A semantics
 Forbidden:
 
 ```text
-hand-written parallel Product request/response DTOs
+hand-written parallel Product DTOs
 screen-specific transport schemas as co-authority
-copy-pasted Product Problem enums
-client interfaces that widen/narrow canonical semantics
+copy-pasted Problem enums
+client interfaces widening/narrowing Product semantics
 ```
 
-4C proves that frontend consumers can be defined against generated projection semantics. It does not select the final generator, SDK wrapper or Paved-Road API.
+Kubb 5.0.0 remains empirical 4B viability Evidence only; 4C cannot select the final 4D generator/Paved Road by implication.
 
-The 4B Kubb 5.0.0 result remains **empirical viability Evidence only**. 4C must not promote Kubb to final 4D Paved Road by implication.
-
-## 15. Client-state ownership
-
-Every material state belongs to the smallest honest class:
+Material client state belongs to the smallest honest class:
 
 ```text
 SERVER
@@ -385,195 +463,114 @@ FORM_DRAFT
 EPHEMERAL_UI
 ```
 
-A fifth class is admitted only when a real interaction demonstrates that none of these can preserve the required property honestly.
+A fifth class requires a real falsifier. Server Product truth may be cached/projected but never independently re-owned by frontend. Optimistic UI may not fabricate consequential success/current authorization.
 
-Rules:
+## 17. Authentication, disclosure, accessibility and responsive structure
 
-- server-owned Product truth is projected/cached, never independently re-owned by frontend;
-- URL/navigation state is explicit when it materially defines shareable/findable navigation context;
-- form draft may preserve user input without becoming committed Product truth;
-- ephemeral UI state may control local presentation without becoming lifecycle/business state;
-- unknown, known-empty, partial, stale, denied, ambiguous outcome and dependency-unavailable classes remain distinguishable where accepted authority requires them;
-- optimistic UI may not fabricate consequential business success or current authorization.
-
-Framework mechanics may support these classes but do not define Product authority.
-
-## 16. Browser authentication/session boundary
-
-4C must realize browser interaction around the accepted C-015 refinement without moving authorization into the client:
+Browser auth boundary remains:
 
 ```text
 Keycloak/OIDC
-→ human authentication protocol
+→ human authentication
 → Conexus Account/session
-→ current Conexus membership/grant/Published-App authorization
+→ current Conexus authorization
 ```
 
-Frontend planning must make material UX distinguish where applicable:
+Frontend visibility/disabled state never authorizes an operation. Where material, UX preserves unauthenticated, denied, non-disclosable, expired and revoked/narrowed distinctions.
+
+A block cannot LOCK without plausible keyboard path, semantic controls, focus/read order, labels/error association, non-color-only meaning, screen-reader plausibility and responsive transformation.
+
+Responsive behavior defines what stays primary, stacks, collapses, becomes contextual drawer/menu/sheet, becomes scrollable and remains reachable. Responsive transformation never changes Product semantics.
+
+## 18. Feature/package topology boundary
+
+Only after locked semantic surfaces, interaction ownership, state ownership, generated transport consumers and repeated protected patterns exist may 4C derive feature/package ownership boundaries and forbidden dependencies.
+
+4C MUST NOT select final SDK APIs, router/framework, state library, component package, codegen package implementation, database mechanism or runtime version. Those are 4D decisions from proved properties/consumers.
+
+## 19. Conexus 4C working order after v2.2 rebaseline
 
 ```text
-unauthenticated / authentication-required
-authenticated but denied
-absent or intentionally non-disclosable
-session expiry / reauthentication
-revoked or narrowed current authority
-```
+FP0 — FOUNDATION
+4C-0 / P0  bounded authority recovery
+4C-1 / P1  actors / needs / assumption register
+4C-2 / P2  end-to-end flows
+4C-3 / P3  coverage + operation disposition
+4C-4 / P4  candidate IA + terminology
+4C-5 / P5  material surface + block inventory
 
-Hidden/disabled controls are UX/disclosure behavior only. They never authorize an operation.
+FP1 — BLOCK-BY-BLOCK
+for each material block:
+  4C-6  / P6  references when triggered
+  4C-7  / P7  hypotheses + data/authority feasibility
+  4C-8  / P8  FUNCTIONAL low-fi HTML → operate → revise → operator LOCK
+  4C-9  / P9  Screen Contract / bidirectional backend trace
+  4C-10 / P10 pattern pass
 
-## 17. Derived interaction-pattern vocabulary
+FP2 — INTEGRATED LOW-FI
+4C-11 / P11 assemble already-LOCKED blocks
 
-Reusable interaction patterns are derived from locked evidence rather than invented upfront.
+FP3 — WHOLE-PRODUCT CHALLENGE
+4C-12 / P12 adversarial UX + architecture walkthrough
 
-A shared candidate pattern may graduate only when repeated locked consumers share the same purpose, state ownership, protected semantics, accessibility requirements and failure/recovery class.
-
-4C may close **pattern semantics**, for example a repeated stale-write or non-disclosable interaction behavior. 4C MUST NOT preselect component APIs, hooks, stores, package utilities or SDK abstractions.
-
-Those realization mechanics are 4D inputs.
-
-## 18. Interactive low-fidelity prototype
-
-Use an interactive prototype only when material cross-screen interaction, state transitions or recovery behavior need realistic falsification.
-
-The smallest useful default may be plain deterministic browser technology and local fixtures. Prototype code is Evidence, never Product implementation.
-
-A fixture prototype may prove/expose:
-
-```text
-navigation coherence
-interaction coherence
-hierarchy/density comprehension
-state/failure comprehensibility
-recovery discoverability
-responsive/accessibility plausibility
-```
-
-It MUST NOT be cited as proof that:
-
-```text
-backend behavior exists
-authorization is implemented
-wire/runtime integration works
-concurrency/idempotency is enforced
-external effects reconcile correctly
-```
-
-Material controls must be inspectable rather than decorative dead UI when the prototype claims to exercise their interaction flow.
-
-## 19. Accessibility and responsive behavior are structural
-
-A candidate cannot be operator-locked when its interaction model has no plausible accessible or responsive realization.
-
-Structural planning must consider where relevant:
-
-```text
-keyboard navigation
-semantic control choice
-focus/read order
-heading hierarchy
-labels/instructions/error association
-non-color-only meaning
-screen-reader comprehensibility
-target viability
-responsive reflow
-non-drag alternative for essential interaction
-```
-
-Responsive planning must define what stays primary, stacks, collapses, becomes contextual navigation/drawer, becomes locally scrollable and remains always reachable. Responsive transformation cannot change Product semantics or hide the only material action.
-
-## 20. Feature/package topology boundary
-
-Only after goals, IA, material interactions, state ownership, generated consumers and repeated interaction semantics are accepted may 4C derive the smallest feature/package topology needed to preserve those boundaries during later implementation.
-
-Derivation law:
-
-```text
-locked semantic surfaces
-+ interaction ownership
-+ state ownership
-+ generated transport consumers
-+ repeated protected patterns
-→ feature/package boundary candidate
-```
-
-4C may define ownership/cohesion boundaries and forbidden dependencies. It MUST NOT select final framework wrappers, SDK helper APIs, state libraries, design systems, codegen package implementation, router/runtime package versions or 4D scaffold mechanics.
-
-## 21. Conexus 4C working order
-
-Use this order:
-
-```text
-4C-0  bounded authority recovery
-4C-1  actors / needs / assumption register
-4C-2  end-to-end human-flow inventory
-4C-3  frontend coverage + operation-consumer/disposition census
-4C-4  candidate information architecture + terminology glossary
-4C-5  candidate screen/material-surface inventory
-
-PER MATERIAL BLOCK
-4C-6  reference study when triggered
-4C-7  competing structural hypotheses when ambiguity is real
-4C-7F authority-feasibility preflight
-4C-8  rendered structural wireframe + operator visual adjudication
-4C-9  exact Screen Contract / bidirectional trace
-4C-10 bounded interaction-pattern consolidation
-4C-11 interactive realization only when material
-
-ASSEMBLED CLOSURE
-4C-12 whole-product adversarial UX + architecture walkthrough
-4C-13 generated-consumption + state/auth + feature-topology closure
+4C CLOSURE
+4C-13 generated-consumption + state/auth + feature-topology + handoff-input closure
 4C-14 independent Fable review + Lead adjudication
 → explicit operator 4C ratification
+→ 4D next
 ```
 
-A finding returns only to the smallest affected block/stage unless it falsifies a global assumption or accepted upstream authority.
+No all-at-once wireframing. The next dependent material block does not inherit a candidate as baseline before operator LOCK unless the operator explicitly authorizes parallel candidate work.
 
-## 22. Minimum logical artifact set
+## 20. Minimum logical artifact set
 
-Repositories may consolidate records. 4C needs logical records for:
+Repositories may consolidate records. Required logically where triggered:
 
 ```text
 bounded authority map
-actor/need + assumption register
-end-to-end flow inventory
-frontend coverage / operation disposition matrix
+need / assumption register
+end-to-end flows
+coverage / operation disposition matrix
 candidate IA + terminology
-material block ledger
-reference/hypothesis notes only where triggered
-rendered structural wireframes
-Screen Contracts / bidirectional trace
-interaction-pattern vocabulary
-interactive prototype only where material
-adversarial findings
+Frontend Planning Program / block roadmap
+block ledger
+reference notes
+hypothesis comparison
+functional P8 HTML
+P9 Screen Contracts
+P10 pattern vocabulary
+assembled P11 prototype
+P12 findings
+visual-design handoff inputs / structural conformance obligations
 feature/package topology result
 independent review + Lead adjudication
 ```
 
 Do not create one file per row merely for ceremony.
 
-## 23. Falsifiable proof package
+## 21. Falsifiable proof package
 
-4C cannot close because wireframes look coherent. The candidate must prove at least:
+4C cannot close because screens look plausible. It must prove at least:
 
-1. **Human-goal closure** — every admitted material human goal has a complete end-to-end frontend flow or explicit upstream finding.
-2. **Frontend reachability closure** — every frontend-reachable admitted concrete Product operation has a real consumer and every non-frontend human-class operation has explicit disposition.
-3. **No fabricated consumer closure** — no user need/screen exists solely to consume an orphan operation.
-4. **Bidirectional authority closure** — every material Product read/write traces to one accepted owner/operation and exact 4B wire; every material screen control traces back to an accepted human need.
-5. **No invented Product closure** — invented frontend Product operations = 0; screen-shaped/BFF Product authority = 0.
-6. **Generated transport closure** — parallel handwritten Product DTO/schema authority = 0.
-7. **State-ownership closure** — server truth independently re-owned by frontend = 0; every material client state has an explicit class.
-8. **Truth/outcome closure** — material unknown/empty/partial/stale/denied/ambiguous/dependency states are not dishonestly collapsed.
-9. **Identity/authorization closure** — navigation identities have accepted sources; client visibility never substitutes for authorization; Keycloak authentication never becomes Conexus grant authority.
-10. **Structural UX closure** — material IA/blocks are operator-locked after rendered review, not inferred from backend topology or assistant preference.
-11. **Assumption closure** — unresolved material assumptions = 0.
-12. **Accessibility/responsive closure** — no operator-locked material structure lacks a plausible accessible/responsive realization.
-13. **Pattern/YAGNI closure** — shared frontend patterns derive from repeated protected semantics; speculative helpers/components/SDK abstractions = 0.
-14. **Feature-boundary closure** — feature/package topology is derived from accepted interaction ownership without selecting 4D implementation mechanism.
-15. **Budget Analyzer proving instance** — both accepted Budget Analyzer operations are consumed/dispositioned by the exact first-vertical frontend journey without generic analytics semantics.
-16. **Negative challenge** — deliberately proposed convenience API, frontend auth evaluator, client lifecycle owner, parallel DTO, backend-shaped navigation and fixture-proves-backend claims fail for the expected reason.
-17. **Independent challenge** — Fable review + Lead adjudication converge with no unresolved material 4C finding before operator ratification.
+1. every admitted material human goal has a complete flow or upstream finding;
+2. every frontend-reachable Product operation has a real consumer/disposition;
+3. invented needs/screens solely to consume orphan operations = 0;
+4. every material Product read/write has bidirectional owner/operation/wire trace;
+5. invented frontend Product operations and screen-shaped/BFF authority = 0;
+6. parallel handwritten Product DTO/schema authority = 0;
+7. every material client state has an honest owner/class;
+8. unknown/empty/partial/stale/denied/ambiguous/dependency states are not collapsed dishonestly;
+9. navigation/action identities have accepted sources and client visibility never substitutes for authorization;
+10. material blocks are operator-LOCKED only after functional P8 operation;
+11. unresolved material assumptions = 0;
+12. accessibility/responsive structural falsifiers = 0;
+13. shared patterns derive from repeated protected behavior;
+14. P11 complete journeys are operable across assembled LOCKED blocks;
+15. P12 leaves no unresolved material UX/architecture finding;
+16. first Budget Analyzer operations have exact frontend proving consumers without generic analytics invention;
+17. independent Fable challenge + Lead adjudication converge before operator ratification.
 
-## 24. Explicit non-scope
+## 22. Explicit non-scope
 
 4C MUST NOT:
 
@@ -587,55 +584,75 @@ select final state-management library
 select component-library/design-system package
 select backend router/framework
 select ORM/query builder or physical persistence
-change Product meaning to simplify a screen
+change Product meaning merely to simplify a screen
 create screen-shaped/BFF Product API
 create parallel Product DTO/schema authority
 implement Keycloak/session authorization mechanics
 implement handlers, migrations, Sankhya sync or Product frontend
 claim fixture prototype proves runtime/backend behavior
-require final brand/visual design to close 4C unless separately operator-required
+claim P11/P12 makes 4D–4G unnecessary
 ```
 
-Visual design may occur later. If it changes locked IA, material fields/actions, reading order, region priority, density class, responsive structure or workflow meaning, the smallest affected 4C block must be re-adjudicated rather than silently redesigned.
+Final branded visual design is not required to close 4C. 4C must, however, produce the v2.2 handoff inputs and structural conformance obligations. If later visual design changes locked navigation, material fields/actions, reading order, region priority, density class, responsive structure or workflow meaning, reopen the smallest affected frontend block.
 
-## 25. Stop / reopen conditions
+## 23. Stop / reopen conditions
 
-STOP and reopen only the smallest owning authority when:
+STOP and reopen only the smallest evidence-backed owner/stage when:
 
-- a real accepted human goal cannot be completed without a Product capability absent from 4A;
-- a material interaction requires truth or semantics the canonical 4B wire cannot express;
-- an accepted operation cannot obtain a coherent human consumer without fabricating need;
-- a locked candidate requires an identity/scope/disclosure rule contradictory to accepted authority;
-- generated consumption cannot preserve 4B semantics without a second editable transport authority;
-- a Product read/write would require frontend-owned lifecycle, authorization or business truth;
-- Budget Analyzer interaction requires analytics/history meaning not admitted upstream;
-- a real interaction proves accepted IA/frontend Phase-3 semantics materially contradictory rather than merely requiring realization choice.
+- a real accepted human goal cannot be completed without Product meaning absent from 4A;
+- a material interaction requires truth the canonical 4B wire cannot express;
+- an accepted operation cannot obtain a coherent human consumer without fabricated need;
+- required `fields/summaries`, identity, preview/content truth or material writes are not PRESENT-IN-AUTHORITY;
+- a locked candidate contradicts current identity/scope/disclosure authority;
+- generated consumption would require a second editable wire authority;
+- frontend would need to own lifecycle, authorization or business truth;
+- P11/P12 exposes a block-local optimum that fails whole-product coherence;
+- a later Product/backend change materially falsifies a locked block.
 
-Do not reopen 4A/4B for visual preference, component convenience, route aesthetics, framework ergonomics, reference-product symmetry or hypothetical future scale.
+Do not reopen 4A/4B for visual preference, route aesthetics, framework ergonomics, reference-product symmetry or hypothetical future scale.
 
-## 26. Exit condition
+Method discipline for upstream findings remains:
+
+```text
+frontend Evidence
+→ human job / root cause
+→ target invariant
+→ locate real owner in the original plan
+→ credible alternatives
+→ Local vs Global Maximum
+→ YAGNI / future cost
+→ operator decision when Product meaning changes
+→ selected-realization RED
+→ bounded recompile
+```
+
+`smallest-owner reopen != smallest patch`.
+
+## 24. Exit condition
 
 4C can close only when the exact candidate establishes:
 
 ```text
 complete human-goal / end-to-end flow inventory
 + complete frontend operation consumer/disposition census
-+ operator-adjudicated information architecture and material structural blocks
-+ complete Screen Contracts / bidirectional 4A↔4B trace
-+ generated transport consumption law with zero parallel Product DTO authority
-+ explicit state ownership and honest material truth/outcome UX
-+ browser authentication/session interaction boundary without client authorization authority
++ operator-locked global frame and material functional P8 blocks
++ complete P9 Screen Contracts / bidirectional 4A↔4B trace
++ P10 patterns derived only from repeated protected behavior
++ P11 assembled interactive low-fidelity Product
++ P12 whole-product adversarial walkthrough
++ generated transport consumption with zero parallel Product DTO authority
++ explicit state ownership and honest truth/outcome UX
++ browser authentication/session boundary without client authorization authority
 + accessibility/responsive structural viability
-+ derived interaction-pattern vocabulary without premature component/SDK design
 + feature/package topology derived only after interaction closure
++ visual-design handoff inputs / structural conformance obligations
 + exact Budget Analyzer frontend proving instance
 + zero invented frontend Product operations
 + zero screen-shaped/BFF Product authority
 + zero unresolved material assumptions/findings
-+ whole-4C adversarial proof
 + independent Fable review and Lead adjudication
 + repository verification green
 + explicit operator 4C ratification
 ```
 
-4C closure makes the accepted frontend interaction/authority model eligible as an input to **4D**. It does **not** make Product implementation eligible and does not authorize any Product code.
+4C closure makes the accepted frontend interaction/authority model eligible as input to **4D**. It does not make Product implementation eligible and does not authorize Product code.
