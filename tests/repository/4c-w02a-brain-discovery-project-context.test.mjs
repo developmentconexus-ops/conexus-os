@@ -47,7 +47,8 @@ test('F08 preserves the P9 finding and Global-Maximum decision history', () => {
     'E — remove projectId and make BRN-04 Workspace-wide discovery',
   ]) requireText(gm, alternative, `F08 Global-Maximum assessment missing alternative: ${alternative}`)
   requireText(gm, 'LEADING GLOBAL-MAXIMUM CANDIDATE = C', 'F08 must identify explicit Project context as leading candidate')
-  requireText(selected, 'OPERATOR ACCEPTED / SELECTED REALIZATION / P8 REVISION RED', 'F08 selected realization must record operator acceptance and RED state')
+  requireText(selected, 'OPERATOR ACCEPTED / SELECTED REALIZATION / P8 REVISION RED', 'F08 selected realization must preserve the historical accepted RED marker')
+  requireText(selected, 'OPERATOR RE-APPROVED', 'F08 selected realization must record the final operator re-approval')
   requireText(selected, 'selected projectId = FORM_DRAFT / untrusted reference', 'F08 selected realization must keep Project selection client-draft only')
 })
 
@@ -55,7 +56,7 @@ test('selected F08 realization makes Project context explicit before BRN-04 with
   const html = read('docs/evidence/4c/w02a-brain-functional-wireframe.html')
   const roadmap = read('docs/roadmap.md')
 
-  requireText(html, 'id="discoveryProject"', 'F08 RED: Discovery must expose an explicit Project context control')
+  requireText(html, 'id="discoveryProject"', 'Discovery must expose an explicit Project context control')
   requireText(html, 'data-read-operation="PRJ-01"', 'Discovery Project context must trace to PRJ-01')
   requireText(html, 'data-operation="BRN-04"', 'Discovery must preserve BRN-04 as the action owner')
   requireText(html, 'projectId:', 'F08 fixture Projects must carry ProjectSummary projectId')
@@ -75,6 +76,6 @@ test('selected F08 realization makes Project context explicit before BRN-04 with
   }
 
   requireText(roadmap, 'F08 OPERATOR ACCEPTED', 'roadmap must preserve F08 operator acceptance')
-  requireText(roadmap, 'F08 SELECTED REALIZATION', 'roadmap must route the selected F08 P8 revision')
-  requireText(roadmap, 'W-02A NOT LOCKED', 'W-02A must remain unlocked until revised P8 operator re-walkthrough')
+  requireText(roadmap, 'F08 SELECTED REALIZATION', 'roadmap must preserve selected F08 history')
+  requireText(roadmap, 'W-02A LOCKED', 'roadmap must show W-02A locked after operator re-approval')
 })
