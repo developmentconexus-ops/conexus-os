@@ -730,7 +730,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Authored Product Agent identities/revisions and Release projection; PAR runtime authority is excluded.
+          description: Authored Product Agent human identity, semantic purpose, exact authored revision and Release projection; PAR runtime authority is excluded.
           content:
             application/json:
               schema:
@@ -757,7 +757,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact Project-owned Agent authoring identity/revision and Release references without runtime override authority.
+          description: Exact Project-owned Agent human identity, semantic purpose, authoring revision and Release references without runtime override authority.
           content:
             application/json:
               schema:
@@ -781,7 +781,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Access-filtered Workspace catalog projection over Project-owned Product Agents.
+          description: Access-filtered Workspace catalog projection over Project-owned Product Agents. Each item is self-contained for human recognition through the canonical Agent projection plus its owning ProjectSummary; catalog disclosure creates no Workspace Agent/fleet authority or Project source-read grant.
           content:
             application/json:
               schema:
@@ -1072,11 +1072,22 @@ components:
     ProjectProductAgent:
       type: object
       additionalProperties: false
-      required: [agentId, authoredRevisionId, releaseRefs, activeReleaseId]
+      required: [agentId, name, purpose, authoredRevisionId, releaseRefs, activeReleaseId]
       properties:
         agentId:
           type: string
           minLength: 1
+          description: Stable Product Agent machine identity; never human presentation or authorization by itself.
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human Product Agent presentation identity from the exact authored agent/v1 revision; never routing, authorization or runtime state.
+        purpose:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable semantic purpose from the exact authored agent/v1 revision; never authorization or runtime health.
         authoredRevisionId:
           type: string
           minLength: 1
@@ -1089,12 +1100,13 @@ components:
         activeReleaseId:
           type: [string, 'null']
           minLength: 1
+          description: Current Project Release coordinate when this Agent is included in the active Release; presence does not prove runtime health, execution or served verification.
     WorkspaceProductAgentCatalogItem:
-      allOf:
-        - $ref: '#/components/schemas/ProjectProductAgent'
-        - type: object
-          required: [projectId]
-          properties:
-            projectId:
-              type: string
-              minLength: 1
+      type: object
+      additionalProperties: false
+      required: [agent, project]
+      properties:
+        agent:
+          $ref: '#/components/schemas/ProjectProductAgent'
+        project:
+          $ref: '#/components/schemas/ProjectSummary'
