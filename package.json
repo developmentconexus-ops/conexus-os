@@ -16,7 +16,7 @@
     "wire:bijection": "node scripts/check-wire-bijection.mjs",
     "wire:carriers": "node scripts/check-wire-carriers.mjs",
     "wire:identity-workspace": "node scripts/check-wire-identity-workspace.mjs",
-    "wire:project": "node scripts/check-wire-project.mjs",
+    "wire:project": "node scripts/check-wire-project.mjs && node scripts/check-wire-project-agent-catalog.mjs",
     "wire:builder": "node scripts/check-wire-builder.mjs",
     "wire:brain": "node scripts/check-wire-brain.mjs",
     "wire:connections": "node scripts/check-wire-connections.mjs",
