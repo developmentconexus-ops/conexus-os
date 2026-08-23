@@ -1,7 +1,7 @@
 # Conexus OS — Product Operation Ledger
 
-> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` BOUNDED CORRECTIONS ACCEPTED
-> **Authority:** derived only from current accepted Product/architecture authority routed by `docs/index.md`, the 4A contract, the operator-approved first Budget Analyzer semantic contract and the operator-approved bounded downstream corrections `4B-F01` and `4C-F02`.
+> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` BOUNDED CORRECTIONS ACCEPTED
+> **Authority:** derived only from current accepted Product/architecture authority routed by `docs/index.md`, the 4A contract, the operator-approved first Budget Analyzer semantic contract and the operator-approved bounded downstream corrections `4B-F01`, `4C-F02` and `4C-F03`.
 > **Mutable program status:** owned only by `docs/roadmap.md`.
 
 This ledger is the canonical 4A Product-operation authority. It is intentionally **not** HTTP/OpenAPI, frontend, database, SDK or runtime design and it does not authorize Product implementation.
@@ -9,13 +9,13 @@ This ledger is the canonical 4A Product-operation authority. It is intentionally
 The ledger closes three different surfaces because Conexus is a software-publishing platform rather than one fixed business application:
 
 ```text
-fixed Conexus platform operations = 112
+fixed Conexus platform operations = 113
 Project-defined operations        = exact finite Ops(R) admitted by the grammar in §4
 first Budget Analyzer operations  = 2
 ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
 ```
 
-The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. During executable-wire derivation, `4B-F01` materially falsified three generic mutation rows because no accepted Product authority defined their mutable property sets; the operator explicitly approved their bounded subtraction. During W-01 frontend authority-feasibility work, `4C-F02` then proved that accepted Journey B could not be completed truthfully without creation-time source bootstrap, caller-expressible Inception intent and one durable exact candidate-Baseline read. The operator approved that bounded correction; all unaffected 4A semantics remain preserved.
+The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. During executable-wire derivation, `4B-F01` materially falsified three generic mutation rows because no accepted Product authority defined their mutable property sets; the operator explicitly approved their bounded subtraction. During W-01 frontend authority-feasibility work, `4C-F02` then proved that accepted Journey B could not be completed truthfully without creation-time source bootstrap, caller-expressible Inception intent and one durable exact candidate-Baseline read. The later operator-approved `4C-F03` proved that a coherent visual Baseline review loop additionally requires exact-candidate refinement input and one exact candidate-bound contextual explanation surface under Baseline-management authority. All unaffected 4A semantics remain preserved.
 
 ---
 
@@ -24,10 +24,10 @@ The numbers are derivation results, not targets. The original 4A candidate survi
 ### 1.1 Fixed platform census
 
 ```text
-N_platform = 112
-platform operations with named owner       = 112
-platform operations with real consumer     = 112
-platform operations with authority mapping = 112
+N_platform = 113
+platform operations with named owner       = 113
+platform operations with real consumer     = 113
+platform operations with authority mapping = 113
 orphaned platform operations                = 0
 speculative platform operations             = 0
 ```
@@ -155,7 +155,7 @@ Attachments/private bytes are carrier properties of exact owning operations, nev
 
 # 5. Fixed Conexus platform census
 
-The tables below are the exact 112 current Product operations. IDs deliberately remain stable around subtracted candidates so review history does not silently renumber authority.
+The tables below are the exact 113 current Product operations. IDs deliberately remain stable around subtracted candidates so review history does not silently renumber authority.
 
 ## 5.1 Identity & Access — 16
 
@@ -193,7 +193,7 @@ The tables below are the exact 112 current Product operations. IDs deliberately 
 
 No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default Workspace operation is admitted.
 
-## 5.3 Project — 22
+## 5.3 Project — 23
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
@@ -202,7 +202,7 @@ No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default 
 | `PRJ-03` | `CreateProject` | Project + accepted L7 composition | exact Workspace; atomically establishes Project + initial I&A grant + one canonical Project source bootstrap | command/cross-owner atomic |
 | `PRJ-05` | `ArchiveProject` | Project | exact Project archive authority; does not unpublish/stop automations | command/current-state |
 | `PRJ-06` | `DuplicateProject` | Project | source authority + destination Workspace create authority; default NO DATA; no credential/binding copy | command/cross-scope |
-| `PRJ-07` | `RunInceptionInvestigation` | Project | exact greenfield/brownfield Project + caller intent; governed read-only inspection of already-admitted source/context | investigation command |
+| `PRJ-07` | `RunInceptionInvestigation` | Project | exact greenfield/brownfield Project + caller intent; optional refinement binds explicit human review feedback to one exact immutable prior candidate while source/context remain server-resolved | investigation command |
 | `PRJ-08` | `GetApprovedProjectBaseline` | Project | exact Project/Baseline disclosure | read |
 | `PRJ-09` | `ApproveProjectBaselineRevision` | Project | exact candidate Baseline digest + current approval authority | decision/current-state |
 | `PRJ-10` | `GetProjectBrainBinding` | Project | exact pinned binding + validation/update state | read |
@@ -219,6 +219,7 @@ No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default 
 | `PRJ-21` | `GetProjectProductAgent` | Project projection | exact Agent authoring identity/revisions/Release refs | read |
 | `PRJ-22` | `ListWorkspaceProductAgents` | Project-owned filtered projection | Workspace access-filtered catalog; no Workspace Agent owner | read |
 | `PRJ-23` | `GetProjectBaselineCandidate` | Project | exact candidate Baseline human review/re-entry by Project + candidate digest before approval | read |
+| `PRJ-24` | `AskConexusAboutBaselineCandidate` | Project | exact immutable candidate Baseline contextual explanation for the current Baseline-management reviewer; generated visual-selection context is untrusted and revalidated | read/assistant interaction |
 
 `PRJ-04 UpdateProject` was subtracted by operator-approved `4B-F01`: no accepted Product authority defined a closed generic Project metadata/property mutation. A future real rename/metadata consumer must be admitted explicitly rather than inferred here.
 
@@ -270,6 +271,44 @@ browser cache/localStorage = NEVER candidate-Baseline authority
 ```
 
 `PRJ-23` is one new read because a real human consumer needs durable exact candidate review after refresh/re-entry. No new ordinary Permission, semantic owner, principal class or durable record class is created. Candidate source remains Project-Git/immutable-byte authority projected by the Project owner.
+
+### 5.3.2 `4C-F03` — Baseline visual review / contextual refinement correction
+
+W-01 visual-review Evidence proved two additional missing Product properties and no broader review domain.
+
+```text
+PRJ-07 RunInceptionInvestigation
+→ ordinary first investigation still requires human intent only
+→ refinement may additionally name exactly one priorCandidateBaselineDigest
+→ refinement requires explicit non-blank reviewFeedback about that exact candidate
+→ priorCandidateBaselineDigest and reviewFeedback are all-or-nothing
+→ server re-resolves exact candidate containment/current Project authority
+→ Candidate A is never mutated; successful refinement produces a new immutable Candidate B
+→ HTML/DOM/annotation/Mastra state is never candidate authority
+
+PRJ-24 AskConexusAboutBaselineCandidate
+→ exact Project + candidateBaselineDigest + non-blank question
+→ optional candidate-local generated review context may identify a projection anchor / selected rendered text
+→ review context is untrusted presentation context and must be revalidated against the exact candidate
+→ response is read-only contextual explanation with candidate identity + provenance
+→ no mutation, approval, grant, Builder authority or hidden Project state transition
+```
+
+Binding negative laws:
+
+```text
+feedback hidden inside free-form intent -X-> exact-candidate lineage
+chat message -X-> Baseline mutation
+HTML/DOM selector -X-> Product identity
+generated review anchor -X-> Product authority
+Mastra RequestContext/thread/memory -X-> Baseline truth
+project.manage -X-> project.build
+BLD-16 -X-> Baseline-management authority by frontend convenience
+BaselineComment/BaselineThread/ReviewSession CRUD = NOT ADMITTED
+candidate list/CRUD/workflow domain = NOT ADMITTED
+```
+
+`PRJ-24` is one new read/assistant interaction because a real Baseline-management reviewer needs to ask about the exact immutable candidate without acquiring the distinct `project.build` authority of Builder `BLD-16`. `4C-F03` creates zero new ordinary Permissions, semantic owner classes, principal classes, trust boundaries or durable record classes. Visual anchors and conversation continuity remain generated/local/cognitive mechanisms; Project owner truth stays candidate-digest bound.
 
 ## 5.4 Builder — 17
 
@@ -535,8 +574,8 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | `PRJ-03` | `HUMAN_ACCOUNT_SESSION / CP` | `project.create` | destination Workspace + atomic Project/initial-grant + one canonical source-bootstrap admission; success implies a source-complete Project | `COMMAND` | `IC3` |
 | `PRJ-05` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact current Project; archive preserves independent serving/automation laws | `COMMAND` | `IC2` |
 | `PRJ-06` | `HUMAN_ACCOUNT_SESSION / CP` | source `project.manage` + destination `project.create` | source Project + destination Workspace; NO DATA/no credentials/no bindings by default | `COMMAND` | `IC3` |
-| `PRJ-07` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage`; plus `connection.use` only when an already-admitted external source context actually requires it | exact inception Project + non-blank human intent + server-resolved admitted source/context; investigation cannot publish authority directly | `PROOF` | `IC3` |
-| `PRJ-08,PRJ-09,PRJ-10,PRJ-12,PRJ-13,PRJ-15,PRJ-23` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/current or candidate Baseline/binding subject; removals are narrowing | reads `READ`; decisions/writes `DECISION/COMMAND` | reads `IC0`; writes `IC2` |
+| `PRJ-07` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage`; plus `connection.use` only when an already-admitted external source context actually requires it | exact inception Project + non-blank human intent + server-resolved admitted source/context; optional refinement requires exact prior candidate + explicit review feedback; investigation cannot publish authority directly | `PROOF` | `IC3` |
+| `PRJ-08,PRJ-09,PRJ-10,PRJ-12,PRJ-13,PRJ-15,PRJ-23,PRJ-24` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/current or candidate Baseline/binding subject; PRJ-24 is exact candidate-bound read-only explanation; removals are narrowing | reads `READ`; decisions/writes `DECISION/COMMAND` | reads `IC0`; writes `IC2` |
 | `PRJ-11` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage + brain.bind` | exact immutable Brain revision + current conformance + exact Project binding subject | `DECISION` | `IC2` |
 | `PRJ-14` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage + connection.use` | exact qualified compatible ConnectionRevision/environment + current Project binding | `DECISION` | `IC2` |
 | `PRJ-16,PRJ-17` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` | exact Project + capability identity; inspection does not grant invocation | `READ` | `IC0` |
@@ -618,10 +657,19 @@ W-01 authority-feasibility then produced operator-approved `4C-F02`:
 111
 + 1 PRJ-23 GetProjectBaselineCandidate
     → real human review/re-entry consumer requires a durable exact candidate read
-= 112 current fixed Conexus platform Product operations
+= 112 fixed operations after 4C-F02
 ```
 
-`PRJ-03` and `PRJ-07` gained only the missing source-bootstrap and Inception-intent semantics already required by Journey B; they remain the same Product operations and do not add count. No rename/settings replacement, Repository CRUD or source-switching operation was admitted.
+W-01 visual-review feasibility then produced operator-approved `4C-F03`:
+
+```text
+112
++ 1 PRJ-24 AskConexusAboutBaselineCandidate
+    → exact Baseline-management reviewer needs candidate-bound contextual explanation without Builder authority
+= 113 current fixed Conexus platform Product operations
+```
+
+`PRJ-03` and `PRJ-07` gained only bounded missing semantics required by Journey B and the exact-candidate refinement loop; they remain the same Product operations and do not add count. No rename/settings replacement, Repository CRUD, source-switching operation, Baseline comment/thread/session CRUD or generic assistant owner was admitted.
 
 Kept after attack because their exact detail has independent Product meaning:
 
@@ -661,6 +709,9 @@ ActivateRecoveredSystem
 ImportProjectAsSecondCreationMeaning
 AttachOrSwitchProjectSource
 ListProjectBaselineCandidates
+CreateBaselineComment
+CreateBaselineThread
+PersistBaselineReviewSession
 ```
 
 ---
@@ -696,22 +747,22 @@ possible UX labels/modes               = 4C only; labels cannot create authority
 Paved Road realization                 = 4D
 ```
 
-The bounded SoftwareForge review itself adds no Product operation, Permission, owner or trust boundary. The independent `4C-F02` Journey-B falsifier is what raises the current fixed-operation count to 112.
+The bounded SoftwareForge review itself adds no Product operation, Permission, owner or trust boundary. `4C-F02` and `4C-F03` are independent W-01 interaction falsifiers whose current accepted corrections raise the fixed-operation count from 111 → 112 → 113 while preserving the existing owner/Permission model.
 
 ---
 
 # 12. Closure assertions after independent review + bounded downstream corrections
 
 ```text
-N_platform                              = 112
+N_platform                              = 113
 N_budget                                = 2
 ordinary Permissions                    = 25
-fixed operations with semantic owner    = 112/112
-fixed operations with consumer          = 112/112
-fixed operations with principal/ingress = 112/112
-fixed operations with auth/scope route  = 112/112
-fixed operations with outcome profile   = 112/112
-fixed operations with exact IC profile  = 112/112
+fixed operations with semantic owner    = 113/113
+fixed operations with consumer          = 113/113
+fixed operations with principal/ingress = 113/113
+fixed operations with auth/scope route  = 113/113
+fixed operations with outcome profile   = 113/113
+fixed operations with exact IC profile  = 113/113
 Budget operations with all fields       = 2/2
 Project grammar exact-Release pinned     = yes
 universal execute authority              = rejected
@@ -747,8 +798,14 @@ That review record remains historical Evidence of the 114-operation ratified clo
 → enrich PRJ-07 with required non-blank Inception intent
 → add PRJ-23 GetProjectBaselineCandidate
 → N_platform 111 → 112
+
+4C-F03 OPERATOR ACCEPT
+→ enrich PRJ-07 with all-or-nothing exact prior-candidate + human review-feedback refinement input
+→ add PRJ-24 AskConexusAboutBaselineCandidate under existing Project/project.manage authority
+→ keep generated visual anchors and Mastra conversation state non-authoritative
+→ N_platform 112 → 113
 ```
 
-`4C-F02` creates one new read operation and zero new Permissions, owners, principal classes, trust boundaries or durable record classes. 4B must recompile its machine wire/checkers against this corrected current ledger before W-01 structural work resumes.
+`4C-F03` creates one new read/assistant operation and zero new Permissions, owners, principal classes, trust boundaries or durable record classes. 4B must recompile its machine wire/checkers against this corrected current ledger before W-01 visual structural work resumes.
 
-4A remains **operator-ratified as boundedly corrected by `4B-F01` and `4C-F02`**. Product implementation remains blocked.
+4A remains **operator-ratified as boundedly corrected by `4B-F01`, `4C-F02` and `4C-F03`**. Product implementation remains blocked.
