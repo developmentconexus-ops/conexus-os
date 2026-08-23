@@ -14,11 +14,11 @@ for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
 
 const expectedIds = [
   ...Array.from({ length: 15 }, (_, i) => `IAM-${String(i + 1).padStart(2, '0')}`).filter((id) => id !== 'IAM-16'),
-  'IAM-17',
+  'IAM-17', 'IAM-18', 'IAM-19', 'IAM-20',
   'WS-01', 'WS-02', 'WS-04', 'WS-05'
 ];
 
-if (expectedIds.length !== 20) throw new Error(`internal test setup error: expected 20 ids, got ${expectedIds.length}`);
+if (expectedIds.length !== 23) throw new Error(`internal test setup error: expected 23 ids, got ${expectedIds.length}`);
 
 for (const id of expectedIds) {
   const entry = operations.get(id);
@@ -91,13 +91,66 @@ function assertHumanName(schema, label) {
   return name;
 }
 
+function assertAccountSummary(schema, label) {
+  const resolved = assertClosedObject(schema, label);
+  for (const field of ['accountId', 'displayName']) {
+    if (!resolved.required?.includes(field)) throw new Error(`${label} must require ${field}`);
+  }
+  const displayName = resolveSchema(resolved.properties?.displayName);
+  if (displayName?.type !== 'string' || (displayName.minLength ?? 0) < 1 || typeof displayName.pattern !== 'string') {
+    throw new Error(`${label} displayName must be explicit non-blank human presentation`);
+  }
+  if (resolved.properties?.email?.format !== 'email') throw new Error(`${label} optional email must be format=email`);
+  return resolved;
+}
+
+function assertAreaSummary(schema, label) {
+  const resolved = assertClosedObject(schema, label);
+  if (!resolved.required?.includes('areaId')) throw new Error(`${label} must require areaId`);
+  assertHumanName(resolved, label);
+  return resolved;
+}
+
 const provision = jsonRequestSchema('IAM-03');
 if (!provision || provision.type !== 'object' || provision.additionalProperties !== false) {
   throw new Error('IAM-03 must have a closed object request schema');
 }
-if (!provision.required?.includes('externalSubject')) throw new Error('IAM-03 must require externalSubject');
+for (const field of ['externalSubject', 'displayName']) {
+  if (!provision.required?.includes(field)) throw new Error(`IAM-03 must require ${field}`);
+}
 if (provision.properties?.issuer) throw new Error('IAM-03 must not accept caller-selected issuer');
+if (provision.properties?.email?.format !== 'email') throw new Error('IAM-03 optional email must be format=email');
 if (!hasRequiredParameter('IAM-03', 'header', 'Idempotency-Key')) throw new Error('IAM-03 must require Idempotency-Key');
+assertAccountSummary(successSchema('IAM-03', '201'), 'IAM-03 success AccountSummary');
+
+const workspaceMembers = assertClosedObject(successSchema('IAM-04'), 'IAM-04 success');
+assertAccountSummary(workspaceMembers.properties?.items?.items, 'IAM-04 member AccountSummary');
+
+// 4C-F11: ListWorkspaceMembershipCandidates is the human lookup read for IAM-05; listing never creates membership.
+const candidatePage = assertClosedObject(successSchema('IAM-18'), 'IAM-18 success');
+assertAccountSummary(candidatePage.properties?.items?.items, 'IAM-18 candidate AccountSummary');
+const membershipCandidateQuery = resolvedParameters('IAM-18').find((p) => p?.in === 'query' && p?.name === 'query');
+if (!membershipCandidateQuery) throw new Error('ListWorkspaceMembershipCandidates must admit optional human query');
+
+// 4C-F11: GetWorkspaceMemberAccess must keep effective-access derivation at I&A and preserve all DIRECT/AREA sources.
+const memberAccess = assertClosedObject(successSchema('IAM-19'), 'IAM-19 WorkspaceMemberAccess');
+assertAccountSummary(memberAccess.properties?.account, 'IAM-19 account');
+const effectiveItem = assertClosedObject(memberAccess.properties?.effectiveProjects?.items, 'IAM-19 effective Project item');
+const sourceItem = resolveSchema(effectiveItem.properties?.sources?.items);
+const sourceVariants = sourceItem?.oneOf ?? [];
+const sourceKinds = sourceVariants.map((variant) => resolveSchema(variant)?.properties?.kind?.const).filter(Boolean).sort();
+if (sourceKinds.join(',') !== 'AREA,DIRECT') {
+  throw new Error(`GetWorkspaceMemberAccess source vocabulary must be exactly DIRECT/AREA; got ${sourceKinds.join(',')}`);
+}
+if ((effectiveItem.properties?.sources?.minItems ?? 0) < 1) throw new Error('IAM-19 effective Project access must preserve at least one exact source');
+
+// 4C-F11: GetAreaAccess exposes current Area members and Project summaries without conferring Project content authority.
+const areaAccess = assertClosedObject(successSchema('IAM-20'), 'IAM-20 AreaAccess');
+assertAreaSummary(areaAccess.properties?.area, 'IAM-20 area');
+assertAccountSummary(areaAccess.properties?.members?.items, 'IAM-20 member AccountSummary');
+if (!resolveSchema(areaAccess.properties?.projects?.items)?.required?.includes('projectId')) {
+  throw new Error('IAM-20 Project summaries must carry exact projectId');
+}
 
 const setAccess = jsonRequestSchema('IAM-15');
 if (!setAccess || setAccess.additionalProperties !== false) throw new Error('IAM-15 must have a closed request schema');
@@ -147,9 +200,20 @@ const workspaceRead = assertClosedObject(successSchema('WS-02'), 'WS-02 success'
 if (!workspaceRead.required?.includes('workspaceId')) throw new Error('WS-02 success must require workspaceId');
 assertHumanName(workspaceRead, 'WS-02 success');
 
-// Area semantics remain unchanged by 4C-F01.
-if (op('WS-05').requestBody) throw new Error('WS-05 must not invent Area metadata input');
+// 4C-F11: Area gains bounded creation/read presentation but no generic update/rename authority.
+const areaList = assertClosedObject(successSchema('WS-04'), 'WS-04 success');
+assertAreaSummary(areaList.properties?.items?.items, 'WS-04 AreaSummary');
+const createArea = assertClosedObject(jsonRequestSchema('WS-05'), 'WS-05 request');
+assertHumanName(createArea, 'WS-05 request');
 if (!hasRequiredParameter('WS-05', 'header', 'Idempotency-Key')) throw new Error('WS-05 must require Idempotency-Key');
-if (operations.has('WS-03')) throw new Error('4C-F01 must not resurrect WS-03 UpdateWorkspace');
+assertAreaSummary(successSchema('WS-05', '201'), 'WS-05 success AreaSummary');
 
-console.log('IAM/Workspace schema closure passed (20 operations; Workspace human identity closed; Area metadata not invented; app role/current-state closed).');
+const areaAuthorityRoutes = op('WS-04')['x-conexus-authority-routes'] ?? [];
+if (!areaAuthorityRoutes.includes('workspace.manage') || !areaAuthorityRoutes.includes('workspace.access.manage')) {
+  throw new Error('WS-04 must preserve workspace.manage and narrow workspace.access.manage summary routes');
+}
+
+if (operations.has('WS-03')) throw new Error('4C-F11 must not resurrect WS-03 UpdateWorkspace');
+if (operations.has('WS-06')) throw new Error('4C-F11 must not resurrect WS-06 UpdateArea');
+
+console.log('IAM/Workspace schema closure passed (23 operations; Account/Area human identity + IAM-18..20 access reads closed; no generic mutation/RBAC authority).');
