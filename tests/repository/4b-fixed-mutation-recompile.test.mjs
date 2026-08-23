@@ -21,20 +21,21 @@ test('operator-approved 4B-F01 subtraction remains preserved after later bounded
   const rows = [...fixedSection.matchAll(/^\| `([A-Z]+-\d+)` \| `([A-Za-z][A-Za-z0-9]+)` \|/gm)]
   if (rows.length !== 116) throw new Error(`expected 116 current fixed 4A operations after accepted 4C-F11/F12, found ${rows.length}`)
 
+  const currentRows = new Map(rows.map(([, id, operationId]) => [id, operationId]))
   for (const [id, operationId] of removed) {
-    if (fixedSection.includes(`\`${id}\``) || fixedSection.includes(`\`${operationId}\``)) {
+    if (currentRows.has(id) || [...currentRows.values()].includes(operationId)) {
       throw new Error(`removed 4B-F01 operation returned to current 4A census: ${id} ${operationId}`)
     }
   }
 
-  for (const current of [
-    '`PRJ-23` | `GetProjectBaselineCandidate`',
-    '`PRJ-24` | `AskConexusAboutBaselineCandidate`',
-    '`IAM-18` | `ListWorkspaceMembershipCandidates`',
-    '`IAM-19` | `GetWorkspaceMemberAccess`',
-    '`IAM-20` | `GetAreaAccess`',
+  for (const [id, operationId] of [
+    ['PRJ-23', 'GetProjectBaselineCandidate'],
+    ['PRJ-24', 'AskConexusAboutBaselineCandidate'],
+    ['IAM-18', 'ListWorkspaceMembershipCandidates'],
+    ['IAM-19', 'GetWorkspaceMemberAccess'],
+    ['IAM-20', 'GetAreaAccess'],
   ]) {
-    if (!fixedSection.includes(current)) throw new Error(`current census missing accepted operation: ${current}`)
+    if (currentRows.get(id) !== operationId) throw new Error(`current census missing accepted operation: ${id} ${operationId}`)
   }
 
   for (const historical of [
