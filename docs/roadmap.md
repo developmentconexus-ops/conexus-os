@@ -13,9 +13,9 @@ This is the single current phase/status authority.
 | C-018 | RATIFIED / OPERATOR RATIFIED | Final Product architecture continuity ratified | Material Product/architecture falsifier |
 | C-015 refinement | REFINED / KEYCLOAK SELECTED / OPERATOR APPROVED | Authentication selected; Conexus owns authorization | Material identity/security falsifier |
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
-| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F18` RECOMPILED | `N_platform=116` | Interaction Evidence proves missing Product meaning/authority |
-| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F18` RECOMPILED | `116↔116`; Project=23; Builder=17; Brain=11; Connections=9; IAM=19; OBS=5 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 + P-01 LOCKED` / `P-02 RECOMPILE ACTIVE` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F19` RECOMPILED | `N_platform=117` | Interaction Evidence proves missing Product meaning/authority |
+| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F19` RECOMPILED | `117↔117`; Project=23; Builder=17; Brain=12; Connections=9; IAM=19; OBS=5 | 4A change or wire/proof falsifier |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 + P-01 LOCKED` / `P-02 AUTHORITY CLOSED / P7 NEXT / P8 BLOCKED` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -23,8 +23,8 @@ This is the single current phase/status authority.
 | Product implementation | BLOCKED | Requires 4A–4G + explicit operator grant | No historical grant carries forward |
 
 ```text
-4A = CLOSED / N_platform=116 / F04–F07 + F09–F18 RECOMPILED
-4B = CLOSED / 116↔116 / Project=23 / Builder=17 / Brain=11 / Connections=9 / IAM=19 / OBS=5
+4A = CLOSED / N_platform=117 / F04–F07 + F09–F19 RECOMPILED
+4B = CLOSED / 117↔117 / Project=23 / Builder=17 / Brain=12 / Connections=9 / IAM=19 / OBS=5
 4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / W-02B LOCKED / W-03 LOCKED / W-04 LOCKED / P-01 LOCKED
 F06 OPERATOR ACCEPTED / GREEN · F06 GREEN
 F07 OPERATOR ACCEPTED / GREEN · F07 SELECTED REALIZATION
@@ -35,10 +35,13 @@ F13 OPERATOR ACCEPTED / GREEN · F13 SELECTED REALIZATION
 F14 OPERATOR ACCEPTED / GREEN · F14 SELECTED REALIZATION
 F15 OPERATOR ACCEPTED / GREEN · F15 SELECTED REALIZATION
 F16–F18 GREEN = Verify #885/#888/#892 SUCCESS
+F19 selected RED = Verify #893 / 120 tests / 119 pass / 1 exact expected failure
+F19 whole-wire GREEN = Verify #897 SUCCESS / 117↔117 / Brain=12 / Permissions=25
+P-02 closure guard RED = Verify #898 / 121 tests / 120 pass / 1 exact expected failure
 W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN
 W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED
 P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
-P-02 = OPEN / F16-F18 GREEN / F19 RED NEXT / P7+P8 BLOCKED
+P-02 = OPEN / AUTHORITY CLOSED / P7 NEXT / P8 BLOCKED
 F14 whole-wire GREEN = Verify #797 SUCCESS
 P7 selected RED = Verify #800 / 103 tests / 102 pass / 1 exact expected failure
 P7 structural GREEN = Verify #803 SUCCESS
@@ -67,7 +70,7 @@ P-01 lock GREEN = Verify #860 SUCCESS / 115 tests / 115 pass / whole 4B executab
 Product implementation = BLOCKED
 ```
 
-Historical: `W-03 = NEXT / NOT OPEN`, `P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-03 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = NEXT / NOT OPEN`, `W-04 = OPEN / P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = NEXT / NOT OPEN`, `P-01 = OPEN / F14 OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED / P7 BLOCKED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED DIRECTION / RED REQUIRED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-02 = NEXT / NOT OPEN`.
+Historical gate-by-gate state is owned by bounded 4C Evidence; this roadmap keeps only current authority plus exact proof checkpoints still consumed by repository guards.
 
 ## 4C routing
 
@@ -77,7 +80,7 @@ P11 = assembled interactive low-fidelity Product after all material blocks LOCK
 P12 = whole-product adversarial UX + architecture walkthrough
 ```
 
-GF-01, W-01, W-02A, W-02B, W-03, W-04 and P-01 are individually LOCKED; fixed Product/wire remains `116↔116` until F19 recompile is GREEN.
+GF-01, W-01, W-02A, W-02B, W-03, W-04 and P-01 remain individually LOCKED. P-02 F16–F19 authority/wire is recompiled at `117↔117`; its next gate is structural P7, not P8.
 
 ## P-01 — Build workspace — LOCKED
 
@@ -86,14 +89,14 @@ App-first: current app + right Conexus; BUILD→BLD-03; pre-Change PLAN→BLD-16
 ```text
 P8 final right-sidebar artifact blob = 3f9d30f7e6fa0de814f0be20b7583b4e98aca7c8
 P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
-P-02 = OPEN / F16-F18 GREEN / F19 RED NEXT
+P-02 = OPEN / AUTHORITY CLOSED / P7 NEXT / P8 BLOCKED
 P-03+ = NOT OPEN
 P11 = NOT ASSEMBLED
 4D = NOT STARTED
 Product implementation = BLOCKED
 ```
 
-[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) · [P-02 selected correction contract](evidence/4c/p02-f16-f19-selected-correction-contract.md)
+[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) · [P-02 selected correction contract](evidence/4c/p02-f16-f19-selected-correction-contract.md) · [P-02 recompile proof](evidence/4c/p02-f16-f19-recompile-proof.md) · [P-02 surface rebaseline](evidence/4c/p02-project-surface-rebaseline.md)
 
 ```text
 smallest-owner reopen != smallest patch
@@ -101,4 +104,4 @@ smallest-owner reopen != smallest patch
 
 ## Exact next action
 
-**Run F19 selected RED.** P7/P8/P-03/P11/4D/merge/Product implementation remain blocked.
+**Derive P-02 P7 structural hypotheses from the closed F16–F19 authority and bounded P-02 surface rebaseline.** P8/P-03/P11/4D/merge/Product implementation remain blocked.

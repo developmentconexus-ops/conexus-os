@@ -7,13 +7,18 @@ const root = resolve(new URL('../../', import.meta.url).pathname)
 const path = p => resolve(root, p)
 const read = p => readFileSync(path(p), 'utf8')
 
-test('P-02 preserves approved F16-F19 authority, records F16-F18 GREEN and stops at F19 RED before P7/P8', () => {
+test('P-02 preserves approved F16-F19 authority and advances only to structural P7 after the bounded recompile', () => {
   const preflightPath = 'docs/evidence/4c/p02-authority-feasibility-preflight.md'
   const selectedPath = 'docs/evidence/4c/p02-f16-f19-selected-correction-contract.md'
   const planPath = 'docs/evidence/4c/p02-f16-f19-recompile-plan.md'
-  for (const p of [preflightPath, selectedPath, planPath]) assert.equal(existsSync(path(p)), true, `required P-02 authority artifact missing: ${p}`)
+  const proofPath = 'docs/evidence/4c/p02-f16-f19-recompile-proof.md'
+  const surfacePath = 'docs/evidence/4c/p02-project-surface-rebaseline.md'
+  for (const p of [preflightPath, selectedPath, planPath, proofPath, surfacePath]) {
+    assert.equal(existsSync(path(p)), true, `required P-02 authority artifact missing: ${p}`)
+  }
 
   const selected = read(selectedPath)
+  const proof = read(proofPath)
   const roadmap = read('docs/roadmap.md')
   for (const token of [
     'F16 = OPERATOR SELECTED',
@@ -24,10 +29,17 @@ test('P-02 preserves approved F16-F19 authority, records F16-F18 GREEN and stops
     'wire 116↔116 → 117↔117',
   ]) assert.ok(selected.includes(token), `selected P-02 correction contract missing: ${token}`)
 
-  assert.ok(roadmap.includes('F16–F18 GREEN = Verify #885/#888/#892 SUCCESS'), 'roadmap must preserve exact hardened F16-F18 GREEN proofs')
-  assert.ok(roadmap.includes('P-02 = OPEN / F16-F18 GREEN / F19 RED NEXT / P7+P8 BLOCKED'), 'roadmap must expose F19 as the next selected RED')
-  assert.ok(roadmap.includes('Run F19 selected RED.'), 'roadmap must route exact next action to F19 RED')
-  assert.ok(roadmap.includes('116↔116'), 'roadmap must preserve current wire census before F19')
+  for (const token of [
+    'Verify #883', 'Verify #885', 'Verify #886', 'Verify #888',
+    'Verify #889', 'Verify #892', 'Verify #893', 'Verify #897',
+    '117 ↔ 117', 'Brain = 12', 'ordinary Permissions = 25',
+  ]) assert.ok(proof.includes(token), `P-02 recompile proof missing: ${token}`)
 
-  assert.doesNotMatch(roadmap, /N_platform=117|117↔117|P-02\s*=\s*LOCKED|P-03\s*=\s*OPEN|P11\s*=\s*ASSEMBLED|4D\s*=\s*OPEN/, 'F19 opening must not pretend 117 closure or advance later gates')
+  assert.ok(roadmap.includes('F16–F18 GREEN = Verify #885/#888/#892 SUCCESS'), 'roadmap must preserve exact hardened F16-F18 GREEN proofs')
+  assert.ok(roadmap.includes('F19 whole-wire GREEN = Verify #897 SUCCESS / 117↔117 / Brain=12 / Permissions=25'), 'roadmap must preserve exact F19/whole-wire GREEN proof')
+  assert.ok(roadmap.includes('P-02 = OPEN / AUTHORITY CLOSED / P7 NEXT / P8 BLOCKED'), 'roadmap must advance only to P7 after recompile closure')
+  assert.ok(roadmap.includes('4A = CLOSED / N_platform=117'), 'roadmap must project the current 117-operation Product census')
+  assert.ok(roadmap.includes('4B = CLOSED / 117↔117'), 'roadmap must project current whole-wire closure')
+
+  assert.doesNotMatch(roadmap, /P-02\s*=\s*LOCKED|P8\s*=\s*CANDIDATE|P-03\s*=\s*OPEN|P11\s*=\s*ASSEMBLED|4D\s*=\s*OPEN/, 'P-02 authority closure must not skip P7/P8/operator gates')
 })
