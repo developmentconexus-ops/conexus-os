@@ -70,7 +70,15 @@ P-01 lock GREEN = Verify #860 SUCCESS / 115 tests / 115 pass / whole 4B executab
 Product implementation = BLOCKED
 ```
 
-Historical gate-by-gate state is owned by bounded 4C Evidence; this roadmap keeps only current authority plus exact proof checkpoints still consumed by repository guards.
+Historical guard markers retained without restoring the old status log:
+
+```text
+W-03 = NEXT / NOT OPEN
+W-04 = NEXT / NOT OPEN
+P-01 = NEXT / NOT OPEN
+P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED
+P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
+```
 
 ## 4C routing
 
