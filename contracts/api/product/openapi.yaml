@@ -146,6 +146,8 @@ paths:
     $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1publications'
   /api/control/workspaces/{workspaceId}/brain/health:
     $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1health'
+  /api/control/projects/{projectId}/analytic-query-catalog:
+    $ref: './brain-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1analytic-query-catalog'
   /api/control/connectors:
     $ref: './connection-paths.yaml#/paths/~1api~1control~1connectors'
   /api/control/connectors/{connectorDefinitionId}:
