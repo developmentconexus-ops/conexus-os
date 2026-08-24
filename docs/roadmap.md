@@ -13,9 +13,9 @@ This is the single current phase/status authority.
 | C-018 | RATIFIED / OPERATOR RATIFIED | Final Product architecture continuity ratified | Material Product/architecture falsifier |
 | C-015 refinement | REFINED / KEYCLOAK SELECTED / OPERATOR APPROVED | Authentication selected; Conexus owns authorization | Material identity/security falsifier |
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
-| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F13` + `F14` RECOMPILED | `N_platform=116` | Interaction Evidence proves missing Product meaning/authority |
-| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F13` + `F14` RECOMPILED | `116↔116`; Project=23; Builder=17; Brain=11; Connections=9; IAM=19; OBS=5 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 LOCKED` / `P-01 OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 APP-FIRST REVISED CANDIDATE / OPERATOR WALKTHROUGH` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F15` RECOMPILED | `N_platform=116` | Interaction Evidence proves missing Product meaning/authority |
+| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F15` RECOMPILED | `116↔116`; Project=23; Builder=17; Brain=11; Connections=9; IAM=19; OBS=5 | 4A change or wire/proof falsifier |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 + P-01 LOCKED` / `P-02 NEXT / NOT OPEN` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -23,9 +23,9 @@ This is the single current phase/status authority.
 | Product implementation | BLOCKED | Requires 4A–4G + explicit operator grant | No historical grant carries forward |
 
 ```text
-4A = CLOSED / N_platform=116 / F04–F07 + F09–F13 + F14 RECOMPILED
+4A = CLOSED / N_platform=116 / F04–F07 + F09–F15 RECOMPILED
 4B = CLOSED / 116↔116 / Project=23 / Builder=17 / Brain=11 / Connections=9 / IAM=19 / OBS=5
-4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / W-02B LOCKED / W-03 LOCKED / W-04 LOCKED
+4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / W-02B LOCKED / W-03 LOCKED / W-04 LOCKED / P-01 LOCKED
 F06 OPERATOR ACCEPTED / GREEN · F06 GREEN
 F07 OPERATOR ACCEPTED / GREEN · F07 SELECTED REALIZATION
 F08 OPERATOR ACCEPTED / REVISED P8 GREEN / OPERATOR RE-APPROVED · F08 SELECTED REALIZATION
@@ -33,9 +33,11 @@ F09 OPERATOR ACCEPTED / GREEN · F09 SELECTED REALIZATION
 F10 OPERATOR ACCEPTED / GREEN · F10 SELECTED REALIZATION
 F13 OPERATOR ACCEPTED / GREEN · F13 SELECTED REALIZATION
 F14 OPERATOR ACCEPTED / GREEN · F14 SELECTED REALIZATION
+F15 OPERATOR ACCEPTED / GREEN · F15 SELECTED REALIZATION
 W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN
 W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED
-P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 APP-FIRST REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
+P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
+P-02 = NEXT / NOT OPEN
 F14 whole-wire GREEN = Verify #797 SUCCESS
 P7 selected RED = Verify #800 / 103 tests / 102 pass / 1 exact expected failure
 P7 structural GREEN = Verify #803 SUCCESS
@@ -54,6 +56,11 @@ P8 focused artifact blob = 02a07c7f8fd654a75eb066ee914247f0160a64f8
 P8 app-first selected RED = Verify #836 / 111 tests / 109 pass / 2 exact expected failures
 P8 app-first functional GREEN = Verify #839 SUCCESS
 P8 app-first artifact blob = 54e5daef1ff76652ea9841421ff9713c832adaff
+P8 right-sidebar selected RED = Verify #844 / 113 tests / 112 pass / 1 exact expected failure
+P8 right-sidebar GREEN = Verify #845 SUCCESS
+P8 final right-sidebar artifact blob = 3f9d30f7e6fa0de814f0be20b7583b4e98aca7c8
+F15 selected RED = Verify #846 / 114 tests / 113 pass / 1 exact expected failure
+F15 whole-wire GREEN = final P-01 lock Verify
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
@@ -68,30 +75,28 @@ P11 = assembled interactive low-fidelity Product after all material blocks LOCK
 P12 = whole-product adversarial UX + architecture walkthrough
 ```
 
-GF-01, W-01, W-02A, W-02B, W-03 and W-04 are LOCKED; current fixed Product/wire is `116↔116`.
+GF-01, W-01, W-02A, W-02B, W-03, W-04 and P-01 are individually LOCKED; current fixed Product/wire remains `116↔116`.
 
-## P-01 — Build workspace — OPEN
+## P-01 — Build workspace — LOCKED
 
-P7=A Preview-first exact-Change once mutation work exists. The Build root is now Project/current-app first: current application + Conexus → Build instruction creates exact Change via BLD-03; Plan mode does not create mutation work. GF-01 shell stays inherited; Plan/Findings/Evidence/Details remain on demand.
+App-first Project Build: current Project application is immediate; Conexus chat is the right sidebar; BUILD instruction creates exact Change via BLD-03; conversational PLAN before Change is BLD-16 guidance, not durable BLD-04 Plan. F15 keeps one BLD-10 `GetBuildPreview(changeId?)`: omitted = `CURRENT_PROJECT`, present = `CHANGE_CANDIDATE`. Code/Diff and review boundaries remain permission-separated.
 
 ```text
-P8 focused artifact blob = 02a07c7f8fd654a75eb066ee914247f0160a64f8
-P8 app-first artifact blob = 54e5daef1ff76652ea9841421ff9713c832adaff
-P8 = APP-FIRST REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
-P-02+ = NOT OPEN
+P8 final right-sidebar artifact blob = 3f9d30f7e6fa0de814f0be20b7583b4e98aca7c8
+P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
+P-02 = NEXT / NOT OPEN
+P-03+ = NOT OPEN
 P11 = NOT ASSEMBLED
 4D = NOT STARTED
 Product implementation = BLOCKED
 ```
 
-Evidence: [app-first revision](evidence/4c/p01-p8-app-first-build-root-revision.md) / [focused predecessor](evidence/4c/p01-p8-focused-build-session-revision.md) / [P8](evidence/4c/p01-build-workspace-functional-wireframe.html).
+Evidence: [P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) / [app-first finding](evidence/4c/p01-p8-app-first-build-root-revision.md) / [P8](evidence/4c/p01-build-workspace-functional-wireframe.html).
 
 ```text
 smallest-owner reopen != smallest patch
 ```
 
-Historical gate: Operator walkthrough/adjudication of exact P-01 P8 artifact: APPROVE | REVISE
-
 ## Exact next action
 
-**Operator walkthrough/adjudication of app-first P-01 P8 artifact: APPROVE | REVISE.**
+**P-02 = NEXT / NOT OPEN. Opening Data + Capabilities + Integrations + Project Connections + Brain binding requires explicit operator authorization.** Do not assemble P11, begin 4D, merge PR #57 or implement Product code.
