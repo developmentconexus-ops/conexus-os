@@ -15,11 +15,11 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
 | 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F13` + `F14` RECOMPILED | `N_platform=116` | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F13` + `F14` RECOMPILED | `116↔116`; Project=23; Builder=17; Brain=11; Connections=9; IAM=19; OBS=5 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 LOCKED` / `P-01 OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 LOCKED` / `P-01 OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
-| 4G — Adversarial Implementation Readiness | NOT STARTED | Fresh challenge leaves no material finding | Material readiness finding |
+| 4G — Adversarial Implementation Readiness | NOT STARTED | Fresh challenge leaves no material finding |
 | Product implementation | BLOCKED | Requires 4A–4G + explicit operator grant | No historical grant carries forward |
 
 ```text
@@ -35,7 +35,7 @@ F13 OPERATOR ACCEPTED / GREEN · F13 SELECTED REALIZATION
 F14 OPERATOR ACCEPTED / GREEN · F14 SELECTED REALIZATION
 W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN
 W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED
-P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
+P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
 F14 whole-wire GREEN = Verify #797 SUCCESS
 P7 selected RED = Verify #800 / 103 tests / 102 pass / 1 exact expected failure
 P7 structural GREEN = Verify #803 SUCCESS
@@ -44,11 +44,15 @@ P8 selected RED = Verify #807 / 107 tests / 103 pass / 4 exact expected failures
 P8 candidate GREEN = Verify #808 SUCCESS
 P8 status-sync RED = Verify #810 / 107 tests / 105 pass / 2 exact expected failures
 P8 artifact blob = 0abcde6902a1540aabb07e54ff08d59ad430e7ab
+P8 shell-coherence selected RED = Verify #824 / 108 tests / 107 pass / 1 exact expected failure
+P8 revised shell GREEN = Verify #825 SUCCESS
+P8 superseded artifact blob = 0abcde6902a1540aabb07e54ff08d59ad430e7ab
+P8 revised artifact blob = 43ec72ec7443e6d28cbd3abcd0cb79f2d1955db7
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
 
-Historical predecessor markers retained for proof guards: `W-03 = NEXT / NOT OPEN`, `P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-03 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = NEXT / NOT OPEN`, `W-04 = OPEN / P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = NEXT / NOT OPEN`, `P-01 = OPEN / F14 OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED / P7 BLOCKED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED DIRECTION / RED REQUIRED / P8 BLOCKED / NOT LOCKED`, and `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED`.
+Historical predecessor markers retained for proof guards: `W-03 = NEXT / NOT OPEN`, `P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-03 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = NEXT / NOT OPEN`, `W-04 = OPEN / P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = NEXT / NOT OPEN`, `P-01 = OPEN / F14 OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED / P7 BLOCKED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED DIRECTION / RED REQUIRED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED`, and `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`.
 
 ## 4C routing
 
@@ -66,13 +70,14 @@ P12 = whole-product adversarial UX + architecture walkthrough
 
 W-03 approved P8 `7434c561ef0cfbc43c81ab8dd1f72b13cf032135`; W-04 approved revised P8 `65073eb5f532f2675f04ec307eb0d9b91fd1b69d`. Both P9/P10 passes are closed; exact Screen Contracts remain durable Evidence.
 
-## P-01 — Build workspace — OPEN / P8 CANDIDATE
+## P-01 — Build workspace — OPEN / P8 REVISED CANDIDATE
 
-F14 is GREEN; P7 `A — Preview-first exact-Change workspace` is operator-approved. The P8 fixture-only HTML proves Change intent/selection, last-good Preview continuity, read-only Code/Diff, governed Plan/progress, Findings/Evidence, exact Finding closure, contextual Project/Change assistance, progressive execution detail and material state distinctions. `project.build`, `project.review` and `project.source.read` remain distinct; P8 remains Evidence, not Product implementation.
+P7 remains `A — Preview-first exact-Change workspace`; the revised P8 inherits the LOCKED GF-01 Project shell while preserving all Builder interaction/truth boundaries.
 
 ```text
-P8 artifact blob = 0abcde6902a1540aabb07e54ff08d59ad430e7ab
-P8 = CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
+P8 superseded artifact blob = 0abcde6902a1540aabb07e54ff08d59ad430e7ab
+P8 revised artifact blob = 43ec72ec7443e6d28cbd3abcd0cb79f2d1955db7
+P8 = REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
 P-02+ = NOT OPEN
 P11 = NOT ASSEMBLED
 4D = NOT STARTED
