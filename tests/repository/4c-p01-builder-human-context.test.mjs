@@ -37,12 +37,12 @@ test('P-01 preserves operator-approved F14 decision history and stays blocked be
     'P8 = BLOCKED',
   ]) requireText(preflight, law, `P-01 preflight missing law: ${law}`)
 
-  requireText(selected, 'OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED', 'F14 selected realization must start RED')
+  requireText(selected, 'OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED', 'F14 selected realization must preserve its historical RED selection')
   requireText(selected, 'ChangeSummary requires intent', 'F14 must select durable Change intent projection')
   requireText(selected, 'BLD-16 admits optional changeId', 'F14 must select exact optional Change assistant context')
 
-  requireText(roadmap, 'P-01 = OPEN / F14 OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED / P7 BLOCKED / P8 BLOCKED / NOT LOCKED', 'roadmap must open only P-01 and keep P7/P8 blocked at selected RED')
-  if (/P-02[^\n|]*OPEN/.test(roadmap) || /4D[^\n|]*OPEN/.test(roadmap)) throw new Error('P-01 F14 RED must not open P-02 or 4D')
+  requireText(roadmap, 'P-01 = OPEN / F14 OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED / P7 BLOCKED / P8 BLOCKED / NOT LOCKED', 'roadmap must remain at the selected F14 RED until whole-wire GREEN is proven')
+  if (/P-02[^\n|]*OPEN/.test(roadmap) || /4D[^\n|]*OPEN/.test(roadmap)) throw new Error('P-01 F14 work must not open P-02 or 4D')
 })
 
 test('selected F14 realization preserves Change intent and exact optional Change context inside the Builder owner', () => {
@@ -77,8 +77,14 @@ test('selected F14 realization preserves Change intent and exact optional Change
     "assistantRequest.properties?.changeId",
   ]) requireText(checker, guard, `F14 Builder checker missing guard: ${guard}`)
 
+  // Rejected vocabulary may be named in decision history, but it must not appear in the realized wire.
   for (const forbidden of ['Change.title', 'Change.name', 'UpdateChange', 'RenameChange', 'ContextRef']) {
-    if (ledger.includes(forbidden) || wire.includes(forbidden)) throw new Error(`F14 must not invent speculative Builder authority: ${forbidden}`)
+    if (wire.includes(forbidden)) throw new Error(`F14 must not realize speculative Builder authority: ${forbidden}`)
+  }
+  for (const schema of [summary, change]) {
+    if (/\n\s+title:\s*\n/.test(schema) || /\n\s+name:\s*\n/.test(schema)) {
+      throw new Error('F14 Change schemas must reuse intent rather than invent title/name presentation fields')
+    }
   }
 
   const ids = [...wire.matchAll(/x-conexus-4a-id: (BLD-\d+)/g)].map(m => m[1])
