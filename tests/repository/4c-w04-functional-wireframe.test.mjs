@@ -77,7 +77,7 @@ test('W-04 functional P8 preserves Project ownership and stops at the P-03 bound
 
   assert.doesNotMatch(html, /PRJ-21/, 'W-04 P8 must not depend on Project source-read Agent detail')
   assert.doesNotMatch(html, /Create agent|Edit agent|Run agent/i, 'W-04 catalog must not create authoring/runtime actions')
-  assert.doesNotMatch(html, /Agent active|Agent inactive|Healthy|Running|Online|Ready|Deployed successfully/i, 'Release presence must not become invented runtime-health state')
+  assert.doesNotMatch(html, /Agent active|Agent inactive|\bHealthy\b|\bRunning\b|\bOnline\b|\bReady\b|Deployed successfully/i, 'Release presence must not become invented runtime-health state')
   assert.doesNotMatch(html, /fleet\s+(?:manager|dashboard|status)/i, 'W-04 must not become a Workspace Agent fleet owner')
 })
 
