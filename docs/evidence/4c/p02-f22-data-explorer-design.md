@@ -1,8 +1,9 @@
 # P-02 — F22 read-only Data Explorer design
 
-> **Status:** `ARCHITECTURAL DESIGN APPROVED IN PRINCIPLE / WRITTEN SPEC AWAITS OPERATOR REVIEW / NO REALIZATION AUTHORITY`
+> **Status:** `OPERATOR APPROVED / IMPLEMENTATION PLAN READY / NO REALIZATION AUTHORITY`
 > **Scope:** P-02 Data only. P7 four-route structure remains valid; P8 remains NOT LOCKED.
 > **Implementation authority:** none. This spec does not authorize 4A/4B recompile, HTML revision, Product implementation, P9/P10, P-03, 4D or merge.
+> **Execution plan:** [F22 Read-Only Data Explorer Implementation Plan](p02-f22-data-explorer-implementation-plan.md)
 
 ## 1. Decision outcome
 
@@ -655,10 +656,10 @@ source scale proves the selected discovery shape cannot remain bounded
 
 ```text
 P7 = OPERATOR APPROVED
-F22 architectural direction = OPERATOR APPROVED IN PRINCIPLE
-this written F22 spec = AWAITS OPERATOR REVIEW
-4A/4B F22 recompile = NOT AUTHORIZED YET
-revised P8 = NOT AUTHORIZED YET
+F22 written spec = OPERATOR APPROVED
+F22 implementation plan = READY / EXECUTION NOT AUTHORIZED
+4A/4B F22 recompile = NOT STARTED
+revised P8 = NOT STARTED
 P8 lock = BLOCKED
 P9/P10 = BLOCKED
 P-03+ = NOT OPEN
@@ -668,4 +669,4 @@ Product implementation = BLOCKED
 merge = NOT AUTHORIZED
 ```
 
-The next action after operator approval of this written spec is to derive the bounded implementation/recompile plan. No realization begins from this document alone.
+Next action: operator execution authorization for `p02-f22-data-explorer-implementation-plan.md`. No realization begins from this document alone.
