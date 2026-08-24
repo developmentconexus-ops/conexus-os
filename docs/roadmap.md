@@ -68,44 +68,7 @@ W-03 approved P8 `7434c561ef0cfbc43c81ab8dd1f72b13cf032135`; W-04 approved revis
 
 ## P-01 — Build workspace — OPEN / P8 CANDIDATE
 
-F14 remains GREEN through exact Builder owner/wire proof:
-
-```text
-Change intent
-→ BLD-01 / BLD-02 human-recognizable reads
-
-BLD-16
-→ Project-level question
-OR
-→ optional exact current changeId context
-
-new operations = 0
-Builder operations = 17
-N_platform = 116
-ordinary Permissions = 25
-```
-
-Operator-approved P7 structure remains:
-
-```text
-A — Preview-first exact-Change workspace
-
-Build
-→ Change by authored human intent
-→ exact Change
-→ Preview default/dominant
-→ Code / Diff read-only lenses
-→ visual Plan + Hub progress
-→ Findings / Evidence trust layer
-→ execution detail progressive disclosure
-→ contextual/retractable Conexus assistant
-```
-
-The functional P8 candidate now proves that structure with disposable owner-issued fixtures only. It supports exact Change selection/creation, last-good Preview continuity while a next candidate builds, read-only Code/Diff inspection, current/stale Plan decisions, Findings/Evidence review, exact Finding closure with Evidence, contextual Project/Change assistance, progressive execution detail and explicit material state scenarios. It remains low-fi Evidence rather than Product implementation.
-
-The three Permission boundaries remain distinct: `project.build`, `project.review`, `project.source.read`. P8 visibility never grants a missing Permission; assistant narration never becomes Change/Plan/progress/verification truth.
-
-Exact candidate:
+F14 is GREEN; P7 `A — Preview-first exact-Change workspace` is operator-approved. The P8 fixture-only HTML proves Change intent/selection, last-good Preview continuity, read-only Code/Diff, governed Plan/progress, Findings/Evidence, exact Finding closure, contextual Project/Change assistance, progressive execution detail and material state distinctions. `project.build`, `project.review` and `project.source.read` remain distinct; P8 remains Evidence, not Product implementation.
 
 ```text
 P8 artifact blob = 0abcde6902a1540aabb07e54ff08d59ad430e7ab
