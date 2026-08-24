@@ -8,7 +8,7 @@ const read = p => readFileSync(resolve(root, p), 'utf8')
 const ledger = read('docs/product/operation-ledger.md')
 const permissions = read('docs/product/permission-contract.md')
 const rootOas = read('contracts/api/product/openapi.yaml')
-const projectOas = read('contracts/api/product/project-paths.yaml')
+const explorerOas = read('contracts/api/product/project-data-explorer-paths.yaml')
 const pkg = read('package.json')
 const selected = [
   ['PRJ-25', 'ListProjectDataExplorerSources'],
@@ -20,8 +20,8 @@ const selected = [
 test('F22 has four Project-owned reads and no new Permission family', () => {
   for (const [id, op] of selected) {
     assert.match(ledger, new RegExp(`${id}.*${op}`))
-    assert.match(projectOas, new RegExp(`x-conexus-4a-id: ${id}`))
-    assert.match(projectOas, new RegExp(`operationId: ${op}`))
+    assert.match(explorerOas, new RegExp(`x-conexus-4a-id: ${id}`))
+    assert.match(explorerOas, new RegExp(`operationId: ${op}`))
   }
   assert.match(permissions, /project\.data\.read[\s\S]*PRJ-25\.\.28/)
   assert.doesNotMatch(permissions, /`project\.data\.(explore|sql|admin|write)`/)
@@ -37,7 +37,7 @@ test('F22 routes a bounded Project explorer and executable checker', () => {
     'ProjectDataExplorerSource', 'ProjectDataExplorerObject',
     'ProjectDataExplorerFilter', 'ProjectDataExplorerRowPage',
     'dataSourceId', 'dataObjectId', 'dataColumnId',
-  ]) assert.ok(projectOas.includes(token), `missing ${token}`)
+  ]) assert.ok(explorerOas.includes(token), `missing ${token}`)
   assert.match(pkg, /check-wire-project-data-explorer\.mjs/)
-  assert.doesNotMatch(projectOas, /\b(sql|connectionString|credential|password|ddl)\b\s*:/i)
+  assert.doesNotMatch(explorerOas, /\b(sql|connectionString|credential|password|ddl)\b\s*:/i)
 })
