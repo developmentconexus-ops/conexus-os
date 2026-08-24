@@ -1,6 +1,6 @@
 # 4C — Candidate Screen / Material-Surface Inventory
 
-> **Status:** CANDIDATE / 4C-5 / `4C-F02` + `4C-F03` + `4C-F11` + `4C-F12` COVERAGE RECOMPILED
+> **Status:** CANDIDATE / 4C-5 / `4C-F02` + `4C-F03` + `4C-F11` + `4C-F12` + `4C-F14` + `4C-F15` COVERAGE RECOMPILED
 > **Authority posture:** derived from the operator-accepted-for-progression 4C-4 candidate IA, the current 4C-0→4C-3 foundation and accepted Product authority. This document does not create Product operations, DTOs, authorization, runtime behavior, implementation authority or final visual structure.
 > **Method:** `docs/development/frontend-product-experience-planning-method.md` v2.2 profiled by the Conexus 4C contract.
 
@@ -26,6 +26,8 @@ Later block work may recompile coverage when a valid upstream finding changes Pr
 W-03 authority-feasibility subsequently exposed two accepted findings. `4C-F11` adds human Account/Area presentation plus `IAM-18..20` so access administration can inspect exact current subjects and I&A-derived effective access without frontend pseudo-authority. `4C-F12` keeps `OBS-04/05` as the Audit owner while making immutable Audit server-filterable and historically human-readable. After those bounded corrections went GREEN, the operator approved W-03 P7 and the exact functional P8; `WS-S10..11` below now reflect the locked subject-first/context-preserving interaction shapes without widening Product authority.
 
 W-04 later proved `WS-S03` as an Agent-first Workspace discovery catalog over `PRJ-22`. The operator-approved revised P8 makes Purpose and owning Project materially legible and ends `Open Agent` at the future Project-owned Agent workspace boundary without opening P-03 or widening `project.read` into `project.source.read`.
+
+P-01 subsequently proved the Project Build workspace. `4C-F14` preserves authored Change intent and optional exact Change context for `BLD-16`. Operator walkthrough then converged from shell coherence and density corrections to an app-first Build root: the current Project application is immediately visible, Conexus occupies the right sidebar, and an exact Change emerges only from a Build instruction. P9 exposed `4C-F15`, recompiling existing `BLD-10` as `GetBuildPreview(changeId?)`: omitted `changeId` returns `CURRENT_PROJECT`; an exact optional `changeId` returns `CHANGE_CANDIDATE`. P-01 is now locked without changing the 116-operation census.
 
 ---
 
@@ -96,14 +98,14 @@ No generic Workspace `Settings` screen is created by symmetry. `4C-F11` adds evi
 | PRJ-S00 | Project context frame | `INLINE_COMPOSITION` | understand exact current Project context and disclosure | identity/context projection only; no generic metadata editor |
 | PRJ-S01 | Project Inception / investigation | `ROUTE_PAGE` | supply current business intent, inspect objective/users/constraints/source reality, run bounded investigation and explicitly apply feedback against one exact prior candidate when refinement is needed | Journey B is not a fake Change; source admission already occurred at Project birth; Candidate A remains immutable while refinement produces Candidate B |
 | PRJ-S02 | Candidate + approved Baseline visual review / decision | `MATERIAL_REGION` or focused route candidate | inspect a deterministic visual projection of the exact candidate, select bounded candidate-local context, ask Conexus about that exact candidate, distinguish it from current approved Baseline and approve only the exact reviewed candidate subject | `PRJ-23` durable read + `PRJ-24` candidate-bound contextual read + `PRJ-08` approved read + `PRJ-09` exact decision; local/HTML/Mastra review state is never Product authority |
-| PRJ-S03 | Build workspace | `ROUTE_PAGE` | state Change intent, inspect current Change/progress and keep build work centered | Hub truth, not model narration |
-| PRJ-S04 | Plan + checkpoint review | `MATERIAL_REGION` | inspect exact Plan revision and make eligible checkpoint decision | decision/current-subject semantics |
-| PRJ-S05 | Preview lens | `ALTERNATE_VIEW` | inspect last-good/current candidate Preview honestly | Preview ready != verified/live |
+| PRJ-S03 | Build workspace | `ROUTE_PAGE` | open the current Project application immediately, build through the right-side Conexus composer, and let exact Change work emerge behind the interaction | app-first/root Product result stays central; Change/Hub truth never collapses into chat narration |
+| PRJ-S04 | Plan + checkpoint review | `MATERIAL_REGION` | inspect exact durable Change Plan revision and make an eligible checkpoint decision only after Change work exists | decision/current-subject semantics; conversational Plan mode before Change is not BLD-04 truth |
+| PRJ-S05 | Preview lens | `ALTERNATE_VIEW` | inspect server-resolved current Project source Preview or exact Change candidate Preview honestly | `BLD-10 changeId?`; `CURRENT_PROJECT != CHANGE_CANDIDATE`; ready != verified/live |
 | PRJ-S06 | Code/source lens | `ALTERNATE_VIEW` | inspect exact source tree/file revision | source read authority differs from Build mutation |
 | PRJ-S07 | Diff lens | `ALTERNATE_VIEW` | inspect exact candidate/result lineage | immutable/source lineage truth |
-| PRJ-S08 | Findings + Evidence | `MATERIAL_REGION` / drawers candidate | inspect Findings/Evidence and close only with current resolution authority | review/provenance + exact decision |
+| PRJ-S08 | Findings + Evidence | `MATERIAL_REGION` / drawers candidate | inspect Findings/Evidence and close only with current resolution authority | review/provenance + exact decision; on demand only |
 | PRJ-S09 | Change execution detail | `MATERIAL_REGION` / detail drawer | inspect subordinate WorkUnit/ActorRun facts | progressive platform detail, not separate owner |
-| PRJ-S10 | Builder contextual Conexus assistant | `INLINE_COMPOSITION` | ask about selected authorized Builder/Project context / next safe action | `BLD-16` helper under `project.build`; distinct from Baseline-management `PRJ-24`; grants no new authority |
+| PRJ-S10 | Builder contextual Conexus assistant | `INLINE_COMPOSITION` | converse in the right-side Build sidebar over current Project context and, after exact Change creation, optionally exact Change context | `BLD-16` under `project.build`; distinct from Baseline-management `PRJ-24`; no durable Builder thread owner or new authority |
 | PRJ-S11 | Data | `ROUTE_PAGE` with master-detail candidate | inspect declared Product/read-model resources, grain, freshness, coverage and provenance | never generic DB explorer |
 | PRJ-S12 | Analytic Query interaction | `MATERIAL_REGION` / `APP_COMPOSED_SURFACE` | ask governed semantic analytical questions over exact Brain/dataset scope | placement remains block-level question |
 | PRJ-S13 | Capabilities | `ROUTE_PAGE` with detail candidate | inspect authored/Release Queries/Actions without gaining invocation by inspection | capability identity differs from source/integration mechanics |
@@ -151,8 +153,8 @@ Published Applications do not inherit Control Plane navigation. Their exact busi
 | --- | --- |
 | Global/session | unauthenticated vs authenticated; denied vs absent/non-disclosable; session expiry/reauthentication |
 | Project creation/Inception | NEW vs EXISTING_GIT source bootstrap; invalid/unavailable source fails without half-created Project; intent validation; exact Candidate A vs Candidate B refinement lineage vs approved Baseline; visual/chat review state never authority |
-| Build | working vs blocked vs waiting-for-user vs completed; Hub truth vs model narration |
-| Preview | last-good inspectable Preview vs next candidate building; ready vs verified vs live |
+| Build | no active Change vs exact active Change; working vs blocked vs waiting-for-user vs completed; Hub truth vs model narration; chat remains interaction rather than work truth |
+| Preview | current Project source Preview vs exact Change candidate Preview; last-good inspectable Preview vs next candidate building; ready vs verified vs live |
 | Brain | inferred/proposed vs reviewed/published; UNVERIFIED/VALID/SUSPECT/INVALID/CHECK_ERROR |
 | Connections | configured vs qualified vs bound vs healthy vs caller-authorized |
 | People/access | member/Area presentation != authority; direct vs Area-derived access; effective access preserves all current sources; narrowing remains exact-current-state work |
@@ -175,8 +177,8 @@ These are later Screen Contract/wireframe obligations, not client-owned lifecycl
 | `W-02` | Workspace Brain + Connections | reusable enterprise context/resources | W-02A Brain LOCKED; W-02B Connections LOCKED; later P11 assembly only after remaining material blocks |
 | `W-03` | People/access + audit | current authorization administration vs immutable investigation | LOCKED / OPERATOR APPROVED; F11/F12 GREEN; P8 blob `7434c561ef0cfbc43c81ab8dd1f72b13cf032135`; P9/P10 closed |
 | `W-04` | Workspace Agent catalog | access-filtered browse of Project-owned Agents | LOCKED / OPERATOR APPROVED; revised P8 blob `65073eb5f532f2675f04ec307eb0d9b91fd1b69d`; P9/P10 closed |
-| `P-01` | Build + Plan/Preview/Code/Diff/Findings/Evidence/assistant | primary Project workspace | NEXT / NOT OPEN; reference study / competing hypotheses triggered |
-| `P-02` | Data + Capabilities + Integrations + Project Connections + Brain binding | inspectable Product resources | AnalyticQuery placement and Connection findability explicit questions |
+| `P-01` | Build + Plan/Preview/Code/Diff/Findings/Evidence/assistant | primary Project workspace | LOCKED / OPERATOR APPROVED; final right-sidebar P8 blob `3f9d30f7e6fa0de814f0be20b7583b4e98aca7c8`; F14/F15; P9/P10 closed |
+| `P-02` | Data + Capabilities + Integrations + Project Connections + Brain binding | inspectable Product resources | NEXT / NOT OPEN; AnalyticQuery placement and Connection findability explicit questions |
 | `P-03` | Agents + triggers + runs + exact approvals | Product Agent lifecycle/runtime human work | approval discovery/placement trust-critical |
 | `P-04` | Releases + Promotions + Activity + effect/job/usage/audit evidence | operate/inspect work | avoid deployment-dashboard flattening |
 | `P-05` | bounded Project lifecycle + Published-App access administration | exact management actions only | no generic Settings symmetry |
@@ -279,7 +281,7 @@ A browser control that is navigation, projection, local view state or modal pres
 
 ## 9. Findings / questions carried into block work
 
-The original 4C-5 inventory exposed no upstream gap. W-01 later exposed `4C-F02` and `4C-F03`. W-03 then exposed `4C-F11` and `4C-F12`; all four are operator-accepted and bounded to their proven owners. Structural questions remain bounded:
+The original 4C-5 inventory exposed no upstream gap. W-01 later exposed `4C-F02` and `4C-F03`; W-03 exposed `4C-F11` and `4C-F12`; P-01 exposed `4C-F14` and `4C-F15`. All are operator-accepted and bounded to their proven owners. Structural questions remain bounded:
 
 | ID | Candidate question | Next proving block |
 | --- | --- | --- |
@@ -296,7 +298,7 @@ The original 4C-5 inventory exposed no upstream gap. W-01 later exposed `4C-F02`
 
 ---
 
-## 10. Candidate closure result after W-04 lock
+## 10. Candidate closure result after P-01 lock
 
 ```text
 fixed Product operations                        = 116
@@ -312,4 +314,4 @@ parallel Product DTO authority                  = 0
 Product implementation                          = 0
 ```
 
-This remains a **candidate inventory**, not a global structural lock. `GF-01`, `W-01`, `W-02A Brain`, `W-02B Connections`, `W-03 People/access + Audit` and `W-04 Workspace Agent catalog` are individually operator-locked where their exact block Evidence applies. W-04 exact revised P8 is pinned by its Screen Contract. `P-01` is the next material block and remains `NEXT / NOT OPEN`.
+This remains a **candidate inventory**, not a global structural lock. `GF-01`, `W-01`, `W-02A Brain`, `W-02B Connections`, `W-03 People/access + Audit`, `W-04 Workspace Agent catalog` and `P-01 Build` are individually operator-locked where their exact block Evidence applies. P-01 exact final P8 is pinned by its Screen Contract. `P-02` is now `NEXT / NOT OPEN`; opening it requires explicit operator authorization.
