@@ -100,6 +100,16 @@ function assertHumanName(schema, label) {
   return resolved;
 }
 
+function assertPresentationName(schema, label) {
+  const resolved = assertClosedObject(schema, label);
+  if (!requiredFields(resolved).has('name')) throw new Error(`${label} must require human presentation name`);
+  const name = propertySchema(resolved, 'name');
+  if (name?.type !== 'string' || (name.minLength ?? 0) < 1 || typeof name.pattern !== 'string') {
+    throw new Error(`${label} name must reject blank presentation`);
+  }
+  return resolved;
+}
+
 function assertNonBlankString(schema, label) {
   const resolved = resolveSchema(schema);
   if (resolved?.type !== 'string' || (resolved.minLength ?? 0) < 1) throw new Error(`${label} must be a non-empty string`);
@@ -274,8 +284,10 @@ if (regimes.length !== 3 || !['QUERY', 'ACTION', 'INTEGRATION'].every((value) =>
   throw new Error(`PRJ-17 regime must be exactly QUERY/ACTION/INTEGRATION; got ${regimes.join(',')}`);
 }
 
-// DataResource detail must preserve the four accepted provenance axes without a generic database-explorer payload.
-const dataResource = assertClosedObject(successSchema('PRJ-19'), 'PRJ-19 success');
+// F16: Data resources keep exact machine identity plus required server-owned human presentation, without a physical DB explorer.
+const dataList = resolveSchema(successSchema('PRJ-18'));
+assertPresentationName(resolveSchema(dataList?.items), 'PRJ-18 ProjectDataResourceSummary');
+const dataResource = assertPresentationName(successSchema('PRJ-19'), 'PRJ-19 ProjectDataResource');
 for (const field of ['dataResourceId', 'grain', 'freshness', 'coverage', 'provenance']) {
   if (!requiredFields(dataResource).has(field)) throw new Error(`PRJ-19 must require ${field}`);
 }
@@ -292,4 +304,4 @@ for (const forbidden of ['mastraAgentId', 'runtimeRevisionId', 'requestRevisionO
   if (agent.properties?.[forbidden]) throw new Error(`PRJ-21 must not expose runtime-authority field ${forbidden}`);
 }
 
-console.log('Project schema closure passed (23 operations; Project identity/source bootstrap, Inception intent/refinement, candidate/approved Baseline review, candidate contextual explanation, bindings and projections closed).');
+console.log('Project schema closure passed (23 operations; Project identity/source bootstrap, Inception intent/refinement, candidate/approved Baseline review, bindings, human Data-resource presentation and projections closed).');
