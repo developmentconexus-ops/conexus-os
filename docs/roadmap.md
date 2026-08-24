@@ -89,7 +89,7 @@ P11 = assembled interactive low-fidelity Product after all material blocks LOCK
 P12 = whole-product adversarial UX + architecture walkthrough
 ```
 
-GF-01, W-01, W-02A, W-02B, W-03, W-04 and P-01 remain LOCKED. P-02 P7 remains approved; F22 written spec is operator approved, its execution plan is ready, and P8 remains NOT LOCKED.
+GF-01..W-04 + P-01 remain LOCKED; P-02 F22 spec approved / plan ready / P8 NOT LOCKED.
 
 ## P-01 — Build workspace — LOCKED
 
@@ -113,4 +113,4 @@ smallest-owner reopen != smallest patch
 
 ## Exact next action
 
-**Operator execution choice/authorization for the F22 implementation plan.** F22 recompile/new P8/P9/P10/P-03/P11/4D/merge/Product implementation remain blocked until execution is authorized.
+**Operator execution authorization: F22 implementation plan.** F22 recompile/new P8/P9/P10/P-03/P11/4D/merge/Product implementation remain blocked.
