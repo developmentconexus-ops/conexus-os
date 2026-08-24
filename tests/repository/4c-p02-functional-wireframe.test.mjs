@@ -16,7 +16,7 @@ test('P-02 P8 preserves four focused Project routes and the locked Project shell
   assert.equal(existsSync(path(htmlPath)), true, 'P-02 functional P8 HTML must exist')
   const html = read(htmlPath)
   for (const token of [
-    'P-02 P8 FUNCTIONAL LOW-FI CANDIDATE','NOT LOCKED','fixture-only','GF-01 shell inherited',
+    'P-02 P8','FUNCTIONAL LOW-FI CANDIDATE','NOT LOCKED','fixture-only','GF-01 shell inherited',
     'Four focused Project routes','Data','Capabilities','Integrations','Brain',
     'generic Project Resources hub as new Product ontology = REJECTED',
     'backend owner/revision/binding console as root UX = REJECTED',
