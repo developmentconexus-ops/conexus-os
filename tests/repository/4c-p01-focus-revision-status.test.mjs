@@ -7,7 +7,7 @@ const root=resolve(new URL('../../',import.meta.url).pathname)
 const path=p=>resolve(root,p)
 const read=p=>readFileSync(path(p),'utf8')
 
-test('P-01 density falsifier remains preserved after later bounded P8 revisions and authorized lock',()=>{
+test('P-01 density falsifier remains preserved after later bounded revisions, lock and authorized P-02 opening',()=>{
   const evidencePath='docs/evidence/4c/p01-p8-focused-build-session-revision.md'
   assert.equal(existsSync(path(evidencePath)),true,'focused P8 revision Evidence must exist')
   const evidence=read(evidencePath),roadmap=read('docs/roadmap.md')
@@ -15,5 +15,5 @@ test('P-01 density falsifier remains preserved after later bounded P8 revisions 
   assert.ok(roadmap.includes('P8 focused artifact blob = 02a07c7f8fd654a75eb066ee914247f0160a64f8'),'roadmap must preserve focused predecessor blob')
   assert.ok(roadmap.includes('P8 focus selected RED = Verify #829 / 110 tests / 109 pass / 1 exact expected failure'),'roadmap must preserve focus RED')
   assert.ok(roadmap.includes('P8 focused checkpoint = Verify #831 SUCCESS'),'roadmap must preserve focus GREEN')
-  assert.doesNotMatch(roadmap,/P-02\+?\s*=\s*OPEN|P11\s*=\s*ASSEMBLED|4D\s*=\s*OPEN/,'later P-01 refinement/lock must not advance later blocks')
+  assert.doesNotMatch(roadmap,/P11\s*=\s*ASSEMBLED|4D\s*=\s*OPEN/,'later authorized progression must not assemble P11 or open 4D')
 })
