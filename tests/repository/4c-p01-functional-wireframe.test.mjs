@@ -149,7 +149,7 @@ test('P-01 P8 stays disposable self-contained low-fi Evidence with responsive an
   requireText(html, 'aria-modal="true"', 'modal semantics')
   requireText(html, 'aria-live="polite"', 'status announcements')
   requireText(html, 'keydown', 'keyboard interaction')
-  requireText(html, "event.key === 'Escape'", 'Escape closes focused overlay/panel')
+  assert.match(html, /event\.key\s*===\s*'Escape'/, 'Escape closes focused overlay/panel')
   requireText(html, 'returnFocusTo', 'focus return')
   requireText(html, 'P8 WALKTHROUGH FIXTURES', 'explicit disposable-fixture legend')
 
