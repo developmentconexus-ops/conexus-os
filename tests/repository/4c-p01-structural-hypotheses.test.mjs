@@ -10,7 +10,7 @@ function requireText(text, needle, message = needle) {
   if (!text.includes(needle)) throw new Error(`P-01 P7 structural record missing: ${message}`)
 }
 
-test('P-01 P7 preserves the operator-approved Preview-first exact-Change workspace and stops before P8', () => {
+test('P-01 P7 preserves the operator-approved Preview-first exact-Change workspace while P8 advances only to operator walkthrough', () => {
   const docPath = 'docs/evidence/4c/p01-structural-hypotheses.md'
   if (!existsSync(path(docPath))) throw new Error('P-01 P7 structural record must exist before P8')
 
@@ -85,11 +85,14 @@ test('P-01 P7 preserves the operator-approved Preview-first exact-Change workspa
 
   requireText(roadmap, 'F14 whole-wire GREEN = Verify #797 SUCCESS', 'P7 must inherit the proven F14 baseline')
   requireText(roadmap, 'P7 structural GREEN = Verify #803 SUCCESS', 'roadmap must pin the verified P7 structure')
-  requireText(roadmap, 'P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED', 'roadmap must stop at approved P7 before P8')
+  requireText(roadmap, 'P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED', 'roadmap must preserve the historical P7 checkpoint')
+  requireText(roadmap, 'P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED', 'roadmap must expose the current P8 walkthrough gate')
+  requireText(roadmap, 'P8 artifact blob = 0abcde6902a1540aabb07e54ff08d59ad430e7ab', 'roadmap must pin the exact P8 candidate blob')
+  requireText(roadmap, 'Operator walkthrough/adjudication of exact P-01 P8 artifact: APPROVE | REVISE', 'roadmap must stop at the operator walkthrough gate')
 
-  if (/P8\s*=\s*(?:GREEN|LOCKED|APPROVED)/.test(doc)) throw new Error('P-01 P7 must not pre-authorize P8')
-  if (/P-01\s*=\s*LOCKED/.test(doc)) throw new Error('P-01 must remain operator-unlocked at P7')
-  if (/P-02\+?\s*=\s*OPEN/.test(doc) || /P11\s*=\s*ASSEMBLED/.test(doc) || /4D\s*=\s*OPEN/.test(doc)) {
-    throw new Error('P-01 P7 must not advance later blocks or phases')
+  if (/P8\s*=\s*(?:GREEN|LOCKED|APPROVED)/.test(doc)) throw new Error('P-01 P7 must not itself pre-authorize P8')
+  if (/P-01\s*=\s*LOCKED/.test(roadmap)) throw new Error('P-01 must remain operator-unlocked at P8 candidate')
+  if (/P-02\+?\s*=\s*OPEN/.test(roadmap) || /P11\s*=\s*ASSEMBLED/.test(roadmap) || /4D\s*=\s*OPEN/.test(roadmap)) {
+    throw new Error('P-01 P8 candidate must not advance later blocks or phases')
   }
 })
