@@ -15,7 +15,7 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
 | 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F13` + `F14` RECOMPILED | `N_platform=116` | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F13` + `F14` RECOMPILED | `116↔116`; Project=23; Builder=17; Brain=11; Connections=9; IAM=19; OBS=5 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 LOCKED` / `P-01 OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 LOCKED` / `P-01 OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -35,16 +35,20 @@ F13 OPERATOR ACCEPTED / GREEN · F13 SELECTED REALIZATION
 F14 OPERATOR ACCEPTED / GREEN · F14 SELECTED REALIZATION
 W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN
 W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED
-P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED
+P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
 F14 whole-wire GREEN = Verify #797 SUCCESS
 P7 selected RED = Verify #800 / 103 tests / 102 pass / 1 exact expected failure
 P7 structural GREEN = Verify #803 SUCCESS
 P7 status-sync RED = Verify #805 / 103 tests / 101 pass / 2 exact expected failures
+P8 selected RED = Verify #807 / 107 tests / 103 pass / 4 exact expected failures
+P8 candidate GREEN = Verify #808 SUCCESS
+P8 status-sync RED = Verify #810 / 107 tests / 105 pass / 2 exact expected failures
+P8 artifact blob = 0abcde6902a1540aabb07e54ff08d59ad430e7ab
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
 
-Historical predecessor markers retained for proof guards: `W-03 = NEXT / NOT OPEN`, `P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-03 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = NEXT / NOT OPEN`, `W-04 = OPEN / P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = NEXT / NOT OPEN`, `P-01 = OPEN / F14 OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED / P7 BLOCKED / P8 BLOCKED / NOT LOCKED`, and `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED DIRECTION / RED REQUIRED / P8 BLOCKED / NOT LOCKED`.
+Historical predecessor markers retained for proof guards: `W-03 = NEXT / NOT OPEN`, `P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-03 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = NEXT / NOT OPEN`, `W-04 = OPEN / P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = NEXT / NOT OPEN`, `P-01 = OPEN / F14 OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED / P7 BLOCKED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED DIRECTION / RED REQUIRED / P8 BLOCKED / NOT LOCKED`, and `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED`.
 
 ## 4C routing
 
@@ -62,9 +66,9 @@ P12 = whole-product adversarial UX + architecture walkthrough
 
 W-03 approved P8 `7434c561ef0cfbc43c81ab8dd1f72b13cf032135`; W-04 approved revised P8 `65073eb5f532f2675f04ec307eb0d9b91fd1b69d`. Both P9/P10 passes are closed; exact Screen Contracts remain durable Evidence.
 
-## P-01 — Build workspace — OPEN / P7 APPROVED
+## P-01 — Build workspace — OPEN / P8 CANDIDATE
 
-F14 is GREEN through exact Builder owner/wire proof:
+F14 remains GREEN through exact Builder owner/wire proof:
 
 ```text
 Change intent
@@ -81,7 +85,7 @@ N_platform = 116
 ordinary Permissions = 25
 ```
 
-Operator-approved P7 structure:
+Operator-approved P7 structure remains:
 
 ```text
 A — Preview-first exact-Change workspace
@@ -97,9 +101,22 @@ Build
 → contextual/retractable Conexus assistant
 ```
 
-The three Permission boundaries remain distinct: `project.build`, `project.review`, `project.source.read`. P8 remains blocked and has not been created.
+The functional P8 candidate now proves that structure with disposable owner-issued fixtures only. It supports exact Change selection/creation, last-good Preview continuity while a next candidate builds, read-only Code/Diff inspection, current/stale Plan decisions, Findings/Evidence review, exact Finding closure with Evidence, contextual Project/Change assistance, progressive execution detail and explicit material state scenarios. It remains low-fi Evidence rather than Product implementation.
 
-Evidence: [preflight](evidence/4c/p01-authority-feasibility-preflight.md) / [finding](evidence/4c/p01-builder-human-context-finding.md) / [Global Maximum](evidence/4c/p01-builder-human-context-global-maximum.md) / [selected realization](evidence/4c/p01-builder-human-context-selected-realization.md) / [P7](evidence/4c/p01-structural-hypotheses.md).
+The three Permission boundaries remain distinct: `project.build`, `project.review`, `project.source.read`. P8 visibility never grants a missing Permission; assistant narration never becomes Change/Plan/progress/verification truth.
+
+Exact candidate:
+
+```text
+P8 artifact blob = 0abcde6902a1540aabb07e54ff08d59ad430e7ab
+P8 = CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
+P-02+ = NOT OPEN
+P11 = NOT ASSEMBLED
+4D = NOT STARTED
+Product implementation = BLOCKED
+```
+
+Evidence: [preflight](evidence/4c/p01-authority-feasibility-preflight.md) / [finding](evidence/4c/p01-builder-human-context-finding.md) / [Global Maximum](evidence/4c/p01-builder-human-context-global-maximum.md) / [selected realization](evidence/4c/p01-builder-human-context-selected-realization.md) / [P7](evidence/4c/p01-structural-hypotheses.md) / [functional P8](evidence/4c/p01-build-workspace-functional-wireframe.html).
 
 ## Method law
 
@@ -111,4 +128,4 @@ Frontend finding → root cause → target invariant → real owner → alternat
 
 ## Exact next action
 
-**P-01 P8 functional low-fidelity HTML requires explicit operator authorization.** Do not create P8, open P-02+, assemble P11, begin 4D, merge PR #57 or implement Product code.
+**Operator walkthrough/adjudication of exact P-01 P8 artifact: APPROVE | REVISE.** Do not open P-02+, assemble P11, begin 4D, merge PR #57 or implement Product code.
