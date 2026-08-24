@@ -7,11 +7,14 @@ const root = resolve(new URL('../../', import.meta.url).pathname)
 const path = p => resolve(root, p)
 const read = p => readFileSync(path(p), 'utf8')
 
-test('P-02 opens only to authority preflight and stops before P7/P8 until F16-F19 adjudication', () => {
-  const evidencePath = 'docs/evidence/4c/p02-authority-feasibility-preflight.md'
-  assert.equal(existsSync(path(evidencePath)), true, 'P-02 authority-feasibility preflight Evidence must exist')
+test('P-02 preserves preflight evidence and stops at selected F16-F19 written-spec review before recompile/P7/P8', () => {
+  const preflightPath = 'docs/evidence/4c/p02-authority-feasibility-preflight.md'
+  const selectedPath = 'docs/evidence/4c/p02-f16-f19-selected-correction-contract.md'
+  assert.equal(existsSync(path(preflightPath)), true, 'P-02 authority-feasibility preflight Evidence must remain present')
+  assert.equal(existsSync(path(selectedPath)), true, 'operator-selected P-02 F16-F19 written contract must exist')
 
-  const evidence = read(evidencePath)
+  const preflight = read(preflightPath)
+  const selected = read(selectedPath)
   const roadmap = read('docs/roadmap.md')
 
   for (const token of [
@@ -23,11 +26,25 @@ test('P-02 opens only to authority preflight and stops before P7/P8 until F16-F1
     'Capabilities = NO UPSTREAM FINDING CURRENTLY',
     'P7 = BLOCKED',
     'P8 = BLOCKED',
-  ]) assert.ok(evidence.includes(token), `P-02 preflight Evidence missing: ${token}`)
+  ]) assert.ok(preflight.includes(token), `P-02 preflight Evidence missing: ${token}`)
 
-  assert.ok(roadmap.includes('P-02 = OPEN / AUTHORITY PREFLIGHT / F16-F19 OPERATOR ADJUDICATION / P7 BLOCKED / P8 BLOCKED'), 'roadmap must expose bounded P-02 preflight state')
-  assert.ok(roadmap.includes('[P-02 authority preflight](evidence/4c/p02-authority-feasibility-preflight.md)'), 'roadmap must route to P-02 preflight Evidence')
-  assert.ok(roadmap.includes('Operator adjudication of P-02 F16-F19 authority correction pack: APPROVE | REVISE'), 'roadmap must stop at operator adjudication')
+  for (const token of [
+    'OPERATOR SELECTED / SPEC WRITTEN / 4A+4B RECOMPILE NOT STARTED',
+    'F16 = OPERATOR SELECTED',
+    'F17 = OPERATOR SELECTED / NARROWED',
+    'F18 = OPERATOR SELECTED / NARROWED',
+    'F19 = OPERATOR SELECTED / ONE READ',
+    'BRN-13 GetProjectAnalyticQueryCatalog',
+    'N_platform 116 → 117',
+    'wire 116↔116 → 117↔117',
+    'ordinary Permissions 25 → 25',
+    'P7 = BLOCKED',
+    'P8 = BLOCKED',
+  ]) assert.ok(selected.includes(token), `selected P-02 correction contract missing: ${token}`)
 
-  assert.doesNotMatch(roadmap, /P-02\s*=\s*LOCKED|P-03\s*=\s*OPEN|P11\s*=\s*ASSEMBLED|4D\s*=\s*OPEN/, 'P-02 preflight must not advance later gates')
+  assert.ok(roadmap.includes('P-02 = OPEN / F16-F19 SELECTED / SPEC REVIEW / 4A+4B NOT RECOMPILED / P7+P8 BLOCKED'), 'roadmap must expose selected written-spec review without pretending recompile')
+  assert.ok(roadmap.includes('[P-02 selected correction contract](evidence/4c/p02-f16-f19-selected-correction-contract.md)'), 'roadmap must route to selected P-02 correction contract')
+  assert.ok(roadmap.includes('Review P-02 F16–F19 written spec: APPROVE | REVISE'), 'roadmap must stop at written-spec review')
+
+  assert.doesNotMatch(roadmap, /N_platform=117|117↔117|P-02\s*=\s*LOCKED|P-03\s*=\s*OPEN|P11\s*=\s*ASSEMBLED|4D\s*=\s*OPEN/, 'written-spec review must not pretend the selected 4A/4B recompile or advance later gates')
 })
