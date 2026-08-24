@@ -25,6 +25,8 @@ Later block work may recompile coverage when a valid upstream finding changes Pr
 
 W-03 authority-feasibility subsequently exposed two accepted findings. `4C-F11` adds human Account/Area presentation plus `IAM-18..20` so access administration can inspect exact current subjects and I&A-derived effective access without frontend pseudo-authority. `4C-F12` keeps `OBS-04/05` as the Audit owner while making immutable Audit server-filterable and historically human-readable. After those bounded corrections went GREEN, the operator approved W-03 P7 and the exact functional P8; `WS-S10..11` below now reflect the locked subject-first/context-preserving interaction shapes without widening Product authority.
 
+W-04 later proved `WS-S03` as an Agent-first Workspace discovery catalog over `PRJ-22`. The operator-approved revised P8 makes Purpose and owning Project materially legible and ends `Open Agent` at the future Project-owned Agent workspace boundary without opening P-03 or widening `project.read` into `project.source.read`.
+
 ---
 
 ## 1. Surface-splitting law
@@ -70,7 +72,7 @@ Exact URL paths, component boundaries, responsive placement, visual density and 
 | CP-S03 | Trusted Account provisioning | `ROUTE_PAGE` / privileged internal surface | provision a known human Account at the trusted F1 operator boundary | platform-operator-only; not public signup |
 | WS-S01 | Projects | `ROUTE_PAGE` | browse current disclosed Projects and start Project creation | primary Workspace work entry |
 | WS-S02 | Project create / source-bootstrap flow | `ROUTE_PAGE` or `DRAWER_MODAL` candidate | establish one source-complete Project under an exact Workspace and continue to Inception | `PRJ-03` owns creation-time `NEW | EXISTING_GIT`; no second Repository/source-mutation domain |
-| WS-S03 | Workspace Agent catalog | `ROUTE_PAGE` | browse accessible Project-owned Agents across Workspace | filtered projection only; never a fleet owner |
+| WS-S03 | Workspace Agent catalog | `ROUTE_PAGE` | discover accessible Project-owned Agents by human name/purpose/owning Project and exact Release presence, then hand off deeper work to the future Project-owned Agent workspace | `PRJ-22` filtered projection only; no `PRJ-21` dependency, editor or fleet owner |
 | WS-S04 | Workspace Brain overview | `ROUTE_PAGE` | inspect Brain identity, immutable revisions and health/provenance | Workspace semantic authority differs from Project binding |
 | WS-S05 | Brain discovery + proposal review | `ROUTE_PAGE` with material review regions | run bounded discovery, inspect proposals, decide/publish reviewed meaning | machine-propose/human-decide and publication states |
 | WS-S06 | Connections browse + contextual detail | `ROUTE_PAGE` + `DRAWER_MODAL` | browse Connector definitions and Connections; open exact Connection detail while preserving collection/search context | Connection lifecycle owner truth; ownerScope and current test applicability remain explicit |
@@ -172,8 +174,8 @@ These are later Screen Contract/wireframe obligations, not client-owned lifecycl
 | `W-01` | Projects + source-complete create + Inception + candidate/approved Baseline | one continuous Journey-B entry/outcome | W-01 C1-R1 LOCKED; 4C-F02 + 4C-F03 remain its accepted bounded authority corrections |
 | `W-02` | Workspace Brain + Connections | reusable enterprise context/resources | W-02A Brain LOCKED; W-02B Connections LOCKED; later P11 assembly only after remaining material blocks |
 | `W-03` | People/access + audit | current authorization administration vs immutable investigation | LOCKED / OPERATOR APPROVED; F11/F12 GREEN; P8 blob `7434c561ef0cfbc43c81ab8dd1f72b13cf032135`; P9/P10 closed |
-| `W-04` | Workspace Agent catalog | access-filtered browse of Project-owned Agents | NEXT / NOT OPEN; added after GF-01 Fable review so WS-S03 has an explicit proving block |
-| `P-01` | Build + Plan/Preview/Code/Diff/Findings/Evidence/assistant | primary Project workspace | reference study / competing hypotheses triggered |
+| `W-04` | Workspace Agent catalog | access-filtered browse of Project-owned Agents | LOCKED / OPERATOR APPROVED; revised P8 blob `65073eb5f532f2675f04ec307eb0d9b91fd1b69d`; P9/P10 closed |
+| `P-01` | Build + Plan/Preview/Code/Diff/Findings/Evidence/assistant | primary Project workspace | NEXT / NOT OPEN; reference study / competing hypotheses triggered |
 | `P-02` | Data + Capabilities + Integrations + Project Connections + Brain binding | inspectable Product resources | AnalyticQuery placement and Connection findability explicit questions |
 | `P-03` | Agents + triggers + runs + exact approvals | Product Agent lifecycle/runtime human work | approval discovery/placement trust-critical |
 | `P-04` | Releases + Promotions + Activity + effect/job/usage/audit evidence | operate/inspect work | avoid deployment-dashboard flattening |
@@ -294,7 +296,7 @@ The original 4C-5 inventory exposed no upstream gap. W-01 later exposed `4C-F02`
 
 ---
 
-## 10. Candidate closure result after W-03 lock
+## 10. Candidate closure result after W-04 lock
 
 ```text
 fixed Product operations                        = 116
@@ -310,4 +312,4 @@ parallel Product DTO authority                  = 0
 Product implementation                          = 0
 ```
 
-This remains a **candidate inventory**, not a global structural lock. `GF-01`, `W-01`, `W-02A Brain`, `W-02B Connections` and `W-03 People/access + Audit` are individually operator-locked where their exact block Evidence applies. W-03 exact P8 is pinned by its Screen Contract; W-04 is the next material block but remains NOT OPEN.
+This remains a **candidate inventory**, not a global structural lock. `GF-01`, `W-01`, `W-02A Brain`, `W-02B Connections`, `W-03 People/access + Audit` and `W-04 Workspace Agent catalog` are individually operator-locked where their exact block Evidence applies. W-04 exact revised P8 is pinned by its Screen Contract. `P-01` is the next material block and remains `NEXT / NOT OPEN`.
