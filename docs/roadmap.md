@@ -55,7 +55,7 @@ P8 focused artifact blob = 02a07c7f8fd654a75eb066ee914247f0160a64f8
 Product implementation = BLOCKED
 ```
 
-Historical predecessor markers retained for proof guards: `W-03 = NEXT / NOT OPEN`, `P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-03 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = NEXT / NOT OPEN`, `W-04 = OPEN / P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = NEXT / NOT OPEN`, `P-01 = OPEN / F14 OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED / P7 BLOCKED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED DIRECTION / RED REQUIRED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`.
+Historical: `W-03 = NEXT / NOT OPEN`, `P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-03 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = NEXT / NOT OPEN`, `W-04 = OPEN / P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = NEXT / NOT OPEN`, `P-01 = OPEN / F14 OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED / P7 BLOCKED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED DIRECTION / RED REQUIRED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`.
 
 ## 4C routing
 
@@ -65,21 +65,13 @@ P11 = assembled interactive low-fidelity Product after all material blocks LOCK
 P12 = whole-product adversarial UX + architecture walkthrough
 ```
 
-`GF-01 H1-R2`, `W-01 C1-R1`, `W-02A Brain`, `W-02B Connections`, `W-03 People/access + Audit` and `W-04 Workspace Agent catalog` are LOCKED. Only later material falsifiers may reopen the smallest affected block.
+GF-01, W-01, W-02A, W-02B, W-03 and W-04 are LOCKED; current fixed Product/wire is `116↔116`.
 
-`F04`–`F07`, `F09`–`F14` are operator-accepted bounded recompiles inside existing owners; `F08` was interaction-only. Current fixed Product/wire is `116↔116`, ordinary Permissions=25, Technical Ingress=3/Product impact 0.
+## P-01 — Build workspace — OPEN
 
-## W-03 / W-04 locked checkpoints
-
-W-03 P8 `7434c561ef0cfbc43c81ab8dd1f72b13cf032135`; W-04 revised P8 `65073eb5f532f2675f04ec307eb0d9b91fd1b69d`; both P9/P10 closed.
-
-## P-01 — Build workspace — OPEN / P8 FOCUSED REVISED CANDIDATE
-
-P7=A Preview-first exact-Change. GF-01 shell remains inherited. The focused revision separates Change recognition from active building: Build Overview → exact Change Focused Build Session; Preview + Conexus is default focused work; Plan/Findings/Evidence/Details move to an on-demand inspector.
+P7=A Preview-first exact-Change. GF-01 shell inherited. Build Overview → Focused Build Session; Preview + Conexus default; Plan/Findings/Evidence/Details on demand.
 
 ```text
-P8 superseded artifact blob = 0abcde6902a1540aabb07e54ff08d59ad430e7ab
-P8 revised artifact blob = 43ec72ec7443e6d28cbd3abcd0cb79f2d1955db7
 P8 focused artifact blob = 02a07c7f8fd654a75eb066ee914247f0160a64f8
 P8 = FOCUSED REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
 P-02+ = NOT OPEN
@@ -88,16 +80,14 @@ P11 = NOT ASSEMBLED
 Product implementation = BLOCKED
 ```
 
-Evidence: [focused revision](evidence/4c/p01-p8-focused-build-session-revision.md) / [functional P8](evidence/4c/p01-build-workspace-functional-wireframe.html).
-
-## Method law
+Evidence: [focused revision](evidence/4c/p01-p8-focused-build-session-revision.md) / [P8](evidence/4c/p01-build-workspace-functional-wireframe.html).
 
 ```text
 smallest-owner reopen != smallest patch
 ```
 
-Frontend finding → root cause → target invariant → real owner → alternatives → Global Maximum/YAGNI → operator decision → selected RED → bounded recompile.
+Historical gate: Operator walkthrough/adjudication of exact P-01 P8 artifact: APPROVE | REVISE
 
 ## Exact next action
 
-**Operator walkthrough/adjudication of focused P-01 P8 artifact: APPROVE | REVISE.** Do not open P-02+, assemble P11, begin 4D, merge PR #57 or implement Product code.
+**Operator walkthrough/adjudication of focused P-01 P8 artifact: APPROVE | REVISE.**
