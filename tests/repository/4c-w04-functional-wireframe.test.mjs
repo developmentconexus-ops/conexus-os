@@ -55,23 +55,24 @@ test('W-04 functional P8 makes the Workspace Agent catalog human-first and local
   assert.doesNotMatch(html, /project[- ]first\s+master\/detail/i, 'rejected Project-first hypothesis must not become P8')
 })
 
-test('W-04 functional P8 preserves Project ownership and stops at the P-03 boundary without source-read or runtime authority', () => {
+test('W-04 functional P8 preserves Project ownership and stops at the P-03 Agent-workspace boundary without source-read or runtime authority', () => {
   assert.equal(existsSync(path(htmlPath)), true, 'W-04 functional P8 HTML must exist after operator-approved P7')
   const html = read(htmlPath)
 
   for (const token of [
-    'Open in Project',
+    'Open Agent',
     'P-03 boundary',
+    'Project-owned Agent workspace',
     'Deeper Project-owned Agent work is outside this P8',
     'project.read != project.source.read',
     'Catalog visibility does not grant authoring or runtime authority',
   ]) requireText(html, token)
 
-  for (const id of ['project-boundary-dialog', 'boundary-agent-name', 'boundary-project-name', 'boundary-status']) {
+  for (const id of ['agent-workspace-dialog', 'workspace-agent-name', 'workspace-project-name', 'workspace-boundary-status']) {
     requireText(html, `id="${id}"`, id)
   }
 
-  for (const behavior of ['openProjectBoundary', 'closeProjectBoundary', 'returnFocusTo']) {
+  for (const behavior of ['openAgentWorkspaceBoundary', 'closeAgentWorkspaceBoundary', 'returnFocusTo']) {
     requireText(html, behavior, behavior)
   }
 
