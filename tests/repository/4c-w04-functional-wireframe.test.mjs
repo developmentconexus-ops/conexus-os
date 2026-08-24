@@ -81,6 +81,39 @@ test('W-04 functional P8 preserves Project ownership and stops at the P-03 bound
   assert.doesNotMatch(html, /fleet\s+(?:manager|dashboard|status)/i, 'W-04 must not become a Workspace Agent fleet owner')
 })
 
+test('operator-approved W-04 P8 revision gives Agent cards enough information and hands off through Open Agent', () => {
+  assert.equal(existsSync(path(htmlPath)), true, 'W-04 revised P8 HTML must exist')
+  const html = read(htmlPath)
+
+  for (const token of [
+    'Information hierarchy revision',
+    'Purpose',
+    'Owning Project',
+    'Authored revision',
+    'Release references',
+    'Agent workspace',
+    'Open Agent',
+    'Project-owned Agent workspace',
+    'Instructions, tools, testing, verification and operations continue in the owning Project',
+    'This catalog is for discovery; it is not the Agent editor',
+  ]) requireText(html, token, token)
+
+  for (const className of ['agent-summary', 'agent-meta', 'agent-workspace-hint']) {
+    requireText(html, `class="${className}`, `revised card hierarchy class ${className}`)
+  }
+
+  for (const id of ['agent-workspace-dialog', 'workspace-agent-name', 'workspace-project-name', 'workspace-boundary-status']) {
+    requireText(html, `id="${id}"`, id)
+  }
+
+  for (const behavior of ['openAgentWorkspaceBoundary', 'closeAgentWorkspaceBoundary']) {
+    requireText(html, behavior, behavior)
+  }
+
+  assert.doesNotMatch(html, />\s*Open in Project\s*</, 'revised primary CTA must be Open Agent rather than a Project-navigation label')
+  assert.doesNotMatch(html, /System prompt\s*<\/|Tools\s*<\/.*(?:button|textarea|input)/is, 'W-04 must not smuggle an Agent editor into the Workspace catalog')
+})
+
 test('W-04 P8 stays disposable low-fi Evidence with responsive and accessible fixture-only interactions', () => {
   assert.equal(existsSync(path(htmlPath)), true, 'W-04 functional P8 HTML must exist after operator-approved P7')
   const html = read(htmlPath)
