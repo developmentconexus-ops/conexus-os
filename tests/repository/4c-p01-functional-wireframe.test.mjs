@@ -85,7 +85,7 @@ test('P-01 keeps Plan/progress and Findings/Evidence governed but on demand whil
   assert.doesNotMatch(html, /function\s+(?:derive|compute|calculate)(?:Verification|Progress|Eligibility)\b/i, 'frontend must not derive owner truth')
 })
 
-test('P-01 Conexus is the primary Build interaction surface without becoming owner truth or authority', () => {
+test('P-01 Conexus chat sidebar is the primary Build interaction surface without becoming owner truth or authority', () => {
   const html = read(htmlPath)
   for (const token of [
     'Conexus', 'Project context', 'Exact Change context', 'BLD-16 changeId?',
@@ -98,7 +98,7 @@ test('P-01 Conexus is the primary Build interaction surface without becoming own
   ]) requireText(html, token)
 
   for (const id of [
-    'assistant-panel', 'assistant-question', 'assistant-scope', 'assistant-answer',
+    'chat-sidebar', 'assistant-question', 'assistant-scope', 'assistant-answer',
     'execution-details', 'scenario-select', 'scenario-status',
   ]) requireText(html, `id="${id}"`, id)
 
@@ -162,7 +162,7 @@ test('P-01 app-first root shows the current application immediately and keeps Ch
   ]) requireText(html, token, `app-first token ${token}`)
 
   requireText(html, 'id="build-root"', 'Build root is directly rendered')
-  requireText(html, 'id="assistant-panel" data-default-assistant="open"', 'Conexus open by default')
+  requireText(html, 'id="chat-sidebar" data-default-assistant="open"', 'Conexus chat sidebar open by default')
   requireText(html, 'id="focus-inspector" hidden', 'inspection closed by default')
   assert.doesNotMatch(html, /Build Overview|Focused Build Session|Open selected Change/, 'superseded Change-first navigation must be absent')
 })
