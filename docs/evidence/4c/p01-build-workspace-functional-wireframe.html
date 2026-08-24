@@ -1,0 +1,883 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P-01 Build workspace — functional low-fi candidate</title>
+  <style>
+    :root {
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #181818;
+      background: #f5f5f5;
+      line-height: 1.45;
+      --paper: #fff;
+      --soft: #f0f0f0;
+      --line: #bdbdbd;
+      --ink: #181818;
+      --muted: #666;
+      --strong: #222;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible {
+      outline: 3px solid #111;
+      outline-offset: 2px;
+    }
+    .shell { min-height: 100vh; display: grid; grid-template-columns: 220px minmax(0, 1fr); }
+    .global-nav { background: var(--paper); border-right: 1px solid var(--line); padding: 18px 14px; }
+    .brand { font-weight: 800; font-size: 18px; }
+    .tiny { font-size: 12px; }
+    .muted { color: var(--muted); }
+    .global-nav nav { margin-top: 26px; display: grid; gap: 5px; }
+    .global-nav button { text-align: left; border: 1px solid transparent; background: transparent; padding: 9px 10px; border-radius: 7px; }
+    .global-nav button[aria-current="page"] { border-color: var(--strong); background: var(--soft); font-weight: 750; }
+    main { min-width: 0; padding: 24px clamp(16px, 3vw, 40px) 72px; }
+    .status-strip { background: var(--paper); border: 1px dashed #777; padding: 10px 12px; margin-bottom: 18px; font-size: 13px; }
+    .page-head { display: flex; gap: 18px; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+    .page-head h1 { margin: 0 0 5px; font-size: clamp(26px, 4vw, 38px); }
+    .scenario-field { display: grid; gap: 5px; min-width: 220px; }
+    .scenario-field label { font-size: 12px; font-weight: 750; }
+    select, input, textarea { border: 1px solid #888; border-radius: 7px; padding: 8px 9px; background: var(--paper); color: var(--ink); }
+    .workspace-grid { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 16px; align-items: start; }
+    .card { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; }
+    .card-pad { padding: 16px; }
+    .changes-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 12px; }
+    .changes-head h2 { margin: 0; font-size: 18px; }
+    .btn { border: 1px solid var(--strong); background: var(--paper); color: var(--ink); border-radius: 7px; padding: 8px 11px; }
+    .btn.primary { background: var(--strong); color: #fff; }
+    .btn.ghost { border-color: #aaa; }
+    .btn.small { padding: 6px 8px; font-size: 13px; }
+    #change-list { display: grid; gap: 8px; }
+    .change-row { width: 100%; text-align: left; border: 1px solid #ccc; background: var(--paper); border-radius: 8px; padding: 11px; }
+    .change-row[aria-current="true"] { border-color: var(--strong); background: var(--soft); }
+    .change-intent { font-weight: 750; }
+    .change-meta { font-size: 12px; color: var(--muted); margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
+    #change-workspace { min-width: 0; display: grid; gap: 14px; }
+    .change-header { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
+    .change-header h2 { margin: 0 0 5px; font-size: 22px; }
+    .header-meta { display: flex; gap: 7px; flex-wrap: wrap; }
+    .pill { display: inline-flex; align-items: center; border: 1px solid #999; border-radius: 999px; padding: 3px 8px; font-size: 12px; background: #fff; }
+    .progress-box { min-width: 190px; border-left: 1px solid #ddd; padding-left: 14px; }
+    .progress-box strong { display: block; }
+    .truth-note { border-left: 4px solid #555; background: #f3f3f3; padding: 9px 11px; font-size: 13px; }
+    .lens-tabs { display: inline-flex; border: 1px solid #999; border-radius: 8px; padding: 3px; gap: 3px; background: var(--paper); }
+    .lens-tabs button { border: 0; background: transparent; padding: 8px 13px; border-radius: 5px; }
+    .lens-tabs button[aria-selected="true"] { background: var(--strong); color: #fff; }
+    .lens-region { display: none; }
+    .lens-region.active { display: block; }
+    .preview-frame { border: 1px solid #777; border-radius: 9px; overflow: hidden; background: #fff; min-height: 320px; }
+    .preview-toolbar { border-bottom: 1px solid #bbb; background: #eee; padding: 8px 10px; display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+    .preview-app { padding: 24px; display: grid; gap: 14px; }
+    .preview-app .hero { border: 1px solid #bbb; padding: 20px; border-radius: 8px; }
+    .preview-app .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .preview-app .tile { border: 1px solid #ccc; min-height: 92px; padding: 12px; border-radius: 7px; }
+    .candidate-strip { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 11px; }
+    .source-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 12px; }
+    #source-tree { border: 1px solid #bbb; border-radius: 8px; padding: 10px; display: grid; gap: 5px; align-content: start; }
+    .tree-entry { border: 0; background: transparent; text-align: left; padding: 6px; border-radius: 5px; }
+    .tree-entry.active { background: #e8e8e8; font-weight: 700; }
+    pre { margin: 0; white-space: pre-wrap; overflow: auto; background: #f6f6f6; border: 1px solid #bbb; border-radius: 8px; padding: 13px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .lower-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 14px; }
+    h3 { margin: 0 0 10px; font-size: 17px; }
+    #plan-items { display: grid; gap: 7px; }
+    .plan-item { border: 1px solid #ccc; border-radius: 7px; padding: 10px; display: flex; gap: 10px; justify-content: space-between; }
+    .plan-item strong { display: block; }
+    #plan-checkpoint { margin-top: 12px; border-top: 1px solid #ddd; padding-top: 12px; }
+    .actions { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+    .status-message { min-height: 24px; margin-top: 8px; font-size: 13px; }
+    .trust-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .trust-list { display: grid; gap: 7px; }
+    .trust-row { border: 1px solid #ccc; border-radius: 7px; padding: 9px; }
+    .trust-row button { border: 0; background: transparent; padding: 0; text-decoration: underline; font-weight: 700; text-align: left; }
+    details { border: 1px solid #ccc; border-radius: 8px; padding: 10px; background: #fff; }
+    details + details { margin-top: 8px; }
+    summary { cursor: pointer; font-weight: 750; }
+    .assistant-toggle { position: fixed; right: 22px; bottom: 22px; z-index: 25; }
+    #assistant-panel { position: fixed; top: 0; right: 0; width: min(430px, 94vw); height: 100vh; background: #fff; border-left: 1px solid #555; box-shadow: -10px 0 28px rgba(0,0,0,.14); z-index: 50; transform: translateX(102%); transition: transform .16s ease; padding: 18px; overflow: auto; }
+    #assistant-panel.open { transform: translateX(0); }
+    .assistant-head { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid #ddd; padding-bottom: 12px; margin-bottom: 14px; }
+    .assistant-head h2 { margin: 0; font-size: 20px; }
+    .field { display: grid; gap: 5px; margin-bottom: 11px; }
+    .field label { font-size: 12px; font-weight: 750; }
+    textarea { min-height: 96px; resize: vertical; }
+    #assistant-answer { border: 1px solid #bbb; border-radius: 8px; padding: 12px; min-height: 86px; background: #f7f7f7; }
+    .modal-backdrop { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.34); display: none; align-items: center; justify-content: center; padding: 20px; }
+    .modal-backdrop.open { display: flex; }
+    dialog { position: static; margin: 0; width: min(600px, 100%); max-height: 90vh; overflow: auto; border: 1px solid #333; border-radius: 10px; padding: 0; background: #fff; }
+    .dialog-body { padding: 20px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+    .law-list { margin-top: 14px; }
+    .law-list code { display: block; margin: 4px 0; font-size: 12px; white-space: normal; }
+    #scenario-status { border: 1px solid #bbb; background: #fff; border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; }
+    .scenario-title { font-weight: 800; }
+    .hidden { display: none !important; }
+    @media (max-width: 1050px) {
+      .workspace-grid { grid-template-columns: 245px minmax(0, 1fr); }
+      .lower-grid { grid-template-columns: 1fr; }
+      .source-layout { grid-template-columns: 180px minmax(0, 1fr); }
+    }
+    @media (max-width: 760px) {
+      .shell { grid-template-columns: 1fr; }
+      .global-nav { border-right: 0; border-bottom: 1px solid var(--line); }
+      .global-nav nav { display: flex; overflow-x: auto; margin-top: 12px; }
+      main { padding: 18px 12px 72px; }
+      .page-head { display: grid; }
+      .workspace-grid { grid-template-columns: 1fr; }
+      .change-header { display: grid; }
+      .progress-box { border-left: 0; border-top: 1px solid #ddd; padding: 10px 0 0; }
+      .source-layout { grid-template-columns: 1fr; }
+      .trust-grid { grid-template-columns: 1fr; }
+      .preview-app .tiles { grid-template-columns: 1fr; }
+      .lens-tabs { width: 100%; }
+      .lens-tabs button { flex: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="global-nav">
+      <div class="brand">Conexus OS</div>
+      <div class="muted tiny">Project · Sales Operations</div>
+      <nav aria-label="Project navigation">
+        <button type="button">Overview</button>
+        <button type="button" aria-current="page">Build</button>
+        <button type="button">Agents</button>
+        <button type="button">Data</button>
+        <button type="button">Releases</button>
+      </nav>
+      <div class="law-list" aria-label="Fixture legend">
+        <strong class="tiny">P8 WALKTHROUGH FIXTURES</strong>
+        <code>fixture-only</code>
+        <code>project.build != project.review != project.source.read</code>
+      </div>
+    </aside>
+
+    <main>
+      <div class="status-strip">
+        <strong>P-01 P8 FUNCTIONAL LOW-FI CANDIDATE</strong> · NOT LOCKED · fixture-only · Preview-first exact-Change workspace
+      </div>
+
+      <div class="page-head">
+        <div>
+          <h1>Build</h1>
+          <div class="muted">Supervise an exact Change through candidate inspection, governed work and proof.</div>
+        </div>
+        <div class="scenario-field">
+          <label for="scenario-select">Walkthrough state scenario</label>
+          <select id="scenario-select">
+            <option value="NORMAL">Normal owner truth</option>
+            <option value="LOADING">LOADING</option>
+            <option value="KNOWN_EMPTY">KNOWN_EMPTY</option>
+            <option value="DENIED">DENIED</option>
+            <option value="ABSENT_NON_DISCLOSABLE">ABSENT / NON-DISCLOSABLE</option>
+            <option value="DEPENDENCY_FAILURE">DEPENDENCY_FAILURE</option>
+            <option value="WORKING">WORKING</option>
+            <option value="BLOCKED">BLOCKED</option>
+            <option value="WAITING_FOR_USER">WAITING_FOR_USER</option>
+            <option value="COMPLETED">COMPLETED</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="scenario-status" aria-live="polite">
+        <div class="scenario-title">NORMAL</div>
+        <div class="muted tiny">Current fixture exposes an exact Change and owner-issued projections.</div>
+      </div>
+
+      <section class="workspace-grid" aria-label="Build workspace">
+        <aside class="card card-pad">
+          <div class="changes-head">
+            <h2>Changes</h2>
+            <button class="btn primary small" type="button" id="create-change-button">New</button>
+          </div>
+          <div id="change-list" aria-live="polite"></div>
+          <div class="truth-note" style="margin-top:12px;">
+            <strong>BLD-01 / BLD-03</strong><br>
+            Authored intent is human recognition; changeId remains the exact technical identity.
+          </div>
+        </aside>
+
+        <section id="change-workspace">
+          <article class="card card-pad">
+            <div class="change-header">
+              <div>
+                <div class="muted tiny">Exact Change · BLD-02</div>
+                <h2 id="current-change-intent">—</h2>
+                <div class="header-meta">
+                  <span class="pill" id="current-change-id">changeId —</span>
+                  <span class="pill" id="current-change-state">state —</span>
+                  <span class="pill" id="current-change-rigor">rigor —</span>
+                </div>
+              </div>
+              <div class="progress-box">
+                <span class="muted tiny">Hub-owned progress · BLD-06</span>
+                <strong id="current-progress">—</strong>
+                <span class="muted tiny">Hub progress != model narration</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="card card-pad">
+            <div class="actions" style="justify-content:space-between; margin-bottom:12px;">
+              <div class="lens-tabs" role="tablist" aria-label="Candidate inspection lenses">
+                <button id="lens-preview" type="button" role="tab" aria-selected="true">Preview</button>
+                <button id="lens-code" type="button" role="tab" aria-selected="false">Code</button>
+                <button id="lens-diff" type="button" role="tab" aria-selected="false">Diff</button>
+              </div>
+              <span class="muted tiny">Preview = default / dominant lens · Code / Diff = read-only inspectable lenses</span>
+            </div>
+
+            <section id="preview-surface" class="lens-region active" role="tabpanel" aria-labelledby="lens-preview">
+              <div class="preview-frame">
+                <div class="preview-toolbar">
+                  <span><strong>Last-good Preview</strong> · BLD-10</span>
+                  <span class="pill" id="preview-truth">ready=true · verified=false · live=false</span>
+                </div>
+                <div class="preview-app" id="preview-app-content">
+                  <div class="hero">
+                    <strong>Sales Daily Brief</strong>
+                    <div class="muted">Candidate application preview remains usable while the next candidate builds.</div>
+                  </div>
+                  <div class="tiles">
+                    <div class="tile"><strong>Revenue</strong><br><span class="muted">Owner-projected candidate UI</span></div>
+                    <div class="tile"><strong>Pipeline</strong><br><span class="muted">Owner-projected candidate UI</span></div>
+                    <div class="tile"><strong>Risks</strong><br><span class="muted">Owner-projected candidate UI</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="candidate-strip">
+                <span class="pill" id="next-candidate-status">next candidate · idle</span>
+                <button class="btn small" type="button" id="simulate-build-button">Simulate next candidate build</button>
+                <span class="muted tiny">last-good Preview survives while next candidate builds</span>
+              </div>
+              <div class="truth-note" style="margin-top:10px;">Preview ready != verified != live</div>
+            </section>
+
+            <section id="source-file" class="lens-region" role="tabpanel" aria-labelledby="lens-code">
+              <div class="source-layout">
+                <div id="source-tree" aria-label="Read-only source tree"></div>
+                <pre id="source-code" tabindex="0"></pre>
+              </div>
+              <div class="truth-note" style="margin-top:10px;">BLD-08 / BLD-09 · project.source.read · visible Code/Diff != project.source.read grant · source-readable != source-mutable</div>
+            </section>
+
+            <section id="diff-view" class="lens-region" role="tabpanel" aria-labelledby="lens-diff">
+              <pre id="diff-code" tabindex="0"></pre>
+              <div class="truth-note" style="margin-top:10px;">BLD-07 · exact baseSourceRevision → candidateSourceRevision lineage · read-only inspection.</div>
+            </section>
+          </article>
+
+          <div class="lower-grid">
+            <section id="plan-panel" class="card card-pad">
+              <h3>Visual Plan</h3>
+              <div class="muted tiny">BLD-04 · Plan = visual governed work, not a JSON editor</div>
+              <div id="plan-items" style="margin-top:10px;"></div>
+              <div id="plan-checkpoint">
+                <div class="actions" style="justify-content:space-between;">
+                  <div>
+                    <strong>Checkpoint</strong>
+                    <div class="muted tiny" id="plan-revision-label">planRevision —</div>
+                  </div>
+                  <div class="actions">
+                    <button class="btn small" type="button" id="approve-plan-button">Approve checkpoint</button>
+                    <button class="btn small" type="button" id="reject-plan-button">Reject checkpoint</button>
+                    <button class="btn ghost small" type="button" id="stale-plan-button">Simulate stale Plan</button>
+                  </div>
+                </div>
+                <div id="plan-decision-status" class="status-message" aria-live="polite"></div>
+                <div class="muted tiny">BLD-05 · Plan current != stale planRevision · visible Plan decision != reviewer eligibility</div>
+              </div>
+            </section>
+
+            <section class="card card-pad">
+              <h3>Review & trust</h3>
+              <div class="muted tiny">Findings / Evidence = trust layer · project.review</div>
+              <div class="trust-grid" style="margin-top:10px;">
+                <div id="findings-panel">
+                  <strong>Findings · BLD-11 / BLD-12 / BLD-13</strong>
+                  <div id="finding-list" class="trust-list" style="margin-top:7px;"></div>
+                  <div class="muted tiny" style="margin-top:6px;">no Findings != verified · visible Findings/Evidence != project.review grant</div>
+                </div>
+                <div id="evidence-panel">
+                  <strong>Evidence · BLD-14 / BLD-15</strong>
+                  <div id="evidence-list" class="trust-list" style="margin-top:7px;"></div>
+                  <div class="muted tiny" style="margin-top:6px;">Evidence present != claim proven</div>
+                </div>
+              </div>
+              <div id="finding-resolution-status" class="status-message" aria-live="polite"></div>
+            </section>
+          </div>
+
+          <details id="execution-details">
+            <summary>Execution detail</summary>
+            <div style="margin-top:10px;">
+              <div class="muted tiny">BLD-17 · execution detail = progressive disclosure</div>
+              <pre id="execution-code" style="margin-top:8px;"></pre>
+            </div>
+          </details>
+
+          <details>
+            <summary>Authority & truth laws carried by P8</summary>
+            <div class="law-list">
+              <code>loading != known-empty != denied != absent/non-disclosable != dependency failure</code>
+              <code>working != blocked != waiting-for-user != completed</code>
+              <code>Preview ready != verified != live</code>
+              <code>project.build != project.review != project.source.read</code>
+              <code>visible Code/Diff != project.source.read grant</code>
+              <code>visible Findings/Evidence != project.review grant</code>
+              <code>visible Plan decision != reviewer eligibility</code>
+              <code>conversation != Change</code>
+              <code>conversation != Plan truth</code>
+              <code>conversation != Progress truth</code>
+              <code>conversation != verification</code>
+              <code>assistant answer != owner state</code>
+            </div>
+          </details>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <button class="btn primary assistant-toggle" type="button" id="assistant-toggle-button">Ask Conexus</button>
+
+  <aside id="assistant-panel" aria-label="Contextual Conexus assistant" aria-hidden="true">
+    <div class="assistant-head">
+      <div>
+        <div class="muted tiny">BLD-16 · contextual / retractable</div>
+        <h2>Ask Conexus</h2>
+      </div>
+      <button class="btn small" type="button" id="assistant-close-button">Close</button>
+    </div>
+    <div class="field">
+      <label for="assistant-scope">Context</label>
+      <select id="assistant-scope">
+        <option value="PROJECT">Project context</option>
+        <option value="CHANGE">Exact Change context</option>
+      </select>
+      <div class="muted tiny">BLD-16 changeId? is optional; possession of a reference is never review/source authority.</div>
+    </div>
+    <div class="field">
+      <label for="assistant-question">Question</label>
+      <textarea id="assistant-question" placeholder="Ask about the current Project or exact Change"></textarea>
+    </div>
+    <button class="btn primary" type="button" id="assistant-submit-button">Ask</button>
+    <div id="assistant-answer" aria-live="polite" style="margin-top:12px;">No question submitted.</div>
+    <div class="law-list">
+      <code>conversation != Change</code>
+      <code>conversation != Plan truth</code>
+      <code>conversation != Progress truth</code>
+      <code>conversation != verification</code>
+      <code>assistant answer != owner state</code>
+    </div>
+  </aside>
+
+  <div class="modal-backdrop" id="create-change-backdrop">
+    <dialog id="create-change-dialog" role="dialog" aria-modal="true" aria-labelledby="create-change-title">
+      <div class="dialog-body">
+        <h2 id="create-change-title">What do you want to change?</h2>
+        <div class="muted">BLD-03 CreateChange · bounded authored human intent</div>
+        <div class="field" style="margin-top:14px;">
+          <label for="change-intent-input">Change intent</label>
+          <textarea id="change-intent-input" placeholder="Describe what must become true"></textarea>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn" type="button" id="create-change-cancel">Cancel</button>
+          <button class="btn primary" type="button" id="create-change-submit">Create Change</button>
+        </div>
+      </div>
+    </dialog>
+  </div>
+
+  <div class="modal-backdrop" id="finding-detail-backdrop">
+    <dialog id="finding-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="finding-dialog-title">
+      <div class="dialog-body">
+        <h2 id="finding-dialog-title">Finding</h2>
+        <div id="finding-dialog-content"></div>
+        <div class="field" style="margin-top:14px;">
+          <label for="finding-evidence-select">Resolution Evidence</label>
+          <select id="finding-evidence-select"></select>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn" type="button" id="finding-close-button">Close detail</button>
+          <button class="btn primary" type="button" id="finding-resolve-button">Close Finding with Evidence</button>
+        </div>
+      </div>
+    </dialog>
+  </div>
+
+  <script>
+    // Explicit P8 fixture projections stand in for owner-issued responses. They are not browser authority.
+    // change.intent is the authored human Change meaning preserved by F14.
+    const builderFixtures = {
+      changes: [
+        {
+          changeId: 'chg-sales-brief',
+          projectId: 'prj-sales',
+          intent: 'Turn the sales summary into a daily decision brief',
+          baselineDigest: 'base:91ac',
+          planningDepth: 'FULL',
+          rigorProfile: 'CONTROLLED',
+          state: 'WORKING'
+        },
+        {
+          changeId: 'chg-risk-table',
+          projectId: 'prj-sales',
+          intent: 'Make risk ownership visible in the pipeline view',
+          baselineDigest: 'base:91ac',
+          planningDepth: 'LIGHT',
+          rigorProfile: 'BOUNDED',
+          state: 'WAITING_FOR_USER'
+        },
+        {
+          changeId: 'chg-mobile-nav',
+          projectId: 'prj-sales',
+          intent: 'Improve mobile navigation for field sales',
+          baselineDigest: 'base:91ac',
+          planningDepth: 'DIRECT',
+          rigorProfile: 'FAST',
+          state: 'COMPLETED'
+        }
+      ],
+      progress: {
+        'chg-sales-brief': { overallState: 'WORKING', completed: 2, total: 4 },
+        'chg-risk-table': { overallState: 'WAITING_FOR_USER', completed: 1, total: 3 },
+        'chg-mobile-nav': { overallState: 'COMPLETED', completed: 2, total: 2 }
+      },
+      plans: {
+        'chg-sales-brief': {
+          planRevision: 'plan:r7',
+          currentPlanRevision: 'plan:r7',
+          items: [
+            { itemId: 'i1', summary: 'Reshape the daily brief shell', state: 'COMPLETED' },
+            { itemId: 'i2', summary: 'Add pipeline risk section', state: 'COMPLETED' },
+            { itemId: 'i3', summary: 'Wire decision-oriented summary', state: 'WORKING' },
+            { itemId: 'i4', summary: 'Collect verification Evidence', state: 'BLOCKED' }
+          ],
+          checkpointRequired: true
+        },
+        'chg-risk-table': {
+          planRevision: 'plan:r2', currentPlanRevision: 'plan:r2',
+          items: [
+            { itemId: 'i1', summary: 'Expose risk owner', state: 'COMPLETED' },
+            { itemId: 'i2', summary: 'Confirm owner naming', state: 'WAITING_FOR_USER' },
+            { itemId: 'i3', summary: 'Verify pipeline view', state: 'BLOCKED' }
+          ], checkpointRequired: true
+        },
+        'chg-mobile-nav': {
+          planRevision: 'plan:r4', currentPlanRevision: 'plan:r4',
+          items: [
+            { itemId: 'i1', summary: 'Reflow navigation', state: 'COMPLETED' },
+            { itemId: 'i2', summary: 'Verify narrow viewport', state: 'COMPLETED' }
+          ], checkpointRequired: false
+        }
+      },
+      previews: {
+        'chg-sales-brief': {
+          lastGoodPreview: { previewId: 'pv:42', candidateDigest: 'cand:42', ready: true, verified: false, live: false },
+          nextCandidate: { previewId: 'pv:43', candidateDigest: 'cand:43', state: 'IDLE' }
+        },
+        'chg-risk-table': {
+          lastGoodPreview: { previewId: 'pv:18', candidateDigest: 'cand:18', ready: true, verified: false, live: false },
+          nextCandidate: { previewId: 'pv:19', candidateDigest: 'cand:19', state: 'WAITING_FOR_USER' }
+        },
+        'chg-mobile-nav': {
+          lastGoodPreview: { previewId: 'pv:7', candidateDigest: 'cand:7', ready: true, verified: true, live: false },
+          nextCandidate: { previewId: 'pv:7', candidateDigest: 'cand:7', state: 'COMPLETED' }
+        }
+      },
+      sourceTrees: {
+        'chg-sales-brief': ['src/App.tsx', 'src/brief/DailyBrief.tsx', 'src/brief/RiskSection.tsx', 'src/styles.css'],
+        'chg-risk-table': ['src/App.tsx', 'src/pipeline/RiskTable.tsx'],
+        'chg-mobile-nav': ['src/App.tsx', 'src/nav/MobileNav.tsx']
+      },
+      sourceFiles: {
+        'src/App.tsx': "export function App() {\n  return <DailyBrief />\n}",
+        'src/brief/DailyBrief.tsx': "export function DailyBrief() {\n  return <main>Decision brief candidate</main>\n}",
+        'src/brief/RiskSection.tsx': "export function RiskSection() {\n  return <section>Pipeline risks</section>\n}",
+        'src/styles.css': ".brief { display: grid; gap: 1rem; }",
+        'src/pipeline/RiskTable.tsx': "export function RiskTable() {\n  return <section>Risk ownership</section>\n}",
+        'src/nav/MobileNav.tsx': "export function MobileNav() {\n  return <nav>Mobile project navigation</nav>\n}"
+      },
+      diffs: {
+        'chg-sales-brief': "--- base:91ac/src/brief/DailyBrief.tsx\n+++ cand:42/src/brief/DailyBrief.tsx\n@@\n- <main>Sales summary</main>\n+ <main>Decision brief candidate</main>\n+ <RiskSection />",
+        'chg-risk-table': "--- base:91ac/src/pipeline/RiskTable.tsx\n+++ cand:18/src/pipeline/RiskTable.tsx\n@@\n+ <span>Owner</span>",
+        'chg-mobile-nav': "--- base:91ac/src/nav/MobileNav.tsx\n+++ cand:7/src/nav/MobileNav.tsx\n@@\n+ <nav>Mobile project navigation</nav>"
+      },
+      findings: {
+        'chg-sales-brief': [
+          { findingId: 'fd:17', changeId: 'chg-sales-brief', findingRevision: 'fr:3', state: 'OPEN', summary: 'Risk section has no empty-state Evidence yet' }
+        ],
+        'chg-risk-table': [
+          { findingId: 'fd:9', changeId: 'chg-risk-table', findingRevision: 'fr:1', state: 'OPEN', summary: 'Owner label needs business confirmation' }
+        ],
+        'chg-mobile-nav': []
+      },
+      evidence: {
+        'chg-sales-brief': [
+          { evidenceId: 'ev:41', changeId: 'chg-sales-brief', claim: 'Daily brief renders at narrow viewport', subjectDigest: 'cand:42', provenance: ['verify://ui/41'] },
+          { evidenceId: 'ev:42', changeId: 'chg-sales-brief', claim: 'Risk section data mapping matches fixture', subjectDigest: 'cand:42', provenance: ['verify://mapping/42'] }
+        ],
+        'chg-risk-table': [
+          { evidenceId: 'ev:21', changeId: 'chg-risk-table', claim: 'Risk owner field is rendered', subjectDigest: 'cand:18', provenance: ['verify://ui/21'] }
+        ],
+        'chg-mobile-nav': [
+          { evidenceId: 'ev:7', changeId: 'chg-mobile-nav', claim: 'Navigation verified on narrow viewport', subjectDigest: 'cand:7', provenance: ['verify://ui/7'] }
+        ]
+      },
+      execution: {
+        'chg-sales-brief': { changeId: 'chg-sales-brief', workUnits: [{ workUnitId: 'wu:4', state: 'WORKING', actorRunIds: ['ar:9'], resultCommit: null }], actorRuns: [{ actorRunId: 'ar:9', state: 'WORKING', lineageDisposition: 'CONTINUE_LINEAGE' }] },
+        'chg-risk-table': { changeId: 'chg-risk-table', workUnits: [{ workUnitId: 'wu:2', state: 'WAITING_FOR_USER', actorRunIds: ['ar:4'], resultCommit: null }], actorRuns: [{ actorRunId: 'ar:4', state: 'WAITING_FOR_USER', lineageDisposition: 'FRESH_BASE' }] },
+        'chg-mobile-nav': { changeId: 'chg-mobile-nav', workUnits: [{ workUnitId: 'wu:1', state: 'COMPLETED', actorRunIds: ['ar:1'], resultCommit: 'git:abc123' }], actorRuns: [{ actorRunId: 'ar:1', state: 'COMPLETED', lineageDisposition: 'FRESH_BASE' }] }
+      },
+      assistantResponses: {
+        PROJECT: { answer: 'This Project currently has three disclosable Changes. The selected Change remains the Builder owner subject.', provenanceRefs: ['BLD-01', 'BLD-02'] },
+        CHANGE: { answer: 'The exact Change is working through its current visual Plan. One Finding remains open; that statement does not change owner state.', provenanceRefs: ['BLD-02', 'BLD-04', 'BLD-11'] }
+      }
+    }
+
+    const materialScenarios = {
+      NORMAL: { title: 'NORMAL', message: 'Exact Change and current owner projections are available.' },
+      LOADING: { title: 'LOADING', message: 'A requested owner projection is still loading; prior known truth is not rewritten.' },
+      KNOWN_EMPTY: { title: 'KNOWN_EMPTY', message: 'The owner returned a truthful empty result for this exact disclosed subject.' },
+      DENIED: { title: 'DENIED', message: 'The current authenticated user lacks the required action/disclosure authority.' },
+      ABSENT_NON_DISCLOSABLE: { title: 'ABSENT / NON-DISCLOSABLE', message: 'The exact subject is absent or intentionally non-disclosable; existence is not leaked.' },
+      DEPENDENCY_FAILURE: { title: 'DEPENDENCY_FAILURE', message: 'A required dependency is unavailable; the UI must not pretend the result is empty or successful.' },
+      WORKING: { title: 'WORKING', message: 'Hub-owned work is progressing. The last-good Preview stays visible while the next candidate builds.' },
+      BLOCKED: { title: 'BLOCKED', message: 'Owner truth says work is blocked. Browser narration cannot clear it.' },
+      WAITING_FOR_USER: { title: 'WAITING_FOR_USER', message: 'Owner truth requires a human decision before work can continue.' },
+      COMPLETED: { title: 'COMPLETED', message: 'Owner progress is complete; completion alone is still distinct from production live state.' }
+    }
+
+    let selectedChangeId = builderFixtures.changes[0].changeId
+    let selectedLens = 'preview'
+    let activeSourcePath = builderFixtures.sourceTrees[selectedChangeId][0]
+    let openFindingId = null
+    let returnFocusTo = null
+
+    function getSelectedChange() {
+      return builderFixtures.changes.find(change => change.changeId === selectedChangeId)
+    }
+
+    function renderChangeList() {
+      const root = document.getElementById('change-list')
+      root.innerHTML = ''
+      builderFixtures.changes.forEach(change => {
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.className = 'change-row'
+        button.setAttribute('aria-current', String(change.changeId === selectedChangeId))
+        button.innerHTML = `<div class="change-intent">${escapeHtml(change.intent)}</div><div class="change-meta"><span>${escapeHtml(change.state)}</span><span>${escapeHtml(change.changeId)}</span></div>`
+        button.addEventListener('click', () => selectChange(change.changeId))
+        root.appendChild(button)
+      })
+    }
+
+    function selectChange(changeId) {
+      selectedChangeId = changeId
+      activeSourcePath = builderFixtures.sourceTrees[changeId][0]
+      renderAll()
+    }
+
+    function openCreateChangeDialog(trigger = document.activeElement) {
+      returnFocusTo = trigger
+      document.getElementById('create-change-backdrop').classList.add('open')
+      document.getElementById('change-intent-input').value = ''
+      document.getElementById('change-intent-input').focus()
+    }
+
+    function closeCreateChangeDialog() {
+      document.getElementById('create-change-backdrop').classList.remove('open')
+      if (returnFocusTo) returnFocusTo.focus()
+      returnFocusTo = null
+    }
+
+    function createChange() {
+      const input = document.getElementById('change-intent-input')
+      const intent = input.value.trim()
+      if (!intent) {
+        input.focus()
+        return
+      }
+      const changeId = `chg-fixture-${builderFixtures.changes.length + 1}`
+      builderFixtures.changes.unshift({ changeId, projectId: 'prj-sales', intent, baselineDigest: 'base:91ac', planningDepth: 'LIGHT', rigorProfile: 'BOUNDED', state: 'WORKING' })
+      builderFixtures.progress[changeId] = { overallState: 'WORKING', completed: 0, total: 2 }
+      builderFixtures.plans[changeId] = { planRevision: 'plan:r1', currentPlanRevision: 'plan:r1', items: [{ itemId: 'i1', summary: 'Investigate requested Change', state: 'WORKING' }, { itemId: 'i2', summary: 'Collect proof', state: 'BLOCKED' }], checkpointRequired: true }
+      builderFixtures.previews[changeId] = { lastGoodPreview: { previewId: 'pv:new', candidateDigest: 'cand:new', ready: true, verified: false, live: false }, nextCandidate: { previewId: 'pv:new-next', candidateDigest: 'cand:new-next', state: 'IDLE' } }
+      builderFixtures.sourceTrees[changeId] = ['src/App.tsx']
+      builderFixtures.diffs[changeId] = 'No candidate diff collected yet.'
+      builderFixtures.findings[changeId] = []
+      builderFixtures.evidence[changeId] = []
+      builderFixtures.execution[changeId] = { changeId, workUnits: [], actorRuns: [] }
+      selectedChangeId = changeId
+      activeSourcePath = 'src/App.tsx'
+      closeCreateChangeDialog()
+      renderAll()
+    }
+
+    function selectWorkspaceLens(lens) {
+      selectedLens = lens
+      const map = { preview: 'preview-surface', code: 'source-file', diff: 'diff-view' }
+      Object.entries(map).forEach(([name, id]) => {
+        document.getElementById(id).classList.toggle('active', name === lens)
+        document.getElementById(`lens-${name}`).setAttribute('aria-selected', String(name === lens))
+      })
+      if (lens === 'preview') renderPreview()
+      if (lens === 'code') renderCode()
+      if (lens === 'diff') renderDiff()
+    }
+
+    function renderPreview() {
+      const fixture = builderFixtures.previews[selectedChangeId]
+      const p = fixture.lastGoodPreview
+      document.getElementById('preview-truth').textContent = `ready=${p.ready} · verified=${p.verified} · live=${p.live}`
+      document.getElementById('next-candidate-status').textContent = `next candidate · ${fixture.nextCandidate.state}`
+    }
+
+    function simulateNextCandidateBuild() {
+      const fixture = builderFixtures.previews[selectedChangeId]
+      fixture.nextCandidate.state = fixture.nextCandidate.state === 'WORKING' ? 'IDLE' : 'WORKING'
+      renderPreview()
+      document.getElementById('scenario-select').value = fixture.nextCandidate.state === 'WORKING' ? 'WORKING' : 'NORMAL'
+      applyScenario()
+    }
+
+    function renderCode() {
+      const paths = builderFixtures.sourceTrees[selectedChangeId]
+      const tree = document.getElementById('source-tree')
+      tree.innerHTML = ''
+      paths.forEach(sourcePath => {
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.className = `tree-entry${sourcePath === activeSourcePath ? ' active' : ''}`
+        button.textContent = sourcePath
+        button.addEventListener('click', () => {
+          activeSourcePath = sourcePath
+          renderCode()
+        })
+        tree.appendChild(button)
+      })
+      document.getElementById('source-code').textContent = builderFixtures.sourceFiles[activeSourcePath] || '// No file content in this fixture.'
+    }
+
+    function renderDiff() {
+      document.getElementById('diff-code').textContent = builderFixtures.diffs[selectedChangeId]
+    }
+
+    function renderPlan() {
+      const plan = builderFixtures.plans[selectedChangeId]
+      document.getElementById('plan-revision-label').textContent = `planRevision ${plan.planRevision} · current ${plan.currentPlanRevision}`
+      const root = document.getElementById('plan-items')
+      root.innerHTML = ''
+      plan.items.forEach(item => {
+        const row = document.createElement('div')
+        row.className = 'plan-item'
+        row.innerHTML = `<div><strong>${escapeHtml(item.summary)}</strong><span class="muted tiny">${escapeHtml(item.itemId)}</span></div><span class="pill">${escapeHtml(item.state)}</span>`
+        root.appendChild(row)
+      })
+      document.getElementById('approve-plan-button').disabled = !plan.checkpointRequired
+      document.getElementById('reject-plan-button').disabled = !plan.checkpointRequired
+    }
+
+    function decidePlanCheckpoint(decision) {
+      const plan = builderFixtures.plans[selectedChangeId]
+      const status = document.getElementById('plan-decision-status')
+      if (plan.planRevision !== plan.currentPlanRevision) {
+        status.textContent = `STALE: ${plan.planRevision} is no longer current; ${decision} was not applied.`
+        return
+      }
+      status.textContent = `${decision} accepted by fixture server response for exact ${plan.planRevision}; browser does not mutate Plan items.`
+    }
+
+    function simulateStalePlan() {
+      const plan = builderFixtures.plans[selectedChangeId]
+      plan.currentPlanRevision = plan.currentPlanRevision.endsWith('-new') ? plan.planRevision : `${plan.planRevision}-new`
+      renderPlan()
+      document.getElementById('plan-decision-status').textContent = plan.planRevision === plan.currentPlanRevision ? 'Plan fixture restored to current.' : 'Plan fixture is stale; a decision must not silently win.'
+    }
+
+    function renderFindings() {
+      const root = document.getElementById('finding-list')
+      const findings = builderFixtures.findings[selectedChangeId]
+      root.innerHTML = ''
+      if (!findings.length) {
+        root.innerHTML = '<div class="trust-row">Known-empty Finding list. This does not mean verified.</div>'
+        return
+      }
+      findings.forEach(finding => {
+        const row = document.createElement('div')
+        row.className = 'trust-row'
+        row.innerHTML = `<button type="button">${escapeHtml(finding.summary)}</button><div class="muted tiny">${escapeHtml(finding.findingId)} · ${escapeHtml(finding.state)}</div>`
+        row.querySelector('button').addEventListener('click', event => openFinding(finding.findingId, event.currentTarget))
+        root.appendChild(row)
+      })
+    }
+
+    function renderEvidence() {
+      const root = document.getElementById('evidence-list')
+      const evidence = builderFixtures.evidence[selectedChangeId]
+      root.innerHTML = ''
+      if (!evidence.length) {
+        root.innerHTML = '<div class="trust-row">No Evidence currently disclosed.</div>'
+        return
+      }
+      evidence.forEach(item => {
+        const row = document.createElement('div')
+        row.className = 'trust-row'
+        row.innerHTML = `<strong>${escapeHtml(item.claim)}</strong><div class="muted tiny">${escapeHtml(item.evidenceId)} · ${escapeHtml(item.subjectDigest)}</div>`
+        root.appendChild(row)
+      })
+    }
+
+    function openFinding(findingId, trigger = document.activeElement) {
+      openFindingId = findingId
+      returnFocusTo = trigger
+      const finding = builderFixtures.findings[selectedChangeId].find(item => item.findingId === findingId)
+      document.getElementById('finding-dialog-content').innerHTML = `<div class="truth-note"><strong>${escapeHtml(finding.summary)}</strong><br><span class="tiny">findingRevision ${escapeHtml(finding.findingRevision)} · state ${escapeHtml(finding.state)}</span></div>`
+      const select = document.getElementById('finding-evidence-select')
+      select.innerHTML = ''
+      builderFixtures.evidence[selectedChangeId].forEach(item => {
+        const option = document.createElement('option')
+        option.value = item.evidenceId
+        option.textContent = `${item.evidenceId} · ${item.claim}`
+        select.appendChild(option)
+      })
+      document.getElementById('finding-detail-backdrop').classList.add('open')
+      document.getElementById('finding-close-button').focus()
+    }
+
+    function closeFindingDetail() {
+      document.getElementById('finding-detail-backdrop').classList.remove('open')
+      openFindingId = null
+      if (returnFocusTo) returnFocusTo.focus()
+      returnFocusTo = null
+    }
+
+    function closeFindingWithEvidence() {
+      const finding = builderFixtures.findings[selectedChangeId].find(item => item.findingId === openFindingId)
+      const resolutionEvidenceIds = [document.getElementById('finding-evidence-select').value].filter(Boolean)
+      const expectedFindingRevision = finding?.findingRevision
+      if (!finding || !resolutionEvidenceIds.length) {
+        document.getElementById('finding-resolution-status').textContent = 'Fixture rejected closure: exact current Finding and admitted resolution Evidence are required.'
+        closeFindingDetail()
+        return
+      }
+      finding.state = 'CLOSED'
+      document.getElementById('finding-resolution-status').textContent = `BLD-13 fixture response: ${finding.findingId} closed against expectedFindingRevision ${expectedFindingRevision} with resolutionEvidenceIds ${resolutionEvidenceIds.join(', ')}.`
+      closeFindingDetail()
+      renderFindings()
+    }
+
+    function toggleAssistant(force) {
+      const panel = document.getElementById('assistant-panel')
+      const next = typeof force === 'boolean' ? force : !panel.classList.contains('open')
+      panel.classList.toggle('open', next)
+      panel.setAttribute('aria-hidden', String(!next))
+      if (next) {
+        returnFocusTo = document.activeElement
+        document.getElementById('assistant-question').focus()
+      } else if (returnFocusTo) {
+        returnFocusTo.focus()
+        returnFocusTo = null
+      }
+    }
+
+    function submitAssistantQuestion() {
+      const question = document.getElementById('assistant-question').value.trim()
+      const scope = document.getElementById('assistant-scope').value
+      const answer = document.getElementById('assistant-answer')
+      if (!question) {
+        answer.textContent = 'Enter a question. A draft is not owner truth.'
+        return
+      }
+      const fixture = builderFixtures.assistantResponses[scope]
+      const changeContext = scope === 'CHANGE' ? ` · changeId?=${selectedChangeId}` : ''
+      answer.innerHTML = `<strong>${escapeHtml(fixture.answer)}</strong><div class="muted tiny" style="margin-top:8px;">Project context${changeContext}<br>provenanceRefs: ${fixture.provenanceRefs.map(escapeHtml).join(', ')}</div>`
+    }
+
+    function toggleExecutionDetail() {
+      const details = document.getElementById('execution-details')
+      details.open = !details.open
+      if (details.open) details.scrollIntoView({ block: 'nearest' })
+    }
+
+    function applyScenario() {
+      const key = document.getElementById('scenario-select').value
+      renderScenarioStatus(key)
+    }
+
+    function renderScenarioStatus(key = document.getElementById('scenario-select').value) {
+      const scenario = materialScenarios[key]
+      document.getElementById('scenario-status').innerHTML = `<div class="scenario-title">${escapeHtml(scenario.title)}</div><div class="muted tiny">${escapeHtml(scenario.message)}</div>`
+    }
+
+    function renderExecution() {
+      document.getElementById('execution-code').textContent = JSON.stringify(builderFixtures.execution[selectedChangeId], null, 2)
+    }
+
+    function renderHeader() {
+      const change = getSelectedChange()
+      const progress = builderFixtures.progress[selectedChangeId]
+      document.getElementById('current-change-intent').textContent = change.intent
+      document.getElementById('current-change-id').textContent = `changeId ${change.changeId}`
+      document.getElementById('current-change-state').textContent = `state ${change.state}`
+      document.getElementById('current-change-rigor').textContent = `${change.planningDepth} · ${change.rigorProfile}`
+      document.getElementById('current-progress').textContent = `${progress.overallState} · ${progress.completed}/${progress.total}`
+    }
+
+    function renderAll() {
+      renderChangeList()
+      renderHeader()
+      renderPreview()
+      renderCode()
+      renderDiff()
+      renderPlan()
+      renderFindings()
+      renderEvidence()
+      renderExecution()
+      selectWorkspaceLens(selectedLens)
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;')
+    }
+
+    document.getElementById('create-change-button').addEventListener('click', event => openCreateChangeDialog(event.currentTarget))
+    document.getElementById('create-change-cancel').addEventListener('click', closeCreateChangeDialog)
+    document.getElementById('create-change-submit').addEventListener('click', createChange)
+    document.getElementById('lens-preview').addEventListener('click', () => selectWorkspaceLens('preview'))
+    document.getElementById('lens-code').addEventListener('click', () => selectWorkspaceLens('code'))
+    document.getElementById('lens-diff').addEventListener('click', () => selectWorkspaceLens('diff'))
+    document.getElementById('simulate-build-button').addEventListener('click', simulateNextCandidateBuild)
+    document.getElementById('approve-plan-button').addEventListener('click', () => decidePlanCheckpoint('APPROVE'))
+    document.getElementById('reject-plan-button').addEventListener('click', () => decidePlanCheckpoint('REJECT'))
+    document.getElementById('stale-plan-button').addEventListener('click', simulateStalePlan)
+    document.getElementById('finding-close-button').addEventListener('click', closeFindingDetail)
+    document.getElementById('finding-resolve-button').addEventListener('click', closeFindingWithEvidence)
+    document.getElementById('assistant-toggle-button').addEventListener('click', () => toggleAssistant(true))
+    document.getElementById('assistant-close-button').addEventListener('click', () => toggleAssistant(false))
+    document.getElementById('assistant-submit-button').addEventListener('click', submitAssistantQuestion)
+    document.getElementById('scenario-select').addEventListener('change', applyScenario)
+    document.getElementById('execution-details').addEventListener('toggle', () => {})
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        if (document.getElementById('create-change-backdrop').classList.contains('open')) closeCreateChangeDialog()
+        else if (document.getElementById('finding-detail-backdrop').classList.contains('open')) closeFindingDetail()
+        else if (document.getElementById('assistant-panel').classList.contains('open')) toggleAssistant(false)
+      }
+    })
+
+    // Expose the named behavior for P8 walkthrough without turning execution detail into root navigation.
+    window.toggleExecutionDetail = toggleExecutionDetail
+
+    renderAll()
+  </script>
+</body>
+</html>
