@@ -13,8 +13,8 @@ This is the single current phase/status authority.
 | C-018 | RATIFIED / OPERATOR RATIFIED | Final Product architecture continuity ratified | Material Product/architecture falsifier |
 | C-015 refinement | REFINED / KEYCLOAK SELECTED / OPERATOR APPROVED | Authentication selected; Conexus owns authorization | Material identity/security falsifier |
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
-| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F15` RECOMPILED | `N_platform=116` | Interaction Evidence proves missing Product meaning/authority |
-| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F15` RECOMPILED | `116↔116`; Project=23; Builder=17; Brain=11; Connections=9; IAM=19; OBS=5 | 4A change or wire/proof falsifier |
+| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F16` RECOMPILED | `N_platform=116` | Interaction Evidence proves missing Product meaning/authority |
+| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F16` RECOMPILED | `116↔116`; Project=23; Builder=17; Brain=11; Connections=9; IAM=19; OBS=5 | 4A change or wire/proof falsifier |
 | 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 + P-01 LOCKED` / `P-02 RECOMPILE ACTIVE` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
@@ -23,7 +23,7 @@ This is the single current phase/status authority.
 | Product implementation | BLOCKED | Requires 4A–4G + explicit operator grant | No historical grant carries forward |
 
 ```text
-4A = CLOSED / N_platform=116 / F04–F07 + F09–F15 RECOMPILED
+4A = CLOSED / N_platform=116 / F04–F07 + F09–F16 RECOMPILED
 4B = CLOSED / 116↔116 / Project=23 / Builder=17 / Brain=11 / Connections=9 / IAM=19 / OBS=5
 4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / W-02B LOCKED / W-03 LOCKED / W-04 LOCKED / P-01 LOCKED
 F06 OPERATOR ACCEPTED / GREEN · F06 GREEN
@@ -34,10 +34,11 @@ F10 OPERATOR ACCEPTED / GREEN · F10 SELECTED REALIZATION
 F13 OPERATOR ACCEPTED / GREEN · F13 SELECTED REALIZATION
 F14 OPERATOR ACCEPTED / GREEN · F14 SELECTED REALIZATION
 F15 OPERATOR ACCEPTED / GREEN · F15 SELECTED REALIZATION
+F16 GREEN = Verify #885 SUCCESS
 W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN
 W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED
 P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
-P-02 = OPEN / F16-F19 APPROVED / RECOMPILE ACTIVE / P7+P8 BLOCKED
+P-02 = OPEN / F16 GREEN / F17 RED NEXT / P7+P8 BLOCKED
 F14 whole-wire GREEN = Verify #797 SUCCESS
 P7 selected RED = Verify #800 / 103 tests / 102 pass / 1 exact expected failure
 P7 structural GREEN = Verify #803 SUCCESS
@@ -85,7 +86,7 @@ App-first: current app + right Conexus; BUILD→BLD-03; pre-Change PLAN→BLD-16
 ```text
 P8 final right-sidebar artifact blob = 3f9d30f7e6fa0de814f0be20b7583b4e98aca7c8
 P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
-P-02 = OPEN / F16-F19 APPROVED / RECOMPILE ACTIVE
+P-02 = OPEN / F16 GREEN / F17 RED NEXT
 P-03+ = NOT OPEN
 P11 = NOT ASSEMBLED
 4D = NOT STARTED
@@ -100,4 +101,4 @@ smallest-owner reopen != smallest patch
 
 ## Exact next action
 
-**Run F16 selected RED.** P7/P8/P-03/P11/4D/merge/Product implementation remain blocked.
+**Run F17 selected RED.** P7/P8/P-03/P11/4D/merge/Product implementation remain blocked.
