@@ -37,9 +37,17 @@ paths:
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
+      parameters:
+        - name: forProjectId
+          in: query
+          required: false
+          description: Optional exact target Project context activating purpose-bound immutable revision selection for Project Brain binding. Server revalidates Project containment plus project.manage + brain.bind; omission uses ordinary brain.read disclosure. This route remains BrainRevision summary-only and grants no BRN-03, knowledgeBrowse, proposal, publication or Brain mutation authority.
+          schema:
+            type: string
+            minLength: 1
       responses:
         '200':
-          description: Immutable published Brain revisions currently disclosable for the Workspace.
+          description: Immutable published Brain revisions currently disclosable for the Workspace. With forProjectId, disclosure is purpose-bound to exact Project Brain-binding selection under project.manage + brain.bind and remains summary-only.
           content:
             application/json:
               schema:

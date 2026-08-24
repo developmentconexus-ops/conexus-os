@@ -1,6 +1,6 @@
 # Conexus OS — Product Operation Ledger
 
-> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F05` + `4C-F06` + `4C-F07` + `4C-F09` + `4C-F10` + `4C-F11` + `4C-F12` + `4C-F14` + `4C-F15` + `4C-F16` + `4C-F17` BOUNDED CORRECTIONS ACCEPTED
+> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F05` + `4C-F06` + `4C-F07` + `4C-F09` + `4C-F10` + `4C-F11` + `4C-F12` + `4C-F14` + `4C-F15` + `4C-F16` + `4C-F17` + `4C-F18` BOUNDED CORRECTIONS ACCEPTED
 > **Authority:** derived only from current accepted Product/architecture authority routed by `docs/index.md`, the 4A contract, the operator-approved first Budget Analyzer semantic contract and the operator-approved bounded downstream corrections named above.
 > **Mutable program status:** owned only by `docs/roadmap.md`.
 
@@ -15,7 +15,7 @@ first Budget Analyzer operations  = 2
 ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
 ```
 
-The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. During executable-wire derivation, `4B-F01` materially falsified three generic mutation rows because no accepted Product authority defined their mutable property sets; the operator explicitly approved their bounded subtraction. During W-01 frontend authority-feasibility work, `4C-F02` then proved that accepted Journey B could not be completed truthfully without creation-time source bootstrap, caller-expressible Inception intent and one durable exact candidate-Baseline read. The later operator-approved `4C-F03` proved that a coherent visual Baseline review loop additionally requires exact-candidate refinement input and one exact candidate-bound contextual explanation surface under Baseline-management authority. During W-02 Brain authority-to-interaction derivation, operator-approved `4C-F05`, `4C-F06` and `4C-F07` enriched existing Brain intake/detail reads without changing Brain ownership or operation count. During W-02B, operator-approved `4C-F09` and `4C-F10` enriched existing Connections current configuration, test applicability and human diagnostics without changing Connections topology. During W-03 authority-feasibility, operator-approved `4C-F11` proved that access administration requires human Account/Area presentation plus three purpose-built I&A reads for membership candidates, exact member effective access and exact Area access; `4C-F12` proved that immutable Audit must be server-filterable and preserve append-time human presentation snapshots rather than relying on browser-local filtering or current-name lookup. During P-01 Builder authority-feasibility, operator-approved `4C-F14` proved that the already-authored Change intent must remain present on Change reads and that existing `BLD-16` must optionally bind one exact current Change when contextual assistance is Change-scoped. During P-01 P9 authority tracing, operator-approved `4C-F15` then proved that the existing Builder Preview read must represent either the server-resolved current Project source Preview or, when an optional exact `changeId` is supplied, that Change candidate Preview. During P-02 authority-feasibility, operator-approved `4C-F16` proved that existing Project Data-resource reads require a server-owned nonblank human presentation name while preserving `dataResourceId` as the exact machine identity. Operator-approved `4C-F17` then proved that existing ProjectConnectionBinding reads require human Connection presentation and that the existing `CON-03` collection read must support a purpose-bound exact-Project binding-selection disclosure under `project.manage + connection.use` without turning `connection.use` into generic `connection.read`. F14/F15/F16/F17 add no operation, Permission, owner, principal, trust boundary or durable record class. All unaffected 4A semantics remain preserved.
+The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. During executable-wire derivation, `4B-F01` materially falsified three generic mutation rows because no accepted Product authority defined their mutable property sets; the operator explicitly approved their bounded subtraction. During W-01 frontend authority-feasibility work, `4C-F02` then proved that accepted Journey B could not be completed truthfully without creation-time source bootstrap, caller-expressible Inception intent and one durable exact candidate-Baseline read. The later operator-approved `4C-F03` proved that a coherent visual Baseline review loop additionally requires exact-candidate refinement input and one exact candidate-bound contextual explanation surface under Baseline-management authority. During W-02 Brain authority-to-interaction derivation, operator-approved `4C-F05`, `4C-F06` and `4C-F07` enriched existing Brain intake/detail reads without changing Brain ownership or operation count. During W-02B, operator-approved `4C-F09` and `4C-F10` enriched existing Connections current configuration, test applicability and human diagnostics without changing Connections topology. During W-03 authority-feasibility, operator-approved `4C-F11` proved that access administration requires human Account/Area presentation plus three purpose-built I&A reads for membership candidates, exact member effective access and exact Area access; `4C-F12` proved that immutable Audit must be server-filterable and preserve append-time human presentation snapshots rather than relying on browser-local filtering or current-name lookup. During P-01 Builder authority-feasibility, operator-approved `4C-F14` proved that the already-authored Change intent must remain present on Change reads and that existing `BLD-16` must optionally bind one exact current Change when contextual assistance is Change-scoped. During P-01 P9 authority tracing, operator-approved `4C-F15` then proved that the existing Builder Preview read must represent either the server-resolved current Project source Preview or, when an optional exact `changeId` is supplied, that Change candidate Preview. During P-02 authority-feasibility, operator-approved `4C-F16` proved that existing Project Data-resource reads require a server-owned nonblank human presentation name while preserving `dataResourceId` as the exact machine identity. Operator-approved `4C-F17` then proved that existing ProjectConnectionBinding reads require human Connection presentation and that the existing `CON-03` collection read must support a purpose-bound exact-Project binding-selection disclosure under `project.manage + connection.use` without turning `connection.use` into generic `connection.read`. Operator-approved `4C-F18` likewise proved that an admitted `PRJ-11` Project Brain-binding manager needs purpose-bound immutable revision selection through the existing `BRN-02` summary without turning `brain.bind` into generic `brain.read`. F14/F15/F16/F17/F18 add no operation, Permission, owner, principal, trust boundary or durable record class. All unaffected 4A semantics remain preserved.
 
 ---
 
@@ -583,7 +583,7 @@ records remain 46
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
 | `BRN-01` | `GetWorkspaceBrain` | Brain | exact Workspace Brain disclosure | read |
-| `BRN-02` | `ListBrainRevisions` | Brain/Registry projection | exact Workspace Brain history | read |
+| `BRN-02` | `ListBrainRevisions` | Brain/Registry projection | ordinary exact Workspace Brain history under `brain.read`, or purpose-bound immutable revision selection for one exact target Project under `project.manage + brain.bind` | read |
 | `BRN-03` | `GetBrainRevision` | Brain/Registry projection | exact immutable revision + deterministic human-readable review content + deterministic structured source-bound knowledge browse of its exact sourceRevision | read |
 | `BRN-04` | `StartBrainDiscovery` | Brain | exact Workspace/Project + admitted read-only source scope; proposals remain hypotheses | investigation command |
 | `BRN-05` | `ListKnowledgeProposals` | Brain | exact Workspace Brain review visibility | read/review |
@@ -708,6 +708,38 @@ ProjectBrainBinding             → separately pins exact immutable Brain revisi
 ```
 
 No new Product operation, Permission, semantic owner, principal class, trust boundary or durable record class is admitted by `4C-F07`. Browser Brain-Git access, `reviewText`/DOM parsing as semantic authority, vector/RAG catalog authority and a generic cross-owner ReviewProjection domain remain rejected.
+
+### 5.5.4 `4C-F18` — Project Brain binding revision-selection disclosure
+
+P-02 authority-feasibility proved that a principal may hold the exact `PRJ-11` write authority `project.manage + brain.bind` while lacking generic `brain.read`, leaving no honest human route to choose the immutable Brain revision being adopted. The operator accepted reuse of `BRN-02 ListBrainRevisions` rather than a screen-shaped parallel operation.
+
+```text
+BRN-02 ordinary disclosure
+→ brain.read
+
+BRN-02 purpose-bound Project Brain-binding selection disclosure
+→ exact target Project context
+→ project.manage + brain.bind
+→ same immutable BrainRevision[] summary
+→ server revalidates Workspace/Project containment
+
+brain.bind -X-> generic brain.read
+purpose-bound BRN-02 -X-> BRN-03 knowledgeBrowse
+purpose-bound BRN-02 -X-> proposal / review / publication / Brain mutation authority
+```
+
+`PRJ-11` remains the final binding authority and revalidates the exact immutable revision, Project containment/conformance and current binding subject at submit time. The alternate disclosure provides selection information only; stale summaries never become binding authority.
+
+No `ListBindableBrainRevisions`, BRN-03 widening, new operation, Permission, owner, principal, trust boundary or durable record class is admitted by `4C-F18`.
+
+```text
+F18 new operations = 0
+Brain remains 11
+Project remains 23
+N_platform = 116
+ordinary Permissions remain 25
+records remain 46
+```
 
 ## 5.6 Connections — 9
 
@@ -1082,7 +1114,8 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | `BLD-01..04,BLD-06,BLD-10,BLD-16,BLD-17` | `HUMAN_ACCOUNT_SESSION / CP` | `project.build` | exact Project/Change human intent/Plan/current-or-candidate Preview/current selected context; BLD-10 and BLD-16 may optionally narrow to one exact current Change without widening authority | reads `READ`; `BLD-03` `COMMAND` | reads `IC0`; `BLD-03` `IC3` |
 | `BLD-05,BLD-11..15` | `HUMAN_ACCOUNT_SESSION / CP` | `project.review` | exact Change/Plan/Finding/Evidence subject + current eligibility | reads `READ`; decisions `DECISION` | reads `IC0`; decisions `IC2` |
 | `BLD-07..09` | `HUMAN_ACCOUNT_SESSION / CP` | `project.source.read` | exact immutable/current source revision/path/lineage | `READ` | `IC0` |
-| `BRN-01..03,BRN-10` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.read` | exact Workspace Brain/revision/binding context; BRN-03 includes exact-source deterministic human-readable review content plus structured source-bound knowledge browse | `PROVENANCE_READ` | `IC0` |
+| `BRN-01,BRN-03,BRN-10` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.read` | exact Workspace Brain/detail/health disclosure; BRN-03 includes exact-source deterministic human-readable review content plus structured source-bound knowledge browse | `PROVENANCE_READ` | `IC0` |
+| `BRN-02` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `brain.read`; purpose-bound alternate `project.manage + brain.bind` | ordinary route exposes exact Workspace immutable revision history; alternate requires exact target Project and returns only immutable BrainRevision summaries for binding selection, never BRN-03 knowledgeBrowse/proposal/publication authority | `READ` | `IC0` |
 | `BRN-04` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.discover`; plus `connection.use` for external source | exact Workspace/Project/source scope; hypotheses only | `PROOF` | `IC3` |
 | `BRN-05,BRN-06,BRN-08` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.review` | exact proposal/review subject + current reviewer authority; BRN-06 includes exact-candidate-source deterministic human-readable review content | reads `READ`; decision `DECISION` | reads `IC0`; decision `IC2` |
 | `BRN-07` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.propose` | exact Workspace Brain; source-backed exact candidate/provenance or Discovery-backed exact candidate + explicit human resolution; Brain re-resolves Discovery provenance/materializes candidate source; cannot self-publish | `COMMAND` | `IC3` |
@@ -1205,7 +1238,7 @@ P-01 P9 authority tracing then produced operator-approved `4C-F15` without chang
 = 116 current fixed Conexus platform Product operations
 ```
 
-P-02 authority-feasibility then produced operator-approved `4C-F16` and `4C-F17` without changing the count:
+P-02 authority-feasibility then produced operator-approved `4C-F16`, `4C-F17` and `4C-F18` without changing the count:
 
 ```text
 116
@@ -1217,10 +1250,15 @@ P-02 authority-feasibility then produced operator-approved `4C-F16` and `4C-F17`
 → PRJ-13/14 binding responses gain server-composed connectionName presentation
 → CON-03 gains exact-Project purpose-bound binding-selection disclosure under project.manage + connection.use
 → connection.use remains distinct from generic connection.read
+
++ 0 F18 operations
+→ BRN-02 remains the one immutable Brain revision list
+→ BRN-02 gains exact-Project purpose-bound revision-selection disclosure under project.manage + brain.bind
+→ brain.bind remains distinct from generic brain.read
 = 116 current fixed Conexus platform Product operations
 ```
 
-`PRJ-03`, `PRJ-07`, `BRN-03`, `BRN-06`, `BRN-07`, `CON-03`, `CON-04`, `CON-07`, `CON-08`, `CON-09`, `OBS-04`, `OBS-05`, `BLD-01`, `BLD-02`, `BLD-03`, `BLD-10`, `BLD-16`, `PRJ-13`, `PRJ-14`, `PRJ-18` and `PRJ-19` gained only bounded missing semantics required by real consumers; they remain the same Product operations. F11 adds exactly three purpose-built reads because three independent access-administration read jobs are proven.
+`PRJ-03`, `PRJ-07`, `BRN-02`, `BRN-03`, `BRN-06`, `BRN-07`, `CON-03`, `CON-04`, `CON-07`, `CON-08`, `CON-09`, `OBS-04`, `OBS-05`, `BLD-01`, `BLD-02`, `BLD-03`, `BLD-10`, `BLD-16`, `PRJ-13`, `PRJ-14`, `PRJ-18` and `PRJ-19` gained only bounded missing semantics required by real consumers; they remain the same Product operations. F11 adds exactly three purpose-built reads because three independent access-administration read jobs are proven.
 
 Rejected convenience/mechanism operations include:
 
@@ -1242,6 +1280,7 @@ ListConnectionRevisions
 TestConnection
 ListConnectionQualifications
 ListBindableConnections
+ListBindableBrainRevisions
 GetConnectionHealth
 SetConnectionActive
 SetCurrentReleaseWithoutPromotion
@@ -1296,7 +1335,7 @@ mutable foreign-owner mirrors required      = 0
 semantic owner boundaries preserved         = 13/13
 ```
 
-F11 reuses existing `iam.account`, membership/grant records and `ws.area`; F12 reuses existing `obs.audit_record`; F14/F15/F16/F17 reuse existing Builder/Project/Connections owners/projections. None admits a new durable record class or owner.
+F11 reuses existing `iam.account`, membership/grant records and `ws.area`; F12 reuses existing `obs.audit_record`; F14/F15/F16/F17/F18 reuse existing Builder/Project/Connections/Brain owners/projections. None admits a new durable record class or owner.
 
 Artifact Registry remains semantic projection rather than Universal Artifact CRUD. Attachments/Blob remain owner-bound carriers. Gateway remains last-mile effect authority rather than a second business-command owner. PAR owns runtime, not authored Agent definition. MAR owns serving/job-run mechanics, not a generic scheduler Product domain.
 
@@ -1317,7 +1356,7 @@ possible UX labels/modes               = 4C only; labels cannot create authority
 Paved Road realization                 = 4D
 ```
 
-The bounded SoftwareForge review itself adds no Product operation, Permission, owner or trust boundary. F11/F12/F14/F15/F16/F17 are later interaction falsifiers and remain bounded to their existing I&A/Workspace/Project/OBS/Builder/Connections owners.
+The bounded SoftwareForge review itself adds no Product operation, Permission, owner or trust boundary. F11/F12/F14/F15/F16/F17/F18 are later interaction falsifiers and remain bounded to their existing I&A/Workspace/Project/OBS/Builder/Connections/Brain owners.
 
 ---
 
@@ -1413,6 +1452,15 @@ The original independent Fable review remains historical Evidence. Later bounded
 → connection.use -X-> generic connection.read
 → no ListBindableConnections / qualification-history matrix / new Permission / owner / record
 → N_platform remains 116
+
+4C-F18 OPERATOR ACCEPT
+→ preserve BRN-02 as the one immutable Brain revision list
+→ ordinary BRN-02 remains brain.read
+→ purpose-bound BRN-02 requires exact target Project + project.manage + brain.bind
+→ summary-only immutable revision disclosure; BRN-03 knowledgeBrowse remains separately governed
+→ brain.bind -X-> generic brain.read
+→ no ListBindableBrainRevisions / new Permission / owner / record
+→ N_platform remains 116
 ```
 
-4A remains **operator-ratified as boundedly corrected through `4C-F17`**. 4B is recompiling the selected P-02 correction against this current ledger. P-02 P7/P8 and Product implementation remain blocked until the bounded recompile is GREEN.
+4A remains **operator-ratified as boundedly corrected through `4C-F18`**. 4B is recompiling the selected P-02 correction against this current ledger. P-02 P7/P8 and Product implementation remain blocked until the bounded recompile is GREEN.
