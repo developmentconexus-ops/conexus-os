@@ -15,7 +15,8 @@ RESTRUCTURE NOW — bounded upstream F22
 
 Project > Data
 → read-only real Data Explorer
-→ internal Project Database + eligible bound integration sources + genuinely tabular derived data
+→ internal Project Database + eligible bound integration sources
+→ genuinely tabular derived data appears at its truthful physical source
 → physical source/object/column/row truth remains explicit
 → semantic meaning remains complementary, never a replacement for physical identity
 ```
@@ -128,7 +129,7 @@ The explorer may disclose:
 ```text
 Project Database business/application data
 eligible Project-bound integration data
-eligible tabular derived Project data
+eligible tabular derived Project data at its truthful physical source
 ```
 
 It must never become a browser for:
@@ -164,6 +165,8 @@ page N + page N+1 != stable snapshot unless the source explicitly proves one
 unknown total row count != zero
 ```
 
+If a continuation becomes invalid/stale, the client surfaces that state and requires an explicit refresh; it never silently restarts and presents mixed pages as one coherent snapshot.
+
 ## 5. Credible alternatives
 
 ### A — separate read-only explorer projection — SELECTED
@@ -193,7 +196,7 @@ The UI composes two explicit layers.
 ```text
 Project Data Explorer                    Semantic augmentation
 ─────────────────────                    ─────────────────────
-Source                                   Data Resource / Brain meaning
+Physical Source                          Data Resource / Brain meaning
 Namespace / schema                       human meaning
 Table / View / tabular Dataset           grain
 Columns / keys / constraints             provenance
@@ -203,7 +206,7 @@ Relationships                            analytic/semantic mapping where admitte
 
 ### 6.1 Explorer source
 
-An explorer source is a current Project-scoped read projection, not a new durable owner.
+An explorer source is a current Project-scoped **physical/source disclosure projection**, not a new durable owner.
 
 Admitted source classes:
 
@@ -213,10 +216,11 @@ INTERNAL
 
 INTEGRATION
 → exact current eligible Project binding/source
-
-DERIVED
-→ Project-owned tabular derived/read-model data when it has a real browsable row/column representation
 ```
+
+`DERIVED` is not automatically a physical source. A derived table/view/dataset remains under the physical source that actually serves it (normally the Project Database in F1) and may additionally carry derived semantic/origin presentation.
+
+The existing F20 semantic `sourceKind = INTERNAL | INTEGRATION | DERIVED` must therefore not be reused as though it were the explorer's physical source identity.
 
 A Connection existing in the Workspace is not enough. A source is explorer-eligible only when current Project binding plus its connector/source contract can truthfully provide bounded read-only tabular discovery/read semantics.
 
@@ -240,9 +244,10 @@ physical object name
 object kind
 namespace/schema presentation when the source has one
 optional server-owned human/business label
+optional derived/origin presentation when truthfully known
 ```
 
-The object coordinate is routing/disclosure machinery; the human label never authorizes.
+The object coordinate is routing/disclosure machinery; human/derived labels never authorize.
 
 ### 6.3 Structure
 
@@ -301,6 +306,8 @@ Exact total count is optional. `50 rows loaded · Next` is sufficient when count
 
 A page token is scoped to the exact Project/source/object/filter/order request. It may not be replayed to switch object/source or widen disclosure.
 
+Large/binary/structured cell payloads may be server-bounded for the grid, but truncation must be explicit. A preview may never be represented as the full value. F1 adds no generic Blob/export/download endpoint merely to inspect a large cell.
+
 ## 7. Bounded filter / sort grammar
 
 F22 provides safe exploration, not a query language.
@@ -346,17 +353,18 @@ PROJECT > DATA
 │   ▼ public                       │ Sales documents                         │
 │      customers                   │ Sankhya ERP · SANKHYA · TABLE           │
 │      follow_up_tasks             │                                         │
-│                                  │ [Data] [Structure] [Relationships][Rules]│
-│ ▼ Sankhya ERP                    │                                         │
-│   ▼ SANKHYA                      │ Filter · Columns · Sort                 │
-│      TGFCAB                      │                                         │
-│      TGFITE                      │ NUNOTA │ CODPARC │ DTNEG │ VLRNOTA ...  │
-│      TGFPAR                      │ ...                                    │
+│      sales_performance · Derived │ [Data] [Structure] [Relationships][Rules]│
 │                                  │                                         │
-│ ▼ Derived                        │ 50 rows loaded · Next →                  │
-│      sales_performance           │                                         │
+│ ▼ Sankhya ERP                    │ Filter · Columns · Sort                 │
+│   ▼ SANKHYA                      │                                         │
+│      TGFCAB                      │ NUNOTA │ CODPARC │ DTNEG │ VLRNOTA ...  │
+│      TGFITE                      │ ...                                    │
+│      TGFPAR                      │                                         │
+│                                  │ 50 rows loaded · Next →                  │
 └──────────────────────────────────┴─────────────────────────────────────────┘
 ```
+
+The tree is physical-source-first. `Derived` may appear as an object badge/filter or contained collection, but never as a fake physical source when the data is actually served by the Project Database.
 
 ### 8.2 Default object tab
 
@@ -413,8 +421,8 @@ Physical identity stays visible; semantic meaning adds comprehension.
 ```text
 selected Data route                         = URL_NAVIGATION
 selected source/object                      = URL_NAVIGATION
+selected Data/Structure/Relationships/Rules = URL_NAVIGATION
 open object-tab set                         = EPHEMERAL_UI
-selected Data/Structure/Relationships/Rules = URL_NAVIGATION or local route segment
 column visibility                           = EPHEMERAL_UI
 row selection / Row Inspector               = EPHEMERAL_UI
 filter draft                                = FORM_DRAFT
@@ -443,11 +451,10 @@ object structure available but row read unavailable
 rows loading
 rows empty
 next page available
-continuation expired/invalid
-source changed between pages
+continuation expired/invalid/stale
 ```
 
-No browser state may convert dependency failure into empty data.
+The UI never claims stable cross-page snapshot consistency unless the server/source proves it. No browser state may convert dependency failure into empty data.
 
 ## 11. Security / trust boundaries
 
@@ -478,6 +485,8 @@ private storage keys
 
 Human source context such as `Sankhya ERP · Production · Oracle` may be presentation only when already safely derivable from admitted source/binding truth.
 
+`qualified Connection != fresh/current data`; qualification, binding and data freshness remain distinct truths.
+
 ### 11.3 Cross-scope references fail closed
 
 A guessed source/object/page token from another Project/Workspace cannot become an existence oracle or disclosure grant.
@@ -494,7 +503,7 @@ Three **human jobs** are proven; fixed operation count remains a derivation, not
 
 ```text
 J1 Browse Project Data Explorer
-→ discover current explorer-eligible sources / namespaces / objects
+→ discover current explorer-eligible physical sources / namespaces / objects
 → support server-side object search or lazy browse where source scale requires it
 
 J2 Inspect exact Data Object
@@ -563,6 +572,7 @@ filter operator/type mismatch is rejected
 page token cannot switch Project/source/object/filter/order scope
 credentials never appear in explorer projection
 unknown total count is not rendered as zero
+truncated cell preview cannot masquerade as complete value
 ```
 
 ### 13.4 Functional P8 proof
@@ -570,7 +580,8 @@ unknown total count is not rendered as zero
 The revised HTML must demonstrate, fixture-only:
 
 ```text
-source tree with INTERNAL / INTEGRATION / DERIVED
+physical source tree for Project Database + eligible integrations
+derived objects at truthful physical source with derived presentation
 large-source object search/lazy browse behavior
 multiple object tabs
 Data grid as default
@@ -579,14 +590,30 @@ physical + human naming together
 safe filter / sort / column visibility
 opaque next-page behavior without mandatory total count
 Row Inspector
+explicit truncated/large-value presentation
 Analyze remains distinct from SQL
 material failure/empty/denied states
 no network / persistence / Product implementation authority
 ```
 
-## 14. Adversarial challenge
+### 13.5 Independent challenge before F22 ratification
 
-Strongest objections and dispositions:
+Because F22 opens new raw-data disclosure paths across Project DB and external sources, a fresh independent review is required before authority ratification. The challenge must attack at least:
+
+```text
+cross-Project/Workspace disclosure
+hub_control/substrate exposure
+reuse of project.data.read
+Connection binding vs raw-source disclosure
+SQL/expression escape hatches
+page-token scope
+sensitive-column/row leakage
+operation/framework overgeneralization
+```
+
+Reviewer findings remain Evidence and must return to the smallest owning decision; they cannot silently create new Product authority.
+
+## 14. Adversarial challenge
 
 ### "This is just pgAdmin inside Conexus"
 
