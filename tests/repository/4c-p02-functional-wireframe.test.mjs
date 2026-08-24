@@ -7,6 +7,9 @@ const root = resolve(new URL('../../', import.meta.url).pathname)
 const path = p => resolve(root, p)
 const read = p => readFileSync(path(p), 'utf8')
 const htmlPath = 'docs/evidence/4c/p02-project-resources-functional-wireframe.html'
+const ledger = read('docs/product/operation-ledger.md')
+const oas = read('contracts/api/product/project-paths.yaml')
+const feedback = read('docs/evidence/4c/p02-p8-feedback-revision.md')
 
 function requireText(text, needle, message = needle) {
   assert.ok(text.includes(needle), `P-02 P8 missing: ${message}`)
@@ -26,37 +29,55 @@ test('P-02 P8 preserves four focused Project routes and the locked Project shell
   assert.doesNotMatch(html, />Resources<\/button>|id="route-resources"|generic-resource-hub/i, 'P8 must not invent a Project Resources destination')
 })
 
-test('P-02 Data keeps human resource browse primary and Analyze contextual/governed', () => {
+test('P-02 Data exposes bounded logical structure without becoming a physical DB explorer', () => {
   const html = read(htmlPath)
   for (const token of [
     'PRJ-S11','PRJ-S12','PRJ-18','PRJ-19','BRN-13','BRN-12',
     'name = human recognition','dataResourceId = exact machine identity','dataResourceId != name',
     'grain','freshness','coverage','provenance','Analyze','server-admitted semantic choices',
     'catalog choice read != durable submit authority','frontend-owned analytic semantic catalog = FORBIDDEN',
-    'SQL / physical schema / join explorer = FORBIDDEN',
+    'SQL / physical schema / join explorer = FORBIDDEN','semantic structure != physical database topology',
+    'All','Internal','Integrations','Derived','Overview','Fields','Relationships','Rules','resourceKind','sourceKind',
+    'Orders','Follow-up Tasks','Sales performance',
   ]) requireText(html, token)
-  for (const id of ['data-catalog','data-detail','open-analyze','analyze-panel','analytic-dataset','analytic-semantics','run-analytic','analytic-result','data-scenario']) requireText(html, `id="${id}"`, id)
-  for (const behavior of ['selectDataResource','openAnalyze','closeAnalyze','renderAnalyticCatalog','runAnalyticQuery','applyDataScenario']) requireText(html, behavior, behavior)
+  for (const id of ['data-catalog','data-detail','data-fields','data-relationships','data-rules','open-analyze','analyze-panel','analytic-dataset','analytic-semantics','run-analytic','analytic-result','data-scenario']) requireText(html, `id="${id}"`, id)
+  for (const behavior of ['selectDataResource','selectDataFilter','selectDataTab','openAnalyze','closeAnalyze','renderAnalyticCatalog','runAnalyticQuery','applyDataScenario']) requireText(html, behavior, behavior)
+
+  for (const token of ['4C-F20','ProjectDataField','ProjectDataRelationship','ProjectDataRule']) requireText(ledger + oas + feedback, token, token)
+  for (const token of ['resourceKind','sourceKind','INTERNAL','INTEGRATION','DERIVED','TABLE','VIEW','DATASET','fields','relationships','rules']) requireText(oas, token, token)
+  for (const forbidden of ['schemaName','tableName','indexName','ddl','connectionString','sqlText']) {
+    assert.equal(oas.includes(`${forbidden}:`), false, `F20 must not expose physical DB authority: ${forbidden}`)
+  }
 })
 
-test('P-02 Capabilities remain semantic inspection rather than a generic executor', () => {
+test('P-02 Capabilities explain human meaning and logical function without a generic executor', () => {
   const html = read(htmlPath)
-  for (const token of ['PRJ-S13','PRJ-16','PRJ-17','QUERY','ACTION','INTEGRATION','semantic operation identity','inspection only','generic capability Run/Execute control = FORBIDDEN']) requireText(html, token)
+  for (const token of [
+    'PRJ-S13','PRJ-16','PRJ-17','QUERY','ACTION','INTEGRATION','semantic operation identity','inspection only',
+    'generic capability Run/Execute control = FORBIDDEN','What it does','Inputs','Outputs','Technical identity',
+    'function-signature','human capability name',
+  ]) requireText(html, token)
   for (const id of ['capability-groups','capability-detail']) requireText(html, `id="${id}"`, id)
   requireText(html, 'selectCapability', 'capability detail behavior')
+  for (const token of ['4C-F21','ProjectCapabilityField','name','purpose','inputs','outputs']) requireText(ledger + oas + feedback, token, token)
+  requireText(oas, 'enum: [QUERY, ACTION, INTEGRATION]', 'finite capability regimes')
+  assert.equal(/\/capabilities\/{capabilityId}\/commands\/(run|execute)/i.test(oas), false, 'F21 must not add a generic capability executor path')
   assert.doesNotMatch(html, /<button[^>]*>\s*(Run|Execute)\s*<\/button>/i, 'Capabilities P8 must not expose generic Run/Execute')
 })
 
-test('P-02 Integrations leads with Project bindings and keeps Connection lifecycle secondary', () => {
+test('P-02 Integrations makes Project use and switching explicit while keeping Connection lifecycle secondary', () => {
   const html = read(htmlPath)
   for (const token of [
-    'PRJ-S14','PRJ-S15','PRJ-13','PRJ-14','PRJ-15','CON-03',
-    'Used by this Project','Project connections','purpose-bound exact-Project chooser',
+    'PRJ-S14','PRJ-S15','PRJ-13','PRJ-14','PRJ-15','CON-03','Used by this Project','Project connections',
+    'Connections used by this Project','Use connection','Switch connection','Connections owned by this Project',
+    'Current connection','Switch to','Confirm switch','purpose-bound exact-Project chooser',
     'ProjectConnectionBinding != Connection','connection.use -X-&gt; generic connection.read',
     'configured != qualified != bound != healthy','selection disclosure != Connection management authority',
   ]) requireText(html, token)
-  for (const id of ['project-bindings','binding-chooser','binding-candidates','binding-status','project-connections']) requireText(html, `id="${id}"`, id)
+  for (const id of ['project-bindings','binding-chooser','binding-current','binding-candidates','binding-status','project-connections']) requireText(html, `id="${id}"`, id)
   for (const behavior of ['openBindingChooser','closeBindingChooser','selectBindingCandidate','saveProjectBinding','removeProjectBinding','toggleProjectConnections']) requireText(html, behavior, behavior)
+  assert.equal(html.includes('>Add binding<'), false, 'internal binding vocabulary must not be the primary CTA')
+  assert.equal(html.includes('>Change<'), false, 'ambiguous Change CTA must not return')
 })
 
 test('P-02 Brain is Project adoption with purpose-bound revision choice, not Workspace publication authoring', () => {
