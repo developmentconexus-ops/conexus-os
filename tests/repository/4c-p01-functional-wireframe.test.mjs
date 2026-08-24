@@ -160,3 +160,35 @@ test('P-01 P8 stays disposable self-contained low-fi Evidence with responsive an
   assert.doesNotMatch(html, /<link[^>]+href=/i, 'P8 must be self-contained')
   assert.doesNotMatch(html, /P-01\s*=\s*LOCKED|P8\s*=\s*LOCKED/i, 'P8 candidate must not pre-authorize lock')
 })
+
+test('P-01 revised P8 inherits the locked GF-01 Project shell instead of inventing a standalone Builder navigation', () => {
+  assert.equal(existsSync(path(htmlPath)), true, 'P-01 functional P8 HTML must exist')
+  const html = read(htmlPath)
+
+  for (const token of [
+    'data-shell="single-adaptive-rail"',
+    'class="topbar"',
+    'id="workspaceCrumb"',
+    'id="projectCrumb"',
+    'id="projectRail"',
+    'Back to Projects',
+    'Project',
+    'Product',
+    'Capabilities',
+    'Integrations',
+    'Operate',
+    'Activity',
+    'Manage',
+    'Settings',
+    'GF-01 shell inherited',
+  ]) requireText(html, token, `locked Project shell token ${token}`)
+
+  const projectRail = html.match(/<section id="projectRail"[\s\S]*?<\/section>/)?.[0] ?? ''
+  assert.ok(projectRail, 'P-01 must render the current Project rail')
+  requireText(projectRail, '<button class="rail-btn" type="button" aria-current="page">Build</button>', 'Build must be current inside Project rail')
+  for (const label of ['Data', 'Capabilities', 'Integrations', 'Agents', 'Brain', 'Releases', 'Activity', 'Settings']) {
+    requireText(projectRail, `>${label}</button>`, `Project rail destination ${label}`)
+  }
+  assert.doesNotMatch(projectRail, />Overview<\/button>/, 'P-01 must not invent Overview inside the locked Project rail')
+  assert.doesNotMatch(html, /class="global-nav"/, 'P-01 must not retain its standalone sidebar shell')
+})
