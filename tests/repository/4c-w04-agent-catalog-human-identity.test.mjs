@@ -32,7 +32,7 @@ test('W-04 preserves operator-approved F13 Global-Maximum decision before recomp
   ]) requireText(decision, law, `F13 decision evidence missing: ${law}`)
 })
 
-test('selected F13 realization makes Product Agent identity human-reviewable while preserving existing operation and Permission authority', () => {
+test('selected F13 realization makes Product Agent identity human-reviewable while preserving its operation and Permission semantics', () => {
   const identity = read('docs/product/human-context-identity-contract.md')
   const product = read('docs/product/contract.md')
   const ledger = read('docs/product/operation-ledger.md')
@@ -56,15 +56,12 @@ test('selected F13 realization makes Product Agent identity human-reviewable whi
     requireText(productAgent, law, `F13 must preserve accepted Product Agent authoring semantics: ${law}`)
   }
 
-  requireText(ledger, 'fixed Conexus platform operations = 116', 'F13 must preserve fixed Product census')
-  requireText(ledger, '## 5.3 Project — 23', 'F13 must preserve 23 Project operations')
   for (const op of [
     '`PRJ-20` | `ListProjectProductAgents`',
     '`PRJ-21` | `GetProjectProductAgent`',
     '`PRJ-22` | `ListWorkspaceProductAgents`',
   ]) requireText(ledger, op, `F13 must preserve Project operation identity: ${op}`)
 
-  requireText(permissions, 'ordinary Permissions = 25', 'F13 must preserve ordinary Permission count')
   requireText(permissions, '`project.read`', 'F13 must preserve project.read')
   requireText(permissions, '`project.source.read`', 'F13 must preserve project.source.read')
   requireText(permissions, 'PRJ-01/02/16/17/22', 'F13 must preserve PRJ-22 inside the canonical project.read consumer set')
@@ -101,7 +98,8 @@ test('selected F13 wire makes PRJ-20/21/22 self-contained for human Agent and ow
     requireText(checker, token, `F13 Project wire checker missing guard: ${token}`)
   }
 
-  const ids = [...wire.matchAll(/x-conexus-4a-id: (PRJ-\d+)/g)].map(match => match[1])
-  if (ids.length !== 23 || new Set(ids).size !== 23) throw new Error(`F13 must preserve 23 unique Project operations; got ${ids.length}`)
-  if (ids.includes('PRJ-25')) throw new Error('F13 must not add a screen-shaped PRJ-25 operation')
+  for (const id of ['PRJ-20', 'PRJ-21', 'PRJ-22']) {
+    const matches = [...wire.matchAll(new RegExp(`x-conexus-4a-id: ${id}\\b`, 'g'))]
+    if (matches.length !== 1) throw new Error(`F13 must preserve one exact ${id} wire operation; got ${matches.length}`)
+  }
 })

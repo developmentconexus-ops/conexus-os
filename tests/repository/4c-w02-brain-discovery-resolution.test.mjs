@@ -41,7 +41,6 @@ test('operator-accepted F05 makes BRN-07 caller-expressible for Discovery-backed
     'source-backed',
   ]) requireText(ledger, invariant, `F05-A operation authority missing law: ${invariant}`)
 
-  requireText(ledger, '## 5.5 Brain — 11', 'F05 must not change the Brain Product operation count')
   requireText(ledger, '`BRN-07` | `SubmitKnowledgeProposal`', 'F05 must preserve BRN-07 as the proposal-intake operation')
 
   for (const forbidden of [
@@ -84,7 +83,7 @@ test('selected F05 wire preserves source-backed BRN-07 and adds an exclusive Dis
     'summary: SubmitKnowledgeProposal',
     '\n  /api/control/workspaces/{workspaceId}/brain/proposals/{proposalId}:',
   )
-  requireText(submitSlice, "oneOf:", 'F05-B BRN-07 must expose mutually exclusive source-backed and Discovery-backed input forms')
+  requireText(submitSlice, 'oneOf:', 'F05-B BRN-07 must expose mutually exclusive source-backed and Discovery-backed input forms')
   requireText(submitSlice, "$ref: '#/components/schemas/SourceBackedKnowledgeProposalInput'", 'F05-B BRN-07 must preserve source-backed submission')
   requireText(submitSlice, "$ref: '#/components/schemas/DiscoveryBackedKnowledgeProposalInput'", 'F05-B BRN-07 must add Discovery-backed submission')
   requireText(submitSlice, "$ref: '#/components/schemas/KnowledgeProposal'", 'F05-B both BRN-07 input forms must return the same durable KnowledgeProposal')

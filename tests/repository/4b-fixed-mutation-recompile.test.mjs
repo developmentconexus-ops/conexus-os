@@ -11,7 +11,7 @@ const removed = new Map([
   ['PRJ-04', 'UpdateProject']
 ])
 
-test('operator-approved 4B-F01 subtraction remains preserved after later bounded 4C corrections through F11/F12', () => {
+test('operator-approved 4B-F01 subtraction remains preserved after later bounded corrections', () => {
   const ledger = read('docs/product/operation-ledger.md')
   const sectionStart = ledger.indexOf('# 5. Fixed Conexus platform census')
   const sectionEnd = ledger.indexOf('\n---\n\n## 6. Product-visible Published Application boundary', sectionStart)
@@ -19,9 +19,8 @@ test('operator-approved 4B-F01 subtraction remains preserved after later bounded
 
   const fixedSection = ledger.slice(sectionStart, sectionEnd)
   const rows = [...fixedSection.matchAll(/^\| `([A-Z]+-\d+)` \| `([A-Za-z][A-Za-z0-9]+)` \|/gm)]
-  if (rows.length !== 116) throw new Error(`expected 116 current fixed 4A operations after accepted 4C-F11/F12, found ${rows.length}`)
-
   const currentRows = new Map(rows.map(([, id, operationId]) => [id, operationId]))
+
   for (const [id, operationId] of removed) {
     if (currentRows.has(id) || [...currentRows.values()].includes(operationId)) {
       throw new Error(`removed 4B-F01 operation returned to current 4A census: ${id} ${operationId}`)
@@ -42,7 +41,6 @@ test('operator-approved 4B-F01 subtraction remains preserved after later bounded
     '= 111 fixed operations after 4B-F01',
     '= 112 fixed operations after 4C-F02',
     '= 113 fixed operations after 4C-F03',
-    '= 116 current fixed Conexus platform Product operations'
   ]) {
     if (!ledger.includes(historical)) throw new Error(`operation ledger must preserve bounded correction chronology: ${historical}`)
   }

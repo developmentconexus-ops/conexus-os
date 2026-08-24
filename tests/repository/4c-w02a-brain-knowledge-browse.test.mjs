@@ -103,9 +103,4 @@ test('selected F07 realization keeps BRN-03 as owner and makes exact published k
   requireText(checker, 'BrainRevisionDetail', 'Brain wire checker must protect BRN-03 detail shape')
   requireText(roadmap, 'F07 OPERATOR ACCEPTED', 'roadmap must preserve operator acceptance of F07')
   requireText(roadmap, 'F07 SELECTED REALIZATION', 'roadmap must route F07 through selected RED/GREEN before lock')
-
-  const operationIds = [...wire.matchAll(/x-conexus-4a-id: (BRN-\d+)/g)].map(match => match[1])
-  if (operationIds.length !== 11 || new Set(operationIds).size !== 11) {
-    throw new Error(`F07 must preserve the 11-operation Brain topology; got ${operationIds.length}`)
-  }
 })

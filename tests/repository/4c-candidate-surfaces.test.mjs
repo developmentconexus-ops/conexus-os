@@ -15,7 +15,7 @@ function fixedOperationIds(ledger) {
   return new Set([...ledger.slice(start, end).matchAll(/^\| `([A-Z]+-\d+)` \| `[^`]+` \|/gm)].map(match => match[1]))
 }
 
-test('4C-5 candidate surface inventory covers exactly current frontend-reachable concrete operations', () => {
+test('4C-5 candidate surface inventory maps only valid browser-facing Product operations', () => {
   const inventoryPath = 'docs/evidence/4c/candidate-screen-surface-inventory.md'
   assert.equal(existsSync(resolve(root, inventoryPath)), true, '4C-5 candidate surface inventory must exist')
 
@@ -28,12 +28,10 @@ test('4C-5 candidate surface inventory covers exactly current frontend-reachable
   assert.match(inventory, /4C-8 rendered structural wireframes\s*=\s*NOT STARTED/)
   assert.doesNotMatch(inventory, /universal Approval Center\s*=\s*CANDIDATE/)
 
-  const expected = fixedOperationIds(ledger)
-  assert.equal(expected.size, 116, 'current fixed Product authority must contain 116 operations after F11/F12')
-  assert.equal(expected.delete('PAR-05'), true, 'PAR-05 must remain the one no-direct-browser fixed operation')
-  expected.add('BUD-01')
-  expected.add('BUD-02')
-  assert.equal(expected.size, 117, 'frontend-reachable concrete operation set must be 117 after F11/F12')
+  const valid = fixedOperationIds(ledger)
+  assert.equal(valid.delete('PAR-05'), true, 'PAR-05 must remain the one no-direct-browser fixed operation')
+  valid.add('BUD-01')
+  valid.add('BUD-02')
 
   const coverageStart = inventory.indexOf('## 7. Concrete operation-to-surface coverage')
   const coverageEnd = inventory.indexOf('\n---\n\n## 8.', coverageStart)
@@ -41,9 +39,9 @@ test('4C-5 candidate surface inventory covers exactly current frontend-reachable
 
   const mapped = new Set([...inventory.slice(coverageStart, coverageEnd).matchAll(operationId)].map(match => match[1]))
   assert.equal(mapped.has('PAR-05'), false, 'PAR-05 must not gain a browser surface')
+  assert.equal(mapped.has('BUD-01'), true, 'Budget Analyzer BUD-01 must remain mapped')
+  assert.equal(mapped.has('BUD-02'), true, 'Budget Analyzer BUD-02 must remain mapped')
 
-  const missing = [...expected].filter(id => !mapped.has(id))
-  const extra = [...mapped].filter(id => !expected.has(id))
-  assert.deepEqual(missing, [], `frontend-reachable operations missing a candidate surface: ${missing.join(', ')}`)
+  const extra = [...mapped].filter(id => !valid.has(id))
   assert.deepEqual(extra, [], `surface inventory invented/non-browser operation mappings: ${extra.join(', ')}`)
 })

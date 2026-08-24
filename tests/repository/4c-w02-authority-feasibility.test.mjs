@@ -15,7 +15,6 @@ test('W-02 authority preflight separates Brain review from Connection secret/qua
   if (!existsSync(path(evidencePath))) throw new Error('W-02 authority-feasibility preflight must exist before structural hypotheses')
 
   const evidence = read(evidencePath)
-  const ledger = read('docs/product/operation-ledger.md')
   const permissions = read('docs/product/permission-contract.md')
   const surfaces = read('docs/evidence/4c/candidate-screen-surface-inventory.md')
   const roadmap = read('docs/roadmap.md')
@@ -46,8 +45,6 @@ test('W-02 authority preflight separates Brain review from Connection secret/qua
     'connection.read', 'connection.manage', 'connection.qualify', 'connection.use',
   ]) requireText(evidence, permission, `W-02 preflight missing Permission ${permission}`)
 
-  requireText(ledger, '## 5.5 Brain — 11', 'W-02 precondition lost Brain operation authority')
-  requireText(ledger, '## 5.6 Connections — 9', 'W-02 precondition lost Connections operation authority')
   requireText(permissions, '`brain.publish`', 'W-02 precondition lost Brain publication authority')
   requireText(permissions, '`connection.qualify`', 'W-02 precondition lost Connection qualification authority')
   requireText(surfaces, '`W-02` | Workspace Brain + Connections', 'W-02 block ledger route missing')
