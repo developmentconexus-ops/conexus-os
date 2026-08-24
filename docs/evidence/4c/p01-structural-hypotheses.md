@@ -103,7 +103,7 @@ Permission law:
 Preview / Change / Plan / progress
 → project.build where mapped
 
-Code / Diff
+Code / Diff = read-only inspectable lenses
 → project.source.read
 
 visible Code/Diff lens
