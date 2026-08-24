@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 const productBundle = '/tmp/conexus-product-openapi.bundle.json';
 const generator = 'scripts/generate-wire-projection.mjs';
 const kubbProbe = 'scripts/run-kubb-wire-probe.mjs';
-const expectedProductOperations = 116;
+const expectedProductOperations = 117;
 
 if (!fs.existsSync(productBundle)) {
   throw new Error('Product bundle must exist before generated projection verification');
@@ -71,6 +71,7 @@ for (const requiredId of [
   'ListAuditRecords',
   'GetAuditRecord',
   'ClearProjectBrainBinding',
+  'GetProjectAnalyticQueryCatalog',
   'RunManagedJobNow',
   'GetProjectUsageCostSummary',
 ]) {
@@ -79,4 +80,4 @@ for (const requiredId of [
 
 run('node', [kubbProbe, productBundle]);
 
-console.log(`Generated projection/no-parallel-DTO proof passed (${expectedProductOperations} deterministic Product entries + F11/F12 consumers + real Kubb probe).`);
+console.log(`Generated projection/no-parallel-DTO proof passed (${expectedProductOperations} deterministic Product entries + F11/F12/F19 consumers + real Kubb probe).`);

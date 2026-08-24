@@ -9,7 +9,7 @@ const versions = {
   kubb: '5.0.0',
   typescript: '7.0.2',
 };
-const expectedProductOperations = 116;
+const expectedProductOperations = 117;
 const root = '/tmp/conexus-kubb-real-oas-probe';
 const outputA = path.join(root, 'generated-a');
 const outputB = path.join(root, 'generated-b');
@@ -160,6 +160,7 @@ for (const operationId of [
   'ListWorkspaceMembershipCandidates',
   'GetWorkspaceMemberAccess',
   'GetAreaAccess',
+  'GetProjectAnalyticQueryCatalog',
 ]) {
   if (!allGeneratedText.includes(operationId)) {
     throw new Error(`Kubb generated projection lost accepted ${operationId}`);

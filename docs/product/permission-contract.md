@@ -1,13 +1,13 @@
 # Conexus OS — Permission Contract
 
-> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F11` + `4C-F12` + `4C-F17` + `4C-F18` BOUNDED CORRECTIONS ACCEPTED
+> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F11` + `4C-F12` + `4C-F17` + `4C-F18` + `4C-F19` BOUNDED CORRECTIONS ACCEPTED
 > **Purpose:** derive the smallest ordinary Permission vocabulary needed by the exact Conexus platform operation authority without turning personas, screens, Keycloak claims or Published-App roles into a universal policy system.
 > **Operation authority:** [operation-ledger.md](operation-ledger.md).
 > **Mutable program status:** owned only by [../roadmap.md](../roadmap.md).
 
 This document is the single current home for ordinary Conexus Control-Plane/runtime Permission names. It does not define HTTP security schemes, storage policy mechanics or a role editor and it does not authorize implementation.
 
-The exact operation → principal/ingress/Permission/scope/outcome/current-authority mapping is canonical in the operation ledger. This document owns only the reusable ordinary Permission vocabulary and its separation from special/runtime/app authority.
+The exact operation → principal/ingress/Permission/scope/outcome/current-authority/idempotency-concurrency mapping is canonical in the operation ledger. This document owns only the reusable ordinary Permission vocabulary and its separation from special/runtime/app authority.
 
 ---
 
@@ -57,7 +57,7 @@ The vocabulary is not a universal policy language and does not imply a custom Ro
 
 ## 3. Ordinary Permission vocabulary
 
-The vocabulary remains exactly **25** after the current operator-approved bounded corrections. F11 adds three exact I&A reads and narrow access-administration summary disclosure; F12 enriches existing `audit.read` consumers; F17 adds only a purpose-bound alternate disclosure through existing `CON-03` for the already-authorized Project binding job; F18 analogously adds only a purpose-bound immutable revision-selection disclosure through existing `BRN-02`. None proves a new reusable authority class.
+The vocabulary remains exactly **25** after the current operator-approved bounded corrections. F11 adds three exact I&A reads and narrow access-administration summary disclosure; F12 enriches existing `audit.read` consumers; F17 adds only a purpose-bound alternate disclosure through existing `CON-03`; F18 analogously adds only a purpose-bound immutable revision-selection disclosure through existing `BRN-02`; F19 adds `BRN-13` as another exact compound `brain.read + project.data.read` consumer rather than inventing an analytics-specific Permission. None proves a 26th reusable authority class.
 
 ### 3.1 Workspace and access
 
@@ -92,7 +92,7 @@ access-administration summary disclosure
 | --- | --- | --- |
 | `project.read` | inspect ordinary Project-level Product truth/projections | ordinary `PRJ-01/02/16/17/22`; `PAR-06/07` Control-Plane run inspection; ordinary Release/Promotion/serving/job/activity reads |
 | `project.source.read` | inspect Project source/diff/authored definitions without write authority | `BLD-07..09`, `PRJ-20/21` |
-| `project.data.read` | inspect declared Product/read-model/source resources without becoming a generic DB console | `PRJ-18/19`; Control-Plane `BRN-12` together with `brain.read` |
+| `project.data.read` | inspect declared Product/read-model/source resources without becoming a generic DB console; participate in the admitted semantic analytical surface only with Brain authority | `PRJ-18/19`; Control-Plane `BRN-12` and `BRN-13` together with `brain.read` |
 | `project.manage` | administer Project lifecycle, Inception/Baseline decisions, exact candidate review/refinement and candidate-bound contextual explanation, bindings and independent Published-App access configuration | `PRJ-05..15` where mapped, `PRJ-23`, `PRJ-24`; `IAM-14/15/17`; source side of `PRJ-06`; purpose-bound `CON-03` binding selection only with `connection.use`; purpose-bound `BRN-02` Brain-revision selection only with `brain.bind` |
 | `project.build` | create/evolve accepted Project Product/Agent intent through Change/Builder | `BLD-01..04/06/10/16/17` |
 | `project.review` | participate in exact Plan/Change checkpoint, Finding and Evidence review | `BLD-05/11..15` |
@@ -117,7 +117,7 @@ Release composition is an owner/system transition gated by exact accepted proof;
 
 | Permission | Meaning | Material current consumers |
 | --- | --- | --- |
-| `brain.read` | inspect current Workspace Brain, immutable revisions and health/conformance projections | `BRN-01..03/10`; Control-Plane `BRN-12` together with `project.data.read` |
+| `brain.read` | inspect current Workspace Brain, immutable revisions and health/conformance projections; participate in governed Project analytics only with the separate Project-data grant | `BRN-01..03/10`; Control-Plane `BRN-12` and `BRN-13` together with `project.data.read` |
 | `brain.propose` | submit a provenance-preserving KnowledgeProposal without publication authority | `BRN-07` |
 | `brain.discover` | initiate admitted read-only Brain Discovery against exact governed source scope | `BRN-04`; plus `connection.use` when an external Connection is required |
 | `brain.review` | inspect/review/decide exact KnowledgeProposal subjects | `BRN-05/06/08` |
@@ -136,18 +136,22 @@ purpose-bound BRN-02 alternate disclosure
 → no BRN-03 knowledgeBrowse / proposal / review / publication / mutation authority
 ```
 
-`BRN-12 RunAnalyticQuery` does **not** create `analyticquery.execute`:
+`BRN-12 RunAnalyticQuery` and `BRN-13 GetProjectAnalyticQueryCatalog` do **not** create `analyticquery.execute` or `analyticquery.read`:
 
 ```text
 Control Plane human
-→ brain.read + project.data.read + exact Project grant/binding/dataset authority
+→ brain.read + project.data.read + exact Project grant/current Brain binding/dataset authority
+→ BRN-13 discovers current admitted semantic inputs
+→ BRN-12 executes a deterministic semantic-ID query after revalidation
 
-Published-App human
+Published-App human BRN-12
 → exact Release-declared app role subset + current app access + exact Brain/dataset projection
 
-Product Agent
+Product Agent BRN-12
 → exact PAR ToolProjection + current AgentRun/Release/Brain/dataset projection
 ```
+
+BRN-13 is Control-Plane only in F1. It grants neither Published-App use nor Product-Agent invocation.
 
 ### 3.5 Connections
 
@@ -227,7 +231,7 @@ agent.effect.approve
 
 ```text
 ordinary Permissions = 25
-status = CURRENT / OPERATOR RATIFIED / 4B-F01 + 4C-F02 + 4C-F03 + 4C-F11 + 4C-F12 + 4C-F17 + 4C-F18 CORRECTED
+status = CURRENT / OPERATOR RATIFIED / 4B-F01 + 4C-F02 + 4C-F03 + 4C-F11 + 4C-F12 + 4C-F17 + 4C-F18 + 4C-F19 CORRECTED
 ```
 
 The number 25 has no independent value. It survives because the current operation mapping still requires each distinction and no accepted operation requires a 26th ordinary Permission.
@@ -256,6 +260,7 @@ query.execute
 action.execute
 integration.execute
 analyticquery.execute
+analyticquery.read
 release.read
 release.compose
 promotion.read
@@ -291,6 +296,11 @@ BRN-02 purpose-bound Project Brain revision-selection disclosure
 → brain.bind -X-> generic brain.read
 → alternate disclosure -X-> BRN-03 knowledgeBrowse / proposal / publication authority
 
+BRN-13 GetProjectAnalyticQueryCatalog
+→ brain.read + project.data.read + exact Project/current Brain binding
+→ current admitted semantic-input projection only
+→ no new Permission / SQL / physical topology / semantic-search / natural-language planning authority
+
 StartBrainDiscovery using external source
 → brain.discover + connection.use + exact source/binding/egress admission
 
@@ -306,6 +316,8 @@ F11 likewise does not create Account/Area/grant CRUD Permissions. `workspace.acc
 F17 likewise does not make `connection.use` a read Permission. It admits only the minimum `CON-03` summary disclosure required to choose a Connection for one exact Project binding job, under the same compound Project-management/use authority that governs the write.
 
 F18 likewise does not make `brain.bind` a read Permission. It admits only the minimum immutable `BRN-02` summary disclosure required to choose a Brain revision for one exact Project binding job; detail/knowledge/proposal/publication authority remains separately governed.
+
+F19 likewise does not create an analytics Permission. The exact Control-Plane human already needs both reusable authority distinctions `brain.read + project.data.read`; BRN-13 merely makes the exact current semantic inputs of that already-admitted analytical job discoverable without exposing SQL or physical topology.
 
 ---
 

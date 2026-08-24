@@ -15,8 +15,9 @@ for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
 const expectedIds = [
   ...Array.from({ length: 10 }, (_, i) => `BRN-${String(i + 1).padStart(2, '0')}`),
   'BRN-12',
+  'BRN-13',
 ];
-if (expectedIds.length !== 11) throw new Error('internal Brain gate setup error');
+if (expectedIds.length !== 12) throw new Error('internal Brain gate setup error');
 if (operations.has('BRN-11')) throw new Error('BRN-11 RunBrainHealthProbe must remain SYSTEM_OWNER_TRANSITION, not caller Product wire');
 
 for (const id of expectedIds) {
@@ -99,9 +100,10 @@ function exactEnum(schema, expected, label) {
   if (actual.join(',') !== want.join(',')) throw new Error(`${label} must be exactly ${want.join('/')}; got ${actual.join(',')}`);
 }
 
-function nonBlankStringProperty(schema, name, label) {
+function nonBlankStringProperty(schema, name, label, requirePattern = false) {
   const value = property(schema, name);
   if (value?.type !== 'string' || (value?.minLength ?? 0) < 1) throw new Error(`${label} must be a non-blank string`);
+  if (requirePattern && typeof value.pattern !== 'string') throw new Error(`${label} must reject whitespace-only presentation`);
 }
 
 function arrayProperty(schema, name, label) {
@@ -270,4 +272,34 @@ for (const forbidden of ['rawSql', 'executedSql', 'physicalTable', 'credential']
   if (analyticResult.properties?.[forbidden]) throw new Error(`BRN-12 response must not expose physical/secret authority ${forbidden}`);
 }
 
-console.log('Brain schema closure passed (11 Product operations; F05 proposal intake + F06 exact-source review content + F07 exact-revision structured knowledge browse closed; BRN-11 remains owner transition; publication/health/AnalyticQuery boundaries closed).');
+// F19: the human-readable semantic input catalog is a current exact-Project read for BRN-12, not another query executor or physical-data API.
+const catalogEntry = operations.get('BRN-13');
+if (catalogEntry?.path !== '/api/control/projects/{projectId}/analytic-query-catalog') {
+  throw new Error(`BRN-13 must use exact Project analytic-query-catalog path; got ${catalogEntry?.path}`);
+}
+if (catalogEntry?.method !== 'GET') throw new Error('BRN-13 must remain a read-only GET');
+if (requestSchema('BRN-13')) throw new Error('BRN-13 must not have a request body');
+const catalogIngress = op('BRN-13')['x-conexus-ingress'] ?? [];
+if (catalogIngress.length !== 1 || catalogIngress[0] !== 'CONTROL_PLANE') throw new Error('BRN-13 must remain Control-Plane only in F1');
+if (op('BRN-13')['x-conexus-non-http-ingress']) throw new Error('BRN-13 must not create Product-Agent/non-HTTP ingress');
+
+const catalog = assertClosedObject(successSchema('BRN-13'), 'BRN-13 ProjectAnalyticQueryCatalog');
+required(catalog, 'projectId', 'brainRevisionId', 'brainDigest', 'projectBindingDigest', 'datasets');
+for (const field of ['projectId', 'brainRevisionId', 'brainDigest', 'projectBindingDigest']) nonBlankStringProperty(catalog, field, `BRN-13 ${field}`);
+const datasets = arrayProperty(catalog, 'datasets', 'BRN-13 datasets');
+const dataset = assertClosedObject(resolveSchema(datasets.items), 'BRN-13 AnalyticDatasetChoice');
+required(dataset, 'datasetSemanticId', 'label', 'selectableSemantics');
+nonBlankStringProperty(dataset, 'datasetSemanticId', 'BRN-13 datasetSemanticId');
+nonBlankStringProperty(dataset, 'label', 'BRN-13 dataset label', true);
+const semantics = arrayProperty(dataset, 'selectableSemantics', 'BRN-13 selectableSemantics');
+const semantic = assertClosedObject(resolveSchema(semantics.items), 'BRN-13 AnalyticSemanticChoice');
+required(semantic, 'semanticId', 'label');
+nonBlankStringProperty(semantic, 'semanticId', 'BRN-13 semanticId');
+nonBlankStringProperty(semantic, 'label', 'BRN-13 semantic label', true);
+for (const [label, schema] of [['catalog', catalog], ['dataset', dataset], ['semantic', semantic]]) {
+  for (const forbidden of ['rawSql', 'sql', 'physicalTable', 'table', 'schema', 'join', 'joinTopology', 'semanticSearch', 'naturalLanguageQuestion', 'expression']) {
+    if (schema.properties?.[forbidden]) throw new Error(`BRN-13 ${label} must not expose ${forbidden}`);
+  }
+}
+
+console.log('Brain schema closure passed (12 Product operations; F05/F06/F07 Brain review/browse, F18 purpose-bound revision selection and F19 Project analytic semantic-input catalog closed; BRN-11 remains owner transition; BRN-12 remains deterministic executor).');

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 
 const ledgerPath = 'docs/product/operation-ledger.md';
 const bundlePath = '/tmp/conexus-product-openapi.bundle.json';
-const expectedFixedOperationCount = 116;
+const expectedFixedOperationCount = 117;
 const allowedContractStates = new Set(['METHOD_PATH_MAPPED', 'SCHEMA_CLOSED']);
 
 const ledger = fs.readFileSync(ledgerPath, 'utf8');

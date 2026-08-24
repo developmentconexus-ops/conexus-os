@@ -8,7 +8,7 @@ const budgetOasPath = '/tmp/conexus-budget-analyzer.openapi.generated.json';
 const projectionPath = '/tmp/conexus-wire-projection-a.json';
 const projectSchemaPath = 'contracts/api/project-operation.schema.json';
 const projectGenerator = 'scripts/generate-project-openapi.mjs';
-const expectedProductOperations = 116;
+const expectedProductOperations = 117;
 
 for (const required of [productBundlePath, technicalBundlePath, budgetOasPath, projectionPath, projectSchemaPath, projectGenerator]) {
   if (!fs.existsSync(required)) throw new Error(`whole-4B prerequisite missing: ${required}`);
@@ -83,6 +83,7 @@ function assertWhole(currentProduct, currentTechnical, currentProject, currentPr
     ['IAM-18', 'ListWorkspaceMembershipCandidates'],
     ['IAM-19', 'GetWorkspaceMemberAccess'],
     ['IAM-20', 'GetAreaAccess'],
+    ['BRN-13', 'GetProjectAnalyticQueryCatalog'],
   ]) {
     if (!productAuthorityIds.has(authorityId) || !productOperationIds.has(operationId)) {
       throw new Error(`whole-4B Product wire lost accepted ${authorityId} ${operationId}`);
