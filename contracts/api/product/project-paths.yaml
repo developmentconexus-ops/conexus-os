@@ -628,13 +628,13 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact finite authored/Release capability projection; listing does not grant invocation authority.
+          description: Exact finite authored/Release capability projection with human name and purpose; listing remains inspection only and grants no invocation authority.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ProjectCapability'
+                  $ref: '#/components/schemas/ProjectCapabilitySummary'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
@@ -655,7 +655,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact Project capability identity and admitted regime; no execution is performed.
+          description: Exact Project capability with human meaning and logical input/output contract; no execution is performed or granted.
           content:
             application/json:
               schema:
@@ -679,7 +679,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Declared Product/read-model/source resource identities with server-owned human presentation; not a database explorer.
+          description: Declared Project Data resources with exact machine identity, human presentation, semantic resource kind and source kind; not a physical database explorer.
           content:
             application/json:
               schema:
@@ -706,7 +706,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact declared resource with human presentation, semantic grain, freshness, coverage and provenance; physical credentials/storage internals are excluded.
+          description: Exact declared Data resource with human presentation, semantic kind/source, grain/freshness/coverage/provenance and logical fields/relationships/rules; physical topology, credentials and storage internals are excluded.
           content:
             application/json:
               schema:
@@ -1032,24 +1032,86 @@ components:
             environment:
               type: string
               minLength: 1
-    ProjectCapability:
+    ProjectCapabilitySummary:
       type: object
       additionalProperties: false
-      required: [capabilityId, operationId, regime]
+      required: [capabilityId, name, purpose, operationId, regime]
       properties:
         capabilityId:
           type: string
           minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human capability name from the exact authored/Release semantic contract; never routing or invocation authority.
+        purpose:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable semantic purpose from the exact authored/Release contract; inspection only.
         operationId:
           type: string
           minLength: 1
         regime:
           type: string
           enum: [QUERY, ACTION, INTEGRATION]
+    ProjectCapabilityField:
+      type: object
+      additionalProperties: false
+      required: [name, type, required, description]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+        type:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Logical human-readable field type from the admitted semantic contract; not a runtime serializer or arbitrary schema language.
+        required:
+          type: boolean
+        description:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+    ProjectCapability:
+      type: object
+      additionalProperties: false
+      required: [capabilityId, name, purpose, operationId, regime, inputs, outputs]
+      properties:
+        capabilityId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human capability name from the exact authored/Release semantic contract; never routing or invocation authority.
+        purpose:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable semantic purpose from the exact authored/Release contract; inspection only.
+        operationId:
+          type: string
+          minLength: 1
+        regime:
+          type: string
+          enum: [QUERY, ACTION, INTEGRATION]
+        inputs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectCapabilityField'
+        outputs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectCapabilityField'
     ProjectDataResourceSummary:
       type: object
       additionalProperties: false
-      required: [dataResourceId, name]
+      required: [dataResourceId, name, resourceKind, sourceKind]
       properties:
         dataResourceId:
           type: string
@@ -1059,10 +1121,77 @@ components:
           minLength: 1
           pattern: '.*\S.*'
           description: Server-owned human presentation identity of the declared Project Data resource; never routing, authorization, containment or uniqueness authority.
+        resourceKind:
+          type: string
+          enum: [TABLE, VIEW, DATASET]
+          description: Semantic human resource kind only; TABLE does not expose physical database topology.
+        sourceKind:
+          type: string
+          enum: [INTERNAL, INTEGRATION, DERIVED]
+          description: Human source category for Project-owned, external-integration-backed or derived data; not an owner/authorization coordinate.
+    ProjectDataField:
+      type: object
+      additionalProperties: false
+      required: [fieldId, name, type, required, description]
+      properties:
+        fieldId:
+          type: string
+          minLength: 1
+          description: Stable resource-scoped semantic field coordinate; never a physical column/storage identifier by implication.
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+        type:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Logical human-readable field type; not physical DDL authority.
+        required:
+          type: boolean
+        description:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+    ProjectDataRelationship:
+      type: object
+      additionalProperties: false
+      required: [relationshipId, sourceFieldId, targetDataResourceId, targetFieldId, description]
+      properties:
+        relationshipId:
+          type: string
+          minLength: 1
+        sourceFieldId:
+          type: string
+          minLength: 1
+        targetDataResourceId:
+          type: string
+          minLength: 1
+        targetFieldId:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human semantic relationship meaning; not a physical join expression or foreign-key DDL projection.
+    ProjectDataRule:
+      type: object
+      additionalProperties: false
+      required: [ruleId, description]
+      properties:
+        ruleId:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human semantic/business rule for the Data resource; not SQL, DDL or executable expression authority.
     ProjectDataResource:
       type: object
       additionalProperties: false
-      required: [dataResourceId, name, grain, freshness, coverage, provenance]
+      required: [dataResourceId, name, resourceKind, sourceKind, grain, freshness, coverage, provenance, fields, relationships, rules]
       properties:
         dataResourceId:
           type: string
@@ -1072,6 +1201,14 @@ components:
           minLength: 1
           pattern: '.*\S.*'
           description: Server-owned human presentation identity of the declared Project Data resource; never routing, authorization, containment or uniqueness authority.
+        resourceKind:
+          type: string
+          enum: [TABLE, VIEW, DATASET]
+          description: Semantic human resource kind only; TABLE does not expose physical database topology.
+        sourceKind:
+          type: string
+          enum: [INTERNAL, INTEGRATION, DERIVED]
+          description: Human source category only; not authorization or physical storage topology.
         grain:
           type: string
           minLength: 1
@@ -1084,6 +1221,18 @@ components:
         provenance:
           type: string
           minLength: 1
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDataField'
+        relationships:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDataRelationship'
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDataRule'
     ProjectProductAgent:
       type: object
       additionalProperties: false
