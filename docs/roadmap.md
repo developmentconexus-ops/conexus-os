@@ -15,7 +15,7 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
 | 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F13` + `F14` RECOMPILED | `N_platform=116` | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F13` + `F14` RECOMPILED | `116↔116`; Project=23; Builder=17; Brain=11; Connections=9; IAM=19; OBS=5 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 LOCKED` / `P-01 OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 FOCUSED REVISED CANDIDATE / OPERATOR WALKTHROUGH` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 LOCKED` / `P-01 OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 APP-FIRST REVISED CANDIDATE / OPERATOR WALKTHROUGH` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -35,7 +35,7 @@ F13 OPERATOR ACCEPTED / GREEN · F13 SELECTED REALIZATION
 F14 OPERATOR ACCEPTED / GREEN · F14 SELECTED REALIZATION
 W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN
 W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED
-P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 FOCUSED REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
+P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 APP-FIRST REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
 F14 whole-wire GREEN = Verify #797 SUCCESS
 P7 selected RED = Verify #800 / 103 tests / 102 pass / 1 exact expected failure
 P7 structural GREEN = Verify #803 SUCCESS
@@ -51,6 +51,9 @@ P8 revised artifact blob = 43ec72ec7443e6d28cbd3abcd0cb79f2d1955db7
 P8 focus selected RED = Verify #829 / 110 tests / 109 pass / 1 exact expected failure
 P8 focused checkpoint = Verify #831 SUCCESS
 P8 focused artifact blob = 02a07c7f8fd654a75eb066ee914247f0160a64f8
+P8 app-first selected RED = Verify #836 / 111 tests / 109 pass / 2 exact expected failures
+P8 app-first functional GREEN = Verify #839 SUCCESS
+P8 app-first artifact blob = 54e5daef1ff76652ea9841421ff9713c832adaff
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
@@ -69,18 +72,19 @@ GF-01, W-01, W-02A, W-02B, W-03 and W-04 are LOCKED; current fixed Product/wire 
 
 ## P-01 — Build workspace — OPEN
 
-P7=A Preview-first exact-Change. GF-01 shell inherited. Build Overview → Focused Build Session; Preview + Conexus default; Plan/Findings/Evidence/Details on demand.
+P7=A Preview-first exact-Change once mutation work exists. The Build root is now Project/current-app first: current application + Conexus → Build instruction creates exact Change via BLD-03; Plan mode does not create mutation work. GF-01 shell stays inherited; Plan/Findings/Evidence/Details remain on demand.
 
 ```text
 P8 focused artifact blob = 02a07c7f8fd654a75eb066ee914247f0160a64f8
-P8 = FOCUSED REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
+P8 app-first artifact blob = 54e5daef1ff76652ea9841421ff9713c832adaff
+P8 = APP-FIRST REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
 P-02+ = NOT OPEN
 P11 = NOT ASSEMBLED
 4D = NOT STARTED
 Product implementation = BLOCKED
 ```
 
-Evidence: [focused revision](evidence/4c/p01-p8-focused-build-session-revision.md) / [P8](evidence/4c/p01-build-workspace-functional-wireframe.html).
+Evidence: [app-first revision](evidence/4c/p01-p8-app-first-build-root-revision.md) / [focused predecessor](evidence/4c/p01-p8-focused-build-session-revision.md) / [P8](evidence/4c/p01-build-workspace-functional-wireframe.html).
 
 ```text
 smallest-owner reopen != smallest patch
@@ -90,4 +94,4 @@ Historical gate: Operator walkthrough/adjudication of exact P-01 P8 artifact: AP
 
 ## Exact next action
 
-**Operator walkthrough/adjudication of focused P-01 P8 artifact: APPROVE | REVISE.**
+**Operator walkthrough/adjudication of app-first P-01 P8 artifact: APPROVE | REVISE.**
