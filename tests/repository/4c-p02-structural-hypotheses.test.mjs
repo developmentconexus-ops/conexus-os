@@ -7,7 +7,7 @@ const root = resolve(new URL('../../', import.meta.url).pathname)
 const path = p => resolve(root, p)
 const read = p => readFileSync(path(p), 'utf8')
 
-test('P-02 preserves its P7 candidate and records operator approval without coupling history to mutable roadmap status', () => {
+test('P-02 preserves its P7 candidate and operator approval history without coupling to mutable P8 revision wording', () => {
   const structuralPath = 'docs/evidence/4c/p02-structural-hypotheses.md'
   const approvalPath = 'docs/evidence/4c/p02-p7-approval-p8-candidate.md'
   const p8Path = 'docs/evidence/4c/p02-project-resources-functional-wireframe.html'
@@ -31,14 +31,17 @@ test('P-02 preserves its P7 candidate and records operator approval without coup
   ]) assert.ok(structural.includes(token), `P-02 P7 candidate Evidence missing: ${token}`)
 
   for (const token of [
-    'P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED',
+    'P7 OPERATOR APPROVED',
+    'P8 REVISED CANDIDATE',
+    'OPERATOR WALKTHROUGH REQUIRED',
+    'NOT LOCKED',
     'A — Four focused Project routes',
     'Verify #905 = EXPECTED RED',
     'Verify #907 = SUCCESS',
     'repository tests = 128 / 128',
     'bootstrap_bytes = 20403 / 20480',
     '4A ↔ OAS = 117 ↔ 117',
-    'P8 = CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED',
+    'Verify #913 = EXPECTED RED',
   ]) assert.ok(approval.includes(token), `P-02 approval/P8 Evidence missing: ${token}`)
 
   assert.doesNotMatch(approval, /P-02\s*=\s*LOCKED|P8\s*=\s*LOCKED|P-03\+?\s*=\s*OPEN|P11\s*=\s*ASSEMBLED|4D\s*=\s*OPEN/, 'P7 approval/P8 candidate must not skip later gates')
