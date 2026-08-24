@@ -8,7 +8,7 @@
 > **Final operator-approved P8:** `docs/evidence/4c/p01-build-workspace-functional-wireframe.html`
 > **Exact artifact identity:** `approved final P8 artifact blob = 3f9d30f7e6fa0de814f0be20b7583b4e98aca7c8`
 > **Bounded upstream correction:** `4C-F15 / BLD-10 GetBuildPreview`
-> **Whole-wire lock proof:** final P-01 lock Verify; any material failure reopens the smallest affected owner before this lock may be claimed complete.
+> **Whole-wire lock proof:** `Verify #860 SUCCESS` on the operator-locked P-01 authority/wire/Screen Contract candidate.
 
 ---
 
