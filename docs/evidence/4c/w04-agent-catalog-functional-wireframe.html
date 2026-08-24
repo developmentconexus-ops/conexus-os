@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>W-04 — Workspace Agent Catalog — Functional P8</title>
+  <style>
+    :root {
+      --ink: #1f1f1f;
+      --muted: #666;
+      --line: #c9c9c9;
+      --soft: #f3f3f3;
+      --paper: #fff;
+      --wash: #fafafa;
+      --focus: #111;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--wash);
+      line-height: 1.4;
+    }
+
+    button, input, select { font: inherit; }
+    button, select, input {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--ink);
+      border-radius: 6px;
+    }
+    button { cursor: pointer; padding: 9px 12px; }
+    button:hover { background: var(--soft); }
+    button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 224px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--line);
+      background: var(--paper);
+      padding: 18px 14px;
+    }
+
+    .wordmark {
+      font-weight: 700;
+      letter-spacing: .02em;
+      margin: 2px 8px 20px;
+    }
+
+    .workspace-label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin: 0 8px 8px;
+    }
+
+    .workspace-name {
+      margin: 0 8px 20px;
+      font-weight: 650;
+    }
+
+    .nav {
+      display: grid;
+      gap: 4px;
+    }
+
+    .nav a {
+      color: var(--ink);
+      text-decoration: none;
+      padding: 9px 10px;
+      border-radius: 6px;
+    }
+
+    .nav a[aria-current="page"] {
+      background: var(--soft);
+      font-weight: 650;
+    }
+
+    .main {
+      min-width: 0;
+      padding: 26px clamp(18px, 3vw, 42px) 48px;
+    }
+
+    .status-strip {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      padding: 9px 12px;
+      font-size: 12px;
+      margin-bottom: 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .status-strip strong { letter-spacing: .03em; }
+    .status-chip {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 8px;
+      background: var(--soft);
+    }
+
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    .eyebrow {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 0 0 4px;
+    }
+
+    h1 { margin: 0; font-size: clamp(26px, 3vw, 34px); }
+    .page-description {
+      max-width: 760px;
+      color: var(--muted);
+      margin: 8px 0 0;
+    }
+
+    .proof-note {
+      border-left: 3px solid var(--line);
+      padding: 8px 12px;
+      color: var(--muted);
+      font-size: 13px;
+      background: var(--paper);
+      margin-bottom: 18px;
+    }
+
+    .filters {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      padding: 14px;
+      display: grid;
+      grid-template-columns: minmax(220px, 1.6fr) minmax(150px, .8fr) minmax(180px, .9fr) auto;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 14px;
+    }
+
+    .field { display: grid; gap: 6px; }
+    .field label { font-size: 12px; font-weight: 650; }
+    .field input, .field select { width: 100%; padding: 10px 11px; }
+
+    .filter-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 10px 0 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .agent-card {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .card-top {
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      align-items: start;
+    }
+
+    .agent-title { margin: 0; font-size: 18px; }
+    .agent-purpose { margin: 5px 0 0; color: var(--muted); }
+
+    .project-block {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .label { color: var(--muted); }
+    .badge {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 8px;
+      white-space: nowrap;
+      background: var(--soft);
+      font-size: 12px;
+    }
+
+    .release-row {
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      padding: 10px 0;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .release-label { font-weight: 650; }
+    .release-coordinate {
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+      text-align: right;
+    }
+
+    details { font-size: 13px; }
+    summary { cursor: pointer; font-weight: 650; }
+    .technical-grid {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 6px 10px;
+      margin-top: 9px;
+      color: var(--muted);
+    }
+    .technical-grid code { overflow-wrap: anywhere; color: var(--ink); }
+
+    .card-actions {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .empty-state {
+      border: 1px dashed var(--line);
+      background: var(--paper);
+      padding: 34px 18px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .empty-state[hidden], .dialog-backdrop[hidden] { display: none !important; }
+
+    .dialog-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.28);
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      z-index: 20;
+    }
+
+    .dialog {
+      width: min(560px, 100%);
+      max-height: min(78vh, 680px);
+      overflow: auto;
+      background: var(--paper);
+      border: 1px solid var(--ink);
+      padding: 20px;
+      box-shadow: 0 18px 54px rgba(0,0,0,.18);
+    }
+
+    .dialog h2 { margin: 0 0 8px; }
+    .dialog p { margin: 8px 0; }
+    .boundary-box {
+      border: 1px solid var(--line);
+      background: var(--soft);
+      padding: 12px;
+      margin: 14px 0;
+    }
+    .boundary-pair {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 7px 10px;
+      margin: 7px 0;
+    }
+    .boundary-pair span:first-child { color: var(--muted); }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 900px) {
+      .app-shell { grid-template-columns: 76px minmax(0, 1fr); }
+      .sidebar { padding-inline: 8px; }
+      .wordmark, .workspace-label, .workspace-name { overflow: hidden; white-space: nowrap; }
+      .nav a { text-align: center; font-size: 12px; padding-inline: 4px; }
+      .filters { grid-template-columns: 1fr 1fr; }
+      .filter-actions { justify-content: stretch; }
+      .filter-actions button { flex: 1; }
+    }
+
+    @media (max-width: 680px) {
+      .app-shell { display: block; }
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        overflow-x: auto;
+      }
+      .wordmark { margin: 0 8px 0 0; }
+      .workspace-label, .workspace-name { display: none; }
+      .nav { display: flex; }
+      .nav a { white-space: nowrap; padding: 8px 10px; }
+      .main { padding: 18px 14px 36px; }
+      .page-header { align-items: start; }
+      .filters { grid-template-columns: 1fr; }
+      .agent-grid { grid-template-columns: 1fr; }
+      .release-row { align-items: start; flex-direction: column; }
+      .release-coordinate { text-align: left; }
+      .dialog-backdrop { align-items: end; padding: 0; }
+      .dialog { width: 100%; max-height: 88vh; border-bottom: 0; border-inline: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Workspace navigation">
+      <div class="wordmark">Conexus</div>
+      <div class="workspace-label">Workspace</div>
+      <div class="workspace-name">Metal Nobre</div>
+      <nav class="nav">
+        <a href="#">Projects</a>
+        <a href="#">Brain</a>
+        <a href="#">Connections</a>
+        <a href="#" aria-current="page">Agents</a>
+        <a href="#">People</a>
+        <a href="#">Audit</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="status-strip" aria-label="Prototype status">
+        <strong>W-04 P8 FUNCTIONAL LOW-FI CANDIDATE</strong>
+        <span class="status-chip">NOT LOCKED</span>
+        <span class="status-chip">fixture-only</span>
+        <span>Authority trace: PRJ-22 · Agent-first searchable catalog</span>
+      </div>
+
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Workspace catalog</p>
+          <h1>Agents</h1>
+          <p class="page-description">Find Product Agents across Projects by their human name, purpose, owning Project and exact active-Release presence.</p>
+        </div>
+      </header>
+
+      <div class="proof-note">
+        Functional proof: <strong>local search/filter over complete already-disclosed catalog</strong>. The fixture below represents one complete access-filtered PRJ-22 response already disclosed to this Workspace session; filtering does not request broader authority.
+      </div>
+
+      <form class="filters" id="catalog-filter-form" onsubmit="event.preventDefault(); applyCatalogFilters();">
+        <div class="field">
+          <label for="agent-search">Search agents</label>
+          <input id="agent-search" type="search" placeholder="Name, purpose or Project" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="project-filter">Project</label>
+          <select id="project-filter">
+            <option value="">All disclosed Projects</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="release-filter">Release presence</label>
+          <select id="release-filter">
+            <option value="">Any</option>
+            <option value="included">Included in active Release</option>
+            <option value="none">No active Release</option>
+          </select>
+        </div>
+        <div class="filter-actions">
+          <button type="submit">Apply</button>
+          <button type="button" onclick="clearCatalogFilters()">Clear</button>
+        </div>
+      </form>
+
+      <div class="meta-row">
+        <span id="catalog-count" aria-live="polite">0 Agents</span>
+        <span>Human presentation comes from the server-owned Agent + Project projection.</span>
+      </div>
+
+      <section id="agent-results" class="agent-grid" aria-label="Agent catalog results"></section>
+      <div id="catalog-empty" class="empty-state" hidden>
+        <strong>No matching Agents</strong>
+        <div>Change the local filters to search within the already-disclosed catalog.</div>
+      </div>
+
+      <p class="sr-only" id="catalog-live" aria-live="polite"></p>
+    </main>
+  </div>
+
+  <div class="dialog-backdrop" id="project-boundary-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="boundary-title" aria-describedby="boundary-description">
+      <p class="eyebrow">P-03 boundary</p>
+      <h2 id="boundary-title">Continue in the owning Project</h2>
+      <p id="boundary-description">Deeper Project-owned Agent work is outside this P8.</p>
+
+      <div class="boundary-box">
+        <div class="boundary-pair"><span>Agent</span><strong id="boundary-agent-name">—</strong></div>
+        <div class="boundary-pair"><span>Project</span><strong id="boundary-project-name">—</strong></div>
+        <div class="boundary-pair"><span>Boundary</span><strong id="boundary-status">Catalog → future Project Agent surface</strong></div>
+      </div>
+
+      <p><strong>project.read != project.source.read</strong></p>
+      <p>Catalog visibility does not grant authoring or runtime authority.</p>
+      <p>This functional wireframe proves only the handoff: an implementation would navigate to the future Project-owned Agent experience after that surface is separately planned and authorized.</p>
+
+      <div class="dialog-actions">
+        <button type="button" id="boundary-close" onclick="closeProjectBoundary()">Close</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // fixture-only: one complete already-disclosed PRJ-22 response for this P8.
+    const workspaceAgentCatalog = [
+      {
+        agent: {
+          agentId: 'agt-budget-reviewer',
+          name: 'Budget Review Assistant',
+          purpose: 'Explains pending-budget signals and helps users understand which cases deserve review.',
+          authoredRevisionId: 'agent-rev-018',
+          releaseRefs: ['rel-budget-042', 'rel-budget-047'],
+          activeReleaseId: 'rel-budget-047'
+        },
+        project: {
+          projectId: 'prj-budget-analyzer',
+          workspaceId: 'ws-metal-nobre',
+          name: 'Budget Analyzer',
+          archived: false
+        }
+      },
+      {
+        agent: {
+          agentId: 'agt-policy-guide',
+          name: 'Policy Guide',
+          purpose: 'Helps teammates locate approved policies and understand the context around governed documents.',
+          authoredRevisionId: 'agent-rev-006',
+          releaseRefs: ['rel-metaldocs-011'],
+          activeReleaseId: 'rel-metaldocs-011'
+        },
+        project: {
+          projectId: 'prj-metaldocs',
+          workspaceId: 'ws-metal-nobre',
+          name: 'MetalDocs',
+          archived: false
+        }
+      },
+      {
+        agent: {
+          agentId: 'agt-listing-helper',
+          name: 'Listing Assistant',
+          purpose: 'Supports product-listing preparation using the governed marketplace Project context.',
+          authoredRevisionId: 'agent-rev-021',
+          releaseRefs: ['rel-market-031', 'rel-market-034'],
+          activeReleaseId: null
+        },
+        project: {
+          projectId: 'prj-marketplace-central',
+          workspaceId: 'ws-metal-nobre',
+          name: 'Marketplace Central',
+          archived: false
+        }
+      },
+      {
+        agent: {
+          agentId: 'agt-legacy-order-reader',
+          name: 'Order Context Assistant',
+          purpose: 'Preserves discoverability of an Agent whose owning Project has been archived without inventing an Agent lifecycle state.',
+          authoredRevisionId: 'agent-rev-004',
+          releaseRefs: ['rel-orders-008'],
+          activeReleaseId: null
+        },
+        project: {
+          projectId: 'prj-order-context',
+          workspaceId: 'ws-metal-nobre',
+          name: 'Order Context',
+          archived: true
+        }
+      },
+      {
+        agent: {
+          agentId: 'agt-sales-brief',
+          name: 'Sales Brief Assistant',
+          purpose: 'Summarizes the sales context exposed by its Project for human review before decisions.',
+          authoredRevisionId: 'agent-rev-013',
+          releaseRefs: ['rel-sales-022'],
+          activeReleaseId: 'rel-sales-022'
+        },
+        project: {
+          projectId: 'prj-sales-ops',
+          workspaceId: 'ws-metal-nobre',
+          name: 'Sales Operations',
+          archived: false
+        }
+      }
+    ];
+
+    const state = {
+      filtered: [...workspaceAgentCatalog],
+      boundaryItem: null,
+      returnFocusTo: null
+    };
+
+    function normalize(value) {
+      return String(value ?? '').trim().toLocaleLowerCase();
+    }
+
+    function buildProjectFilter() {
+      const select = document.getElementById('project-filter');
+      const projects = [...new Map(workspaceAgentCatalog.map(item => [item.project.projectId, item.project])).values()]
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      for (const project of projects) {
+        const option = document.createElement('option');
+        option.value = project.projectId;
+        option.textContent = project.name;
+        select.append(option);
+      }
+    }
+
+    function releasePresence(item) {
+      return item.agent.activeReleaseId ? 'included' : 'none';
+    }
+
+    function applyCatalogFilters() {
+      const query = normalize(document.getElementById('agent-search').value);
+      const projectId = document.getElementById('project-filter').value;
+      const release = document.getElementById('release-filter').value;
+
+      state.filtered = workspaceAgentCatalog.filter(item => {
+        const { agent, project } = item;
+        const searchText = normalize(`${agent.name} ${agent.purpose} ${project.name}`);
+        const queryMatches = !query || searchText.includes(query);
+        const projectMatches = !projectId || project.projectId === projectId;
+        const releaseMatches = !release || releasePresence(item) === release;
+        return queryMatches && projectMatches && releaseMatches;
+      });
+
+      renderAgentCatalog();
+      document.getElementById('catalog-live').textContent = `${state.filtered.length} Agent results after local catalog filtering.`;
+    }
+
+    function clearCatalogFilters() {
+      document.getElementById('agent-search').value = '';
+      document.getElementById('project-filter').value = '';
+      document.getElementById('release-filter').value = '';
+      state.filtered = [...workspaceAgentCatalog];
+      renderAgentCatalog();
+      document.getElementById('agent-search').focus();
+      document.getElementById('catalog-live').textContent = 'Catalog filters cleared.';
+    }
+
+    function technicalRows(item) {
+      const { agent, project } = item;
+      const releaseCoordinate = agent.activeReleaseId ?? 'none';
+      return `
+        <div class="technical-grid">
+          <span>agentId</span><code>${agent.agentId}</code>
+          <span>authoredRevisionId</span><code>${agent.authoredRevisionId}</code>
+          <span>activeReleaseId</span><code>${releaseCoordinate}</code>
+          <span>releaseRefs</span><code>${agent.releaseRefs.join(', ') || 'none'}</code>
+          <span>projectId</span><code>${project.projectId}</code>
+        </div>`;
+    }
+
+    function renderAgentCatalog() {
+      const root = document.getElementById('agent-results');
+      const empty = document.getElementById('catalog-empty');
+      const count = document.getElementById('catalog-count');
+      root.replaceChildren();
+
+      count.textContent = `${state.filtered.length} ${state.filtered.length === 1 ? 'Agent' : 'Agents'}`;
+      empty.hidden = state.filtered.length !== 0;
+
+      for (const item of state.filtered) {
+        const { agent, project } = item;
+        const article = document.createElement('article');
+        article.className = 'agent-card';
+        article.dataset.agentId = agent.agentId;
+
+        const releaseLabel = agent.activeReleaseId ? 'Included in active Release' : 'No active Release';
+        const archivedBadge = project.archived ? '<span class="badge">Owning Project archived</span>' : '';
+        const releaseCoordinate = agent.activeReleaseId ? `<span class="release-coordinate">${agent.activeReleaseId}</span>` : '<span class="release-coordinate">No active Release coordinate</span>';
+
+        article.innerHTML = `
+          <div class="card-top">
+            <div>
+              <h2 class="agent-title">${agent.name}</h2>
+              <p class="agent-purpose">${agent.purpose}</p>
+            </div>
+          </div>
+
+          <div class="project-block">
+            <span class="label">Project</span>
+            <strong>${project.name}</strong>
+            ${archivedBadge}
+          </div>
+
+          <div class="release-row">
+            <span class="release-label">${releaseLabel}</span>
+            ${releaseCoordinate}
+          </div>
+
+          <details>
+            <summary>Technical coordinates</summary>
+            ${technicalRows(item)}
+          </details>
+
+          <div class="card-actions">
+            <button type="button" data-boundary-agent="${agent.agentId}">Open in Project</button>
+          </div>`;
+
+        article.querySelector('[data-boundary-agent]').addEventListener('click', event => {
+          openProjectBoundary(agent.agentId, event.currentTarget);
+        });
+        root.append(article);
+      }
+    }
+
+    function openProjectBoundary(agentId, trigger) {
+      const item = workspaceAgentCatalog.find(candidate => candidate.agent.agentId === agentId);
+      if (!item) return;
+
+      state.boundaryItem = item;
+      state.returnFocusTo = trigger ?? document.activeElement;
+      document.getElementById('boundary-agent-name').textContent = item.agent.name;
+      document.getElementById('boundary-project-name').textContent = item.project.name;
+      document.getElementById('boundary-status').textContent = 'P-03 boundary — Project-owned Agent work is not realized in W-04';
+
+      const dialog = document.getElementById('project-boundary-dialog');
+      dialog.hidden = false;
+      document.getElementById('boundary-close').focus();
+    }
+
+    function returnFocusTo() {
+      const target = state.returnFocusTo;
+      state.returnFocusTo = null;
+      if (target && typeof target.focus === 'function') target.focus();
+    }
+
+    function closeProjectBoundary() {
+      const dialog = document.getElementById('project-boundary-dialog');
+      dialog.hidden = true;
+      state.boundaryItem = null;
+      returnFocusTo();
+    }
+
+    document.getElementById('agent-search').addEventListener('input', applyCatalogFilters);
+    document.getElementById('project-filter').addEventListener('change', applyCatalogFilters);
+    document.getElementById('release-filter').addEventListener('change', applyCatalogFilters);
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !document.getElementById('project-boundary-dialog').hidden) {
+        closeProjectBoundary();
+      }
+    });
+
+    document.getElementById('project-boundary-dialog').addEventListener('click', event => {
+      if (event.target.id === 'project-boundary-dialog') closeProjectBoundary();
+    });
+
+    buildProjectFilter();
+    renderAgentCatalog();
+  </script>
+</body>
+</html>
