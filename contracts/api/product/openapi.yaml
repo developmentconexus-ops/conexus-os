@@ -112,8 +112,8 @@ paths:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1source~1tree'
   /api/control/projects/{projectId}/source/file:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1source~1file'
-  /api/control/projects/{projectId}/changes/{changeId}/preview:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1preview'
+  /api/control/projects/{projectId}/preview:
+    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1preview'
   /api/control/projects/{projectId}/changes/{changeId}/findings:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1findings'
   /api/control/projects/{projectId}/changes/{changeId}/findings/{findingId}:
