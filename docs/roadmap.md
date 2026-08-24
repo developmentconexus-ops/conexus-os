@@ -43,7 +43,6 @@ P7 status-sync RED = Verify #805 / 103 tests / 101 pass / 2 exact expected failu
 P8 selected RED = Verify #807 / 107 tests / 103 pass / 4 exact expected failures
 P8 candidate GREEN = Verify #808 SUCCESS
 P8 status-sync RED = Verify #810 / 107 tests / 105 pass / 2 exact expected failures
-P8 final checkpoint = Verify #812 SUCCESS
 P8 artifact blob = 0abcde6902a1540aabb07e54ff08d59ad430e7ab
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
