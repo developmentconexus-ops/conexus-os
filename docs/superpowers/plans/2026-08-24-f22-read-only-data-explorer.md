@@ -4,68 +4,63 @@
 
 **Goal:** Recompile the approved F22 Data Explorer into the smallest truthful 4A/4B read authority and a revised P-02 functional P8 where authorized Project data opens as a real read-only rows/columns explorer.
 
-**Architecture:** Keep semantic `ProjectDataResource` (`PRJ-18/19`) separate from physical explorer truth. Add four Project-owned reads: source discovery, source-scoped object discovery, exact object inspection, and exact object row browsing. External sources are server-resolved only from current eligible Project bindings; Project Database means Project-owned application/business data only. The browser composes physical explorer truth with existing semantic truth but owns neither.
+**Architecture:** Keep semantic `ProjectDataResource` (`PRJ-18/19`) separate from physical explorer truth. Add four Project-owned reads: source discovery, source-scoped object discovery, exact object inspection, and exact object row browsing. External sources are server-resolved from current eligible Project bindings; Project Database means Project-owned business/application data only. The browser composes physical truth with existing semantic truth but owns neither.
 
-**Tech Stack:** Markdown Product authority, OpenAPI 3.1.2 YAML, Node.js 24.18 repository checkers/tests, Redocly CLI 2.47.0, generated projection/Kubb proof, self-contained low-fi HTML/CSS/vanilla JS.
+**Tech Stack:** Markdown authority, OpenAPI 3.1.2 YAML, Node.js 24.18, Node test runner, Redocly CLI 2.47.0, existing generated-projection/Kubb proof, self-contained HTML/CSS/vanilla JS.
 
 **Spec:** `docs/evidence/4c/p02-f22-data-explorer-design.md`
 
 ## Global Constraints
 
-- Current accepted executable authority remains F21 until the F22 recompile task is green and independently challenged.
-- Do not adopt or rebaseline the newer DevelopmentConexus methodology inside PR #57; methodology adoption remains a later separate repository-governance increment.
-- F22 is read-only. No SQL Editor, SQL text, free-form WHERE/expression, INSERT, UPDATE, DELETE, DDL, migrations, DB administration, arbitrary joins, bulk export, credentials, connection strings, provider tokens, or caller-selected target URL.
+- PR #57 remains the owning Draft PR. Revalidate branch/main/CI before execution; never merge without explicit operator authorization.
+- Do not adopt/rebaseline the newer DevelopmentConexus methodology inside PR #57. Methodology adoption remains a later separate governance increment.
+- Current accepted executable authority remains F21 until F22 is recompiled, green, and independently challenged.
+- F22 is read-only: no SQL Editor/text, free-form WHERE/expression, INSERT/UPDATE/DELETE, DDL, migrations, DB administration, arbitrary joins, bulk export, credentials, connection strings, provider tokens, or caller-selected target URL.
 - Explorer scope is only the exact Project: Project Database business/application data, eligible bound integration sources, and genuinely tabular derived objects at their truthful physical source.
-- `hub_control`, owner schemas, `mastra_builder`, `mastra_par`, Keycloak persistence, CredentialBackend material, another Project DB, and foreign Workspace/Project sources are structurally non-disclosable.
+- `hub_control`, Conexus owner schemas, `mastra_builder`, `mastra_par`, Keycloak persistence, CredentialBackend material, another Project DB, and foreign Workspace/Project sources are non-disclosable.
 - Physical identity and semantic meaning remain separate. Physical names stay visible; semantic labels/rules may augment them.
-- Plan-selected minimal Product split is four reads: `PRJ-25..PRJ-28`. If execution Evidence shows this split cannot satisfy the spec without widening authority, STOP at the smallest owning decision; do not silently add a fifth operation or generic framework.
-- Plan-selected Permission hypothesis is existing `project.data.read`; no 26th ordinary Permission. If raw-row disclosure cannot be honestly covered by that Permission plus exact current source/object eligibility, STOP and reopen only the Permission/disclosure decision.
-- Plan-selected expected fixed census after F22 is `N_platform=121`, `Project=27`; Builder=17, Brain=12, Connections=9, ordinary Permissions=25, Technical Ingress=3/Product impact 0, owners and durable record classes unchanged.
-- P-01 and all other locked blocks remain untouched. P8 remains NOT LOCKED until the operator operates the revised HTML and explicitly approves it.
+- Selected minimal Product split for this plan is exactly four reads: `PRJ-25..PRJ-28`. If execution Evidence disproves this split, STOP at the smallest owning decision; do not silently add a fifth operation or generic framework.
+- Selected Permission result is existing `project.data.read`; ordinary Permissions stay 25. If raw-row disclosure cannot honestly fit that Permission plus exact source/object eligibility, STOP and reopen only Permission/disclosure.
+- Expected census after F22: `N_platform=121`, `Project=27`, Builder=17, Brain=12, Connections=9, Technical Ingress=3/Product impact 0; semantic owners and durable records unchanged.
+- P-01 and all other locked blocks remain untouched. P8 remains NOT LOCKED until operator walkthrough.
 - Product implementation, P9/P10, P-03+, P11, 4D+, and merge remain blocked.
 
 ## File Map
 
 **Create**
-- `tests/repository/4c-p02-f22-data-explorer.test.mjs` — durable semantic falsifier for F22 authority/wire boundaries; no mutable roadmap-status coupling.
-- `scripts/check-wire-project-data-explorer.mjs` — focused bundled-OAS checker plus negative controls for the raw-data disclosure boundary.
-- `docs/evidence/4c/p02-f22-data-explorer-recompile-proof.md` — bounded RED/GREEN/review proof; not a second mutable status authority.
+- `tests/repository/4c-p02-f22-data-explorer.test.mjs` — semantic authority/wire guard without mutable roadmap coupling.
+- `scripts/check-wire-project-data-explorer.mjs` — focused bundled-OAS checker plus executable negative controls.
+- `docs/evidence/4c/p02-f22-data-explorer-recompile-proof.md` — bounded RED/GREEN/review proof.
 
 **Modify**
-- `docs/product/operation-ledger.md` — add F22 Project authority and `PRJ-25..28`.
-- `docs/product/permission-contract.md` — recompile `project.data.read` meaning/consumers without adding a Permission.
-- `contracts/api/product/openapi.yaml` — route the four new paths into the canonical Product OAS.
-- `contracts/api/product/project-paths.yaml` — define the four operations and closed schemas.
-- `package.json` — compose the focused F22 checker under `wire:project`.
-- `tests/repository/4c-p02-functional-wireframe.test.mjs` — replace the superseded “no physical explorer” P8 invariant with the approved read-only explorer contract.
-- `docs/evidence/4c/p02-project-resources-functional-wireframe.html` — revise Data only; preserve Capabilities/Integrations/Brain and GF-01 shell.
-- `docs/evidence/4c/p02-f22-data-explorer-design.md` — project approved-spec/realization status and link to this plan/proof without changing the accepted design.
-- `docs/evidence/4c/p02-p8-feedback-revision.md` — keep F20/F21 historical truth and route the later F22 supersession; do not rewrite F20 as though it had always allowed physical browsing.
-- `docs/roadmap.md` — current state only, compactly.
-- PR #57 body — metadata only after the final branch HEAD is verified.
+- `docs/product/operation-ledger.md`
+- `docs/product/permission-contract.md`
+- `contracts/api/product/openapi.yaml`
+- `contracts/api/product/project-paths.yaml`
+- `package.json`
+- `tests/repository/4c-p02-functional-wireframe.test.mjs`
+- `docs/evidence/4c/p02-project-resources-functional-wireframe.html`
+- `docs/evidence/4c/p02-f22-data-explorer-design.md`
+- `docs/evidence/4c/p02-p8-feedback-revision.md`
+- `docs/roadmap.md`
+- PR #57 body metadata after final verification.
 
 ---
 
-### Task 1: Revalidate and prove the F22 authority gap RED
+### Task 1: Prove the current authority gap RED
 
 **Files:**
 - Create: `tests/repository/4c-p02-f22-data-explorer.test.mjs`
-- Read: `docs/product/operation-ledger.md`
-- Read: `docs/product/permission-contract.md`
-- Read: `contracts/api/product/openapi.yaml`
-- Read: `contracts/api/product/project-paths.yaml`
 
 **Interfaces:**
-- Consumes: approved F22 spec and current F21 authority.
-- Produces: a durable semantic test that fails because J1/J2/J3 are not currently representable and later proves the selected F22 boundary.
+- Consumes: approved F22 spec + current F21 authority.
+- Produces: one durable semantic falsifier for J1/J2/J3.
 
-- [ ] **Step 1: Revalidate the execution base before editing**
+- [ ] **Step 1: Revalidate execution base**
 
-Confirm PR #57 is still Draft/open/unmerged, base `main`, and fetch the current branch HEAD plus latest `Verify`. Abort if main/branch authority moved materially or another actor changed the F22 files.
+Confirm PR #57 is Draft/open/unmerged, base `main`, current branch HEAD, and latest Verify. Abort on material upstream movement or conflicting edits to F22-owned files.
 
-- [ ] **Step 2: Write the failing semantic test**
-
-Create `tests/repository/4c-p02-f22-data-explorer.test.mjs` with current-source assertions, not historical count snapshots:
+- [ ] **Step 2: Write the failing test**
 
 ```js
 import { readFileSync } from 'node:fs'
@@ -75,13 +70,11 @@ import assert from 'node:assert/strict'
 
 const root = resolve(new URL('../../', import.meta.url).pathname)
 const read = p => readFileSync(resolve(root, p), 'utf8')
-
 const ledger = read('docs/product/operation-ledger.md')
 const permissions = read('docs/product/permission-contract.md')
 const rootOas = read('contracts/api/product/openapi.yaml')
 const projectOas = read('contracts/api/product/project-paths.yaml')
 const pkg = read('package.json')
-
 const selected = [
   ['PRJ-25', 'ListProjectDataExplorerSources'],
   ['PRJ-26', 'ListProjectDataExplorerObjects'],
@@ -89,58 +82,43 @@ const selected = [
   ['PRJ-28', 'ListProjectDataExplorerRows'],
 ]
 
-test('F22 has four Project-owned read jobs without creating SQL or write authority', () => {
-  for (const [id, operation] of selected) {
-    assert.match(ledger, new RegExp(`${id}.*${operation}`), `missing ${id} ${operation} in 4A authority`)
-    assert.match(projectOas, new RegExp(`x-conexus-4a-id: ${id}`), `missing ${id} in Project OAS`)
-    assert.match(projectOas, new RegExp(`operationId: ${operation}`), `missing ${operation} in Project OAS`)
+test('F22 has four Project-owned reads and no new Permission family', () => {
+  for (const [id, op] of selected) {
+    assert.match(ledger, new RegExp(`${id}.*${op}`))
+    assert.match(projectOas, new RegExp(`x-conexus-4a-id: ${id}`))
+    assert.match(projectOas, new RegExp(`operationId: ${op}`))
   }
   assert.match(permissions, /project\.data\.read[\s\S]*PRJ-25\.\.28/)
   assert.doesNotMatch(permissions, /`project\.data\.(explore|sql|admin|write)`/)
 })
 
-test('F22 canonical wire routes a bounded Project Data Explorer checker', () => {
+test('F22 routes a bounded Project explorer and executable checker', () => {
   for (const token of [
     '/api/control/projects/{projectId}/data-explorer/sources',
     'data-explorer/sources/{dataSourceId}/objects',
-    'objects/{dataObjectId}',
-    'rows:query',
-  ]) assert.ok(rootOas.includes(token), `missing canonical F22 route ${token}`)
-  assert.match(pkg, /check-wire-project-data-explorer\.mjs/)
-})
-
-test('F22 remains a Project-scoped read explorer, not a DB console', () => {
+    'objects/{dataObjectId}', 'rows:query',
+  ]) assert.ok(rootOas.includes(token), `missing ${token}`)
   for (const token of [
     'ProjectDataExplorerSource', 'ProjectDataExplorerObject',
     'ProjectDataExplorerFilter', 'ProjectDataExplorerRowPage',
     'dataSourceId', 'dataObjectId', 'dataColumnId',
-  ]) assert.ok(projectOas.includes(token), `missing bounded explorer shape ${token}`)
-  assert.doesNotMatch(projectOas, /\b(sql|connectionString|credential|password|ddl|insert|update|delete)\b\s*:/i)
+  ]) assert.ok(projectOas.includes(token), `missing ${token}`)
+  assert.match(pkg, /check-wire-project-data-explorer\.mjs/)
+  assert.doesNotMatch(projectOas, /\b(sql|connectionString|credential|password|ddl)\b\s*:/i)
 })
 ```
 
-- [ ] **Step 3: Run the focused test and confirm the intended RED**
-
-Run:
+- [ ] **Step 3: Prove intended RED**
 
 ```bash
 node --test tests/repository/4c-p02-f22-data-explorer.test.mjs
-```
-
-Expected: FAIL on missing `PRJ-25..28` / F22 routes, not on file-read errors or unrelated existing assertions.
-
-- [ ] **Step 4: Run the aggregate gate once to record the selected RED**
-
-Run:
-
-```bash
 npm ci
 npm run verify
 ```
 
-Expected: repository tests fail only on the new F22 falsifier while prior checks remain green; `wire:verify` may not execute because repository tests stop first. Record the exact GitHub run/HEAD later in the bounded proof; never guess a run number.
+Expected: new F22 assertions fail for missing authority/wire only; pre-existing tests remain green. Record exact RED HEAD/run later in the recompile proof.
 
-- [ ] **Step 5: Commit the falsifier**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add tests/repository/4c-p02-f22-data-explorer.test.mjs
@@ -149,7 +127,7 @@ git commit -m "test(4c): select F22 data explorer falsifier"
 
 ---
 
-### Task 2: Recompile 4A Product authority with four explicit reads
+### Task 2: Recompile 4A Product authority
 
 **Files:**
 - Modify: `docs/product/operation-ledger.md`
@@ -157,63 +135,41 @@ git commit -m "test(4c): select F22 data explorer falsifier"
 - Test: `tests/repository/4c-p02-f22-data-explorer.test.mjs`
 
 **Interfaces:**
-- Consumes: F22 J1/J2/J3 and the plan-selected four-read split.
-- Produces: exact 4A Product operations `PRJ-25..28` under Project owner and existing `project.data.read`.
+- Produces exactly:
+  - `PRJ-25 ListProjectDataExplorerSources`
+  - `PRJ-26 ListProjectDataExplorerObjects`
+  - `PRJ-27 GetProjectDataExplorerObject`
+  - `PRJ-28 ListProjectDataExplorerRows`
 
-- [ ] **Step 1: Add the four operations to the Project census**
+- [ ] **Step 1: Add four Project reads to the ledger**
 
-Add exact authority rows using the repository’s existing Project table format:
+Record each as Project-owned `read` under `project.data.read`:
 
 ```text
-PRJ-25 ListProjectDataExplorerSources
-Owner: Project
-Class: read
-Consumer: Project > Data source tree
-Meaning: list only current explorer-eligible Project Database / bound integration sources
-Permission: project.data.read + exact Project grant/current eligibility
-
-PRJ-26 ListProjectDataExplorerObjects
-Owner: Project
-Class: read
-Consumer: exact selected explorer source
-Meaning: paged/searchable source-scoped TABLE/VIEW/genuinely-tabular DATASET summaries; namespace is presentation/filter context, never new authority
-Permission: project.data.read + exact Project/source eligibility
-
-PRJ-27 GetProjectDataExplorerObject
-Owner: Project
-Class: read
-Consumer: exact object Structure/Relationships/Rules
-Meaning: physical columns/keys/relationships/constraints plus optional coordinates back to existing semantic ProjectDataResource truth
-Permission: project.data.read + exact Project/source/object eligibility
-
-PRJ-28 ListProjectDataExplorerRows
-Owner: Project
-Class: read
-Consumer: Data grid
-Meaning: bounded typed filters/sort/pagination over one exact disclosed object; no SQL/expression or mutation meaning
-Permission: project.data.read + exact Project/source/object eligibility
+PRJ-25 → current explorer-eligible Project Database / bound integration sources
+PRJ-26 → paged/searchable exact-source TABLE/VIEW/genuinely-tabular DATASET summaries
+PRJ-27 → exact physical object columns/keys/relationships/constraints + optional semantic coordinates
+PRJ-28 → exact-object rows with bounded typed filter/sort/pagination
 ```
 
-Set the current fixed census to `121` and Project to `27`; do not alter other owner counts.
+Set current census to `121` and Project to `27`; do not alter other owner counts.
 
-- [ ] **Step 2: Add binding negative laws next to F22 authority**
-
-The ledger F22 section must state once:
+- [ ] **Step 2: Add F22 negative laws once**
 
 ```text
-Project Data Explorer -X-> hub_control / Conexus owner schemas / Mastra stores / Keycloak / another Project DB
+Project Data Explorer -X-> hub_control / owner schemas / Mastra stores / Keycloak / another Project DB
 source/object/page coordinates = untrusted references, never authority
-ProjectConnectionBinding/current source eligibility = server-resolved
+current Project binding/source eligibility = server-resolved
 INTEGRATION source -X-> caller-selected Connection revision/environment
-physical object identity != semantic DataResource identity
+physical object identity != semantic ProjectDataResource identity
 DERIVED != fake physical source
-PRJ-28 -X-> SQL / expression / join / DML / DDL / export authority
-page token -X-> Project/source/object/filter/order scope widening
+PRJ-28 -X-> SQL / expression / join / DML / DDL / export
+page token -X-> Project/source/object/filter/order widening
 ```
 
-- [ ] **Step 3: Recompile `project.data.read` without adding a Permission**
+- [ ] **Step 3: Recompile `project.data.read` only**
 
-Change only the reusable meaning/consumer list to the equivalent of:
+Use this meaning and consumer set:
 
 ```text
 project.data.read
@@ -223,17 +179,17 @@ project.data.read
 -X-> generic DB console / SQL / mutation / credentials / foreign-source disclosure
 ```
 
-Keep the ordinary Permission vocabulary exactly 25.
+Ordinary Permission count remains 25.
 
-- [ ] **Step 4: Run the focused test**
+- [ ] **Step 4: Run focused test**
 
 ```bash
 node --test tests/repository/4c-p02-f22-data-explorer.test.mjs
 ```
 
-Expected: authority assertions now pass; OAS/checker assertions remain RED.
+Expected: 4A/Permission assertions pass; wire/checker assertions remain RED.
 
-- [ ] **Step 5: Commit the 4A recompile**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add docs/product/operation-ledger.md docs/product/permission-contract.md
@@ -242,39 +198,30 @@ git commit -m "docs(4c): recompile F22 Product authority"
 
 ---
 
-### Task 3: Realize the four reads in the canonical 4B OAS
+### Task 3: Realize the four reads in canonical 4B OAS
 
 **Files:**
 - Modify: `contracts/api/product/openapi.yaml`
 - Modify: `contracts/api/product/project-paths.yaml`
-- Test: `tests/repository/4c-p02-f22-data-explorer.test.mjs`
 
 **Interfaces:**
-- Consumes: `PRJ-25..28` from Task 2.
-- Produces: schema-closed HTTP wire for source discovery, object discovery, object inspection, and row browsing.
+- Produces four schema-closed paths:
+  - GET `/api/control/projects/{projectId}/data-explorer/sources`
+  - GET `/api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects`
+  - GET `/api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects/{dataObjectId}`
+  - POST `/api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects/{dataObjectId}/rows:query`
 
-- [ ] **Step 1: Route the four canonical paths from root OAS**
+- [ ] **Step 1: Route all four paths from root OAS**
 
-Add these exact Product paths:
+Use normal root `$ref` routing to `project-paths.yaml`; each operation carries its exact `PRJ-25..28`, operationId, `x-conexus-ingress: [CONTROL_PLANE]`, `x-conexus-current-state-carrier: NONE`, and schema-closed state.
 
-```yaml
-/api/control/projects/{projectId}/data-explorer/sources:
-  $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-explorer~1sources'
-/api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects:
-  $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-explorer~1sources~1{dataSourceId}~1objects'
-/api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects/{dataObjectId}:
-  $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-explorer~1sources~1{dataSourceId}~1objects~1{dataObjectId}'
-/api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects/{dataObjectId}/rows:query:
-  $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-explorer~1sources~1{dataSourceId}~1objects~1{dataObjectId}~1rows:query'
-```
+- [ ] **Step 2: Define opaque path coordinates**
 
-- [ ] **Step 2: Define opaque path parameters**
+Add nonblank `DataSourceId` and `DataObjectId`. No F22 request accepts Connection/revision/environment selection, host, URL, or credentials.
 
-In `project-paths.yaml`, add nonblank `DataSourceId` and `DataObjectId` parameters. They are untrusted server-issued coordinates; no request field may accept `connectionId`, `connectionRevisionId`, environment selection, host, database URL, or credentials.
+- [ ] **Step 3: Define source/object discovery**
 
-- [ ] **Step 3: Define source/object discovery wire**
-
-`PRJ-25` is GET and returns an array of closed `ProjectDataExplorerSource` objects with required:
+`ProjectDataExplorerSource` is closed and requires:
 
 ```yaml
 required: [dataSourceId, name, sourceClass, availability]
@@ -287,73 +234,25 @@ properties:
   environment: { type: string, minLength: 1 }
 ```
 
-`DERIVED` must not appear in `sourceClass`.
+`PRJ-26` admits only optional `namespace`, `search`, `cursor`, and technical `limit` (`1..200`, default `100`). Its closed page has `items[]` + optional `nextCursor`. Each object summary requires `dataObjectId`, physical `name`, and `kind=TABLE|VIEW|DATASET`; optional `namespace`, `semanticDataResourceId`, and `derived` are non-authorizing presentation.
 
-`PRJ-26` is GET over exact `dataSourceId`. Admit bounded query parameters only for `namespace`, `search`, `cursor`, and technical `limit` (`1..200`, default `100`). Return a closed page:
+- [ ] **Step 4: Define exact object inspection**
+
+`ProjectDataExplorerObject` requires `dataObjectId`, `name`, `kind`, `rowReadAvailability=AVAILABLE|UNAVAILABLE`, `columns[]`, `relationships[]`, and `constraints[]`.
+
+```text
+Column: dataColumnId, physical name, sourceType, nullable, keyRole=PRIMARY|FOREIGN|UNIQUE|NONE, semanticFieldId?
+Relationship: relationshipId, sourceColumnId, targetDataObjectId, targetColumnId, kind=FOREIGN_KEY|REFERENCE
+Constraint: constraintId, kind=PRIMARY_KEY|FOREIGN_KEY|UNIQUE|NOT_NULL|CHECK, columnIds[], summary?
+```
+
+Optional `semanticDataResourceId` links to existing PRJ-19 truth; do not duplicate grain/provenance/business rules into F22.
+
+- [ ] **Step 5: Define structured row request**
+
+`PRJ-28` remains semantic read despite HTTP POST. Request is closed:
 
 ```yaml
-required: [items]
-properties:
-  items:
-    type: array
-    items: { $ref: '#/components/schemas/ProjectDataExplorerObjectSummary' }
-  nextCursor: { type: string, minLength: 1 }
-```
-
-Each summary requires `dataObjectId`, physical `name`, `kind = TABLE|VIEW|DATASET`; optional `namespace`, `semanticDataResourceId`, and `derived` presentation are non-authorizing.
-
-- [ ] **Step 4: Define exact object inspection wire**
-
-`PRJ-27` is GET and returns closed `ProjectDataExplorerObject` with required:
-
-```text
-dataObjectId
-name
-kind
-rowReadAvailability = AVAILABLE | UNAVAILABLE
-columns[]
-relationships[]
-constraints[]
-```
-
-Column shape:
-
-```text
-dataColumnId
-name                 physical column name
-sourceType           source-native/logical type presentation
-nullable             boolean
-keyRole              PRIMARY | FOREIGN | UNIQUE | NONE
-semanticFieldId?     optional coordinate only; semantic meaning remains PRJ-19-owned
-```
-
-Relationship shape:
-
-```text
-relationshipId
-sourceColumnId
-targetDataObjectId
-targetColumnId
-kind = FOREIGN_KEY | REFERENCE
-```
-
-Constraint shape:
-
-```text
-constraintId
-kind = PRIMARY_KEY | FOREIGN_KEY | UNIQUE | NOT_NULL | CHECK
-columnIds[]
-summary?             human-safe bounded description; never raw SQL/DDL expression
-```
-
-Optional `semanticDataResourceId` links to existing PRJ-19 truth instead of duplicating grain/provenance/business rules into F22.
-
-- [ ] **Step 5: Define structured row-browse request**
-
-`PRJ-28` is semantic **read** projected as HTTP POST only because filters/sorts are structured body data. Use:
-
-```yaml
-required: []
 properties:
   filters:
     type: array
@@ -367,75 +266,47 @@ properties:
   limit: { type: integer, minimum: 1, maximum: 100, default: 50 }
 ```
 
-`ProjectDataExplorerFilter` is a closed union:
+Filter union:
 
 ```text
-value operators: EQ | NE | GT | GTE | LT | LTE | CONTAINS
-→ require dataColumnId + operator + string value
-
-null operators: IS_NULL | IS_NOT_NULL
-→ require dataColumnId + operator
-→ forbid value
+EQ|NE|GT|GTE|LT|LTE|CONTAINS → require dataColumnId + operator + string value
+IS_NULL|IS_NOT_NULL          → require dataColumnId + operator and forbid value
 ```
 
-`ProjectDataExplorerSort` requires `dataColumnId` + `ASC|DESC`.
+Sort requires `dataColumnId + ASC|DESC`. The `8/3/100` maxima are transport-safety mechanics, not Product semantics.
 
-The numeric maxima are 4B transport-safety mechanics; no Product meaning or UI behavior may depend on exactly `8/3/100`.
+- [ ] **Step 6: Define row response without dynamic arbitrary JSON**
 
-- [ ] **Step 6: Define truthful row response without arbitrary JSON DTOs**
+`ProjectDataExplorerRowPage` requires `observedAt`, `columns[]`, and `rows[]` (max 100); optional `continuationToken` and `approximateTotal >= 0`.
 
-Return closed `ProjectDataExplorerRowPage`:
+Each row uses closed `cells[]`; each cell requires:
 
 ```text
-observedAt              required date-time
-columns[]               required grid column projection
-rows[]                  required, max 100
-continuationToken?      opaque and request-scope-bound
-approximateTotal?       optional integer >= 0; never required
+dataColumnId
+valueKind = NULL|TEXT|NUMBER|BOOLEAN|TEMPORAL|JSON|BINARY
+displayValue = string|null
+truncated = boolean
+byteLength? >= 0
 ```
 
-Use cells rather than dynamic object keys:
+No arbitrary JSON object keys or binary download authority. `truncated=true` is explicitly incomplete.
 
-```text
-ProjectDataExplorerCell
-→ dataColumnId
-→ valueKind = NULL | TEXT | NUMBER | BOOLEAN | TEMPORAL | JSON | BINARY
-→ displayValue = string | null
-→ truncated = boolean
-→ byteLength? integer >= 0
-```
+- [ ] **Step 7: Preserve dependency truth**
 
-This preserves grid truth without `additionalProperties: true`, binary download authority, or JS-number precision assumptions. `truncated=true` must never be rendered as a complete value.
+Use normal 401/403/404/422 Problems. Add inline `503` Problem for an admitted source/object whose backing dependency cannot serve the read; never encode dependency failure as `200 []`.
 
-- [ ] **Step 7: Preserve dependency states in wire**
-
-Use normal 401/403/404/422 shared Problem responses. For a currently admitted source/object whose backing dependency cannot serve the read, add an inline `503` Problem response referencing the canonical `Problem` schema; do not convert dependency failure into `200 []`.
-
-- [ ] **Step 8: Run schema/bijection checks**
+- [ ] **Step 8: Prove wire shape**
 
 ```bash
 npm run wire:lint
 npm run wire:bundle
 npm run wire:bijection
-```
-
-Expected after Task 3:
-
-```text
-Product OAS valid
-4A↔OAS = 121 ↔ 121
-0 missing / 0 extra / 0 duplicate
-```
-
-- [ ] **Step 9: Run focused repository test**
-
-```bash
 node --test tests/repository/4c-p02-f22-data-explorer.test.mjs
 ```
 
-Expected: OAS tokens now pass; package/checker integration may remain RED until Task 4.
+Expected: OAS valid; bijection `121↔121`; focused test remains RED only because checker integration is not yet present.
 
-- [ ] **Step 10: Commit the wire**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add contracts/api/product/openapi.yaml contracts/api/product/project-paths.yaml
@@ -444,7 +315,7 @@ git commit -m "docs(4b): realize F22 data explorer wire"
 
 ---
 
-### Task 4: Add one focused executable F22 checker and negative controls
+### Task 4: Add one focused F22 checker with firing negative controls
 
 **Files:**
 - Create: `scripts/check-wire-project-data-explorer.mjs`
@@ -452,49 +323,128 @@ git commit -m "docs(4b): realize F22 data explorer wire"
 - Test: `tests/repository/4c-p02-f22-data-explorer.test.mjs`
 
 **Interfaces:**
-- Consumes: bundled canonical Product OAS at `/tmp/conexus-product-openapi.bundle.json`.
-- Produces: one focused raw-data boundary checker composed under `wire:project`; no historical-count/status guard.
+- Consumes `/tmp/conexus-product-openapi.bundle.json`.
+- Produces canonical F22 schema/boundary validation under existing `wire:project` only.
 
-- [ ] **Step 1: Implement checker helpers over the bundled OAS**
+- [ ] **Step 1: Implement the checker as a pure validator plus canonical entrypoint**
 
-Structure the checker around a pure `validateDataExplorer(oas)` function and keep the default bundle path overridable for negative-control use:
+Use concrete helpers like these:
 
 ```js
 import fs from 'node:fs'
 
+const methods = new Set(['get','put','post','delete','patch','head','options','trace'])
 const bundlePath = process.env.CONEXUS_PRODUCT_BUNDLE ?? '/tmp/conexus-product-openapi.bundle.json'
 const canonical = JSON.parse(fs.readFileSync(bundlePath, 'utf8'))
 
-function fail(message) { throw new Error(`F22 Data Explorer: ${message}`) }
-function closed(schema, label) {
-  if (schema?.type !== 'object' || schema?.additionalProperties !== false) fail(`${label} must be closed`)
-  return schema
-}
+const fail = message => { throw new Error(`F22 Data Explorer: ${message}`) }
 
-export function validateDataExplorer(oas) {
-  // collect operations by x-conexus-4a-id
-  // require PRJ-25..28 and exact operationIds
-  // require GET/GET/GET/POST method shape
-  // require x-conexus-current-state-carrier: NONE on all four reads
-  // require schema-closed source/object/filter/sort/row shapes
-  // require sourceClass INTERNAL|INTEGRATION and reject DERIVED-as-source
-  // reject request properties named sql, where, expression, connectionId,
-  // connectionRevisionId, environment, targetUrl, credential, password
-  // reject mutating HTTP methods anywhere below /data-explorer except the
-  // PRJ-28 POST semantic read
+function resolveLocal(oas, value) {
+  if (!value?.$ref?.startsWith('#/')) return value
+  return value.$ref.slice(2).split('/').map(x => x.replaceAll('~1','/').replaceAll('~0','~')).reduce((n,k) => n?.[k], oas)
 }
-
-validateDataExplorer(canonical)
-console.log('Project F22 Data Explorer closure passed (4 bounded reads; no SQL/write/credential authority).')
+function resolveSchema(oas, schema) {
+  let current = schema
+  const seen = new Set()
+  while (current?.$ref?.startsWith('#/')) {
+    if (seen.has(current.$ref)) fail(`schema cycle ${current.$ref}`)
+    seen.add(current.$ref)
+    current = resolveLocal(oas, current)
+  }
+  return current
+}
+function operations(oas) {
+  const out = new Map()
+  for (const [path, item] of Object.entries(oas.paths ?? {})) for (const [method, operation] of Object.entries(item ?? {})) {
+    if (!methods.has(method)) continue
+    if (operation?.['x-conexus-4a-id']) out.set(operation['x-conexus-4a-id'], { path, method, operation })
+  }
+  return out
+}
+function operation(oas, id) {
+  const found = operations(oas).get(id)
+  if (!found) fail(`missing ${id}`)
+  return found
+}
+function success(oas, id) {
+  return resolveSchema(oas, operation(oas,id).operation.responses?.['200']?.content?.['application/json']?.schema)
+}
+function request(oas, id) {
+  return resolveSchema(oas, operation(oas,id).operation.requestBody?.content?.['application/json']?.schema)
+}
+function closed(oas, schema, label) {
+  const s = resolveSchema(oas, schema)
+  if (s?.type !== 'object' || s.additionalProperties !== false) fail(`${label} must be closed`)
+  return s
+}
+function exactEnum(schema, expected, label) {
+  const actual = [...(schema?.enum ?? [])].sort()
+  const wanted = [...expected].sort()
+  if (JSON.stringify(actual) !== JSON.stringify(wanted)) fail(`${label} enum drift`)
+}
+function forbidProperties(schema, names, label) {
+  for (const name of names) if (schema?.properties?.[name]) fail(`${label} cannot expose ${name}`)
+}
 ```
 
-Replace the comments above with concrete assertions before committing; comments are shown here only to define the exact required checker responsibilities, not as implementation placeholders.
-
-- [ ] **Step 2: Make the checker prove its load-bearing controls fire**
-
-After canonical validation, deep-clone the bundled OAS and run negative cases through `validateDataExplorer`. Each mutation must fail for the intended reason:
+Implement `validateDataExplorer(oas)` with exact assertions:
 
 ```js
+export function validateDataExplorer(oas) {
+  const selected = new Map([
+    ['PRJ-25', ['get','ListProjectDataExplorerSources']],
+    ['PRJ-26', ['get','ListProjectDataExplorerObjects']],
+    ['PRJ-27', ['get','GetProjectDataExplorerObject']],
+    ['PRJ-28', ['post','ListProjectDataExplorerRows']],
+  ])
+  for (const [id,[method,operationId]] of selected) {
+    const found = operation(oas,id)
+    if (found.method !== method) fail(`${id} method must be ${method}`)
+    if (found.operation.operationId !== operationId) fail(`${id} operationId drift`)
+    if (found.operation['x-conexus-current-state-carrier'] !== 'NONE') fail(`${id} carrier must be NONE`)
+  }
+
+  const sourceList = success(oas,'PRJ-25')
+  if (sourceList?.type !== 'array') fail('PRJ-25 must return source array')
+  const source = closed(oas, sourceList.items, 'ProjectDataExplorerSource')
+  exactEnum(source.properties?.sourceClass, ['INTERNAL','INTEGRATION'], 'sourceClass')
+
+  const objectPage = closed(oas, success(oas,'PRJ-26'), 'ProjectDataExplorerObjectPage')
+  const summary = closed(oas, resolveSchema(oas, objectPage.properties?.items)?.items, 'ProjectDataExplorerObjectSummary')
+  exactEnum(summary.properties?.kind, ['TABLE','VIEW','DATASET'], 'object kind')
+
+  const detail = closed(oas, success(oas,'PRJ-27'), 'ProjectDataExplorerObject')
+  for (const field of ['columns','relationships','constraints','rowReadAvailability']) if (!detail.properties?.[field]) fail(`object missing ${field}`)
+
+  const rowRequest = closed(oas, request(oas,'PRJ-28'), 'ProjectDataExplorerRowsRequest')
+  forbidProperties(rowRequest, ['sql','where','expression','connectionId','connectionRevisionId','environment','targetUrl','credential','password'], 'row request')
+  const filters = resolveSchema(oas, rowRequest.properties?.filters)
+  if (filters?.type !== 'array' || filters.maxItems !== 8) fail('filters must be bounded at 8')
+  const filter = resolveSchema(oas, filters.items)
+  if (!Array.isArray(filter?.oneOf) || filter.oneOf.length !== 2) fail('filter must be value/null closed union')
+  const operatorEnums = filter.oneOf.flatMap(branch => resolveSchema(oas, branch)?.properties?.operator?.enum ?? [])
+  if (operatorEnums.some(x => /SQL|WHERE|EXPR|JOIN/i.test(x))) fail('filter operator escaped bounded grammar')
+
+  const page = closed(oas, success(oas,'PRJ-28'), 'ProjectDataExplorerRowPage')
+  const rows = resolveSchema(oas, page.properties?.rows)
+  if (rows?.type !== 'array' || rows.maxItems !== 100) fail('rows must be bounded at 100')
+  const row = closed(oas, rows.items, 'ProjectDataExplorerRow')
+  const cells = resolveSchema(oas, row.properties?.cells)
+  const cell = closed(oas, cells?.items, 'ProjectDataExplorerCell')
+  for (const field of ['dataColumnId','valueKind','displayValue','truncated']) if (!(cell.required ?? []).includes(field)) fail(`cell must require ${field}`)
+
+  for (const [path,item] of Object.entries(oas.paths ?? {})) {
+    if (!path.includes('/data-explorer/')) continue
+    for (const method of ['put','patch','delete']) if (item?.[method]) fail(`${method.toUpperCase()} forbidden under Data Explorer`)
+    if (item?.post && item.post['x-conexus-4a-id'] !== 'PRJ-28') fail('only PRJ-28 semantic read may use POST')
+  }
+}
+```
+
+- [ ] **Step 2: Add negative controls that mutate the bundle and must fire**
+
+```js
+validateDataExplorer(canonical)
 function expectReject(label, mutate) {
   const candidate = structuredClone(canonical)
   mutate(candidate)
@@ -503,35 +453,46 @@ function expectReject(label, mutate) {
   throw new Error(`negative control failed: ${label}`)
 }
 
-expectReject('F22 cannot admit SQL text', oas => {
-  const op = /* locate PRJ-28 */
-  op.requestBody.content['application/json'].schema.properties.sql = { type: 'string' }
+expectReject('SQL text rejected', oas => {
+  request(oas,'PRJ-28').properties.sql = { type: 'string' }
 })
-
-expectReject('F22 cannot select Connection revision', oas => {
-  const op = /* locate PRJ-28 */
-  op.requestBody.content['application/json'].schema.properties.connectionRevisionId = { type: 'string' }
+expectReject('Connection revision selection rejected', oas => {
+  request(oas,'PRJ-28').properties.connectionRevisionId = { type: 'string' }
 })
-
-expectReject('F22 sourceClass cannot become DERIVED physical source', oas => {
-  const schema = /* resolve ProjectDataExplorerSource */
-  schema.properties.sourceClass.enum.push('DERIVED')
+expectReject('DERIVED physical source rejected', oas => {
+  const list = success(oas,'PRJ-25')
+  resolveSchema(oas,list.items).properties.sourceClass.enum.push('DERIVED')
 })
+expectReject('SQL filter operator rejected', oas => {
+  const filters = resolveSchema(oas, request(oas,'PRJ-28').properties.filters)
+  resolveSchema(oas,filters.items).oneOf[0].properties.operator.enum.push('SQL')
+})
+expectReject('dynamic row DTO rejected', oas => {
+  const page = success(oas,'PRJ-28')
+  const rows = resolveSchema(oas,page.properties.rows)
+  resolveSchema(oas,rows.items).additionalProperties = true
+})
+expectReject('truncation truth required', oas => {
+  const page = success(oas,'PRJ-28')
+  const rows = resolveSchema(oas,page.properties.rows)
+  const row = resolveSchema(oas,rows.items)
+  const cells = resolveSchema(oas,row.properties.cells)
+  resolveSchema(oas,cells.items).required = resolveSchema(oas,cells.items).required.filter(x => x !== 'truncated')
+})
+expectReject('DELETE forbidden', oas => {
+  const path = operation(oas,'PRJ-27').path
+  oas.paths[path].delete = { operationId: 'DeleteProjectDataObject', responses: { '204': { description: 'forbidden' } } }
+})
+console.log('Project F22 Data Explorer closure passed (4 bounded reads; no SQL/write/credential authority).')
 ```
 
-Also add negative mutations for: filter operator `SQL`, unbounded/dynamic row object, missing `truncated`, and a DELETE method under an F22 path.
-
-- [ ] **Step 3: Compose the checker under `wire:project` only**
-
-Change:
+- [ ] **Step 3: Compose under existing `wire:project`**
 
 ```json
 "wire:project": "node scripts/check-wire-project.mjs && node scripts/check-wire-project-agent-catalog.mjs && node scripts/check-wire-project-data-explorer.mjs"
 ```
 
-Do not add a new top-level phase gate or duplicate whole-wire command.
-
-- [ ] **Step 4: Run focused wire proof**
+- [ ] **Step 4: Run focused proof**
 
 ```bash
 npm run wire:bundle
@@ -539,9 +500,9 @@ npm run wire:project
 node --test tests/repository/4c-p02-f22-data-explorer.test.mjs
 ```
 
-Expected: Project closure passes with 27 operations; F22 checker reports canonical PASS plus all named negative-control firings; repository F22 test passes.
+Expected: Project=27; canonical F22 PASS; all seven negative controls fire; focused repository test passes.
 
-- [ ] **Step 5: Commit the checker**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add scripts/check-wire-project-data-explorer.mjs package.json tests/repository/4c-p02-f22-data-explorer.test.mjs
@@ -550,87 +511,47 @@ git commit -m "test(4b): prove F22 data explorer boundary"
 
 ---
 
-### Task 5: Close whole-wire candidate and run independent F22 challenge
+### Task 5: Close the whole-wire candidate and independent challenge
 
 **Files:**
 - Create: `docs/evidence/4c/p02-f22-data-explorer-recompile-proof.md`
-- Modify only if a real defect is found: exact F22 authority/wire/checker files from Tasks 2–4.
 
 **Interfaces:**
-- Consumes: candidate 121-operation wire.
-- Produces: independently challenged F22 authority candidate fit to drive P8; review findings cannot create new authority silently.
+- Produces a green, independently challenged F22 authority candidate before P8 is revised.
 
-- [ ] **Step 1: Run the complete repository/wire proof**
+- [ ] **Step 1: Run full gate**
 
 ```bash
 npm ci
 npm run verify
 ```
 
-Expected current-state results:
+Expected:
 
 ```text
-repository tests = all green
-4A↔OAS = 121 ↔ 121
-Project = 27
-Builder = 17
-Brain = 12
-Connections = 9
-ordinary Permissions = 25
-Technical Ingress = 3 / Product impact 0
-generated projection/no-parallel-DTO = 121 + existing F11/F12/F19 consumers + real Kubb probe
-whole 4B adversarial = PASS
-whole 4B executable = PASS
+all repository tests green
+4A↔OAS = 121↔121
+Project=27; Builder=17; Brain=12; Connections=9; Permissions=25
+generated projection/no-parallel-DTO = 121 + existing consumers + real Kubb probe
+Technical Ingress=3 / Product impact 0
+whole 4B adversarial/executable = PASS
 ```
 
-Do not “fix” unrelated existing Redocly warnings in this increment.
+Do not fix unrelated existing Redocly warnings.
 
-- [ ] **Step 2: Write the bounded recompile proof using actual run evidence**
+- [ ] **Step 2: Write bounded proof from actual evidence**
 
-`docs/evidence/4c/p02-f22-data-explorer-recompile-proof.md` must contain:
+Record exact selected IDs, Permission result, RED HEAD/run, GREEN candidate HEAD/run, 121↔121, Project=27, negative controls, unchanged owners/records/TI. Copy real run numbers/SHAs from GitHub; never guess them.
 
-```text
-selected four reads and exact IDs
-permission result
-RED HEAD + exact Verify run and intended failure
-GREEN candidate HEAD + exact Verify run
-121↔121 / Project=27 / Permissions=25
-F22 checker negative controls
-no owner/durable-record/Technical-Ingress change
-raw-data trust boundary summary
-```
+- [ ] **Step 3: Run canonical isolated Fable review on exact candidate HEAD**
 
-Copy run numbers/SHAs from GitHub after the runs complete; never prefill guessed identifiers.
+Challenge exactly: cross-Project/Workspace disclosure; `hub_control`/Mastra/Keycloak exposure; honesty of `project.data.read`; binding eligibility vs generic Connection disclosure; SQL/expression escape; page-token scope; sensitive raw data; physical/semantic duplicate authority; generic framework overreach.
 
-- [ ] **Step 3: Request the canonical isolated independent review**
+- [ ] **Step 4: Adjudicate review**
 
-Review the exact candidate HEAD against at least:
+Defects against approved F22 may be fixed and reverified. Proposals for SQL/admin/masking/framework authority do not enter silently. Any unresolved material finding blocks Task 6.
 
-```text
-cross-Project / cross-Workspace disclosure
-hub_control / Mastra / Keycloak exposure
-whether project.data.read is still semantically honest
-binding eligibility vs generic connection.read/use leakage
-SQL/expression escape
-page-token scope
-sensitive raw column/row leakage
-physical-vs-semantic duplicate authority
-generic explorer framework overreach
-```
-
-Use the repository’s canonical Fable review workflow. The handoff must say reviewer findings are Evidence, not new Product requirements.
-
-- [ ] **Step 4: Adjudicate review output**
-
-If review finds a defect against the approved F22 spec, fix only that defect, rerun the focused checker and `npm run verify`, and update the proof with the actual review disposition.
-
-If review proposes broader SQL/admin/masking/framework authority, do **not** implement it; classify it as a new proposal and return to the operator only if it materially blocks F22.
-
-- [ ] **Step 5: Stop at the review checkpoint before P8 if any material finding remains open**
-
-P8 may use the recompiled authority only after the raw-data disclosure candidate has no unresolved material review finding.
-
-- [ ] **Step 6: Commit the proof/adjudication**
+- [ ] **Step 5: Commit proof after review disposition**
 
 ```bash
 git add docs/evidence/4c/p02-f22-data-explorer-recompile-proof.md
@@ -639,56 +560,45 @@ git commit -m "docs(4c): close F22 data explorer recompile proof"
 
 ---
 
-### Task 6: Select the revised P8 contract RED without creating a second guard family
+### Task 6: Select revised Data P8 RED in the existing guard
 
 **Files:**
 - Modify: `tests/repository/4c-p02-functional-wireframe.test.mjs`
-- Test: same file.
 
 **Interfaces:**
-- Consumes: independently accepted F22 authority candidate.
-- Produces: the P8 falsifier for the approved physical explorer UX while preserving the other three P-02 routes.
+- Replaces only the superseded Data assertion; Capabilities/Integrations/Brain/global P8 guards remain.
 
-- [ ] **Step 1: Replace only the superseded Data assertions**
+- [ ] **Step 1: Replace “no physical explorer” with read-only explorer requirements**
 
-Keep the shell, Capabilities, Integrations, Brain, accessibility, fixture-only and no-network tests. Replace the old Data test that requires “not a physical DB explorer” with a semantic read-only explorer test requiring:
+Require tokens/IDs/behaviors equivalent to:
 
 ```js
 for (const token of [
-  'Project Database', 'Sankhya ERP', 'TGFCAB', 'TGFITE', 'TGFPAR',
-  'Data', 'Structure', 'Relationships', 'Rules',
-  'physical identity', 'semantic meaning',
-  '50 rows loaded', 'truncated',
-  'SQL Editor = FORBIDDEN', 'INSERT / UPDATE / DELETE = FORBIDDEN',
+  'Project Database','Sankhya ERP','TGFCAB','TGFITE','TGFPAR',
+  'Data','Structure','Relationships','Rules','physical identity','semantic meaning',
+  '50 rows loaded','truncated','SQL Editor = FORBIDDEN','INSERT / UPDATE / DELETE = FORBIDDEN',
 ]) requireText(html, token)
-
 for (const id of [
-  'data-source-tree', 'data-object-search', 'data-object-tabs', 'data-grid',
-  'data-structure', 'data-relationships', 'data-rules',
-  'data-filter-builder', 'data-sort-control', 'data-column-picker',
-  'data-row-inspector', 'data-next-page',
+  'data-source-tree','data-object-search','data-object-tabs','data-grid',
+  'data-structure','data-relationships','data-rules','data-filter-builder',
+  'data-sort-control','data-column-picker','data-row-inspector','data-next-page',
 ]) requireText(html, `id="${id}"`, id)
-
 for (const behavior of [
-  'openDataObject', 'searchDataObjects', 'selectDataObjectTab',
-  'applyExplorerFilter', 'applyExplorerSort', 'toggleExplorerColumn',
-  'openRowInspector', 'nextExplorerPage',
+  'openDataObject','searchDataObjects','selectDataObjectTab','applyExplorerFilter',
+  'applyExplorerSort','toggleExplorerColumn','openRowInspector','nextExplorerPage',
 ]) requireText(html, behavior, behavior)
-
-assert.doesNotMatch(html, /SQL Editor|Execute Query|INSERT\b|UPDATE\b|DELETE\b|CREATE TABLE|ALTER TABLE/i)
+assert.doesNotMatch(html, /<button[^>]*>\s*(Execute Query|Insert|Update|Delete|Create table|Alter table)\s*<\/button>/i)
 ```
 
-Permit explanatory evidence text like `SQL Editor = FORBIDDEN`; ensure the final regex targets controls/behavior rather than banning the words from evidence labels if needed.
-
-- [ ] **Step 2: Run the focused P8 test and verify RED**
+- [ ] **Step 2: Prove focused RED**
 
 ```bash
 node --test tests/repository/4c-p02-functional-wireframe.test.mjs
 ```
 
-Expected: only the revised Data explorer assertions fail; Capabilities/Integrations/Brain and global P8 properties remain green.
+Expected: revised Data assertions fail; existing Capabilities/Integrations/Brain and no-network/accessibility assertions remain green.
 
-- [ ] **Step 3: Commit the P8 falsifier**
+- [ ] **Step 3: Commit**
 
 ```bash
 git add tests/repository/4c-p02-functional-wireframe.test.mjs
@@ -697,23 +607,21 @@ git commit -m "test(4c): select F22 Data Explorer P8"
 
 ---
 
-### Task 7: Revise only the P-02 Data P8 into a functional read-only explorer
+### Task 7: Revise Data P8 into the functional explorer
 
 **Files:**
 - Modify: `docs/evidence/4c/p02-project-resources-functional-wireframe.html`
 - Test: `tests/repository/4c-p02-functional-wireframe.test.mjs`
 
 **Interfaces:**
-- Consumes: F22 physical explorer authority plus existing PRJ-18/19 semantic augmentation; fixture-only, no API call.
-- Produces: operator-operable low-fi Data explorer candidate; no P8 LOCK.
+- Consumes F22 physical explorer authority plus existing PRJ-18/19 semantic augmentation.
+- Produces fixture-only operator candidate; no Product network calls and no P8 lock.
 
-- [ ] **Step 1: Preserve the four-route shell and non-Data routes**
+- [ ] **Step 1: Preserve shell and the other three P-02 routes**
 
 Do not redesign Capabilities, Integrations, Brain, GF-01 rail/topbar, responsive shell, Escape/focus behavior, or their existing fixture semantics.
 
-- [ ] **Step 2: Replace the Data catalog/master-detail with a physical source tree**
-
-Fixture tree must truthfully model:
+- [ ] **Step 2: Build physical source tree**
 
 ```text
 Project Database
@@ -721,7 +629,6 @@ Project Database
     ├── follow_up_tasks       TABLE
     ├── customers             TABLE
     └── sales_performance     VIEW · Derived
-
 Sankhya ERP
 └── SANKHYA
     ├── TGFCAB                TABLE · Sales documents
@@ -729,24 +636,15 @@ Sankhya ERP
     └── TGFPAR                TABLE · Partners / customers
 ```
 
-`Derived` is a badge/meaning on `sales_performance`, never a fake source.
+`Derived` is an object badge/meaning, never a fake source.
 
-- [ ] **Step 3: Add local multi-object tabs and Data as the default object lens**
+- [ ] **Step 3: Add local multi-object tabs with Data default**
 
-Opening an object must create/select an ephemeral local tab. Each object workspace exposes:
+Each opened object gets `Data | Structure | Relationships | Rules`. Data grid is primary. Structure shows physical columns/types/nullability/keys plus semantic labels; Relationships opens another authorized fixture object tab; Rules visually separates source constraints from governed business rules.
 
-```text
-Data               default
-Structure
-Relationships
-Rules
-```
+- [ ] **Step 4: Add clearly fake-but-realistic rows**
 
-Data grid is primary. `Structure` shows physical columns/types/nullable/keys plus semantic labels where available. `Relationships` navigates to another already-authorized fixture object by opening/selecting its local tab. `Rules` visually separates physical constraints from governed business rules.
-
-- [ ] **Step 4: Add realistic row fixtures without implying live Sankhya access**
-
-Use local TGFCAB-like columns/rows sufficient to prove width, booleans/numbers/nulls, and relationships, for example:
+Use fixture-only data such as:
 
 ```text
 NUNOTA | CODPARC | DTNEG      | VLRNOTA  | TIPMOV | STATUSNOTA
@@ -754,42 +652,35 @@ NUNOTA | CODPARC | DTNEG      | VLRNOTA  | TIPMOV | STATUSNOTA
 184922 | 3220    | 2026-08-24 | 8450.00  | V      | L
 ```
 
-Label the whole artifact `fixture-only`. Do not imply these are real Metal Nobre/Sankhya records.
+Never imply these are live Metal Nobre/Sankhya records.
 
-- [ ] **Step 5: Implement bounded local filter/sort/column controls**
+- [ ] **Step 5: Implement bounded local exploration controls**
 
-`Filter` is a form builder over disclosed columns/operators; no text field accepts SQL-like expressions. `Sort` uses one or more selected columns/directions within the fixture. Column visibility changes only local rendering.
+Filter builder uses disclosed column + approved operator + value controls, never expression text. Sort uses disclosed columns/directions. Column visibility is local UI state.
 
-- [ ] **Step 6: Implement opaque next-page behavior and truth states**
+- [ ] **Step 6: Implement pagination/material states**
 
-The fixture must show `50 rows loaded · Next →` without mandatory total count. `nextExplorerPage()` swaps to the next local fixture page and updates an observed-at/status region. Add inspectable states for: loading, empty, denied/non-disclosable, source unavailable, row read unavailable, and stale/invalid continuation. Never map dependency failure to empty.
+Show `50 rows loaded · Next →` without mandatory total count. `nextExplorerPage()` swaps local fixture pages and observed-at/status. Inspectable states: loading, empty, denied/non-disclosable, source unavailable, row read unavailable, stale/invalid continuation.
 
-- [ ] **Step 7: Implement Row Inspector and explicit truncation**
+- [ ] **Step 7: Implement Row Inspector and truncation truth**
 
-Clicking an already-loaded row opens a read-only drawer with field/value + human meaning + relationship navigation. Include at least one structured/large cell rendered as an explicit preview with `truncated`/`View preview` wording; no download/blob endpoint or hidden full value.
+Clicking a loaded row opens a read-only drawer with field/value, human meaning, and relationship navigation. Include one JSON/BINARY/large-text cell explicitly marked preview/truncated; no hidden full value or download.
 
-- [ ] **Step 8: Preserve Analyze as semantic, not SQL**
+- [ ] **Step 8: Keep Analyze semantic**
 
-Keep BRN-13 → BRN-12 Analyze as the existing contextual semantic workflow. Do not place Analyze inside the physical filter builder and do not label it SQL/query editor.
+Preserve BRN-13→BRN-12 Analyze as a separate governed semantic workflow; never relabel it SQL/query editor.
 
-- [ ] **Step 9: Run focused P8 proof**
+- [ ] **Step 9: Prove P8 then aggregate**
 
 ```bash
 node --test tests/repository/4c-p02-functional-wireframe.test.mjs
-```
-
-Expected: all P-02 P8 tests pass.
-
-- [ ] **Step 10: Run full gate**
-
-```bash
 npm ci
 npm run verify
 ```
 
-Expected: 121↔121, Project=27, all repository tests green, generated projection/Kubb proof green, whole-4B proofs green.
+Expected: all P8 tests green; 121↔121; Project=27; generated projection/Kubb and whole-4B proofs green.
 
-- [ ] **Step 11: Commit the revised candidate**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add docs/evidence/4c/p02-project-resources-functional-wireframe.html
@@ -798,7 +689,7 @@ git commit -m "docs(4c): revise P02 Data into read-only explorer"
 
 ---
 
-### Task 8: Project current state, verify exact final HEAD, and hand back P8
+### Task 8: Project current state and hand back exact P8
 
 **Files:**
 - Modify: `docs/evidence/4c/p02-f22-data-explorer-design.md`
@@ -808,16 +699,13 @@ git commit -m "docs(4c): revise P02 Data into read-only explorer"
 - Update: PR #57 body metadata only.
 
 **Interfaces:**
-- Consumes: green independently challenged F22 wire + green revised functional P8.
-- Produces: current-state projection and operator walkthrough checkpoint; no P8 lock/merge.
+- Produces current-state projection + operator walkthrough; no P8 lock or merge.
 
-- [ ] **Step 1: Update design/proof status without rewriting history**
+- [ ] **Step 1: Project approved design/realization links without rewriting history**
 
-The F22 design should say the written spec was operator approved and point to this plan/recompile proof. F20/F21 evidence remains historical accepted truth; add only an explicit later-F22 supersession note where needed.
+F22 design records operator approval and links this plan/proof. F20/F21 remain historical accepted truth with an explicit later-F22 supersession note only.
 
-- [ ] **Step 2: Compact roadmap current state**
-
-Project current truth equivalent to:
+- [ ] **Step 2: Compact roadmap to current truth**
 
 ```text
 4A = CLOSED / F22 RECOMPILED / N_platform=121
@@ -831,31 +719,21 @@ Product implementation = BLOCKED
 merge = NOT AUTHORIZED
 ```
 
-Replace obsolete current-state wording; do not append another historical status log. Preserve bootstrap margin.
+Replace obsolete current status; do not append a new historical log. Preserve bootstrap margin.
 
-- [ ] **Step 3: Run final exact-HEAD verification after all file changes**
+- [ ] **Step 3: Verify exact final branch HEAD after all file changes**
 
 ```bash
 npm ci
 npm run verify
 ```
 
-Fetch the exact GitHub `Verify` job log for the final branch HEAD before claiming success. Confirm the final log includes 121↔121, Project=27, F22 checker PASS/negative controls, generated projection/Kubb PASS, and whole-4B executable PASS.
+Fetch the exact GitHub Verify job log for that final HEAD. Confirm: all repository tests green, 121↔121, Project=27, F22 checker + negative controls, generated projection/Kubb PASS, whole-4B executable PASS.
 
-- [ ] **Step 4: Update PR #57 metadata only**
+- [ ] **Step 4: Sync PR metadata only**
 
-PR body must show the exact current HEAD/run, F22 four-read result, 121↔121, Project=27, Permissions=25, P8 revised candidate, and exact next action = operator walkthrough. Keep PR Draft/open/unmerged.
+PR body states exact final HEAD/run, F22 four-read result, 121↔121, Project=27, Permissions=25, revised P8 candidate, and next action = operator walkthrough. Keep Draft/open/unmerged.
 
-- [ ] **Step 5: Hand the exact final HTML artifact to the operator**
+- [ ] **Step 5: Hand the exact verified HTML to the operator**
 
-Fetch the final wireframe blob from the verified HEAD, create an exact local copy for the chat artifact, verify its Git blob SHA, and provide it for walkthrough.
-
-Ask only for the P8 result:
-
-```text
-Aprovado
-or
-bounded feedback
-```
-
-Do not execute P9/P10 or merge on the same approval unless the operator explicitly authorizes those next actions.
+Fetch the final wireframe blob from the verified HEAD, create an exact chat-local copy, verify Git blob SHA, and return it for walkthrough. Ask for `Aprovado` or bounded feedback only; do not execute P9/P10 or merge without a later explicit authorization.
