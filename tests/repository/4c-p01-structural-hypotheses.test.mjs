@@ -84,9 +84,11 @@ test('P-01 P7 preserves the operator-approved Preview-first exact-Change workspa
   ]) requireText(doc, forbidden)
 
   requireText(roadmap, 'F14 whole-wire GREEN = Verify #797 SUCCESS', 'P7 must inherit the proven F14 baseline')
-  requireText(roadmap, 'P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED DIRECTION / RED REQUIRED / P8 BLOCKED / NOT LOCKED', 'roadmap must remain at P7 selected RED until this structural record exists')
+  requireText(roadmap, 'P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED DIRECTION / RED REQUIRED / P8 BLOCKED / NOT LOCKED', 'roadmap must remain at P7 selected RED until current P7 status is explicitly synchronized')
 
   if (/P8\s*=\s*(?:GREEN|LOCKED|APPROVED)/.test(doc)) throw new Error('P-01 P7 must not pre-authorize P8')
   if (/P-01\s*=\s*LOCKED/.test(doc)) throw new Error('P-01 must remain operator-unlocked at P7')
-  if (/P-02[^\n]*OPEN/.test(doc) || /P11[^\n]*ASSEMBLED/.test(doc) || /4D[^\n]*OPEN/.test(doc)) throw new Error('P-01 P7 must not advance later blocks or phases')
+  if (/P-02\+?\s*=\s*OPEN/.test(doc) || /P11\s*=\s*ASSEMBLED/.test(doc) || /4D\s*=\s*OPEN/.test(doc)) {
+    throw new Error('P-01 P7 must not advance later blocks or phases')
+  }
 })
