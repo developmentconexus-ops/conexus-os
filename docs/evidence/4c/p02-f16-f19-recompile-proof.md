@@ -1,6 +1,6 @@
 # P-02 F16–F19 bounded recompile proof
 
-> **Status:** CLOSURE CANDIDATE / F16–F19 RECOMPILE PROVED / P7 NEXT ONLY AFTER THIS CLOSURE HEAD VERIFIES GREEN
+> **Status:** AUTHORITY RECOMPILE CLOSED / VERIFY #900 GREEN / P7 NEXT / P8 BLOCKED
 > **Scope:** P-02 authority/wire recompile only. P8, P-03+, P11, 4D and Product implementation remain blocked.
 
 ## 1. Authority and proof boundary
@@ -123,21 +123,30 @@ exact failure = current closure projection was not yet recorded
 
 All pre-existing repository checks remained green in that RED. The failure therefore isolates the closure/status projection rather than Product or wire regression.
 
-## 6. Bootstrap / routing
+## 6. Closure GREEN / bootstrap / routing
 
-Before this closure projection, Verify #897/#898 reported:
+The bounded closure projection and compact historical markers converge at:
 
 ```text
-bootstrap_bytes = 20416
-limit = 20480
+closure HEAD = 42cabd1e32e41c18a24565404220a2f08432dde1
+Verify #900 = SUCCESS
+repository tests = 121 / 121
+bootstrap_bytes = 20245
+bootstrap limit = 20480
+4A ↔ OAS = 117 ↔ 117
+Brain = 12
+ordinary Permissions = 25
+Technical Ingress Product-count impact = 0
+generated Product projection entries = 117
+Whole 4B executable/adversarial proof = PASS
 ```
 
-The closure candidate deliberately compacts `docs/roadmap.md` by moving historical gate-state narration back to bounded Evidence. Final bootstrap size is required to remain `<= 20480` and is rechecked by `repository:check` on the closure HEAD.
+The roadmap compaction preserves only the historical gate markers still consumed by regression guards instead of restoring the former status worklog. The closure therefore gains bootstrap margin while retaining the exact historical progression checks.
 
-Next permitted work after a GREEN closure HEAD:
+Next permitted work:
 
 ```text
-P-02 = OPEN
+P-02 = OPEN / AUTHORITY CLOSED
 P7 = NEXT
 P8 = BLOCKED
 P-03+ = NOT OPEN

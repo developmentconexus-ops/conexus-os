@@ -37,7 +37,7 @@ F15 OPERATOR ACCEPTED / GREEN · F15 SELECTED REALIZATION
 F16–F18 GREEN = Verify #885/#888/#892 SUCCESS
 F19 selected RED = Verify #893 / 120 tests / 119 pass / 1 exact expected failure
 F19 whole-wire GREEN = Verify #897 SUCCESS / 117↔117 / Brain=12 / Permissions=25
-P-02 closure guard RED = Verify #898 / 121 tests / 120 pass / 1 exact expected failure
+P-02 authority closure GREEN = Verify #900 SUCCESS / bootstrap=20245
 W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN
 W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED
 P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
