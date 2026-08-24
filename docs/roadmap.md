@@ -13,9 +13,9 @@ This is the single current phase/status authority.
 | C-018 | RATIFIED / OPERATOR RATIFIED | Final Product architecture continuity ratified | Material Product/architecture falsifier |
 | C-015 refinement | REFINED / KEYCLOAK SELECTED / OPERATOR APPROVED | Authentication selected; Conexus owns authorization | Material identity/security falsifier |
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
-| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F13` RECOMPILED | `N_platform=116` | Interaction Evidence proves missing Product meaning/authority |
-| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F13` RECOMPILED | `116↔116`; Project=23; Brain=11; Connections=9; IAM=19; OBS=5 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 LOCKED` / `P-01 OPEN / F14 RED REQUIRED` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F13` + `F14` RECOMPILED | `N_platform=116` | Interaction Evidence proves missing Product meaning/authority |
+| 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F13` + `F14` RECOMPILED | `116↔116`; Project=23; Builder=17; Brain=11; Connections=9; IAM=19; OBS=5 | 4A change or wire/proof falsifier |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 LOCKED` / `P-01 OPEN / F14 GREEN / P7 RED REQUIRED` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -23,8 +23,8 @@ This is the single current phase/status authority.
 | Product implementation | BLOCKED | Requires 4A–4G + explicit operator grant | No historical grant carries forward |
 
 ```text
-4A = CLOSED / N_platform=116 / F04–F07 + F09–F13 RECOMPILED
-4B = CLOSED / 116↔116 / Project=23 / Brain=11 / Connections=9 / IAM=19 / OBS=5
+4A = CLOSED / N_platform=116 / F04–F07 + F09–F13 + F14 RECOMPILED
+4B = CLOSED / 116↔116 / Project=23 / Builder=17 / Brain=11 / Connections=9 / IAM=19 / OBS=5
 4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / W-02B LOCKED / W-03 LOCKED / W-04 LOCKED
 F06 OPERATOR ACCEPTED / GREEN · F06 GREEN
 F07 OPERATOR ACCEPTED / GREEN · F07 SELECTED REALIZATION
@@ -32,14 +32,16 @@ F08 OPERATOR ACCEPTED / REVISED P8 GREEN / OPERATOR RE-APPROVED · F08 SELECTED 
 F09 OPERATOR ACCEPTED / GREEN · F09 SELECTED REALIZATION
 F10 OPERATOR ACCEPTED / GREEN · F10 SELECTED REALIZATION
 F13 OPERATOR ACCEPTED / GREEN · F13 SELECTED REALIZATION
+F14 OPERATOR ACCEPTED / GREEN · F14 SELECTED REALIZATION
 W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN
 W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED
-P-01 = OPEN / F14 OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED / P7 BLOCKED / P8 BLOCKED / NOT LOCKED
+P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED DIRECTION / RED REQUIRED / P8 BLOCKED / NOT LOCKED
+F14 whole-wire GREEN = Verify #797 SUCCESS
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
 
-Historical predecessor markers retained for proof guards: `W-03 = NEXT / NOT OPEN`, `P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-03 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = NEXT / NOT OPEN`, `W-04 = OPEN / P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, and `P-01 = NEXT / NOT OPEN`.
+Historical predecessor markers retained for proof guards: `W-03 = NEXT / NOT OPEN`, `P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-03 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = NEXT / NOT OPEN`, `W-04 = OPEN / P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = NEXT / NOT OPEN`, and `P-01 = OPEN / F14 OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED / P7 BLOCKED / P8 BLOCKED / NOT LOCKED`.
 
 ## 4C routing
 
@@ -51,7 +53,7 @@ P12 = whole-product adversarial UX + architecture walkthrough
 
 `GF-01 H1-R2`, `W-01 C1-R1`, `W-02A Brain`, `W-02B Connections`, `W-03 People/access + Audit` and `W-04 Workspace Agent catalog` are LOCKED. Only later material falsifiers may reopen the smallest affected block.
 
-`F04`–`F07` and `F09`–`F13` are operator-accepted bounded recompiles inside existing owners; `F08` was interaction-only. Current fixed Product/wire is `116↔116`, ordinary Permissions=25, Technical Ingress=3/Product impact 0.
+`F04`–`F07`, `F09`–`F14` are operator-accepted bounded recompiles inside existing owners; `F08` was interaction-only. Current fixed Product/wire is `116↔116`, ordinary Permissions=25, Technical Ingress=3/Product impact 0.
 
 ## W-03 / W-04 locked checkpoints
 
@@ -59,7 +61,24 @@ W-03 approved P8 `7434c561ef0cfbc43c81ab8dd1f72b13cf032135`; W-04 approved revis
 
 ## P-01 — Build workspace — OPEN
 
-Authority preflight found F14: existing Change `intent` is not projected by Change reads, and BLD-16 cannot optionally bind an exact current Change. The operator selected existing-owner enrichment only; P7/P8 remain blocked until RED→GREEN.
+F14 is GREEN through exact Builder owner/wire proof:
+
+```text
+Change intent
+→ BLD-01 / BLD-02 human-recognizable reads
+
+BLD-16
+→ Project-level question
+OR
+→ optional exact current changeId context
+
+new operations = 0
+Builder operations = 17
+N_platform = 116
+ordinary Permissions = 25
+```
+
+Selected P7 direction is already operator-approved but not yet materialized: `A — Preview-first exact-Change workspace`. P8 remains blocked and unauthorized.
 
 Evidence: [preflight](evidence/4c/p01-authority-feasibility-preflight.md) / [finding](evidence/4c/p01-builder-human-context-finding.md) / [Global Maximum](evidence/4c/p01-builder-human-context-global-maximum.md) / [selected realization](evidence/4c/p01-builder-human-context-selected-realization.md).
 
@@ -73,4 +92,4 @@ Frontend finding → root cause → target invariant → real owner → alternat
 
 ## Exact next action
 
-**Execute the selected F14 RED.** Do not create P8, open P-02+, assemble P11, begin 4D, merge PR #57 or implement Product code.
+**Execute the selected P-01 P7 RED.** Do not create P8, open P-02+, assemble P11, begin 4D, merge PR #57 or implement Product code.
