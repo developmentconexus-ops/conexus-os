@@ -10,7 +10,7 @@ function requireText(text, needle, message = needle) {
   if (!text.includes(needle)) throw new Error(`P-01 P7 structural record missing: ${message}`)
 }
 
-test('P-01 P7 remains immutable historical Evidence while later approved P8 refinements may lock the block', () => {
+test('P-01 P7 remains immutable historical Evidence while later authorized blocks may progress', () => {
   const docPath = 'docs/evidence/4c/p01-structural-hypotheses.md'
   if (!existsSync(path(docPath))) throw new Error('P-01 P7 structural record must exist')
 
@@ -89,7 +89,7 @@ test('P-01 P7 remains immutable historical Evidence while later approved P8 refi
   requireText(roadmap, 'P8 artifact blob = 0abcde6902a1540aabb07e54ff08d59ad430e7ab', 'roadmap must preserve first P8 predecessor blob')
 
   if (/P8\s*=\s*(?:GREEN|LOCKED|APPROVED)/.test(doc)) throw new Error('historical P7 must not itself pre-authorize P8')
-  if (/P-02\+?\s*=\s*OPEN/.test(roadmap) || /P11\s*=\s*ASSEMBLED/.test(roadmap) || /4D\s*=\s*OPEN/.test(roadmap)) {
-    throw new Error('P-01 refinement/lock must not advance later blocks or phases')
+  if (/P11\s*=\s*ASSEMBLED/.test(roadmap) || /4D\s*=\s*OPEN/.test(roadmap)) {
+    throw new Error('later authorized progression must not assemble P11 or open 4D')
   }
 })
