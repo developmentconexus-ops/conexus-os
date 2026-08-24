@@ -1,13 +1,13 @@
 # Conexus OS — Permission Contract
 
-> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F11` + `4C-F12` BOUNDED CORRECTIONS ACCEPTED
+> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F11` + `4C-F12` + `4C-F17` BOUNDED CORRECTIONS ACCEPTED
 > **Purpose:** derive the smallest ordinary Permission vocabulary needed by the exact Conexus platform operation authority without turning personas, screens, Keycloak claims or Published-App roles into a universal policy system.
 > **Operation authority:** [operation-ledger.md](operation-ledger.md).
 > **Mutable program status:** owned only by [../roadmap.md](../roadmap.md).
 
 This document is the single current home for ordinary Conexus Control-Plane/runtime Permission names. It does not define HTTP security schemes, storage policy mechanics or a role editor and it does not authorize implementation.
 
-The exact operation → principal/ingress/Permission/scope/outcome/current-authority/idempotency-concurrency mapping is canonical in the operation ledger. This document owns only the reusable ordinary Permission vocabulary and its separation from special/runtime/app authority.
+The exact operation → principal/ingress/Permission/scope/outcome/current-authority mapping is canonical in the operation ledger. This document owns only the reusable ordinary Permission vocabulary and its separation from special/runtime/app authority.
 
 ---
 
@@ -57,7 +57,7 @@ The vocabulary is not a universal policy language and does not imply a custom Ro
 
 ## 3. Ordinary Permission vocabulary
 
-The vocabulary remains exactly **25** after the current operator-approved bounded corrections, including `4C-F11` and `4C-F12`. F11 adds three exact I&A reads and narrow access-administration summary disclosure through existing Workspace/Project list reads, but proves no new reusable authority class. F12 enriches existing `audit.read` consumers and likewise adds no Permission.
+The vocabulary remains exactly **25** after the current operator-approved bounded corrections. F11 adds three exact I&A reads and narrow access-administration summary disclosure; F12 enriches existing `audit.read` consumers; F17 adds only a purpose-bound alternate disclosure through existing `CON-03` for the already-authorized Project binding job. None proves a new reusable authority class.
 
 ### 3.1 Workspace and access
 
@@ -93,7 +93,7 @@ access-administration summary disclosure
 | `project.read` | inspect ordinary Project-level Product truth/projections | ordinary `PRJ-01/02/16/17/22`; `PAR-06/07` Control-Plane run inspection; ordinary Release/Promotion/serving/job/activity reads |
 | `project.source.read` | inspect Project source/diff/authored definitions without write authority | `BLD-07..09`, `PRJ-20/21` |
 | `project.data.read` | inspect declared Product/read-model/source resources without becoming a generic DB console | `PRJ-18/19`; Control-Plane `BRN-12` together with `brain.read` |
-| `project.manage` | administer Project lifecycle, Inception/Baseline decisions, exact candidate review/refinement and candidate-bound contextual explanation, bindings and independent Published-App access configuration | `PRJ-05..15` where mapped, `PRJ-23`, `PRJ-24`; `IAM-14/15/17`; source side of `PRJ-06` |
+| `project.manage` | administer Project lifecycle, Inception/Baseline decisions, exact candidate review/refinement and candidate-bound contextual explanation, bindings and independent Published-App access configuration | `PRJ-05..15` where mapped, `PRJ-23`, `PRJ-24`; `IAM-14/15/17`; source side of `PRJ-06`; purpose-bound `CON-03` binding-selection disclosure only together with `connection.use` |
 | `project.build` | create/evolve accepted Project Product/Agent intent through Change/Builder | `BLD-01..04/06/10/16/17` |
 | `project.review` | participate in exact Plan/Change checkpoint, Finding and Evidence review | `BLD-05/11..15` |
 
@@ -141,12 +141,24 @@ Product Agent
 
 | Permission | Meaning | Material current consumers |
 | --- | --- | --- |
-| `connection.read` | inspect exact Connector/Connection/revision/qualification facts in the admitted owner scope | `CON-01..04/09` |
+| `connection.read` | inspect exact Connector/Connection/revision/qualification facts in the admitted owner scope | ordinary `CON-01..04/09` |
 | `connection.manage` | create/revise Connection configuration and write credential material through the protected write-only boundary | `CON-05..07` |
 | `connection.qualify` | run exact environment/revision qualification Evidence without granting Project use | `CON-08` |
-| `connection.use` | authorize use/binding of an exact Connection resource by an admitted Project/Brain operation; same Workspace alone is insufficient | `PRJ-14` with `project.manage`; external-source `BRN-04` with `brain.discover` |
+| `connection.use` | authorize use/binding of an exact Connection resource by an admitted Project/Brain operation; same Workspace alone is insufficient | `PRJ-14` with `project.manage`; external-source `BRN-04` with `brain.discover`; purpose-bound `CON-03` binding-selection disclosure only together with `project.manage` + exact target Project |
 
-`connection.use` does not itself grant runtime invocation. Runtime also requires exact ProjectConnectionBinding, Release/capability projection and current owner/Gateway gates.
+`connection.use` does not itself grant runtime invocation or generic Connection inspection.
+
+```text
+connection.use -X-> generic connection.read
+
+purpose-bound CON-03 alternate disclosure
+→ exact target Project + project.manage + connection.use
+→ existing lightweight Connection selection summary only
+→ server revalidates owner scope / Workspace containment / Project-private containment
+→ no CON-04 configuration / credentials / manage / qualify / history authority
+```
+
+Runtime use also requires exact ProjectConnectionBinding, Release/capability projection and current owner/Gateway gates.
 
 ### 3.6 Product Agent runtime
 
@@ -203,7 +215,7 @@ agent.effect.approve
 
 ```text
 ordinary Permissions = 25
-status = CURRENT / OPERATOR RATIFIED / 4B-F01 + 4C-F02 + 4C-F03 + 4C-F11 + 4C-F12 CORRECTED
+status = CURRENT / OPERATOR RATIFIED / 4B-F01 + 4C-F02 + 4C-F03 + 4C-F11 + 4C-F12 + 4C-F17 CORRECTED
 ```
 
 The number 25 has no independent value. It survives because the current operation mapping still requires each distinction and no accepted operation requires a 26th ordinary Permission.
@@ -253,6 +265,11 @@ Material compound mappings remain explicit rather than collapsed:
 SetProjectConnectionBinding
 → project.manage + connection.use + exact qualified compatible ConnectionRevision
 
+CON-03 purpose-bound Project binding-selection disclosure
+→ project.manage + connection.use + exact target Project
+→ narrow Connection summary only
+→ connection.use -X-> generic connection.read
+
 SetProjectBrainBinding
 → project.manage + brain.bind + exact immutable Brain revision + binding conformance
 
@@ -267,6 +284,8 @@ DecideApprovalRequest
 `CreateProject` source bootstrap does not create a `git.import`, `repository.manage` or network Permission. The caller still needs only `project.create`; repository locator admission is bounded input validation and GitInfra remains mechanism under current server policy. `GetProjectBaselineCandidate` and `AskConexusAboutBaselineCandidate` likewise use `project.manage`; neither exact candidate read justifies `baseline.read`/`baseline.approve`/`baseline.chat` Permission proliferation. `BLD-16 AskConexusAboutContext` remains separately governed by `project.build` because it serves Builder context rather than Baseline administration.
 
 F11 likewise does not create Account/Area/grant CRUD Permissions. `workspace.access.manage` already represents the reusable authority distinction required to administer those exact membership/grant facts; the new reads merely make that existing authority safely inspectable.
+
+F17 likewise does not make `connection.use` a read Permission. It admits only the minimum `CON-03` summary disclosure required to choose a Connection for one exact Project binding job, under the same compound Project-management/use authority that governs the write.
 
 ---
 

@@ -60,9 +60,17 @@ paths:
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
+      parameters:
+        - name: forProjectId
+          in: query
+          required: false
+          description: Optional exact target Project context activating the purpose-bound Project binding-selection disclosure. Server revalidates exact Project containment plus project.manage + connection.use; omission uses ordinary connection.read disclosure. This never grants CON-04 configuration, credential, management, qualification or history authority.
+          schema:
+            type: string
+            minLength: 1
       responses:
         '200':
-          description: Connections owned by the exact Workspace or Project scope and currently disclosable to the caller, including logical human identity and a Connections-derived current test-applicability projection that is not runtime health, binding or authorization.
+          description: Connections owned by the exact Workspace or Project scope and currently disclosable to the caller. Ordinary disclosure uses connection.read. When forProjectId is supplied, disclosure is purpose-bound to selection for that exact Project binding under project.manage + connection.use and remains the same lightweight Connection projection. Project-owned candidates must belong to that exact Project; cross-Workspace and sibling-private disclosure remain denied.
           content:
             application/json:
               schema:

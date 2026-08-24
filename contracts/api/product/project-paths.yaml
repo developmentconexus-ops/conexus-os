@@ -510,7 +510,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact Project connection bindings without credential material.
+          description: Exact Project connection bindings with server-composed human Connection presentation and without credential material.
           content:
             application/json:
               schema:
@@ -556,7 +556,7 @@ paths:
                   $ref: '#/components/schemas/ExpectedConnectionBindingState'
       responses:
         '200':
-          description: Exact qualified compatible Connection revision bound for the stated Project environment after current-state comparison.
+          description: Exact qualified compatible Connection revision bound for the stated Project environment after current-state comparison; response includes server-composed human Connection presentation.
           content:
             application/json:
               schema:
@@ -994,7 +994,7 @@ components:
     ProjectConnectionBinding:
       type: object
       additionalProperties: false
-      required: [connectionId, connectionRevisionId, environment]
+      required: [connectionId, connectionRevisionId, environment, connectionName]
       properties:
         connectionId:
           type: string
@@ -1005,6 +1005,11 @@ components:
         environment:
           type: string
           minLength: 1
+        connectionName:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Server-composed human presentation of the referenced logical Connection for this disclosed binding; never binding identity, routing or authorization.
     ExpectedConnectionBindingState:
       oneOf:
         - type: object
