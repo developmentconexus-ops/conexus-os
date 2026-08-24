@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 const root = resolve(new URL('../../', import.meta.url).pathname)
 const read = p => readFileSync(resolve(root, p), 'utf8')
 
-test('P-01 shell-coherence revision remains preserved through later approved refinements and lock', () => {
+test('P-01 shell-coherence revision remains preserved through later authorized block progression', () => {
   const roadmap = read('docs/roadmap.md')
   const html = read('docs/evidence/4c/p01-build-workspace-functional-wireframe.html')
 
@@ -16,5 +16,5 @@ test('P-01 shell-coherence revision remains preserved through later approved ref
   assert.ok(roadmap.includes('P8 superseded artifact blob = 0abcde6902a1540aabb07e54ff08d59ad430e7ab'), 'roadmap must preserve first P8 predecessor blob')
   assert.ok(html.includes('GF-01 shell inherited'), 'current artifact must carry shell inheritance marker')
   assert.ok(html.includes('data-shell="single-adaptive-rail"'), 'current artifact must inherit the locked single adaptive rail')
-  assert.doesNotMatch(roadmap, /P-02\+?\s*=\s*OPEN|P11\s*=\s*ASSEMBLED|4D\s*=\s*OPEN/, 'later P-01 refinement/lock must not advance later blocks')
+  assert.doesNotMatch(roadmap, /P11\s*=\s*ASSEMBLED|4D\s*=\s*OPEN/, 'later authorized progression must not assemble P11 or open 4D')
 })
