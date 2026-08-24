@@ -275,21 +275,40 @@ IS_NULL|IS_NOT_NULL          → require dataColumnId + operator and forbid valu
 
 Sort requires `dataColumnId + ASC|DESC`. The `8/3/100` maxima are transport-safety mechanics, not Product semantics.
 
-- [ ] **Step 6: Define row response without dynamic arbitrary JSON**
+- [ ] **Step 6: Define row response and every nested type explicitly**
 
-`ProjectDataExplorerRowPage` requires `observedAt`, `columns[]`, and `rows[]` (max 100); optional `continuationToken` and `approximateTotal >= 0`.
+`ProjectDataExplorerRowPage` is closed and requires:
 
-Each row uses closed `cells[]`; each cell requires:
+```text
+observedAt              date-time
+columns[]               ProjectDataExplorerGridColumn
+rows[]                  ProjectDataExplorerRow, max 100
+continuationToken?      opaque request-scope-bound string
+approximateTotal?       integer >= 0; never required
+```
+
+`ProjectDataExplorerGridColumn` is closed and requires:
+
+```text
+dataColumnId
+name                    physical column name
+sourceType              source-native/logical type presentation
+semanticFieldId?        optional coordinate into PRJ-19 semantic truth
+```
+
+`ProjectDataExplorerRow` is closed and requires only `cells[]`; no arbitrary row object keys are admitted.
+
+`ProjectDataExplorerCell` is closed and requires:
 
 ```text
 dataColumnId
 valueKind = NULL|TEXT|NUMBER|BOOLEAN|TEMPORAL|JSON|BINARY
 displayValue = string|null
 truncated = boolean
-byteLength? >= 0
+byteLength? = integer >= 0
 ```
 
-No arbitrary JSON object keys or binary download authority. `truncated=true` is explicitly incomplete.
+This avoids `additionalProperties: true`, binary-download authority, and JS-number precision assumptions. `truncated=true` is explicitly incomplete.
 
 - [ ] **Step 7: Preserve dependency truth**
 
