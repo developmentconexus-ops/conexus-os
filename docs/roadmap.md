@@ -60,7 +60,8 @@ P8 right-sidebar selected RED = Verify #844 / 113 tests / 112 pass / 1 exact exp
 P8 right-sidebar GREEN = Verify #845 SUCCESS
 P8 final right-sidebar artifact blob = 3f9d30f7e6fa0de814f0be20b7583b4e98aca7c8
 F15 selected RED = Verify #846 / 114 tests / 113 pass / 1 exact expected failure
-F15 whole-wire GREEN = final P-01 lock Verify
+F15 whole-wire GREEN = Verify #860 SUCCESS
+P-01 lock GREEN = Verify #860 SUCCESS / 115 tests / 115 pass / whole 4B executable proof passed
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
