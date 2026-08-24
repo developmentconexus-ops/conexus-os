@@ -1,6 +1,6 @@
 # Conexus OS — Product Operation Ledger
 
-> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F05` + `4C-F06` + `4C-F07` + `4C-F09` + `4C-F10` + `4C-F11` + `4C-F12` + `4C-F14` + `4C-F15` + `4C-F16` + `4C-F17` + `4C-F18` + `4C-F19` BOUNDED CORRECTIONS ACCEPTED
+> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F05` + `4C-F06` + `4C-F07` + `4C-F09` + `4C-F10` + `4C-F11` + `4C-F12` + `4C-F14` + `4C-F15` + `4C-F16` + `4C-F17` + `4C-F18` + `4C-F19` + `4C-F20` + `4C-F21` BOUNDED CORRECTIONS ACCEPTED
 > **Authority:** derived only from current accepted Product/architecture authority routed by `docs/index.md`, the 4A contract, the operator-approved first Budget Analyzer semantic contract and the operator-approved bounded downstream corrections named above.
 > **Mutable program status:** owned only by `docs/roadmap.md`.
 
@@ -15,7 +15,7 @@ first Budget Analyzer operations  = 2
 ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
 ```
 
-The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. During executable-wire derivation, `4B-F01` materially falsified three generic mutation rows because no accepted Product authority defined their mutable property sets; the operator explicitly approved their bounded subtraction. During W-01 frontend authority-feasibility work, `4C-F02` then proved that accepted Journey B could not be completed truthfully without creation-time source bootstrap, caller-expressible Inception intent and one durable exact candidate-Baseline read. The later operator-approved `4C-F03` proved that a coherent visual Baseline review loop additionally requires exact-candidate refinement input and one exact candidate-bound contextual explanation surface under Baseline-management authority. During W-02 Brain authority-to-interaction derivation, operator-approved `4C-F05`, `4C-F06` and `4C-F07` enriched existing Brain intake/detail reads without changing Brain ownership or operation count. During W-02B, operator-approved `4C-F09` and `4C-F10` enriched existing Connections current configuration, test applicability and human diagnostics without changing Connections topology. During W-03 authority-feasibility, operator-approved `4C-F11` proved that access administration requires human Account/Area presentation plus three purpose-built I&A reads for membership candidates, exact member effective access and exact Area access; `4C-F12` proved that immutable Audit must be server-filterable and preserve append-time human presentation snapshots rather than relying on browser-local filtering or current-name lookup. During P-01 Builder authority-feasibility, operator-approved `4C-F14` proved that the already-authored Change intent must remain present on Change reads and that existing `BLD-16` must optionally bind one exact current Change when contextual assistance is Change-scoped. During P-01 P9 authority tracing, operator-approved `4C-F15` then proved that the existing Builder Preview read must represent either the server-resolved current Project source Preview or, when an optional exact `changeId` is supplied, that Change candidate Preview. During P-02 authority-feasibility, operator-approved `4C-F16` proved that existing Project Data-resource reads require a server-owned nonblank human presentation name while preserving `dataResourceId` as the exact machine identity. Operator-approved `4C-F17` then proved that existing ProjectConnectionBinding reads require human Connection presentation and that the existing `CON-03` collection read must support a purpose-bound exact-Project binding-selection disclosure under `project.manage + connection.use` without turning `connection.use` into generic `connection.read`. Operator-approved `4C-F18` likewise proved that an admitted `PRJ-11` Project Brain-binding manager needs purpose-bound immutable revision selection through the existing `BRN-02` summary without turning `brain.bind` into generic `brain.read`. Finally, operator-approved `4C-F19` proved that `BRN-12 RunAnalyticQuery` requires one current binding-bound human-discoverable semantic-input catalog because no existing Product read exposes the canonical dataset/semantic IDs its deterministic request requires. F14/F15/F16/F17/F18 add no operation; F19 adds exactly one fixed Brain read and no new Permission, owner, principal, trust boundary or durable record class. All unaffected 4A semantics remain preserved.
+The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. During executable-wire derivation, `4B-F01` materially falsified three generic mutation rows because no accepted Product authority defined their mutable property sets; the operator explicitly approved their bounded subtraction. During W-01 frontend authority-feasibility work, `4C-F02` then proved that accepted Journey B could not be completed truthfully without creation-time source bootstrap, caller-expressible Inception intent and one durable exact candidate-Baseline read. The later operator-approved `4C-F03` proved that a coherent visual Baseline review loop additionally requires exact-candidate refinement input and one exact candidate-bound contextual explanation surface under Baseline-management authority. During W-02 Brain authority-to-interaction derivation, operator-approved `4C-F05`, `4C-F06` and `4C-F07` enriched existing Brain intake/detail reads without changing Brain ownership or operation count. During W-02B, operator-approved `4C-F09` and `4C-F10` enriched existing Connections current configuration, test applicability and human diagnostics without changing Connections topology. During W-03 authority-feasibility, operator-approved `4C-F11` proved that access administration requires human Account/Area presentation plus three purpose-built I&A reads for membership candidates, exact member effective access and exact Area access; `4C-F12` proved that immutable Audit must be server-filterable and preserve append-time human presentation snapshots rather than relying on browser-local filtering or current-name lookup. During P-01 Builder authority-feasibility, operator-approved `4C-F14` proved that the already-authored Change intent must remain present on Change reads and that existing `BLD-16` must optionally bind one exact current Change when contextual assistance is Change-scoped. During P-01 P9 authority tracing, operator-approved `4C-F15` then proved that the existing Builder Preview read must represent either the server-resolved current Project source Preview or, when an optional exact `changeId` is supplied, that Change candidate Preview. During P-02 authority-feasibility, operator-approved `4C-F16` proved that existing Project Data-resource reads require a server-owned nonblank human presentation name while preserving `dataResourceId` as the exact machine identity. Operator-approved `4C-F17` then proved that existing ProjectConnectionBinding reads require human Connection presentation and that the existing `CON-03` collection read must support a purpose-bound exact-Project binding-selection disclosure under `project.manage + connection.use` without turning `connection.use` into generic `connection.read`. Operator-approved `4C-F18` likewise proved that an admitted `PRJ-11` Project Brain-binding manager needs purpose-bound immutable revision selection through the existing `BRN-02` summary without turning `brain.bind` into generic `brain.read`. Operator-approved `4C-F19` proved that `BRN-12 RunAnalyticQuery` requires one current binding-bound human-discoverable semantic-input catalog because no existing Product read exposes the canonical dataset/semantic IDs its deterministic request requires. The first P-02 functional walkthrough then produced operator-approved `4C-F20` and `4C-F21`: existing Data reads must expose bounded logical structure and source/resource classification sufficient to inspect Project-owned, integration-backed and derived Data without becoming a physical database explorer; existing Capability reads must expose human name/purpose plus logical inputs/outputs sufficient to understand an admitted capability without creating generic execution authority. F14–F18/F20/F21 add no operation; F19 adds exactly one fixed Brain read and no new Permission, owner, principal, trust boundary or durable record class. All unaffected 4A semantics remain preserved.
 
 ---
 
@@ -278,10 +278,10 @@ No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default 
 | `PRJ-13` | `ListProjectConnectionBindings` | Project | exact Project disclosure with server-composed human Connection presentation; binding identity remains exact machine coordinates | read |
 | `PRJ-14` | `SetProjectConnectionBinding` | Project + accepted L7 composition | exact qualified compatible ConnectionRevision/environment | command/current-state |
 | `PRJ-15` | `RemoveProjectConnectionBinding` | Project | exact current binding; narrowing | narrowing command |
-| `PRJ-16` | `ListProjectCapabilities` | Project projection | exact authored/Release capabilities; no invocation grant | read |
-| `PRJ-17` | `GetProjectCapability` | Project projection | exact Project/capability identity | read |
-| `PRJ-18` | `ListProjectDataResources` | Project | declared Product/read-model/source resources with exact machine identity + server-owned human presentation | read/provenance |
-| `PRJ-19` | `GetProjectDataResource` | Project | exact resource machine identity + human presentation + grain/freshness/coverage/provenance | read/provenance |
+| `PRJ-16` | `ListProjectCapabilities` | Project projection | exact authored/Release capabilities with human name/purpose; inspection only, no invocation grant | read |
+| `PRJ-17` | `GetProjectCapability` | Project projection | exact Project/capability identity + human purpose + logical input/output contract; inspection only | read |
+| `PRJ-18` | `ListProjectDataResources` | Project | declared Project Data resources with exact machine identity + server-owned human presentation + semantic resource/source classification | read/provenance |
+| `PRJ-19` | `GetProjectDataResource` | Project | exact Data resource identity/presentation + grain/freshness/coverage/provenance + logical fields/relationships/rules | read/provenance |
 | `PRJ-20` | `ListProjectProductAgents` | Project projection | authored Agent identities/revisions/Release state | read |
 | `PRJ-21` | `GetProjectProductAgent` | Project projection | exact Agent authoring identity/revisions/Release refs | read |
 | `PRJ-22` | `ListWorkspaceProductAgents` | Project-owned filtered projection | Workspace access-filtered catalog; no Workspace Agent owner | read |
@@ -290,7 +290,7 @@ No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default 
 
 `PRJ-04 UpdateProject` remains subtracted. F11's alternate PRJ-01 access-administration route reveals only exact contained `ProjectSummary` identity needed to administer grants; it is not generic `project.read` and does not restore Project mutation.
 
-`PRJ-18/19` remain declared data-resource projections, not a generic database explorer.
+`PRJ-18/19` remain declared semantic Data-resource projections. F20 permits bounded logical resource structure needed by the Project Data consumer; it still does not create a generic physical database explorer, SQL console or storage-topology surface.
 
 ### 5.3.1 `4C-F02` — Project source/Inception/Baseline correction
 
@@ -450,6 +450,103 @@ F17 new operations = 0
 Project remains 23
 Connections remains 9
 N_platform = 116
+ordinary Permissions remain 25
+records remain 46
+```
+
+### 5.3.5 `4C-F20` — Data semantic structure inspectability
+
+The first P-02 functional walkthrough proved that a human-recognizable Data resource name plus grain/freshness/coverage/provenance is insufficient for the intended Project Data job. A Project may own application data directly, consume integration-backed data, or expose derived governed data; the operator needs to understand that distinction and inspect the resource's logical structure without receiving physical database authority.
+
+The operator accepted a bounded enrichment of the existing `PRJ-18/19` reads:
+
+```text
+PRJ-18 / PRJ-19
+→ resourceKind = TABLE | VIEW | DATASET
+→ sourceKind = INTERNAL | INTEGRATION | DERIVED
+
+PRJ-19 only
+→ fields[]
+   → resource-scoped semantic field identity
+   → human field name
+   → logical type
+   → requiredness
+   → human description
+→ relationships[]
+   → resource-scoped semantic relationship identity
+   → source semantic field
+   → target Data resource + semantic field
+   → human relationship description
+→ rules[]
+   → resource-scoped semantic rule identity
+   → human business/semantic description
+```
+
+Boundary law:
+
+```text
+semantic structure != physical database topology
+TABLE = human resource kind only
+logical field -X-> physical column/storage topology by implication
+relationship -X-> SQL join expression
+rule -X-> SQL/DDL/executable-expression authority
+```
+
+Explicitly rejected:
+
+```text
+schemaName
+tableName
+indexName
+DDL / SQL text
+connectionString / storageKey
+generic schema explorer
+SQL console
+```
+
+No new operation, Permission, owner, principal, trust boundary or durable record class is admitted by `4C-F20`.
+
+```text
+F20 new operations = 0
+Project remains 23
+N_platform remains 117
+ordinary Permissions remain 25
+records remain 46
+```
+
+### 5.3.6 `4C-F21` — human-readable Capability inspection
+
+The same P-02 walkthrough proved that `capabilityId + operationId + regime` is machine-recognizable but does not let a human answer the accepted job “what can this Project do?” without inferring semantics from technical identifiers.
+
+The operator accepted a bounded enrichment of the existing `PRJ-16/17` reads:
+
+```text
+PRJ-16 / PRJ-17
+→ required human capability name
+→ required nonblank human purpose
+→ capabilityId + operationId + regime remain exact technical identity
+
+PRJ-17 only
+→ inputs[]
+→ outputs[]
+   each field exposes human name + logical type + requiredness + human description
+```
+
+Authority law:
+
+```text
+name / purpose / inputs / outputs = inspection truth
+-X-> invocation grant
+-X-> runtime serializer authority
+-X-> generic executor
+```
+
+`PRJ-16/17` remain read-only Project projections under `project.read`. No Run/Execute operation, generic Capability executor/framework, new Permission, owner, principal, trust boundary or durable record class is admitted by `4C-F21`.
+
+```text
+F21 new operations = 0
+Project remains 23
+N_platform remains 117
 ordinary Permissions remain 25
 records remain 46
 ```
@@ -1046,7 +1143,7 @@ Published Application **business operations** are exact Project-defined `Ops(R)`
 
 ---
 
-## 7. First Budget Analyzer application census — 2
+# 7. First Budget Analyzer application census — 2
 
 The operator-approved `docs/product/budget-analyzer-contract.md` closes the first Project-defined operation set:
 
@@ -1160,8 +1257,8 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | `PRJ-08,PRJ-09,PRJ-10,PRJ-12,PRJ-13,PRJ-15,PRJ-23,PRJ-24` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/current or candidate Baseline/binding subject; PRJ-13 binding responses may compose Connection presentation but gain no Connection management/read authority; PRJ-24 is exact candidate-bound read-only explanation; removals are narrowing | reads `READ`; decisions/writes `DECISION/COMMAND` | reads `IC0`; writes `IC2` |
 | `PRJ-11` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage + brain.bind` | exact immutable Brain revision + current conformance + exact Project binding subject | `DECISION` | `IC2` |
 | `PRJ-14` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage + connection.use` | exact qualified compatible ConnectionRevision/environment + current Project binding | `DECISION` | `IC2` |
-| `PRJ-16,PRJ-17` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` | exact Project + capability identity; inspection does not grant invocation | `READ` | `IC0` |
-| `PRJ-18,PRJ-19` | `HUMAN_ACCOUNT_SESSION / CP` | `project.data.read` | exact declared data resource + admitted source/read-model scope; name is presentation only and never authority | `PROVENANCE_READ` | `IC0` |
+| `PRJ-16,PRJ-17` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` | exact Project + capability identity; human name/purpose and logical input/output contract are inspection truth only and do not grant invocation | `READ` | `IC0` |
+| `PRJ-18,PRJ-19` | `HUMAN_ACCOUNT_SESSION / CP` | `project.data.read` | exact declared Data resource + admitted source/read-model scope; human name, resource/source kind and logical fields/relationships/rules are disclosed semantic inspection truth only, never physical topology or authorization | `PROVENANCE_READ` | `IC0` |
 | `PRJ-20,PRJ-21` | `HUMAN_ACCOUNT_SESSION / CP` | `project.source.read` | exact Project/Agent authored identity/revision | `READ` | `IC0` |
 | `PRJ-22` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` | Workspace-filtered Project-owned Agent disclosure; no fleet owner | `READ` | `IC0` |
 | `BLD-01..04,BLD-06,BLD-10,BLD-16,BLD-17` | `HUMAN_ACCOUNT_SESSION / CP` | `project.build` | exact Project/Change human intent/Plan/current-or-candidate Preview/current selected context; BLD-10 and BLD-16 may optionally narrow to one exact current Change without widening authority | reads `READ`; `BLD-03` `COMMAND` | reads `IC0`; `BLD-03` `IC3` |
@@ -1260,7 +1357,7 @@ W-03A authority-feasibility then produced operator-approved `4C-F11`:
 = 116 fixed Conexus platform Product operations after F11
 ```
 
-W-03B, P-01 and the first three P-02 findings then enriched existing operations without count change. P-02 F19 adds the one missing semantic-input catalog proved by the current frontend consumer:
+W-03B, P-01 and P-02 F16–F18 then enriched existing operations without count change. P-02 F19 adds the one missing semantic-input catalog proved by the current frontend consumer:
 
 ```text
 116
@@ -1268,7 +1365,9 @@ W-03B, P-01 and the first three P-02 findings then enriched existing operations 
 = 117 current fixed Conexus platform Product operations
 ```
 
-`PRJ-03`, `PRJ-07`, `BRN-02`, `BRN-03`, `BRN-06`, `BRN-07`, `CON-03`, `CON-04`, `CON-07`, `CON-08`, `CON-09`, `OBS-04`, `OBS-05`, `BLD-01`, `BLD-02`, `BLD-03`, `BLD-10`, `BLD-16`, `PRJ-13`, `PRJ-14`, `PRJ-18` and `PRJ-19` gained only bounded missing semantics required by real consumers; they remain the same Product operations. F11 adds exactly three purpose-built reads because three independent access-administration read jobs are proven; F19 adds exactly one purpose-built read because BRN-12's human semantic-input discovery is otherwise impossible from Product authority.
+P-02 F20/F21 subsequently enrich existing PRJ-18/19 and PRJ-16/17 reads only; the current count remains 117.
+
+`PRJ-03`, `PRJ-07`, `BRN-02`, `BRN-03`, `BRN-06`, `BRN-07`, `CON-03`, `CON-04`, `CON-07`, `CON-08`, `CON-09`, `OBS-04`, `OBS-05`, `BLD-01`, `BLD-02`, `BLD-03`, `BLD-10`, `BLD-16`, `PRJ-13`, `PRJ-14`, `PRJ-16`, `PRJ-17`, `PRJ-18` and `PRJ-19` gained only bounded missing semantics required by real consumers; they remain the same Product operations. F11 adds exactly three purpose-built reads because three independent access-administration read jobs are proven; F19 adds exactly one purpose-built read because BRN-12's human semantic-input discovery is otherwise impossible from Product authority.
 
 Rejected convenience/mechanism operations include:
 
@@ -1331,6 +1430,8 @@ SearchAudit
 CreateRole
 UpdateAccountProfile
 RenameArea
+BrowsePhysicalProjectSchema
+RunProjectSqlConsole
 ```
 
 ---
@@ -1347,7 +1448,7 @@ mutable foreign-owner mirrors required      = 0
 semantic owner boundaries preserved         = 13/13
 ```
 
-F11 reuses existing `iam.account`, membership/grant records and `ws.area`; F12 reuses existing `obs.audit_record`; F14/F15/F16/F17/F18/F19 reuse existing Builder/Project/Connections/Brain owners/projections. BRN-13 is a current projection, not a new durable catalog record. None admits a new durable record class or owner.
+F11 reuses existing `iam.account`, membership/grant records and `ws.area`; F12 reuses existing `obs.audit_record`; F14/F15/F16/F17/F18/F19/F20/F21 reuse existing Builder/Project/Connections/Brain owners/projections. BRN-13 is a current projection, not a new durable catalog record. Data logical fields/relationships/rules and Capability input/output inspection are projections of already-admitted Project/Release meaning, not new durable Product records. None admits a new durable record class or owner.
 
 Artifact Registry remains semantic projection rather than Universal Artifact CRUD. Attachments/Blob remain owner-bound carriers. Gateway remains last-mile effect authority rather than a second business-command owner. PAR owns runtime, not authored Agent definition. MAR owns serving/job-run mechanics, not a generic scheduler Product domain.
 
@@ -1368,7 +1469,7 @@ possible UX labels/modes               = 4C only; labels cannot create authority
 Paved Road realization                 = 4D
 ```
 
-The bounded SoftwareForge review itself adds no Product operation, Permission, owner or trust boundary. F11/F12/F14/F15/F16/F17/F18/F19 are later interaction falsifiers and remain bounded to their existing I&A/Workspace/Project/OBS/Builder/Connections/Brain owners.
+The bounded SoftwareForge review itself adds no Product operation, Permission, owner or trust boundary. F11/F12/F14/F15/F16/F17/F18/F19/F20/F21 are later interaction falsifiers and remain bounded to their existing I&A/Workspace/Project/OBS/Builder/Connections/Brain owners.
 
 ---
 
@@ -1483,6 +1584,21 @@ The original independent Fable review remains historical Evidence. Later bounded
 → no new owner / principal / trust boundary / durable record class
 → Brain 11 → 12
 → N_platform 116 → 117
+
+4C-F20 OPERATOR ACCEPT
+→ preserve PRJ-18/19 as the complete Project Data read family
+→ add semantic resourceKind TABLE|VIEW|DATASET and sourceKind INTERNAL|INTEGRATION|DERIVED
+→ PRJ-19 adds bounded logical fields/relationships/rules for human inspection
+→ semantic structure remains distinct from physical table/schema/index/DDL/SQL/storage topology
+→ no new operation / Permission / owner / principal / trust boundary / durable record class
+→ N_platform remains 117
+
+4C-F21 OPERATOR ACCEPT
+→ preserve PRJ-16/17 as the complete Project Capability inspection family
+→ add human name + purpose; PRJ-17 adds logical input/output field inspection
+→ inspection does not grant invocation and creates no generic Run/Execute authority
+→ no new operation / Permission / owner / principal / trust boundary / durable record class
+→ N_platform remains 117
 ```
 
-4A remains **operator-ratified as boundedly corrected through `4C-F19`**. 4B must prove the canonical 117-operation machine wire/checker/projection stack before P-02 P7 can open. Product implementation remains blocked.
+4A remains **operator-ratified as boundedly corrected through `4C-F21`**. 4B must preserve the canonical 117-operation machine wire/checker/projection stack while P-02 remains open for revised P8 operator walkthrough. Product implementation remains blocked.
