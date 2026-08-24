@@ -157,3 +157,13 @@ P11 = NOT ASSEMBLED
 Product implementation = BLOCKED
 merge = NOT AUTHORIZED
 ```
+
+## 7. F22 downstream falsifier
+
+The subsequent revised-P8 walkthrough plus operator-supplied Mitra screenshots proved that F20 still stopped one level too early: `Fields / Relationships / Rules` explain a Data resource but do not let the human open a real table/view and inspect authorized rows/columns.
+
+This is a material downstream falsifier of F20, not approval to patch the HTML around the gap. The operator approved the **architectural direction** of a read-only explorer and explicitly rejected SQL Editor/write/admin scope. The written spec now awaits separate operator review before any recompile or P8 revision:
+
+- [F22 read-only Data Explorer design](p02-f22-data-explorer-design.md)
+
+Until that written spec is approved, current F20/F21 wire remains the last accepted executable authority and P8 remains NOT LOCKED.
