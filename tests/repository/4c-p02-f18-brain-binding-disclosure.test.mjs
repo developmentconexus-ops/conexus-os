@@ -21,7 +21,8 @@ test('F18 permits exact Project Brain revision selection without widening brain.
   assert.ok(brn02Start >= 0 && brn03Start > brn02Start, 'BRN-02/BRN-03 route boundaries must exist')
   const brn02 = wire.slice(brn02Start, brn03Start)
   assert.match(brn02, /name: forProjectId[\s\S]*in: query[\s\S]*required: false[\s\S]*type: string[\s\S]*minLength: 1/, 'BRN-02 must carry optional nonblank exact target Project context')
-  assert.doesNotMatch(brn02, /knowledgeBrowse/, 'purpose-bound BRN-02 must remain immutable revision summary-only')
+  assert.match(brn02, /\$ref: '#\/components\/schemas\/BrainRevision'/, 'BRN-02 must remain the immutable BrainRevision summary projection')
+  assert.doesNotMatch(brn02, /BrainRevisionDetail/, 'purpose-bound BRN-02 must not widen to exact-revision detail')
 
   assert.doesNotMatch(wire, /ListBindableBrainRevisions/, 'F18 must not add a screen-shaped bindable-revisions operation')
 })
