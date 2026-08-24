@@ -79,7 +79,7 @@ GF-01, W-01, W-02A, W-02B, W-03, W-04 and P-01 are individually LOCKED; current 
 
 ## P-01 — Build workspace — LOCKED
 
-App-first Project Build: current Project application is immediate; Conexus chat is the right sidebar; BUILD instruction creates exact Change via BLD-03; conversational PLAN before Change is BLD-16 guidance, not durable BLD-04 Plan. F15 keeps one BLD-10 `GetBuildPreview(changeId?)`: omitted = `CURRENT_PROJECT`, present = `CHANGE_CANDIDATE`. Code/Diff and review boundaries remain permission-separated.
+App-first: current app + right Conexus; BUILD→BLD-03; pre-Change PLAN→BLD-16; F15 `BLD-10 GetBuildPreview(changeId?)` = `CURRENT_PROJECT | CHANGE_CANDIDATE`.
 
 ```text
 P8 final right-sidebar artifact blob = 3f9d30f7e6fa0de814f0be20b7583b4e98aca7c8
@@ -91,7 +91,7 @@ P11 = NOT ASSEMBLED
 Product implementation = BLOCKED
 ```
 
-Evidence: [P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) / [app-first finding](evidence/4c/p01-p8-app-first-build-root-revision.md) / [P8](evidence/4c/p01-build-workspace-functional-wireframe.html).
+[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md)
 
 ```text
 smallest-owner reopen != smallest patch
@@ -99,4 +99,4 @@ smallest-owner reopen != smallest patch
 
 ## Exact next action
 
-**P-02 = NEXT / NOT OPEN. Opening Data + Capabilities + Integrations + Project Connections + Brain binding requires explicit operator authorization.** Do not assemble P11, begin 4D, merge PR #57 or implement Product code.
+**P-02 = NEXT / NOT OPEN.** Explicit operator authorization required. No P11, 4D, merge or Product implementation.
