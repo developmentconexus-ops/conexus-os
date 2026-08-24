@@ -127,14 +127,14 @@
 
     h1 { margin: 0; font-size: clamp(26px, 3vw, 34px); }
     .page-description {
-      max-width: 760px;
+      max-width: 840px;
       color: var(--muted);
       margin: 8px 0 0;
     }
 
     .proof-note {
       border-left: 3px solid var(--line);
-      padding: 8px 12px;
+      padding: 10px 12px;
       color: var(--muted);
       font-size: 13px;
       background: var(--paper);
@@ -174,28 +174,49 @@
 
     .agent-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 14px;
+      max-width: 1080px;
     }
 
     .agent-card {
       border: 1px solid var(--line);
       background: var(--paper);
-      padding: 16px;
+      padding: 20px;
       display: grid;
-      gap: 12px;
+      gap: 16px;
       min-width: 0;
     }
 
     .card-top {
       display: flex;
-      gap: 12px;
+      gap: 16px;
       justify-content: space-between;
       align-items: start;
     }
 
-    .agent-title { margin: 0; font-size: 18px; }
-    .agent-purpose { margin: 5px 0 0; color: var(--muted); }
+    .agent-title { margin: 0; font-size: 21px; }
+
+    .agent-summary {
+      display: grid;
+      gap: 6px;
+      max-width: 760px;
+    }
+
+    .summary-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .agent-purpose {
+      margin: 0;
+      color: var(--ink);
+      font-size: 15px;
+      line-height: 1.55;
+    }
 
     .project-block {
       display: flex;
@@ -215,10 +236,26 @@
       font-size: 12px;
     }
 
-    .release-row {
+    .agent-meta {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       border-top: 1px solid var(--line);
       border-bottom: 1px solid var(--line);
-      padding: 10px 0;
+    }
+
+    .meta-cell {
+      padding: 12px 14px;
+      min-width: 0;
+      display: grid;
+      gap: 4px;
+    }
+
+    .meta-cell + .meta-cell { border-left: 1px solid var(--line); }
+    .meta-cell span { color: var(--muted); font-size: 12px; }
+    .meta-cell strong, .meta-cell code { overflow-wrap: anywhere; font-size: 13px; }
+
+    .release-row {
+      padding: 4px 0;
       display: flex;
       justify-content: space-between;
       gap: 12px;
@@ -232,6 +269,16 @@
       overflow-wrap: anywhere;
       text-align: right;
     }
+
+    .agent-workspace-hint {
+      border-left: 3px solid var(--line);
+      background: var(--soft);
+      padding: 10px 12px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .agent-workspace-hint strong { color: var(--ink); }
 
     details { font-size: 13px; }
     summary { cursor: pointer; font-weight: 650; }
@@ -248,6 +295,8 @@
       display: flex;
       justify-content: flex-end;
     }
+
+    .card-actions button { min-width: 128px; font-weight: 650; }
 
     .empty-state {
       border: 1px dashed var(--line);
@@ -270,12 +319,12 @@
     }
 
     .dialog {
-      width: min(560px, 100%);
-      max-height: min(78vh, 680px);
+      width: min(620px, 100%);
+      max-height: min(82vh, 720px);
       overflow: auto;
       background: var(--paper);
       border: 1px solid var(--ink);
-      padding: 20px;
+      padding: 22px;
       box-shadow: 0 18px 54px rgba(0,0,0,.18);
     }
 
@@ -289,7 +338,7 @@
     }
     .boundary-pair {
       display: grid;
-      grid-template-columns: 110px 1fr;
+      grid-template-columns: 120px 1fr;
       gap: 7px 10px;
       margin: 7px 0;
     }
@@ -321,6 +370,8 @@
       .filters { grid-template-columns: 1fr 1fr; }
       .filter-actions { justify-content: stretch; }
       .filter-actions button { flex: 1; }
+      .agent-meta { grid-template-columns: 1fr 1fr; }
+      .agent-meta .meta-cell:last-child { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
     }
 
     @media (max-width: 680px) {
@@ -340,11 +391,14 @@
       .main { padding: 18px 14px 36px; }
       .page-header { align-items: start; }
       .filters { grid-template-columns: 1fr; }
-      .agent-grid { grid-template-columns: 1fr; }
+      .agent-card { padding: 16px; }
+      .agent-meta { grid-template-columns: 1fr; }
+      .meta-cell + .meta-cell { border-left: 0; border-top: 1px solid var(--line); }
+      .agent-meta .meta-cell:last-child { grid-column: auto; }
       .release-row { align-items: start; flex-direction: column; }
       .release-coordinate { text-align: left; }
       .dialog-backdrop { align-items: end; padding: 0; }
-      .dialog { width: 100%; max-height: 88vh; border-bottom: 0; border-inline: 0; }
+      .dialog { width: 100%; max-height: 90vh; border-bottom: 0; border-inline: 0; }
     }
   </style>
 </head>
@@ -369,6 +423,7 @@
         <strong>W-04 P8 FUNCTIONAL LOW-FI CANDIDATE</strong>
         <span class="status-chip">NOT LOCKED</span>
         <span class="status-chip">fixture-only</span>
+        <span class="status-chip">Information hierarchy revision</span>
         <span>Authority trace: PRJ-22 · Agent-first searchable catalog</span>
       </div>
 
@@ -376,12 +431,12 @@
         <div>
           <p class="eyebrow">Workspace catalog</p>
           <h1>Agents</h1>
-          <p class="page-description">Find Product Agents across Projects by their human name, purpose, owning Project and exact active-Release presence.</p>
+          <p class="page-description">Find Product Agents across Projects by their human name, purpose, owning Project and exact active-Release presence. This catalog is for discovery; it is not the Agent editor.</p>
         </div>
       </header>
 
       <div class="proof-note">
-        Functional proof: <strong>local search/filter over complete already-disclosed catalog</strong>. The fixture below represents one complete access-filtered PRJ-22 response already disclosed to this Workspace session; filtering does not request broader authority.
+        Functional proof: <strong>local search/filter over complete already-disclosed catalog</strong>. The fixture below represents one complete access-filtered PRJ-22 response already disclosed to this Workspace session; filtering does not request broader authority. <strong>Agent workspace</strong> is a future Project-owned destination, not a second Workspace owner.
       </div>
 
       <form class="filters" id="catalog-filter-form" onsubmit="event.preventDefault(); applyCatalogFilters();">
@@ -424,24 +479,25 @@
     </main>
   </div>
 
-  <div class="dialog-backdrop" id="project-boundary-dialog" hidden>
-    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="boundary-title" aria-describedby="boundary-description">
-      <p class="eyebrow">P-03 boundary</p>
-      <h2 id="boundary-title">Continue in the owning Project</h2>
-      <p id="boundary-description">Deeper Project-owned Agent work is outside this P8.</p>
+  <div class="dialog-backdrop" id="agent-workspace-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="workspace-boundary-title" aria-describedby="workspace-boundary-description">
+      <p class="eyebrow">P-03 boundary · Agent workspace</p>
+      <h2 id="workspace-boundary-title">Open the Project-owned Agent workspace</h2>
+      <p id="workspace-boundary-description">Deeper Project-owned Agent work is outside this P8.</p>
 
       <div class="boundary-box">
-        <div class="boundary-pair"><span>Agent</span><strong id="boundary-agent-name">—</strong></div>
-        <div class="boundary-pair"><span>Project</span><strong id="boundary-project-name">—</strong></div>
-        <div class="boundary-pair"><span>Boundary</span><strong id="boundary-status">Catalog → future Project Agent surface</strong></div>
+        <div class="boundary-pair"><span>Agent</span><strong id="workspace-agent-name">—</strong></div>
+        <div class="boundary-pair"><span>Owning Project</span><strong id="workspace-project-name">—</strong></div>
+        <div class="boundary-pair"><span>Boundary</span><strong id="workspace-boundary-status">Catalog → future Project-owned Agent workspace</strong></div>
       </div>
 
       <p><strong>project.read != project.source.read</strong></p>
       <p>Catalog visibility does not grant authoring or runtime authority.</p>
-      <p>This functional wireframe proves only the handoff: an implementation would navigate to the future Project-owned Agent experience after that surface is separately planned and authorized.</p>
+      <p><strong>Instructions, tools, testing, verification and operations continue in the owning Project</strong> after the exact Agent workspace is separately planned and authorized.</p>
+      <p>This dialog proves only the destination invariant. It does not select the final P-03 layout, tabs, editor controls or production URL.</p>
 
       <div class="dialog-actions">
-        <button type="button" id="boundary-close" onclick="closeProjectBoundary()">Close</button>
+        <button type="button" id="workspace-boundary-close" onclick="closeAgentWorkspaceBoundary()">Close</button>
       </div>
     </section>
   </div>
@@ -617,24 +673,48 @@
         const releaseLabel = agent.activeReleaseId ? 'Included in active Release' : 'No active Release';
         const archivedBadge = project.archived ? '<span class="badge">Owning Project archived</span>' : '';
         const releaseCoordinate = agent.activeReleaseId ? `<span class="release-coordinate">${agent.activeReleaseId}</span>` : '<span class="release-coordinate">No active Release coordinate</span>';
+        const releaseRefCount = agent.releaseRefs.length;
 
         article.innerHTML = `
           <div class="card-top">
             <div>
               <h2 class="agent-title">${agent.name}</h2>
-              <p class="agent-purpose">${agent.purpose}</p>
             </div>
           </div>
 
+          <div class="agent-summary">
+            <span class="summary-label">Purpose</span>
+            <p class="agent-purpose">${agent.purpose}</p>
+          </div>
+
           <div class="project-block">
-            <span class="label">Project</span>
+            <span class="label">Owning Project</span>
             <strong>${project.name}</strong>
             ${archivedBadge}
+          </div>
+
+          <div class="agent-meta">
+            <div class="meta-cell">
+              <span>Authored revision</span>
+              <code>${agent.authoredRevisionId}</code>
+            </div>
+            <div class="meta-cell">
+              <span>Release references</span>
+              <strong>${releaseRefCount} ${releaseRefCount === 1 ? 'reference' : 'references'}</strong>
+            </div>
+            <div class="meta-cell">
+              <span>Agent workspace</span>
+              <strong>Project-owned</strong>
+            </div>
           </div>
 
           <div class="release-row">
             <span class="release-label">${releaseLabel}</span>
             ${releaseCoordinate}
+          </div>
+
+          <div class="agent-workspace-hint">
+            <strong>Agent workspace:</strong> Instructions, tools, testing, verification and operations continue in the owning Project. This catalog is for discovery; it is not the Agent editor.
           </div>
 
           <details>
@@ -643,29 +723,29 @@
           </details>
 
           <div class="card-actions">
-            <button type="button" data-boundary-agent="${agent.agentId}">Open in Project</button>
+            <button type="button" data-open-agent="${agent.agentId}">Open Agent</button>
           </div>`;
 
-        article.querySelector('[data-boundary-agent]').addEventListener('click', event => {
-          openProjectBoundary(agent.agentId, event.currentTarget);
+        article.querySelector('[data-open-agent]').addEventListener('click', event => {
+          openAgentWorkspaceBoundary(agent.agentId, event.currentTarget);
         });
         root.append(article);
       }
     }
 
-    function openProjectBoundary(agentId, trigger) {
+    function openAgentWorkspaceBoundary(agentId, trigger) {
       const item = workspaceAgentCatalog.find(candidate => candidate.agent.agentId === agentId);
       if (!item) return;
 
       state.boundaryItem = item;
       state.returnFocusTo = trigger ?? document.activeElement;
-      document.getElementById('boundary-agent-name').textContent = item.agent.name;
-      document.getElementById('boundary-project-name').textContent = item.project.name;
-      document.getElementById('boundary-status').textContent = 'P-03 boundary — Project-owned Agent work is not realized in W-04';
+      document.getElementById('workspace-agent-name').textContent = item.agent.name;
+      document.getElementById('workspace-project-name').textContent = item.project.name;
+      document.getElementById('workspace-boundary-status').textContent = 'P-03 boundary — future Project-owned Agent workspace is not realized in W-04';
 
-      const dialog = document.getElementById('project-boundary-dialog');
+      const dialog = document.getElementById('agent-workspace-dialog');
       dialog.hidden = false;
-      document.getElementById('boundary-close').focus();
+      document.getElementById('workspace-boundary-close').focus();
     }
 
     function returnFocusTo() {
@@ -674,8 +754,8 @@
       if (target && typeof target.focus === 'function') target.focus();
     }
 
-    function closeProjectBoundary() {
-      const dialog = document.getElementById('project-boundary-dialog');
+    function closeAgentWorkspaceBoundary() {
+      const dialog = document.getElementById('agent-workspace-dialog');
       dialog.hidden = true;
       state.boundaryItem = null;
       returnFocusTo();
@@ -686,13 +766,13 @@
     document.getElementById('release-filter').addEventListener('change', applyCatalogFilters);
 
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && !document.getElementById('project-boundary-dialog').hidden) {
-        closeProjectBoundary();
+      if (event.key === 'Escape' && !document.getElementById('agent-workspace-dialog').hidden) {
+        closeAgentWorkspaceBoundary();
       }
     });
 
-    document.getElementById('project-boundary-dialog').addEventListener('click', event => {
-      if (event.target.id === 'project-boundary-dialog') closeProjectBoundary();
+    document.getElementById('agent-workspace-dialog').addEventListener('click', event => {
+      if (event.target.id === 'agent-workspace-dialog') closeAgentWorkspaceBoundary();
     });
 
     buildProjectFilter();
