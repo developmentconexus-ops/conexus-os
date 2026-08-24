@@ -66,40 +66,24 @@ Evidence: [preflight](evidence/4c/w03-authority-feasibility-preflight.md) / [his
 
 ## W-04 — Workspace Agent catalog
 
-F13 is GREEN through whole-wire proof with zero operation/Permission/owner/record-count drift. P7 hypothesis `A — Agent-first searchable catalog` is OPERATOR APPROVED for functional P8 Evidence.
-
-The first P8 proved the correct catalog boundary but the operator found its Agent information hierarchy too thin and its `Open in Project` handoff too generic. The accepted interaction-only revision preserves W-04 as discovery while making the richer future Project-owned Agent work surface explicit.
-
-Current revised P8 candidate:
+F13 remains GREEN and P7 `A — Agent-first searchable catalog` remains OPERATOR APPROVED. The first P8 proved the catalog boundary but was information-thin; the accepted interaction-only revision keeps W-04 as discovery while making the future Project-owned Agent workspace explicit.
 
 ```text
 Agents
-→ local search/filter over complete PRJ-22 disclosure
-→ ProductAgent.name
-→ Purpose promoted to material human explanation
-→ Owning Project
-→ authored revision + Release reference context
-→ Included in active Release | No active Release
-→ optional Technical coordinates
+→ search/filter PRJ-22
+→ name + material Purpose + owning Project
+→ authored revision / Release context
+→ exact Release presence
 → Open Agent
-→ explicit future Project-owned Agent workspace / P-03 boundary
+→ future Project-owned Agent workspace / P-03 boundary
 ```
 
-Canonical experience distinction retained as destination/ownership vocabulary only:
+No P-03 is opened. `project.read != project.source.read`; no PRJ-21 dependency, Agent editor, runtime-health inference, fleet owner or new Product authority is admitted.
 
-```text
-WORKSPACE AGENTS = DISCOVER
-PROJECT-OWNED AGENT WORKSPACE = UNDERSTAND + COMPOSE + TEST + VERIFY + OPERATE
-PUBLISHED-APP AGENT = USE
-```
+First P8 blob: `a744a50c778b25feeaa4fe575d14390eb792312a`.
+Revised P8 blob: `65073eb5f532f2675f04ec307eb0d9b91fd1b69d`.
 
-This does not open P-03 or select its final layout/tabs/URL. `project.read != project.source.read`; W-04 still does not depend on PRJ-21, create/edit/run Agents, expose a system-prompt/tools editor, invent fleet/runtime health or create a Workspace Agent owner.
-
-First functional P8 candidate blob: `a744a50c778b25feeaa4fe575d14390eb792312a`.
-
-Exact revised functional P8 candidate blob: `65073eb5f532f2675f04ec307eb0d9b91fd1b69d`.
-
-Evidence: [F13](evidence/4c/w04-agent-catalog-human-identity-global-maximum.md) / [historical P7](evidence/4c/w04-structural-hypotheses.md) / [P8 information-hierarchy revision](evidence/4c/w04-p8-agent-information-hierarchy-revision.md) / [revised functional P8 candidate](evidence/4c/w04-agent-catalog-functional-wireframe.html).
+Evidence: [F13](evidence/4c/w04-agent-catalog-human-identity-global-maximum.md) / [P7](evidence/4c/w04-structural-hypotheses.md) / [P8 revision](evidence/4c/w04-p8-agent-information-hierarchy-revision.md) / [revised P8](evidence/4c/w04-agent-catalog-functional-wireframe.html).
 
 ## Method law
 
