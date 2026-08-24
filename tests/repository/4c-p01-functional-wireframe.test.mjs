@@ -192,3 +192,40 @@ test('P-01 revised P8 inherits the locked GF-01 Project shell instead of inventi
   assert.doesNotMatch(projectRail, />Overview<\/button>/, 'P-01 must not invent Overview inside the locked Project rail')
   assert.doesNotMatch(html, /class="global-nav"/, 'P-01 must not retain its standalone sidebar shell')
 })
+
+test('P-01 focused revision separates Build Overview from an exact-Change Focused Build Session and defaults to Preview plus Conexus rather than an always-open governance dashboard', () => {
+  assert.equal(existsSync(path(htmlPath)), true, 'P-01 functional P8 HTML must exist')
+  const html = read(htmlPath)
+
+  for (const token of [
+    'Build Overview',
+    'Focused Build Session',
+    'Preview + Conexus = default focused work',
+    'simple by default + inspectable by design',
+    'Back to Build overview',
+    'Plan',
+    'Finding',
+    'Evidence',
+    'Details',
+  ]) requireText(html, token, `focused-work token ${token}`)
+
+  for (const id of [
+    'build-overview', 'focused-build-session', 'open-change-session', 'back-build-overview',
+    'focus-stage', 'focus-inspector', 'inspect-plan', 'inspect-findings', 'inspect-evidence', 'inspect-details',
+  ]) requireText(html, `id="${id}"`, id)
+
+  for (const behavior of [
+    'enterFocusedBuildSession', 'exitFocusedBuildSession', 'toggleFocusInspector', 'closeFocusInspector',
+  ]) requireText(html, behavior, behavior)
+
+  requireText(html, 'id="build-overview"', 'overview exists')
+  requireText(html, 'id="focused-build-session" hidden', 'focused session is not an always-open dashboard')
+  requireText(html, 'id="focus-inspector" hidden', 'governance inspector is closed by default')
+  requireText(html, 'id="assistant-panel"', 'Conexus remains available in focused session')
+  requireText(html, 'data-default-assistant="open"', 'Conexus is the default focused-work companion')
+
+  const focused = html.match(/<section id="focused-build-session"[\s\S]*?<\/section>\s*<\/main>/)?.[0] ?? ''
+  assert.ok(focused, 'focused session region must be structurally bounded')
+  assert.doesNotMatch(focused, /id="change-list"/, 'Changes collection must not remain visible inside focused session')
+  assert.doesNotMatch(focused, /Walkthrough state scenario/, 'fixture scenario controls must not dominate the focused session')
+})
