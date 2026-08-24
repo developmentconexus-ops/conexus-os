@@ -498,14 +498,16 @@ F22 does not invent a browser-local masking policy.
 
 If current Project/source authority cannot safely decide whether an object/column/row is disclosable, that source/object is **not explorer-eligible** until the owning authority is closed. The frontend must never receive protected raw data and hide it cosmetically.
 
-## 12. Authority-recompile hypothesis — not yet authority
+## 12. Authority-recompile hypothesis — approved planning decision, not yet executable authority
 
-Three **human jobs** are proven; fixed operation count remains a derivation, not a target.
+Three human jobs are proven. During planning, large-source discovery was challenged and the smallest honest split was selected as **four reads** so source discovery does not inherit nested object pagination/search semantics.
 
 ```text
-J1 Browse Project Data Explorer
-→ discover current explorer-eligible physical sources / namespaces / objects
-→ support server-side object search or lazy browse where source scale requires it
+J1a List Project Data Explorer sources
+→ current explorer-eligible physical sources
+
+J1b List objects for one exact source
+→ bounded search / lazy pagination over namespaces + objects
 
 J2 Inspect exact Data Object
 → structure / relationships / constraints + semantic augmentation
@@ -514,26 +516,36 @@ J3 Browse exact Data Object rows
 → typed bounded filter + sort + pagination
 ```
 
-The 4A/4B recompile must choose the smallest honest operation set. It may be three reads, or may split source/object discovery if large-schema lazy discovery cannot be represented truthfully without inventing a generic tree framework.
-
-Desired invariants, not predetermined counts:
+Planned identifiers:
 
 ```text
-new semantic owners = 0
-new durable record classes = 0
-new write authority = 0
-SQL authority = 0
-credential disclosure = 0
-new ordinary Permission = 0 if project.data.read is semantically sufficient
+PRJ-25 ListProjectDataExplorerSources
+PRJ-26 ListProjectDataExplorerObjects
+PRJ-27 GetProjectDataExplorerObject
+PRJ-28 ListProjectDataExplorerRows
 ```
 
-If `project.data.read` cannot safely cover raw explorer disclosure, STOP and reopen only the Permission/disclosure decision; do not silently widen it.
+Planned census if execution survives RED/GREEN + independent challenge:
+
+```text
+N_platform = 121
+Project = 27
+Builder = 17
+Brain = 12
+Connections = 9
+ordinary Permissions = 25
+new semantic owners = 0
+new durable record classes = 0
+Technical Ingress = 3 / Product impact 0
+```
+
+These identifiers/counts are the approved **implementation-plan target**, not current accepted executable authority. Current 4A/4B remains 117/Project=23 until F22 execution closes. If the four-read split or reuse of `project.data.read` is falsified by execution Evidence, STOP and reopen only the affected decision; do not silently widen the plan.
 
 ## 13. Proof strategy before realization
 
 ### 13.1 Authority RED
 
-Before changing 4A/4B, create a falsifier proving current F20 authority cannot satisfy J1–J3.
+Before changing 4A/4B, create a falsifier proving current F20 authority cannot satisfy J1a/J1b/J2/J3.
 
 Expected RED properties:
 
@@ -545,7 +557,7 @@ all unrelated 4A/4B/P-02 guards stay green
 
 ### 13.2 Recompile GREEN
 
-After operator-approved authority realization:
+After operator-authorized realization:
 
 ```text
 4A current authority updated first
@@ -622,7 +634,7 @@ Rejected by scope. F22 has no SQL, mutation, DDL, migrations, index/admin toolin
 
 ### "One generic tree API would be simpler"
 
-Possibly local-maximum only. A generic Resource tree risks becoming framework authority. The recompile may use lazy discovery but must keep Data-specific typed semantics and a real consumer for every axis.
+Possibly local-maximum only. A generic Resource tree risks becoming framework authority. The planned source/object split keeps Data-specific typed semantics and gives large sources independent bounded pagination/search.
 
 ### "Raw integration tables leak too much"
 
