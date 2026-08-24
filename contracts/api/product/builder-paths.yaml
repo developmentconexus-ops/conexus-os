@@ -15,7 +15,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Current disclosable Builder Changes for the exact Project.
+          description: Current disclosable Builder Changes for the exact Project, including each exact Change's authored human intent so returning users can recognize the subject without inventing client-side labels.
           content:
             application/json:
               schema:
@@ -49,10 +49,11 @@ paths:
                 intent:
                   type: string
                   minLength: 1
-                  description: Bounded statement of what must become true; not a WorkUnit, ActorRun or status command.
+                  pattern: '.*\S.*'
+                  description: Required human semantic statement of what must become true; not a WorkUnit, ActorRun, status command, authorization source, unique key or separately mutable title domain.
       responses:
         '201':
-          description: Change established and pinned to the current accepted Project Baseline before execution work begins.
+          description: Change established with its exact authored human intent and pinned to the current accepted Project Baseline before execution work begins.
           content:
             application/json:
               schema:
@@ -81,7 +82,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact current Change projection pinned to its accepted Baseline and Builder planning/rigor coordinates.
+          description: Exact current Change projection with its authored human intent, accepted Baseline pin and Builder planning/rigor coordinates.
           content:
             application/json:
               schema:
@@ -477,9 +478,14 @@ paths:
                 question:
                   type: string
                   minLength: 1
+                  pattern: '.*\S.*'
+                changeId:
+                  type: string
+                  minLength: 1
+                  description: Optional untrusted exact current Change reference. When present, the server re-resolves the Change inside the current Project and applies the same current project.build disclosure; possession grants no source, review, runtime or mutation authority.
       responses:
         '200':
-          description: Contextual Conexus guidance over current authorized Project/platform context with provenance; no new authority is granted.
+          description: Provenance-preserving Conexus guidance over current authorized Project/platform context or, when changeId is supplied, the exact server-resolved current Change context; no new authority is granted.
           content:
             application/json:
               schema:
@@ -570,7 +576,7 @@ components:
     ChangeSummary:
       type: object
       additionalProperties: false
-      required: [changeId, projectId, state]
+      required: [changeId, projectId, intent, state]
       properties:
         changeId:
           type: string
@@ -578,6 +584,11 @@ components:
         projectId:
           type: string
           minLength: 1
+        intent:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Required human semantic statement of what must become true for this exact Change; presentation/meaning only, never authorization, unique identity or a separately mutable title field.
         state:
           type: string
           minLength: 1
@@ -585,7 +596,7 @@ components:
     Change:
       type: object
       additionalProperties: false
-      required: [changeId, projectId, baselineDigest, planningDepth, rigorProfile, state]
+      required: [changeId, projectId, intent, baselineDigest, planningDepth, rigorProfile, state]
       properties:
         changeId:
           type: string
@@ -593,6 +604,11 @@ components:
         projectId:
           type: string
           minLength: 1
+        intent:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Required human semantic statement authored at Change creation and projected on current reads; it does not authorize, rename, mutate state or replace stable changeId identity.
         baselineDigest:
           type: string
           minLength: 1
