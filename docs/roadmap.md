@@ -15,7 +15,7 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
 | 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F19` RECOMPILED | `N_platform=117` | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F19` RECOMPILED | `117↔117`; Project=23; Builder=17; Brain=12; Connections=9; IAM=19; OBS=5 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 + P-01 LOCKED` / `P-02 P7 CANDIDATE / OPERATOR REVIEW / P8 BLOCKED` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 + P-01 LOCKED` / `P-02 P7 APPROVED / P8 CANDIDATE` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -37,11 +37,11 @@ F15 OPERATOR ACCEPTED / GREEN · F15 SELECTED REALIZATION
 F16–F18 GREEN = Verify #885/#888/#892 SUCCESS
 F19 selected RED = Verify #893 / 120 tests / 119 pass / 1 exact expected failure
 F19 whole-wire GREEN = Verify #897 SUCCESS / 117↔117 / Brain=12 / Permissions=25
-P-02 authority closure GREEN = Verify #900 SUCCESS / bootstrap=20245
+P-02 P8 GREEN = Verify #907 / 128 tests / 128 pass
 W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN
 W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED
 P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
-P-02 = OPEN / AUTHORITY CLOSED / P7 CANDIDATE / OPERATOR REVIEW / P8 BLOCKED
+P-02 = OPEN / P7 APPROVED / P8 CANDIDATE / WALKTHROUGH / NOT LOCKED
 F14 whole-wire GREEN = Verify #797 SUCCESS
 P7 selected RED = Verify #800 / 103 tests / 102 pass / 1 exact expected failure
 P7 structural GREEN = Verify #803 SUCCESS
@@ -88,7 +88,7 @@ P11 = assembled interactive low-fidelity Product after all material blocks LOCK
 P12 = whole-product adversarial UX + architecture walkthrough
 ```
 
-GF-01, W-01, W-02A, W-02B, W-03, W-04 and P-01 remain individually LOCKED. P-02 F16–F19 authority/wire is recompiled at `117↔117`; P7 now has a leading structural candidate pending operator review. P8 remains blocked.
+GF-01, W-01, W-02A, W-02B, W-03, W-04 and P-01 remain LOCKED. P-02 P7 is approved; functional P8 awaits operator walkthrough.
 
 ## P-01 — Build workspace — LOCKED
 
@@ -97,14 +97,14 @@ App-first: current app + right Conexus; BUILD→BLD-03; pre-Change PLAN→BLD-16
 ```text
 P8 final right-sidebar artifact blob = 3f9d30f7e6fa0de814f0be20b7583b4e98aca7c8
 P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
-P-02 = OPEN / AUTHORITY CLOSED / P7 CANDIDATE / OPERATOR REVIEW / P8 BLOCKED
+P-02 = OPEN / P7 APPROVED / P8 CANDIDATE / WALKTHROUGH / NOT LOCKED
 P-03+ = NOT OPEN
 P11 = NOT ASSEMBLED
 4D = NOT STARTED
 Product implementation = BLOCKED
 ```
 
-[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) · [P-02 selected correction contract](evidence/4c/p02-f16-f19-selected-correction-contract.md) · [P-02 recompile proof](evidence/4c/p02-f16-f19-recompile-proof.md) · [P-02 surface rebaseline](evidence/4c/p02-project-surface-rebaseline.md) · [P-02 P7 structural candidate](evidence/4c/p02-structural-hypotheses.md)
+[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) · [P-02 selected correction contract](evidence/4c/p02-f16-f19-selected-correction-contract.md) · [P-02 recompile proof](evidence/4c/p02-f16-f19-recompile-proof.md) · [P-02 surface rebaseline](evidence/4c/p02-project-surface-rebaseline.md) · [P-02 P7 candidate](evidence/4c/p02-structural-hypotheses.md)
 
 ```text
 smallest-owner reopen != smallest patch
@@ -112,4 +112,4 @@ smallest-owner reopen != smallest patch
 
 ## Exact next action
 
-**Operator reviews P-02 P7 leading hypothesis A — Four focused Project routes.** Until explicit approval/revision, P8/P-03/P11/4D/merge/Product implementation remain blocked.
+**Operator walkthrough: P-02 functional P8.** P-03/P11/4D/merge/Product implementation remain blocked.

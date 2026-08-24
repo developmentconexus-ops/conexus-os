@@ -7,12 +7,14 @@ const root = resolve(new URL('../../', import.meta.url).pathname)
 const path = p => resolve(root, p)
 const read = p => readFileSync(path(p), 'utf8')
 
-test('P-02 P7 derives four focused Project routes without reopening backend-shaped or generic resource authority', () => {
+test('P-02 preserves its P7 candidate and records operator approval without coupling history to mutable roadmap status', () => {
   const structuralPath = 'docs/evidence/4c/p02-structural-hypotheses.md'
-  assert.equal(existsSync(path(structuralPath)), true, 'P-02 P7 structural hypotheses must exist before operator review')
+  const approvalPath = 'docs/evidence/4c/p02-p7-approval-p8-candidate.md'
+  const p8Path = 'docs/evidence/4c/p02-project-resources-functional-wireframe.html'
+  for (const p of [structuralPath, approvalPath, p8Path]) assert.equal(existsSync(path(p)), true, `P-02 evidence missing: ${p}`)
 
   const structural = read(structuralPath)
-  const roadmap = read('docs/roadmap.md')
+  const approval = read(approvalPath)
 
   for (const token of [
     'P7 CANDIDATE / OPERATOR REVIEW REQUIRED / P8 BLOCKED / NOT LOCKED',
@@ -26,9 +28,18 @@ test('P-02 P7 derives four focused Project routes without reopening backend-shap
     'PRESENT-IN-AUTHORITY',
     'B — One Project Resources hub',
     'C — Backend-owner-first resource console',
-    'P8 = BLOCKED',
-  ]) assert.ok(structural.includes(token), `P-02 P7 structural evidence missing: ${token}`)
+  ]) assert.ok(structural.includes(token), `P-02 P7 candidate Evidence missing: ${token}`)
 
-  assert.ok(roadmap.includes('P-02 = OPEN / AUTHORITY CLOSED / P7 CANDIDATE / OPERATOR REVIEW / P8 BLOCKED'), 'roadmap must route P-02 to operator review after P7 candidate')
-  assert.doesNotMatch(roadmap, /P-02\s*=\s*LOCKED|P8\s*=\s*CANDIDATE|P-03\s*=\s*OPEN|P11\s*=\s*ASSEMBLED|4D\s*=\s*OPEN/, 'P7 candidate must not skip P8/operator gates')
+  for (const token of [
+    'P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED',
+    'A — Four focused Project routes',
+    'Verify #905 = EXPECTED RED',
+    'Verify #907 = SUCCESS',
+    'repository tests = 128 / 128',
+    'bootstrap_bytes = 20403 / 20480',
+    '4A ↔ OAS = 117 ↔ 117',
+    'P8 = CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED',
+  ]) assert.ok(approval.includes(token), `P-02 approval/P8 Evidence missing: ${token}`)
+
+  assert.doesNotMatch(approval, /P-02\s*=\s*LOCKED|P8\s*=\s*LOCKED|P-03\+?\s*=\s*OPEN|P11\s*=\s*ASSEMBLED|4D\s*=\s*OPEN/, 'P7 approval/P8 candidate must not skip later gates')
 })
