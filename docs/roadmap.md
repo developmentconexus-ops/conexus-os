@@ -38,6 +38,7 @@ F16–F18 GREEN = Verify #885/#888/#892 SUCCESS
 F19 selected RED = Verify #893 / 120 tests / 119 pass / 1 exact expected failure
 F19 whole-wire GREEN = Verify #897 SUCCESS / 117↔117 / Brain=12 / Permissions=25
 P-02 P8 GREEN = Verify #907 / 128 tests / 128 pass
+P-02 walkthrough status GREEN = Verify #908 / bootstrap=20169
 W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN
 W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED
 P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
