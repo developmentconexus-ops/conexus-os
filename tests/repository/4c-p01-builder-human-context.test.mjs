@@ -17,7 +17,7 @@ function sliceBetween(text, startNeedle, endNeedle) {
   return text.slice(start, end < 0 ? undefined : end)
 }
 
-test('P-01 preserves operator-approved F14 decision history and stays blocked before P7/P8', () => {
+test('P-01 preserves operator-approved F14 decision history while current status advances to P7 RED', () => {
   const files = [
     'docs/evidence/4c/p01-authority-feasibility-preflight.md',
     'docs/evidence/4c/p01-builder-human-context-finding.md',
@@ -35,14 +35,15 @@ test('P-01 preserves operator-approved F14 decision history and stays blocked be
     'F14-B — contextual assistant cannot bind an exact current Change',
     'P7 = BLOCKED UNTIL F14 GREEN',
     'P8 = BLOCKED',
-  ]) requireText(preflight, law, `P-01 preflight missing law: ${law}`)
+  ]) requireText(preflight, law, `P-01 preflight missing historical law: ${law}`)
 
   requireText(selected, 'OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED', 'F14 selected realization must preserve its historical RED selection')
-  requireText(selected, 'ChangeSummary requires intent', 'F14 must select durable Change intent projection')
-  requireText(selected, 'BLD-16 admits optional changeId', 'F14 must select exact optional Change assistant context')
+  requireText(selected, 'ChangeSummary requires intent', 'F14 must preserve durable Change intent selection')
+  requireText(selected, 'BLD-16 admits optional changeId', 'F14 must preserve exact optional Change assistant context selection')
 
-  requireText(roadmap, 'P-01 = OPEN / F14 OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED / P7 BLOCKED / P8 BLOCKED / NOT LOCKED', 'roadmap must remain at the selected F14 RED until whole-wire GREEN is proven')
-  if (/P-02[^\n|]*OPEN/.test(roadmap) || /4D[^\n|]*OPEN/.test(roadmap)) throw new Error('P-01 F14 work must not open P-02 or 4D')
+  requireText(roadmap, 'P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED DIRECTION / RED REQUIRED / P8 BLOCKED / NOT LOCKED', 'roadmap must advance only to the selected P7 RED after whole-wire F14 GREEN')
+  requireText(roadmap, 'F14 whole-wire GREEN = Verify #797 SUCCESS', 'roadmap must pin the fresh F14 whole-wire GREEN proof')
+  if (/P-02[^\n|]*OPEN/.test(roadmap) || /4D[^\n|]*OPEN/.test(roadmap)) throw new Error('P-01 F14/P7 work must not open P-02 or 4D')
 })
 
 test('selected F14 realization preserves Change intent and exact optional Change context inside the Builder owner', () => {
@@ -59,15 +60,15 @@ test('selected F14 realization preserves Change intent and exact optional Change
   requireText(permissions, 'ordinary Permissions = 25', 'F14 must preserve the ordinary Permission census')
 
   const summary = sliceBetween(wire, '    ChangeSummary:\n', '    Change:\n')
-  requireText(summary, 'required: [changeId, projectId, intent, state]', 'F14 RED: ChangeSummary must require intent')
-  requireText(summary, 'intent:', 'F14 RED: ChangeSummary must expose intent')
+  requireText(summary, 'required: [changeId, projectId, intent, state]', 'F14: ChangeSummary must require intent')
+  requireText(summary, 'intent:', 'F14: ChangeSummary must expose intent')
 
   const change = sliceBetween(wire, '    Change:\n', '    PlanItem:\n')
-  requireText(change, 'required: [changeId, projectId, intent, baselineDigest, planningDepth, rigorProfile, state]', 'F14 RED: Change must require intent')
-  requireText(change, 'intent:', 'F14 RED: Change must expose intent')
+  requireText(change, 'required: [changeId, projectId, intent, baselineDigest, planningDepth, rigorProfile, state]', 'F14: Change must require intent')
+  requireText(change, 'intent:', 'F14: Change must expose intent')
 
   const assistant = sliceBetween(wire, 'summary: AskConexusAboutContext', 'summary: GetChangeExecutionDetail')
-  requireText(assistant, 'changeId:', 'F14 RED: BLD-16 must admit optional exact Change context')
+  requireText(assistant, 'changeId:', 'F14: BLD-16 must admit optional exact Change context')
   requireText(assistant, 'untrusted', 'F14 BLD-16 changeId must remain an untrusted reference')
   if (/required:\s*\[[^\]]*changeId/.test(assistant)) throw new Error('F14 BLD-16 changeId must stay optional so Project-level assistance remains valid')
 
@@ -77,7 +78,6 @@ test('selected F14 realization preserves Change intent and exact optional Change
     "assistantRequest.properties?.changeId",
   ]) requireText(checker, guard, `F14 Builder checker missing guard: ${guard}`)
 
-  // Rejected vocabulary may be named in decision history, but it must not appear in the realized wire.
   for (const forbidden of ['Change.title', 'Change.name', 'UpdateChange', 'RenameChange', 'ContextRef']) {
     if (wire.includes(forbidden)) throw new Error(`F14 must not realize speculative Builder authority: ${forbidden}`)
   }
