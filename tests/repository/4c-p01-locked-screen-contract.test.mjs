@@ -9,7 +9,7 @@ const read = p => readFileSync(path(p), 'utf8')
 const requireText = (text, needle, message = needle) => { if (!text.includes(needle)) throw new Error(`P-01 lock missing: ${message}`) }
 function gitBlobSha(text) { const bytes=Buffer.from(text,'utf8'); return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex') }
 
-test('operator-approved P-01 Build is locked only after exact P9 trace and P10 consolidation', () => {
+test('operator-approved P-01 Build remains locked through later explicitly authorized P-02 progression', () => {
   const htmlPath='docs/evidence/4c/p01-build-workspace-functional-wireframe.html'
   const contractPath='docs/evidence/4c/p01-build-workspace-screen-contract.md'
   if(!existsSync(path(contractPath))) throw new Error('P-01 exact Screen Contract must exist after operator lock')
@@ -39,9 +39,7 @@ test('operator-approved P-01 Build is locked only after exact P9 trace and P10 c
     'source mutation in Code/Diff = FORBIDDEN','source permission elevation = FORBIDDEN','review permission elevation = FORBIDDEN','generic AI Builder/session owner = NOT ADMITTED','P11 early assembly = FORBIDDEN',
   ]) requireText(contract,forbidden)
 
-  requireText(inventory,'| `P-01` | Build + Plan/Preview/Code/Diff/Findings/Evidence/assistant | primary Project workspace | LOCKED / OPERATOR APPROVED','inventory must lock P-01')
-  requireText(inventory,'| `P-02` | Data + Capabilities + Integrations + Project Connections + Brain binding | inspectable Product resources | NEXT / NOT OPEN','inventory must route but not open P-02')
-  requireText(roadmap,'P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED','roadmap must lock P-01')
-  requireText(roadmap,'P-02 = NEXT / NOT OPEN','roadmap must route P-02 only')
-  if(/P-02[^\n|]*=\s*OPEN/.test(roadmap)||/P11\s*=\s*ASSEMBLED/.test(roadmap)||/4D[^\n|]*=\s*OPEN/.test(roadmap)) throw new Error('P-01 lock must not open later blocks, P11 or 4D')
+  requireText(inventory,'| `P-01` | Build + Plan/Preview/Code/Diff/Findings/Evidence/assistant | primary Project workspace | LOCKED / OPERATOR APPROVED','inventory must keep P-01 locked')
+  requireText(roadmap,'P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED','roadmap must keep P-01 locked')
+  if(/P-01[^\n|]*=\s*OPEN/.test(roadmap)||/P11\s*=\s*ASSEMBLED/.test(roadmap)||/4D[^\n|]*=\s*OPEN/.test(roadmap)) throw new Error('later P-02 progression must not reopen P-01, assemble P11 or open 4D')
 })
