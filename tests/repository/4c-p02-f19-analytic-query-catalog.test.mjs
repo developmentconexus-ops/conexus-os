@@ -11,7 +11,7 @@ test('F19 adds one binding-bound analytic semantic-input catalog without widenin
   const permissions = read('docs/product/permission-contract.md')
   const wire = read('contracts/api/product/brain-paths.yaml')
 
-  for (const token of ['4C-F19', 'BRN-13', 'GetProjectAnalyticQueryCatalog', 'N_platform = 117', 'Brain — 12']) {
+  for (const token of ['4C-F19', 'BRN-13', 'GetProjectAnalyticQueryCatalog', 'F19 new operations = 1', 'Brain 11 → 12', 'N_platform 116 → 117']) {
     assert.ok(ledger.includes(token), `operation ledger missing F19 token: ${token}`)
   }
   assert.ok(permissions.includes('BRN-13'), 'permission contract must map BRN-13')
