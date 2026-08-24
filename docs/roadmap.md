@@ -105,7 +105,7 @@ P11 = NOT ASSEMBLED
 Product implementation = BLOCKED
 ```
 
-[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) · [P-02 selected correction contract](evidence/4c/p02-f16-f19-selected-correction-contract.md) · [P-02 recompile proof](evidence/4c/p02-f16-f19-recompile-proof.md) · [P-02 surface rebaseline](evidence/4c/p02-project-surface-rebaseline.md) · [P-02 P7 candidate](evidence/4c/p02-structural-hypotheses.md) · [F22 design](evidence/4c/p02-f22-data-explorer-design.md) · [F22 execution plan](superpowers/plans/2026-08-24-f22-read-only-data-explorer.md)
+[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) · [P-02 selected correction contract](evidence/4c/p02-f16-f19-selected-correction-contract.md) · [P-02 recompile proof](evidence/4c/p02-f16-f19-recompile-proof.md) · [P-02 surface rebaseline](evidence/4c/p02-project-surface-rebaseline.md) · [P-02 P7 candidate](evidence/4c/p02-structural-hypotheses.md) · [F22 design](evidence/4c/p02-f22-data-explorer-design.md) · [F22 execution plan](evidence/4c/p02-f22-data-explorer-implementation-plan.md)
 
 ```text
 smallest-owner reopen != smallest patch
