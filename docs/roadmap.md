@@ -15,7 +15,7 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
 | 4A — Product Surface & Authority Contract | CLOSED / OPERATOR RATIFIED / `F04`–`F07` + `F09`–`F15` RECOMPILED | `N_platform=116` | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / OPERATOR RATIFIED / INTEGRATED / `F04`–`F07` + `F09`–`F15` RECOMPILED | `116↔116`; Project=23; Builder=17; Brain=11; Connections=9; IAM=19; OBS=5 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 + P-01 LOCKED` / `P-02 OPEN / F16-F19 OPERATOR SELECTED / SPEC REVIEW` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 + P-01 LOCKED` / `P-02 SPEC REVIEW` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -37,9 +37,7 @@ F15 OPERATOR ACCEPTED / GREEN · F15 SELECTED REALIZATION
 W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN
 W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED
 P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
-P-02 = OPEN / F16-F19 OPERATOR SELECTED / WRITTEN SPEC REVIEW / 4A+4B RECOMPILE NOT STARTED / P7 BLOCKED / P8 BLOCKED
-P-02 selected correction spec commit = 95da831f43b51781a112bb8cf1f756fab0636f21
-P-02 preflight final GREEN = Verify #873 SUCCESS / 116 tests / 116 pass
+P-02 = OPEN / F16-F19 SELECTED / SPEC REVIEW / 4A+4B NOT RECOMPILED / P7+P8 BLOCKED
 F14 whole-wire GREEN = Verify #797 SUCCESS
 P7 selected RED = Verify #800 / 103 tests / 102 pass / 1 exact expected failure
 P7 structural GREEN = Verify #803 SUCCESS
@@ -68,7 +66,7 @@ P-01 lock GREEN = Verify #860 SUCCESS / 115 tests / 115 pass / whole 4B executab
 Product implementation = BLOCKED
 ```
 
-Historical: `W-03 = NEXT / NOT OPEN`, `P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-03 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = NEXT / NOT OPEN`, `W-04 = OPEN / P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = NEXT / NOT OPEN`, `P-01 = OPEN / F14 OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED / P7 BLOCKED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED DIRECTION / RED REQUIRED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-02 = NEXT / NOT OPEN`, `P-02 = OPEN / AUTHORITY PREFLIGHT / F16-F19 OPERATOR ADJUDICATION / P7 BLOCKED / P8 BLOCKED`.
+Historical: `W-03 = NEXT / NOT OPEN`, `P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-03 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = NEXT / NOT OPEN`, `W-04 = OPEN / P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `W-04 = OPEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = NEXT / NOT OPEN`, `P-01 = OPEN / F14 OPERATOR ACCEPTED / SELECTED REALIZATION / RED REQUIRED / P7 BLOCKED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED DIRECTION / RED REQUIRED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`, `P-02 = NEXT / NOT OPEN`.
 
 ## 4C routing
 
@@ -78,7 +76,7 @@ P11 = assembled interactive low-fidelity Product after all material blocks LOCK
 P12 = whole-product adversarial UX + architecture walkthrough
 ```
 
-GF-01, W-01, W-02A, W-02B, W-03, W-04 and P-01 are individually LOCKED; current fixed Product/wire remains `116↔116` until the selected F16–F19 4A/4B recompile is proved GREEN.
+GF-01, W-01, W-02A, W-02B, W-03, W-04 and P-01 are individually LOCKED; fixed Product/wire remains `116↔116` until F16–F19 recompile is GREEN.
 
 ## P-01 — Build workspace — LOCKED
 
@@ -87,14 +85,14 @@ App-first: current app + right Conexus; BUILD→BLD-03; pre-Change PLAN→BLD-16
 ```text
 P8 final right-sidebar artifact blob = 3f9d30f7e6fa0de814f0be20b7583b4e98aca7c8
 P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
-P-02 = OPEN / F16-F19 OPERATOR SELECTED / WRITTEN SPEC REVIEW
+P-02 = OPEN / F16-F19 SELECTED / SPEC REVIEW
 P-03+ = NOT OPEN
 P11 = NOT ASSEMBLED
 4D = NOT STARTED
 Product implementation = BLOCKED
 ```
 
-[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) · [P-02 authority preflight](evidence/4c/p02-authority-feasibility-preflight.md) · [P-02 selected F16–F19 correction contract](evidence/4c/p02-f16-f19-selected-correction-contract.md)
+[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) · [P-02 selected correction contract](evidence/4c/p02-f16-f19-selected-correction-contract.md)
 
 ```text
 smallest-owner reopen != smallest patch
@@ -102,4 +100,4 @@ smallest-owner reopen != smallest patch
 
 ## Exact next action
 
-**Operator review of the written P-02 F16–F19 selected correction contract: APPROVE WRITTEN SPEC | REVISE.** No 4A/4B recompile, selected RED, P7/P8, P-03, P11, 4D, merge or Product implementation before that review gate.
+**Review P-02 F16–F19 written spec: APPROVE | REVISE.** Recompile/P7/P8/P-03/P11/4D/merge/Product implementation remain blocked.
