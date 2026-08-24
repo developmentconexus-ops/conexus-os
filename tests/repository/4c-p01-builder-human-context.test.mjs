@@ -17,7 +17,7 @@ function sliceBetween(text, startNeedle, endNeedle) {
   return text.slice(start, end < 0 ? undefined : end)
 }
 
-test('P-01 preserves operator-approved F14 history while current status stops at approved P7 before P8', () => {
+test('P-01 preserves operator-approved F14/P7 history while current status advances only to P8 operator walkthrough', () => {
   const files = [
     'docs/evidence/4c/p01-authority-feasibility-preflight.md',
     'docs/evidence/4c/p01-builder-human-context-finding.md',
@@ -41,10 +41,13 @@ test('P-01 preserves operator-approved F14 history while current status stops at
   requireText(selected, 'ChangeSummary requires intent', 'F14 must preserve durable Change intent selection')
   requireText(selected, 'BLD-16 admits optional changeId', 'F14 must preserve exact optional Change assistant context selection')
 
-  requireText(roadmap, 'P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED', 'roadmap must stop at approved P7 before any P8 work')
+  requireText(roadmap, 'P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED', 'roadmap must preserve the historical pre-P8 checkpoint')
+  requireText(roadmap, 'P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED', 'roadmap must advance only to P8 operator walkthrough after candidate GREEN')
   requireText(roadmap, 'F14 whole-wire GREEN = Verify #797 SUCCESS', 'roadmap must pin the fresh F14 whole-wire GREEN proof')
   requireText(roadmap, 'P7 structural GREEN = Verify #803 SUCCESS', 'roadmap must pin the P7 structural GREEN proof')
-  if (/P-02[^\n|]*=\s*OPEN/.test(roadmap) || /4D[^\n|]*=\s*OPEN/.test(roadmap)) throw new Error('P-01 P7 closure must not open P-02 or 4D')
+  requireText(roadmap, 'P8 selected RED = Verify #807 / 107 tests / 103 pass / 4 exact expected failures', 'roadmap must pin the selected P8 RED')
+  requireText(roadmap, 'P8 candidate GREEN = Verify #808 SUCCESS', 'roadmap must pin the P8 candidate GREEN')
+  if (/P-02[^\n|]*=\s*OPEN/.test(roadmap) || /4D[^\n|]*=\s*OPEN/.test(roadmap)) throw new Error('P-01 P8 walkthrough must not open P-02 or 4D')
 })
 
 test('selected F14 realization preserves Change intent and exact optional Change context inside the Builder owner', () => {
