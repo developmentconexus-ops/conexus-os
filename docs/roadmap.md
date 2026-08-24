@@ -19,7 +19,7 @@ This is the single current phase/status authority.
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
-| 4G — Adversarial Implementation Readiness | NOT STARTED | Fresh challenge leaves no material finding |
+| 4G — Adversarial Implementation Readiness | NOT STARTED | Fresh challenge leaves no material finding | Material readiness finding |
 | Product implementation | BLOCKED | Requires 4A–4G + explicit operator grant | No historical grant carries forward |
 
 ```text
@@ -68,11 +68,11 @@ P12 = whole-product adversarial UX + architecture walkthrough
 
 ## W-03 / W-04 locked checkpoints
 
-W-03 approved P8 `7434c561ef0cfbc43c81ab8dd1f72b13cf032135`; W-04 approved revised P8 `65073eb5f532f2675f04ec307eb0d9b91fd1b69d`. Both P9/P10 passes are closed; exact Screen Contracts remain durable Evidence.
+W-03 P8 `7434c561ef0cfbc43c81ab8dd1f72b13cf032135`; W-04 revised P8 `65073eb5f532f2675f04ec307eb0d9b91fd1b69d`; both P9/P10 closed.
 
 ## P-01 — Build workspace — OPEN / P8 REVISED CANDIDATE
 
-P7 remains `A — Preview-first exact-Change workspace`; the revised P8 inherits the LOCKED GF-01 Project shell while preserving all Builder interaction/truth boundaries.
+P7=A Preview-first exact-Change; revised P8 inherits locked GF-01 Project shell.
 
 ```text
 P8 superseded artifact blob = 0abcde6902a1540aabb07e54ff08d59ad430e7ab
