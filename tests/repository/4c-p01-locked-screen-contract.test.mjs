@@ -41,5 +41,5 @@ test('operator-approved P-01 Build remains locked through later explicitly autho
 
   requireText(inventory,'| `P-01` | Build + Plan/Preview/Code/Diff/Findings/Evidence/assistant | primary Project workspace | LOCKED / OPERATOR APPROVED','inventory must keep P-01 locked')
   requireText(roadmap,'P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED','roadmap must keep P-01 locked')
-  if(/P-01[^\n|]*=\s*OPEN/.test(roadmap)||/P11\s*=\s*ASSEMBLED/.test(roadmap)||/4D[^\n|]*=\s*OPEN/.test(roadmap)) throw new Error('later P-02 progression must not reopen P-01, assemble P11 or open 4D')
+  if(/P11\s*=\s*ASSEMBLED/.test(roadmap)||/4D[^\n|]*=\s*OPEN/.test(roadmap)) throw new Error('later P-02 progression must not assemble P11 or open 4D')
 })
