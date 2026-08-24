@@ -21,6 +21,9 @@ for (const id of expectedIds) {
     if (response?.['x-conexus-provisional'] === true) throw new Error(`${id} still has provisional response authority`);
   }
 }
+for (const entry of operations.values()) {
+  if (entry.operation?.operationId === 'ListBindableConnections') throw new Error('F17 must not add ListBindableConnections');
+}
 
 function op(id) {
   const entry = operations.get(id);
@@ -117,7 +120,7 @@ function assertConnectionTest(schema, label) {
   }
   const testedAt = property(testSummary, 'testedAt');
   if (testedAt && (testedAt.type !== 'string' || testedAt.format !== 'date-time')) throw new Error(`${label} connectionTest testedAt must be an optional date-time`);
-  for (const forbidden of ['active', 'inactive', 'connected', 'ready', 'healthy', 'authorized', 'bound', 'latestQualification']) {
+  for (const forbidden of ['active', 'inactive', 'connected', 'ready', 'healthy', 'authorized', 'bound', 'latestQualification', 'qualificationHistory', 'qualificationMatrix']) {
     if (testSummary.properties?.[forbidden]) throw new Error(`${label} connectionTest must not collapse/expose ${forbidden}`);
   }
 }
@@ -133,9 +136,21 @@ for (const field of ['configurationSchema', 'credentialInputSchema']) {
   if (schema?.type !== 'object') throw new Error(`ConnectorDefinition ${field} must be a machine-readable schema object`);
 }
 
-// Scope is exact and path-owned. CreateConnection cannot smuggle a sibling/cross-Workspace owner or secret material into the logical Connection command.
+// Scope is exact and path-owned. F17 adds only an optional exact Project context for purpose-bound binding selection.
 const ownerScope = parameter('CON-03', 'path', 'ownerScopeKind') ?? parameter('CON-05', 'path', 'ownerScopeKind');
 exactEnum(ownerScope?.schema, ['WORKSPACE', 'PROJECT'], 'Connection ownerScopeKind');
+const forProjectId = parameter('CON-03', 'query', 'forProjectId');
+if (!forProjectId || forProjectId.required !== false || forProjectId.schema?.type !== 'string' || forProjectId.schema?.minLength !== 1) {
+  throw new Error('CON-03 F17 purpose-bound disclosure must expose optional nonblank forProjectId query context');
+}
+const forProjectDescription = String(forProjectId.description ?? '');
+for (const token of ['project.manage', 'connection.use']) {
+  if (!forProjectDescription.includes(token)) throw new Error(`CON-03 forProjectId must preserve ${token} purpose-bound authority`);
+}
+if (!forProjectDescription.includes('never grants') && !forProjectDescription.includes('never grant')) {
+  throw new Error('CON-03 forProjectId must explicitly deny generic Connection authority widening');
+}
+
 const create = assertClosedObject(requestSchema('CON-05'), 'CON-05 request');
 required(create, 'name', 'connectorDefinitionId', 'connectorVersion', 'configuration');
 if (!hasRequiredParameter('CON-05', 'header', 'Idempotency-Key')) throw new Error('CON-05 must require Idempotency-Key');
@@ -150,13 +165,16 @@ for (const forbidden of ['ownerScopeKind', 'ownerId', 'shareWithWorkspaceId', 's
   if (create.properties?.[forbidden]) throw new Error(`CON-05 must not accept ${forbidden}`);
 }
 
-// Lightweight Connection remains the browse/create projection; F09 does not make every list row carry provider configuration. F10 adds only derived current test applicability.
+// Lightweight Connection remains the browse/create projection; F17 must reuse it instead of inventing a bindable-resource DTO.
 for (const [label, lightweight] of [
   ['CON-03 list item', assertClosedObject(successArrayItemSchema('CON-03'), 'CON-03 list item')],
   ['CON-05 success', assertClosedObject(successSchema('CON-05', '201'), 'CON-05 success')],
 ]) {
   required(lightweight, 'connectionId', 'name', 'ownerScopeKind', 'ownerId', 'connectorDefinitionId', 'connectorVersion', 'currentRevisionId', 'credentialConfigured', 'connectionTest');
   if (lightweight.properties?.configuration) throw new Error(`${label} must remain lightweight and omit configuration`);
+  for (const forbidden of ['qualificationHistory', 'qualificationMatrix', 'bindable', 'authorizedForProject']) {
+    if (lightweight.properties?.[forbidden]) throw new Error(`${label} must not add F17 screen-shaped field ${forbidden}`);
+  }
   assertConnectionTest(lightweight, label);
 }
 
@@ -244,4 +262,4 @@ for (const [label, qualification] of [
   }
 }
 
-console.log('Connections schema closure passed (9 operations; identity/scope/configuration/current-test/revision/write-only secret/exact diagnostic qualification boundaries closed).');
+console.log('Connections schema closure passed (9 operations; identity/scope + purpose-bound F17 selection, configuration/current-test/revision/write-only secret/exact diagnostic qualification boundaries closed).');

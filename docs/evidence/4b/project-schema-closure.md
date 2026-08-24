@@ -6,7 +6,7 @@
 
 ## 1. Decision question
 
-> Can all 21 current Project Product operations be given exact HTTP request/success/Problem shapes without recreating the subtracted generic Project mutation or inventing a generic binding/data/runtime authority?
+> Can all accepted Project Product operations be given exact HTTP request/success/Problem shapes without recreating the subtracted generic Project mutation or inventing a generic binding/data/runtime authority?
 
 ## 2. Exact slice
 
@@ -121,6 +121,8 @@ connectionRevisionId
 environment
 ```
 
+After `4C-F17`, disclosed `ProjectConnectionBinding` additionally carries server-composed nonblank `connectionName` presentation. `connectionName` is not binding identity and is never accepted in the PRJ-14 binding-write input.
+
 No generic `bindingKey`, ResourceBinding framework or caller-selected credential authority was introduced.
 
 Set uses explicit expected-current state:
@@ -192,6 +194,8 @@ Inception caller-selected URL/Connection/SQL scope
 Baseline without exact digest/source/profile contract
 runtime profile wider/narrower than MANAGED|DEDICATED
 Brain binding without honest same-target present/absent conditional semantics
+ProjectConnectionBinding missing nonblank connectionName after F17
+PRJ-14 accepting connectionName as binding authority
 Connection binding without exact Connection/revision/environment/current state
 Capability regime wider/narrower than QUERY|ACTION|INTEGRATION
 DataResource missing required nonblank human presentation name after F16
@@ -289,9 +293,59 @@ Verify #883 = EXPECTED RED
 → all prior tests remained green
 
 Verify #884 = SUCCESS
-→ selected F16 4A ledger + Project OAS realization is compatible with the complete existing verification stack
+→ selected F16 4A ledger + Project OAS realization compatible with complete existing proof stack
+
+Verify #885 = SUCCESS
+→ Project owner checker hardened for required nonblank Data-resource presentation
 → N_platform remains 116
 → Project remains 23
 ```
 
-The Project owner checker is hardened in the succeeding F16 guard commit so later removal/blank widening of `name` becomes an executable falsifier rather than documentation-only intent.
+## 8. `4C-F17` bounded Project binding-presentation recompile
+
+P-02 authority-feasibility proved that the accepted Project binding job could expose exact machine coordinates without giving the human a recognizable Connection identity. The operator selected a response-only enrichment rather than a new binding owner or picker operation.
+
+Selected Project realization:
+
+```text
+ProjectConnectionBinding
+→ connectionId
+→ connectionRevisionId
+→ environment
+→ connectionName
+
+connectionName = server-composed Connection presentation at response time
+binding identity = connectionId + connectionRevisionId + environment
+connectionName -X-> binding identity / routing / authorization
+```
+
+The binding write remains machine-coordinate exact:
+
+```text
+PRJ-14 request
+→ connectionId
+→ connectionRevisionId
+→ environment
+→ expectedCurrent
+-X-> connectionName
+```
+
+The related purpose-bound candidate disclosure remains Connections-owned and is proved in `connections-schema-closure.md`; Project does not absorb Connection configuration, credentials, qualification or lifecycle authority.
+
+TDD chronology:
+
+```text
+Verify #886 = EXPECTED RED
+→ 118 repository tests / 117 pass / 1 fail
+→ exact first failure: operation ledger missing F17 token: 4C-F17
+→ status, F16 and all prior guards remained green
+
+Verify #887 = SUCCESS
+→ selected F17 ledger/Permission + Project binding presentation + CON-03 purpose-bound query realization is compatible with the complete existing proof stack
+→ N_platform remains 116
+→ Project remains 23
+→ Connections remains 9
+→ ordinary Permissions remain 25
+```
+
+The succeeding guard commit makes loss/widening of `connectionName` an executable Project falsifier.

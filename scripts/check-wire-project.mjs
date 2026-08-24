@@ -110,6 +110,16 @@ function assertPresentationName(schema, label) {
   return resolved;
 }
 
+function assertPresentationField(schema, field, label) {
+  const resolved = assertClosedObject(schema, label);
+  if (!requiredFields(resolved).has(field)) throw new Error(`${label} must require ${field}`);
+  const value = propertySchema(resolved, field);
+  if (value?.type !== 'string' || (value.minLength ?? 0) < 1 || typeof value.pattern !== 'string') {
+    throw new Error(`${label} ${field} must be an explicit non-blank presentation string`);
+  }
+  return resolved;
+}
+
 function assertNonBlankString(schema, label) {
   const resolved = resolveSchema(schema);
   if (resolved?.type !== 'string' || (resolved.minLength ?? 0) < 1) throw new Error(`${label} must be a non-empty string`);
@@ -259,11 +269,19 @@ if (preconditions.length !== 2 || !preconditions.includes('If-Match') || !precon
 }
 if (!hasParameter('PRJ-12', 'header', 'If-Match', true)) throw new Error('PRJ-12 must require If-Match');
 
-// Connection binding: identify the logical Connection, exact revision/environment and explicit expected current subject.
+// F17 Connection binding: disclosed binding carries presentation, while write input stays exact machine coordinates/current subject.
+const bindingList = resolveSchema(successSchema('PRJ-13'));
+if (bindingList?.type !== 'array') throw new Error('PRJ-13 success must remain an array');
+const disclosedBinding = assertPresentationField(resolveSchema(bindingList.items), 'connectionName', 'PRJ-13 ProjectConnectionBinding');
+for (const field of ['connectionId', 'connectionRevisionId', 'environment']) {
+  if (!requiredFields(disclosedBinding).has(field)) throw new Error(`PRJ-13 ProjectConnectionBinding must require ${field}`);
+}
 const setConnection = assertClosedObject(requestSchema('PRJ-14'), 'PRJ-14 request');
 for (const field of ['connectionId', 'connectionRevisionId', 'environment', 'expectedCurrent']) {
   if (!requiredFields(setConnection).has(field)) throw new Error(`PRJ-14 must require ${field}`);
 }
+if (setConnection.properties?.connectionName) throw new Error('PRJ-14 request must not accept connectionName presentation as binding authority');
+assertPresentationField(successSchema('PRJ-14'), 'connectionName', 'PRJ-14 ProjectConnectionBinding response');
 const expectedConnectionVariants = propertySchema(setConnection, 'expectedCurrent')?.oneOf ?? [];
 const expectedConnectionStates = expectedConnectionVariants.map((variant) => variant?.properties?.state?.const).filter(Boolean).sort();
 if (expectedConnectionStates.join(',') !== 'ABSENT,PRESENT') {
@@ -304,4 +322,4 @@ for (const forbidden of ['mastraAgentId', 'runtimeRevisionId', 'requestRevisionO
   if (agent.properties?.[forbidden]) throw new Error(`PRJ-21 must not expose runtime-authority field ${forbidden}`);
 }
 
-console.log('Project schema closure passed (23 operations; Project identity/source bootstrap, Inception intent/refinement, candidate/approved Baseline review, bindings, human Data-resource presentation and projections closed).');
+console.log('Project schema closure passed (23 operations; Project identity/source bootstrap, Inception intent/refinement, candidate/approved Baseline review, human Connection binding presentation, Data-resource presentation and projections closed).');
