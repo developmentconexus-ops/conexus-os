@@ -52,7 +52,7 @@ test('P-02 Integrations leads with Project bindings and keeps Connection lifecyc
   for (const token of [
     'PRJ-S14','PRJ-S15','PRJ-13','PRJ-14','PRJ-15','CON-03',
     'Used by this Project','Project connections','purpose-bound exact-Project chooser',
-    'ProjectConnectionBinding != Connection','connection.use -X-> generic connection.read',
+    'ProjectConnectionBinding != Connection','connection.use -X-&gt; generic connection.read',
     'configured != qualified != bound != healthy','selection disclosure != Connection management authority',
   ]) requireText(html, token)
   for (const id of ['project-bindings','binding-chooser','binding-candidates','binding-status','project-connections']) requireText(html, `id="${id}"`, id)
@@ -63,7 +63,7 @@ test('P-02 Brain is Project adoption with purpose-bound revision choice, not Wor
   const html = read(htmlPath)
   for (const token of [
     'PRJ-S19','PRJ-10','PRJ-11','PRJ-12','BRN-02','Project adoption','Workspace Brain publication remains separate',
-    'purpose-bound immutable revision chooser','brain.bind -X-> generic brain.read','Project Brain binding != Workspace Brain publication',
+    'purpose-bound immutable revision chooser','brain.bind -X-&gt; generic brain.read','Project Brain binding != Workspace Brain publication',
     'published revision selection != Workspace Brain authoring','chooser visibility != brain.read grant',
   ]) requireText(html, token)
   for (const id of ['brain-current','brain-revision-chooser','brain-revisions','brain-binding-status','workspace-brain-boundary']) requireText(html, `id="${id}"`, id)
