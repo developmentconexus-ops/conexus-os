@@ -48,8 +48,8 @@ test('P-02 preserves preflight/spec evidence and opens only the approved F16-F19
     'Goal:',
     'Task 1: Open the selected recompile and prove F16 RED→GREEN',
     'Task 2: Prove F17 Project binding disclosure RED→GREEN',
-    'Task 3: Prove F18 Brain binding disclosure RED→GREEN',
-    'Task 4: Prove F19 AnalyticQuery catalog and 117 census RED→GREEN',
+    'Task 3: Prove F18 Brain binding selection disclosure RED→GREEN',
+    'Task 4: Add BRN-13 and prove F19 + `117↔117` census RED→GREEN',
   ]) assert.ok(plan.includes(token), `P-02 recompile plan missing: ${token}`)
 
   assert.ok(roadmap.includes('P-02 = OPEN / F16-F19 APPROVED / RECOMPILE ACTIVE / P7+P8 BLOCKED'), 'roadmap must expose approved bounded recompile state')
