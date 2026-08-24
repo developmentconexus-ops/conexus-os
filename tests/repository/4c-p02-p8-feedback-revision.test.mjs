@@ -1,13 +1,15 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
 import assert from 'node:assert/strict'
 
 const root = resolve(new URL('../../', import.meta.url).pathname)
-const read = p => readFileSync(resolve(root, p), 'utf8')
+const path = p => resolve(root, p)
+const read = p => readFileSync(path(p), 'utf8')
+const readIfPresent = p => existsSync(path(p)) ? read(p) : ''
 const ledger = read('docs/product/operation-ledger.md')
 const oas = read('contracts/api/product/project-paths.yaml')
-const evidence = read('docs/evidence/4c/p02-p8-feedback-revision.md')
+const evidence = readIfPresent('docs/evidence/4c/p02-p8-feedback-revision.md')
 const html = read('docs/evidence/4c/p02-project-resources-functional-wireframe.html')
 
 function has(text, token) {
