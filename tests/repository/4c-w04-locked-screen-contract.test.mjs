@@ -16,7 +16,7 @@ function gitBlobSha(text) {
   return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')
 }
 
-test('operator-approved W-04 Workspace Agent catalog remains locked through later bounded P-01 progression', () => {
+test('operator-approved W-04 Workspace Agent catalog remains locked through later authorized Project-block progression', () => {
   const htmlPath = 'docs/evidence/4c/w04-agent-catalog-functional-wireframe.html'
   const contractPath = 'docs/evidence/4c/w04-agent-catalog-screen-contract.md'
   if (!existsSync(path(contractPath))) throw new Error('W-04 exact Screen Contract must exist after operator lock')
@@ -76,12 +76,10 @@ test('operator-approved W-04 Workspace Agent catalog remains locked through late
   requireText(inventory, '| WS-S03 | Workspace Agent catalog | `ROUTE_PAGE` |', 'W-04 lock must preserve the exact Workspace Agent catalog surface')
   requireText(inventory, '| `W-04` | Workspace Agent catalog | access-filtered browse of Project-owned Agents | LOCKED / OPERATOR APPROVED', 'W-04 lock must remain in the material-block ledger')
   requireText(inventory, '| `P-01` | Build + Plan/Preview/Code/Diff/Findings/Evidence/assistant | primary Project workspace | LOCKED / OPERATOR APPROVED', 'later authorized P-01 lock must not falsify W-04 history')
-  requireText(inventory, '| `P-02` | Data + Capabilities + Integrations + Project Connections + Brain binding | inspectable Product resources | NEXT / NOT OPEN', 'current routing after P-01 lock must remain bounded')
 
   requireText(roadmap, 'W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED', 'roadmap must preserve W-04 lock')
   requireText(roadmap, 'P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED', 'later authorized P-01 closure must be visible')
-  requireText(roadmap, 'P-02 = NEXT / NOT OPEN', 'roadmap must route but not open P-02')
-  if (/P-02[^\n|]*=\s*OPEN/.test(roadmap) || /P11\s*=\s*ASSEMBLED/.test(roadmap) || /4D[^\n|]*=\s*OPEN/.test(roadmap)) {
-    throw new Error('later P-01 lock must not open P-02, P11 or 4D')
+  if (/P11\s*=\s*ASSEMBLED/.test(roadmap) || /4D[^\n|]*=\s*OPEN/.test(roadmap)) {
+    throw new Error('later authorized progression must not assemble P11 or open 4D')
   }
 })
