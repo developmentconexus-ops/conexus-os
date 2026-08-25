@@ -8,6 +8,7 @@ if (!bundledOpenApi) throw new Error('usage: node scripts/run-kubb-wire-probe.mj
 const versions = {
   kubb: '5.0.0',
   typescript: '7.0.2',
+  typescriptApi: '6.0.2',
 };
 const root = '/tmp/conexus-kubb-real-oas-probe';
 const outputA = path.join(root, 'generated-a');
@@ -45,6 +46,7 @@ run('npm', [
   `@kubb/plugin-ts@${versions.kubb}`,
   `@kubb/plugin-fetch@${versions.kubb}`,
   `typescript@${versions.typescript}`,
+  `@typescript/typescript6@${versions.typescriptApi}`,
 ]);
 
 fs.writeFileSync(
@@ -180,7 +182,7 @@ fs.writeFileSync(
   anyScanner,
   `import fs from 'node:fs'\n` +
     `import path from 'node:path'\n` +
-    `import * as ts from 'typescript'\n\n` +
+    `import ts6 from '@typescript/typescript6'\n\n` +
     `const root = process.argv[2]\n` +
     `function files(dir) {\n` +
     `  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {\n` +
@@ -191,10 +193,10 @@ fs.writeFileSync(
     `let found = null\n` +
     `for (const file of files(root)) {\n` +
     `  const text = fs.readFileSync(file, 'utf8')\n` +
-    `  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)\n` +
+    `  const source = ts6.createSourceFile(file, text, ts6.ScriptTarget.Latest, true, ts6.ScriptKind.TS)\n` +
     `  function visit(node) {\n` +
-    `    if (!found && node.kind === ts.SyntaxKind.AnyKeyword) found = { file, start: node.getStart(source) }\n` +
-    `    if (!found) ts.forEachChild(node, visit)\n` +
+    `    if (!found && node.kind === ts6.SyntaxKind.AnyKeyword) found = { file, start: node.getStart(source) }\n` +
+    `    if (!found) ts6.forEachChild(node, visit)\n` +
     `  }\n` +
     `  visit(source)\n` +
     `  if (found) break\n` +
@@ -235,4 +237,4 @@ fs.writeFileSync(
 const tscBin = path.join(root, 'node_modules', '.bin', 'tsc');
 run(tscBin, ['--project', path.join(root, 'tsconfig.json')]);
 
-console.log(`Kubb real-OAS probe passed (kubb=${versions.kubb}, typescript=${versions.typescript}, operations=${expectedProductOperations}, files=${snapshotA.size}, byte-deterministic, no explicit TypeScript any, strict compile green).`);
+console.log(`Kubb real-OAS probe passed (kubb=${versions.kubb}, typescript=${versions.typescript}, api=${versions.typescriptApi}, operations=${expectedProductOperations}, files=${snapshotA.size}, byte-deterministic, no explicit TypeScript any, strict compile green).`);
