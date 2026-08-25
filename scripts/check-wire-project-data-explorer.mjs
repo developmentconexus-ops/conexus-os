@@ -87,6 +87,14 @@ function assertRequires(schema, fields, label) {
   }
 }
 
+function assertExactProperties(schema, fields, label) {
+  const actual = Object.keys(schema?.properties ?? {}).sort();
+  const expected = [...fields].sort();
+  if (actual.length !== expected.length || expected.some((field, index) => actual[index] !== field)) {
+    fail(`${label} properties must be exactly ${expected.join('|')}; got ${actual.join('|')}`);
+  }
+}
+
 function collectPropertyNames(doc, schema, seen = new Set(), names = new Set()) {
   if (!schema || typeof schema !== 'object') return names;
   if (schema.$ref?.startsWith('#/')) {
@@ -132,38 +140,46 @@ export function validateDataExplorer(doc) {
   const sources = successSchema(doc, 'PRJ-25');
   if (sources?.type !== 'array') fail('PRJ-25 must return an array');
   const source = closed(doc, sources.items, 'PRJ-25 item');
+  assertExactProperties(source, ['dataSourceId', 'name', 'sourceClass', 'availability', 'engine', 'environment'], 'PRJ-25 item');
   assertRequires(source, ['dataSourceId', 'name', 'sourceClass', 'availability'], 'PRJ-25 item');
   assertExactEnum(property(doc, source, 'sourceClass'), ['INTERNAL', 'INTEGRATION'], 'sourceClass');
   assertExactEnum(property(doc, source, 'availability'), ['AVAILABLE', 'UNAVAILABLE'], 'source availability');
 
   const objectPage = closed(doc, successSchema(doc, 'PRJ-26'), 'PRJ-26 page');
+  assertExactProperties(objectPage, ['items', 'nextCursor'], 'PRJ-26 page');
   assertRequires(objectPage, ['items'], 'PRJ-26 page');
   const objectItems = property(doc, objectPage, 'items');
   if (objectItems?.type !== 'array') fail('PRJ-26 items must be an array');
   const objectSummary = closed(doc, objectItems.items, 'PRJ-26 item');
+  assertExactProperties(objectSummary, ['dataObjectId', 'name', 'kind', 'namespace', 'semanticDataResourceId', 'derived'], 'PRJ-26 item');
   assertRequires(objectSummary, ['dataObjectId', 'name', 'kind'], 'PRJ-26 item');
   assertExactEnum(property(doc, objectSummary, 'kind'), ['TABLE', 'VIEW', 'DATASET'], 'object kind');
 
   const objectDetail = closed(doc, successSchema(doc, 'PRJ-27'), 'PRJ-27 object');
+  assertExactProperties(objectDetail, ['dataObjectId', 'name', 'kind', 'namespace', 'semanticDataResourceId', 'derived', 'rowReadAvailability', 'columns', 'relationships', 'constraints'], 'PRJ-27 object');
   assertRequires(objectDetail, ['dataObjectId', 'name', 'kind', 'rowReadAvailability', 'columns', 'relationships', 'constraints'], 'PRJ-27 object');
   assertExactEnum(property(doc, objectDetail, 'rowReadAvailability'), ['AVAILABLE', 'UNAVAILABLE'], 'rowReadAvailability');
   const columns = property(doc, objectDetail, 'columns');
   if (columns?.type !== 'array') fail('PRJ-27 columns must be an array');
   const column = closed(doc, columns.items, 'PRJ-27 column');
+  assertExactProperties(column, ['dataColumnId', 'name', 'sourceType', 'nullable', 'keyRole', 'semanticFieldId'], 'PRJ-27 column');
   assertRequires(column, ['dataColumnId', 'name', 'sourceType', 'nullable', 'keyRole'], 'PRJ-27 column');
   assertExactEnum(property(doc, column, 'keyRole'), ['PRIMARY', 'FOREIGN', 'UNIQUE', 'NONE'], 'column keyRole');
 
   const relationships = property(doc, objectDetail, 'relationships');
   if (relationships?.type !== 'array') fail('PRJ-27 relationships must be an array');
   const relationship = closed(doc, relationships.items, 'PRJ-27 relationship');
+  assertExactProperties(relationship, ['relationshipId', 'sourceColumnId', 'targetDataObjectId', 'targetColumnId', 'kind'], 'PRJ-27 relationship');
   assertRequires(relationship, ['relationshipId', 'sourceColumnId', 'targetDataObjectId', 'targetColumnId', 'kind'], 'PRJ-27 relationship');
 
   const constraints = property(doc, objectDetail, 'constraints');
   if (constraints?.type !== 'array') fail('PRJ-27 constraints must be an array');
   const constraint = closed(doc, constraints.items, 'PRJ-27 constraint');
+  assertExactProperties(constraint, ['constraintId', 'kind', 'columnIds', 'summary'], 'PRJ-27 constraint');
   assertRequires(constraint, ['constraintId', 'kind', 'columnIds'], 'PRJ-27 constraint');
 
   const query = closed(doc, requestSchema(doc, 'PRJ-28'), 'PRJ-28 request');
+  assertExactProperties(query, ['filters', 'sort', 'continuationToken', 'limit'], 'PRJ-28 request');
   const forbidden = new Set(['sql', 'where', 'expression', 'connectionId', 'connectionRevisionId', 'environment', 'targetUrl', 'credential', 'password']);
   const requestProperties = collectPropertyNames(doc, query);
   for (const name of forbidden) {
@@ -187,10 +203,13 @@ export function validateDataExplorer(doc) {
   const valueBranch = filterBranches.find((branch) => required(branch).has('value'));
   const nullBranch = filterBranches.find((branch) => !required(branch).has('value'));
   if (!valueBranch || !nullBranch || nullBranch.properties?.value) fail('null filters must forbid value and value filters must require it');
+  assertExactProperties(valueBranch, ['dataColumnId', 'operator', 'value'], 'value filter');
+  assertExactProperties(nullBranch, ['dataColumnId', 'operator'], 'null filter');
 
   const sort = property(doc, query, 'sort');
   if (sort?.type !== 'array' || sort.maxItems !== 3) fail('PRJ-28 sort must be a bounded array with maxItems=3');
   const sortItem = closed(doc, sort.items, 'PRJ-28 sort item');
+  assertExactProperties(sortItem, ['dataColumnId', 'direction'], 'PRJ-28 sort item');
   assertRequires(sortItem, ['dataColumnId', 'direction'], 'PRJ-28 sort item');
   assertExactEnum(property(doc, sortItem, 'direction'), ['ASC', 'DESC'], 'sort direction');
 
@@ -198,14 +217,22 @@ export function validateDataExplorer(doc) {
   if (limit?.minimum !== 1 || limit.maximum !== 100) fail('PRJ-28 limit must remain 1..100');
 
   const page = closed(doc, successSchema(doc, 'PRJ-28'), 'PRJ-28 row page');
+  assertExactProperties(page, ['observedAt', 'columns', 'rows', 'continuationToken', 'approximateTotal'], 'PRJ-28 row page');
   assertRequires(page, ['observedAt', 'columns', 'rows'], 'PRJ-28 row page');
+  const gridColumns = property(doc, page, 'columns');
+  if (gridColumns?.type !== 'array') fail('PRJ-28 columns must be an array');
+  const gridColumn = closed(doc, gridColumns.items, 'PRJ-28 grid column');
+  assertExactProperties(gridColumn, ['dataColumnId', 'name', 'sourceType', 'semanticFieldId'], 'PRJ-28 grid column');
+  assertRequires(gridColumn, ['dataColumnId', 'name', 'sourceType'], 'PRJ-28 grid column');
   const rows = property(doc, page, 'rows');
   if (rows?.type !== 'array' || rows.maxItems !== 100) fail('PRJ-28 rows must be bounded to maxItems=100');
   const row = closed(doc, rows.items, 'PRJ-28 row');
+  assertExactProperties(row, ['cells'], 'PRJ-28 row');
   assertRequires(row, ['cells'], 'PRJ-28 row');
   const cells = property(doc, row, 'cells');
   if (cells?.type !== 'array') fail('PRJ-28 cells must be an array, never dynamic row properties');
   const cell = closed(doc, cells.items, 'PRJ-28 cell');
+  assertExactProperties(cell, ['dataColumnId', 'valueKind', 'displayValue', 'truncated', 'byteLength'], 'PRJ-28 cell');
   assertRequires(cell, ['dataColumnId', 'valueKind', 'displayValue', 'truncated'], 'PRJ-28 cell');
   assertExactEnum(property(doc, cell, 'valueKind'), ['NULL', 'TEXT', 'NUMBER', 'BOOLEAN', 'TEMPORAL', 'JSON', 'BINARY'], 'cell valueKind');
 
@@ -232,12 +259,12 @@ validateDataExplorer(canonical);
 expectReject('F22 cannot admit SQL text', (doc) => {
   const query = closed(doc, requestSchema(doc, 'PRJ-28'), 'negative request');
   query.properties.sql = { type: 'string' };
-}, /must not expose sql/);
+}, /must not expose sql|properties must be exactly/);
 
 expectReject('F22 cannot select Connection revision', (doc) => {
   const query = closed(doc, requestSchema(doc, 'PRJ-28'), 'negative request');
   query.properties.connectionRevisionId = { type: 'string' };
-}, /must not expose connectionRevisionId/);
+}, /must not expose connectionRevisionId|properties must be exactly/);
 
 expectReject('F22 sourceClass cannot become DERIVED physical source', (doc) => {
   const sources = successSchema(doc, 'PRJ-25');
@@ -277,4 +304,4 @@ expectReject('F22 cannot admit unlisted source projection property', (doc) => {
   source.properties.connectionUri = { type: 'string' };
 }, /PRJ-25 item properties must be exactly/);
 
-console.log('Project F22 Data Explorer closure passed (4 bounded reads; no SQL/write/credential authority).');
+console.log('Project F22 Data Explorer closure passed (4 bounded reads; exact projection allowlists; no SQL/write/credential authority).');
