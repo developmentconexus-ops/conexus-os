@@ -175,12 +175,44 @@ for (const status of ['401', '403', '404', '409', '412', '422', '503']) {
   if (!pattern.test(allGeneratedText)) throw new Error(`Kubb generated types lost documented HTTP status ${status}`);
 }
 
-const publicTypeText = listFiles(path.join(outputA, 'types'))
-  .filter((file) => file.endsWith('.ts'))
-  .map((file) => fs.readFileSync(file, 'utf8'))
-  .join('\n');
-if (/\bany\b/.test(publicTypeText)) {
-  throw new Error('Kubb generated public Product types contain explicit any');
+const anyScanner = path.join(root, 'scan-explicit-any.mjs');
+fs.writeFileSync(
+  anyScanner,
+  `import fs from 'node:fs'\n` +
+    `import path from 'node:path'\n` +
+    `import ts from 'typescript'\n\n` +
+    `const root = process.argv[2]\n` +
+    `function files(dir) {\n` +
+    `  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {\n` +
+    `    const absolute = path.join(dir, entry.name)\n` +
+    `    return entry.isDirectory() ? files(absolute) : absolute.endsWith('.ts') ? [absolute] : []\n` +
+    `  })\n` +
+    `}\n` +
+    `let found = null\n` +
+    `for (const file of files(root)) {\n` +
+    `  const text = fs.readFileSync(file, 'utf8')\n` +
+    `  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)\n` +
+    `  function visit(node) {\n` +
+    `    if (!found && node.kind === ts.SyntaxKind.AnyKeyword) found = { file, start: node.getStart(source) }\n` +
+    `    if (!found) ts.forEachChild(node, visit)\n` +
+    `  }\n` +
+    `  visit(source)\n` +
+    `  if (found) break\n` +
+    `}\n` +
+    `if (found) {\n` +
+    `  console.error('explicit TypeScript any at ' + found.file + ':' + found.start)\n` +
+    `  process.exit(1)\n` +
+    `}\n`,
+);
+const anyScan = spawnSync('node', [anyScanner, path.join(outputA, 'types')], {
+  cwd: root,
+  encoding: 'utf8',
+  maxBuffer: 20 * 1024 * 1024,
+});
+if (anyScan.status !== 0) {
+  process.stdout.write(anyScan.stdout ?? '');
+  process.stderr.write(anyScan.stderr ?? '');
+  throw new Error('Kubb generated public Product types contain explicit TypeScript any');
 }
 
 fs.writeFileSync(
@@ -203,4 +235,4 @@ fs.writeFileSync(
 const tscBin = path.join(root, 'node_modules', '.bin', 'tsc');
 run(tscBin, ['--project', path.join(root, 'tsconfig.json')]);
 
-console.log(`Kubb real-OAS probe passed (kubb=${versions.kubb}, typescript=${versions.typescript}, operations=${expectedProductOperations}, files=${snapshotA.size}, byte-deterministic, TypeScript strict compile green).`);
+console.log(`Kubb real-OAS probe passed (kubb=${versions.kubb}, typescript=${versions.typescript}, operations=${expectedProductOperations}, files=${snapshotA.size}, byte-deterministic, no explicit TypeScript any, strict compile green).`);
