@@ -76,6 +76,8 @@ paths:
     $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1baseline-candidates~1{candidateBaselineDigest}~1assistant~1queries'
   /api/control/projects/{projectId}/brain-binding:
     $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1brain-binding'
+  /api/control/projects/{projectId}/brain-context:
+    $ref: './project-brain-context-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1brain-context'
   /api/control/projects/{projectId}/connection-bindings:
     $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1connection-bindings'
   /api/control/projects/{projectId}/commands/set-connection-binding:
