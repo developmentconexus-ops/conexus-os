@@ -90,6 +90,14 @@ paths:
     $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-resources'
   /api/control/projects/{projectId}/data-resources/{dataResourceId}:
     $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-resources~1{dataResourceId}'
+  /api/control/projects/{projectId}/data-explorer/sources:
+    $ref: './project-data-explorer-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-explorer~1sources'
+  /api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects:
+    $ref: './project-data-explorer-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-explorer~1sources~1{dataSourceId}~1objects'
+  /api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects/{dataObjectId}:
+    $ref: './project-data-explorer-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-explorer~1sources~1{dataSourceId}~1objects~1{dataObjectId}'
+  /api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects/{dataObjectId}/rows:query:
+    $ref: './project-data-explorer-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-explorer~1sources~1{dataSourceId}~1objects~1{dataObjectId}~1rows:query'
   /api/control/projects/{projectId}/product-agents:
     $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1product-agents'
   /api/control/projects/{projectId}/product-agents/{agentId}:
