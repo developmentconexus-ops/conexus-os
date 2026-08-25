@@ -1,0 +1,112 @@
+name: P02 Integration Correction Once
+
+on:
+  push:
+    branches: [agent/4c-frontend-interaction]
+
+permissions:
+  contents: write
+
+jobs:
+  correct-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/4c-frontend-interaction
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Apply exact approved P02 correction
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const p = 'docs/evidence/4c/p02-project-resources-functional-wireframe.html'
+          let html = fs.readFileSync(p, 'utf8')
+          const replaceOnce = (oldText, newText, label) => {
+            const count = html.split(oldText).length - 1
+            if (count !== 1) throw new Error(`${label}: expected exactly 1 occurrence, got ${count}`)
+            html = html.replace(oldText, newText)
+          }
+
+          replaceOnce(
+            'PRJ-14 set/switch · PRJ-15 remove',
+            'PRJ-14 add/update exact Project use · PRJ-15 stop use',
+            'integration truth wording'
+          )
+
+          replaceOnce(
+            '<div id="binding-current"></div><div><strong>Switch to</strong><div class="tiny">Only eligible disclosed candidates are shown.</div></div><div id="binding-candidates"></div><div class="actions"><button id="save-binding" class="btn primary" type="button">Confirm switch</button></div>',
+            '<div><strong>Eligible connections</strong><div class="tiny">Only eligible disclosed Connections not already used by this Project are shown.</div></div><div id="binding-candidates"></div><div class="actions"><button id="save-binding" class="btn primary" type="button">Use selected connection</button></div>',
+            'binding chooser markup'
+          )
+
+          replaceOnce(
+            "bindings:[{connectionId:'con-sankhya',connectionName:'Sankhya ERP',connectionRevisionId:'rev-18',environment:'PRODUCTION',purpose:'Provides governed ERP data access.'},{connectionId:'con-slack',connectionName:'Slack Commercial',connectionRevisionId:'rev-07',environment:'PRODUCTION',purpose:'Provides admitted commercial messaging.'}],",
+            "bindings:[{connectionId:'con-sankhya',connectionName:'Sankhya ERP',connectionRevisionId:'rev-18',environment:'PRODUCTION'},{connectionId:'con-slack',connectionName:'Slack Commercial',connectionRevisionId:'rev-07',environment:'PRODUCTION'}],",
+            'binding fixtures'
+          )
+
+          replaceOnce(
+            ",selectedCapabilityId='cap-01',selectedBindingCandidate=null,bindingMode='ADD',bindingCurrentId=null,selectedBrainConcept=",
+            ",selectedCapabilityId='cap-01',selectedBindingCandidate=null,selectedBrainConcept=",
+            'binding replacement state'
+          )
+
+          replaceOnce(
+            `function renderIntegrations(){$('project-bindings').innerHTML=fixtures.bindings.length?fixtures.bindings.map(b=>\`<div class="integration-card"><div class="integration-title"><div><strong>\${b.connectionName}</strong><span class="badge">\${b.environment}</span></div><span class="tiny">used by this Project</span></div><p>\${b.purpose}</p><div class="tiny">Current connection · \${b.connectionRevisionId}</div><div class="actions"><button class="btn" type="button" data-switch="\${b.connectionId}">Switch connection</button><button class="btn" type="button" data-remove="\${b.connectionId}">Remove</button></div></div>\`).join(''):'<div class="empty">This Project is not using any Connection.</div>';document.querySelectorAll('[data-switch]').forEach(b=>b.onclick=()=>openBindingChooser('SWITCH',b.dataset.switch));document.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>removeProjectBinding(b.dataset.remove));$('project-connections').innerHTML=fixtures.projectConnections.map(c=>\`<div class="card"><strong>\${c.name}</strong><div class="tiny">\${c.state} · \${c.qualification}</div></div>\`).join('')}`,
+            `function renderIntegrations(){$('project-bindings').innerHTML=fixtures.bindings.length?fixtures.bindings.map(b=>\`<div class="integration-card"><div class="integration-title"><div><strong>\${b.connectionName}</strong><span class="badge">\${b.environment}</span></div><span class="tiny">used by this Project</span></div><div class="tiny">Revision \${b.connectionRevisionId}</div><div class="actions"><button class="btn" type="button" data-remove="\${b.connectionId}">Stop using</button></div></div>\`).join(''):'<div class="empty">This Project is not using any Connection.</div>';document.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>removeProjectBinding(b.dataset.remove));$('project-connections').innerHTML=fixtures.projectConnections.map(c=>\`<div class="card"><strong>\${c.name}</strong><div class="tiny">\${c.state} · \${c.qualification}</div></div>\`).join('')}`,
+            'renderIntegrations'
+          )
+
+          replaceOnce(
+            `function openBindingChooser(mode='ADD',currentId=null){returnFocusTo=document.activeElement;bindingMode=mode;bindingCurrentId=currentId;selectedBindingCandidate=null;$('binding-chooser').hidden=false;const current=fixtures.bindings.find(x=>x.connectionId===currentId);$('binding-chooser-title').textContent=mode==='SWITCH'?'Switch connection':'Use connection';$('binding-current').innerHTML=current?\`<strong>Current connection</strong><div class="card">\${current.connectionName} · \${current.connectionRevisionId}</div>\`:'<strong>Current connection</strong><div class="card">None</div>';$('binding-candidates').innerHTML=fixtures.connectionCandidates.map(c=>\`<button type="button" class="choice" aria-pressed="false" data-bind="\${c.connectionId}"><strong>\${c.name}</strong><div class="tiny">\${c.environment} · current \${c.revision} · test \${c.test}</div></button>\`).join('');document.querySelectorAll('[data-bind]').forEach(b=>b.onclick=()=>selectBindingCandidate(b.dataset.bind));$('save-binding').textContent=mode==='SWITCH'?'Confirm switch':'Use selected connection';$('close-binding-chooser').focus()}`,
+            `function openBindingChooser(){returnFocusTo=document.activeElement;selectedBindingCandidate=null;$('binding-chooser').hidden=false;const used=new Set(fixtures.bindings.map(x=>x.connectionId));const candidates=fixtures.connectionCandidates.filter(c=>!used.has(c.connectionId));$('binding-candidates').innerHTML=candidates.length?candidates.map(c=>\`<button type="button" class="choice" aria-pressed="false" data-bind="\${c.connectionId}"><strong>\${c.name}</strong><div class="tiny">\${c.environment} · current \${c.revision} · test \${c.test}</div></button>\`).join(''):'<div class="empty">No additional eligible Connections are currently disclosed for this Project.</div>';document.querySelectorAll('[data-bind]').forEach(b=>b.onclick=()=>selectBindingCandidate(b.dataset.bind));$('close-binding-chooser').focus()}`,
+            'openBindingChooser'
+          )
+
+          replaceOnce(
+            `function saveProjectBinding(){if(!selectedBindingCandidate){$('binding-status').textContent='Choose an eligible Connection first.';return}const c=fixtures.connectionCandidates.find(x=>x.connectionId===selectedBindingCandidate);if(bindingMode==='SWITCH'&&bindingCurrentId){const i=fixtures.bindings.findIndex(x=>x.connectionId===bindingCurrentId);fixtures.bindings[i]={connectionId:c.connectionId,connectionName:c.name,connectionRevisionId:c.revision,environment:c.environment,purpose:'Project use changed through PRJ-14; Connection lifecycle remains separate.'}}else if(!fixtures.bindings.some(x=>x.connectionId===c.connectionId))fixtures.bindings.push({connectionId:c.connectionId,connectionName:c.name,connectionRevisionId:c.revision,environment:c.environment,purpose:'Project use added through PRJ-14.'});$('binding-status').textContent=\`PRJ-14 fixture now uses \${c.name}; server revalidation remains authoritative.\`;closeBindingChooser();renderIntegrations()}`,
+            `function saveProjectBinding(){if(!selectedBindingCandidate){$('binding-status').textContent='Choose an eligible Connection first.';return}const c=fixtures.connectionCandidates.find(x=>x.connectionId===selectedBindingCandidate);if(!fixtures.bindings.some(x=>x.connectionId===c.connectionId))fixtures.bindings.push({connectionId:c.connectionId,connectionName:c.name,connectionRevisionId:c.revision,environment:c.environment});$('binding-status').textContent=\`PRJ-14 fixture now uses \${c.name}; server revalidation remains authoritative.\`;closeBindingChooser();renderIntegrations()}`,
+            'saveProjectBinding'
+          )
+
+          replaceOnce(
+            "function removeProjectBinding(id){fixtures.bindings=fixtures.bindings.filter(x=>x.connectionId!==id);$('binding-status').textContent='PRJ-15 fixture removed Project use; Connection owner state is unchanged.';renderIntegrations()}",
+            "function removeProjectBinding(id){fixtures.bindings=fixtures.bindings.filter(x=>x.connectionId!==id);$('binding-status').textContent='PRJ-15 fixture stopped Project use; Connection owner state is unchanged.';renderIntegrations()}",
+            'removeProjectBinding'
+          )
+
+          replaceOnce(
+            "$('add-binding').onclick=()=>openBindingChooser('ADD');",
+            "$('add-binding').onclick=openBindingChooser;",
+            'add binding handler'
+          )
+
+          if (/Switch connection|Switch to|Confirm switch|data-switch|bindingMode\s*=\s*'SWITCH'/i.test(html)) throw new Error('replacement semantics survived correction')
+          const bindingsFixture = html.match(/bindings:\s*(\[[\s\S]*?\]),\s*connectionCandidates:/)?.[1]
+          if (!bindingsFixture) throw new Error('bindings fixture missing after correction')
+          if (/\bpurpose\s*:/.test(bindingsFixture)) throw new Error('invented binding purpose survived correction')
+          fs.writeFileSync(p, html)
+          NODE
+          git diff --check
+          git diff -- docs/evidence/4c/p02-project-resources-functional-wireframe.html
+      - run: npm ci
+      - run: npm run verify
+      - name: Commit exact verified final tree and remove one-shot workflow
+        shell: bash
+        run: |
+          git rm .github/workflows/p02-integration-correction-once.yml
+          git diff --check
+          npm run verify
+          echo "P8 blob before commit: $(git hash-object docs/evidence/4c/p02-project-resources-functional-wireframe.html)"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -- docs/evidence/4c/p02-project-resources-functional-wireframe.html
+          git add -u -- .github/workflows/p02-integration-correction-once.yml
+          git commit -m "fix(4c): remove invented integration switch semantics"
+          git push origin HEAD:agent/4c-frontend-interaction
