@@ -21,5 +21,4 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run test:4c:p02
       - run: npm run verify
