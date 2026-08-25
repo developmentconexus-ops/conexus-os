@@ -16,8 +16,9 @@ const expectedIds = [
   ...Array.from({ length: 10 }, (_, i) => `BRN-${String(i + 1).padStart(2, '0')}`),
   'BRN-12',
   'BRN-13',
+  'BRN-14',
 ];
-if (expectedIds.length !== 12) throw new Error('internal Brain gate setup error');
+if (expectedIds.length !== 13) throw new Error('internal Brain gate setup error');
 if (operations.has('BRN-11')) throw new Error('BRN-11 RunBrainHealthProbe must remain SYSTEM_OWNER_TRANSITION, not caller Product wire');
 
 for (const id of expectedIds) {
@@ -302,4 +303,4 @@ for (const [label, schema] of [['catalog', catalog], ['dataset', dataset], ['sem
   }
 }
 
-console.log('Brain schema closure passed (12 Product operations; F05/F06/F07 Brain review/browse, F18 purpose-bound revision selection and F19 Project analytic semantic-input catalog closed; BRN-11 remains owner transition; BRN-12 remains deterministic executor).');
+console.log('Brain schema closure passed (13 Product operations; F05/F06/F07 Brain review/browse, F18 purpose-bound revision selection, F19 Project analytic semantic-input catalog and F23 Project Brain Context closed; BRN-11 remains owner transition; BRN-12 remains deterministic executor).');
