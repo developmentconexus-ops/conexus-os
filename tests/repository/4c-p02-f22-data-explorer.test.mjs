@@ -45,7 +45,7 @@ test('F22 routes a bounded Project explorer and executable checker', () => {
 })
 
 test('F22 adversarial-review clarifications remain explicit and routed', () => {
-  assert.match(ledger, /continuationToken[\s\S]*filters[\s\S]*sort[\s\S]*422[\s\S]*never reinterpreted/i)
+  assert.match(explorerOas, /continuationToken[\s\S]*filters[\s\S]*sort[\s\S]*422[\s\S]*never reinterpreted/i)
   assert.match(permissions, /already-issued `project\.data\.read`[\s\S]*raw-row/i)
   assert.match(design, /semantic Data inspection without raw-row disclosure/i)
   assert.match(explorerOas, /locale-dependent or ambiguous[\s\S]*422/i)
