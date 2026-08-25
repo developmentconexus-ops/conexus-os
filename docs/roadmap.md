@@ -15,7 +15,7 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
 | 4A — Product Surface & Authority Contract | CLOSED / `F23` RATIFIED | `122` fixed Product operations | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / `F23` RATIFIED | `122↔122`; Project=27; Brain=13 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.3 / `GF-01..W-04 + P-01 LOCKED` / `P-02 F23 REBASELINED P7 OPERATOR APPROVED / P8 BLOCKED` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.3 / `GF-01..W-04 + P-01 LOCKED` / `P-02 F22+F23 P8 REVISED CANDIDATE / WALKTHROUGH / NOT LOCKED` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -31,8 +31,7 @@ F22 = RATIFIED / Project Data Explorer / PRJ-25..28 / Permissions=25
 F23 = RED #987 → GREEN #993 / BRN-14 GetProjectBrainContext / 122↔122 / Brain=13 / Permissions=25
 
 P-02 P7 = REBASELINED / OPERATOR APPROVED DESIGN
-P-02 P8 = BLOCKED PENDING EXPLICIT EXECUTION AUTHORITY / NOT LOCKED
-old F22 P8 blob 54043c9e1385b09fa8fb70ec9b38f8d56cc3dcb4 = historical/learning Evidence / NOT LOCKABLE AFTER F23
+P-02 P8 = RED #999 → GREEN #1000 / blob 7624694b86017c83deed661ee5ae17dc05495dc3 / WALKTHROUGH / NOT LOCKED
 
 P9/P10 = BLOCKED
 P-03+ = NOT OPEN
@@ -77,7 +76,9 @@ Integrations → PRJ-13/14/15 + purpose-bound CON-03
 
 Project Brain Context is server-resolved and is neither the whole Workspace Brain nor a runtime `effectiveBrainSlice`. Workspace Brain governance remains the locked W-02A owner surface. Cross-route links require exact server-owned coordinates; Data→Brain concept and Integration→Capability maps remain deferred until a current user job and owner relation are proven.
 
-[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) · [P-02 surface rebaseline](evidence/4c/p02-project-surface-rebaseline.md) · [P-02 P7](evidence/4c/p02-structural-hypotheses.md) · [F22 design](evidence/4c/p02-f22-data-explorer-design.md) · [F23 decision/proof](evidence/4c/p02-f23-project-brain-context-design.md)
+The exact current functional P8 is the F22+F23 fixture-only walkthrough candidate. Data remains a bounded read-only physical explorer plus separate semantic meaning; Brain Context is primary and binding administration secondary; Capabilities are human-contract-first; Integrations are system-use-first. P8 is not accepted merely because its executable proof is green.
+
+[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) · [P-02 surface rebaseline](evidence/4c/p02-project-surface-rebaseline.md) · [P-02 P7](evidence/4c/p02-structural-hypotheses.md) · [F22 design](evidence/4c/p02-f22-data-explorer-design.md) · [F23 decision/proof](evidence/4c/p02-f23-project-brain-context-design.md) · [Current P8 F22+F23 Evidence](evidence/4c/p02-p8-f22-f23-revision.md)
 
 ```text
 smallest-owner reopen != smallest patch
@@ -85,4 +86,4 @@ smallest-owner reopen != smallest patch
 
 ## Exact next action
 
-**Operator explicitly authorizes or rejects execution of the revised P-02 P8 from the F22+F23 rebaselined P7.** No HTML change is authorized by the P7/F23 approvals alone. P9/P10/P-03/P11/4D/merge/Product implementation remain blocked.
+**Operator walkthrough of the exact verified P-02 F22+F23 P8 candidate.** P8 remains `NOT LOCKED` until explicit operator approval after walkthrough. P9/P10/P-03/P11/4D/merge/Product implementation remain blocked.
