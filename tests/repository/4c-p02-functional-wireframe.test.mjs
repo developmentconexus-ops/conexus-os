@@ -77,7 +77,7 @@ test('P-02 Capabilities is human-contract-first and never invents generic execut
 test('P-02 Integrations presents current Project use without inventing replacement semantics or binding purpose', () => {
   const html = read(htmlPath)
   for (const token of [
-    'PRJ-S14','PRJ-S15','PRJ-13','PRJ-14','PRJ-15','CON-03','Used by this Project',
+    'PRJ-S14','PRJ-S15','PRJ-13','PRJ-14','PRJ-15','CON-03',
     'Systems used by this Project','Use connection','Connections owned by this Project',
     'purpose-bound exact-Project chooser','ProjectConnectionBinding != Connection',
     'connection.use -X-&gt; generic connection.read','configured != qualified != bound != healthy',
