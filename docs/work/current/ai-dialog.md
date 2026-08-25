@@ -5,7 +5,16 @@ Methodology: developmentconexus-ops/conexus-methodology @ 9c7210d1504bef01c0d134
 
 ## Findings
 
-Awaiting independent Challenger turn.
+| ID | Severity | Claim attacked | Status |
+| --- | --- | --- | --- |
+| R1-F1 | IMPORTANT | "checker proves absence of mutation/query escape hatches" — blocklist, not allowlist | OPEN |
+| R1-F2 | IMPORTANT | continuation-token scope law executable only as prose; token+conflicting-query behavior unspecified | OPEN |
+| R1-F3 | IMPORTANT | design §13.3 minimum negative controls silently shrank 12 → 7 without routing the remainder | OPEN |
+| R1-F4 | IMPORTANT | `project.data.read` reuse silently widens effective disclosure of already-issued grants; no metadata-only separation trigger | OPEN |
+| R1-F5 | MINOR | SCHEMA_CLOSED claim vs unspecified filter/sort value literal formats per column type | OPEN |
+| R1-F6 | MINOR | existence-oracle status uniformity (403 vs 404 for undisclosed coordinates) unbound at wire level | OPEN |
+
+No MATERIAL finding. The four-read candidate structure, permission topology, wire grammar and RED/GREEN evidence survive the attack.
 
 ## Dialogue
 
@@ -28,3 +37,52 @@ Attack at least:
 - whether the executable proofs are load-bearing rather than fixture-only.
 
 Reviewer Findings are Evidence, not Product requirements. Publish only the Challenger turn through this temporary dialogue branch. If a broader SQL/admin/masking/framework proposal is not required to close the approved F22 consumer, classify it instead of silently expanding authority.
+
+### R1-C1 — CHALLENGER
+
+Independent Challenger turn (Claude Fable 5, fresh session, no Lead reasoning consumed).
+
+Authority revalidated before review: `origin = developmentconexus-ops/conexus-os`; PR #57 OPEN, base `main`, head `agent/4c-frontend-interaction @ 38ebaf23ca715e0449accc6887a1676031a8334d` — exact match with the pinned candidate. Methodology loaded from `conexus-methodology @ 9c7210d` (ROUTER → METHOD + ADVERSARIAL-REVIEW-METHOD). Review branch verified isolated: differs from candidate HEAD by this file only. CI evidence independently confirmed via GitHub rather than taken from candidate prose: RED `a11ca06` Verify #938 = failure; GREEN `ae7d846` Verify = success; candidate HEAD `38ebaf2` Verify = success. The RED/GREEN cycle is load-bearing, not narrated.
+
+Artifacts attacked: F22 design, implementation plan, recompile proof, `operation-ledger.md` §5.3.7 + consumer tables, `permission-contract.md` F22 rows, `contracts/api/product/project-data-explorer-paths.yaml`, `scripts/check-wire-project-data-explorer.mjs`, `tests/repository/4c-p02-f22-data-explorer.test.mjs`.
+
+#### Attacks that failed (candidate survives)
+
+- **Cross-Project/Workspace disclosure.** Path topology binds every read to exact `projectId`; source/object/page coordinates are declared untrusted references; per-read server revalidation is contract law. Nothing wire-provable is missing beyond R1-F6.
+- **hub_control / owner-schema / Mastra / Keycloak exposure.** Denial laws are explicit and enumerated in ledger §5.3.7 and design §11.1, including the "physical co-location never weakens this boundary" clause. Contract-level closure is honest; runtime enforcement is correctly out of scope at this stage (see R1-F3 for routing).
+- **Binding eligibility vs generic Connection leakage.** `bound Connection -X-> raw-source disclosure` is stated in ledger and in the PRJ-25 response description; the caller cannot express Connection/revision/environment anywhere in the wire; negative control 2 fires on the exact regression. `connection.use` is not widened.
+- **SQL/expression/join escape at the wire.** Filter grammar is a closed two-branch union with an exact nine-operator enum, values typed as data, sort bounded to disclosed-column + ASC/DESC, request/response schemas `additionalProperties: false`. Controls 1 and 4 fire. (Checker precision is R1-F1; the wire bytes themselves are clean.)
+- **Physical vs semantic duplicate authority.** `PRJ-18/19` remain semantic-only; `semanticDataResourceId`/`semanticFieldId` are explicitly non-authorizing cross-links; `DERIVED` is excluded from `sourceClass` with a firing negative control. No second authority created.
+- **Framework overreach / YAGNI.** No generic provider tree, no admin console, no export/Blob path, extensive deferred list, and the 8/3/100 maxima are correctly classified as transport-safety mechanics rather than Product semantics.
+- **Four-read split minimality.** J1a/J1b/J2/J3 have genuinely independent scale and disclosure shapes (source discovery must not inherit object pagination; structure and row paging differ in cost and failure classes). Merging PRJ-26+27 or PRJ-27+28 would force optional-field dishonesty or oversized payloads. Four is the smallest honest set; zero-operation enrichment of PRJ-18/19 was correctly rejected as alternative B.
+- **Fixture-only proof theater.** The focused checker executes against the canonical bundled OAS with a mutation harness whose seven controls provably fire, each with a message-pattern match so they fire for the right reason. Census 121↔121 is derivation-based after the temporal-snapshot decoupling, itself a quality improvement. RED and GREEN verified against real CI conclusions above.
+
+#### R1-F1 — IMPORTANT — escape-hatch proof is a name blocklist, not a shape allowlist
+
+Recompile proof §5 claims the checker proves "absence of mutation/query escape hatches". The executable truth is weaker: `validateDataExplorer` forbids nine literal property names (`sql`, `where`, `expression`, `connectionId`, `connectionRevisionId`, `environment`, `targetUrl`, `credential`, `password`) on the PRJ-28 request only. Counterexamples that pass the checker unchanged: a request property named `predicate`, `queryText` or `q` of type string; and — worse — any response-side growth, e.g. `connectionUri` or `jdbcUrl` added to `ProjectDataExplorerSource`, which no control inspects at all. Design §13.3 planned "credentials never appear in explorer projection"; nothing executable realizes even its wire-provable half. Because the schemas are closed objects, the cheap and complete fix is exact property-set equality: assert the PRJ-28 request exposes exactly `{filters, sort, continuationToken, limit}` and assert the exact property sets of `ProjectDataExplorerSource`, `ProjectDataExplorerObject`, `ProjectDataExplorerRowPage` and their nested types, keeping the blocklist as a message-quality aid. Smallest owner: `scripts/check-wire-project-data-explorer.mjs` plus one negative control proving the allowlist fires. No wire or 4A change required — the current wire bytes are clean; the proof is what overstates.
+
+#### R1-F2 — IMPORTANT — continuation-token conflict semantics unspecified
+
+Ledger law: `page token -X-> Project/source/object/filter/order widening`. But `ProjectDataExplorerRowQuery` admits `continuationToken` alongside `filters`, `sort` and `limit` simultaneously, and no authority (ledger, wire description, design §6.6) states what a compliant server does when a token is presented with a non-matching filter/sort set: reject 422, ignore the query fields, or re-derive. Each choice yields different observable truth, and the silent-ignore choice reproduces exactly the mixed-snapshot dishonesty that F22-I8 forbids the client from committing. Cross-object/source replay is correctly declared fail-closed but is runtime-only (belongs to the R1-F3 routing block). Smallest owner: one sentence of contract law in ledger §5.3.7 or the PRJ-28 request description — recommended spelling: when `continuationToken` is present, the accompanying filter/sort/limit must exactly match the token's bound scope or the request is rejected 422; a token is never reinterpreted. This closes the approved consumer; it adds no authority.
+
+#### R1-F3 — IMPORTANT — §13.3 minimum negative-control set silently shrank
+
+Design §13.3 says "At minimum prove" twelve controls. The realization proves seven, all wire-shape-level. The other five (cross-Project refs fail closed; unbound/ineligible source not browsable; filter targets only disclosed columns; operator/type mismatch rejected; page token cannot switch scope) plus the credential-projection control are runtime semantics that cannot exist before Product implementation — deferring them is correct, but nothing in the recompile proof classifies them as PENDING-RUNTIME obligations owed by the realization stage. As written, a future implementer reading the proof's "Seven load-bearing negative controls fire" can honestly believe the §13.3 contract was discharged. That is a proof-contract shrink by omission, the exact failure class the method's "proof weaker than claim" test targets. Smallest owner: one classification block in `p02-f22-data-explorer-recompile-proof.md` routing each unproven §13.3 control to the Product-implementation falsifier set (include the R1-F6 status-uniformity law there). No candidate code change.
+
+#### R1-F4 — IMPORTANT — `project.data.read` reuse widens already-issued grants without saying so
+
+Reuse itself is defensible and operator-approved: the plan pinned "Selected Permission result is existing `project.data.read`" with an explicit STOP condition, and BRN-12/13 already disclose data rows under this permission, so raw-row reach is a widening of degree, not of kind. The surviving attack is narrower. (a) The moment F22's runtime ships, every already-issued `project.data.read` grant silently gains raw-row disclosure over all explorer-eligible sources — grants issued when the permission meant semantic metadata plus curated analytics; no authority records that this retroactive effect was seen and accepted, and server-resolved eligibility is per-source/object safety, not per-grantee scoping, so it cannot compensate. (b) The permission model now cannot express a metadata-only grantee (semantic catalog yes, raw rows no), and design §15's reopen triggers cover column/row-level source policy but not grant-level separation. Smallest owner: two sentences — one in ledger §5.3.7 or the permission-contract F22 note stating that the effective-disclosure widening of existing grants is a seen, operator-accepted consequence; one reopen trigger in design §15: "a real tenant requires semantic Data inspection without raw-row disclosure". Explicitly NOT recommended: a new Permission now — that would be the speculative widening the handoff forbids.
+
+#### R1-F5 — MINOR — filter/sort value literal formats unspecified under SCHEMA_CLOSED
+
+`ProjectDataExplorerValueFilter.value` is `type: string` for all seven value operators, including GT/GTE/LT/LTE against NUMBER and TEMPORAL columns, and no authority defines the literal format the string must carry (RFC 3339? locale-free decimal? leading-zero significance?). The server-interprets-against-disclosed-column-type law keeps this safe, but two independent clients can serialize the same comparison differently, and the operation is stamped `SCHEMA_CLOSED` while an interoperability-relevant request semantic remains open. Bounded fix at realization: one law line pinning canonical literal forms per column type (TEMPORAL = RFC 3339, NUMBER = decimal string, BOOLEAN = true/false), or a design note that 422 owns all mismatches with formats pinned at realization. Does not falsify the candidate.
+
+#### R1-F6 — MINOR — existence-oracle resistance stated as invariant, unbound as status law
+
+Design §11.3: a guessed cross-scope coordinate "cannot become an existence oracle". The wire carries both 403 and 404 on PRJ-26..28 with no rule forcing undisclosed-but-existing and nonexistent coordinates onto the same status. A server returning 403 for foreign-but-real and 404 for absent leaks existence while satisfying every current executable check. One sentence — undisclosed is indistinguishable from absent — in the fragment descriptions or in the R1-F3 routing block closes it. Runtime-only enforcement; MINOR at this stage.
+
+#### Verdict
+
+No MATERIAL finding. The candidate's structure — four exact Project-owned reads, `project.data.read` plus server-resolved eligibility, closed wire grammar, physical/semantic separation — survives the strongest attack mounted, and its RED/GREEN evidence is independently confirmed against CI. The four IMPORTANT findings concern proof precision and contract-law completeness; each has a bounded smallest-owner remedy that adds no operation, no Permission, no schema change and no new authority. Per handoff instruction, no SQL/admin/masking/framework proposal is raised: nothing found requires one to close the approved F22 consumer.
+
+Status: LEAD RESPONSE REQUIRED.
