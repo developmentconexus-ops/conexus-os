@@ -38,7 +38,8 @@ P-02 P8 Product/Review surface separation = commit b266721c206a31a6d49abdd3e5c35
 P-02 P8 = WALKTHROUGH / NOT LOCKED
 
 Continuation readiness = GREEN / repository-governance blocker = 0
-Whole/global checkpoint review = NEXT / independent Fable review of the Product-realization working model
+Whole/global Product-realization review = COMPLETE / Fable 0d054ecb584e8094cfda58f778901946a31a870e / METHOD FINDING=0 / PRODUCT-PLAN GAP=0 / LOCAL EXECUTION GAP=1 ADJUDICATED+CORRECTED
+Second Fable round = NOT REQUIRED
 P9/P10 = BLOCKED pending P8 LOCK
 P-03+ = NOT OPEN
 P11 = NOT ASSEMBLED
@@ -102,65 +103,8 @@ PR #57 is integrated into `main`. This checkpoint does **not** close 4C, LOCK P-
 
 The repository is ready to continue Product planning. Do not reopen accepted Product/architecture decisions, locked frontend blocks, governance restoration, or repository process without a named material falsifier. Required CI protects objective repository/Product properties; it is not a review-ceremony gate.
 
-The established Claude Code / AI_DIALOG / Fable review model is **whole-package and independent**. The primary/Lead session first assembles a coherent, verified meaningful package or checkpoint. Fable then receives the exact package/HEAD with fresh context, reconstructs repository authority independently, and reviews the whole result. Fable findings are Evidence, not authority; the Lead adjudicates every material finding against current authority and corrects only findings that survive. A further Fable round is required only when a surviving material correction materially changes the reviewed package or leaves a material contradiction unresolved.
-
-### Objective of the current Fable review
-
-This review is **not primarily asking whether P-02, the current HTML, or 4C “looks good”**. It is reviewing whether the current **Product-realization working model** has the right properties for the stage Conexus is now in.
-
-The stage context is:
-
-```text
-Product direction / platform model        = substantially planned
-technology direction                      = substantially planned
-architecture / implementation readiness   = substantially planned through current accepted phases
-Product operations + executable API wire  = substantially planned and closed through 4A/4B
-current work                               = concretize that plan into real human interaction
-```
-
-4C therefore uses functional low-fidelity frontend as **executable Product thinking**: operate Conexus as a user, make abstract decisions tangible, validate whether the Product actually works as a human system, and expose missing jobs, truth, ownership, operations, states or relationships that earlier planning could not reveal. The frontend is a falsifier and Product-learning instrument, not the final deliverable and not authority to invent backend semantics.
-
-Fable must evaluate concrete properties rather than answer the vague question “does the method make sense?” The current working model should:
-
-```text
-turn accepted abstract planning into coherent user behavior
-keep Product progress moving instead of stopping for ceremony
-surface real omissions/incoherence before implementation makes them expensive
-distinguish a Product/architecture gap from a local UX/detail problem
-preserve accepted decisions when interaction Evidence does not falsify them
-allow the operator to experience and challenge the Product as a user
-```
-
-When interaction exposes a **material gap**, work should stop only at the smallest real owner needed to solve that gap. The gap is then analyzed through the Engineering Method rather than patched locally:
-
-```text
-Evidence / Known / Inferred / Unknown
-→ Root Cause
-→ Target Invariant
-→ Constraints
-→ credible Alternatives
-→ Local vs Global Maximum
-→ Essential vs Accidental Complexity
-→ YAGNI / future cost
-→ Authority / Proof Strategy
-→ operator decision when Product meaning changes
-→ bounded replan/recompile of the affected owner
-→ resume Product realization
-```
-
-The desired behavior is neither “never revisit the plan” nor “replan whenever the UI feels awkward.” Fable should attack both failure modes, plus endpoint-shaped UX, HTML iteration becoming an end in itself, process/document/test growth without protected value, local-optimum decisions that harm the whole platform, and repeated review loops after no material finding survives.
-
-A useful review result distinguishes at least:
-
-```text
-METHOD FINDING       = the working model systematically impedes or misses Product learning
-PRODUCT/PLAN GAP     = interaction Evidence falsifies accepted Product/architecture meaning
-LOCAL EXECUTION GAP  = real issue solvable inside the current accepted owner/block
-NO FINDING           = current method/property survives challenge
-```
-
-This is not a per-file, per-HTML-edit or cosmetic review loop. Micro-iterations remain inside the primary Product-design loop. Meaningful completed packages/checkpoints receive one independent whole/global review before they are treated as a trusted continuation baseline. The mandatory whole-4C independent Fable review at 4C-14 remains the final phase-level instance of this same model.
+The durable Claude Code / AI_DIALOG / Fable interaction and whole/global Product-realization review protocol lives in [Blueprint Harness §10.4–10.6](development/blueprint-harness-design.md#104-wholeglobal-review-handoff-and-interaction). The independent review of this checkpoint concluded `LOCAL EXECUTION CORRECTION ONLY`: no method finding and no Product/plan gap survived; the one stale-current-facts defect in the open 4C phase contract was accepted and corrected by removing duplicated mutable census/method-version facts. Lead adjudication is recorded in [Fable Product-realization review adjudication](evidence/4c/fable-product-realization-working-model-adjudication.md). No second Fable round is justified because the correction does not change the reviewed Product-realization working model.
 
 ## Exact next action
 
-**Independent Fable whole/global review of the current Product-realization working model using the exact integrated 4C checkpoint as Evidence.** Fable should judge the concrete properties above and identify method findings, real Product/plan gaps or local execution gaps without ceremonially reopening accepted work. Lead then adjudicates every material finding. If no material method/Product gap survives, continue directly with the current P-02 operator walkthrough and keep advancing the Product block by block. If a material gap survives, apply the Engineering Method to find the Global-Maximum correction at the smallest real owner, replan/recompile that bounded scope, and resume Product realization. Do not add another review round solely because a review occurred.
+**Continue the operator walkthrough/adjudication of the current P-02 P8 candidate.** If the operator sets P8 `LOCKED`, proceed directly to P9/P10 and then the next Product block under the existing 4C program. If new interaction Evidence exposes a material gap, stop only the affected path, route it to the smallest real owner, apply the Engineering Method/Global-Maximum analysis, bounded-recompile, and resume Product realization. Do not insert another review/process round without a surviving material falsifier.
