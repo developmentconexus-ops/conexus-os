@@ -1,6 +1,6 @@
 # Conexus OS — Permission Contract
 
-> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F11` + `4C-F12` + `4C-F17` + `4C-F18` + `4C-F19` + `4C-F22` BOUNDED CORRECTIONS ACCEPTED
+> **Status:** CURRENT / BASELINE OPERATOR RATIFIED / `4C-F22` RECOMPILE CANDIDATE / OPERATOR CONFIRMATION REQUIRED
 > **Purpose:** derive the smallest ordinary Permission vocabulary needed by the exact Conexus platform operation authority without turning personas, screens, Keycloak claims or Published-App roles into a universal policy system.
 > **Operation authority:** [operation-ledger.md](operation-ledger.md).
 > **Mutable program status:** owned only by [../roadmap.md](../roadmap.md).
@@ -57,7 +57,7 @@ The vocabulary is not a universal policy language and does not imply a custom Ro
 
 ## 3. Ordinary Permission vocabulary
 
-The vocabulary remains exactly **25** after the current operator-approved bounded corrections. F11 adds three exact I&A reads and narrow access-administration summary disclosure; F12 enriches existing `audit.read` consumers; F17 adds only a purpose-bound alternate disclosure through existing `CON-03`; F18 analogously adds only a purpose-bound immutable revision-selection disclosure through existing `BRN-02`; F19 adds `BRN-13` as another exact compound `brain.read + project.data.read` consumer rather than inventing an analytics-specific Permission; F22 reuses `project.data.read` for four exact Project-owned read-only explorer projections whose source/object disclosure remains separately fail-closed. None proves a 26th reusable authority class.
+The vocabulary remains exactly **25** after the current bounded corrections. F11 adds three exact I&A reads and narrow access-administration summary disclosure; F12 enriches existing `audit.read` consumers; F17 adds only a purpose-bound alternate disclosure through existing `CON-03`; F18 analogously adds only a purpose-bound immutable revision-selection disclosure through existing `BRN-02`; F19 adds `BRN-13` as another exact compound `brain.read + project.data.read` consumer rather than inventing an analytics-specific Permission; F22 candidate reuses `project.data.read` for four exact Project-owned read-only explorer projections whose source/object disclosure remains separately fail-closed. None proves a 26th reusable authority class.
 
 ### 3.1 Workspace and access
 
@@ -102,6 +102,8 @@ access-administration summary disclosure
 The F11 access-administration route to `PRJ-01` is **not** `project.read`; it is a separately admitted narrow disclosure path under `workspace.access.manage` that returns contained Project summaries only for grant administration. It never confers ordinary Project inspection authority.
 
 `4C-F22` keeps `project.data.read` as a necessary but insufficient reusable authority distinction. `PRJ-25..28` additionally require the exact current Project grant and server-resolved explorer eligibility for the named source/object; bound Connection existence alone never grants raw-source disclosure, and guessed source/object/page coordinates never authorize. The four reads grant no SQL text/expression, mutation, credentials, foreign Project/Workspace data, `hub_control`, Mastra/Keycloak provider-store disclosure or generic Connection inspection/use authority.
+
+F22 candidate consequence requiring operator confirmation before ratification: when F22 runtime exists, **already-issued `project.data.read` grants can become eligible for raw-row disclosure** over explorer-eligible sources, still subject to the same exact Project grant and server-resolved source/object eligibility. This is a widening of disclosure reachable through the existing Permission, not a new Permission. If a real tenant requires semantic Data inspection without raw-row disclosure, this Permission decision must reopen rather than inventing client-side masking or silently broadening grants.
 
 ### 3.3 Release, managed execution and audit
 
@@ -233,7 +235,7 @@ agent.effect.approve
 
 ```text
 ordinary Permissions = 25
-status = CURRENT / OPERATOR RATIFIED / 4B-F01 + 4C-F02 + 4C-F03 + 4C-F11 + 4C-F12 + 4C-F17 + 4C-F18 + 4C-F19 + 4C-F22 CORRECTED
+status = CURRENT / BASELINE OPERATOR RATIFIED / 4C-F22 RECOMPILE CANDIDATE / OPERATOR CONFIRMATION REQUIRED
 ```
 
 The number 25 has no independent value. It survives because the current operation mapping still requires each distinction and no accepted operation requires a 26th ordinary Permission.
@@ -327,7 +329,7 @@ F18 likewise does not make `brain.bind` a read Permission. It admits only the mi
 
 F19 likewise does not create an analytics Permission. The exact Control-Plane human already needs both reusable authority distinctions `brain.read + project.data.read`; BRN-13 merely makes the exact current semantic inputs of that already-admitted analytical job discoverable without exposing SQL or physical topology.
 
-F22 likewise does not create a database/explorer Permission family. `project.data.read` remains the reusable semantic authority, while each explorer read independently revalidates exact Project containment and current source/object disclosure eligibility; browser-visible filtering, paging and physical coordinates cannot widen that authority.
+F22 likewise does not create a database/explorer Permission family. `project.data.read` remains the candidate reusable semantic authority, while each explorer read independently revalidates exact Project containment and current source/object disclosure eligibility; browser-visible filtering, paging and physical coordinates cannot widen that authority. The existing-grant raw-row consequence above remains an explicit operator-confirmation gate before F22 ratification.
 
 ---
 
