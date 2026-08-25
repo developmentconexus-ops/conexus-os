@@ -180,7 +180,7 @@ fs.writeFileSync(
   anyScanner,
   `import fs from 'node:fs'\n` +
     `import path from 'node:path'\n` +
-    `import ts from 'typescript'\n\n` +
+    `import * as ts from 'typescript'\n\n` +
     `const root = process.argv[2]\n` +
     `function files(dir) {\n` +
     `  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {\n` +
