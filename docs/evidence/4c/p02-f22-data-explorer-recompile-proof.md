@@ -1,9 +1,9 @@
 # P-02 F22 — Data Explorer recompile proof
 
-> **Status:** `R2 CONVERGED / TECHNICALLY GREEN / OPERATOR CONFIRMATION REQUIRED`
+> **Status:** `OPERATOR RATIFIED / R2 CONVERGED / WHOLE-WIRE GREEN`
 > **Design:** [p02-f22-data-explorer-design.md](p02-f22-data-explorer-design.md)
 > **Execution plan:** [p02-f22-data-explorer-implementation-plan.md](p02-f22-data-explorer-implementation-plan.md)
-> **Authority:** Evidence only. F22 is not operator-ratified, P8 remains NOT LOCKED, Product/runtime implementation and merge remain blocked.
+> **Authority:** Evidence only. F22 is operator-ratified in current 4A/4B authority; P8 remains NOT LOCKED, Product/runtime implementation and merge remain blocked.
 
 ## 1. Selected realization
 
@@ -81,7 +81,7 @@ frontend masking -X-> sensitive-data policy
 
 If the owner cannot safely decide raw disclosure, that source/object is not explorer-eligible.
 
-Independent review surfaced one ratification consequence that is intentionally **not** rewritten as historical acceptance: when F22 runtime exists, already-issued `project.data.read` grants can become eligible for raw-row disclosure on explorer-eligible sources. Exact Project grant and server-resolved eligibility still bind every read. F22 ratification therefore requires explicit operator confirmation of that consequence; a real tenant requiring semantic Data inspection without raw-row disclosure reopens this Permission decision rather than creating browser masking.
+R1 surfaced one ratification consequence: when F22 runtime exists, already-issued `project.data.read` grants can become eligible for raw-row disclosure on explorer-eligible sources. Exact Project grant and server-resolved eligibility still bind every read. The operator explicitly confirmed this consequence after R2 convergence; the Permission vocabulary therefore remains 25. A real tenant requiring semantic Data inspection without raw-row disclosure is a reopen trigger rather than a reason to invent client-side masking.
 
 ## 4. 4B wire result
 
@@ -317,7 +317,7 @@ truncated preview -X-> complete value
 
 A currently bound integration is listed only when the exact binding plus connector/source contract can truthfully support bounded read-only tabular disclosure. Non-tabular or unsafe sources remain non-eligible.
 
-## 9. Independent review result and current gate
+## 9. Independent review and ratification
 
 R1 independent Challenger attacked `38ebaf23` and found **no MATERIAL finding**, with four IMPORTANT + two MINOR findings. Lead adjudication accepted/refined all six without operation/Permission/owner/record growth.
 
@@ -357,19 +357,17 @@ Correction boundary remains:
 121↔121 preserved
 ```
 
-The independent-review gate is now closed. Before revised P8 work, exactly one operator gate remains:
+The operator then explicitly confirmed R1-F4: existing `project.data.read` grants may become eligible for F22 raw-row disclosure only under exact Project grant + server-resolved explorer source/object eligibility. The 25-Permission vocabulary is retained.
+
+F22 ratification gate is therefore closed:
 
 ```text
-explicit operator confirmation of R1-F4 existing-grant raw-row consequence
-```
-
-Until that confirmation:
-
-```text
-F22 ratification = BLOCKED
-revised P8       = BLOCKED
-P9/P10           = BLOCKED
-P-03+            = NOT OPEN
-Product runtime  = BLOCKED
-merge            = NOT AUTHORIZED
+F22 = OPERATOR RATIFIED
+4A = CLOSED THROUGH F22 / N_platform=121
+4B = CLOSED THROUGH F22 / 121↔121 / Project=27
+revised P8 = NEXT / NOT LOCKED
+P9/P10 = BLOCKED UNTIL P8 OPERATOR WALKTHROUGH
+P-03+ = NOT OPEN
+Product runtime = BLOCKED
+merge = NOT AUTHORIZED
 ```
