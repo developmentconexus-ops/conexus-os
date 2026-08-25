@@ -1,6 +1,6 @@
 # P-02 F22 — Data Explorer recompile proof
 
-> **Status:** `RECOMPILE CANDIDATE / REVIEW CORRECTIONS / OPERATOR CONFIRMATION REQUIRED`
+> **Status:** `R1 REVIEW-CORRECTED / TECHNICALLY GREEN / R2 CONFIRMATION + OPERATOR CONFIRMATION REQUIRED`
 > **Design:** [p02-f22-data-explorer-design.md](p02-f22-data-explorer-design.md)
 > **Execution plan:** [p02-f22-data-explorer-implementation-plan.md](p02-f22-data-explorer-implementation-plan.md)
 > **Authority:** Evidence only. F22 is not operator-ratified, P8 remains NOT LOCKED, Product/runtime implementation and merge remain blocked.
@@ -157,7 +157,7 @@ Eight load-bearing wire negative controls fire on the canonical bundle mutation 
 8. F22 cannot admit an unlisted source projection property
 ```
 
-Independent-review checker hardening was itself TDD-proven:
+Independent-review checker/contract hardening was TDD-proven:
 
 ```text
 F1 allowlist RED
@@ -210,7 +210,7 @@ These are first-realization falsifiers, not evidence that Product/runtime implem
 
 ## 6. Current-census guard cleanup
 
-F22 exposed four historical count snapshots that were no longer valid global invariants. They were corrected by derivation rather than manually changed to `121`:
+F22 exposed historical count snapshots that were no longer valid global invariants. They were corrected by derivation rather than manually changed to `121`:
 
 ```text
 F19 repository guard
@@ -227,24 +227,35 @@ generated projection proof
 
 real Kubb probe
 → derives expected method+path set from the exact source OAS
-→ still proves exact set equality, no invented/lost routes, carriers, status typing, no explicit any and strict TypeScript compilation
+→ still proves exact set equality, no invented/lost routes, carriers, status typing, no explicit TypeScript `any` and strict compilation
+→ TypeScript 7.0 remains the real strict compiler
+→ `@typescript/typescript6` is used only for AST inspection because TypeScript 7.0 intentionally ships without the legacy Compiler API
 
 whole-4B adversarial proof
 → derives its immutable expected census from the canonical bundle before adversarial mutations
-→ still rejects census drift inside mutated candidates and now explicitly requires PRJ-25..28
+→ still rejects census drift inside mutated candidates and explicitly requires PRJ-25..28
 ```
 
 This preserves semantic/structural invariants while removing temporal snapshot coupling from current CI.
 
-## 7. Whole-wire GREEN baseline
+## 7. Whole-wire GREEN checkpoints
 
-Pre-review candidate GREEN:
+Pre-review candidate:
 
 ```text
 HEAD                     = 38ebaf23ca715e0449accc6887a1676031a8334d
 Verify                   = #954 / SUCCESS
 repository tests         = 130 / 130
-bootstrap_bytes          < 20480
+4A ↔ OAS                 = 121 ↔ 121
+```
+
+R1-corrected technical candidate:
+
+```text
+HEAD                     = 4b6967926f41915977eee8806fafb24fc46418e0
+Verify                   = #965 / SUCCESS
+repository tests         = 131 / 131
+bootstrap_bytes          = 20210 / 20480
 4A ↔ OAS                 = 121 ↔ 121 schema-closed
 Project                  = 27 total = 23 core + 4 F22
 Builder                  = 17
@@ -258,13 +269,16 @@ MAR                      = 3
 OBS                      = 5
 ordinary Permissions     = 25
 Technical Ingress        = 3 / Product-count impact 0
+F22 focused checker      = PASS / 8 firing negative controls
 wire fragments           = 11 reachable / 0 dead parallel
 generated projection     = PASS / 121 + F11/F12/F19/F22 consumers
-real Kubb probe          = PASS / 121 / deterministic / strict TS green
+real Kubb probe          = PASS / TS7 strict compile + TS6 compatibility API AST scan
 Budget proof             = PASS
 whole 4B adversarial     = PASS / 121
 whole 4B executable      = PASS
 ```
+
+The Kubb-probe repair itself exposed a tooling-version assumption rather than a Product/wire defect: TypeScript 7.0 has no legacy Compiler API. The final probe uses TypeScript 7 for the strict compile and the Microsoft-provided TypeScript 6 compatibility package only to detect actual `AnyKeyword` nodes, avoiding the former false positive on the English word `any` in generated documentation.
 
 Existing Redocly/AJV warnings remain pre-existing and non-blocking; F22 did not broaden scope to clean unrelated warnings.
 
@@ -310,14 +324,14 @@ Correction boundary remains:
 +0 Permissions
 +0 semantic owners
 +0 durable records
-121↔121 target preserved
+121↔121 preserved
 ```
 
 Before revised P8 work:
 
 ```text
-bounded review corrections GREEN
-→ independent Challenger confirmation on exact corrected candidate
+R1-corrected aggregate GREEN
+→ fresh R2 Challenger confirmation on exact corrected candidate
 → explicit operator confirmation of R1-F4 existing-grant consequence
 → no unresolved material finding
 ```
