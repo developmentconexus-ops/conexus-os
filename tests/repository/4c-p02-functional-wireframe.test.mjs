@@ -9,6 +9,7 @@ const read = p => readFileSync(path(p), 'utf8')
 const htmlPath = 'docs/evidence/4c/p02-project-resources-functional-wireframe.html'
 const ledger = read('docs/product/operation-ledger.md')
 const oas = read('contracts/api/product/project-paths.yaml')
+const explorerOas = read('contracts/api/product/project-data-explorer-paths.yaml')
 const feedback = read('docs/evidence/4c/p02-p8-feedback-revision.md')
 
 function requireText(text, needle, message = needle) {
@@ -29,25 +30,36 @@ test('P-02 P8 preserves four focused Project routes and the locked Project shell
   assert.doesNotMatch(html, />Resources<\/button>|id="route-resources"|generic-resource-hub/i, 'P8 must not invent a Project Resources destination')
 })
 
-test('P-02 Data exposes bounded logical structure without becoming a physical DB explorer', () => {
+test('P-02 Data opens authorized physical tabular data as a bounded read-only explorer', () => {
   const html = read(htmlPath)
+
   for (const token of [
-    'PRJ-S11','PRJ-S12','PRJ-18','PRJ-19','BRN-13','BRN-12',
-    'name = human recognition','dataResourceId = exact machine identity','dataResourceId != name',
-    'grain','freshness','coverage','provenance','Analyze','server-admitted semantic choices',
-    'catalog choice read != durable submit authority','frontend-owned analytic semantic catalog = FORBIDDEN',
-    'SQL / physical schema / join explorer = FORBIDDEN','semantic structure != physical database topology',
-    'All','Internal','Integrations','Derived','Overview','Fields','Relationships','Rules','resourceKind','sourceKind',
-    'Orders','Follow-up Tasks','Sales performance',
+    'PRJ-S11','PRJ-S12','PRJ-18','PRJ-19','PRJ-25','PRJ-26','PRJ-27','PRJ-28','BRN-13','BRN-12',
+    'Project Database','Sankhya ERP','TGFCAB','TGFITE','TGFPAR',
+    'Data','Structure','Relationships','Rules','physical identity','semantic meaning',
+    '50 rows loaded','truncated','SQL Editor = FORBIDDEN','INSERT / UPDATE / DELETE = FORBIDDEN',
+    'Analyze','server-admitted semantic choices','physical source != semantic Data Resource',
   ]) requireText(html, token)
-  for (const id of ['data-catalog','data-detail','data-fields','data-relationships','data-rules','open-analyze','analyze-panel','analytic-dataset','analytic-semantics','run-analytic','analytic-result','data-scenario']) requireText(html, `id="${id}"`, id)
-  for (const behavior of ['selectDataResource','selectDataFilter','selectDataTab','openAnalyze','closeAnalyze','renderAnalyticCatalog','runAnalyticQuery','applyDataScenario']) requireText(html, behavior, behavior)
+
+  for (const id of [
+    'data-source-tree','data-object-search','data-object-tabs','data-grid',
+    'data-structure','data-relationships','data-rules','data-filter-builder',
+    'data-sort-control','data-column-picker','data-row-inspector','data-next-page',
+    'open-analyze','analyze-panel','analytic-dataset','analytic-semantics','run-analytic','analytic-result','data-scenario',
+  ]) requireText(html, `id="${id}"`, id)
+
+  for (const behavior of [
+    'openDataObject','searchDataObjects','selectDataObjectTab','applyExplorerFilter',
+    'applyExplorerSort','toggleExplorerColumn','openRowInspector','nextExplorerPage',
+    'openAnalyze','closeAnalyze','renderAnalyticCatalog','runAnalyticQuery','applyDataScenario',
+  ]) requireText(html, behavior, behavior)
 
   for (const token of ['4C-F20','ProjectDataField','ProjectDataRelationship','ProjectDataRule']) requireText(ledger + oas + feedback, token, token)
-  for (const token of ['resourceKind','sourceKind','INTERNAL','INTEGRATION','DERIVED','TABLE','VIEW','DATASET','fields','relationships','rules']) requireText(oas, token, token)
-  for (const forbidden of ['schemaName','tableName','indexName','ddl','connectionString','sqlText']) {
-    assert.equal(oas.includes(`${forbidden}:`), false, `F20 must not expose physical DB authority: ${forbidden}`)
-  }
+  for (const token of ['4C-F22','PRJ-25','PRJ-26','PRJ-27','PRJ-28']) requireText(ledger + explorerOas, token, token)
+  for (const token of ['ProjectDataExplorerSource','ProjectDataExplorerObject','ProjectDataExplorerFilter','ProjectDataExplorerRowPage','INTERNAL','INTEGRATION','TABLE','VIEW','DATASET']) requireText(explorerOas, token, token)
+
+  assert.doesNotMatch(html, /<button[^>]*>\s*(Execute Query|Insert|Update|Delete|Create table|Alter table)\s*<\/button>/i, 'Data Explorer P8 must stay read-only')
+  assert.doesNotMatch(html, /<textarea[^>]*(sql|query)|id="sql-editor"/i, 'Data Explorer P8 must not add a SQL editor')
 })
 
 test('P-02 Capabilities explain human meaning and logical function without a generic executor', () => {
