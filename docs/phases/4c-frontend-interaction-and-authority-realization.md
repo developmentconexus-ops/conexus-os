@@ -55,22 +55,13 @@ Derive only from current accepted repository authority, principally:
 - [Frontend and Product Surfaces](../reference/frontend-and-product-surfaces.md);
 - one exact owning Product/security/reference document only when a concrete frontend question requires it.
 
-The operator-approved **Frontend Product Experience Planning Method v2.2** is the reusable planning methodology. This document is the Conexus-specific profile and status-independent contract. Repository Product/architecture authority remains stronger than methodology, and methodology never creates Product meaning by itself.
+The operator-approved [Frontend Product Experience Planning Method](../development/frontend-product-experience-planning-method.md) is the reusable planning methodology. Its current ratified version lives only in that owner; this 4C contract does not duplicate a mutable method version. This document is the Conexus-specific profile and status-independent contract. Repository Product/architecture authority remains stronger than methodology, and methodology never creates Product meaning by itself.
 
-Current fixed upstream facts after accepted bounded 4C findings include:
-
-```text
-fixed Conexus platform Product operations = 113
-first Budget Analyzer Project operations  = 2
-ordinary Permissions                       = 25
-Technical Ingress HTTP operations          = 3 / Product-count impact 0
-canonical fixed Product wire               = 113 ↔ 113 schema-closed
-parallel Product DTO authority              = forbidden
-```
+Mutable upstream census/count facts are not duplicated here. Current Product-operation, Permission and executable-wire counts remain owned by the [Product Operation Ledger](../product/operation-ledger.md), [Permission Contract](../product/permission-contract.md), [Executable Wire Contract](../product/wire-contract.md) and current [roadmap](../roadmap.md). 4C preserves the structural facts that Technical Ingress remains outside the Product census and parallel Product DTO authority is forbidden.
 
 External references, mature products, design systems and reviewer findings are Evidence, not Product authority.
 
-## 4. v2.2 bounded rebaseline law
+## 4. Bounded rebaseline law
 
 When accepted Product/backend/method authority changes during frontend planning:
 
@@ -83,14 +74,14 @@ new material authority
 
 A methodology revision is not permission to restart the Product or reopen operator decisions ceremonially.
 
-For the v2.2 adoption:
+The preserved rebaseline result is:
 
 ```text
 GF-01 H1-R2 = preserved LOCKED baseline
 W-01 C1-R1 = preserved LOCKED baseline
 ```
 
-because their HTML already makes their material interaction/structure inspectable and no v2.2 property currently falsifies those locked decisions. If later assembled P11/P12 Evidence exposes a contradiction, reopen only the smallest affected block.
+because their HTML already makes their material interaction/structure inspectable and no current-method property currently falsifies those locked decisions. If later assembled P11/P12 Evidence exposes a contradiction, reopen only the smallest affected block.
 
 ## 5. Conexus mapping to FP0–FP4 / P0–P14
 
@@ -122,7 +113,7 @@ FP4 / P13–P14
 → Product code still requires explicit operator grant
 ```
 
-This is a justified Conexus profile of v2.2: `P14 implementation readiness` is not claimed by 4C alone because the Conexus Product additionally requires 4D–4G.
+This is the current Conexus profile of the ratified Frontend Product Experience Planning Method: `P14 implementation readiness` is not claimed by 4C alone because the Conexus Product additionally requires 4D–4G.
 
 Binding distinction:
 
@@ -490,7 +481,7 @@ Only after locked semantic surfaces, interaction ownership, state ownership, gen
 
 4C MUST NOT select final SDK APIs, router/framework, state library, component package, codegen package implementation, database mechanism or runtime version. Those are 4D decisions from proved properties/consumers.
 
-## 19. Conexus 4C working order after v2.2 rebaseline
+## 19. Conexus 4C working order after bounded rebaseline
 
 ```text
 FP0 — FOUNDATION
@@ -595,7 +586,7 @@ claim fixture prototype proves runtime/backend behavior
 claim P11/P12 makes 4D–4G unnecessary
 ```
 
-Final branded visual design is not required to close 4C. 4C must, however, produce the v2.2 handoff inputs and structural conformance obligations. If later visual design changes locked navigation, material fields/actions, reading order, region priority, density class, responsive structure or workflow meaning, reopen the smallest affected frontend block.
+Final branded visual design is not required to close 4C. 4C must, however, produce the current-method handoff inputs and structural conformance obligations. If later visual design changes locked navigation, material fields/actions, reading order, region priority, density class, responsive structure or workflow meaning, reopen the smallest affected frontend block.
 
 ## 23. Stop / reopen conditions
 

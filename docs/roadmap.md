@@ -38,6 +38,8 @@ P-02 P8 Product/Review surface separation = commit b266721c206a31a6d49abdd3e5c35
 P-02 P8 = WALKTHROUGH / NOT LOCKED
 
 Continuation readiness = GREEN / repository-governance blocker = 0
+Whole/global Product-realization review = COMPLETE / Fable 0d054ecb584e8094cfda58f778901946a31a870e / METHOD FINDING=0 / PRODUCT-PLAN GAP=0 / LOCAL EXECUTION GAP=1 ADJUDICATED+CORRECTED
+Second Fable round = NOT REQUIRED
 P9/P10 = BLOCKED pending P8 LOCK
 P-03+ = NOT OPEN
 P11 = NOT ASSEMBLED
@@ -101,8 +103,8 @@ PR #57 is integrated into `main`. This checkpoint does **not** close 4C, LOCK P-
 
 The repository is ready to continue Product planning. Do not reopen accepted Product/architecture decisions, locked frontend blocks, governance restoration, or repository process without a named material falsifier. Required CI protects objective repository/Product properties; it is not a review-ceremony gate.
 
-The established review model remains proportional: Claude Code/primary implementation work may be challenged by independent Fable review when the Engineering Method or the 4C program calls for independent challenge. The mandatory whole-4C independent Fable review remains at 4C-14; cosmetic/local iterations do not receive a new review cycle by default.
+The durable Claude Code / AI_DIALOG / Fable interaction and whole/global Product-realization review protocol lives in [Blueprint Harness §10.4–10.6](development/blueprint-harness-design.md#104-wholeglobal-review-handoff-and-interaction). The independent review of this checkpoint concluded `LOCAL EXECUTION CORRECTION ONLY`: no method finding and no Product/plan gap survived; the one stale-current-facts defect in the open 4C phase contract was accepted and corrected by removing duplicated mutable census/method-version facts. Lead adjudication is recorded in [Fable Product-realization review adjudication](evidence/4c/fable-product-realization-working-model-adjudication.md). No second Fable round is justified because the correction does not change the reviewed Product-realization working model.
 
 ## Exact next action
 
-**Operator walkthrough/adjudication of the current P-02 P8 candidate.** If the operator sets P8 `LOCKED`, proceed directly to P9/P10 and then the next Product block under the existing 4C program. Do not insert a new governance/review phase unless material Evidence requires it.
+**Continue the operator walkthrough/adjudication of the current P-02 P8 candidate.** If the operator sets P8 `LOCKED`, proceed directly to P9/P10 and then the next Product block under the existing 4C program. If new interaction Evidence exposes a material gap, stop only the affected path, route it to the smallest real owner, apply the Engineering Method/Global-Maximum analysis, bounded-recompile, and resume Product realization. Do not insert another review/process round without a surviving material falsifier.
