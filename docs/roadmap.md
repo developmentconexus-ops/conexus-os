@@ -38,6 +38,7 @@ P-02 P8 Product/Review surface separation = commit b266721c206a31a6d49abdd3e5c35
 P-02 P8 = WALKTHROUGH / NOT LOCKED
 
 Continuation readiness = GREEN / repository-governance blocker = 0
+Whole/global checkpoint review = NEXT / independent Fable on exact integrated package
 P9/P10 = BLOCKED pending P8 LOCK
 P-03+ = NOT OPEN
 P11 = NOT ASSEMBLED
@@ -101,8 +102,10 @@ PR #57 is integrated into `main`. This checkpoint does **not** close 4C, LOCK P-
 
 The repository is ready to continue Product planning. Do not reopen accepted Product/architecture decisions, locked frontend blocks, governance restoration, or repository process without a named material falsifier. Required CI protects objective repository/Product properties; it is not a review-ceremony gate.
 
-The established review model remains proportional: Claude Code/primary implementation work may be challenged by independent Fable review when the Engineering Method or the 4C program calls for independent challenge. The mandatory whole-4C independent Fable review remains at 4C-14; cosmetic/local iterations do not receive a new review cycle by default.
+The established Claude Code / AI_DIALOG / Fable review model is **whole-package and independent**. The primary/Lead session first assembles a coherent, verified meaningful package or checkpoint. Fable then receives the exact package/HEAD with fresh context, reconstructs repository authority independently, and attacks the whole result for Product, architecture, authority, coherence, Global-Maximum, YAGNI and proof failures. Fable findings are Evidence, not authority; the Lead adjudicates every material finding against current authority and corrects only findings that survive. A further Fable round is required only when a surviving material correction materially changes the reviewed package or leaves a material contradiction unresolved.
+
+This is not a per-file, per-HTML-edit or cosmetic review loop. Micro-iterations remain inside the primary Product-design loop. Meaningful completed packages/checkpoints receive one independent whole/global review before they are treated as a trusted continuation baseline. The mandatory whole-4C independent Fable review at 4C-14 remains the final phase-level instance of this same model.
 
 ## Exact next action
 
-**Operator walkthrough/adjudication of the current P-02 P8 candidate.** If the operator sets P8 `LOCKED`, proceed directly to P9/P10 and then the next Product block under the existing 4C program. Do not insert a new governance/review phase unless material Evidence requires it.
+**Independent Fable whole/global review of the exact integrated 4C checkpoint on `main`, followed by Lead adjudication.** If no material finding survives, continue directly to operator walkthrough/adjudication of the current P-02 P8 candidate; if the operator then sets P8 `LOCKED`, proceed to P9/P10 and the next Product block. Do not insert additional review/process rounds unless a surviving material finding actually requires them.
