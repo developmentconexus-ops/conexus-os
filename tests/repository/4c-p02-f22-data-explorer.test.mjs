@@ -9,6 +9,8 @@ const ledger = read('docs/product/operation-ledger.md')
 const permissions = read('docs/product/permission-contract.md')
 const rootOas = read('contracts/api/product/openapi.yaml')
 const explorerOas = read('contracts/api/product/project-data-explorer-paths.yaml')
+const design = read('docs/evidence/4c/p02-f22-data-explorer-design.md')
+const recompile = read('docs/evidence/4c/p02-f22-data-explorer-recompile-proof.md')
 const pkg = read('package.json')
 const selected = [
   ['PRJ-25', 'ListProjectDataExplorerSources'],
@@ -40,4 +42,13 @@ test('F22 routes a bounded Project explorer and executable checker', () => {
   ]) assert.ok(explorerOas.includes(token), `missing ${token}`)
   assert.match(pkg, /check-wire-project-data-explorer\.mjs/)
   assert.doesNotMatch(explorerOas, /\b(sql|connectionString|credential|password|ddl)\b\s*:/i)
+})
+
+test('F22 adversarial-review clarifications remain explicit and routed', () => {
+  assert.match(ledger, /continuationToken[\s\S]*filters[\s\S]*sort[\s\S]*422[\s\S]*never reinterpreted/i)
+  assert.match(permissions, /already-issued `project\.data\.read`[\s\S]*raw-row/i)
+  assert.match(design, /semantic Data inspection without raw-row disclosure/i)
+  assert.match(explorerOas, /locale-dependent or ambiguous[\s\S]*422/i)
+  assert.match(explorerOas, /undisclosed[\s\S]*absent[\s\S]*404/i)
+  assert.match(recompile, /PENDING-RUNTIME[\s\S]*cross-Project[\s\S]*ineligible[\s\S]*operator\/type[\s\S]*page token/i)
 })
