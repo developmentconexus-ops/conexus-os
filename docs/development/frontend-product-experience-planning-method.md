@@ -7,7 +7,7 @@ summary: Reusable authority-to-UX planning method for designing and proving fron
 
 # Frontend Product Experience Planning Method
 
-**Version:** 2.2  
+**Version:** 2.3 — OPERATOR-RATIFIED on 2026-08-23  
 **Scope:** reusable across products and repositories  
 **Purpose:** make production frontend implementation a realization of already-reviewed Product, UX, interaction and system decisions instead of a new design phase performed while coding.
 
@@ -35,10 +35,11 @@ accepted Product/system authority
 → implementation readiness
 ```
 
-Three distinctions are binding:
+Four distinctions are binding:
 
 ```text
 backend coherence != UX coherence
+current backend plan != immutable UX ceiling
 static plausibility != interaction coherence
 block coherence != whole-product coherence
 ```
@@ -174,6 +175,59 @@ prove user need
 → classify whether authority already exists
 → reopen only the smallest owning decision when evidence demands it
 ```
+
+## 3.10A Hard no backend-shaped UX / local-maximum trap
+
+During pre-implementation planning, accepted Product/backend authority is a **falsifiable baseline**, not an immutable ceiling on Product experience.
+
+Frontend planning must not degrade a materially better whole-Product experience merely because the current Product/API/backend plan does not yet expose a required capability.
+
+The symmetric laws are:
+
+```text
+NO screen-shaped backend
+  UI convenience alone does not justify an API.
+
+NO backend-shaped UX
+  current API absence alone does not justify removing a proven user need.
+```
+
+When user, operator or reference evidence exposes a potentially material capability:
+
+```text
+prove the human job / desired outcome
+→ test whether the capability materially improves the whole Product
+→ compare credible alternatives and YAGNI pressure
+→ identify the semantic owner
+→ classify current authority
+
+  SUFFICIENT
+    → continue with current authority
+
+  INSUFFICIENT + material need proven
+    → UPSTREAM FINDING
+    → reopen the smallest Product/backend/wire authority
+    → adjudicate Global Maximum
+
+  useful but not justified for current scope
+    → explicit DEFERRED or REJECTED
+    → record Product reasoning, not merely API absence
+```
+
+Forbidden reasoning shortcuts:
+
+```text
+current API lacks X
+→ therefore omit X from the experience
+
+reference product has X
+→ therefore invent endpoint X
+
+backend plan is already written
+→ therefore preserve it despite stronger pre-implementation evidence
+```
+
+Until implementation-readiness closure, frontend planning is deliberately allowed to falsify earlier Product/backend planning. A resulting authority change uses the bounded-rebaseline law in §5.3 rather than restarting unrelated valid work.
 
 ## 3.11 Frontend never becomes parallel business authority
 
@@ -406,7 +460,9 @@ or NOT-HUMAN-FACING / DEFERRED
 or an UPSTREAM excess-capability finding
 ```
 
-Never invent UI merely to reach zero orphans.
+Conversely, a material human need with no sufficient backend capability must become an **UPSTREAM FINDING** rather than being silently removed from the experience.
+
+Never invent UI merely to reach zero orphans, and never preserve zero backend gaps by degrading a proven Product need.
 
 # 10. P4 — Candidate Information Architecture
 
@@ -474,6 +530,18 @@ INFERENCE
 PRODUCT DECISION
 ```
 
+Every materially relevant capability surfaced by reference evidence must receive an explicit disposition:
+
+```text
+IRRELEVANT TO THE USER JOB
+REJECTED — Product reason
+DEFERRED — justified current-scope reason
+PRESENT-IN-AUTHORITY
+UPSTREAM FINDING — current authority insufficient
+```
+
+`Current backend/API does not provide it` is **not**, by itself, a valid rejection reason during pre-implementation planning.
+
 Stop when additional references stop changing the decision space.
 
 # 13. P7 — Layout Hypotheses + lightweight feasibility
@@ -497,7 +565,7 @@ backend truth fit
 
 Static exploration is allowed here.
 
-Before P8 LOCK, the leading hypothesis states required:
+Before P8, the leading hypothesis states required:
 
 ```text
 fields/summaries
@@ -508,9 +576,31 @@ preview/content truth
 material writes
 ```
 
-Each is `PRESENT-IN-AUTHORITY` or `FINDING`.
+Each requirement must be dispositioned as one of:
 
-Exit: one leading hypothesis is ready for functional P8 exploration.
+```text
+PRESENT-IN-AUTHORITY
+UPSTREAM FINDING
+REJECTED — evidence-backed Product reason
+DEFERRED — evidence-backed scope reason
+```
+
+A materially preferred experience must not be weakened solely to convert `UPSTREAM FINDING` into `PRESENT-IN-AUTHORITY`.
+
+Blocking law:
+
+```text
+material user need
++ current authority insufficient
+= blocking UPSTREAM FINDING
+
+P8 MUST NOT begin until that finding is:
+  ratified into authority
+  OR explicitly REJECTED by the Product decision owner
+  OR explicitly DEFERRED by the Product decision owner
+```
+
+Exit: one leading hypothesis has no unresolved blocking upstream finding and is ready for functional P8 exploration.
 
 # 14. P8 — Functional Low-Fidelity HTML Wireframe
 
@@ -519,6 +609,8 @@ Exit: one leading hypothesis is ready for functional P8 exploration.
 P8 is the **design-learning loop for one block**.
 
 The operator does not approve an imagined interaction. The operator operates the candidate.
+
+P8 must not conceal an unresolved upstream Product/backend finding behind a local fixture. If a material interaction requires truth or a capability not yet accepted upstream, stop and resolve the finding first.
 
 ## 14.2 Canonical medium
 
@@ -631,7 +723,7 @@ frontend → Product/backend
 screen/control → operation/read truth → owner → capability
 ```
 
-If P9 exposes a contradiction that invalidates the P8 lock, reopen only the smallest affected P7/P8 scope.
+If P9 exposes a contradiction that invalidates the P8 lock, reopen only the smallest affected P7/P8 scope. If the contradiction proves accepted upstream authority insufficient, apply §3.10A and reopen the smallest owning Product/backend decision rather than weakening the locked user need by default.
 
 # 16. P10 — Pattern consolidation
 
@@ -676,7 +768,8 @@ If integration falsifies a lock:
 
 ```text
 FINDING
-→ smallest affected block/phase
+→ smallest affected block/phase or upstream owner
+→ adjudicate whether current authority is sufficient
 → revise
 → operator re-LOCK
 → reassemble affected path
@@ -707,6 +800,7 @@ wrong density/pattern
 block-local optimum that fails globally
 missing source/identity
 screen-shaped API
+backend-shaped UX / local-maximum preservation
 frontend AuthZ
 fixture state masquerading as Product truth
 broken concurrency/idempotency/recovery semantics
@@ -761,6 +855,7 @@ negative/material states                       represented
 failure message intent                         defined
 frontend ↔ backend trace                       complete
 backend human ops without disposition          0
+material human needs suppressed by API absence 0
 invented Product operations                    0
 screen-shaped APIs                             0
 material assumptions OPEN                      0
@@ -780,9 +875,11 @@ For each `Bxx`, record:
 | Dependencies | explicit |
 | Assumptions | linked |
 | References | when triggered |
+| Reference capability dispositions | explicit for materially relevant evidence |
 | Hypotheses | 1–3 when justified |
-| Data feasibility | PRESENT-IN-AUTHORITY / FINDING |
-| Canonical P8 HTML | required |
+| Data feasibility | PRESENT-IN-AUTHORITY / UPSTREAM FINDING / REJECTED / DEFERRED |
+| Global-Maximum check | current authority tested as baseline, not assumed ceiling |
+| Canonical P8 HTML | required after blocking findings are dispositioned |
 | Material interactions | working |
 | Operator walkthrough | explicit |
 | Findings | explicit |
@@ -798,7 +895,7 @@ For each `Bxx`, record:
 | P0–P3 | global/bounded foundation |
 | P4 | global candidate IA |
 | P5 | global candidate surface inventory |
-| P6–P8 | per-block iterative design loop |
+| P6–P8 | per-block iterative design loop + upstream finding discovery/adjudication |
 | P9 | per-block exact contract after LOCK |
 | P10 | incremental + terminal |
 | P11 | assembled product from LOCKED blocks |
@@ -826,8 +923,9 @@ coverage matrix
 candidate IA + glossary
 Frontend Planning Program / block roadmap
 block ledger
-reference notes
+reference notes + capability dispositions
 hypothesis comparison
+upstream finding / bounded replan decision when triggered
 functional P8 HTML
 Screen Contract/trace
 pattern vocabulary
@@ -876,6 +974,8 @@ master-detail   repeated sequential inspection
 
 Offer alternate views only when distinct important tasks justify them.
 
+These task-pattern observations are allowed to expose an upstream capability gap. If search/filter/sort materially serves the proven collection job but current authority lacks it, classify an UPSTREAM FINDING; do not silently degrade the collection to whatever the current endpoint happens to support.
+
 # 26. Findings and smallest-reopen law
 
 Classify failures in order:
@@ -890,7 +990,20 @@ Classify failures in order:
 7. genuinely missing Product/API capability?
 ```
 
-Reopen only the smallest evidence-backed scope.
+For category 7:
+
+```text
+prove material user need
+→ identify semantic owner
+→ open UPSTREAM FINDING
+→ compare Global-Maximum alternatives
+→ reopen only the smallest evidence-backed Product/backend/wire scope
+→ ratify / reject / defer
+→ bounded rebaseline
+→ resume the frontend block
+```
+
+Do not reinterpret a missing capability as a frontend constraint merely to avoid reopening prior planning.
 
 # 27. Independent review
 
@@ -905,6 +1018,7 @@ static approval before interaction learning
 poor operator loop
 all-at-once generation
 screen-shaped API
+backend-shaped UX / local-maximum preservation
 frontend authority duplication
 YAGNI / overengineering
 untracked assumptions
@@ -939,7 +1053,14 @@ P0 Authority
 FP1 — BLOCK-BY-BLOCK EXPERIENCE
 For each Bxx:
   P6 References when triggered
+       → disposition material reference capabilities
   → P7 Hypotheses + feasibility
+       → if material authority gap:
+           UPSTREAM FINDING
+           → smallest Product/backend reopen
+           → operator ratify/reject/defer
+           → bounded rebaseline
+           → resume P7
   → P8 FUNCTIONAL LOW-FI HTML
        build → operate → discuss → revise → operate
        → OPERATOR LOCK
@@ -963,22 +1084,26 @@ P13 visual design + conformance
 
 A consuming repository should:
 
-1. cite `Frontend Product Experience Planning Method v2.2`;
+1. cite `Frontend Product Experience Planning Method v2.3`;
 2. keep mutable status in its own roadmap, not this method;
 3. define FP0–FP4 or an equivalent non-conflicting program;
 4. enumerate real `B01...Bnn` blocks;
 5. use functional low-fi HTML/CSS/JS as canonical P8 evidence for interactive web blocks;
 6. require explicit operator LOCK;
 7. treat prototype fixtures/code as Evidence, never Product authority;
-8. record justified local deviations rather than silently forking the method.
+8. treat current Product/backend authority as a falsifiable baseline during pre-implementation planning, never an automatic UX ceiling;
+9. route material missing-capability findings to the smallest owning authority before P8;
+10. record justified local deviations rather than silently forking the method.
 
 Recommended onboarding statement:
 
 ```text
-Frontend planning follows Frontend Product Experience Planning Method v2.2.
+Frontend planning follows Frontend Product Experience Planning Method v2.3.
 
 For material interactive web blocks:
-P8 canonical evidence = functional low-fidelity HTML/CSS/JavaScript.
+current Product/backend authority is a baseline to test, not an immutable UX ceiling;
+material authority gaps become upstream findings before P8;
+P8 canonical evidence = functional low-fidelity HTML/CSS/JavaScript;
 P11 = assembled integration of already-LOCKED blocks.
 
 Project status and block sequence are owned by this repository's roadmap.
@@ -1005,8 +1130,9 @@ invent navigation
 → invent screens
 → discover interaction only after static approval
 → invent missing APIs
+→ let current APIs suppress proven Product needs
 → redesign workflows in production
 → reconcile backend/frontend after the fact
 ```
 
-> **Frontend implementation readiness means the important Product, IA, layout, interaction and system-contract decisions have already been made in a functional low-fidelity browser experience, deliberately reviewed, operator-locked, assembled across blocks, and traced to evidence.**
+> **Frontend implementation readiness means the important Product, IA, layout, interaction and system-contract decisions have already been made in a functional low-fidelity browser experience, deliberately reviewed, operator-locked, assembled across blocks, tested against Global-Maximum evidence rather than frozen by earlier backend planning, and traced to evidence.**

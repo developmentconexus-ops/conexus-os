@@ -1,87 +1,61 @@
-# Conexus OS Documentation
+# Conexus OS Documentation Map
 
-This is the canonical task/intention router. Current stage, implementation gate and exact next action live only in [roadmap.md](roadmap.md).
+> **Role:** navigation aid only. Current stage, implementation gate, and exact next action live in [`roadmap.md`](roadmap.md). This file gives useful starting points; it does not limit what may be read.
 
-## Fresh-actor route
+## Start
 
-```text
-AGENTS.md
-→ docs/index.md
-→ docs/roadmap.md
-→ 1–2 task-specific owning documents
-```
+Read [`../AGENTS.md`](../AGENTS.md) and [`roadmap.md`](roadmap.md), then use the adopted local method that fits the work:
 
-Default task pack is at most five files. Do not recursively read `docs/`, Git history, research, phase history or qualification harnesses before a concrete task requires them.
+- material engineering and Global Maximum decisions: [`development/engineering-method.md`](development/engineering-method.md)
+- frontend Product Experience planning: [`development/frontend-product-experience-planning-method.md`](development/frontend-product-experience-planning-method.md)
 
-## Read by task
+Use the references below to orient investigation. There is no fixed file count or owner count. Expand into Product, architecture, decisions, contracts, Evidence, qualification, research, Git history, code, runtime, or external sources whenever they can materially change or falsify the conclusion.
 
-| Need | Read first | Add only when needed | Do not read by default |
-| --- | --- | --- | --- |
-| Current stage / implementation gate | [roadmap.md](roadmap.md) | [development/engineering-rules.md](development/engineering-rules.md) | research, qualification |
-| Phase 4 / Implementation Readiness | [phases/4-implementation-readiness-program.md](phases/4-implementation-readiness-program.md) | current owning 4A–4G contract routed by `roadmap.md` | Product code, unrelated Phase-3 history |
-| 4A Product Surface & Authority | [phases/4a-product-surface-and-authority-contract.md](phases/4a-product-surface-and-authority-contract.md) | [product/operation-ledger.md](product/operation-ledger.md); [product/permission-contract.md](product/permission-contract.md) for authority mapping; [product/budget-analyzer-contract.md](product/budget-analyzer-contract.md) only for the first-vertical semantic decision; then one exact owner reference as needed | HTTP/router/frontend/runtime choices |
-| 4B Executable Wire | [phases/4b-executable-wire-contract.md](phases/4b-executable-wire-contract.md) | [product/wire-contract.md](product/wire-contract.md); accepted [product/operation-ledger.md](product/operation-ledger.md) for exact operation mapping; [evidence/4b/wire-representation-assessment.md](evidence/4b/wire-representation-assessment.md) for standards/topology; [evidence/4b/http-shape-derivation.md](evidence/4b/http-shape-derivation.md) for method/path derivation; [evidence/4b/current-state-carrier-assessment.md](evidence/4b/current-state-carrier-assessment.md) for IC2 carrier challenge; [evidence/4b/technology-leverage-and-par-streaming-review.md](evidence/4b/technology-leverage-and-par-streaming-review.md) only for PAR/realization-leverage questions; [evidence/4b/budget-wire-falsification.md](evidence/4b/budget-wire-falsification.md) for the Project/Budget proving instance; [evidence/4b/fixed-mutation-semantic-gap.md](evidence/4b/fixed-mutation-semantic-gap.md) only when reviewing the resolved `4B-F01` subtraction/provenance | frontend topology, router/runtime, persistence, Product implementation |
-| 4C Frontend Interaction & Authority | [phases/4c-frontend-interaction-and-authority-realization.md](phases/4c-frontend-interaction-and-authority-realization.md) | [Frontend Product Experience Planning Method](development/frontend-product-experience-planning-method.md); [Human Context Identity Contract](product/human-context-identity-contract.md) only for resolved `4C-F01` Workspace/Project presentation identity; exact owner/wire reference only when needed | Product code, 4D/runtime choices, broad research |
-| Blueprint / planning-harness design | [development/blueprint-harness-design.md](development/blueprint-harness-design.md) | [development/softwareforge-reference-assessment.md](development/softwareforge-reference-assessment.md) only when evaluating SoftwareForge-derived traceability/impact/execution-envelope ideas | Product authority by reference, raw competitor marketing |
-| Realization Planning / first-build skeleton | [phases/realization-planning.md](phases/realization-planning.md) | [development/production-realization-guide.md](development/production-realization-guide.md); use as Phase-4/4F input, not direct execution authority | Product implementation history, unrelated qualification |
-| Product meaning / scope / journeys | [product/contract.md](product/contract.md) | [decisions/index.md](decisions/index.md) | research, phase history |
-| Architecture overview / owners | [architecture/index.md](architecture/index.md) | one reference below | research, raw Evidence |
-| Builder / Harness | [reference/builder-and-harness.md](reference/builder-and-harness.md) | [reference/security-and-authority.md](reference/security-and-authority.md) | raw qualification |
-| Product Agents / runtime | [reference/runtime-and-agents.md](reference/runtime-and-agents.md) | [reference/mastra/index.md](reference/mastra/index.md); for current 4B PAR streaming/leverage questions add [evidence/4b/technology-leverage-and-par-streaming-review.md](evidence/4b/technology-leverage-and-par-streaming-review.md) | qualification unless requalifying |
-| Mastra | [reference/mastra/index.md](reference/mastra/index.md) | one mapped Mastra reference; then vendored skill/current docs if material | unrelated research |
-| Brain / knowledge | [reference/brain-and-knowledge.md](reference/brain-and-knowledge.md) | [reference/data-and-persistence.md](reference/data-and-persistence.md) | Mitra unless comparing |
-| Data / Sankhya | [reference/data-and-persistence.md](reference/data-and-persistence.md) | [reference/integrations-and-gateway.md](reference/integrations-and-gateway.md) | runtime qualification |
-| Integrations / Gateway | [reference/integrations-and-gateway.md](reference/integrations-and-gateway.md) | [reference/security-and-authority.md](reference/security-and-authority.md) | raw research |
-| Security / authority | [reference/security-and-authority.md](reference/security-and-authority.md) | [architecture/index.md](architecture/index.md) | implementation history |
-| Release / deployment / failure-recovery | [reference/release-deployment-and-operations.md](reference/release-deployment-and-operations.md) | [phases/3m-failure-recovery-architecture.md](phases/3m-failure-recovery-architecture.md) only for closure rationale | raw review/history |
-| Frontend / Product surfaces | [reference/frontend-and-product-surfaces.md](reference/frontend-and-product-surfaces.md) | [product/contract.md](product/contract.md) | qualification |
-| Managed execution | [reference/managed-execution.md](reference/managed-execution.md) | [reference/managed-execution-qualification.md](reference/managed-execution-qualification.md) | unrelated runtime research |
-| Decision rationale / reopen | [decisions/index.md](decisions/index.md) | [phases/3a-authority-baseline.md](phases/3a-authority-baseline.md) | old review rounds in Git |
-| Repository workflow | [development/engineering-rules.md](development/engineering-rules.md) | organizational Method / Repository Standard | Product research |
-| Diagrams | [diagrams/index.md](diagrams/index.md) | owning architecture/reference doc | raw Evidence |
-| Mitra comparison | [research/mitra/index.md](research/mitra/index.md) | full study / influence map | raw observations |
-| Factory AI comparison | [research/factory-ai/index.md](research/factory-ai/index.md) | full study / influence map | unrelated research |
-| Mastra research provenance | [research/mastra/index.md](research/mastra/index.md) | evaluation/provenance | Product authority |
-| Requalify a 3L claim | [phases/3l-technology-qualification.md](phases/3l-technology-qualification.md) | exact routed Evidence/harness | Product implementation history |
+## Useful starting points
+
+| Need | Useful starting references |
+| --- | --- |
+| Current stage / implementation gate / next action | [`roadmap.md`](roadmap.md) |
+| Engineering reasoning / root cause / Global Maximum / proof | [`development/engineering-method.md`](development/engineering-method.md) |
+| Frontend Product Experience / P0–P14 | [`development/frontend-product-experience-planning-method.md`](development/frontend-product-experience-planning-method.md) |
+| Phase 4 implementation-readiness program | [`phases/4-implementation-readiness-program.md`](phases/4-implementation-readiness-program.md) |
+| 4A Product Surface & Authority | [`phases/4a-product-surface-and-authority-contract.md`](phases/4a-product-surface-and-authority-contract.md), [`product/operation-ledger.md`](product/operation-ledger.md), [`product/permission-contract.md`](product/permission-contract.md) |
+| 4B Executable Wire | [`phases/4b-executable-wire-contract.md`](phases/4b-executable-wire-contract.md), [`product/wire-contract.md`](product/wire-contract.md), `contracts/api/product/openapi.yaml` |
+| 4C Frontend Interaction & Authority | [`phases/4c-frontend-interaction-and-authority-realization.md`](phases/4c-frontend-interaction-and-authority-realization.md), the frontend method, and the relevant Product/wire/Evidence for the current block |
+| Current P-02 / F22 Data Explorer | [`evidence/4c/p02-f22-data-explorer-design.md`](evidence/4c/p02-f22-data-explorer-design.md), [`evidence/4c/p02-f22-data-explorer-recompile-proof.md`](evidence/4c/p02-f22-data-explorer-recompile-proof.md), [`evidence/4c/p02-p8-walkthrough-script-fix.md`](evidence/4c/p02-p8-walkthrough-script-fix.md) |
+| Product meaning / scope / journeys | [`product/contract.md`](product/contract.md), [`product/operation-ledger.md`](product/operation-ledger.md), [`decisions/index.md`](decisions/index.md) |
+| Human context identity | [`product/human-context-identity-contract.md`](product/human-context-identity-contract.md) |
+| Architecture overview / semantic owners | [`architecture/index.md`](architecture/index.md), then the relevant reference document |
+| Builder / Harness | [`reference/builder-and-harness.md`](reference/builder-and-harness.md) |
+| Product Agents / runtime / Mastra | [`reference/runtime-and-agents.md`](reference/runtime-and-agents.md), [`reference/mastra/index.md`](reference/mastra/index.md) |
+| Brain / knowledge | [`reference/brain-and-knowledge.md`](reference/brain-and-knowledge.md), [`reference/data-and-persistence.md`](reference/data-and-persistence.md) |
+| Data / Sankhya | [`reference/data-and-persistence.md`](reference/data-and-persistence.md), [`reference/integrations-and-gateway.md`](reference/integrations-and-gateway.md) |
+| Integrations / Gateway | [`reference/integrations-and-gateway.md`](reference/integrations-and-gateway.md), [`reference/security-and-authority.md`](reference/security-and-authority.md) |
+| Security / authority | [`reference/security-and-authority.md`](reference/security-and-authority.md), [`architecture/index.md`](architecture/index.md) |
+| Release / deployment / recovery | [`reference/release-deployment-and-operations.md`](reference/release-deployment-and-operations.md), [`phases/3m-failure-recovery-architecture.md`](phases/3m-failure-recovery-architecture.md) |
+| Frontend/Product surfaces | [`reference/frontend-and-product-surfaces.md`](reference/frontend-and-product-surfaces.md), [`product/contract.md`](product/contract.md) |
+| Managed execution | [`reference/managed-execution.md`](reference/managed-execution.md), [`reference/managed-execution-qualification.md`](reference/managed-execution-qualification.md) |
+| Decision rationale / reopen | [`decisions/index.md`](decisions/index.md), then the implicated owner/Evidence |
+| Repository Git/CI/proof specialization | [`development/engineering-rules.md`](development/engineering-rules.md) |
+| Production realization research | [`development/engineering-method.md`](development/engineering-method.md) plus [`development/production-realization-guide.md`](development/production-realization-guide.md) when its detailed technology/proof lenses are useful |
+| Blueprint / planning-harness design | [`development/blueprint-harness-design.md`](development/blueprint-harness-design.md) |
+| SoftwareForge reference assessment | [`development/softwareforge-reference-assessment.md`](development/softwareforge-reference-assessment.md) |
+| Mitra / Factory AI / Mastra research | [`research/index.md`](research/index.md) and the relevant study |
+| Qualification Evidence | [`evidence/qualification/3l/summary.md`](evidence/qualification/3l/summary.md), then the exact harness/source needed for the claim |
 
 ## Authority hierarchy
 
 ```text
 accepted Product / architecture authority
 → current decision register + roadmap
-→ detailed current technical references
+→ detailed current technical references and contracts
 → accepted qualification conclusions
-→ reproducible Evidence + exact pinned source
+→ reproducible Evidence + exact source/version
 → research + historical Git content
 ```
 
-Mechanism is not authority. Research and reviewer findings are Evidence, never implicit Product requirements.
+Mechanism is not authority. Evidence and research may falsify an accepted decision through the adopted methods; they do not silently replace Product authority.
 
-## Organizational authorities
+## Navigation principle
 
-- Engineering reasoning: [DevelopmentConexus Engineering Method v1.0.0](https://github.com/developmentconexus-ops/conexus-methodology/blob/main/METHOD.md).
-- Repository operating envelope: [DevelopmentConexus Repository Standard v1.0.0](https://github.com/developmentconexus-ops/conexus-methodology/blob/main/REPOSITORY-STANDARD.md).
-- Repository-specific rules: [development/engineering-rules.md](development/engineering-rules.md).
-
-## Durable supporting routes
-
-- Phase baselines / readiness gates: [3A](phases/3a-authority-baseline.md), [3L](phases/3l-technology-qualification.md), [3M](phases/3m-failure-recovery-architecture.md), [3N](phases/3n-architecture-verification.md), [3O](phases/3o-vertical-architecture-proof-contract.md), [C-018](phases/c-018-final-architecture-ratification.md), [Realization Planning](phases/realization-planning.md), [Phase 4 Implementation Readiness](phases/4-implementation-readiness-program.md), [4A Product Surface](phases/4a-product-surface-and-authority-contract.md), [4B Executable Wire](phases/4b-executable-wire-contract.md), [4C Frontend Interaction](phases/4c-frontend-interaction-and-authority-realization.md).
-- Accepted 4A Product operation authority: [Product Operation Ledger](product/operation-ledger.md).
-- Accepted 4A Permission authority: [Permission Contract](product/permission-contract.md).
-- Accepted first-vertical semantic authority: [Budget Analyzer Contract](product/budget-analyzer-contract.md).
-- Current 4B human-readable wire authority: [Executable Wire Contract](product/wire-contract.md).
-- 4A supporting coverage Evidence: [Operation Coverage](evidence/4a/operation-coverage.md).
-- 4B wire-representation Evidence: [Wire Representation Assessment](evidence/4b/wire-representation-assessment.md).
-- 4B HTTP-shape derivation Evidence: [HTTP Shape Derivation](evidence/4b/http-shape-derivation.md).
-- 4B current-state carrier Evidence: [Current-State Carrier Assessment](evidence/4b/current-state-carrier-assessment.md).
-- 4B browser request-authenticity Evidence: [Browser Request Authenticity Assessment](evidence/4b/browser-request-authenticity-assessment.md).
-- 4B technology-leverage / PAR-streaming Evidence: [Technology Leverage and PAR Streaming Review](evidence/4b/technology-leverage-and-par-streaming-review.md).
-- 4B first-vertical executable Evidence: [Budget Wire Falsification](evidence/4b/budget-wire-falsification.md).
-- 4B resolved bounded upstream falsifier: [Fixed Mutation Semantic Gap](evidence/4b/fixed-mutation-semantic-gap.md).
-- 4B closed owner-slice Evidence: [IAM + Workspace](evidence/4b/identity-workspace-schema-closure.md), [Project](evidence/4b/project-schema-closure.md), [Builder](evidence/4b/builder-schema-closure.md), [Brain](evidence/4b/brain-schema-closure.md), [Connections](evidence/4b/connections-schema-closure.md), [Release](evidence/4b/release-schema-closure.md), [PAR](evidence/4b/par-schema-closure.md).
-- Planning/research/review harness design input: [Blueprint Harness Design](development/blueprint-harness-design.md).
-- Bounded SoftwareForge reference assessment: [SoftwareForge Reference Assessment](development/softwareforge-reference-assessment.md).
-- Realization research/implementation companion: [Evidence-Grounded Realization Engineering](development/production-realization-guide.md).
-- Research router: [research/index.md](research/index.md).
-- Qualification Evidence summary: [evidence/qualification/3l/summary.md](evidence/qualification/3l/summary.md).
-- Executable qualification harnesses live under `qualification/3l/` and are opt-in, never default-read.
+These links are entry points, not fences. Do not omit materially relevant context because it sits outside a suggested starting set. Do not read irrelevant material merely to satisfy ceremony.

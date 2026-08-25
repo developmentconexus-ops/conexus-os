@@ -15,7 +15,7 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
 | 4A — Product Surface & Authority Contract | CLOSED / `F22` RATIFIED | `121` | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / `F22` RATIFIED | `121↔121`; Project=27 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 + P-01 LOCKED` / `P-02 P8 F22 REVISED CANDIDATE / WALKTHROUGH` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.3 / `GF-01..W-04 + P-01 LOCKED` / `P-02 P8 F22 REVISED CANDIDATE / WALKTHROUGH` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -25,7 +25,7 @@ This is the single current phase/status authority.
 ```text
 4A = CLOSED / F22 RATIFIED / N_platform=121
 4B = CLOSED / F22 RATIFIED / 121↔121 / Project=27 / Builder=17 / Brain=12 / Connections=9 / IAM=19 / OBS=5
-4C = OPEN / METHOD v2.2 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / W-02B LOCKED / W-03 LOCKED / W-04 LOCKED / P-01 LOCKED
+4C = OPEN / METHOD v2.3 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / W-02B LOCKED / W-03 LOCKED / W-04 LOCKED / P-01 LOCKED
 F06 OPERATOR ACCEPTED / GREEN · F06 GREEN
 F07 OPERATOR ACCEPTED / GREEN · F07 SELECTED REALIZATION
 F08 OPERATOR ACCEPTED / REVISED P8 GREEN / OPERATOR RE-APPROVED · F08 SELECTED REALIZATION
