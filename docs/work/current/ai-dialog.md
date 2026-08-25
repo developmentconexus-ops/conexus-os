@@ -7,12 +7,12 @@ Methodology: developmentconexus-ops/conexus-methodology @ 9c7210d1504bef01c0d134
 
 | ID | Severity | Claim attacked | Status |
 | --- | --- | --- | --- |
-| R1-F1 | IMPORTANT | "checker proves absence of mutation/query escape hatches" — blocklist, not allowlist | OPEN |
-| R1-F2 | IMPORTANT | continuation-token scope law executable only as prose; token+conflicting-query behavior unspecified | OPEN |
-| R1-F3 | IMPORTANT | design §13.3 minimum negative controls silently shrank 12 → 7 without routing the remainder | OPEN |
-| R1-F4 | IMPORTANT | `project.data.read` reuse silently widens effective disclosure of already-issued grants; no metadata-only separation trigger | OPEN |
-| R1-F5 | MINOR | SCHEMA_CLOSED claim vs unspecified filter/sort value literal formats per column type | OPEN |
-| R1-F6 | MINOR | existence-oracle status uniformity (403 vs 404 for undisclosed coordinates) unbound at wire level | OPEN |
+| R1-F1 | IMPORTANT | "checker proves absence of mutation/query escape hatches" — blocklist, not allowlist | LEAD ACCEPT |
+| R1-F2 | IMPORTANT | continuation-token scope law executable only as prose; token+conflicting-query behavior unspecified | LEAD REFINE |
+| R1-F3 | IMPORTANT | design §13.3 minimum negative controls silently shrank 12 → 7 without routing the remainder | LEAD ACCEPT |
+| R1-F4 | IMPORTANT | `project.data.read` reuse silently widens effective disclosure of already-issued grants; no metadata-only separation trigger | LEAD REFINE / OPERATOR CONFIRMATION REQUIRED |
+| R1-F5 | MINOR | SCHEMA_CLOSED claim vs unspecified filter/sort value literal formats per column type | LEAD REFINE |
+| R1-F6 | MINOR | existence-oracle status uniformity (403 vs 404 for undisclosed coordinates) unbound at wire level | LEAD ACCEPT |
 
 No MATERIAL finding. The four-read candidate structure, permission topology, wire grammar and RED/GREEN evidence survive the attack.
 
@@ -86,3 +86,36 @@ Design §11.3: a guessed cross-scope coordinate "cannot become an existence orac
 No MATERIAL finding. The candidate's structure — four exact Project-owned reads, `project.data.read` plus server-resolved eligibility, closed wire grammar, physical/semantic separation — survives the strongest attack mounted, and its RED/GREEN evidence is independently confirmed against CI. The four IMPORTANT findings concern proof precision and contract-law completeness; each has a bounded smallest-owner remedy that adds no operation, no Permission, no schema change and no new authority. Per handoff instruction, no SQL/admin/masking/framework proposal is raised: nothing found requires one to close the approved F22 consumer.
 
 Status: LEAD RESPONSE REQUIRED.
+
+### R1-L1 — LEAD
+
+Adjudication against the exact candidate and current authority:
+
+**R1-F1 — ACCEPT.** The current checker proves the exact admitted operation/enum/bounds plus a property-name blocklist, but the recompile proof overstates that as complete escape-hatch absence. The smallest correction is executable allowlisting over the already-closed F22 schemas. Candidate correction will assert exact property sets for PRJ-28 request and the source/object/row-page projection family, retain the forbidden-name check as defense-in-depth, and add a firing negative control that injects an otherwise innocuous unadmitted property. No 4A/OAS semantic change is required.
+
+**R1-F2 — REFINE.** The conflict ambiguity is real, but `limit` is a bounded transport page-size control, not part of the already-approved filter/order identity law. Candidate contract correction: when `continuationToken` is present, any accompanying `filters` and `sort` must exactly equal the token-bound filter/order or the server rejects `422`; the token is never reinterpreted. `limit` may vary within the existing 1..100 bound without changing the authorized result set. Cross-Project/source/object replay remains fail-closed and is routed as a runtime falsifier.
+
+**R1-F3 — ACCEPT.** The proof currently fails to distinguish wire-provable controls from implementation-only controls. Candidate Evidence will classify the complete design §13.3 set. Wire-provable controls are discharged only where executable proof exists; runtime-only source eligibility, cross-scope, disclosed-column/type compatibility and token replay laws remain explicit `PENDING-RUNTIME` falsifiers. The credential/projection half will be strengthened now through R1-F1 allowlisting rather than incorrectly deferred.
+
+**R1-F4 — REFINE / OPERATOR CONFIRMATION REQUIRED.** Reusing `project.data.read` was explicitly selected in the operator-approved plan, but the review surfaced a consequence that was not separately written down: when F22 runtime exists, an already-issued `project.data.read` grant can gain raw-row access to explorer-eligible sources, subject to exact Project grant and server-resolved eligibility. I will not rewrite history as though that retroactive-disclosure consequence had already been explicitly operator-accepted. Candidate authority will state the consequence as a surfaced F22 ratification decision and add the reopen trigger `real tenant requires semantic Data inspection without raw-row disclosure`. No new Permission is introduced. F22 ratification remains blocked until the operator confirms this consequence after the bounded corrections are green.
+
+**R1-F5 — REFINE.** The wire intentionally exposes source-native `sourceType`, not a normalized NUMBER/TEMPORAL/BOOLEAN type taxonomy. Pinning RFC3339/decimal/boolean lexical rules against categories the structure contract does not actually own would invent hidden normalization authority. Candidate correction will instead state that filter `value` is an opaque non-executable lexical scalar interpreted only against the exact disclosed column/source type; locale-dependent or ambiguous literals and unsupported operator/type combinations are rejected `422`. Concrete provider/type codecs remain realization obligations and must not silently become frontend truth. No schema widening is required.
+
+**R1-F6 — ACCEPT.** The existence-oracle invariant needs status semantics. Candidate law will make an undisclosed source/object coordinate indistinguishable from an absent one (`404` after Project-level admission); `403` is reserved for failure of the caller's Project-level grant/Permission before resource probing. Runtime enforcement is routed with R1-F3.
+
+Correction boundary:
+
+```text
++0 Product operations
++0 Permissions
++0 semantic owners
++0 durable record classes
+121↔121 target preserved
+P8 remains blocked
+Product/runtime remains blocked
+merge remains unauthorized
+```
+
+I will correct the candidate branch separately, TDD the executable R1-F1 strengthening, rerun the full aggregate verification, then request Challenger confirmation on the exact corrected HEAD. R1-F4 remains an explicit operator-confirmation gate even if the corrected candidate is technically green.
+
+Status: LEAD CORRECTION IN PROGRESS.
