@@ -1,6 +1,6 @@
 # P-02 F22 — Data Explorer recompile proof
 
-> **Status:** `R1 REVIEW-CORRECTED / TECHNICALLY GREEN / R2 CONFIRMATION + OPERATOR CONFIRMATION REQUIRED`
+> **Status:** `R2 CONVERGED / TECHNICALLY GREEN / OPERATOR CONFIRMATION REQUIRED`
 > **Design:** [p02-f22-data-explorer-design.md](p02-f22-data-explorer-design.md)
 > **Execution plan:** [p02-f22-data-explorer-implementation-plan.md](p02-f22-data-explorer-implementation-plan.md)
 > **Authority:** Evidence only. F22 is not operator-ratified, P8 remains NOT LOCKED, Product/runtime implementation and merge remain blocked.
@@ -187,7 +187,7 @@ The design intentionally includes controls that cannot be honestly discharged be
 
 ```text
 WIRE-PROVED NOW
-- SQL/expression-shaped fields are not admitted; exact schema allowlists prevent unlisted request/response growth
+- SQL/expression-shaped fields are not admitted; exact schema allowlists prevent ordinary named-property request/response growth
 - mutation/DDL methods are not admitted on explorer paths
 - caller cannot select Connection revision/environment
 - physical sourceClass cannot become DERIVED
@@ -278,6 +278,19 @@ whole 4B adversarial     = PASS / 121
 whole 4B executable      = PASS
 ```
 
+Exact R2-reviewed candidate:
+
+```text
+HEAD                     = 45ac44ed2342e710c567eedb8ec28b523a40098f
+Verify                   = #968 / SUCCESS
+repository tests         = 131 / 131
+bootstrap_bytes          = 20365 / 20480
+4A ↔ OAS                 = 121 ↔ 121
+F22 focused checker      = PASS / 8 firing negative controls
+whole 4B adversarial     = PASS / 121
+whole 4B executable      = PASS
+```
+
 The Kubb-probe repair itself exposed a tooling-version assumption rather than a Product/wire defect: TypeScript 7.0 has no legacy Compiler API. The final probe uses TypeScript 7 for the strict compile and the Microsoft-provided TypeScript 6 compatibility package only to detect actual `AnyKeyword` nodes, avoiding the former false positive on the English word `any` in generated documentation.
 
 Existing Redocly/AJV warnings remain pre-existing and non-blocking; F22 did not broaden scope to clean unrelated warnings.
@@ -306,16 +319,33 @@ A currently bound integration is listed only when the exact binding plus connect
 
 ## 9. Independent review result and current gate
 
-R1 independent Challenger attacked the exact `38ebaf23` candidate and found **no MATERIAL finding**. It raised four IMPORTANT and two MINOR findings. Lead adjudication accepted/refined them without operation/Permission/owner/record growth:
+R1 independent Challenger attacked `38ebaf23` and found **no MATERIAL finding**, with four IMPORTANT + two MINOR findings. Lead adjudication accepted/refined all six without operation/Permission/owner/record growth.
+
+R2 independently attacked the exact corrected candidate `45ac44ed2342e710c567eedb8ec28b523a40098f`, confirmed all six R1 dispositions, independently rechecked the RED/GREEN chain and concluded:
 
 ```text
-R1-F1 ACCEPT  → exact checker allowlists + firing negative
-R1-F2 REFINE  → token/filter/order conflict law; limit remains bounded page-size mechanic
-R1-F3 ACCEPT  → explicit WIRE-PROVED vs PENDING-RUNTIME classification
-R1-F4 REFINE  → existing-grant raw-row consequence requires operator confirmation
-R1-F5 REFINE  → source-native lexical scalar law; no invented normalized type taxonomy
-R1-F6 ACCEPT  → undisclosed-vs-absent 404 law after Project admission
+No material uncertainty survives.
+R1 corrections close all six findings.
+R2 review status = CONVERGED.
 ```
+
+R2 raised only three MINOR findings, all explicitly `DEFER-SAFE` and non-blocking:
+
+```text
+R2-F1 = checker precision: patternProperties / alternate success-status channels
+R2-F2 = explicit-any AST scanner has no planted true-positive firing proof
+R2-F3 = token + omitted filters/sort interoperability wording remains unspecified
+```
+
+Lead disposition:
+
+```text
+R2-F1 ACCEPT / DEFER-SAFE
+R2-F2 ACCEPT / DEFER-SAFE
+R2-F3 ACCEPT / DEFER-SAFE
+```
+
+They do not change Product authority, do not reopen an R1 disposition, and are routed to realization/optional hardening rather than spawning another review cycle.
 
 Correction boundary remains:
 
@@ -327,16 +357,13 @@ Correction boundary remains:
 121↔121 preserved
 ```
 
-Before revised P8 work:
+The independent-review gate is now closed. Before revised P8 work, exactly one operator gate remains:
 
 ```text
-R1-corrected aggregate GREEN
-→ fresh R2 Challenger confirmation on exact corrected candidate
-→ explicit operator confirmation of R1-F4 existing-grant consequence
-→ no unresolved material finding
+explicit operator confirmation of R1-F4 existing-grant raw-row consequence
 ```
 
-Until those gates converge:
+Until that confirmation:
 
 ```text
 F22 ratification = BLOCKED
