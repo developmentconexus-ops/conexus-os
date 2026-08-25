@@ -15,7 +15,7 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
 | 4A — Product Surface & Authority Contract | CLOSED BASELINE / `F22` CANDIDATE | candidate `121` | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED BASELINE / `F22` CANDIDATE | candidate `121↔121`; Project=27 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 + P-01 LOCKED` / `P-02 F22 REVIEW / P8 BLOCKED` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.2 / `GF-01..W-04 + P-01 LOCKED` / `P-02 F22 R1 CORRECTED GREEN / R2 + OPERATOR F4 / P8 BLOCKED` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -39,11 +39,11 @@ F19 selected RED = Verify #893 / 120 tests / 119 pass / 1 exact expected failure
 F19 whole-wire GREEN = Verify #897 SUCCESS / 117↔117 / Brain=12 / Permissions=25
 P-02 P8 GREEN = Verify #907 / 128 tests / 128 pass
 P-02 F20/F21 wire GREEN = Verify #922 / 128 tests / 128 pass / 117↔117
-F22 = RED #938 → GREEN #951 / 130 tests / 121↔121 / Project=27 / Permissions=25
+F22 = RED #938 → pre-review GREEN #954 → R1 corrected GREEN #965 / 131 tests / 121↔121 / Project=27 / Permissions=25
 W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN
 W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED
 P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
-P-02 = OPEN / F22 REVIEW / P8 BLOCKED
+P-02 = OPEN / F22 R1 CORRECTED GREEN / R2 + OPERATOR F4 REQUIRED / P8 BLOCKED
 F14 whole-wire GREEN = Verify #797 SUCCESS
 P7 selected RED = Verify #800 / 103 tests / 102 pass / 1 exact expected failure
 P7 structural GREEN = Verify #803 SUCCESS
@@ -90,7 +90,7 @@ P11 = assembled interactive low-fidelity Product after all material blocks LOCK
 P12 = whole-product adversarial UX + architecture walkthrough
 ```
 
-GF-01..W-04 + P-01 remain LOCKED; F22 is under independent review; P8 remains NOT LOCKED.
+GF-01..W-04 + P-01 remain LOCKED; F22 R1 corrections are green; R2 confirmation + operator F4 confirmation remain gates; P8 remains NOT LOCKED.
 
 ## P-01 — Build workspace — LOCKED
 
@@ -99,7 +99,7 @@ App-first: current app + right Conexus; BUILD→BLD-03; pre-Change PLAN→BLD-16
 ```text
 P8 final right-sidebar artifact blob = 3f9d30f7e6fa0de814f0be20b7583b4e98aca7c8
 P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
-P-02 = OPEN / F22 REVIEW / P8 BLOCKED
+P-02 = OPEN / F22 R1 CORRECTED GREEN / R2 + OPERATOR F4 REQUIRED / P8 BLOCKED
 P-03+ = NOT OPEN
 P11 = NOT ASSEMBLED
 4D = NOT STARTED
@@ -114,4 +114,4 @@ smallest-owner reopen != smallest patch
 
 ## Exact next action
 
-**Independent adversarial review: P-02 F22.** F22 ratification/P8/P9/P10/P-03/P11/4D/merge/Product implementation remain blocked.
+**Fresh R2 Challenger confirmation on corrected F22 candidate + explicit operator confirmation of R1-F4 existing-grant raw-row consequence.** F22 ratification/P8/P9/P10/P-03/P11/4D/merge/Product implementation remain blocked.
