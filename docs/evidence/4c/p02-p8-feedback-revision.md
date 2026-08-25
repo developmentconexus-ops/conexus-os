@@ -1,10 +1,10 @@
 # P-02 — P8 operator-feedback revision
 
-> **Status:** `P7 OPERATOR APPROVED / F20-F21 HISTORICAL / F22 RATIFIED / P8 F22 REVISED CANDIDATE / WALKTHROUGH / NOT LOCKED`
-> **Scope:** preserves the F20/F21 correction history and records the later F22 supersession of only the former physical-explorer rejection.
+> **Status:** `P7 OPERATOR APPROVED / F20-F21 HISTORICAL / F22+F23 RATIFIED / P8 COHERENCE-CORRECTED CANDIDATE / WALKTHROUGH / NOT LOCKED`
+> **Scope:** preserves the F20/F21 correction history, F22/F23 downstream corrections and the later bounded operator coherence correction to Integrations.
 > **Product implementation authority:** none.
 
-The first operator walkthrough did **not** approve the prior P8 as final. It exposed three concrete comprehension gaps and approved the bounded F20/F21 redesign below. A later walkthrough with Mitra screenshots then proved F20 still stopped one level too early and produced F22. P7's four focused Project routes remain valid throughout.
+The first operator walkthrough did **not** approve the prior P8 as final. It exposed three concrete comprehension gaps and approved the bounded F20/F21 redesign below. A later walkthrough with Mitra screenshots then proved F20 still stopped one level too early and produced F22. The whole-P-02 walkthrough later produced F23. A subsequent operator coherence review rejected only the P8's invented Integration replacement semantics. P7's four focused Project routes remain valid throughout.
 
 ## 1. 4C-F20 — Data semantic structure inspectability
 
@@ -78,7 +78,7 @@ name / purpose / inputs / outputs = inspection truth
 
 No Run/Execute operation, new Permission, new capability framework, new owner, principal, trust boundary or durable record class is admitted.
 
-## 3. Integrations — interaction-language correction only
+## 3. Integrations — interaction-language correction and later coherence correction
 
 No Product-authority correction is required. The accepted ownership remains:
 
@@ -86,26 +86,77 @@ No Product-authority correction is required. The accepted ownership remains:
 ProjectConnectionBinding != Connection
 PRJ-13 = current Project use
 CON-03(forProjectId?) = purpose-bound eligible selection
-PRJ-14 = set/switch exact binding
-PRJ-15 = remove exact binding
+PRJ-14 = set exact Project binding/use after current server checks
+PRJ-15 = remove exact current Project binding/use
 ```
 
-The revised P8 uses human language and an explicit replacement flow:
+An earlier P8 candidate translated those mechanics into an explicit replacement flow:
 
 ```text
-Connections used by this Project
-+ Use connection
 Switch connection
 → Current connection
 → Switch to
 → Confirm switch
-
-Connections owned by this Project
 ```
 
-“Switch connection” changes which qualified Connection revision/environment the Project uses; it does not edit Connection configuration or grant generic `connection.read`.
+That translation is now **SUPERSEDED / REJECTED AS P8 STRUCTURE**. The later operator coherence walkthrough proved that current Product authority has no integration role/slot saying that one unrelated Connection is “the replacement” for another. `SetProjectConnectionBinding` is accepted owner machinery; it does not by itself create a human replacement ontology.
 
-## 4. Current census after F22
+The same walkthrough found that the fixture had invented `ProjectConnectionBinding.purpose`, while the accepted wire contains only the exact binding coordinates plus server-composed `connectionName` presentation.
+
+Current P8 interaction is therefore deliberately smaller:
+
+```text
+Systems used by this Project
++ Use connection
+  → eligible disclosed Connections not already used by this Project
+  → Use selected connection
+
+existing current Project use
+- Stop using
+
+Connections owned by this Project
+→ secondary contained lifecycle region
+```
+
+Binding presentation is limited to accepted truth:
+
+```text
+connectionId
+connectionName
+environment
+connectionRevisionId
+```
+
+No frontend fixture invents:
+
+```text
+integration role / slot
+binding purpose
+replacement relation
+Connection lifecycle authority
+```
+
+If a future real job proves “replace the system fulfilling role X,” `X` is an upstream Product question; the frontend must not manufacture it.
+
+TDD for this bounded correction:
+
+```text
+RED Verify #1010
+→ P8 tests = 7 total / 6 pass / 1 exact Integrations failure
+→ JavaScript parse remained green
+
+GREEN commit = 58963af84d343f26d32565f14746d2416c9c47d2
+HTML blob    = bc1898682a459e532b9efaf6e549073d3ce591f3
+→ P8 tests = 7 / 7 PASS
+→ npm ci PASS
+→ npm run verify PASS
+```
+
+No 4A/4B/P7/F22/F23 reopen resulted.
+
+## 4. Historical census after F22 and current F23 delta
+
+After F22:
 
 ```text
 N_platform = 121
@@ -119,7 +170,17 @@ new durable record classes = 0
 Technical Ingress = 3 / Product-count impact = 0
 ```
 
-F20/F21 themselves added zero operations; F22 later adds four exact Project-owned reads.
+F23 later adds exactly one fixed Brain read:
+
+```text
+N_platform = 122
+Brain = 13
+Project = 27
+Connections = 9
+ordinary Permissions = 25
+```
+
+F20/F21 add zero operations; the Integrations coherence correction adds zero operations and zero wire fields.
 
 ## 5. Original F20/F21 TDD evidence
 
@@ -140,7 +201,7 @@ The subsequent revised-P8 walkthrough plus operator-supplied Mitra screenshots p
 
 That material falsifier produced the separately approved [F22 read-only Data Explorer design](p02-f22-data-explorer-design.md) and [F22 recompile proof](p02-f22-data-explorer-recompile-proof.md).
 
-F22 is now operator-ratified after RED/GREEN, independent R1/R2 review convergence and explicit confirmation that existing `project.data.read` grants may become eligible for raw rows only under exact Project grant + server-resolved explorer eligibility. The Permission vocabulary remains 25.
+F22 is operator-ratified after RED/GREEN, independent R1/R2 review convergence and explicit confirmation that existing `project.data.read` grants may become eligible for raw rows only under exact Project grant + server-resolved explorer eligibility. The Permission vocabulary remains 25.
 
 P8 F22 TDD:
 
@@ -149,15 +210,15 @@ Verify #974 = EXPECTED RED / 131 tests / 130 pass / 1 exact Data Explorer P8 fai
 Verify #975 = SUCCESS / 131 tests / 131 pass / 121↔121 / Project=27
 ```
 
-The revised fixture-only P8 now demonstrates physical source tree, real tabular rows, Data/Structure/Relationships/Rules, multiple object tabs, bounded filter/sort/column visibility, pagination, Row Inspector, truncation truth and material states while preserving Analyze as BRN-13→BRN-12 semantic flow and explicitly rejecting SQL/write/admin authority.
+The current fixture-only P8 demonstrates physical source tree, real tabular rows, Data/Structure/Relationships/Rules, multiple object tabs, bounded filter/sort/column visibility, pagination, Row Inspector, truncation truth and material states while preserving Analyze as BRN-13→BRN-12 semantic flow and explicitly rejecting SQL/write/admin authority.
 
 ## 7. Current gate
 
 ```text
 P-02 = OPEN
 P7 = OPERATOR APPROVED
-F22 = OPERATOR RATIFIED
-P8 = F22 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
+F22 + F23 = RATIFIED
+P8 = COHERENCE-CORRECTED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
 P9/P10 = BLOCKED
 P-03+ = NOT OPEN
 P11 = NOT ASSEMBLED
