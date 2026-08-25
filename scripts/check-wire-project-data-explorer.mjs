@@ -271,4 +271,10 @@ expectReject('F22 cannot admit DELETE mutation', (doc) => {
   doc.paths[path].delete = { operationId: 'DeleteProjectDataObject', responses: { 204: { description: 'deleted' } } };
 }, /mutating DELETE is forbidden/);
 
+expectReject('F22 cannot admit unlisted source projection property', (doc) => {
+  const sources = successSchema(doc, 'PRJ-25');
+  const source = closed(doc, sources.items, 'negative source');
+  source.properties.connectionUri = { type: 'string' };
+}, /PRJ-25 item properties must be exactly/);
+
 console.log('Project F22 Data Explorer closure passed (4 bounded reads; no SQL/write/credential authority).');
