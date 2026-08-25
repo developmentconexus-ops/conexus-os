@@ -13,9 +13,9 @@ This is the single current phase/status authority.
 | C-018 | RATIFIED / OPERATOR RATIFIED | Final Product architecture continuity ratified | Material Product/architecture falsifier |
 | C-015 refinement | REFINED / KEYCLOAK SELECTED / OPERATOR APPROVED | Authentication selected; Conexus owns authorization | Material identity/security falsifier |
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
-| 4A — Product Surface & Authority Contract | CLOSED / `F22` RATIFIED | `121` | Interaction Evidence proves missing Product meaning/authority |
-| 4B — Executable Wire Contract | CLOSED / `F22` RATIFIED | `121↔121`; Project=27 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.3 / `GF-01..W-04 + P-01 LOCKED` / `P-02 P8 F22 REVISED CANDIDATE / WALKTHROUGH` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
+| 4A — Product Surface & Authority Contract | CLOSED / `F23` RATIFIED | `122` fixed Product operations | Interaction Evidence proves missing Product meaning/authority |
+| 4B — Executable Wire Contract | CLOSED / `F23` RATIFIED | `122↔122`; Project=27; Brain=13 | 4A change or wire/proof falsifier |
+| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.3 / `GF-01..W-04 + P-01 LOCKED` / `P-02 F23 REBASELINED P7 OPERATOR APPROVED / P8 BLOCKED` | Functional blocks + P11/P12 close with zero invented frontend authority | Material 4A/4B gap or incoherent interaction |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -23,44 +23,32 @@ This is the single current phase/status authority.
 | Product implementation | BLOCKED | Requires 4A–4G + explicit operator grant | No historical grant carries forward |
 
 ```text
-4A = CLOSED / F22 RATIFIED / N_platform=121
-4B = CLOSED / F22 RATIFIED / 121↔121 / Project=27 / Builder=17 / Brain=12 / Connections=9 / IAM=19 / OBS=5
+4A = CLOSED / F23 RATIFIED / N_platform=122
+4B = CLOSED / F23 RATIFIED / 122↔122 / Project=27 / Builder=17 / Brain=13 / Connections=9 / IAM=19 / OBS=5
 4C = OPEN / METHOD v2.3 / GF-01 LOCKED / W-01 LOCKED / W-02A LOCKED / W-02B LOCKED / W-03 LOCKED / W-04 LOCKED / P-01 LOCKED
-F06 OPERATOR ACCEPTED / GREEN · F06 GREEN
-F07 OPERATOR ACCEPTED / GREEN · F07 SELECTED REALIZATION
-F08 OPERATOR ACCEPTED / REVISED P8 GREEN / OPERATOR RE-APPROVED · F08 SELECTED REALIZATION
-F09 OPERATOR ACCEPTED / GREEN · F09 SELECTED REALIZATION
-F10 OPERATOR ACCEPTED / GREEN · F10 SELECTED REALIZATION
-F13 OPERATOR ACCEPTED / GREEN · F13 SELECTED REALIZATION
-F14 OPERATOR ACCEPTED / GREEN · F14 SELECTED REALIZATION
-F15 OPERATOR ACCEPTED / GREEN · F15 SELECTED REALIZATION
-F16–F18 GREEN = Verify #885/#888/#892 SUCCESS
-F19 whole-wire GREEN = Verify #897 SUCCESS / 117↔117 / Brain=12 / Permissions=25
-P-02 F20/F21 wire GREEN = Verify #922 / 128 tests / 117↔117
-F22 = RED #938 → GREEN #954 → R1 GREEN #965 → R2 CONVERGED #968 → F4 OPERATOR CONFIRMED / RATIFIED / 121↔121 / Project=27 / Permissions=25
-P-02 F22 P8 = RED #974 → GREEN #975 · walkthrough parse RED #981 → GREEN #982 / 132 tests / blob 54043c9e1385b09fa8fb70ec9b38f8d56cc3dcb4
-W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
-W-04 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
-P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
-P-02 = OPEN / P7 APPROVED / F22 RATIFIED / P8 REVISED CANDIDATE / WALKTHROUGH / NOT LOCKED
+
+F22 = RATIFIED / Project Data Explorer / PRJ-25..28 / Permissions=25
+F23 = RED #987 → GREEN #993 / BRN-14 GetProjectBrainContext / 122↔122 / Brain=13 / Permissions=25
+
+P-02 P7 = REBASELINED / OPERATOR APPROVED DESIGN
+P-02 P8 = BLOCKED PENDING EXPLICIT EXECUTION AUTHORITY / NOT LOCKED
+old F22 P8 blob 54043c9e1385b09fa8fb70ec9b38f8d56cc3dcb4 = historical/learning Evidence / NOT LOCKABLE AFTER F23
+
+P9/P10 = BLOCKED
+P-03+ = NOT OPEN
+P11 = NOT ASSEMBLED
 4D–4G = NOT STARTED
 Product implementation = BLOCKED
 ```
 
-Historical guard markers retained without restoring the old status log:
-
-```text
-W-03 = NEXT / NOT OPEN
-W-04 = NEXT / NOT OPEN
-P-01 = NEXT / NOT OPEN
-P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED
-P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
-```
+Historical lock Evidence remains in the owning Screen Contracts and Evidence records; this roadmap does not duplicate those histories as mutable current-state guards.
 
 ## 4C routing
 
 ```text
 P8 = functional low-fidelity HTML per material block
+P9 = exact bidirectional frontend ↔ backend Screen Contract after operator P8 LOCK
+P10 = pattern consolidation after LOCK
 P11 = assembled interactive low-fidelity Product after all material blocks LOCK
 P12 = whole-product adversarial UX + architecture walkthrough
 ```
@@ -69,17 +57,27 @@ P12 = whole-product adversarial UX + architecture walkthrough
 
 App-first: current app + right Conexus; BUILD→BLD-03; pre-Change PLAN→BLD-16; F15 `BLD-10 GetBuildPreview(changeId?)` = `CURRENT_PROJECT | CHANGE_CANDIDATE`.
 
+## P-02 — current rebaselined Product model
+
 ```text
-P8 final right-sidebar artifact blob = 3f9d30f7e6fa0de814f0be20b7583b4e98aca7c8
-P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
-P-02 = OPEN / P7 APPROVED / F22 RATIFIED / P8 REVISED CANDIDATE / WALKTHROUGH / NOT LOCKED
-P-03+ = NOT OPEN
-P11 = NOT ASSEMBLED
-4D = NOT STARTED
-Product implementation = BLOCKED
+Data         = facts / real authorized data
+Brain        = enterprise meaning adopted/available in this exact Project
+Capabilities = human-readable Product behavior contracts
+Integrations = external systems/resources used through governed bindings
 ```
 
-[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) · [P-02 selected correction contract](evidence/4c/p02-f16-f19-selected-correction-contract.md) · [P-02 recompile proof](evidence/4c/p02-f16-f19-recompile-proof.md) · [P-02 P7 candidate](evidence/4c/p02-structural-hypotheses.md) · [F22 design](evidence/4c/p02-f22-data-explorer-design.md) · [F22 proof](evidence/4c/p02-f22-data-explorer-recompile-proof.md) · [P8 script fix](evidence/4c/p02-p8-walkthrough-script-fix.md)
+Current authority:
+
+```text
+Data         → PRJ-18/19 + PRJ-25..28 + BRN-13/12 Analyze
+Brain        → BRN-14 context + PRJ-10/11/12 binding administration
+Capabilities → PRJ-16/17
+Integrations → PRJ-13/14/15 + purpose-bound CON-03
+```
+
+Project Brain Context is server-resolved and is neither the whole Workspace Brain nor a runtime `effectiveBrainSlice`. Workspace Brain governance remains the locked W-02A owner surface. Cross-route links require exact server-owned coordinates; Data→Brain concept and Integration→Capability maps remain deferred until a current user job and owner relation are proven.
+
+[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) · [P-02 surface rebaseline](evidence/4c/p02-project-surface-rebaseline.md) · [P-02 P7](evidence/4c/p02-structural-hypotheses.md) · [F22 design](evidence/4c/p02-f22-data-explorer-design.md) · [F23 decision/proof](evidence/4c/p02-f23-project-brain-context-design.md)
 
 ```text
 smallest-owner reopen != smallest patch
@@ -87,4 +85,4 @@ smallest-owner reopen != smallest patch
 
 ## Exact next action
 
-**Operator walkthrough of the exact verified P-02 F22 P8.** P9/P10/P-03/P11/4D/merge/Product implementation remain blocked until explicit P8 approval.
+**Operator explicitly authorizes or rejects execution of the revised P-02 P8 from the F22+F23 rebaselined P7.** No HTML change is authorized by the P7/F23 approvals alone. P9/P10/P-03/P11/4D/merge/Product implementation remain blocked.
