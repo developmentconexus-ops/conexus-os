@@ -8,7 +8,6 @@ const budgetOasPath = '/tmp/conexus-budget-analyzer.openapi.generated.json';
 const projectionPath = '/tmp/conexus-wire-projection-a.json';
 const projectSchemaPath = 'contracts/api/project-operation.schema.json';
 const projectGenerator = 'scripts/generate-project-openapi.mjs';
-const expectedProductOperations = 117;
 
 for (const required of [productBundlePath, technicalBundlePath, budgetOasPath, projectionPath, projectSchemaPath, projectGenerator]) {
   if (!fs.existsSync(required)) throw new Error(`whole-4B prerequisite missing: ${required}`);
@@ -30,6 +29,9 @@ function collectOperations(oas) {
   }
   return operations;
 }
+
+const expectedProductOperations = collectOperations(product).length;
+if (expectedProductOperations === 0) throw new Error('whole-4B canonical Product bundle contains no operations');
 
 function pair(value) {
   return `${value.method} ${value.route}`;
@@ -84,6 +86,10 @@ function assertWhole(currentProduct, currentTechnical, currentProject, currentPr
     ['IAM-19', 'GetWorkspaceMemberAccess'],
     ['IAM-20', 'GetAreaAccess'],
     ['BRN-13', 'GetProjectAnalyticQueryCatalog'],
+    ['PRJ-25', 'ListProjectDataExplorerSources'],
+    ['PRJ-26', 'ListProjectDataExplorerObjects'],
+    ['PRJ-27', 'GetProjectDataExplorerObject'],
+    ['PRJ-28', 'ListProjectDataExplorerRows'],
   ]) {
     if (!productAuthorityIds.has(authorityId) || !productOperationIds.has(operationId)) {
       throw new Error(`whole-4B Product wire lost accepted ${authorityId} ${operationId}`);
