@@ -38,7 +38,7 @@ F16–F18 GREEN = Verify #885/#888/#892 SUCCESS
 F19 whole-wire GREEN = Verify #897 SUCCESS / 117↔117 / Brain=12 / Permissions=25
 P-02 F20/F21 wire GREEN = Verify #922 / 128 tests / 117↔117
 F22 = RED #938 → GREEN #954 → R1 GREEN #965 → R2 CONVERGED #968 → F4 OPERATOR CONFIRMED / RATIFIED / 121↔121 / Project=27 / Permissions=25
-P-02 F22 P8 = RED #974 / 131 tests / 130 pass → GREEN #975 / 131 pass / blob 59a7f53fa371297e435ee130bfcdfb86b126a247
+P-02 F22 P8 = RED #974 → GREEN #975 · walkthrough parse RED #981 → GREEN #982 / 132 tests / blob 54043c9e1385b09fa8fb70ec9b38f8d56cc3dcb4
 W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
 W-04 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
 P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED
@@ -79,7 +79,7 @@ P11 = NOT ASSEMBLED
 Product implementation = BLOCKED
 ```
 
-[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) · [P-02 selected correction contract](evidence/4c/p02-f16-f19-selected-correction-contract.md) · [P-02 recompile proof](evidence/4c/p02-f16-f19-recompile-proof.md) · [P-02 P7 candidate](evidence/4c/p02-structural-hypotheses.md) · [F22 design](evidence/4c/p02-f22-data-explorer-design.md) · [F22 proof](evidence/4c/p02-f22-data-explorer-recompile-proof.md)
+[P-01 Screen Contract](evidence/4c/p01-build-workspace-screen-contract.md) · [P-02 selected correction contract](evidence/4c/p02-f16-f19-selected-correction-contract.md) · [P-02 recompile proof](evidence/4c/p02-f16-f19-recompile-proof.md) · [P-02 P7 candidate](evidence/4c/p02-structural-hypotheses.md) · [F22 design](evidence/4c/p02-f22-data-explorer-design.md) · [F22 proof](evidence/4c/p02-f22-data-explorer-recompile-proof.md) · [P8 script fix](evidence/4c/p02-p8-walkthrough-script-fix.md)
 
 ```text
 smallest-owner reopen != smallest patch
