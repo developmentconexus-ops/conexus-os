@@ -486,7 +486,7 @@ components:
           minLength: 1
         valueKind:
           type: string
-          enum: [NULL, TEXT, NUMBER, BOOLEAN, TEMPORAL, JSON, BINARY]
+          enum: ['NULL', TEXT, NUMBER, BOOLEAN, TEMPORAL, JSON, BINARY]
         displayValue:
           type: [string, 'null']
           description: Bounded display-safe value preserving exact textual representation where needed; truncated=true means this is explicitly not the complete value.
