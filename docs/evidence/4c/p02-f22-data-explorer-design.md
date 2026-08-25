@@ -1,13 +1,16 @@
 # P-02 — F22 read-only Data Explorer design
 
-> **Status:** `OPERATOR APPROVED / IMPLEMENTATION PLAN READY / NO REALIZATION AUTHORITY`
-> **Scope:** P-02 Data only. P7 four-route structure remains valid; P8 remains NOT LOCKED.
-> **Implementation authority:** none. This spec does not authorize 4A/4B recompile, HTML revision, Product implementation, P9/P10, P-03, 4D or merge.
+> **Status:** `OPERATOR RATIFIED / R2 CONVERGED / P8 F22 REVISED CANDIDATE / NOT LOCKED`
+> **Scope:** P-02 Data only. P7 four-route structure remains valid; the Data route is materially restructured.
+> **Runtime authority:** none. F22 ratifies 4A/4B Product authority only; Product implementation, P8 lock, P9/P10, P-03, 4D and merge remain blocked.
 > **Execution plan:** [F22 Read-Only Data Explorer Implementation Plan](p02-f22-data-explorer-implementation-plan.md)
+> **Realization proof:** [F22 Data Explorer recompile proof](p02-f22-data-explorer-recompile-proof.md)
+
+Sections describing the original inference/plan are retained as design provenance. Current executable authority is the ratified 4A/4B wire and realization proof above.
 
 ## 1. Decision outcome
 
-The operator walkthrough plus Mitra screenshots materially falsify the current F20 assumption that Data can stop at semantic resource metadata and must reject a physical data explorer.
+The operator walkthrough plus Mitra screenshots materially falsified the F20 assumption that Data could stop at semantic resource metadata and reject a physical data explorer.
 
 Selected outcome:
 
@@ -24,7 +27,7 @@ Project > Data
 
 The selected design is **not** a SQL editor, DB admin console, migration surface or record editor.
 
-## 2. Evidence / Known / Unknown / Deferred
+## 2. Evidence / Known / resolved hypotheses / Deferred
 
 ### Known
 
@@ -38,23 +41,32 @@ K6  F20 metadata-only Data is insufficient; Fields/Relationships/Rules are infor
 K7  P7's four focused Project routes remain valid; only the Data route is materially restructured.
 ```
 
-### Inferred, to be falsified during 4A/4B recompile
+### Pre-realization hypotheses — now resolved by F22
 
 ```text
-I1  No new semantic owner is required; Project remains the Product projection owner for Project-scoped Data disclosure.
-I2  project.data.read is the natural existing authority candidate, provided it can honestly cover raw disclosable Project data without widening protected source disclosure.
-I3  No new durable record class is required; explorer catalogs/rows can be current projections over existing Project DB / bound source truth.
-I4  Existing ProjectConnectionBinding coordinates should remain the exact external-source basis; the explorer must not invent caller-selected Connection/revision/environment authority.
+I1  No new semantic owner is required.                    → CONFIRMED
+I2  project.data.read can cover the bounded explorer.     → CONFIRMED + operator F4 confirmation
+I3  No new durable record class is required.              → CONFIRMED
+I4  ProjectConnectionBinding remains external-source basis.→ CONFIRMED
 ```
 
-### Unknown until recompile / source feasibility
+Accepted current result:
 
 ```text
-U1  Exact fixed Product operation count required to close source discovery, object inspection and row browsing.
-U2  Exact wire spelling and HTTP shape.
-U3  Which connector definitions can truthfully expose a bounded read-only tabular explorer.
-U4  Whether any current source requires additional server-side disclosure/masking policy before raw rows are safe to expose.
+PRJ-25 ListProjectDataExplorerSources
+PRJ-26 ListProjectDataExplorerObjects
+PRJ-27 GetProjectDataExplorerObject
+PRJ-28 ListProjectDataExplorerRows
+
+N_platform = 121
+Project = 27
+ordinary Permissions = 25
+new semantic owners = 0
+new durable record classes = 0
+Technical Ingress = 3 / Product impact 0
 ```
+
+Connector-specific runtime feasibility, source masking/disclosure policy and actual provider codecs remain realization concerns. If an owner cannot safely decide disclosure, that source/object is not explorer-eligible.
 
 ### Safely deferred
 
@@ -85,7 +97,7 @@ physical/operational Data Object
 = where tabular data is exposed and what rows/columns currently exist
 ```
 
-F20 then made the semantic projection richer but still treated metadata as the primary Data experience. The user cannot perform the actual job "open the data and inspect the records."
+F20 made the semantic projection richer but still treated metadata as the primary Data experience. The human could not perform the actual job: **open the data and inspect the records**.
 
 Patching another `Fields` tab would preserve the defect class.
 
@@ -117,11 +129,11 @@ semantic Project/Brain truth
 → human meaning / grain / provenance / governed business rules
 ```
 
-One UI may compose both projections, but neither becomes the other's authority.
+One UI may compose both projections, but neither becomes the other's authority. `PRJ-18/19` remain semantic Data resources; `PRJ-25..28` are the separate physical read-only explorer projection.
 
 ### F22-I4 — read-only end to end
 
-No F22 path may create a Product authority for SQL text, DML, DDL, record mutation, schema mutation, migration, credential access or arbitrary provider execution.
+No F22 path creates Product authority for SQL text, DML, DDL, record mutation, schema mutation, migration, credential access or arbitrary provider execution.
 
 ### F22-I5 — Project data only
 
@@ -151,6 +163,17 @@ Physical co-location never weakens this boundary.
 
 External explorer access is derived from exact current ProjectConnectionBinding / connector/source authority. Browser-supplied source/object coordinates are untrusted references only.
 
+Accepted Permission law:
+
+```text
+project.data.read
++ exact Project grant
++ server-resolved current explorer source/object eligibility
+→ bounded raw-row disclosure
+```
+
+A bound Connection alone never authorizes browsing. The operator explicitly accepted that already-issued `project.data.read` grants may gain this F22 raw-row capability when all additional current-owner conditions are satisfied. A real tenant requiring semantic inspection without raw rows reopens the Permission decision.
+
 ### F22-I7 — bounded typed exploration, no SQL-shaped escape hatch
 
 Filtering, ordering and pagination are typed explorer operations over already-disclosed columns. No free-form WHERE, SQL, expression, join or target URL is accepted.
@@ -164,6 +187,7 @@ object absent != source unavailable
 source unavailable != no rows
 page N + page N+1 != stable snapshot unless the source explicitly proves one
 unknown total row count != zero
+truncated preview != complete value
 ```
 
 If a continuation becomes invalid/stale, the client surfaces that state and requires an explicit refresh; it never silently restarts and presents mixed pages as one coherent snapshot.
@@ -175,8 +199,6 @@ If a continuation becomes invalid/stale, the client surfaces that state and requ
 Keep semantic `ProjectDataResource` meaning distinct from physical explorer truth. Add only the Product reads required for source/object/row inspection.
 
 **Strengths:** truthful ownership, strong security boundary, supports internal + external data, avoids turning semantic resources into a database DTO, grows cleanly if source capabilities differ.
-
-**Cost:** likely requires a small new read family rather than zero-operation enrichment.
 
 ### B — expand PRJ-18/19 into physical DB objects — REJECTED
 
@@ -219,13 +241,11 @@ INTEGRATION
 → exact current eligible Project binding/source
 ```
 
-`DERIVED` is not automatically a physical source. A derived table/view/dataset remains under the physical source that actually serves it (normally the Project Database in F1) and may additionally carry derived semantic/origin presentation.
+`DERIVED` is not automatically a physical source. A derived table/view/dataset remains under the physical source that actually serves it and may additionally carry derived semantic/origin presentation.
 
-The existing F20 semantic `sourceKind = INTERNAL | INTEGRATION | DERIVED` must therefore not be reused as though it were the explorer's physical source identity.
+The existing F20 semantic `sourceKind = INTERNAL | INTEGRATION | DERIVED` is not reused as though it were physical source identity.
 
 A Connection existing in the Workspace is not enough. A source is explorer-eligible only when current Project binding plus its connector/source contract can truthfully provide bounded read-only tabular discovery/read semantics.
-
-Examples of non-eligible Connections in F1 may include non-tabular providers such as chat/messaging integrations.
 
 ### 6.2 Explorer object
 
@@ -288,7 +308,7 @@ Governed business rules
 → Project/Brain semantic meaning
 ```
 
-The UI may present both under `Rules`, but must visibly distinguish their authority source.
+The UI may present both under `Rules`, but visibly distinguishes their authority source.
 
 ### 6.6 Rows
 
@@ -305,7 +325,7 @@ observed/read time sufficient to avoid implying timeless truth
 
 Exact total count is optional. `50 rows loaded · Next` is sufficient when counting the whole source is expensive or unsupported.
 
-A page token is scoped to the exact Project/source/object/filter/order request. It may not be replayed to switch object/source or widen disclosure.
+A page token is scoped to the exact Project/source/object/filter/order request. It may not be replayed to switch object/source or widen disclosure. If supplied filters/sort conflict with token-bound scope, the wire rejects 422 rather than silently reinterpreting the token. Page-size `limit` remains bounded transport mechanics.
 
 Large/binary/structured cell payloads may be server-bounded for the grid, but truncation must be explicit. A preview may never be represented as the full value. F1 adds no generic Blob/export/download endpoint merely to inspect a large cell.
 
@@ -313,7 +333,7 @@ Large/binary/structured cell payloads may be server-bounded for the grid, but tr
 
 F22 provides safe exploration, not a query language.
 
-Minimum candidate operator set:
+Accepted operator set:
 
 ```text
 EQ
@@ -322,7 +342,7 @@ GT
 GTE
 LT
 LTE
-CONTAINS     only for compatible text-like columns
+CONTAINS
 IS_NULL
 IS_NOT_NULL
 ```
@@ -331,16 +351,17 @@ Rules:
 
 ```text
 column must come from the exact disclosed object structure
-operator must be compatible with the disclosed column type
-values remain data, never executable syntax
+operator must be compatible with the disclosed source type
+value is an opaque non-executable source-typed lexical scalar
+ambiguous/unsupported operator-type values reject 422
 server validates every filter
 server chooses bind/parameter mechanism for the concrete source
 caller cannot supply SQL fragments, functions, casts, joins or expressions
 ```
 
-Sorting is similarly bounded to disclosed columns and ASC/DESC. The exact maximum sort/filter cardinality is a realization concern unless a source probe proves a Product-level limit is necessary.
+Sorting is bounded to disclosed columns and ASC/DESC.
 
-## 8. UX contract for the next P8
+## 8. UX contract — realized in revised P8 candidate
 
 ### 8.1 Layout
 
@@ -348,7 +369,7 @@ Sorting is similarly bounded to disclosed columns and ASC/DESC. The exact maximu
 PROJECT > DATA
 
 ┌ Sources / objects ───────────────┬ Object workspace ───────────────────────┐
-│ Search data...                   │ [ TGFCAB × ] [ TGFITE × ] [ tasks × ]  │
+│ Search data...                   │ [ TGFCAB ] [ TGFITE ] [ tasks ]        │
 │                                  ├─────────────────────────────────────────┤
 │ ▼ Project Database               │ TGFCAB                                  │
 │   ▼ public                       │ Sales documents                         │
@@ -365,7 +386,7 @@ PROJECT > DATA
 └──────────────────────────────────┴─────────────────────────────────────────┘
 ```
 
-The tree is physical-source-first. `Derived` may appear as an object badge/filter or contained collection, but never as a fake physical source when the data is actually served by the Project Database.
+The tree is physical-source-first. `Derived` appears as object meaning/badge, never as a fake physical source.
 
 ### 8.2 Default object tab
 
@@ -380,7 +401,7 @@ Relationships
 Rules
 ```
 
-`Analyze` remains a distinct governed semantic capability inside Data and must not be relabeled or implemented as SQL.
+`Analyze` remains a distinct governed semantic capability and is never relabeled or implemented as SQL.
 
 ### 8.3 Multi-object tabs
 
@@ -397,7 +418,7 @@ human meaning when available
 navigable disclosed relationships
 ```
 
-No separate row mutation domain is admitted. F1 should prefer already-disclosed page data; a future dedicated row-detail read requires a real payload-size/disclosure consumer.
+No separate row mutation domain is admitted. The P8 uses already-disclosed page data only.
 
 ### 8.5 Column visibility
 
@@ -435,22 +456,15 @@ Applied filter/sort need not become shareable URL state until a real re-entry/sh
 
 ## 10. Material states
 
-The next P8 must make these visibly distinct:
+The revised P8 makes these concepts distinct:
 
 ```text
-source loading
-source known-empty
-no explorer-eligible source
-source denied/non-disclosable
+source/object/rows loading
+known empty
+no explorer-eligible disclosure / denied
+absent/non-disclosable
 source dependency unavailable
-
-object loading
-object absent/non-disclosable
-object has zero rows
-object structure available but row read unavailable
-
-rows loading
-rows empty
+structure available but row read unavailable
 next page available
 continuation expired/invalid/stale
 ```
@@ -473,7 +487,7 @@ Project Data Explorer -X-> Keycloak provider persistence
 
 ### 11.2 No credential/config authority
 
-Explorer responses must not disclose:
+Explorer responses do not authorize:
 
 ```text
 passwords
@@ -484,48 +498,37 @@ provider access tokens
 private storage keys
 ```
 
-Human source context such as `Sankhya ERP · Production · Oracle` may be presentation only when already safely derivable from admitted source/binding truth.
+Human source context such as `Sankhya ERP · Production · Oracle` is presentation only when safely derivable from admitted source/binding truth.
 
 `qualified Connection != fresh/current data`; qualification, binding and data freshness remain distinct truths.
 
 ### 11.3 Cross-scope references fail closed
 
-A guessed source/object/page token from another Project/Workspace cannot become an existence oracle or disclosure grant.
+A guessed source/object/page token from another Project/Workspace cannot become an existence oracle or disclosure grant. After Project-level admission, undisclosed source/object coordinates are indistinguishable from absent (`404`); `403` is reserved for Project-level authority failure before resource probing.
 
 ### 11.4 Sensitive raw data
 
-F22 does not invent a browser-local masking policy.
+F22 does not invent a browser-local masking policy. If current Project/source authority cannot safely decide whether an object/column/row is disclosable, that source/object is **not explorer-eligible** until the owning authority is closed. The frontend never receives protected raw data merely to hide it cosmetically.
 
-If current Project/source authority cannot safely decide whether an object/column/row is disclosable, that source/object is **not explorer-eligible** until the owning authority is closed. The frontend must never receive protected raw data and hide it cosmetically.
+## 12. Accepted 4A/4B realization
 
-## 12. Authority-recompile hypothesis — approved planning decision, not yet executable authority
-
-Three human jobs are proven. During planning, large-source discovery was challenged and the smallest honest split was selected as **four reads** so source discovery does not inherit nested object pagination/search semantics.
+Three human jobs resolved to four exact Project-owned reads because source discovery and scalable object discovery have independent pagination/search shapes:
 
 ```text
-J1a List Project Data Explorer sources
+J1a / PRJ-25 ListProjectDataExplorerSources
 → current explorer-eligible physical sources
 
-J1b List objects for one exact source
-→ bounded search / lazy pagination over namespaces + objects
+J1b / PRJ-26 ListProjectDataExplorerObjects
+→ bounded source-scoped object discovery
 
-J2 Inspect exact Data Object
-→ structure / relationships / constraints + semantic augmentation
+J2 / PRJ-27 GetProjectDataExplorerObject
+→ exact structure / relationships / constraints + semantic cross-link presentation
 
-J3 Browse exact Data Object rows
-→ typed bounded filter + sort + pagination
+J3 / PRJ-28 ListProjectDataExplorerRows
+→ bounded typed filter + sort + pagination over exact object rows
 ```
 
-Planned identifiers:
-
-```text
-PRJ-25 ListProjectDataExplorerSources
-PRJ-26 ListProjectDataExplorerObjects
-PRJ-27 GetProjectDataExplorerObject
-PRJ-28 ListProjectDataExplorerRows
-```
-
-Planned census if execution survives RED/GREEN + independent challenge:
+Accepted census:
 
 ```text
 N_platform = 121
@@ -539,92 +542,37 @@ new durable record classes = 0
 Technical Ingress = 3 / Product impact 0
 ```
 
-These identifiers/counts are the approved **implementation-plan target**, not current accepted executable authority. Current 4A/4B remains 117/Project=23 until F22 execution closes. If the four-read split or reuse of `project.data.read` is falsified by execution Evidence, STOP and reopen only the affected decision; do not silently widen the plan.
+No generic resource/provider framework or DB-admin owner was created.
 
-## 13. Proof strategy before realization
+## 13. Proof result
 
-### 13.1 Authority RED
+### 13.1 Authority RED / recompile GREEN
 
-Before changing 4A/4B, create a falsifier proving current F20 authority cannot satisfy J1a/J1b/J2/J3.
+F22 execution demonstrated an authority RED before adding PRJ-25..28, then closed 4A↔4B at `121↔121`, Project=27, Permissions=25, generated projection/Kubb and whole-4B proofs.
 
-Expected RED properties:
+### 13.2 Independent review
 
-```text
-current authority has no real source/object row browse
-current F20 explicitly rejects physical topology
-all unrelated 4A/4B/P-02 guards stay green
-```
+R1 found no MATERIAL issue and produced bounded corrections for exact allowlists, continuation conflict law, proof routing, Permission consequence, source-typed filter values and 404/403 existence-oracle behavior. R2 independently confirmed all R1 dispositions and concluded **no material uncertainty survives**.
 
-### 13.2 Recompile GREEN
-
-After operator-authorized realization:
+R2's three remaining findings are MINOR/DEFER-SAFE and do not reopen F22:
 
 ```text
-4A current authority updated first
-4B OAS/wire updated second
-4A ↔ OAS bijection green
-Project owner checker green
-whole-4B adversarial/executable proof green
-generated projection/no-parallel-DTO proof green
-ordinary Permission census unchanged unless a separately ratified disclosure finding proves otherwise
+checker precision for patternProperties / alternate success status
+planted true-positive proof for explicit-any AST scanner
+continuation token + omitted filters/sort interoperability wording
 ```
 
-### 13.3 Negative controls
-
-At minimum prove:
+### 13.3 Functional P8 RED/GREEN
 
 ```text
-F22 cannot admit SQL text / expression fragments
-F22 cannot admit mutation/DDL operations
-F22 cannot disclose hub_control or substrate/provider stores
-cross-Project source/object refs fail closed
-unbound/ineligible integration source cannot be browsed
-caller cannot choose Connection revision/environment independently of Project binding
-filter may target only disclosed exact-object columns
-filter operator/type mismatch is rejected
-page token cannot switch Project/source/object/filter/order scope
-credentials never appear in explorer projection
-unknown total count is not rendered as zero
-truncated cell preview cannot masquerade as complete value
+Verify #974 = EXPECTED RED / 131 tests / 130 pass / 1 exact Data Explorer P8 failure
+Verify #975 = SUCCESS / 131 tests / 131 pass
+4A↔OAS = 121↔121
+Project = 27
+F22 checker = PASS / 8 firing negative controls
 ```
 
-### 13.4 Functional P8 proof
-
-The revised HTML must demonstrate, fixture-only:
-
-```text
-physical source tree for Project Database + eligible integrations
-derived objects at truthful physical source with derived presentation
-large-source object search/lazy browse behavior
-multiple object tabs
-Data grid as default
-Structure / Relationships / Rules secondary tabs
-physical + human naming together
-safe filter / sort / column visibility
-opaque next-page behavior without mandatory total count
-Row Inspector
-explicit truncated/large-value presentation
-Analyze remains distinct from SQL
-material failure/empty/denied states
-no network / persistence / Product implementation authority
-```
-
-### 13.5 Independent challenge before F22 ratification
-
-Because F22 opens new raw-data disclosure paths across Project DB and external sources, a fresh independent review is required before authority ratification. The challenge must attack at least:
-
-```text
-cross-Project/Workspace disclosure
-hub_control/substrate exposure
-reuse of project.data.read
-Connection binding vs raw-source disclosure
-SQL/expression escape hatches
-page-token scope
-sensitive-column/row leakage
-operation/framework overgeneralization
-```
-
-Reviewer findings remain Evidence and must return to the smallest owning decision; they cannot silently create new Product authority.
+The revised HTML is fixture-only and demonstrates the accepted UX without Product network calls or persistence.
 
 ## 14. Adversarial challenge
 
@@ -634,11 +582,11 @@ Rejected by scope. F22 has no SQL, mutation, DDL, migrations, index/admin toolin
 
 ### "One generic tree API would be simpler"
 
-Possibly local-maximum only. A generic Resource tree risks becoming framework authority. The planned source/object split keeps Data-specific typed semantics and gives large sources independent bounded pagination/search.
+A generic Resource tree risks becoming framework authority. The selected source/object split keeps Data-specific typed semantics and gives large sources independent bounded pagination/search.
 
 ### "Raw integration tables leak too much"
 
-Valid risk. Eligibility is fail-closed. A bound Connection is not automatically raw-data disclosure authority. Source/connector + current Project authority must explicitly support the explorer projection; otherwise F22 does not list/browse it.
+Eligibility is fail-closed. A bound Connection is not automatically raw-data disclosure authority. Source/connector + current Project authority must support the explorer projection; otherwise F22 does not list/browse it.
 
 ### "Exact row counts are expected in a database UI"
 
@@ -669,12 +617,11 @@ source scale proves the selected discovery shape cannot remain bounded
 
 ```text
 P7 = OPERATOR APPROVED
-F22 written spec = OPERATOR APPROVED
-F22 implementation plan = READY / EXECUTION NOT AUTHORIZED
-4A/4B F22 recompile = NOT STARTED
-revised P8 = NOT STARTED
-P8 lock = BLOCKED
-P9/P10 = BLOCKED
+F22 = OPERATOR RATIFIED / R2 CONVERGED
+4A = CLOSED THROUGH F22 / N_platform=121
+4B = CLOSED THROUGH F22 / 121↔121 / Project=27
+P8 = F22 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
+P9/P10 = BLOCKED UNTIL P8 OPERATOR APPROVAL
 P-03+ = NOT OPEN
 P11 = NOT ASSEMBLED
 4D = NOT STARTED
@@ -682,4 +629,4 @@ Product implementation = BLOCKED
 merge = NOT AUTHORIZED
 ```
 
-Next action: operator execution authorization for `p02-f22-data-explorer-implementation-plan.md`. No realization begins from this document alone.
+Next action: operator walkthrough of the exact verified revised P8. Any material feedback returns to the smallest owning decision; otherwise explicit approval locks P8 and opens P9/P10 tracing.
