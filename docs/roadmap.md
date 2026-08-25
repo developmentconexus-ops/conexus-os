@@ -90,8 +90,6 @@ P11 = assembled interactive low-fidelity Product after all material blocks LOCK
 P12 = whole-product adversarial UX + architecture walkthrough
 ```
 
-GF-01..W-04 + P-01 remain LOCKED; F22 R1 corrections are green; R2 confirmation + operator F4 confirmation remain gates; P8 remains NOT LOCKED.
-
 ## P-01 — Build workspace — LOCKED
 
 App-first: current app + right Conexus; BUILD→BLD-03; pre-Change PLAN→BLD-16; F15 `BLD-10 GetBuildPreview(changeId?)` = `CURRENT_PROJECT | CHANGE_CANDIDATE`.
