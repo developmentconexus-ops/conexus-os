@@ -1,227 +1,233 @@
 # 4C P-02 — Project Data / Capabilities / Integrations / Brain Structural Hypotheses
 
-> **Status:** `P7 CANDIDATE / OPERATOR REVIEW REQUIRED / P8 BLOCKED / NOT LOCKED`
+> **Status:** `P7 REBASELINED / OPERATOR APPROVED DESIGN / P8 BLOCKED PENDING EXPLICIT EXECUTION AUTHORITY / NOT LOCKED`
 > **Block:** `P-02 — Data / Capabilities / Integrations / Brain`
-> **Leading hypothesis:** `A — Four focused Project routes`
+> **Leading hypothesis:** `A — Four coherent Project lenses`
+> **Methods:** DevelopmentConexus Engineering Method v1.0.0 + Frontend Product Experience Planning Method v2.3.
 > **Product implementation authority:** none.
 
-P-02 authority is closed through F16–F19 and whole-wire verification. This record performs only P7 layout/interaction-structure reasoning. It does not authorize P8 HTML, final visual design, route implementation, production components, new Product authority, P-03, P11 or 4D.
+F22 and F23 materially changed the P-02 authority baseline after the original P7. This record is the bounded v2.3 P7 rebaseline. It preserves all unaffected Project IA/locks, incorporates the current 122-operation wire, and does not authorize revised P8 HTML, production components, P-03, P11, 4D or Product implementation.
 
 ---
 
 ## 1. Human job and protected IA
 
-Inside one exact Project, a person must be able to understand four distinct questions:
+Inside one exact Project, the four routes are distinct human lenses over the same Product:
 
 ```text
-Data         → what data can this Project read/reason over, and what does that data mean?
-Capabilities → what semantic operations does this Project expose?
-Integrations → which external systems/resources does this Project use?
-Brain        → which shared enterprise meaning/revision does this Project adopt?
+Data         → what facts/records does this Project own or have authority to read, how are they physically structured, and what do they mean?
+Brain        → what enterprise meaning has this Project adopted and has available in its Project Brain context?
+Capabilities → what business/semantic behavior does this Project expose and what is its human contract?
+Integrations → which external systems/resources does this Project use through governed bindings?
 ```
 
-GF-01 already gives these jobs distinct Project navigation destinations. P-02 therefore starts from the rule:
+Compact mental model:
+
+```text
+Data         = FACTS
+Brain        = MEANING
+Capabilities = BEHAVIOR
+Integrations = EXTERNAL SYSTEMS
+```
+
+GF-01 keeps these as direct Project destinations. Coherence comes from the exact Project and server-owned relationships, not from introducing another abstraction layer.
 
 ```text
 four distinct human jobs
--X-> one generic Resources domain
+-X-> generic Project Resources domain
 -X-> backend-owner navigation
--X-> endpoint-shaped pages
+-X-> endpoint/revision/binding console as root UX
 ```
-
-The block may compose related operations inside each destination, but it may not collapse semantic owners or invent a universal resource/binding framework.
 
 ---
 
-## 2. Reference Evidence reused at P7
+## 2. Current evidence and dispositions
 
-The P-02 preflight already performed the relevant conditional P6 study:
+The current decision space incorporates:
 
-- Microsoft Power Platform separates reusable Connection lifecycle from application/solution Connection Reference consumption.
-- Superblocks separates reusable managed integrations from application use and keeps organizational knowledge distinct from application-level context.
+- F16–F21 human-recognizable Data/Capability/Integration/Brain-binding projections;
+- F22 operator-proved need for real read-only tabular inspection;
+- F23 operator-proved need for server-resolved Project Brain Context;
+- existing W-02A Workspace Brain governance and W-02B Connections lifecycle locks.
 
-That evidence still supports the current Conexus ownership split:
+Material capability dispositions:
 
-```text
-Connection lifecycle       = Connections owner
-Project use                = ProjectConnectionBinding
-Workspace published meaning = Brain owner
-Project adoption           = ProjectBrainBinding
-```
+| Capability / structure | Disposition |
+| --- | --- |
+| real authorized table/view rows | `PRESENT-IN-AUTHORITY` — F22 |
+| physical + semantic Data together | `PRESENT-IN-AUTHORITY` |
+| Project-resolved adopted/available Brain knowledge | `PRESENT-IN-AUTHORITY` — F23 |
+| Workspace Brain governance inside Project | `REJECTED` — duplicate authority |
+| SQL editor / unrestricted DB console | `REJECTED` — Product boundary |
+| generic Capability runner | `REJECTED` — inspection != invocation |
+| Project bindings first / Connection mechanics second | `PRESENT-IN-AUTHORITY` |
+| generic Project Resources hub | `REJECTED` — unnecessary depth/ontology |
+| browser-derived Brain applicability | `REJECTED` — frontend authority |
+| Data field → exact Brain concept cross-link | `DEFERRED` — no current exact relation/consumer |
+| Integration → exact Capability dependency map | `DEFERRED` — no current exact relation/consumer |
 
-No additional reference sweep is justified for P7 because the remaining ambiguity is local structure, not missing product-model evidence.
+No reference capability is rejected merely because an API is absent; the two deferred cross-route relationships lack a proven current job/owner truth, not merely a route.
 
 ---
 
 ## 3. Competing structural hypotheses
 
-### A — Four focused Project routes
+### A — Four coherent Project lenses
 
-**LEADING CANDIDATE / OPERATOR REVIEW REQUIRED.**
+**SELECTED / OPERATOR APPROVED P7 DESIGN.**
 
 ```text
 PROJECT
 │
 ├── DATA — PRJ-S11 + PRJ-S12
-│   ├── resource catalog = default context
-│   ├── exact resource detail
-│   │   ├── human name
-│   │   ├── grain
-│   │   ├── freshness
-│   │   ├── coverage
-│   │   └── provenance
-│   └── Analyze = contextual secondary workspace inside Data
-│       ├── BRN-13 admitted dataset/semantic choices
-│       ├── form-draft selection
-│       └── BRN-12 governed submit/result
+│   ├── Sources / objects = physical-source-first browse
+│   ├── exact object workspace
+│   │   ├── Data = default real rows/columns
+│   │   ├── Structure
+│   │   ├── Relationships
+│   │   └── Rules / constraints with authority distinction
+│   ├── semantic augmentation from PRJ-18/19 where server-linked
+│   └── Analyze = contextual secondary semantic workspace
+│
+├── BRAIN — PRJ-S19A + PRJ-S19B
+│   ├── Project Brain Context = primary
+│   │   ├── adopted/available domains
+│   │   ├── concepts + summaries
+│   │   ├── SEMANTIC | KNOWLEDGE | EVIDENCE_SPEC content
+│   │   ├── bounded sections / provenance
+│   │   └── current binding/conformance/update context
+│   ├── Binding administration = secondary
+│   │   ├── change revision → purpose-bound BRN-02 chooser
+│   │   └── set / clear exact binding through PRJ-11/12
+│   └── Workspace Brain governance = explicit cross-boundary handoff
 │
 ├── CAPABILITIES — PRJ-S13
-│   ├── browse/group by QUERY | ACTION | INTEGRATION
-│   └── exact capability detail
-│       └── semantic operation identity / inspection only
+│   ├── human name + purpose first
+│   ├── QUERY | ACTION | INTEGRATION classification
+│   ├── logical inputs / outputs
+│   └── capabilityId / operationId as secondary technical identity
 │
-├── INTEGRATIONS — PRJ-S14 + PRJ-S15
-│   ├── Used by this Project = primary context
-│   │   ├── recognizable ProjectConnectionBinding
-│   │   ├── add/change binding → purpose-bound CON-03 chooser
-│   │   └── remove binding
-│   └── Project connections = secondary contained lifecycle region
-│       └── private Project-owned Connection work without redefining bindings
-│
-└── BRAIN — PRJ-S19
-    ├── current Project adoption / revision / validation state
-    ├── update-available context
-    ├── change revision → purpose-bound BRN-02 chooser
-    ├── set / clear exact binding
-    └── Workspace Brain publication remains a separate cross-link/boundary
+└── INTEGRATIONS — PRJ-S14 + PRJ-S15
+    ├── Used by this Project = primary
+    │   ├── recognizable ProjectConnectionBinding
+    │   ├── add/change → purpose-bound CON-03 chooser
+    │   └── remove binding
+    └── Project-owned Connections = secondary lifecycle region
 ```
 
-Why A leads:
+Why A is the Global Maximum:
 
-1. **Task completion:** each destination answers one stable human question already represented in the locked Project rail.
-2. **Recognition:** F16/F17/F18/F19 now supply the missing labels/selection projections, so the UI no longer needs opaque-ID interpretation or fabricated joins.
-3. **Context preservation:** Analyze stays with Data; Connection lifecycle stays adjacent to Project binding work; Brain publication remains outside Project adoption.
-4. **Cognitive load:** the ordinary user sees Project concepts, not revision/binding/provider owners as navigation.
-5. **Authority fit:** purpose-bound `CON-03` and `BRN-02` selection can appear exactly where used without becoming generic browse grants.
-6. **Responsive viability:** each route can collapse master/detail or chooser panels into focused sheets without merging the four jobs.
-7. **YAGNI:** no fifth Resources hub, generic binding framework, SQL console, capability runner or duplicate Workspace Brain/Connections administration is required.
+1. **Task completion:** each route answers one stable human question while remaining one coherent Project experience.
+2. **Truthfulness:** Data exposes facts instead of metadata masquerading as data; Brain exposes Project-resolved meaning instead of binding metadata masquerading as understanding.
+3. **Authority fit:** server-owned projections close the user jobs without browser inference or screen-shaped convenience APIs.
+4. **Progressive disclosure:** human meaning leads; technical coordinates/binding mechanics remain inspectable when needed.
+5. **Ownership preservation:** Workspace Brain publication and Connection lifecycle remain in their accepted homes.
+6. **YAGNI:** no Resources hub, universal graph, SQL console, capability runner, generic Context owner or speculative cross-route dependency framework.
+7. **Responsive viability:** each route has one dominant job and can collapse secondary detail/management into drawers/sheets without changing semantic ownership.
 
 ### B — One Project Resources hub
 
-**NOT LEADING.**
-
-Candidate:
+**REJECTED.**
 
 ```text
 Resources
-→ Data | Capabilities | Integrations | Brain tabs
+→ Data | Brain | Capabilities | Integrations
 ```
 
-Why it loses:
+It adds depth without improving a user job, makes “resource” look like Product ontology, weakens direct findability, and pressures materially different owners into false shared CRUD/patterns.
 
-- duplicates the already accepted Project rail with one extra navigation layer;
-- groups concepts because they are “resources,” not because humans perform one coherent job;
-- makes a generic resource abstraction look like Product ontology;
-- weakens direct deep-link/findability for Data, Integrations and Brain;
-- creates pressure for shared CRUD/list/detail patterns across owners that deliberately differ.
+### C — Backend/engineering console
 
-### C — Backend-owner-first resource console
-
-**NOT LEADING.**
-
-Candidate:
+**REJECTED.**
 
 ```text
-Resources / Bindings / Revisions / Connections / Semantic Catalog
+Bindings / Revisions / Schemas / Operations / Connections / Semantic Catalog
 ```
 
-Why it loses:
-
-- mirrors backend ownership/mechanics rather than user outcomes;
-- exposes revision and binding vocabulary as primary navigation;
-- encourages generic read/manage authority by symmetry;
-- makes Connections and Brain lifecycle appear Project-owned;
-- trends toward an admin/engineering console rather than a coherent software-building Product.
+It mirrors backend mechanics, promotes revision/binding vocabulary ahead of user outcomes, and is the exact backend-shaped UX local maximum prohibited by Frontend Method v2.3.
 
 ---
 
 ## 4. Route-level structure
 
-### 4.1 Data — PRJ-S11 + PRJ-S12
+### 4.1 Data — facts first
 
-Default state is the human resource catalog. Selection preserves the Data route while revealing exact detail.
+F22 replaces the old metadata-first Data hypothesis.
 
 ```text
-PRJ-18 ListProjectDataResources
-→ name = human recognition
-→ dataResourceId = exact machine identity
+PRJ-25 ListProjectDataExplorerSources
+→ Project Database + exact explorer-eligible currently bound integration sources
 
-dataResourceId != name
+PRJ-26 ListProjectDataExplorerObjects
+→ TABLE | VIEW | genuinely tabular DATASET
 
-PRJ-19 GetProjectDataResource
-→ grain / freshness / coverage / provenance
+PRJ-27 GetProjectDataExplorerObject
+→ physical columns / key roles / relationships / constraints
+
+PRJ-28 ListProjectDataExplorerRows
+→ actual read-only rows
+→ bounded typed filter / sort / continuation
 ```
 
-Analyze is a contextual secondary workspace in Data, not a new top-level Project domain:
+The exact object defaults to **Data**, not metadata. Structure, Relationships and Rules are secondary lenses.
+
+Semantic augmentation stays separate:
+
+```text
+PRJ-18 / PRJ-19
+→ semantic Data-resource name / grain / freshness / coverage / provenance / fields / relationships / rules
+
+PRJ-27/28 optional semanticDataResourceId / semanticFieldId
+→ server-owned cross-link only
+```
+
+```text
+physical identity != semantic meaning
+bounded read-only explorer != unrestricted database console
+```
+
+Analyze remains contextual:
 
 ```text
 BRN-13 GetProjectAnalyticQueryCatalog
-→ only server-admitted semantic choices
+→ server-admitted semantic choices
 
 BRN-12 RunAnalyticQuery
 → deterministic governed submit
-→ server revalidates current Project grant/binding/health/admission
+→ current Project/Brain/binding/health revalidation
 ```
 
-No arbitrary SQL, physical tables/schemas/joins, natural-language planner or frontend-owned semantic catalog is admitted.
+No SQL editor, free-form expression/join, DML/DDL, browser source authority or frontend semantic catalog is admitted.
 
-### 4.2 Capabilities — PRJ-S13
+### 4.2 Brain — meaning first, binding second
 
-Capabilities are human inspection of exact Release/authored semantics:
+The Project Brain route is no longer binding-only.
+
+Primary surface:
 
 ```text
-PRJ-16 ListProjectCapabilities
-PRJ-17 GetProjectCapability
-→ capabilityId
-→ operationId
-→ regime = QUERY | ACTION | INTEGRATION
+BRN-14 GetProjectBrainContext
+→ exact Project
+→ current Project Brain binding
+→ server-resolved Project-local realization/refinement
+→ adopted/available domains / concepts / content / provenance
+→ validationState + updateAvailable context
 ```
 
-Grouping by regime is presentation only. Inspection does not imply invocation authority, so P7 admits no generic Run/Execute control.
-
-### 4.3 Integrations — PRJ-S14 + PRJ-S15
-
-The primary question is “what is this Project using?” rather than “what Connections exist globally?”
+Critical distinction:
 
 ```text
-PRJ-13 ListProjectConnectionBindings
-→ connectionName + exact binding/revision/environment
-
-add/change binding
-→ CON-03 purpose-bound exact-Project chooser
-→ project.manage + connection.use
-→ PRJ-14 SetProjectConnectionBinding
-
-remove binding
-→ PRJ-15 RemoveProjectConnectionBinding
+Project Brain Context
+!= whole Workspace Brain publication
+!= runtime effectiveBrainSlice
 ```
 
-Binding and lifecycle remain distinct inside the same external-system work context:
+The browser never loads the whole Workspace Brain and guesses applicability.
 
-```text
-ProjectConnectionBinding != Connection
-connection.use -X-> generic connection.read
-```
-
-Project-private Connections may appear as a secondary contained region because they are legitimately Project-owned Connections. Workspace/shared Connection administration remains W-02B, not duplicated here.
-
-### 4.4 Brain — PRJ-S19
-
-The route is Project adoption, not Workspace knowledge authoring.
+Secondary administration remains:
 
 ```text
 PRJ-10 GetProjectBrainBinding
-→ current exact Project adoption/validation/update truth
 
 change revision
 → BRN-02 purpose-bound immutable revision chooser
@@ -232,63 +238,149 @@ clear
 → PRJ-12 ClearProjectBrainBinding
 ```
 
+`brain.read + project.read` owns Project-context inspection; `project.manage + brain.bind` owns binding change. **Understand != administer.**
+
+Workspace Brain Discovery/proposals/review/publication remain W-02A and may only be reached through an explicit boundary/cross-link.
+
+### 4.3 Capabilities — human contract first
+
 ```text
-brain.bind -X-> generic brain.read
-Project Brain binding != Workspace Brain publication
+PRJ-16 ListProjectCapabilities
+PRJ-17 GetProjectCapability
+→ human name
+→ purpose
+→ regime = QUERY | ACTION | INTEGRATION
+→ logical inputs / outputs
+→ capabilityId / operationId
 ```
 
-A link/handoff to Workspace Brain may exist only as navigation to the already-owned W-02A domain when disclosed; P-02 does not inline publication/review authoring.
+P7 priority:
+
+```text
+purpose / human contract
+→ logical inputs/outputs
+→ technical identity when needed
+```
+
+Inspection creates no generic Run/Execute authority.
+
+### 4.4 Integrations — Project use first
+
+Primary question: **which external systems/resources does this Project use?**
+
+```text
+PRJ-13 ListProjectConnectionBindings
+→ connectionName + exact binding/revision/environment
+
+add/change
+→ CON-03 purpose-bound exact-Project chooser
+→ project.manage + connection.use
+→ PRJ-14 SetProjectConnectionBinding
+
+remove
+→ PRJ-15 RemoveProjectConnectionBinding
+```
+
+Binding/use and Connection lifecycle remain distinct:
+
+```text
+ProjectConnectionBinding != Connection
+connection.use -X-> generic connection.read
+```
+
+Project-private Connections remain secondary contained lifecycle work. Workspace/shared Connections remain W-02B.
 
 ---
 
-## 5. P7 lightweight feasibility register
+## 5. Cross-route coherence
 
-| Required structural truth | Status | Evidence / rule |
+The four lenses may cross-link only through exact server-owned coordinates.
+
+```text
+server-owned exact relation
+→ contextual navigation allowed
+
+same label / apparent semantic similarity / browser join
+-X-> Product relationship
+-X-> authorization
+```
+
+Currently proven cross-link:
+
+```text
+physical Data object/column
+→ optional semanticDataResourceId / semanticFieldId
+→ PRJ-19 semantic Data truth
+```
+
+Deliberately deferred until proven:
+
+```text
+Data field → exact Brain concept
+Integration → exact Capability set
+Capability → exact Connection dependency
+```
+
+This preserves whole-Product coherence without manufacturing a universal resource graph.
+
+---
+
+## 6. P7 feasibility register
+
+| Required structural truth | Status | Current authority |
 | --- | --- | --- |
-| Data human label + exact identity | `PRESENT-IN-AUTHORITY` | F16: `name` + `dataResourceId`; `dataResourceId != name` |
-| Data grain/freshness/coverage/provenance | `PRESENT-IN-AUTHORITY` | PRJ-19 |
-| Analyze dataset/semantic choices | `PRESENT-IN-AUTHORITY` | BRN-13 GetProjectAnalyticQueryCatalog |
-| Governed analytic submit | `PRESENT-IN-AUTHORITY` | BRN-12 RunAnalyticQuery |
-| Capability semantic identity/regime | `PRESENT-IN-AUTHORITY` | PRJ-16/17 |
-| Existing binding human recognition | `PRESENT-IN-AUTHORITY` | F17 `connectionName` on ProjectConnectionBinding |
-| Bindable Connection selection | `PRESENT-IN-AUTHORITY` | purpose-bound CON-03; no generic connection.read |
-| Integration material writes | `PRESENT-IN-AUTHORITY` | PRJ-14 set + PRJ-15 remove |
-| Current Brain adoption | `PRESENT-IN-AUTHORITY` | PRJ-10 |
-| Bindable immutable Brain revision selection | `PRESENT-IN-AUTHORITY` | purpose-bound BRN-02; no generic brain.read |
-| Brain material writes | `PRESENT-IN-AUTHORITY` | PRJ-11 set + PRJ-12 clear |
-| Pagination / scale | `PRESENT-IN-AUTHORITY` | P7 requires no new server search/pagination contract; existing collection wire remains authoritative; P8 may use bounded fixtures only |
-| Sort / filter | `PRESENT-IN-AUTHORITY` | no server filter is required for the leading structure; presentation may group already-disclosed capability rows by regime without claiming new completeness authority |
-| Preview/content truth | `PRESENT-IN-AUTHORITY` | exact server projections above are sufficient; no synthetic resource preview is required |
+| physical source/object discovery | `PRESENT-IN-AUTHORITY` | PRJ-25/26 |
+| real rows + columns | `PRESENT-IN-AUTHORITY` | PRJ-27/28 |
+| bounded filter/sort/paging | `PRESENT-IN-AUTHORITY` | PRJ-28 F22 wire |
+| semantic Data meaning/provenance | `PRESENT-IN-AUTHORITY` | PRJ-18/19 |
+| admitted Analyze choices/submit | `PRESENT-IN-AUTHORITY` | BRN-13/12 |
+| Capability human contract | `PRESENT-IN-AUTHORITY` | PRJ-16/17 F21 |
+| current Integration recognition | `PRESENT-IN-AUTHORITY` | PRJ-13 F17 |
+| bindable Connection selection | `PRESENT-IN-AUTHORITY` | purpose-bound CON-03 |
+| Integration writes | `PRESENT-IN-AUTHORITY` | PRJ-14/15 |
+| Project-resolved Brain knowledge | `PRESENT-IN-AUTHORITY` | BRN-14 F23 |
+| current Brain binding/admin | `PRESENT-IN-AUTHORITY` | PRJ-10/11/12 + purpose-bound BRN-02 |
+| Workspace Brain governance boundary | `PRESENT-IN-AUTHORITY` | W-02A locked block |
+| Data→Brain exact concept relation | `DEFERRED` | no proven current exact owner relation |
+| Integration→Capability exact map | `DEFERRED` | no proven current exact owner relation |
 
-No blocking P7 `FINDING` remains. If operator walkthrough later proves scale/search or another missing truth material, reopen only that smallest owner decision.
+No unresolved **blocking** upstream finding remains for this leading P7 structure. Deferred relationships are not required to complete the current four human jobs.
 
 ---
 
-## 6. Client-state classification candidate
+## 7. Client-state classification
 
 | State | Class | Rule |
 | --- | --- | --- |
-| selected Data resource / capability detail | `URL_NAVIGATION` | exact opaque ID is an untrusted reference; server revalidates disclosure |
-| Analyze selected dataset/semantics before submit | `FORM_DRAFT` | becomes BRN-12 input only on submit |
-| current resource/binding/Brain/capability truth | `SERVER` | browser never becomes durable authority |
+| selected Data source/object/view | `URL_NAVIGATION` where re-entry matters | server revalidates untrusted coordinates |
+| open Data object-tab set / column visibility / row selection | `EPHEMERAL_UI` | presentation only |
+| filter draft | `FORM_DRAFT` | becomes bounded PRJ-28 request only on apply |
+| Analyze selected dataset/semantics | `FORM_DRAFT` | becomes BRN-12 input only on submit |
+| current Data/Capability/Integration/Brain truth | `SERVER` | browser never becomes durable authority |
+| selected Brain domain/concept | `EPHEMERAL_UI` or later URL navigation if re-entry proves material | browse coordinate only |
 | Connection / Brain chooser open state | `EPHEMERAL_UI` | presentation only |
-| selected Connection/revision before binding submit | `FORM_DRAFT` | PRJ-14/11 and current owner state decide |
-| local route grouping/expanded detail | `EPHEMERAL_UI` | no Product truth |
+| selected Connection/revision before binding | `FORM_DRAFT` | owner writes decide on submit |
 
 ---
 
-## 7. Material states carried to P8/P9
+## 8. Material states for revised P8
 
 ```text
 Data:
-loading != known-empty != denied != absent/non-disclosable != dependency failure
-freshness unknown != fresh
-coverage partial != complete
+loading != known-empty != denied != absent/non-disclosable != dependency unavailable
+object exists + structure available != row read available
+unknown total != zero
+stale continuation != fresh page
+truncated value != complete value
 
 Analyze:
 empty admitted catalog != missing Brain binding != unhealthy/unavailable dependency
-catalog choice read != durable submit authority
-binding/semantic change after read may invalidate BRN-12 submit
+catalog choice != durable submit authority
+binding/semantic change may invalidate submit
+
+Capabilities:
+known-empty != denied/non-disclosable != read failure
+inspection != invocation eligibility
 
 Integrations:
 no binding != no eligible Connection != denied disclosure
@@ -296,41 +388,59 @@ configured != qualified != bound != healthy
 selection disclosure != Connection management authority
 
 Brain:
-no binding != bound != update available
-published revision selection != Workspace Brain authoring
-chooser visibility != brain.read grant
+no binding != bound with known-empty Project context != denied/non-disclosable != dependency failure
+Project context != whole Workspace publication
+Project context != runtime effective slice
+bound current != update available
+context inspection authority != binding-change authority
 ```
 
 ---
 
-## 8. Explicit forbidden frontend authority
+## 9. Explicit forbidden frontend authority
 
 ```text
 generic Project Resources hub as new Product ontology = REJECTED
 backend owner/revision/binding console as root UX = REJECTED
+browser-derived Brain applicability = FORBIDDEN
+Project Brain Context portrayed as runtime effectiveBrainSlice = FORBIDDEN
+Project Brain UI owning Workspace publication/review = FORBIDDEN
+brain.bind promoted to brain.read = FORBIDDEN
 generic capability Run/Execute control = FORBIDDEN
-SQL / physical schema / join explorer = FORBIDDEN
+SQL editor / unrestricted DB console = FORBIDDEN
 frontend-owned analytic semantic catalog = FORBIDDEN
 connection.use promoted to generic connection.read = FORBIDDEN
-brain.bind promoted to generic brain.read = FORBIDDEN
-Project binding UI owning Connection lifecycle = FORBIDDEN
-Project Brain UI owning Workspace publication = FORBIDDEN
+Project binding UI owning Workspace Connection lifecycle = FORBIDDEN
 human label used for routing/authorization = FORBIDDEN
+unproven cross-route relationship inferred from matching labels = FORBIDDEN
 ```
 
 ---
 
-## 9. Operator gate
+## 10. Operator gate
+
+The operator approved this rebaselined four-lens P7 design while authorizing F23 authority correction. That approval does **not** authorize construction of a new P8 artifact automatically.
 
 ```text
-P-02 = OPEN / AUTHORITY CLOSED
-P7 = CANDIDATE / OPERATOR REVIEW REQUIRED
-P8 = BLOCKED
+P-02 = OPEN / F23 AUTHORITY GREEN
+P7 = REBASELINED / OPERATOR APPROVED DESIGN
+P8 = BLOCKED PENDING EXPLICIT EXECUTION AUTHORITY
+existing F22 P8 = historical/learning Evidence / NOT LOCKABLE AFTER F23
 P-02 = NOT LOCKED
+P9/P10 = BLOCKED
 P-03+ = NOT OPEN
 P11 = NOT ASSEMBLED
 4D = NOT STARTED
 Product implementation = BLOCKED
 ```
 
-If the operator approves A, the next authorized increment is to record P7 approval and then explicitly open functional P8 Evidence. Until that approval, no P8 HTML is authorized.
+Next bounded gate:
+
+```text
+operator explicitly authorizes revised P8 execution
+→ TDD/structural proof for the rebaselined P8
+→ revise the same P-02 functional low-fi artifact only
+→ fresh Verify
+→ operator walkthrough
+→ only operator may LOCK P8
+```
