@@ -142,6 +142,34 @@ paths:
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       parameters:
+        - name: from
+          in: query
+          required: false
+          description: Optional inclusive RFC3339 lower bound on immutable occurredAt.
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: Optional exclusive RFC3339 upper bound on immutable occurredAt; when both bounds are supplied, to must be later than from.
+          schema:
+            type: string
+            format: date-time
+        - name: actorQuery
+          in: query
+          required: false
+          description: Optional nonblank human lookup over immutable append-time actor presentation and exact actor reference. Matching affects disclosure selection only and never actor identity or authorization.
+          schema:
+            type: string
+            minLength: 1
+        - name: actionQuery
+          in: query
+          required: false
+          description: Optional nonblank lookup over the immutable audited action/fact kind. It is a list filter, not an action/Permission taxonomy.
+          schema:
+            type: string
+            minLength: 1
         - name: projectId
           in: query
           required: false
@@ -152,13 +180,13 @@ paths:
         - name: pageToken
           in: query
           required: false
-          description: Opaque continuation for the same admitted audit list shape.
+          description: Opaque continuation for the same admitted filter/disclosure shape. Filters are applied before pagination; one browser page is never the audit search universe.
           schema:
             type: string
             minLength: 1
       responses:
         '200':
-          description: Immutable audit facts currently disclosable in the exact Workspace scope; listing grants no mutation or authorization authority.
+          description: Immutable audit facts currently disclosable in the exact Workspace scope after all admitted filters are applied before pagination; listing grants no mutation or authorization authority.
           content:
             application/json:
               schema:
@@ -169,6 +197,8 @@ paths:
           $ref: './openapi.yaml#/components/responses/Problem403'
         '404':
           $ref: './openapi.yaml#/components/responses/Problem404'
+        '422':
+          $ref: './openapi.yaml#/components/responses/Problem422'
 
   /api/control/workspaces/{workspaceId}/audit-records/{auditRecordId}:
     parameters:
@@ -195,7 +225,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact immutable audit fact and provenance; it records an admitted fact but cannot mutate/reconstruct current owner authority.
+          description: Exact immutable audit fact, append-time human presentation snapshots and provenance; it records an admitted fact but cannot mutate/reconstruct current owner authority.
           content:
             application/json:
               schema:
@@ -408,10 +438,29 @@ components:
                     calculatedUsd: {}
                   required: [calculatedUsd]
 
+    AuditSubjectSnapshotRef:
+      type: object
+      additionalProperties: false
+      required: [kind, ref, label]
+      properties:
+        kind:
+          type: string
+          minLength: 1
+          description: Exact owner-issued subject class captured with the immutable audit fact.
+        ref:
+          type: string
+          minLength: 1
+          description: Exact owner subject reference captured with the immutable audit fact; possession never grants authority.
+        label:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Immutable append-time human presentation Evidence snapshot. Current resource names never rewrite this historical label, and the label is never authorization.
+
     AuditRecordSummary:
       type: object
       additionalProperties: false
-      required: [auditRecordId, workspaceId, actor, action, subject, occurredAt]
+      required: [auditRecordId, workspaceId, actor, action, subject, occurredAt, summary]
       properties:
         auditRecordId:
           type: string
@@ -424,16 +473,21 @@ components:
           minLength: 1
           description: Exact contained Project when the audit fact is Project-scoped.
         actor:
-          $ref: '#/components/schemas/OwnerSubjectRef'
+          $ref: '#/components/schemas/AuditSubjectSnapshotRef'
         action:
           type: string
           minLength: 1
           description: Owner-issued audited action/fact kind; OBS does not create a universal authorization/action taxonomy.
         subject:
-          $ref: '#/components/schemas/OwnerSubjectRef'
+          $ref: '#/components/schemas/AuditSubjectSnapshotRef'
         occurredAt:
           type: string
           format: date-time
+        summary:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Deterministic OBS-owned human-readable presentation of this exact immutable audit fact; never current state or authorization.
 
     AuditRecordPage:
       type: object
@@ -447,12 +501,12 @@ components:
         nextPageToken:
           type: string
           minLength: 1
-          description: Opaque continuation for the same admitted immutable-audit list shape.
+          description: Opaque continuation for the same admitted server-filtered immutable-audit query.
 
     AuditRecord:
       type: object
       additionalProperties: false
-      required: [auditRecordId, workspaceId, actor, action, subject, occurredAt, evidenceRefs]
+      required: [auditRecordId, workspaceId, actor, action, subject, occurredAt, summary, evidenceRefs]
       properties:
         auditRecordId:
           type: string
@@ -465,15 +519,20 @@ components:
           minLength: 1
           description: Exact contained Project when the audit fact is Project-scoped.
         actor:
-          $ref: '#/components/schemas/OwnerSubjectRef'
+          $ref: '#/components/schemas/AuditSubjectSnapshotRef'
         action:
           type: string
           minLength: 1
           description: Owner-issued audited action/fact kind; immutable audit facts never become current authorization state.
         subject:
-          $ref: '#/components/schemas/OwnerSubjectRef'
+          $ref: '#/components/schemas/AuditSubjectSnapshotRef'
         occurredAt:
           type: string
           format: date-time
+        summary:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Deterministic OBS-owned human-readable presentation of this exact immutable audit fact; never current state or authorization.
         evidenceRefs:
           $ref: '#/components/schemas/EvidenceRefs'

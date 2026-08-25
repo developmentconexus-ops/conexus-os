@@ -2,7 +2,6 @@ import fs from 'node:fs';
 
 const ledgerPath = 'docs/product/operation-ledger.md';
 const bundlePath = '/tmp/conexus-product-openapi.bundle.json';
-const expectedFixedOperationCount = 111;
 const allowedContractStates = new Set(['METHOD_PATH_MAPPED', 'SCHEMA_CLOSED']);
 
 const ledger = fs.readFileSync(ledgerPath, 'utf8');
@@ -23,8 +22,8 @@ for (const match of fixedSection.matchAll(rowPattern)) {
   expectedById.set(id, operationId);
 }
 
-if (expectedById.size !== expectedFixedOperationCount) {
-  throw new Error(`expected ${expectedFixedOperationCount} fixed 4A operations, found ${expectedById.size}`);
+if (expectedById.size === 0) {
+  throw new Error('fixed-platform census contains no 4A operations');
 }
 
 const oas = JSON.parse(fs.readFileSync(bundlePath, 'utf8'));
@@ -49,8 +48,8 @@ for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
   }
 }
 
-if (actual.length !== expectedFixedOperationCount) {
-  throw new Error(`expected ${expectedFixedOperationCount} Product wire operations, found ${actual.length}`);
+if (actual.length !== expectedById.size) {
+  throw new Error(`4A/OAS census mismatch: ledger has ${expectedById.size} fixed operations, wire has ${actual.length}`);
 }
 
 const seenIds = new Set();

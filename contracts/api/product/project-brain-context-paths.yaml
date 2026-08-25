@@ -1,0 +1,164 @@
+openapi: 3.1.2
+info:
+  title: Conexus Product API Project Brain Context Path Items
+  version: 4b-candidate
+paths:
+  /api/control/projects/{projectId}/brain-context:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      summary: GetProjectBrainContext
+      operationId: GetProjectBrainContext
+      x-conexus-4a-id: BRN-14
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: >-
+            Current Brain-owned human projection of enterprise meaning adopted and available in the exact Project context,
+            resolved from the exact current Project Brain binding plus admitted Project-local realization/refinement.
+            This is not the whole Workspace Brain merely because a Project is bound, and it is not a runtime-specific
+            effective Brain slice or ToolProjection.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectBrainContext'
+        '401':
+          $ref: './openapi.yaml#/components/responses/Problem401'
+        '403':
+          $ref: './openapi.yaml#/components/responses/Problem403'
+        '404':
+          $ref: './openapi.yaml#/components/responses/Problem404'
+        '503':
+          $ref: './openapi.yaml#/components/responses/Problem503'
+
+components:
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      description: Untrusted exact Project reference; every read revalidates current Project disclosure, grants and Brain binding.
+      schema:
+        type: string
+        minLength: 1
+
+  schemas:
+    ProjectBrainContext:
+      type: object
+      additionalProperties: false
+      required:
+        - projectId
+        - brainRevisionId
+        - brainDigest
+        - projectBindingDigest
+        - validationState
+        - updateAvailable
+        - domains
+      properties:
+        projectId:
+          type: string
+          minLength: 1
+        brainRevisionId:
+          type: string
+          minLength: 1
+          description: Exact immutable Workspace Brain revision adopted through the current Project binding; never mutable latest.
+        brainDigest:
+          type: string
+          minLength: 1
+        projectBindingDigest:
+          type: string
+          minLength: 1
+          description: Exact current Project binding/local-realization identity used to derive this projection.
+        validationState:
+          type: string
+          minLength: 1
+          description: Current owner-issued Project binding/conformance state; this read invents no new global lifecycle enum.
+        updateAvailable:
+          type: boolean
+          description: Current server-owned projection that a newer published Brain revision is available; it never silently rebinds the Project.
+        domains:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectBrainContextDomain'
+          description: >-
+            Brain-owned Project-resolved knowledge available in this exact Project context. Empty is truthful known-empty
+            Project context, not permission failure, missing binding or dependency error. The server, never the browser,
+            resolves which published meaning and Project-local realization belong here.
+
+    ProjectBrainContextDomain:
+      type: object
+      additionalProperties: false
+      required: [domainRef, label, concepts]
+      properties:
+        domainRef:
+          type: string
+          minLength: 1
+          description: Project-context-scoped Brain browse coordinate for presentation/navigation only; not canonical source or semantic-ID authority.
+        label:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+        concepts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectBrainContextConcept'
+
+    ProjectBrainContextConcept:
+      type: object
+      additionalProperties: false
+      required: [conceptRef, label, summary, contentClasses, sections, provenanceRefs]
+      properties:
+        conceptRef:
+          type: string
+          minLength: 1
+          description: Project-context-scoped Brain browse coordinate only; not canonical semantic ID, source identity, decision subject or runtime ToolProjection coordinate.
+        label:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+        summary:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+        contentClasses:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [SEMANTIC, KNOWLEDGE, EVIDENCE_SPEC]
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectBrainContextSection'
+        provenanceRefs:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+          description: Disclosable Brain/Project provenance references for human inspection; never credential, authorization or source-write authority.
+
+    ProjectBrainContextSection:
+      type: object
+      additionalProperties: false
+      required: [kind, text]
+      properties:
+        kind:
+          type: string
+          enum:
+            - DEFINITION
+            - BUSINESS_MEANING
+            - CALCULATION
+            - GRAIN
+            - RELATIONSHIPS
+            - BUSINESS_RULES
+            - CAVEATS
+            - VERIFICATION
+        text:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Brain-owned deterministic human-readable Project-context meaning; never executable instruction, policy, SQL or authority input.

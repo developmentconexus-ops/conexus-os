@@ -13,9 +13,10 @@ paths:
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
+      x-conexus-authority-routes: [project.read, workspace.access.manage]
       responses:
         '200':
-          description: Projects currently disclosable to the caller in the Workspace.
+          description: Projects currently disclosable to the caller in the Workspace. The normal project.read route follows ordinary Project disclosure; the workspace.access.manage route is access-administration summary disclosure only and returns exact contained ProjectSummary identities without granting Project content/source/data/build authority.
           content:
             application/json:
               schema:
@@ -37,9 +38,25 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       parameters:
         - $ref: './openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name, sourceBootstrap]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  pattern: '.*\S.*'
+                  description: Required human-readable Project identity fixed at F1 creation; not a grant, unique key, or rename authority.
+                sourceBootstrap:
+                  $ref: '#/components/schemas/ProjectSourceBootstrap'
       responses:
         '201':
-          description: Project identity established in the exact Workspace with the admitted initial operator grant.
+          description: Source-complete Project established in the exact Workspace with the admitted initial operator grant, human-readable identity and exactly one canonical Project Git source.
           content:
             application/json:
               schema:
@@ -52,6 +69,10 @@ paths:
           $ref: './openapi.yaml#/components/responses/Problem404'
         '409':
           $ref: './openapi.yaml#/components/responses/Problem409'
+        '422':
+          $ref: './openapi.yaml#/components/responses/Problem422'
+        '503':
+          $ref: './openapi.yaml#/components/responses/Problem503'
 
   /api/control/projects/{projectId}:
     parameters:
@@ -136,14 +157,19 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [destinationWorkspaceId]
+              required: [destinationWorkspaceId, name]
               properties:
                 destinationWorkspaceId:
                   type: string
                   minLength: 1
+                name:
+                  type: string
+                  minLength: 1
+                  pattern: '.*\S.*'
+                  description: Required human-readable identity of the destination Project; the source Project name is never copied implicitly as Product authority.
       responses:
         '201':
-          description: Duplicated Project created with the accepted NO DATA copy policy; destination establishes its own current bindings and authorization.
+          description: Duplicated Project created with the accepted NO DATA copy policy; destination establishes its own current human identity, bindings and authorization.
           content:
             application/json:
               schema:
@@ -179,22 +205,39 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       parameters:
         - $ref: './openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [intent]
+              properties:
+                intent:
+                  type: string
+                  minLength: 1
+                  pattern: '.*\S.*'
+                  description: Human business intent for this Inception investigation, including objective/users/constraints as needed; not generic mutable Project metadata and not source-selection authority.
+                priorCandidateBaselineDigest:
+                  type: string
+                  minLength: 1
+                  description: Exact immutable prior Baseline candidate being refined. It is an untrusted reference that must resolve inside the current Project and never becomes browser/model authority.
+                reviewFeedback:
+                  type: string
+                  minLength: 1
+                  pattern: '.*\S.*'
+                  description: Explicit human review feedback about the exact prior candidate; it is input to a new governed investigation and never mutates the prior candidate in place.
+              dependentRequired:
+                priorCandidateBaselineDigest: [reviewFeedback]
+                reviewFeedback: [priorCandidateBaselineDigest]
       responses:
         '200':
-          description: Governed investigation completed over the Project's currently admitted sources and produced a candidate Baseline subject.
+          description: Governed investigation completed over the Project's already-admitted source/context and produced one exact immutable candidate Baseline. When refinement fields are present, the new candidate is explicitly derived from the exact prior candidate plus human review feedback.
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: false
-                required: [candidateBaselineDigest, sourceRevision]
-                properties:
-                  candidateBaselineDigest:
-                    type: string
-                    minLength: 1
-                  sourceRevision:
-                    type: string
-                    minLength: 1
+                $ref: '#/components/schemas/ProjectBaselineCandidate'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
@@ -203,6 +246,8 @@ paths:
           $ref: './openapi.yaml#/components/responses/Problem404'
         '409':
           $ref: './openapi.yaml#/components/responses/Problem409'
+        '422':
+          $ref: './openapi.yaml#/components/responses/Problem422'
         '503':
           $ref: './openapi.yaml#/components/responses/Problem503'
 
@@ -269,6 +314,74 @@ paths:
           $ref: './openapi.yaml#/components/responses/Problem409'
         '412':
           $ref: './openapi.yaml#/components/responses/Problem412'
+        '422':
+          $ref: './openapi.yaml#/components/responses/Problem422'
+
+  /api/control/projects/{projectId}/baseline-candidates/{candidateBaselineDigest}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/CandidateBaselineDigest'
+    get:
+      summary: GetProjectBaselineCandidate
+      operationId: GetProjectBaselineCandidate
+      x-conexus-4a-id: PRJ-23
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: Exact immutable Project Baseline candidate identified by the caller-known candidate digest for human review/re-entry before approval.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectBaselineCandidate'
+        '401':
+          $ref: './openapi.yaml#/components/responses/Problem401'
+        '403':
+          $ref: './openapi.yaml#/components/responses/Problem403'
+        '404':
+          $ref: './openapi.yaml#/components/responses/Problem404'
+
+  /api/control/projects/{projectId}/baseline-candidates/{candidateBaselineDigest}/assistant/queries:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/CandidateBaselineDigest'
+    post:
+      summary: AskConexusAboutBaselineCandidate
+      operationId: AskConexusAboutBaselineCandidate
+      x-conexus-4a-id: PRJ-24
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [question]
+              properties:
+                question:
+                  type: string
+                  minLength: 1
+                  pattern: '.*\S.*'
+                  description: Human question about the exact immutable candidate Baseline; the question itself grants no additional Project or Builder authority.
+                reviewContext:
+                  $ref: '#/components/schemas/BaselineReviewContext'
+      responses:
+        '200':
+          description: Contextual explanation about the exact immutable candidate Baseline with provenance; no Baseline mutation, approval, grant or Builder authority is implied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaselineCandidateContextualAnswer'
+        '401':
+          $ref: './openapi.yaml#/components/responses/Problem401'
+        '403':
+          $ref: './openapi.yaml#/components/responses/Problem403'
+        '404':
+          $ref: './openapi.yaml#/components/responses/Problem404'
         '422':
           $ref: './openapi.yaml#/components/responses/Problem422'
 
@@ -397,7 +510,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact Project connection bindings without credential material.
+          description: Exact Project connection bindings with server-composed human Connection presentation and without credential material.
           content:
             application/json:
               schema:
@@ -443,7 +556,7 @@ paths:
                   $ref: '#/components/schemas/ExpectedConnectionBindingState'
       responses:
         '200':
-          description: Exact qualified compatible Connection revision bound for the stated Project environment after current-state comparison.
+          description: Exact qualified compatible Connection revision bound for the stated Project environment after current-state comparison; response includes server-composed human Connection presentation.
           content:
             application/json:
               schema:
@@ -515,13 +628,13 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact finite authored/Release capability projection; listing does not grant invocation authority.
+          description: Exact finite authored/Release capability projection with human name and purpose; listing remains inspection only and grants no invocation authority.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ProjectCapability'
+                  $ref: '#/components/schemas/ProjectCapabilitySummary'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
@@ -542,7 +655,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact Project capability identity and admitted regime; no execution is performed.
+          description: Exact Project capability with human meaning and logical input/output contract; no execution is performed or granted.
           content:
             application/json:
               schema:
@@ -566,7 +679,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Declared Product/read-model/source resource identities; not a database explorer.
+          description: Declared Project Data resources with exact machine identity, human presentation, semantic resource kind and source kind; not a physical database explorer.
           content:
             application/json:
               schema:
@@ -593,7 +706,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact declared resource with semantic grain, freshness, coverage and provenance; physical credentials/storage internals are excluded.
+          description: Exact declared Data resource with human presentation, semantic kind/source, grain/freshness/coverage/provenance and logical fields/relationships/rules; physical topology, credentials and storage internals are excluded.
           content:
             application/json:
               schema:
@@ -617,7 +730,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Authored Product Agent identities/revisions and Release projection; PAR runtime authority is excluded.
+          description: Authored Product Agent human identity, semantic purpose, exact authored revision and Release projection; PAR runtime authority is excluded.
           content:
             application/json:
               schema:
@@ -644,7 +757,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact Project-owned Agent authoring identity/revision and Release references without runtime override authority.
+          description: Exact Project-owned Agent human identity, semantic purpose, authoring revision and Release references without runtime override authority.
           content:
             application/json:
               schema:
@@ -668,7 +781,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Access-filtered Workspace catalog projection over Project-owned Product Agents.
+          description: Access-filtered Workspace catalog projection over Project-owned Product Agents. Each item is self-contained for human recognition through the canonical Agent projection plus its owning ProjectSummary; catalog disclosure creates no Workspace Agent/fleet authority or Project source-read grant.
           content:
             application/json:
               schema:
@@ -700,6 +813,14 @@ components:
       schema:
         type: string
         minLength: 1
+    CandidateBaselineDigest:
+      name: candidateBaselineDigest
+      in: path
+      required: true
+      description: Untrusted exact candidate Baseline digest reference only; current Project containment/disclosure is resolved server-side.
+      schema:
+        type: string
+        minLength: 1
     CapabilityId:
       name: capabilityId
       in: path
@@ -728,7 +849,7 @@ components:
     ProjectSummary:
       type: object
       additionalProperties: false
-      required: [projectId, workspaceId, archived]
+      required: [projectId, workspaceId, name, archived]
       properties:
         projectId:
           type: string
@@ -736,12 +857,17 @@ components:
         workspaceId:
           type: string
           minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable Project identity; not a stable identifier, uniqueness guarantee, or authorization source.
         archived:
           type: boolean
     ProjectRepresentation:
       type: object
       additionalProperties: false
-      required: [projectId, workspaceId, projectRevision, archived]
+      required: [projectId, workspaceId, name, projectRevision, archived]
       properties:
         projectId:
           type: string
@@ -749,11 +875,38 @@ components:
         workspaceId:
           type: string
           minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable Project identity fixed for F1 after creation; rename is not admitted by this schema.
         projectRevision:
           type: string
           minLength: 1
         archived:
           type: boolean
+    ProjectSourceBootstrap:
+      description: Creation-time establishment of exactly one canonical Project Git source; mechanism/provider credentials remain server-side and post-create source switching is not admitted.
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [mode]
+          properties:
+            mode:
+              type: string
+              const: NEW
+        - type: object
+          additionalProperties: false
+          required: [mode, repositoryLocator]
+          properties:
+            mode:
+              type: string
+              const: EXISTING_GIT
+            repositoryLocator:
+              type: string
+              minLength: 1
+              pattern: '.*\S.*'
+              description: Untrusted provider-neutral Git repository locator only. It carries no credential/secret and grants no generic fetch, network, Workspace or Project authority; server-side GitInfra/policy validates admission.
     ApprovedBaseline:
       type: object
       additionalProperties: false
@@ -771,6 +924,53 @@ components:
         applicationRuntimeProfile:
           type: string
           enum: [MANAGED, DEDICATED]
+    ProjectBaselineCandidate:
+      type: object
+      additionalProperties: false
+      required: [candidateBaselineDigest, sourceRevision, sourceText, applicationRuntimeProfile]
+      properties:
+        candidateBaselineDigest:
+          type: string
+          minLength: 1
+        sourceRevision:
+          type: string
+          minLength: 1
+        sourceText:
+          type: string
+          minLength: 1
+        applicationRuntimeProfile:
+          type: string
+          enum: [MANAGED, DEDICATED]
+    BaselineReviewContext:
+      type: object
+      additionalProperties: false
+      required: [projectionAnchor]
+      properties:
+        projectionAnchor:
+          type: string
+          minLength: 1
+          description: Untrusted deterministic candidate-local review-projection anchor. The server must re-resolve it against the exact candidate; it is never Product identity or authority.
+        selectedText:
+          type: string
+          minLength: 1
+          description: Optional selected rendered text used only as revalidated review context; HTML/DOM state never becomes Baseline truth.
+    BaselineCandidateContextualAnswer:
+      type: object
+      additionalProperties: false
+      required: [candidateBaselineDigest, answer, provenanceRefs]
+      properties:
+        candidateBaselineDigest:
+          type: string
+          minLength: 1
+        answer:
+          type: string
+          minLength: 1
+        provenanceRefs:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
     ProjectBrainBinding:
       type: object
       additionalProperties: false
@@ -794,7 +994,7 @@ components:
     ProjectConnectionBinding:
       type: object
       additionalProperties: false
-      required: [connectionId, connectionRevisionId, environment]
+      required: [connectionId, connectionRevisionId, environment, connectionName]
       properties:
         connectionId:
           type: string
@@ -805,6 +1005,11 @@ components:
         environment:
           type: string
           minLength: 1
+        connectionName:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Server-composed human presentation of the referenced logical Connection for this disclosed binding; never binding identity, routing or authorization.
     ExpectedConnectionBindingState:
       oneOf:
         - type: object
@@ -827,36 +1032,183 @@ components:
             environment:
               type: string
               minLength: 1
-    ProjectCapability:
+    ProjectCapabilitySummary:
       type: object
       additionalProperties: false
-      required: [capabilityId, operationId, regime]
+      required: [capabilityId, name, purpose, operationId, regime]
       properties:
         capabilityId:
           type: string
           minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human capability name from the exact authored/Release semantic contract; never routing or invocation authority.
+        purpose:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable semantic purpose from the exact authored/Release contract; inspection only.
         operationId:
           type: string
           minLength: 1
         regime:
           type: string
           enum: [QUERY, ACTION, INTEGRATION]
+    ProjectCapabilityField:
+      type: object
+      additionalProperties: false
+      required: [name, type, required, description]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+        type:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Logical human-readable field type from the admitted semantic contract; not a runtime serializer or arbitrary schema language.
+        required:
+          type: boolean
+        description:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+    ProjectCapability:
+      type: object
+      additionalProperties: false
+      required: [capabilityId, name, purpose, operationId, regime, inputs, outputs]
+      properties:
+        capabilityId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human capability name from the exact authored/Release semantic contract; never routing or invocation authority.
+        purpose:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable semantic purpose from the exact authored/Release contract; inspection only.
+        operationId:
+          type: string
+          minLength: 1
+        regime:
+          type: string
+          enum: [QUERY, ACTION, INTEGRATION]
+        inputs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectCapabilityField'
+        outputs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectCapabilityField'
     ProjectDataResourceSummary:
       type: object
       additionalProperties: false
-      required: [dataResourceId]
+      required: [dataResourceId, name, resourceKind, sourceKind]
       properties:
         dataResourceId:
           type: string
           minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Server-owned human presentation identity of the declared Project Data resource; never routing, authorization, containment or uniqueness authority.
+        resourceKind:
+          type: string
+          enum: [TABLE, VIEW, DATASET]
+          description: Semantic human resource kind only; TABLE does not expose physical database topology.
+        sourceKind:
+          type: string
+          enum: [INTERNAL, INTEGRATION, DERIVED]
+          description: Human source category for Project-owned, external-integration-backed or derived data; not an owner/authorization coordinate.
+    ProjectDataField:
+      type: object
+      additionalProperties: false
+      required: [fieldId, name, type, required, description]
+      properties:
+        fieldId:
+          type: string
+          minLength: 1
+          description: Stable resource-scoped semantic field coordinate; never a physical column/storage identifier by implication.
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+        type:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Logical human-readable field type; not physical DDL authority.
+        required:
+          type: boolean
+        description:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+    ProjectDataRelationship:
+      type: object
+      additionalProperties: false
+      required: [relationshipId, sourceFieldId, targetDataResourceId, targetFieldId, description]
+      properties:
+        relationshipId:
+          type: string
+          minLength: 1
+        sourceFieldId:
+          type: string
+          minLength: 1
+        targetDataResourceId:
+          type: string
+          minLength: 1
+        targetFieldId:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human semantic relationship meaning; not a physical join expression or foreign-key DDL projection.
+    ProjectDataRule:
+      type: object
+      additionalProperties: false
+      required: [ruleId, description]
+      properties:
+        ruleId:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human semantic/business rule for the Data resource; not SQL, DDL or executable expression authority.
     ProjectDataResource:
       type: object
       additionalProperties: false
-      required: [dataResourceId, grain, freshness, coverage, provenance]
+      required: [dataResourceId, name, resourceKind, sourceKind, grain, freshness, coverage, provenance, fields, relationships, rules]
       properties:
         dataResourceId:
           type: string
           minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Server-owned human presentation identity of the declared Project Data resource; never routing, authorization, containment or uniqueness authority.
+        resourceKind:
+          type: string
+          enum: [TABLE, VIEW, DATASET]
+          description: Semantic human resource kind only; TABLE does not expose physical database topology.
+        sourceKind:
+          type: string
+          enum: [INTERNAL, INTEGRATION, DERIVED]
+          description: Human source category only; not authorization or physical storage topology.
         grain:
           type: string
           minLength: 1
@@ -869,14 +1221,37 @@ components:
         provenance:
           type: string
           minLength: 1
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDataField'
+        relationships:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDataRelationship'
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDataRule'
     ProjectProductAgent:
       type: object
       additionalProperties: false
-      required: [agentId, authoredRevisionId, releaseRefs, activeReleaseId]
+      required: [agentId, name, purpose, authoredRevisionId, releaseRefs, activeReleaseId]
       properties:
         agentId:
           type: string
           minLength: 1
+          description: Stable Product Agent machine identity; never human presentation or authorization by itself.
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human Product Agent presentation identity from the exact authored agent/v1 revision; never routing, authorization or runtime state.
+        purpose:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable semantic purpose from the exact authored agent/v1 revision; never authorization or runtime health.
         authoredRevisionId:
           type: string
           minLength: 1
@@ -889,12 +1264,13 @@ components:
         activeReleaseId:
           type: [string, 'null']
           minLength: 1
+          description: Current Project Release coordinate when this Agent is included in the active Release; presence does not prove runtime health, execution or served verification.
     WorkspaceProductAgentCatalogItem:
-      allOf:
-        - $ref: '#/components/schemas/ProjectProductAgent'
-        - type: object
-          required: [projectId]
-          properties:
-            projectId:
-              type: string
-              minLength: 1
+      type: object
+      additionalProperties: false
+      required: [agent, project]
+      properties:
+        agent:
+          $ref: '#/components/schemas/ProjectProductAgent'
+        project:
+          $ref: '#/components/schemas/ProjectSummary'

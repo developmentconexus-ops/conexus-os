@@ -11,7 +11,7 @@ const removed = new Map([
   ['PRJ-04', 'UpdateProject']
 ])
 
-test('operator-approved 4B-F01 recompiles fixed Product authority to exactly 111 operations', () => {
+test('operator-approved 4B-F01 subtraction remains preserved after later bounded corrections', () => {
   const ledger = read('docs/product/operation-ledger.md')
   const sectionStart = ledger.indexOf('# 5. Fixed Conexus platform census')
   const sectionEnd = ledger.indexOf('\n---\n\n## 6. Product-visible Published Application boundary', sectionStart)
@@ -19,11 +19,29 @@ test('operator-approved 4B-F01 recompiles fixed Product authority to exactly 111
 
   const fixedSection = ledger.slice(sectionStart, sectionEnd)
   const rows = [...fixedSection.matchAll(/^\| `([A-Z]+-\d+)` \| `([A-Za-z][A-Za-z0-9]+)` \|/gm)]
-  if (rows.length !== 111) throw new Error(`expected 111 fixed 4A operations after 4B-F01, found ${rows.length}`)
+  const currentRows = new Map(rows.map(([, id, operationId]) => [id, operationId]))
 
   for (const [id, operationId] of removed) {
-    if (fixedSection.includes(`\`${id}\``) || fixedSection.includes(`\`${operationId}\``)) {
-      throw new Error(`removed 4B-F01 operation remains in current 4A census: ${id} ${operationId}`)
+    if (currentRows.has(id) || [...currentRows.values()].includes(operationId)) {
+      throw new Error(`removed 4B-F01 operation returned to current 4A census: ${id} ${operationId}`)
     }
+  }
+
+  for (const [id, operationId] of [
+    ['PRJ-23', 'GetProjectBaselineCandidate'],
+    ['PRJ-24', 'AskConexusAboutBaselineCandidate'],
+    ['IAM-18', 'ListWorkspaceMembershipCandidates'],
+    ['IAM-19', 'GetWorkspaceMemberAccess'],
+    ['IAM-20', 'GetAreaAccess'],
+  ]) {
+    if (currentRows.get(id) !== operationId) throw new Error(`current census missing accepted operation: ${id} ${operationId}`)
+  }
+
+  for (const historical of [
+    '= 111 fixed operations after 4B-F01',
+    '= 112 fixed operations after 4C-F02',
+    '= 113 fixed operations after 4C-F03',
+  ]) {
+    if (!ledger.includes(historical)) throw new Error(`operation ledger must preserve bounded correction chronology: ${historical}`)
   }
 })

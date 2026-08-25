@@ -1,0 +1,498 @@
+openapi: 3.1.2
+info:
+  title: Conexus Product API Project Data Explorer Path Items
+  version: 4b-candidate
+paths:
+  /api/control/projects/{projectId}/data-explorer/sources:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      summary: ListProjectDataExplorerSources
+      operationId: ListProjectDataExplorerSources
+      x-conexus-4a-id: PRJ-25
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: Current explorer-eligible Project Database and eligible exact Project-bound integration source summaries. A bound Connection alone does not imply explorer eligibility or raw-source disclosure.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectDataExplorerSource'
+        '401':
+          $ref: './openapi.yaml#/components/responses/Problem401'
+        '403':
+          $ref: './openapi.yaml#/components/responses/Problem403'
+        '404':
+          $ref: './openapi.yaml#/components/responses/Problem404'
+        '503':
+          $ref: './openapi.yaml#/components/responses/Problem503'
+
+  /api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/DataSourceId'
+    get:
+      summary: ListProjectDataExplorerObjects
+      operationId: ListProjectDataExplorerObjects
+      x-conexus-4a-id: PRJ-26
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      parameters:
+        - name: namespace
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            pattern: '.*\S.*'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+      responses:
+        '200':
+          description: Bounded page of currently disclosable source-scoped TABLE, VIEW or genuinely tabular DATASET objects. Search and namespace narrow this exact source only.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDataExplorerObjectPage'
+        '401':
+          $ref: './openapi.yaml#/components/responses/Problem401'
+        '403':
+          $ref: './openapi.yaml#/components/responses/Problem403'
+        '404':
+          $ref: './openapi.yaml#/components/responses/Problem404'
+        '422':
+          $ref: './openapi.yaml#/components/responses/Problem422'
+        '503':
+          $ref: './openapi.yaml#/components/responses/Problem503'
+
+  /api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects/{dataObjectId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/DataSourceId'
+      - $ref: '#/components/parameters/DataObjectId'
+    get:
+      summary: GetProjectDataExplorerObject
+      operationId: GetProjectDataExplorerObject
+      x-conexus-4a-id: PRJ-27
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: Exact current physical structure of one disclosable Project Data Explorer object. Optional semantic coordinates are presentation cross-links only and never replace physical identity or authorization.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDataExplorerObject'
+        '401':
+          $ref: './openapi.yaml#/components/responses/Problem401'
+        '403':
+          $ref: './openapi.yaml#/components/responses/Problem403'
+        '404':
+          $ref: './openapi.yaml#/components/responses/Problem404'
+        '503':
+          $ref: './openapi.yaml#/components/responses/Problem503'
+
+  /api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects/{dataObjectId}/rows:query:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/DataSourceId'
+      - $ref: '#/components/parameters/DataObjectId'
+    post:
+      summary: ListProjectDataExplorerRows
+      operationId: ListProjectDataExplorerRows
+      x-conexus-4a-id: PRJ-28
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectDataExplorerRowQuery'
+      responses:
+        '200':
+          description: Current read-only row page for the exact disclosed object. Continuation is opaque and scoped to the exact Project/source/object/filter/order request; unknown total is never represented as zero and truncated cell previews are explicit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDataExplorerRowPage'
+        '401':
+          $ref: './openapi.yaml#/components/responses/Problem401'
+        '403':
+          $ref: './openapi.yaml#/components/responses/Problem403'
+        '404':
+          $ref: './openapi.yaml#/components/responses/Problem404'
+        '422':
+          $ref: './openapi.yaml#/components/responses/Problem422'
+        '503':
+          $ref: './openapi.yaml#/components/responses/Problem503'
+
+components:
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    DataSourceId:
+      name: dataSourceId
+      in: path
+      required: true
+      description: Untrusted server-issued Project-scoped explorer source coordinate. It never carries Connection revision/environment selection or credential authority. After Project-level admission, an undisclosed source coordinate is indistinguishable from an absent coordinate and returns 404; 403 is reserved for failure of the caller's Project-level grant/Permission before resource probing.
+      schema:
+        type: string
+        minLength: 1
+    DataObjectId:
+      name: dataObjectId
+      in: path
+      required: true
+      description: Untrusted source-scoped explorer object coordinate. The server revalidates current Project/source disclosure on every read. After Project-level admission, an undisclosed object coordinate is indistinguishable from an absent coordinate and returns 404; 403 is reserved for failure of the caller's Project-level grant/Permission before resource probing.
+      schema:
+        type: string
+        minLength: 1
+  schemas:
+    ProjectDataExplorerSource:
+      type: object
+      additionalProperties: false
+      required: [dataSourceId, name, sourceClass, availability]
+      properties:
+        dataSourceId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+        sourceClass:
+          type: string
+          enum: [INTERNAL, INTEGRATION]
+        availability:
+          type: string
+          enum: [AVAILABLE, UNAVAILABLE]
+        engine:
+          type: string
+          minLength: 1
+        environment:
+          type: string
+          minLength: 1
+          description: Non-secret human source context when safely derivable; it is response presentation and never caller-selected authority.
+
+    ProjectDataExplorerObjectPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDataExplorerObjectSummary'
+        nextCursor:
+          type: string
+          minLength: 1
+
+    ProjectDataExplorerObjectSummary:
+      type: object
+      additionalProperties: false
+      required: [dataObjectId, name, kind]
+      properties:
+        dataObjectId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Physical/source-native object name.
+        kind:
+          type: string
+          enum: [TABLE, VIEW, DATASET]
+        namespace:
+          type: string
+          minLength: 1
+        semanticDataResourceId:
+          type: string
+          minLength: 1
+          description: Optional non-authorizing cross-link to existing PRJ-19 semantic Data-resource truth.
+        derived:
+          type: boolean
+          description: Optional semantic/origin presentation only; DERIVED is never a physical source class.
+
+    ProjectDataExplorerObject:
+      type: object
+      additionalProperties: false
+      required: [dataObjectId, name, kind, rowReadAvailability, columns, relationships, constraints]
+      properties:
+        dataObjectId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+        kind:
+          type: string
+          enum: [TABLE, VIEW, DATASET]
+        namespace:
+          type: string
+          minLength: 1
+        semanticDataResourceId:
+          type: string
+          minLength: 1
+          description: Optional non-authorizing cross-link to PRJ-19 semantic truth.
+        derived:
+          type: boolean
+        rowReadAvailability:
+          type: string
+          enum: [AVAILABLE, UNAVAILABLE]
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDataExplorerColumn'
+        relationships:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDataExplorerRelationship'
+        constraints:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDataExplorerConstraint'
+
+    ProjectDataExplorerColumn:
+      type: object
+      additionalProperties: false
+      required: [dataColumnId, name, sourceType, nullable, keyRole]
+      properties:
+        dataColumnId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Physical/source-native column name.
+        sourceType:
+          type: string
+          minLength: 1
+          description: Human-safe source-native/logical type presentation, not DDL authority.
+        nullable:
+          type: boolean
+        keyRole:
+          type: string
+          enum: [PRIMARY, FOREIGN, UNIQUE, NONE]
+        semanticFieldId:
+          type: string
+          minLength: 1
+          description: Optional non-authorizing coordinate into existing semantic Data-resource structure.
+
+    ProjectDataExplorerRelationship:
+      type: object
+      additionalProperties: false
+      required: [relationshipId, sourceColumnId, targetDataObjectId, targetColumnId, kind]
+      properties:
+        relationshipId:
+          type: string
+          minLength: 1
+        sourceColumnId:
+          type: string
+          minLength: 1
+        targetDataObjectId:
+          type: string
+          minLength: 1
+        targetColumnId:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum: [FOREIGN_KEY, REFERENCE]
+
+    ProjectDataExplorerConstraint:
+      type: object
+      additionalProperties: false
+      required: [constraintId, kind, columnIds]
+      properties:
+        constraintId:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum: [PRIMARY_KEY, FOREIGN_KEY, UNIQUE, NOT_NULL, CHECK]
+        columnIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+        summary:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Bounded human-safe constraint meaning only; never raw SQL, DDL or executable expression text.
+
+    ProjectDataExplorerRowQuery:
+      type: object
+      additionalProperties: false
+      description: When continuationToken is present, any accompanying filters and sort must exactly match the token-bound filter/order or the request is rejected with 422; the token is never reinterpreted. limit may vary only within the existing 1..100 transport bound and does not widen the authorized result set.
+      properties:
+        filters:
+          type: array
+          maxItems: 8
+          items:
+            $ref: '#/components/schemas/ProjectDataExplorerFilter'
+        sort:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/ProjectDataExplorerSort'
+        continuationToken:
+          type: string
+          minLength: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+
+    ProjectDataExplorerFilter:
+      oneOf:
+        - $ref: '#/components/schemas/ProjectDataExplorerValueFilter'
+        - $ref: '#/components/schemas/ProjectDataExplorerNullFilter'
+
+    ProjectDataExplorerValueFilter:
+      type: object
+      additionalProperties: false
+      required: [dataColumnId, operator, value]
+      properties:
+        dataColumnId:
+          type: string
+          minLength: 1
+        operator:
+          type: string
+          enum: [EQ, NE, GT, GTE, LT, LTE, CONTAINS]
+        value:
+          type: string
+          description: Opaque non-executable lexical scalar interpreted only against the exact disclosed column and its sourceType. Locale-dependent or ambiguous literals and unsupported operator/type combinations are rejected with 422; concrete provider/type codecs remain realization obligations rather than frontend truth.
+
+    ProjectDataExplorerNullFilter:
+      type: object
+      additionalProperties: false
+      required: [dataColumnId, operator]
+      properties:
+        dataColumnId:
+          type: string
+          minLength: 1
+        operator:
+          type: string
+          enum: [IS_NULL, IS_NOT_NULL]
+
+    ProjectDataExplorerSort:
+      type: object
+      additionalProperties: false
+      required: [dataColumnId, direction]
+      properties:
+        dataColumnId:
+          type: string
+          minLength: 1
+        direction:
+          type: string
+          enum: [ASC, DESC]
+
+    ProjectDataExplorerRowPage:
+      type: object
+      additionalProperties: false
+      required: [observedAt, columns, rows]
+      properties:
+        observedAt:
+          type: string
+          format: date-time
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDataExplorerGridColumn'
+        rows:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/ProjectDataExplorerRow'
+        continuationToken:
+          type: string
+          minLength: 1
+        approximateTotal:
+          type: integer
+          minimum: 0
+          description: Optional only when cheaply and truthfully known; absence means unknown, never zero.
+
+    ProjectDataExplorerGridColumn:
+      type: object
+      additionalProperties: false
+      required: [dataColumnId, name, sourceType]
+      properties:
+        dataColumnId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+        sourceType:
+          type: string
+          minLength: 1
+        semanticFieldId:
+          type: string
+          minLength: 1
+
+    ProjectDataExplorerRow:
+      type: object
+      additionalProperties: false
+      required: [cells]
+      properties:
+        cells:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDataExplorerCell'
+
+    ProjectDataExplorerCell:
+      type: object
+      additionalProperties: false
+      required: [dataColumnId, valueKind, displayValue, truncated]
+      properties:
+        dataColumnId:
+          type: string
+          minLength: 1
+        valueKind:
+          type: string
+          enum: ['NULL', TEXT, NUMBER, BOOLEAN, TEMPORAL, JSON, BINARY]
+        displayValue:
+          type: [string, 'null']
+          description: Bounded display-safe value preserving exact textual representation where needed; truncated=true means this is explicitly not the complete value.
+        truncated:
+          type: boolean
+        byteLength:
+          type: integer
+          minimum: 0

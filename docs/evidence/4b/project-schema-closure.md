@@ -6,11 +6,11 @@
 
 ## 1. Decision question
 
-> Can all 21 current Project Product operations be given exact HTTP request/success/Problem shapes without recreating the subtracted generic Project mutation or inventing a generic binding/data/runtime authority?
+> Can all accepted Project Product operations be given exact HTTP request/success/Problem shapes without recreating the subtracted generic Project mutation or inventing a generic binding/data/runtime authority?
 
 ## 2. Exact slice
 
-Current Project slice:
+Current Project slice at the original 4B closure:
 
 ```text
 PRJ-01
@@ -19,13 +19,13 @@ PRJ-03
 PRJ-05 → PRJ-22
 ```
 
-Total:
+Original total:
 
 ```text
 21 operations
 ```
 
-`PRJ-04 UpdateProject` remains absent after operator-approved `4B-F01`.
+`PRJ-04 UpdateProject` remains absent after operator-approved `4B-F01`. Later bounded 4C corrections add `PRJ-23/24`, so the current Project Product slice is 23 operations; the original counts below remain historical Evidence rather than current census authority.
 
 Canonical active Path Items for this slice:
 
@@ -41,14 +41,7 @@ They are authority only through the canonical `contracts/api/product/openapi.yam
 
 `CreateProject` has no speculative generic metadata request body. The accepted interaction establishes a Project in the exact Workspace plus current owner/grant composition; it does not imply a hidden `name/settings/metadata` mutation vocabulary.
 
-The resulting representation carries only the minimum current identity/state needed by the accepted surface:
-
-```text
-projectId
-workspaceId
-projectRevision
-archived
-```
+The original resulting representation carried only the minimum current identity/state needed by the then-accepted surface. Later `4C-F01` added bounded human Project presentation without resurrecting generic mutation.
 
 `projectRevision` is the explicit current-subject coordinate already routed by the accepted carrier assessment for command-subpath mutation protection.
 
@@ -128,6 +121,8 @@ connectionRevisionId
 environment
 ```
 
+After `4C-F17`, disclosed `ProjectConnectionBinding` additionally carries server-composed nonblank `connectionName` presentation. `connectionName` is not binding identity and is never accepted in the PRJ-14 binding-write input.
+
 No generic `bindingKey`, ResourceBinding framework or caller-selected credential authority was introduced.
 
 Set uses explicit expected-current state:
@@ -154,7 +149,7 @@ Listing/detail does not grant execution or create a generic executor API.
 
 ### 3.9 DataResource remains semantic, not physical DB browsing
 
-DataResource detail closes the accepted Product axes:
+At original 4B closure, DataResource detail closed:
 
 ```text
 dataResourceId
@@ -164,9 +159,9 @@ coverage
 provenance
 ```
 
-4B intentionally does not invent a new enum for those owner-issued semantic/provenance coordinates where accepted authority did not provide one.
+`4C-F16` later adds only a required server-owned nonblank human `name` to summary/detail while preserving `dataResourceId` as machine identity. No physical topology or generic metadata authority is created.
 
-Forbidden generic physical-data exposure includes:
+Forbidden generic physical-data exposure remains:
 
 ```text
 table
@@ -178,14 +173,7 @@ storageKey
 
 ### 3.10 Product Agent projection stays out of runtime authority
 
-Project Agent detail/list exposes authored identity and Release references only:
-
-```text
-agentId
-authoredRevisionId
-releaseRefs
-activeReleaseId
-```
+Project Agent detail/list exposes authored identity and Release references only. Later `4C-F13` adds bounded human name/purpose and owning-Project presentation without changing runtime authority.
 
 The wire rejects Mastra/runtime/request-override identities as Project Product authority.
 
@@ -206,8 +194,11 @@ Inception caller-selected URL/Connection/SQL scope
 Baseline without exact digest/source/profile contract
 runtime profile wider/narrower than MANAGED|DEDICATED
 Brain binding without honest same-target present/absent conditional semantics
+ProjectConnectionBinding missing nonblank connectionName after F17
+PRJ-14 accepting connectionName as binding authority
 Connection binding without exact Connection/revision/environment/current state
 Capability regime wider/narrower than QUERY|ACTION|INTEGRATION
+DataResource missing required nonblank human presentation name after F16
 DataResource physical database-explorer fields
 Product Agent runtime/Mastra override identity
 ```
@@ -218,7 +209,7 @@ Machine guard:
 scripts/check-wire-project.mjs
 ```
 
-## 5. Executable proof
+## 5. Original executable proof
 
 TDD proof sequence:
 
@@ -232,7 +223,7 @@ Verify #262 = SUCCESS
 HEAD = 4ed0fbd9e7eb369c3ea216a8f6ff3ab484bf77f1
 ```
 
-Exact successful proof:
+Exact successful proof at that historical point:
 
 ```text
 fixed 4A operations      = 111
@@ -248,14 +239,113 @@ literal IF_MATCH          = { PRJ-12, PAR-14 }
 
 Budget Analyzer declaration/generation/truth-state positive and negative controls also remained green in the same run.
 
-## 6. Result
+## 6. Original result
 
 ```text
 Identity & Access + Workspace schema slice = CLOSED inside 4B
-Project schema slice                     = CLOSED inside 4B
-schema-closed fixed operations            = 41 / 111
-4B overall                                = OPEN / ACTIVE
-Product implementation                    = BLOCKED
+Project schema slice                       = CLOSED inside 4B
+schema-closed fixed operations             = 41 / 111
+4B overall                                  = OPEN / ACTIVE
+Product implementation                      = BLOCKED
 ```
 
-The next owner slice must continue compiling accepted owner semantics into the same OAD. Missing authority remains a falsifier/reopen trigger rather than permission to create DTO meaning.
+The next owner slice continued compiling accepted owner semantics into the same OAD. Missing authority remains a falsifier/reopen trigger rather than permission to create DTO meaning.
+
+## 7. `4C-F16` bounded Project/Data recompile
+
+P-02 authority-feasibility proved a real human browse consumer for Project Data resources but current `PRJ-18/19` exposed no guaranteed human presentation identity. The operator selected the smallest correction: preserve the Project owner and both existing operations, add one required server-owned presentation property to their existing projections, and keep the fixed operation census unchanged.
+
+Selected realization:
+
+```text
+ProjectDataResourceSummary
+→ dataResourceId
+→ name
+
+ProjectDataResource
+→ dataResourceId
+→ name
+→ grain
+→ freshness
+→ coverage
+→ provenance
+
+name = presentation only
+dataResourceId = exact machine identity
+name -X-> routing / authorization / containment / uniqueness authority
+```
+
+Explicit negatives remain:
+
+```text
+new Data operation = 0
+physical table/schema/SQL exposure = FORBIDDEN
+generic metadata editor = NOT ADMITTED
+new Permission / owner / record = 0
+```
+
+TDD chronology:
+
+```text
+Verify #883 = EXPECTED RED
+→ 117 repository tests / 116 pass / 1 fail
+→ exact first failure: operation ledger missing F16 token: 4C-F16
+→ all prior tests remained green
+
+Verify #884 = SUCCESS
+→ selected F16 4A ledger + Project OAS realization compatible with complete existing proof stack
+
+Verify #885 = SUCCESS
+→ Project owner checker hardened for required nonblank Data-resource presentation
+→ N_platform remains 116
+→ Project remains 23
+```
+
+## 8. `4C-F17` bounded Project binding-presentation recompile
+
+P-02 authority-feasibility proved that the accepted Project binding job could expose exact machine coordinates without giving the human a recognizable Connection identity. The operator selected a response-only enrichment rather than a new binding owner or picker operation.
+
+Selected Project realization:
+
+```text
+ProjectConnectionBinding
+→ connectionId
+→ connectionRevisionId
+→ environment
+→ connectionName
+
+connectionName = server-composed Connection presentation at response time
+binding identity = connectionId + connectionRevisionId + environment
+connectionName -X-> binding identity / routing / authorization
+```
+
+The binding write remains machine-coordinate exact:
+
+```text
+PRJ-14 request
+→ connectionId
+→ connectionRevisionId
+→ environment
+→ expectedCurrent
+-X-> connectionName
+```
+
+The related purpose-bound candidate disclosure remains Connections-owned and is proved in `connections-schema-closure.md`; Project does not absorb Connection configuration, credentials, qualification or lifecycle authority.
+
+TDD chronology:
+
+```text
+Verify #886 = EXPECTED RED
+→ 118 repository tests / 117 pass / 1 fail
+→ exact first failure: operation ledger missing F17 token: 4C-F17
+→ status, F16 and all prior guards remained green
+
+Verify #887 = SUCCESS
+→ selected F17 ledger/Permission + Project binding presentation + CON-03 purpose-bound query realization is compatible with the complete existing proof stack
+→ N_platform remains 116
+→ Project remains 23
+→ Connections remains 9
+→ ordinary Permissions remain 25
+```
+
+The succeeding guard commit makes loss/widening of `connectionName` an executable Project falsifier.

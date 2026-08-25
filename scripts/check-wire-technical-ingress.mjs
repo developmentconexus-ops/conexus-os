@@ -204,4 +204,4 @@ for (const { path } of technicalOperations) {
   }
 }
 
-console.log('Technical Ingress contract passed (3 protocol-only operations; Product census remains 111 and schedule/MAR/runtime mechanics remain internal).');
+console.log(`Technical Ingress contract passed (3 protocol-only operations; Product-count impact remains 0 over the current ${productOperations.length}-operation Product census, and schedule/MAR/runtime mechanics remain internal).`);

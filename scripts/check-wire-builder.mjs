@@ -24,10 +24,14 @@ for (const id of expectedIds) {
   }
 }
 
+function entry(id) {
+  const value = operations.get(id);
+  if (!value) throw new Error(`missing operation ${id}`);
+  return value;
+}
+
 function op(id) {
-  const entry = operations.get(id);
-  if (!entry) throw new Error(`missing operation ${id}`);
-  return entry.operation;
+  return entry(id).operation;
 }
 
 function resolveLocalRef(value) {
@@ -102,8 +106,19 @@ for (const forbidden of ['workUnits', 'actorRuns', 'sandboxId', 'status', 'verif
   if (createChange.properties?.[forbidden]) throw new Error(`BLD-03 must not expose owner/runtime mechanic ${forbidden}`);
 }
 if (!hasRequiredParameter('BLD-03', 'header', 'Idempotency-Key')) throw new Error('BLD-03 must require Idempotency-Key');
+
+// F14: the exact authored Change intent remains human-recognizable on both collection and detail reads.
+const changeSummary = assertClosedObject(resolveSchema(successSchema('BLD-01')?.items), 'BLD-01 item');
+required(changeSummary, 'changeId', 'projectId', 'intent', 'state');
+if (property(changeSummary, 'intent')?.type !== 'string' || (property(changeSummary, 'intent')?.minLength ?? 0) < 1) {
+  throw new Error('BLD-01 ChangeSummary intent must remain a nonblank human semantic statement');
+}
+
 const change = assertClosedObject(successSchema('BLD-02'), 'BLD-02 success');
-required(change, 'changeId', 'projectId', 'baselineDigest', 'planningDepth', 'rigorProfile', 'state');
+required(change, 'changeId', 'projectId', 'intent', 'baselineDigest', 'planningDepth', 'rigorProfile', 'state');
+if (property(change, 'intent')?.type !== 'string' || (property(change, 'intent')?.minLength ?? 0) < 1) {
+  throw new Error('BLD-02 Change intent must remain a nonblank human semantic statement');
+}
 exactEnum(property(change, 'planningDepth'), ['DIRECT', 'LIGHT', 'FULL'], 'Builder PlanningDepth');
 exactEnum(property(change, 'rigorProfile'), ['FAST', 'BOUNDED', 'CONTROLLED'], 'Builder RigorProfile');
 
@@ -142,16 +157,27 @@ for (const forbidden of ['writeToken', 'commit', 'push', 'applyPatch']) {
 const diff = assertClosedObject(successSchema('BLD-07'), 'BLD-07 success');
 required(diff, 'baseSourceRevision', 'candidateSourceRevision', 'patch');
 
-// Preview readiness, verification and production serving are distinct truths.
+// F15: one Builder-owned preview read supports the current Project source or an exact Change candidate.
+if (entry('BLD-10').path !== '/api/control/projects/{projectId}/preview') {
+  throw new Error('BLD-10 must be the Project-level Build preview read');
+}
+const previewChangeId = parameter('BLD-10', 'query', 'changeId');
+if (!previewChangeId || previewChangeId.required === true) throw new Error('BLD-10 changeId must be optional');
+if (previewChangeId.schema?.type !== 'string' || (previewChangeId.schema?.minLength ?? 0) < 1) {
+  throw new Error('BLD-10 changeId must be a nonblank untrusted Change reference when present');
+}
 const preview = assertClosedObject(successSchema('BLD-10'), 'BLD-10 success');
-required(preview, 'previewId', 'candidateDigest', 'ready', 'verified', 'live');
+required(preview, 'previewId', 'subjectKind', 'subjectDigest', 'ready', 'verified', 'live');
+exactEnum(property(preview, 'subjectKind'), ['CURRENT_PROJECT', 'CHANGE_CANDIDATE'], 'BLD-10 preview subjectKind');
+if (property(preview, 'subjectDigest')?.type !== 'string' || (property(preview, 'subjectDigest')?.minLength ?? 0) < 1) {
+  throw new Error('BLD-10 subjectDigest must bind the exact current source or Change candidate subject');
+}
 if (property(preview, 'live')?.const !== false) throw new Error('BLD-10 preview live must be const false');
 if (property(preview, 'ready')?.type !== 'boolean' || property(preview, 'verified')?.type !== 'boolean') {
   throw new Error('BLD-10 ready and verified must remain independent booleans');
 }
 
 // Finding closure consumes exact current Finding revision plus actual Evidence; it never accepts a generic status write.
-// 4B intentionally does not invent a Finding lifecycle enum that current Product authority has not ratified.
 const finding = assertClosedObject(successSchema('BLD-12'), 'BLD-12 success');
 required(finding, 'findingId', 'changeId', 'findingRevision', 'state', 'summary');
 const findingState = property(finding, 'state');
@@ -172,11 +198,16 @@ for (const forbidden of ['green', 'agentSaysPassed', 'telemetryEqualsTruth']) {
   if (evidence.properties?.[forbidden]) throw new Error(`BLD-15 must not encode fake Evidence field ${forbidden}`);
 }
 
-// Context assistant asks one bounded question and returns provenance-preserving help; it cannot carry authority grants/tools/credentials.
+// F14: contextual Builder assistance may narrow to one exact current Change without widening authority.
 const assistantRequest = assertClosedObject(requestSchema('BLD-16'), 'BLD-16 request');
 required(assistantRequest, 'question');
-for (const forbidden of ['permission', 'grant', 'toolAuthority', 'credential', 'systemPrompt']) {
-  if (assistantRequest.properties?.[forbidden]) throw new Error(`BLD-16 must not accept authority-bearing ${forbidden}`);
+if (!assistantRequest.properties?.changeId) throw new Error('BLD-16 must admit optional exact changeId context');
+if ((assistantRequest.required ?? []).includes('changeId')) throw new Error('BLD-16 changeId must remain optional for Project-level assistance');
+if (property(assistantRequest, 'changeId')?.type !== 'string' || (property(assistantRequest, 'changeId')?.minLength ?? 0) < 1) {
+  throw new Error('BLD-16 changeId must be a nonblank untrusted exact Change reference');
+}
+for (const forbidden of ['permission', 'grant', 'toolAuthority', 'credential', 'systemPrompt', 'sourceRevision', 'findingId', 'evidenceId']) {
+  if (assistantRequest.properties?.[forbidden]) throw new Error(`BLD-16 must not accept authority-bearing or cross-permission ${forbidden}`);
 }
 const assistantResponse = assertClosedObject(successSchema('BLD-16'), 'BLD-16 success');
 required(assistantResponse, 'answer', 'provenanceRefs');
@@ -193,4 +224,4 @@ if (actorRun) {
   exactEnum(property(actorRun, 'lineageDisposition'), ['FRESH_BASE', 'CONTINUE_LINEAGE'], 'ActorRun lineageDisposition');
 }
 
-console.log('Builder schema closure passed (17 operations; Change/Plan/Evidence/source/preview authority remains owner-truthful).');
+console.log('Builder schema closure passed (17 operations; F14 Change intent/context + F15 current/candidate Build preview + Plan/Evidence/source authority remain owner-truthful).');

@@ -8,17 +8,20 @@
   },
   "scripts": {
     "test": "npm run test:repository",
+    "test:4c:p02": "node --test --test-concurrency=1 tests/repository/4c-p02-functional-wireframe.test.mjs tests/repository/4c-p02-walkthrough-script-parse.test.mjs",
     "test:repository": "node --test --test-concurrency=1 tests/repository/*.test.mjs",
-    "repository:check": "node scripts/check-repository-hygiene.mjs && node scripts/check-doc-index.mjs && node scripts/check-current-state.mjs && node scripts/check-architecture-verification.mjs && node scripts/check-qualification-provenance.mjs",
+    "repository:check": "node scripts/check-current-state.mjs",
+    "repository:check:extended": "node scripts/check-repository-hygiene.mjs && node scripts/check-doc-index.mjs && node scripts/check-architecture-verification.mjs && node scripts/check-qualification-provenance.mjs",
+    "verify:extended": "npm run repository:check && npm run repository:check:extended && npm run test:repository && npm run wire:verify",
     "wire:lint": "npx --yes @redocly/cli@2.47.0 lint contracts/api/product/openapi.yaml --extends=recommended",
     "wire:bundle": "npx --yes @redocly/cli@2.47.0 bundle contracts/api/product/openapi.yaml --output=/tmp/conexus-product-openapi.bundle.json --ext=json",
     "wire:schema": "npx --yes ajv-cli@5.0.0 compile --spec=draft2020 -s contracts/api/project-operation.schema.json",
     "wire:bijection": "node scripts/check-wire-bijection.mjs",
     "wire:carriers": "node scripts/check-wire-carriers.mjs",
     "wire:identity-workspace": "node scripts/check-wire-identity-workspace.mjs",
-    "wire:project": "node scripts/check-wire-project.mjs",
+    "wire:project": "node scripts/check-wire-project.mjs && node scripts/check-wire-project-agent-catalog.mjs && node scripts/check-wire-project-data-explorer.mjs",
     "wire:builder": "node scripts/check-wire-builder.mjs",
-    "wire:brain": "node scripts/check-wire-brain.mjs",
+    "wire:brain": "node scripts/check-wire-brain.mjs && node scripts/check-wire-project-brain-context.mjs",
     "wire:connections": "node scripts/check-wire-connections.mjs",
     "wire:release": "node scripts/check-wire-release.mjs",
     "wire:par": "node scripts/check-wire-par.mjs",
@@ -38,6 +41,6 @@
     "wire:budget-verify": "npm run wire:budget-declarations && npm run wire:budget-generate && npm run wire:budget-lint && npm run wire:budget-truth",
     "wire:whole-4b": "node scripts/check-wire-whole-4b.mjs",
     "wire:verify": "npm run wire:lint && npm run wire:bundle && npm run wire:schema && npm run wire:bijection && npm run wire:carriers && npm run wire:identity-workspace && npm run wire:project && npm run wire:builder && npm run wire:brain && npm run wire:connections && npm run wire:release && npm run wire:par && npm run wire:gateway && npm run wire:mar && npm run wire:observability && npm run wire:technical-lint && npm run wire:technical-ingress && npm run wire:projections && npm run wire:budget-verify && npm run wire:whole-4b",
-    "verify": "npm run repository:check && npm run test:repository && npm run wire:verify"
+    "verify": "npm run repository:check && npm run wire:verify"
   }
 }

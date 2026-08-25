@@ -8,6 +8,7 @@ if (!bundledOpenApi) throw new Error('usage: node scripts/run-kubb-wire-probe.mj
 const versions = {
   kubb: '5.0.0',
   typescript: '7.0.2',
+  typescriptApi: '6.0.2',
 };
 const root = '/tmp/conexus-kubb-real-oas-probe';
 const outputA = path.join(root, 'generated-a');
@@ -45,6 +46,7 @@ run('npm', [
   `@kubb/plugin-ts@${versions.kubb}`,
   `@kubb/plugin-fetch@${versions.kubb}`,
   `typescript@${versions.typescript}`,
+  `@typescript/typescript6@${versions.typescriptApi}`,
 ]);
 
 fs.writeFileSync(
@@ -123,7 +125,10 @@ for (const [route, rawPathItem] of Object.entries(oas.paths ?? {})) {
     expectedPairs.add(`${method.toUpperCase()} ${route}`);
   }
 }
-if (expectedPairs.size !== 111) throw new Error(`Kubb probe expected 111 source operation pairs, found ${expectedPairs.size}`);
+const expectedProductOperations = expectedPairs.size;
+if (expectedProductOperations === 0) {
+  throw new Error('Kubb probe source OAS contains no Product operation pairs');
+}
 
 const clientsRoot = path.join(outputA, 'clients');
 const clientFiles = listFiles(clientsRoot).filter((file) => file.endsWith('.ts'));
@@ -134,8 +139,8 @@ for (const file of clientFiles) {
   const urlMatch = text.match(/url:\s*['\"]([^'\"]+)['\"]/);
   if (methodMatch && urlMatch) generatedPairs.add(`${methodMatch[1]} ${urlMatch[1]}`);
 }
-if (generatedPairs.size !== 111) {
-  throw new Error(`Kubb Fetch projection must expose 111 method+path pairs, found ${generatedPairs.size} across ${clientFiles.length} client files`);
+if (generatedPairs.size !== expectedProductOperations) {
+  throw new Error(`Kubb Fetch projection must expose ${expectedProductOperations} method+path pairs, found ${generatedPairs.size} across ${clientFiles.length} client files`);
 }
 for (const pair of expectedPairs) {
   if (!generatedPairs.has(pair)) throw new Error(`Kubb Fetch projection lost ${pair}`);
@@ -151,17 +156,65 @@ for (const carrier of ['If-Match', 'Idempotency-Key']) {
 if (!allGeneratedText.includes('__Host-conexus_session')) {
   throw new Error('Kubb generated client lost ConexusSession cookie security scheme');
 }
+for (const operationId of [
+  'GetProjectBaselineCandidate',
+  'AskConexusAboutBaselineCandidate',
+  'ListWorkspaceMembershipCandidates',
+  'GetWorkspaceMemberAccess',
+  'GetAreaAccess',
+  'GetProjectAnalyticQueryCatalog',
+  'ListProjectDataExplorerSources',
+  'ListProjectDataExplorerObjects',
+  'GetProjectDataExplorerObject',
+  'ListProjectDataExplorerRows',
+]) {
+  if (!allGeneratedText.includes(operationId)) {
+    throw new Error(`Kubb generated projection lost accepted ${operationId}`);
+  }
+}
 for (const status of ['401', '403', '404', '409', '412', '422', '503']) {
   const pattern = new RegExp(`['\"]?${status}['\"]?\\s*:`);
   if (!pattern.test(allGeneratedText)) throw new Error(`Kubb generated types lost documented HTTP status ${status}`);
 }
 
-const publicTypeText = listFiles(path.join(outputA, 'types'))
-  .filter((file) => file.endsWith('.ts'))
-  .map((file) => fs.readFileSync(file, 'utf8'))
-  .join('\n');
-if (/\bany\b/.test(publicTypeText)) {
-  throw new Error('Kubb generated public Product types contain explicit any');
+const anyScanner = path.join(root, 'scan-explicit-any.mjs');
+fs.writeFileSync(
+  anyScanner,
+  `import fs from 'node:fs'\n` +
+    `import path from 'node:path'\n` +
+    `import ts6 from '@typescript/typescript6'\n\n` +
+    `const root = process.argv[2]\n` +
+    `function files(dir) {\n` +
+    `  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {\n` +
+    `    const absolute = path.join(dir, entry.name)\n` +
+    `    return entry.isDirectory() ? files(absolute) : absolute.endsWith('.ts') ? [absolute] : []\n` +
+    `  })\n` +
+    `}\n` +
+    `let found = null\n` +
+    `for (const file of files(root)) {\n` +
+    `  const text = fs.readFileSync(file, 'utf8')\n` +
+    `  const source = ts6.createSourceFile(file, text, ts6.ScriptTarget.Latest, true, ts6.ScriptKind.TS)\n` +
+    `  function visit(node) {\n` +
+    `    if (!found && node.kind === ts6.SyntaxKind.AnyKeyword) found = { file, start: node.getStart(source) }\n` +
+    `    if (!found) ts6.forEachChild(node, visit)\n` +
+    `  }\n` +
+    `  visit(source)\n` +
+    `  if (found) break\n` +
+    `}\n` +
+    `if (found) {\n` +
+    `  console.error('explicit TypeScript any at ' + found.file + ':' + found.start)\n` +
+    `  process.exit(1)\n` +
+    `}\n`,
+);
+const anyScan = spawnSync('node', [anyScanner, path.join(outputA, 'types')], {
+  cwd: root,
+  encoding: 'utf8',
+  maxBuffer: 20 * 1024 * 1024,
+});
+if (anyScan.status !== 0) {
+  process.stdout.write(anyScan.stdout ?? '');
+  process.stderr.write(anyScan.stderr ?? '');
+  throw new Error('Kubb generated public Product types contain explicit TypeScript any');
 }
 
 fs.writeFileSync(
@@ -184,4 +237,4 @@ fs.writeFileSync(
 const tscBin = path.join(root, 'node_modules', '.bin', 'tsc');
 run(tscBin, ['--project', path.join(root, 'tsconfig.json')]);
 
-console.log(`Kubb real-OAS probe passed (kubb=${versions.kubb}, typescript=${versions.typescript}, operations=111, files=${snapshotA.size}, byte-deterministic, TypeScript strict compile green).`);
+console.log(`Kubb real-OAS probe passed (kubb=${versions.kubb}, typescript=${versions.typescript}, api=${versions.typescriptApi}, operations=${expectedProductOperations}, files=${snapshotA.size}, byte-deterministic, no explicit TypeScript any, strict compile green).`);

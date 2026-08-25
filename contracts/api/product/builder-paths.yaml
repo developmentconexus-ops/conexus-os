@@ -15,19 +15,16 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Current disclosable Builder Changes for the exact Project.
+          description: Current disclosable Builder Changes for the exact Project, including each exact Change authored human intent.
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/ChangeSummary'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
     post:
       summary: CreateChange
       operationId: CreateChange
@@ -49,24 +46,20 @@ paths:
                 intent:
                   type: string
                   minLength: 1
-                  description: Bounded statement of what must become true; not a WorkUnit, ActorRun or status command.
+                  pattern: '.*\S.*'
+                  description: Required human semantic statement of what must become true; not status, authorization, unique identity or separately mutable title authority.
       responses:
         '201':
-          description: Change established and pinned to the current accepted Project Baseline before execution work begins.
+          description: Change established with its exact authored human intent and pinned accepted Project Baseline.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Change'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
-        '409':
-          $ref: './openapi.yaml#/components/responses/Problem409'
-        '422':
-          $ref: './openapi.yaml#/components/responses/Problem422'
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
+        '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
 
   /api/control/projects/{projectId}/changes/{changeId}:
     parameters:
@@ -81,17 +74,13 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact current Change projection pinned to its accepted Baseline and Builder planning/rigor coordinates.
+          description: Exact current Change projection with authored human intent and accepted Baseline/planning coordinates.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Change'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
+              schema: { $ref: '#/components/schemas/Change' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
   /api/control/projects/{projectId}/changes/{changeId}/plan:
     parameters:
@@ -106,17 +95,13 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Current visual Plan projection over Hub-owned plan state; this is not a JSON mutation surface.
+          description: Current visual Plan projection over Hub-owned Plan state; never JSON mutation authority.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ChangePlan'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
+              schema: { $ref: '#/components/schemas/ChangePlan' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
   /api/control/projects/{projectId}/changes/{changeId}/plan/decisions:
     parameters:
@@ -138,31 +123,20 @@ paths:
               additionalProperties: false
               required: [planRevision, decision]
               properties:
-                planRevision:
-                  type: string
-                  minLength: 1
-                decision:
-                  type: string
-                  enum: [APPROVE, REJECT]
+                planRevision: { type: string, minLength: 1 }
+                decision: { type: string, enum: [APPROVE, REJECT] }
       responses:
         '200':
-          description: Exact current Plan checkpoint decided by a currently eligible reviewer; work-item state remains owner-controlled.
+          description: Exact current Plan checkpoint decided by a currently eligible reviewer; item state remains owner-controlled.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ChangePlan'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
-        '409':
-          $ref: './openapi.yaml#/components/responses/Problem409'
-        '412':
-          $ref: './openapi.yaml#/components/responses/Problem412'
-        '422':
-          $ref: './openapi.yaml#/components/responses/Problem422'
+              schema: { $ref: '#/components/schemas/ChangePlan' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
+        '412': { $ref: './openapi.yaml#/components/responses/Problem412' }
+        '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
 
   /api/control/projects/{projectId}/changes/{changeId}/progress:
     parameters:
@@ -177,17 +151,13 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Hub-owned current checklist projection; worker narration cannot mark completion by itself.
+          description: Hub-owned current checklist projection; worker narration cannot mark completion.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ChangeProgress'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
+              schema: { $ref: '#/components/schemas/ChangeProgress' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
   /api/control/projects/{projectId}/changes/{changeId}/diff:
     parameters:
@@ -205,14 +175,10 @@ paths:
           description: Exact Builder/Git candidate lineage diff; no mutable workspace head is implied.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ChangeDiff'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
+              schema: { $ref: '#/components/schemas/ChangeDiff' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
   /api/control/projects/{projectId}/source/tree:
     parameters:
@@ -231,14 +197,10 @@ paths:
           description: Read-only Project source tree for the exact requested source revision.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/SourceTree'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
+              schema: { $ref: '#/components/schemas/SourceTree' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
   /api/control/projects/{projectId}/source/file:
     parameters:
@@ -255,48 +217,43 @@ paths:
         - name: path
           in: query
           required: true
-          description: Exact Project-Git source path under the requested immutable source revision; never an authorization identity.
-          schema:
-            type: string
-            minLength: 1
+          description: Exact Project-Git source path under requested immutable source revision.
+          schema: { type: string, minLength: 1 }
       responses:
         '200':
           description: Read-only exact source-file content projection.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/SourceFile'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
+              schema: { $ref: '#/components/schemas/SourceFile' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
-  /api/control/projects/{projectId}/changes/{changeId}/preview:
+  /api/control/projects/{projectId}/preview:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
-      - $ref: '#/components/parameters/ChangeId'
     get:
-      summary: GetRunPreview
-      operationId: GetRunPreview
+      summary: GetBuildPreview
+      operationId: GetBuildPreview
       x-conexus-4a-id: BLD-10
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
+      parameters:
+        - name: changeId
+          in: query
+          required: false
+          description: Optional untrusted exact Change reference. Omitted means current Project source Preview; present means the server-revalidated exact Change candidate Preview. It never selects source or Release authority.
+          schema: { type: string, minLength: 1 }
       responses:
         '200':
-          description: Controlled candidate Preview state. Ready, verified and live are independent truths; Preview is never production live.
+          description: Build Preview for the current Project source or exact Change candidate. subjectKind and subjectDigest bind the exact subject; ready, verified and live remain independent and live is always false.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/RunPreview'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
+              schema: { $ref: '#/components/schemas/BuildPreview' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
   /api/control/projects/{projectId}/changes/{changeId}/findings:
     parameters:
@@ -316,14 +273,10 @@ paths:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: '#/components/schemas/Finding'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
+                items: { $ref: '#/components/schemas/Finding' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
   /api/control/projects/{projectId}/changes/{changeId}/findings/{findingId}:
     parameters:
@@ -339,17 +292,13 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact current Finding and its current owner-controlled resolution state.
+          description: Exact current Finding and current owner-controlled resolution state.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Finding'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
+              schema: { $ref: '#/components/schemas/Finding' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
   /api/control/projects/{projectId}/changes/{changeId}/findings/{findingId}/commands/close:
     parameters:
@@ -372,35 +321,24 @@ paths:
               additionalProperties: false
               required: [expectedFindingRevision, resolutionEvidenceIds]
               properties:
-                expectedFindingRevision:
-                  type: string
-                  minLength: 1
+                expectedFindingRevision: { type: string, minLength: 1 }
                 resolutionEvidenceIds:
                   type: array
                   minItems: 1
                   uniqueItems: true
-                  items:
-                    type: string
-                    minLength: 1
+                  items: { type: string, minLength: 1 }
       responses:
         '200':
-          description: Finding closed only against the exact current Finding subject and actual admitted resolution Evidence.
+          description: Finding closed only against the exact current Finding and actual admitted resolution Evidence.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Finding'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
-        '409':
-          $ref: './openapi.yaml#/components/responses/Problem409'
-        '412':
-          $ref: './openapi.yaml#/components/responses/Problem412'
-        '422':
-          $ref: './openapi.yaml#/components/responses/Problem422'
+              schema: { $ref: '#/components/schemas/Finding' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
+        '412': { $ref: './openapi.yaml#/components/responses/Problem412' }
+        '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
 
   /api/control/projects/{projectId}/changes/{changeId}/evidence:
     parameters:
@@ -415,19 +353,15 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Provenance-preserving actual Evidence for the exact Change; existence alone does not prove a claim.
+          description: Provenance-preserving Evidence for exact Change; existence alone does not prove a claim.
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: '#/components/schemas/Evidence'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
+                items: { $ref: '#/components/schemas/Evidence' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
   /api/control/projects/{projectId}/changes/{changeId}/evidence/{evidenceId}:
     parameters:
@@ -443,17 +377,13 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact collected Evidence bound to its claim, subject digest and provenance.
+          description: Exact collected Evidence bound to claim, subject digest and provenance.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Evidence'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
+              schema: { $ref: '#/components/schemas/Evidence' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
   /api/control/projects/{projectId}/assistant/queries:
     parameters:
@@ -477,21 +407,21 @@ paths:
                 question:
                   type: string
                   minLength: 1
+                  pattern: '.*\S.*'
+                changeId:
+                  type: string
+                  minLength: 1
+                  description: Optional untrusted exact current Change reference; server re-resolves containment and project.build disclosure, granting no source/review/runtime authority.
       responses:
         '200':
-          description: Contextual Conexus guidance over current authorized Project/platform context with provenance; no new authority is granted.
+          description: Provenance-preserving Conexus guidance over current authorized Project/platform context or exact server-resolved current Change context.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ContextualAssistantAnswer'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
-        '422':
-          $ref: './openapi.yaml#/components/responses/Problem422'
+              schema: { $ref: '#/components/schemas/ContextualAssistantAnswer' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
 
   /api/control/projects/{projectId}/changes/{changeId}/execution-detail:
     parameters:
@@ -506,17 +436,13 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Read-only subordinate WorkUnit/ActorRun projection for technical investigation; no dispatch/resume/status mutation authority is exposed.
+          description: Read-only subordinate WorkUnit/ActorRun projection; no dispatch/resume/status mutation authority.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ChangeExecutionDetail'
-        '401':
-          $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
-        '404':
-          $ref: './openapi.yaml#/components/responses/Problem404'
+              schema: { $ref: '#/components/schemas/ChangeExecutionDetail' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
 components:
   parameters:
@@ -525,350 +451,222 @@ components:
       in: path
       required: true
       description: Untrusted reference only; current containment and authority are resolved server-side.
-      schema:
-        type: string
-        minLength: 1
+      schema: { type: string, minLength: 1 }
     ChangeId:
       name: changeId
       in: path
       required: true
       description: Untrusted reference only; current containment and authority are resolved server-side.
-      schema:
-        type: string
-        minLength: 1
+      schema: { type: string, minLength: 1 }
     FindingId:
       name: findingId
       in: path
       required: true
       description: Untrusted reference only; current containment and authority are resolved server-side.
-      schema:
-        type: string
-        minLength: 1
+      schema: { type: string, minLength: 1 }
     EvidenceId:
       name: evidenceId
       in: path
       required: true
       description: Untrusted reference only; current containment and authority are resolved server-side.
-      schema:
-        type: string
-        minLength: 1
+      schema: { type: string, minLength: 1 }
     SourceRevision:
       name: sourceRevision
       in: query
       required: true
       description: Exact immutable Project-Git source revision to read; never mutable latest/head authority.
-      schema:
-        type: string
-        minLength: 1
+      schema: { type: string, minLength: 1 }
+
   schemas:
-    PlanningDepth:
-      type: string
-      enum: [DIRECT, LIGHT, FULL]
-    RigorProfile:
-      type: string
-      enum: [FAST, BOUNDED, CONTROLLED]
+    PlanningDepth: { type: string, enum: [DIRECT, LIGHT, FULL] }
+    RigorProfile: { type: string, enum: [FAST, BOUNDED, CONTROLLED] }
     ChangeSummary:
       type: object
       additionalProperties: false
-      required: [changeId, projectId, state]
+      required: [changeId, projectId, intent, state]
       properties:
-        changeId:
-          type: string
-          minLength: 1
-        projectId:
-          type: string
-          minLength: 1
-        state:
-          type: string
-          minLength: 1
-          description: Builder-owner current Change state; 4B does not invent an unratified global Change lifecycle enum.
+        changeId: { type: string, minLength: 1 }
+        projectId: { type: string, minLength: 1 }
+        intent: { type: string, minLength: 1, pattern: '.*\S.*' }
+        state: { type: string, minLength: 1 }
     Change:
       type: object
       additionalProperties: false
-      required: [changeId, projectId, baselineDigest, planningDepth, rigorProfile, state]
+      required: [changeId, projectId, intent, baselineDigest, planningDepth, rigorProfile, state]
       properties:
-        changeId:
-          type: string
-          minLength: 1
-        projectId:
-          type: string
-          minLength: 1
-        baselineDigest:
-          type: string
-          minLength: 1
-        planningDepth:
-          $ref: '#/components/schemas/PlanningDepth'
-        rigorProfile:
-          $ref: '#/components/schemas/RigorProfile'
-        state:
-          type: string
-          minLength: 1
-          description: Builder-owner current Change state; completion narration is not verification authority.
+        changeId: { type: string, minLength: 1 }
+        projectId: { type: string, minLength: 1 }
+        intent: { type: string, minLength: 1, pattern: '.*\S.*' }
+        baselineDigest: { type: string, minLength: 1 }
+        planningDepth: { $ref: '#/components/schemas/PlanningDepth' }
+        rigorProfile: { $ref: '#/components/schemas/RigorProfile' }
+        state: { type: string, minLength: 1 }
     PlanItem:
       type: object
       additionalProperties: false
       required: [itemId, summary, state]
       properties:
-        itemId:
-          type: string
-          minLength: 1
-        summary:
-          type: string
-          minLength: 1
-        state:
-          type: string
-          minLength: 1
-          description: Hub-owned current checklist/item state; worker narration cannot write this field directly.
+        itemId: { type: string, minLength: 1 }
+        summary: { type: string, minLength: 1 }
+        state: { type: string, minLength: 1 }
     PlanDependencyEdge:
       type: object
       additionalProperties: false
       required: [fromItemId, toItemId]
       properties:
-        fromItemId:
-          type: string
-          minLength: 1
-        toItemId:
-          type: string
-          minLength: 1
+        fromItemId: { type: string, minLength: 1 }
+        toItemId: { type: string, minLength: 1 }
     PlanAcceptanceLink:
       type: object
       additionalProperties: false
       required: [itemId, assertionRef]
       properties:
-        itemId:
-          type: string
-          minLength: 1
-        assertionRef:
-          type: string
-          minLength: 1
+        itemId: { type: string, minLength: 1 }
+        assertionRef: { type: string, minLength: 1 }
     ChangePlan:
       type: object
       additionalProperties: false
       required: [planRevision, planningDepth, rigorProfile, items, dependencyEdges, acceptanceLinks, blockers, unknowns, progress]
       properties:
-        planRevision:
-          type: string
-          minLength: 1
-        planningDepth:
-          $ref: '#/components/schemas/PlanningDepth'
-        rigorProfile:
-          $ref: '#/components/schemas/RigorProfile'
+        planRevision: { type: string, minLength: 1 }
+        planningDepth: { $ref: '#/components/schemas/PlanningDepth' }
+        rigorProfile: { $ref: '#/components/schemas/RigorProfile' }
         items:
           type: array
-          items:
-            $ref: '#/components/schemas/PlanItem'
+          items: { $ref: '#/components/schemas/PlanItem' }
         dependencyEdges:
           type: array
-          items:
-            $ref: '#/components/schemas/PlanDependencyEdge'
+          items: { $ref: '#/components/schemas/PlanDependencyEdge' }
         acceptanceLinks:
           type: array
-          items:
-            $ref: '#/components/schemas/PlanAcceptanceLink'
+          items: { $ref: '#/components/schemas/PlanAcceptanceLink' }
         blockers:
           type: array
-          items:
-            type: string
-            minLength: 1
+          items: { type: string, minLength: 1 }
         unknowns:
           type: array
-          items:
-            type: string
-            minLength: 1
-        progress:
-          type: string
-          minLength: 1
-          description: Owner-issued Plan progress summary; operational item truth remains in Hub current state.
+          items: { type: string, minLength: 1 }
+        progress: { type: string, minLength: 1 }
     ChangeProgress:
       type: object
       additionalProperties: false
       required: [planRevision, items, overallState]
       properties:
-        planRevision:
-          type: string
-          minLength: 1
+        planRevision: { type: string, minLength: 1 }
         items:
           type: array
-          items:
-            $ref: '#/components/schemas/PlanItem'
-        overallState:
-          type: string
-          minLength: 1
-          description: Builder-owner current Change progress state; not a client-writable status enum.
+          items: { $ref: '#/components/schemas/PlanItem' }
+        overallState: { type: string, minLength: 1 }
     ChangeDiff:
       type: object
       additionalProperties: false
       required: [baseSourceRevision, candidateSourceRevision, patch]
       properties:
-        baseSourceRevision:
-          type: string
-          minLength: 1
-        candidateSourceRevision:
-          type: string
-          minLength: 1
-        patch:
-          type: string
-          description: Read-only textual diff projection between the exact source revisions.
+        baseSourceRevision: { type: string, minLength: 1 }
+        candidateSourceRevision: { type: string, minLength: 1 }
+        patch: { type: string }
     SourceTreeEntry:
       type: object
       additionalProperties: false
       required: [path, kind]
       properties:
-        path:
-          type: string
-          minLength: 1
-        kind:
-          type: string
-          enum: [FILE, DIRECTORY]
+        path: { type: string, minLength: 1 }
+        kind: { type: string, enum: [FILE, DIRECTORY] }
     SourceTree:
       type: object
       additionalProperties: false
       required: [sourceRevision, entries]
       properties:
-        sourceRevision:
-          type: string
-          minLength: 1
+        sourceRevision: { type: string, minLength: 1 }
         entries:
           type: array
-          items:
-            $ref: '#/components/schemas/SourceTreeEntry'
+          items: { $ref: '#/components/schemas/SourceTreeEntry' }
     SourceFile:
       type: object
       additionalProperties: false
       required: [sourceRevision, path, content]
       properties:
-        sourceRevision:
-          type: string
-          minLength: 1
-        path:
-          type: string
-          minLength: 1
-        content:
-          type: string
-    RunPreview:
+        sourceRevision: { type: string, minLength: 1 }
+        path: { type: string, minLength: 1 }
+        content: { type: string }
+    BuildPreview:
       type: object
       additionalProperties: false
-      required: [previewId, candidateDigest, ready, verified, live]
+      required: [previewId, subjectKind, subjectDigest, ready, verified, live]
       properties:
-        previewId:
+        previewId: { type: string, minLength: 1 }
+        subjectKind: { type: string, enum: [CURRENT_PROJECT, CHANGE_CANDIDATE] }
+        subjectDigest:
           type: string
           minLength: 1
-        candidateDigest:
-          type: string
-          minLength: 1
-        ready:
-          type: boolean
-        verified:
-          type: boolean
-        live:
-          type: boolean
-          const: false
+          description: Exact server-resolved current Project source digest for CURRENT_PROJECT or exact Change candidate digest for CHANGE_CANDIDATE.
+        ready: { type: boolean }
+        verified: { type: boolean }
+        live: { type: boolean, const: false }
     Finding:
       type: object
       additionalProperties: false
       required: [findingId, changeId, findingRevision, state, summary]
       properties:
-        findingId:
-          type: string
-          minLength: 1
-        changeId:
-          type: string
-          minLength: 1
-        findingRevision:
-          type: string
-          minLength: 1
-        state:
-          type: string
-          minLength: 1
-          description: Builder-owner current Finding resolution state; 4B does not invent an unratified lifecycle enum.
-        summary:
-          type: string
-          minLength: 1
+        findingId: { type: string, minLength: 1 }
+        changeId: { type: string, minLength: 1 }
+        findingRevision: { type: string, minLength: 1 }
+        state: { type: string, minLength: 1 }
+        summary: { type: string, minLength: 1 }
     Evidence:
       type: object
       additionalProperties: false
       required: [evidenceId, changeId, claim, subjectDigest, provenance]
       properties:
-        evidenceId:
-          type: string
-          minLength: 1
-        changeId:
-          type: string
-          minLength: 1
-        claim:
-          type: string
-          minLength: 1
-        subjectDigest:
-          type: string
-          minLength: 1
+        evidenceId: { type: string, minLength: 1 }
+        changeId: { type: string, minLength: 1 }
+        claim: { type: string, minLength: 1 }
+        subjectDigest: { type: string, minLength: 1 }
         provenance:
           type: array
           minItems: 1
-          items:
-            type: string
-            minLength: 1
+          items: { type: string, minLength: 1 }
     ContextualAssistantAnswer:
       type: object
       additionalProperties: false
       required: [answer, provenanceRefs]
       properties:
-        answer:
-          type: string
-          minLength: 1
+        answer: { type: string, minLength: 1 }
         provenanceRefs:
           type: array
           minItems: 1
-          items:
-            type: string
-            minLength: 1
+          items: { type: string, minLength: 1 }
     WorkUnitProjection:
       type: object
       additionalProperties: false
       required: [workUnitId, state, actorRunIds, resultCommit]
       properties:
-        workUnitId:
-          type: string
-          minLength: 1
-        state:
-          type: string
-          minLength: 1
+        workUnitId: { type: string, minLength: 1 }
+        state: { type: string, minLength: 1 }
         actorRunIds:
           type: array
           uniqueItems: true
-          items:
-            type: string
-            minLength: 1
+          items: { type: string, minLength: 1 }
         resultCommit:
           type: [string, 'null']
           minLength: 1
-          description: Canonical Project-Git result commit when one exists; null while no result commit exists.
     ActorRunProjection:
       type: object
       additionalProperties: false
       required: [actorRunId, state, lineageDisposition]
       properties:
-        actorRunId:
-          type: string
-          minLength: 1
-        state:
-          type: string
-          minLength: 1
-        lineageDisposition:
-          type: string
-          enum: [FRESH_BASE, CONTINUE_LINEAGE]
+        actorRunId: { type: string, minLength: 1 }
+        state: { type: string, minLength: 1 }
+        lineageDisposition: { type: string, enum: [FRESH_BASE, CONTINUE_LINEAGE] }
     ChangeExecutionDetail:
       type: object
       additionalProperties: false
       required: [changeId, workUnits, actorRuns]
       properties:
-        changeId:
-          type: string
-          minLength: 1
+        changeId: { type: string, minLength: 1 }
         workUnits:
           type: array
-          items:
-            $ref: '#/components/schemas/WorkUnitProjection'
+          items: { $ref: '#/components/schemas/WorkUnitProjection' }
         actorRuns:
           type: array
-          items:
-            $ref: '#/components/schemas/ActorRunProjection'
+          items: { $ref: '#/components/schemas/ActorRunProjection' }

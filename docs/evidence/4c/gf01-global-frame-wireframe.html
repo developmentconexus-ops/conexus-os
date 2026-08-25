@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en" data-wireframe="gf-01">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GF-01 · Conexus global frame · lo-fi candidate R2</title>
+  <style>
+    :root {
+      --ink:#181818; --muted:#666; --line:#b9b9b9; --line-strong:#777;
+      --paper:#fff; --soft:#f3f3f3; --soft-2:#e8e8e8; --rail:224px; --topbar:56px;
+      font-family:Arial,Helvetica,sans-serif; color:var(--ink); background:var(--paper);
+    }
+    *{box-sizing:border-box} body{margin:0;background:#ededed} button,input{font:inherit;color:inherit} button{cursor:pointer}
+    [hidden]{display:none!important}
+    .evidence-note{max-width:1440px;margin:18px auto 8px;padding:12px 16px;border:1px solid var(--line-strong);background:var(--paper);display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .evidence-note strong{font-size:14px}.evidence-note span{color:var(--muted);font-size:12px}.status{border:1px solid var(--line-strong);padding:5px 8px;font-size:12px;font-weight:700}
+    .scope-lab{max-width:1440px;margin:0 auto 8px;padding:8px 0;display:flex;gap:8px;flex-wrap:wrap}.scope-lab button{border:1px solid var(--line-strong);background:var(--paper);padding:8px 12px}.scope-lab button[aria-pressed="true"]{background:var(--soft-2);font-weight:700}
+
+    .app-shell{max-width:1440px;min-height:760px;margin:0 auto 24px;border:2px solid #333;background:var(--paper);display:grid;grid-template-columns:var(--rail) minmax(0,1fr);grid-template-rows:var(--topbar) minmax(0,1fr);grid-template-areas:"top top" "rail stage";position:relative;overflow:hidden}
+    .topbar{grid-area:top;border-bottom:1px solid var(--line-strong);background:var(--soft);display:flex;align-items:center;gap:10px;padding:0 14px;min-width:0;position:relative;z-index:40}
+    .brand{font-weight:700;white-space:nowrap}.menu-toggle{display:none;border:1px solid var(--line-strong);background:var(--paper);width:38px;height:34px;align-items:center;justify-content:center}
+    .account{margin-left:auto;border:1px solid var(--line-strong);background:var(--paper);border-radius:20px;padding:7px 12px;white-space:nowrap}
+
+    .context-switcher{display:flex;align-items:center;gap:5px;min-width:0;flex:1;position:relative}
+    .context-segment{border:1px solid transparent;background:transparent;padding:7px 8px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;text-align:left}
+    .context-segment:hover,.context-segment:focus-visible,.context-segment[aria-expanded="true"]{border-color:var(--line-strong);background:var(--paper);outline:none}
+    .context-slash{color:var(--muted);font-weight:700}
+    .context-menu{position:absolute;top:42px;min-width:300px;max-width:min(420px,calc(100vw - 28px));border:1px solid #444;background:var(--paper);padding:10px;box-shadow:3px 3px 0 #bbb;z-index:80}
+    .context-menu.workspace{left:0}.context-menu.project{left:155px}.menu-label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:8px 6px 5px}.menu-filter{width:100%;border:1px solid var(--line-strong);padding:8px;margin-bottom:6px;background:var(--paper)}
+    .menu-option,.menu-shortcut{display:block;width:100%;text-align:left;border:1px solid transparent;background:transparent;padding:8px;border-radius:4px}.menu-option:hover,.menu-option:focus-visible,.menu-shortcut:hover,.menu-shortcut:focus-visible{border-color:var(--line-strong);outline:none;background:var(--soft)}.menu-divider{border-top:1px solid var(--line);margin:8px 0}
+
+    .rail{grid-area:rail;background:var(--soft);border-right:1px solid var(--line-strong);padding:12px 10px 18px;overflow:auto;z-index:20}.rail-header{font-size:11px;text-transform:uppercase;color:var(--muted);margin:14px 8px 6px;letter-spacing:.04em}.rail-button,.back-button{width:100%;text-align:left;border:1px solid transparent;background:transparent;padding:8px 10px;margin:1px 0;border-radius:4px}.rail-button:hover,.rail-button:focus-visible,.back-button:hover,.back-button:focus-visible{border-color:var(--line-strong);outline:none}.rail-button[aria-current="page"]{background:var(--soft-2);border-color:var(--line);font-weight:700}.back-button{border-bottom:1px solid var(--line);border-radius:0;margin-bottom:8px}.project-rail-context{margin:2px 8px 10px;padding-bottom:10px;border-bottom:1px solid var(--line)}.project-rail-context small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em}.project-rail-context strong{display:block;margin-top:3px;font-size:13px}
+    .mobile-context-summary{display:none}
+
+    .stage{grid-area:stage;min-width:0;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 0;overflow:hidden;transition:grid-template-columns 120ms linear}.app-shell[data-assistant-open="true"] .stage{grid-template-columns:minmax(0,1fr) minmax(300px,360px)}
+    .main{min-width:0;overflow:auto;padding:28px 32px 42px}.crumb{color:var(--muted);font-size:12px;margin-bottom:8px} h1{font-size:24px;margin:0 0 6px}.lede{color:var(--muted);margin:0 0 24px;font-size:13px;max-width:850px}.toolbar{min-height:44px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;align-items:start;margin-bottom:22px;padding-bottom:12px}.toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}.primary-action,.secondary-action{border:1px solid #444;background:var(--paper);padding:8px 12px}.primary-action{background:var(--soft-2);font-weight:700}
+
+    .project-fixture-note{border:1px dashed var(--line-strong);padding:9px 11px;margin:0 0 12px;color:var(--muted);font-size:12px;max-width:920px;background:#fcfcfc}.project-list-fixture{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;max-width:920px}.project-card{border:1px solid var(--line-strong);background:var(--paper);min-height:112px;padding:16px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.project-card h2{font-size:16px;margin:0 0 8px}.project-card p{color:var(--muted);font-size:12px;margin:0}.project-card button{border:1px solid var(--line-strong);background:var(--paper);padding:7px 9px;white-space:nowrap}
+    .surface-placeholder{border:1px dashed var(--line-strong);min-height:430px;max-width:1080px;display:grid;place-items:center;text-align:center;padding:30px;color:var(--muted);background:#fcfcfc}.surface-placeholder strong{color:var(--ink);display:block;margin-bottom:8px;font-size:18px}.surface-placeholder code{color:var(--ink)}
+
+    .assistant-panel{min-width:0;width:100%;overflow:hidden;border-left:0 solid var(--line-strong);background:var(--soft);position:relative}.app-shell[data-assistant-open="true"] .assistant-panel{border-left-width:1px}.assistant-inner{width:360px;max-width:100%;height:100%;padding:14px;display:flex;flex-direction:column;gap:12px}.assistant-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:10px}.assistant-header strong{font-size:14px}.assistant-header small{display:block;color:var(--muted);margin-top:3px}.assistant-close{border:1px solid var(--line-strong);background:var(--paper);padding:5px 8px}.assistant-placeholder{border:1px dashed var(--line-strong);background:var(--paper);padding:16px;color:var(--muted);font-size:12px;flex:1}.assistant-placeholder strong{color:var(--ink);display:block;margin-bottom:8px}.assistant-rule{font-size:11px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px}
+    .scrim{display:none}
+
+    @media (max-width:980px){
+      .app-shell[data-assistant-open="true"] .stage{grid-template-columns:minmax(0,1fr)}
+      .assistant-panel{position:absolute;z-index:35;right:0;top:var(--topbar);bottom:0;width:min(420px,88vw);transform:translateX(102%);border-left:1px solid var(--line-strong);box-shadow:-2px 0 0 #bbb;transition:transform 120ms linear}
+      .app-shell[data-assistant-open="true"] .assistant-panel{transform:translateX(0)}
+    }
+    @media (max-width:760px){
+      body{background:var(--paper)}.evidence-note{margin:0;border-width:0 0 1px}.scope-lab{display:none}.app-shell{width:100%;min-height:100vh;margin:0;border:0;grid-template-columns:1fr;grid-template-rows:var(--topbar) minmax(0,1fr);grid-template-areas:"top" "stage"}.topbar{padding:0 8px;gap:4px}.brand{display:none}.menu-toggle{display:inline-flex}.context-switcher{gap:2px}.context-segment{padding:7px 5px;max-width:135px}.context-menu{top:40px;left:0!important;min-width:min(330px,calc(100vw - 16px))}.account{font-size:0;width:34px;height:34px;padding:0}.account::after{content:"A";font-size:13px}
+      .rail{position:absolute;z-index:50;top:var(--topbar);left:0;bottom:0;width:min(82vw,310px);transform:translateX(-102%);transition:transform 120ms linear;border-right:1px solid #333;box-shadow:2px 0 0 #bbb}.app-shell[data-drawer-open="true"] .rail{transform:translateX(0)}.scrim{position:absolute;z-index:45;inset:var(--topbar) 0 0 0;border:0;background:rgba(0,0,0,.16)}.app-shell[data-drawer-open="true"] .scrim{display:block}.mobile-context-summary{display:block;padding:4px 8px 12px;border-bottom:1px solid var(--line);margin-bottom:8px}.mobile-context-summary small{color:var(--muted);display:block}.mobile-context-summary strong{display:block;margin:4px 0 8px}.main{padding:22px 18px 34px}.project-list-fixture{grid-template-columns:1fr}.toolbar{align-items:stretch;flex-direction:column}.toolbar-actions{align-self:flex-start}.surface-placeholder{min-height:360px}.assistant-panel{width:100vw;top:var(--topbar)}.assistant-inner{width:100%}
+    }
+  </style>
+</head>
+<body>
+  <!-- GF-01 uses plain HTML/CSS and vanilla JavaScript only. This is P8 Evidence, not production frontend code. -->
+  <aside class="evidence-note" aria-label="Wireframe status">
+    <div><strong>GF-01 · Global frame · H1-R2 single adaptive rail</strong><br><span>Low-fidelity structural browser artifact after bounded Fable shell review.</span></div>
+    <span class="status">CANDIDATE · NOT LOCKED</span>
+  </aside>
+
+  <div class="scope-lab" aria-label="Wireframe scenario controls">
+    <button type="button" id="showWorkspace" aria-pressed="true">Inspect Workspace frame</button>
+    <button type="button" id="showProject" aria-pressed="false">Inspect Project frame</button>
+    <button type="button" id="toggleAssistantLab" aria-pressed="false">Inspect contextual assistant seam</button>
+  </div>
+
+  <div class="app-shell" id="shell" data-scope="workspace" data-drawer-open="false" data-assistant-open="false">
+    <header class="topbar">
+      <button class="menu-toggle" id="menuToggle" type="button" aria-label="Open navigation" aria-controls="currentNavigation" aria-expanded="false">☰</button>
+      <div class="brand">Conexus</div>
+
+      <nav class="context-switcher" data-context-switcher="breadcrumb" aria-label="Current Workspace and Project context">
+        <button class="context-segment" id="workspaceCrumb" type="button" aria-haspopup="dialog" aria-expanded="false">Metal Nobre ▾</button>
+        <span class="context-slash" id="contextSlash" hidden>/</span>
+        <button class="context-segment" id="projectCrumb" type="button" aria-haspopup="dialog" aria-expanded="false" hidden>Budget Analyzer ▾</button>
+
+        <div class="context-menu workspace" id="workspaceMenu" data-workspace-menu hidden>
+          <div class="menu-label">Switch Workspace</div>
+          <input class="menu-filter" id="workspaceFilter" type="search" aria-label="Filter workspaces" placeholder="Filter disclosed workspaces">
+          <div id="workspaceOptions">
+            <button class="menu-option" type="button" data-workspace="Metal Nobre">Metal Nobre</button>
+            <button class="menu-option" type="button" data-workspace="Development Conexus">Development Conexus</button>
+          </div>
+          <div class="menu-divider"></div>
+          <div class="menu-label">Workspace shortcuts</div>
+          <button class="menu-shortcut" type="button" data-workspace-shortcut="Brain">Brain</button>
+          <button class="menu-shortcut" type="button" data-workspace-shortcut="Connections">Connections</button>
+          <button class="menu-shortcut" type="button" data-workspace-shortcut="People & access">People &amp; access</button>
+        </div>
+
+        <div class="context-menu project" id="projectMenu" hidden>
+          <div class="menu-label">Switch Project</div>
+          <input class="menu-filter" id="projectFilter" type="search" aria-label="Filter projects" placeholder="Filter disclosed projects">
+          <div id="projectOptions">
+            <button class="menu-option" type="button" data-project="Budget Analyzer">Budget Analyzer</button>
+            <button class="menu-option" type="button" data-project="Marketplace Central">Marketplace Central</button>
+          </div>
+        </div>
+      </nav>
+
+      <button class="account" type="button" aria-label="Account and session menu">Account</button>
+    </header>
+
+    <nav class="rail" id="currentNavigation" aria-label="Workspace navigation">
+      <div class="mobile-context-summary">
+        <small>Workspace</small><strong id="mobileWorkspaceName">Metal Nobre</strong>
+        <div id="mobileProjectContext" hidden><small>Project</small><strong id="mobileProjectName">Budget Analyzer</strong></div>
+      </div>
+
+      <section id="workspaceNavigation" data-scope="workspace" aria-label="Workspace navigation">
+        <div class="rail-header">Work</div>
+        <button class="rail-button" type="button" data-route="Projects" aria-current="page">Projects</button>
+        <button class="rail-button" type="button" data-route="Agents">Agents</button>
+        <div class="rail-header">Shared context</div>
+        <button class="rail-button" type="button" data-route="Brain">Brain</button>
+        <button class="rail-button" type="button" data-route="Connections">Connections</button>
+        <div class="rail-header">Admin / investigate</div>
+        <button class="rail-button" type="button" data-route="People & access">People &amp; access</button>
+        <button class="rail-button" type="button" data-route="Audit">Audit</button>
+      </section>
+
+      <section id="projectNavigation" data-scope="project" aria-label="Project navigation" hidden>
+        <div class="project-rail-context" data-project-rail-context><small>Project</small><strong id="projectRailName">Budget Analyzer</strong></div>
+        <button class="back-button" id="backToProjects" type="button">← Back to Projects</button>
+        <button class="rail-button" type="button" data-route="Build" aria-current="page">Build</button>
+        <div class="rail-header">Product</div>
+        <button class="rail-button" type="button" data-route="Data">Data</button>
+        <button class="rail-button" type="button" data-route="Capabilities">Capabilities</button>
+        <button class="rail-button" type="button" data-route="Integrations">Integrations</button>
+        <button class="rail-button" type="button" data-route="Agents">Agents</button>
+        <button class="rail-button" type="button" data-route="Brain">Brain</button>
+        <div class="rail-header">Operate / inspect</div>
+        <button class="rail-button" type="button" data-route="Releases">Releases</button>
+        <button class="rail-button" type="button" data-route="Activity">Activity</button>
+        <div class="rail-header">Manage</div>
+        <button class="rail-button" type="button" data-route="Settings">Settings</button>
+      </section>
+    </nav>
+
+    <button class="scrim" id="scrim" type="button" aria-label="Close navigation"></button>
+
+    <div class="stage">
+      <main class="main" id="mainContent" tabindex="-1">
+        <div id="workspaceSurface">
+          <div class="crumb" id="workspaceCrumbText">Workspace · Metal Nobre</div>
+          <div class="toolbar">
+            <div><h1 id="workspaceTitle">Projects</h1><p class="lede" id="workspaceLede">Primary Workspace destination. Browse disclosed Projects and enter a Project context.</p></div>
+            <div class="toolbar-actions"><button class="primary-action" type="button">New Project</button></div>
+          </div>
+          <div class="project-fixture-note" data-project-collection-fixture>Fixture only for GF-01 frame testing. Cards vs structured list/table is deliberately deferred to W-01 and is not locked here.</div>
+          <div class="project-list-fixture" id="projectCards">
+            <article class="project-card"><div><h2>Budget Analyzer</h2><p>Disclosed Project · collection metadata intentionally incomplete in GF-01.</p></div><button type="button" data-open-project="Budget Analyzer">Open</button></article>
+            <article class="project-card"><div><h2>Marketplace Central</h2><p>Disclosed Project · collection metadata intentionally incomplete in GF-01.</p></div><button type="button" data-open-project="Marketplace Central">Open</button></article>
+          </div>
+        </div>
+
+        <div id="workspacePlaceholder" hidden>
+          <div class="crumb" id="workspacePlaceholderCrumb">Workspace · Metal Nobre</div>
+          <h1 id="workspacePlaceholderTitle">Workspace surface</h1>
+          <p class="lede" id="workspacePlaceholderLede">This frame validates findability only; the surface receives its own later block.</p>
+          <div class="surface-placeholder"><div><strong id="workspacePlaceholderStrong">Deferred surface composition</strong><span id="workspacePlaceholderBody">No inner layout is locked by GF-01.</span></div></div>
+        </div>
+
+        <div id="projectSurface" hidden>
+          <div class="crumb" id="projectCrumbText">Metal Nobre / Budget Analyzer</div>
+          <div class="toolbar">
+            <div><h1 id="projectTitle">Build</h1><p class="lede" id="projectLede">Primary/default Project destination. Inner Build composition belongs to P-01.</p></div>
+            <div class="toolbar-actions"><button class="secondary-action" id="assistantToggle" type="button" aria-expanded="false" aria-controls="assistantPanel">Ask Conexus</button></div>
+          </div>
+          <div class="surface-placeholder"><div><strong id="projectPlaceholderStrong">Current Project surface</strong><span id="projectPlaceholderBody">GF-01 locks only frame/navigation. Inner composition remains deferred.</span></div></div>
+        </div>
+      </main>
+
+      <aside class="assistant-panel" id="assistantPanel" data-assistant-seam="contextual" data-supported-layouts="push overlay full" aria-label="Contextual Conexus assistant panel seam">
+        <div class="assistant-inner">
+          <div class="assistant-header"><div><strong>Contextual Conexus seam</strong><small id="assistantContext">Budget Analyzer · Build</small></div><button class="assistant-close" id="assistantClose" type="button">Close</button></div>
+          <div class="assistant-placeholder"><strong>Reserved frame cooperation only</strong>Selected authorized Project/resource context can be passed here. P-01/P-02 decide actual content, controls, states and eligible surfaces. This seam grants no new authority.</div>
+          <div class="assistant-rule">Desktop may push content; narrower layouts may overlay/full. Exact thresholds and panel behavior are not locked in GF-01.</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+<script>
+// Vanilla JavaScript is used only to make the P8 structure inspectable. No backend behavior is claimed.
+(() => {
+  const shell = document.getElementById('shell')
+  const nav = document.getElementById('currentNavigation')
+  const workspaceNav = document.getElementById('workspaceNavigation')
+  const projectNav = document.getElementById('projectNavigation')
+  const workspaceSurface = document.getElementById('workspaceSurface')
+  const workspacePlaceholder = document.getElementById('workspacePlaceholder')
+  const projectSurface = document.getElementById('projectSurface')
+  const workspaceCrumb = document.getElementById('workspaceCrumb')
+  const projectCrumb = document.getElementById('projectCrumb')
+  const contextSlash = document.getElementById('contextSlash')
+  const workspaceMenu = document.getElementById('workspaceMenu')
+  const projectMenu = document.getElementById('projectMenu')
+  const menuToggle = document.getElementById('menuToggle')
+  const scrim = document.getElementById('scrim')
+  const assistantToggle = document.getElementById('assistantToggle')
+  const assistantClose = document.getElementById('assistantClose')
+  const labAssistant = document.getElementById('toggleAssistantLab')
+  let workspaceName = 'Metal Nobre'
+  let projectName = 'Budget Analyzer'
+
+  const workspaceCopy = {
+    Projects:['Projects','Primary Workspace destination. Browse disclosed Projects and enter a Project context.'],
+    Agents:['Agent catalog','Catalog of Project-owned Agents currently disclosed in this Workspace. Workspace is not the Agent owner.'],
+    Brain:['Workspace Brain','Inspect the reusable Workspace Brain authority. Project Brain binding is a separate Project surface.'],
+    Connections:['Connections','Browse and manage Workspace-owned Connection lifecycle truth.'],
+    'People & access':['People & access','Administer membership, Areas and exact Project access without implying Published-App business access.'],
+    Audit:['Audit','Inspect immutable audit Evidence; audit does not become current Product truth.']
+  }
+  const projectCopy = {
+    Build:['Build','Primary/default Project destination. Inner Build composition belongs to P-01.'],
+    Data:['Data','Inspect declared Product/read-model resources; inner composition belongs to P-02.'],
+    Capabilities:['Capabilities','Inspect exact authored/Release capabilities without gaining invocation authority.'],
+    Integrations:['Integrations','Inspect Project bindings and external-system work; inner composition belongs to P-02.'],
+    Agents:['Agents','Inspect Project-owned Agent authoring/runtime surfaces; inner composition belongs to P-03.'],
+    Brain:['Brain','Inspect the Project Brain binding; Workspace Brain publication remains a different owner context.'],
+    Releases:['Releases','Inspect immutable Release/conformance/serving truth; inner composition belongs to P-04.'],
+    Activity:['Activity','Chronological evidence projection; inner composition belongs to P-04.'],
+    Settings:['Settings','Bounded Project/app administration only; no generic metadata mutation is implied.']
+  }
+
+  function closeContextMenus(){ workspaceMenu.hidden = true; projectMenu.hidden = true; workspaceCrumb.setAttribute('aria-expanded','false'); projectCrumb.setAttribute('aria-expanded','false') }
+  function closeDrawer(){ shell.dataset.drawerOpen='false'; menuToggle.setAttribute('aria-expanded','false') }
+  function closeAssistant(){ shell.dataset.assistantOpen='false'; if(assistantToggle) assistantToggle.setAttribute('aria-expanded','false'); labAssistant.setAttribute('aria-pressed','false') }
+  function openAssistant(){ if(shell.dataset.scope !== 'project') setScope('project'); shell.dataset.assistantOpen='true'; assistantToggle.setAttribute('aria-expanded','true'); labAssistant.setAttribute('aria-pressed','true') }
+
+  function updateNames(){
+    workspaceCrumb.textContent = workspaceName + ' ▾'
+    projectCrumb.textContent = projectName + ' ▾'
+    document.getElementById('mobileWorkspaceName').textContent = workspaceName
+    document.getElementById('mobileProjectName').textContent = projectName
+    document.getElementById('projectRailName').textContent = projectName
+    document.getElementById('workspaceCrumbText').textContent = 'Workspace · ' + workspaceName
+    document.getElementById('workspacePlaceholderCrumb').textContent = 'Workspace · ' + workspaceName
+    document.getElementById('projectCrumbText').textContent = workspaceName + ' / ' + projectName
+    document.getElementById('assistantContext').textContent = projectName + ' · ' + document.getElementById('projectTitle').textContent
+  }
+
+  function setScope(scope, route){
+    closeContextMenus(); closeDrawer(); closeAssistant(); shell.dataset.scope=scope
+    const project = scope === 'project'
+    workspaceNav.hidden = project; projectNav.hidden = !project
+    nav.setAttribute('aria-label', project ? 'Project navigation' : 'Workspace navigation')
+    projectCrumb.hidden = !project; contextSlash.hidden = !project
+    document.getElementById('mobileProjectContext').hidden = !project
+    document.getElementById('showWorkspace').setAttribute('aria-pressed', String(!project))
+    document.getElementById('showProject').setAttribute('aria-pressed', String(project))
+    if(project){ workspaceSurface.hidden=true; workspacePlaceholder.hidden=true; projectSurface.hidden=false; setProjectRoute(route || 'Build') }
+    else { projectSurface.hidden=true; workspacePlaceholder.hidden=true; workspaceSurface.hidden=false; setWorkspaceRoute(route || 'Projects') }
+    updateNames(); document.getElementById('mainContent').focus()
+  }
+
+  function markRoute(section, route){ section.querySelectorAll('[data-route]').forEach(b => b.removeAttribute('aria-current')); const b=section.querySelector(`[data-route="${CSS.escape(route)}"]`); if(b) b.setAttribute('aria-current','page') }
+  function setWorkspaceRoute(route){
+    markRoute(workspaceNav,route); closeAssistant();
+    const [title,lede]=workspaceCopy[route] || [route,'Deferred Workspace surface.']
+    if(route==='Projects'){ workspaceSurface.hidden=false; workspacePlaceholder.hidden=true; document.getElementById('workspaceTitle').textContent=title; document.getElementById('workspaceLede').textContent=lede }
+    else { workspaceSurface.hidden=true; workspacePlaceholder.hidden=false; document.getElementById('workspacePlaceholderTitle').textContent=title; document.getElementById('workspacePlaceholderLede').textContent=lede; document.getElementById('workspacePlaceholderStrong').textContent=title + ' composition deferred'; document.getElementById('workspacePlaceholderBody').textContent='GF-01 validates frame/findability only. This surface receives its own later block.' }
+    closeDrawer(); updateNames()
+  }
+  function setProjectRoute(route){
+    markRoute(projectNav,route); const [title,lede]=projectCopy[route] || [route,'Deferred Project surface.']; document.getElementById('projectTitle').textContent=title; document.getElementById('projectLede').textContent=lede; document.getElementById('projectPlaceholderStrong').textContent=title + ' surface composition deferred'; document.getElementById('projectPlaceholderBody').textContent='GF-01 validates frame/navigation only. Exact regions/actions belong to the later material block.'; document.getElementById('assistantContext').textContent=projectName+' · '+title; closeDrawer()
+  }
+
+  function filterMenu(input, container, attr){ const q=input.value.trim().toLowerCase(); container.querySelectorAll(`[${attr}]`).forEach(b => { b.hidden = q && !b.textContent.toLowerCase().includes(q) }) }
+
+  workspaceCrumb.addEventListener('click', e => { e.stopPropagation(); const open=workspaceMenu.hidden; closeContextMenus(); workspaceMenu.hidden=!open; workspaceCrumb.setAttribute('aria-expanded',String(open)); if(open) document.getElementById('workspaceFilter').focus() })
+  projectCrumb.addEventListener('click', e => { e.stopPropagation(); const open=projectMenu.hidden; closeContextMenus(); projectMenu.hidden=!open; projectCrumb.setAttribute('aria-expanded',String(open)); if(open) document.getElementById('projectFilter').focus() })
+  document.getElementById('workspaceFilter').addEventListener('input', e => filterMenu(e.target,document.getElementById('workspaceOptions'),'data-workspace'))
+  document.getElementById('projectFilter').addEventListener('input', e => filterMenu(e.target,document.getElementById('projectOptions'),'data-project'))
+  document.querySelectorAll('[data-workspace]').forEach(b => b.addEventListener('click',()=>{workspaceName=b.dataset.workspace; closeContextMenus(); setScope('workspace','Projects')}))
+  document.querySelectorAll('[data-project]').forEach(b => b.addEventListener('click',()=>{projectName=b.dataset.project; closeContextMenus(); setScope('project','Build')}))
+  document.querySelectorAll('[data-workspace-shortcut]').forEach(b => b.addEventListener('click',()=>{const route=b.dataset.workspaceShortcut; closeContextMenus(); setScope('workspace',route)}))
+  document.querySelectorAll('[data-open-project]').forEach(b => b.addEventListener('click',()=>{projectName=b.dataset.openProject; setScope('project','Build')}))
+  workspaceNav.querySelectorAll('[data-route]').forEach(b=>b.addEventListener('click',()=>setWorkspaceRoute(b.dataset.route)))
+  projectNav.querySelectorAll('[data-route]').forEach(b=>b.addEventListener('click',()=>setProjectRoute(b.dataset.route)))
+  document.getElementById('backToProjects').addEventListener('click',()=>setScope('workspace','Projects'))
+  document.getElementById('showWorkspace').addEventListener('click',()=>setScope('workspace','Projects'))
+  document.getElementById('showProject').addEventListener('click',()=>setScope('project','Build'))
+  menuToggle.addEventListener('click',()=>{const open=shell.dataset.drawerOpen!=='true'; shell.dataset.drawerOpen=String(open); menuToggle.setAttribute('aria-expanded',String(open)); closeContextMenus()})
+  scrim.addEventListener('click',closeDrawer)
+  assistantToggle.addEventListener('click',()=> shell.dataset.assistantOpen==='true' ? closeAssistant() : openAssistant())
+  assistantClose.addEventListener('click',closeAssistant)
+  labAssistant.addEventListener('click',()=> shell.dataset.assistantOpen==='true' ? closeAssistant() : openAssistant())
+  document.addEventListener('click',e=>{ if(!e.target.closest('.context-switcher')) closeContextMenus() })
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeContextMenus(); closeDrawer(); closeAssistant() } })
+  updateNames()
+})()
+</script>
+</body>
+</html>

@@ -37,9 +37,17 @@ paths:
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
+      parameters:
+        - name: forProjectId
+          in: query
+          required: false
+          description: Optional exact target Project context activating purpose-bound immutable revision selection for Project Brain binding. Server revalidates Project containment plus project.manage + brain.bind; omission uses ordinary brain.read disclosure. This route remains BrainRevision summary-only and grants no BRN-03, knowledgeBrowse, proposal, publication or Brain mutation authority.
+          schema:
+            type: string
+            minLength: 1
       responses:
         '200':
-          description: Immutable published Brain revisions currently disclosable for the Workspace.
+          description: Immutable published Brain revisions currently disclosable for the Workspace. With forProjectId, disclosure is purpose-bound to exact Project Brain-binding selection under project.manage + brain.bind and remains summary-only.
           content:
             application/json:
               schema:
@@ -66,11 +74,11 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact immutable published Brain revision. AVAILABLE does not mean any Project silently adopts it.
+          description: Exact immutable published Brain revision with deterministic source-bound human review text plus structured knowledge-browse projection. AVAILABLE does not mean any Project silently adopts it.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BrainRevision'
+                $ref: '#/components/schemas/BrainRevisionDetail'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
@@ -162,23 +170,12 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required: [candidateSourceRevision, provenanceRefs]
-              properties:
-                candidateSourceRevision:
-                  type: string
-                  minLength: 1
-                provenanceRefs:
-                  type: array
-                  minItems: 1
-                  uniqueItems: true
-                  items:
-                    type: string
-                    minLength: 1
+              oneOf:
+                - $ref: '#/components/schemas/SourceBackedKnowledgeProposalInput'
+                - $ref: '#/components/schemas/DiscoveryBackedKnowledgeProposalInput'
       responses:
         '201':
-          description: KnowledgeProposal submitted for human review; submission cannot self-publish Brain authority.
+          description: KnowledgeProposal submitted for human review. Source-backed intake preserves an existing Brain candidate revision; Discovery-backed intake revalidates the exact discovery candidate and explicit human resolution before Brain materializes the candidate source. Submission never self-publishes Brain authority.
           content:
             application/json:
               schema:
@@ -207,7 +204,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact KnowledgeProposal candidate/provenance with current Brain-owner review state.
+          description: Exact KnowledgeProposal candidate/provenance with current Brain-owner review state and deterministic human-readable projection of the exact candidate source revision.
           content:
             application/json:
               schema:
@@ -333,6 +330,34 @@ paths:
         '503':
           $ref: './openapi.yaml#/components/responses/Problem503'
 
+  /api/control/projects/{projectId}/analytic-query-catalog:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      summary: GetProjectAnalyticQueryCatalog
+      operationId: GetProjectAnalyticQueryCatalog
+      x-conexus-4a-id: BRN-13
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: Current Project-admitted semantic choices for BRN-12, derived from the exact current Project Brain binding and curated analytical admission; no SQL, physical topology or independent semantic authority is disclosed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectAnalyticQueryCatalog'
+        '401':
+          $ref: './openapi.yaml#/components/responses/Problem401'
+        '403':
+          $ref: './openapi.yaml#/components/responses/Problem403'
+        '404':
+          $ref: './openapi.yaml#/components/responses/Problem404'
+        '409':
+          $ref: './openapi.yaml#/components/responses/Problem409'
+        '503':
+          $ref: './openapi.yaml#/components/responses/Problem503'
+
   /api/projects/{projectId}/analytic-queries:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
@@ -435,7 +460,7 @@ components:
     BrainRevision:
       type: object
       additionalProperties: false
-      required: [brainRevisionId, brainDigest, sourceRevision, availability]
+      required: [brainRevisionId, brainDigest, sourceRevision, availability, reviewText]
       properties:
         brainRevisionId:
           type: string
@@ -449,6 +474,107 @@ components:
         availability:
           type: string
           const: AVAILABLE
+        reviewText:
+          type: string
+          minLength: 1
+          description: Deterministic Brain-owned human-readable projection of this exact sourceRevision for review/inspection; not canonical Brain source, source identity, digest or decision authority.
+    BrainRevisionDetail:
+      type: object
+      additionalProperties: false
+      required: [brainRevisionId, brainDigest, sourceRevision, availability, reviewText, knowledgeBrowse]
+      properties:
+        brainRevisionId:
+          type: string
+          minLength: 1
+        brainDigest:
+          type: string
+          minLength: 1
+        sourceRevision:
+          type: string
+          minLength: 1
+        availability:
+          type: string
+          const: AVAILABLE
+        reviewText:
+          type: string
+          minLength: 1
+          description: Deterministic Brain-owned human-readable projection of this exact sourceRevision for review/inspection; not canonical Brain source, source identity, digest or decision authority.
+        knowledgeBrowse:
+          $ref: '#/components/schemas/BrainKnowledgeBrowseProjection'
+    BrainKnowledgeBrowseProjection:
+      type: object
+      additionalProperties: false
+      required: [domains]
+      properties:
+        domains:
+          type: array
+          items:
+            $ref: '#/components/schemas/BrainKnowledgeDomainProjection'
+          description: Business-aligned domain/namespace presentation resolved deterministically from the exact sourceRevision. Empty is a truthful known-empty projection, not an unknown/error substitute.
+    BrainKnowledgeDomainProjection:
+      type: object
+      additionalProperties: false
+      required: [domainRef, label, concepts]
+      properties:
+        domainRef:
+          type: string
+          minLength: 1
+          description: Brain-issued coordinate scoped to this exact sourceRevision projection; not canonical source identity or a decision subject.
+        label:
+          type: string
+          minLength: 1
+        concepts:
+          type: array
+          items:
+            $ref: '#/components/schemas/BrainKnowledgeConceptProjection'
+    BrainKnowledgeConceptProjection:
+      type: object
+      additionalProperties: false
+      required: [conceptRef, label, summary, contentClasses, sections, provenanceRefs]
+      properties:
+        conceptRef:
+          type: string
+          minLength: 1
+          description: Brain-issued coordinate scoped to this exact sourceRevision projection; supports local browse/navigation only and is not canonical semantic/source identity.
+        label:
+          type: string
+          minLength: 1
+        summary:
+          type: string
+          minLength: 1
+        contentClasses:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BrainKnowledgeContentClass'
+        sections:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/BrainKnowledgeSectionProjection'
+        provenanceRefs:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+    BrainKnowledgeSectionProjection:
+      type: object
+      additionalProperties: false
+      required: [kind, text]
+      properties:
+        kind:
+          $ref: '#/components/schemas/BrainKnowledgeSectionKind'
+        text:
+          type: string
+          minLength: 1
+    BrainKnowledgeSectionKind:
+      type: string
+      enum: [DEFINITION, BUSINESS_MEANING, CALCULATION, GRAIN, RELATIONSHIPS, BUSINESS_RULES, CAVEATS, VERIFICATION]
+    BrainKnowledgeContentClass:
+      type: string
+      enum: [SEMANTIC, KNOWLEDGE, EVIDENCE_SPEC]
     BrainDiscoveryCandidate:
       type: object
       additionalProperties: false
@@ -479,10 +605,39 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/BrainDiscoveryCandidate'
+    SourceBackedKnowledgeProposalInput:
+      type: object
+      additionalProperties: false
+      required: [candidateSourceRevision, provenanceRefs]
+      properties:
+        candidateSourceRevision:
+          type: string
+          minLength: 1
+          description: Exact existing Brain-owned candidate source revision to submit for review.
+        provenanceRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+    DiscoveryBackedKnowledgeProposalInput:
+      type: object
+      additionalProperties: false
+      required: [discoveryCandidateRef, humanResolution]
+      properties:
+        discoveryCandidateRef:
+          type: string
+          minLength: 1
+          description: Untrusted exact Brain Discovery candidate reference; Brain re-resolves current Workspace/discovery containment and provenance server-side.
+        humanResolution:
+          type: string
+          minLength: 1
+          description: Explicit human confirmation/correction/resolution of the exact discovery hypothesis. It is semantic input for Brain-owned candidate-source materialization, not raw Git/source authority.
     KnowledgeProposal:
       type: object
       additionalProperties: false
-      required: [proposalId, proposalRevision, candidateSourceRevision, provenanceRefs, hypothesisState, reviewState]
+      required: [proposalId, proposalRevision, candidateSourceRevision, provenanceRefs, hypothesisState, reviewState, reviewText]
       properties:
         proposalId:
           type: string
@@ -508,6 +663,10 @@ components:
           type: string
           minLength: 1
           description: Brain-owner review state; no lifecycle enum is invented by 4B.
+        reviewText:
+          type: string
+          minLength: 1
+          description: Deterministic Brain-owned human-readable projection of this exact candidateSourceRevision for review/inspection; not canonical Brain source or proposal/decision identity.
     BrainHealthState:
       type: string
       enum: [UNVERIFIED, VALID, SUSPECT, INVALID, CHECK_ERROR]
@@ -541,6 +700,57 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/BrainHealthItem'
+    ProjectAnalyticQueryCatalog:
+      type: object
+      additionalProperties: false
+      required: [projectId, brainRevisionId, brainDigest, projectBindingDigest, datasets]
+      properties:
+        projectId:
+          type: string
+          minLength: 1
+        brainRevisionId:
+          type: string
+          minLength: 1
+        brainDigest:
+          type: string
+          minLength: 1
+        projectBindingDigest:
+          type: string
+          minLength: 1
+        datasets:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticDatasetChoice'
+    AnalyticDatasetChoice:
+      type: object
+      additionalProperties: false
+      required: [datasetSemanticId, label, selectableSemantics]
+      properties:
+        datasetSemanticId:
+          type: string
+          minLength: 1
+        label:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Server-owned human presentation of this admitted semantic dataset; never canonical identity or authorization.
+        selectableSemantics:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticSemanticChoice'
+    AnalyticSemanticChoice:
+      type: object
+      additionalProperties: false
+      required: [semanticId, label]
+      properties:
+        semanticId:
+          type: string
+          minLength: 1
+        label:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Server-owned human presentation of this admitted semantic field; never canonical identity or authorization.
     AnalyticColumn:
       type: object
       additionalProperties: false
