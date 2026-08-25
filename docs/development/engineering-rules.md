@@ -1,15 +1,16 @@
 # Conexus OS Engineering Rules
 
-> **Scope:** repository-local execution, Git/CI/proof, framework-sensitive work, and Conexus-specific safety rails. This file does not own Product semantics, current program status, or the content of the adopted engineering/frontend methods.
+> **Scope:** repository-local execution, Git/CI/proof, framework-sensitive work, and Conexus-specific safety rails. This file does not own Product semantics, current program status, or the content of the adopted methods.
 
 ## Adopted local methods
 
-Use the repository-local copies without locally redefining them:
+Conexus OS consumes these repository-local operating method copies:
 
 - [`engineering-method.md`](engineering-method.md) — DevelopmentConexus Engineering Method v1.0.0;
+- [`repository-method.md`](repository-method.md) — DevelopmentConexus Repository Method v1.0.0;
 - [`frontend-product-experience-planning-method.md`](frontend-product-experience-planning-method.md) — Frontend Product Experience Planning Method v2.3.
 
-`AGENTS.md` and `docs/index.md` route directly to these files. There is no external methodology router, Repository Standard dependency, file-count limit, owner-count limit, or context budget.
+These method files are intended to remain byte-identical across DevelopmentConexus repositories that adopt the same versions. Normal Product work does not locally reinterpret them. A method-content change requires explicit operator approval and deliberate propagation; normal repository work does not require a runtime dependency on another repository.
 
 ## Local execution environment
 
@@ -38,11 +39,11 @@ npm ci
 npm run verify
 ```
 
-The protected GitHub check remains named `verify`. The required gate is intentionally objective and focused on current executable truth: basic repository/current-state integrity, the current P-02 functional-wireframe JavaScript parse smoke, and the executable wire/contract suite.
+The protected GitHub check remains named `verify`. Required CI protects objective repository and executable-contract properties that must remain true for every change.
 
-Historical repository tests, documentation-reachability checks, prior ratification/status-string guards, review-transport ceremony, and broader qualification checks remain available as targeted/extended proof. They are not permanent prerequisites for unrelated planning work.
+Use targeted proof for the current task/block and extended proof for broader repository, historical, architecture, documentation-reachability, or qualification claims when those claims are actually in scope.
 
-Run additional targeted proof whenever the current claim actually depends on it. A mock/fake proves only the mocked boundary; claims about real providers, models, E2B, Sankhya, browser behavior, persistence, or runtime require Evidence proportional to the real dependency.
+A mock/fake proves only the mocked boundary. Claims about real providers, models, E2B, Sankhya, browser behavior, persistence, or runtime require Evidence proportional to the real dependency.
 
 CI does not judge Global Maximum, architecture quality, UX quality, how many files were read, or whether planning used a preferred document shape.
 
