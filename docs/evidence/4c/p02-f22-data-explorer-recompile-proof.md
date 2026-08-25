@@ -1,9 +1,9 @@
 # P-02 F22 — Data Explorer recompile proof
 
-> **Status:** `OPERATOR RATIFIED / R2 CONVERGED / WHOLE-WIRE GREEN`
+> **Status:** `OPERATOR RATIFIED / R2 CONVERGED / WHOLE-WIRE GREEN / P8 F22 REVISED CANDIDATE`
 > **Design:** [p02-f22-data-explorer-design.md](p02-f22-data-explorer-design.md)
 > **Execution plan:** [p02-f22-data-explorer-implementation-plan.md](p02-f22-data-explorer-implementation-plan.md)
-> **Authority:** Evidence only. F22 is operator-ratified in current 4A/4B authority; P8 remains NOT LOCKED, Product/runtime implementation and merge remain blocked.
+> **Authority:** Evidence only. F22 is operator-ratified in current 4A/4B authority; revised P8 is verified but NOT LOCKED, Product/runtime implementation and merge remain blocked.
 
 ## 1. Selected realization
 
@@ -359,15 +359,72 @@ Correction boundary remains:
 
 The operator then explicitly confirmed R1-F4: existing `project.data.read` grants may become eligible for F22 raw-row disclosure only under exact Project grant + server-resolved explorer source/object eligibility. The 25-Permission vocabulary is retained.
 
-F22 ratification gate is therefore closed:
+## 10. Functional P8 RED → GREEN
+
+The ratified F22 authority reopened only P-02 Data presentation. Capabilities, Integrations, Brain and the GF-01/P-01 shell stayed unchanged.
+
+Selected P8 RED:
+
+```text
+HEAD       = 2655a7fb4e22e1eef7a12d31b1f28bef85337699
+Verify     = #974 / EXPECTED FAILURE
+repository = 131 tests / 130 pass / 1 fail
+failure    = revised P8 lacks PRJ-25 / physical Data Explorer contract
+```
+
+All other P-02 route, Capabilities, Integrations, Brain, responsive, accessibility and self-contained guards remained green.
+
+Revised P8 GREEN:
+
+```text
+HEAD                     = 5d2aa578bddcf29f5049929cf406bcee24903868
+P8 blob                  = 59a7f53fa371297e435ee130bfcdfb86b126a247
+Verify                   = #975 / SUCCESS
+repository tests         = 131 / 131
+bootstrap_bytes          = 20137 / 20480
+4A ↔ OAS                 = 121 ↔ 121 schema-closed
+Project                  = 27
+ordinary Permissions     = 25
+F22 focused checker      = PASS / 8 firing negative controls
+generated projection     = PASS / 121 + F11/F12/F19/F22 consumers
+wire topology            = 11 reachable / 0 dead parallel
+whole 4B adversarial     = PASS / 121
+whole 4B executable      = PASS
+```
+
+The fixture-only HTML demonstrates:
+
+```text
+Project Database + Sankhya ERP physical source tree
+physical namespace/object names + human semantic meaning
+TGFCAB / TGFITE / TGFPAR fixture tables
+multiple open object tabs
+Data as default object view
+Structure / Relationships / Rules secondary views
+bounded filter / sort / column visibility
+opaque next-page behavior without mandatory exact total
+read-only Row Inspector
+explicit truncated-value presentation
+Derived as object meaning, never fake physical source
+Analyze remains BRN-13 → BRN-12 semantic flow, never SQL
+loading / empty / denied / absent / dependency / row-unavailable / stale-continuation states
+no network, persistence, SQL Editor, DML, DDL or Product implementation authority
+```
+
+The example rows are explicit walkthrough fixtures and are not represented as live Metal Nobre, Sankhya or customer data.
+
+## 11. Current gate
+
+F22 ratification is closed; P8 is a verified candidate awaiting the operator's exact walkthrough:
 
 ```text
 F22 = OPERATOR RATIFIED
 4A = CLOSED THROUGH F22 / N_platform=121
 4B = CLOSED THROUGH F22 / 121↔121 / Project=27
-revised P8 = NEXT / NOT LOCKED
-P9/P10 = BLOCKED UNTIL P8 OPERATOR WALKTHROUGH
+P8 = F22 REVISED CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED
+P9/P10 = BLOCKED UNTIL P8 OPERATOR APPROVAL
 P-03+ = NOT OPEN
+P11 = NOT ASSEMBLED
 Product runtime = BLOCKED
 merge = NOT AUTHORIZED
 ```
