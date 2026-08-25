@@ -101,7 +101,20 @@ function currentDetail(){return fixtures.explorerObjects[selectedDataObjectId]}
 function esc(value){return String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')}
 function selectProjectRoute(route){document.querySelectorAll('.route-view').forEach(v=>v.classList.toggle('active',v.dataset.route===route));['data','capabilities','integrations','brain'].forEach(name=>$('route-'+name).setAttribute('aria-current',name===route?'page':'false'));({data:renderData,capabilities:renderCapabilities,integrations:renderIntegrations,brain:renderBrain}[route])()}
 function searchDataObjects(){renderSourceTree()}
-function renderSourceTree(){const query=$('data-object-search').value.trim().toLowerCase();$('data-source-tree').innerHTML=fixtures.explorerSources.map(source=>`<section class="source"><div class="source-head"><strong>${source.name}</strong><span class="badge">${source.sourceClass}</span></div>${source.namespaces.map(ns=>{const objects=ns.objects.filter(o=>!query||`${o.name} ${o.humanLabel}`.toLowerCase().includes(query));return `<div class="namespace">${ns.name}</div>${objects.length?objects.map(o=>`<button type="button" class="object-btn ${o.dataObjectId===selectedDataObjectId?'active':''}" data-open-object="${o.dataObjectId}"><strong>${o.name}</strong><span class="badge">${o.kind}</span>${o.derived?'<span class="badge">Derived</span>':''}<span class="object-label">${o.humanLabel}</span></button>`).join(''):'<div class="tiny" style="padding:5px 9px">No matches</div>'}`).join('')}</section>`).join('');document.querySelectorAll('[data-open-object]').forEach(b=>b.onclick=()=>openDataObject(b.dataset.openObject))}
+function renderSourceTree(){
+  const query=$('data-object-search').value.trim().toLowerCase();
+  $('data-source-tree').innerHTML=fixtures.explorerSources.map(source=>{
+    const namespaces=source.namespaces.map(ns=>{
+      const objects=ns.objects.filter(o=>!query||`${o.name} ${o.humanLabel}`.toLowerCase().includes(query));
+      const objectButtons=objects.length
+        ? objects.map(o=>`<button type="button" class="object-btn ${o.dataObjectId===selectedDataObjectId?'active':''}" data-open-object="${o.dataObjectId}"><strong>${o.name}</strong><span class="badge">${o.kind}</span>${o.derived?'<span class="badge">Derived</span>':''}<span class="object-label">${o.humanLabel}</span></button>`).join('')
+        : '<div class="tiny" style="padding:5px 9px">No matches</div>';
+      return `<div class="namespace">${ns.name}</div>${objectButtons}`;
+    }).join('');
+    return `<section class="source"><div class="source-head"><strong>${source.name}</strong><span class="badge">${source.sourceClass}</span></div>${namespaces}</section>`;
+  }).join('');
+  document.querySelectorAll('[data-open-object]').forEach(b=>b.onclick=()=>openDataObject(b.dataset.openObject));
+}
 function openDataObject(id){selectedDataObjectId=id;if(!openDataTabs.includes(id))openDataTabs.push(id);selectedExplorerView='data';explorerPage=0;explorerFilter=null;explorerSort=null;hiddenColumns=new Set();renderData()}
 function selectDataObjectTab(id){selectedDataObjectId=id;selectedExplorerView='data';explorerPage=0;explorerFilter=null;explorerSort=null;hiddenColumns=new Set();renderData()}
 function selectExplorerView(view){selectedExplorerView=view;renderObjectWorkspace()}
