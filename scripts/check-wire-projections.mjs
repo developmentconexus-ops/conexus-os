@@ -4,13 +4,25 @@ import { spawnSync } from 'node:child_process';
 const productBundle = '/tmp/conexus-product-openapi.bundle.json';
 const generator = 'scripts/generate-wire-projection.mjs';
 const kubbProbe = 'scripts/run-kubb-wire-probe.mjs';
-const expectedProductOperations = 117;
+const methods = new Set(['get', 'put', 'post', 'delete', 'patch', 'head', 'options', 'trace']);
 
 if (!fs.existsSync(productBundle)) {
   throw new Error('Product bundle must exist before generated projection verification');
 }
 if (!fs.existsSync(generator) || !fs.existsSync(kubbProbe)) {
   throw new Error('Generated wire projection proof is missing');
+}
+
+const canonical = JSON.parse(fs.readFileSync(productBundle, 'utf8'));
+const canonicalOperations = [];
+for (const [path, pathItem] of Object.entries(canonical.paths ?? {})) {
+  for (const [method, operation] of Object.entries(pathItem ?? {})) {
+    if (!methods.has(method)) continue;
+    canonicalOperations.push({ path, method: method.toUpperCase(), operationId: operation?.operationId, authorityId: operation?.['x-conexus-4a-id'] });
+  }
+}
+if (canonicalOperations.length === 0) {
+  throw new Error('Canonical Product bundle contains no operations');
 }
 
 function run(command, args) {
@@ -38,8 +50,8 @@ const manifest = JSON.parse(bytesA.toString('utf8'));
 if (manifest.schemaVersion !== 'conexus-wire-projection/v1') {
   throw new Error('Generated wire projection schemaVersion drifted');
 }
-if (!Array.isArray(manifest.operations) || manifest.operations.length !== expectedProductOperations) {
-  throw new Error(`Generated wire projection must contain exactly ${expectedProductOperations} Product operations, found ${manifest.operations?.length ?? 'none'}`);
+if (!Array.isArray(manifest.operations) || manifest.operations.length !== canonicalOperations.length) {
+  throw new Error(`Generated wire projection must contain exactly the ${canonicalOperations.length} canonical Product operations, found ${manifest.operations?.length ?? 'none'}`);
 }
 
 const operationIds = new Set();
@@ -72,6 +84,10 @@ for (const requiredId of [
   'GetAuditRecord',
   'ClearProjectBrainBinding',
   'GetProjectAnalyticQueryCatalog',
+  'ListProjectDataExplorerSources',
+  'ListProjectDataExplorerObjects',
+  'GetProjectDataExplorerObject',
+  'ListProjectDataExplorerRows',
   'RunManagedJobNow',
   'GetProjectUsageCostSummary',
 ]) {
@@ -80,4 +96,4 @@ for (const requiredId of [
 
 run('node', [kubbProbe, productBundle]);
 
-console.log(`Generated projection/no-parallel-DTO proof passed (${expectedProductOperations} deterministic Product entries + F11/F12/F19 consumers + real Kubb probe).`);
+console.log(`Generated projection/no-parallel-DTO proof passed (${canonicalOperations.length} deterministic Product entries + F11/F12/F19/F22 consumers + real Kubb probe).`);
