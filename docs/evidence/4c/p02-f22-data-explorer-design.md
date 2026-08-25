@@ -658,6 +658,7 @@ a real user needs record mutation
 a real user needs schema/migration/index administration
 a real source cannot support honest pagination/filtering under the current explorer contract
 column/row-level disclosure policy becomes necessary for a real source
+a real tenant requires semantic Data inspection without raw-row disclosure
 cross-page snapshot consistency becomes a Product requirement
 non-tabular data requires a materially different exploration model
 payload size proves Row Inspector requires an exact row/cell detail read
