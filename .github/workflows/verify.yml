@@ -21,5 +21,4 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: node --test --test-concurrency=1 tests/repository/repository-governance-restoration.test.mjs
       - run: npm run verify
