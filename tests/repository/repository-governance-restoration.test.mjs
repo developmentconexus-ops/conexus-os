@@ -40,3 +40,26 @@ test('accepted Phase 4 refinements are discoverable without reconstructing revie
   assert.match(decisions, /server-resolved/iu)
   assert.match(decisions, /read-only/iu)
 })
+
+test('root verification protects repository and wire invariants while P-02 remains targeted proof', () => {
+  const pkg = JSON.parse(read('package.json'))
+
+  assert.equal(pkg.scripts.test, 'npm run test:repository')
+  assert.equal(pkg.scripts.verify, 'npm run repository:check && npm run wire:verify')
+  assert.equal(
+    pkg.scripts['test:4c:p02'],
+    'node --test --test-concurrency=1 tests/repository/4c-p02-functional-wireframe.test.mjs tests/repository/4c-p02-walkthrough-script-parse.test.mjs',
+  )
+  assert.equal(Object.hasOwn(pkg.scripts, 'test:required'), false, 'task-specific P-02 proof must not remain a permanent root gate')
+  assert.match(pkg.scripts['verify:extended'], /repository:check:extended/u)
+  assert.match(pkg.scripts['verify:extended'], /test:repository/u)
+  assert.match(pkg.scripts['verify:extended'], /wire:verify/u)
+})
+
+test('current-state checker treats repository method as identity and rejects write-capable planning workflows', () => {
+  const checker = read('scripts/check-current-state.mjs')
+
+  assert.match(checker, /docs\/development\/repository-method\.md/u)
+  assert.doesNotMatch(checker, /tests\/repository\/4c-p02-walkthrough-script-parse\.test\.mjs/u)
+  assert.match(checker, /implementationBlocked[^\n]*contents[^\n]*write|contents[^\n]*write[^\n]*implementationBlocked/isu)
+})
