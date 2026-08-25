@@ -74,18 +74,22 @@ test('P-02 Capabilities is human-contract-first and never invents generic execut
   assert.doesNotMatch(html, /<button[^>]*>\s*(Run|Execute)\s*<\/button>/i, 'Capabilities P8 must not expose generic Run/Execute')
 })
 
-test('P-02 Integrations is system-use-first while Connection lifecycle stays secondary', () => {
+test('P-02 Integrations presents current Project use without inventing replacement semantics or binding purpose', () => {
   const html = read(htmlPath)
   for (const token of [
     'PRJ-S14','PRJ-S15','PRJ-13','PRJ-14','PRJ-15','CON-03','Used by this Project',
-    'Systems used by this Project','Use connection','Switch connection','Connections owned by this Project',
-    'Current connection','Switch to','Confirm switch','purpose-bound exact-Project chooser',
-    'ProjectConnectionBinding != Connection','connection.use -X-&gt; generic connection.read',
-    'configured != qualified != bound != healthy','selection disclosure != Connection management authority',
+    'Systems used by this Project','Use connection','Connections owned by this Project',
+    'purpose-bound exact-Project chooser','ProjectConnectionBinding != Connection',
+    'connection.use -X-&gt; generic connection.read','configured != qualified != bound != healthy',
+    'selection disclosure != Connection management authority',
   ]) requireText(html, token)
-  for (const id of ['project-bindings','binding-chooser','binding-current','binding-candidates','binding-status','project-connections']) requireText(html, `id="${id}"`, id)
+  for (const id of ['project-bindings','binding-chooser','binding-candidates','binding-status','project-connections']) requireText(html, `id="${id}"`, id)
   for (const behavior of ['openBindingChooser','closeBindingChooser','selectBindingCandidate','saveProjectBinding','removeProjectBinding','toggleProjectConnections']) requireText(html, behavior, behavior)
   assert.equal(html.includes('>Add binding<'), false, 'internal binding vocabulary must not be the primary CTA')
+  assert.doesNotMatch(html, /Switch connection|Switch to|Confirm switch|data-switch|bindingMode\s*=\s*'SWITCH'/i, 'P8 must not imply replacement semantics without an accepted integration role')
+  const bindingsFixture = html.match(/bindings:\s*(\[[\s\S]*?\]),\s*connectionCandidates:/)?.[1]
+  assert.ok(bindingsFixture, 'P8 must include deterministic ProjectConnectionBinding fixtures')
+  assert.doesNotMatch(bindingsFixture, /\bpurpose\s*:/, 'ProjectConnectionBinding fixture must not invent purpose outside the accepted wire')
 })
 
 test('P-02 Brain defaults to Project Brain Context and keeps binding administration secondary', () => {
