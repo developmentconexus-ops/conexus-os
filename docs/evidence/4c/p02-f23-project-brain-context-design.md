@@ -1,6 +1,6 @@
 # P-02 F23 — Project Brain Context decision
 
-> **Status:** OPERATOR APPROVED FOR BOUNDED 4A/4B RECOMPILE / CANDIDATE AUTHORITY
+> **Status:** OPERATOR APPROVED / 4A+4B WIRE GREEN / FRONTEND REBASELINE REQUIRED / P8 NOT AUTHORIZED
 > **Scope:** P-02 `Project → Brain`; no runtime/Product implementation authority.
 > **Methods:** DevelopmentConexus Engineering Method v1.0.0 + Frontend Product Experience Planning Method v2.3.
 
@@ -10,16 +10,16 @@ The P-02 walkthrough proved that `Project → Brain` must answer the human quest
 
 > What enterprise meaning has this exact Project adopted and has available in its Project Brain context?
 
-Current authority is insufficient:
+Pre-F23 authority was insufficient:
 
-- `PRJ-10 GetProjectBrainBinding` exposes binding/revision/validation/update state only;
-- `BRN-03 GetBrainRevision` exposes the whole exact Workspace Brain revision, not Project-resolved context;
-- `BRN-13 GetProjectAnalyticQueryCatalog` exposes only the Project-admitted analytic semantic inputs for `BRN-12`;
+- `PRJ-10 GetProjectBrainBinding` exposed binding/revision/validation/update state only;
+- `BRN-03 GetBrainRevision` exposed the whole exact Workspace Brain revision, not Project-resolved context;
+- `BRN-13 GetProjectAnalyticQueryCatalog` exposed only the Project-admitted analytic semantic inputs for `BRN-12`;
 - `effectiveBrainSliceDigest` is runtime-trace identity after bounded final context composition and is not one static Project-wide browse truth.
 
 ## Root cause
 
-The accepted architecture distinguishes Workspace Brain publication, Project binding/local realization and runtime-specific final context composition, but 4A has no human Product read for the Project-resolved Brain knowledge context. A browser composition of `PRJ-10 + BRN-03` would have to infer applicability and would become parallel Brain authority.
+The accepted architecture distinguishes Workspace Brain publication, Project binding/local realization and runtime-specific final context composition, but 4A had no human Product read for the Project-resolved Brain knowledge context. A browser composition of `PRJ-10 + BRN-03` would have to infer applicability and would become parallel Brain authority.
 
 ## Target invariant
 
@@ -74,7 +74,7 @@ The browser cannot truthfully decide which Workspace Brain knowledge is admitted
 
 The smallest sustainable correction is one current read projection. No new Permission, owner, principal, durable record, orchestration framework or runtime slice is justified.
 
-Expected authority result:
+Realized authority result:
 
 ```text
 BRN-14 GetProjectBrainContext
@@ -86,11 +86,12 @@ new semantic owners = 0
 new principal classes = 0
 new trust boundaries = 0
 new durable records = 0
+new L7 flows = 0
 ```
 
 ## Authority / disclosure
 
-Candidate Control-Plane route:
+Control-Plane route:
 
 ```text
 brain.read
@@ -104,7 +105,7 @@ brain.read
 
 ## Product projection
 
-Minimum semantic roles:
+Realized semantic roles:
 
 ```text
 projectId
@@ -130,7 +131,7 @@ Project-context coordinates support rendering/navigation only. They are not cano
 
 ## Explicit non-authority
 
-BRN-14 must not expose or imply:
+BRN-14 does not expose or imply:
 
 ```text
 whole-Workspace publication merely because a Project is bound
@@ -144,19 +145,46 @@ candidateSourceRevision or publication commands
 foreign Project/Workspace Brain context
 ```
 
-## Proof strategy before realization
+## TDD / proof realization
 
-RED is the executable `wire:brain` F23 checker requiring the missing BRN-14 path and schema before authority changes.
+Proof was defined before authority realization.
 
-Required GREEN proof:
+```text
+RED commit = beb8b2b5601604e7fd008830e3b12940d64847ca
+Verify #987 = EXPECTED FAILURE
+exact failure = F23 missing GET Project Brain Context wire
+```
 
-1. 4A ledger admits exactly one BRN-14 read and derives 122 fixed operations.
-2. Permission contract maps BRN-14 to existing `brain.read + project.read`; ordinary Permissions remain 25.
-3. 4B exposes one schema-closed Control-Plane GET with no request body or non-HTTP ingress.
-4. F23 focused checker proves closed projection shape and fires negative controls against runtime-slice, Workspace-publication and tool-authority widening.
-5. 4A↔OAS is 122↔122 with zero missing/extra/duplicate operations.
-6. generated projections and whole-4B proof remain green.
-7. P8 remains blocked until bounded frontend rebaseline is recorded and a new P7 candidate has no unresolved upstream finding.
+The RED reached the new focused checker only after current-state, P8 JavaScript parsing and the existing 121-operation wire passed, proving the missing authority rather than an unrelated failure.
+
+Final bounded recompile:
+
+```text
+4A canonical ledger = 122 fixed operations
+Permission vocabulary = 25
+4B BRN-14 = schema-closed Control-Plane GET
+Brain closure = 13 Product operations
+F23 negative controls = 3 / 3 firing
+4A ↔ OAS = 122 ↔ 122 / 0 missing / 0 extra / 0 duplicate
+wire carriers = 122 PASS
+generated projection/Kubb = 122 deterministic Product entries PASS
+wire topology = 12 reachable YAML fragments / 0 dead parallel
+whole 4B adversarial = PASS / 122
+whole 4B executable = PASS
+Verify #993 = SUCCESS
+```
+
+Focused negative controls prove that BRN-14 cannot:
+
+1. masquerade as a Project-wide runtime `effectiveBrainSlice`;
+2. widen into a whole-Workspace publication projection;
+3. expose runtime tool authority.
+
+Independent review is not a mandatory floor for this correction because F23 creates no new Permission, principal, trust boundary or cross-repository binding and narrows disclosure to a server-resolved projection under two already-required read authorities. Reopen for independent challenge if later evidence shows the projection moves/widens an authority boundary rather than composing existing reads.
+
+## Frontend consequence
+
+The old P-02 P8 remains useful walkthrough Evidence but is **not lockable** after F23. The v2.3 bounded-rebaseline law now requires the affected P-02 human jobs/coverage/surface/P7 structure to project F22+F23 before a revised functional P8 may be executed.
 
 ## Reopen triggers
 
