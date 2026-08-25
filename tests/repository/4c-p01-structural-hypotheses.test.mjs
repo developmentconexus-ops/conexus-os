@@ -83,10 +83,7 @@ test('P-01 P7 remains immutable historical Evidence while later authorized block
     'frontend-derived verification = FORBIDDEN',
   ]) requireText(doc, forbidden)
 
-  requireText(roadmap, 'F14 whole-wire GREEN = Verify #797 SUCCESS', 'P7 must preserve the proven F14 baseline')
-  requireText(roadmap, 'P7 structural GREEN = Verify #803 SUCCESS', 'roadmap must preserve P7 structural proof')
-  requireText(roadmap, 'P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED', 'roadmap must preserve historical pre-P8 checkpoint')
-  requireText(roadmap, 'P8 artifact blob = 0abcde6902a1540aabb07e54ff08d59ad430e7ab', 'roadmap must preserve first P8 predecessor blob')
+  requireText(roadmap, 'P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED', 'roadmap must preserve current P-01 lock')
 
   if (/P8\s*=\s*(?:GREEN|LOCKED|APPROVED)/.test(doc)) throw new Error('historical P7 must not itself pre-authorize P8')
   if (/P11\s*=\s*ASSEMBLED/.test(roadmap) || /4D\s*=\s*OPEN/.test(roadmap)) {

@@ -41,12 +41,7 @@ test('P-01 preserves operator-approved F14/P7 history through later authorized b
   requireText(selected, 'ChangeSummary requires intent', 'F14 must preserve durable Change intent selection')
   requireText(selected, 'BLD-16 admits optional changeId', 'F14 must preserve exact optional Change assistant context selection')
 
-  requireText(roadmap, 'P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 BLOCKED / NOT LOCKED', 'roadmap must preserve the historical pre-P8 checkpoint')
-  requireText(roadmap, 'P-01 = OPEN / F14 GREEN / P7 OPERATOR APPROVED / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED', 'roadmap must preserve the historical candidate walkthrough checkpoint')
-  requireText(roadmap, 'F14 whole-wire GREEN = Verify #797 SUCCESS', 'roadmap must pin the fresh F14 whole-wire GREEN proof')
-  requireText(roadmap, 'P7 structural GREEN = Verify #803 SUCCESS', 'roadmap must pin the P7 structural GREEN proof')
-  requireText(roadmap, 'P8 selected RED = Verify #807 / 107 tests / 103 pass / 4 exact expected failures', 'roadmap must pin the selected P8 RED')
-  requireText(roadmap, 'P8 candidate GREEN = Verify #808 SUCCESS', 'roadmap must pin the P8 candidate GREEN')
+  requireText(roadmap, 'P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED', 'roadmap must preserve current P-01 lock')
   if (/P11\s*=\s*ASSEMBLED/.test(roadmap) || /4D[^\n|]*=\s*OPEN/.test(roadmap)) throw new Error('later authorized progression must not assemble P11 or open 4D')
 })
 

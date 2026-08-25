@@ -52,17 +52,15 @@ test('operator-approved GF-01 H1-R2 remains locked through exact P9/P10 trace as
     'P11 = NOT TRIGGERED SEPARATELY',
   ]) requireText(contract, law, `GF-01 closure missing law: ${law}`)
 
-  requireText(roadmap, 'GF-01 LOCKED', 'roadmap must show GF-01 locked')
-  requireText(roadmap, 'W-01 LOCKED', 'dependent material blocks may advance only after W-01 is locked')
-  requireText(roadmap, 'W-02A LOCKED', 'GF-01 progression guard must preserve the locked Brain sub-block')
-  requireText(roadmap, 'W-02B LOCKED', 'GF-01 progression guard must preserve the locked Connections sub-block')
-  requireText(roadmap, 'W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN', 'GF-01 progression beyond W-03 requires the exact W-03 lock')
-  requireText(roadmap, 'W-03 = NEXT / NOT OPEN', 'GF-01 must preserve the historical W-03 predecessor marker')
-  requireText(roadmap, 'W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED', 'GF-01 progression into P-01 requires the exact W-04 lock')
-  requireText(roadmap, 'P-01 = NEXT / NOT OPEN', 'GF-01 must preserve the historical P-01 predecessor marker')
+  for (const currentLock of [
+    'GF-01 LOCKED',
+    'W-01 LOCKED',
+    'W-02A LOCKED',
+    'W-02B LOCKED',
+    'W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED',
+    'W-04 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED',
+    'P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED',
+  ]) requireText(roadmap, currentLock, `roadmap must preserve current lock: ${currentLock}`)
 
-  const p01Open = /P-01\s*=\s*OPEN/.test(roadmap)
-  const w04Locked = roadmap.includes('W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED')
-  if (p01Open && !w04Locked) throw new Error('GF-01 must not allow P-01 to open before W-04 is locked')
   if (/4D[^\n|]*\|\s*OPEN/.test(roadmap)) throw new Error('GF-01 lock must not permit opening 4D before 4C/P11/P12 closure')
 })

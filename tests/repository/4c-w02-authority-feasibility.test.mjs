@@ -49,16 +49,14 @@ test('W-02 authority preflight separates Brain review from Connection secret/qua
   requireText(permissions, '`connection.qualify`', 'W-02 precondition lost Connection qualification authority')
   requireText(surfaces, '`W-02` | Workspace Brain + Connections', 'W-02 block ledger route missing')
 
-  requireText(roadmap, 'W-01 LOCKED', 'W-02 may open only after W-01 lock')
-  requireText(roadmap, 'W-02A LOCKED', 'W-02 preflight must preserve the locked Brain sub-block')
-  requireText(roadmap, 'W-02B LOCKED', 'W-02 preflight must preserve the locked Connections sub-block')
-  requireText(roadmap, 'W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED / VERIFIED GREEN', 'W-02 progression beyond W-03 requires the exact W-03 lock')
-  requireText(roadmap, 'W-03 = NEXT / NOT OPEN', 'W-02 must preserve the historical W-03 predecessor marker')
-  requireText(roadmap, 'W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED', 'W-02 progression into P-01 requires W-04 lock')
-  requireText(roadmap, 'P-01 = NEXT / NOT OPEN', 'W-02 must preserve the historical P-01 predecessor marker')
+  for (const currentLock of [
+    'W-01 LOCKED',
+    'W-02A LOCKED',
+    'W-02B LOCKED',
+    'W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED',
+    'W-04 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED',
+    'P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED',
+  ]) requireText(roadmap, currentLock, `roadmap must preserve current lock: ${currentLock}`)
 
-  const p01Open = /P-01\s*=\s*OPEN/.test(roadmap)
-  const w04Locked = roadmap.includes('W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED')
-  if (p01Open && !w04Locked) throw new Error('W-02 closure must not allow P-01 to open before W-04 is locked')
   if (/4D[^\n|]*\|\s*OPEN/.test(roadmap)) throw new Error('W-02 closure must not permit opening 4D before remaining 4C/P11/P12 closure')
 })

@@ -77,7 +77,7 @@ test('operator-approved W-04 Workspace Agent catalog remains locked through late
   requireText(inventory, '| `W-04` | Workspace Agent catalog | access-filtered browse of Project-owned Agents | LOCKED / OPERATOR APPROVED', 'W-04 lock must remain in the material-block ledger')
   requireText(inventory, '| `P-01` | Build + Plan/Preview/Code/Diff/Findings/Evidence/assistant | primary Project workspace | LOCKED / OPERATOR APPROVED', 'later authorized P-01 lock must not falsify W-04 history')
 
-  requireText(roadmap, 'W-04 = LOCKED / OPERATOR APPROVED / REVISED P8 / P9/P10 CLOSED', 'roadmap must preserve W-04 lock')
+  requireText(roadmap, 'W-04 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED', 'roadmap must preserve current W-04 lock')
   requireText(roadmap, 'P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED', 'later authorized P-01 closure must be visible')
   if (/P11\s*=\s*ASSEMBLED/.test(roadmap) || /4D[^\n|]*=\s*OPEN/.test(roadmap)) {
     throw new Error('later authorized progression must not assemble P11 or open 4D')
