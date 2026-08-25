@@ -364,6 +364,123 @@ It cannot create Product requirements by assertion. Every finding is adjudicated
 
 A second round is justified when material corrections changed the reviewed property enough that the prior challenge no longer covers it. It is not ritual.
 
+### 10.4 Whole/global review handoff and interaction
+
+The observed Claude Code / `AI_DIALOG` / Fable pattern is a **whole-package independent review**, not a stream of micro-reviews.
+
+The Lead first assembles a coherent, verified, meaningful package or checkpoint. The independent challenger then receives the exact candidate/HEAD with fresh context and reconstructs repository authority itself. The handoff must explain **where the project is, what kind of learning the current stage is supposed to produce, and what concrete properties should survive attack**. It must not tell the reviewer what verdict to reach.
+
+A useful review handoff contains:
+
+```text
+repository + exact candidate HEAD
+current stage / gate
+accepted upstream work that must not be casually reopened
+what the current stage is concretizing or trying to learn
+why this package is now meaningful enough for whole/global review
+protected properties / concrete falsifiers
+authority bootstrap route
+required verification reconstruction
+finding classification / output contract
+review Evidence destination
+explicit non-goals and authority limits
+```
+
+The reviewer must begin from repository-current authority, not from the Lead's narrative conclusion. The Lead's handoff is orientation and attack framing; it is not evidence that the candidate is correct.
+
+The review should attack the **whole result and the working model that produced it** where that is the named review target. It should look for local optima, hidden coupling, unnecessary ceremony, missed Product meaning, false completeness, speculative abstractions, weak falsifiers and places where the process either stops too often or fails to stop when Evidence actually demands it.
+
+### 10.5 Product-realization review lens
+
+Frontend interaction realization is a canonical example of why whole/global review is useful after substantial abstract planning.
+
+A substantial software product may already have accepted Product direction, technology choices, semantic owners, architecture, operations, Permissions, executable wire and implementation-readiness decisions. The next stage can deliberately make that planning concrete through operable low-fidelity Product interaction:
+
+```text
+accepted abstract planning
+→ functional human-facing interaction
+→ operate the Product as a real user
+→ make hidden assumptions tangible
+→ validate accepted decisions
+→ expose missing jobs / truth / ownership / operations / states / relationships
+```
+
+The desired working behavior is **continue by default**. Product realization should not stop for aesthetic preference, local friction, document preference or speculative future concern.
+
+It should stop when interaction Evidence exposes a **material gap**: a real human job cannot be completed coherently, required truth or authority is absent, an accepted abstraction fails when operated, a frontend convenience would have to invent Product meaning, or another concrete falsifier shows that accepted planning is insufficient.
+
+When a material gap survives challenge:
+
+```text
+interaction Evidence
+→ identify smallest real owning decision/stage
+→ STOP only that affected path
+→ Engineering Method
+   evidence / known / inferred / unknown / deferred
+   root cause
+   target invariant
+   constraints
+   credible alternatives
+   Local vs Global Maximum
+   essential vs accidental complexity
+   YAGNI / future cost
+   authority
+   proof strategy / negative control
+→ select the smallest sustainable Global-Maximum correction
+→ replan/recompile only affected downstream scope
+→ resume Product realization
+```
+
+The frontend must not patch an upstream Product/architecture gap locally merely to keep a screen moving. Conversely, finding one gap is not authority to restart the whole system.
+
+A whole/global challenger should therefore test both failure directions:
+
+```text
+OVER-STOPPING
+process/review/document ceremony interrupts useful Product learning
+without protecting a material property
+
+UNDER-STOPPING
+the team keeps polishing/implementing locally after interaction Evidence
+has exposed a real upstream Product/authority/architecture gap
+```
+
+### 10.6 Reviewer output contract
+
+For reviews of the working model or Product-realization checkpoint, do not answer the vague question **"does the method make sense?"**. Classify concrete findings:
+
+```text
+METHOD FINDING
+→ the working method systematically causes wrong decisions,
+  hides material gaps, over-stops progress or creates disproportionate ceremony
+
+PRODUCT / PLAN GAP
+→ concrete interaction Evidence falsifies or exposes a missing
+  accepted Product/architecture/authority decision
+
+LOCAL EXECUTION GAP
+→ a real problem exists but belongs inside the current block/owner;
+  no upstream replan is justified
+
+NO FINDING
+→ the attacked property survives; continue
+```
+
+Every material finding should state:
+
+```text
+evidence / reproducible observation
+failure mode
+why it is material
+smallest real owner/stage
+protected property or target invariant
+whether current work must stop
+what must be re-evaluated
+what must NOT be reopened
+```
+
+The reviewer may recommend a direction, but should not pre-author a replacement requirement unless current authority/evidence actually supports it. The Lead adjudicates findings through the Engineering Method and records only surviving corrections.
+
 ---
 
 ## 11. Operator relationship
