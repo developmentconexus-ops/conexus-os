@@ -12,10 +12,10 @@ const required = [
   'docs/architecture/index.md',
   'docs/decisions/index.md',
   'docs/development/engineering-method.md',
+  'docs/development/repository-method.md',
   'docs/development/frontend-product-experience-planning-method.md',
   'docs/development/engineering-rules.md',
   'contracts/api/product/openapi.yaml',
-  'tests/repository/4c-p02-walkthrough-script-parse.test.mjs',
   'package.json'
 ]
 
@@ -34,6 +34,9 @@ const tracked = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' 
 for (const workflow of tracked.filter(path => path.startsWith('.github/workflows/'))) {
   const text = readFileSync(resolve(root, workflow), 'utf8')
   if (text.includes('pull_request_target')) errors.push(`unsafe pull_request_target trigger: ${workflow}`)
+  if (implementationBlocked && /^\s*contents:\s*write\s*$/m.test(text)) {
+    errors.push(`Product implementation is BLOCKED but workflow has contents: write permission: ${workflow}`)
+  }
 }
 
 let base = ''
