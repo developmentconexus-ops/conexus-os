@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "npm run test:required",
-    "test:required": "node --test --test-concurrency=1 tests/repository/4c-p02-functional-wireframe.test.mjs tests/repository/4c-p02-walkthrough-script-parse.test.mjs",
+    "test:required": "node --test --test-concurrency=1 tests/repository/4c-p02-functional-wireframe.test.mjs tests/repository/4c-p02-walkthrough-script-parse.test.mjs tests/repository/repository-governance-restoration.test.mjs",
     "test:repository": "node --test --test-concurrency=1 tests/repository/*.test.mjs",
     "repository:check": "node scripts/check-current-state.mjs",
     "repository:check:extended": "node scripts/check-repository-hygiene.mjs && node scripts/check-doc-index.mjs && node scripts/check-architecture-verification.mjs && node scripts/check-qualification-provenance.mjs",
