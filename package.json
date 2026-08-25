@@ -20,7 +20,7 @@
     "wire:identity-workspace": "node scripts/check-wire-identity-workspace.mjs",
     "wire:project": "node scripts/check-wire-project.mjs && node scripts/check-wire-project-agent-catalog.mjs && node scripts/check-wire-project-data-explorer.mjs",
     "wire:builder": "node scripts/check-wire-builder.mjs",
-    "wire:brain": "node scripts/check-wire-brain.mjs",
+    "wire:brain": "node scripts/check-wire-brain.mjs && node scripts/check-wire-project-brain-context.mjs",
     "wire:connections": "node scripts/check-wire-connections.mjs",
     "wire:release": "node scripts/check-wire-release.mjs",
     "wire:par": "node scripts/check-wire-par.mjs",
