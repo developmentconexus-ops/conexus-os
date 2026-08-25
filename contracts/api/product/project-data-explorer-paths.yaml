@@ -165,7 +165,7 @@ components:
       name: dataSourceId
       in: path
       required: true
-      description: Untrusted server-issued Project-scoped explorer source coordinate. It never carries Connection revision/environment selection or credential authority.
+      description: Untrusted server-issued Project-scoped explorer source coordinate. It never carries Connection revision/environment selection or credential authority. After Project-level admission, an undisclosed source coordinate is indistinguishable from an absent coordinate and returns 404; 403 is reserved for failure of the caller's Project-level grant/Permission before resource probing.
       schema:
         type: string
         minLength: 1
@@ -173,7 +173,7 @@ components:
       name: dataObjectId
       in: path
       required: true
-      description: Untrusted source-scoped explorer object coordinate. The server revalidates current Project/source disclosure on every read.
+      description: Untrusted source-scoped explorer object coordinate. The server revalidates current Project/source disclosure on every read. After Project-level admission, an undisclosed object coordinate is indistinguishable from an absent coordinate and returns 404; 403 is reserved for failure of the caller's Project-level grant/Permission before resource probing.
       schema:
         type: string
         minLength: 1
@@ -358,6 +358,7 @@ components:
     ProjectDataExplorerRowQuery:
       type: object
       additionalProperties: false
+      description: When continuationToken is present, any accompanying filters and sort must exactly match the token-bound filter/order or the request is rejected with 422; the token is never reinterpreted. limit may vary only within the existing 1..100 transport bound and does not widen the authorized result set.
       properties:
         filters:
           type: array
@@ -396,7 +397,7 @@ components:
           enum: [EQ, NE, GT, GTE, LT, LTE, CONTAINS]
         value:
           type: string
-          description: Typed data value interpreted only against the disclosed exact-object column; never executable syntax.
+          description: Opaque non-executable lexical scalar interpreted only against the exact disclosed column and its sourceType. Locale-dependent or ambiguous literals and unsupported operator/type combinations are rejected with 422; concrete provider/type codecs remain realization obligations rather than frontend truth.
 
     ProjectDataExplorerNullFilter:
       type: object
