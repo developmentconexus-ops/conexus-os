@@ -127,3 +127,38 @@ test('P-02 P8 stays self-contained, responsive, accessible and explicit about ma
   assert.doesNotMatch(html, /<script[^>]+src=|<link[^>]+href=/i, 'P8 must be self-contained')
   assert.doesNotMatch(html, /P-02\s*=\s*LOCKED|P8\s*=\s*LOCKED/i, 'P8 candidate must not pre-authorize lock')
 })
+
+test('P-02 default Product surface is human-facing while proof chrome stays in a closed Review controls harness', () => {
+  const html = read(htmlPath)
+  const reviewStart = html.indexOf('<details id="review-controls"')
+  const scriptStart = html.indexOf('<script>')
+
+  assert.ok(reviewStart > 0, 'P8 must separate review controls from the Product surface')
+  assert.ok(scriptStart > reviewStart, 'Review controls must remain outside the script and after Product UI')
+
+  const productSurface = html.slice(0, reviewStart)
+  const reviewHarness = html.slice(reviewStart, scriptStart)
+
+  assert.match(reviewHarness, /<details id="review-controls"(?![^>]*\bopen\b)[^>]*>/i, 'Review controls must be closed by default')
+  assert.match(reviewHarness, /<summary[^>]*>\s*Review controls\s*<\/summary>/i)
+
+  for (const marker of [
+    'GF-01 shell inherited','P-02 P8','F22 + F23','FUNCTIONAL LOW-FI CANDIDATE','P8 WALKTHROUGH FIXTURES',
+    'PRJ-S11','PRJ-S13','PRJ-S14','PRJ-S15','PRJ-S19','ProjectConnectionBinding != Connection',
+    'CON-03 · purpose-bound exact-Project chooser','brain.bind -X-&gt; generic brain.read','SQL Editor = FORBIDDEN',
+    'INSERT / UPDATE / DELETE = FORBIDDEN','generic capability Run/Execute control = FORBIDDEN',
+    'Project Brain Context != Workspace Brain publication',
+  ]) {
+    assert.doesNotMatch(productSurface, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), `Product surface must not expose review marker: ${marker}`)
+    requireText(reviewHarness, marker, `Review controls must preserve proof marker: ${marker}`)
+  }
+
+  for (const id of ['data-scenario','data-scenario-status','brain-scenario','brain-scenario-status']) {
+    assert.doesNotMatch(productSurface, new RegExp(`id="${id}"`, 'i'), `${id} must not appear in default Product surface`)
+    requireText(reviewHarness, `id="${id}"`, `${id} review control`)
+  }
+
+  for (const humanSurface of ['>Data<','>Capabilities<','>Integrations<','>Brain<','>Analyze<','>Use connection<','Binding administration']) {
+    requireText(productSurface, humanSurface, `human-facing Product surface: ${humanSurface}`)
+  }
+})
