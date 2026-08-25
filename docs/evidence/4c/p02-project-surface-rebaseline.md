@@ -1,21 +1,33 @@
 # P-02 — bounded Project surface rebaseline
 
-> **Status:** CURRENT P-02 P7 INPUT / F16–F19 AUTHORITY RECOMPILED / NO LAYOUT LOCK
-> **Authority posture:** bounded delta over the accepted 4C candidate surface inventory. It does not reopen GF-01, W-01, W-02A, W-02B, W-03, W-04 or P-01 and does not authorize P8 or Product implementation.
+> **Status:** CURRENT P-02 P7 INPUT / F22+F23 AUTHORITY RECOMPILED / NO P8 LOCK
+> **Authority posture:** bounded delta over the accepted 4C candidate surface inventory. It does not reopen GF-01, W-01, W-02A, W-02B, W-03, W-04 or P-01 and does not authorize a revised P8 or Product implementation.
+> **Methods:** DevelopmentConexus Engineering Method v1.0.0 + Frontend Product Experience Planning Method v2.3.
 
 ## 1. Why this delta exists
 
-The original candidate surface inventory was derived before P-02 F16–F19 closed. Rewriting that historical whole-product inventory every time a later block proves one bounded authority correction creates temporal snapshot coupling. P-02 therefore carries only the exact local delta needed for its structural P7 work.
+F22 materially restructured the Data job after the earlier candidate inventory rejected a physical explorer. F23 then proved that Project Brain cannot stop at binding metadata and cannot be derived by browser-side filtering of the whole Workspace Brain. Frontend Method v2.3 requires a bounded rebaseline after accepted Product/backend authority changes rather than restarting unrelated locked blocks.
 
 Current Product/wire basis:
 
 ```text
-N_platform = 117
-Project = 23
-Brain = 12
+N_platform = 122
+Project = 27
+Brain = 13
 Connections = 9
 ordinary Permissions = 25
 ```
+
+P-02 now represents four different human lenses over the same exact Project:
+
+```text
+Data         = facts / records
+Brain        = adopted enterprise meaning available to this Project
+Capabilities = behaviors the Project exposes
+Integrations = external systems/resources the Project uses
+```
+
+These remain four focused Project destinations. A generic Project `Resources` hub and a backend-owner console remain rejected.
 
 ## 2. P-02 surface delta
 
@@ -24,22 +36,36 @@ ordinary Permissions = 25
 Human job:
 
 ```text
-recognize declared Project Data resources
-→ inspect exact resource semantic truth
+recognize current Project data sources
+→ open real authorized tabular objects
+→ inspect actual rows/columns
+→ inspect physical structure/relationships/constraints
+→ understand complementary semantic Project meaning
 ```
 
 Current authority:
 
 ```text
-PRJ-18 ListProjectDataResources
-→ dataResourceId + required server-owned human name
+PRJ-25 ListProjectDataExplorerSources
+PRJ-26 ListProjectDataExplorerObjects
+PRJ-27 GetProjectDataExplorerObject
+PRJ-28 ListProjectDataExplorerRows
 
+PRJ-18 ListProjectDataResources
 PRJ-19 GetProjectDataResource
-→ exact dataResourceId + human name
-→ grain + freshness + coverage + provenance
+→ separate semantic Data-resource truth
+→ semanticDataResourceId / semanticFieldId may cross-link only where server-issued
 ```
 
-No physical table/schema/SQL explorer, generic metadata editor or new Data operation is admitted.
+Selected Product law:
+
+```text
+bounded read-only Project Data Explorer = ACCEPTED
+unrestricted DB/admin/SQL console       = REJECTED
+physical identity != semantic meaning
+```
+
+No SQL editor, arbitrary join/expression, DML/DDL, credential disclosure, cross-Project source browse or browser-derived authorization is admitted.
 
 ### PRJ-S12 — Analyze
 
@@ -65,16 +91,41 @@ BRN-12 RunAnalyticQuery
 → server revalidates current binding/health/admission at submit
 ```
 
-The UI may not invent SQL, physical joins/tables, natural-language query planning, semantic search or a frontend-owned catalog.
+Analyze remains a contextual Data capability, never SQL or a generic query-builder domain.
+
+### PRJ-S13 — Capabilities
+
+Human job:
+
+```text
+recognize what the Project can do
+→ understand purpose
+→ understand logical inputs/outputs
+→ inspect exact technical identity when needed
+```
+
+Current authority:
+
+```text
+PRJ-16 ListProjectCapabilities
+PRJ-17 GetProjectCapability
+→ name + purpose
+→ QUERY | ACTION | INTEGRATION
+→ logical inputs / outputs
+→ capabilityId + operationId remain technical identity
+```
+
+Presentation priority is human contract first, technical operation second. Inspection does not imply invocation; no generic Run/Execute control is admitted.
 
 ### PRJ-S14 — Integrations
 
 Human job:
 
 ```text
-recognize current Project bindings
-→ choose one admissible Connection candidate
-→ bind exact qualified revision/environment through Project authority
+understand which external systems/resources this Project uses
+→ recognize current binding
+→ understand environment/current selection context
+→ change/remove binding when authorized
 ```
 
 Current authority:
@@ -89,26 +140,57 @@ CON-03 ListConnections(forProjectId?)
 → same lightweight Connection projection only
 
 PRJ-14 SetProjectConnectionBinding
-→ final exact Project-owned binding authority
+PRJ-15 RemoveProjectConnectionBinding
 ```
 
-`connection.use -X-> generic connection.read`; the selection route does not expose CON-04 configuration, credentials, management, qualification history/matrix or sibling-private/cross-Workspace Connections.
+The primary Product question is **what systems this Project uses**, not Connection-revision administration. `connection.use -X-> generic connection.read`; selection disclosure does not expose configuration, credentials, management or qualification history.
 
 ### PRJ-S15 — Private Connections
 
-**Unchanged.** Existing Project-private Connection administration remains the accepted Connections job. P-02 does not merge it with PRJ-S14 and does not create a generic ResourceBinding framework.
+**Preserved.** Existing Project-private Connection administration remains a secondary contained lifecycle region inside external-system work. It does not replace Integrations and does not create a generic ResourceBinding framework.
 
-### PRJ-S19 — Brain binding
+### PRJ-S19A — Project Brain Context
 
 Human job:
 
 ```text
-recognize current Project Brain binding
-→ choose an immutable published Brain revision when authorized to change the binding
-→ set/clear exact Project binding
+understand which enterprise meaning this exact Project has adopted and has available
+→ browse server-resolved domains/concepts/sections/provenance
+→ understand current binding/conformance/update context
 ```
 
 Current authority:
+
+```text
+BRN-14 GetProjectBrainContext
+→ brain.read + project.read
+→ exact Project grant + exact current Project Brain binding
+→ server-resolved Project-local realization/refinement
+→ adopted/available Project Brain context
+```
+
+Binding laws:
+
+```text
+Project Brain Context != whole Workspace Brain publication
+Project Brain Context != runtime effectiveBrainSlice
+frontend -X-> decide Project applicability
+brain.bind -X-> brain.read
+```
+
+Project-context domain/concept coordinates are browse coordinates only; they are not canonical semantic IDs, decision subjects, source authority or runtime ToolProjection coordinates.
+
+### PRJ-S19B — Brain binding administration
+
+Human job:
+
+```text
+recognize current exact Project Brain binding
+→ choose an immutable published Brain revision when authorized
+→ set/clear the exact Project binding
+```
+
+Current authority remains:
 
 ```text
 PRJ-10 GetProjectBrainBinding
@@ -117,27 +199,68 @@ PRJ-12 ClearProjectBrainBinding
 
 BRN-02 ListBrainRevisions(forProjectId?)
 → ordinary route: brain.read
-→ P-02 selection route: exact target Project + project.manage + brain.bind
+→ binding-selection route: exact target Project + project.manage + brain.bind
 → immutable BrainRevision summary only
 ```
 
-`brain.bind -X-> generic brain.read`; the purpose-bound route does not widen to BRN-03 exact revision detail, knowledge browse, proposal/publication or Brain mutation authority.
+Workspace Brain publication/governance remains W-02A and may be reached only as a boundary/cross-link. P-02 never inlines Discovery/proposal/review/publication ownership.
 
-### Capabilities
+## 3. Cross-route coherence law
 
-**Unchanged.** `PRJ-16/17` remain authored/Release capability inspection. P-02 does not add a generic execution browser, capability framework or screen-shaped backend operation.
-
-## 3. P7 boundary
-
-P7 may now derive structural hypotheses for these Project surfaces from the closed authority above. It may compose existing operations into human jobs; it may not introduce new Product meaning.
+The four routes are one Project experience, but cross-links require exact server-owned relationships:
 
 ```text
-P7 = NEXT
-P8 = BLOCKED
+server-owned exact coordinate
+→ contextual cross-link allowed
+
+same label / browser inference
+-X-> semantic relationship
+-X-> authorization
+```
+
+Current admitted example:
+
+```text
+physical Data object/column
+→ optional semanticDataResourceId / semanticFieldId
+→ PRJ-19 semantic Data truth
+```
+
+Not currently admitted:
+
+```text
+Data field → exact Brain concept         = DEFERRED
+Integration → exact Capability set       = DEFERRED
+Capability → exact Connection dependency = DEFERRED
+```
+
+Useful-looking relationships do not become Product authority without a proven current user job and owner truth.
+
+## 4. Frontend-v2.3 capability dispositions
+
+| Capability / experience | Disposition |
+| --- | --- |
+| real table/view rows | `PRESENT-IN-AUTHORITY` — F22 |
+| physical + semantic Data together | `PRESENT-IN-AUTHORITY` |
+| Project-resolved adopted Brain knowledge | `PRESENT-IN-AUTHORITY` — F23 |
+| Workspace Brain governance inside Project | `REJECTED` — duplicate authority |
+| SQL editor / unrestricted DB console | `REJECTED` — Product boundary |
+| generic Capability runner | `REJECTED` — inspection != invocation |
+| Project bindings first / Connection mechanics second | `PRESENT-IN-AUTHORITY` |
+| generic Project Resources hub | `REJECTED` — unnecessary abstraction/depth |
+| browser-derived Brain applicability | `REJECTED` — frontend authority |
+| Data→Brain exact concept links | `DEFERRED` — no current exact relation/consumer |
+| Integration→Capability exact dependency map | `DEFERRED` — not yet proven/represented |
+
+## 5. P7 boundary
+
+This rebaseline supplies the current P7 authority pack. It does not authorize revised HTML.
+
+```text
+P7 = REBASELINED DESIGN INPUT
+P8 = BLOCKED / EXISTING P8 NOT LOCKABLE AFTER F23
 P-03+ = NOT OPEN
 P11 = NOT ASSEMBLED
 4D = NOT STARTED
 Product implementation = BLOCKED
 ```
-
-No route composition, component hierarchy, density decision or visual layout is locked by this rebaseline.
