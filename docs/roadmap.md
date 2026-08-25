@@ -34,10 +34,11 @@ P-02 P7 = REBASELINED / OPERATOR APPROVED DESIGN
 P-02 P8 base = RED #999 → GREEN #1000 / prior blob 7624694b86017c83deed661ee5ae17dc05495dc3
 P-02 P8 coherence correction = RED Verify #1010 → GREEN commit 58963af84d343f26d32565f14746d2416c9c47d2 / blob bc1898682a459e532b9efaf6e549073d3ce591f3
 P-02 P8 Product/Review surface separation = commit b266721c206a31a6d49abdd3e5c351b7fb4559bf / targeted Verify #1034 GREEN
-Required repository Verify #1035 = GREEN at 761a8716cf18d02a7d3457cafda2bdc26af29d78
+4C checkpoint PR #57 = MERGED / main 619b069c73f4c0a396c9c9e820abc96fc58fbd7a / Verify #1038 GREEN
 P-02 P8 = WALKTHROUGH / NOT LOCKED
 
-P9/P10 = BLOCKED
+Continuation readiness = GREEN / repository-governance blocker = 0
+P9/P10 = BLOCKED pending P8 LOCK
 P-03+ = NOT OPEN
 P11 = NOT ASSEMBLED
 4D–4G = NOT STARTED
@@ -94,12 +95,14 @@ P8 is not accepted merely because its executable proof is green.
 smallest-owner reopen != smallest patch
 ```
 
-## Checkpoint integration posture
+## Continuation posture
 
-PR #57 is an operator-authorized 4C checkpoint integration. Integrating it into `main` does **not** close 4C, LOCK P-02 P8, authorize P9/P10/P-03/P11/4D+, or authorize Product implementation.
+PR #57 is integrated into `main`. This checkpoint does **not** close 4C, LOCK P-02 P8, authorize P9/P10/P-03/P11/4D+, or authorize Product implementation.
 
-Continue from accepted Product authority instead of re-reviewing settled process or locked blocks. Reopen only on a named material falsifier. Independent Fable review remains a 4C closure requirement at 4C-14, or may be triggered earlier by a material authority/trust-boundary decision; it is not a per-cosmetic-iteration gate.
+The repository is ready to continue Product planning. Do not reopen accepted Product/architecture decisions, locked frontend blocks, governance restoration, or repository process without a named material falsifier. Required CI protects objective repository/Product properties; it is not a review-ceremony gate.
+
+The established review model remains proportional: Claude Code/primary implementation work may be challenged by independent Fable review when the Engineering Method or the 4C program calls for independent challenge. The mandatory whole-4C independent Fable review remains at 4C-14; cosmetic/local iterations do not receive a new review cycle by default.
 
 ## Exact next action
 
-**Integrate the operator-authorized PR #57 checkpoint into `main`, then continue directly with operator walkthrough/adjudication of the current P-02 P8 candidate.** After integration, P8 remains `NOT LOCKED` until explicit operator approval; P9/P10/P-03/P11/4D/Product implementation remain blocked until their existing gates are satisfied.
+**Operator walkthrough/adjudication of the current P-02 P8 candidate.** If the operator sets P8 `LOCKED`, proceed directly to P9/P10 and then the next Product block under the existing 4C program. Do not insert a new governance/review phase unless material Evidence requires it.
