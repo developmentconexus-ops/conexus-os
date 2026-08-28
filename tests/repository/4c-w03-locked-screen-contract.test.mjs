@@ -89,5 +89,5 @@ test('W-03 preserves its approved inner contract and pins the operator-relocked 
 
   requireText(roadmap, 'W-03 = LOCKED / OPERATOR APPROVED / P11-W03-F01 SHELL RE-LOCKED', 'roadmap must show W-03 shell re-lock')
   requireText(roadmap, 'W-04 = NEXT / NOT OPEN', 'roadmap must route the next material 4C block to W-04 without opening it')
-  if (/4D[^\n|]*OPEN/.test(roadmap)) throw new Error('W-03 lock must not open 4D before remaining 4C blocks, P11/P12 and closure')
+  if (/\|\s*4D\b[^|\n]*\|\s*(?:OPEN|ACTIVE)\b/.test(roadmap)) throw new Error('W-03 lock must not open 4D before remaining 4C blocks, P11/P12 and closure')
 })

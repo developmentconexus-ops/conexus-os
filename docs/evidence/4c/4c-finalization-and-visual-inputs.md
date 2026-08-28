@@ -1,6 +1,6 @@
 # 4C-13 — closure and visual-design handoff
 
-> **Status:** `4C-13 CLOSED / 4C-14 PENDING / OPERATOR 4C RATIFICATION PENDING`
+> **Status:** `4C CLOSED / OPERATOR RATIFIED / P13 INPUTS PRESERVED`
 > **P12:** `CLOSED / MATERIAL UX-ARCHITECTURE FINDINGS = 0`
 > **Current assembled Product:** `P11 45172fd437b0c3b0236b641bcb803c20f165959f / OPERATOR APPROVED`
 > **Implementation authority:** none
@@ -160,19 +160,19 @@ router, state library, SDK, code generator, runtime, database or deployment mech
 - material Method findings: `0`.
 - material UX/architecture assumptions still open: `0`.
 - `4C-A02`: `REJECTED AS MATERIAL CLOSURE DEPENDENCY`; no frequency truth is claimed, and optional P13/post-operational measurement has a bounded reopen trigger.
-- `P12-F03` immutable repository checkpoint: `OPERATOR AUTHORIZED / THIS CHECKPOINT REVISION`.
+- `P12-F03` immutable repository checkpoint: `CLOSED / 1eb33a93fd2bcd32c2cc7d9565aa617430a47771 / NO PUSH-PR-MERGE`.
 
-P12-F03 is repository custody, not a Product/UX finding. The operator authorized
-one coherent local checkpoint excluding `.wireframe-preview/` and root `PRODUCT.md`;
-push, PR and merge remain unauthorized.
+P12-F03 is repository custody, not a Product/UX finding. The coherent local
+checkpoint excludes `.wireframe-preview/` and root `PRODUCT.md`; push, PR and
+merge remain unauthorized.
 
 ## 9. Remaining closure sequence
 
 ```text
-this revision creates the immutable coherent checkpoint
-→ 4C-14 fresh independent Fable review against exact SHA
-→ Lead adjudication
-→ operator RATIFY 4C | REVISE
+immutable checkpoint `1eb33a93fd2bcd32c2cc7d9565aa617430a47771`
+→ 4C-14 independent Fable review + bounded correction + clean second pass
+→ Lead adjudication CLEAR
+→ operator RATIFY 4C = COMPLETE
 → only then present a separate 4D opening gate
 ```
 

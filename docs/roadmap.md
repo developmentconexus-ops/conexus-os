@@ -15,7 +15,7 @@ This is the single current phase/status authority.
 | Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
 | 4A — Product Surface & Authority Contract | CLOSED / `PRE11-F05` RATIFIED | `128` fixed Product operations | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / `PRE11-F05` RATIFIED / REQUIRED VERIFY GREEN | `128↔128`; Project=28; Builder=20; Brain=13; PAR=16; MAR=4 | 4A change or wire/proof falsifier |
-| 4C — Frontend Interaction & Authority Realization | OPEN / METHOD v2.3 / P12 CLOSED / 4C-13 CLOSED / P12-F03 CHECKPOINT AUTHORIZED / 4C-14 NEXT / OPERATOR RATIFICATION PENDING / PRODUCT-APP WIREFRAMES OUT OF CURRENT SCOPE | Create this authorized immutable checkpoint, then run exact-SHA Fable review and Lead adjudication | Material 4A/4B/P11 gap or incoherent interaction |
+| 4C — Frontend Interaction & Authority Realization | CLOSED / OPERATOR RATIFIED / METHOD v2.3 / P12 CLOSED / 4C-13 CLOSED / P12-F03 CLOSED / 4C-14 CLOSED / PRODUCT-APP WIREFRAMES OUT OF CURRENT SCOPE | Frontend Product/interaction model, P13 inputs and structural conformance obligations preserved for later phases | Material 4A/4B/P11/P13 conformance falsifier |
 | 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
 | 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
@@ -25,7 +25,7 @@ This is the single current phase/status authority.
 ```text
 4A = CLOSED / PRE11-F05 RATIFIED / N_platform=128
 4B = CLOSED / PRE11-F05 RATIFIED / REQUIRED VERIFY GREEN / 128↔128 / Project=28 / Builder=20 / Brain=13 / PAR=16 / Connections=9 / IAM=20 / MAR=4 / OBS=5
-4C = OPEN / METHOD v2.3 / P12 CLOSED / 4C-13 CLOSED / P12-F03 CHECKPOINT AUTHORIZED / 4C-14 NEXT / OPERATOR RATIFICATION PENDING
+4C = CLOSED / OPERATOR RATIFIED / METHOD v2.3 / P12 CLOSED / 4C-13 CLOSED / P12-F03 CLOSED / 4C-14 CLOSED
 
 F22 = RATIFIED / Project Data Explorer / PRJ-25..28 / Permissions=25
 F23 = RED #987 → GREEN #993 / BRN-14 GetProjectBrainContext / 122↔122 / Brain=13 / Permissions=25
@@ -59,8 +59,9 @@ P11 historical assembly = INVALIDATED AS CURRENT PROOF BY OPERATOR-AUTHORIZED P1
 P11 current behavioral assembly = LOCKED / OPERATOR APPROVED / BROWSER GREEN / blob 45172fd437b0c3b0236b641bcb803c20f165959f
 P12 = CLOSED / CLEAR / GLOBAL MAXIMUM + EDGE MATRIX OPERATOR APPROVED / FAMILIES 1-4 RE-LOCKED / CURRENT P11 RE-LOCKED / MATERIAL UX-ARCHITECTURE FINDINGS=0
 4C-13 = CLOSED / GENERATED CONSUMPTION + STATE/AUTH + FEATURE TOPOLOGY + P13 HANDOFF CONSOLIDATED
-4C-14 = NEXT / AFTER THIS IMMUTABLE CHECKPOINT / FRESH FABLE REVIEW + LEAD ADJUDICATION
-P12-F03 = AUTHORIZED / THIS REVISION IS THE LOCAL IMMUTABLE CHECKPOINT / PUSH-PR-MERGE UNAUTHORIZED
+4C-14 = CLOSED / FABLE PASS 1 FINDING CORRECTED / PASS 2 CLEAR / LEAD ADJUDICATION CLEAR
+P12-F03 = CLOSED / CHECKPOINT 1eb33a93fd2bcd32c2cc7d9565aa617430a47771 / PUSH-PR-MERGE UNAUTHORIZED
+4C RATIFICATION = OPERATOR RATIFIED / 2026-08-28 / REVIEWED CHECKPOINT 1eb33a93fd2bcd32c2cc7d9565aa617430a47771
 P12 Family 1 = LOCKED / OPERATOR APPROVED / T-01 4da586d8a421bb03413bc82ee5b2e82432d6f620 / GF-01 603b47ccaba1fe6557e557b48efa4f40207d3724 / W-01 d466d66a125605471f2f879bbe376e4de7681d95 / P-01 e5782b3f9e828a5c247b405821589d52039cc179
 P12 Family 2 = LOCKED / OPERATOR APPROVED / W-02A f0a6902737a36217b081ff61768caa39c98c4734 / W-02B f8a4be72cd5af86ea06b4dd82d8710e58edb203f / P-02 fd23303ac71bbf256887bf361fb0f8c7cf9aae00
 P12 Family 3 = LOCKED / OPERATOR APPROVED / P-04 77820d283e47ba6c9f5efd19f45471c88675e0b0 / P-05 d00b2126667a0a51317c653c57c237444a129dfb / PA-01 612ec41d91104e01b3942f7d90f35c37ad89c9f0
@@ -203,7 +204,7 @@ F39/F40 remain valid bounded wire truth corrections: monetary values require a c
 
 ## Continuation posture
 
-PR #57 is integrated into `main`. The current Conexus platform blocks and transport-only P11 are operator-locked; P12-F01/F02 are corrected and P12 is closed with zero material UX/architecture findings. The 4C-13 generated/state/auth/topology and P13 handoff package is consolidated. P12-F03 remains the explicit repository-custody decision before an exact-SHA 4C-14 review. Product-specific application wireframes, including Budget Analyzer, remain outside the current platform-planning scope. 4D+, merge and Product implementation remain unauthorized.
+PR #57 is integrated into `main`. The current Conexus platform blocks and transport-only P11 are operator-locked; P12 is closed with zero material UX/architecture findings. The 4C-13 generated/state/auth/topology and P13 input package is consolidated. P12-F03 is closed at checkpoint `1eb33a93fd2bcd32c2cc7d9565aa617430a47771`; Fable 4C-14 pass 1 exposed A02, the bounded correction was independently cleared in pass 2, Lead adjudication is CLEAR and the operator ratified 4C. Product-specific application wireframes, including Budget Analyzer, remain outside the platform scope. 4D has not started; merge and Product implementation remain unauthorized.
 
 The repository is ready to continue Product planning. F28 is the named material falsifier authorizing only the smallest Agent-specific P-01 frontend reopen; it does not reopen the whole locked Build workspace or accepted Product/architecture authority. Do not reopen other accepted decisions, locked frontend blocks, governance restoration, or repository process without a named material falsifier. Required CI protects objective repository/Product properties; it is not a review-ceremony gate.
 
@@ -211,4 +212,4 @@ The durable Claude Code / AI_DIALOG / Fable interaction and whole/global Product
 
 ## Exact next action
 
-**Create the authorized local immutable checkpoint from the durable current acceptance increment, excluding `.wireframe-preview/` and unowned root `PRODUCT.md`, with no push/PR/merge. Then run the fresh exact-SHA Fable 4C-14 review and Lead adjudication. 4C ratification, 4D, merge and Product implementation remain unauthorized until their respective gates.**
+**Present the separate 4D opening gate: `OPEN 4D | HOLD`. 4D remains `NOT STARTED` until an explicit operator choice. No 4C approval authorizes merge or Product implementation.**

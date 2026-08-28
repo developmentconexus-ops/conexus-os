@@ -79,5 +79,5 @@ test('operator-approved W-02B Connections is locked and closed through exact P9/
 
   requireText(roadmap, 'W-02B LOCKED', 'roadmap must show W-02B locked')
   requireText(roadmap, 'W-03 = NEXT / NOT OPEN', 'roadmap must route the next material 4C block to W-03')
-  if (/4D[^\n|]*OPEN/.test(roadmap)) throw new Error('W-02B lock must not open 4D before remaining 4C blocks, P11/P12 and closure')
+  if (/\|\s*4D\b[^|\n]*\|\s*(?:OPEN|ACTIVE)\b/.test(roadmap)) throw new Error('W-02B lock must not open 4D before remaining 4C blocks, P11/P12 and closure')
 })

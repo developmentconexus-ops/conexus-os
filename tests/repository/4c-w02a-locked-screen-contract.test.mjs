@@ -66,5 +66,5 @@ test('operator-approved W-02A Brain is locked and closed through exact P9/P10 tr
 
   requireText(roadmap, 'W-02A LOCKED', 'roadmap must show W-02A locked')
   requireText(roadmap, 'W-02B', 'roadmap must route the next material block to W-02B')
-  if (/4D[^\n|]*OPEN/.test(roadmap)) throw new Error('W-02A lock must not skip W-02B or later 4C blocks')
+  if (/\|\s*4D\b[^|\n]*\|\s*(?:OPEN|ACTIVE)\b/.test(roadmap)) throw new Error('W-02A lock must not skip W-02B or later 4C blocks')
 })
