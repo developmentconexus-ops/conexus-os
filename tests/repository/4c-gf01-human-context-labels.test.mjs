@@ -18,7 +18,7 @@ test('GF-01 has human-readable Workspace and Project identity for context naviga
   const identity = read('contracts/api/product/identity-workspace-paths.yaml')
   const project = read('contracts/api/product/project-paths.yaml')
 
-  const accessContext = between(identity, '  /api/control/access-context:', '\n  /api/control/session:')
+  const accessContext = between(identity, '  /api/control/access-context:', '\n  /api/session:')
   const getWorkspace = between(identity, '  /api/control/workspaces/{workspaceId}:', '\n  /api/control/workspaces/{workspaceId}/areas:')
   const projectSchemas = project.slice(project.indexOf('    ProjectSummary:'))
 

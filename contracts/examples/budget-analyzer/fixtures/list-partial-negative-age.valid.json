@@ -6,6 +6,7 @@
     "coverage": "PARTIAL",
     "provenance": "PARTIAL"
   },
+  "currencyCode": "BRL",
   "items": [
     {
       "budgetRef": "budget:synthetic:1",
@@ -13,7 +14,9 @@
       "budgetAgeDays": -1,
       "budgetValue": "100.00",
       "sellerId": "seller:synthetic:1",
+      "sellerName": "Vendedora sintética 1",
       "customerId": "customer:synthetic:1",
+      "customerName": "Cliente sintético 1",
       "sourceCompanyId": "company:synthetic:1",
       "pendingEvidenceState": "UNVERIFIED"
     }

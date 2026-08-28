@@ -2,8 +2,9 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const root = resolve(new URL('../../', import.meta.url).pathname)
+const root = fileURLToPath(new URL('../../', import.meta.url))
 const run = script => spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' })
 
 test('Conexus OS repository contract is green', () => {

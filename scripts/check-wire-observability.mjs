@@ -184,6 +184,22 @@ function assertAuditSubjectSnapshot(schema, label) {
   return subject;
 }
 
+// 4C-F34: Activity gets a projection-time human snapshot without widening generic observation subjects or becoming Audit.
+function assertActivitySubjectSnapshot(schema, label) {
+  const subject = assertClosedObject(schema, label);
+  required(subject, 'kind', 'ref', 'label');
+  const kind = property(subject, 'kind');
+  if (kind?.type !== 'string' || kind?.enum || kind?.minLength !== 1) {
+    throw new Error(`${label}.kind must remain exact owner-issued subject class`);
+  }
+  assertOpaqueString(property(subject, 'ref'), `${label}.ref`);
+  assertNonblankHumanString(property(subject, 'label'), `${label}.label`);
+  const description = subject.properties?.label?.description ?? '';
+  if (!description.includes('Projection-time')) throw new Error(`${label}.label must remain projection-time human presentation`);
+  rejectProperties(subject, label, authorityEscapeFields);
+  return subject;
+}
+
 // OBS-01: one bounded Project activity projection, not a generic event query language.
 const activityQuery = resolvedParameters('OBS-01').filter((candidate) => candidate?.in === 'query');
 for (const candidate of activityQuery) {
@@ -200,12 +216,21 @@ rejectProperties(activityPage, 'OBS-01 success', authorityEscapeFields);
 const activityItems = property(activityPage, 'items');
 if (activityItems?.type !== 'array' || !activityItems.items) throw new Error('OBS-01 items must be an array');
 const activity = assertClosedObject(activityItems.items, 'OBS-01 ProjectActivityEntry');
-required(activity, 'activityId', 'subject', 'kind', 'occurredAt');
+required(activity, 'activityId', 'subject', 'kind', 'occurredAt', 'summary');
 assertOpaqueString(property(activity, 'activityId'), 'OBS-01 activityId');
-assertOwnerSubject(property(activity, 'subject'), 'OBS-01 subject');
+assertActivitySubjectSnapshot(property(activity, 'subject'), 'OBS-01 subject');
 const activityKind = property(activity, 'kind');
 if (activityKind?.type !== 'string' || activityKind?.enum || activityKind?.minLength !== 1) {
   throw new Error('OBS-01 kind must remain owner-issued rather than a universal event-state enum');
+}
+assertNonblankHumanString(property(activity, 'summary'), 'OBS-01 summary');
+const detailTarget = property(activity, 'detailTarget');
+if (detailTarget) {
+  const target = assertClosedObject(detailTarget, 'OBS-01 detailTarget');
+  required(target, 'operationId', 'ref');
+  assertOpaqueString(property(target, 'operationId'), 'OBS-01 detailTarget.operationId');
+  assertOpaqueString(property(target, 'ref'), 'OBS-01 detailTarget.ref');
+  rejectProperties(target, 'OBS-01 detailTarget', authorityEscapeFields);
 }
 rejectProperties(activity, 'OBS-01 ProjectActivityEntry', authorityEscapeFields);
 const activityNext = property(activityPage, 'nextPageToken');

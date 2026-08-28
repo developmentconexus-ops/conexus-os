@@ -15,10 +15,10 @@ for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
 const expectedIds = [
   'PRJ-01', 'PRJ-02', 'PRJ-03',
   ...Array.from({ length: 18 }, (_, i) => `PRJ-${String(i + 5).padStart(2, '0')}`),
-  'PRJ-23', 'PRJ-24',
+  'PRJ-23', 'PRJ-24', 'PRJ-29',
 ];
 
-if (expectedIds.length !== 23) throw new Error(`internal test setup error: expected 23 Project ids, got ${expectedIds.length}`);
+if (expectedIds.length !== 24) throw new Error(`internal test setup error: expected 24 Project ids, got ${expectedIds.length}`);
 if (operations.has('PRJ-04')) throw new Error('PRJ-04 must remain subtracted after 4B-F01 / 4C-F01');
 
 for (const id of expectedIds) {
@@ -313,13 +313,30 @@ for (const forbidden of ['table', 'schema', 'sql', 'connectionString', 'storageK
   if (dataResource.properties?.[forbidden]) throw new Error(`PRJ-19 must not expose generic physical-data field ${forbidden}`);
 }
 
-// Authored Product-Agent projection remains Project/Release identity only; runtime/Mastra override identity is not Project Product authority.
+// F30: exact authored Product-Agent detail includes the safe complete agent/v1 definition; runtime/Mastra identity remains excluded.
 const agent = assertClosedObject(successSchema('PRJ-21'), 'PRJ-21 success');
-for (const field of ['agentId', 'authoredRevisionId', 'releaseRefs', 'activeReleaseId']) {
+for (const field of ['agentId', 'authoredRevisionId', 'releaseRefs', 'activeReleaseId', 'definition']) {
   if (!requiredFields(agent).has(field)) throw new Error(`PRJ-21 must require ${field}`);
 }
 for (const forbidden of ['mastraAgentId', 'runtimeRevisionId', 'requestRevisionOverride', 'storedAgentId']) {
   if (agent.properties?.[forbidden]) throw new Error(`PRJ-21 must not expose runtime-authority field ${forbidden}`);
 }
+const agentDefinition = assertClosedObject(propertySchema(agent, 'definition'), 'PRJ-21 ProductAgentDefinition');
+for (const field of ['schemaVersion', 'name', 'purpose', 'instructions', 'modelPolicy', 'tools', 'brainContext', 'memory', 'interactions', 'policyRefs', 'approvalPolicyRefs', 'budgetPolicyRefs', 'verificationRefs', 'knownLimitations']) {
+  if (!requiredFields(agentDefinition).has(field)) throw new Error(`PRJ-21 definition must require ${field}`);
+}
+if (propertySchema(agentDefinition, 'schemaVersion')?.const !== 'agent/v1') throw new Error('PRJ-21 definition must be exact agent/v1');
 
-console.log('Project schema closure passed (23 operations; Project identity/source bootstrap, Inception intent/refinement, candidate/approved Baseline review, human Connection binding presentation, Data-resource presentation and projections closed).');
+for (const id of ['PRJ-16', 'PRJ-17', 'PRJ-29']) {
+  const routes = op(id)['x-conexus-authority-routes'] ?? [];
+  if (routes.join(',') !== 'project.read,project.build') throw new Error(`${id} must admit ordinary project.read + purpose-bound project.build`);
+}
+if (operations.get('PRJ-29')?.path !== '/api/control/projects/{projectId}/model-policies') throw new Error('PRJ-29 path must remain Project-owned model-policies');
+const modelPolicies = successSchema('PRJ-29');
+if (modelPolicies?.type !== 'array') throw new Error('PRJ-29 success must be a finite array');
+const modelPolicy = assertClosedObject(modelPolicies.items, 'PRJ-29 ProjectModelPolicySummary');
+for (const field of ['policyRef', 'label', 'purpose', 'isDefault']) if (!requiredFields(modelPolicy).has(field)) throw new Error(`PRJ-29 must require ${field}`);
+if (propertySchema(modelPolicy, 'isDefault')?.type !== 'boolean') throw new Error('PRJ-29 isDefault must be server-owned boolean truth');
+for (const forbidden of ['provider', 'model', 'endpoint', 'credential', 'runtimeOverride']) if (modelPolicy.properties?.[forbidden]) throw new Error(`PRJ-29 must not expose ${forbidden}`);
+
+console.log('Project schema closure passed (24 operations; prior Project truth plus purpose-bound build discovery and Project-owned model policies closed).');

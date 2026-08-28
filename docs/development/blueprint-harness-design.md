@@ -566,6 +566,8 @@ browser test harness
 
 The frontend SDK must not become a second Product/business authority.
 
+Accepted `4C-F29` adds a concrete future Published-App Agent experience consumer to this inventory without selecting an SDK or package topology. During 4D, evaluate the smallest composition of framework-neutral Product client, React headless bindings and optional accessible/themable primitives needed for application-designed Conversation, rich typed parts, durable reconnect and exact ApprovalRequest interaction. The comparison must refresh official documentation and relevant repositories for Mastra client/`@mastra/ai-sdk`, Vercel AI SDK UI, assistant-ui, CopilotKit and credible current alternatives against authority separation, composition freedom, persistence/reconnect, HITL fidelity, typed renderer control, accessibility, contract generation, testability, versioning, cost and lock-in. The browser must not acquire Mastra authority, direct governed-tool execution, runtime Agent CRUD, arbitrary model-authored UI code or an independent Conversation/Approval store. See the current [`4C P-03 authority feasibility + structural hypotheses`](../evidence/4c/p03-authority-feasibility-and-structural-hypotheses.md) owner.
+
 ### 12.5 Data / Persistence Kit
 
 Prefer a bounded persistence kit over a universal ORM/repository abstraction.

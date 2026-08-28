@@ -253,6 +253,39 @@ components:
           minLength: 1
           description: Exact Conexus owner subject reference. Correlation by reference never transfers semantic authority to OBS.
 
+    ActivitySubjectSnapshotRef:
+      type: object
+      additionalProperties: false
+      required: [kind, ref, label]
+      properties:
+        kind:
+          type: string
+          minLength: 1
+          description: Exact owner-issued subject class captured for this Activity projection; not a universal lifecycle taxonomy.
+        ref:
+          type: string
+          minLength: 1
+          description: Exact owner subject reference; possession never grants underlying disclosure or mutation authority.
+        label:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Projection-time human subject presentation derived from admitted owner facts; never current owner state or authorization.
+
+    ActivityDetailTarget:
+      type: object
+      additionalProperties: false
+      required: [operationId, ref]
+      properties:
+        operationId:
+          type: string
+          minLength: 1
+          description: Exact admitted owner read operation capable of resolving this subject when separately disclosed; never generic dispatch or authority.
+        ref:
+          type: string
+          minLength: 1
+          description: Exact owner subject reference for the named read operation; the owner revalidates all disclosure.
+
     EvidenceRefs:
       type: array
       uniqueItems: true
@@ -263,14 +296,14 @@ components:
     ProjectActivityEntry:
       type: object
       additionalProperties: false
-      required: [activityId, subject, kind, occurredAt]
+      required: [activityId, subject, kind, occurredAt, summary]
       properties:
         activityId:
           type: string
           minLength: 1
           description: OBS-owned activity/operational-event projection identity.
         subject:
-          $ref: '#/components/schemas/OwnerSubjectRef'
+          $ref: '#/components/schemas/ActivitySubjectSnapshotRef'
         kind:
           type: string
           minLength: 1
@@ -278,6 +311,14 @@ components:
         occurredAt:
           type: string
           format: date-time
+        summary:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Deterministic OBS-owned human presentation of the Activity entry; it summarizes but never replaces current owner truth.
+        detailTarget:
+          $ref: '#/components/schemas/ActivityDetailTarget'
+          description: Present only when a concrete admitted owner read exists for this entry. Absence means no truthful detail affordance.
         observationId:
           type: string
           minLength: 1

@@ -25,7 +25,7 @@ Original total:
 21 operations
 ```
 
-`PRJ-04 UpdateProject` remains absent after operator-approved `4B-F01`. Later bounded 4C corrections add `PRJ-23/24`, so the current Project Product slice is 23 operations; the original counts below remain historical Evidence rather than current census authority.
+`PRJ-04 UpdateProject` remains absent after operator-approved `4B-F01`. Later bounded corrections add `PRJ-23..29` while preserving the separate `PRJ-25..28` Data Explorer wire fragment, so the current whole Project Product slice is 28 operations; the original counts below remain historical Evidence rather than current census authority.
 
 Canonical active Path Items for this slice:
 
@@ -349,3 +349,6 @@ Verify #887 = SUCCESS
 ```
 
 The succeeding guard commit makes loss/widening of `connectionName` an executable Project falsifier.
+## Pre-P11 F05 bounded extension
+
+`4C-PRE11-F05` adds `PRJ-29 ListProjectModelPolicies`, a small finite Project-owned read with human label/purpose, server-issued default and bounded sampling limits. `PRJ-16/17` additionally admit purpose-bound `project.build` disclosure without schema widening. Project wire count becomes 28 including `PRJ-25..28`; platform count becomes 128. No Permission, owner, runtime/provider field or capability invocation authority is added.

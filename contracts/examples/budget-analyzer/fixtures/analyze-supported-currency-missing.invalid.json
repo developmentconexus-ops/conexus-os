@@ -1,0 +1,17 @@
+{
+  "truth": {
+    "state": "SUPPORTED_CURRENT",
+    "asOf": "coord-current-currency-missing",
+    "freshness": "CURRENT",
+    "coverage": "COMPLETE",
+    "provenance": "VERIFIED"
+  },
+  "summary": {
+    "pendingBudgetCount": 1,
+    "pendingBudgetValue": "100.00"
+  },
+  "bySeller": [],
+  "byCustomer": [],
+  "byAgingBand": [],
+  "byMonth": []
+}

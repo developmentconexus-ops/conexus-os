@@ -1,18 +1,21 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
 
-const root = resolve(new URL('../../', import.meta.url).pathname)
+const root = fileURLToPath(new URL('../../', import.meta.url))
 const path = p => resolve(root, p)
 const read = p => readFileSync(path(p), 'utf8')
 const htmlPath = 'docs/evidence/4c/p02-project-resources-functional-wireframe.html'
 const ledger = read('docs/product/operation-ledger.md')
 const projectOas = read('contracts/api/product/project-paths.yaml')
+const connectionOas = read('contracts/api/product/connection-paths.yaml')
 const explorerOas = read('contracts/api/product/project-data-explorer-paths.yaml')
 const brainContextOas = read('contracts/api/product/project-brain-context-paths.yaml')
 const p7 = read('docs/evidence/4c/p02-structural-hypotheses.md')
 const f23 = read('docs/evidence/4c/p02-f23-project-brain-context-design.md')
+const w02b = read('docs/evidence/4c/w02b-connections-screen-contract.md')
 
 function requireText(text, needle, message = needle) {
   assert.ok(text.includes(needle), `P-02 P8 missing: ${message}`)
@@ -22,7 +25,7 @@ test('P-02 P8 preserves four focused Project routes as one coherent Project prod
   assert.equal(existsSync(path(htmlPath)), true, 'P-02 functional P8 HTML must exist')
   const html = read(htmlPath)
   for (const token of [
-    'P-02 P8','F22 + F23','FUNCTIONAL LOW-FI CANDIDATE','NOT LOCKED','fixture-only','GF-01 shell inherited',
+    'P-02 P8','F22 + F23','FUNCTIONAL LOW-FI','LOCKED / OPERATOR APPROVED','fixture-only','GF-01 shell inherited',
     'Four focused Project routes','Data = facts','Brain = meaning','Capabilities = behavior','Integrations = external systems',
     'generic Project Resources hub as new Product ontology = REJECTED',
     'backend owner/revision/binding console as root UX = REJECTED',
@@ -74,17 +77,32 @@ test('P-02 Capabilities is human-contract-first and never invents generic execut
   assert.doesNotMatch(html, /<button[^>]*>\s*(Run|Execute)\s*<\/button>/i, 'Capabilities P8 must not expose generic Run/Execute')
 })
 
-test('P-02 Integrations presents current Project use without inventing replacement semantics or binding purpose', () => {
+test('P-02 Integrations makes Project use and Project-owned Connection lifecycle operable without merging their authority', () => {
   const html = read(htmlPath)
   for (const token of [
-    'PRJ-S14','PRJ-S15','PRJ-13','PRJ-14','PRJ-15','CON-03',
-    'Systems used by this Project','Use connection','Connections owned by this Project',
+    'PRJ-S14','PRJ-S15','PRJ-13','PRJ-14','PRJ-15','CON-03','CON-04','CON-05','CON-06','CON-07','CON-08','CON-09',
+    'Systems used by this Project','Use connection','Open details','Connections owned by this Project','New connection',
+    'Connection details','Configuration','Access','Test connection',
     'purpose-bound exact-Project chooser','ProjectConnectionBinding != Connection',
     'connection.use -X-&gt; generic connection.read','configured != qualified != bound != healthy',
-    'selection disclosure != Connection management authority',
+    'selection disclosure != Connection management authority','Connection revision != Project binding revision',
   ]) requireText(html, token)
-  for (const id of ['project-bindings','binding-chooser','binding-candidates','binding-status','project-connections']) requireText(html, `id="${id}"`, id)
-  for (const behavior of ['openBindingChooser','closeBindingChooser','selectBindingCandidate','saveProjectBinding','removeProjectBinding','toggleProjectConnections']) requireText(html, behavior, behavior)
+  for (const id of [
+    'project-bindings','binding-chooser','binding-candidates','binding-status','project-connections','new-project-connection',
+    'connection-panel','connection-panel-body','connection-config-form','connection-credential-form','connection-test-form',
+    'project-connection-create','project-connection-create-form','integration-scenario','integration-scenario-status',
+  ]) requireText(html, `id="${id}"`, id)
+  for (const behavior of [
+    'openBindingChooser','closeBindingChooser','selectBindingCandidate','saveProjectBinding','removeProjectBinding',
+    'openIntegrationDetail','openProjectConnection','closeConnectionPanel','openProjectConnectionCreate','closeProjectConnectionCreate',
+    'renderProjectConnectionCreateFields','createProjectConnection','toggleConnectionConfiguration','saveConnectionConfiguration',
+    'toggleConnectionCredentials','saveConnectionCredential','runConnectionTest','applyIntegrationScenario',
+  ]) requireText(html, behavior, behavior)
+  for (const token of [
+    'ListConnections','GetConnection','CreateConnection','ReviseConnection','SetConnectionCredential','QualifyConnection','GetConnectionQualification',
+    'ownerScopeKind','PROJECT','connection.read','connection.manage','connection.qualify',
+  ]) requireText(connectionOas + w02b, token, token)
+  assert.doesNotMatch(html, /toggleProjectConnections|Show owned connections|Hide owned connections/i, 'Project-owned lifecycle must not be hidden behind a disclosure toggle')
   assert.equal(html.includes('>Add binding<'), false, 'internal binding vocabulary must not be the primary CTA')
   assert.doesNotMatch(html, /Switch connection|Switch to|Confirm switch|data-switch|bindingMode\s*=\s*'SWITCH'/i, 'P8 must not imply replacement semantics without an accepted integration role')
   const bindingsFixture = html.match(/bindings:\s*(\[[\s\S]*?\]),\s*connectionCandidates:/)?.[1]
@@ -125,7 +143,7 @@ test('P-02 P8 stays self-contained, responsive, accessible and explicit about ma
   assert.match(html, /event\.key\s*===\s*'Escape'/, 'Escape must close the active chooser/panel')
   assert.doesNotMatch(html, /\bfetch\s*\(|XMLHttpRequest|localStorage|sessionStorage|indexedDB/i, 'P8 must not network or persist fixture state')
   assert.doesNotMatch(html, /<script[^>]+src=|<link[^>]+href=/i, 'P8 must be self-contained')
-  assert.doesNotMatch(html, /P-02\s*=\s*LOCKED|P8\s*=\s*LOCKED/i, 'P8 candidate must not pre-authorize lock')
+  assert.match(html, /LOCKED \/ OPERATOR APPROVED/i, 'P8 must preserve the explicit operator lock')
 })
 
 test('P-02 default Product surface is human-facing while proof chrome stays in a closed Review controls harness', () => {
@@ -143,7 +161,7 @@ test('P-02 default Product surface is human-facing while proof chrome stays in a
   assert.match(reviewHarness, /<summary[^>]*>\s*Review controls\s*<\/summary>/i)
 
   for (const marker of [
-    'GF-01 shell inherited','P-02 P8','F22 + F23','FUNCTIONAL LOW-FI CANDIDATE','P8 WALKTHROUGH FIXTURES',
+    'GF-01 shell inherited','P-02 P8','F22 + F23','FUNCTIONAL LOW-FI','LOCKED / OPERATOR APPROVED','P8 WALKTHROUGH FIXTURES',
     'PRJ-S11','PRJ-S13','PRJ-S14','PRJ-S15','PRJ-S19','ProjectConnectionBinding != Connection',
     'CON-03 · purpose-bound exact-Project chooser','brain.bind -X-&gt; generic brain.read','SQL Editor = FORBIDDEN',
     'INSERT / UPDATE / DELETE = FORBIDDEN','generic capability Run/Execute control = FORBIDDEN',
@@ -153,7 +171,7 @@ test('P-02 default Product surface is human-facing while proof chrome stays in a
     requireText(reviewHarness, marker, `Review controls must preserve proof marker: ${marker}`)
   }
 
-  for (const id of ['data-scenario','data-scenario-status','brain-scenario','brain-scenario-status']) {
+  for (const id of ['data-scenario','data-scenario-status','integration-scenario','integration-scenario-status','brain-scenario','brain-scenario-status']) {
     assert.doesNotMatch(productSurface, new RegExp(`id="${id}"`, 'i'), `${id} must not appear in default Product surface`)
     requireText(reviewHarness, `id="${id}"`, `${id} review control`)
   }

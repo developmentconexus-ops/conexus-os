@@ -83,6 +83,12 @@
           "provenance": { "enum": ["VERIFIED", "PARTIAL", "UNVERIFIED"] }
         }
       },
+      "currencyCode": {
+        "type": "string",
+        "pattern": "^[A-Z]{3}$",
+        "readOnly": true,
+        "description": "ISO 4217 unit applying to every monetary value on this page. Mixed-currency aggregation is not admitted by F1."
+      },
       "items": {
         "type": "array",
         "items": {
@@ -94,7 +100,9 @@
             "budgetAgeDays",
             "budgetValue",
             "sellerId",
+            "sellerName",
             "customerId",
+            "customerName",
             "sourceCompanyId",
             "pendingEvidenceState"
           ],
@@ -145,6 +153,10 @@
     },
     "allOf": [
       {
+        "if": { "required": ["items"] },
+        "then": { "required": ["currencyCode"] }
+      },
+      {
         "if": {
           "properties": {
             "truth": {
@@ -157,7 +169,7 @@
           "required": ["truth"]
         },
         "then": {
-          "required": ["items"],
+          "required": ["currencyCode", "items"],
           "properties": {
             "items": {
               "items": {

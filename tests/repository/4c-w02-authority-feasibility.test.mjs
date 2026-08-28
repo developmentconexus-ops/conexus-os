@@ -55,7 +55,7 @@ test('W-02 authority preflight separates Brain review from Connection secret/qua
     'W-02B LOCKED',
     'W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED',
     'W-04 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED',
-    'P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED',
+    'P-01 = LOCKED / OPERATOR APPROVED / AGENT STUDIO DELTA RE-LOCKED / P9/P10 CLOSED',
   ]) requireText(roadmap, currentLock, `roadmap must preserve current lock: ${currentLock}`)
 
   if (/4D[^\n|]*\|\s*OPEN/.test(roadmap)) throw new Error('W-02 closure must not permit opening 4D before remaining 4C/P11/P12 closure')

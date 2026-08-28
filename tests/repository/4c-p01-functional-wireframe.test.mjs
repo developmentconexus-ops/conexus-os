@@ -73,3 +73,32 @@ test('P-01 app-first root shows the current application immediately and keeps Ch
   for (const token of ['App-first Build root','Current Application','New chat','TODAY','Build / Plan','No active Change','Change becomes active only after a Build instruction','chat = human interaction surface','Change = durable work truth','Plan = governed execution intent','Hub progress = execution truth','Evidence = verification truth','Preview = product result']) requireText(html,token,`app-first token ${token}`)
   requireText(html,'id="build-root"','Build root is directly rendered');requireText(html,'id="chat-sidebar"','Conexus chat sidebar rendered by default');requireText(html,'id="focus-inspector" hidden','inspection closed by default');assert.doesNotMatch(html,/Build Overview|Focused Build Session|Open selected Change/,'superseded Change-first navigation must be absent')
 })
+
+test('P-01 bounded Agent Studio lens inspects a complete definition and edits one conflict-safe Change draft without framework or live-Agent authority', () => {
+  const html=read(htmlPath)
+  for (const token of [
+    'BOUNDED AGENT STUDIO REOPEN','Agent Studio','Specialized Build lens · entered from Project Agent detail · PRJ-21',
+    'agent: agent-sales-follow-up','authored revision: agent-rev-018','active Release: release-2026-08-24','Definition inspection · no draft',
+    'Identity and instructions','Model policy','Governed tools and context','Memory and interactions','Governance, verification and limitations',
+    'Purpose','Instructions','Policy reference','Temperature','Top P','Max output tokens','Project Brain context references',
+    'CONVERSATION_HISTORY','Conversation','Schedule','Policy references','Approval policy references','Budget policy references','Verification references','Known limitations',
+    'Start editing','Save draft revision','Ask Conexus to improve instructions','Review diff','Reload current draft','Simulate concurrent revision',
+    'EXISTING inspection = PRJ-21','NEW/EXISTING draft = BLD-03 + BLD-19','Reload = BLD-18','Save revision = BLD-20 expectedDraftRevision',
+    'structured edit + Conexus edit → same Change candidate','draft ≠ live Agent ≠ Release','capabilityId is not a Mastra/provider tool identity',
+    'EXISTING draft','NEW','Idempotency-Key','expectedDraftRevision','Conflict:','Reload before revising','Live Agent unchanged','requestedAgent','loadRequestedAgent',
+    'Each binding preserves exact capabilityId plus its authored reason','Complete ProductAgentDefinition diff','use policy default',
+  ]) requireText(html,token)
+  for (const id of [
+    'lens-agent','agent-studio','agent-definition-form','agent-fields','agent-schema-version','agent-name','agent-purpose','agent-instructions','agent-model-policy',
+    'agent-temperature','agent-top-p','agent-max-tokens','agent-brain-refs','agent-memory','agent-policy-refs','agent-approval-refs',
+    'agent-budget-refs','agent-verification-refs','agent-limitations','agent-start-edit','agent-save','agent-conexus-edit','agent-review-diff',
+    'agent-tool-bindings','agent-reload','agent-force-stale','agent-status',
+  ]) requireText(html,`id="${id}"`,id)
+  for (const behavior of ['renderToolBindings','readAgentDefinition','validateAgentDefinition','startAgentEditing','saveAgentDraft','simulateConcurrentAgentRevision','reloadAgentDraft','conexusReviseAgent','reviewAgentDiff','renderAgentStudio']) requireText(html,behavior,behavior)
+  requireText(html,"agentQuery.get('agent-studio')==='1'",'deep link selects the specialized lens')
+  requireText(html,"productAgentDetails[agentQuery.get('agentId')]",'Agent Studio re-resolves exact fixture owner truth by agentId')
+  requireText(html,"requestedOrigin==='NEW'",'NEW and EXISTING authoring use the same typed draft surface')
+  assert.doesNotMatch(html,/agentQuery\.get\('agentName'\)|agentQuery\.get\('purpose'\)|agentQuery\.get\('authoredRevisionId'\)/,'Agent Studio must not trust authored definition data from URL parameters')
+  assert.doesNotMatch(html,/(?:Create|Update|Delete)(?:Product)?Agent\s*\(/,'candidate must not invent direct Product Agent CRUD')
+  assert.doesNotMatch(html,/MastraAgent|providerToolId|systemPromptSecret|apiKey/i,'candidate must not expose framework/provider mechanism as Product authority')
+})

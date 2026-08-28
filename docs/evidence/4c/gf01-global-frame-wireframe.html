@@ -19,7 +19,11 @@
     .app-shell{max-width:1440px;min-height:760px;margin:0 auto 24px;border:2px solid #333;background:var(--paper);display:grid;grid-template-columns:var(--rail) minmax(0,1fr);grid-template-rows:var(--topbar) minmax(0,1fr);grid-template-areas:"top top" "rail stage";position:relative;overflow:hidden}
     .topbar{grid-area:top;border-bottom:1px solid var(--line-strong);background:var(--soft);display:flex;align-items:center;gap:10px;padding:0 14px;min-width:0;position:relative;z-index:40}
     .brand{font-weight:700;white-space:nowrap}.menu-toggle{display:none;border:1px solid var(--line-strong);background:var(--paper);width:38px;height:34px;align-items:center;justify-content:center}
-    .account{margin-left:auto;border:1px solid var(--line-strong);background:var(--paper);border-radius:20px;padding:7px 12px;white-space:nowrap}
+    .account-wrap{margin-left:auto;position:relative}.account{margin-left:0;border:1px solid var(--line-strong);background:var(--paper);border-radius:20px;padding:7px 12px;white-space:nowrap}
+    .account-menu{position:absolute;top:42px;right:0;width:min(320px,calc(100vw - 24px));max-height:min(520px,calc(100vh - var(--topbar) - 24px));overflow:auto;border:1px solid #444;background:var(--paper);padding:14px;box-shadow:3px 3px 0 #bbb;z-index:90}.account-menu[hidden]{display:none}.account-identity{border-bottom:1px solid var(--line);padding-bottom:10px}.account-identity:focus{outline:2px solid var(--line-strong);outline-offset:3px}.account-identity h2{font-size:16px;margin:0 0 4px}.account-identity p{color:var(--muted);font-size:12px;margin:0}.account-technical{margin-top:10px;border-bottom:1px solid var(--line);padding-bottom:10px}.account-technical summary{cursor:pointer;font-size:12px}.account-technical code{display:block;margin-top:7px;overflow-wrap:anywhere;font-size:11px}.account-session-note{color:var(--muted);font-size:11px;margin-top:10px}.account-status{border:1px solid var(--line-strong);background:var(--soft);padding:8px;margin-top:10px;font-size:12px}.account-status[data-state="DEPENDENCY_FAILURE"]{border-color:#733;background:#f6dddd}.account-menu-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.account-menu-actions button{border:1px solid #444;background:var(--paper);padding:8px 10px}.account-menu-actions #accountSignOut{background:var(--soft-2);font-weight:700}.account-proof{max-width:1440px;margin:0 auto 8px;padding:8px 0;font-size:12px}.account-proof summary{cursor:pointer;color:var(--muted)}.account-proof-body{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:8px}.account-proof-body select{border:1px solid var(--line-strong);background:var(--paper);padding:7px}.account-proof-body button{border:1px solid var(--line-strong);background:var(--paper);padding:7px 10px}.account-proof-body code{font-size:11px;color:var(--muted)}
+    .account-scenarios{display:flex;gap:4px;flex-wrap:wrap}.account-proof-body button[aria-pressed="true"]{background:var(--soft-2);font-weight:700}
+    .authentication-required{max-width:520px;margin:80px auto;padding:28px;border:1px dashed var(--line-strong);background:var(--paper);text-align:center}.authentication-required h1{font-size:22px}.authentication-required p{color:var(--muted);font-size:13px}.authentication-required button{border:1px solid #444;background:var(--soft-2);font-weight:700;padding:8px 12px}.authentication-required .session-boundary{font-size:11px}
+    .context-resolution{max-width:620px;margin:80px auto;padding:28px;border:1px dashed var(--line-strong);background:var(--paper)}.context-resolution h1{font-size:22px}.context-resolution p{color:var(--muted);font-size:13px}.context-resolution code{overflow-wrap:anywhere}.context-resolution .resolution-state{border:1px solid var(--line-strong);background:var(--soft);padding:10px;font-weight:700}.context-resolution[data-state="CONTEXT_ACCESS_DENIED"],.context-resolution[data-state="CONTEXT_NOT_FOUND"],.context-resolution[data-state="CONTEXT_INVALID"],.context-resolution[data-state="DEPENDENCY_FAILURE"]{border-color:#733;background:#f6dddd}.context-resolution button{border:1px solid #444;background:var(--soft-2);font-weight:700;padding:8px 12px}
 
     .context-switcher{display:flex;align-items:center;gap:5px;min-width:0;flex:1;position:relative}
     .context-segment{border:1px solid transparent;background:transparent;padding:7px 8px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;text-align:left}
@@ -47,7 +51,7 @@
       .app-shell[data-assistant-open="true"] .assistant-panel{transform:translateX(0)}
     }
     @media (max-width:760px){
-      body{background:var(--paper)}.evidence-note{margin:0;border-width:0 0 1px}.scope-lab{display:none}.app-shell{width:100%;min-height:100vh;margin:0;border:0;grid-template-columns:1fr;grid-template-rows:var(--topbar) minmax(0,1fr);grid-template-areas:"top" "stage"}.topbar{padding:0 8px;gap:4px}.brand{display:none}.menu-toggle{display:inline-flex}.context-switcher{gap:2px}.context-segment{padding:7px 5px;max-width:135px}.context-menu{top:40px;left:0!important;min-width:min(330px,calc(100vw - 16px))}.account{font-size:0;width:34px;height:34px;padding:0}.account::after{content:"A";font-size:13px}
+      body{background:var(--paper)}.evidence-note{margin:0;border-width:0 0 1px}.scope-lab{display:none}.account-proof{padding:8px;margin:0;border-bottom:1px solid var(--line)}.app-shell{width:100%;min-height:100vh;margin:0;border:0;grid-template-columns:1fr;grid-template-rows:var(--topbar) minmax(0,1fr);grid-template-areas:"top" "stage"}.topbar{padding:0 8px;gap:4px}.brand{display:none}.menu-toggle{display:inline-flex}.context-switcher{gap:2px}.context-segment{padding:7px 5px;max-width:135px}.context-menu{top:40px;left:0!important;min-width:min(330px,calc(100vw - 16px))}.account{font-size:0;width:34px;height:34px;padding:0}.account::after{content:"A";font-size:13px}.account-menu{position:fixed;top:calc(var(--topbar) + 8px);left:8px;right:8px;width:auto;max-height:calc(100vh - var(--topbar) - 16px)}
       .rail{position:absolute;z-index:50;top:var(--topbar);left:0;bottom:0;width:min(82vw,310px);transform:translateX(-102%);transition:transform 120ms linear;border-right:1px solid #333;box-shadow:2px 0 0 #bbb}.app-shell[data-drawer-open="true"] .rail{transform:translateX(0)}.scrim{position:absolute;z-index:45;inset:var(--topbar) 0 0 0;border:0;background:rgba(0,0,0,.16)}.app-shell[data-drawer-open="true"] .scrim{display:block}.mobile-context-summary{display:block;padding:4px 8px 12px;border-bottom:1px solid var(--line);margin-bottom:8px}.mobile-context-summary small{color:var(--muted);display:block}.mobile-context-summary strong{display:block;margin:4px 0 8px}.main{padding:22px 18px 34px}.project-list-fixture{grid-template-columns:1fr}.toolbar{align-items:stretch;flex-direction:column}.toolbar-actions{align-self:flex-start}.surface-placeholder{min-height:360px}.assistant-panel{width:100vw;top:var(--topbar)}.assistant-inner{width:100%}
     }
   </style>
@@ -65,6 +69,39 @@
     <button type="button" id="toggleAssistantLab" aria-pressed="false">Inspect contextual assistant seam</button>
   </div>
 
+  <details class="account-proof" id="accountProofControls">
+    <summary>Account/session proof controls (closed by default)</summary>
+    <div class="account-proof-body">
+      <span id="accountScenarioLabel">Scenario</span>
+      <div class="account-scenarios" id="accountScenario" role="group" aria-labelledby="accountScenarioLabel">
+        <button type="button" data-account-scenario="SIGNOUT_204" aria-pressed="true">IAM-02 204 · session ended</button>
+        <button type="button" data-account-scenario="SIGNOUT_401" aria-pressed="false">IAM-02 401 · already expired</button>
+        <button type="button" data-account-scenario="SIGNOUT_DEPENDENCY_FAILURE" aria-pressed="false">IAM-02 dependency/ambiguous failure</button>
+        <button type="button" data-account-scenario="IAM01_SESSION_EXPIRED" aria-pressed="false">IAM-01 401 · session expired</button>
+      </div>
+      <button type="button" id="resetAccountFixture">Reset Account fixture</button>
+      <code>IAM-01 AccountSummary → identity projection · IAM-02 EndSession</code>
+      <code>IAM-02 DELETE /api/session → exact Conexus session only</code>
+    </div>
+  </details>
+
+  <details class="account-proof" id="contextProofControls">
+    <summary>Workspace ingress proof controls (closed by default)</summary>
+    <div class="account-proof-body">
+      <span id="contextScenarioLabel">Re-resolve scenario</span>
+      <div class="account-scenarios" id="contextScenario" role="group" aria-labelledby="contextScenarioLabel">
+        <button type="button" data-context-scenario="READY" aria-pressed="true">READY · exact Account + Workspace</button>
+        <button type="button" data-context-scenario="CONTEXT_INVALID" aria-pressed="false">INVALID · malformed or mismatched ingress</button>
+        <button type="button" data-context-scenario="AUTHENTICATION_REQUIRED" aria-pressed="false">401 · session required</button>
+        <button type="button" data-context-scenario="CONTEXT_ACCESS_DENIED" aria-pressed="false">403 · Workspace undisclosed</button>
+        <button type="button" data-context-scenario="CONTEXT_NOT_FOUND" aria-pressed="false">404 · owner context not found</button>
+        <button type="button" data-context-scenario="DEPENDENCY_FAILURE" aria-pressed="false">dependency · context not confirmed</button>
+      </div>
+      <button type="button" id="applyContextScenario">Apply context scenario</button>
+      <code>IAM-01 AccountSummary + WS-02 WorkspaceSummary → GF-01 context</code>
+    </div>
+  </details>
+
   <div class="app-shell" id="shell" data-scope="workspace" data-drawer-open="false" data-assistant-open="false">
     <header class="topbar">
       <button class="menu-toggle" id="menuToggle" type="button" aria-label="Open navigation" aria-controls="currentNavigation" aria-expanded="false">☰</button>
@@ -79,8 +116,8 @@
           <div class="menu-label">Switch Workspace</div>
           <input class="menu-filter" id="workspaceFilter" type="search" aria-label="Filter workspaces" placeholder="Filter disclosed workspaces">
           <div id="workspaceOptions">
-            <button class="menu-option" type="button" data-workspace="Metal Nobre">Metal Nobre</button>
-            <button class="menu-option" type="button" data-workspace="Development Conexus">Development Conexus</button>
+            <button class="menu-option" type="button" data-workspace="Metal Nobre" data-workspace-id="ws-metal-nobre">Metal Nobre</button>
+            <button class="menu-option" type="button" data-workspace="Development Conexus" data-workspace-id="ws-development-conexus">Development Conexus</button>
           </div>
           <div class="menu-divider"></div>
           <div class="menu-label">Workspace shortcuts</div>
@@ -99,7 +136,25 @@
         </div>
       </nav>
 
-      <button class="account" type="button" aria-label="Account and session menu">Account</button>
+      <div class="account-wrap">
+        <button class="account" id="accountToggle" type="button" aria-label="Account and session menu" aria-controls="accountMenu" aria-expanded="false" aria-haspopup="true">Account</button>
+        <section class="account-menu" id="accountMenu" aria-labelledby="accountToggle" aria-describedby="accountSessionNote" hidden>
+          <div class="account-identity" id="accountIdentity" tabindex="-1">
+            <h2 id="accountDisplayName">Current Account</h2>
+            <p id="accountEmail" hidden></p>
+          </div>
+          <details class="account-technical" id="accountTechnical">
+            <summary>Show technical Account identity</summary>
+            <code id="accountId"></code>
+          </details>
+          <p class="account-session-note" id="accountSessionNote">This menu ends only the current opaque Conexus session. It does not claim global Keycloak SSO logout.</p>
+          <div class="account-status" id="accountStatus" role="status" aria-live="polite" hidden></div>
+          <div class="account-menu-actions">
+            <button id="accountSignOut" type="button">Sign out of Conexus</button>
+            <button id="accountRetry" type="button" hidden>Retry sign out</button>
+          </div>
+        </section>
+      </div>
     </header>
 
     <nav class="rail" id="currentNavigation" aria-label="Workspace navigation">
@@ -149,6 +204,7 @@
             <div class="toolbar-actions"><button class="primary-action" type="button">New Project</button></div>
           </div>
           <div class="project-fixture-note" data-project-collection-fixture>Fixture only for GF-01 frame testing. Cards vs structured list/table is deliberately deferred to W-01 and is not locked here.</div>
+          <div class="project-fixture-note" id="projects-egress" data-egress="GF-01_TO_W-01" data-owner="GF-01" data-destination="W-01" data-account-id="" data-workspace-id="">Projects egress → W-01 receives <code id="projects-egress-workspace-id">—</code> after exact Workspace resolution.</div>
           <div class="project-list-fixture" id="projectCards">
             <article class="project-card"><div><h2>Budget Analyzer</h2><p>Disclosed Project · collection metadata intentionally incomplete in GF-01.</p></div><button type="button" data-open-project="Budget Analyzer">Open</button></article>
             <article class="project-card"><div><h2>Marketplace Central</h2><p>Disclosed Project · collection metadata intentionally incomplete in GF-01.</p></div><button type="button" data-open-project="Marketplace Central">Open</button></article>
@@ -182,6 +238,21 @@
     </div>
   </div>
 
+  <section class="authentication-required" id="authenticationRequired" aria-labelledby="authenticationRequiredTitle" hidden>
+    <h1 id="authenticationRequiredTitle">Authentication required</h1>
+    <p id="authenticationRequiredMessage">Authenticate again to continue in Conexus.</p>
+    <button id="authenticationReentry" type="button">Authenticate again</button>
+    <p class="session-boundary">Re-entry rechecks the Conexus Account/session. Keycloak may still have an SSO session; this boundary does not claim provider logout.</p>
+  </section>
+
+  <section class="context-resolution" id="contextResolution" aria-labelledby="contextResolutionTitle" data-state="CONTEXT_INVALID" hidden>
+    <h1 id="contextResolutionTitle">Workspace context unavailable</h1>
+    <p id="contextResolutionMessage">GF-01 must resolve the current Account and Workspace before rendering the shell.</p>
+    <p class="resolution-state">Resolution state: <code id="contextResolutionState">CONTEXT_INVALID</code></p>
+    <p>Ingress coordinates: Account <code id="contextIngressAccount">—</code> · Workspace <code id="contextIngressWorkspace">—</code></p>
+    <button id="contextResolutionRetry" type="button">Reload this exact context</button>
+  </section>
+
 <script>
 // Vanilla JavaScript is used only to make the P8 structure inspectable. No backend behavior is claimed.
 (() => {
@@ -202,8 +273,56 @@
   const assistantToggle = document.getElementById('assistantToggle')
   const assistantClose = document.getElementById('assistantClose')
   const labAssistant = document.getElementById('toggleAssistantLab')
-  let workspaceName = 'Metal Nobre'
+  const accountToggle = document.getElementById('accountToggle')
+  const accountMenu = document.getElementById('accountMenu')
+  const accountIdentity = document.getElementById('accountIdentity')
+  const accountDisplayName = document.getElementById('accountDisplayName')
+  const accountEmail = document.getElementById('accountEmail')
+  const accountId = document.getElementById('accountId')
+  const accountTechnical = document.getElementById('accountTechnical')
+  const accountStatus = document.getElementById('accountStatus')
+  const accountSignOut = document.getElementById('accountSignOut')
+  const accountRetry = document.getElementById('accountRetry')
+  const accountScenario = document.getElementById('accountScenario')
+  const authenticationRequired = document.getElementById('authenticationRequired')
+  const authenticationRequiredMessage = document.getElementById('authenticationRequiredMessage')
+  const authenticationReentry = document.getElementById('authenticationReentry')
+  const resetAccountFixture = document.getElementById('resetAccountFixture')
+  const contextResolution = document.getElementById('contextResolution')
+  const contextResolutionTitle = document.getElementById('contextResolutionTitle')
+  const contextResolutionMessage = document.getElementById('contextResolutionMessage')
+  const contextResolutionState = document.getElementById('contextResolutionState')
+  const contextIngressAccount = document.getElementById('contextIngressAccount')
+  const contextIngressWorkspace = document.getElementById('contextIngressWorkspace')
+  const contextResolutionRetry = document.getElementById('contextResolutionRetry')
+  const contextScenario = document.getElementById('contextScenario')
+  const applyContextScenario = document.getElementById('applyContextScenario')
+  const projectsEgress = document.getElementById('projects-egress')
+  const projectsEgressWorkspaceId = document.getElementById('projects-egress-workspace-id')
+  const queryIngress = new URLSearchParams(window.location.search)
   let projectName = 'Budget Analyzer'
+  const accountSummary = {
+    accountId: 'acct-leandro',
+    displayName: 'Leandro Theodoro',
+    email: 'leandro@example.com'
+  }
+  const contextFixtures = {
+    accounts: {
+      'acct-leandro': accountSummary
+    },
+    workspaces: {
+      'ws-metal-nobre': { workspaceId: 'ws-metal-nobre', name: 'Metal Nobre', accountId: 'acct-leandro', disclosure: 'DISCLOSED' },
+      'ws-development-conexus': { workspaceId: 'ws-development-conexus', name: 'Development Conexus', accountId: 'acct-leandro', disclosure: 'DISCLOSED' },
+      'ws-undisclosed': { workspaceId: 'ws-undisclosed', name: 'Undisclosed Workspace', accountId: 'acct-leandro', disclosure: 'UNDISCLOSED' }
+    }
+  }
+  let workspaceName = '—'
+  let resolvedWorkspace = null
+  let contextState = 'LOADING'
+  let contextIngress = { accountId: queryIngress.get('accountId') || '', workspaceId: queryIngress.get('workspaceId') || '' }
+  let accountRecoveryScope = 'workspace'
+  let selectedAccountScenario = 'SIGNOUT_204'
+  let selectedContextScenario = 'READY'
 
   const workspaceCopy = {
     Projects:['Projects','Primary Workspace destination. Browse disclosed Projects and enter a Project context.'],
@@ -225,10 +344,211 @@
     Settings:['Settings','Bounded Project/app administration only; no generic metadata mutation is implied.']
   }
 
+  const contextMessages = {
+    LOADING: 'Resolving the current Account and Workspace from owner projections.',
+    READY: 'IAM-01 AccountSummary and WS-02 WorkspaceSummary resolved the current disclosed context.',
+    CONTEXT_INVALID: 'The GF-01 route did not receive a valid Account + Workspace coordinate. No default Workspace is assumed.',
+    AUTHENTICATION_REQUIRED: 'The Conexus session is not available. Authenticate again before Account or Workspace context is disclosed.',
+    CONTEXT_ACCESS_DENIED: 'The requested Workspace is not disclosed to this Account. No shell is rendered as Ready.',
+    CONTEXT_NOT_FOUND: 'The requested Account or Workspace could not be resolved by the owner projection. No fallback collection is shown.',
+    DEPENDENCY_FAILURE: 'IAM-01/WS-02 did not provide a safe context result. This is not treated as an empty Workspace.'
+  }
+
+  function renderContextResolution() {
+    contextResolution.dataset.state = contextState
+    contextResolutionState.textContent = contextState
+    contextIngressAccount.textContent = contextIngress.accountId || '—'
+    contextIngressWorkspace.textContent = contextIngress.workspaceId || '—'
+    contextResolution.hidden = contextState === 'READY' || contextState === 'AUTHENTICATION_REQUIRED'
+    authenticationRequired.hidden = contextState !== 'AUTHENTICATION_REQUIRED'
+    shell.hidden = contextState !== 'READY'
+    if (contextState === 'READY') {
+      contextResolutionTitle.textContent = 'Workspace context resolved'
+      contextResolutionMessage.textContent = contextMessages.READY
+      workspaceName = resolvedWorkspace.name
+      updateNames()
+      setWorkspaceRoute('Projects')
+      return
+    }
+    if (contextState === 'AUTHENTICATION_REQUIRED') {
+      contextResolutionTitle.textContent = 'Authentication required'
+      contextResolutionMessage.textContent = contextMessages.AUTHENTICATION_REQUIRED
+      authenticationRequiredMessage.textContent = contextMessages.AUTHENTICATION_REQUIRED
+      return
+    }
+    contextResolutionTitle.textContent = 'Workspace context unavailable'
+    contextResolutionMessage.textContent = contextMessages[contextState] || contextState
+  }
+
+  function resolveContext(forcedState) {
+    contextIngress = {
+      accountId: queryIngress.get('accountId') || '',
+      workspaceId: queryIngress.get('workspaceId') || ''
+    }
+    const selectedState = forcedState || queryIngress.get('gfState') || ''
+    const forcedStateMap = { INVALID: 'CONTEXT_INVALID', '401': 'AUTHENTICATION_REQUIRED', '403': 'CONTEXT_ACCESS_DENIED', '404': 'CONTEXT_NOT_FOUND', dependency: 'DEPENDENCY_FAILURE' }
+    const resolvedForcedState = forcedStateMap[selectedState] || selectedState
+    if (resolvedForcedState && resolvedForcedState !== 'READY') {
+      contextState = resolvedForcedState
+      resolvedWorkspace = null
+      renderContextResolution()
+      return contextState
+    }
+    const accountId = contextIngress.accountId
+    const workspaceId = contextIngress.workspaceId
+    if (!accountId || !workspaceId || !/^[a-z0-9-]+$/.test(accountId) || !/^[a-z0-9-]+$/.test(workspaceId)) {
+      contextState = 'CONTEXT_INVALID'
+      resolvedWorkspace = null
+      renderContextResolution()
+      return contextState
+    }
+    const account = contextFixtures.accounts[accountId]
+    const workspace = contextFixtures.workspaces[workspaceId]
+    if (!account || !workspace) {
+      contextState = 'CONTEXT_NOT_FOUND'
+      resolvedWorkspace = null
+      renderContextResolution()
+      return contextState
+    }
+    if (workspace.accountId !== account.accountId || workspace.disclosure !== 'DISCLOSED') {
+      contextState = 'CONTEXT_ACCESS_DENIED'
+      resolvedWorkspace = null
+      renderContextResolution()
+      return contextState
+    }
+    resolvedWorkspace = workspace
+    workspaceName = workspace.name
+    contextState = 'READY'
+    renderContextResolution()
+    return contextState
+  }
+
+  function selectWorkspace(workspaceId) {
+    const workspace = contextFixtures.workspaces[workspaceId]
+    if (!workspace || workspace.accountId !== accountSummary.accountId || workspace.disclosure !== 'DISCLOSED') {
+      contextIngress = { accountId: accountSummary.accountId, workspaceId }
+      contextState = workspace ? 'CONTEXT_ACCESS_DENIED' : 'CONTEXT_NOT_FOUND'
+      resolvedWorkspace = null
+      closeContextMenus()
+      renderContextResolution()
+      return
+    }
+    contextIngress = { accountId: accountSummary.accountId, workspaceId: workspace.workspaceId }
+    resolvedWorkspace = workspace
+    workspaceName = workspace.name
+    contextState = 'READY'
+    closeContextMenus()
+    setScope('workspace', 'Projects')
+    emitProjectsEgress()
+  }
+
+  function emitProjectsEgress() {
+    if (contextState !== 'READY' || !resolvedWorkspace) return
+    const detail = {
+      source: 'gf-01',
+      destination: 'w-01',
+      event: 'PROJECTS_COLLECTION',
+      accountId: accountSummary.accountId,
+      workspaceId: resolvedWorkspace.workspaceId,
+      route: 'Projects'
+    }
+    projectsEgress.dataset.accountId = detail.accountId
+    projectsEgress.dataset.workspaceId = detail.workspaceId
+    projectsEgressWorkspaceId.textContent = detail.workspaceId
+    window.dispatchEvent(new CustomEvent('conexus:wireframe-egress', { detail }))
+    if (window.parent && window.parent !== window) {
+      const targetOrigin = window.location.protocol === 'file:' ? '*' : window.location.origin
+      window.parent.postMessage({ type: 'conexus:wireframe-egress', detail }, targetOrigin)
+    }
+  }
+
   function closeContextMenus(){ workspaceMenu.hidden = true; projectMenu.hidden = true; workspaceCrumb.setAttribute('aria-expanded','false'); projectCrumb.setAttribute('aria-expanded','false') }
   function closeDrawer(){ shell.dataset.drawerOpen='false'; menuToggle.setAttribute('aria-expanded','false') }
   function closeAssistant(){ shell.dataset.assistantOpen='false'; if(assistantToggle) assistantToggle.setAttribute('aria-expanded','false'); labAssistant.setAttribute('aria-pressed','false') }
   function openAssistant(){ if(shell.dataset.scope !== 'project') setScope('project'); shell.dataset.assistantOpen='true'; assistantToggle.setAttribute('aria-expanded','true'); labAssistant.setAttribute('aria-pressed','true') }
+  function renderAccountSummary(){
+    accountDisplayName.textContent = accountSummary.displayName
+    accountEmail.textContent = accountSummary.email || ''
+    accountEmail.hidden = !accountSummary.email
+    accountId.textContent = accountSummary.accountId
+  }
+  function setAccountStatus(message, state){
+    accountStatus.textContent = message || ''
+    accountStatus.hidden = !message
+    if(state) accountStatus.dataset.state = state
+    else delete accountStatus.dataset.state
+  }
+  function setAccountScenario(value){
+    selectedAccountScenario = value
+    accountScenario.querySelectorAll('[data-account-scenario]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.accountScenario === value))
+    })
+  }
+  function closeAccountMenu(restoreFocus = false){
+    const focusInside = accountMenu.contains(document.activeElement)
+    accountMenu.hidden = true
+    accountToggle.setAttribute('aria-expanded','false')
+    if(restoreFocus && focusInside) accountToggle.focus()
+  }
+  function openAccountMenu(){
+    closeContextMenus()
+    closeDrawer()
+    renderAccountSummary()
+    setAccountStatus('', 'READY')
+    accountSignOut.disabled = false
+    accountRetry.hidden = true
+    accountMenu.hidden = false
+    accountToggle.setAttribute('aria-expanded','true')
+    accountIdentity.focus()
+  }
+  function showAuthenticationRequired(message){
+    accountRecoveryScope = shell.dataset.scope
+    closeAccountMenu(false)
+    shell.hidden = true
+    authenticationRequired.hidden = false
+    authenticationRequiredMessage.textContent = message
+    authenticationRequired.dataset.state = 'AUTHENTICATION_REQUIRED'
+    authenticationReentry.focus()
+  }
+  function restoreSessionFixture(){
+    if(contextState === 'AUTHENTICATION_REQUIRED') resolveContext('READY')
+    if(contextState !== 'READY') { renderContextResolution(); return }
+    shell.hidden = false
+    authenticationRequired.hidden = true
+    setAccountStatus('', 'READY')
+    setAccountScenario('SIGNOUT_204')
+    if(accountRecoveryScope === 'project') setScope('project', 'Build')
+    else setScope('workspace', 'Projects')
+    accountToggle.focus()
+  }
+  function endSession(){
+    accountSignOut.disabled = true
+    accountRetry.hidden = true
+    const scenario = selectedAccountScenario
+    if(scenario === 'SIGNOUT_204'){
+      showAuthenticationRequired('Your Conexus session has ended. Authenticate again to continue.')
+      return
+    }
+    if(scenario === 'SIGNOUT_401'){
+      showAuthenticationRequired('Your Conexus session was already expired. Authenticate again to continue.')
+      return
+    }
+    accountSignOut.disabled = false
+    accountRetry.hidden = false
+    setAccountStatus('Unable to confirm sign out. Your Conexus session may still be active. Retry.', 'DEPENDENCY_FAILURE')
+  }
+  function applyAccountScenario(){
+    const scenario = selectedAccountScenario
+    if(scenario === 'IAM01_SESSION_EXPIRED'){
+      showAuthenticationRequired('Your Conexus session expired while loading Account context. Authenticate again to continue.')
+      return
+    }
+    if(contextState !== 'READY'){ renderContextResolution(); return }
+    shell.hidden = false
+    authenticationRequired.hidden = true
+    closeAccountMenu(false)
+    setAccountStatus('', 'READY')
+  }
 
   function updateNames(){
     workspaceCrumb.textContent = workspaceName + ' ▾'
@@ -240,6 +560,8 @@
     document.getElementById('workspacePlaceholderCrumb').textContent = 'Workspace · ' + workspaceName
     document.getElementById('projectCrumbText').textContent = workspaceName + ' / ' + projectName
     document.getElementById('assistantContext').textContent = projectName + ' · ' + document.getElementById('projectTitle').textContent
+    document.getElementById('workspaceSurface').dataset.workspaceId = resolvedWorkspace ? resolvedWorkspace.workspaceId : ''
+    document.getElementById('workspaceCrumb').dataset.workspaceId = resolvedWorkspace ? resolvedWorkspace.workspaceId : ''
   }
 
   function setScope(scope, route){
@@ -258,11 +580,12 @@
 
   function markRoute(section, route){ section.querySelectorAll('[data-route]').forEach(b => b.removeAttribute('aria-current')); const b=section.querySelector(`[data-route="${CSS.escape(route)}"]`); if(b) b.setAttribute('aria-current','page') }
   function setWorkspaceRoute(route){
+    if(contextState !== 'READY'){ renderContextResolution(); return }
     markRoute(workspaceNav,route); closeAssistant();
     const [title,lede]=workspaceCopy[route] || [route,'Deferred Workspace surface.']
     if(route==='Projects'){ workspaceSurface.hidden=false; workspacePlaceholder.hidden=true; document.getElementById('workspaceTitle').textContent=title; document.getElementById('workspaceLede').textContent=lede }
     else { workspaceSurface.hidden=true; workspacePlaceholder.hidden=false; document.getElementById('workspacePlaceholderTitle').textContent=title; document.getElementById('workspacePlaceholderLede').textContent=lede; document.getElementById('workspacePlaceholderStrong').textContent=title + ' composition deferred'; document.getElementById('workspacePlaceholderBody').textContent='GF-01 validates frame/findability only. This surface receives its own later block.' }
-    closeDrawer(); updateNames()
+    closeDrawer(); updateNames(); if(route === 'Projects') emitProjectsEgress()
   }
   function setProjectRoute(route){
     markRoute(projectNav,route); const [title,lede]=projectCopy[route] || [route,'Deferred Project surface.']; document.getElementById('projectTitle').textContent=title; document.getElementById('projectLede').textContent=lede; document.getElementById('projectPlaceholderStrong').textContent=title + ' surface composition deferred'; document.getElementById('projectPlaceholderBody').textContent='GF-01 validates frame/navigation only. Exact regions/actions belong to the later material block.'; document.getElementById('assistantContext').textContent=projectName+' · '+title; closeDrawer()
@@ -274,7 +597,7 @@
   projectCrumb.addEventListener('click', e => { e.stopPropagation(); const open=projectMenu.hidden; closeContextMenus(); projectMenu.hidden=!open; projectCrumb.setAttribute('aria-expanded',String(open)); if(open) document.getElementById('projectFilter').focus() })
   document.getElementById('workspaceFilter').addEventListener('input', e => filterMenu(e.target,document.getElementById('workspaceOptions'),'data-workspace'))
   document.getElementById('projectFilter').addEventListener('input', e => filterMenu(e.target,document.getElementById('projectOptions'),'data-project'))
-  document.querySelectorAll('[data-workspace]').forEach(b => b.addEventListener('click',()=>{workspaceName=b.dataset.workspace; closeContextMenus(); setScope('workspace','Projects')}))
+  document.querySelectorAll('[data-workspace]').forEach(b => b.addEventListener('click',()=>selectWorkspace(b.dataset.workspaceId)))
   document.querySelectorAll('[data-project]').forEach(b => b.addEventListener('click',()=>{projectName=b.dataset.project; closeContextMenus(); setScope('project','Build')}))
   document.querySelectorAll('[data-workspace-shortcut]').forEach(b => b.addEventListener('click',()=>{const route=b.dataset.workspaceShortcut; closeContextMenus(); setScope('workspace',route)}))
   document.querySelectorAll('[data-open-project]').forEach(b => b.addEventListener('click',()=>{projectName=b.dataset.openProject; setScope('project','Build')}))
@@ -288,9 +611,27 @@
   assistantToggle.addEventListener('click',()=> shell.dataset.assistantOpen==='true' ? closeAssistant() : openAssistant())
   assistantClose.addEventListener('click',closeAssistant)
   labAssistant.addEventListener('click',()=> shell.dataset.assistantOpen==='true' ? closeAssistant() : openAssistant())
-  document.addEventListener('click',e=>{ if(!e.target.closest('.context-switcher')) closeContextMenus() })
-  document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeContextMenus(); closeDrawer(); closeAssistant() } })
-  updateNames()
+  accountToggle.addEventListener('click',()=> accountMenu.hidden ? openAccountMenu() : closeAccountMenu(true))
+  accountSignOut.addEventListener('click',endSession)
+  accountRetry.addEventListener('click',endSession)
+  accountScenario.querySelectorAll('[data-account-scenario]').forEach(button => button.addEventListener('click',()=>{ setAccountScenario(button.dataset.accountScenario); applyAccountScenario() }))
+  authenticationReentry.addEventListener('click',restoreSessionFixture)
+  resetAccountFixture.addEventListener('click',restoreSessionFixture)
+  contextScenario.querySelectorAll('[data-context-scenario]').forEach(button => button.addEventListener('click',()=>{selectedContextScenario=button.dataset.contextScenario;contextScenario.querySelectorAll('[data-context-scenario]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)))}))
+  applyContextScenario.addEventListener('click',()=>resolveContext(selectedContextScenario))
+  contextResolutionRetry.addEventListener('click',()=>resolveContext())
+  document.addEventListener('click',e=>{
+    if(!e.target.closest('.context-switcher')) closeContextMenus()
+    if(!e.target.closest('.account-wrap')) closeAccountMenu(accountMenu.contains(document.activeElement))
+  })
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){
+      if(!accountMenu.hidden){ closeAccountMenu(true); e.preventDefault(); return }
+      closeContextMenus(); closeDrawer(); closeAssistant()
+    }
+  })
+  renderAccountSummary()
+  resolveContext()
 })()
 </script>
 </body>

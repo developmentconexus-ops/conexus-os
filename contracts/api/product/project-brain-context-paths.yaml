@@ -11,6 +11,9 @@ paths:
       operationId: GetProjectBrainContext
       x-conexus-4a-id: BRN-14
       x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-authority-routes:
+        - brain.read + project.read
+        - project.build
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
@@ -19,7 +22,8 @@ paths:
             Current Brain-owned human projection of enterprise meaning adopted and available in the exact Project context,
             resolved from the exact current Project Brain binding plus admitted Project-local realization/refinement.
             This is not the whole Workspace Brain merely because a Project is bound, and it is not a runtime-specific
-            effective Brain slice or ToolProjection.
+            effective Brain slice or ToolProjection. The purpose-bound project.build route exposes safe authoring
+            reference recognition while withholding sections/provenance that current authority does not disclose.
           content:
             application/json:
               schema:
@@ -108,12 +112,16 @@ components:
     ProjectBrainContextConcept:
       type: object
       additionalProperties: false
-      required: [conceptRef, label, summary, contentClasses, sections, provenanceRefs]
+      required: [conceptRef, authoringRef, label, summary, contentClasses, detailDisclosed, sections, provenanceRefs]
       properties:
         conceptRef:
           type: string
           minLength: 1
           description: Project-context-scoped Brain browse coordinate only; not canonical semantic ID, source identity, decision subject or runtime ToolProjection coordinate.
+        authoringRef:
+          type: string
+          minLength: 1
+          description: Exact server-issued Project-bound authoring reference admitted for Product definitions; distinct from the presentation/navigation conceptRef and never a runtime effective-context coordinate.
         label:
           type: string
           minLength: 1
@@ -129,10 +137,14 @@ components:
           items:
             type: string
             enum: [SEMANTIC, KNOWLEDGE, EVIDENCE_SPEC]
+        detailDisclosed:
+          type: boolean
+          description: True only when current authority discloses sections and provenance. False means detail is withheld by current authority, never absent, invalid, deleted or known-empty meaning.
         sections:
           type: array
           items:
             $ref: '#/components/schemas/ProjectBrainContextSection'
+          description: Empty when detailDisclosed=false; the purpose-bound project.build route does not gain Workspace Brain detail authority.
         provenanceRefs:
           type: array
           uniqueItems: true

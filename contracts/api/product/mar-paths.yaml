@@ -3,6 +3,32 @@ info:
   title: Conexus Product API Managed Application Runtime Path Items
   version: 4b-candidate
 paths:
+  /api/control/projects/{projectId}/managed-jobs:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      summary: ListRunnableManagedJobs
+      operationId: ListRunnableManagedJobs
+      x-conexus-4a-id: MAR-04
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: Safe human-recognizable jobs admitted by the exact currently served Release. The projection grants no queue, schedule, Release-selection or run-now authority by itself.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunnableManagedJobCatalog'
+        '401':
+          $ref: './openapi.yaml#/components/responses/Problem401'
+        '403':
+          $ref: './openapi.yaml#/components/responses/Problem403'
+        '404':
+          $ref: './openapi.yaml#/components/responses/Problem404'
+        '503':
+          $ref: './openapi.yaml#/components/responses/Problem503'
+
   /api/control/projects/{projectId}/job-runs:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
@@ -138,6 +164,60 @@ components:
       items:
         type: string
         minLength: 1
+    RunnableManagedJobSummary:
+      type: object
+      additionalProperties: false
+      required: [jobId, name, purpose]
+      properties:
+        jobId:
+          type: string
+          minLength: 1
+          description: Exact authored job/v1 identity admitted by the catalog's served Release.
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Immutable Release-time human presentation for this admitted job.
+        purpose:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Safe bounded authored purpose; not queue, schedule or effect authority.
+        scheduleSummary:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Optional human presentation of the admitted job/v1 schedule when one exists; not scheduler mutation authority.
+    RunnableManagedJobCatalog:
+      type: object
+      additionalProperties: false
+      required: [projectId, catalogState, items]
+      properties:
+        projectId:
+          type: string
+          minLength: 1
+        catalogState:
+          type: string
+          enum: [AVAILABLE, NO_SERVED_RELEASE]
+          description: Whether MAR resolved an exact currently served Release from which runnable jobs can be projected.
+        servedReleaseId:
+          type: string
+          minLength: 1
+        servedReleaseManifestDigest:
+          type: string
+          minLength: 1
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunnableManagedJobSummary'
+      allOf:
+        - if:
+            properties:
+              catalogState:
+                const: AVAILABLE
+            required: [catalogState]
+          then:
+            required: [servedReleaseId, servedReleaseManifestDigest]
     ManagedJobRunSummary:
       type: object
       additionalProperties: false

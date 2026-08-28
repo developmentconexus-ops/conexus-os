@@ -1,9 +1,10 @@
 # 4C W-04 — Locked Workspace Agent Catalog Screen Contract
 
-> **Status:** `LOCKED / OPERATOR APPROVED` · P9 EXACT TRACE CLOSED · P10 CONSOLIDATED · P11 LATER ASSEMBLED PRODUCT
+> **Status:** `LOCKED BASELINE / P12 FAMILY 4 AGENT-EGRESS DELTA RE-LOCKED / OPERATOR APPROVED` · P9 EXACT TRACE CLOSED · P10 CONSOLIDATED · P11 LATER ASSEMBLED PRODUCT
 > **Block:** `W-04 — Workspace Agent catalog`
 > **Locked structure:** Agent-first Workspace discovery catalog → explicit future Project-owned Agent workspace boundary
 > **approved revised P8 artifact blob = 65073eb5f532f2675f04ec307eb0d9b91fd1b69d**
+> **P12 Family 4 approved blob = 71e03432a0abd34ae35301094010fd670bb78b98 / OPERATOR APPROVED 2026-08-28**
 > **Product implementation authority:** none.
 
 The operator explicitly approved the exact revised functional W-04 P8 after operating it. The approved HTML remains an immutable Evidence snapshot; its in-artifact `CANDIDATE / NOT LOCKED` language is historical. Current LOCK authority lives in this Screen Contract and the roadmap, pinned to the exact approved revised blob above.

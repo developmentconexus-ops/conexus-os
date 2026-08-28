@@ -87,13 +87,29 @@ function assertProjectProductAgent(schema, label) {
   return agent;
 }
 
-// Canonical schemas guarded by this bounded Project sub-checker:
+// Canonical summary schemas guarded by this bounded Project sub-checker:
 // ProjectProductAgent, WorkspaceProductAgentCatalogItem and ProjectSummary.
-// 4C-F13: PRJ-20 and PRJ-21 expose the same Project-owned authored Agent projection.
+// F30 deliberately makes PRJ-21 definition detail richer while PRJ-20/22 remain the same safe summaries.
 const projectAgentList = successSchema('PRJ-20');
 if (projectAgentList?.type !== 'array') throw new Error('PRJ-20 must return an Agent array');
 assertProjectProductAgent(projectAgentList.items, 'PRJ-20 item');
-assertProjectProductAgent(successSchema('PRJ-21'), 'PRJ-21 success');
+const prj20Description = op('PRJ-20').responses?.['200']?.description ?? '';
+for (const law of ['agent.trigger.manage', 'purpose-bound', 'summary', 'no PRJ-21']) {
+  if (!prj20Description.includes(law)) throw new Error(`F24 PRJ-20 bounded trigger-admin disclosure missing ${law}`);
+}
+const prj21Description = op('PRJ-21').responses?.['200']?.description ?? '';
+if (prj21Description.includes('agent.trigger.manage')) throw new Error('F24 must not broaden PRJ-21 authored detail to trigger administrators');
+const prj21 = assertClosedObject(successSchema('PRJ-21'), 'PRJ-21 success');
+for (const field of ['agentId', 'authoredRevisionId', 'releaseRefs', 'activeReleaseId', 'definition']) {
+  if (!requiredFields(prj21).has(field)) throw new Error(`F30 PRJ-21 must require ${field}`);
+}
+const definition = assertClosedObject(propertySchema(prj21, 'definition'), 'PRJ-21 definition');
+for (const field of ['schemaVersion', 'name', 'purpose', 'instructions', 'modelPolicy', 'tools', 'brainContext', 'memory', 'interactions', 'policyRefs', 'approvalPolicyRefs', 'budgetPolicyRefs', 'verificationRefs', 'knownLimitations']) {
+  if (!requiredFields(definition).has(field)) throw new Error(`F30 PRJ-21 definition must require ${field}`);
+}
+assertNonBlankText(propertySchema(definition, 'name'), 'PRJ-21 definition.name');
+assertNonBlankText(propertySchema(definition, 'purpose'), 'PRJ-21 definition.purpose');
+if (propertySchema(definition, 'schemaVersion')?.const !== 'agent/v1') throw new Error('F30 PRJ-21 definition must be exact agent/v1');
 
 // 4C-F13: PRJ-22 is a self-contained Workspace catalog item, not a frontend join or Workspace fleet owner.
 const workspaceCatalog = successSchema('PRJ-22');
@@ -114,4 +130,4 @@ for (const forbidden of ['projectName', 'workspaceAgentId', 'fleetStatus', 'runt
   if (catalogItem.properties?.[forbidden]) throw new Error(`PRJ-22 item must not invent parallel catalog field ${forbidden}`);
 }
 
-console.log('Project Agent catalog F13 closure passed (human Agent name/purpose + canonical ProjectSummary; no fleet/runtime authority).');
+console.log('Project Agent catalog closure passed (F13 summaries preserved; F30 PRJ-21 complete authored definition; no fleet/runtime authority).');

@@ -6,6 +6,7 @@
     "coverage": "UNKNOWN",
     "provenance": "UNVERIFIED"
   },
+  "currencyCode": "BRL",
   "summary": {
     "pendingBudgetCount": 0,
     "pendingBudgetValue": "0"

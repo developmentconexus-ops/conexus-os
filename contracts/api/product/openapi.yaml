@@ -24,8 +24,8 @@ x-conexus-browser-request-authenticity:
 paths:
   /api/control/access-context:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1access-context'
-  /api/control/session:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1session'
+  /api/session:
+    $ref: './identity-workspace-paths.yaml#/paths/~1api~1session'
   /api/control/accounts:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1accounts'
   /api/control/workspaces/{workspaceId}/members:
@@ -48,6 +48,8 @@ paths:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1apps~1{projectId}~1access-context'
   /api/control/projects/{projectId}/app-access:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1app-access'
+  /api/control/projects/{projectId}/app-access-candidates:
+    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1app-access-candidates'
   /api/control/projects/{projectId}/app-access/{accountId}:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1app-access~1{accountId}'
   /api/control/workspaces:
@@ -88,6 +90,8 @@ paths:
     $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1capabilities'
   /api/control/projects/{projectId}/capabilities/{capabilityId}:
     $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1capabilities~1{capabilityId}'
+  /api/control/projects/{projectId}/model-policies:
+    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1model-policies'
   /api/control/projects/{projectId}/data-resources:
     $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-resources'
   /api/control/projects/{projectId}/data-resources/{dataResourceId}:
@@ -138,6 +142,12 @@ paths:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1assistant~1queries'
   /api/control/projects/{projectId}/changes/{changeId}/execution-detail:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1execution-detail'
+  /api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts:
+    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1product-agent-drafts'
+  /api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts/{draftId}:
+    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1product-agent-drafts~1{draftId}'
+  /api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts/{draftId}/commands/revise:
+    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1product-agent-drafts~1{draftId}~1commands~1revise'
   /api/control/workspaces/{workspaceId}/brain:
     $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain'
   /api/control/workspaces/{workspaceId}/brain/revisions:
@@ -216,6 +226,8 @@ paths:
     $ref: './gateway-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1effect-attempts'
   /api/control/projects/{projectId}/effect-attempts/{effectAttemptId}:
     $ref: './gateway-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1effect-attempts~1{effectAttemptId}'
+  /api/control/projects/{projectId}/managed-jobs:
+    $ref: './mar-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1managed-jobs'
   /api/control/projects/{projectId}/job-runs:
     $ref: './mar-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1job-runs'
   /api/control/projects/{projectId}/job-runs/{jobRunId}:

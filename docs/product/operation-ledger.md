@@ -1,6 +1,6 @@
 # Conexus OS — Product Operation Ledger
 
-> **Status:** CURRENT / OPERATOR RATIFIED / `4B-F01` + `4C-F02` + `4C-F03` + `4C-F05` + `4C-F06` + `4C-F07` + `4C-F09` + `4C-F10` + `4C-F11` + `4C-F12` + `4C-F14` + `4C-F15` + `4C-F16` + `4C-F17` + `4C-F18` + `4C-F19` + `4C-F20` + `4C-F21` + `4C-F22` + `4C-F23` BOUNDED CORRECTIONS ACCEPTED
+> **Status:** CURRENT / OPERATOR RATIFIED / bounded corrections accepted through `4C-PRE11-F05`
 > **Authority:** derived only from current accepted Product/architecture authority routed by `docs/index.md`, the 4A contract, the operator-approved first Budget Analyzer semantic contract and the operator-approved bounded downstream corrections named above.
 > **Mutable program status:** owned only by `docs/roadmap.md`.
 
@@ -9,13 +9,13 @@ This ledger is the canonical 4A Product-operation authority. It is intentionally
 The ledger closes three different surfaces because Conexus is a software-publishing platform rather than one fixed business application:
 
 ```text
-fixed Conexus platform operations = 122
+fixed Conexus platform operations = 128
 Project-defined operations        = exact finite Ops(R) admitted by the grammar in §4
 first Budget Analyzer operations  = 2
 ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
 ```
 
-The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. During executable-wire derivation, `4B-F01` materially falsified three generic mutation rows because no accepted Product authority defined their mutable property sets; the operator explicitly approved their bounded subtraction. During W-01 frontend authority-feasibility work, `4C-F02` then proved that accepted Journey B could not be completed truthfully without creation-time source bootstrap, caller-expressible Inception intent and one durable exact candidate-Baseline read. The later operator-approved `4C-F03` proved that a coherent visual Baseline review loop additionally requires exact-candidate refinement input and one exact candidate-bound contextual explanation surface under Baseline-management authority. During W-02 Brain authority-to-interaction derivation, operator-approved `4C-F05`, `4C-F06` and `4C-F07` enriched existing Brain intake/detail reads without changing Brain ownership or operation count. During W-02B, operator-approved `4C-F09` and `4C-F10` enriched existing Connections current configuration, test applicability and human diagnostics without changing Connections topology. During W-03 authority-feasibility, operator-approved `4C-F11` proved that access administration requires human Account/Area presentation plus three purpose-built I&A reads for membership candidates, exact member effective access and exact Area access; `4C-F12` proved that immutable Audit must be server-filterable and preserve append-time human presentation snapshots rather than relying on browser-local filtering or current-name lookup. During P-01 Builder authority-feasibility, operator-approved `4C-F14` proved that the already-authored Change intent must remain present on Change reads and that existing `BLD-16` must optionally bind one exact current Change when contextual assistance is Change-scoped. During P-01 P9 authority tracing, operator-approved `4C-F15` then proved that the existing Builder Preview read must represent either the server-resolved current Project source Preview or, when an optional exact `changeId` is supplied, that Change candidate Preview. During P-02 authority-feasibility, operator-approved `4C-F16` proved that existing Project Data-resource reads require a server-owned nonblank human presentation name while preserving `dataResourceId` as the exact machine identity. Operator-approved `4C-F17` then proved that existing ProjectConnectionBinding reads require human Connection presentation and that the existing `CON-03` collection read must support a purpose-bound exact-Project binding-selection disclosure under `project.manage + connection.use` without turning `connection.use` into generic `connection.read`. Operator-approved `4C-F18` likewise proved that an admitted `PRJ-11` Project Brain-binding manager needs purpose-bound immutable revision selection through the existing `BRN-02` summary without turning `brain.bind` into generic `brain.read`. Operator-approved `4C-F19` proved that `BRN-12 RunAnalyticQuery` requires one current binding-bound human-discoverable semantic-input catalog because no existing Product read exposes the canonical dataset/semantic IDs its deterministic request requires. The first P-02 functional walkthrough then produced operator-approved `4C-F20` and `4C-F21`: existing Data reads must expose bounded logical structure and source/resource classification sufficient to inspect Project-owned, integration-backed and derived Data without becoming a physical database explorer; existing Capability reads must expose human name/purpose plus logical inputs/outputs sufficient to understand an admitted capability without creating generic execution authority. The later operator walkthrough with an explicit Mitra-style real-table reference materially falsified the assumption that semantic Data-resource inspection alone closes the Data job: `4C-F22` therefore adds four exact Project-owned read-only explorer reads while preserving semantic `PRJ-18/19` as a separate authority layer. The subsequent whole-P-02 product walkthrough proved that Project Brain inspection cannot stop at binding metadata and cannot truthfully derive Project applicability by composing the whole Workspace Brain in the browser: `4C-F23` therefore adds one exact Project-scoped Brain read for server-resolved adopted/available Brain context while preserving Workspace publication and runtime effective-slice authority. F14–F18/F20/F21 add no operation; F19 adds exactly one fixed Brain read; F22 adds exactly four Project reads; F23 adds exactly one fixed Brain read. F22/F23 add no Permission, semantic owner, principal, trust boundary or durable record class. All unaffected 4A semantics remain preserved.
+The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. The accepted bounded findings through F38 remain preserved. The pre-P11 coherence review then admits one transient `TRUSTED_BOOTSTRAP_CONTEXT` principal for first Account self-provisioning and adds one Project-owned model-policy discovery read, `PRJ-29`, while ordinary Permissions remain 25. No new semantic owner or durable record class is added.
 
 ---
 
@@ -24,10 +24,10 @@ The numbers are derivation results, not targets. The original 4A candidate survi
 ### 1.1 Fixed platform census
 
 ```text
-N_platform = 122
-platform operations with named owner       = 122
-platform operations with real consumer     = 122
-platform operations with authority mapping = 122
+N_platform = 128
+platform operations with named owner       = 128
+platform operations with real consumer     = 128
+platform operations with authority mapping = 128
 orphaned platform operations                = 0
 speculative platform operations             = 0
 ```
@@ -66,6 +66,7 @@ Both are exact Project-defined registered `Query` operations of the Budget Analy
 | Class | Meaning | Authority root |
 | --- | --- | --- |
 | `HUMAN_ACCOUNT_SESSION` | authenticated human mapped to one Conexus Account and opaque Conexus session | current server-resolved Workspace/Project/owner grants |
+| `TRUSTED_BOOTSTRAP_CONTEXT` | transient pre-Account human context after exact pinned OIDC issuer/subject verification | server-preconfigured bootstrap subject; IAM-03 self-provision only; invalid after Account establishment |
 | `PUBLISHED_APP_HUMAN` | authenticated human using one exact Published App | current `published_app_access` + exact app role `{admin, member}` + exact active Release |
 | `PAR_AGENT_RUN_CONTEXT` | one already-admitted Product AgentRun | exact Release-pinned ToolProjection + PAR/Gateway owner facts; model identity is not principal authority |
 | `MAR_JOB_RUN_CONTEXT` | one already-admitted managed JobRun | exact Project/Release/job occurrence + current owner gates; queue identity is not authority |
@@ -155,14 +156,14 @@ Attachments/private bytes are carrier properties of exact owning operations, nev
 
 # 5. Fixed Conexus platform census
 
-The tables below are the exact 122 current Product operations. IDs deliberately remain stable around subtracted candidates so review history does not silently renumber authority.
+The tables below are the exact 128 current Product operations. IDs deliberately remain stable around subtracted candidates so review history does not silently renumber authority.
 
-## 5.1 Identity & Access — 19
+## 5.1 Identity & Access — 20
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
-| `IAM-01` | `GetControlPlaneAccessContext` | I&A | Control Plane shell; current Account session and disclosable context | read |
-| `IAM-02` | `EndSession` | I&A | authenticated human; exact current Conexus session | command |
+| `IAM-01` | `GetControlPlaneAccessContext` | I&A | Control Plane shell; canonical current AccountSummary + disclosable Workspace/Project context | read |
+| `IAM-02` | `EndSession` | I&A | authenticated human through Control Plane or Published App; exact current opaque Conexus session | command |
 | `IAM-03` | `ProvisionAccount` | I&A | trusted platform operator/admin; stable external identity + bounded human presentation | command |
 | `IAM-04` | `ListWorkspaceMembers` | I&A | Workspace access administration; human Account summaries | read |
 | `IAM-05` | `AddWorkspaceMember` | I&A | exact Workspace membership administration | command/current-authority |
@@ -173,13 +174,14 @@ The tables below are the exact 122 current Product operations. IDs deliberately 
 | `IAM-10` | `RemoveAreaMember` | I&A | exact Area; narrowing | narrowing command |
 | `IAM-11` | `GrantAreaProjectAccess` | I&A | exact Area + Project in same Workspace | command/current-authority |
 | `IAM-12` | `RevokeAreaProjectAccess` | I&A | exact Area + Project; narrowing | narrowing command/current-authority |
-| `IAM-13` | `GetPublishedAppAccessContext` | I&A | exact Published App human; current app access/role | read |
+| `IAM-13` | `GetPublishedAppAccessContext` | I&A | exact Published App human; canonical Account presentation + current app access/role/active Release | read |
 | `IAM-14` | `ListPublishedAppAccess` | I&A | Project/app administration; business use not implied | read |
 | `IAM-15` | `SetPublishedAppAccess` | I&A | exact Project/app + Account + `{admin,member}` + expected current grant state, including explicit absent state on create | command/current-authority |
 | `IAM-17` | `RevokePublishedAppAccess` | I&A | exact current app grant; narrowing | narrowing command/current-authority |
 | `IAM-18` | `ListWorkspaceMembershipCandidates` | I&A | exact Workspace access administration; currently disclosable existing Account candidates | read |
 | `IAM-19` | `GetWorkspaceMemberAccess` | I&A | exact Workspace + member Account; current Area memberships, direct grants and I&A-derived effective Project access with exact sources | read/current-authority projection |
 | `IAM-20` | `GetAreaAccess` | I&A | exact Workspace + Area; current members and Area→Project grants with human summaries | read/current-authority projection |
+| `IAM-21` | `ListPublishedAppAccessCandidates` | I&A | exact Project/app access administration; bounded existing Conexus Account candidates not already granted; candidate disclosure grants nothing | read |
 
 `IAM-16 ChangePublishedAppAccessRole` was subtracted into `IAM-15`: grant and role change are one Product meaning over `iam.published_app_access`; wire-level create/update/precondition detail belongs to 4B.
 
@@ -260,7 +262,7 @@ owners = 13
 
 No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default Workspace operation is admitted.
 
-## 5.3 Project — 27
+## 5.3 Project — 28
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
@@ -282,7 +284,7 @@ No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default 
 | `PRJ-17` | `GetProjectCapability` | Project projection | exact Project/capability identity + human purpose + logical input/output contract; inspection only | read |
 | `PRJ-18` | `ListProjectDataResources` | Project | declared Project Data resources with exact machine identity + server-owned human presentation + semantic resource/source classification | read/provenance |
 | `PRJ-19` | `GetProjectDataResource` | Project | exact Data resource identity/presentation + grain/freshness/coverage/provenance + logical fields/relationships/rules | read/provenance |
-| `PRJ-20` | `ListProjectProductAgents` | Project projection | authored Agent identities/revisions/Release state | read |
+| `PRJ-20` | `ListProjectProductAgents` | Project projection | authored Agent identities/revisions/Release state; ordinary source-read or purpose-bound trigger-administration summary disclosure | read |
 | `PRJ-21` | `GetProjectProductAgent` | Project projection | exact Agent authoring identity/revisions/Release refs | read |
 | `PRJ-22` | `ListWorkspaceProductAgents` | Project-owned filtered projection | Workspace access-filtered catalog; no Workspace Agent owner | read |
 | `PRJ-23` | `GetProjectBaselineCandidate` | Project | exact candidate Baseline human review/re-entry by Project + candidate digest before approval | read |
@@ -291,6 +293,7 @@ No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default 
 | `PRJ-26` | `ListProjectDataExplorerObjects` | Project | exact Project + exact disclosed explorer source; paged/searchable TABLE/VIEW/genuinely-tabular DATASET summaries without generic provider-tree authority | read/provenance |
 | `PRJ-27` | `GetProjectDataExplorerObject` | Project | exact Project + disclosed source/object; physical columns/keys/relationships/constraints plus optional semantic coordinates; no SQL/storage-admin authority | read/provenance |
 | `PRJ-28` | `ListProjectDataExplorerRows` | Project | exact Project + disclosed source/object; current read-only rows through bounded typed filter/sort/pagination with scoped continuation truth | read/provenance |
+| `PRJ-29` | `ListProjectModelPolicies` | Project | small finite Project-owned model-policy set with human label/purpose, server-issued default and bounded sampling limits; ordinary inspection or purpose-bound construction discovery | read |
 
 `PRJ-04 UpdateProject` remains subtracted. F11's alternate PRJ-01 access-administration route reveals only exact contained `ProjectSummary` identity needed to administer grants; it is not generic `project.read` and does not restore Project mutation.
 
@@ -643,7 +646,7 @@ new trust boundaries = 0
 new durable records = 0
 ```
 
-## 5.4 Builder — 17
+## 5.4 Builder — 20
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
@@ -664,6 +667,9 @@ new durable records = 0
 | `BLD-15` | `GetEvidence` | Builder projection | exact Evidence/provenance | read/review |
 | `BLD-16` | `AskConexusAboutContext` | Builder | selected current authorized Project context + optional exact current Change context; grants no new authority | read/assistant interaction |
 | `BLD-17` | `GetChangeExecutionDetail` | Builder | exact Change; subordinate WorkUnit/ActorRun projection | read |
+| `BLD-18` | `GetChangeProductAgentDraft` | Builder | exact Change + current server-owned typed Product Agent draft | read |
+| `BLD-19` | `CreateChangeProductAgentDraft` | Builder | exact Change + explicit NEW or current authored origin + typed `agent/v1`; idempotent candidate establishment | command |
+| `BLD-20` | `ReviseChangeProductAgentDraft` | Builder | exact Change/draft + expected current draft revision + typed `agent/v1` | command/current-state |
 
 A generic `AcceptChange` is rejected. `bld.change_acceptance` remains an owner current-proof fact produced by exact checkpoints/verifier/Builder settlement. Direct `CreateWorkUnit`, plan-JSON patch, `SetWorkItemStatus`, `CreateActorRun`, `ResumeSandbox` and `MarkVerified` are owner/runtime mechanics.
 
@@ -765,6 +771,47 @@ Builder remains 17
 N_platform = 116 at F15
 ordinary Permissions remain 25
 records remain 46
+```
+
+The historical `BLD-18` rejection above means “no second Preview operation.” It did not reserve the identifier forever. The later, independently proven F30 consumer assigns `BLD-18` to the distinct Product Agent draft read below.
+
+### 5.4.3 `4C-F30` — complete Agent definition + typed Change draft
+
+The P-03 walkthrough proved that human creators cannot inspect or structurally author the Product-owned `agent/v1` contract through the current Product wire. The operator accepted the smallest owner-preserving correction:
+
+```text
+PRJ-21
+→ exact safe complete authored ProductAgentDefinition
+→ immutable authored revision + Release coordinates
+
+BLD-18 GetChangeProductAgentDraft
+→ reload exact current server-owned draft
+
+BLD-19 CreateChangeProductAgentDraft
+→ explicit origin = NEW | EXISTING
+→ idempotent establishment inside exact Change
+→ server issues/revalidates Agent identity
+
+BLD-20 ReviseChangeProductAgentDraft
+→ expectedDraftRevision
+→ stale writes fail closed
+→ same candidateSubjectDigest / diff / proof / Release path
+```
+
+`ProductAgentDefinition` is a closed framework-neutral `agent/v1` contract: name, purpose, instructions, bounded model policy/sampling, governed capability bindings, Project-bound Brain context, currently admitted memory, interactions, policy/approval/budget/verification references and known limitations. It contains no credential, raw provider configuration, Mastra identity, arbitrary extension object, runtime override or browser-owned state.
+
+```text
+PRJ-20/22 summary != PRJ-21 definition detail
+draft != live Agent mutation
+draft != second source/Agent database
+instructions != provider system-prompt storage authority
+capabilityId != Mastra/provider tool identifier
+typed edit + Conexus edit → same Change candidate
+new operations = 3
+Builder 17 → 20
+N_platform 122 → 125
+ordinary Permissions remain 25
+semantic owners/principals/trust boundaries/durable record classes remain unchanged
 ```
 
 ## 5.5 Brain — 13
@@ -1149,12 +1196,12 @@ No new Product operation, ordinary Permission, semantic owner, principal class, 
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
-| `REL-01` | `ListReleases` | Release | exact Project version disclosure | read |
-| `REL-02` | `GetRelease` | Release | exact immutable Release composition | read |
-| `REL-04` | `ListPromotions` | Release | exact Project/environment history | read |
+| `REL-01` | `ListReleases` | Release | scalable human-recognizable exact Project version disclosure | read |
+| `REL-02` | `GetRelease` | Release | exact immutable safe human-inspectable Release composition | read |
+| `REL-04` | `ListPromotions` | Release | scalable chronological exact Project/environment history | read |
 | `REL-05` | `GetPromotion` | Release | exact Promotion history/current state | read |
-| `REL-06` | `PromoteRelease` | Release | exact Release + environment + current proof/conformance + expected pointer generation | consequential decision/current-state |
-| `REL-07` | `GetProjectServingState` | Release/MAR projection | exact active pointer + served verification; AVAILABLE != served | read/provenance |
+| `REL-06` | `PromoteRelease` | Release | exact Release + server-disclosed environment + current proof/conformance + expected pointer generation | consequential decision/current-state |
+| `REL-07` | `GetProjectServingState` | Release/MAR projection | server-disclosed target matrix + exact active pointer + served verification; AVAILABLE != served | read/provenance |
 | `REL-08` | `GetEnvironmentConformance` | Release | exact target PG/privileges/migrations/config/bindings/current pointer checks | read/proof |
 
 `REL-03 ComposeRelease` is `SYSTEM_OWNER_TRANSITION`: exact accepted proof causes owner-controlled immutable composition; no separate human command is required. Rollback is another governed `PromoteRelease` to an eligible prior Release. Pointer setting and served verification are not direct caller operations.
@@ -1163,15 +1210,15 @@ No new Product operation, ordinary Permission, semantic owner, principal class, 
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
-| `PAR-01` | `ListConversations` | PAR | exact Project/Agent + current Published-App disclosure | read |
-| `PAR-02` | `GetConversation` | PAR | exact Conversation + current Project/Agent/app authority | read |
+| `PAR-01` | `ListConversations` | PAR | exact Project/Agent + current Published-App disclosure; recognizable newest-active-first summaries + exact attention | read |
+| `PAR-02` | `GetConversation` | PAR | exact Conversation + current Project/Agent/app authority; typed durable text/question/reply history | read |
 | `PAR-03` | `CreateConversation` | PAR | exact active Release + Agent + current app access | command |
-| `PAR-04` | `SendProductAgentTurn` | PAR | exact Conversation + current app/Agent/Release authority; admits exact AgentRun | consequential command |
+| `PAR-04` | `SendProductAgentTurn` | PAR | exact Conversation + current app/Agent/Release authority; optional exact current question reply; admits a new exact AgentRun | consequential command |
 | `PAR-05` | `RunProductAgentHeadless` | PAR | exact active Release/Agent + explicit headless authority | consequential command |
-| `PAR-06` | `ListAgentRuns` | PAR | exact Project/Agent/Conversation + current disclosure | read/provenance |
-| `PAR-07` | `GetAgentRun` | PAR | exact AgentRun; `COMPLETED != every effect succeeded` | read/provenance |
-| `PAR-08` | `ListApprovalRequests` | PAR | current eligible approver UX; exact Project/AgentRun disclosure | read/approval |
-| `PAR-09` | `GetApprovalRequest` | PAR | current eligible approver or separately authorized investigator; exact sealed subject/current state | read/approval |
+| `PAR-06` | `ListAgentRuns` | PAR | exact Project/Agent/Conversation + current disclosure; owner-issued newest-admitted-first ordering | read/provenance |
+| `PAR-07` | `GetAgentRun` | PAR | exact AgentRun temporal/state truth + optional safe human problem; `COMPLETED != every effect succeeded` | read/provenance |
+| `PAR-08` | `ListApprovalRequests` | PAR | current eligible approver UX; exact request-time Agent/action/temporal recognition context | read/approval |
+| `PAR-09` | `GetApprovalRequest` | PAR | current eligible approver or separately authorized investigator; recognition context + exact sealed subject/current state | read/approval |
 | `PAR-10` | `DecideApprovalRequest` | PAR | current eligible human shown the exact sealed proposal; surface does not confer eligibility | decision/current-authority |
 | `PAR-11` | `ListAgentTriggers` | PAR | exact Project/Agent trigger administration | read |
 | `PAR-12` | `GetAgentTrigger` | PAR | exact TriggerRevision/current state | read |
@@ -1181,6 +1228,8 @@ No new Product operation, ordinary Permission, semantic owner, principal class, 
 | `PAR-16` | `DisableAgentTrigger` | PAR | exact TriggerRevision; explicit narrowing allowed for archived Project | narrowing command |
 
 Agent authoring stays in `BLD-03` + normal Change/Release. Mastra thread/tool-registry/runtime snapshot/provider IDs and owner terminal transitions are not Product operations.
+
+`4C-F37` keeps clarification inside the existing Conversation owner and operation set. A structured `QUESTION` is durable user-visible message truth, not an `ApprovalRequest` or runtime suspension owner. The question-producing AgentRun settles; a reply through PAR-04 must reference the exact still-open question and starts a new AgentRun. `PAR-01` orders summaries by `lastActivityAt DESC` then stable `conversationId DESC`. PAR remains 16.
 
 Approval is owner-specific rather than Control-Plane-specific:
 
@@ -1197,18 +1246,19 @@ The exact approval surface may be Control Plane or Published Application when th
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
-| `GW-01` | `ListEffectAttempts` | Gateway | exact Project/originating run/operation + audit disclosure; no retry authority | read/effect evidence |
+| `GW-01` | `ListEffectAttempts` | Gateway | exact Project + optional exact server-filtered originating run + audit disclosure; filter applies before pagination and grants no retry authority | read/effect evidence |
 | `GW-02` | `GetEffectAttempt` | Gateway | exact EffectAttempt receipt/reconciliation/provenance; preserves `OUTCOME_UNKNOWN` | read/effect evidence |
 
 Effect admission, idempotency claim, resume/reconciliation are owner-internal after an admitted business command. Generic Retry/MarkSucceeded/ResolveUnknown shortcuts are rejected.
 
-## 5.10 Managed Application Runtime — 3
+## 5.10 Managed Application Runtime — 4
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
 | `MAR-01` | `ListManagedJobRuns` | MAR | exact Project + Release/job filters | read |
 | `MAR-02` | `GetManagedJobRun` | MAR | exact JobRun + pinned Release/job/current state | read/provenance |
 | `MAR-03` | `RunManagedJobNow` | MAR | exact currently served Release + admitted `job/v1` + current authority | command/occurrence |
+| `MAR-04` | `ListRunnableManagedJobs` | MAR/Release projection | safe human-recognizable jobs admitted by the exact currently served Release | read |
 
 Queue/redelivery/catch-up/single-flight mechanics remain owner/runtime behavior. No CreateCron, ReplayMissedSlots, ForceRedelivery or MarkJobSucceeded Product operation is admitted.
 
@@ -1216,7 +1266,7 @@ Queue/redelivery/catch-up/single-flight mechanics remain owner/runtime behavior.
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
-| `OBS-01` | `ListProjectActivity` | OBS/Audit projection | exact Project disclosure; entries reference owner facts | read |
+| `OBS-01` | `ListProjectActivity` | OBS/Audit projection | exact Project disclosure; human summary + optional admitted owner-detail target | read |
 | `OBS-02` | `GetExecutionObservationDetail` | OBS/Audit projection | exact closed typed execution subject + technical disclosure | read/evidence |
 | `OBS-03` | `GetProjectUsageCostSummary` | OBS/Audit projection | exact Project/period + provenance; missing != zero | read/provenance |
 | `OBS-04` | `ListAuditRecords` | OBS/Audit | exact Workspace audit investigation with bounded server-side period/actor/action/Project filters applied before pagination; immutable human snapshots/summary | read/audit |
@@ -1292,14 +1342,14 @@ Published Application **business operations** are exact Project-defined `Ops(R)`
 
 # 7. First Budget Analyzer application census — 2
 
-The operator-approved `docs/product/budget-analyzer-contract.md` closes the first Project-defined operation set:
+The operator-approved `docs/product/budget-analyzer-contract.md` closes this operation set:
 
 | ID | Operation | Regime | Owner | Consumer | Product authority |
 | --- | --- | --- | --- | --- | --- |
 | `BUD-01` | `AnalyzePendingBudgets` | registered `Query` | Budget Analyzer Project/Product semantic contract | Published-App human | exact active Budget Analyzer Release; current app access; role `{admin,member}`; exact ProjectConnectionBinding/Brain mapping + system-resolved result coordinate |
 | `BUD-02` | `ListPendingBudgets` | registered `Query` | Budget Analyzer Project/Product semantic contract | Published-App human | same exact Release/app/source authority; each response/page has its own disclosed system-resolved result coordinate |
 
-`AnalyzePendingBudgets` returns exactly the closed R1–R5 analytical snapshot under the admitted filter set; it is not arbitrary metrics/dimensions/group-by/SQL. `ListPendingBudgets` returns R6 drilldown. F1 does not promise cross-call or cross-page snapshot pinning: a changed result coordinate must remain visible and mixed-coordinate data must not be represented as one coherent snapshot. Neither operation admits arbitrary historical reconstruction through caller-selected `as_of`.
+`AnalyzePendingBudgets` returns exactly the closed R1–R5 analytical snapshot under the admitted filter set; it is not arbitrary metrics/dimensions/group-by/SQL. `ListPendingBudgets` returns R6 drilldown. Every value-bearing response/page carries one exact ISO 4217 currency code; F1 does not aggregate multiple currencies without separately accepted grouping/conversion semantics. Seller/customer results carry stable source-qualified IDs plus owner-issued non-empty human names. F1 does not promise cross-call or cross-page snapshot pinning: a changed result coordinate must remain visible and mixed-coordinate data must not be represented as one coherent snapshot. Neither operation admits arbitrary historical reconstruction through caller-selected `as_of`.
 
 ```text
 N_budget = 2
@@ -1384,14 +1434,15 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 
 | Operation IDs | Principal / ingress | Permission or special condition | Scope/current-authority rule | Outcome | IC |
 | --- | --- | --- | --- | --- | --- |
-| `IAM-01` | `HUMAN_ACCOUNT_SESSION / CP` | `authenticated` | exact current Conexus session; server resolves only disclosable Workspace/Project context | `READ` | `IC0` |
-| `IAM-02` | `HUMAN_ACCOUNT_SESSION / CP` | `authenticated` | exact current session subject | `COMMAND` | `IC1` |
-| `IAM-03` | `HUMAN_ACCOUNT_SESSION / CP` | trusted `platform_operator` | trusted F1 provisioning boundary; stable provisioned external identity + human presentation/uniqueness prevents duplicate Account creation; no public signup | `COMMAND` | `IC3` |
+| `IAM-01` | `HUMAN_ACCOUNT_SESSION / CP` | `authenticated` | exact current Conexus session; returns canonical AccountSummary and only disclosable Workspace/Project context | `READ` | `IC0` |
+| `IAM-02` | `HUMAN_ACCOUNT_SESSION / CP or PA` | `authenticated` | exact current opaque Conexus session subject; ending it does not claim Keycloak SSO logout | `COMMAND` | `IC1` |
+| `IAM-03` | `HUMAN_ACCOUNT_SESSION / CP` **or** `TRUSTED_BOOTSTRAP_CONTEXT / CP` | trusted `platform_operator` or exact one-shot bootstrap self-provision | ordinary route provisions a named exact subject; bootstrap route derives its own exact subject server-side and cannot provision another Account; no public signup | `COMMAND` | `IC3` |
 | `IAM-04..12,IAM-18..20` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.access.manage` | exact Workspace/Area/Project containment; access reads are exact current I&A projections; grant/revoke target and current authority rechecked at commit | read rows `READ`; writes `COMMAND` | reads `IC0`; writes `IC1` |
-| `IAM-13` | `PUBLISHED_APP_HUMAN / PA` | exact app access + role | exact Published App + active Release; app role never implies Control Plane authority | `READ` | `IC0` |
-| `IAM-14` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app administration | `READ` | `IC0` |
+| `IAM-13` | `PUBLISHED_APP_HUMAN / PA` | exact app access + role | canonical AccountSummary + exact Published App + active Release; app role never implies Control Plane authority | `READ` | `IC0` |
+| `IAM-14` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app administration; current grants carry Account presentation and exact active-Release `admin|member` capability consequences | `READ` | `IC0` |
+| `IAM-21` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app; existing I&A-owned Conexus Accounts not already granted; search never queries or proves Keycloak-directory existence and candidate inclusion grants nothing | `READ` | `IC0` |
 | `IAM-15,IAM-17` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app/Account subject; current grant state includes explicit absent state for create and exact current role/grant for change/revoke | `COMMAND` | `IC2` |
-| `WS-01` | `HUMAN_ACCOUNT_SESSION / CP` | trusted `platform_operator` | trusted first-access Workspace creation | `COMMAND` | `IC3` |
+| `WS-01` | `HUMAN_ACCOUNT_SESSION / CP` | trusted `platform_operator` | trusted first-access Workspace creation; success establishes exact initial current-Account access so the Workspace is immediately disclosable | `COMMAND` | `IC3` |
 | `WS-02` | `HUMAN_ACCOUNT_SESSION / CP` | current Workspace membership | exact Workspace disclosure | `READ` | `IC0` |
 | `WS-04` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.manage` **or** narrow `workspace.access.manage` access-administration summary disclosure | exact Workspace; alternate route reveals AreaSummary identity only for access administration | `READ` | `IC0` |
 | `WS-05` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.manage` | exact Workspace + explicit human Area name + stable create intake; duplicate intake cannot create duplicate Area | `COMMAND` | `IC3` |
@@ -1404,12 +1455,14 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | `PRJ-08,PRJ-09,PRJ-10,PRJ-12,PRJ-13,PRJ-15,PRJ-23,PRJ-24` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/current or candidate Baseline/binding subject; PRJ-13 binding responses may compose Connection presentation but gain no Connection management/read authority; PRJ-24 is exact candidate-bound read-only explanation; removals are narrowing | reads `READ`; decisions/writes `DECISION/COMMAND` | reads `IC0`; writes `IC2` |
 | `PRJ-11` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage + brain.bind` | exact immutable Brain revision + current conformance + exact Project binding subject | `DECISION` | `IC2` |
 | `PRJ-14` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage + connection.use` | exact qualified compatible ConnectionRevision/environment + current Project binding | `DECISION` | `IC2` |
-| `PRJ-16,PRJ-17` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` | exact Project + capability identity; human name/purpose and logical input/output contract are inspection truth only and do not grant invocation | `READ` | `IC0` |
+| `PRJ-16,PRJ-17` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `project.read` or purpose-bound `project.build` | exact Project + capability identity; human name/purpose and logical input/output contract are inspection/construction truth only and do not grant invocation, data, source or runtime authority | `READ` | `IC0` |
 | `PRJ-18,PRJ-19` | `HUMAN_ACCOUNT_SESSION / CP` | `project.data.read` | exact declared semantic Data resource + admitted source/read-model scope; human name, resource/source kind and logical fields/relationships/rules are disclosed semantic inspection truth only, never physical explorer identity or authorization | `PROVENANCE_READ` | `IC0` |
 | `PRJ-25..28` | `HUMAN_ACCOUNT_SESSION / CP` | `project.data.read` | exact Project + server-resolved current explorer eligibility; Project Database business/application data or exact eligible currently bound integration source only; source/object/page coordinates remain untrusted, and PRJ-28 filters/sorts only disclosed exact-object columns | `PROVENANCE_READ` | `IC0` |
-| `PRJ-20,PRJ-21` | `HUMAN_ACCOUNT_SESSION / CP` | `project.source.read` | exact Project/Agent authored identity/revision | `READ` | `IC0` |
+| `PRJ-20` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `project.source.read` **or** purpose-bound `agent.trigger.manage` | exact Project/Agent authored summary; alternate route supports trigger administration only and grants no PRJ-21/source/mutation authority | `READ` | `IC0` |
+| `PRJ-21` | `HUMAN_ACCOUNT_SESSION / CP` | `project.source.read` | exact Project/Agent safe complete authored `agent/v1` definition plus immutable authored-revision/Release coordinates; no runtime/provider/Mastra authority | `READ` | `IC0` |
 | `PRJ-22` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` | Workspace-filtered Project-owned Agent disclosure; no fleet owner | `READ` | `IC0` |
-| `BLD-01..04,BLD-06,BLD-10,BLD-16,BLD-17` | `HUMAN_ACCOUNT_SESSION / CP` | `project.build` | exact Project/Change human intent/Plan/current-or-candidate Preview/current selected context; BLD-10 and BLD-16 may optionally narrow to one exact current Change without widening authority | reads `READ`; `BLD-03` `COMMAND` | reads `IC0`; `BLD-03` `IC3` |
+| `PRJ-29` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `project.read` or purpose-bound `project.build` | exact Project-owned model-policy summaries; server-issued default and sampling envelope grant no provider/model/runtime selection or policy mutation | `READ` | `IC0` |
+| `BLD-01..04,BLD-06,BLD-10,BLD-16..20` | `HUMAN_ACCOUNT_SESSION / CP` | `project.build` | exact Project/Change human intent/Plan/current-or-candidate Preview/context plus typed Product Agent draft; BLD-18 reads current draft, BLD-19 idempotently establishes NEW/EXISTING draft and BLD-20 revises only the expected current draft revision | reads `READ`; create/revise `COMMAND` | reads `IC0`; BLD-03/19 `IC3`; BLD-20 `IC2` |
 | `BLD-05,BLD-11..15` | `HUMAN_ACCOUNT_SESSION / CP` | `project.review` | exact Change/Plan/Finding/Evidence subject + current eligibility | reads `READ`; decisions `DECISION` | reads `IC0`; decisions `IC2` |
 | `BLD-07..09` | `HUMAN_ACCOUNT_SESSION / CP` | `project.source.read` | exact immutable/current source revision/path/lineage | `READ` | `IC0` |
 | `BRN-01,BRN-03,BRN-10` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.read` | exact Workspace Brain/detail/health disclosure; BRN-03 includes exact-source deterministic human-readable review content plus structured source-bound knowledge browse | `PROVENANCE_READ` | `IC0` |
@@ -1422,23 +1475,26 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | `BRN-12` Published-App route | `PUBLISHED_APP_HUMAN / PA` | exact Release-declared app role subset | exact active Release + app access + Brain/dataset projection | `ANALYTIC` | `IC0` |
 | `BRN-12` Agent route | `PAR_AGENT_RUN_CONTEXT / PAR_TOOL` | exact ToolProjection | exact active AgentRun/Release/Brain/dataset projection | `ANALYTIC` | `IC0` |
 | `BRN-13` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.read + project.data.read` | exact Project + current Brain binding + curated analytical admission; catalog is a current server projection and does not become durable browser authority | `READ` | `IC0` |
-| `BRN-14` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.read + project.read` | exact Project grant + exact current Project Brain binding; server resolves Project-local realization/refinement and exposes only adopted/available Project Brain context, never whole-Workspace publication or runtime effective slice | `PROVENANCE_READ` | `IC0` |
+| `BRN-14` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `brain.read + project.read` or purpose-bound `project.build` | exact current Project Brain binding; ordinary route exposes Project context detail, while build-only route exposes server-issued authoringRef + human recognition and explicitly withholds sections/provenance; never whole-Workspace publication or runtime effective slice | `PROVENANCE_READ` | `IC0` |
 | `CON-01..04,CON-09` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `connection.read`; `CON-03` additionally admits purpose-bound `project.manage + connection.use` | ordinary route uses exact Connector/Connection/revision/environment/ownerScope disclosure; purpose-bound CON-03 requires exact target Project and returns only the existing lightweight summary; CON-04 additionally exposes current non-secret configuration; CON-09 exposes exact test basis + human diagnostic/remediation + Evidence | `CON-09` `PROVENANCE_READ`; others `READ` | `IC0` |
 | `CON-05..07` | `HUMAN_ACCOUNT_SESSION / CP` | `connection.manage` | exact ownerScope/current Connection; credential is write-only; CON-06 revision or CON-07 credential replacement makes an older test basis non-current | `COMMAND`/`CONSEQUENTIAL` | `CON-05` `IC3`; `CON-06` `IC2`; `CON-07` `IC3` |
 | `CON-08` | `HUMAN_ACCOUNT_SESSION / CP` | `connection.qualify` | exact ConnectionRevision/environment + server-resolved current logical credential generation + real provider/source Evidence | `PROOF` | `IC3` |
-| `REL-01,REL-02,REL-04,REL-05,REL-07` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` | exact Project/Release/Promotion/serving disclosure | `REL-07` `PROVENANCE_READ`; others `READ` | `IC0` |
+| `REL-01,REL-02,REL-04,REL-05,REL-07` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read`; `REL-07` additionally admits purpose-bound `release.promote` target/serving discovery | exact Project/Release/Promotion/server-disclosed target/serving truth | `REL-07` `PROVENANCE_READ`; others `READ` | `IC0` |
 | `REL-06` | `HUMAN_ACCOUNT_SESSION / CP` | `release.promote` | exact Release/environment + current proof/conformance + expected pointer generation; repeatable promotion intake cannot manufacture duplicate Promotion/effect | `CONSEQUENTIAL` | `IC2 AND IC3` |
 | `REL-08` | `HUMAN_ACCOUNT_SESSION / CP` | `release.promote` | exact target-environment conformance subject; read grants no pointer mutation | `PROOF` | `IC0` |
-| `PAR-01..04` | `PUBLISHED_APP_HUMAN / PA` | exact app access/role + active Release/Agent | exact Project/Agent/Conversation/Release scope | reads `READ`; `PAR-03` `COMMAND`; `PAR-04` `CONSEQUENTIAL` | reads `IC0`; create/turn `IC3`; downstream effects additionally `IC4` |
+| `PAR-01..04` | `PUBLISHED_APP_HUMAN / PA` | exact app access/role + active Release/Agent | exact Project/Agent/Conversation/Release scope; recognizable chronology/attention and exact current question reply remain PAR-owned | reads `READ`; `PAR-03` `COMMAND`; `PAR-04` `CONSEQUENTIAL` | reads `IC0`; create/turn `IC3`; downstream effects additionally `IC4` |
 | `PAR-05` | `HUMAN_ACCOUNT_SESSION / HEADLESS` | `agent.headless.invoke` | exact active Release/Agent + current headless admission | `CONSEQUENTIAL` | `IC3`; downstream effects `IC4` |
-| `PAR-06,PAR-07` | `HUMAN_ACCOUNT_SESSION / CP` or `PUBLISHED_APP_HUMAN / PA` | Control Plane `project.read` or exact in-scope app access | exact AgentRun/Conversation/Project disclosure | `PAR-07` `PROVENANCE_READ`; `PAR-06` `READ` | `IC0` |
-| `PAR-08` | `HUMAN_ACCOUNT_SESSION / CP` or `PUBLISHED_APP_HUMAN / PA` | `agent.effect.approve` + exact current approver eligibility | exact Project/AgentRun/ApprovalRequest scope; PA additionally requires current app access/Release; app role alone is never approval authority | `READ` | `IC0` |
-| `PAR-09` | eligible approver via `CP` or `PA`, or `HUMAN_ACCOUNT_SESSION / CP` investigator | approver route: `agent.effect.approve` + exact current eligibility; investigator route: `audit.read` | exact sealed ApprovalRequest/proposal digest; investigator is read-only; PA app role alone is never approval authority | `PROVENANCE_READ` | `IC0` |
+| `PAR-06,PAR-07` | `HUMAN_ACCOUNT_SESSION / CP` or `PUBLISHED_APP_HUMAN / PA` | Control Plane `project.read` or exact in-scope app access | exact AgentRun/Conversation/Project disclosure; admitted/settled times and safe problem remain PAR owner truth | `PAR-07` `PROVENANCE_READ`; `PAR-06` `READ` | `IC0` |
+| `PAR-08` | `HUMAN_ACCOUNT_SESSION / CP` or `PUBLISHED_APP_HUMAN / PA` | `agent.effect.approve` + exact current approver eligibility | exact Project/AgentRun/ApprovalRequest scope plus immutable request-time Agent/action/time recognition context; PA additionally requires current app access/Release; app role alone is never approval authority | `READ` | `IC0` |
+| `PAR-09` | eligible approver via `CP` or `PA`, or `HUMAN_ACCOUNT_SESSION / CP` investigator | approver route: `agent.effect.approve` + exact current eligibility; investigator route: `audit.read` | recognition context + exact sealed ApprovalRequest/proposal digest; context is not current authorization; investigator is read-only; PA app role alone is never approval authority | `PROVENANCE_READ` | `IC0` |
 | `PAR-10` | `HUMAN_ACCOUNT_SESSION / CP` or `PUBLISHED_APP_HUMAN / PA` | `agent.effect.approve` + exact current approver eligibility | exact sealed proposal + current revocation/Release/eligibility recheck; changed subject requires new request; PA additionally requires current app access/Release | `DECISION` | `IC2/IC4` |
 | `PAR-11..16` | `HUMAN_ACCOUNT_SESSION / CP` | `agent.trigger.manage` | exact Project/Agent/TriggerRevision; archive blocks creation/enable but narrowing disable remains allowed | reads `READ`; writes `COMMAND` | reads `IC0`; create `IC3`; revise/enable `IC2`; disable `IC1` |
-| `GW-01,GW-02` | `HUMAN_ACCOUNT_SESSION / CP` | `audit.read` | exact Project + originating run/operation/effect subject; no retry authority | `PROVENANCE_READ` | `IC0` (underlying effect owner uses `IC4`) |
+| `GW-01,GW-02` | `HUMAN_ACCOUNT_SESSION / CP` | `audit.read` | exact Project + originating run/operation/effect subject; GW-01 may filter by exact owner-issued originatingRun before pagination; no retry authority | `PROVENANCE_READ` | `IC0` (underlying effect owner uses `IC4`) |
+
+`4C-PRE11-F04` preserves the accepted exact AgentRun investigation continuation with **no new Product operation**. `GW-01` accepts one optional exact `OriginatingRunRef { kind, ref }` filter, applies it server-side before deterministic `attemptedAt DESC / effectAttemptId DESC` pagination and binds the opaque continuation to that exact query shape. The filter is recognition/provenance scope only: it grants no PAR read, Gateway mutation, retry, replay, reconciliation or effect authority.
 | `MAR-01,MAR-02` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` | exact Project/Release/job/JobRun | `MAR-02` `PROVENANCE_READ`; `MAR-01` `READ` | `IC0` |
 | `MAR-03` | `HUMAN_ACCOUNT_SESSION / CP` | `job.run` | exact currently served Release + admitted job + normal single-flight/coalesce laws | `COMMAND` | `IC3` |
+| `MAR-04` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `project.read` or purpose-bound `job.run` | safe human job identities only from the exact currently served Release; read grants no run/queue/schedule authority | `READ` | `IC0` |
 | `OBS-01,OBS-03` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` | exact Project/current disclosure; usage result preserves provenance | `OBS-03` `PROVENANCE_READ`; `OBS-01` `READ` | `IC0` |
 | `OBS-02,OBS-04,OBS-05` | `HUMAN_ACCOUNT_SESSION / CP` | `audit.read` | exact closed typed execution/audit subject + current disclosure; OBS-04 filtering is server-side before pagination; audit labels/summaries are immutable presentation Evidence, never current authorization | `PROVENANCE_READ` | `IC0` |
 
@@ -1535,7 +1591,41 @@ P-02 F23 then admits exactly one server-resolved Project Brain Context read prov
 = 122 current fixed Conexus platform Product operations
 ```
 
-`PRJ-03`, `PRJ-07`, `BRN-02`, `BRN-03`, `BRN-06`, `BRN-07`, `CON-03`, `CON-04`, `CON-07`, `CON-08`, `CON-09`, `OBS-04`, `OBS-05`, `BLD-01`, `BLD-02`, `BLD-03`, `BLD-10`, `BLD-16`, `PRJ-13`, `PRJ-14`, `PRJ-16`, `PRJ-17`, `PRJ-18` and `PRJ-19` gained only bounded missing semantics required by real consumers; they remain the same Product operations. F11 adds exactly three purpose-built reads because three independent access-administration read jobs are proven; F19 adds exactly one purpose-built read because BRN-12's human semantic-input discovery is otherwise impossible from Product authority; F22 adds exactly four reads because source discovery, scalable source-scoped object discovery, exact object structure and structured row browsing are independently bounded human reads and must not collapse into a generic provider/resource tree; F23 adds exactly one read because Project Brain context inspection is neither binding administration, whole-Workspace Brain browse nor runtime context composition.
+P-03 F30 then admits three exact Builder interactions for one typed Product Agent draft inside the existing Change owner:
+
+```text
+122
++ 1 BLD-18 GetChangeProductAgentDraft
++ 1 BLD-19 CreateChangeProductAgentDraft
++ 1 BLD-20 ReviseChangeProductAgentDraft
+= 125 current fixed Conexus platform Product operations
+```
+
+P-04 F31–F34 then enrich existing Release/OBS reads and admits one distinct managed-job discovery read:
+
+```text
+125
++ 1 MAR-04 ListRunnableManagedJobs
+= 126 current fixed Conexus platform Product operations
+```
+
+P-05 F35–F36 then enrich existing I&A grant reads/writes and admits one exact app-access candidate read:
+
+```text
+126
++ 1 IAM-21 ListPublishedAppAccessCandidates
+= 127 current fixed Conexus platform Product operations
+```
+
+The operator-approved pre-P11 F05 correction then admits one Project-owned human model-policy discovery read:
+
+```text
+127
++ 1 PRJ-29 ListProjectModelPolicies
+= 128 current fixed Conexus platform Product operations
+```
+
+`PRJ-03`, `PRJ-07`, `BRN-02`, `BRN-03`, `BRN-06`, `BRN-07`, `BRN-14`, `CON-03`, `CON-04`, `CON-07`, `CON-08`, `CON-09`, `OBS-04`, `OBS-05`, `BLD-01`, `BLD-02`, `BLD-03`, `BLD-10`, `BLD-16`, `PRJ-13`, `PRJ-14`, `PRJ-16`, `PRJ-17`, `PRJ-18` and `PRJ-19` gained only bounded missing semantics required by real consumers; they remain the same Product operations. F11 adds exactly three purpose-built reads because three independent access-administration read jobs are proven; F19 adds exactly one purpose-built read because BRN-12's human semantic-input discovery is otherwise impossible from Product authority; F22 adds exactly four reads because source discovery, scalable source-scoped object discovery, exact object structure and structured row browsing are independently bounded human reads and must not collapse into a generic provider/resource tree; F23 adds exactly one read because Project Brain context inspection is neither binding administration, whole-Workspace Brain browse nor runtime context composition; PRE11-F05 adds exactly one Project-owned model-policy read because a required model-policy reference otherwise has no human-recognizable construction source.
 
 Rejected convenience/mechanism operations include:
 
@@ -1643,15 +1733,15 @@ The bounded SoftwareForge review itself adds no Product operation, Permission, o
 # 12. Closure assertions after independent review + bounded downstream corrections
 
 ```text
-N_platform                              = 122
+N_platform                              = 128
 N_budget                                = 2
 ordinary Permissions                    = 25
-fixed operations with semantic owner    = 122/122
-fixed operations with consumer          = 122/122
-fixed operations with principal/ingress = 122/122
-fixed operations with auth/scope route  = 122/122
-fixed operations with outcome profile   = 122/122
-fixed operations with exact IC profile  = 122/122
+fixed operations with semantic owner    = 128/128
+fixed operations with consumer          = 128/128
+fixed operations with principal/ingress = 128/128
+fixed operations with auth/scope route  = 128/128
+fixed operations with outcome profile   = 128/128
+fixed operations with exact IC profile  = 128/128
 Budget operations with all fields       = 2/2
 Project grammar exact-Release pinned     = yes
 universal execute authority              = rejected
@@ -1793,6 +1883,119 @@ The original independent Fable review remains historical Evidence. Later bounded
 → no new L7 flow / owner / principal / trust boundary / durable record class
 → Brain 12 → 13
 → N_platform 121 → 122
+
+4C-F24 OPERATOR ACCEPT
+→ preserve PRJ-20 as the one Project Agent collection read
+→ ordinary PRJ-20/21 remain project.source.read
+→ purpose-bound PRJ-20 alternate route requires exact Project + agent.trigger.manage
+→ existing Agent summary/release/revision coordinates only; no PRJ-21/source/mutation authority
+→ no new operation / Permission / owner / principal / trust boundary / durable record class
+→ N_platform remains 122
+
+4C-F25 OPERATOR ACCEPT
+→ preserve PAR-08/09/10 and exact sealed-subject decision law
+→ add immutable request-time Agent/Release presentation + safe action summary + requested/optional expiry times
+→ recognition context does not require Project/source reads and is not current authorization truth
+→ no raw Mastra/tool/provider payload or generic approval owner
+→ no new operation / Permission / owner / principal / trust boundary / durable record class
+→ N_platform remains 122
+
+4C-F26 OPERATOR ACCEPT
+→ preserve PAR-06/07 and owner-issued runState
+→ add owner admittedAt + optional settledAt + safe human problem projection
+→ order list by admittedAt DESC with stable agentRunId DESC tie-breaker before pagination
+→ no inferred lifecycle enum / retry / resume / OBS join / Evidence parsing
+→ no new operation / Permission / owner / principal / trust boundary / durable record class
+→ N_platform remains 122
+
+4C-F30 OPERATOR ACCEPT
+→ enrich PRJ-21 with the safe complete authored ProductAgentDefinition; PRJ-20/22 remain summaries
+→ add BLD-18 GetChangeProductAgentDraft
+→ add BLD-19 CreateChangeProductAgentDraft with explicit NEW|EXISTING origin + idempotency
+→ add BLD-20 ReviseChangeProductAgentDraft with expectedDraftRevision
+→ structured/manual and Conexus authoring converge on the same Change candidate/diff/proof/Release
+→ no direct Agent CRUD / source write / Mastra authority / generic extension payload
+→ no new Permission / owner / principal / trust boundary / durable record class
+→ Builder 17 → 20
+→ N_platform 122 → 125
+
+4C-F31 OPERATOR ACCEPT
+→ preserve REL-01/02 as the Release collection/detail reads
+→ add immutable releaseLabel + createdAt + sourceRevision + composition summary
+→ page REL-01 newest-created-first
+→ close one stable safe ReleaseManifest inspection projection without replacing realization authority
+→ no new operation / Permission / owner / principal / trust boundary / durable record class
+
+4C-F32 OPERATOR ACCEPT
+→ preserve REL-04/05/06/07/08
+→ REL-07 discloses the exact target-environment serving matrix
+→ Promotion carries exact environment identity/label + request-time actor/time + optional settlement time
+→ page/filter REL-04 chronologically; REL-06 accepts only a server-disclosed environmentId
+→ purpose-bound release.promote may inspect REL-07 target/serving truth without acquiring project.read
+→ no new operation / Permission / owner / principal / trust boundary / durable record class
+
+4C-F33 OPERATOR ACCEPT
+→ add MAR-04 ListRunnableManagedJobs
+→ exact currently served Release + safe jobId/name/purpose/schedule presentation
+→ ordinary project.read or purpose-bound job.run discovery; read grants no run/queue/schedule authority
+→ MAR-03 remains the only run-now admission and still resolves served Release server-side
+→ MAR 3 → 4
+→ N_platform 125 → 126
+
+4C-F34 OPERATOR ACCEPT
+→ preserve OBS-01 as the one Project Activity collection read
+→ add projection-time subject label + deterministic summary + optional exact admitted owner-read target
+→ absent target means no truthful detail affordance; owner revalidates disclosure
+→ no generic dispatch / Activity mutation / Audit replacement / current owner truth
+→ no new operation / Permission / owner / principal / trust boundary / durable record class
+
+4C-F35 OPERATOR ACCEPT
+→ IAM-14 current grants and IAM-15 success carry canonical AccountSummary rather than opaque Account ID presentation
+→ add IAM-21 ListPublishedAppAccessCandidates over existing I&A-owned Conexus Accounts not already granted
+→ exact Project + bounded human query/page; candidate inclusion grants nothing
+→ no browser/live Keycloak directory query; no-result never proves provider-identity existence
+→ trusted IAM-03 Account provisioning remains separate from Published-App grant administration
+→ IAM 19 → 20
+→ N_platform 126 → 127
+
+4C-F36 OPERATOR ACCEPT
+→ IAM-14 carries both exact role options and each role's complete current active-Release capability subset
+→ capability presentation = operationId + human name + purpose + regime
+→ empty subset is truthful; browser labels never derive authorization
+→ Keycloak role/group/Organization/token claims never become app role, capability or grant authority
+→ no new operation / Permission / owner / principal / trust boundary / durable record class
+
+4C-F37 OPERATOR ACCEPT
+→ preserve PAR-01..04 and existing Conversation/ConversationMessage ownership
+→ add owner createdAt, safe preview, startedAt/lastActivityAt and deterministic newest-active-first ordering
+→ add typed TEXT | QUESTION messages, bounded response options and NONE | NEEDS_YOUR_RESPONSE attention
+→ exact current question reply enters PAR-04 and starts a new AgentRun; clarification never borrows ApprovalRequest or ordinary-run suspension
+→ no new operation / Permission / owner / principal / trust boundary / durable record class
+→ PAR remains 16
+
+4C-F38 OPERATOR ACCEPT
+→ IAM-13 carries canonical current AccountSummary with exact app role/active Release
+→ IAM-02 is admitted through both Control Plane and Published-App human surfaces with one opaque-session termination meaning
+→ Conexus session end != global Keycloak SSO logout
+→ no provider token/profile/role/group/Organization Product authority
+→ no new operation / Permission / owner / principal / trust boundary / durable record class
+→ IAM remains 20
 ```
 
-4A remains **operator-ratified as boundedly corrected through `4C-F23`**. 4B must preserve/recompile the canonical 122-operation machine wire/checker/projection stack before the P-02 frontend rebaseline can proceed to a new P7/P8 candidate. Product implementation remains blocked.
+```text
+4C-PRE11-F03 OPERATOR ACCEPT
+→ add transient TRUSTED_BOOTSTRAP_CONTEXT for exact preconfigured OIDC subject
+→ IAM-03 bootstrap route self-provisions only that subject
+→ WS-01 success establishes exact initial current-Account Workspace access
+→ no new operation / ordinary Permission / semantic owner / durable record class
+
+4C-PRE11-F05 OPERATOR ACCEPT
+→ PRJ-16/17 and BRN-14 gain purpose-bound project.build disclosure only
+→ add PRJ-29 ListProjectModelPolicies under Project owner
+→ optional unowned Agent refs empty for NEW and preserved for EXISTING
+→ Project 27 → 28
+→ N_platform 127 → 128
+→ ordinary Permissions remain 25
+```
+
+4A is **operator-ratified as boundedly corrected through `4C-PRE11-F05`**. 4B must preserve/recompile the canonical 128-operation machine wire/checker/projection stack before frontend realization resumes. Product implementation remains blocked.

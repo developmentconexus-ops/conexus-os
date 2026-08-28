@@ -20,16 +20,24 @@ paths:
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       parameters:
+        - name: originatingRun
+          in: query
+          required: false
+          style: deepObject
+          explode: true
+          description: Optional exact owner-issued run coordinate. Both kind and ref are required when present; the filter is applied server-side before pagination and never grants authority over the originating run or effect.
+          schema:
+            $ref: '#/components/schemas/OriginatingRunRef'
         - name: pageToken
           in: query
           required: false
-          description: Opaque continuation for the same admitted audit list shape; never authorization, effect identity or replay authority.
+          description: Opaque continuation bound to the same exact Project, originatingRun filter and attemptedAt DESC / effectAttemptId DESC ordering; never authorization, effect identity or replay authority.
           schema:
             type: string
             minLength: 1
       responses:
         '200':
-          description: Currently disclosable Gateway effect-attempt evidence for the exact Project. Listing grants no retry, replay, reconciliation or effect-execution authority.
+          description: Currently disclosable Gateway effect-attempt evidence for the exact Project, optionally filtered by exact originatingRun before pagination and ordered by attemptedAt DESC then effectAttemptId DESC. Listing grants no retry, replay, reconciliation or effect-execution authority.
           content:
             application/json:
               schema:
@@ -40,6 +48,8 @@ paths:
           $ref: './openapi.yaml#/components/responses/Problem403'
         '404':
           $ref: './openapi.yaml#/components/responses/Problem404'
+        '422':
+          $ref: './openapi.yaml#/components/responses/Problem422'
 
   /api/control/projects/{projectId}/effect-attempts/{effectAttemptId}:
     parameters:

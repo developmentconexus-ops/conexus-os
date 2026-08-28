@@ -394,6 +394,27 @@ No governed execution resolves through mutable `latest`.
 
 Governed movement of an exact Release toward a target environment with current authorization/conformance/gates. Rollback is another governed Promotion, never an implicit business-data rewind.
 
+`4C-F31/F32` close the human operation projection without merging these truths:
+
+```text
+Release collection/detail
+→ immutable human label + creation/source coordinate
+→ scalable newest-created-first list
+→ stable safe component/binding/config/runtime composition projection
+
+Project serving state
+→ server-disclosed target environments
+→ per-target pointer generation + active Release when set
+→ independent serving verification
+
+Promotion history
+→ exact target identity + immutable human label
+→ request-time human actor/time + optional settlement time
+→ chronological pagination
+```
+
+The human label/summary is presentation owned by the Release projection; it is not caller-selected naming or mutable Project authority. A promoter never types an environment authority coordinate free-form: the target comes from the server-disclosed Release owner matrix. `AVAILABLE`, pointer transition and `SERVED_VERIFIED` remain distinct.
+
 ## 5.18 Build
 
 Primary Project construction surface:
@@ -437,13 +458,39 @@ It includes purpose/instructions/model policy/bounded tools/Brain context/admitt
 
 Manual/structured and natural-language authoring converge on the **same Change, candidate, diff, proof and Release path**.
 
+`4C-F30` makes that existing meaning truthfully inspectable and authorable without creating another Agent owner:
+
+```text
+PRJ-21
+→ safe complete authored ProductAgentDefinition
+→ exact immutable authoredRevisionId + Release coordinates
+
+Builder Change
+→ server-owned typed ProductAgentAuthoringDraft
+→ explicit NEW or EXISTING origin
+→ exact draftRevision + candidateSubjectDigest
+→ structured/manual edits and Conexus edits converge on the same candidate agent/v1
+```
+
+The Product definition is framework-neutral and schema-closed. It exposes authored name, purpose, instructions, bounded model policy/sampling, governed capability bindings, Project-bound Brain context, currently admitted memory/interactions, policy/approval/budget/verification references and known limitations. It never exposes credentials, provider passthrough objects, Mastra/Stored-Agent identity, runtime revision overrides or arbitrary extension payloads.
+
+`ProductAgentAuthoringDraft` is subordinate current candidate state inside one exact Builder Change. It is not a second Agent database, direct source write, live Agent mutation, Release or runtime configuration owner. Creating a draft is idempotent and states `NEW | EXISTING`; revising it requires the exact current `draftRevision`. The server issues or revalidates `agentId`, containment, base authored revision and candidate subject on every admitted operation.
+
+Framework-specific “system prompt,” skill, workflow and tool representations are mechanisms. Product meaning remains the canonical instructions, policy references and governed Project capability bindings unless a later accepted Product decision admits another semantic owner.
+
 ## 5.23 Conversation
 
 Conexus identity for a user-facing Product Agent conversation. Not a provider thread/session identity and not authorization by existence.
 
+Conversation owns human-recognizable chronology, a safe last-message preview and the exact current `NONE | NEEDS_YOUR_RESPONSE` attention projection. A structured clarification is a `QUESTION` message with bounded optional response choices. The clarification question completes the current AgentRun; a human reply references that exact current question and the reply starts a new exact AgentRun. An absent, stale or already-answered question is rejected by PAR.
+
+Clarification is not effect approval. It does not reuse `ApprovalRequest`, keep an ordinary model process suspended or grant authority through a selected option. Effect authorization remains the distinct sealed-subject flow.
+
 ## 5.24 Product AgentRun
 
 One admitted exact-pinned Product Agent execution.
+
+PAR owns its admission time, optional settlement time, lifecycle state and optional safe human problem projection. Run lists are newest-admitted-first with an owner-defined stable tie-breaker; browser receipt time, array accident and identifier shape are not temporal truth. Human problem context does not create retry/resume authority and does not expose raw framework/provider payload.
 
 ```text
 AgentRun COMPLETED
@@ -453,6 +500,8 @@ AgentRun COMPLETED
 ## 5.25 ApprovalRequest
 
 Exact durable approval wait/subject in the Production Agent Runtime (PAR). Approval binds the exact sealed proposal; changed args/content require new authority.
+
+The request also preserves immutable request-time Agent/Release presentation, a deterministic safe human action summary, requested time and optional expiry time so an eligible human can recognize the decision without unrelated Project/source reads. This historical context is presentation Evidence only: current eligibility, Release, owner state, sealed subject and digest are rechecked at decision time.
 
 ## 5.26 AgentTrigger
 
@@ -524,14 +573,17 @@ Visual composition never merges owners.
 # 7. Journey A — first access / Workspace
 
 ```text
-trusted operator provisions Account
-→ authenticated session
-→ current authority resolves Workspace context
-→ user enters/creates authorized Workspace
+exact preconfigured bootstrap OIDC subject authenticates
+→ transient TRUSTED_BOOTSTRAP_CONTEXT self-provisions only its own Account
+→ bootstrap context becomes invalid
+→ normal Account-backed Conexus session is established
+→ trusted operator creates the first Workspace with exact initial creator access
+→ initial Workspace access is owner-established, not inferred by the browser
+→ current authority resolves the new Workspace context
 → Projects / Agent catalog / Brain / Connections / administration
 ```
 
-No public signup F1. Workspace membership does not imply every Project/Agent/resource. Agent catalog is filtered projection, not fleet owner/Approval Center.
+No public signup, tenant onboarding, billing or default reusable admin credential is admitted in F1. The bootstrap context is pre-Account, one-shot and cannot access ordinary Product resources. Workspace membership does not imply every Project/Agent/resource. Agent catalog is filtered projection, not fleet owner/Approval Center.
 
 ---
 
@@ -759,6 +811,16 @@ Published App user
 → truthful response/receipts
 ```
 
+When the Agent needs clarification rather than effect authority:
+
+```text
+Agent QUESTION message + optional bounded choices
+→ current Conversation = NEEDS_YOUR_RESPONSE
+→ exact human reply references the open question
+→ prior AgentRun remains settled
+→ reply starts a new exact AgentRun
+```
+
 Headless:
 
 ```text
@@ -793,7 +855,8 @@ Product Agent is product/context-aware by default, not source/host-aware. No aut
 Agent proposes exact governed effect
 → owner persists sealed subject
 → ApprovalRequest
-→ eligible current human sees exact subject
+→ eligible current human recognizes request-time Agent + safe action/temporal context
+→ eligible current human sees exact sealed subject
 → ALLOW_ONCE | DENY | EXPIRED | STALE
 ```
 
@@ -815,6 +878,7 @@ Changed proposal requires new authority. Runtime retry is not effect retry autho
 
 ```text
 active Release contains admitted job/v1
+→ MAR exposes safe human-recognizable runnable-job identity from that exact served Release
 → schedule derived
 → manual/fixed interval occurrence
 → MAR job run
@@ -835,6 +899,8 @@ no workflow/scheduler business domain
 ```
 
 This is the MAR managed-sync profile, not a shared recurrence abstraction and not Product-Agent `SCHEDULE` behavior.
+
+`4C-F33` assigns the distinct discovery job to `MAR-04 ListRunnableManagedJobs`. A job with no prior JobRun remains discoverable. The catalog is neither JobRun history nor a queue/scheduler control surface; `MAR-03` still re-resolves the exact currently served Release and current authority before admitting one occurrence.
 
 ---
 
@@ -1029,6 +1095,8 @@ OUTCOME_UNKNOWN != retry permission
 runtime/provider/trace/telemetry observation != owner terminal/verified truth
 ```
 
+`4C-F34` keeps Project Activity a chronological OBS projection while making it human-operable: each entry carries a projection-time subject label, deterministic summary and an optional exact admitted owner-read target. The target is absent when no truthful detail read exists or is disclosable; when present, the named owner revalidates authority. Activity never becomes generic dispatch, Audit, mutation or current owner state.
+
 ## 23.7 Contextual inspectability and progressive disclosure
 
 ```text
@@ -1059,8 +1127,15 @@ PLATFORM MACHINERY
 10. Runtime/provider identity is not a Conexus principal.
 11. Durable privileged credentials stay with trusted owners.
 12. Attachment/blob access is private by default and follows owning Product authority.
+13. `TRUSTED_BOOTSTRAP_CONTEXT` is the sole pre-Account human principal: it is bound to one server-preconfigured OIDC subject, may self-provision only that Account through IAM-03 and becomes invalid immediately after Account establishment.
 
 Current F1 Published App role set remains `{admin, member}` until a later material decision explicitly changes it.
+
+Published-App access administration operates only over existing Conexus Accounts. Human candidate discovery and grant presentation use I&A-owned `AccountSummary`; they do not query the Keycloak directory from the browser, admit an Account or prove whether a provider identity exists. Account admission remains the separate trusted provisioning boundary. Before assignment, the administration read exposes each exact role's complete current active-Release capability subset from `Ops(R)`; this is decision truth, not a second role engine or client-derived authorization.
+
+Published-App access context also carries the canonical current `AccountSummary` needed for session recognition. `EndSession` has one I&A-owned meaning across Control Plane and Published Application: end the exact opaque Conexus session. Ending the Conexus session does not claim global Keycloak SSO logout and does not make provider token/profile/role data Product authority.
+
+For Product Agent construction, `project.build` admits purpose-bound human discovery of exact Project capabilities, Project-bound Brain authoring references and Project-owned model-policy summaries. This discovery grants no capability invocation, business data, generic Project/source/Brain read, provider/model selection, credentials or runtime authority. In minimal F1, optional general/approval/budget/verification references are empty for NEW definitions and preserved but not freely editable for EXISTING definitions until their semantic owners are admitted.
 
 ---
 

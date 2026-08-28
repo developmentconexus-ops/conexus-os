@@ -17,6 +17,7 @@
     .connection-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.connection-card{border:1px solid var(--strong);background:var(--paper);padding:16px;min-height:190px;display:flex;flex-direction:column;gap:12px}.connection-card:hover{background:#fafafa}.card-head{display:flex;justify-content:space-between;gap:10px}.card-head strong{display:block;font-size:16px}.provider{font-size:12px;color:var(--muted);margin-top:4px}.card-test{border-top:1px solid var(--line);padding-top:11px}.card-test strong{display:block;font-size:13px;margin-bottom:4px}.card-test small{display:block;color:var(--muted);line-height:1.4}.card-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:auto}.card-actions button{border:1px solid var(--strong);background:var(--paper);padding:7px 9px;font-size:12px}.empty{padding:30px 12px;color:var(--muted);text-align:center;border:1px dashed var(--line);grid-column:1/-1}
     .panel-scrim{position:absolute;z-index:50;inset:0;background:rgba(0,0,0,.18);border:0}.connection-panel{position:absolute;z-index:55;top:0;right:0;bottom:0;width:min(600px,82%);background:var(--paper);border-left:2px solid #333;box-shadow:-4px 0 0 rgba(0,0,0,.08);overflow:auto}.panel-shell{padding:22px}.panel-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:14px}.panel-top h1{font-size:21px}.close-panel{width:38px;height:36px;border:1px solid var(--strong);background:var(--paper);font-size:18px}.notice{border:1px solid var(--strong);background:var(--soft2);padding:10px 12px;font-size:12px;margin-bottom:12px}.problem{border:1px dashed var(--strong);background:var(--soft);padding:11px 12px;font-size:12px;margin-top:10px}.panel-section{border:1px solid var(--strong);padding:15px;background:var(--paper);margin-bottom:13px}.panel-section header{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:11px}.panel-section header h2{font-size:16px;margin:0}.test-section{border-width:2px}.test-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start}.test-head strong{display:block;font-size:15px;margin-bottom:4px}.test-head p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}.human-list{display:grid;gap:0}.human-row{display:grid;grid-template-columns:140px minmax(0,1fr);gap:10px;border-bottom:1px solid #ddd;padding:8px 0}.human-row:last-child{border-bottom:0}.human-row span:first-child{color:var(--muted);font-size:12px}.human-row span:last-child{font-size:13px;overflow-wrap:anywhere}.inline-editor{border-top:1px dashed var(--line);padding-top:12px;margin-top:4px}.inline-editor .field{margin-bottom:10px}.inline-editor .field input,.inline-editor .field select{min-width:0;width:100%}.editor-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.editor-grid .full{grid-column:1/-1}.tech-details{border:1px solid var(--line);padding:10px 12px;background:#fafafa;margin-top:10px}.tech-details summary{cursor:pointer;font-weight:700;font-size:12px}.tech-details dl{display:grid;grid-template-columns:150px minmax(0,1fr);gap:7px 10px;margin:12px 0 0}.tech-details dt{color:var(--muted);font-size:11px}.tech-details dd{margin:0;font-size:11px;overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.evidence-list{margin:5px 0 0;padding-left:18px;font-size:11px}.law{border-top:1px dashed var(--line);margin-top:12px;padding-top:9px;font-size:10px;line-height:1.5;color:var(--muted)}
     dialog{width:min(580px,calc(100% - 32px));border:2px solid #333;padding:0;background:var(--paper)}dialog::backdrop{background:rgba(0,0,0,.24)}.dialog-body{padding:20px}.dialog-head{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:12px}.dialog-head h2{margin:0}.dialog-close{border:1px solid var(--strong);background:var(--paper);width:34px;height:34px}.nav-scrim{display:none}
+    .project-handoff{border:2px solid #333;background:#fcfcfc}.project-handoff p{font-size:12px;line-height:1.45;margin:6px 0}.project-handoff .edge-status{border-top:1px dashed var(--line);margin-top:11px;padding-top:10px;font-size:12px;line-height:1.45}.project-handoff .edge-status[data-state="OWNER_ISSUED"]{background:var(--soft2);padding:10px}.project-handoff code{display:block;margin-top:7px;overflow-wrap:anywhere;font-size:10px}
     .operation-map{display:none}
     @media(max-width:900px){.connection-panel{width:min(680px,92%)}.editor-grid{grid-template-columns:1fr}.editor-grid .full{grid-column:auto}}
     @media(max-width:760px){body{background:var(--paper)}.note{margin:0;border-width:0 0 1px}.shell{width:100%;min-height:100vh;margin:0;border:0;grid-template-columns:1fr;grid-template-rows:var(--top) minmax(0,1fr);grid-template-areas:"top" "stage"}.brand{display:none}.menu-toggle{display:inline-block}.topbar{padding:0 8px;gap:4px}.account{font-size:0;width:34px;height:34px;padding:0}.account::after{content:"A";font-size:13px}.rail{position:absolute;z-index:70;top:var(--top);left:0;bottom:0;width:min(82vw,310px);transform:translateX(-102%);transition:transform 120ms linear;box-shadow:2px 0 0 #bbb}.shell[data-drawer-open="true"] .rail{transform:translateX(0)}.nav-scrim{position:absolute;z-index:65;inset:var(--top) 0 0;background:rgba(0,0,0,.16);border:0}.shell[data-drawer-open="true"] .nav-scrim{display:block}.main{padding:20px 16px 32px}.field input,.field select{min-width:0;width:100%}.connection-grid{grid-template-columns:1fr}.connection-panel{position:fixed;inset:0;width:100%;border:0;z-index:90}.panel-shell{padding:18px 16px 28px}.panel-scrim{display:none}.human-row,.tech-details dl{grid-template-columns:1fr;gap:3px}.test-head{grid-template-columns:1fr}.editor-grid{grid-template-columns:1fr}}
@@ -54,6 +55,7 @@
       <div class="main">
         <div class="crumb">Metal Nobre / Connections</div>
         <div class="fixture"><strong>Fixture interaction only.</strong> No backend/runtime behavior is claimed. Refresh resets local demonstration state. <strong>Connection.name</strong> is the human identity. Routine edit, credential replacement and testing preserve the Connections collection behind one contextual panel.</div>
+        <div class="fixture" id="projectIngress" data-state="PROJECT_CONTEXT_REQUIRED"><strong>Project review context:</strong> <span id="projectIngressMessage">An exact Project context is required for the optional P-02 review handoff.</span> <code id="projectIngressCoordinate"></code></div>
 
         <section id="listView" data-operation="CON-03">
           <div class="page-head">
@@ -118,6 +120,14 @@
             </div>
           </section>
 
+          <section class="panel-section project-handoff" id="projectHandoff" data-egress="W02B_TO_P02" data-operation="CON-09">
+            <header><h2>Project Integrations review</h2><span class="status" id="projectHandoffBadge">Context required</span></header>
+            <p>Review the exact current qualification in P-02. This is a same-origin review handoff only; it does not adopt, bind or change which Connection the Project uses.</p>
+            <div class="actions"><button class="primary" id="emitQualificationHandoff" type="button" disabled>Review in Project Integrations</button></div>
+            <div class="edge-status" id="projectHandoffStatus" data-state="PROJECT_CONTEXT_REQUIRED" role="status" aria-live="polite">An exact Project context is required before a qualification can be sent to P-02.</div>
+            <code id="projectHandoffCoordinate"></code>
+          </section>
+
           <details class="tech-details" id="technicalDetails">
             <summary>Technical details</summary>
             <p class="hint">Technical proof coordinates stay available without becoming the primary UX. The browser displays exact qualification Evidence; it does not infer Product truth from raw Evidence.</p>
@@ -176,7 +186,19 @@
       'q-502':{qualificationId:'q-502',connectionId:'conn-salesforce-prod',connectionRevisionId:'rev-3',credentialGeneration:1,environment:'PRODUCTION',testedAt:'2026-08-23T10:45:00-03:00',qualificationState:'COMPLETED',outcome:'FAILED',diagnostic:{title:'Authentication rejected',message:'The provider rejected the current credentials.',remediation:'Update credentials and test again'},evidenceRefs:['evidence://qualification/q-502/result']}
     };
 
-    const state={selectedConnectionId:null,revisionCounter:20,qualificationCounter:600,configurationOpenedRevisionId:null,lastPanelTrigger:null};
+    // P12 Family 2 integrated Evidence spine. These are owner-issued fixture coordinates,
+    // not a shared Product registry. P-02 receives only the four coordinates below.
+    const edgeQuery=new URLSearchParams(location.search);
+    const integratedWorkspaceId='ws-metal-nobre';
+    const integratedProjectId='prj-sales-ops';
+    const integratedConnection={connectionId:'conn-sankhya-prod',connectionRevisionId:'rev-18',qualificationId:'q-501'};
+    const requestedWorkspaceId=edgeQuery.get('workspaceId')||'';
+    const requestedProjectId=edgeQuery.get('projectId')||'';
+    const requestedConnectionId=edgeQuery.get('connectionId')||'';
+    const requestedConnectionRevisionId=edgeQuery.get('connectionRevisionId')||'';
+    const requestedQualificationId=edgeQuery.get('qualificationId')||'';
+    const requestedEdgeScenario=(edgeQuery.get('edgeScenario')||'').toUpperCase();
+    const state={selectedConnectionId:null,revisionCounter:20,qualificationCounter:600,configurationOpenedRevisionId:null,lastPanelTrigger:null,projectIngressState:'PROJECT_CONTEXT_REQUIRED',qualificationEgress:null};
     const shell=document.getElementById('shell');
     const menuToggle=document.getElementById('menuToggle');
     const navScrim=document.getElementById('navScrim');
@@ -206,6 +228,66 @@
       }
     }
 
+    const projectIngressCopy={
+      PROJECT_CONTEXT_REQUIRED:'An exact Project context is required for the optional P-02 review handoff.',
+      WORKSPACE_UNKNOWN:'The requested Workspace is not disclosed by this owner. No default Workspace is substituted.',
+      PROJECT_UNKNOWN:'The requested Project is not disclosed by this owner. No qualification handoff is emitted.',
+      PROJECT_READY:'Sales Operations is the exact Project review context. Qualification remains separate from Project binding.'
+    };
+    function resolveProjectIngress(){
+      state.projectIngressState=!requestedProjectId?'PROJECT_CONTEXT_REQUIRED':requestedWorkspaceId&&requestedWorkspaceId!==integratedWorkspaceId?'WORKSPACE_UNKNOWN':requestedProjectId!==integratedProjectId?'PROJECT_UNKNOWN':'PROJECT_READY';
+      const ingress=document.getElementById('projectIngress');
+      if(ingress){ingress.dataset.state=state.projectIngressState;document.getElementById('projectIngressMessage').textContent=projectIngressCopy[state.projectIngressState];document.getElementById('projectIngressCoordinate').textContent=[requestedWorkspaceId&&`workspaceId=${requestedWorkspaceId}`,requestedProjectId&&`projectId=${requestedProjectId}`].filter(Boolean).join(' · ');}
+    }
+    function qualificationOwnerState(){
+      if(state.projectIngressState!=='PROJECT_READY')return state.projectIngressState;
+      const scenario=requestedEdgeScenario;
+      if(scenario==='DENIED')return 'QUALIFICATION_DENIED';
+      if(scenario==='DEPENDENCY_FAILURE')return 'QUALIFICATION_DEPENDENCY_FAILURE';
+      if(scenario==='COMMAND_FAILURE')return 'QUALIFICATION_COMMAND_FAILURE';
+      if(scenario==='STALE')return 'QUALIFICATION_STALE';
+      if(scenario==='UNKNOWN')return 'QUALIFICATION_UNKNOWN';
+      if(scenario==='NEEDS_RETEST')return 'QUALIFICATION_NEEDS_RETEST';
+      if(scenario==='FAILED')return 'QUALIFICATION_FAILED';
+      const connection=getConnection(),detail=getDetail(),summary=detail?.connectionTest,exact=summary?.qualificationId?qualifications[summary.qualificationId]:null;
+      if(!connection||!detail||connection.connectionId!==integratedConnection.connectionId||requestedConnectionId&&requestedConnectionId!==connection.connectionId)return 'QUALIFICATION_UNKNOWN';
+      if(!exact||exact.qualificationId!==integratedConnection.qualificationId||exact.connectionId!==integratedConnection.connectionId)return 'QUALIFICATION_UNKNOWN';
+      if(requestedConnectionRevisionId&&requestedConnectionRevisionId!==exact.connectionRevisionId||requestedQualificationId&&requestedQualificationId!==exact.qualificationId)return 'QUALIFICATION_UNKNOWN';
+      if(exact.connectionRevisionId!==detail.currentRevisionId||exact.credentialGeneration!==detail.credentialGeneration||summary.state==='NEEDS_RETEST')return 'QUALIFICATION_STALE';
+      if(summary.state!=='PASSED'||exact.outcome!=='PASSED'||exact.qualificationState!=='COMPLETED')return 'QUALIFICATION_FAILED';
+      return 'READY_TO_EMIT';
+    }
+    const edgeCopy={
+      PROJECT_CONTEXT_REQUIRED:'An exact Project context is required before P-02 can resolve this qualification.',
+      WORKSPACE_UNKNOWN:'This Workspace context is unresolved. No P-02 envelope is emitted.',
+      PROJECT_UNKNOWN:'This Project is unresolved. No P-02 envelope is emitted.',
+      QUALIFICATION_UNKNOWN:'The exact Connection qualification is not disclosed by the owner. No default qualification is substituted.',
+      QUALIFICATION_STALE:'The prior qualification is stale for the current revision or credential generation. Test the current basis again; no envelope is emitted.',
+      QUALIFICATION_NEEDS_RETEST:'The Connection needs retesting after a configuration or credential change. No envelope is emitted.',
+      QUALIFICATION_FAILED:'The owner did not produce a PASSED qualification. No success or P-02 envelope is emitted.',
+      QUALIFICATION_DENIED:'The qualification command/read is denied. No success or P-02 envelope is emitted.',
+      QUALIFICATION_DEPENDENCY_FAILURE:'The qualification dependency failed. No success or P-02 envelope is emitted.',
+      QUALIFICATION_COMMAND_FAILURE:'The qualification command failed. No success or P-02 envelope is emitted.',
+      READY_TO_EMIT:'Current owner truth is PASSED for conn-sankhya-prod / rev-18 / q-501. The exact four-coordinate review envelope may be sent to P-02.',
+      OWNER_ISSUED:'Owner-issued qualification envelope sent to P-02. P-02 must resolve it before any explicit Project use/adoption.'
+    };
+    function renderProjectHandoff(){
+      const baseState=qualificationOwnerState();
+      if(baseState!=='READY_TO_EMIT')state.qualificationEgress=null;
+      const stateName=baseState==='READY_TO_EMIT'&&state.qualificationEgress?'OWNER_ISSUED':baseState;
+      const section=document.getElementById('projectHandoff'),badge=document.getElementById('projectHandoffBadge'),status=document.getElementById('projectHandoffStatus'),button=document.getElementById('emitQualificationHandoff'),coordinate=document.getElementById('projectHandoffCoordinate');
+      if(!section||!badge||!status||!button||!coordinate)return;
+      section.dataset.state=stateName;status.dataset.state=stateName;status.textContent=edgeCopy[stateName]||'No owner-issued qualification is available.';button.disabled=stateName!=='READY_TO_EMIT';button.textContent=stateName==='OWNER_ISSUED'?'Envelope sent to P-02':'Review in Project Integrations';
+      badge.textContent=stateName==='OWNER_ISSUED'?'Owner issued':stateName==='READY_TO_EMIT'?'Ready':'No envelope';
+      coordinate.textContent=state.qualificationEgress?JSON.stringify(state.qualificationEgress):'';
+    }
+    function emitQualificationHandoff(){
+      if(qualificationOwnerState()!=='READY_TO_EMIT'){renderProjectHandoff();return null;}
+      const detail=getDetail(),connection=getConnection(),exact=qualifications[detail.connectionTest.qualificationId];
+      const envelope={sourceBlock:'w02b',sourceEvent:'CONNECTION_QUALIFICATION_PASSED',destinationBlock:'p02',ownerCoordinates:{projectId:integratedProjectId,connectionId:connection.connectionId,connectionRevisionId:exact.connectionRevisionId,qualificationId:exact.qualificationId},failureDisposition:'P-02 re-resolves the exact qualified Connection before explicit Project use; qualification != Project binding'};
+      state.qualificationEgress=envelope;renderProjectHandoff();window.dispatchEvent(new CustomEvent('conexus:wireframe-egress',{detail:envelope}));if(window.parent!==window)window.parent.postMessage({type:'conexus:wireframe-egress',detail:envelope},window.location.origin);return envelope;
+    }
+
     function renderConnections(){
       const query=connectionSearch.value.trim().toLowerCase();
       const filtered=connections.filter(c=>{const provider=connectorById[c.connectorDefinitionId]?.provider??'';return !query||c.name.toLowerCase().includes(query)||provider.toLowerCase().includes(query);});
@@ -230,7 +312,7 @@
       document.getElementById('detailCredentialHuman').textContent=connection.credentialConfigured?'Added':'Not added';
       document.getElementById('detailAccessBadge').textContent=connection.credentialConfigured?'Credentials added':'Credentials needed';
       document.getElementById('detailConfiguration').innerHTML=connector.configurationSchema.fields.map(field=>`<div class="human-row"><span>${field.label}</span><span>${String(detail.configuration[field.key]??'—')}</span></div>`).join('');
-      renderConnectionTest();renderTechnicalDetails();
+      renderConnectionTest();renderTechnicalDetails();renderProjectHandoff();
     }
 
     function renderConnectionTest(){
@@ -292,11 +374,11 @@
       if(!detail.credentialConfigured){outcome='FAILED';diagnostic={title:'Credentials required',message:'No credentials are configured for this Connection.',remediation:'Update credentials and test again'};}
       else if(connection.connectionId==='conn-salesforce-prod'){outcome='FAILED';diagnostic={title:'Authentication rejected',message:'The provider rejected the current credentials.',remediation:'Update credentials and test again'};}
       const testedAt=new Date().toISOString();const exact={qualificationId,connectionId:connection.connectionId,connectionRevisionId:detail.currentRevisionId,credentialGeneration:detail.credentialGeneration,environment,testedAt,qualificationState:'COMPLETED',outcome,diagnostic,evidenceRefs:[`evidence://qualification/${qualificationId}/result`]};qualifications[qualificationId]=exact;
-      const summary={state:outcome,qualificationId,environment,testedAt};detail.connectionTest=summary;connection.connectionTest={...summary};toggleQualification(false);renderConnections();renderConnectionPanel();showPanelNotice(outcome==='PASSED'?'Test completed. Current basis passed.':'Test completed. Review the problem below.');if(outcome!=='PASSED')openTestProblem();
+      const summary={state:outcome,qualificationId,connectionRevisionId:detail.currentRevisionId,credentialGeneration:detail.credentialGeneration,environment,testedAt};detail.connectionTest=summary;connection.connectionTest={...summary};toggleQualification(false);renderConnections();renderConnectionPanel();showPanelNotice(outcome==='PASSED'?'Test completed. Current basis passed.':'Test completed. Review the problem below.');if(outcome!=='PASSED')openTestProblem();
     }
     function markTestNeedsRetest(){
       const detail=getDetail(),connection=getConnection();if(!detail||!connection)return;const prior=detail.connectionTest??{};
-      detail.connectionTest = {state:'NEEDS_RETEST',qualificationId:prior.qualificationId,environment:prior.environment,testedAt:prior.testedAt};
+      detail.connectionTest = {state:'NEEDS_RETEST',qualificationId:prior.qualificationId,connectionRevisionId:prior.connectionRevisionId,credentialGeneration:prior.credentialGeneration,environment:prior.environment,testedAt:prior.testedAt};
       connection.connectionTest={...detail.connectionTest};
     }
 
@@ -315,6 +397,7 @@
     document.getElementById('qualificationForm').addEventListener('submit',runQualification);
     document.getElementById('detailViewProblem').addEventListener('click',openTestProblem);
     document.getElementById('simulateStale').addEventListener('click',simulateStaleRevision);
+    document.getElementById('emitQualificationHandoff').addEventListener('click',emitQualificationHandoff);
     document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!connectionPanel.hidden)closeConnectionPanel();});
 
     const createDialog=document.getElementById('createDialog');
@@ -325,7 +408,12 @@
     document.getElementById('cancelCreate').addEventListener('click',()=>createDialog.close());
     document.getElementById('createForm').addEventListener('submit',event=>{event.preventDefault();const connector=connectorById[createConnector.value];const id=`conn-fixture-${connections.length+1}`;const revision=nextRevisionId();const connection={connectionId:id,name:document.getElementById('createName').value,ownerScopeKind:'WORKSPACE',ownerId:'ws-metal-nobre',connectorDefinitionId:connector.id,connectorVersion:connector.version,currentRevisionId:revision,credentialConfigured:false,connectionTest:{state:'NOT_TESTED'}};connections.push(connection);connectionDetails[id]={configuration:Object.fromEntries(connector.configurationSchema.fields.map(field=>[field.key,''])),currentRevisionId:revision,credentialGeneration:0,credentialConfigured:false,connectionTest:{state:'NOT_TESTED'}};event.currentTarget.reset();createDialog.close();renderConnections();openConnectionPanel(id);});
 
+    resolveProjectIngress();
     renderConnections();
+    if(requestedConnectionId){
+      const requestedCard=[...grid.querySelectorAll('[data-open]')].find(button=>button.dataset.open===requestedConnectionId);
+      if(requestedCard)openConnectionPanel(requestedConnectionId,requestedCard);
+    }
   </script>
 </body>
 </html>

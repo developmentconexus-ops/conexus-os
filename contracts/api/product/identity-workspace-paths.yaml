@@ -19,9 +19,10 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [accountId, workspaces, projects]
+                required: [account, workspaces, projects]
                 properties:
-                  accountId: { type: string, minLength: 1 }
+                  account:
+                    $ref: '#/components/schemas/AccountSummary'
                   workspaces:
                     type: array
                     items:
@@ -42,17 +43,17 @@ paths:
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
 
-  /api/control/session:
+  /api/session:
     delete:
       summary: EndSession
       operationId: EndSession
       x-conexus-4a-id: IAM-02
-      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-ingress: [CONTROL_PLANE, PUBLISHED_APP]
       x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '204':
-          description: Current Conexus session ended.
+          description: Current opaque Conexus session ended from either admitted human surface. This does not claim global Keycloak SSO logout.
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
 
@@ -62,6 +63,7 @@ paths:
       operationId: ProvisionAccount
       x-conexus-4a-id: IAM-03
       x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-authority-routes: [platform_operator, trusted_bootstrap_context]
       x-conexus-current-state-carrier: IDEMPOTENCY_KEY
       x-conexus-contract-state: SCHEMA_CLOSED
       parameters:
@@ -71,23 +73,9 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required: [externalSubject, displayName]
-              properties:
-                externalSubject:
-                  type: string
-                  minLength: 1
-                  description: Stable subject from the single server-pinned configured authentication issuer; caller cannot select issuer/provider authority.
-                displayName:
-                  type: string
-                  minLength: 1
-                  pattern: '.*\S.*'
-                  description: Required Conexus-owned human presentation for this Account; never authentication identity or authorization.
-                email:
-                  type: string
-                  format: email
-                  description: Optional human presentation/contact value; never Account identity or authorization.
+              oneOf:
+                - $ref: '#/components/schemas/ProvisionAccountRequest'
+                - $ref: '#/components/schemas/BootstrapProvisionAccountRequest'
       responses:
         '201':
           description: Conexus Account provisioned or the same admitted intake resolved to its already-created Account; Account presentation is returned without exposing provider authorization state.
@@ -370,8 +358,10 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [projectId, activeReleaseId, role]
+                required: [account, projectId, activeReleaseId, role]
                 properties:
+                  account:
+                    $ref: '#/components/schemas/AccountSummary'
                   projectId: { type: string, minLength: 1 }
                   activeReleaseId: { type: string, minLength: 1 }
                   role: { enum: [admin, member] }
@@ -401,17 +391,69 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [items]
+                required: [items, roleOptions]
                 properties:
                   items:
                     type: array
                     items:
                       type: object
                       additionalProperties: false
-                      required: [accountId, role]
+                      required: [account, role]
                       properties:
-                        accountId: { type: string, minLength: 1 }
+                        account:
+                          $ref: '#/components/schemas/AccountSummary'
                         role: { enum: [admin, member] }
+                  roleOptions:
+                    type: array
+                    minItems: 2
+                    maxItems: 2
+                    items:
+                      $ref: '#/components/schemas/PublishedAppRoleOption'
+                    description: >-
+                      Exact admin/member decision truth composed server-side from the current active Release.
+                      This presentation is not a role engine and grants no capability.
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+
+  /api/control/projects/{projectId}/app-access-candidates:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        description: Untrusted reference only; current Project/app candidate-disclosure scope is resolved server-side.
+        schema: { type: string, minLength: 1 }
+    get:
+      summary: ListPublishedAppAccessCandidates
+      operationId: ListPublishedAppAccessCandidates
+      x-conexus-4a-id: IAM-21
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      parameters:
+        - name: query
+          in: query
+          required: false
+          description: Optional human lookup text over I&A-owned existing Conexus Account presentation; never a Keycloak-directory query, Account identity or authorization input.
+          schema:
+            type: string
+            minLength: 1
+        - name: pageToken
+          in: query
+          required: false
+          description: Opaque continuation for the same currently admitted app-access candidate-disclosure query.
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: >-
+            Existing Conexus Accounts currently disclosable and not already granted for this exact Project/app.
+            Inclusion grants nothing and absence never proves whether a Keycloak provider identity exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountSummaryPage'
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
@@ -463,10 +505,11 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [projectId, accountId, role]
+                required: [projectId, account, role]
                 properties:
                   projectId: { type: string, minLength: 1 }
-                  accountId: { type: string, minLength: 1 }
+                  account:
+                    $ref: '#/components/schemas/AccountSummary'
                   role: { enum: [admin, member] }
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
@@ -520,19 +563,27 @@ paths:
                   description: Required human-readable Workspace identity fixed at F1 creation; not a grant, unique key, or rename authority.
       responses:
         '201':
-          description: Workspace created from the admitted trusted-operator intake with its human-readable identity.
+          description: Workspace created from the admitted trusted-operator intake with its human-readable identity and exact initial current-Account access established; success never leaves an undisclosable orphan Workspace.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: false
-                required: [workspaceId, name]
+                required: [workspaceId, name, creatorAccountId, initialAccessEstablished]
                 properties:
                   workspaceId: { type: string, minLength: 1 }
                   name:
                     type: string
                     minLength: 1
                     pattern: '.*\S.*'
+                  creatorAccountId:
+                    type: string
+                    minLength: 1
+                    description: Exact current Conexus Account for which initial Workspace access was established; never caller-selected authorization.
+                  initialAccessEstablished:
+                    type: boolean
+                    const: true
+                    description: Owner success fact that the creator can enter the new Workspace; not a generic role/grant payload.
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
@@ -651,6 +702,39 @@ components:
       description: Untrusted Area reference only; current Workspace containment, disclosure and authority are resolved server-side.
       schema: { type: string, minLength: 1 }
   schemas:
+    ProvisionAccountRequest:
+      type: object
+      additionalProperties: false
+      required: [externalSubject, displayName]
+      properties:
+        externalSubject:
+          type: string
+          minLength: 1
+          description: Stable subject from the single server-pinned configured authentication issuer; an ordinary trusted platform operator may identify the exact subject but cannot select issuer/provider authority.
+        displayName:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Required Conexus-owned human presentation for this Account; never authentication identity or authorization.
+        email:
+          type: string
+          format: email
+          description: Optional human presentation/contact value; never Account identity or authorization.
+    BootstrapProvisionAccountRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName]
+      description: One-shot self-provisioning intake. externalSubject is resolved from the exact trusted bootstrap context and is never accepted from browser input.
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Required Conexus-owned human presentation for the exact bootstrap subject.
+        email:
+          type: string
+          format: email
+          description: Optional human presentation/contact value; never Account identity or authorization.
     AccountSummary:
       type: object
       additionalProperties: false
@@ -681,7 +765,41 @@ components:
         nextPageToken:
           type: string
           minLength: 1
-          description: Opaque continuation for the same admitted membership-candidate query.
+          description: Opaque continuation for the same admitted Account-candidate query.
+    PublishedAppCapabilitySummary:
+      type: object
+      additionalProperties: false
+      required: [operationId, name, purpose, regime]
+      properties:
+        operationId:
+          type: string
+          minLength: 1
+          description: Exact operation identity from the current active Release; presentation never grants invocation.
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human capability name from the exact active Release semantic contract.
+        purpose:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable capability purpose from the exact active Release semantic contract.
+        regime:
+          type: string
+          enum: [QUERY, ACTION, INTEGRATION]
+    PublishedAppRoleOption:
+      type: object
+      additionalProperties: false
+      required: [role, capabilities]
+      properties:
+        role:
+          enum: [admin, member]
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublishedAppCapabilitySummary'
+          description: Complete exact active-Release capability subset admitted for this app role; empty is truthful.
     AreaSummary:
       type: object
       additionalProperties: false

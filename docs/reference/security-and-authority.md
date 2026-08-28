@@ -128,10 +128,23 @@ browser
 → exact Keycloak Authorization Code + PKCE S256 flow
 → Keycloak authenticates the human
 → server-side Conexus callback validates/exchanges the code
-→ verified (issuer, subject) resolves one iam.account
+→ verified (issuer, subject) normally resolves one iam.account
 → Conexus issues its own opaque server-owned iam.session
 → every protected operation resolves current Conexus owner authority
 ```
+
+One bounded first-installation exception is explicit:
+
+```text
+no Account maps the exact server-preconfigured bootstrap subject
+→ verified issuer/subject matches that exact bootstrap configuration
+→ transient TRUSTED_BOOTSTRAP_CONTEXT
+→ IAM-03 self-provisions only that subject
+→ context invalidates immediately
+→ subsequent entry follows the normal Account/session path
+```
+
+This principal is non-durable, cannot receive ordinary Permissions, cannot select another subject and cannot access any normal Workspace/Project/Product route. It is not a Keycloak role/group/Organization, default credential, public signup or permanent recovery bypass.
 
 The OIDC client is confidential/server-side. A library unable to support the required confidential-client flow is not admissible. Exact issuer, redirect URI, client identity and signing/validation expectations are pinned server-side. Implicit and resource-owner-password/direct-grant browser login are not admitted.
 
@@ -166,7 +179,7 @@ Published App authorization is server-derived; frontend is not enforcement autho
 
 ## 34.2 Session boundary
 
-Current C-015 direction uses Keycloak only to establish authenticated human identity through OIDC. Conexus maps verified `(issuer, subject)` to its own Account and creates an opaque server-owned application session/cookie. Historical URL-fragment bearer flow is not current authority, and browser possession of a Keycloak token never grants Conexus Product authority by itself.
+Current C-015 direction uses Keycloak only to establish authenticated human identity through OIDC. Conexus maps verified `(issuer, subject)` to its own Account and creates an opaque server-owned application session/cookie. Historical URL-fragment bearer flow is not current authority, and browser possession of a Keycloak token never grants Conexus Product authority by itself. `4C-F38` admits the same I&A-owned session termination from Control Plane and Published Application and carries canonical Account presentation in the app access context. Ending that Conexus session does not claim global Keycloak SSO logout.
 
 ## 34.3 Private-by-default bytes
 

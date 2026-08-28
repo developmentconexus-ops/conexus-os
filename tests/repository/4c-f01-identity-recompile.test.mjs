@@ -20,7 +20,7 @@ test('4C-F01 recompiles creation-time human identity without resurrecting generi
   const identity = read('contracts/api/product/identity-workspace-paths.yaml')
   const project = read('contracts/api/product/project-paths.yaml')
 
-  const accessContext = between(identity, '  /api/control/access-context:', '\n  /api/control/session:')
+  const accessContext = between(identity, '  /api/control/access-context:', '\n  /api/session:')
   const createWorkspace = between(identity, '  /api/control/workspaces:', '\n  /api/control/workspaces/{workspaceId}:')
   const getWorkspace = between(identity, '  /api/control/workspaces/{workspaceId}:', '\n  /api/control/workspaces/{workspaceId}/areas:')
   const projectCollection = between(project, '  /api/control/workspaces/{workspaceId}/projects:', '\n  /api/control/projects/{projectId}:')
@@ -36,7 +36,7 @@ test('4C-F01 recompiles creation-time human identity without resurrecting generi
 
   requirePattern(createWorkspace, /requestBody:[\s\S]*required:\s*\[name\]/, 'WS-01 must require creation-time name')
   requirePattern(createWorkspace, /name:\s*\n\s*type:\s*string[\s\S]*pattern:/, 'WS-01 name must be an explicit non-blank string schema')
-  requirePattern(createWorkspace, /required:\s*\[workspaceId, name\]/, 'WS-01 response must return workspaceId + name')
+  requirePattern(createWorkspace, /required:\s*\[workspaceId, name, creatorAccountId, initialAccessEstablished\]/, 'WS-01 response must return identity + exact initial creator access')
   requirePattern(getWorkspace, /required:\s*\[workspaceId, name\]/, 'WS-02 must return workspaceId + name')
 
   requirePattern(projectCollection, /requestBody:[\s\S]*required:\s*\[[^\]]*\bname\b[^\]]*\]/, 'PRJ-03 must continue to require creation-time name after bounded request extension')

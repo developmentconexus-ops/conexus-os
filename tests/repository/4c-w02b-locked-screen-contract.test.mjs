@@ -2,8 +2,9 @@ import { existsSync, readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const root = resolve(new URL('../../', import.meta.url).pathname)
+const root = fileURLToPath(new URL('../../', import.meta.url))
 const path = p => resolve(root, p)
 const read = p => readFileSync(path(p), 'utf8')
 
@@ -12,7 +13,7 @@ function requireText(text, needle, message) {
 }
 
 function gitBlobSha(text) {
-  const bytes = Buffer.from(text, 'utf8')
+  const bytes = Buffer.from(text.replaceAll('\r\n', '\n'), 'utf8')
   return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')
 }
 
@@ -28,8 +29,10 @@ test('operator-approved W-02B Connections is locked and closed through exact P9/
   const roadmap = read('docs/roadmap.md')
 
   const approvedBlob = '421f5b8e08d6e5c96f5a56d8c24123902cbe3fab'
-  if (gitBlobSha(html) !== approvedBlob) throw new Error('operator-approved W-02B HTML artifact changed after lock')
+  const family2Candidate = 'f8a4be72cd5af86ea06b4dd82d8710e58edb203f'
+  if (gitBlobSha(html) !== family2Candidate) throw new Error('P12 Family 2 W-02B candidate drifted before operator walkthrough')
   requireText(contract, `approved P8 artifact blob = ${approvedBlob}`, 'W-02B Screen Contract must pin the exact approved HTML blob')
+  requireText(contract, `P12 Family 2 approved P8 delta blob = ${family2Candidate}`, 'W-02B contract must pin re-lock separately')
 
   requireText(hypotheses, 'LOCKED / OPERATOR APPROVED', 'W-02B structural record must preserve the operator-only lock')
   requireText(hypotheses, 'Connection-first browse → contextual Connection panel', 'W-02B lock must preserve the approved context-preserving mental model')

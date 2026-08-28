@@ -21,6 +21,6 @@ test('P-01 app-first falsifier remains preserved through later authorized block 
     'Verify #836','Verify #839',
   ]) assert.ok(evidence.includes(token),`app-first revision Evidence missing: ${token}`)
 
-  assert.ok(roadmap.includes('P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED'),'roadmap must preserve current P-01 lock')
+  assert.ok(roadmap.includes('P-01 = LOCKED / OPERATOR APPROVED / AGENT STUDIO DELTA RE-LOCKED / P9/P10 CLOSED'),'roadmap must preserve the P-01 baseline and approved Agent Studio delta')
   assert.doesNotMatch(roadmap,/P11\s*=\s*ASSEMBLED|4D\s*=\s*OPEN/,'later authorized progression must not assemble P11 or open 4D')
 })

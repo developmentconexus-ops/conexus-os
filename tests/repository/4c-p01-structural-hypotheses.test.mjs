@@ -83,7 +83,7 @@ test('P-01 P7 remains immutable historical Evidence while later authorized block
     'frontend-derived verification = FORBIDDEN',
   ]) requireText(doc, forbidden)
 
-  requireText(roadmap, 'P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED', 'roadmap must preserve current P-01 lock')
+  requireText(roadmap, 'P-01 = LOCKED / OPERATOR APPROVED / AGENT STUDIO DELTA RE-LOCKED / P9/P10 CLOSED', 'roadmap must preserve the P-01 baseline and approved Agent Studio delta')
 
   if (/P8\s*=\s*(?:GREEN|LOCKED|APPROVED)/.test(doc)) throw new Error('historical P7 must not itself pre-authorize P8')
   if (/P11\s*=\s*ASSEMBLED/.test(roadmap) || /4D\s*=\s*OPEN/.test(roadmap)) {

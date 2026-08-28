@@ -6,6 +6,7 @@
     "coverage": "COMPLETE",
     "provenance": "VERIFIED"
   },
+  "currencyCode": "BRL",
   "summary": {
     "pendingBudgetCount": 0,
     "pendingBudgetValue": "0"

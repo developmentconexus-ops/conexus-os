@@ -1,16 +1,76 @@
 # 4C GF-01 — Locked Screen Contract
 
-> **Status:** `LOCKED / OPERATOR APPROVED` · P9 EXACT TRACE CLOSED · P10 CONSOLIDATED · P11 NOT TRIGGERED SEPARATELY
+> **Status:** `LOCKED BASELINE / PRE11-F03 DELTA RE-LOCKED / P12 FAMILY 1 IDENTITY DELTA RE-LOCKED / OPERATOR APPROVED` · P9/P10 consolidated
 > **Block:** `GF-01` — global Control Plane frame + Workspace/Project navigation
 > **Locked structure:** H1-R2 — single adaptive rail + breadcrumb-switcher + contextual assistant seam
 > **approved P8 artifact blob = 2d899d00484c41c927829bd9f529d3a870159db3**
+> **approved Account/session delta P8 artifact blob = e83a0e8c9e64ee47d28a58d267f5fb1169b41ed3**
+> **P12 Family 1 approved P8 delta blob = 603b47ccaba1fe6557e557b48efa4f40207d3724**
 > **Product implementation authority:** none.
 
-The operator approved the exact H1-R2 browser artifact on 2026-08-22. The approved HTML remains an immutable render-time snapshot; its in-artifact `CANDIDATE` label is not rewritten after approval. `LOCKED` authority lives in this record and the H1-R2 structural record, both pinned to the exact approved blob above.
+The operator approved the exact H1-R2 browser artifact on 2026-08-22. The approved baseline identity remains pinned to `2d899d00484c41c927829bd9f529d3a870159db3`; the bounded Account/session revision is pinned separately to `e83a0e8c9e64ee47d28a58d267f5fb1169b41ed3`. Both are the same canonical GF-01 HTML lineage: the later blob adds only the approved topbar Account/session interaction, while the H1-R2 shell remains structurally preserved. The in-artifact `CANDIDATE` label is not rewritten after approval; `LOCKED` authority lives in this record and the structural records.
 
 This contract closes only the global shell. It does not lock the internal composition of Projects, Build, Data, Capabilities, Integrations, Agents, Brain, Releases, Activity, Settings, the contextual assistant content, or any Published Application.
 
+`4C-PRE11-F03` reopened only the Account/session interaction already traced to `IAM-02`: the canonical P8 Account control was not operable. The single-rail hierarchy, breadcrumb/context structure, responsive shell and assistant seam remain locked. The bounded delta now makes exact Conexus-session exit operable and composes with the separate future `T-01 Trusted setup / first access` block; it adds no generic Account settings/profile surface.
+
+The operator operated and explicitly LOCKED the bounded delta on 2026-08-27. Its P8 candidate remains the canonical HTML artifact above, with fixture-only outcome controls outside the ordinary Product surface. This lock does not reopen the H1-R2 shell or authorize a second Account/profile owner.
+
 ---
+
+## 0. Bounded Account/session delta — P8/P9 closure
+
+The bounded delta adds one topbar Account interaction to the already locked frame:
+
+```text
+Account trigger
+→ canonical IAM-01 AccountSummary
+→ non-modal Account menu
+   displayName
+   email? secondary
+   accountId progressive technical disclosure
+   Sign out of Conexus
+```
+
+The menu is identical in Workspace and Project scope. Opening it closes any breadcrumb menu or navigation drawer and changes no rail, breadcrumb, assistant seam or destination. The P8 artifact's scenario controls are fixture-only review controls and are not Product authority.
+
+### 0.1 P9 exact bidirectional trace
+
+| Account/session region or control | Information / action role | Owner and exact authority | Identity / state ownership | Material result and failure intent | Forbidden frontend authority |
+| --- | --- | --- | --- | --- | --- |
+| Account trigger + menu open/close | recognize current Account; local disclosure | `IAM-01 GetControlPlaneAccessContext` supplies the current server projection; open/close is `LOCAL_UI` | canonical `AccountSummary` is `SERVER`; menu open state is `EPHEMERAL_UI` | open/close is presentation only; opening never invokes `BLD-16` | client Account/session store; generic Account read Permission |
+| Account identity | human recognition before technical detail | `IAM-01` `account: AccountSummary` with required `accountId` + `displayName`, optional `email` | `displayName`/`email` are server presentation projection; `accountId` is stable technical identity | optional email may be absent; browser never substitutes Keycloak claims | profile editor; claims/roles/groups; editable identity registry |
+| Technical identity disclosure | progressive technical disclosure | `IAM-01` `AccountSummary.accountId` | disclosure is `EPHEMERAL_UI`; value remains server-projected | exposes exact Account ID without changing routing or authorization | name-derived identity or authorization |
+| Sign out of Conexus | end the exact current Conexus session | `IAM-02 EndSession` — `DELETE /api/session`; authenticated exact current opaque Conexus session | session validity is `SERVER`; pending/status presentation is `EPHEMERAL_UI` | `204` removes protected shell and reaches `AUTHENTICATION_REQUIRED`; no global Keycloak SSO logout claim | duplicate logout operation; provider/global SSO logout; frontend session authority |
+| Already-expired sign out | recover an expired current session | same `IAM-02 EndSession` command | `401` is server outcome, not client inference | `401` reaches the same authentication-required recovery with already-expired wording | treating `401` as successful new logout or as known-empty content |
+| Ambiguous/dependency failure | preserve safe decision state | same `IAM-02` command boundary; transport/dependency outcome is not a new Product operation | failure message/retry visibility is `EPHEMERAL_UI`; session validity remains `SERVER` | keep Account menu and shell safe, state that sign-out is unconfirmed, offer explicit retry; never claim logout | blind replay, silent success, or local session invalidation |
+| IAM-01 session expiry | recover when current Account context is no longer valid | `IAM-01 GetControlPlaneAccessContext` `401` | Account/session validity remains `SERVER` | `AUTHENTICATION_REQUIRED`; do not render expiry as zero disclosed Workspaces | cached AccountSummary as current authority |
+| Re-entry control | leave recovery boundary for authentication | technical authentication boundary followed by normal Conexus Account/session resolution; future first-access flow remains `T-01` | recovery screen is `SERVER` outcome projection; control is `EPHEMERAL_UI` | authenticate again and re-resolve current Conexus authority; no promise of provider logout | embedding T-01 setup, public signup or permanent bootstrap bypass in GF-01 |
+
+The bidirectional mapping is closed:
+
+```text
+IAM-01 AccountSummary → Account identity/progressive disclosure
+IAM-02 EndSession     → Sign out of Conexus → authentication-required recovery
+local Account controls → no Product operation / no new Permission
+```
+
+### 0.2 Delta state and accessibility contract
+
+The delta preserves these distinct states:
+
+```text
+IAM-01 loading / current AccountSummary
+IAM-01 401 session expiry
+IAM-02 204 session ended
+IAM-02 401 already expired
+IAM-02 dependency or ambiguous failure
+AUTHENTICATION_REQUIRED / explicit re-entry
+```
+
+The trigger is a native keyboard-operable button with `aria-expanded` and `aria-controls`. Opening focuses the Account identity; sequential focus reaches technical disclosure and Sign out. Escape and click-away close the non-modal menu and return focus to the trigger where appropriate. The narrow realization is a viewport-bounded sheet below the topbar, separate from the one adaptive navigation drawer. Identity, status and failure meaning are textual and never color-only.
+
+The Account delta does not create a fifth client state class, a second navigation landmark, a new Product operation, an `account.read`/`account.manage` Permission or a new semantic owner. It remains a projection/command consumer of existing I&A authority.
 
 ## 1. Goal / user-flow role
 
@@ -86,7 +146,7 @@ screen-internal list/card/table/detail structures
 
 | Shell interaction / truth | Class | Exact accepted authority | Permission / authority condition | Result |
 | --- | --- | --- | --- | --- |
-| bootstrap current Account + disclosable Workspaces/Projects | `PRODUCT_READ` | `IAM-01 GetControlPlaneAccessContext` | authenticated current Conexus session + server-resolved membership/grants/disclosure; no invented `account.read` Permission | `accountId`, disclosed `workspaceId/name`, disclosed `projectId/workspaceId/name` projection |
+| bootstrap current Account + disclosable Workspaces/Projects | `PRODUCT_READ` | `IAM-01 GetControlPlaneAccessContext` | authenticated current Conexus session + server-resolved membership/grants/disclosure; no invented `account.read` Permission | canonical `AccountSummary`, disclosed `workspaceId/name`, disclosed `projectId/workspaceId/name` projection |
 | end current Control Plane session from Account menu | `PRODUCT_COMMAND` | `IAM-02 EndSession` | exact current authenticated Conexus session | session ends; browser returns to authentication-required state |
 | resolve exact Workspace route/context | `PRODUCT_READ` | `WS-02 GetWorkspace` | current server-resolved Workspace membership/admin disclosure; route `workspaceId` is untrusted reference only | exact current Workspace identity or 401/403/404 |
 | resolve exact Project route/context | `PRODUCT_READ` | `PRJ-02 GetProject` | `project.read` + exact current Project grant/disclosure; route `projectId` is untrusted reference only | exact Project representation or 401/403/404 |
@@ -282,13 +342,27 @@ contextual assistant frame seam
 narrow drawer transformation
 ```
 
-Only GF-01 is locked so far. Under the methodology, shared patterns graduate only after repeated locked evidence demonstrates the same protected purpose/state/accessibility/failure semantics.
+The Account/session delta reuses the existing semantic vocabulary without creating a new shared implementation pattern:
+
+```text
+human-first exact reference
+→ AccountSummary displayName/email first
+→ accountId progressively disclosed
+
+focus enters topbar disclosure and returns to exact trigger
+→ same protected focus/close invariant already required by the shell
+
+loading / expired / ended / ambiguous failure remain distinct
+→ same honest state-separation invariant already required by GF-01
+```
+
+`Sign out of Conexus` is a single I&A command with no revision or generic decision abstraction. The Account menu remains GF-01-local structural semantics. Under the methodology, shared patterns graduate only after repeated locked evidence demonstrates the same protected purpose/state/accessibility/failure semantics.
 
 ```text
 P10 graduated shared patterns = 0
 ```
 
-All above remain **GF-01 local structural semantics**, not component APIs, hooks, stores, packages or design-system primitives.
+All above remain **GF-01 local structural semantics**, not component APIs, hooks, stores, packages or design-system primitives. No Account/session component, cross-owner DTO/store, frontend authorization evaluator or new pattern is selected.
 
 ---
 
@@ -300,7 +374,7 @@ P11 = NOT TRIGGERED SEPARATELY
 
 Reason:
 
-- the approved P8 HTML already exercises the bounded shell questions that required interaction: Workspace/Project scope transitions, breadcrumb menus, shortcuts, adaptive rail, assistant seam and narrow drawer;
+- the approved P8 HTML lineage now exercises the bounded shell questions that required interaction: Workspace/Project scope transitions, breadcrumb menus, shortcuts, adaptive rail, assistant seam, narrow drawer and the operable Account/EndSession delta;
 - a second GF-01-only prototype would duplicate the same evidence rather than test a new cross-screen failure class;
 - the assembled interactive P11 proof remains necessary later once multiple locked blocks can be exercised as genuine end-to-end flows.
 
@@ -310,7 +384,17 @@ The P8 artifact is still not backend/runtime/auth proof.
 
 ## 13. Closure / reopen law
 
-GF-01 is `READY` as the inherited frame baseline for later material blocks.
+GF-01 remains `READY` as the inherited frame baseline for later material blocks, now including the bounded Account/session delta:
+
+```text
+H1-R2 baseline                  = LOCKED / OPERATOR APPROVED
+Account/session delta P8         = LOCKED / OPERATOR APPROVED
+Account/session delta P9         = EXACT TRACE CLOSED
+Account/session delta P10        = CONSOLIDATED
+P11 / 4D / Product implementation = NOT AUTHORIZED
+```
+
+The current canonical HTML is pinned to the approved Account/session blob `e83a0e8c9e64ee47d28a58d267f5fb1169b41ed3`; the prior H1-R2 blob `2d899d00484c41c927829bd9f529d3a870159db3` remains the historical baseline identity.
 
 Reopen only if later evidence materially shows that the locked frame cannot preserve one of:
 

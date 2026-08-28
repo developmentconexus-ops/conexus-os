@@ -1,9 +1,11 @@
 # 4C W-03 — People/access + Audit structural decision
 
-> **Current status:** `P7 OPERATOR APPROVED FOR FUNCTIONAL P8 / P8 CANDIDATE / OPERATOR WALKTHROUGH / NOT LOCKED`
+> **Current status:** `P11-W03-F01 SHELL RE-LOCKED / OPERATOR APPROVED / INNER STRUCTURE PRESERVED`
 > **Block:** `W-03 — People/access + audit`, split into `W-03A — People & access` and `W-03B — Audit`.
 > **Selected hypothesis:** `A — subject-first access + filtered immutable Audit`.
 > **Authority posture:** interaction Evidence only; no Product implementation, P8 LOCK, P9/P10, final visual design or 4D authority.
+
+Approved bounded shell blob: `e9d630622d853d6e352737f46202f2765526fd6a`. The prior operator-approved inner interaction remains preserved; the GF-01 shell correction is closed.
 
 Historical pre-approval marker preserved for proof chronology: `P7 CANDIDATE / OPERATOR ADJUDICATION / P8 BLOCKED / NOT LOCKED`.
 

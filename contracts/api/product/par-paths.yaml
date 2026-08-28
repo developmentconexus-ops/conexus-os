@@ -18,7 +18,7 @@ paths:
         - $ref: '#/components/parameters/PageToken'
       responses:
         '200':
-          description: Current app-authorized Conversation identities for the exact Project/Agent; Conversation existence never grants authority by itself.
+          description: Current app-authorized recognizable Conversations for the exact Project/Agent, ordered by lastActivityAt DESC with stable conversationId DESC tie-breaker before pagination. Conversation existence never grants authority by itself.
           content:
             application/json:
               schema:
@@ -106,6 +106,14 @@ paths:
                   items:
                     $ref: '#/components/schemas/AppContextRef'
                   description: Optional typed app-context references. They are untrusted references validated against the exact active Release/Agent/app authority and never grant access by possession.
+                replyToQuestionMessageId:
+                  type: string
+                  minLength: 1
+                  description: Optional exact currently open QUESTION message being answered. Possession never proves that the question remains open or answerable.
+                selectedOptionId:
+                  type: string
+                  minLength: 1
+                  description: Optional exact bounded option from replyToQuestionMessageId. It is rejected without a current matching question/option and never replaces the human text.
       responses:
         '202':
           description: Exact PAR AgentRun admitted and Release-pinned. Acceptance does not mean execution completed, every effect succeeded, or any live stream is still connected.
@@ -182,7 +190,7 @@ paths:
         - $ref: '#/components/parameters/PageToken'
       responses:
         '200':
-          description: Current disclosable PAR AgentRun owner facts. Published-App access is limited to exact in-scope app authority.
+          description: Current disclosable PAR AgentRun owner facts, ordered by admittedAt DESC with stable agentRunId DESC tie-breaker before pagination. The identifier is only a tie-breaker and is never interpreted as time. Published-App access is limited to exact in-scope app authority.
           content:
             application/json:
               schema:
@@ -232,7 +240,7 @@ paths:
         - $ref: '#/components/parameters/PageToken'
       responses:
         '200':
-          description: Current actionable approval queue for the exact eligible human. audit.read alone never grants queue visibility.
+          description: Current actionable approval queue for the exact eligible human, including PAR-issued request-time Agent presentation, safe action summary and temporal context. audit.read alone never grants queue visibility.
           content:
             application/json:
               schema:
@@ -547,26 +555,66 @@ components:
           type: string
           minLength: 1
           description: Untrusted reference resolved and authorized server-side.
+    ConversationResponseOption:
+      type: object
+      additionalProperties: false
+      required: [optionId, label]
+      properties:
+        optionId:
+          type: string
+          minLength: 1
+          description: Stable option identity within the exact QUESTION message; not business or authorization identity.
+        label:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+        description:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
     ConversationMessage:
       type: object
       additionalProperties: false
-      required: [messageId, role, text]
+      required: [messageId, role, kind, text, createdAt]
       properties:
         messageId: { type: string, minLength: 1 }
         role:
           type: string
           enum: [USER, AGENT]
+        kind: { type: string, enum: [TEXT, QUESTION] }
         text:
           type: string
           description: User-visible durable conversation text. Runtime reasoning/tool/snapshot material is not automatically conversation content.
+        createdAt: { type: string, format: date-time }
+        responseOptions:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/ConversationResponseOption'
+          description: Bounded presentation choices only for an Agent QUESTION; absence permits an ordinary free-text reply.
+        replyToQuestionMessageId:
+          type: string
+          minLength: 1
+          description: Present on a USER reply when it answers an exact prior QUESTION message.
+        selectedOptionId:
+          type: string
+          minLength: 1
+          description: Present only when the USER chose one option from the referenced QUESTION; owner validation binds it to that message.
     Conversation:
       type: object
       additionalProperties: false
-      required: [conversationId, projectId, agentId, messages]
+      required: [conversationId, projectId, agentId, startedAt, lastActivityAt, attention, messages]
       properties:
         conversationId: { type: string, minLength: 1 }
         projectId: { type: string, minLength: 1 }
         agentId: { type: string, minLength: 1 }
+        startedAt: { type: string, format: date-time }
+        lastActivityAt: { type: string, format: date-time }
+        attention: { type: string, enum: [NONE, NEEDS_YOUR_RESPONSE] }
+        pendingQuestionMessageId:
+          type: string
+          minLength: 1
+          description: Present only while attention is NEEDS_YOUR_RESPONSE and identifies the exact current unanswered QUESTION.
         messages:
           type: array
           items:
@@ -574,11 +622,22 @@ components:
     ConversationSummary:
       type: object
       additionalProperties: false
-      required: [conversationId, projectId, agentId]
+      required: [conversationId, projectId, agentId, startedAt, lastActivityAt, lastMessagePreview, attention]
       properties:
         conversationId: { type: string, minLength: 1 }
         projectId: { type: string, minLength: 1 }
         agentId: { type: string, minLength: 1 }
+        startedAt: { type: string, format: date-time }
+        lastActivityAt: { type: string, format: date-time }
+        lastMessagePreview:
+          type: [string, 'null']
+          maxLength: 240
+          description: Owner-projected safe preview of the last user-visible message, or null for an empty Conversation; never model/runtime reasoning.
+        attention: { type: string, enum: [NONE, NEEDS_YOUR_RESPONSE] }
+        pendingQuestionMessageId:
+          type: string
+          minLength: 1
+          description: Present only while attention is NEEDS_YOUR_RESPONSE.
     ConversationList:
       type: object
       additionalProperties: false
@@ -623,10 +682,28 @@ components:
       additionalProperties: true
       x-conexus-schema-source: RELEASE_AGENT_OUTPUT
       description: Exact Product Agent output projection under the admitted Release interaction contract; runtime/provider chunks remain subordinate mechanics.
+    AgentRunProblem:
+      type: object
+      additionalProperties: false
+      required: [summary]
+      description: Safe PAR owner projection for human investigation. It contains no raw provider, model, tool or secret payload and grants no retry/resume authority.
+      properties:
+        summary:
+          type: string
+          minLength: 1
+          pattern: '.*\\S.*'
+        detail:
+          type: string
+          minLength: 1
+          pattern: '.*\\S.*'
+        remediation:
+          type: string
+          minLength: 1
+          pattern: '.*\\S.*'
     AgentRun:
       type: object
       additionalProperties: false
-      required: [agentRunId, projectId, agentId, releaseId, origin, runState]
+      required: [agentRunId, projectId, agentId, releaseId, origin, runState, admittedAt]
       properties:
         agentRunId: { type: string, minLength: 1 }
         projectId: { type: string, minLength: 1 }
@@ -650,6 +727,16 @@ components:
           type: string
           minLength: 1
           description: PAR owner-issued AgentRun lifecycle state. 4B does not invent a complete lifecycle enum merely for UI convenience.
+        admittedAt:
+          type: string
+          format: date-time
+          description: Owner-issued time at which this exact AgentRun was admitted.
+        settledAt:
+          type: string
+          format: date-time
+          description: Owner-issued terminal settlement time when the AgentRun has settled; absence means no terminal settlement is asserted.
+        problem:
+          $ref: '#/components/schemas/AgentRunProblem'
         output:
           $ref: '#/components/schemas/ReleaseAgentOutput'
         evidenceRefs:
@@ -670,14 +757,42 @@ components:
       additionalProperties: true
       x-conexus-schema-source: SEALED_APPROVAL_PROPOSAL
       description: Exact safe owner projection of the sealed proposal and arguments the human is being asked to decide. Changed proposal content requires new authority.
+    ApprovalAgentSnapshot:
+      type: object
+      additionalProperties: false
+      required: [agentId, name, purpose, releaseId]
+      description: Immutable request-time human presentation for the exact Agent/Release context. It supports recognition only and is never current Agent, Release or authorization truth.
+      properties:
+        agentId: { type: string, minLength: 1 }
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\\S.*'
+        purpose:
+          type: string
+          minLength: 1
+          pattern: '.*\\S.*'
+        releaseId: { type: string, minLength: 1 }
     ApprovalRequest:
       type: object
       additionalProperties: false
-      required: [approvalRequestId, projectId, agentRunId, proposalRef, proposalDigest, approvalState, proposal]
+      required: [approvalRequestId, projectId, agentRunId, agent, actionSummary, requestedAt, proposalRef, proposalDigest, approvalState, proposal]
       properties:
         approvalRequestId: { type: string, minLength: 1 }
         projectId: { type: string, minLength: 1 }
         agentRunId: { type: string, minLength: 1 }
+        agent:
+          $ref: '#/components/schemas/ApprovalAgentSnapshot'
+        actionSummary:
+          type: string
+          minLength: 1
+          pattern: '.*\\S.*'
+          description: Deterministic safe human summary of the proposed effect/consequence; it never replaces the exact sealed proposal or its digest.
+        requestedAt: { type: string, format: date-time }
+        expiresAt:
+          type: string
+          format: date-time
+          description: Present only when PAR defines an expiry for this exact request.
         proposalRef:
           type: string
           minLength: 1
@@ -695,10 +810,22 @@ components:
     ApprovalRequestSummary:
       type: object
       additionalProperties: false
-      required: [approvalRequestId, agentRunId, proposalRef, proposalDigest, approvalState]
+      required: [approvalRequestId, agentRunId, agent, actionSummary, requestedAt, proposalRef, proposalDigest, approvalState]
       properties:
         approvalRequestId: { type: string, minLength: 1 }
         agentRunId: { type: string, minLength: 1 }
+        agent:
+          $ref: '#/components/schemas/ApprovalAgentSnapshot'
+        actionSummary:
+          type: string
+          minLength: 1
+          pattern: '.*\\S.*'
+          description: Deterministic safe human summary; exact decision truth remains PAR-09's sealed proposal.
+        requestedAt: { type: string, format: date-time }
+        expiresAt:
+          type: string
+          format: date-time
+          description: Present only when PAR defines an expiry for this exact request.
         proposalRef: { type: string, minLength: 1 }
         proposalDigest: { type: string, minLength: 1 }
         approvalState: { type: string, minLength: 1 }

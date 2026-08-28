@@ -122,7 +122,7 @@ The seam is locked; exact thresholds, panel width and mode-selection algorithm a
 - Workspace shortcuts inside a context menu must remain discoverable in assembled walkthroughs;
 - Project-name cue in rail may later prove redundant, but changing it after lock requires the smallest GF-01 reopen if material;
 - actual assistant eligibility/content must remain surface-owned;
-- relative ordering among non-primary items is not frequency-backed by `4C-A02` and remains an assumption probe rather than permission to reorder during implementation.
+- relative ordering among non-primary items is not frequency-backed; `4C-A02` rejects frequency as a current material dependency, so implementation may not infer or reorder from it. New material measured evidence reopens only the affected ordering/density.
 
 ## 3. H2 — Persistent Workspace rail + nested Project rail — REJECTED
 

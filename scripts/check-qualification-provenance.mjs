@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const root = resolve(new URL('../', import.meta.url).pathname)
+const root = fileURLToPath(new URL('../', import.meta.url))
 const read = path => readFileSync(resolve(root, path))
 const json = path => JSON.parse(read(path).toString('utf8'))
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex')
+const sha256CanonicalText = bytes => sha256(Buffer.from(bytes.toString('utf8').replaceAll('\r\n', '\n'), 'utf8'))
 const errors = []
 
 const packageA = json('qualification/3l/builder-substrate/package.json')
@@ -37,7 +39,7 @@ const lockD = read('qualification/3l/managed-execution/package-lock.json')
 const vendorDdl = read('qualification/3l/managed-execution/vendor/pgboss-12.26.3-mar.sql')
 if (packageD.dependencies?.['pg-boss'] !== '12.26.3' || evidenceD.dependencies?.['pg-boss'] !== '12.26.3') errors.push('Package-D pg-boss pin drift')
 if (sha256(lockD) !== evidenceD.dependencies?.lockSha256) errors.push('Package-D lock digest drift')
-if (sha256(vendorDdl) !== evidenceD.dependencies?.vendorDdlSha256) errors.push('Package-D vendor DDL digest drift')
+if (sha256CanonicalText(vendorDdl) !== evidenceD.dependencies?.vendorDdlSha256) errors.push('Package-D vendor DDL digest drift')
 if (evidenceD.authority !== 'docs/reference/managed-execution-qualification.md') errors.push('Package-D authority route drift')
 
 if (errors.length) {

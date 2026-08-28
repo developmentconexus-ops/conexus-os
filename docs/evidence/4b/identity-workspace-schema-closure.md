@@ -156,3 +156,6 @@ Product implementation                     = BLOCKED
 ```
 
 The next owner slice must continue deriving exact schemas from accepted authority. Any missing Product property inventory remains a stop/reopen falsifier, not an invitation to invent DTO fields.
+## Pre-P11 F03 trusted bootstrap recompile
+
+`4C-PRE11-F03` adds no Product operation or ordinary Permission. `IAM-03` admits a second exact authority route, `trusted_bootstrap_context`, whose request omits caller-supplied externalSubject because the server resolves the exact preconfigured OIDC subject. `WS-01` success now proves `creatorAccountId + initialAccessEstablished=true`, preventing a successful but undisclosable first Workspace. The transient context is invalid after Account establishment and cannot access ordinary Product routes.

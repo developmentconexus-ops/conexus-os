@@ -23,7 +23,7 @@
     .domain-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.domain-card,.concept-card,.candidate-card,.proposal-card,.revision-card,.health-card{border:1px solid var(--strong);background:var(--paper);padding:14px;text-align:left}.domain-card:hover,.concept-card:hover,.candidate-card:hover,.proposal-card:hover,.revision-card:hover{background:#fafafa}.domain-card strong,.concept-card strong,.candidate-card strong,.proposal-card strong{display:block;font-size:15px;margin-bottom:5px}.domain-card small,.concept-card small,.candidate-card small,.proposal-card small{display:block;color:var(--muted);line-height:1.4}.domain-card .meta,.concept-card .meta{margin-top:10px;font-size:11px;color:var(--muted)}
     .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}.back{border:1px solid transparent;background:transparent;text-decoration:underline;padding:4px 0}.split{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px}.panel{border:1px solid var(--strong);padding:16px;background:var(--paper);margin-bottom:14px}.panel p,.panel li{font-size:13px;line-height:1.5}.panel p{margin:6px 0}.panel ul{margin:6px 0;padding-left:20px}.panel header{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:10px}.class-tag{font-size:10px;border:1px solid var(--line);padding:3px 5px;color:var(--muted)}.concept-sections{display:grid;gap:10px}.concept-section{border:1px solid var(--line);padding:13px}.concept-section p{margin:4px 0}.technical{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;overflow-wrap:anywhere}.meta-list{display:grid;grid-template-columns:130px minmax(0,1fr);gap:7px 10px;margin:0}.meta-list dt{color:var(--muted);font-size:12px}.meta-list dd{margin:0;font-size:12px;overflow-wrap:anywhere}
     .search-results{display:grid;gap:8px}.search-result{border:1px solid var(--line);padding:10px;background:var(--paper);text-align:left}.empty{padding:30px 12px;color:var(--muted);text-align:center;border:1px dashed var(--line)}
-    .candidate-list,.proposal-list,.revision-list,.health-list{display:grid;gap:10px}.candidate-card[aria-current="true"],.proposal-card[aria-current="true"]{background:var(--soft2)}.provenance{border:1px dashed var(--line);padding:10px;margin-top:10px;font-size:12px}.provenance strong{display:block;margin-bottom:4px}.resolution{margin-top:14px}.resolution textarea{width:100%;min-height:120px;border:1px solid var(--strong);padding:10px;resize:vertical}.hint{color:var(--muted);font-size:12px;line-height:1.45}.problem{border:1px solid var(--strong);background:var(--soft);padding:12px;margin:12px 0;font-size:12px}.success{border:1px solid var(--strong);background:var(--soft2);padding:12px;margin:12px 0;font-size:12px}.flow-law{border:1px dashed var(--strong);padding:10px;font-size:11px;line-height:1.55;background:#fcfcfc;margin-top:12px}.review-text{white-space:pre-wrap;font-size:13px;line-height:1.55;border-left:3px solid var(--line);padding-left:12px}.decision-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.publish-zone{border-top:1px solid var(--line);padding-top:14px;margin-top:16px}.publish-zone .status{margin-right:8px}.health-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}.health-card p{margin:4px 0;color:var(--muted);font-size:12px}.revision-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}.revision-card small{color:var(--muted)}
+    .candidate-list,.proposal-list,.revision-list,.health-list{display:grid;gap:10px}.candidate-card[aria-current="true"],.proposal-card[aria-current="true"]{background:var(--soft2)}.provenance{border:1px dashed var(--line);padding:10px;margin-top:10px;font-size:12px}.provenance strong{display:block;margin-bottom:4px}.resolution{margin-top:14px}.resolution textarea{width:100%;min-height:120px;border:1px solid var(--strong);padding:10px;resize:vertical}.hint{color:var(--muted);font-size:12px;line-height:1.45}.problem{border:1px solid var(--strong);background:var(--soft);padding:12px;margin:12px 0;font-size:12px}.success{border:1px solid var(--strong);background:var(--soft2);padding:12px;margin:12px 0;font-size:12px}.edge-panel{border:1px dashed var(--strong);background:#fcfcfc;padding:10px;margin:0 0 16px;font-size:12px}.edge-panel strong{display:block;margin-bottom:4px}.edge-panel code{display:block;margin-top:7px;overflow-wrap:anywhere}.flow-law{border:1px dashed var(--strong);padding:10px;font-size:11px;line-height:1.55;background:#fcfcfc;margin-top:12px}.review-text{white-space:pre-wrap;font-size:13px;line-height:1.55;border-left:3px solid var(--line);padding-left:12px}.decision-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.publish-zone{border-top:1px solid var(--line);padding-top:14px;margin-top:16px}.publish-zone .status{margin-right:8px}.health-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}.health-card p{margin:4px 0;color:var(--muted);font-size:12px}.revision-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}.revision-card small{color:var(--muted)}
     .scrim{display:none}
     @media(max-width:900px){.split{grid-template-columns:1fr}.summary-grid{grid-template-columns:1fr 1fr}.domain-grid{grid-template-columns:1fr}}
     @media(max-width:760px){body{background:var(--paper)}.note{margin:0;border-width:0 0 1px}.shell{width:100%;min-height:100vh;margin:0;border:0;grid-template-columns:1fr;grid-template-rows:var(--top) minmax(0,1fr);grid-template-areas:"top" "stage"}.brand{display:none}.menu-toggle{display:inline-block}.topbar{padding:0 8px;gap:4px}.context button{max-width:170px;padding:7px 5px}.account{font-size:0;width:34px;height:34px;padding:0}.account::after{content:"A";font-size:13px}.rail{position:absolute;z-index:40;top:var(--top);left:0;bottom:0;width:min(82vw,310px);transform:translateX(-102%);transition:transform 120ms linear;box-shadow:2px 0 0 #bbb}.shell[data-drawer-open="true"] .rail{transform:translateX(0)}.scrim{position:absolute;z-index:35;inset:var(--top) 0 0;background:rgba(0,0,0,.16);border:0}.shell[data-drawer-open="true"] .scrim{display:block}.main{padding:20px 16px 32px}.brain-nav{flex-wrap:nowrap;overflow-x:auto}.brain-nav button{white-space:nowrap}.summary-grid{grid-template-columns:1fr}.field input,.field select{min-width:0;width:100%}.page-head{flex-direction:column}.meta-list{grid-template-columns:1fr;gap:3px}.meta-list dd{margin-bottom:6px}}
@@ -68,11 +68,21 @@
             <h1>Brain</h1>
             <p class="lede">Canonical organizational knowledge. Browse what the organization knows separately from the workflows that evolve that knowledge.</p>
           </div>
-          <span class="status">revision 42 · VALID</span>
+          <span class="status" id="currentPublicationStatus">revision 41 · VALID</span>
         </div>
 
         <div class="fixture">
           <strong>Fixture interaction only.</strong> Fixture domains and concepts are demonstration data only. Fixture Projects are demonstration data only. No backend/runtime behavior is claimed. Refresh resets the local demonstration state.
+        </div>
+        <div id="projectIngress" class="edge-panel" data-owner-state="PROJECT_CONTEXT_REQUIRED" aria-live="polite">
+          <strong>Discovery Project ingress</strong>
+          <span id="projectIngressMessage">An exact workspaceId and projectId are required before the Brain can re-resolve Project context.</span>
+          <code id="projectIngressCoordinate"></code>
+        </div>
+        <div id="publicationEgress" class="edge-panel" data-egress-state="NOT_EMITTED" hidden aria-live="polite">
+          <strong>W-02A → P-02 publication edge</strong>
+          <span id="publicationEgressMessage">BRN-09 has not emitted an owner-issued Project/Brain revision envelope.</span>
+          <code id="publicationEgressCoordinate"></code>
         </div>
 
         <nav class="brain-nav" aria-label="Brain sections">
@@ -94,7 +104,7 @@
             </div>
 
             <div class="summary-grid" aria-label="Brain summary">
-              <div class="summary"><small>Published knowledge</small><strong>Revision 42</strong></div>
+              <div class="summary"><small>Published knowledge</small><strong id="currentPublicationSummary">Revision 41</strong></div>
               <div class="summary"><small>Operational health</small><strong>VALID</strong></div>
               <div class="summary"><small>Needs attention</small><strong>3 hypotheses · <span id="attentionProposalCount">1</span> proposal</strong></div>
             </div>
@@ -184,7 +194,7 @@
 
         <section data-brain-view="health" id="healthView" hidden>
           <div class="page-head"><div><h2>Health</h2><p class="lede">Operational overlay for exact published knowledge. Health can change without rewriting immutable Brain content.</p></div></div>
-          <div class="summary-grid"><div class="summary"><small>Brain revision</small><strong>42</strong></div><div class="summary"><small>Health snapshot</small><strong>health-42-a</strong></div><div class="summary"><small>Overall</small><strong>VALID</strong></div></div>
+          <div class="summary-grid"><div class="summary"><small>Brain revision</small><strong id="healthRevision">41</strong></div><div class="summary"><small>Health snapshot</small><strong id="healthSnapshot">health-41-a</strong></div><div class="summary"><small>Overall</small><strong>VALID</strong></div></div>
           <div class="health-list">
             <div class="health-card"><div><strong>Net Revenue</strong><p>Critical semantic definition and evidence specification.</p></div><span class="status">VALID</span></div>
             <div class="health-card"><div><strong>Customer</strong><p>Business Partner classification rule.</p></div><span class="status">VALID</span></div>
@@ -197,10 +207,18 @@
   </div>
 
   <script>
+    const query = new URLSearchParams(window.location.search)
+    const integratedWorkspaceId = 'ws-metal-nobre'
+    const integratedProject = { projectId:'prj-sales-ops', workspaceId:integratedWorkspaceId, name:'Sales Operations', archived:false }
+    const integratedPublication = { brainRevisionId:'brain-r42', sourceRevision:'brain-source-r42', digest:'sha256:brain-r42', availability:'AVAILABLE' }
+    const requestedWorkspaceId = query.get('workspaceId') || ''
+    const requestedProjectId = query.get('projectId') || ''
+    const requestedProjectState = (query.get('projectState') || '').toUpperCase()
+    const requestedPublicationState = (query.get('publicationState') || 'READY').toUpperCase()
     const projectFixtures = [
-      { projectId:'prj-budget-analyzer', workspaceId:'ws-metal-nobre', name:'Budget Analyzer', archived:false },
-      { projectId:'prj-fiscal-intelligence', workspaceId:'ws-metal-nobre', name:'Fiscal Intelligence', archived:false },
-      { projectId:'prj-legacy-analysis', workspaceId:'ws-metal-nobre', name:'Legacy Analysis', archived:true }
+      integratedProject,
+      { projectId:'prj-fiscal-intelligence', workspaceId:integratedWorkspaceId, name:'Fiscal Intelligence', archived:false },
+      { projectId:'prj-legacy-analysis', workspaceId:integratedWorkspaceId, name:'Legacy Analysis', archived:true }
     ]
 
     const domainFixtures = {
@@ -247,17 +265,20 @@
       domain:null,
       concept:null,
       selectedProjectId:null,
+      projectSelectionTouched:false,
+      projectIngressState:'PROJECT_CONTEXT_REQUIRED',
       discoveryRan:false,
       selectedDiscovery:null,
       selectedProposal:'kp-existing',
+      publicationResult:null,
       proposals:[{
         proposalId:'kp-existing', proposalRevision:'proposal-r7', candidateSourceRevision:'brain-candidate-r7', title:'Pending Budget wording', status:'PENDING', published:false,
         reviewText:'Pending Budget\n\nDefinition: A currently eligible pending budget under the exact Budget Analyzer semantic contract.\n\nCaveat: result coordinates and freshness remain visible.',
         provenanceRefs:['Budget Analyzer semantic contract','brain-discovery-previous']
       }],
       revisions:[
-        { id:'42', source:'brain-source-42', status:'CURRENT', note:'Current published Workspace Brain.' },
-        { id:'41', source:'brain-source-41', status:'AVAILABLE', note:'Prior immutable publication.' }
+        { id:'41', source:'brain-source-41', status:'CURRENT', note:'Current published Workspace Brain before the integrated publication fixture.' },
+        { id:'40', source:'brain-source-40', status:'AVAILABLE', note:'Prior immutable publication.' }
       ]
     }
 
@@ -310,6 +331,10 @@
       document.getElementById('conceptDetail').hidden = true
     }
 
+    function currentPublication() {
+      return state.revisions.find(revision => revision.status === 'CURRENT') || state.revisions[0]
+    }
+
     function openConcept(conceptId) {
       const concept = conceptFixtures[conceptId]
       if (!concept) return
@@ -319,7 +344,7 @@
       const target = document.getElementById('conceptDetail')
       target.hidden = false
       target.innerHTML = `
-        <div class="page-head"><div><button class="back" type="button" id="backDomain">← ${domainFixtures[concept.domain].name}</button><h2>${concept.name}</h2><p class="lede">${concept.summary}</p></div><span class="status">published · revision 42</span></div>
+        <div class="page-head"><div><button class="back" type="button" id="backDomain">← ${domainFixtures[concept.domain].name}</button><h2>${concept.name}</h2><p class="lede">${concept.summary}</p></div><span class="status">published · revision ${currentPublication().id}</span></div>
         <div class="split"><div class="concept-sections">
           <section class="concept-section" data-content-class="SEMANTIC"><header><h3>Definition</h3><span class="class-tag">SEMANTIC</span></header><p>${concept.definition}</p></section>
           <section class="concept-section" data-content-class="KNOWLEDGE"><header><h3>Business meaning</h3><span class="class-tag">KNOWLEDGE</span></header><p>${concept.businessMeaning}</p></section>
@@ -329,7 +354,7 @@
           <section class="concept-section" data-content-class="KNOWLEDGE"><header><h3>Caveats</h3><span class="class-tag">KNOWLEDGE</span></header><ul>${concept.caveats.map(x=>`<li>${x}</li>`).join('')}</ul></section>
           <section class="concept-section" data-content-class="EVIDENCE_SPEC"><header><h3>How this is verified</h3><span class="class-tag">EVIDENCE_SPEC</span></header><ul>${concept.evidence.map(x=>`<li>${x}</li>`).join('')}</ul></section>
           <section class="concept-section"><header><h3>Provenance</h3><span class="class-tag">READ-ONLY</span></header><ul>${concept.provenance.map(x=>`<li>${x}</li>`).join('')}</ul></section>
-        </div><aside class="panel"><h3>Exact publication</h3><dl class="meta-list"><dt>Brain revision</dt><dd>42</dd><dt>Source revision</dt><dd class="technical">brain-source-42</dd><dt>Health</dt><dd>VALID</dd><dt>Domain</dt><dd>${domainFixtures[concept.domain].name}</dd></dl><div class="flow-law">Human presentation of exact published meaning.<br>DOM / card position -X→ Brain identity.</div></aside></div>`
+        </div><aside class="panel"><h3>Exact publication</h3><dl class="meta-list"><dt>Brain revision</dt><dd>${currentPublication().id}</dd><dt>Source revision</dt><dd class="technical">${currentPublication().source}</dd><dt>Health</dt><dd>VALID</dd><dt>Domain</dt><dd>${domainFixtures[concept.domain].name}</dd></dl><div class="flow-law">Human presentation of exact published meaning.<br>DOM / card position -X→ Brain identity.</div></aside></div>`
       document.getElementById('backDomain').addEventListener('click', () => openDomain(concept.domain))
     }
 
@@ -348,8 +373,45 @@
     document.getElementById('knowledgeSearch').addEventListener('input', event => applySearch(event.target.value))
     document.querySelectorAll('[data-domain-id]').forEach(button => button.addEventListener('click',()=>openDomain(button.dataset.domainId)))
 
+    function resolveProjectIngress() {
+      if (!requestedWorkspaceId || !requestedProjectId) return { state:'PROJECT_CONTEXT_REQUIRED', project:null }
+      if (requestedProjectState === 'DENIED') return { state:'PROJECT_CONTEXT_DENIED', project:null }
+      if (requestedProjectState === 'DEPENDENCY_FAILURE') return { state:'PROJECT_CONTEXT_DEPENDENCY_FAILURE', project:null }
+      if (requestedProjectState === 'STALE') return { state:'PROJECT_CONTEXT_STALE', project:null }
+      const project = projectFixtures.find(item => item.projectId === requestedProjectId && item.workspaceId === requestedWorkspaceId)
+      return project ? { state:'PROJECT_READY', project } : { state:'PROJECT_UNKNOWN', project:null }
+    }
+
+    function selectedProjectResolution() {
+      const project = projectFixtures.find(item => item.projectId === state.selectedProjectId && item.workspaceId === integratedWorkspaceId)
+      return project ? { state:'PROJECT_READY', project } : { state:state.selectedProjectId ? 'PROJECT_UNKNOWN' : 'PROJECT_CONTEXT_REQUIRED', project:null }
+    }
+
+    function renderProjectIngress() {
+      const panel = document.getElementById('projectIngress')
+      const message = document.getElementById('projectIngressMessage')
+      const coordinate = document.getElementById('projectIngressCoordinate')
+      if (!panel || !message || !coordinate) return
+      const ingress = state.projectSelectionTouched ? selectedProjectResolution() : resolveProjectIngress()
+      state.projectIngressState = ingress.state
+      panel.dataset.ownerState = ingress.state
+      coordinate.textContent = requestedWorkspaceId || requestedProjectId ? `workspaceId=${requestedWorkspaceId || 'missing'} · projectId=${requestedProjectId || 'missing'}` : ''
+      const copy = {
+        PROJECT_CONTEXT_REQUIRED:'An exact workspaceId and projectId are required before the Brain can re-resolve Project context.',
+        PROJECT_UNKNOWN:'The requested Project is not disclosed by the Workspace owner. No Discovery context is admitted.',
+        PROJECT_CONTEXT_DENIED:'The current authority cannot read this Project context. No Discovery context is admitted.',
+        PROJECT_CONTEXT_DEPENDENCY_FAILURE:'The Project owner read failed. Retry the exact context; this is not an empty Project.',
+        PROJECT_CONTEXT_STALE:'The Project context is stale. Reload the exact owner context before Discovery.',
+        PROJECT_READY:'Owner re-resolved Sales Operations. The selected Project remains FORM_DRAFT until Run discovery.'
+      }
+      message.textContent = copy[ingress.state]
+      if (ingress.state === 'PROJECT_READY' && !state.projectSelectionTouched) state.selectedProjectId = ingress.project.projectId
+    }
+
     function renderDiscoveryProjects() {
-      discoveryProject.innerHTML = '<option value="">Select a Project</option>' + projectFixtures.map(project => `<option value="${project.projectId}">${project.name}${project.archived ? ' · Archived' : ''}</option>`).join('')
+      const ingress = state.projectSelectionTouched ? selectedProjectResolution() : resolveProjectIngress()
+      if (ingress.state === 'PROJECT_READY' && !state.selectedProjectId) state.selectedProjectId = ingress.project.projectId
+      discoveryProject.innerHTML = '<option value="">Select a Project</option>' + projectFixtures.map(project => `<option value="${project.projectId}" ${project.projectId === state.selectedProjectId ? 'selected' : ''}>${project.name}${project.archived ? ' · Archived' : ''}</option>`).join('')
       runDiscoveryButton.disabled = !state.selectedProjectId
     }
 
@@ -366,15 +428,22 @@
     }
 
     discoveryProject.addEventListener('change', () => {
+      state.projectSelectionTouched = true
       state.selectedProjectId = discoveryProject.value || null
       runDiscoveryButton.disabled = !state.selectedProjectId
+      renderProjectIngress()
       resetDiscoveryForProjectContext()
     })
 
     function runDiscovery() {
       if (!state.selectedProjectId) return
-      const project = projectFixtures.find(item => item.projectId === state.selectedProjectId)
-      if (!project) return
+      const resolved = selectedProjectResolution()
+      const project = resolved.project
+      if (!project || resolved.state !== 'PROJECT_READY') {
+        document.getElementById('discoveryEmpty').hidden = false
+        document.getElementById('discoveryEmpty').textContent = 'The selected Project could not be re-resolved. No Discovery result was created.'
+        return
+      }
       state.discoveryRan = true
       const contextSummary = document.getElementById('discoveryContextSummary')
       contextSummary.hidden = false
@@ -463,20 +532,37 @@
     function publishApprovedProposal() {
       const p = state.proposals.find(x=>x.proposalId===state.selectedProposal)
       if (!p || p.status!=='APPROVED' || p.published) return
+      const project = selectedProjectResolution()
+      const panel = document.getElementById('publicationEgress')
+      const message = document.getElementById('publicationEgressMessage')
+      const coordinate = document.getElementById('publicationEgressCoordinate')
+      const failure = requestedPublicationState
+      if (project.state !== 'PROJECT_READY' || project.project.projectId !== integratedProject.projectId || ['DENIED','DEPENDENCY_FAILURE','STALE','UNKNOWN'].includes(failure)) {
+        const stateName = project.state !== 'PROJECT_READY' ? project.state : `PUBLICATION_${failure}`
+        state.publicationResult = null
+        panel.hidden = false; panel.dataset.egressState = stateName
+        message.textContent = `${stateName}: BRN-09 did not produce an owner-issued Brain revision. No Project binding changed.`
+        coordinate.textContent = ''
+        return
+      }
       p.published = true
-      const nextId = String(Math.max(...state.revisions.map(r=>Number(r.id)))+1)
       state.revisions.forEach(r=>{ if(r.status==='CURRENT') r.status='AVAILABLE' })
-      state.revisions.unshift({ id:nextId, source:p.candidateSourceRevision, status:'CURRENT', note:`Published from ${p.proposalId}; Projects remain independently pinned.` })
+      state.revisions.unshift({ id:integratedPublication.brainRevisionId, label:'42', source:integratedPublication.sourceRevision, status:'CURRENT', note:`Published from ${p.proposalId}; Projects remain independently pinned.` })
+      const detail={sourceBlock:'w02a',sourceEvent:'BRAIN_REVISION_PUBLISHED',destinationBlock:'p02',ownerCoordinates:{workspaceId:integratedWorkspaceId,projectId:integratedProject.projectId,brainRevisionId:integratedPublication.brainRevisionId},failureDisposition:'P-02 re-resolves the published revision and still requires explicit Project binding'}
+      state.publicationResult=detail
+      panel.hidden=false;panel.dataset.egressState='OWNER_ISSUED';message.textContent='BRN-09 emitted brain-r42 for P-02 review. Publication did not bind the Project.';coordinate.textContent=JSON.stringify(detail)
+      window.dispatchEvent(new CustomEvent('conexus:wireframe-egress',{detail}))
+      if(window.parent!==window)window.parent.postMessage({type:'conexus:wireframe-egress',detail},window.location.origin)
       renderProposals(); openProposal(p.proposalId)
     }
 
     function renderRevisions() {
       const list = document.getElementById('revisionList')
-      list.innerHTML = state.revisions.map(r=>`<article class="revision-card"><div><strong>Brain revision ${r.id}</strong><br><small>${r.note}</small><div class="technical" style="margin-top:7px">sourceRevision: ${r.source}</div></div><span class="status">${r.status}</span></article>`).join('')
+      list.innerHTML = state.revisions.map(r=>`<article class="revision-card"><div><strong>Brain revision ${r.label||r.id}</strong><br><small>${r.note}</small><div class="technical" style="margin-top:7px">brainRevisionId: ${r.id} · sourceRevision: ${r.source}</div></div><span class="status">${r.status}</span></article>`).join('')
     }
 
     runDiscoveryButton.addEventListener('click',runDiscovery)
-    renderDiscoveryProjects(); renderProposals(); renderRevisions(); updateCounts()
+    renderProjectIngress(); renderDiscoveryProjects(); renderProposals(); renderRevisions(); updateCounts()
   </script>
 </body>
 </html>

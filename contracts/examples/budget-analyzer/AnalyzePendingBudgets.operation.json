@@ -78,6 +78,12 @@
           "provenance": { "enum": ["VERIFIED", "PARTIAL", "UNVERIFIED"] }
         }
       },
+      "currencyCode": {
+        "type": "string",
+        "pattern": "^[A-Z]{3}$",
+        "readOnly": true,
+        "description": "ISO 4217 unit applying to every monetary value in this response. Mixed-currency aggregation is not admitted by F1."
+      },
       "summary": {
         "type": "object",
         "additionalProperties": false,
@@ -95,7 +101,7 @@
         "items": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["sellerId", "budgetCount", "budgetValue", "averageBudgetAgeDays"],
+          "required": ["sellerId", "sellerName", "budgetCount", "budgetValue", "averageBudgetAgeDays"],
           "properties": {
             "sellerId": { "type": "string", "minLength": 1 },
             "sellerName": { "type": "string", "minLength": 1 },
@@ -110,7 +116,7 @@
         "items": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["customerId", "budgetCount", "budgetValue", "averageBudgetAgeDays"],
+          "required": ["customerId", "customerName", "budgetCount", "budgetValue", "averageBudgetAgeDays"],
           "properties": {
             "customerId": { "type": "string", "minLength": 1 },
             "customerName": { "type": "string", "minLength": 1 },
@@ -161,8 +167,20 @@
           "required": ["truth"]
         },
         "then": {
-          "required": ["summary", "bySeller", "byCustomer", "byAgingBand", "byMonth"]
+          "required": ["currencyCode", "summary", "bySeller", "byCustomer", "byAgingBand", "byMonth"]
         }
+      },
+      {
+        "if": {
+          "anyOf": [
+            { "required": ["summary"] },
+            { "required": ["bySeller"] },
+            { "required": ["byCustomer"] },
+            { "required": ["byAgingBand"] },
+            { "required": ["byMonth"] }
+          ]
+        },
+        "then": { "required": ["currencyCode"] }
       },
       {
         "if": {

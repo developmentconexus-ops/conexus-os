@@ -2,7 +2,7 @@
 
 > **Status:** CLOSED / BOUNDED EVIDENCE  
 > **Phase:** 4B — Executable Wire Contract  
-> **Slice:** `MAR-01 → MAR-03`  
+> **Slice:** `MAR-01 → MAR-04`
 > **Implementation:** BLOCKED
 
 ## 1. Authority compiled
@@ -13,15 +13,16 @@ This slice compiles only the accepted Managed Application Runtime Product surfac
 MAR-01 ListManagedJobRuns
 MAR-02 GetManagedJobRun
 MAR-03 RunManagedJobNow
+MAR-04 ListRunnableManagedJobs
 ```
 
-`MAR-01` and `MAR-02` are Control Plane read/provenance operations under current `project.read`. `MAR-03` is the explicit `job.run` occurrence command for one exact authored job admitted by the currently served Release.
+`MAR-01` and `MAR-02` are Control Plane read/provenance operations under current `project.read`. `MAR-03` is the explicit `job.run` occurrence command for one exact authored job admitted by the currently served Release. The later operator-approved `4C-F33` adds `MAR-04` as the distinct safe job-discovery read under ordinary `project.read` or purpose-bound `job.run`.
 
 Queue delivery/redelivery, worker claims, retries, heartbeat, scheduler state, catch-up mechanics and pg-boss identity remain runtime-private. No workflow/scheduler Product domain is created.
 
 ## 2. Canonical wire
 
-The canonical Product OAD routes the three MAR Path Items through:
+The canonical Product OAD routes the four MAR Path Items through:
 
 ```text
 contracts/api/product/mar-paths.yaml
@@ -30,12 +31,15 @@ contracts/api/product/mar-paths.yaml
 Routes:
 
 ```text
+GET  /api/control/projects/{projectId}/managed-jobs
 GET  /api/control/projects/{projectId}/job-runs
 GET  /api/control/projects/{projectId}/job-runs/{jobRunId}
 POST /api/control/projects/{projectId}/jobs/{jobId}/runs
 ```
 
 `MAR-01` exposes only the accepted optional exact `releaseId` / `jobId` filters plus the shared opaque `pageToken` continuation. No status/filter/sort/query DSL is admitted.
+
+`MAR-04` exposes only the safe job identity, human name/purpose and optional schedule presentation admitted by the exact currently served Release. It does not expose JobRun history, queue/scheduler mechanics or execution eligibility as browser truth.
 
 ## 3. JobRun truth
 
@@ -144,9 +148,10 @@ Budget Analyzer positive + negative proof = green
 
 ```text
 Managed Application Runtime Product surface = CLOSED
-MAR Product operations = exactly 3
+MAR Product operations = exactly 4
+MAR-04 bounded F33 discovery read = 1
 queue/scheduler-control Product operations added = 0
-schema-closed total = 106 / 111
+current whole-wire total = 126 / 126
 ```
 
 The next bounded owner slice is Observability & Audit only:

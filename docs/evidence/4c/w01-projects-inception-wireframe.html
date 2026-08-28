@@ -40,7 +40,7 @@
       <nav class="context" data-context-switcher="breadcrumb" aria-label="Current Workspace and Project context">
         <button type="button" id="workspaceCrumb">Metal Nobre ▾</button>
         <span class="slash" id="slash" hidden>/</span>
-        <button type="button" id="projectCrumb" hidden>Budget Analyzer ▾</button>
+      <button type="button" id="projectCrumb" hidden>Sales Operations ▾</button>
       </nav>
       <button class="account" type="button" aria-label="Account and session">Account</button>
     </header>
@@ -58,7 +58,7 @@
         <button class="rail-btn" type="button">Audit</button>
       </section>
       <section id="projectRail" hidden>
-        <div class="project-cue"><small>Project</small><strong id="railProjectName">Budget Analyzer</strong></div>
+        <div class="project-cue"><small>Project</small><strong id="railProjectName">Sales Operations</strong></div>
         <button class="back" id="backProjects" type="button">← Back to Projects</button>
         <button class="rail-btn" type="button">Build</button>
         <div class="rail-title">Product</div>
@@ -83,7 +83,8 @@
         <h1>Projects</h1>
         <p class="lede">Browse Projects currently disclosed in this Workspace, or start one source-complete Project.</p>
         <div class="fixture">Structural fixture only. The collection demonstrates the exact information available from <code>ProjectSummary</code>: human name and archive state. Filtering below is local to the disclosed fixture.</div>
-        <div class="toolbar">
+        <div class="problem" id="workspaceIngress" data-owner-state="WORKSPACE_CONTEXT_REQUIRED" aria-live="polite"><strong>Workspace owner resolution</strong><span id="workspaceIngressMessage">An exact workspaceId is required before this collection can be disclosed.</span><small id="workspaceIngressCoordinate"></small></div>
+        <div class="toolbar" id="projectsToolbar">
           <div class="filters">
             <div class="field" data-project-filter="local-name"><label for="projectNameFilter">Filter by name</label><input id="projectNameFilter" type="search" placeholder="Project name"></div>
             <div class="field"><span class="label">View</span><div class="segmented" id="stateFilter" aria-label="Filter Project state"><button type="button" data-state="all" aria-pressed="true">All</button><button type="button" data-state="active" aria-pressed="false">Active</button><button type="button" data-state="archived" aria-pressed="false">Archived</button></div></div>
@@ -91,9 +92,9 @@
           <button class="primary" id="startCreate" type="button">Create Project</button>
         </div>
         <div class="project-grid" id="projectList" data-project-collection="simple-card-grid" aria-label="Disclosed Projects">
-          <article class="project-card" data-project-card="true" data-project-name="Budget Analyzer" data-project-state="active"><div class="project-card-head"><strong>Budget Analyzer</strong><span class="state">Active</span></div><button class="card-open" type="button" data-open-project="Budget Analyzer">Open</button></article>
-          <article class="project-card" data-project-card="true" data-project-name="Marketplace Central" data-project-state="active"><div class="project-card-head"><strong>Marketplace Central</strong><span class="state">Active</span></div><button class="card-open" type="button" data-open-project="Marketplace Central">Open</button></article>
-          <article class="project-card" data-project-card="true" data-project-name="Legacy Portal" data-project-state="archived"><div class="project-card-head"><strong>Legacy Portal</strong><span class="state">Archived</span></div><button class="card-open" type="button" data-open-project="Legacy Portal">Open</button></article>
+          <article class="project-card" data-project-card="true" data-project-id="prj-sales-ops" data-project-name="Sales Operations" data-project-state="active"><div class="project-card-head"><strong>Sales Operations</strong><span class="state">Active</span></div><button class="card-open" type="button" data-open-project="Sales Operations" data-project-id="prj-sales-ops">Open</button></article>
+          <article class="project-card" data-project-card="true" data-project-id="prj-marketplace" data-project-name="Marketplace Central" data-project-state="active"><div class="project-card-head"><strong>Marketplace Central</strong><span class="state">Active</span></div><button class="card-open" type="button" data-open-project="Marketplace Central" data-project-id="prj-marketplace">Open</button></article>
+          <article class="project-card" data-project-card="true" data-project-id="prj-legacy-portal" data-project-name="Legacy Portal" data-project-state="archived"><div class="project-card-head"><strong>Legacy Portal</strong><span class="state">Archived</span></div><button class="card-open" type="button" data-open-project="Legacy Portal" data-project-id="prj-legacy-portal">Open</button></article>
           <div class="empty" id="projectEmpty" hidden>No disclosed Project matches this local view.</div>
         </div>
       </section>
@@ -189,6 +190,7 @@
               </div>
 
               <div class="actions"><button class="primary" type="button" id="approveCandidate" data-action="approve-candidate" data-operation="PRJ-09">Approve exact candidate</button><button class="text-action" type="button" id="anotherInvestigation">Back to Inception</button></div>
+              <div class="problem" id="projectEgress" data-egress-state="NOT_EMITTED" hidden><strong>Project → Build boundary</strong><span id="projectEgressMessage">Approval has not emitted an owner-issued Project/candidate coordinate.</span><code id="projectEgressCoordinate"></code></div>
               <p class="decision-note">Approval and refinement are never optimistic Product truth. This fixture only changes local view state to make the accepted post-success structures inspectable.</p>
             </article>
 
@@ -224,6 +226,11 @@
   <script>
     (() => {
       const shell = document.getElementById('shell');
+      const workspaceQuery = new URLSearchParams(location.search);
+      const integratedWorkspaceId = 'ws-metal-nobre';
+      const integratedProject = { projectId: 'prj-sales-ops', name: 'Sales Operations', candidateBaselineDigest: 'cand_7f2c9e1a', candidateBaselineDigests: ['cand_7f2c9e1a','cand_7f2c9e1b','cand_7f2c9e1c'] };
+      const requestedWorkspaceId = workspaceQuery.get('workspaceId') || '';
+      const requestedWorkspaceState = workspaceQuery.get('workspaceState') || '';
       const views = ['projectsView','createView','inceptionView','baselineView'].reduce((acc,id)=>(acc[id]=document.getElementById(id),acc),{});
       const workspaceRail = document.getElementById('workspaceRail');
       const projectRail = document.getElementById('projectRail');
@@ -232,12 +239,60 @@
       const railProjectName = document.getElementById('railProjectName');
       const baselineWorkspace = document.getElementById('baselineWorkspace');
       const baselineAssistant = document.getElementById('baselineAssistant');
-      let currentProject = 'Budget Analyzer';
+      let currentProject = integratedProject.name;
+      let currentProjectId = '';
+      let workspaceOwnerState = 'WORKSPACE_CONTEXT_REQUIRED';
       let stateFilter = 'all';
       let hasApprovedBaseline = true;
       let selectedReviewAnchor = 'objective';
       let refinements = [];
       let candidateSequence = 1;
+
+      const workspaceStateCopy = {
+        WORKSPACE_CONTEXT_REQUIRED: 'An exact workspaceId is required before this collection can be disclosed.',
+        WORKSPACE_UNKNOWN: 'This workspace is not disclosed by the owner. No Project collection is shown.',
+        WORKSPACE_DENIED: 'The current authority cannot read this workspace. No Project collection is shown.',
+        WORKSPACE_DEPENDENCY_FAILURE: 'The workspace owner read failed. Retry the exact Workspace context.',
+        WORKSPACE_READY: 'Workspace resolved by the owner; the disclosed Project collection is available.'
+      };
+
+      const renderWorkspaceIngress = () => {
+        const panel = document.getElementById('workspaceIngress');
+        const message = document.getElementById('workspaceIngressMessage');
+        const coordinate = document.getElementById('workspaceIngressCoordinate');
+        const list = document.getElementById('projectList');
+        const toolbar = document.getElementById('projectsToolbar');
+        if (!panel || !message || !list || !toolbar) return;
+        const explicit = requestedWorkspaceState.toUpperCase();
+        workspaceOwnerState = !requestedWorkspaceId ? 'WORKSPACE_CONTEXT_REQUIRED' : explicit === 'DENIED' ? 'WORKSPACE_DENIED' : explicit === 'DEPENDENCY_FAILURE' ? 'WORKSPACE_DEPENDENCY_FAILURE' : requestedWorkspaceId !== integratedWorkspaceId ? 'WORKSPACE_UNKNOWN' : 'WORKSPACE_READY';
+        panel.dataset.ownerState = workspaceOwnerState;
+        message.textContent = workspaceStateCopy[workspaceOwnerState];
+        if (coordinate) coordinate.textContent = requestedWorkspaceId ? `workspaceId=${requestedWorkspaceId}` : '';
+        const ready = workspaceOwnerState === 'WORKSPACE_READY';
+        list.hidden = !ready;
+        toolbar.hidden = !ready;
+        document.getElementById('workspaceCrumb').textContent = ready ? `Metal Nobre ▾` : 'Workspace context required';
+      };
+
+      const emitProjectEgress = (eventName) => {
+        const currentDigest = document.getElementById('candidateDigest').textContent;
+        const issued = eventName === 'PROJECT_BASELINE_APPROVED' && integratedWorkspaceId === requestedWorkspaceId && currentProjectId === integratedProject.projectId && integratedProject.candidateBaselineDigests.includes(currentDigest);
+        const ownerCoordinates = issued ? { workspaceId: integratedWorkspaceId, projectId: integratedProject.projectId, candidateBaselineDigest: currentDigest } : {};
+        const detail = { sourceBlock: 'w01', sourceEvent: eventName, destinationBlock: 'p01', ownerCoordinates, failureDisposition: issued ? 'destination re-resolves Project and exact candidate' : 'no owner-issued egress' };
+        const panel = document.getElementById('projectEgress');
+        const message = document.getElementById('projectEgressMessage');
+        const coordinate = document.getElementById('projectEgressCoordinate');
+        if (panel && message && coordinate) {
+          panel.hidden = false;
+          panel.dataset.egressState = issued ? 'OWNER_ISSUED' : 'UNRESOLVED';
+          message.textContent = issued ? 'PRJ-09 success emitted the exact Project + candidate coordinate for the P-01 Build ingress.' : 'The reviewed subject is unresolved; no Project/candidate egress was emitted.';
+          coordinate.textContent = issued ? JSON.stringify(detail) : '';
+        }
+        if (!issued) return null;
+        window.dispatchEvent(new CustomEvent('conexus:wireframe-egress', { detail }));
+        if (window.parent !== window) window.parent.postMessage({ type: 'conexus:wireframe-egress', detail }, window.location.origin);
+        return detail;
+      };
 
       const show = (id, scope = 'workspace') => {
         Object.values(views).forEach(view => view.hidden = view.id !== id);
@@ -313,8 +368,16 @@
       document.getElementById('startCreate').addEventListener('click', () => show('createView','workspace'));
       document.getElementById('cancelCreate').addEventListener('click', () => show('projectsView','workspace'));
       document.querySelectorAll('[data-open-project]').forEach(button => button.addEventListener('click', () => {
+        if (workspaceOwnerState !== 'WORKSPACE_READY') return;
         currentProject = button.dataset.openProject;
-        hasApprovedBaseline = true;
+        currentProjectId = button.dataset.projectId || '';
+        hasApprovedBaseline = currentProjectId === integratedProject.projectId;
+        if (!hasApprovedBaseline) {
+          document.getElementById('workspaceIngress').dataset.ownerState = 'PROJECT_NOT_IN_INTEGRATED_FIXTURE';
+          document.getElementById('workspaceIngressMessage').textContent = 'This disclosed Project has no integrated candidate fixture for this review. No default candidate is substituted.';
+          document.getElementById('workspaceIngressCoordinate').textContent = `projectId=${currentProjectId}`;
+          return;
+        }
         show('inceptionView','project');
       }));
       document.getElementById('createForm').addEventListener('change', event => {
@@ -332,8 +395,8 @@
       document.getElementById('inceptionForm').addEventListener('submit', event => {
         event.preventDefault(); if (!event.currentTarget.reportValidity()) return;
         candidateSequence = 1; refinements = []; renderQueue(); closeAssistant();
-        document.getElementById('candidateDigest').textContent = 'cand_7f2c9e1a';
-        history.replaceState(null,'',`#project=${encodeURIComponent(currentProject)}&candidate=cand_7f2c9e1a`);
+        document.getElementById('candidateDigest').textContent = integratedProject.candidateBaselineDigest;
+        history.replaceState(null,'',`#workspace=${encodeURIComponent(integratedWorkspaceId)}&projectId=${encodeURIComponent(currentProjectId)}&candidateBaselineDigest=${integratedProject.candidateBaselineDigest}`);
         show('baselineView','project');
       });
       document.getElementById('backFromInception').addEventListener('click', () => show('projectsView','workspace'));
@@ -373,12 +436,19 @@
         else document.getElementById('candidateObjective').textContent += ` Refinement fixture: ${joined}`;
         document.getElementById('candidateDigest').textContent = nextDigest;
         document.getElementById('candidateState').textContent = 'New candidate';
-        history.replaceState(null,'',`#project=${encodeURIComponent(currentProject)}&candidate=${nextDigest}`);
+        history.replaceState(null,'',`#workspace=${encodeURIComponent(integratedWorkspaceId)}&projectId=${encodeURIComponent(currentProjectId)}&candidateBaselineDigest=${nextDigest}`);
         const banner = document.getElementById('approvedBanner'); banner.hidden = false; banner.textContent = `Fixture refinement transition: ${previous} remains immutable; a simulated PRJ-07 success produced ${nextDigest} from the exact prior candidate + explicit feedback.`;
         refinements = []; renderQueue(); closeAssistant();
       });
 
       document.getElementById('approveCandidate').addEventListener('click', () => {
+        if (workspaceOwnerState !== 'WORKSPACE_READY' || currentProjectId !== integratedProject.projectId || !integratedProject.candidateBaselineDigests.includes(document.getElementById('candidateDigest').textContent)) {
+          const banner = document.getElementById('approvedBanner');
+          banner.hidden = false;
+          banner.textContent = 'PRJ-09 is unresolved: an exact owner-issued ws-metal-nobre / prj-sales-ops candidate is required. No false approval or egress is shown.';
+          emitProjectEgress('PROJECT_APPROVAL_UNRESOLVED');
+          return;
+        }
         hasApprovedBaseline = true;
         document.getElementById('approvedBaseline').hidden = false;
         document.getElementById('approvedBanner').hidden = false;
@@ -388,11 +458,13 @@
         document.getElementById('approvedProfile').textContent = document.getElementById('candidateProfile').textContent;
         document.getElementById('approvedSourceText').textContent = currentCandidateText();
         document.getElementById('approvedState').textContent = 'Approved fixture';
+        emitProjectEgress('PROJECT_BASELINE_APPROVED');
       });
       document.getElementById('menuToggle').addEventListener('click', () => {
         const open = shell.dataset.drawerOpen !== 'true'; shell.dataset.drawerOpen = String(open); document.getElementById('menuToggle').setAttribute('aria-expanded', String(open));
       });
       document.getElementById('scrim').addEventListener('click', () => { shell.dataset.drawerOpen = 'false'; document.getElementById('menuToggle').setAttribute('aria-expanded','false'); });
+      renderWorkspaceIngress();
     })();
   </script>
 </body>

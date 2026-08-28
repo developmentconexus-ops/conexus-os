@@ -113,10 +113,11 @@ const controlEscapeFields = [
   'success', 'failed', 'overallSuccess'
 ];
 
-// GW-01 is an audit/provenance list only. No generic filter/sort DSL or effect control is admitted.
+// GW-01 is an audit/provenance list only. It admits one exact owner-coordinate filter, not a generic filter/sort DSL or effect control.
 const listQuery = resolvedParameters('GW-01').filter((candidate) => candidate?.in === 'query');
+const allowedListQuery = new Set(['pageToken', 'originatingRun']);
 for (const candidate of listQuery) {
-  if (candidate.name !== 'pageToken') throw new Error(`GW-01 must not invent query control/filter ${candidate.name}`);
+  if (!allowedListQuery.has(candidate.name)) throw new Error(`GW-01 must not invent query control/filter ${candidate.name}`);
 }
 const pageToken = parameter('GW-01', 'query', 'pageToken');
 if (pageToken) {
@@ -124,6 +125,22 @@ if (pageToken) {
   const schema = resolveSchema(pageToken.schema);
   if (schema?.type !== 'string' || schema?.minLength !== 1) throw new Error('GW-01 pageToken must be an opaque non-empty string');
 }
+
+const originatingRun = parameter('GW-01', 'query', 'originatingRun');
+if (!originatingRun) throw new Error('GW-01 must expose the exact originatingRun filter');
+if (originatingRun.required === true) throw new Error('GW-01 originatingRun must remain optional');
+if (originatingRun.style !== 'deepObject') throw new Error('GW-01 originatingRun must use deepObject query encoding');
+if (originatingRun.explode !== true) throw new Error('GW-01 originatingRun must use explode=true');
+const originatingRunSchema = assertClosedObject(originatingRun.schema, 'GW-01 originatingRun');
+required(originatingRunSchema, 'kind', 'ref');
+for (const name of ['kind', 'ref']) {
+  const value = property(originatingRunSchema, name);
+  if (value?.type !== 'string' || value?.minLength !== 1) throw new Error(`GW-01 originatingRun.${name} must be a non-empty string`);
+}
+for (const forbidden of ['originatingRunKind', 'originatingRunRef', 'status', 'provider', 'originatingOperationId', 'sort', 'filter']) {
+  if (parameter('GW-01', 'query', forbidden)) throw new Error(`GW-01 must not expose query control ${forbidden}`);
+}
+if (!op('GW-01').responses?.['422']) throw new Error('GW-01 must reject incomplete originatingRun or incompatible pageToken shapes with 422');
 
 const effectList = assertClosedObject(successSchema('GW-01'), 'GW-01 success');
 required(effectList, 'items');
@@ -159,9 +176,9 @@ if (!(outcome?.description ?? '').includes('OUTCOME_UNKNOWN')) {
   throw new Error('GW-02 outcome must explicitly preserve OUTCOME_UNKNOWN for ambiguous external acceptance');
 }
 
-const originatingRun = property(effectAttempt, 'originatingRun');
-if (originatingRun) {
-  const run = assertClosedObject(originatingRun, 'GW-02 originatingRun');
+const detailOriginatingRun = property(effectAttempt, 'originatingRun');
+if (detailOriginatingRun) {
+  const run = assertClosedObject(detailOriginatingRun, 'GW-02 originatingRun');
   required(run, 'kind', 'ref');
 }
 

@@ -41,14 +41,16 @@ GET /api/control/workspaces/{workspaceId}/audit-records/{auditRecordId}
 
 ## 3. Observation remains subordinate to owner truth
 
-Activity and execution observation carry exact typed owner references:
+Activity and execution observation carry exact typed owner references. The operator-approved `4C-F34` gives Activity its own projection-time human snapshot and optional admitted owner-detail target without widening the generic observation subject:
 
 ```text
 subject.kind
 subject.ref
+Activity only: subject.label + deterministic summary
+Activity only: optional detailTarget.operationId + ref
 ```
 
-The reference is correlation/projection only. A trace, provider response, guest report, worker status or OBS activity entry cannot terminalize or mutate an AgentRun, JobRun, EffectAttempt, Change, Release/Promotion or any other owner fact.
+The reference is correlation/projection only. Absence of `detailTarget` means no truthful detail affordance; presence still requires the named owner to revalidate disclosure. A trace, provider response, guest report, worker status or OBS activity entry cannot terminalize or mutate an AgentRun, JobRun, EffectAttempt, Change, Release/Promotion or any other owner fact.
 
 `OBS-02` preserves the accepted producer trust classes exactly:
 

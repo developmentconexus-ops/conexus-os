@@ -1,9 +1,10 @@
 # 4C W-02B — Locked Connections Screen Contract
 
-> **Status:** `LOCKED / OPERATOR APPROVED` · P9 EXACT TRACE CLOSED · P10 CONSOLIDATED · P11 LATER ASSEMBLED PRODUCT
+> **Status:** `LOCKED BASELINE / P12 FAMILY 2 IDENTITY DELTA RE-LOCKED / OPERATOR APPROVED` · P9/P10 consolidated
 > **Block:** `W-02B — Connections`
 > **Locked structure:** Connection-first browse → contextual Connection panel → inline maintenance/test while preserving collection context
 > **approved P8 artifact blob = 421f5b8e08d6e5c96f5a56d8c24123902cbe3fab**
+> **P12 Family 2 approved P8 delta blob = f8a4be72cd5af86ea06b4dd82d8710e58edb203f**
 > **Product implementation authority:** none.
 
 The operator explicitly approved the exact context-preserving functional P8 after operating the artifact. The approved HTML remains an immutable P8 Evidence snapshot; its in-artifact `CANDIDATE · NOT LOCKED` label is not rewritten after approval. `LOCKED` authority lives in this Screen Contract and the W-02B structural record, pinned to the exact approved blob above.

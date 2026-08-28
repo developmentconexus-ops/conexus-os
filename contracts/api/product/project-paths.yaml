@@ -624,11 +624,12 @@ paths:
       operationId: ListProjectCapabilities
       x-conexus-4a-id: PRJ-16
       x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-authority-routes: [project.read, project.build]
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact finite authored/Release capability projection with human name and purpose; listing remains inspection only and grants no invocation authority.
+          description: Exact finite authored/Release capability projection with human name and purpose. Ordinary project.read supports Product inspection; purpose-bound project.build supports safe construction-contract discovery only. Listing grants no invocation, data, source or runtime authority.
           content:
             application/json:
               schema:
@@ -651,15 +652,43 @@ paths:
       operationId: GetProjectCapability
       x-conexus-4a-id: PRJ-17
       x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-authority-routes: [project.read, project.build]
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact Project capability with human meaning and logical input/output contract; no execution is performed or granted.
+          description: Exact Project capability with human meaning and logical input/output contract. The purpose-bound project.build route supports construction only; no execution, data disclosure or generic Project inspection is performed or granted.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectCapability'
+        '401':
+          $ref: './openapi.yaml#/components/responses/Problem401'
+        '403':
+          $ref: './openapi.yaml#/components/responses/Problem403'
+        '404':
+          $ref: './openapi.yaml#/components/responses/Problem404'
+
+  /api/control/projects/{projectId}/model-policies:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      summary: ListProjectModelPolicies
+      operationId: ListProjectModelPolicies
+      x-conexus-4a-id: PRJ-29
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-authority-routes: [project.read, project.build]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: Small finite Project-owned set of model policies currently admitted for authored Project resources. The purpose-bound project.build route exposes human policy meaning and sampling limits only; it grants no provider/model selection, credentials, invocation, runtime override or policy mutation.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectModelPolicySummary'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
@@ -730,7 +759,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Authored Product Agent human identity, semantic purpose, exact authored revision and Release projection; PAR runtime authority is excluded.
+          description: Authored Product Agent human identity, semantic purpose, exact authored revision and Release projection. Ordinary disclosure requires project.source.read; an exact-Project, purpose-bound agent.trigger.manage route exposes this same summary only for trigger administration. It grants no PRJ-21 authored detail, source content or Agent mutation. PAR runtime authority is excluded.
           content:
             application/json:
               schema:
@@ -757,11 +786,11 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact Project-owned Agent human identity, semantic purpose, authoring revision and Release references without runtime override authority.
+          description: Exact Project-owned Agent authored definition plus immutable authored-revision and Release coordinates. The definition is the safe complete agent/v1 authoring projection; runtime/provider/Mastra override identity remains excluded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProjectProductAgent'
+                $ref: '#/components/schemas/ProjectProductAgentDetail'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
@@ -1108,6 +1137,54 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ProjectCapabilityField'
+    ProjectModelPolicySamplingLimits:
+      type: object
+      additionalProperties: false
+      properties:
+        maxOutputTokens:
+          type: integer
+          minimum: 1
+        temperatureMinimum:
+          type: number
+          minimum: 0
+          maximum: 2
+        temperatureMaximum:
+          type: number
+          minimum: 0
+          maximum: 2
+        topPMinimum:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 1
+        topPMaximum:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 1
+      description: Project-owned authored sampling envelope; never provider passthrough or runtime override authority.
+    ProjectModelPolicySummary:
+      type: object
+      additionalProperties: false
+      required: [policyRef, label, purpose, isDefault]
+      properties:
+        policyRef:
+          type: string
+          minLength: 1
+          description: Exact Project/Release-governed model-policy reference; possession grants no model invocation or mutation authority.
+        label:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Project-owned human presentation; no structured provider/model identity is implied.
+        purpose:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable reason and intended use of this governed policy.
+        isDefault:
+          type: boolean
+          description: Server-issued default for this exact Project; the browser never elects or persists a parallel default.
+        samplingLimits:
+          $ref: '#/components/schemas/ProjectModelPolicySamplingLimits'
     ProjectDataResourceSummary:
       type: object
       additionalProperties: false
@@ -1265,6 +1342,140 @@ components:
           type: [string, 'null']
           minLength: 1
           description: Current Project Release coordinate when this Agent is included in the active Release; presence does not prove runtime health, execution or served verification.
+    ProductAgentModelPolicy:
+      type: object
+      additionalProperties: false
+      required: [policyRef]
+      properties:
+        policyRef:
+          type: string
+          minLength: 1
+          description: Exact Project/Release-governed model-policy reference; never a provider credential or runtime model override.
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          description: Optional authored sampling preference admitted by the selected policy; server validation may reject an unsupported value.
+        topP:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 1
+          description: Optional authored sampling preference admitted by the selected policy; not a provider passthrough object.
+        maxOutputTokens:
+          type: integer
+          minimum: 1
+          description: Optional authored output bound admitted by the selected policy.
+    ProductAgentToolBinding:
+      type: object
+      additionalProperties: false
+      required: [capabilityId, purpose]
+      properties:
+        capabilityId:
+          type: string
+          minLength: 1
+          description: Exact governed Project capability reference; not a Mastra/provider tool identifier and not invocation authority by possession.
+        purpose:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable bounded reason this Agent may use the capability.
+    ProductAgentBrainContext:
+      type: object
+      additionalProperties: false
+      required: [mode, contextRefs]
+      properties:
+        mode:
+          type: string
+          enum: [PROJECT_BOUND]
+          description: The runtime context is resolved from the exact Project/Release; the browser cannot compose an effective Brain slice.
+        contextRefs:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+          description: Project-context authoring references only; not Workspace publication or runtime ToolProjection coordinates.
+    ProductAgentMemoryPolicy:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [NONE, CONVERSATION_HISTORY]
+          description: Only currently admitted memory modes; working, observational, semantic-recall and extractor memory remain deferred.
+    ProductAgentDefinition:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, name, purpose, instructions, modelPolicy, tools, brainContext, memory, interactions, policyRefs, approvalPolicyRefs, budgetPolicyRefs, verificationRefs, knownLimitations]
+      properties:
+        schemaVersion:
+          type: string
+          const: agent/v1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human presentation identity authored in the exact definition; never routing or authorization authority.
+        purpose:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable semantic purpose authored in the exact definition.
+        instructions:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Canonical authored Agent instructions; framework-specific system-prompt storage is mechanism, not Product authority.
+        modelPolicy: { $ref: '#/components/schemas/ProductAgentModelPolicy' }
+        tools:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/ProductAgentToolBinding' }
+        brainContext: { $ref: '#/components/schemas/ProductAgentBrainContext' }
+        memory: { $ref: '#/components/schemas/ProductAgentMemoryPolicy' }
+        interactions:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, enum: [CONVERSATION, SCHEDULE] }
+          description: Currently admitted interactive/headless modes; EVENT remains deferred.
+        policyRefs:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        approvalPolicyRefs:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        budgetPolicyRefs:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        verificationRefs:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        knownLimitations:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, pattern: '.*\S.*' }
+    ProjectProductAgentDetail:
+      type: object
+      additionalProperties: false
+      required: [agentId, authoredRevisionId, releaseRefs, activeReleaseId, definition]
+      properties:
+        agentId:
+          type: string
+          minLength: 1
+          description: Stable Product Agent identity; current Project containment and disclosure are revalidated server-side.
+        authoredRevisionId: { type: string, minLength: 1 }
+        releaseRefs:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        activeReleaseId:
+          type: [string, 'null']
+          minLength: 1
+        definition: { $ref: '#/components/schemas/ProductAgentDefinition' }
     WorkspaceProductAgentCatalogItem:
       type: object
       additionalProperties: false
