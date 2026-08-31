@@ -1,0 +1,25 @@
+{
+  "kind": "conexus.r1f.pack-d-substrates/v1",
+  "observedOn": "2026-08-30",
+  "runtime": { "node": "24.20.0", "npm": "12.0.2", "platform": "linux-amd64" },
+  "parent": {
+    "reference": "mcr.microsoft.com/playwright:v1.62.1-noble",
+    "indexDigest": "sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e",
+    "linuxAmd64ManifestDigest": "sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac"
+  },
+  "qualificationImage": {
+    "id": "sha256:fd3b87c0e3ccb67da347e896702fbce1ab7f01d6875a6f2a2faa3839d4dff23b",
+    "configDigest": "sha256:6de7fdfc323f2db2894da82b9319b103d19d3e135bd84f1e98cdfb569b170284",
+    "sizeBytes": 1012406466,
+    "provenance": "disabled only for stable local derived-cache identity; parent provenance retained",
+    "nodeTarGzSha256": "855d581f8a4eb1a8117e3426de25fe02770592febcfb31369aee1ffbfee9e8ec",
+    "npmTarballSha512Hex": "b885e890b9418fa1693544d05f53e64f9a73ec194837d4258b15fecdd692347b1dd2a517b1b0cbaf9d31cd8e92c3b70956bd2ecc72833a57b4b3098f5bfa7943"
+  },
+  "browsers": [
+    { "name": "chromium", "revision": "1234", "version": "151.0.7922.34", "verdict": "PASS" },
+    { "name": "firefox", "revision": "1538", "version": "153.0", "verdict": "PASS" },
+    { "name": "webkit", "revision": "2336", "version": "26.5", "verdict": "PASS" }
+  ],
+  "harnessSourceSha256": "addabd2141aa40c1fad7ff12448d1fc0c1b66c1f9f86d6247e47136bae05756e",
+  "verdict": "PASS"
+}

@@ -1,0 +1,22 @@
+{
+  "kind": "conexus.r1f.pack-f-gate-results/v1",
+  "cases": [
+    { "id": "biome-negative", "expected": "RED", "exitCode": 1, "verdict": "PASS" },
+    { "id": "biome-clean", "expected": "GREEN", "exitCode": 0, "verdict": "PASS" },
+    { "id": "typescript-negative", "expected": "RED", "exitCode": 2, "verdict": "PASS" },
+    { "id": "typescript-clean", "expected": "GREEN", "exitCode": 0, "verdict": "PASS" },
+    { "id": "vite-negative", "expected": "RED", "exitCode": 1, "verdict": "PASS" },
+    { "id": "vite-clean", "expected": "GREEN", "exitCode": 0, "verdict": "PASS" },
+    { "id": "node-test-negative", "expected": "RED", "exitCode": 1, "verdict": "PASS" },
+    { "id": "node-test-clean", "expected": "GREEN", "exitCode": 0, "verdict": "PASS" },
+    { "id": "ajv-negative", "expected": "RED", "exitCode": 1, "verdict": "PASS" },
+    { "id": "ajv-clean", "expected": "GREEN", "exitCode": 0, "verdict": "PASS" },
+    { "id": "redocly-negative", "expected": "RED", "exitCode": 1, "verdict": "PASS" },
+    { "id": "redocly-clean", "expected": "GREEN", "exitCode": 0, "verdict": "PASS" },
+    { "id": "playwright-negative", "expected": "RED", "exitCode": 1, "verdict": "PASS" },
+    { "id": "playwright-clean", "expected": "GREEN", "exitCode": 0, "verdict": "PASS" }
+  ],
+  "redCount": 7,
+  "greenCount": 7,
+  "verdict": "PASS"
+}

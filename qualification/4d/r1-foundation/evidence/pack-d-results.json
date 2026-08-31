@@ -1,0 +1,33 @@
+{
+  "kind": "conexus.r1f.pack-d-results/v1",
+  "observedOn": "2026-08-30",
+  "results": [
+    {
+      "id": "R1F-P08",
+      "verdict": "PASS",
+      "browserTestCount": 12,
+      "browserCounts": { "chromium": 4, "firefox": 4, "webkit": 4 },
+      "claims": [
+        "Vite production manifest and hashed assets generated",
+        "non-VITE server secret absent from browser bundle",
+        "server Project/Workspace grant identities absent from browser bundle",
+        "Secure HttpOnly SameSite=Lax opaque session cookie observed",
+        "URL and localStorage cannot manufacture server owner truth",
+        "forged TanStack Query cache cannot authorize a command and refetch restores denial",
+        "same-origin CSRF command succeeds only with exact server token",
+        "cross-origin and missing Origin/Fetch-Metadata/CSRF requests cannot mutate"
+      ]
+    }
+  ],
+  "viteBuild": {
+    "version": "8.2.2",
+    "fileCount": 4,
+    "entryAsset": "assets/index-5SI0CQ68.js",
+    "cssAsset": "assets/index-kbImjBuv.css",
+    "secretLeak": false,
+    "authorityLeak": false,
+    "verdict": "PASS"
+  },
+  "packVerdict": "PASS",
+  "laterProbeVerdicts": "NOT_PROVEN"
+}

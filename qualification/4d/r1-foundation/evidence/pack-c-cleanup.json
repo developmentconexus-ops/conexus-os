@@ -1,0 +1,30 @@
+{
+  "kind": "conexus.r1f.pack-c-cleanup/v1",
+  "observedOn": "2026-08-30",
+  "containers": "ABSENT",
+  "temporaryRealmClientsUsers": "DESTROYED_WITH_CONTAINER",
+  "temporaryDatabaseTables": "DESTROYED_WITH_CONTAINER",
+  "temporarySecretFiles": "ABSENT",
+  "temporaryInstallDirectory": "ABSENT",
+  "qualificationNodeModules": "ABSENT",
+  "qualificationListeners": "NONE",
+  "retainedImmutableCaches": [
+    {
+      "kind": "parent image",
+      "identity": "quay.io/keycloak/keycloak@sha256:c2a17fe407e892196d0b7cf9cef54e60952d6c372a9205f661a9efa0911463b0",
+      "removal": "docker image rm quay.io/keycloak/keycloak@sha256:c2a17fe407e892196d0b7cf9cef54e60952d6c372a9205f661a9efa0911463b0"
+    },
+    {
+      "kind": "qualification-only optimized image",
+      "identity": "sha256:a3b52c7dfe3c27df11c0665957d92b9eb3a3b73b640a5cde4c2473385833585c",
+      "sizeBytes": 270471411,
+      "removal": "docker image rm conexus-r1f-keycloak:26.7.2-optimized"
+    },
+    {
+      "kind": "PostgreSQL image",
+      "identity": "docker.io/library/postgres@sha256:6e5a6518f9d2ff9e9f4cba2a5a87d8f41b0f067f6f92ac847c344351a6c8d923",
+      "removal": "docker image rm docker.io/library/postgres@sha256:6e5a6518f9d2ff9e9f4cba2a5a87d8f41b0f067f6f92ac847c344351a6c8d923"
+    }
+  ],
+  "verdict": "PASS"
+}

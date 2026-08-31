@@ -1,0 +1,23 @@
+{
+  "kind": "conexus.r1f.pack-d-cleanup/v1",
+  "observedOn": "2026-08-30",
+  "container": "ABSENT",
+  "tmpfsBuildAndInstall": "DESTROYED_WITH_CONTAINER",
+  "temporaryHttpsPrivateKeyAndCertificate": "DESTROYED_WITH_CONTAINER",
+  "temporaryBrowserProfiles": "DESTROYED_WITH_CONTAINER",
+  "qualificationNodeModules": "ABSENT",
+  "retainedImmutableCaches": [
+    {
+      "kind": "official parent image",
+      "identity": "mcr.microsoft.com/playwright@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac",
+      "removal": "docker image rm mcr.microsoft.com/playwright@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac"
+    },
+    {
+      "kind": "qualification Node/npm derived image",
+      "identity": "sha256:fd3b87c0e3ccb67da347e896702fbce1ab7f01d6875a6f2a2faa3839d4dff23b",
+      "sizeBytes": 1012406466,
+      "removal": "docker image rm conexus-r1f-playwright:1.62.1-node24.20.0"
+    }
+  ],
+  "verdict": "PASS"
+}

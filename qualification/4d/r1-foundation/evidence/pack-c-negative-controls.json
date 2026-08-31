@@ -1,0 +1,32 @@
+{
+  "kind": "conexus.r1f.pack-c-negative-controls/v1",
+  "controls": [
+    { "id": "coerce-body", "expected": "HTTP 400", "verdict": "PASS" },
+    { "id": "default-body", "expected": "HTTP 400", "verdict": "PASS" },
+    { "id": "remove-additional-body", "expected": "HTTP 400", "verdict": "PASS" },
+    { "id": "fallback-validator", "expected": "unrepresentable", "verdict": "PASS" },
+    { "id": "ungenerated-route", "expected": "UNGENERATED_ROUTE", "verdict": "PASS" },
+    { "id": "wrong-state", "expected": "OIDC refusal", "verdict": "PASS" },
+    { "id": "wrong-auth-response-issuer", "expected": "OIDC refusal", "verdict": "PASS" },
+    { "id": "wrong-nonce", "expected": "OIDC refusal", "verdict": "PASS" },
+    { "id": "wrong-pkce-verifier", "expected": "Keycloak invalid_grant", "verdict": "PASS" },
+    { "id": "wrong-redirect-uri", "expected": "Keycloak invalid_grant", "verdict": "PASS" },
+    { "id": "forged-id-token-issuer", "expected": "OIDC claim refusal", "verdict": "PASS" },
+    { "id": "forged-id-token-audience", "expected": "OIDC claim refusal", "verdict": "PASS" },
+    { "id": "forged-id-token-signature", "expected": "real JWKS refusal", "verdict": "PASS" },
+    { "id": "signature-without-nonrepudiation-hook", "expected": "accepted negative-of-probe", "verdict": "PASS" },
+    { "id": "keycloak-admin-role-no-conexus-grant", "expected": "denied", "verdict": "PASS" },
+    { "id": "bootstrap-other-subject", "expected": "BOOTSTRAP_SUBJECT_MISMATCH", "verdict": "PASS" },
+    { "id": "bootstrap-normal-route", "expected": "NO_CURRENT_GRANT", "verdict": "PASS" },
+    { "id": "bootstrap-repeat", "expected": "BOOTSTRAP_ALREADY_MAPPED", "verdict": "PASS" },
+    { "id": "rotated-session", "expected": "REVOKED_SESSION", "verdict": "PASS" },
+    { "id": "cross-workspace", "expected": "NO_CURRENT_GRANT", "verdict": "PASS" },
+    { "id": "app-vs-control", "expected": "NO_CURRENT_GRANT", "verdict": "PASS" },
+    { "id": "idle-expiry", "expected": "IDLE_EXPIRED", "verdict": "PASS" },
+    { "id": "absolute-expiry", "expected": "ABSOLUTE_EXPIRED", "verdict": "PASS" },
+    { "id": "end-session", "expected": "REVOKED_SESSION", "verdict": "PASS" },
+    { "id": "revoked-account", "expected": "REVOKED_ACCOUNT", "verdict": "PASS" },
+    { "id": "secret-redaction", "expected": "no secret bytes", "verdict": "PASS" }
+  ],
+  "verdict": "PASS"
+}

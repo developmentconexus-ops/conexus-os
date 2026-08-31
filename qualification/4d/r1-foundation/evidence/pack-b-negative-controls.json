@@ -1,0 +1,26 @@
+{
+  "kind": "conexus.r1f.pack-b-negative-controls/v1",
+  "controls": [
+    { "id": "invalid-utf8", "expected": "INVALID_UTF8", "verdict": "PASS" },
+    { "id": "bom", "expected": "BOM_FORBIDDEN", "verdict": "PASS" },
+    { "id": "duplicate-key", "expected": "DUPLICATE_KEY", "verdict": "PASS" },
+    { "id": "comment", "expected": "INVALID_JSON", "verdict": "PASS" },
+    { "id": "trailing-comma", "expected": "INVALID_JSON", "verdict": "PASS" },
+    { "id": "lone-surrogate", "expected": "LONE_SURROGATE", "verdict": "PASS" },
+    { "id": "unsafe-integer", "expected": "UNSAFE_INTEGER", "verdict": "PASS" },
+    { "id": "floating-number", "expected": "FLOAT_FORBIDDEN", "verdict": "PASS" },
+    { "id": "schema-violation", "expected": "SCHEMA_VIOLATION", "verdict": "PASS" },
+    { "id": "noncanonical-substitute", "expected": "RFC vector mismatch", "verdict": "PASS" },
+    { "id": "absolute-traversal-windows-unsafe-paths", "expected": "UNSAFE_PATH", "verdict": "PASS" },
+    { "id": "case-unicode-collision", "expected": "PATH_COLLISION", "verdict": "PASS" },
+    { "id": "executable-profile-task", "expected": "SCHEMA_VIOLATION", "verdict": "PASS" },
+    { "id": "protected-drift", "expected": "PROTECTED_DRIFT", "verdict": "PASS" },
+    { "id": "ignored-target-collision", "expected": "PROTECTED_COLLISION", "verdict": "PASS" },
+    { "id": "symlink-escape", "expected": "SYMLINK_REFUSED", "verdict": "PASS" },
+    { "id": "tampered-plan", "expected": "PLAN_DIGEST_MISMATCH", "verdict": "PASS" },
+    { "id": "concurrent-writer", "expected": "GENERATION_LOCKED and foreign lock preserved", "verdict": "PASS" },
+    { "id": "stale-plan", "expected": "STALE_PLAN", "verdict": "PASS" },
+    { "id": "injected-apply-failure", "expected": "INJECTED_FAILURE and active receipt unchanged", "verdict": "PASS" }
+  ],
+  "verdict": "PASS"
+}

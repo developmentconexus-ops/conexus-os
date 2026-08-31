@@ -12,15 +12,15 @@ This is the single current phase/status authority.
 | 3O | CLOSED | First Budget Analyzer proof contract accepted | Material contract/downstream falsifier |
 | C-018 | RATIFIED / OPERATOR RATIFIED | Final Product architecture continuity ratified | Material Product/architecture falsifier |
 | C-015 refinement | REFINED / KEYCLOAK SELECTED / OPERATOR APPROVED | Authentication selected; Conexus owns authorization | Material identity/security falsifier |
-| Realization Planning | ACCEPTED / OPERATOR ACCEPTED | R1–R7 retained as Phase-4 input | Material Phase-4 falsifier |
+| Realization Planning | ACCEPTED / OPERATOR ACCEPTED / 4D BUILDER APPLICABILITY REVISION OPERATOR APPROVED | R1–R7 + `RB`; first operational Budget Analyzer proof traverses Builder | Material Phase-4 falsifier |
 | 4A — Product Surface & Authority Contract | CLOSED / `PRE11-F05` RATIFIED | `128` fixed Product operations | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / `PRE11-F05` RATIFIED / REQUIRED VERIFY GREEN | `128↔128`; Project=28; Builder=20; Brain=13; PAR=16; MAR=4 | 4A change or wire/proof falsifier |
 | 4C — Frontend Interaction & Authority Realization | CLOSED / OPERATOR RATIFIED / METHOD v2.3 / P12 CLOSED / 4C-13 CLOSED / P12-F03 CLOSED / 4C-14 CLOSED / PRODUCT-APP WIREFRAMES OUT OF CURRENT SCOPE | Frontend Product/interaction model, P13 inputs and structural conformance obligations preserved for later phases | Material 4A/4B/P11/P13 conformance falsifier |
-| 4D — Project Paved Road & Runtime Realization | NOT STARTED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
-| 4E — Whole-System Coherence & Golden Flows | NOT STARTED | Whole system composes into falsifiable flows | Composed-flow contradiction |
-| 4F — Implementation Program & Execution Graph | NOT STARTED | Implementation/proof graph rederived | Contracts require different graph |
-| 4G — Adversarial Implementation Readiness | NOT STARTED | Fresh challenge leaves no material finding | Material readiness finding |
-| Product implementation | BLOCKED | Requires 4A–4G + explicit operator grant | No historical grant carries forward |
+| 4D — Project Paved Road & Runtime Realization | OPEN / BOUNDED PROGRAM COMPRESSION OPERATOR RATIFIED / RF-01 BUILD SELECTED / OPERATION MAP 128↔128 CANDIDATE / R1 FOUNDATION SELECTION CLOSED + OPERATOR APPROVED / R1 PROBE GRANT OPERATOR APPROVED / R1F-A01+R1F-E01 CORRECTED / P01..P12 EVIDENCE OPERATOR APPROVED / 4D-D(R1) FOUNDATION CLAIMS PRESERVED + R1C-13/14 ADDENDA / 4E-R1-F01 CLOSED / 4E(R1) CLOSED + OPERATOR APPROVED / 4F(R1) CLOSED + OPERATOR APPROVED / 4G(R1) CLOSED + OPERATOR APPROVED / CHECKPOINT AUTHORIZED / IMPLEMENTATION BLOCKED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
+| 4E — Whole-System Coherence & Golden Flows | CLOSED(R1) / OPERATOR APPROVED / 13↔13 / GITINFRA + FIRST-AUTHORITY CORRECTED / MASTRA DEFER ACCEPTED / INDEPENDENT CONVERGENCE CLEAR | R1 composition routes exact tranche to 4F | Composed-flow contradiction |
+| 4F — Implementation Program & Execution Graph | CLOSED(R1) / OPERATOR APPROVED / GLOBAL MAXIMUM / INDEPENDENT CONVERGENCE CLEAR / IMPLEMENTATION BLOCKED | exact small R1 slices, dependencies, owners, mutations and proof graph closed | Contracts require different graph |
+| 4G — Adversarial Implementation Readiness | CLOSED(R1) / OPERATOR APPROVED / SEMANTIC CLEAR / INDEPENDENT CONVERGENCE CLEAR / CHECKPOINT AUTHORIZED / IMPLEMENTATION BLOCKED | Fresh challenge leaves no material finding | Material readiness finding |
+| Product implementation | BLOCKED | Tranche-scoped law ratified: each tranche requires applicable 4D-D/4E/4F/4G + explicit tranche grant; first operational Product still traverses RB | No historical or prior-tranche grant carries forward |
 
 ```text
 4A = CLOSED / PRE11-F05 RATIFIED / N_platform=128
@@ -67,7 +67,8 @@ P12 Family 2 = LOCKED / OPERATOR APPROVED / W-02A f0a6902737a36217b081ff61768caa
 P12 Family 3 = LOCKED / OPERATOR APPROVED / P-04 77820d283e47ba6c9f5efd19f45471c88675e0b0 / P-05 d00b2126667a0a51317c653c57c237444a129dfb / PA-01 612ec41d91104e01b3942f7d90f35c37ad89c9f0
 P12 Family 4 = LOCKED / OPERATOR APPROVED / W-04 71e03432a0abd34ae35301094010fd670bb78b98 / P-01 25e5077106892c4ff6aba6774987e73a12ccff51 / P-03 17d31534fac0e57a74f70202567b23d8a63cd3c0 / P-04 e036684e3e66d028361db2d708cf05811a367f4b / PA-01 ffba5935d8fccd0fc5d7ad4d275fe38b09294674
 Pre-P11 global coherence review = CLOSED / F03-F05 OPERATOR RATIFIED / 128↔128 REQUIRED VERIFY GREEN / REPOSITORY 224↔224 GREEN / T-01 + GF-01/P-01/P-03 DELTAS LOCKED / TERMINAL P10 RECONCILED
-4D–4G = NOT STARTED
+4D = OPEN / 4D-01R CLOSED + OPERATOR APPROVED / 117 UNIQUE PROPERTIES / 96 REALIZE / 18 PRESERVE_SEAM / 3 DEFER / GLOBAL COHERENCE CLEAR / INCREMENTAL VALUE LAW RATIFIED / 4D-A-4D-02 CLOSED + OPERATOR APPROVED / 4D-B-4D-03 CLOSED + OPERATOR APPROVED / 4D-04 CLOSED + OPERATOR APPROVED / RF-01 BUILD SELECTED + OPERATOR APPROVED / BOUNDED PROGRAM COMPRESSION OPERATOR RATIFIED / OPERATION MAP 128↔128 CANDIDATE / R1 FOUNDATION SELECTION CLOSED + OPERATOR APPROVED / R1 PROBE GRANT OPERATOR APPROVED / R1F-A01+R1F-E01 CORRECTED / P01..P12 EVIDENCE OPERATOR APPROVED / 4D-D(R1) FOUNDATION CLAIMS PRESERVED + R1C-13/14 ADDENDA / 4E-R1-F01 CLOSED / 4E(R1) CLOSED + OPERATOR APPROVED / 4F(R1) CLOSED + OPERATOR APPROVED / 4G(R1) CLOSED + OPERATOR APPROVED / CHECKPOINT AUTHORIZED / IMPLEMENTATION BLOCKED
+4E(R1) = CLOSED / OPERATOR APPROVED / 13↔13 / 4F(R1) = CLOSED / OPERATOR APPROVED / GLOBAL MAXIMUM / 4G(R1) = CLOSED / OPERATOR APPROVED / SEMANTIC CLEAR / INDEPENDENT CONVERGENCE CLEAR / CHECKPOINT AUTHORIZED / IMPLEMENTATION BLOCKED
 Product implementation = BLOCKED
 ```
 
@@ -204,7 +205,7 @@ F39/F40 remain valid bounded wire truth corrections: monetary values require a c
 
 ## Continuation posture
 
-PR #57 is integrated into `main`. The current Conexus platform blocks and transport-only P11 are operator-locked; P12 is closed with zero material UX/architecture findings. The 4C-13 generated/state/auth/topology and P13 input package is consolidated. P12-F03 is closed at checkpoint `1eb33a93fd2bcd32c2cc7d9565aa617430a47771`; Fable 4C-14 pass 1 exposed A02, the bounded correction was independently cleared in pass 2, Lead adjudication is CLEAR and the operator ratified 4C. Product-specific application wireframes, including Budget Analyzer, remain outside the platform scope. 4D has not started; merge and Product implementation remain unauthorized.
+PR #57 is integrated into `main`. The current Conexus platform blocks and transport-only P11 are operator-locked; P12 is closed with zero material UX/architecture findings. The 4C-13 generated/state/auth/topology and P13 input package is consolidated. P12-F03 is closed at checkpoint `1eb33a93fd2bcd32c2cc7d9565aa617430a47771`; Fable 4C-14 pass 1 exposed A02, the bounded correction was independently cleared in pass 2, Lead adjudication is CLEAR and the operator ratified 4C. Product-specific application wireframes, including Budget Analyzer, remain outside the platform scope. The operator explicitly opened 4D for planning and directed a strategic opportunity reanalysis before ledger adjudication. Merge and Product implementation remain unauthorized.
 
 The repository is ready to continue Product planning. F28 is the named material falsifier authorizing only the smallest Agent-specific P-01 frontend reopen; it does not reopen the whole locked Build workspace or accepted Product/architecture authority. Do not reopen other accepted decisions, locked frontend blocks, governance restoration, or repository process without a named material falsifier. Required CI protects objective repository/Product properties; it is not a review-ceremony gate.
 
@@ -212,4 +213,4 @@ The durable Claude Code / AI_DIALOG / Fable interaction and whole/global Product
 
 ## Exact next action
 
-**Present the separate 4D opening gate: `OPEN 4D | HOLD`. 4D remains `NOT STARTED` until an explicit operator choice. No 4C approval authorizes merge or Product implementation.**
+**This operator-authorized authority commit is the recoverable 4D–4G checkpoint. The exact next action after it exists is a separate operator decision on the exact R1 implementation grant. Product implementation, dependency installation, provider calls, push, PR and merge remain blocked.**

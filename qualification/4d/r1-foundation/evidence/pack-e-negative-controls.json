@@ -1,0 +1,19 @@
+{
+  "kind": "conexus.r1f.pack-e-negative-controls/v1",
+  "controls": [
+    { "id": "iam-runtime-project-store-connect", "expected": "42501", "verdict": "PASS" },
+    { "id": "project-runtime-identity-store-connect", "expected": "42501", "verdict": "PASS" },
+    { "id": "iam-set-owner-role", "expected": "42501", "verdict": "PASS" },
+    { "id": "project-set-owner-role", "expected": "42501", "verdict": "PASS" },
+    { "id": "iam-create-owner-object", "expected": "42501", "verdict": "PASS" },
+    { "id": "project-create-owner-object", "expected": "42501", "verdict": "PASS" },
+    { "id": "runtime-role-attributes", "expected": "all privileged flags false", "verdict": "PASS" },
+    { "id": "runtime-object-ownership", "expected": "owner roles only", "verdict": "PASS" },
+    { "id": "security-definer-cr1-absence", "expected": "zero non-system functions", "verdict": "PASS" },
+    { "id": "migration-checksum-edit", "expected": "Atlas validate failure", "verdict": "PASS" },
+    { "id": "migration-out-of-order", "expected": "OUT_OF_ORDER_MIGRATION", "verdict": "PASS" },
+    { "id": "migration-schema-drift", "expected": "TABLE_SCHEMA_DRIFT", "verdict": "PASS" },
+    { "id": "migration-owner-drift", "expected": "TABLE_OWNER_DRIFT", "verdict": "PASS" }
+  ],
+  "verdict": "PASS"
+}

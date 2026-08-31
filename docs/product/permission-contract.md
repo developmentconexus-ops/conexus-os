@@ -54,6 +54,43 @@ The vocabulary is not a universal policy language and does not imply a custom Ro
 
 `PlanningDepth`, `RigorProfile`, provider/model names, Mastra identities and E2B identities are never Permissions.
 
+### 2.1 First-installation operator derivation and exact R1 consequences
+
+For F1 only, the exact server-preconfigured bootstrap `(issuer, subject)` also
+derives the trusted `platform_operator` condition after that subject maps to its
+durable Account and enters through a normal `HUMAN_ACCOUNT_SESSION`.
+
+```text
+verified normal-session Account external identity
+= exact configured bootstrap (issuer, subject)
+→ trusted platform_operator condition
+
+Keycloak role/group/Organization/token claim -X-> platform_operator
+```
+
+This is one server-derived installation condition, not a durable role, a 26th
+Permission or a tenant policy engine. Recovery preserves the exact
+configuration. Multiple or transferable operators require a future
+Product/security reopen.
+
+The initial creator consequences are exact and minimal for R1:
+
+```text
+WS-01 success
+→ current Account Workspace membership/access
++ project.create in that exact Workspace
+
+PRJ-03 success
+→ exact current-Account direct Project grant
++ project.read
++ project.manage
+```
+
+The grant does not imply `project.build`, `project.review`,
+`project.source.read` or later-tranche Permissions. 4F adds later authority only
+at its first accepted consumer; creator status never implies a generic admin
+bundle.
+
 ---
 
 ## 3. Ordinary Permission vocabulary

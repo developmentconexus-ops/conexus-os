@@ -1,0 +1,15 @@
+{
+  "kind": "conexus.r1f.pack-a-rerun-negative-controls/v1",
+  "controls": [
+    { "id": "floating-selector", "observedExitCode": 1, "verdict": "PASS" },
+    { "id": "alternate-registry", "observedExitCode": 1, "verdict": "PASS" },
+    { "id": "manifest-lock-mismatch", "observedExitCode": 1, "verdict": "PASS" },
+    { "id": "integrity-mismatch", "observedExitCode": 1, "verdict": "PASS" },
+    { "id": "unreviewed-install-script", "observedExitCode": 1, "marker": false, "verdict": "PASS" },
+    { "id": "explicitly-denied-install-script", "observedExitCode": 0, "marker": false, "verdict": "PASS" },
+    { "id": "explicitly-allowed-install-script", "observedExitCode": 0, "marker": true, "verdict": "PASS" },
+    { "id": "ajv-valid-fixture", "observedExitCode": 0, "verdict": "PASS" },
+    { "id": "ajv-invalid-nonmutating-fixture", "observedExitCode": 1, "verdict": "PASS" }
+  ],
+  "verdict": "PASS"
+}

@@ -1,0 +1,19 @@
+{
+  "kind": "conexus.r1f.license-census-summary/v1",
+  "installedPackageCount": 191,
+  "notInstalledPlatformOptionalCount": 33,
+  "byLicense": {
+    "Apache-2.0": 7,
+    "Artistic-2.0": 1,
+    "BSD-3-Clause": 7,
+    "BlueOak-1.0.0": 5,
+    "CC-BY-4.0": 1,
+    "ISC": 12,
+    "MIT": 153,
+    "MIT OR Apache-2.0": 2,
+    "MPL-2.0": 2,
+    "Unlicense": 1
+  },
+  "missing": [],
+  "verdict": "PASS"
+}

@@ -146,6 +146,14 @@ no Account maps the exact server-preconfigured bootstrap subject
 
 This principal is non-durable, cannot receive ordinary Permissions, cannot select another subject and cannot access any normal Workspace/Project/Product route. It is not a Keycloak role/group/Organization, default credential, public signup or permanent recovery bypass.
 
+After successful self-provisioning and normal re-entry, that same exact
+server-configured `(issuer, subject)` is the sole F1 `platform_operator` source.
+The condition is re-derived from the current Conexus Account/session plus pinned
+installation configuration; it is never copied from Keycloak roles/groups or
+persisted as a provider claim. Recovery preserves the bootstrap
+subject/operator configuration, and role-only or different-subject attempts
+fail closed.
+
 The OIDC client is confidential/server-side. A library unable to support the required confidential-client flow is not admissible. Exact issuer, redirect URI, client identity and signing/validation expectations are pinned server-side. Implicit and resource-owner-password/direct-grant browser login are not admitted.
 
 Keycloak realm/client roles, groups, organizations and Authorization Services remain provider-side mechanics and MUST NOT substitute for Workspace membership, Project grants, Published App access, Release eligibility, Connection-use authority or another Conexus owner fact.

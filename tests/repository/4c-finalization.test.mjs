@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { assert4DOpeningIsProperlyGated } from './_roadmap-phase-guards.mjs'
 
 const root=fileURLToPath(new URL('../../',import.meta.url))
 const read=path=>readFileSync(resolve(root,path),'utf8')
@@ -36,13 +37,14 @@ test('4C-13 consolidates generated consumption, custody, topology and P13 handof
   assert.match(index,/4C-13 closure \+ P13 inputs/)
 })
 
-test('4C is operator-ratified without opening 4D',()=>{
+test('4C operator ratification precedes the separately gated 4D opening',()=>{
   assert.match(roadmap,/4C = CLOSED \/ OPERATOR RATIFIED \/ METHOD v2\.3 \/ P12 CLOSED \/ 4C-13 CLOSED \/ P12-F03 CLOSED \/ 4C-14 CLOSED/)
   assert.match(roadmap,/P12-F03 = CLOSED \/ CHECKPOINT 1eb33a93fd2bcd32c2cc7d9565aa617430a47771 \/ PUSH-PR-MERGE UNAUTHORIZED/)
-  assert.match(roadmap,/4D — Project Paved Road & Runtime Realization \| NOT STARTED/)
   assert.match(roadmap,/Product implementation \| BLOCKED/)
   assert.match(roadmap,/PUSH-PR-MERGE UNAUTHORIZED/)
   assert.doesNotMatch(closure,/selected (?:React|Next|Tailwind|Mastra|router|state library|SDK|runtime|design system)/i)
+  const premature=roadmap.replace('4C = CLOSED / OPERATOR RATIFIED / METHOD v2.3 / P12 CLOSED / 4C-13 CLOSED / P12-F03 CLOSED / 4C-14 CLOSED','4C = OPEN')
+  assert.throws(()=>assert4DOpeningIsProperlyGated(premature),/4D opened before 4C closure/)
 })
 
 test('4C-14 records the independent correction loop and clear verdict',()=>{

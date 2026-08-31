@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:conexus:qualification:input:v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["appName", "settings"],
+  "properties": {
+    "appName": { "type": "string", "minLength": 1 },
+    "settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "limit"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "limit": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 }
+      }
+    }
+  }
+}

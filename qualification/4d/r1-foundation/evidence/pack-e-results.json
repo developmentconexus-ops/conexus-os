@@ -1,0 +1,42 @@
+{
+  "kind": "conexus.r1f.pack-e-results/v1",
+  "observedOn": "2026-08-30",
+  "runtime": { "node": "24.20.0", "npm": "12.0.2", "postgresql": "17.10", "pg": "8.23.0", "atlasCommunity": "1.3.0" },
+  "results": [
+    {
+      "id": "R1F-P09",
+      "verdict": "PASS",
+      "testCount": 3,
+      "claims": [
+        "iam_runtime connects only to identity_store",
+        "project_runtime connects only to project_store",
+        "runtime roles cannot SET ROLE to owner roles",
+        "runtime roles cannot create owner-schema objects",
+        "runtime roles are not object owners",
+        "runtime roles are NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS",
+        "no non-system SECURITY DEFINER or CR-1 function exists"
+      ]
+    },
+    {
+      "id": "R1F-P10",
+      "verdict": "PASS",
+      "testCount": 1,
+      "claims": [
+        "Atlas validates atlas.sum and SQL semantics against a real validation database",
+        "Atlas applies and reports status on a real target database",
+        "edited migration checksum fails",
+        "Conexus admission rejects a newly inserted version below maximum applied",
+        "table schema drift fails",
+        "table owner drift fails"
+      ]
+    }
+  ],
+  "finding": {
+    "id": "R1F-E01",
+    "observation": "after atlas.sum rehash, Atlas apply did not itself reject a newly inserted older migration",
+    "correction": "Conexus checks atlas_schema_revisions.atlas_schema_revisions and rejects an unapplied version lower than the maximum applied version before apply",
+    "verdict": "CORRECTED_GREEN"
+  },
+  "packVerdict": "PASS",
+  "laterProbeVerdicts": "NOT_PROVEN"
+}

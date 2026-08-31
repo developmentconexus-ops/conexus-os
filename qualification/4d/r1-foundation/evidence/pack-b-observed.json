@@ -1,0 +1,14 @@
+{
+  "kind": "conexus.r1f.pack-b-observation/v1",
+  "profileDigest": "4ed0c7ab0a3d1026de805fea11cb61be20993b7d5008d4714e5b32d10ec04056",
+  "inputDigest": "cf305fe91243c3b798c2820c50c78f655edee85c0f233b29eaa655843415b570",
+  "canonicalInputSetDigest": "ad393a7712f0c008b4981fc111f590b907218a1c85ba4e81e150fa86c12ce4e4",
+  "manifestDigest": "db0fb767a57ecb0f7bb359df253178d54029688a3f4dda5e4c90bfe6c5aa6e1e",
+  "treeDigest": "10aa29eab20303454913ca56cb8dc1613d67c191a480b5b5efead4080a4a2c49",
+  "planDigest": "ce7938edd7457c1a3eb5d0acd01f516d86b8bbe911c10dd33d4c765789b16a43",
+  "receiptDigest": "105c165cf9fd4713d162dc5ffe48db0b2b4735d73e4bf77be059e6a31b672a00",
+  "entryCount": 3,
+  "operationCounts": { "CREATE": 3 },
+  "rfc8785VectorSha256": "2d5e01a318d0f0879ab568c4be289c8b1f64ef8921a53c6277d5e069978baacb",
+  "verdict": "PASS"
+}

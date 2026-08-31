@@ -1,0 +1,8 @@
+{
+  "name": "conexus-r1f-scripted-negative-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install": "node install.mjs"
+  }
+}

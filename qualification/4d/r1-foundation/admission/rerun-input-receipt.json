@@ -1,0 +1,35 @@
+{
+  "kind": "conexus.r1f.pack-a-rerun-input-receipt/v1",
+  "observedOn": "2026-08-30",
+  "correction": "R1F-A01",
+  "platform": {
+    "os": "linux",
+    "arch": "x64",
+    "distribution": "Ubuntu 26.04 LTS",
+    "kernel": "6.18.33.2-microsoft-standard-WSL2"
+  },
+  "node": {
+    "version": "24.20.0",
+    "sha256": "2f2c0da162318f0de47665410c7c8c2ed3d36c8f3105de4bbc61176c70a7cbf2",
+    "officialChecksumMatched": true
+  },
+  "npm": {
+    "version": "12.0.2",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "lock": {
+    "lockfileVersion": 3,
+    "directPackages": 25,
+    "lockedPackages": 224,
+    "installedLinuxPackages": 191,
+    "canonicalSha256": "ca6e3472ece46a3422602b3e4751a452221d8195e34f74425e3d2fcb3be75212",
+    "installedTreeSha256": "5f276d1cfa0f6c1b199230c9bf5553ca98fa9a8ebe5ca7d6477dcc7decf9ec57"
+  },
+  "sourceTagsMatched": {
+    "keycloak-26.7.2": "289376b142480b4d600aca7acb1e4651862ed2a1",
+    "postgresql-REL_17_10": "25c49f3a4a742ba283f5cc43cc7f1d361552e917",
+    "atlas-v1.3.0": "9a6bc601212130aaaefcbc8dd36c710baf9716ff"
+  },
+  "substratePins": "docs/evidence/4d/4d-r1-foundation-pin-manifest.json#substratePins",
+  "verdict": "PASS"
+}

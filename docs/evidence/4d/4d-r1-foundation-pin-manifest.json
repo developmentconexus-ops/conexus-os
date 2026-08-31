@@ -1,0 +1,172 @@
+{
+  "kind": "conexus.r1-foundation-pin-manifest/v1",
+  "status": "P01_P12_GREEN_OPERATOR_APPROVED",
+  "observedOn": "2026-08-30",
+  "decidingPlatform": {
+    "os": "linux",
+    "arch": "x64",
+    "nodeVersion": "24.20.0",
+    "nodeTarSha256": "2f2c0da162318f0de47665410c7c8c2ed3d36c8f3105de4bbc61176c70a7cbf2",
+    "npmVersion": "12.0.2",
+    "lockfileVersion": 3
+  },
+  "npmPackages": [
+    { "name": "npm", "version": "12.0.2", "integrity": "sha512-uIXokLlBj6FpNUTQX1PmT5pz7BlIN9QlixX+zdaSNHsd0qUXsbDLr50xzY6Sw7cJVr0uzHKDOle0swmPW/p5Qw==" },
+    { "name": "typescript", "version": "6.0.2", "integrity": "sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ==" },
+    { "name": "jsonc-parser", "version": "3.3.1", "integrity": "sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==" },
+    { "name": "ajv", "version": "8.20.0", "integrity": "sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==" },
+    { "name": "canonicalize", "version": "4.0.0", "integrity": "sha512-FEdXzwWs+N3rZqEqpqleiY9M1A6IAf9oo1zHFABnLW9FcJ/jzsu+G/Ks3Hq3FglmPKe80GeGBw8ZXLEnwPB0vQ==" },
+    { "name": "fastify", "version": "5.12.1", "integrity": "sha512-FWi+tQvwxR/PeRX7Z2mhfEF5ozJ3jn9asiiclzKXNSzJRHAYcU924aIOKAdHFJ+YIKieh3cqr1IwCOvTr41B3Q==" },
+    { "name": "@fastify/cookie", "version": "11.1.2", "integrity": "sha512-Dtrpk/YOGUsbRMvP/8ZqPpwnMRv0qSqodFdoQ2B589Obc7jw4s4Qla+cV72Bsm7WsZJnqlYFX/i7uSBq0xzg6g==" },
+    { "name": "@fastify/helmet", "version": "13.1.1", "integrity": "sha512-bSat5DTq8geASv8G6P0KW1UbltZ+xGD/zyd9S72pT7ogAHehcsWL85GdjMRCjDsExJvaEvgEZ52qU/2HXirVCw==" },
+    { "name": "@fastify/static", "version": "10.1.3", "integrity": "sha512-W6jqajYS974XjPjB5hQWoxPM8NKM4+p8YmQT6G5IbCa4uhdWSVadZUv75siy1wEA/3ty8RYdpBydfWeu9AqAqQ==" },
+    { "name": "openid-client", "version": "6.8.7", "integrity": "sha512-gtKthNu7evSBvTdrrlHb4F3Fi9dcwlb5QaITlCs+9mfpvuOi0Q3qtBf5+iY4sEP8hy1qCoAdxBNPDcmZeVSDzQ==" },
+    { "name": "react", "version": "19.2.8", "integrity": "sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw==" },
+    { "name": "react-dom", "version": "19.2.8", "integrity": "sha512-rVprimfGBG3DR+Tq0IQG2DT5PxKth1WIGDmj5yPmlzr4YBe7uyE+Du4oVqTDXZSHGGGXRtTJEGSSePyQCMBglQ==" },
+    { "name": "vite", "version": "8.2.2", "integrity": "sha512-cFKLV/PRgAUlIRm5WjMjJ86jrftzpqcgH+Us+DS8mI3CDNiH30Whrz8uHL3+MOLPAgqbMBAqWdAHAphOAM+z/Q==" },
+    { "name": "@vitejs/plugin-react", "version": "6.1.1", "integrity": "sha512-yxLaQV9gkhS8ezJqCM6+ndU7mDY6gqAg75NQ+0IjwEI8IYOmQCgkRwHKVSfWXW076DsqMo0Dk+0FK1U+M5RgFw==" },
+    { "name": "@tanstack/react-router", "version": "1.170.32", "integrity": "sha512-SIpxvaTKco100a5ZR3ePmArbhtm3XOx+w1dpGYY9gxHDta4iXSKDdQuhLonwJbIMkVJsU1rwXf0UDHMrF/1snw==" },
+    { "name": "@tanstack/router-plugin", "version": "1.168.35", "integrity": "sha512-foDAZKFqHXae+oFbIgcsSvy2QCVRn7XdS3nhwcRvD+ed6JrKPUP/1lQMsZLJqWycgR1vkZF7gs955KGa0NZQ0w==" },
+    { "name": "@tanstack/react-query", "version": "5.102.8", "integrity": "sha512-TYBea4OuXWD7MhaSHq069TWbFe7rcwWN6kzT7JF0OKi1K6c1gTv2IzD6A6ExJsCMozdkqBWeuIUZmu4KQg0O5A==" },
+    { "name": "@types/node", "version": "24.13.3", "integrity": "sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==" },
+    { "name": "@types/react", "version": "19.2.18", "integrity": "sha512-AnzbBERsrLKtk2XSfTbYRLjQPdy116Sty4q+T+Bp3IC4l6jNBvreVPAHmpq9qhXQM7CXZPjLVmGMw9sy+hxQ3w==" },
+    { "name": "@types/react-dom", "version": "19.2.5", "integrity": "sha512-fMPwH9v7r/pp43yUd2/Mbiex5KouJwwR3dzHkhLREUC6764VyDsqxhAxv6OFEYR1RhjOyD1naqba8ECDBe7ZQg==" },
+    { "name": "pg", "version": "8.23.0", "integrity": "sha512-Ip2EQCngowJLGOfCwkFhPXU7/ljlhn6Rxlmy4XYfL2Y+vyRM59+8uR2xqRWKdYmbXmxCFOAmKxBuSUCdF34qLg==" },
+    { "name": "@biomejs/biome", "version": "2.5.11", "integrity": "sha512-Tj0dnkLPdW0ASjHfj2D/ZkkvPU2wrFmnE1jWTD2xzV1ycapV1DutbYXk4NDnR3rYTi1ZCbNFD4G2gRMEY65WaA==" },
+    { "name": "@playwright/test", "version": "1.62.1", "integrity": "sha512-DTcUc8qii+cpHvtOwggMtBRMjKZHXYWdw8syRYu2vtzuq4Wxphqq4NfCs5Zt44L6mA8rfDfj+PHnxFc/FeK6mQ==" },
+    { "name": "@redocly/cli", "version": "2.47.0", "integrity": "sha512-4sv638LZxiUSsNGqfWPzA2hrNM4KrNRc9jOaH9igqDJlZimiGCYliVpbdrWvfL/YlaSnIBpJE1O1CveXDYTTWw==" },
+    { "name": "ajv-formats", "version": "3.0.1", "integrity": "sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==" }
+  ],
+  "sourceComponents": [
+    { "name": "keycloak", "version": "26.7.2", "commit": "289376b142480b4d600aca7acb1e4651862ed2a1" },
+    { "name": "postgresql", "version": "17.10", "commit": "25c49f3a4a742ba283f5cc43cc7f1d361552e917" },
+    { "name": "atlas-community", "version": "1.3.0", "commit": "9a6bc601212130aaaefcbc8dd36c710baf9716ff" }
+  ],
+  "substratePins": {
+    "keycloak": {
+      "reference": "quay.io/keycloak/keycloak:26.7.2",
+      "indexDigest": "sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067",
+      "linuxAmd64ManifestDigest": "sha256:c2a17fe407e892196d0b7cf9cef54e60952d6c372a9205f661a9efa0911463b0",
+      "linuxAmd64ProvenanceManifestDigest": "sha256:0c98b182091098d8822f378acbeb2eb6131a622705595b73eec6daa346621858",
+      "qualificationOptimizedCache": {
+        "parentManifestDigest": "sha256:c2a17fe407e892196d0b7cf9cef54e60952d6c372a9205f661a9efa0911463b0",
+        "localImageId": "sha256:a3b52c7dfe3c27df11c0665957d92b9eb3a3b73b640a5cde4c2473385833585c",
+        "manifestDigest": "sha256:ad2e73ba9021196a85dd0a3a678b84816446186c840b62e4b4656346e48dc229",
+        "configDigest": "sha256:772e69795a7eae3bffb454ab697ff61ef474d76db9c7e6210834a1f650e5631d",
+        "operation": "kc.sh build only",
+        "authority": "qualification cache only"
+      }
+    },
+    "postgresql": {
+      "reference": "docker.io/library/postgres:17.10-bookworm",
+      "indexDigest": "sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f",
+      "linuxAmd64ManifestDigest": "sha256:6e5a6518f9d2ff9e9f4cba2a5a87d8f41b0f067f6f92ac847c344351a6c8d923",
+      "imageSourceRevision": "4f9ced003ba58a854656ba150d146243d27ae3ac"
+    },
+    "atlasCommunity": {
+      "version": "1.3.0",
+      "platform": "linux-amd64",
+      "url": "https://atlasbinaries.com/atlas/atlas-community-linux-amd64-v1.3.0",
+      "fallbackUrl": "https://release.ariga.io/atlas/atlas-community-linux-amd64-v1.3.0",
+      "sha256": "10d7913e3dce43ab99b8d71534a4cbadaf11a16dc293adf3b91d10e83a0ac70b",
+      "primaryFallbackByteEquivalent": true
+    },
+    "playwright": {
+      "packageVersion": "1.62.1",
+      "platform": "linux-x64",
+      "qualificationContainer": {
+        "reference": "mcr.microsoft.com/playwright:v1.62.1-noble",
+        "indexDigest": "sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e",
+        "linuxAmd64ManifestDigest": "sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac",
+        "nodeTarGzSha256": "855d581f8a4eb1a8117e3426de25fe02770592febcfb31369aee1ffbfee9e8ec",
+        "npmTarballSha512Hex": "b885e890b9418fa1693544d05f53e64f9a73ec194837d4258b15fecdd692347b1dd2a517b1b0cbaf9d31cd8e92c3b70956bd2ecc72833a57b4b3098f5bfa7943",
+        "qualificationImageId": "sha256:fd3b87c0e3ccb67da347e896702fbce1ab7f01d6875a6f2a2faa3839d4dff23b",
+        "qualificationConfigDigest": "sha256:6de7fdfc323f2db2894da82b9319b103d19d3e135bd84f1e98cdfb569b170284",
+        "authority": "qualification cache only"
+      },
+      "archives": [
+        { "name": "chromium", "revision": "1234", "browserVersion": "151.0.7922.34", "url": "https://cdn.playwright.dev/builds/cft/151.0.7922.34/linux64/chrome-linux64.zip", "sha256": "ae8736ac28bc69278551500f219fc749575648263c43ec5990749eff43b9fcf8" },
+        { "name": "chromium-headless-shell", "revision": "1234", "browserVersion": "151.0.7922.34", "url": "https://cdn.playwright.dev/builds/cft/151.0.7922.34/linux64/chrome-headless-shell-linux64.zip", "sha256": "3cfc2bd00d1bafcf8a68dc74c9c92bb7150ddc8d26ade948a776316e1cec4f14" },
+        { "name": "ffmpeg", "revision": "1011", "url": "https://cdn.playwright.dev/dbazure/download/playwright/builds/ffmpeg/1011/ffmpeg-linux.zip", "sha256": "ebc74fc5b94830176a3c2914ae96bd8bc7f6a91f4f33890230f84a172ee61ccc" },
+        { "name": "firefox", "revision": "1538", "browserVersion": "153.0", "url": "https://cdn.playwright.dev/dbazure/download/playwright/builds/firefox/1538/firefox-ubuntu-24.04.zip", "sha256": "49208d3ed74e525575eca41d053082902b88933e31943a091d25080bdfcfcb25" },
+        { "name": "webkit", "revision": "2336", "browserVersion": "26.5", "url": "https://cdn.playwright.dev/dbazure/download/playwright/builds/webkit/2336/webkit-ubuntu-26.04.zip", "sha256": "c1d296d35c831a31db9d330f0a7ce44bded9bfeb82ca298dc35d11c8e3698b8e" }
+      ],
+      "independentRefetchByteEquivalent": true
+    }
+  },
+  "packAAdmission": {
+    "observedOn": "2026-08-30",
+    "directNpmPackages": 25,
+    "lockedPackages": 224,
+    "installedLinuxPackages": 191,
+    "lockCanonicalSha256": "ca6e3472ece46a3422602b3e4751a452221d8195e34f74425e3d2fcb3be75212",
+    "installedTreeSha256": "5f276d1cfa0f6c1b199230c9bf5553ca98fa9a8ebe5ca7d6477dcc7decf9ec57",
+    "lifecycleScriptPackages": 0,
+    "auditVulnerabilities": 0,
+    "invalidSignatures": 0,
+    "missingSignatures": 0,
+    "installedPackagesMissingLicense": 0,
+    "verdict": "PASS"
+  },
+  "packBAdmission": {
+    "observedOn": "2026-08-30",
+    "r1fP03": "PASS",
+    "r1fP04": "PASS",
+    "profileDigest": "4ed0c7ab0a3d1026de805fea11cb61be20993b7d5008d4714e5b32d10ec04056",
+    "inputDigest": "cf305fe91243c3b798c2820c50c78f655edee85c0f233b29eaa655843415b570",
+    "manifestDigest": "db0fb767a57ecb0f7bb359df253178d54029688a3f4dda5e4c90bfe6c5aa6e1e",
+    "treeDigest": "10aa29eab20303454913ca56cb8dc1613d67c191a480b5b5efead4080a4a2c49",
+    "planDigest": "ce7938edd7457c1a3eb5d0acd01f516d86b8bbe911c10dd33d4c765789b16a43",
+    "receiptDigest": "105c165cf9fd4713d162dc5ffe48db0b2b4735d73e4bf77be059e6a31b672a00",
+    "verdict": "PASS"
+  },
+  "packCAdmission": {
+    "observedOn": "2026-08-30",
+    "r1fP05": "PASS",
+    "r1fP06": "PASS",
+    "r1fP07": "PASS",
+    "fastifyTestCount": 3,
+    "oidcTestCount": 3,
+    "postgresSessionTestCount": 5,
+    "harnessSourceSha256": "98c6a11bf7c35af7ebc5b266b3e53333c91997a0d050f287ad48f61a30d3227f",
+    "verdict": "PASS"
+  },
+  "packDAdmission": {
+    "observedOn": "2026-08-30",
+    "r1fP08": "PASS",
+    "browserTests": { "chromium": 4, "firefox": 4, "webkit": 4, "total": 12 },
+    "viteBuildFiles": 4,
+    "secretLeak": false,
+    "authorityLeak": false,
+    "harnessSourceSha256": "addabd2141aa40c1fad7ff12448d1fc0c1b66c1f9f86d6247e47136bae05756e",
+    "qualificationImageId": "sha256:fd3b87c0e3ccb67da347e896702fbce1ab7f01d6875a6f2a2faa3839d4dff23b",
+    "verdict": "PASS"
+  },
+  "packEAdmission": {
+    "observedOn": "2026-08-30",
+    "r1fP09": "PASS",
+    "r1fP10": "PASS",
+    "finding": "R1F-E01_CORRECTED",
+    "atlasSum": "h1:ZRS91WL5LZlqDaysM2JDPMgeVkAiUMzaPxsq32ZZv84=",
+    "harnessSourceSha256": "15c4fe3da3bafe5329371935d2b5684aca9f8edbb8ff38c5279291f8eb024e00",
+    "verdict": "PASS"
+  },
+  "packFAdmission": {
+    "observedOn": "2026-08-30",
+    "r1fP11": "PASS",
+    "r1fP12": "PASS",
+    "linuxTreeSha256": "5f276d1cfa0f6c1b199230c9bf5553ca98fa9a8ebe5ca7d6477dcc7decf9ec57",
+    "optionalLocked": 37,
+    "optionalAbsentOnLinuxX64": 33,
+    "redGates": 7,
+    "greenGates": 7,
+    "harnessSourceSha256": "fb9f45dd0f2f0a83fe706c899197db617cc58ecf7a8663cbdde3e4e118a3fff0",
+    "verdict": "PASS"
+  },
+  "foundationProbeBatch": {
+    "proofRange": "R1F-P01..P12",
+    "verdict": "ALL_GREEN_PENDING_OPERATOR_ADJUDICATION",
+    "productImplementationAuthority": false
+  },
+  "requiredBeforeNextProbePack": []
+}

@@ -318,6 +318,11 @@ EXISTING_GIT
 → server resolves an exact immutable source revision during admission
 → successful Project creation has exactly one canonical Project Git authority
 
+R1 first-creator owner composition
+→ WS-01 establishes current creator Workspace membership/access + project.create
+→ PRJ-03 establishes exact creator account_project_grant + project.read + project.manage
+→ project.build / project.review / project.source.read remain separate and absent until first consumer
+
 PRJ-07 RunInceptionInvestigation
 → requires one non-blank human intent
 → intent expresses the current objective/users/constraints in ordinary language
@@ -1442,13 +1447,13 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | `IAM-14` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app administration; current grants carry Account presentation and exact active-Release `admin|member` capability consequences | `READ` | `IC0` |
 | `IAM-21` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app; existing I&A-owned Conexus Accounts not already granted; search never queries or proves Keycloak-directory existence and candidate inclusion grants nothing | `READ` | `IC0` |
 | `IAM-15,IAM-17` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app/Account subject; current grant state includes explicit absent state for create and exact current role/grant for change/revoke | `COMMAND` | `IC2` |
-| `WS-01` | `HUMAN_ACCOUNT_SESSION / CP` | trusted `platform_operator` | trusted first-access Workspace creation; success establishes exact initial current-Account access so the Workspace is immediately disclosable | `COMMAND` | `IC3` |
+| `WS-01` | `HUMAN_ACCOUNT_SESSION / CP` | trusted `platform_operator` | trusted first-access Workspace creation; success establishes exact initial current-Account membership/access plus `project.create` in that exact Workspace so it is immediately disclosable and can create the first Project | `COMMAND` | `IC3` |
 | `WS-02` | `HUMAN_ACCOUNT_SESSION / CP` | current Workspace membership | exact Workspace disclosure | `READ` | `IC0` |
 | `WS-04` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.manage` **or** narrow `workspace.access.manage` access-administration summary disclosure | exact Workspace; alternate route reveals AreaSummary identity only for access administration | `READ` | `IC0` |
 | `WS-05` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.manage` | exact Workspace + explicit human Area name + stable create intake; duplicate intake cannot create duplicate Area | `COMMAND` | `IC3` |
 | `PRJ-01` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `project.read` **or** narrow `workspace.access.manage` access-administration summary disclosure | ordinary route applies current Project disclosure; alternate route exposes only contained ProjectSummary identities in exact Workspace | `READ` | `IC0` |
 | `PRJ-02` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` + exact Project grant | exact Project disclosure | `READ` | `IC0` |
-| `PRJ-03` | `HUMAN_ACCOUNT_SESSION / CP` | `project.create` | destination Workspace + atomic Project/initial-grant + one canonical source-bootstrap admission; success implies a source-complete Project | `COMMAND` | `IC3` |
+| `PRJ-03` | `HUMAN_ACCOUNT_SESSION / CP` | `project.create` | destination Workspace + atomic Project/initial current-Account direct grant carrying `project.read + project.manage` + one canonical source-bootstrap admission; success implies a source-complete Project | `COMMAND` | `IC3` |
 | `PRJ-05` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact current Project; archive preserves independent serving/automation laws | `COMMAND` | `IC2` |
 | `PRJ-06` | `HUMAN_ACCOUNT_SESSION / CP` | source `project.manage` + destination `project.create` | source Project + destination Workspace; NO DATA/no credentials/no bindings by default | `COMMAND` | `IC3` |
 | `PRJ-07` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage`; plus `connection.use` only when an already-admitted external source context actually requires it | exact inception Project + non-blank human intent + server-resolved admitted source/context; optional refinement requires exact prior candidate + explicit review feedback; investigation cannot publish authority directly | `PROOF` | `IC3` |
