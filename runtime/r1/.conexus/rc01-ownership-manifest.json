@@ -1,7 +1,7 @@
 {
   "kind": "conexus.rc01-ownership-manifest/v1",
   "baseCommit": "1619f14d9caed172b6cada9430e6b49ff77a4316",
-  "subjectTreeDigest": "e6a8778f320826b065aa3cad176c83968346c78684da40215203fa79cec352ac",
+  "subjectTreeDigest": "f5b3317b89d5154691479b55e00c5165831a6f2f51db8398d42a61934a8e9474",
   "classCounts": {
     "PLATFORM-CONTRACT": 782,
     "GENERATED": 12
@@ -27,9 +27,9 @@
     },
     {
       "class": "PLATFORM-CONTRACT",
-      "outputDigest": "8107cb0aa5194c458c14af313e9691f35621d32ad46dec0ad4d9dc95614f9d12",
+      "outputDigest": "b7a63aa1108ce1afc079bd4f9abd69e6b213ffb8803222b31ae85bb2623a06f9",
       "path": ".github/workflows/verify.yml",
-      "size": 4699
+      "size": 4702
     },
     {
       "class": "PLATFORM-CONTRACT",

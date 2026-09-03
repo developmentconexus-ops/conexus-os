@@ -36,7 +36,7 @@ jobs:
       - run: npm ci
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm test
-      - run: npm run r1:g0:verify
+      - run: npm run r1:a0:g0:verify
       - run: npm run r1:s1:verify
       - run: npm run r1:s1:postgres
         env:

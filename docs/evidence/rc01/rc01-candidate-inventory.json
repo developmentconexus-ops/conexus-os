@@ -2,7 +2,7 @@
   "kind": "conexus.rc01-candidate-inventory/v1",
   "baseCommit": "1619f14d9caed172b6cada9430e6b49ff77a4316",
   "preChangeHead": "fd6f771be45102009f1887afaa9fc8a7e487e777",
-  "subjectTreeDigest": "e6a8778f320826b065aa3cad176c83968346c78684da40215203fa79cec352ac",
+  "subjectTreeDigest": "f5b3317b89d5154691479b55e00c5165831a6f2f51db8398d42a61934a8e9474",
   "summary": {
     "candidatePathCount": 794,
     "candidateClassCounts": {
@@ -48,8 +48,8 @@
       "status": "M",
       "classification": "PLATFORM_CONTRACT",
       "sourceOwnership": "PLATFORM-CONTRACT",
-      "size": 4699,
-      "sha256": "8107cb0aa5194c458c14af313e9691f35621d32ad46dec0ad4d9dc95614f9d12"
+      "size": 4702,
+      "sha256": "b7a63aa1108ce1afc079bd4f9abd69e6b213ffb8803222b31ae85bb2623a06f9"
     },
     {
       "path": ".nvmrc",
