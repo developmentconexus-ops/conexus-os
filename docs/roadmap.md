@@ -16,11 +16,11 @@ This is the single current phase/status authority.
 | 4A — Product Surface & Authority Contract | CLOSED / `PRE11-F05` RATIFIED | `128` fixed Product operations | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / `PRE11-F05` RATIFIED / REQUIRED VERIFY GREEN | `128↔128`; Project=28; Builder=20; Brain=13; PAR=16; MAR=4 | 4A change or wire/proof falsifier |
 | 4C — Frontend Interaction & Authority Realization | CLOSED / OPERATOR RATIFIED / METHOD v2.3 / P12 CLOSED / 4C-13 CLOSED / P12-F03 CLOSED / 4C-14 CLOSED / PRODUCT-APP WIREFRAMES OUT OF CURRENT SCOPE | Frontend Product/interaction model, P13 inputs and structural conformance obligations preserved for later phases | Material 4A/4B/P11/P13 conformance falsifier |
-| 4D — Project Paved Road & Runtime Realization | OPEN / BOUNDED PROGRAM COMPRESSION OPERATOR RATIFIED / RF-01 BUILD SELECTED / OPERATION MAP 128↔128 CANDIDATE / R1 FOUNDATION SELECTION CLOSED + OPERATOR APPROVED / R1 PROBE GRANT OPERATOR APPROVED / R1F-A01+R1F-E01 CORRECTED / P01..P12 EVIDENCE OPERATOR APPROVED / 4D-D(R1) FOUNDATION CLAIMS PRESERVED + R1C-13/14 ADDENDA / 4E-R1-F01 CLOSED / 4E(R1) CLOSED + OPERATOR APPROVED / 4F(R1) CLOSED + OPERATOR APPROVED / 4G(R1) CLOSED + OPERATOR APPROVED / CHECKPOINT AUTHORIZED / IMPLEMENTATION BLOCKED | Runtime/Paved Road contract ratified | Accepted property requires authority change |
-| 4E — Whole-System Coherence & Golden Flows | CLOSED(R1) / OPERATOR APPROVED / 13↔13 / GITINFRA + FIRST-AUTHORITY CORRECTED / MASTRA DEFER ACCEPTED / INDEPENDENT CONVERGENCE CLEAR | R1 composition routes exact tranche to 4F | Composed-flow contradiction |
-| 4F — Implementation Program & Execution Graph | CLOSED(R1) / OPERATOR APPROVED / GLOBAL MAXIMUM / INDEPENDENT CONVERGENCE CLEAR / IMPLEMENTATION BLOCKED | exact small R1 slices, dependencies, owners, mutations and proof graph closed | Contracts require different graph |
-| 4G — Adversarial Implementation Readiness | CLOSED(R1) / OPERATOR APPROVED / SEMANTIC CLEAR / INDEPENDENT CONVERGENCE CLEAR / CHECKPOINT AUTHORIZED / IMPLEMENTATION BLOCKED | Fresh challenge leaves no material finding | Material readiness finding |
-| Product implementation | BLOCKED | Tranche-scoped law ratified: each tranche requires applicable 4D-D/4E/4F/4G + explicit tranche grant; first operational Product still traverses RB | No historical or prior-tranche grant carries forward |
+| 4D — Project Paved Road & Runtime Realization | OPEN / BOUNDED PROGRAM COMPRESSION OPERATOR RATIFIED / OPERATION MAP 128↔128 CANDIDATE / R1 FOUNDATION SELECTION CLOSED + OPERATOR APPROVED / R1 PROBE GRANT OPERATOR APPROVED / R1F-A01+R1F-E01 CORRECTED / P01..P12 EVIDENCE OPERATOR APPROVED / 4D-D(R1) FOUNDATION CLAIMS PRESERVED + R1C-13/14 ADDENDA / 4E-R1-F01 CLOSED / 4E(R1) CLOSED + OPERATOR APPROVED / R1 13/13 LOCAL IMPLEMENTATION PRESERVED / RC-01 CANDIDATE CUSTODY + PUBLICATION + WALKTHROUGH AUTHORIZED / RB-C0 FROZEN / R2+ NOT STARTED | Exact R1 candidate committed, clean-worktree verified, published as Draft PR, CI recorded and ready for operator walkthrough; no merge | Material R1 invariant failure or operator decision after walkthrough |
+| 4E — Whole-System Coherence & Golden Flows | CLOSED(R1) / OPERATOR APPROVED / 13↔13 / GITINFRA + FIRST-AUTHORITY CORRECTED / MASTRA DEFER ACCEPTED / INDEPENDENT CONVERGENCE CLEAR / RB NOT OPEN | R1 composition routes exact tranche to 4F | Composed-flow contradiction |
+| 4F — Implementation Program & Execution Graph | R1 LOCAL IMPLEMENTATION 13/13 COMPLETE / RC-01 CANDIDATE FORMATION OPEN / RB GRAPH NOT OPEN | Exact committed and reproducible R1 candidate; no successor slice follows RC-01 | Current candidate proof fails or an exact later tranche is authorized |
+| 4G — Adversarial Implementation Readiness | CLOSED ON PRIOR SUBJECT / OPERATOR APPROVED / SEMANTIC CLEAR PRESERVED / EXECUTION TOPOLOGY CHALLENGED BY PRE-S2 A0 FINDING / RB NOT OPEN | Prior semantic readiness remains Evidence; new physical-topology subject routes to bounded 4F reopen | Material readiness finding on the current tranche subject |
+| Product implementation | R1 13/13 LOCAL IMPLEMENTATION PRESERVED / RC-01 EXACT CANDIDATE FORMATION OPEN / NOT YET PUBLISHED / RB + R2+ IMPLEMENTATION BLOCKED | Exact candidate commit + clean proof + Draft PR + CI + operator-walkthrough readiness; not merged | Product meaning changes, a protected R1 claim fails, or a new tranche is authorized |
 
 ```text
 4A = CLOSED / PRE11-F05 RATIFIED / N_platform=128
@@ -67,9 +67,9 @@ P12 Family 2 = LOCKED / OPERATOR APPROVED / W-02A f0a6902737a36217b081ff61768caa
 P12 Family 3 = LOCKED / OPERATOR APPROVED / P-04 77820d283e47ba6c9f5efd19f45471c88675e0b0 / P-05 d00b2126667a0a51317c653c57c237444a129dfb / PA-01 612ec41d91104e01b3942f7d90f35c37ad89c9f0
 P12 Family 4 = LOCKED / OPERATOR APPROVED / W-04 71e03432a0abd34ae35301094010fd670bb78b98 / P-01 25e5077106892c4ff6aba6774987e73a12ccff51 / P-03 17d31534fac0e57a74f70202567b23d8a63cd3c0 / P-04 e036684e3e66d028361db2d708cf05811a367f4b / PA-01 ffba5935d8fccd0fc5d7ad4d275fe38b09294674
 Pre-P11 global coherence review = CLOSED / F03-F05 OPERATOR RATIFIED / 128↔128 REQUIRED VERIFY GREEN / REPOSITORY 224↔224 GREEN / T-01 + GF-01/P-01/P-03 DELTAS LOCKED / TERMINAL P10 RECONCILED
-4D = OPEN / 4D-01R CLOSED + OPERATOR APPROVED / 117 UNIQUE PROPERTIES / 96 REALIZE / 18 PRESERVE_SEAM / 3 DEFER / GLOBAL COHERENCE CLEAR / INCREMENTAL VALUE LAW RATIFIED / 4D-A-4D-02 CLOSED + OPERATOR APPROVED / 4D-B-4D-03 CLOSED + OPERATOR APPROVED / 4D-04 CLOSED + OPERATOR APPROVED / RF-01 BUILD SELECTED + OPERATOR APPROVED / BOUNDED PROGRAM COMPRESSION OPERATOR RATIFIED / OPERATION MAP 128↔128 CANDIDATE / R1 FOUNDATION SELECTION CLOSED + OPERATOR APPROVED / R1 PROBE GRANT OPERATOR APPROVED / R1F-A01+R1F-E01 CORRECTED / P01..P12 EVIDENCE OPERATOR APPROVED / 4D-D(R1) FOUNDATION CLAIMS PRESERVED + R1C-13/14 ADDENDA / 4E-R1-F01 CLOSED / 4E(R1) CLOSED + OPERATOR APPROVED / 4F(R1) CLOSED + OPERATOR APPROVED / 4G(R1) CLOSED + OPERATOR APPROVED / CHECKPOINT AUTHORIZED / IMPLEMENTATION BLOCKED
-4E(R1) = CLOSED / OPERATOR APPROVED / 13↔13 / 4F(R1) = CLOSED / OPERATOR APPROVED / GLOBAL MAXIMUM / 4G(R1) = CLOSED / OPERATOR APPROVED / SEMANTIC CLEAR / INDEPENDENT CONVERGENCE CLEAR / CHECKPOINT AUTHORIZED / IMPLEMENTATION BLOCKED
-Product implementation = BLOCKED
+4D = OPEN / R1 LOCAL IMPLEMENTATION 13/13 PRESERVED / RC-01 CANDIDATE CUSTODY + PUBLICATION + WALKTHROUGH AUTHORIZED / RB-C0 FROZEN / R2+ NOT STARTED
+4E(R1) = CLOSED / OPERATOR APPROVED / 13↔13 / 4F(R1) LOCAL IMPLEMENTATION COMPLETE / RC-01 CANDIDATE FORMATION OPEN / RB 4E-4G NOT OPEN
+Product implementation = R1 13/13 LOCAL IMPLEMENTATION PRESERVED / IAM-01..03 + WS-01/02 + PRJ-01/02/03/07(first-use+refinement)/08/09/23/24 REALIZED / EXACT CANDIDATE + PR + CI PENDING / RB + R2+ IMPLEMENTATION BLOCKED
 ```
 
 Preserved 4C decision projection (the owning Screen Contracts and Evidence records retain the complete rationale and exact artifacts):
@@ -211,6 +211,25 @@ The repository is ready to continue Product planning. F28 is the named material 
 
 The durable Claude Code / AI_DIALOG / Fable interaction and whole/global Product-realization review protocol lives in [Blueprint Harness §10.4–10.6](development/blueprint-harness-design.md#104-wholeglobal-review-handoff-and-interaction). The independent review of this checkpoint concluded `LOCAL EXECUTION CORRECTION ONLY`: no method finding and no Product/plan gap survived; the one stale-current-facts defect in the open 4C phase contract was accepted and corrected by removing duplicated mutable census/method-version facts. Lead adjudication is recorded in [Fable Product-realization review adjudication](evidence/4c/fable-product-realization-working-model-adjudication.md). No second Fable round is justified because the correction does not change the reviewed Product-realization working model.
 
+The operator ratified the Engineering Method 1.2 delivery/convergence and
+periodic-independent-assurance amendment and its `conexus-development`
+operationalization on `2026-09-02`. Accepted
+authority must now become a bounded vertical stage code packet; method, review,
+documentation and Evidence work enter the critical path only for a named
+protected-property or deciding-proof falsifier. Repeated assurance without a new
+material falsifier triggers a proportionality reset, not recursive gate growth.
+Fresh isolated Fable and AGY/Gemini lanes are mandatory before each `S` closes
+and no later than three completed `P` parts in an open stage; coincident
+checkpoints use one whole-package round.
+
 ## Exact next action
 
-**This operator-authorized authority commit is the recoverable 4D–4G checkpoint. The exact next action after it exists is a separate operator decision on the exact R1 implementation grant. Product implementation, dependency installation, provider calls, push, PR and merge remain blocked.**
+**Complete RC-01 only: classify and commit one exact R1 candidate, reproduce it
+from a clean detached worktree, publish it as a Draft PR, record CI, and leave
+the exact PR commit ready for the operator browser walkthrough. Stop before
+merge. Do not begin RB-C0 review/design/runtime or R2 and later tranches.
+
+RB-C0 remains frozen planning dependent on its unopened successor gates. The
+Budget Analyzer remains the current vertical target and is not yet realized.
+No real provider, Keycloak, Sankhya or E2B call is authorized or required by
+RC-01.**

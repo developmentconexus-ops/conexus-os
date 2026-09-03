@@ -1,0 +1,4775 @@
+{
+  "kind": "conexus.rc01-ownership-manifest/v1",
+  "baseCommit": "1619f14d9caed172b6cada9430e6b49ff77a4316",
+  "subjectTreeDigest": "63c894c9bef7d85dd97e1be5de72334904f48c235280935caf500edcdc017179",
+  "classCounts": {
+    "PLATFORM-CONTRACT": 782,
+    "GENERATED": 12
+  },
+  "entries": [
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "41961b3bf305a29a81e539c14a76925d269912754fe25363e20b540dd8403e7d",
+      "path": ".agents/skills/conexus-development/references/review-and-delegation.md",
+      "size": 5397
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "055e405fbc6d45354ae999f54696f566b24a57a5d6206f993fee44b77c055247",
+      "path": ".agents/skills/conexus-development/references/wsl-environment.md",
+      "size": 1909
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8cdbc14ab5714cab5c45192e37c9aecc9a22b063d0ceef86e271bbc9e8f6acb1",
+      "path": ".agents/skills/conexus-development/SKILL.md",
+      "size": 7581
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2cd5fbf4231f54bc7cb7870d91607deaa52a33f6eeec3e390da9fafcc72b6da7",
+      "path": ".github/workflows/verify.yml",
+      "size": 2944
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5b9d0e73029969ae9000117cb877f17bb9841c1279bfe8024e294acfcf017800",
+      "path": ".nvmrc",
+      "size": 8
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "bbd58ba5170e128a928f609e3d59018500bd330282f84d60fb08a63819f7a71d",
+      "path": "AGENTS.md",
+      "size": 3519
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d27e76b972145bc3a6bf669d4fd32734fc06153d07cddaf1072c6b29845b112f",
+      "path": "apps/hub/migrations/001_iam_foundation.sql",
+      "size": 2622
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b64a8e041a8e63ac3b85559805ac5573a1d53f6d5d95ba1421ffe3f9803804b5",
+      "path": "apps/hub/migrations/002_workspace_foundation.sql",
+      "size": 7360
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "866c6da3d1a4171437b2c0a5beb72ff4994cfce499826cd8b397c2daa60037f2",
+      "path": "apps/hub/migrations/003_project_foundation.sql",
+      "size": 11125
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c7477d9ac1786ebe330221641a916df102b8af553d18fb8b3c302b519b13f313",
+      "path": "apps/hub/migrations/004_project_source_recovery.sql",
+      "size": 2662
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8eac8987356002c4a22ee96d169c5a33622d0116d7b5b8190af5f412f6db2bd5",
+      "path": "apps/hub/migrations/005_project_source_recovery_scan.sql",
+      "size": 5791
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e8db0346c822bc38543d3e18d71862c4be186165709fc032ed1b110260ef32d4",
+      "path": "apps/hub/migrations/006_project_create_authorization.sql",
+      "size": 4117
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d68caa47710295c28bcdf82ca102d8318779ae0033a9c62debd7f22d72a68975",
+      "path": "apps/hub/migrations/007_project_read_disclosure.sql",
+      "size": 3885
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "066ce45f5df4be134792c575e9339729a5532efa540cd4bf8fa6e776c651add0",
+      "path": "apps/hub/migrations/008_project_baseline_custody.sql",
+      "size": 7776
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "86f5d88587d90fc26387a8b36002e0797bf340cea7d45ac3d910210ae615538a",
+      "path": "apps/hub/migrations/009_project_inception.sql",
+      "size": 7075
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "31755edeac0509d32620d4307ea8227f58d59e5b2fcd1b89b6b0884cee450ba2",
+      "path": "apps/hub/migrations/010_project_inception_refinement.sql",
+      "size": 7692
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "f6e39e2a61412259b28fec2ffe8ce4904e328ad6c3c9d57130acc396bbb7445e",
+      "path": "apps/hub/migrations/atlas.sum",
+      "size": 841
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "2183a8d86be9f3be4354d424166d4905000e82f38c6925ee01b39d068216621f",
+      "path": "apps/hub/src/generated/r1-new-project-seed.ts",
+      "size": 13582
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "4657153b85863ef106fb086f2679427e3a6b5410eeda000eb7004f9eb70061e5",
+      "path": "apps/hub/src/generated/r1c14-git-identity.ts",
+      "size": 1165
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "a575c411639370f8cac356b2de21d131deabe78c5328401b4b6e861bdcb40652",
+      "path": "apps/hub/src/generated/s1-routes.ts",
+      "size": 9357
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "0c4e0955c41372b038fa6ab053939893adc14b301152f49f2d9f583e41abbe0c",
+      "path": "apps/hub/src/generated/s2-routes.ts",
+      "size": 6980
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "7593d9d78e9b5a9978eda0ce9b9a30e234521600dfae1b16c9300b2323d5159f",
+      "path": "apps/hub/src/generated/s3-routes.ts",
+      "size": 36472
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8e820bce365604e4330010cbbf731ca56be9c00f8480d39729be740413f22240",
+      "path": "apps/hub/src/http/app.ts",
+      "size": 3051
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3dadd5658228d71a8a8cbbe55dea22b6e60e4bf3b2083b5b120f346dc32d7895",
+      "path": "apps/hub/src/http/problem.ts",
+      "size": 479
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a3ceb624b90f46c99bc04d38c62941be33e6e3dc93d1d74f5b75ddc75f71ea74",
+      "path": "apps/hub/src/identity-access/errors.ts",
+      "size": 945
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "bdacf93a0e703b4af2bd72fd3d38961200a2812fd30f35fda3b216d145197bbf",
+      "path": "apps/hub/src/identity-access/module.ts",
+      "size": 2154
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "64180e304568320327cc3631259c0306d05264291bc0d80e4738092d54738193",
+      "path": "apps/hub/src/identity-access/oidc.ts",
+      "size": 2322
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5283912009a59f3047103cc3ad4c2a8a2d6cc236334c176f29e9afb192ba2cfa",
+      "path": "apps/hub/src/identity-access/routes.ts",
+      "size": 7634
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "42999e7db08e79e0946bfe1649c2407a890e27395eb372860e3f9e503c7afc82",
+      "path": "apps/hub/src/identity-access/store.ts",
+      "size": 13852
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "11da8e78a185ac1d593f647b499570be1efebd2023fa12ffe8379312c5205a7e",
+      "path": "apps/hub/src/platform/config.ts",
+      "size": 4792
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "deae59025b2debed44b2941573a7d6d5cbe144196934cb4be8b81d0774a21c75",
+      "path": "apps/hub/src/platform/postgres.ts",
+      "size": 302
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f6e4fcd0c8adec9c15bd77008c82616b2305e8eafe42ffc77db9cdf67f72617f",
+      "path": "apps/hub/src/platform/secrets.ts",
+      "size": 350
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6e81482c4c003b0a69e34c1c494d76c32a1781a58220769e35416a7dd2fa7520",
+      "path": "apps/hub/src/project/anthropic-oauth-provider.ts",
+      "size": 2443
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f1580682ee46b49ed9e69ade44f07bcc7d33af6593fd6291f8316fc7827cb113",
+      "path": "apps/hub/src/project/anthropic-oauth.ts",
+      "size": 2402
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a7bd26de677321905268c72b720c00d3de7ecefa594c2c4c9bf63efd0763d27c",
+      "path": "apps/hub/src/project/bounded-provider-fetch.ts",
+      "size": 2320
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "726097314912b6e9d41f190d1369e084bbb64abd988c40a2f00fb491cc6c9058",
+      "path": "apps/hub/src/project/errors.ts",
+      "size": 624
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "63b1e3dd19aa34ccbbb12a7a1da3f8e476a9adad144d6a08173d4f05f9c7bba0",
+      "path": "apps/hub/src/project/explanation.ts",
+      "size": 1923
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ef18db6f690348dd6277d9d461226168ce2c3efa6ff0e98eedc113ab6085fcfd",
+      "path": "apps/hub/src/project/git-execution.ts",
+      "size": 45213
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8963c9bc518b723fc474340db11a64f2f82fcd2c1bf9ee8739277bd11eba0185",
+      "path": "apps/hub/src/project/git-import-admission.ts",
+      "size": 4969
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "de8ec917d4d519c5718c04dc6012b0a9812c8c2e418c9ce44fbcdc36291dfc22",
+      "path": "apps/hub/src/project/identity.ts",
+      "size": 192
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0cfb03cf0fba460599b9687a6c9dc5c48ca15c46c95de61b293c603e0391a97f",
+      "path": "apps/hub/src/project/inception.ts",
+      "size": 5856
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8f17ac8a88e0cd74c05408746c768f49726d0c35882aeef8a33d7d09dd1c5b96",
+      "path": "apps/hub/src/project/module.ts",
+      "size": 7491
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7d257092d40f9b46a2ecdbdc9fab13a081050a63b3d05fe6d3399e48e08f12d5",
+      "path": "apps/hub/src/project/oauth-token-store.ts",
+      "size": 2882
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ef276ba04d1bd755ac244bc2800e168902b5f629588ae971b05e76f0b9ca6fc6",
+      "path": "apps/hub/src/project/project-mastra.ts",
+      "size": 12487
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a503cb37d5b727eb8daeae0ac1556178a2140c43f75854b5f5cd2743412d5c3b",
+      "path": "apps/hub/src/project/routes.ts",
+      "size": 12839
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4cba6cc8e1b71d761e6bc341f6667881aa0178da162dfef80f82dace00e71b69",
+      "path": "apps/hub/src/project/source-recovery.ts",
+      "size": 2700
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a507edb765aa957cefb714e80886c1635d5b5282feab8ea27c86999f22b1b0e3",
+      "path": "apps/hub/src/project/source-snapshot.ts",
+      "size": 8477
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0c6a3fbe52719cb0e5d38512ca8ef869837924e0e4c4d8d701cfed87234f2fef",
+      "path": "apps/hub/src/project/store.ts",
+      "size": 16608
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0cf9a75ec4db26d4e1c3c88362ee9bec1a788eb1670516c8f22fa4c48c56ae46",
+      "path": "apps/hub/src/server.ts",
+      "size": 3186
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f87868debf25b708e8ab2dafc03e4df4bbfea3d67413f844749b5ccd14bacb26",
+      "path": "apps/hub/src/workspace/errors.ts",
+      "size": 518
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4b3be082d0725f4c69eac6482c71fa453bcddef3b2a6bf8e2b47e4efeddfb7fa",
+      "path": "apps/hub/src/workspace/module.ts",
+      "size": 1163
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "73d4a1c104eb2ba491de4945253d472409a7c704c326e6d654d713201e7fb80e",
+      "path": "apps/hub/src/workspace/routes.ts",
+      "size": 4009
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2334624210ee7457125a4d4718a066e91de0266c7a3676e5be7c76b8639631bc",
+      "path": "apps/hub/src/workspace/store.ts",
+      "size": 4908
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2fe2649343be8f571f0bae4b77e4a01a4547f43b16dcdc3b1f6fc87f2707fc4f",
+      "path": "apps/hub/tsconfig.json",
+      "size": 172
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0df189c9c291e756b15231b692d91dd3df745dce0757e261506423b12624b9d0",
+      "path": "apps/web/index.html",
+      "size": 297
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8d4c325b515c52a615d5d87d297e42f1840a5af57f4fa3c7aab4c64783775434",
+      "path": "apps/web/src/app/query-client.tsx",
+      "size": 1089
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e5c95e413e251dac74045600c4cf4cca3bd38b41bbbaba08f8e512d5322aa674",
+      "path": "apps/web/src/app/router.tsx",
+      "size": 1407
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "da73d59edff4d4d874f95fcfc9aa4d71069f21b26b7d0bbb62c669c351fb4c73",
+      "path": "apps/web/src/app/shell.tsx",
+      "size": 6983
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d2c59f9a7e672e1360edba92cd8dec354727e664d8e5ef2e70a205c17cbe2820",
+      "path": "apps/web/src/features/identity-access/api.ts",
+      "size": 1969
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "39f4adbec94aacd2f916a5c165c57ab742d6fdbee6046b66fac76daa215b5894",
+      "path": "apps/web/src/features/project/api.ts",
+      "size": 4717
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5cf2c48d374176c79b06f109e59e51b16335d101d228e3b02330c50f6916fd77",
+      "path": "apps/web/src/features/project/components/baseline-candidate.tsx",
+      "size": 12474
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a1b8a1b8a62e75a1150d748ee2ff17d55c2c35a7b7ffec12634618cc1a037401",
+      "path": "apps/web/src/features/project/components/project-create-form.tsx",
+      "size": 4811
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "bd8179841e698045153c95c7828daff58868783267250584e25375365a9c1865",
+      "path": "apps/web/src/features/project/components/project-detail.tsx",
+      "size": 1838
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7e91fb352423e606a46ba95527e2671faec45d4556abba816751ab2999aaecae",
+      "path": "apps/web/src/features/project/components/project-inception.tsx",
+      "size": 3631
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f99ac09b5cfa221f2dcb6a0a32055f034d1412e449f5432e5b0fe677440b9e37",
+      "path": "apps/web/src/features/project/components/project-list.tsx",
+      "size": 3884
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f7c834097cdd78c9bd58be2c61d13c49b2eae210981ae750224b4ead56b7ecae",
+      "path": "apps/web/src/features/workspace/api.ts",
+      "size": 1636
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "45e7ee61f2b09c8e860d6e73c5ff82650716a692b99853c3ffb355865d26d9d9",
+      "path": "apps/web/src/features/workspace/components/workspace-create-form.tsx",
+      "size": 3156
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "cee1f3526c252a88babff5d5cb0dd4a34b48ed02a0aa20dd47114d0a203c9d79",
+      "path": "apps/web/src/features/workspace/components/workspace-summary.tsx",
+      "size": 1508
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "f340a8fe3b712fab9afee952f92226c2d6669294948cd56e99c626c88212c10b",
+      "path": "apps/web/src/generated/iam-client.ts",
+      "size": 1645
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "54f0760cf61a10ed9b4d595ff13ca390ea4a1ae87ccf9c91fc09e9cd3ca4b5d7",
+      "path": "apps/web/src/generated/project-client.ts",
+      "size": 4172
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "50e6bfea7eedfe64fe25b38acf35660cf083b73fb1400d73a4c29099d6644326",
+      "path": "apps/web/src/generated/workspace-client.ts",
+      "size": 1431
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "435c7a57df906729995e8554c19be1a5fcf1d7501ffafcb772b1868aa421ef9e",
+      "path": "apps/web/src/main.tsx",
+      "size": 453
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "784589cf0fb11a62765ebfaa86e214ef547af8eb8781f0b404e349448f3778f7",
+      "path": "apps/web/src/routes/__root.tsx",
+      "size": 143
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "278be1887d39ca0eceaaf7fddb002278583cb0bd630d7c087d71e7e2793ec4b4",
+      "path": "apps/web/src/routes/index.tsx",
+      "size": 3981
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7187cb277e795621a5ab05be6dac13952bf909fb63d29aae3df8f8142554e603",
+      "path": "apps/web/src/routes/project-baseline-candidate.tsx",
+      "size": 2069
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "cec7bff3d902ee2cb7bb968aade76dcf3b7771ec816bb2022ee6d27f3d748c45",
+      "path": "apps/web/src/routes/project-detail.tsx",
+      "size": 1841
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4b6b5623b62ef1456ccf6b837c6a5716cd909167b5095d717916c911004aeeb1",
+      "path": "apps/web/src/routes/project-inception.tsx",
+      "size": 3002
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8aa8e09ee5a283658c4032925d473ff92752449935c89b73142929e8d61be5e3",
+      "path": "apps/web/src/routes/setup.tsx",
+      "size": 4508
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "95e40f956c0e396789e20eabe1528750f0de4bf828e695c39fb57ca7c2a4fd42",
+      "path": "apps/web/src/routes/workspace-new.tsx",
+      "size": 2519
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4c5ec6eafa71c73f00b9c80c9ddfc84083b1b814a188ff5167df0974deabac85",
+      "path": "apps/web/src/routes/workspace-project-new.tsx",
+      "size": 2464
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "eaf589a8fc7f9e95a83fe2d6c3fdee56acd00a1e8aeb5206903a64da0fd571be",
+      "path": "apps/web/src/routes/workspace-projects.tsx",
+      "size": 2195
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d6177a2ed463d034e6b10751033ecc10445a8ff3dc4dabe11e7a5aa7b4b64310",
+      "path": "apps/web/src/styles.css",
+      "size": 6668
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "31ca369d199dc74c6ff68eb1d4f04e121474ccc44935a7b1e98e5642348bfa62",
+      "path": "apps/web/tsconfig.json",
+      "size": 257
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "75b08071fdc2ec15344f78e6f66195595f7f9d1a7a6b31c5d1eb62a06d375ff0",
+      "path": "apps/web/vite.config.mjs",
+      "size": 190
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4da4096a5f8ef709d0b47dfbd0e29a4ab5bd198a54a2adf7636785490897b49a",
+      "path": "biome.json",
+      "size": 1150
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f93eb7d2468d28ae91b97017b4b0318bbbe99978644d0152c480e05af8c7fdd8",
+      "path": "contracts/api/product/builder-paths.yaml",
+      "size": 35983
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0f8b46b138acb6cabb71d075965ed8c16ee382b9bdf9d0f964fde58a979f8cf4",
+      "path": "contracts/api/product/gateway-paths.yaml",
+      "size": 8340
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d0e31426720c15f8dbec239afe420e22dbfd5aec7cc6b1e998b1cb47ed867d13",
+      "path": "contracts/api/product/identity-workspace-paths.yaml",
+      "size": 36434
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "01b08e61443ccf5319b66615cf328b391d377fd9d72ed8bb5737e82a10d752d0",
+      "path": "contracts/api/product/mar-paths.yaml",
+      "size": 11132
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4097c8fe3d2782fc08e3a2674cf2eb2a241c2ac9a50e887206072d2afd440302",
+      "path": "contracts/api/product/observability-paths.yaml",
+      "size": 20794
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "67d141e946e933c8a031d456f9d51ed44389053e5b2c50979b10c927dae07cd3",
+      "path": "contracts/api/product/openapi.yaml",
+      "size": 23463
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1dd2d7feb7c2447ecc121ca8e4f7b978bc4bfdcf3e66882ef7dd82ab0b2f76ed",
+      "path": "contracts/api/product/par-paths.yaml",
+      "size": 39022
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "11d7c788adc1dbaa9d7e4b4bb290f907cb77d2991cc281f4dc7d99836bd77abb",
+      "path": "contracts/api/product/project-brain-context-paths.yaml",
+      "size": 6793
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "aae096aed3bbd2d2e925dcba06beb220418c5267e930d640d069cd1359ef3df2",
+      "path": "contracts/api/product/project-paths.yaml",
+      "size": 56745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "80ae6cc09b734c9422293b10ed6ac9a2ea8dc16ce03d193ab3a1f51c44951197",
+      "path": "contracts/api/product/release-paths.yaml",
+      "size": 22086
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "86d24beb5d322adaa3de90895e55a72d43e949cfb41855ae06720bddb314ae90",
+      "path": "contracts/examples/budget-analyzer/AnalyzePendingBudgets.operation.json",
+      "size": 7526
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4c4e51130f18d5d10cbfb181986de161696a6e9b3354d0b001543f57de095ca5",
+      "path": "contracts/examples/budget-analyzer/fixtures/analyze-supported-currency-missing.invalid.json",
+      "size": 346
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "eba5a7381b2b206df104cd3992f620615df1d9f867c163762690cfefc55f7dfc",
+      "path": "contracts/examples/budget-analyzer/fixtures/analyze-supported.valid.json",
+      "size": 351
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "74f2410ee6631184e9b762ff5796b10bd2dd4795aaee4ad2c00f62f760c59c2a",
+      "path": "contracts/examples/budget-analyzer/fixtures/analyze-unverified-zero.invalid.json",
+      "size": 272
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "cf91437d432e5d94d54aaf21287676923fada1bcf0f60d33e55a258ca957aa6d",
+      "path": "contracts/examples/budget-analyzer/fixtures/list-partial-negative-age-banded.invalid.json",
+      "size": 655
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ad9956c4080515b2614a956d834bb8b5d288bbb22e837b8ae31c3463b47af708",
+      "path": "contracts/examples/budget-analyzer/fixtures/list-partial-negative-age.valid.json",
+      "size": 625
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1ee7205616d9d6985fbd50b43e0f77baf48ea4139ad25662897d9ef18815484f",
+      "path": "contracts/examples/budget-analyzer/fixtures/list-supported-name-missing.invalid.json",
+      "size": 619
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c77543b3d43a9f01e17499f6fd393efee67d17be45220b06bf76063b6ad6150c",
+      "path": "contracts/examples/budget-analyzer/fixtures/list-supported-negative-age.invalid.json",
+      "size": 666
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6b56d099c6dce5ed8fd2442125cee7992078cbe810d74c4bfdddf0906b65f675",
+      "path": "contracts/examples/budget-analyzer/ListPendingBudgets.operation.json",
+      "size": 7031
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1d35ef21575d34da73b1a451408b0b69be0ee4d00784bdee708f01fc640d87e7",
+      "path": "docs/decisions/index.md",
+      "size": 16743
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b84af546514c03f620183ab56c18744e7dbb99df34d00647605173f635d75a2c",
+      "path": "docs/development/blueprint-harness-design.md",
+      "size": 29855
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "64c7607c6a1258acbe16b633cf102372c0d8b34313988fa8383fa08deff8f7ff",
+      "path": "docs/development/engineering-method.md",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5b58393bf4f0132aba87cd16abc7914230882e0e130571d4a5a9af76a87ff756",
+      "path": "docs/development/production-realization-guide.md",
+      "size": 15115
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "efc11071dc9cf3fd28e6c0076ce30376c280591e51b8df2e2d483743c13f7144",
+      "path": "docs/evidence/4b/brain-schema-closure.md",
+      "size": 11526
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3df278c9b7416efc56191fc56e0403088d008843d22ac1a77a018d61526fd09f",
+      "path": "docs/evidence/4b/builder-schema-closure.md",
+      "size": 6813
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b2a3a9c0260a59c32aefa6cb30947c8cd26984dbd3dcc4c9c20b3b64bdd711b7",
+      "path": "docs/evidence/4b/gateway-schema-closure.md",
+      "size": 4677
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9b5f4e9defeda8c7f5bc6c9e8e94dc09d6e7ab5662857e44e7579bd848aeaa5f",
+      "path": "docs/evidence/4b/identity-workspace-schema-closure.md",
+      "size": 5800
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6ba784af2bb877c246b1d68152bab47fdc2979c65c2a04a813448cd879aa2992",
+      "path": "docs/evidence/4b/mar-schema-closure.md",
+      "size": 5428
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1a38f958e956bdf1808997739491791ba532f66a5e794a86121a9dd82c0ab2a8",
+      "path": "docs/evidence/4b/observability-schema-closure.md",
+      "size": 5875
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e2aec06d9db6c1ddd080f6972df7627e1d7518ed4e58929550fbdaf642adfad8",
+      "path": "docs/evidence/4b/par-schema-closure.md",
+      "size": 9009
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a743e12ce8627c74b4541a9840b5c9f1951b3ae119922f6f8e829c599f5e359b",
+      "path": "docs/evidence/4b/project-schema-closure.md",
+      "size": 12006
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b012abf49778d478a7ce5163d6c1902f027391297c3dd5b0a0feb2ae303789b2",
+      "path": "docs/evidence/4b/release-schema-closure.md",
+      "size": 8354
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1a776204f04022b1987177d8ccf9d927520534ec830ee1d3763d63359666b601",
+      "path": "docs/evidence/4c/4c-final-review.md",
+      "size": 4086
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "760a7e089399c02353e988dbc830e6f877c55c09dcad724fec04f92c7593e6d7",
+      "path": "docs/evidence/4c/4c-finalization-and-visual-inputs.md",
+      "size": 6959
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6d3c0afe958c56216e7f3a4e3b9bd61ea06a2348e92d086ac1ba9e2ae5ab63f4",
+      "path": "docs/evidence/4c/candidate-information-architecture.md",
+      "size": 25872
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4d6fa9ba8be87e9baf838a3b25939e531f819084c088ec225782a44ba8add141",
+      "path": "docs/evidence/4c/candidate-screen-surface-inventory.md",
+      "size": 30003
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5e415df5dfdf45fc44226f2091d8bce9190b8fc375eaecb344067d2abdec2fd9",
+      "path": "docs/evidence/4c/foundation-and-coverage.md",
+      "size": 16344
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5fc8b246c54a4b308a9451cb27d388f4e10476e7c5aaf23d30cee3e9a7f94e24",
+      "path": "docs/evidence/4c/gf01-account-session-delta-structural-hypothesis.md",
+      "size": 2395
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "424dd50b823a78be77f71a4d263a62cdc710bf8669ae1e9d44213dd3d39cc13e",
+      "path": "docs/evidence/4c/gf01-global-frame-wireframe.html",
+      "size": 51916
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e9c47830e2a795e48b6f6a337f4be56be118f15acd22d0a7cb5f6a7f67825190",
+      "path": "docs/evidence/4c/gf01-screen-contract.md",
+      "size": 21771
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "64624ea9dd20232367b41c1bf50eace6f9ac4bbd70b69de5cb8c5a4e34e7208d",
+      "path": "docs/evidence/4c/gf01-structural-hypotheses.md",
+      "size": 8356
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4558aebf9b74526dbe424ccbbcc83738d706c140dea4f02668abf63fa1db676e",
+      "path": "docs/evidence/4c/p01-build-workspace-functional-wireframe.html",
+      "size": 79460
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "66062ef206e6d9e8555f671cfafdeed7364e6e5e079450b4745f9a6ec98e3b68",
+      "path": "docs/evidence/4c/p01-build-workspace-screen-contract.md",
+      "size": 21085
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "00db7381437a46508c1ffe265e9dbca56d4f731a64c0be1c512982b4d80548f1",
+      "path": "docs/evidence/4c/p01-p03-reference-delta-structural-hypothesis.md",
+      "size": 5304
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9401da88b26acebe59d9f53ae4d6cc238e0355458e99f418670d531b1e23aac3",
+      "path": "docs/evidence/4c/p02-p8-f22-f23-revision.md",
+      "size": 11353
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "12de379a2eaababe97b60cc0903f2dcf217b994950a73285688bfd95f76dad9a",
+      "path": "docs/evidence/4c/p02-project-product-surfaces-screen-contract.md",
+      "size": 20123
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4d6715ff32338a63afc38bfb06afd36eeb51ce4f29310c1c916fc5fdcf8d2754",
+      "path": "docs/evidence/4c/p02-project-resources-functional-wireframe.html",
+      "size": 86494
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ac53849d0ce4e02df289cf3e62f9eb084bd71c7b746907bd0623aa0ac87b1c93",
+      "path": "docs/evidence/4c/p03-authority-feasibility-and-structural-hypotheses.md",
+      "size": 33967
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "068979bd21f02c93be7c416d802dd3703dff3c6882da29bef5715eac50f7ded3",
+      "path": "docs/evidence/4c/p03-product-agent-functional-wireframe.html",
+      "size": 72464
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f0ebf2e81c971f231ce7412f84c8b52102bda4c7808d0691e78eda5e8fe1cf56",
+      "path": "docs/evidence/4c/p03-product-agent-screen-contract.md",
+      "size": 17845
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "20318fcd49f99539cf5490c2a34d57b0bb0d6d350a8791f707fdd25b374dbd61",
+      "path": "docs/evidence/4c/p04-release-operations-authority-feasibility-and-structural-hypotheses.md",
+      "size": 24432
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5eba5ef0d7fa304b20891703192879450a36ff24f11c26aefbaf97e4f3dc4003",
+      "path": "docs/evidence/4c/p04-release-operations-functional-wireframe.html",
+      "size": 68305
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4b6bd50cbb83258b62c8344ef0c54b7d6b1c4de12279a1a1b4e082e1c13f85b1",
+      "path": "docs/evidence/4c/p04-release-operations-screen-contract.md",
+      "size": 12725
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d8cc9200d9aa79d72f170999b00b62248b6ed9e8fcefbf9c2cf992990f4e3c7e",
+      "path": "docs/evidence/4c/p05-project-lifecycle-and-published-app-access-authority-feasibility-and-structural-hypotheses.md",
+      "size": 23812
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e88e6d624996fadd2e83e1b15e545cab161b0887401ac2ace907c7df74b28400",
+      "path": "docs/evidence/4c/p05-project-lifecycle-and-published-app-access-functional-wireframe.html",
+      "size": 39722
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2cdde5052b9e05c70dc4383fd9f813d3104143d90961a2bd557e9fe94ea209bc",
+      "path": "docs/evidence/4c/p05-project-lifecycle-and-published-app-access-screen-contract.md",
+      "size": 10353
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c6480b5600c2e108a86dc463176a3f203ef0662d0cbdb857c436b8baaa660644",
+      "path": "docs/evidence/4c/p11-assembled-product-composition-plan.md",
+      "size": 16549
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6bc8415817c5bfd48a99ef161e4d1d7973f6871d79033672f1271fc67ed30b28",
+      "path": "docs/evidence/4c/p11-assembled-product-functional-wireframe.html",
+      "size": 52165
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ccb5fa897526de1dd3be521aab764e31c7a67fdb77ca3c34f270d8445e48e6af",
+      "path": "docs/evidence/4c/p11-assembled-product-lock.md",
+      "size": 2592
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3e042f016ff6b885e0014ec5f6a6c681f3e482d9fc442631d3f18dfe35e17379",
+      "path": "docs/evidence/4c/p11-faithful-assembly-contract.md",
+      "size": 7978
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4c431cff7aeb8a047d4c571b8de20623f49973f4347e56589379c3ee98571f63",
+      "path": "docs/evidence/4c/p11-rejected-card-summary-negative-evidence.md",
+      "size": 2468
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "57ed3fd74ffd4ff0d1e3cc55e070e4a91b1f973f55dc4f147599332945eac48b",
+      "path": "docs/evidence/4c/p11-w03-shell-coherence-finding.md",
+      "size": 2719
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "90c9b8868551aac1672b326f8f2bff67c2d01984ff0d78fbfed70f3dce23a806",
+      "path": "docs/evidence/4c/p12-cross-block-identity-global-maximum.md",
+      "size": 10125
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "333fd8853cef69d02fada826f424fcb0c6e9d6329d1589fa00804a9c5d1fc059",
+      "path": "docs/evidence/4c/p12-family1-identity-custody-candidate.md",
+      "size": 4187
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "162f7941599fc5666b478ea413f4a6463c34afbca3caa62f3587257c22965fbb",
+      "path": "docs/evidence/4c/p12-family2-governed-adoption-candidate.md",
+      "size": 2890
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "380c914b69c1842f9f1b54d3a2a29e60add97ebba13cee5b4af11f9be30b0f8a",
+      "path": "docs/evidence/4c/p12-family3-serving-access-app-entry-candidate.md",
+      "size": 2792
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4d2b5c670be79ed4c2898dc6cb3e6bb410a397f5f0e918b5b2280677ae514ac2",
+      "path": "docs/evidence/4c/p12-family4-agent-decision-effect-candidate.md",
+      "size": 3321
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "55529e692834f815e5c67adbc552d3ee73e39a560a3844d71907fd09b2d82935",
+      "path": "docs/evidence/4c/p12-integrated-scenario-edge-matrix.md",
+      "size": 13677
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2dadba88e589539472e53e8daa7e7ee92c2dd2408452229bd2cd15916dcb8c9d",
+      "path": "docs/evidence/4c/p12-p11-behavioral-reassembly-candidate.md",
+      "size": 2691
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3689803feb834d48916e47b0803204b8ff1d5bfb689faa759a56f5dba7e3ce51",
+      "path": "docs/evidence/4c/p12-whole-product-fusion-review-brief.md",
+      "size": 7633
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ada4cbc49da3109c403c26b8432ef56e779b17c61d08188d9b5db231e9a38af5",
+      "path": "docs/evidence/4c/p12-whole-product-fusion-review.md",
+      "size": 11964
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6f78dab31cb5e8bb0ed48f214cf1a87a3169e3ceb5347cabf0e0c374061e9c61",
+      "path": "docs/evidence/4c/pa01-published-app-product-agent-authority-feasibility-and-structural-hypotheses.md",
+      "size": 20477
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9d5c98cb3b94c707c667f3f447e47b7f7544b57cd7bb63677118b2585bea98fd",
+      "path": "docs/evidence/4c/pa01-published-app-product-agent-functional-wireframe.html",
+      "size": 37440
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f500a14a1a20f150664adcb1fc6a31cdf63a864a3d57bce306da9c6095dd56c8",
+      "path": "docs/evidence/4c/pa01-published-app-product-agent-screen-contract.md",
+      "size": 13592
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3cad3292cb5cd5509c09521e336b9e8cb565d9549ce537bafadfbdab1217f107",
+      "path": "docs/evidence/4c/pre-p11-global-coherence-fusion-review.md",
+      "size": 17329
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1b634378720f757467b2bf37b91f4991b8fe1b33ec40882e70bdbc4418f7b1fa",
+      "path": "docs/evidence/4c/pre-p11-global-coherence-review-brief.md",
+      "size": 8425
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f3895b352ee3703950bd78c8bfaa11a2a792dea52aa0acad48d9eb0a6d5e5e61",
+      "path": "docs/evidence/4c/pre-p11-operator-adjudication.md",
+      "size": 7301
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "dcc5f895a03841402d898cd3fa67cf1382ef35a3cbe7805883fcd8935bb1279c",
+      "path": "docs/evidence/4c/pre11-bounded-recompile-proof.md",
+      "size": 3446
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e80eeac915ffd857818a58a2830a1333c7840612af39992cb6dcf25e05603f76",
+      "path": "docs/evidence/4c/pre11-f03-trusted-bootstrap-global-maximum.md",
+      "size": 6146
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d5fe4d0eedb19e2b871fd9733860f658405a578c4ba7fe66f44c2971770940fe",
+      "path": "docs/evidence/4c/pre11-f04-originating-run-effect-filter-selected-realization.md",
+      "size": 3572
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0aa5d86aada0a9ac5d216084ff81f719ea303c4add78a3d55c7708a599a118c0",
+      "path": "docs/evidence/4c/pre11-f05-build-reference-discovery-global-maximum.md",
+      "size": 8396
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "59e17ba8cffacce0c7d29f01b8d6eae181573a9680281e5ee5f0c8e2ac877391",
+      "path": "docs/evidence/4c/pre11-terminal-p10-pattern-vocabulary.md",
+      "size": 5177
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7f9d5bd8f7e1f7b9d20672d106aca1a2dc0ef2f42028d00cbfc20721f7f61c1a",
+      "path": "docs/evidence/4c/t01-trusted-setup-functional-wireframe.html",
+      "size": 45319
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b494c967703c6064b41af4019e89a5f59843a5972e38f06266a2f83dc17b5684",
+      "path": "docs/evidence/4c/t01-trusted-setup-screen-contract.md",
+      "size": 17823
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4a0c2581c0b8b38e68e9326b686c4b8adc6ae7c096c801a99e2bba27337b4223",
+      "path": "docs/evidence/4c/t01-trusted-setup-structural-hypotheses.md",
+      "size": 6513
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8bca880026d4a82bfeda6f7037a1a4a660eb7c2082690d649599ac686fe4e457",
+      "path": "docs/evidence/4c/w01-projects-inception-wireframe.html",
+      "size": 47019
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "94aacbb2a8d22a4a65f9de01dbffd514aa654e3f7f2877406d9fc64257a662d7",
+      "path": "docs/evidence/4c/w01-screen-contract.md",
+      "size": 17680
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "dfcaff1c8ead1f19b398a5c74b005aea1bfa3d796ea66fc201e460093ce9a101",
+      "path": "docs/evidence/4c/w02a-brain-functional-wireframe.html",
+      "size": 52809
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1636f2fb4dcd63abd1f888f35bf6af8a8679c1a496757a57b146405b4515c0ef",
+      "path": "docs/evidence/4c/w02a-brain-screen-contract.md",
+      "size": 20577
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "329e3e4097291b9bbaea6840ed2426f07d5588426f0dc45413d2a3000410c263",
+      "path": "docs/evidence/4c/w02b-connections-functional-wireframe.html",
+      "size": 50645
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1fefb7e3ac95a25e5a9aa4548b94029489314444d44f4fe7669e0d823edb61f3",
+      "path": "docs/evidence/4c/w02b-connections-screen-contract.md",
+      "size": 18695
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "dcdafc34bebe4da693954aa9de914604cf44bb2187b3ae582ae2de202548f3f0",
+      "path": "docs/evidence/4c/w03-people-access-audit-functional-wireframe.html",
+      "size": 53808
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "06ed28ed91818f1ea1647799bcf07a9dd013c717494d396ec93f1eb77ecfa527",
+      "path": "docs/evidence/4c/w03-people-access-audit-screen-contract.md",
+      "size": 22699
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e2e3e111878c6c5df0c8093bcca90f193d8dd72937169a874e07455e265ab6ea",
+      "path": "docs/evidence/4c/w03-structural-hypotheses.md",
+      "size": 8455
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "02e569fb17c6ac9dd96c29a8f3ccd429c298634b3e7fb401e3fe429d07f688ec",
+      "path": "docs/evidence/4c/w04-agent-catalog-functional-wireframe.html",
+      "size": 25808
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ea74c5680d0c00ae9040ff5cacff03e35acc9b110ea0e613ca780a3982e9f34b",
+      "path": "docs/evidence/4c/w04-agent-catalog-screen-contract.md",
+      "size": 13647
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1dc5c29673b67ece2ccf0873b4c671664b3bf134d3f69865015b9e501c167ac3",
+      "path": "docs/evidence/4d/4d-01-protected-property-ledger.md",
+      "size": 56622
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "050d91352824587745555798ff51f94f90576649b1532543741a3c41e4141b57",
+      "path": "docs/evidence/4d/4d-01r-consolidated-adjudication.md",
+      "size": 10086
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "581420c95d5b583baa89fc73567dd0db2b5c3bc70dddbcec89469f5f3e0a8551",
+      "path": "docs/evidence/4d/4d-01r-strategic-opportunity-challenge.md",
+      "size": 19305
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "cd7dbe2451b477deebcfd98ae211244d33df2a7c957aa23f4a0d7c9d6e813b30",
+      "path": "docs/evidence/4d/4d-02-project-scaffold-profile-and-ownership-contract.md",
+      "size": 18976
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "930f8c1660f6e6b8c3a7ac1ac26ac4065e14c62284022983707eaae7d4ad44e0",
+      "path": "docs/evidence/4d/4d-03-paved-road-property-contract.md",
+      "size": 30963
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "dd2ab831a261b8881709097a7fd758f867c51d37c1dbe36d4a0f138b2a819de4",
+      "path": "docs/evidence/4d/4d-04-runtime-family-applicability.md",
+      "size": 25372
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "72a90b7c201e6557cde72b79701162274304448c17ac13f6ca26b3f7665a9352",
+      "path": "docs/evidence/4d/4d-05-rf01-global-maximum-reference-review.md",
+      "size": 8036
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "757827d6f36b818f4dab48c854a1a179414d22bf313624445b8c1c8dde314b4e",
+      "path": "docs/evidence/4d/4d-05-rf01-profile-compiler-selection.md",
+      "size": 17719
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9422427f9e2df390d8484a54b675ae2f49222d409267b2a6d5f920a9aeb9033e",
+      "path": "docs/evidence/4d/4d-06-r1-foundation-conformance-version-escape-evaluation-contract.md",
+      "size": 17238
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "43596352175efece9aec15d89637e5d4cad19dc46b71de1eeb4321d713a1fc66",
+      "path": "docs/evidence/4d/4d-c02r-builder-capability-falsifier-adjudication.md",
+      "size": 8244
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2baeef3577c692b447731aa13aa7023c4a752545202ab27f95a346dc563fd5b8",
+      "path": "docs/evidence/4d/4d-c02r-current-mastra-builder-capability-probe.md",
+      "size": 7200
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "291556f94ac0745384c05bd9f71aad4bae69403708c69294cb8d6349a6409e0c",
+      "path": "docs/evidence/4d/4d-opp-a01-agent-experience-comparative-study.md",
+      "size": 16676
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5781f98f2a95fc54b6307998ee28ba33a42178e196b42eba0cdd846ffe57108c",
+      "path": "docs/evidence/4d/4d-opp-a02-generated-consumption-comparative-study.md",
+      "size": 12129
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8806e8c560e9cf1c146fcec9aecbab54ce9f86009fa06ee82e4b4250c1060e82",
+      "path": "docs/evidence/4d/4d-opp-a03-traceability-impact-drift-study.md",
+      "size": 9397
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "12eefb214753ed759bdfc59ba7f29f5a299c510bba11053cabf708ae260fef59",
+      "path": "docs/evidence/4d/4d-opp-a04-projection-review-mechanism-study.md",
+      "size": 7587
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f88ec9df2426db39533c709140a5d65f4c023d300232979acab2be814cd0dc34",
+      "path": "docs/evidence/4d/4d-opp-b01-backend-router-module-study.md",
+      "size": 13310
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ec363807bd2e6debbe33bd9d2a9cd27f8e54e540a2683c3ebecb878d94677f61",
+      "path": "docs/evidence/4d/4d-opp-b02-postgresql-migrations-cr1-study.md",
+      "size": 16223
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "42229febd51ffcdd415d5d353c5d5f9cdfffca7bca4fab986f4b63d969caf9cc",
+      "path": "docs/evidence/4d/4d-opp-b03-governed-sync-mar-study.md",
+      "size": 15593
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "180d039953427f14e2249f1157270faa68db18c8b26a4053277af65be73c3620",
+      "path": "docs/evidence/4d/4d-opp-b04-sankhya-oracle-reconciliation-study.md",
+      "size": 11923
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "cee1b58cfba98814c8ce39006372d627207d65046333a2d7a398a2db31e61189",
+      "path": "docs/evidence/4d/4d-opp-b05-scaffold-generation-distribution-study.md",
+      "size": 11924
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3d09c88dbfe7b047e0bb45be9bea280499cdaa6a95b01a38da242dee7592b955",
+      "path": "docs/evidence/4d/4d-opp-b06-conformance-dependency-supply-chain-study.md",
+      "size": 11667
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "db80a3e10f9a79cef23a55b45bb7a4cac9d76c49f6ffb4f075d1d516b13adcea",
+      "path": "docs/evidence/4d/4d-opp-b07-release-serving-config-study.md",
+      "size": 12781
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c146e96d58364be99569fe58dc61f0a9e0abb8895625d174e51c92692730f4b2",
+      "path": "docs/evidence/4d/4d-opp-c01-durable-execution-workflow-runtimes-study.md",
+      "size": 13188
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7b060bee4308901aa02c02debf70008d41cbe5c1066d5664bb45fe12f6649cbb",
+      "path": "docs/evidence/4d/4d-opp-c02-agent-memory-reconnect-learning-study.md",
+      "size": 13640
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "fc84eec3ea3224d15dc8a97b054714e937f4540bb6ea40319a0a7c12891da219",
+      "path": "docs/evidence/4d/4d-opp-c03-agent-composition-and-protocols-study.md",
+      "size": 11439
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "da665efc0857f66ace6ca392bdf55adab4f80f34ca44c278f013b999f8a279b7",
+      "path": "docs/evidence/4d/4d-opp-c04-evaluation-trace-intelligence-observability-study.md",
+      "size": 13697
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b235e1697178fbc132346e89b79c89c5d8ed08f4d4737788396904fde4699f6c",
+      "path": "docs/evidence/4d/4d-opp-c05-data-pipelines-transformation-reconciliation-study.md",
+      "size": 20536
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "fec11ca79e7882af6ffdc03aced57982c899e8806135942e850d9995ff7cd45d",
+      "path": "docs/evidence/4d/4d-opp-c06-policy-security-compliance-constraints-study.md",
+      "size": 15659
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8e446c7efe04684618762121a08cb92de2a8bca848772a3fd39f1f712c9ab23c",
+      "path": "docs/evidence/4d/4d-opp-c07-brownfield-assessment-study.md",
+      "size": 18347
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f0e3fbb07a3eb0cc9e47e586c66223384fc9599c29ee92ef4134cc11b0658dfd",
+      "path": "docs/evidence/4d/4d-opp-c08-saas-private-reachability-dedicated-deployment-study.md",
+      "size": 17654
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "131ac985971da8d4fbd0c8b7e3b538d221ff58d1a05cad6c179dfb29d52042ac",
+      "path": "docs/evidence/4d/4d-opp-c09-design-system-headless-primitives-study.md",
+      "size": 17524
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c24f200db071a03e7ca926c50643b7a7d98d0796366a8753fe404571e2e139e9",
+      "path": "docs/evidence/4d/4d-planning-acceleration-convergence-proposal.md",
+      "size": 3610
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "593790f8c56854a6cc82b7d4bd2715ed5a6f622d9665ef7adeacb2af801bae84",
+      "path": "docs/evidence/4d/4d-planning-acceleration-independent-review-adjudication.md",
+      "size": 10798
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b3e7f9d67618663b7ae8c4ee2e60add0f6170624603ecfe27ca20ffd4682f00e",
+      "path": "docs/evidence/4d/4d-planning-acceleration-independent-review-brief.md",
+      "size": 6970
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7903abedfc2916c66e6e4692b430751aa040a84fa9f2723633ba2d5c3ae535a4",
+      "path": "docs/evidence/4d/4d-r1-a0-foundation-pin-manifest.json",
+      "size": 5888
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "29b57dcac60b27918c1fbe89d5bcc9454b2e8aa138ceb50210c2dfaa1b060ac4",
+      "path": "docs/evidence/4d/4d-r1-autonomous-execution-charter.md",
+      "size": 8904
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "cbc182fd7deddac5452ee1a971e835bc0b28e1e634950689bf86520af35fc586",
+      "path": "docs/evidence/4d/4d-r1-foundation-batch.md",
+      "size": 4438
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9d02c9f4a63a139ac2a9813d1f862c137d9db018577a87a071c19394df17e107",
+      "path": "docs/evidence/4d/4d-r1-foundation-independent-review-adjudication.md",
+      "size": 5518
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b2f6d25a20e63c375f87d07fdea5b4f0f977e53599a33b49540c882e537be9a9",
+      "path": "docs/evidence/4d/4d-r1-foundation-pin-manifest-r1c14-native-successor.json",
+      "size": 8397
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "55d9c70e122795e2441839605179ef5fdb7194091a2326c9b2b9644c508ec750",
+      "path": "docs/evidence/4d/4d-r1-foundation-pin-manifest-r1c14-successor.json",
+      "size": 2728
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "137d201817de49bc8add744f9de30023823f85724544c26c89d7f77a50526601",
+      "path": "docs/evidence/4d/4d-r1-foundation-pin-manifest.json",
+      "size": 11806
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "eaf436908f09bd1a50c15877e67e4d73fe33014a43a4c76a58f1bfcc9d197ba8",
+      "path": "docs/evidence/4d/4d-r1-foundation-probe-batch-result.md",
+      "size": 2287
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f2666bac897105cd13a8d17a588912df1bd76f94154e15c0e042d0d304d27bd8",
+      "path": "docs/evidence/4d/4d-r1-foundation-probe-grant-request.md",
+      "size": 13144
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "704bdb640f638dd69732a79284cde045698cc60f6e4d3bbc0f4e172f2151a542",
+      "path": "docs/evidence/4d/4d-r1-foundation-selection-candidate.md",
+      "size": 22575
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "459cc9648c3e3d1cfafe5622be08cf1a5243089527ce895ea00ee966f7a86e18",
+      "path": "docs/evidence/4d/4d-r1-g0-implementation-result.md",
+      "size": 4864
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "35ef5eae8617ac591f3a0e7c57deaaa73ac62526b3d690ad46169fa23a7ecc53",
+      "path": "docs/evidence/4d/4d-r1-operation-reachability-map.md",
+      "size": 5462
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "020ecc7105e4a2921cec7d7f22feee909436c7c45d4e548bdb99cb1c6770dc7e",
+      "path": "docs/evidence/4d/4d-r1-operator-pending-actions.md",
+      "size": 3072
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "24f3869b3fe331be47a122f72464a41c2e867b4a11e39c389caa6e1e7e4b8a36",
+      "path": "docs/evidence/4d/4d-r1-pack-a-admission-result.md",
+      "size": 4197
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "10f03adc3f31c64d7bfb2217a05948e2fc596ace85b67f2f666cb6288dbfe35d",
+      "path": "docs/evidence/4d/4d-r1-pack-b-profile-compiler-result.md",
+      "size": 1822
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d6eb1d23e9d129ebedeb3a870793ef5086908120646b1b38103081ab950b1656",
+      "path": "docs/evidence/4d/4d-r1-pack-c-http-identity-session-result.md",
+      "size": 2021
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7f05029c7f0dc22b03806c33df079cf928acfcb5444dbc0d03ff5d3f63a04a4b",
+      "path": "docs/evidence/4d/4d-r1-pack-d-browser-foundation-result.md",
+      "size": 1682
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "06be326b7ec5aff6387a87aa5784a5509bb502fa68e2e40499792d600b4f5f5f",
+      "path": "docs/evidence/4d/4d-r1-pack-e-postgres-migrations-result.md",
+      "size": 1755
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0b9812514cdb2169cef5362bec8a2a0c8113da02d3b504d6876d029a3e9689e7",
+      "path": "docs/evidence/4d/4d-r1-pack-f-gates-result.md",
+      "size": 1393
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7044c07397f7c9c1f76512f70d72f476ddece9e0dd1e89a8d728aac959b14496",
+      "path": "docs/evidence/4d/4d-r1-r1c14-git-source-custody-result.md",
+      "size": 3493
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e5cc17006fb816c8863eb07b17120f8b763b2530ba0b74f93f3c603d1e48b518",
+      "path": "docs/evidence/4d/4d-r1-r1c14-native-readmission-final-review-adjudication.json",
+      "size": 6922
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ce1cc2cc0b36f02565c6fda1f19bb788b5dcefa5ff2908327a352aa7c3c1408f",
+      "path": "docs/evidence/4d/4d-r1-r1c14-native-readmission-result.md",
+      "size": 6290
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a6d74e5c8b4ebe1173f0e5d3a0764958bff36b6a665762f49e797a10de7cbfa2",
+      "path": "docs/evidence/4d/4d-r1-r1c14-native-readmission-review-brief.md",
+      "size": 7995
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5017a20fe79c32bde85f762c21c9e3833783c2de4ad630251ae577036971711d",
+      "path": "docs/evidence/4d/4d-r1-r1c14-native-readmission-v11-review-adjudication.md",
+      "size": 4097
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3c5f73a07e333fd98a19cb9d3b0f6437ddd0244db30b6cfcd3ae3ffc12d1a632",
+      "path": "docs/evidence/4d/4d-r1-r1c14-native-readmission-v12-review-adjudication.md",
+      "size": 4752
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "224797b66b73b142398cbf3386db350d31d51627d872092072abf383da7b70c0",
+      "path": "docs/evidence/4d/4d-r1-r1c14-native-readmission-v13-review-adjudication.md",
+      "size": 2208
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "bd9b57e273c072ce519755b2d1bf1501b4ff1476959ee54a095190182131209c",
+      "path": "docs/evidence/4d/4d-r1-s1-implementation-result.md",
+      "size": 5984
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9ba782f9044e48479e5a57f44dcd5b81f042860181cfc0346426074a72bd63dc",
+      "path": "docs/evidence/4d/4d-rb-builder-runtime-admission-stage-packet.md",
+      "size": 19667
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0ed7ed15a52dde184d5eda31c0674565a65493483bccf61d47d21a37fd881fd4",
+      "path": "docs/evidence/4d/4d-rb-c0-candidate-pin-manifest.json",
+      "size": 17986
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "187abd6b482b76e898b4a48090ac4c985a7932c9b9f4553ec796c0c01519aa36",
+      "path": "docs/evidence/4d/4d-rb-c0-frozen-planning.md",
+      "size": 713
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c713401c031ad797afe333fdfa0214b178654735345f8aa661e6805958b3df42",
+      "path": "docs/evidence/4d/4d-rb-c0-worker-eval-and-probe-design.md",
+      "size": 21090
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d25b4bd57024e976314126f9d5a14a29372ad15ce747747fcba16be88bdf72cd",
+      "path": "docs/evidence/4d/4d-rb-c1-live-probe-grant-request.md",
+      "size": 7995
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b80978396baaf86a60bc81d24c250f51272874e83bb04fa68634ab6d281c234b",
+      "path": "docs/evidence/4e/4e-r1-composed-coherence-candidate.md",
+      "size": 7284
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "fdf793654f3636c701b3131e654d21a86fdcb147551b5b28b787bbcebe447a76",
+      "path": "docs/evidence/4e/4e-r1-f01-missing-project-cognition-runtime.md",
+      "size": 6790
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "bdff2f656afd5eafe1b7a6442e98f68a9c02aa9ee460a8e3a0eb564feb46c820",
+      "path": "docs/evidence/4e/4e-r1-f01-project-cognition-exact-selection-candidate.md",
+      "size": 12866
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0e810fdc2944527d3fa02d5c5f0bc63f2ccf68331d98b58c12d2838762116f7a",
+      "path": "docs/evidence/4e/4e-r1-f01-project-cognition-global-maximum.md",
+      "size": 8567
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e9fe4ccdbcac9e3a05161a3358cd81a8fc46ef524f4895a5c9b105e9d08a02fb",
+      "path": "docs/evidence/4e/4e-r1-f01-project-mastra-admission-candidate.md",
+      "size": 13490
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "675e752224668240bc3cea1fa3ceffc256f36fa29ee8cb58750ccd4879711b43",
+      "path": "docs/evidence/4e/4e-r1-f01-project-mastra-admission-probe-result.md",
+      "size": 7335
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f199024b10a85ddcb0913f8544c417286fa9ba768d472ff1828eaf0e91472e6d",
+      "path": "docs/evidence/4e/4e-r1-gitinfra-and-bootstrap-correction.md",
+      "size": 4650
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2be8f4bcbb01f2e8d2fe30fd921ddf0e8e8a2a5bbcc1adae2294214cfe27ad7a",
+      "path": "docs/evidence/4e/4e-r1-independent-global-review-adjudication.md",
+      "size": 4275
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3100f4adc9fe2080329de155278b3ff4f3952d65b9d649b13eb6ed35f2d31b42",
+      "path": "docs/evidence/4e/4e-r1-independent-global-review-brief.md",
+      "size": 5499
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "44f859101a629d6cbb2ee0406e6f787486a85a7591d292fa77e74e53910dd8ab",
+      "path": "docs/evidence/4e/4e-r1-to-4f-handoff.md",
+      "size": 3813
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9d94d4fb11182313a9528191c3fef632e129f893389b3b23ce4934b06f7f2669",
+      "path": "docs/evidence/4f/4f-r1-a0-p4-ci-wiring-correction.md",
+      "size": 5309
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "171ca73bae62430dc8797b7e31731adb58221522980d00b92d2059c917890100",
+      "path": "docs/evidence/4f/4f-r1-code-architecture-directed-convergence-proposal.md",
+      "size": 25299
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1d0ebddd7f3b222c90cad14acc0c30a8dd0ddfc2cf8f0230934e8ab2fcc97034",
+      "path": "docs/evidence/4f/4f-r1-code-architecture-global-review-adjudication.md",
+      "size": 7096
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "90a5d92bdaae738dc36afa0527292fcfa162405274e81714443864229fa1405d",
+      "path": "docs/evidence/4f/4f-r1-complete-implementation-final-confirmation-brief.md",
+      "size": 5629
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0b2a14fad0c78c148e0c2b6fa75392b07114faf82b0a90f9c22c5a4a0f040995",
+      "path": "docs/evidence/4f/4f-r1-complete-implementation-final-review-adjudication.md",
+      "size": 7361
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3c4f0ce79ad369af82cd8aff87fd89a78bb55ca5bb02e84b77f46f572ec5ecd8",
+      "path": "docs/evidence/4f/4f-r1-complete-implementation-review-candidate-v2.json",
+      "size": 4077
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "939bc0b794549ead7f27f44e7e1968543e74d27ac2d7125f755a8e4a6c8d6be3",
+      "path": "docs/evidence/4f/4f-r1-directed-convergence-proposal.md",
+      "size": 9957
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "eca0271ade241392f2bede04e2018534ec0fcbdfc6eb52760c128e5ec1f69f92",
+      "path": "docs/evidence/4f/4f-r1-implementation-slice-plan.md",
+      "size": 22865
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "98e756282776e28eb00cbe62974aa3308ce341702185a791b76724826a270b00",
+      "path": "docs/evidence/4f/4f-r1-independent-global-review-adjudication.md",
+      "size": 5618
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "34b5a3190c7a364750914944912e8be85216826bed8b0a88e59e3cad96000ffb",
+      "path": "docs/evidence/4f/4f-r1-independent-global-review-brief.md",
+      "size": 9425
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f729ce488b2f705957b06f7231e449ec89aa0267cffa2ee21c5d528baf8698b3",
+      "path": "docs/evidence/4f/4f-r1-project-opus-composed-proof-receipt.json",
+      "size": 1861
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4ac7322ccfdbc1122a00abd6064d58db46943a064d5e799180ca72c47e7a8725",
+      "path": "docs/evidence/4f/4f-r1-project-opus-model-switch-final-confirmation-agy-result.md",
+      "size": 1547
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3e3ae23bdd9deb1ed1187323b46fa6024e4472ff6424d42c81685618f82ddf1e",
+      "path": "docs/evidence/4f/4f-r1-project-opus-model-switch-final-confirmation-brief.md",
+      "size": 4128
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8a2053a12600bb11d184b72183633ca74858effe9233814f3f8308cdf93a126d",
+      "path": "docs/evidence/4f/4f-r1-project-opus-model-switch-final-confirmation-opus-result.md",
+      "size": 2813
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "94a47ae7172cf131ff9715faf0e365b462c62dfbc4f12600bc38fc419c9f16c7",
+      "path": "docs/evidence/4f/4f-r1-project-opus-model-switch-independent-review-brief.md",
+      "size": 5039
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "081dcdd76f4d1b41be7ae57da8b94ac777681c7003ea2616f94dbf46bc9c6fb4",
+      "path": "docs/evidence/4f/4f-r1-project-opus-model-switch-independent-review-result.md",
+      "size": 7840
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b36793361e699ff5473b51a8fdec5d632790f76df87bdac2a8303d882772ed85",
+      "path": "docs/evidence/4f/4f-r1-project-opus-model-switch-result.md",
+      "size": 3177
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ff81f7ca1e3f89ce21320c9a802cb1482427885c1d9efa9fecaf19e7a23f3609",
+      "path": "docs/evidence/4f/4f-r1-project-opus-model-switch-stage-packet.md",
+      "size": 5238
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c10950842f16cf8165604bc92ae051a5dfed1c049914f3d616eecb1c7312f3f0",
+      "path": "docs/evidence/4f/4f-r1-r1c13-p0-independent-review-adjudication.md",
+      "size": 2799
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6d277174bfa1d8ddb81bdb5285ffeb9bf80158ca50c93f0d1e25eeb8c8e03065",
+      "path": "docs/evidence/4f/4f-r1-r1c13-p0-response-boundary-result.md",
+      "size": 4140
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ed0742cbcd8d7a86f85516ef67812bd8430baec863eac823bf68b445c2dfae4f",
+      "path": "docs/evidence/4f/4f-r1-r1c13-p1-project-mastra-admission-result.md",
+      "size": 3445
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0e2ce2f67adc725d0258f0fc8f6a91788771fd2ad950da8ab7b8fc26b9328882",
+      "path": "docs/evidence/4f/4f-r1-r1c13-p2-oauth-admission-result.md",
+      "size": 2289
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "43868e9b989d8f97b87a7476a4b343ce3bdec64b41993919603d522e7d8e6369",
+      "path": "docs/evidence/4f/4f-r1-r1c13-p2-oauth-final-review-brief.md",
+      "size": 3389
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e5b85d9aa508a1987dd0809a04e45a2727c54cfb60d94be45e82a34e91655964",
+      "path": "docs/evidence/4f/4f-r1-r1c13-p2-oauth-independent-review-adjudication.md",
+      "size": 3884
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "24df3403e7c0ff2b32f77783b7703ac9957945afa6868da08d217de68cd523c4",
+      "path": "docs/evidence/4f/4f-r1-s2-implementation-result.md",
+      "size": 6101
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "414eaf028707254315318b9b39c7f58b08bbc0919cc48fc8288cc124967b8d85",
+      "path": "docs/evidence/4f/4f-r1-s2-p0-closed-path-reopen.md",
+      "size": 5409
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3fdd6f6b6edb3ef75d9fb1c9ce749ee692fb6d6b268852d3076ad7b1a29e407c",
+      "path": "docs/evidence/4f/4f-r1-s2-p5-generated-classification-reopen.md",
+      "size": 3953
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f3678477a43d9a48b9733250d06c7c63d2d6aa2565264b75bdc38aad8b67b7a7",
+      "path": "docs/evidence/4f/4f-r1-s2-p5-source-ref-classification-reopen.md",
+      "size": 1696
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5d27a988932a693fd54baf4d82ca589eba474ac2765139056f251401e4a82c7d",
+      "path": "docs/evidence/4f/4f-r1-s2-physical-convergence.md",
+      "size": 8082
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9ced057cfd3014b07ef53c2045c517402ef7985d2dac7b171ca2f2f4d8d4d1b0",
+      "path": "docs/evidence/4f/4f-r1-s3-git-execution-binding-candidate.md",
+      "size": 58744
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "afae1a0ce1adeb02d9fc8d305b4c2783c87b23ee36b17bd4d0bfb845e8fcc956",
+      "path": "docs/evidence/4f/4f-r1-s3-p0-implementation-result.md",
+      "size": 3712
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "318272379beafe334b20215f31a9b89d106c03139c771cd323373ea0ab36aad9",
+      "path": "docs/evidence/4f/4f-r1-s3-p1-implementation-result.md",
+      "size": 4489
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a6ab08bf0f9a0867978d31733cab5c0422b9fd6e881f9893e2e6cb6571b3d2b4",
+      "path": "docs/evidence/4f/4f-r1-s3-p2-implementation-result.md",
+      "size": 4376
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "62faeee4cdbe6d1ab8256effd77e13523798db9e09355299c22afa7b3fff4020",
+      "path": "docs/evidence/4f/4f-r1-s3-p3-implementation-result.md",
+      "size": 3211
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "04bc7de6dcfdc81227a405481949f470c9f29f6de08b3f6aa819d4df7b6e9dff",
+      "path": "docs/evidence/4f/4f-r1-s3-p4a-implementation-result.md",
+      "size": 6138
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "62f560d7d0a6dbce870bb018c438ba110f45b104de7d4cb06ede373f06722dcd",
+      "path": "docs/evidence/4f/4f-r1-s3-p4b-implementation-result.md",
+      "size": 7833
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7d8de575e277592ce1c43f1b8dd753d67ea61dd5b8d556cbd3a57a7ccf4cc938",
+      "path": "docs/evidence/4f/4f-r1-s3-p5-implementation-result.md",
+      "size": 8894
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1e962516b1170ed40053fb89dd3abf8b9ffe855da43beb32707df3b76debcb9c",
+      "path": "docs/evidence/4f/4f-r1-s3-p6-implementation-result.md",
+      "size": 8071
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "543aaec5e28a1835fdd20ae4578dea25387164e2a721ec00fcebe3a4781c9041",
+      "path": "docs/evidence/4f/4f-r1-s4-p0-implementation-result.md",
+      "size": 3334
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "51a363c73839884ec5a35dca33327380c2841163e9b89ffb9d833dd4fced4396",
+      "path": "docs/evidence/4f/4f-r1-s4-p1-implementation-result.md",
+      "size": 3705
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "dfd1d854d1946848c0b5f0b773e6d61d9ce26c9c2bfcae94683a6884a9a0ff17",
+      "path": "docs/evidence/4f/4f-r1-s4-p2-implementation-result.md",
+      "size": 3236
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1b71319777672fd433cf0db1e9fc81d9cbf46dd9cd76c022340d9ad914ecf6f3",
+      "path": "docs/evidence/4f/4f-r1-s5-browser-hardening-candidate.md",
+      "size": 10840
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ab2771f54d2388906bc5d5e58766169384fb72f13cc6fd5b98cd5986750325da",
+      "path": "docs/evidence/4f/4f-r1-s5-final-independent-closure-brief.md",
+      "size": 4382
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "59eb906ca682b7fa593d6546b94c7211ad1d241ad983aad2edce224fd6a9377b",
+      "path": "docs/evidence/4f/4f-r1-s5-final-independent-review-adjudication.md",
+      "size": 3298
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3a3901f77037f6665e79d3b32940bc5b34eae2694ac3a2a8f78db6c312d19f53",
+      "path": "docs/evidence/4f/4f-r1-s5-implementation-result.md",
+      "size": 5949
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3914173f24db2dce9702caab07d9b0ddc32819fd34cfdef1b5194319eb72ec54",
+      "path": "docs/evidence/4f/4f-r1-s6-final-closure-result.md",
+      "size": 7116
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7d57ea4cafa8f7c4f55cd9bc58f7e4fae95f7fd037083fe91f90b5c4d7b7566b",
+      "path": "docs/evidence/4f/4f-r1-s6-final-closure-stage-packet.md",
+      "size": 5632
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "14aec162bca4e4d492982cb26072758283dd1cb21402b7c856127337cab4e8ca",
+      "path": "docs/evidence/4f/4f-r1-s6-p0-project-inception-result.md",
+      "size": 3641
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3ab72da8b5c6354861192fc9ee7183515c9c19c139f671c412a0167e06ef2ef5",
+      "path": "docs/evidence/4f/4f-r1-s6-p1-project-inception-refinement-result.md",
+      "size": 3416
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0240d3e7513d6a7285a6a58f1a7d3a76a6f89f8f92b7ac5a482e553defb4aba9",
+      "path": "docs/evidence/4f/4f-r1-s6-p2-baseline-explanation-result.md",
+      "size": 3649
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a92cb8ac28f35df539bace2f43f06dd23a2bdebd79b8aa440784a4c70d0a08a3",
+      "path": "docs/evidence/4f/4f-r1-s6-p3-baseline-explanation-browser-result.md",
+      "size": 3012
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6b73aaaf21be7abba75fa2450d727983322019a7b1fc9ad9e9d4c582984b7370",
+      "path": "docs/evidence/4f/4f-r1-s6-p4-project-inception-browser-result.md",
+      "size": 3602
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f8717ed9154a7f4a49a00fa37fa6c151e33f866c3dac7bc20d51e0acd08f2a05",
+      "path": "docs/evidence/4f/4f-r1-s6-p5-project-refinement-browser-result.md",
+      "size": 3646
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b769c272944934ee35d40a133afa7930d2f70c6db3be3e343028cbc288828076",
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/bootstrap-sources.json",
+      "size": 28514
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "61512d399523266fa36964d04e724b082a1d681439f869e98c00a4043bde8618",
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/p0-pass.json",
+      "size": 924
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7ad337d036a547cb4024739cf5f05e9f88a920f2bc5678335551c687ec8fc26c",
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/p1-pass.json",
+      "size": 1409
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "80ef42bc89f4e97d931f24ee5d92687fd60f2abc963da65900bfcd09aaa27d89",
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/p2-pass.json",
+      "size": 2706
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "be2957335d46b81e4dbdf97e2473e07dfb49379e8b9ace3acc04707a13786ca7",
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/p3-pass.json",
+      "size": 1413
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3ec04c1f60bfc121cad751ca014da60c081d9d8f93200f47576d32d118a787cf",
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/p4-pass.json",
+      "size": 3640
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "980790152d983621e78690265d7345531396702f5b64049eac111adf0de97e11",
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/plan.json",
+      "size": 11118
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e7332714d2a414396ebb7845307056432322274abed41b1d2a1eb4f38973f405",
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/validation.json",
+      "size": 1327
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a377ea37ab93f9944cc3d9ffdf6633304eeadbddf392d368014ad2c80c770f9b",
+      "path": "docs/evidence/4f/s2-p5-reopen-v2/lineage-bundle.json",
+      "size": 68005
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "24fdef8ad89316269d4a5202253f980ed52b1dfe174a36e76e18da1c215f0f59",
+      "path": "docs/evidence/4f/s2-p5-reopen-v2/p0-pass.json",
+      "size": 924
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "397862e2c224158bd35027bf1c183af156c1e2366ed9824acf15183c384360d3",
+      "path": "docs/evidence/4f/s2-p5-reopen-v2/p1-pass.json",
+      "size": 1409
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e417b9911c6d98608716b632c4abf3f1bbcfd1e0f7c37488c38475ce55879672",
+      "path": "docs/evidence/4f/s2-p5-reopen-v2/p2-pass.json",
+      "size": 2706
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5b2786e1431ff70193dde2c2495a7c06d57633498057a4f2c93a61ffdeb5980a",
+      "path": "docs/evidence/4f/s2-p5-reopen-v2/p3-pass.json",
+      "size": 1413
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "90e0150a9f1aeab007c1a9fd413cf7866dfd884f82ab22b09557df616779b55c",
+      "path": "docs/evidence/4f/s2-p5-reopen-v2/p4-pass.json",
+      "size": 3640
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "cb08957c590541c40c93397a9ad5339ceaa4427b16328b8cfadb24740422ace7",
+      "path": "docs/evidence/4f/s2-p5-reopen-v2/p5-pass.json",
+      "size": 2481
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b281cdaf90cf44a6ad509f80653b3dc05c9aa2d53d264d99b4ffb1f69471abd6",
+      "path": "docs/evidence/4f/s2-source-ref-reopen-v3/lineage-bundle.json",
+      "size": 52598
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "702c27c47edf994808c450b036c4c74f1ad715b954746e24de1125c34d358ed2",
+      "path": "docs/evidence/4f/s2-source-ref-reopen-v3/s2-p0-pass.json",
+      "size": 924
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9630f398f26db51c11ded6310be7dba9de9e914e79aa848f7ef2ebd68798b919",
+      "path": "docs/evidence/4f/s2-source-ref-reopen-v3/s2-p1-pass.json",
+      "size": 1409
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "16588b5a86f1e2122e5584ad8479f68c48ade02fbb2fe093fc56b17f4ba74051",
+      "path": "docs/evidence/4f/s2-source-ref-reopen-v3/s2-p2-pass.json",
+      "size": 2706
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7878a5df842abfaa30278c9a0a611c956679197c0c8633d61289995b0804a853",
+      "path": "docs/evidence/4f/s2-source-ref-reopen-v3/s2-p3-pass.json",
+      "size": 1413
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4a706353f1192d4018a534ae0822ea9c7a041b4b3cca80fe00027410eebbeaae",
+      "path": "docs/evidence/4f/s2-source-ref-reopen-v3/s2-p4-pass.json",
+      "size": 3640
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7c180338bd7c939459331e40e7cd26b886e46d12918a88c420699db158ced1ff",
+      "path": "docs/evidence/4g/4g-r1-directed-convergence-proposal.md",
+      "size": 2949
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2a96850cb16a83021f4dea57e33eeb6a4587d3cfda9e0e239829d9ec1c51f5a4",
+      "path": "docs/evidence/4g/4g-r1-independent-adversarial-review-adjudication.md",
+      "size": 4104
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9a0f0f28989ca5fb50dfbb345bccc1f21cb656509fb30a70cc55231e053fce5a",
+      "path": "docs/evidence/4g/4g-r1-independent-adversarial-review-brief.md",
+      "size": 3420
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "04c51bdc1cf7ed49ea068d5c84785423b4de47316c4d56071160a23e6f89b59a",
+      "path": "docs/evidence/rc01/rc01-operator-walkthrough.md",
+      "size": 3311
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2e0bc65c0184c91188b6c3ccb139867e6589a6f329cfbf59af955821e0fd7ea0",
+      "path": "docs/evidence/rc01/rc01-prechange-inventory.json",
+      "size": 145693
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e6670db8a2e85db4a7eef68559f518f583566cf282b73e16db7d3167a581c8d2",
+      "path": "docs/evidence/rc01/rc01-result.md",
+      "size": 969
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4b29285c32af5f814f9f6b060600837b18353d1724bfab77120c5ac34678f94e",
+      "path": "docs/evidence/rc01/rc01-stage-packet.md",
+      "size": 2536
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "cf1735820758f10083467f87135c5aa7dc64121659988bb12b14861c415c886d",
+      "path": "docs/evidence/rc01/rc01-test-disposition.md",
+      "size": 4814
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9925959a1b8958ca3dde9316a7ee75bf74186d23ef78dd7179cdb293b7b68da8",
+      "path": "docs/index.md",
+      "size": 51789
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "70dd6df5427bb0c46564dbb310d8f8038768882912e1805b5d5b77398c66f0d0",
+      "path": "docs/phases/4-implementation-readiness-program.md",
+      "size": 22843
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "713cea74cf0c533e23dd0699978c31f1bcbc942df6fb7ad9830b19690bd2a1a5",
+      "path": "docs/phases/4c-frontend-interaction-and-authority-realization.md",
+      "size": 24279
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "38776e63664a9def6ed9b1d1d0e56b7964498029a5ab8dc04a352c3da0a86e48",
+      "path": "docs/phases/4d-project-paved-road-and-runtime-realization.md",
+      "size": 17254
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c8dbeaf16f8138fa8a4565e0cbe7a22805eda721eca42490bb9ad29a2f99677f",
+      "path": "docs/phases/realization-planning.md",
+      "size": 42247
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "44bb11e0a127dc79dc2ae063fe4c437c40eeb13eae1aebc9bb5fb563f448506c",
+      "path": "docs/product/budget-analyzer-contract.md",
+      "size": 19264
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8ee2e26cd9775f572cdb2ea5bc663fdd0574894ce1b843102d9c5e9116b6af46",
+      "path": "docs/product/contract.md",
+      "size": 62277
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "58e5ed8a6b9dcc88f36546aa2e1344d02767e3ab26b747b5faa63fbb2003dff0",
+      "path": "docs/product/human-context-identity-contract.md",
+      "size": 14873
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "92faa951f7bc01bd9baf364094e4d17b59eb3f42946fa8f994b8022c5231eb2c",
+      "path": "docs/product/operation-ledger.md",
+      "size": 121440
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "02ed64d84860d65a9ab72e61a5a2fdacce1a198493e4744d9d3b87817cbb002f",
+      "path": "docs/product/permission-contract.md",
+      "size": 29790
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5b9488cc083d1f28dd8d86ea4f474c1808f8c4f218ad0725e69f691037d36223",
+      "path": "docs/product/wire-contract.md",
+      "size": 30532
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "40d16d44128f47650987c61d3d70b87d7385153759d2f1c99cf4079dd929b37f",
+      "path": "docs/reference/release-deployment-and-operations.md",
+      "size": 23832
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b3e524c5874544d238e54d15e1c80286144bf280baa296eaa23d9b54527c9933",
+      "path": "docs/reference/runtime-and-agents.md",
+      "size": 12145
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7f806edda79212d2ce9f04b44a67e68b0f5dfa48ebb469bbd479da72c31fe5be",
+      "path": "docs/reference/security-and-authority.md",
+      "size": 11122
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "bc6ae71fe0678744a8f2c61c837c166eaf396021d2528223a309c9920e460621",
+      "path": "docs/roadmap.md",
+      "size": 25251
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3f3364c8449e0bb73fafeaa588a2eef9e03cea4536dfa70867e0803db91f3baf",
+      "path": "package-lock.json",
+      "size": 193048
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3e71067bf4f27136b525286a3064aec5e7edca06404d85efb48608519132c814",
+      "path": "package.json",
+      "size": 17505
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "29e80e135f84772c539f34ca5062c6709551b1fd01003d7338b4c3e547fcc36c",
+      "path": "packages/canonical-json/src/index.d.mts",
+      "size": 170
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5740bde22c57ff398fdf747eba1a7ba70bca935c0b3708fb39d985a3401e3def",
+      "path": "packages/canonical-json/src/index.mjs",
+      "size": 383
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f98dfb9e3b8b1272ae640b3af1bcf2c9f8ff3fcc3aea3c4bbab3f520553af7ee",
+      "path": "packages/profile-compiler/schemas/a0-code-architecture-migration.schema.json",
+      "size": 9275
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1e4f1c3217f2c45da793c677603b585fd09c62b3ce049dec37da5a46d1d44ea9",
+      "path": "packages/profile-compiler/schemas/input-set.schema.json",
+      "size": 4284
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b00320d791fde4f9a89a3f4fe6bef7b81a7a0a4848cbe100b7631e77dbe55532",
+      "path": "packages/profile-compiler/schemas/profile.schema.json",
+      "size": 1747
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "69f0ceaffbeb3aa549c2995faa451ba1d7233219e989dc9f3469f7f65b163767",
+      "path": "packages/profile-compiler/schemas/s2-workspace-foundation-migration.schema.json",
+      "size": 5181
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c2f51fd735dad67842756a75a9e783309445bdbe08fdf0d439929750b79702ca",
+      "path": "packages/profile-compiler/src/admission.mjs",
+      "size": 3751
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9e436122ff1c34a7a6bc178149a12ce1855f321533609a9647aabe21cd2b785c",
+      "path": "packages/profile-compiler/src/compiler.mjs",
+      "size": 16624
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4d94689f1b834dd1a47aee2f5aa80992f765a7274c25c62772fb8f4cb03c36db",
+      "path": "packages/profile-compiler/src/index.mjs",
+      "size": 139
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "24bbd704094b97cc67b832c9db9bbc1b77b6c8da486eb716227e12e8614006a7",
+      "path": "PRODUCT.md",
+      "size": 2882
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7115405d511276b19fc67ace77cab41752a883e88e8a56efde67dcc885dd1fe5",
+      "path": "profiles/r1/v1/a0-code-architecture-migration.json",
+      "size": 19462
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b6ac38490dee96f15b951d99e36d6176a6face3dfa2cacd900666abf5ab88e0b",
+      "path": "profiles/r1/v1/input-set.json",
+      "size": 6166
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6755b26a6fd3d80aa88af6540562da7390e38ff8f005a80cbf79c6aad0ae2599",
+      "path": "profiles/r1/v1/profile.json",
+      "size": 769
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f933b23c6ba92dfb14d6cbc61ca0c656da625b859948f3224af256369051b0f4",
+      "path": "profiles/r1/v1/rc01-candidate-custody.json",
+      "size": 2434
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "957ec2ecd76886fd4b3ffb960e16b8130cfc41744a06d733946180a48d35cc79",
+      "path": "profiles/r1/v1/s2-workspace-foundation-migration.json",
+      "size": 18289
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2650aaecc2118ef9fb9fae270dc7e685fcd393f16d6c8f416e9d52232f4ee600",
+      "path": "qualification/4d/mastra-builder-capability/package-lock.json",
+      "size": 96347
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d6f2dbc22d41ab7ec9a6d2665f19e99037dc2525d4abaf64c322ce952e2a532d",
+      "path": "qualification/4d/mastra-builder-capability/package.json",
+      "size": 396
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "775786db49aef7fa0f9b89831ec0ebf27c34495e166dd8c0110c9db708163a30",
+      "path": "qualification/4d/mastra-builder-capability/probe.test.mjs",
+      "size": 5813
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8e9144415105d2353a4d2984f08689c227143e64e65f1023055020b3ad174941",
+      "path": "qualification/4d/mastra-builder-capability/README.md",
+      "size": 907
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "572fe5adb1d4ac8940237e34a2db8348ab0d9c560d50ba2eb46c267b5f8aa6c9",
+      "path": "qualification/4d/r1-foundation/.npmrc",
+      "size": 161
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2809faa76250122990faefc1e680a7f471daca6658f1643692557076b0c506e0",
+      "path": "qualification/4d/r1-foundation/admission/fixtures/scripted-dependency/install.mjs",
+      "size": 166
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b6bd2d0eb1eeb2bb87f79ca3f05608e2fc5abf448ef7534e1bf49d7aa97ad435",
+      "path": "qualification/4d/r1-foundation/admission/fixtures/scripted-dependency/package.json",
+      "size": 149
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b6cd0df6f772c0ad8441112c7f02789a00a63861d48eda8213a4a4cd2097c992",
+      "path": "qualification/4d/r1-foundation/admission/input-receipt.json",
+      "size": 952
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8c4e0a33ad2fda80bce47d2f888fbd99cbb9e8237b2d5b291fb83beb3e614f8d",
+      "path": "qualification/4d/r1-foundation/admission/inventory-tree.mjs",
+      "size": 1138
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "49768d718b8638192ab3472c351b29a960c8743e98b2c9da6bd9b4d62d133301",
+      "path": "qualification/4d/r1-foundation/admission/license-census.mjs",
+      "size": 2043
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "71ba816ba05297ca836f8723d0d007ff1b0a84705eb14d2a93eccd281de4ddf1",
+      "path": "qualification/4d/r1-foundation/admission/probe-lock-negatives.mjs",
+      "size": 3737
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6bebdba1c1ac23081ad82c54f658cd6bc80a4b91ec12764a2d7e225d7611675f",
+      "path": "qualification/4d/r1-foundation/admission/probe-script-policy.mjs",
+      "size": 2787
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2d65be472a0650593150e43969d52750566d11662828c25a3db45005330dc930",
+      "path": "qualification/4d/r1-foundation/admission/rerun-input-receipt.json",
+      "size": 1169
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2d3d57142ad35e6ca1cb887e5c8834bddfc1a4444153c15a92d574cdfc8566fe",
+      "path": "qualification/4d/r1-foundation/admission/rerun-license-census-summary.json",
+      "size": 396
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "83a81e2b2419089798f48c4116a47a63929917bf92e14dca9c9be161df7b78dc",
+      "path": "qualification/4d/r1-foundation/admission/rerun-script-census.json",
+      "size": 397
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "88d035d3ed99d65ad386d74e3ce7d2d4a0777c91ac4a3b1598df3aeead4d4200",
+      "path": "qualification/4d/r1-foundation/admission/rerun-supply-chain.json",
+      "size": 465
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "160574afba973756b05f5b299f6dd091c1c80e507c49f1ed3a43b97e0cc0cb45",
+      "path": "qualification/4d/r1-foundation/admission/script-census.json",
+      "size": 418
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "331f158c33a96b941a8d0e793d9deccf14a36c74621137acc6a235b8f2aea87b",
+      "path": "qualification/4d/r1-foundation/admission/script-census.mjs",
+      "size": 1470
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1a70cd532f41725336842c484aee18cb386005a66a5c2fbf553f7b36a990ab8c",
+      "path": "qualification/4d/r1-foundation/admission/supply-chain.json",
+      "size": 958
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "dd4dfd560ff229dbdef3ad3b96d7d51c09fad11ca0544408874c6c6b7e30cc50",
+      "path": "qualification/4d/r1-foundation/admission/validate-admission.mjs",
+      "size": 2691
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9588b05f978a5843d3846c484a9b3f3ece6248d706493185a2709d360c8f6bec",
+      "path": "qualification/4d/r1-foundation/browser-foundation/index.html",
+      "size": 308
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d235cf766e96a0b63bc5e6885744fd9773fe7e10d9bb5fa2f429dcc8410c8b0e",
+      "path": "qualification/4d/r1-foundation/browser-foundation/playwright-node24.Dockerfile",
+      "size": 1089
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "825ffc08c60d98d6d2b6dc53b0e721f5f658e5d70278df9ea2c467286ce88c65",
+      "path": "qualification/4d/r1-foundation/browser-foundation/playwright.config.mjs",
+      "size": 747
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b706f7b050946cf1852abca1c188d2cfd43d7352d53bcf4ae4a93025d805a8fd",
+      "path": "qualification/4d/r1-foundation/browser-foundation/run-inside.sh",
+      "size": 1193
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2150499323bd347834d499b4da612f3bd811c661240257aac84578efd4d0614c",
+      "path": "qualification/4d/r1-foundation/browser-foundation/run-pack-d.sh",
+      "size": 1100
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "75317f557429b668ae651195a9f838cb2b827e4c6144e8e88000dabfa14a4aa0",
+      "path": "qualification/4d/r1-foundation/browser-foundation/server.mjs",
+      "size": 2514
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "85fbf86bba77b37df47052da670ffa9960d26488d1556d0ee29a5fd6256e1ef1",
+      "path": "qualification/4d/r1-foundation/browser-foundation/src/main.jsx",
+      "size": 725
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2a20d7b35c5cbc28fc41c11a0f9490440a331c1ea697d73aab173980c8e4f998",
+      "path": "qualification/4d/r1-foundation/browser-foundation/src/routeTree.gen.jsx",
+      "size": 2739
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "cac53e8db1f19bfe42bd7d69581cecd8802448a7f01c91399027acd865dcbd8e",
+      "path": "qualification/4d/r1-foundation/browser-foundation/src/styles.css",
+      "size": 251
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b091312b15f5577097927c5c1ca72d8070c500d7cc9095e92c0e029cdd317936",
+      "path": "qualification/4d/r1-foundation/browser-foundation/tests/browser-foundation.spec.mjs",
+      "size": 3387
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b430c61ca7553ae6705d975e618eff6364e832158d330c0b5af09292d718b1cf",
+      "path": "qualification/4d/r1-foundation/browser-foundation/verify-build.mjs",
+      "size": 1415
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a05d05cba917eb3d184936d4afdce4233ca30cc8b80b6acb54598d38391a4587",
+      "path": "qualification/4d/r1-foundation/browser-foundation/vite.config.mjs",
+      "size": 256
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ffeee39ab4d881d24f5d913cfb9872ee22968cda269fcdf3f67dd96f80e332a2",
+      "path": "qualification/4d/r1-foundation/evidence/cleanup.json",
+      "size": 764
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "219077b997267689449e5170b64cc344feadb6536f80b20cfb8bb4ec9dc83536",
+      "path": "qualification/4d/r1-foundation/evidence/environment.json",
+      "size": 298
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3ad163f95d8edc96d4c1719a24ce47f110e0d83a1d50711917522d6b7a035bec",
+      "path": "qualification/4d/r1-foundation/evidence/negative-controls.json",
+      "size": 932
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1624d09dafca70962a0bc1e690e03dbe693d80e7b936f48f118fe778ab60d823",
+      "path": "qualification/4d/r1-foundation/evidence/pack-b-cleanup.json",
+      "size": 267
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5f80f04c62ea8a506e64882745a8029b590ecad7e73bdcb21b148c513e897977",
+      "path": "qualification/4d/r1-foundation/evidence/pack-b-negative-controls.json",
+      "size": 1836
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "36be9409706cc88f960695107935a1d095beb846614fad62871eec3a61d4aadc",
+      "path": "qualification/4d/r1-foundation/evidence/pack-b-observed.json",
+      "size": 833
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a5ed1a1b1b7fa144b33ffa910587527e74fb932e15c859c40782504f33443a8d",
+      "path": "qualification/4d/r1-foundation/evidence/pack-b-results.json",
+      "size": 1440
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a3f58583c13906fc5d9c9b394878576070b1cf9552b354b6fbbaa52a0afd4eac",
+      "path": "qualification/4d/r1-foundation/evidence/pack-b-summary.md",
+      "size": 1046
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0e89fca88a2cf0325d0e14b101945d1824daf499ed9fc1e32007bf4950c1bd00",
+      "path": "qualification/4d/r1-foundation/evidence/pack-c-cleanup.json",
+      "size": 1285
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "11a2e77084a79ea03a7ffbc420a34876d61f3494db8b60fa351c132cea4a5d7f",
+      "path": "qualification/4d/r1-foundation/evidence/pack-c-negative-controls.json",
+      "size": 2364
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0cdfc78dfc93127020efdbd3901c29ecd15ebd336044c81349134987cc3fd27d",
+      "path": "qualification/4d/r1-foundation/evidence/pack-c-results.json",
+      "size": 1777
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "cf886d08178bf1b789c7caf7063ac3e6dd8049a3452a6dd63d29673c963bd5d6",
+      "path": "qualification/4d/r1-foundation/evidence/pack-c-substrates.json",
+      "size": 1208
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5ff60fd07b08a9d33d4a869b3b3ee9879e2c5a42852524b2838527270a1754c0",
+      "path": "qualification/4d/r1-foundation/evidence/pack-c-summary.md",
+      "size": 1514
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e0b0700478ebab515e5ad08ab0f11a5c658a8dc51713665b5ebc0e0986bce2ce",
+      "path": "qualification/4d/r1-foundation/evidence/pack-d-cleanup.json",
+      "size": 959
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "829bcb6f6d44b03e30b6cf54a0724ea98dac042cc00fdce3af304a7a1c91e303",
+      "path": "qualification/4d/r1-foundation/evidence/pack-d-negative-controls.json",
+      "size": 1066
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "19abebdc777c8ca292b64aae0c8c93a314b11bfa5ec15b377389f0bc75552081",
+      "path": "qualification/4d/r1-foundation/evidence/pack-d-results.json",
+      "size": 1175
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b3a8635804b143cf55c197d95494034f622640b5d8cc155a767e075bea8fa3f2",
+      "path": "qualification/4d/r1-foundation/evidence/pack-d-substrates.json",
+      "size": 1432
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9717b90d3dcaac2bbc4d2f8a78a6dd7e48d3203d8e8da0926e5ea58fed20c51a",
+      "path": "qualification/4d/r1-foundation/evidence/pack-d-summary.md",
+      "size": 1338
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "47215c62a2970e5d9d7c3372a756aea102ef2fbe247b96397274ccf2f9945564",
+      "path": "qualification/4d/r1-foundation/evidence/pack-e-cleanup.json",
+      "size": 964
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "86975c5357558d3c79309473c2bbc51ee7656fd6652f886ed8034a11a3f09552",
+      "path": "qualification/4d/r1-foundation/evidence/pack-e-negative-controls.json",
+      "size": 1286
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "90c36d1f00c28a3b6a80ea412aeff3d43f22bc4c638984feb9251c5f5dbbff45",
+      "path": "qualification/4d/r1-foundation/evidence/pack-e-results.json",
+      "size": 1634
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1b4fafd03fc3e25e8d5c5f25ff97e1f4fc03a0d118d18396e2b2de99ef72f08c",
+      "path": "qualification/4d/r1-foundation/evidence/pack-e-summary.md",
+      "size": 1241
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0ef0dea0f75e842515a3ac7da74b17d480d927139416abfbae327d011c4ee995",
+      "path": "qualification/4d/r1-foundation/evidence/pack-f-cleanup.json",
+      "size": 505
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e796890b3a73453d9b34ec0a7f86372d501293d3db2f16e37e45c48cd587f4f6",
+      "path": "qualification/4d/r1-foundation/evidence/pack-f-gate-results.json",
+      "size": 1334
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8f139778051c895c55592562bece8400b2fd477c6c233749ed3206eebebabc9d",
+      "path": "qualification/4d/r1-foundation/evidence/pack-f-optional-native.json",
+      "size": 832
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "827ad877c2194235c91132d0f105af7fe7288c7bc77d13e469fac474051dfc20",
+      "path": "qualification/4d/r1-foundation/evidence/pack-f-results.json",
+      "size": 1006
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7ea31d184afd4910f0079005e378d8ec4185d06aca43fc69f54e6efa5602d06f",
+      "path": "qualification/4d/r1-foundation/evidence/pack-f-summary.md",
+      "size": 1032
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "645941222cab61364e6b9c17d2f698fe9ef91a07f43491d19b06d5d5569cd84e",
+      "path": "qualification/4d/r1-foundation/evidence/rerun-cleanup.json",
+      "size": 567
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "62d43a770ca28b89efbcd0f17719ed7d736e9f4cce00e9373b759a29409634a2",
+      "path": "qualification/4d/r1-foundation/evidence/rerun-negative-controls.json",
+      "size": 906
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "07ff08be94fde4f85f79dc127e23d3050461e712816d11f022e1d6ab2ed6d41c",
+      "path": "qualification/4d/r1-foundation/evidence/rerun-results.json",
+      "size": 945
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e5d7d9dede6ad24147287f4aed55c8df07a6de23cd386552214e4759905877b4",
+      "path": "qualification/4d/r1-foundation/evidence/rerun-summary.md",
+      "size": 1157
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ab0f0b887f858300857a883664f94fcf4a4cd7d89bd181448bd99335c8ffc88b",
+      "path": "qualification/4d/r1-foundation/evidence/results.json",
+      "size": 892
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6e2893d14636952d84596db9fd52bafc70b99966fbf36e2fd12b12817214f497",
+      "path": "qualification/4d/r1-foundation/evidence/summary.md",
+      "size": 1412
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a136964f5d570370dfd75970ac5e6c392079cbb2e56519b55b62a3b2c6eb4473",
+      "path": "qualification/4d/r1-foundation/gates/ajv-gate.mjs",
+      "size": 2099
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9f248bd1fd346dcc08b1d6e112bac36f42c90d162dbcce6371a5a7cc1c894bb9",
+      "path": "qualification/4d/r1-foundation/gates/ajv-gate.test.mjs",
+      "size": 1354
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b0ae800469143816b501311d4acc4ac921e7e34ec04937d35712a19ef08fb44f",
+      "path": "qualification/4d/r1-foundation/gates/fixtures/sample.invalid.json",
+      "size": 63
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1854e9351bf19ba41662fd409f735ed008ea927a8e37b1ff654df3df794478c9",
+      "path": "qualification/4d/r1-foundation/gates/fixtures/sample.schema.json",
+      "size": 270
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "62b17baa724682491aa12b59201da1732747a378875f0cf4761cbba07add52fd",
+      "path": "qualification/4d/r1-foundation/gates/fixtures/sample.valid.json",
+      "size": 65
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b38baa548c93180ef073cf4284f89b2bf58362452e12a5026991f55cede4340d",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/biome/bad.js",
+      "size": 22
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5d8f65d2774e206bc9f7a7a4ad39ca2dc563b5c31e46ab57ef4874961237ce29",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/biome/good.js",
+      "size": 24
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f902de6774bca2619858acd25498231170aa0640694739407131f46ec60e1280",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/node/bad.test.mjs",
+      "size": 111
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c4715a99627921682eab201eb9c1327dbb68bfb47bba0b38a69f617b696dacbe",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/node/good.test.mjs",
+      "size": 113
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0d15e40a26b319585e2cabbbac0cca9dd89caaf11429e6a9cbf0602f0c15b00b",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/playwright/bad.spec.mjs",
+      "size": 200
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "78c7674ce41920ef1e23a665613ef0c16c4a1fd85e1626bf52039eebc1e0490e",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/playwright/good.spec.mjs",
+      "size": 204
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "07ab8373bfa0dee419e062247e2b7ad1bd279cd95e57c64b0b000212103d629c",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/redocly/bad.yaml",
+      "size": 38
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "66431777c736c14eae9fbebc4e3fd09b80fd56bac0e95f144c574b22e8c74f27",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/redocly/good.yaml",
+      "size": 399
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "fbceda35f70a98337ccf1cce0d08111f55ee6b63e36c982b2470f662f5f93ca3",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/typescript/bad/index.ts",
+      "size": 32
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "dff39603759a9e51ae74d0ed112370dcbb1f529874c70fcce48df7f31663f031",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/typescript/bad/tsconfig.json",
+      "size": 186
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f09a7201e9fbe8219622e97d4c6f9827ff3530e7b8c48d78d7ca2311a00ccda6",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/typescript/good/index.ts",
+      "size": 37
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "dff39603759a9e51ae74d0ed112370dcbb1f529874c70fcce48df7f31663f031",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/typescript/good/tsconfig.json",
+      "size": 186
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "df687ea21205c196a44c4e0651172a6f400fecaada44ca4677da2bdde24a2ee6",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/vite/bad/index.html",
+      "size": 47
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c70fea065cac6e2b55fe9756ee12b59efc8233d5b27fe235a6050110d492f9b3",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/vite/bad/main.js",
+      "size": 29
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a4741aeeb956e977176607b6915a910a45f835920ef29f20ae57dd6309b46115",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/vite/good/index.html",
+      "size": 104
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c53a69fbc8b9e8cff19d78ab17c969a1e912d4a13ea8a863608f6071d39c4355",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/fixtures/vite/good/main.js",
+      "size": 53
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2cd0c1b5d3b9b2eabef922643a97fa51224a64998fdd6f4c9a04008638b56f5c",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/optional-native-report.mjs",
+      "size": 1397
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "54c4ec5d1d59a5d73b2dae1547056de82dc7f60bf35b584fcd8ce75f0bbe6415",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/playwright.config.mjs",
+      "size": 219
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "acaad820b35b75948a2dcc68f30ec7e19ccfac7dfac1cda4ae901a31985ea68a",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/run-gates.mjs",
+      "size": 3628
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "577b09970ae0eef0f3497a0abd3e2f919b5dde52121b2b19dff340772fe6d380",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/run-inside.sh",
+      "size": 1268
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4dbfca6fffbc1c5df4aa065f47b2d028ae626f36b67d496cb7602ca8befd9bc9",
+      "path": "qualification/4d/r1-foundation/gates/pack-f/run-pack-f.sh",
+      "size": 1102
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9d5b9afdd3743fac00f6932a29bca07833907504e7905f073495fb0feea878e5",
+      "path": "qualification/4d/r1-foundation/http-identity-session/conexus-authority.mjs",
+      "size": 117
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "021d9604f77b08eba920dab899ae6369de9807307ee8ac0171586182e00eb455",
+      "path": "qualification/4d/r1-foundation/http-identity-session/http-harness.mjs",
+      "size": 2611
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f2cb1d2dfc970b333b13a0c1a3e4a37dc0a920978bd3c52e92c32bed967becf1",
+      "path": "qualification/4d/r1-foundation/http-identity-session/http-harness.test.mjs",
+      "size": 1880
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ac0e07720777aae9ff7e33d048271f55d31210f75e957f0c51d4b6ad531754ac",
+      "path": "qualification/4d/r1-foundation/http-identity-session/keycloak-optimized.Dockerfile",
+      "size": 137
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f670e0dcaa17bbca315433f317651093f3c7c98013919eb56d2738e24b5dca3b",
+      "path": "qualification/4d/r1-foundation/http-identity-session/keycloak-provision.mjs",
+      "size": 3924
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e54317cd1653f8fb6b58c29f4eacb270312ae3e871a83ed5154888137e877ea5",
+      "path": "qualification/4d/r1-foundation/http-identity-session/oidc-probe.test.mjs",
+      "size": 9776
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1d850d819e7a7e9cb0b450f8a5f39bea0b21f7174a249c8a9bc8e30a7095b91f",
+      "path": "qualification/4d/r1-foundation/http-identity-session/run-pack-c.sh",
+      "size": 5050
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f51a8d3c86b9e47bdeada5eb65c477cc1eec96ee39c5927942eb6662383c87e9",
+      "path": "qualification/4d/r1-foundation/http-identity-session/session-store.mjs",
+      "size": 7199
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "fc144a32f1878b8aeabfb2acc73bc519034d1809761751630e046394c6e567c2",
+      "path": "qualification/4d/r1-foundation/http-identity-session/session-store.test.mjs",
+      "size": 5369
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "fea918e12274f2b09a364fe7a2961b2912cf74669293e2279c5ec9666d3bbb3b",
+      "path": "qualification/4d/r1-foundation/package-lock.json",
+      "size": 121239
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "db90d700bb92f94041909cec7a74d1d0d4f58ca882b6e0d0305a7fe4384f685e",
+      "path": "qualification/4d/r1-foundation/package.json",
+      "size": 956
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ddf9d66fb9e22e545ca37288d78cf0e2c4f90345be2e888e591edb56f7429d96",
+      "path": "qualification/4d/r1-foundation/postgres-migrations/migration-admission.mjs",
+      "size": 2141
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4ebf777dea181564b7565a5f3410b74c5772b8a933227b3d3a63fb02975d117d",
+      "path": "qualification/4d/r1-foundation/postgres-migrations/migrations/202608300001_init.sql",
+      "size": 434
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "5d275df9bac214283c92da3bde873de1f23dae954a36b787ba760a404134af78",
+      "path": "qualification/4d/r1-foundation/postgres-migrations/migrations/atlas.sum",
+      "size": 118
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b5f1765f96f887f9bf153977408bdc684729b4fe8f30118137678ad71995fd18",
+      "path": "qualification/4d/r1-foundation/postgres-migrations/pack-e.test.mjs",
+      "size": 10191
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "659380d92eacc8640feaceaeea77751f307c039e9c740810918e8059602013c7",
+      "path": "qualification/4d/r1-foundation/postgres-migrations/run-pack-e.sh",
+      "size": 2741
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2ad04e47379ba100a79310fbd9ab3729d2ac35655d383b67620f650b2b865b4d",
+      "path": "qualification/4d/r1-foundation/profile-compiler/admission.mjs",
+      "size": 4098
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "feb010b5a1954773c9392d8a5d7ad223578a57539b77e8be7372921931a2c988",
+      "path": "qualification/4d/r1-foundation/profile-compiler/compiler.mjs",
+      "size": 11478
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6554c272d1df201c4d693583616855cd7b534ebccabd443df41abaed62fefba8",
+      "path": "qualification/4d/r1-foundation/profile-compiler/fixtures/input.json",
+      "size": 96
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e53e7fdb73cb7d2af998732c5e99fa6cdc432773448632656363dccc3e4292b5",
+      "path": "qualification/4d/r1-foundation/profile-compiler/fixtures/profile.json",
+      "size": 728
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "80ee3605fab523d0496b2630cfc1a240a3638eedec77307bb4fe187a4d5ed824",
+      "path": "qualification/4d/r1-foundation/profile-compiler/input.schema.json",
+      "size": 574
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "20a6f60a31f35ccf98270df1fa16d6797059619f05cfd0720b1e71d5478301e7",
+      "path": "qualification/4d/r1-foundation/profile-compiler/pack-b.test.mjs",
+      "size": 10085
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "41ffb0e0ad25bbd2ef324735ce8a131ae669aa95824dbd2a63e68bc5d89f796b",
+      "path": "qualification/4d/r1-foundation/profile-compiler/profile.schema.json",
+      "size": 2574
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f73e733d70901bab0a80cc55a947e81eaa919d59c3d9fe3ffd8a789c9447a942",
+      "path": "qualification/4d/r1-foundation/profile-compiler/report.mjs",
+      "size": 2151
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ccfbb355c03f4eb06f792cdd2558449f946f758c6494b830b48b5bd75d55b28a",
+      "path": "qualification/4d/r1-foundation/README.md",
+      "size": 1396
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d00be8731beaf88e108436aa61782753285feb47aeda389d681c8af51dc9d7fe",
+      "path": "qualification/4d/r1-git-source-custody/admission.mjs",
+      "size": 2192
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e017c49aaf6e682a94228c908bb3a18621b479f1cb40a89ed751ff5e6eba6ebc",
+      "path": "qualification/4d/r1-git-source-custody/admission.test.mjs",
+      "size": 2299
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2b550fa3c433d78c67c1f6c24562a3182df68ac1e1d148ef60a86a99b95cada6",
+      "path": "qualification/4d/r1-git-source-custody/build-metadata.mjs",
+      "size": 5102
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a9296fa5e80d74fdf7d236e96f9005ae729678b2f6fc5b178ea04927c4657858",
+      "path": "qualification/4d/r1-git-source-custody/Dockerfile",
+      "size": 3731
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "bd2f37cf76a7307a1d66bee226708386573f75c48c14d9d2304d8a414e384531",
+      "path": "qualification/4d/r1-git-source-custody/evidence/build-metadata.json",
+      "size": 59352
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e2568b36d49557038d679c0b7ce3b62e43bf9785d50bd985167f07c736790cec",
+      "path": "qualification/4d/r1-git-source-custody/evidence/candidate-results.json",
+      "size": 22912
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c1a0ab24d2f1d1ee5cc6bc413af64972a8f8fe02808f0b3d6ad6b3964fe32ae7",
+      "path": "qualification/4d/r1-git-source-custody/evidence/generation-receipt.json",
+      "size": 2085
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "eef57b5723716a360403bcdd674406dbd0ff9e9d9fd2c7b3bd9d9091febec54c",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v10/admission-test.tap",
+      "size": 1949
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v10/build-metadata.json",
+      "size": 63643
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ccc7b7044738a87fc37e73c3c2aa809e9ae3fe3a112299a83acee85fd8c8ebf7",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v10/candidate-results.json",
+      "size": 24857
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v10/product-census-after.json",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v10/product-census-before.json",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "71c9113a1a8338fba73e63f718c23a72db9673d4c505e3704026cb9e2ae0009a",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v10/results.json",
+      "size": 21318
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "69e1e41dca3f3488826bba23e9ee495c23b19f05ebe0566e6f209af857e55ac5",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v11/admission-test.tap",
+      "size": 1948
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v11/build-metadata.json",
+      "size": 63643
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7dc1f513546c2a87001f0a6b1fe744a18fd5269fbda65f9bd253fde547fb73d4",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v11/candidate-results.json",
+      "size": 25120
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v11/product-census-after.json",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v11/product-census-before.json",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "bf2adbe3025d2171c306efd63e5ea703967a42041e6c4d518e2262587cb19424",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v11/results.json",
+      "size": 21569
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d5df9c402a20cf4a87f370bee402976a3c4e51c06cc86294730b8629a477d763",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/admission-test.tap",
+      "size": 1953
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/build-metadata.json",
+      "size": 63643
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "228d603aea0dcd3d75295a7bf4c072c2adcd3c7accd3525bf64b0a8af7dcad60",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/candidate-results.json",
+      "size": 25585
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/product-census-after.json",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/product-census-before.json",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b108a08866fae4eb53bf6bbf66095bb93ae591f55387db9d4a9da1215754ef48",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/results.json",
+      "size": 22048
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c10dc9550ec65c60cd43bfa28949939dae78be39cb9c9d0bd0525cdbebc86939",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/review/gemini-review-result.json",
+      "size": 7365
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b1c5c95bb0c9eb4c4adab22d72afd57d5eb153bb9bab77d21302a0b98caec875",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/review/opus-review-result.json",
+      "size": 50164
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "afb217c80e557a98b2986b42c1de19e6d92f139b6e91d0c52306686deb0f9619",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/admission-test.tap",
+      "size": 1952
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/build-metadata.json",
+      "size": 63643
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b20a4a79a376ba642e71f3f678884447d3aa8027a4d3529cde51e12194e18aad",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/candidate-results.json",
+      "size": 25585
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/product-census-after.json",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/product-census-before.json",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7af1dac74117f02fd3c87d6dc11f6fcbbd19c930287e1b83b7927c227dc09940",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/results.json",
+      "size": 22048
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "cb0e10f286df9f1fc4e06083989651515078685bbf9f4faa9e982be9b2922869",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/review/gemini-review-result.json",
+      "size": 4921
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c7a82af7a3fe2b70c4236a3dc498cc0528d7589e45a2042c709889523158a08d",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/review/opus-review-result.json",
+      "size": 41466
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "78ad0bb18256925a1848d9c79129030a5d86b2346dcc9423ae68f79e930f0507",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/admission-test.tap",
+      "size": 1951
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/build-metadata.json",
+      "size": 63643
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "cf02a48a2727ba90ba5f5d7c463524afedaff28a888a7ae4aa3706d7afadccce",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/candidate-results.json",
+      "size": 25718
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "efeb59e2c486659fea0088bf5779280e74f3c8fe490a9fab8a1bf0452e0ee66f",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/generation-receipt.json",
+      "size": 22728
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/product-census-after.json",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/product-census-before.json",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d5ccba4ecf683417a5a78313c5fa7230fd3eb56fd8ced0eca7e14b844be767c6",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/results.json",
+      "size": 22175
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f5cd22108d8f8d50ec511fcaad12d7be1f3d6ee8f784364fff3b177308adbae1",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/gemini-final-review-report.md",
+      "size": 3607
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "63f388abe384896bb8a10082b14d752760353c834efbf52b768aba0f7db7a3f3",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/gemini-final-review-result.json",
+      "size": 6303
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "77cc7eb3f9044c0322ca3300b6990b059ebbb0b1a6a2a7f9398afa1fe948295d",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/gemini-review-correction-result.json",
+      "size": 12503
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "315edbe81a3c3fafc76494f83ebce76176b59346a876c255725739325c4bf817",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/opus-final-review-result.json",
+      "size": 46376
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c32704a64f74c31b7aee6f64d5af56554ac441ff120851baf7b05fe1c66d15b1",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/opus-review-correction-result.json",
+      "size": 53834
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0e16b388dc66e96f039169500a6c0840a7e6f4dddf017f9668450b4fb9c6712c",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v9/admission-test.tap",
+      "size": 1879
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v9/build-metadata.json",
+      "size": 63643
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "514bf2b0f32c1185aace0b7f11fc3f0ff58a2cf858e458273600c39a1bbdb6a1",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v9/candidate-results.json",
+      "size": 24854
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v9/product-census-after.json",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v9/product-census-before.json",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "586e07ca26f73542957b903f8dae71924b9f885839f549716277ab6b57be945d",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v9/results.json",
+      "size": 21315
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "238a44065dfab98be5b97dfc567a5d482a7639fa2cc9c5d159d9c9fa6d6399c3",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-rejections/first-vcs-hint-build-metadata.json",
+      "size": 2775
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b449566831aa02311829a8a680d821bba25a072018887bf090b9e942eee7bb02",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-rejections/first-vcs-hint-rejection.json",
+      "size": 1269
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "07e0097b110caf0755e1cac55c917b03d5c57ab454d5ff531024584577939fda",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-rejections/second-minimal-provenance-build-metadata.json",
+      "size": 1926
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "63b2bbd241ef9c303c2a6c92f25a4410730237c31bc683422b0838000e3ad479",
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-rejections/second-minimal-provenance-supersession.json",
+      "size": 891
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "path": "qualification/4d/r1-git-source-custody/evidence/product-census-after.json",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "path": "qualification/4d/r1-git-source-custody/evidence/product-census-before.json",
+      "size": 13745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9f05ac20b221c9902fbeb3305e0f0636df59c6d4a296f3f72126afa270bc972b",
+      "path": "qualification/4d/r1-git-source-custody/evidence/results.json",
+      "size": 19490
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8670a63694dddc07998481b0eaa88eca9fde3abe12008d8deaf50ce752040cb0",
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-candidates/native-readmission-linux-2026-09-01-v10.json",
+      "size": 1213
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "41a24a63c42fcb835ca07334e2b9aa28e4c09ebb3728d629b29af54854494d7c",
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-candidates/native-readmission-linux-2026-09-01-v11.json",
+      "size": 1766
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d64ae858df0501e4bdc146b68a716a317dbc4ef2c2d8be3facc1d86b8481255c",
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-candidates/native-readmission-linux-2026-09-01-v12.json",
+      "size": 1724
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "20e9990385e5cdf8524a23c8064e43981a0568123db9e230f7e302198343f065",
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-candidates/native-readmission-linux-2026-09-01-v13.json",
+      "size": 1451
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "531e6fd54567c693be5193f6a03eae9ae23f03a281268669d621e17ec2cbb802",
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-candidates/native-readmission-linux-2026-09-01-v8.json",
+      "size": 1571
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "79947b9e96f9e218925db63d11c187f30101ebc3c5b4ebeff777799eff3ed3a1",
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-candidates/native-readmission-linux-2026-09-01-v9.json",
+      "size": 1345
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4471f25787e1ecdfb59fd88e6f08eabc3c55b2e0837ac8d465109d773613e126",
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/admission-2026-08-31.mjs",
+      "size": 1495
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "665d64734a1f08b6e5e04aa37e1b166762f27bf67592ba2e025bd8f6dddb6556",
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/admission.test-2026-08-31.mjs",
+      "size": 1810
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1e027acdfa30dde491b4b90711244bf418a9ad87ac6b45ea75bd66b948a363d5",
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/finalize-result-2026-08-31.mjs",
+      "size": 13964
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6173886d58e5451b2242babd7592ef332ed71b6cff395b21edc1e041ef5c22ee",
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/https-fixture-2026-08-31.mjs",
+      "size": 3306
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b17815cbf0fbf56ac23ed28258eb0752d1007a6cf97360cc99b4c9cdd92ecb29",
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/probe-2026-08-31.mjs",
+      "size": 20817
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "df65aaecd78e1a26e9467a7dd4ac6f73533bfbe873cc6262998594b0ba7fd845",
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/product-census-2026-08-31.mjs",
+      "size": 5752
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "950d0d6267688e44dd2a8effc04a354ee61d38e4381bf1d742be8bcf153010dd",
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/README.md",
+      "size": 1625
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3ed7be64cf2321129d42d5d6d171326442e7ade061020ac1cc563535090fd18a",
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/run-2026-08-31.ps1",
+      "size": 6250
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d0ded22099501a76c3677564d98fe280b965943e8a69776d1f53b5b2901c327c",
+      "path": "qualification/4d/r1-git-source-custody/finalize-result.mjs",
+      "size": 13937
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b68152f10145dede0f91008ae1596b6810ae17fb272472af861a35f9754450d1",
+      "path": "qualification/4d/r1-git-source-custody/https-fixture.mjs",
+      "size": 3370
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "97738f25d16ff9a258c6566c1ea9909fb3b8af835520ee78829ec38b2e74488f",
+      "path": "qualification/4d/r1-git-source-custody/native-readmission-pin.json",
+      "size": 2243
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3156445cec6668e6b7045ebada45167aae60c67c8266f2d8699e0c7ff3e4979e",
+      "path": "qualification/4d/r1-git-source-custody/probe.mjs",
+      "size": 24193
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "58932361cf6f9151a1813d2950f73046c07e3049ca863a1fa7a2926cd0fb586b",
+      "path": "qualification/4d/r1-git-source-custody/product-census.mjs",
+      "size": 5752
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "94caacfefb2c1401328edc0d4af7d46c8ce7fbf1dc2e1bbee69e2e173857a68a",
+      "path": "qualification/4d/r1-git-source-custody/README.md",
+      "size": 4363
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "619425567b65fbc987e78773910c3d2d5588674fd0ea1e03788c9aa27d8a92a5",
+      "path": "qualification/4d/r1-git-source-custody/review-brief.md",
+      "size": 2342
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "04c6301d5fd72125c3bb14fb496891f6dfdc669d121c586caae9ba624a6b254e",
+      "path": "qualification/4d/r1-git-source-custody/run.mjs",
+      "size": 9262
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6d16aec52f61f61e56c5df91bff76274445c536b0112bce2e7422630daba5bf2",
+      "path": "qualification/4d/r1-git-source-custody/run.ps1",
+      "size": 6401
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0eafd6b045393be760196625ab65e45a745e261cd603e74265f40de1430e73e7",
+      "path": "qualification/4e/project-mastra-admission/package-lock.json",
+      "size": 81490
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4d117897e46778936bfc180c7e0c68ac991e2673d1130e4fd640edf792478c61",
+      "path": "qualification/4e/project-mastra-admission/package.json",
+      "size": 331
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d819c2b7cc04a5ab04c7a65ddf8642346acebf24c4a74529f13bf8f5a8f37b5e",
+      "path": "qualification/4e/project-mastra-admission/probe.test.mjs",
+      "size": 20276
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6a4edbffb44816ab770a768dd300650eb98d5f1cde24c8379d7ed8c69cd50761",
+      "path": "qualification/4e/project-mastra-admission/README.md",
+      "size": 1130
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a9567f70482cf5540900c1278c159e2cc6fe2097d9bd98826ca3517b36af0992",
+      "path": "qualification/4f/r1-project-cognition-admission/anthropic-oauth-provider.mjs",
+      "size": 2884
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "552ee86920fee0ebf6130c971cc81febcaf0f1de0eac7a7f9d2ee6967a939c04",
+      "path": "qualification/4f/r1-project-cognition-admission/anthropic-oauth.mjs",
+      "size": 4492
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "06209ed31f0040db00a7a81ab02b54dbf0674cc4ec3f79c892ee77147345d143",
+      "path": "qualification/4f/r1-project-cognition-admission/auth-login.mjs",
+      "size": 1064
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "dcd782671af14dab745007c866d0e58aa0dc294f427a0cbfa8263eb4dd917b45",
+      "path": "qualification/4f/r1-project-cognition-admission/bounded-provider-fetch.mjs",
+      "size": 3898
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a4c63b64b10d36a2c426b14d86b4f5691120e8071f23f39c425f61a9a4817171",
+      "path": "qualification/4f/r1-project-cognition-admission/evidence/p2-live-oauth-receipt.json",
+      "size": 1099
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9365c6c8a3cbc34d6761cb368744d551a39d06e98631fb609b943564b0bf25cd",
+      "path": "qualification/4f/r1-project-cognition-admission/evidence/p2-live-opus-successor-receipt.json",
+      "size": 1118
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d8e04b274ca5fee55402a2db63f402802c7e6d7c65ad1e84b7c8206c453c84e3",
+      "path": "qualification/4f/r1-project-cognition-admission/evidence/r1c13-generation-receipt.json",
+      "size": 2426
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "edb6582e42aa40146914a7405edc1eee11e700db774b2622f2331077526cec5e",
+      "path": "qualification/4f/r1-project-cognition-admission/oauth-token-store.mjs",
+      "size": 3893
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5e46f4b985fc0ea51a90854f5e058cf2d7d673d65f5b549c8ebc25c33e89eca3",
+      "path": "qualification/4f/r1-project-cognition-admission/p0-response-boundary.test.mjs",
+      "size": 8706
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4852f14ba1f1b5622c9c912b4a60207f70e90c78254d853128bdd97581fb433a",
+      "path": "qualification/4f/r1-project-cognition-admission/p1-project-mastra-admission.test.mjs",
+      "size": 18366
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "dafd4563f74adeadcd8e824662f4f3a7ba7ba9cd9c12350293bf9d2f4c83fda7",
+      "path": "qualification/4f/r1-project-cognition-admission/p2-anthropic-oauth-admission.test.mjs",
+      "size": 14124
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6cb24ae5b6099a7e29897d27a6802c1a53151c19fa227d59e3eff6bee3cf3454",
+      "path": "qualification/4f/r1-project-cognition-admission/p2-egress-observer.mjs",
+      "size": 2087
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7204d00c22c3045440eaae542e6d01f5e7e2b2f4455f6835f26b2c5973d5ec38",
+      "path": "qualification/4f/r1-project-cognition-admission/p2-live-anthropic-oauth.mjs",
+      "size": 4998
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3f19bb10dbd948890d7d05d898ab1f5f1fc42566a9372381d0e59d3db91f0a79",
+      "path": "qualification/4f/r1-project-cognition-admission/p2-oauth-candidate-result.json",
+      "size": 3375
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5c35ca8bd6d63dbeb91a0aa371712ca81cfc13d869407b2e6a84a1c384e59e69",
+      "path": "qualification/4f/r1-project-cognition-admission/p2-refresh-worker.mjs",
+      "size": 535
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "afd64be2fafdc303b4bc767d3501862048877fc2aab187b48eec771779696a08",
+      "path": "qualification/4f/r1-project-cognition-admission/package-lock.json",
+      "size": 85055
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "322c3326cf8c45262761e2b5b9ed2e714671de745fc21fb9d3b3ae1b56526272",
+      "path": "qualification/4f/r1-project-cognition-admission/package.json",
+      "size": 584
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7561a18ae5ccebfb765672d196313ccc56fc36aaeafe4a792e2aac1f0db332fb",
+      "path": "qualification/4f/r1-project-cognition-admission/README.md",
+      "size": 1362
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c6e1b26332ea776a9b6f6b15c88b349efd4c217c5eb6171ca61bd1976dac6da9",
+      "path": "runtime/r1/.conexus/a0-conformance-result.json",
+      "size": 3471
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1633c1fee1942b71e348f9d26c6db3cb0e6577ac6535e12bf5fc3bb6c0dcfdd7",
+      "path": "runtime/r1/.conexus/a0-generation-receipt.json",
+      "size": 4362
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0f39ebbaa699af5c39a12d924269318ed740a78b63f6c6a5e65072b2225a5e4a",
+      "path": "runtime/r1/.conexus/a0-migration-plan-validation.json",
+      "size": 2092
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "886088717916d48f59026493ed649e9eaef50c3af6706b2887a4614ecb1a9ca9",
+      "path": "runtime/r1/.conexus/a0-ownership-manifest.json",
+      "size": 12713
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "71ae88d6ca6a5972a91628356a7766deeb0a1c190bdafc13e952cabe1d692153",
+      "path": "runtime/r1/.conexus/a0-p1-pass.json",
+      "size": 2615
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1b76766a60bdbcc478407453936bdfea1b74b0a3a7631cb77ea2a9975a0d3204",
+      "path": "runtime/r1/.conexus/a0-p2-pass.json",
+      "size": 1996
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e07c158c17c04664d6100d3101648e52c6b38f0fb3f30a78a9b8f9036902b3e3",
+      "path": "runtime/r1/.conexus/a0-p3-pass.json",
+      "size": 3885
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2d9095f2bce50f61cd8b58a55bc168c35a8367084be2297a3b00adf8c4965553",
+      "path": "runtime/r1/.conexus/a0-p4-pass.json",
+      "size": 1700
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "31159e880ecbb72cf569e8709dc518dfa5c3201351aad724b467f8eaa2b07a27",
+      "path": "runtime/r1/.conexus/a0-p5-pass.json",
+      "size": 2869
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "be9227c82de4aa1b603626c0beeef1221f6ae7781c07e42a67965df627bf3289",
+      "path": "runtime/r1/.conexus/generation-receipt.json",
+      "size": 1655
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c8482b43ac6f11a4b221d11ee24a299a702219266e687e82e50617baedd55d06",
+      "path": "runtime/r1/.conexus/s1-generation-receipt.json",
+      "size": 541
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "88ca03c58cbbdb0cefaea87e58f4b3391ac2ba8b631f2d8ecbc172e2d3fe93ac",
+      "path": "runtime/r1/.conexus/s1-ownership-manifest.json",
+      "size": 2671
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "379608cc851927997ddb1f6cc74ed755441f5056a868549953e4d0714d752dc7",
+      "path": "runtime/r1/.conexus/s2-conformance-result.json",
+      "size": 2382
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f505e67f1e31f2f94ab7268e31dee6882f5e0d58975b878f3e2ecbdb8aa487e7",
+      "path": "runtime/r1/.conexus/s2-generation-receipt.json",
+      "size": 1999
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a3b75d5f2d0cfcc7f9d5cb4a3de17434ce3be248496982978b3b0645fd5d433c",
+      "path": "runtime/r1/.conexus/s2-migration-plan-validation.json",
+      "size": 1678
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f3a132e9ab3ef6e682ebf25da73f0318e2a55b74c53557d1957241fe2b6d1242",
+      "path": "runtime/r1/.conexus/s2-ownership-manifest.json",
+      "size": 19085
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "197acea08360bbdd980eceee34f340d2963a2358bd2dcd4eb8cd72e16c2a5eb8",
+      "path": "runtime/r1/.conexus/s2-p0-pass.json",
+      "size": 924
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b41f416f292fd3be077504e4d132d0622f85625968e2380bd193abe6698f558d",
+      "path": "runtime/r1/.conexus/s2-p1-pass.json",
+      "size": 1409
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e26b12c4d61b41e90d8b63c19cfa10d3bb33bd6ad490f53e2cc8e29ec243fa94",
+      "path": "runtime/r1/.conexus/s2-p2-pass.json",
+      "size": 2706
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "01cf3af46ba0eb7f85a712252b4c4638ce47d70df78a462e7d72e8a511a99d9e",
+      "path": "runtime/r1/.conexus/s2-p3-pass.json",
+      "size": 1413
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "12b0ad27422cb1eb463e9f7bc5462b032bf51eab80d69961dd1fc2bdb65fcb7c",
+      "path": "runtime/r1/.conexus/s2-p4-pass.json",
+      "size": 3640
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "44b70688aec37a637d636d256a9139d4c6e8b9dd3edc74afba879234ecf75a79",
+      "path": "runtime/r1/.conexus/s2-p5-pass.json",
+      "size": 2481
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "6d86a8c7ffd04138c4ed051f99bc36a5dc06fe327848dde49b7ec0d505a436f7",
+      "path": "runtime/r1/generated/r1/operations.json",
+      "size": 4712
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "e7c0f68c5e44b0062000bbdcd84d7d2d44d4ee407babd7d34a11433a3748e5bf",
+      "path": "runtime/r1/generated/r1/operations.mjs",
+      "size": 4490
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "bca5ab767f98e3260af9c3838693d5e238553a0875a80282617754d62f18dd9c",
+      "path": "runtime/r1/platform/r1/contract.json",
+      "size": 133
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ca9db1148c783e214b94e2f74d2b4028f63c7282ba7ac7ec34748944a4cb0881",
+      "path": "scripts/check-architecture-verification.mjs",
+      "size": 16648
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7065ea06f0306ca29033b9e6db1ab7d8a1dc2fc1e51a2d273ef99a39d6434dcc",
+      "path": "scripts/check-budget-schema-fixtures.mjs",
+      "size": 1993
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0d56b431e0326e356ec9d6033239414c27720dabd1192b4af418aa7994759d2b",
+      "path": "scripts/check-current-state.mjs",
+      "size": 4287
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d1680151016192d1fc894447216811405dd548405ba339f2ac3cd7fe9ccb99b2",
+      "path": "scripts/check-doc-index.mjs",
+      "size": 1886
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "50455cc2214463ccbbaf17cdddb1eee04be7a1f6e63b08074f9f44fa3d62a13d",
+      "path": "scripts/check-import-law.mjs",
+      "size": 15975
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9b6bb563b594c4515e028baf85be7d6c7b2bfe18660c46fd9c568ae0ba738295",
+      "path": "scripts/check-project-operation-declarations.mjs",
+      "size": 959
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "bdcff770d86573b2ddd1fa9864b415c78b4247921398bd323a930895bb2a55bb",
+      "path": "scripts/check-qualification-provenance.mjs",
+      "size": 2782
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3ad57b7d8dc2913fd711e2d9a6615262fa4acfbc8d1598666eba1c034466cc11",
+      "path": "scripts/check-r1-a0-bootstrap.mjs",
+      "size": 7850
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f5be91477c349f7a38a94ffc54bcb10e1c47a04b836fd532c64d48bd6e5d5f8c",
+      "path": "scripts/check-r1-a0-migration.mjs",
+      "size": 11740
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "13519df89d15d665a87364027b35e3baca88c80b1585edb76029018d6e6f7ccb",
+      "path": "scripts/check-r1-candidate-admission.mjs",
+      "size": 2090
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0badc8fc7a4f97291f2c4120409632c38b74364d3eaf954d12d7990c817e438d",
+      "path": "scripts/check-r1-s2-migration.mjs",
+      "size": 14453
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5a8b0b1213011b1cad503e71d14d53a6153c43b6f2893e0f3a4a35b4a5013f8a",
+      "path": "scripts/check-r1-s3-git-execution.mjs",
+      "size": 5079
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "55cdf857953d50253fd84a5bb70f47a048d670c79835e9511abbea8d5eedfeec",
+      "path": "scripts/check-r1c14-native-readmission.mjs",
+      "size": 32428
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "51b256bd53c6719d32429dc2df0ad4049ccdf04a9cc441d343a9d44e48538689",
+      "path": "scripts/check-repository-hygiene.mjs",
+      "size": 4381
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ee60f44ddf9c2a183cc408292525479d0ee3c8f07477c3533ac88a58f4f04910",
+      "path": "scripts/check-wire-builder.mjs",
+      "size": 16045
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "dbc145aff92ec24032696b579a4dcef8ea646935cb5e8242b31fb2693150dab4",
+      "path": "scripts/check-wire-gateway.mjs",
+      "size": 9711
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ca6fb987befbc47239e0bd34cc050a59ebb2f61837e9e788ef72b2fe93aa4ec9",
+      "path": "scripts/check-wire-identity-workspace.mjs",
+      "size": 16663
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b88d708ff90ac247b7b1d99c4ac46566eac44e8575ddbafa7574fe0aa6c8fa27",
+      "path": "scripts/check-wire-mar.mjs",
+      "size": 11430
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b0eb2c9d182c89e4a83bd4dc102ceb2342f38365e747e96a31893f2797a41df6",
+      "path": "scripts/check-wire-observability.mjs",
+      "size": 20347
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e42e046f090b7818e6ff06727716b99fd813cfcb65838cb33f89f657417ce5c1",
+      "path": "scripts/check-wire-par.mjs",
+      "size": 18315
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1877d0998b1f462aa9d5bc57a2ebe48d9bdbd68dee7d8ad141d9301033b3c218",
+      "path": "scripts/check-wire-project-agent-catalog.mjs",
+      "size": 6619
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "aabb026304488ac8048fd053f1d43aee2a0b7a0fc03b89be98f43063ab3fa3f5",
+      "path": "scripts/check-wire-project-brain-context.mjs",
+      "size": 7498
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e1d7e830b4a9d7eb4385153bd22ae1a5ac069db4949cd030a13933259d3506b3",
+      "path": "scripts/check-wire-project.mjs",
+      "size": 22098
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e80f3db6ae71e8c245f90e58382dab2f55ee0715e02372f050bfd2fecef732a3",
+      "path": "scripts/check-wire-release.mjs",
+      "size": 13907
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "41a5b1b772ca5d61d6b94be0b22b2476dfcab6b4601eb07d5f093aee473f6189",
+      "path": "scripts/conexus-preflight.mjs",
+      "size": 18161
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "846e711249e3cd423688099be7f505e103d65eff46831bf4d369d92f32eb37ea",
+      "path": "scripts/conexus-review.mjs",
+      "size": 23079
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "378580328d674116eaf943a4f3e3268b8edfd7cfb893bf0a5780391b1d7ba2d6",
+      "path": "scripts/conexus-verify.mjs",
+      "size": 10646
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "87c9d9a016c6aa4e6f802ad0572f131a2add7bd983f207050493ec7d9269077d",
+      "path": "scripts/generate-r1-g0.mjs",
+      "size": 2216
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "031af89af548f46d713bbaa93d50ca83f1c098812f910d07ca0972068bfaffee",
+      "path": "scripts/generate-r1-s1-contracts.mjs",
+      "size": 7352
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5226c9c72947e706423e543f09a0e8108b6d0bf9b370a295737f6d607300c76d",
+      "path": "scripts/generate-r1-s2-contracts.mjs",
+      "size": 11332
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "22f5b0e4e6ce4a028e2fdf672f8b5631dcd96ce55a5edb259a81da550ef63ad4",
+      "path": "scripts/generate-r1-s3-contracts.mjs",
+      "size": 16066
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "dfdfc2593ae5f7f79690880be8084c0a8681196f9bddef65da5b961c7e3c484b",
+      "path": "scripts/generate-r1-s3-git-identity.mjs",
+      "size": 4427
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3d4c3f705dcc762289c154e0c855dc108824db66e453e42849e06b23ba0956f4",
+      "path": "scripts/generate-r1-s3-new-project-seed.mjs",
+      "size": 5107
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1c373c102077f4b9b535341335d0b05fc80f22c8cbbf89074b89a4d00d5c4171",
+      "path": "scripts/rebootstrap-r1-s2-v2.mjs",
+      "size": 15337
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c1b0dfba28447125c55210805fc8b6b0e60659d35ac515bd8b0bbca8e375ed36",
+      "path": "scripts/rebootstrap-r1-s2-v3.mjs",
+      "size": 16897
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4fa8bcad8f9a91333606573625454fc269983a244d9ccd7a6a9d0bcf0b4bf37e",
+      "path": "scripts/rebootstrap-r1-s2-v4.mjs",
+      "size": 16640
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "fd6f48a50ac615fd6f71b60ce0202400c89c6dab3c1ee662f04584b04b73be1c",
+      "path": "scripts/record-r1-a0-part-pass.mjs",
+      "size": 8227
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ab1b9bf2380d87bb28eb391236025f1811da70d101c6e629c9948c70de392f93",
+      "path": "scripts/record-r1-a0-receipt.mjs",
+      "size": 22830
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e967a5bedcbccd9a89c3602360acf16ad75af47770ba9e84b23339bca8a42fa7",
+      "path": "scripts/record-r1-candidate-custody.mjs",
+      "size": 8678
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "578135ec8ce887d4071a3410310916efbc8dcb2a3d293abba19c78d67bb44281",
+      "path": "scripts/record-r1-project-opus-composed-proof-receipt.mjs",
+      "size": 7563
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4a0f367361552df198ba5f94def9a16b99e2b840afa55a1649191cfca37f5284",
+      "path": "scripts/record-r1-s1-receipt.mjs",
+      "size": 1181
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "774b789ba7cc07ff82036139c505c40fac214a6dce44c209d7115fdf537352bd",
+      "path": "scripts/record-r1-s2-part-pass.mjs",
+      "size": 8654
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1faf65136f79976b40cb2386e04545e016ac8e234cea974cb067edf441e55662",
+      "path": "scripts/record-r1-s2-receipt.mjs",
+      "size": 9933
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3516fcefb3233342457526b778cd79aad64efc9cf522141fadbf2f88d3ca32aa",
+      "path": "scripts/record-r1c14-native-readmission-receipt.mjs",
+      "size": 7087
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "80f4289661c7c157490f8c248dcf07471a744e9f0decd95c9435660d21749edb",
+      "path": "scripts/run-hub-migrations.mjs",
+      "size": 61700
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4cdc64c193fdab867acd0f7510c37bccd1ca238077e3c042a571a42a6ed2b002",
+      "path": "scripts/run-r1-operator-walkthrough.mjs",
+      "size": 14780
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ee3f7f59cdb727f25f8e445228acd40ce40dd411c6d6a615d6b2a2ab6db7ac4c",
+      "path": "tests/fixtures/r1-s3-git-import-https-fixture.mjs",
+      "size": 2803
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "beb806b1143be57b9d4ced773c1ae87591fb6cb87b8a063987d34bdef9cc6445",
+      "path": "tests/fixtures/r1-s4-baseline-candidate.sql",
+      "size": 1827
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1178fa9aa806db9656c364130061cf222f618e5eabbf52c228209b858720f9d1",
+      "path": "tests/implementation/r1-a0-admission.test.mjs",
+      "size": 8697
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4573e7b851963fdf05812b55a7f935e9f676cfe67cfaa8901652d327a9304b0a",
+      "path": "tests/implementation/r1-a0-migration-custody.test.mjs",
+      "size": 2745
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "52b459604fc984307f6fbf65bb4537813953670a21a452c076bb2b59662bf11d",
+      "path": "tests/implementation/r1-g0-profile-compiler.test.mjs",
+      "size": 14976
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "03a4f3eb16aee284d937e816289a7dbe2beace5e0c90e90628b25b80c28ce8ec",
+      "path": "tests/implementation/r1-r1c14-finalizer.test.mjs",
+      "size": 3557
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1e1c422b1b1166e49835e074b0918ca34c45643ea1571e03986e686d630cb7e8",
+      "path": "tests/implementation/r1-r1c14-native-readmission.test.mjs",
+      "size": 25926
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f39433f4e1cf73508bc0b92c631aa57c6153138353c2ca6f01553b457c26f262",
+      "path": "tests/implementation/r1-s1-http.test.mjs",
+      "size": 10838
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "85af0461ccc39d432626177fa7378e47fe86747ed0a300970174d831b1d29218",
+      "path": "tests/implementation/r1-s1-live-browser.spec.mjs",
+      "size": 1723
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4682b989c3b19d4f26a0594b148c26ac830d85c43f6372eaa202e0ab7b5eaa85",
+      "path": "tests/implementation/r1-s1-live-runner.sh",
+      "size": 1734
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "49300a9dfcb5ce2106221076a6f2944a366516bcb2cb9fd37135b06038124b6b",
+      "path": "tests/implementation/r1-s1-live-setup.mjs",
+      "size": 2744
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2cf4fd84f8c279fd002a0d7739232d9428a07f9cc53d78aa65c8535af9f48684",
+      "path": "tests/implementation/r1-s1-postgres.test.mjs",
+      "size": 5779
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2f9e36154a5a97d7fb28ae22bb3db953a145790639e53ee661bea3368ace5a70",
+      "path": "tests/implementation/r1-s1-qualification-runner.sh",
+      "size": 408
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ae2d99141a6fdd263219a28f2081582e8c187e27c4f1b698c8fb8c843cc7585e",
+      "path": "tests/implementation/r1-s2-adopted-custody.test.mjs",
+      "size": 5183
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9ff269c31bd55cbf6087e4ce4e337b63b12503ff9d160b8c852c9d4d8e662665",
+      "path": "tests/implementation/r1-s2-http.test.mjs",
+      "size": 13654
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9f610bab3fe0c7546c23d560c0439779df70beeda4353614dbb5aa3bbc8ac343",
+      "path": "tests/implementation/r1-s2-live-browser.spec.mjs",
+      "size": 6122
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "78dc1c5603f54cf61ef911d5df15b95a07fec492da78f314c82082f6fe6d6327",
+      "path": "tests/implementation/r1-s2-live-runner.sh",
+      "size": 2760
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9804aa0300ed34a6c5e0dacfd34bd7b7348e700b9ef47be38f3d56940912d550",
+      "path": "tests/implementation/r1-s2-live-setup.mjs",
+      "size": 4716
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "02bfacaa86dcd832e19a8a3d54c56031b68f97e3ef861dadc1c7ff663a174269",
+      "path": "tests/implementation/r1-s2-migration-custody.test.mjs",
+      "size": 5463
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "530668f373ed36b9797d5e3e39ee45f7ed9050dced7077ccd241d247e59dfb83",
+      "path": "tests/implementation/r1-s2-postgres.test.mjs",
+      "size": 29744
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "147bfa5606a4dcebb9366a796ca966a53bd84dce32876cf0dfc8ba16966635ca",
+      "path": "tests/implementation/r1-s2-reads.test.mjs",
+      "size": 6994
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b211893101f1f7289bcb52015240886e6910bc62cb673bf7c2d0b88af1b8f075",
+      "path": "tests/implementation/r1-s3-git-execution.test.mjs",
+      "size": 40815
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a6071a7a3edd3e6044d67c06c3f8461f689c1e6ee22bba826601fdd0c679ed1b",
+      "path": "tests/implementation/r1-s3-postgres.test.mjs",
+      "size": 36550
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "03be86a9da387f29a4078e35e0b5919ea84bde12ae630b8d286c0cd916b900b0",
+      "path": "tests/implementation/r1-s3-project-browser.test.mjs",
+      "size": 7087
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e0f8f71c01482bca2bbb2e1dd9eb18e15c3320f341ac4293b594784ec2a754e7",
+      "path": "tests/implementation/r1-s3-project-command.test.mjs",
+      "size": 26239
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c3946f8ffea8289bc63b44e0060e7f2b774f5a901519870426e51171f6b0bb89",
+      "path": "tests/implementation/r1-s3-project-disclosure.test.mjs",
+      "size": 6575
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "78ae111accf048b7a93ea0fbb8573deb62b931e6d38e492036df9161769a7f05",
+      "path": "tests/implementation/r1-s3-source-recovery.test.mjs",
+      "size": 3476
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "07cbb0f7a619d9d09cb5efde7f2f8a0a2720cc43e662f5803186a326415017ed",
+      "path": "tests/implementation/r1-s4-baseline-browser.test.mjs",
+      "size": 4899
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9fd464fa4ff0ccc42ca8ee6b7a168769eb280267c24b08da2d9916ee7e0dae28",
+      "path": "tests/implementation/r1-s4-baseline-custody.test.mjs",
+      "size": 2792
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c32a0c253cf43a7db8afa331446b10a914d9903efe717a1eb1bad77ab33bbbc3",
+      "path": "tests/implementation/r1-s4-baseline-decision.test.mjs",
+      "size": 1617
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f206d90970c3ff98f21b3ed2423557bfa2c2c0638a015c2fcfdd5bad803eb535",
+      "path": "tests/implementation/r1-s4-baseline-reentry.test.mjs",
+      "size": 4277
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ad3d824df1d53c1637fc93bdf8bf62c37591361e57d9185481d85bdfe50eddb7",
+      "path": "tests/implementation/r1-s4-postgres.test.mjs",
+      "size": 8448
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "1e2346440a91d89f9d54ea1d5d9739dd030a0d87281457df1690680f9cb41327",
+      "path": "tests/implementation/r1-s5-browser-boundary.test.mjs",
+      "size": 4031
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c5b96fb5fc588bd655506ce187c2dc26e50f93927c2c9a4881fc202f16038776",
+      "path": "tests/implementation/r1-s5-browser-hardening.test.mjs",
+      "size": 14892
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "875eaf2fa8fde8f62c15145a699375ef92aa1e0085ac059573d0c3cc86e79c03",
+      "path": "tests/implementation/r1-s6-baseline-explanation-browser.test.mjs",
+      "size": 5609
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "32cd0b6bef2d177a15a84903bbd8137ad529c3eee1fe0c757c175a8faa0345e5",
+      "path": "tests/implementation/r1-s6-baseline-explanation.test.mjs",
+      "size": 7067
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9336fc0d933684df265e25426c01203aff39905d7a3649bfe93411081333fe92",
+      "path": "tests/implementation/r1-s6-composed-journey.test.mjs",
+      "size": 13476
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ade307572e7473411a5adf904540b7c865b95f8ce74a4f180422f3759c5a8c68",
+      "path": "tests/implementation/r1-s6-postgres.test.mjs",
+      "size": 6415
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6e707a665f8d01704cccf3e3cbec66a2c366005fa09adb8b74c090e1417ec211",
+      "path": "tests/implementation/r1-s6-production-cognition.test.mjs",
+      "size": 5625
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "38c232dca74503a6c62779279a043f8754a21879c1854d3c83df26d701adbe9c",
+      "path": "tests/implementation/r1-s6-project-inception-browser.test.mjs",
+      "size": 6072
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c2d3be7260f8bee00754e502ad8d51d12a688936978fc4d7ae942769776e2890",
+      "path": "tests/implementation/r1-s6-project-inception.test.mjs",
+      "size": 9371
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "62a5533acbf6e51259bd1138e7ba059dbaf69f6645765d1458155bb3480e61b4",
+      "path": "tests/implementation/r1-s6-project-refinement-browser.test.mjs",
+      "size": 7611
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "61ba0bb67b6e5b1b27e05e6b29565a5317c3fc2e0d5c66f55a0d2a2eea3b74d8",
+      "path": "tests/implementation/r1-s6-project-refinement.test.mjs",
+      "size": 8753
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6fa8709f52bda2753f2ecc632e123bd0c508381f10c768c5089c75a0477dfd89",
+      "path": "tests/implementation/r1-s6-refinement-postgres.test.mjs",
+      "size": 8675
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "2af1a8c845b8a9b4520af0c778e1ff2108ae3102d0e49c32efa38eea18f8b693",
+      "path": "tests/repository/_roadmap-phase-guards.mjs",
+      "size": 421
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c60bba42b0d966bcffc861ec7f69696dde6542860dba2b510a94a1b2c7e1b5b0",
+      "path": "tests/repository/4c-candidate-ia.test.mjs",
+      "size": 2044
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "07f1f13ced4b4cb87e74fec9e17eaa0d3253c7bb1b39e30ea19b0454a061dd8b",
+      "path": "tests/repository/4c-candidate-surfaces.test.mjs",
+      "size": 2838
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9c90986b285894a0ee6a1f741f5de648d517192920cbef2ed81f0be78db6e49e",
+      "path": "tests/repository/4c-f01-identity-recompile.test.mjs",
+      "size": 3612
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b0d8031a8a0f12ca62132d9344bca2bc32bf973cf00a390c493b3c79b503a370",
+      "path": "tests/repository/4c-finalization.test.mjs",
+      "size": 3327
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d95bcbd3688b369e159596aac54c93897ae26eafa160bf874e1fce237e9d047b",
+      "path": "tests/repository/4c-frontend-method-v22-rebaseline.test.mjs",
+      "size": 2132
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d96be1107ffd3b86b7c1a71a7394e7974d7e88f12ffc67e2c86c5fe85f24541f",
+      "path": "tests/repository/4c-gf01-account-session-delta.test.mjs",
+      "size": 5785
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c23df91f26a970e43f8ef6b20ae754babdf3e2287bdbab127682dbe6eb84bc01",
+      "path": "tests/repository/4c-gf01-human-context-labels.test.mjs",
+      "size": 1714
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b856da4bf2ecc5f138be6d90a4374899e572dad61a5b85a55281ddda991d9d41",
+      "path": "tests/repository/4c-gf01-locked-screen-contract.test.mjs",
+      "size": 3742
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4cf014faf6d1ef3915cc6eb1eb8250a5724a63d351f50e1c509efc5f0f7bec24",
+      "path": "tests/repository/4c-p01-app-first-status.test.mjs",
+      "size": 1557
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3f4a41068d0649b5f7ddf68287f918a2d550754fc0bf5a28b6e4a2a9bede3103",
+      "path": "tests/repository/4c-p01-builder-human-context.test.mjs",
+      "size": 5878
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "980bcc0b57d30bc163fbb4553611aeb7cb4bff78c722c46f19bb5be8ce603f13",
+      "path": "tests/repository/4c-p01-f15-build-preview-subject.test.mjs",
+      "size": 1766
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "df3115c91ad325ac6e98421c9e721c33ba2d4a74f14d630b0b774fa714321445",
+      "path": "tests/repository/4c-p01-focus-revision-status.test.mjs",
+      "size": 1562
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3e5c9371385c5be88390438dae1de9a66f783c8c34f523d2463c2befb6b60074",
+      "path": "tests/repository/4c-p01-functional-wireframe.test.mjs",
+      "size": 12143
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "be2346b99041176fbe187d5161901d7e38eef9bf21567e40d48647516080f6cb",
+      "path": "tests/repository/4c-p01-locked-screen-contract.test.mjs",
+      "size": 5818
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b4e02280740ef2f7b4321aa9292e8e52b7ec2fd1b41d4294c59f576a35dde1ed",
+      "path": "tests/repository/4c-p01-p03-reference-delta.test.mjs",
+      "size": 4877
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ee1bc26649e1ce00c8ea0b70c9a0e8be366482a054711c9464e57325da543959",
+      "path": "tests/repository/4c-p01-shell-revision-status.test.mjs",
+      "size": 1221
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9fc6b792dba57daea3c21659aa562f1d6d5d5abc0ce13ade5ac74a5989f87352",
+      "path": "tests/repository/4c-p01-structural-hypotheses.test.mjs",
+      "size": 3642
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0d543bceec2497f0e15dbb21324df2d8a865176d471f3c5264d05f9be56fa3b2",
+      "path": "tests/repository/4c-p02-functional-wireframe.test.mjs",
+      "size": 13290
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9d476ec7875deaa0e33fe330ab5378f77bc19262001fb2dd9c4869480d9e4fa9",
+      "path": "tests/repository/4c-p02-locked-screen-contract.test.mjs",
+      "size": 4824
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ad3fbe365da54c1fee8a54acdc17f9f1b557d3862c320dd4b598e43f0d194dab",
+      "path": "tests/repository/4c-p02-structural-hypotheses.test.mjs",
+      "size": 2200
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "de32eaffeed6f48e1b084aa0b263736baa2a66064491037f4a4d5f2dc4f89139",
+      "path": "tests/repository/4c-p03-f24-f26-selected-realization.test.mjs",
+      "size": 10177
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5eb96f992cd46dc57588bec113d040be0744bcb3faf6ce48db806050e8344b5f",
+      "path": "tests/repository/4c-p03-functional-wireframe.test.mjs",
+      "size": 11580
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f46dd91226da28ca1fc31882daf0736f38f5481d9d3d50fce7d3a9c648e2b80e",
+      "path": "tests/repository/4c-p03-locked-screen-contract.test.mjs",
+      "size": 5079
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "fd017305c93aee200af9f91977b4ed63a0e804f5292ab67d86d55707c60f7147",
+      "path": "tests/repository/4c-p04-authority-feasibility-status.test.mjs",
+      "size": 5195
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "865e11edb5e8b3c845936c083275304b660545a9ef41bcf3f434809644993d0a",
+      "path": "tests/repository/4c-p04-functional-wireframe.test.mjs",
+      "size": 3676
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "7596526761fa80f5b522eee4dd0bdb21ee7ff99b9c851de764bb8ed64bb2320b",
+      "path": "tests/repository/4c-p04-locked-screen-contract.test.mjs",
+      "size": 3805
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8eadb421b67d89747cc87cf7a9f77f5bc51341e6197e0421f93de1a12054aa26",
+      "path": "tests/repository/4c-p05-authority-feasibility-status.test.mjs",
+      "size": 3437
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ac9e31b902909fb140b23357cf73211de50e0b1fd7ad3efa3fe3b61b03475c31",
+      "path": "tests/repository/4c-p05-functional-wireframe.test.mjs",
+      "size": 2659
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0aa978e1931c4ad81eba6bc1b62dcdf69eab0a8b5a72fa1ff5f1efadbbbb8b79",
+      "path": "tests/repository/4c-p05-locked-screen-contract.test.mjs",
+      "size": 3420
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e9057467243f509b1bf46c6af4e56f4fbd0ec142a5e294d1fbbe40dae76ba42d",
+      "path": "tests/repository/4c-p11-assembled-product-functional-wireframe.test.mjs",
+      "size": 5779
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "70af301c6755aec3a638aec6d715a4c04433069270fe7aed7449b4de30b420d8",
+      "path": "tests/repository/4c-p11-transport-core.test.mjs",
+      "size": 6325
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0c42c2b4d24c2d4c957ad2e743ba5bea0592999c0367eefde2e5e77ef9f8c0a3",
+      "path": "tests/repository/4c-p12-family1-identity.test.mjs",
+      "size": 6211
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "548babc951ea4faed38c8794e835a51be89101046ab12220746129f649fa78d2",
+      "path": "tests/repository/4c-p12-family2-identity.test.mjs",
+      "size": 4058
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "83d0735bb993edb7cb5333f694aa34421ca39cf147c20e595048682ce1d41737",
+      "path": "tests/repository/4c-p12-family3-identity.test.mjs",
+      "size": 4673
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0324b06ee7297afe2b9db0eaa1f9189eba6af0a15d43531e8a89068abaccba21",
+      "path": "tests/repository/4c-p12-family4-identity.test.mjs",
+      "size": 4045
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a03a4da2c51a4620462a03b809c5813d3e6f69d8b9e58a0a21cdb1b88b378975",
+      "path": "tests/repository/4c-pa01-f37-f38-selected-realization.test.mjs",
+      "size": 2632
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9dd8676d7cbaded6e0bab1dee33c24c12c41c1f49778f67c75daf8c0698a16e6",
+      "path": "tests/repository/4c-pa01-functional-wireframe.test.mjs",
+      "size": 3169
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "a05e0d0b3c3345257efb252cdda11dd4cd63ac2c1780716f005efa57c5339f00",
+      "path": "tests/repository/4c-pa01-locked-screen-contract.test.mjs",
+      "size": 3625
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9d4438e2ef66e2213faf08410801d7fc305873620d788b4571e5944221c5e992",
+      "path": "tests/repository/4c-pre11-f03-f05-selected-realization.test.mjs",
+      "size": 3469
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b8ed43e1536b988cf9908312de88ed1a7306923c1fe8a9fd857a7f39310c5ef0",
+      "path": "tests/repository/4c-pre11-f04-originating-run-effect-filter.test.mjs",
+      "size": 2254
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c87014a7726bf117dd696943a081bc979086ed942f43b3c4870677483c9a90fc",
+      "path": "tests/repository/4c-pre11-faithful-assembly-contract.test.mjs",
+      "size": 2414
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9fcb5e7a599dd28867e7cc0d91a206eab2e9d1d2007d4c3f7de7fc0fd157e44a",
+      "path": "tests/repository/4c-pre11-final-lock-gate.test.mjs",
+      "size": 3226
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8902f61f8c4a4f440525b4233d8bfc05b085db8c5e511e752e1cc9a68d3801c1",
+      "path": "tests/repository/4c-pre11-p7-candidates.test.mjs",
+      "size": 2136
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8584ddd942ac7a2ab49869f6c4220cea0631adea27b59bf0901c8c178e3b42e8",
+      "path": "tests/repository/4c-t01-functional-wireframe.test.mjs",
+      "size": 6522
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9bd13329abf39e83203f43661713aa1212174efb25f4b11a3123f0e504c7f256",
+      "path": "tests/repository/4c-w01-locked-screen-contract.test.mjs",
+      "size": 3346
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5f8e61332086c48a32e12095b78ed01252ba3c2ec2a4a233fb995f48d87aabb5",
+      "path": "tests/repository/4c-w02-authority-feasibility.test.mjs",
+      "size": 3291
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "833058c6325e537ab4e024910c6aa8e4ac12ba51cc2d51496bbd3c8a4034c256",
+      "path": "tests/repository/4c-w02a-locked-screen-contract.test.mjs",
+      "size": 3344
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "61c0e7e6441e870560e6bc3abb4191da2934aaa45c5c43cc352ea4dd1ef0184e",
+      "path": "tests/repository/4c-w02b-locked-screen-contract.test.mjs",
+      "size": 4470
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "971f4abd93d20376561fde21d4eb53eace12a70cadc260fc3cc3d478a6edc656",
+      "path": "tests/repository/4c-w03-access-audit-authority.test.mjs",
+      "size": 9297
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "f15e65fe096cdb706a04f35c5515ed8cf2b1f21173bc95f8ae167ad6cc70d5b6",
+      "path": "tests/repository/4c-w03-locked-screen-contract.test.mjs",
+      "size": 5011
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ff53edf31db6abec9500db29ff5247b6596b4518c33e74a60c1e18ebaff8e89b",
+      "path": "tests/repository/4c-w03-shell-coherence.test.mjs",
+      "size": 3843
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "051c98a8e2b6df5b41469ae6cbbdec62d1b78c09996a91f24ae8be7febe6b7c5",
+      "path": "tests/repository/4c-w04-locked-screen-contract.test.mjs",
+      "size": 5098
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "13dd95d048ac020096f47625b8f31bca6785c9c98ff35d752c57f9af9991643c",
+      "path": "tests/repository/4d-paved-road-property-contract.test.mjs",
+      "size": 4271
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "9fce7aa9172e6a7002e990cd971ca7001820cb1606c932aac2c0d476db130d0c",
+      "path": "tests/repository/4d-planning-acceleration-adjudication.test.mjs",
+      "size": 2673
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "fbbe4f698ae23fe0070f946187e02999fb88590915ac6cb787e7e61cdf9aa061",
+      "path": "tests/repository/4d-protected-property-ledger.test.mjs",
+      "size": 24160
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "50b2fb8d314fb474237a301748e071f824926900122efc218564e314535afe82",
+      "path": "tests/repository/4d-r1-foundation-conformance-contract.test.mjs",
+      "size": 2535
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "5b9a250831af6db2658daace370272c9ac8d420775c180777723961504018efc",
+      "path": "tests/repository/4d-r1-foundation-independent-review.test.mjs",
+      "size": 1878
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "3229b19c843ae1d7673c6c54da54fb5d34aae7c137beb1d13b46487ddfb98328",
+      "path": "tests/repository/4d-r1-foundation-probe-grant-request.test.mjs",
+      "size": 1942
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "390bd9a80e5afd07e226c2e6dbbbc43d357eb55134de60de82ead4ad6e038f11",
+      "path": "tests/repository/4d-r1-foundation-selection-candidate.test.mjs",
+      "size": 3921
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "aa1e0358216b4a7f808bdfa77996f0e1e56122c56b6ba0ab51770677935e943c",
+      "path": "tests/repository/4d-r1-pack-a-admission-result.test.mjs",
+      "size": 2552
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "97f8c2a0cd05f6614e775284470fd6636782c76947062b94b7501441e208ef7f",
+      "path": "tests/repository/4d-r1-pack-b-profile-compiler-result.test.mjs",
+      "size": 2560
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d9d57c382dfda68ed5390c664724068a075f2170239e3a1cc7b0a96aee96830d",
+      "path": "tests/repository/4d-r1-pack-c-http-identity-session-result.test.mjs",
+      "size": 2982
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "77e8aba6cd705605aa0140ecc19db82de201bf8c0e00b873cec62f41875b01c1",
+      "path": "tests/repository/4d-r1-pack-d-browser-foundation-result.test.mjs",
+      "size": 2906
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "0824e812728190079e878577a96a18fb30d3878958afb42f1c11079d196cb84e",
+      "path": "tests/repository/4d-r1-pack-e-postgres-migrations-result.test.mjs",
+      "size": 2364
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e06f9fd5810b55d4a146acc04e46c62a0b38fbb2fa4b14d40fde92e2d6028a7c",
+      "path": "tests/repository/4d-r1-pack-f-and-probe-batch-result.test.mjs",
+      "size": 2473
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "65511f29d8520cc4ba1a0f9f624cb986e3ca18610c207542298166e3d32e3e59",
+      "path": "tests/repository/4d-r1-reachability-and-foundation-batch.test.mjs",
+      "size": 3920
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "af447ea5ff33e7f4d8b706a9218241144da0850fa06c7add6528056188d5f666",
+      "path": "tests/repository/4d-rf01-global-maximum-reference-review.test.mjs",
+      "size": 2076
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "28634c6e0e5b38ea0fb90bfd89c5173e0a27f1de1842b1b45480a395ff58e6d0",
+      "path": "tests/repository/4d-rf01-profile-compiler-selection.test.mjs",
+      "size": 2526
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "6403f6fdfb51d30c15ba55cadbb269e957d615003ca3191e1c1a553bee6c775d",
+      "path": "tests/repository/4d-runtime-family-applicability.test.mjs",
+      "size": 3368
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "de84a0c53d9b96e823e6c3f5e66cf37c8dfa52a331277e4611538d711fcfadd4",
+      "path": "tests/repository/4d-scaffold-profile-ownership-contract.test.mjs",
+      "size": 2724
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "8660bb49980540e4df2f71d345f50ebc1138dae220d80caa8aab720d8d9d6521",
+      "path": "tests/repository/4e-r1-composed-coherence-candidate.test.mjs",
+      "size": 2142
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "71eaf7e470196945162eb4df4b350b238bbe282928e23d91fcbf2a40b18a0ef0",
+      "path": "tests/repository/4e-r1-independent-global-review-adjudication.test.mjs",
+      "size": 2642
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "d7a0e5f4c2df98cea59041fabcbca2c86503e7bddda9111e45d696451a29f3e2",
+      "path": "tests/repository/4e-r1-missing-project-cognition-runtime.test.mjs",
+      "size": 1317
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "309d946b3f88c8d345160242aded241a527714478254c876fbff0b51e8b61508",
+      "path": "tests/repository/4e-r1-project-cognition-exact-selection.test.mjs",
+      "size": 1168
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "eaf6211f281152f165ef101875ae7c3e1e0699fbc8732892e7dc5a8b374611ba",
+      "path": "tests/repository/4e-r1-project-cognition-global-maximum.test.mjs",
+      "size": 2295
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4e1377c6c0980a97a16dd45935d012876dae7fed6892770a8c9225dc0fbdf68e",
+      "path": "tests/repository/4e-r1-project-mastra-admission-candidate.test.mjs",
+      "size": 1934
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "e4a06b900523b5ffe966c5ce06835970d5822dac888195bf3019a86b305ef7aa",
+      "path": "tests/repository/4e-r1-project-mastra-admission-probe-result.test.mjs",
+      "size": 2180
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "241bf15452e7e753edf8782c2e925005827b5959947839243ec92d35e4182189",
+      "path": "tests/repository/c018-ratification.test.mjs",
+      "size": 1993
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "4ab6bc9c5240c558ae0be3430deda6ddbe2e83dd63888d158bde59de75682d99",
+      "path": "tests/repository/conexus-preflight.test.mjs",
+      "size": 6821
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "c05fd38477a26cc26a5bf489909d4a6bb87f74d0dcd1edb7dfcc9ed77e302200",
+      "path": "tests/repository/conexus-review.test.mjs",
+      "size": 9672
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "820e471df5e87b093801fac3c275985b7eb9074e59d7097cb4d16746f1aa53f9",
+      "path": "tests/repository/conexus-verify.test.mjs",
+      "size": 4184
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "dd359283e6225c920646f32194e963c8afda96e6d28662309aa1381524866e2c",
+      "path": "tests/repository/import-law.test.mjs",
+      "size": 7326
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "ed7cf936eb6c75555f442644e551e19b5534e33834479c4b874f8728ff7ba051",
+      "path": "tests/repository/opus-composed-receipt.test.mjs",
+      "size": 1824
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "381baf3b2b766d44cd28b64968cbfce207a87f3bad3b146b3282b80b0bc37a81",
+      "path": "tests/repository/r1-rc01-candidate-custody.test.mjs",
+      "size": 1400
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "b3579d16f7269852ab2102eb18c588c8284c0dfb572cf0b4fac27a54f05ed7b0",
+      "path": "tests/repository/repository-contract.test.mjs",
+      "size": 4895
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "outputDigest": "da878a216d8659618bc6341a57a1196081611c536e915bf22a96006976482535",
+      "path": "tsconfig.base.json",
+      "size": 406
+    }
+  ]
+}

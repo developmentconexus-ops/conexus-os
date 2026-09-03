@@ -1,0 +1,354 @@
+{
+  "kind": "conexus.rb-c0-builder-runtime-candidate-pin-manifest/v1",
+  "status": "CORRECTED_CANDIDATE_NOT_ADMITTED_NOT_INSTALLED_NOT_EXECUTED_CURRENT_STATUS_IN_ROADMAP",
+  "observedOn": "2026-09-03",
+  "authority": {
+    "grant": "RB-C0 documentation and qualification design only",
+    "productImplementation": false,
+    "dependencyMutation": false,
+    "liveProviderOrModelCall": false,
+    "liveE2BCall": false,
+    "externalInputCustody": false,
+    "gitPublication": false
+  },
+  "reviewState": {
+    "round1": "INCOMPLETE_AGY_BLOCKED_FINDING_ACCEPTED_FABLE_429_NO_REPORT",
+    "round1Correction": "OpenCode control-plane execution removed from RB-C1; dedicated credential-free E2B execution only",
+    "round2": "INCOMPLETE_OPUS_BLOCKED_AGY_CANCELED_NO_REPORT",
+    "round2Substitution": "OPERATOR_AUTHORIZED_OPUS_RECORDED_AS_OPUS_NOT_FABLE",
+    "currentStatusOwner": "docs/roadmap.md"
+  },
+  "repositorySubject": {
+    "branch": "codex/4c-p02-integrations-ux",
+    "head": "fd6f771be45102009f1887afaa9fc8a7e487e777",
+    "originMain": "1619f14d9caed172b6cada9430e6b49ff77a4316",
+    "workingTreeOverlay": {
+      "status": "PRESENT_UNCOMMITTED_PRESERVE_UNOWNED_STATE",
+      "environmentIdentitySource": "current working-tree files, not HEAD alone",
+      "nvmrcSha256": "5b9d0e73029969ae9000117cb877f17bb9841c1279bfe8024e294acfcf017800",
+      "packageJsonSha256": "6a04aa1e73dcd9cdcac2a17d98d9470757e94203f09e88247dff7677d29761dc",
+      "packageLockSha256": "3f3364c8449e0bb73fafeaa588a2eef9e03cea4536dfa70867e0803db91f3baf"
+    },
+    "tranche": [
+      "PRJ-29",
+      "BLD-01..17"
+    ],
+    "excluded": [
+      "BLD-18..20",
+      "R2",
+      "Product implementation"
+    ]
+  },
+  "decidingEnvironmentCandidate": {
+    "os": "linux",
+    "arch": "x64",
+    "nodeVersion": "24.20.0",
+    "npmVersion": "12.0.2",
+    "lockfileVersion": 3,
+    "zodVersionAlreadyLockedAtRoot": "4.5.2",
+    "executionStatus": "NOT_PROBED_FOR_RB"
+  },
+  "sharedModelEnvelopeCandidate": {
+    "providerModelId": "openai/gpt-5.6-sol",
+    "credentialProviderCandidate": "openai-codex",
+    "reasoningEffort": "medium",
+    "sameModelRequiredForBothCandidates": true,
+    "credentialBoundaryByCandidate": {
+      "RB-NATIVE-MASTRA-E2B-01": "control-side allowlisted process environment only; never guest",
+      "RB-MASTRA-ACP-OPENCODE-E2B-01": "UNRESOLVED_FOR_RB-C2; RB-C1 has no provider credential and OpenCode executes only in a dedicated credential-free E2B sandbox"
+    },
+    "compatibilityStatus": "UNPROVEN_UNTIL_SEPARATELY_AUTHORIZED_RB-C2",
+    "liveCallsAuthorized": false
+  },
+  "npmComponents": [
+    {
+      "name": "@mastra/core",
+      "version": "1.63.2",
+      "role": "shared Mastra host and native incumbent",
+      "license": "Apache-2.0",
+      "nodeEngine": ">=22.13.0",
+      "tarball": "https://registry.npmjs.org/@mastra/core/-/core-1.63.2.tgz",
+      "integrity": "sha512-BHVDF4GtQnIqRND/lPVVoTnmoNzZ7+voz+EpI4YSY0W7In6c/EOrmMnshuNQSDJ9NpxQNrwip0WGYpRYwzFirQ==",
+      "shasum": "3a04cc5397cec6edd77cf7570395d2f6aec514f9",
+      "sourceRepository": "https://github.com/mastra-ai/mastra",
+      "sourceDirectory": "packages/core",
+      "slsaSourceCommit": "8da7066efbfdfccb087c48f14be3b74373aab50e",
+      "attestation": "https://registry.npmjs.org/-/npm/v1/attestations/@mastra%2fcore@1.63.2",
+      "rootState": "ALREADY_LOCKED_AT_ROOT",
+      "rbAdmission": "PENDING"
+    },
+    {
+      "name": "@mastra/acp",
+      "version": "0.4.1",
+      "role": "Mastra-hosted ACP challenger adapter",
+      "license": "Apache-2.0",
+      "nodeEngine": ">=22.13.0",
+      "peerDependencies": {
+        "@mastra/core": ">=1.34.0-0 <2.0.0-0"
+      },
+      "tarball": "https://registry.npmjs.org/@mastra/acp/-/acp-0.4.1.tgz",
+      "integrity": "sha512-hpSDkyXF9f6HE6hs+S3MwgTqWTk4lK2vbQPoIMoiJca3KuvL0VbabWyr+RGSQssglxcHgOQDsDKEoV+xjU5/4w==",
+      "shasum": "4597d942565f1498a044114032324352bdfae277",
+      "sourceRepository": "https://github.com/mastra-ai/mastra",
+      "sourceDirectory": "agent-sdks/acp",
+      "slsaSourceCommit": "936404b7c06da31f082def283362046457a480ab",
+      "attestation": "https://registry.npmjs.org/-/npm/v1/attestations/@mastra%2facp@0.4.1",
+      "rootState": "ABSENT",
+      "rbAdmission": "PENDING"
+    },
+    {
+      "name": "@agentclientprotocol/sdk",
+      "version": "0.21.0",
+      "role": "exact resolution of @mastra/acp ^0.21.0 dependency",
+      "license": "Apache-2.0",
+      "peerDependencies": {
+        "zod": "^3.25.0 || ^4.0.0"
+      },
+      "tarball": "https://registry.npmjs.org/@agentclientprotocol/sdk/-/sdk-0.21.0.tgz",
+      "integrity": "sha512-ONj+Q8qOdNQp5XbH5jnMwzT9IKZJsSN0p0lkceS4GtUtNOPVLpNzSS8gqQdGMKfBvA0ESbkL8BTaSN1Rc9miEw==",
+      "shasum": "0ff29414374b868b5855f16b9bfa75a5ee16f8a1",
+      "sourceRepository": "https://github.com/agentclientprotocol/typescript-sdk",
+      "slsaSourceCommit": "74372b59f8f56eb30e72f2538df2671a0adb376f",
+      "attestation": "https://registry.npmjs.org/-/npm/v1/attestations/@agentclientprotocol%2fsdk@0.21.0",
+      "rootState": "ABSENT",
+      "rbAdmission": "PENDING"
+    },
+    {
+      "name": "@mastra/e2b",
+      "version": "0.11.0",
+      "role": "shared E2B-backed Mastra Workspace candidate",
+      "license": "Apache-2.0",
+      "nodeEngine": ">=22.13.0",
+      "peerDependencies": {
+        "@mastra/core": ">=1.55.0-0 <2.0.0-0"
+      },
+      "tarball": "https://registry.npmjs.org/@mastra/e2b/-/e2b-0.11.0.tgz",
+      "integrity": "sha512-7YJsaxF2Yaf2ozfdG6PUl5Fvga3jr2akwPK6CUVkHbicIpEgCu406SX/Eot+OXc6JLUYPnFdbekgd3dpURPSmg==",
+      "shasum": "7ed73d9def25c0ab46e1b4eac2c8907b52087c52",
+      "sourceRepository": "https://github.com/mastra-ai/mastra",
+      "sourceDirectory": "workspaces/e2b",
+      "slsaSourceCommit": "936404b7c06da31f082def283362046457a480ab",
+      "attestation": "https://registry.npmjs.org/-/npm/v1/attestations/@mastra%2fe2b@0.11.0",
+      "rootState": "ABSENT",
+      "rbAdmission": "PENDING"
+    },
+    {
+      "name": "e2b",
+      "version": "2.46.1",
+      "role": "exact E2B JavaScript SDK candidate resolution",
+      "license": "MIT",
+      "nodeEngine": ">=20.18.1 <21 || >=22",
+      "tarball": "https://registry.npmjs.org/e2b/-/e2b-2.46.1.tgz",
+      "integrity": "sha512-OqYovS2oFrt4mk737CgfW/RoMadBYK84l5qjKpvbEoOB9KKxaZIXm7YUwOKSRTlijrrwDRX7oZlyPoVXiCpyTw==",
+      "shasum": "86e251b4592f7c6af7d956416848bc50d1eb08c2",
+      "sourceRepository": "https://github.com/e2b-dev/e2b",
+      "sourceDirectory": "packages/js-sdk",
+      "slsaSourceCommit": "a1bf7be2c2e28e94ed19615d7146557d1758fac8",
+      "attestation": "https://registry.npmjs.org/-/npm/v1/attestations/e2b@2.46.1",
+      "rootState": "ABSENT",
+      "rbAdmission": "PENDING"
+    },
+    {
+      "name": "opencode-ai",
+      "version": "1.18.27",
+      "role": "optional npm wrapper metadata for ACP executable candidate",
+      "license": "MIT",
+      "tarball": "https://registry.npmjs.org/opencode-ai/-/opencode-ai-1.18.27.tgz",
+      "integrity": "sha512-5xrG2gQEwV2sLus30SZX9GyLbPX3z57BCxddedDM0wx1bgnwlHVLOS/FD2uve7fEZlmkr7KYFbvs65ySz1rwzA==",
+      "shasum": "4c3c54227e0d3496b0914d19c98e70fd9c088108",
+      "npmSlsaAttestation": null,
+      "rootState": "ABSENT",
+      "rbAdmission": "PENDING",
+      "useForAcquisition": false
+    },
+    {
+      "name": "opencode-linux-x64",
+      "version": "1.18.27",
+      "role": "npm platform package identity cross-check only",
+      "license": "NOT_DECLARED_IN_PACKAGE_METADATA",
+      "tarball": "https://registry.npmjs.org/opencode-linux-x64/-/opencode-linux-x64-1.18.27.tgz",
+      "integrity": "sha512-hxoPQCv6z/iYh3f8ZlAhJQ0RgzfJZQNOM1ZLRkx7juiZBmtLQLgFtDRiFNhqOKlKgDWsg131fOEEWwsT778aWA==",
+      "shasum": "da0d5dcaf62d7ec553030ce7daf1248a4eef55b0",
+      "npmSlsaAttestation": null,
+      "rootState": "ABSENT",
+      "rbAdmission": "PENDING",
+      "useForAcquisition": false
+    }
+  ],
+  "acpProtocolCandidate": {
+    "sdkPackage": "@agentclientprotocol/sdk@0.21.0",
+    "protocolVersionConstant": 1,
+    "transport": "stdio JSON-RPC",
+    "agentCommand": "opencode acp inside an exact dedicated E2B probe sandbox",
+    "handshakeIdentity": "PENDING_RB-C1",
+    "permissionPolicy": "deny unless the exact Hub-issued grant maps to the requested option",
+    "clientCapabilityPolicyForRbC1": "advertise no control-plane filesystem or terminal capability; deny every agent-to-client action request during the no-model handshake",
+    "ambientEnvironmentInheritance": "FORBIDDEN",
+    "ownerAuthority": false
+  },
+  "opencodeExecutableCandidate": {
+    "project": "anomalyco/opencode",
+    "version": "1.18.27",
+    "tag": "v1.18.27",
+    "tagCommit": "4b7e19e315cca414121ba1d61523fef74bb3ae8b",
+    "releaseTargetCommitish": "b04697366f05419e9bd7a92f841813dd976161c9",
+    "releasePublishedAt": "2026-09-02T21:41:01Z",
+    "releaseImmutable": true,
+    "assetName": "opencode-linux-x64.tar.gz",
+    "assetId": 541770555,
+    "assetSizeBytes": 60524016,
+    "assetSha256": "4af5494f9433f59db8c1e344198f0ee72a50c06ec009fb4a8aeab4c2d4abd702",
+    "releaseUrl": "https://github.com/anomalyco/opencode/releases/tag/v1.18.27",
+    "acquisition": "download and hash the exact immutable GitHub release asset only after RB-C1 authorization; no install script and no control-plane execution",
+    "sourceToBinaryProvenance": "NOT_PROVEN",
+    "rbC1ExecutionLocation": "dedicated credential-free E2B sandbox only",
+    "controlPlaneExecutionAllowed": false,
+    "executionStatus": "NOT_DOWNLOADED_NOT_EXECUTED"
+  },
+  "e2bTemplateCandidate": {
+    "baseImage": "docker.io/library/node@sha256:be23f54a88d34e8824c741b19b91064094f92c1c97b194144bfc8b50d67258e2",
+    "platform": "linux/amd64",
+    "nodeVersion": "24.20.0",
+    "templateSourcePath": "qualification/4d/rb-builder-runtime/template",
+    "templateSourceSha256": null,
+    "templateId": null,
+    "buildId": null,
+    "networkPolicy": {
+      "allowInternetAccess": false,
+      "allowPublicTraffic": false
+    },
+    "lifecycle": "explicit create/reattach/kill; pause is not quiescence proof",
+    "materializationStatus": "PENDING_SEPARATE_RB-C1_AUTHORIZATION",
+    "historicalTemplateReuse": false,
+    "preExistingAccountResourceMutationAllowed": false
+  },
+  "candidateTopologies": [
+    {
+      "candidateId": "RB-NATIVE-MASTRA-E2B-01",
+      "role": "INCUMBENT_CANDIDATE",
+      "host": "@mastra/core@1.63.2 AgentController and coding-agent mechanics",
+      "workspace": "guarded @mastra/e2b@0.11.0 over e2b@2.46.1",
+      "adapter": "CodingWorkerRuntime owner-neutral port",
+      "localHostWorkspaceAllowed": false,
+      "selection": "OPEN"
+    },
+    {
+      "candidateId": "RB-MASTRA-ACP-OPENCODE-E2B-01",
+      "role": "REQUIRED_CHALLENGER",
+      "host": "@mastra/core@1.63.2 plus @mastra/acp@0.4.1",
+      "protocol": "ACP v1 via @agentclientprotocol/sdk@0.21.0",
+      "executable": "OpenCode v1.18.27 linux-x64 immutable release asset",
+      "workspace": "same guarded @mastra/e2b@0.11.0 over e2b@2.46.1",
+      "processLocation": "RB-C1 no-model probe: dedicated E2B sandbox only; RB-C2 credential-bearing topology unresolved",
+      "transportBridge": "bounded run-and-physical-sandbox-bound ACP byte relay candidate; unproven until RB-C1",
+      "adapter": "same CodingWorkerRuntime owner-neutral port",
+      "localHostWorkspaceAllowed": false,
+      "selection": "OPEN"
+    }
+  ],
+  "sourceInspectionFindings": [
+    {
+      "id": "RB-C0-F01",
+      "component": "@mastra/acp@0.4.1",
+      "finding": "The default permission handler selects the first option when no callback exists.",
+      "requiredDisposition": "Provide an explicit deny-by-default Hub-bound handler and firing denial tests."
+    },
+    {
+      "id": "RB-C0-F02",
+      "component": "@mastra/acp@0.4.1",
+      "finding": "The child process environment merges process.env with configured values.",
+      "requiredDisposition": "Launch the adapter through a minimal allowlisted wrapper environment; passing an env override alone is insufficient."
+    },
+    {
+      "id": "RB-C0-F03",
+      "component": "@mastra/acp@0.4.1",
+      "finding": "Default Workspace and session cwd can resolve to process.cwd(), and session persistence is enabled by default.",
+      "requiredDisposition": "Require the exact guarded remote Workspace, isolated cwd and Change/CodingSession-bound lifecycle."
+    },
+    {
+      "id": "RB-C0-F04",
+      "component": "@mastra/e2b@0.11.0",
+      "finding": "retryOnDead can create or reconnect and retry an operation after sandbox death.",
+      "requiredDisposition": "Disable or override replay for every write-capable operation and quarantine physical-incarnation mismatch."
+    },
+    {
+      "id": "RB-C0-F05",
+      "component": "@mastra/e2b@0.11.0",
+      "finding": "A missing preferred sandbox can fall through to logical-ID discovery/create, and template fallback can rebuild or use a default.",
+      "requiredDisposition": "CONTINUE_LINEAGE requires an owner-bound expected sandboxId; refuse replacement and template fallback."
+    },
+    {
+      "id": "RB-C0-F06",
+      "component": "ACP cancellation and E2B lifecycle",
+      "finding": "Protocol cancel, process exit or pause does not by itself prove guest quiescence or exclude late output.",
+      "requiredDisposition": "Verify process termination, fence late output by run/incarnation and kill or quarantine the sandbox."
+    },
+    {
+      "id": "RB-C0-F07",
+      "component": "@mastra/core@1.63.2 + @mastra/acp@0.4.1 + @mastra/e2b@0.11.0",
+      "finding": "Peer ranges allow the proposed combination, but the packages were published from different exact Mastra source commits and range compatibility is not executable compatibility proof.",
+      "requiredDisposition": "Exercise the exact locked combination in RB-C1 and stop on any version-specific behavioral or type incompatibility."
+    },
+    {
+      "id": "RB-C0-F08",
+      "component": "@mastra/acp@0.4.1",
+      "finding": "The exact source advertises internal ACP clientInfo version 0.1.0 even though the npm package is 0.4.1.",
+      "requiredDisposition": "Bind identity to the package, lock, executable and observed protocol handshake; never infer protocol or adapter revision from that display field."
+    },
+    {
+      "id": "RB-C0-F09",
+      "component": "OpenCode executable trust boundary",
+      "finding": "Immutable asset identity and SHA-256 do not make an unadmitted executable safe to start on the Conexus control plane, even with only --version or no-prompt ACP arguments.",
+      "requiredDisposition": "RB-C1 may execute the exact asset only inside a dedicated credential-free E2B sandbox; any host spawn path fails before the first executable instruction."
+    },
+    {
+      "id": "RB-C0-F10",
+      "component": "ACP agent-to-client capability surface",
+      "finding": "An E2B-confined ACP executable can still request client-side filesystem or terminal actions across the relay unless the control-side client advertises and enforces a deny-by-default capability surface.",
+      "requiredDisposition": "For RB-C1 advertise no control-plane filesystem or terminal capability, deny every agent-to-client action request and prove the denial fires; any future remote Workspace mediation requires its own exact trust-boundary design."
+    },
+    {
+      "id": "RB-C0-F11",
+      "component": "E2B account resource custody",
+      "finding": "An account-scoped E2B credential can address pre-existing templates or sandboxes even when the grant bounds newly created resources.",
+      "requiredDisposition": "Allow mutation only of template and sandbox IDs created and recorded by the exact RB-C1 run; refuse every pre-existing or foreign resource ID before mutation."
+    }
+  ],
+  "securityAndProvenanceSnapshot": {
+    "osvObservedOn": "2026-09-03",
+    "directPackagesQueried": 7,
+    "directOsvRecords": 0,
+    "meaning": "No direct OSV record was returned for these exact direct versions at observation time.",
+    "doesNotProve": [
+      "transitive graph safety",
+      "absence of undisclosed vulnerabilities",
+      "license admission",
+      "runtime safety",
+      "Conexus admission"
+    ],
+    "transitiveLockAudit": "PENDING_RB-C1",
+    "signatureVerification": "PENDING_RB-C1",
+    "licenseInventory": "PENDING_RB-C1",
+    "sbom": "PENDING_RB-C1",
+    "deniedFamilyCheck": "PENDING_RB-C1"
+  },
+  "versionDisposition": {
+    "@mastra/core@1.64.0": "OBSERVED_AS_NEWER_ON_2026-09-03_BUT_NOT_SELECTED",
+    "reason": "The exact current working-tree lock and mechanical probe use 1.63.2; no RB property or defect currently justifies broadening the candidate delta. The repositorySubject workingTreeOverlay binds that environment explicitly rather than attributing it to HEAD alone.",
+    "escape": "Repin only on a named compatibility, security, support or property falsifier and repeat the affected admission/evaluation proof."
+  },
+  "requiredBeforeAnyAdmission": [
+    "operator adjudication of RB-C0 after independent review",
+    "separate RB-C1 authorization",
+    "isolated qualification lock and clean script-disabled install",
+    "exact transitive dependency, lifecycle-script, license, signature, provenance and advisory evidence",
+    "exact OpenCode asset digest and executable identity proof",
+    "firing proof that the OpenCode binary cannot execute on the control plane and that the bounded E2B ACP relay cannot cross run/incarnation boundaries",
+    "firing proof that the RB-C1 ACP client advertises no control-plane filesystem or terminal capability and denies every agent-to-client action request",
+    "materialized E2B template source digest, templateId and buildId",
+    "firing proof that only E2B template and sandbox IDs created by the exact RB-C1 run can be mutated or destroyed",
+    "firing isolation, physical-incarnation, permission, cancellation and late-output negative controls",
+    "exact reviewed credential/model-call topology for the ACP challenger",
+    "separate RB-C2 authorization before any provider/model Worker Eval"
+  ]
+}

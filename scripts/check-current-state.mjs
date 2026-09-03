@@ -28,8 +28,6 @@ const pkg = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
 if (pkg.name !== 'conexus-os' || pkg.private !== true) errors.push('package identity must remain private conexus-os')
 
 const roadmap = readFileSync(resolve(root, 'docs/roadmap.md'), 'utf8')
-const implementationBlocked = /^\| Product implementation \| BLOCKED \|/m.test(roadmap)
-
 for (const bootstrap of ['README.md', 'AGENTS.md']) {
   const text = readFileSync(resolve(root, bootstrap), 'utf8')
   if (/^(?:3[A-O]|4[A-G]|C-018|Product implementation)\s*=\s*(?:NEXT|OPEN|CLOSED|BLOCKED|AUTHORIZED|RATIFIED)\b/m.test(text)) {
@@ -55,18 +53,17 @@ if (c018Status === 'OPEN / RATIFICATION REVIEW' && !architectureClosed) {
 if (c018Status === 'RATIFIED / OPERATOR RATIFIED' && !architectureClosed) {
   errors.push('C-018 ratification requires all phases CLOSED')
 }
-if (c018Status === 'RATIFIED / OPERATOR RATIFIED' && !implementationBlocked) {
-  errors.push('Product implementation must remain BLOCKED after C-018 ratification')
-}
-
 const tracked = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
   .trim().split('\n').filter(Boolean)
+const workingTreeStatus = execFileSync('git', ['status', '--porcelain=v1', '--untracked-files=all'], { cwd: root, encoding: 'utf8' })
+  .trim().split('\n').filter(Boolean)
+if (workingTreeStatus.length) {
+  errors.push(`canonical committed-tree verification requires a clean worktree; run r1:rc01:admission while forming a candidate (${workingTreeStatus.length} paths present)`)
+}
 for (const workflow of tracked.filter(path => path.startsWith('.github/workflows/'))) {
   const text = readFileSync(resolve(root, workflow), 'utf8')
   if (text.includes('pull_request_target')) errors.push(`unsafe pull_request_target trigger: ${workflow}`)
-  if (implementationBlocked && /^\s*contents:\s*write\s*$/m.test(text)) {
-    errors.push(`Product implementation is BLOCKED but workflow has contents: write permission: ${workflow}`)
-  }
+  if (/^\s*contents:\s*write\s*$/m.test(text)) errors.push(`workflow has contents: write permission: ${workflow}`)
 }
 
 let base = ''
@@ -93,17 +90,9 @@ if (base) {
   }
 }
 
-if (implementationBlocked) {
-  for (const path of changed) {
-    if (/^(apps|src|server|backend|frontend|internal|cmd|migrations)\//.test(path)) {
-      errors.push(`Product implementation is BLOCKED but candidate changes implementation surface: ${path}`)
-    }
-  }
-}
-
 if (errors.length) {
   console.error(errors.join('\n'))
   process.exitCode = 1
 } else {
-  console.log(`Current repository state passed (required=${required.length}, implementation_blocked=${implementationBlocked}, changed=${changed.length}).`)
+  console.log(`Canonical committed repository tree passed (required=${required.length}, changed=${changed.length}).`)
 }

@@ -1,0 +1,28 @@
+{
+  "kind": "conexus.r1c14.native-readmission-supersession/v1",
+  "observedOn": "2026-09-01",
+  "disposition": "SUPERSEDED_NOT_AUTHORITY",
+  "superseded": {
+    "evidenceDirectory": "evidence/native-readmission-linux-2026-09-01-v8",
+    "candidateSha256": "ca5bfc72b27d9d63c448615ced93342112995a66aaec7142cd28b5297d5ed0d3",
+    "resultSha256": "b6346afdc1666be4dc39f817e8a69716e3c9b486e6e8ea107318c9e828ec395f",
+    "admissionTestSha256": "2ef562656ad5d496895290bafa63953af1657a9c59ee410bd983aef8336b2a27",
+    "buildMetadataSha256": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+    "preCensusSha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+    "postCensusSha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+    "retained": false
+  },
+  "reason": "REVIEW_FINDING_CORRECTION",
+  "runCorrection": "retain the exact historical 2026-08-31 product-census protocol bytes",
+  "envelopeCorrections": [
+    "bind the physical build-metadata evidence file to its manifest pin",
+    "cross-check shared pin, manifest, result and predecessor identities",
+    "route outstanding repository, OCI and build-input custody decisions"
+  ],
+  "successor": {
+    "evidenceDirectory": "evidence/native-readmission-linux-2026-09-01-v9",
+    "candidateSha256": "514bf2b0f32c1185aace0b7f11fc3f0ff58a2cf858e458273600c39a1bbdb6a1",
+    "resultSha256": "586e07ca26f73542957b903f8dae71924b9f885839f549716277ab6b57be945d",
+    "admissionTestSha256": "0e16b388dc66e96f039169500a6c0840a7e6f4dddf017f9668450b4fb9c6712c"
+  }
+}

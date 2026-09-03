@@ -1,0 +1,3962 @@
+{
+  "schema": "conexus.rc01.prechange-inventory/v1",
+  "capturedAt": "2026-09-03T23:03:10.7404516Z",
+  "repositoryRoot": "C:/Users/leandro.theodoro/Documents/conexus-os",
+  "branch": "codex/4c-p02-integrations-ux",
+  "head": "fd6f771be45102009f1887afaa9fc8a7e487e777",
+  "originMain": "1619f14d9caed172b6cada9430e6b49ff77a4316",
+  "counts": {
+    "GENERATED": 10,
+    "INTERMEDIATE_HISTORY": 28,
+    "LOCAL_OR_UNOWNED_STATE": 1,
+    "PLATFORM_CONTRACT": 114,
+    "R1_AUTHORITY_OR_STATUS_PROJECTION": 8,
+    "R1_DURABLE_EVIDENCE": 200,
+    "R1_PRODUCT_IMPLEMENTATION": 70,
+    "RB_C0_FROZEN_FUTURE_PLANNING": 7
+  },
+  "entries": [
+    {
+      "path": ".agents/skills/conexus-development/references/review-and-delegation.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5397,
+      "sha256": "41961b3bf305a29a81e539c14a76925d269912754fe25363e20b540dd8403e7d",
+      "classification": "R1_AUTHORITY_OR_STATUS_PROJECTION",
+      "sourceOwnership": null
+    },
+    {
+      "path": ".agents/skills/conexus-development/references/wsl-environment.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1909,
+      "sha256": "055e405fbc6d45354ae999f54696f566b24a57a5d6206f993fee44b77c055247",
+      "classification": "R1_AUTHORITY_OR_STATUS_PROJECTION",
+      "sourceOwnership": null
+    },
+    {
+      "path": ".agents/skills/conexus-development/SKILL.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7581,
+      "sha256": "8cdbc14ab5714cab5c45192e37c9aecc9a22b063d0ceef86e271bbc9e8f6acb1",
+      "classification": "R1_AUTHORITY_OR_STATUS_PROJECTION",
+      "sourceOwnership": null
+    },
+    {
+      "path": ".github/workflows/verify.yml",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 2944,
+      "sha256": "2cd5fbf4231f54bc7cb7870d91607deaa52a33f6eeec3e390da9fafcc72b6da7",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": null
+    },
+    {
+      "path": ".nvmrc",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 8,
+      "sha256": "5b9d0e73029969ae9000117cb877f17bb9841c1279bfe8024e294acfcf017800",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": null
+    },
+    {
+      "path": ".wireframe-preview/gf01.html",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 20481,
+      "sha256": "1b676404cbda00670a927b890b287a67259f7003fd69b5eb7571f6480f06f404",
+      "classification": "LOCAL_OR_UNOWNED_STATE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "AGENTS.md",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 3519,
+      "sha256": "bbd58ba5170e128a928f609e3d59018500bd330282f84d60fb08a63819f7a71d",
+      "classification": "R1_AUTHORITY_OR_STATUS_PROJECTION",
+      "sourceOwnership": null
+    },
+    {
+      "path": "apps/hub/migrations/001_iam_foundation.sql",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2622,
+      "sha256": "d27e76b972145bc3a6bf669d4fd32734fc06153d07cddaf1072c6b29845b112f",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/migrations/002_workspace_foundation.sql",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7360,
+      "sha256": "b64a8e041a8e63ac3b85559805ac5573a1d53f6d5d95ba1421ffe3f9803804b5",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/migrations/003_project_foundation.sql",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 11125,
+      "sha256": "866c6da3d1a4171437b2c0a5beb72ff4994cfce499826cd8b397c2daa60037f2",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/migrations/004_project_source_recovery.sql",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2662,
+      "sha256": "c7477d9ac1786ebe330221641a916df102b8af553d18fb8b3c302b519b13f313",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/migrations/005_project_source_recovery_scan.sql",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5791,
+      "sha256": "8eac8987356002c4a22ee96d169c5a33622d0116d7b5b8190af5f412f6db2bd5",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/migrations/006_project_create_authorization.sql",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4117,
+      "sha256": "e8db0346c822bc38543d3e18d71862c4be186165709fc032ed1b110260ef32d4",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/migrations/007_project_read_disclosure.sql",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3885,
+      "sha256": "d68caa47710295c28bcdf82ca102d8318779ae0033a9c62debd7f22d72a68975",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/migrations/008_project_baseline_custody.sql",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7776,
+      "sha256": "066ce45f5df4be134792c575e9339729a5532efa540cd4bf8fa6e776c651add0",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/migrations/009_project_inception.sql",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7075,
+      "sha256": "86f5d88587d90fc26387a8b36002e0797bf340cea7d45ac3d910210ae615538a",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/migrations/010_project_inception_refinement.sql",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7692,
+      "sha256": "31755edeac0509d32620d4307ea8227f58d59e5b2fcd1b89b6b0884cee450ba2",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/migrations/atlas.sum",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 841,
+      "sha256": "f6e39e2a61412259b28fec2ffe8ce4904e328ad6c3c9d57130acc396bbb7445e",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/generated/r1-new-project-seed.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13582,
+      "sha256": "2183a8d86be9f3be4354d424166d4905000e82f38c6925ee01b39d068216621f",
+      "classification": "GENERATED",
+      "sourceOwnership": "GENERATED"
+    },
+    {
+      "path": "apps/hub/src/generated/r1c14-git-identity.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1165,
+      "sha256": "4657153b85863ef106fb086f2679427e3a6b5410eeda000eb7004f9eb70061e5",
+      "classification": "GENERATED",
+      "sourceOwnership": "GENERATED"
+    },
+    {
+      "path": "apps/hub/src/generated/s1-routes.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 9357,
+      "sha256": "a575c411639370f8cac356b2de21d131deabe78c5328401b4b6e861bdcb40652",
+      "classification": "GENERATED",
+      "sourceOwnership": "GENERATED"
+    },
+    {
+      "path": "apps/hub/src/generated/s2-routes.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6980,
+      "sha256": "0c4e0955c41372b038fa6ab053939893adc14b301152f49f2d9f583e41abbe0c",
+      "classification": "GENERATED",
+      "sourceOwnership": "GENERATED"
+    },
+    {
+      "path": "apps/hub/src/generated/s3-routes.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 36472,
+      "sha256": "7593d9d78e9b5a9978eda0ce9b9a30e234521600dfae1b16c9300b2323d5159f",
+      "classification": "GENERATED",
+      "sourceOwnership": "GENERATED"
+    },
+    {
+      "path": "apps/hub/src/http/app.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3051,
+      "sha256": "8e820bce365604e4330010cbbf731ca56be9c00f8480d39729be740413f22240",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/http/problem.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 479,
+      "sha256": "3dadd5658228d71a8a8cbbe55dea22b6e60e4bf3b2083b5b120f346dc32d7895",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/identity-access/errors.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 945,
+      "sha256": "a3ceb624b90f46c99bc04d38c62941be33e6e3dc93d1d74f5b75ddc75f71ea74",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/identity-access/module.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2154,
+      "sha256": "bdacf93a0e703b4af2bd72fd3d38961200a2812fd30f35fda3b216d145197bbf",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/identity-access/oidc.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2322,
+      "sha256": "64180e304568320327cc3631259c0306d05264291bc0d80e4738092d54738193",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/identity-access/routes.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7634,
+      "sha256": "5283912009a59f3047103cc3ad4c2a8a2d6cc236334c176f29e9afb192ba2cfa",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/identity-access/store.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13852,
+      "sha256": "42999e7db08e79e0946bfe1649c2407a890e27395eb372860e3f9e503c7afc82",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/platform/config.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4792,
+      "sha256": "11da8e78a185ac1d593f647b499570be1efebd2023fa12ffe8379312c5205a7e",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/platform/postgres.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 302,
+      "sha256": "deae59025b2debed44b2941573a7d6d5cbe144196934cb4be8b81d0774a21c75",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/platform/secrets.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 350,
+      "sha256": "f6e4fcd0c8adec9c15bd77008c82616b2305e8eafe42ffc77db9cdf67f72617f",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/anthropic-oauth-provider.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2443,
+      "sha256": "6e81482c4c003b0a69e34c1c494d76c32a1781a58220769e35416a7dd2fa7520",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/anthropic-oauth.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2402,
+      "sha256": "f1580682ee46b49ed9e69ade44f07bcc7d33af6593fd6291f8316fc7827cb113",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/bounded-provider-fetch.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2320,
+      "sha256": "a7bd26de677321905268c72b720c00d3de7ecefa594c2c4c9bf63efd0763d27c",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/errors.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 624,
+      "sha256": "726097314912b6e9d41f190d1369e084bbb64abd988c40a2f00fb491cc6c9058",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/explanation.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1923,
+      "sha256": "63b1e3dd19aa34ccbbb12a7a1da3f8e476a9adad144d6a08173d4f05f9c7bba0",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/git-execution.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 45213,
+      "sha256": "ef18db6f690348dd6277d9d461226168ce2c3efa6ff0e98eedc113ab6085fcfd",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/git-import-admission.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4969,
+      "sha256": "8963c9bc518b723fc474340db11a64f2f82fcd2c1bf9ee8739277bd11eba0185",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/identity.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 192,
+      "sha256": "de8ec917d4d519c5718c04dc6012b0a9812c8c2e418c9ce44fbcdc36291dfc22",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/inception.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5856,
+      "sha256": "0cfb03cf0fba460599b9687a6c9dc5c48ca15c46c95de61b293c603e0391a97f",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/module.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7491,
+      "sha256": "8f17ac8a88e0cd74c05408746c768f49726d0c35882aeef8a33d7d09dd1c5b96",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/oauth-token-store.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2882,
+      "sha256": "7d257092d40f9b46a2ecdbdc9fab13a081050a63b3d05fe6d3399e48e08f12d5",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/project-mastra.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 12487,
+      "sha256": "ef276ba04d1bd755ac244bc2800e168902b5f629588ae971b05e76f0b9ca6fc6",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/routes.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 12839,
+      "sha256": "a503cb37d5b727eb8daeae0ac1556178a2140c43f75854b5f5cd2743412d5c3b",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/source-recovery.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2700,
+      "sha256": "4cba6cc8e1b71d761e6bc341f6667881aa0178da162dfef80f82dace00e71b69",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/source-snapshot.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8477,
+      "sha256": "a507edb765aa957cefb714e80886c1635d5b5282feab8ea27c86999f22b1b0e3",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/project/store.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 16608,
+      "sha256": "0c6a3fbe52719cb0e5d38512ca8ef869837924e0e4c4d8d701cfed87234f2fef",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/server.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3186,
+      "sha256": "0cf9a75ec4db26d4e1c3c88362ee9bec1a788eb1670516c8f22fa4c48c56ae46",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/workspace/errors.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 518,
+      "sha256": "f87868debf25b708e8ab2dafc03e4df4bbfea3d67413f844749b5ccd14bacb26",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/workspace/module.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1163,
+      "sha256": "4b3be082d0725f4c69eac6482c71fa453bcddef3b2a6bf8e2b47e4efeddfb7fa",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/workspace/routes.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4009,
+      "sha256": "73d4a1c104eb2ba491de4945253d472409a7c704c326e6d654d713201e7fb80e",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/src/workspace/store.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4908,
+      "sha256": "2334624210ee7457125a4d4718a066e91de0266c7a3676e5be7c76b8639631bc",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/hub/tsconfig.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 172,
+      "sha256": "2fe2649343be8f571f0bae4b77e4a01a4547f43b16dcdc3b1f6fc87f2707fc4f",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/index.html",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 297,
+      "sha256": "0df189c9c291e756b15231b692d91dd3df745dce0757e261506423b12624b9d0",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/app/query-client.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1089,
+      "sha256": "8d4c325b515c52a615d5d87d297e42f1840a5af57f4fa3c7aab4c64783775434",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/app/router.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1407,
+      "sha256": "e5c95e413e251dac74045600c4cf4cca3bd38b41bbbaba08f8e512d5322aa674",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/app/shell.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6983,
+      "sha256": "da73d59edff4d4d874f95fcfc9aa4d71069f21b26b7d0bbb62c669c351fb4c73",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/features/identity-access/api.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1969,
+      "sha256": "d2c59f9a7e672e1360edba92cd8dec354727e664d8e5ef2e70a205c17cbe2820",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/features/project/api.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4717,
+      "sha256": "39f4adbec94aacd2f916a5c165c57ab742d6fdbee6046b66fac76daa215b5894",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/features/project/components/baseline-candidate.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 12474,
+      "sha256": "5cf2c48d374176c79b06f109e59e51b16335d101d228e3b02330c50f6916fd77",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/features/project/components/project-create-form.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4811,
+      "sha256": "a1b8a1b8a62e75a1150d748ee2ff17d55c2c35a7b7ffec12634618cc1a037401",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/features/project/components/project-detail.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1838,
+      "sha256": "bd8179841e698045153c95c7828daff58868783267250584e25375365a9c1865",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/features/project/components/project-inception.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3631,
+      "sha256": "7e91fb352423e606a46ba95527e2671faec45d4556abba816751ab2999aaecae",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/features/project/components/project-list.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3884,
+      "sha256": "f99ac09b5cfa221f2dcb6a0a32055f034d1412e449f5432e5b0fe677440b9e37",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/features/workspace/api.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1636,
+      "sha256": "f7c834097cdd78c9bd58be2c61d13c49b2eae210981ae750224b4ead56b7ecae",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/features/workspace/components/workspace-create-form.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3156,
+      "sha256": "45e7ee61f2b09c8e860d6e73c5ff82650716a692b99853c3ffb355865d26d9d9",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/features/workspace/components/workspace-summary.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1508,
+      "sha256": "cee1f3526c252a88babff5d5cb0dd4a34b48ed02a0aa20dd47114d0a203c9d79",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/generated/iam-client.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1645,
+      "sha256": "f340a8fe3b712fab9afee952f92226c2d6669294948cd56e99c626c88212c10b",
+      "classification": "GENERATED",
+      "sourceOwnership": "GENERATED"
+    },
+    {
+      "path": "apps/web/src/generated/project-client.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4172,
+      "sha256": "54f0760cf61a10ed9b4d595ff13ca390ea4a1ae87ccf9c91fc09e9cd3ca4b5d7",
+      "classification": "GENERATED",
+      "sourceOwnership": "GENERATED"
+    },
+    {
+      "path": "apps/web/src/generated/workspace-client.ts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1431,
+      "sha256": "50e6bfea7eedfe64fe25b38acf35660cf083b73fb1400d73a4c29099d6644326",
+      "classification": "GENERATED",
+      "sourceOwnership": "GENERATED"
+    },
+    {
+      "path": "apps/web/src/main.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 453,
+      "sha256": "435c7a57df906729995e8554c19be1a5fcf1d7501ffafcb772b1868aa421ef9e",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/routes/__root.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 143,
+      "sha256": "784589cf0fb11a62765ebfaa86e214ef547af8eb8781f0b404e349448f3778f7",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/routes/index.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3981,
+      "sha256": "278be1887d39ca0eceaaf7fddb002278583cb0bd630d7c087d71e7e2793ec4b4",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/routes/project-baseline-candidate.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2069,
+      "sha256": "7187cb277e795621a5ab05be6dac13952bf909fb63d29aae3df8f8142554e603",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/routes/project-detail.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1841,
+      "sha256": "cec7bff3d902ee2cb7bb968aade76dcf3b7771ec816bb2022ee6d27f3d748c45",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/routes/project-inception.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3002,
+      "sha256": "4b6b5623b62ef1456ccf6b837c6a5716cd909167b5095d717916c911004aeeb1",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/routes/setup.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4508,
+      "sha256": "8aa8e09ee5a283658c4032925d473ff92752449935c89b73142929e8d61be5e3",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/routes/workspace-new.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2519,
+      "sha256": "95e40f956c0e396789e20eabe1528750f0de4bf828e695c39fb57ca7c2a4fd42",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/routes/workspace-project-new.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2464,
+      "sha256": "4c5ec6eafa71c73f00b9c80c9ddfc84083b1b814a188ff5167df0974deabac85",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/routes/workspace-projects.tsx",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2195,
+      "sha256": "eaf589a8fc7f9e95a83fe2d6c3fdee56acd00a1e8aeb5206903a64da0fd571be",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/src/styles.css",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6668,
+      "sha256": "d6177a2ed463d034e6b10751033ecc10445a8ff3dc4dabe11e7a5aa7b4b64310",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/tsconfig.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 257,
+      "sha256": "31ca369d199dc74c6ff68eb1d4f04e121474ccc44935a7b1e98e5642348bfa62",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "apps/web/vite.config.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 190,
+      "sha256": "75b08071fdc2ec15344f78e6f66195595f7f9d1a7a6b31c5d1eb62a06d375ff0",
+      "classification": "R1_PRODUCT_IMPLEMENTATION",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "biome.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1150,
+      "sha256": "4da4096a5f8ef709d0b47dfbd0e29a4ab5bd198a54a2adf7636785490897b49a",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/development/engineering-method.md",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 13745,
+      "sha256": "64c7607c6a1258acbe16b633cf102372c0d8b34313988fa8383fa08deff8f7ff",
+      "classification": "R1_AUTHORITY_OR_STATUS_PROJECTION",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-r1-a0-foundation-pin-manifest.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5888,
+      "sha256": "7903abedfc2916c66e6e4692b430751aa040a84fa9f2723633ba2d5c3ae535a4",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-r1-autonomous-execution-charter.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8904,
+      "sha256": "29b57dcac60b27918c1fbe89d5bcc9454b2e8aa138ceb50210c2dfaa1b060ac4",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-r1-foundation-pin-manifest-r1c14-native-successor.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8397,
+      "sha256": "b2f6d25a20e63c375f87d07fdea5b4f0f977e53599a33b49540c882e537be9a9",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-r1-foundation-pin-manifest-r1c14-successor.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2728,
+      "sha256": "55d9c70e122795e2441839605179ef5fdb7194091a2326c9b2b9644c508ec750",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-r1-g0-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4864,
+      "sha256": "459cc9648c3e3d1cfafe5622be08cf1a5243089527ce895ea00ee966f7a86e18",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-r1-operator-pending-actions.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3072,
+      "sha256": "020ecc7105e4a2921cec7d7f22feee909436c7c45d4e548bdb99cb1c6770dc7e",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-r1-r1c14-git-source-custody-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3493,
+      "sha256": "7044c07397f7c9c1f76512f70d72f476ddece9e0dd1e89a8d728aac959b14496",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-r1-r1c14-native-readmission-final-review-adjudication.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6922,
+      "sha256": "e5cc17006fb816c8863eb07b17120f8b763b2530ba0b74f93f3c603d1e48b518",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-r1-r1c14-native-readmission-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6290,
+      "sha256": "ce1cc2cc0b36f02565c6fda1f19bb788b5dcefa5ff2908327a352aa7c3c1408f",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-r1-r1c14-native-readmission-review-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7995,
+      "sha256": "a6d74e5c8b4ebe1173f0e5d3a0764958bff36b6a665762f49e797a10de7cbfa2",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-r1-r1c14-native-readmission-v11-review-adjudication.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4097,
+      "sha256": "5017a20fe79c32bde85f762c21c9e3833783c2de4ad630251ae577036971711d",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-r1-r1c14-native-readmission-v12-review-adjudication.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4752,
+      "sha256": "3c5f73a07e333fd98a19cb9d3b0f6437ddd0244db30b6cfcd3ae3ffc12d1a632",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-r1-r1c14-native-readmission-v13-review-adjudication.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2208,
+      "sha256": "224797b66b73b142398cbf3386db350d31d51627d872092072abf383da7b70c0",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-r1-s1-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5984,
+      "sha256": "bd9b57e273c072ce519755b2d1bf1501b4ff1476959ee54a095190182131209c",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-rb-builder-runtime-admission-stage-packet.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 19667,
+      "sha256": "9ba782f9044e48479e5a57f44dcd5b81f042860181cfc0346426074a72bd63dc",
+      "classification": "RB_C0_FROZEN_FUTURE_PLANNING",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-rb-c0-candidate-pin-manifest.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 17986,
+      "sha256": "0ed7ed15a52dde184d5eda31c0674565a65493483bccf61d47d21a37fd881fd4",
+      "classification": "RB_C0_FROZEN_FUTURE_PLANNING",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-rb-c0-independent-review-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6022,
+      "sha256": "3b0aee54dd9050109a4f39ee2de3777f74320b28be27a0cfb0b1ae442b43785c",
+      "classification": "RB_C0_FROZEN_FUTURE_PLANNING",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-rb-c0-independent-review-round-1-adjudication.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6186,
+      "sha256": "9c31f008567f47dc30f219b224b9b75707b11101fa73ebd809ed5a60af62e06e",
+      "classification": "RB_C0_FROZEN_FUTURE_PLANNING",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-rb-c0-independent-review-round-2-adjudication.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 9420,
+      "sha256": "344c94a0603796746e55f3383bccfe657d66b7a9ccd1b1762fe8f27dcd86afb1",
+      "classification": "RB_C0_FROZEN_FUTURE_PLANNING",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-rb-c0-worker-eval-and-probe-design.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 21090,
+      "sha256": "c713401c031ad797afe333fdfa0214b178654735345f8aa661e6805958b3df42",
+      "classification": "RB_C0_FROZEN_FUTURE_PLANNING",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4d/4d-rb-c1-live-probe-grant-request.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7995,
+      "sha256": "d25b4bd57024e976314126f9d5a14a29372ad15ce747747fcba16be88bdf72cd",
+      "classification": "RB_C0_FROZEN_FUTURE_PLANNING",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-a0-p4-ci-wiring-correction.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5309,
+      "sha256": "9d94d4fb11182313a9528191c3fef632e129f893389b3b23ce4934b06f7f2669",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-code-architecture-directed-convergence-proposal.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 25299,
+      "sha256": "171ca73bae62430dc8797b7e31731adb58221522980d00b92d2059c917890100",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-code-architecture-global-review-adjudication.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7096,
+      "sha256": "1d0ebddd7f3b222c90cad14acc0c30a8dd0ddfc2cf8f0230934e8ab2fcc97034",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-code-architecture-independent-review-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 12326,
+      "sha256": "cf95e7c2902312f94602ed30878d0cfdbdd63ea4907e16ac40a3e76c04aee9db",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-code-architecture-independent-review-results.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3717,
+      "sha256": "7adcdb2f8fcc91be330a471cf254fe92e03922f7adcab1e695f6af2507a9b7b9",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-complete-implementation-final-confirmation-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5629,
+      "sha256": "90a5d92bdaae738dc36afa0527292fcfa162405274e81714443864229fa1405d",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-complete-implementation-final-review-adjudication.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7361,
+      "sha256": "0b2a14fad0c78c148e0c2b6fa75392b07114faf82b0a90f9c22c5a4a0f040995",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-complete-implementation-independent-review-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7531,
+      "sha256": "839bbbf9fbae59e2dccd652ca804882a705ba3c51752dca6ff2c7e8d0d3ef911",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-complete-implementation-review-candidate-v2.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4077,
+      "sha256": "3c4f0ce79ad369af82cd8aff87fd89a78bb55ca5bb02e84b77f46f572ec5ecd8",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-complete-implementation-review-candidate.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2365,
+      "sha256": "ba8a7e438908865e472131485fdf9ce1d43a736d594f67ecd1482fe15a909415",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-project-opus-composed-proof-receipt.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1861,
+      "sha256": "f729ce488b2f705957b06f7231e449ec89aa0267cffa2ee21c5d528baf8698b3",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-project-opus-model-switch-final-confirmation-agy-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1547,
+      "sha256": "4ac7322ccfdbc1122a00abd6064d58db46943a064d5e799180ca72c47e7a8725",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-project-opus-model-switch-final-confirmation-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4128,
+      "sha256": "3e3ae23bdd9deb1ed1187323b46fa6024e4472ff6424d42c81685618f82ddf1e",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-project-opus-model-switch-final-confirmation-opus-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2813,
+      "sha256": "8a2053a12600bb11d184b72183633ca74858effe9233814f3f8308cdf93a126d",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-project-opus-model-switch-independent-review-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5039,
+      "sha256": "94a47ae7172cf131ff9715faf0e365b462c62dfbc4f12600bc38fc419c9f16c7",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-project-opus-model-switch-independent-review-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7840,
+      "sha256": "081dcdd76f4d1b41be7ae57da8b94ac777681c7003ea2616f94dbf46bc9c6fb4",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-project-opus-model-switch-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3177,
+      "sha256": "b36793361e699ff5473b51a8fdec5d632790f76df87bdac2a8303d882772ed85",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-project-opus-model-switch-stage-packet.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5238,
+      "sha256": "ff81f7ca1e3f89ce21320c9a802cb1482427885c1d9efa9fecaf19e7a23f3609",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-r1c13-p0-independent-review-adjudication.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2799,
+      "sha256": "c10950842f16cf8165604bc92ae051a5dfed1c049914f3d616eecb1c7312f3f0",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-r1c13-p0-independent-review-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3351,
+      "sha256": "a72433fdfe88b3609dd57cc1f0ba0340d31bb3f1dd92bf8584a1f789697184aa",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-r1c13-p0-response-boundary-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4142,
+      "sha256": "93a40d54baf6ae5ec0e3182dc812f0575da2feb39e256315d35283d76052033b",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-r1c13-p1-project-mastra-admission-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3445,
+      "sha256": "ed0742cbcd8d7a86f85516ef67812bd8430baec863eac823bf68b445c2dfae4f",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-r1c13-p2-oauth-admission-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2289,
+      "sha256": "0e2ce2f67adc725d0258f0fc8f6a91788771fd2ad950da8ab7b8fc26b9328882",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-r1c13-p2-oauth-final-review-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3389,
+      "sha256": "43868e9b989d8f97b87a7476a4b343ce3bdec64b41993919603d522e7d8e6369",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-r1c13-p2-oauth-independent-review-adjudication.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3884,
+      "sha256": "e5b85d9aa508a1987dd0809a04e45a2727c54cfb60d94be45e82a34e91655964",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-r1c13-project-cognition-admission-candidate.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8980,
+      "sha256": "0eca1c56888bd5037cc47fc6a73e268e5e842ad6e609f236a7540e340a343b6a",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s2-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6103,
+      "sha256": "0d43d67736b0d9adfc5a59f13b70855c33985233aebecdfb2ddbb602f36dc4f0",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s2-p0-closed-path-reopen.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5409,
+      "sha256": "414eaf028707254315318b9b39c7f58b08bbc0919cc48fc8288cc124967b8d85",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s2-p5-generated-classification-reopen.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3953,
+      "sha256": "3fdd6f6b6edb3ef75d9fb1c9ce749ee692fb6d6b268852d3076ad7b1a29e407c",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s2-p5-source-ref-classification-reopen.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1700,
+      "sha256": "f97e383f8184064b3f6f58f3fb339f5d1dfaa9dafdd578252758733db1baa7ca",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s2-physical-convergence.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8082,
+      "sha256": "5d27a988932a693fd54baf4d82ca589eba474ac2765139056f251401e4a82c7d",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-git-execution-binding-candidate.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 58744,
+      "sha256": "9ced057cfd3014b07ef53c2045c517402ef7985d2dac7b171ca2f2f4d8d4d1b0",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-p0-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3712,
+      "sha256": "afae1a0ce1adeb02d9fc8d305b4c2783c87b23ee36b17bd4d0bfb845e8fcc956",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-p1-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4489,
+      "sha256": "318272379beafe334b20215f31a9b89d106c03139c771cd323373ea0ab36aad9",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-p2-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4376,
+      "sha256": "a6ab08bf0f9a0867978d31733cab5c0422b9fd6e881f9893e2e6cb6571b3d2b4",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-p3-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3211,
+      "sha256": "62faeee4cdbe6d1ab8256effd77e13523798db9e09355299c22afa7b3fff4020",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-p4a-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6138,
+      "sha256": "04bc7de6dcfdc81227a405481949f470c9f29f6de08b3f6aa819d4df7b6e9dff",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-p4a-independent-closure-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5116,
+      "sha256": "f7620f6cc0afcb2d94da6ff9682ba170c04c26be410851957c02b098cf173d76",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-p4a-review-candidate.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2604,
+      "sha256": "795d352d12b4b7cb97ccdd610340b44fee34d8b9155257106713b890ca92559a",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-p4b-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7833,
+      "sha256": "62f560d7d0a6dbce870bb018c438ba110f45b104de7d4cb06ede373f06722dcd",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-p4b-independent-closure-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5899,
+      "sha256": "b59cec04a7b4083646bee7a9bb9c1f990deecae4d3408944f8e66887da2c025a",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-p4b-review-candidate.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4383,
+      "sha256": "1a25f6845f0a0e05f0779ea8ec316815adb2b1c3c5c584cdcda1932c82349979",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-p5-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8894,
+      "sha256": "7d8de575e277592ce1c43f1b8dd753d67ea61dd5b8d556cbd3a57a7ccf4cc938",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-p5-independent-closure-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5813,
+      "sha256": "9d9901b3eb25d7a0bd98d531a71bf6287b521474d7d5ca6d6e6ee3ecf4ef91ca",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-p5-review-candidate.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5726,
+      "sha256": "0bde184094751ead251c2c4bc8c032d3e05bf1b91f4396de6c9865f804fa0758",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-p6-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8071,
+      "sha256": "1e962516b1170ed40053fb89dd3abf8b9ffe855da43beb32707df3b76debcb9c",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s3-prebyte-independent-review-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4130,
+      "sha256": "f56d41190ef226a974180632d2faf5f2b3868f586645044057c139be4eb4fc23",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s4-baseline-custody-candidate.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 11652,
+      "sha256": "bc6e970089268d0e02f96709c73bc0ae81276c86273e43b9b56edde45f2494e2",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s4-p0-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3334,
+      "sha256": "543aaec5e28a1835fdd20ae4578dea25387164e2a721ec00fcebe3a4781c9041",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s4-p1-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3705,
+      "sha256": "51a363c73839884ec5a35dca33327380c2841163e9b89ffb9d833dd4fced4396",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s4-p2-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3236,
+      "sha256": "dfd1d854d1946848c0b5f0b773e6d61d9ce26c9c2bfcae94683a6884a9a0ff17",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s5-browser-hardening-candidate.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 10840,
+      "sha256": "1b71319777672fd433cf0db1e9fc81d9cbf46dd9cd76c022340d9ad914ecf6f3",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s5-final-independent-closure-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4382,
+      "sha256": "ab2771f54d2388906bc5d5e58766169384fb72f13cc6fd5b98cd5986750325da",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s5-final-independent-review-adjudication.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3298,
+      "sha256": "59eb906ca682b7fa593d6546b94c7211ad1d241ad983aad2edce224fd6a9377b",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s5-implementation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5949,
+      "sha256": "3a3901f77037f6665e79d3b32940bc5b34eae2694ac3a2a8f78db6c312d19f53",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s6-final-closure-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7116,
+      "sha256": "3914173f24db2dce9702caab07d9b0ddc32819fd34cfdef1b5194319eb72ec54",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s6-final-closure-stage-packet.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5632,
+      "sha256": "7d57ea4cafa8f7c4f55cd9bc58f7e4fae95f7fd037083fe91f90b5c4d7b7566b",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s6-p0-project-inception-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3641,
+      "sha256": "14aec162bca4e4d492982cb26072758283dd1cb21402b7c856127337cab4e8ca",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s6-p1-project-inception-refinement-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3416,
+      "sha256": "3ab72da8b5c6354861192fc9ee7183515c9c19c139f671c412a0167e06ef2ef5",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s6-p1-project-inception-refinement-stage-packet.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4702,
+      "sha256": "2f5ac911c9357af39e66010a76e6f61cab4a450e9399b667c1e0e545041aeffc",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s6-p2-baseline-explanation-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3649,
+      "sha256": "0240d3e7513d6a7285a6a58f1a7d3a76a6f89f8f92b7ac5a482e553defb4aba9",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s6-p2-baseline-explanation-stage-packet.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4638,
+      "sha256": "33c1bb2284cb68049986cfa13d2c99fb43c528b324908d49823a13f777a48995",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s6-p3-baseline-explanation-browser-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3012,
+      "sha256": "a92cb8ac28f35df539bace2f43f06dd23a2bdebd79b8aa440784a4c70d0a08a3",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s6-p3-baseline-explanation-browser-stage-packet.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4646,
+      "sha256": "144b24db5ab5d2d8892de55e48a8a1be4015982fe04fc585189a47a496e78b9c",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s6-p4-project-inception-browser-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3602,
+      "sha256": "6b73aaaf21be7abba75fa2450d727983322019a7b1fc9ad9e9d4c582984b7370",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s6-p4-project-inception-browser-stage-packet.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4202,
+      "sha256": "a688125f845c253e120df4a996ecec6cc6891e9f9e3d085ef28bd529c47662bf",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s6-p5-project-refinement-browser-result.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3646,
+      "sha256": "f8717ed9154a7f4a49a00fa37fa6c151e33f866c3dac7bc20d51e0acd08f2a05",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s6-p5-project-refinement-browser-stage-packet.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4933,
+      "sha256": "5e3b8f4222e909b1da491b0d04972c504c5be35c5b82fb237a520d00055fe272",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/4f-r1-s6-project-cognition-stage-packet.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8559,
+      "sha256": "14d34ad11b701d77473df39814c1567d136da5e4cb4d4035c2e5cbe12a686809",
+      "classification": "INTERMEDIATE_HISTORY",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/bootstrap-sources.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 28514,
+      "sha256": "b769c272944934ee35d40a133afa7930d2f70c6db3be3e343028cbc288828076",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/p0-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 924,
+      "sha256": "61512d399523266fa36964d04e724b082a1d681439f869e98c00a4043bde8618",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/p1-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1409,
+      "sha256": "7ad337d036a547cb4024739cf5f05e9f88a920f2bc5678335551c687ec8fc26c",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/p2-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2706,
+      "sha256": "80ef42bc89f4e97d931f24ee5d92687fd60f2abc963da65900bfcd09aaa27d89",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/p3-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1413,
+      "sha256": "be2957335d46b81e4dbdf97e2473e07dfb49379e8b9ace3acc04707a13786ca7",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/p4-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3640,
+      "sha256": "3ec04c1f60bfc121cad751ca014da60c081d9d8f93200f47576d32d118a787cf",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/plan.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 11118,
+      "sha256": "980790152d983621e78690265d7345531396702f5b64049eac111adf0de97e11",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p0-reopen-v1/validation.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1327,
+      "sha256": "e7332714d2a414396ebb7845307056432322274abed41b1d2a1eb4f38973f405",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p5-reopen-v2/lineage-bundle.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 68005,
+      "sha256": "a377ea37ab93f9944cc3d9ffdf6633304eeadbddf392d368014ad2c80c770f9b",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p5-reopen-v2/p0-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 924,
+      "sha256": "24fdef8ad89316269d4a5202253f980ed52b1dfe174a36e76e18da1c215f0f59",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p5-reopen-v2/p1-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1409,
+      "sha256": "397862e2c224158bd35027bf1c183af156c1e2366ed9824acf15183c384360d3",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p5-reopen-v2/p2-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2706,
+      "sha256": "e417b9911c6d98608716b632c4abf3f1bbcfd1e0f7c37488c38475ce55879672",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p5-reopen-v2/p3-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1413,
+      "sha256": "5b2786e1431ff70193dde2c2495a7c06d57633498057a4f2c93a61ffdeb5980a",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p5-reopen-v2/p4-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3640,
+      "sha256": "90e0150a9f1aeab007c1a9fd413cf7866dfd884f82ab22b09557df616779b55c",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-p5-reopen-v2/p5-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2481,
+      "sha256": "cb08957c590541c40c93397a9ad5339ceaa4427b16328b8cfadb24740422ace7",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-source-ref-reopen-v3/lineage-bundle.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 52598,
+      "sha256": "b281cdaf90cf44a6ad509f80653b3dc05c9aa2d53d264d99b4ffb1f69471abd6",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-source-ref-reopen-v3/s2-p0-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 924,
+      "sha256": "702c27c47edf994808c450b036c4c74f1ad715b954746e24de1125c34d358ed2",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-source-ref-reopen-v3/s2-p1-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1409,
+      "sha256": "9630f398f26db51c11ded6310be7dba9de9e914e79aa848f7ef2ebd68798b919",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-source-ref-reopen-v3/s2-p2-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2706,
+      "sha256": "16588b5a86f1e2122e5584ad8479f68c48ade02fbb2fe093fc56b17f4ba74051",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-source-ref-reopen-v3/s2-p3-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1413,
+      "sha256": "7878a5df842abfaa30278c9a0a611c956679197c0c8633d61289995b0804a853",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/evidence/4f/s2-source-ref-reopen-v3/s2-p4-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3640,
+      "sha256": "4a706353f1192d4018a534ae0822ea9c7a041b4b3cca80fe00027410eebbeaae",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/index.md",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 51958,
+      "sha256": "819cc65d29d51f785babf1129c78a5cd0034325a5263ec3d5d33c6bbabbc5ce1",
+      "classification": "R1_AUTHORITY_OR_STATUS_PROJECTION",
+      "sourceOwnership": null
+    },
+    {
+      "path": "docs/roadmap.md",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 27530,
+      "sha256": "a56153210c659bba43299b74e273e8b9d39692efb8d66bb026cfd82fbaae6277",
+      "classification": "R1_AUTHORITY_OR_STATUS_PROJECTION",
+      "sourceOwnership": null
+    },
+    {
+      "path": "package-lock.json",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 193048,
+      "sha256": "3f3364c8449e0bb73fafeaa588a2eef9e03cea4536dfa70867e0803db91f3baf",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": null
+    },
+    {
+      "path": "package.json",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 17061,
+      "sha256": "6a04aa1e73dcd9cdcac2a17d98d9470757e94203f09e88247dff7677d29761dc",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": null
+    },
+    {
+      "path": "packages/canonical-json/src/index.d.mts",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 170,
+      "sha256": "29e80e135f84772c539f34ca5062c6709551b1fd01003d7338b4c3e547fcc36c",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "packages/canonical-json/src/index.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 383,
+      "sha256": "5740bde22c57ff398fdf747eba1a7ba70bca935c0b3708fb39d985a3401e3def",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "packages/profile-compiler/schemas/a0-code-architecture-migration.schema.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 9275,
+      "sha256": "f98dfb9e3b8b1272ae640b3af1bcf2c9f8ff3fcc3aea3c4bbab3f520553af7ee",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "packages/profile-compiler/schemas/input-set.schema.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4284,
+      "sha256": "1e4f1c3217f2c45da793c677603b585fd09c62b3ce049dec37da5a46d1d44ea9",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "packages/profile-compiler/schemas/profile.schema.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1747,
+      "sha256": "b00320d791fde4f9a89a3f4fe6bef7b81a7a0a4848cbe100b7631e77dbe55532",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "packages/profile-compiler/schemas/s2-workspace-foundation-migration.schema.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5181,
+      "sha256": "69f0ceaffbeb3aa549c2995faa451ba1d7233219e989dc9f3469f7f65b163767",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "packages/profile-compiler/src/admission.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3751,
+      "sha256": "c2f51fd735dad67842756a75a9e783309445bdbe08fdf0d439929750b79702ca",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "packages/profile-compiler/src/compiler.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 16624,
+      "sha256": "9e436122ff1c34a7a6bc178149a12ce1855f321533609a9647aabe21cd2b785c",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "packages/profile-compiler/src/index.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 139,
+      "sha256": "4d94689f1b834dd1a47aee2f5aa80992f765a7274c25c62772fb8f4cb03c36db",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "PRODUCT.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2882,
+      "sha256": "24bbd704094b97cc67b832c9db9bbc1b77b6c8da486eb716227e12e8614006a7",
+      "classification": "R1_AUTHORITY_OR_STATUS_PROJECTION",
+      "sourceOwnership": null
+    },
+    {
+      "path": "profiles/r1/v1/a0-code-architecture-migration.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 19462,
+      "sha256": "7115405d511276b19fc67ace77cab41752a883e88e8a56efde67dcc885dd1fe5",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "profiles/r1/v1/input-set.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6166,
+      "sha256": "b6ac38490dee96f15b951d99e36d6176a6face3dfa2cacd900666abf5ab88e0b",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "profiles/r1/v1/profile.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 769,
+      "sha256": "6755b26a6fd3d80aa88af6540562da7390e38ff8f005a80cbf79c6aad0ae2599",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "profiles/r1/v1/s2-workspace-foundation-migration.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 18289,
+      "sha256": "957ec2ecd76886fd4b3ffb960e16b8130cfc41744a06d733946180a48d35cc79",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/admission.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2192,
+      "sha256": "d00be8731beaf88e108436aa61782753285feb47aeda389d681c8af51dc9d7fe",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/admission.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2299,
+      "sha256": "e017c49aaf6e682a94228c908bb3a18621b479f1cb40a89ed751ff5e6eba6ebc",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/build-metadata.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5102,
+      "sha256": "2b550fa3c433d78c67c1f6c24562a3182df68ac1e1d148ef60a86a99b95cada6",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/Dockerfile",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3731,
+      "sha256": "a9296fa5e80d74fdf7d236e96f9005ae729678b2f6fc5b178ea04927c4657858",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/build-metadata.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 59352,
+      "sha256": "bd2f37cf76a7307a1d66bee226708386573f75c48c14d9d2304d8a414e384531",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/candidate-results.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 22912,
+      "sha256": "e2568b36d49557038d679c0b7ce3b62e43bf9785d50bd985167f07c736790cec",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/generation-receipt.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2085,
+      "sha256": "c1a0ab24d2f1d1ee5cc6bc413af64972a8f8fe02808f0b3d6ad6b3964fe32ae7",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v10/admission-test.tap",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1949,
+      "sha256": "eef57b5723716a360403bcdd674406dbd0ff9e9d9fd2c7b3bd9d9091febec54c",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v10/build-metadata.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 63643,
+      "sha256": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v10/candidate-results.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 24857,
+      "sha256": "ccc7b7044738a87fc37e73c3c2aa809e9ae3fe3a112299a83acee85fd8c8ebf7",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v10/product-census-after.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13745,
+      "sha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v10/product-census-before.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13745,
+      "sha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v10/results.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 21318,
+      "sha256": "71c9113a1a8338fba73e63f718c23a72db9673d4c505e3704026cb9e2ae0009a",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v11/admission-test.tap",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1948,
+      "sha256": "69e1e41dca3f3488826bba23e9ee495c23b19f05ebe0566e6f209af857e55ac5",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v11/build-metadata.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 63643,
+      "sha256": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v11/candidate-results.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 25120,
+      "sha256": "7dc1f513546c2a87001f0a6b1fe744a18fd5269fbda65f9bd253fde547fb73d4",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v11/product-census-after.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13745,
+      "sha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v11/product-census-before.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13745,
+      "sha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v11/results.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 21569,
+      "sha256": "bf2adbe3025d2171c306efd63e5ea703967a42041e6c4d518e2262587cb19424",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/admission-test.tap",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1953,
+      "sha256": "d5df9c402a20cf4a87f370bee402976a3c4e51c06cc86294730b8629a477d763",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/build-metadata.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 63643,
+      "sha256": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/candidate-results.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 25585,
+      "sha256": "228d603aea0dcd3d75295a7bf4c072c2adcd3c7accd3525bf64b0a8af7dcad60",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/product-census-after.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13745,
+      "sha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/product-census-before.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13745,
+      "sha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/results.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 22048,
+      "sha256": "b108a08866fae4eb53bf6bbf66095bb93ae591f55387db9d4a9da1215754ef48",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/review/gemini-review-result.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7365,
+      "sha256": "c10dc9550ec65c60cd43bfa28949939dae78be39cb9c9d0bd0525cdbebc86939",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v12/review/opus-review-result.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 50164,
+      "sha256": "b1c5c95bb0c9eb4c4adab22d72afd57d5eb153bb9bab77d21302a0b98caec875",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/admission-test.tap",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1952,
+      "sha256": "afb217c80e557a98b2986b42c1de19e6d92f139b6e91d0c52306686deb0f9619",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/build-metadata.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 63643,
+      "sha256": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/candidate-results.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 25585,
+      "sha256": "b20a4a79a376ba642e71f3f678884447d3aa8027a4d3529cde51e12194e18aad",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/product-census-after.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13745,
+      "sha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/product-census-before.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13745,
+      "sha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/results.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 22048,
+      "sha256": "7af1dac74117f02fd3c87d6dc11f6fcbbd19c930287e1b83b7927c227dc09940",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/review/gemini-review-result.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4921,
+      "sha256": "cb0e10f286df9f1fc4e06083989651515078685bbf9f4faa9e982be9b2922869",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v13/review/opus-review-result.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 41466,
+      "sha256": "c7a82af7a3fe2b70c4236a3dc498cc0528d7589e45a2042c709889523158a08d",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/admission-test.tap",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1951,
+      "sha256": "78ad0bb18256925a1848d9c79129030a5d86b2346dcc9423ae68f79e930f0507",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/build-metadata.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 63643,
+      "sha256": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/candidate-results.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 25718,
+      "sha256": "cf02a48a2727ba90ba5f5d7c463524afedaff28a888a7ae4aa3706d7afadccce",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/generation-receipt.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 22728,
+      "sha256": "efeb59e2c486659fea0088bf5779280e74f3c8fe490a9fab8a1bf0452e0ee66f",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/product-census-after.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13745,
+      "sha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/product-census-before.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13745,
+      "sha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/results.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 22175,
+      "sha256": "d5ccba4ecf683417a5a78313c5fa7230fd3eb56fd8ced0eca7e14b844be767c6",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/gemini-final-review-report.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3609,
+      "sha256": "1484f6c1f239541f965d4d85f6295aa1083a81b473c03bc344f43d7837560702",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/gemini-final-review-result.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6303,
+      "sha256": "63f388abe384896bb8a10082b14d752760353c834efbf52b768aba0f7db7a3f3",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/gemini-review-correction-result.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 12503,
+      "sha256": "77cc7eb3f9044c0322ca3300b6990b059ebbb0b1a6a2a7f9398afa1fe948295d",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/opus-final-review-result.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 46376,
+      "sha256": "315edbe81a3c3fafc76494f83ebce76176b59346a876c255725739325c4bf817",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/opus-review-correction-result.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 53834,
+      "sha256": "c32704a64f74c31b7aee6f64d5af56554ac441ff120851baf7b05fe1c66d15b1",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v9/admission-test.tap",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1879,
+      "sha256": "0e16b388dc66e96f039169500a6c0840a7e6f4dddf017f9668450b4fb9c6712c",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v9/build-metadata.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 63643,
+      "sha256": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v9/candidate-results.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 24854,
+      "sha256": "514bf2b0f32c1185aace0b7f11fc3f0ff58a2cf858e458273600c39a1bbdb6a1",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v9/product-census-after.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13745,
+      "sha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v9/product-census-before.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13745,
+      "sha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v9/results.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 21315,
+      "sha256": "586e07ca26f73542957b903f8dae71924b9f885839f549716277ab6b57be945d",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-rejections/first-vcs-hint-build-metadata.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2775,
+      "sha256": "238a44065dfab98be5b97dfc567a5d482a7639fa2cc9c5d159d9c9fa6d6399c3",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-rejections/first-vcs-hint-rejection.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1269,
+      "sha256": "b449566831aa02311829a8a680d821bba25a072018887bf090b9e942eee7bb02",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-rejections/second-minimal-provenance-build-metadata.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1926,
+      "sha256": "07e0097b110caf0755e1cac55c917b03d5c57ab454d5ff531024584577939fda",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-rejections/second-minimal-provenance-supersession.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 891,
+      "sha256": "63b2bbd241ef9c303c2a6c92f25a4410730237c31bc683422b0838000e3ad479",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/product-census-after.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13745,
+      "sha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/product-census-before.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13745,
+      "sha256": "8627e7275b9ca409f40381cb52a069a55d8c7829d33b8c19b8611bd1b56e3d84",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/results.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 19490,
+      "sha256": "9f05ac20b221c9902fbeb3305e0f0636df59c6d4a296f3f72126afa270bc972b",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-candidates/native-readmission-linux-2026-09-01-v10.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1213,
+      "sha256": "8670a63694dddc07998481b0eaa88eca9fde3abe12008d8deaf50ce752040cb0",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-candidates/native-readmission-linux-2026-09-01-v11.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1766,
+      "sha256": "41a24a63c42fcb835ca07334e2b9aa28e4c09ebb3728d629b29af54854494d7c",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-candidates/native-readmission-linux-2026-09-01-v12.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1724,
+      "sha256": "d64ae858df0501e4bdc146b68a716a317dbc4ef2c2d8be3facc1d86b8481255c",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-candidates/native-readmission-linux-2026-09-01-v13.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1451,
+      "sha256": "20e9990385e5cdf8524a23c8064e43981a0568123db9e230f7e302198343f065",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-candidates/native-readmission-linux-2026-09-01-v8.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1571,
+      "sha256": "531e6fd54567c693be5193f6a03eae9ae23f03a281268669d621e17ec2cbb802",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-candidates/native-readmission-linux-2026-09-01-v9.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1345,
+      "sha256": "79947b9e96f9e218925db63d11c187f30101ebc3c5b4ebeff777799eff3ed3a1",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/admission-2026-08-31.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1495,
+      "sha256": "4471f25787e1ecdfb59fd88e6f08eabc3c55b2e0837ac8d465109d773613e126",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/admission.test-2026-08-31.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1810,
+      "sha256": "665d64734a1f08b6e5e04aa37e1b166762f27bf67592ba2e025bd8f6dddb6556",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/finalize-result-2026-08-31.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13964,
+      "sha256": "1e027acdfa30dde491b4b90711244bf418a9ad87ac6b45ea75bd66b948a363d5",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/https-fixture-2026-08-31.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3306,
+      "sha256": "6173886d58e5451b2242babd7592ef332ed71b6cff395b21edc1e041ef5c22ee",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/probe-2026-08-31.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 20817,
+      "sha256": "b17815cbf0fbf56ac23ed28258eb0752d1007a6cf97360cc99b4c9cdd92ecb29",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/product-census-2026-08-31.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5752,
+      "sha256": "df65aaecd78e1a26e9467a7dd4ac6f73533bfbe873cc6262998594b0ba7fd845",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/README.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1625,
+      "sha256": "950d0d6267688e44dd2a8effc04a354ee61d38e4381bf1d742be8bcf153010dd",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/evidence/superseded-protocol/run-2026-08-31.ps1",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6250,
+      "sha256": "3ed7be64cf2321129d42d5d6d171326442e7ade061020ac1cc563535090fd18a",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/finalize-result.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13937,
+      "sha256": "d0ded22099501a76c3677564d98fe280b965943e8a69776d1f53b5b2901c327c",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/https-fixture.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3370,
+      "sha256": "b68152f10145dede0f91008ae1596b6810ae17fb272472af861a35f9754450d1",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/native-readmission-pin.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2243,
+      "sha256": "97738f25d16ff9a258c6566c1ea9909fb3b8af835520ee78829ec38b2e74488f",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/probe.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 24193,
+      "sha256": "3156445cec6668e6b7045ebada45167aae60c67c8266f2d8699e0c7ff3e4979e",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/product-census.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5752,
+      "sha256": "58932361cf6f9151a1813d2950f73046c07e3049ca863a1fa7a2926cd0fb586b",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/README.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4363,
+      "sha256": "94caacfefb2c1401328edc0d4af7d46c8ce7fbf1dc2e1bbee69e2e173857a68a",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/review-brief.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2342,
+      "sha256": "619425567b65fbc987e78773910c3d2d5588674fd0ea1e03788c9aa27d8a92a5",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/run.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 9262,
+      "sha256": "04c6301d5fd72125c3bb14fb496891f6dfdc669d121c586caae9ba624a6b254e",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4d/r1-git-source-custody/run.ps1",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6401,
+      "sha256": "6d16aec52f61f61e56c5df91bff76274445c536b0112bce2e7422630daba5bf2",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/anthropic-oauth-provider.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2884,
+      "sha256": "a9567f70482cf5540900c1278c159e2cc6fe2097d9bd98826ca3517b36af0992",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/anthropic-oauth.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4492,
+      "sha256": "552ee86920fee0ebf6130c971cc81febcaf0f1de0eac7a7f9d2ee6967a939c04",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/auth-login.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1064,
+      "sha256": "06209ed31f0040db00a7a81ab02b54dbf0674cc4ec3f79c892ee77147345d143",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/bounded-provider-fetch.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3898,
+      "sha256": "dcd782671af14dab745007c866d0e58aa0dc294f427a0cbfa8263eb4dd917b45",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/evidence/p2-live-oauth-receipt.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1099,
+      "sha256": "a4c63b64b10d36a2c426b14d86b4f5691120e8071f23f39c425f61a9a4817171",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/evidence/p2-live-opus-successor-receipt.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1118,
+      "sha256": "9365c6c8a3cbc34d6761cb368744d551a39d06e98631fb609b943564b0bf25cd",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/evidence/r1c13-generation-receipt.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2426,
+      "sha256": "d8e04b274ca5fee55402a2db63f402802c7e6d7c65ad1e84b7c8206c453c84e3",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/oauth-token-store.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3893,
+      "sha256": "edb6582e42aa40146914a7405edc1eee11e700db774b2622f2331077526cec5e",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/p0-response-boundary.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8706,
+      "sha256": "5e46f4b985fc0ea51a90854f5e058cf2d7d673d65f5b549c8ebc25c33e89eca3",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/p1-project-mastra-admission.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 18366,
+      "sha256": "4852f14ba1f1b5622c9c912b4a60207f70e90c78254d853128bdd97581fb433a",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/p2-anthropic-oauth-admission.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 14124,
+      "sha256": "dafd4563f74adeadcd8e824662f4f3a7ba7ba9cd9c12350293bf9d2f4c83fda7",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/p2-egress-observer.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2087,
+      "sha256": "6cb24ae5b6099a7e29897d27a6802c1a53151c19fa227d59e3eff6bee3cf3454",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/p2-live-anthropic-oauth.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4998,
+      "sha256": "7204d00c22c3045440eaae542e6d01f5e7e2b2f4455f6835f26b2c5973d5ec38",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/p2-oauth-candidate-result.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3375,
+      "sha256": "3f19bb10dbd948890d7d05d898ab1f5f1fc42566a9372381d0e59d3db91f0a79",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/p2-refresh-worker.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 535,
+      "sha256": "5c35ca8bd6d63dbeb91a0aa371712ca81cfc13d869407b2e6a84a1c384e59e69",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/package-lock.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 85055,
+      "sha256": "afd64be2fafdc303b4bc767d3501862048877fc2aab187b48eec771779696a08",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/package.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 584,
+      "sha256": "322c3326cf8c45262761e2b5b9ed2e714671de745fc21fb9d3b3ae1b56526272",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "qualification/4f/r1-project-cognition-admission/README.md",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1362,
+      "sha256": "7561a18ae5ccebfb765672d196313ccc56fc36aaeafe4a792e2aac1f0db332fb",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": null
+    },
+    {
+      "path": "runtime/r1/.conexus/a0-conformance-result.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3471,
+      "sha256": "c6e1b26332ea776a9b6f6b15c88b349efd4c217c5eb6171ca61bd1976dac6da9",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/a0-generation-receipt.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4362,
+      "sha256": "1633c1fee1942b71e348f9d26c6db3cb0e6577ac6535e12bf5fc3bb6c0dcfdd7",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/a0-migration-plan-validation.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2092,
+      "sha256": "0f39ebbaa699af5c39a12d924269318ed740a78b63f6c6a5e65072b2225a5e4a",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/a0-ownership-manifest.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 12713,
+      "sha256": "886088717916d48f59026493ed649e9eaef50c3af6706b2887a4614ecb1a9ca9",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/a0-p1-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2615,
+      "sha256": "71ae88d6ca6a5972a91628356a7766deeb0a1c190bdafc13e952cabe1d692153",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/a0-p2-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1996,
+      "sha256": "1b76766a60bdbcc478407453936bdfea1b74b0a3a7631cb77ea2a9975a0d3204",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/a0-p3-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3885,
+      "sha256": "e07c158c17c04664d6100d3101648e52c6b38f0fb3f30a78a9b8f9036902b3e3",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/a0-p4-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1700,
+      "sha256": "2d9095f2bce50f61cd8b58a55bc168c35a8367084be2297a3b00adf8c4965553",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/a0-p5-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2869,
+      "sha256": "31159e880ecbb72cf569e8709dc518dfa5c3201351aad724b467f8eaa2b07a27",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/generation-receipt.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1655,
+      "sha256": "be9227c82de4aa1b603626c0beeef1221f6ae7781c07e42a67965df627bf3289",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/s1-generation-receipt.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 541,
+      "sha256": "c8482b43ac6f11a4b221d11ee24a299a702219266e687e82e50617baedd55d06",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/s1-ownership-manifest.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2671,
+      "sha256": "88ca03c58cbbdb0cefaea87e58f4b3391ac2ba8b631f2d8ecbc172e2d3fe93ac",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/s2-conformance-result.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2382,
+      "sha256": "379608cc851927997ddb1f6cc74ed755441f5056a868549953e4d0714d752dc7",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/s2-generation-receipt.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1999,
+      "sha256": "f505e67f1e31f2f94ab7268e31dee6882f5e0d58975b878f3e2ecbdb8aa487e7",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/s2-migration-plan-validation.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1678,
+      "sha256": "a3b75d5f2d0cfcc7f9d5cb4a3de17434ce3be248496982978b3b0645fd5d433c",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/s2-ownership-manifest.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 19085,
+      "sha256": "f3a132e9ab3ef6e682ebf25da73f0318e2a55b74c53557d1957241fe2b6d1242",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/s2-p0-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 924,
+      "sha256": "197acea08360bbdd980eceee34f340d2963a2358bd2dcd4eb8cd72e16c2a5eb8",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/s2-p1-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1409,
+      "sha256": "b41f416f292fd3be077504e4d132d0622f85625968e2380bd193abe6698f558d",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/s2-p2-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2706,
+      "sha256": "e26b12c4d61b41e90d8b63c19cfa10d3bb33bd6ad490f53e2cc8e29ec243fa94",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/s2-p3-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1413,
+      "sha256": "01cf3af46ba0eb7f85a712252b4c4638ce47d70df78a462e7d72e8a511a99d9e",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/s2-p4-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3640,
+      "sha256": "12b0ad27422cb1eb463e9f7bc5462b032bf51eab80d69961dd1fc2bdb65fcb7c",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/.conexus/s2-p5-pass.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2481,
+      "sha256": "44b70688aec37a637d636d256a9139d4c6e8b9dd3edc74afba879234ecf75a79",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "runtime/r1/generated/r1/operations.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4712,
+      "sha256": "6d86a8c7ffd04138c4ed051f99bc36a5dc06fe327848dde49b7ec0d505a436f7",
+      "classification": "GENERATED",
+      "sourceOwnership": "GENERATED"
+    },
+    {
+      "path": "runtime/r1/generated/r1/operations.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4490,
+      "sha256": "e7c0f68c5e44b0062000bbdcd84d7d2d44d4ee407babd7d34a11433a3748e5bf",
+      "classification": "GENERATED",
+      "sourceOwnership": "GENERATED"
+    },
+    {
+      "path": "runtime/r1/platform/r1/contract.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 133,
+      "sha256": "bca5ab767f98e3260af9c3838693d5e238553a0875a80282617754d62f18dd9c",
+      "classification": "R1_DURABLE_EVIDENCE",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/check-budget-schema-fixtures.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1993,
+      "sha256": "7065ea06f0306ca29033b9e6db1ab7d8a1dc2fc1e51a2d273ef99a39d6434dcc",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/check-current-state.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 3955,
+      "sha256": "7ae153e53c009a08d89b9b2760ba593d08ca09f331215eecc8168ab4c2cc1169",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/check-import-law.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 15975,
+      "sha256": "50455cc2214463ccbbaf17cdddb1eee04be7a1f6e63b08074f9f44fa3d62a13d",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/check-project-operation-declarations.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 959,
+      "sha256": "9b6bb563b594c4515e028baf85be7d6c7b2bfe18660c46fd9c568ae0ba738295",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/check-r1-a0-bootstrap.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7850,
+      "sha256": "3ad57b7d8dc2913fd711e2d9a6615262fa4acfbc8d1598666eba1c034466cc11",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/check-r1-a0-migration.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 11740,
+      "sha256": "f5be91477c349f7a38a94ffc54bcb10e1c47a04b836fd532c64d48bd6e5d5f8c",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/check-r1-s2-migration.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 14453,
+      "sha256": "0badc8fc7a4f97291f2c4120409632c38b74364d3eaf954d12d7990c817e438d",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/check-r1-s3-git-execution.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5079,
+      "sha256": "5a8b0b1213011b1cad503e71d14d53a6153c43b6f2893e0f3a4a35b4a5013f8a",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/check-r1c14-native-readmission.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 32428,
+      "sha256": "55cdf857953d50253fd84a5bb70f47a048d670c79835e9511abbea8d5eedfeec",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/check-repository-hygiene.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 4470,
+      "sha256": "b66d8bfc752c89576aec080994842ff64c823e27f4419b5f5451b545e237a26d",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/conexus-preflight.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 18161,
+      "sha256": "41a5b1b772ca5d61d6b94be0b22b2476dfcab6b4601eb07d5f093aee473f6189",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/conexus-review.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 23079,
+      "sha256": "846e711249e3cd423688099be7f505e103d65eff46831bf4d369d92f32eb37ea",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/conexus-verify.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 10646,
+      "sha256": "378580328d674116eaf943a4f3e3268b8edfd7cfb893bf0a5780391b1d7ba2d6",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/generate-r1-g0.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2216,
+      "sha256": "87c9d9a016c6aa4e6f802ad0572f131a2add7bd983f207050493ec7d9269077d",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/generate-r1-s1-contracts.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7352,
+      "sha256": "031af89af548f46d713bbaa93d50ca83f1c098812f910d07ca0972068bfaffee",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/generate-r1-s2-contracts.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 11332,
+      "sha256": "5226c9c72947e706423e543f09a0e8108b6d0bf9b370a295737f6d607300c76d",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/generate-r1-s3-contracts.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 16066,
+      "sha256": "22f5b0e4e6ce4a028e2fdf672f8b5631dcd96ce55a5edb259a81da550ef63ad4",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/generate-r1-s3-git-identity.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4427,
+      "sha256": "dfdfc2593ae5f7f79690880be8084c0a8681196f9bddef65da5b961c7e3c484b",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/generate-r1-s3-new-project-seed.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5107,
+      "sha256": "3d4c3f705dcc762289c154e0c855dc108824db66e453e42849e06b23ba0956f4",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/rebootstrap-r1-s2-v2.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 15337,
+      "sha256": "1c373c102077f4b9b535341335d0b05fc80f22c8cbbf89074b89a4d00d5c4171",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/rebootstrap-r1-s2-v3.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 16897,
+      "sha256": "c1b0dfba28447125c55210805fc8b6b0e60659d35ac515bd8b0bbca8e375ed36",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/rebootstrap-r1-s2-v4.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 16640,
+      "sha256": "4fa8bcad8f9a91333606573625454fc269983a244d9ccd7a6a9d0bcf0b4bf37e",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/record-r1-a0-part-pass.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8227,
+      "sha256": "fd6f48a50ac615fd6f71b60ce0202400c89c6dab3c1ee662f04584b04b73be1c",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/record-r1-a0-receipt.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 22830,
+      "sha256": "ab1b9bf2380d87bb28eb391236025f1811da70d101c6e629c9948c70de392f93",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/record-r1-project-opus-composed-proof-receipt.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7563,
+      "sha256": "578135ec8ce887d4071a3410310916efbc8dcb2a3d293abba19c78d67bb44281",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/record-r1-s1-receipt.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1181,
+      "sha256": "4a0f367361552df198ba5f94def9a16b99e2b840afa55a1649191cfca37f5284",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/record-r1-s2-part-pass.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8654,
+      "sha256": "774b789ba7cc07ff82036139c505c40fac214a6dce44c209d7115fdf537352bd",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/record-r1-s2-receipt.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 9933,
+      "sha256": "1faf65136f79976b40cb2386e04545e016ac8e234cea974cb067edf441e55662",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/record-r1c14-native-readmission-receipt.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7087,
+      "sha256": "3516fcefb3233342457526b778cd79aad64efc9cf522141fadbf2f88d3ca32aa",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "scripts/run-hub-migrations.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 61700,
+      "sha256": "80f4289661c7c157490f8c248dcf07471a744e9f0decd95c9435660d21749edb",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/fixtures/r1-s3-git-import-https-fixture.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2803,
+      "sha256": "ee3f7f59cdb727f25f8e445228acd40ce40dd411c6d6a615d6b2a2ab6db7ac4c",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/fixtures/r1-s4-baseline-candidate.sql",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1827,
+      "sha256": "beb806b1143be57b9d4ced773c1ae87591fb6cb87b8a063987d34bdef9cc6445",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-a0-admission.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8697,
+      "sha256": "1178fa9aa806db9656c364130061cf222f618e5eabbf52c228209b858720f9d1",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-a0-migration-custody.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2745,
+      "sha256": "4573e7b851963fdf05812b55a7f935e9f676cfe67cfaa8901652d327a9304b0a",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-g0-profile-compiler.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 14976,
+      "sha256": "52b459604fc984307f6fbf65bb4537813953670a21a452c076bb2b59662bf11d",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-r1c14-finalizer.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3557,
+      "sha256": "03a4f3eb16aee284d937e816289a7dbe2beace5e0c90e90628b25b80c28ce8ec",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-r1c14-native-readmission.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 25926,
+      "sha256": "1e1c422b1b1166e49835e074b0918ca34c45643ea1571e03986e686d630cb7e8",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s1-http.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 10838,
+      "sha256": "f39433f4e1cf73508bc0b92c631aa57c6153138353c2ca6f01553b457c26f262",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s1-live-browser.spec.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1723,
+      "sha256": "85af0461ccc39d432626177fa7378e47fe86747ed0a300970174d831b1d29218",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s1-live-runner.sh",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1734,
+      "sha256": "4682b989c3b19d4f26a0594b148c26ac830d85c43f6372eaa202e0ab7b5eaa85",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s1-live-setup.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2744,
+      "sha256": "49300a9dfcb5ce2106221076a6f2944a366516bcb2cb9fd37135b06038124b6b",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s1-postgres.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5779,
+      "sha256": "2cf4fd84f8c279fd002a0d7739232d9428a07f9cc53d78aa65c8535af9f48684",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s1-qualification-runner.sh",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 408,
+      "sha256": "2f9e36154a5a97d7fb28ae22bb3db953a145790639e53ee661bea3368ace5a70",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s2-adopted-custody.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5183,
+      "sha256": "ae2d99141a6fdd263219a28f2081582e8c187e27c4f1b698c8fb8c843cc7585e",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s2-http.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13654,
+      "sha256": "9ff269c31bd55cbf6087e4ce4e337b63b12503ff9d160b8c852c9d4d8e662665",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s2-live-browser.spec.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6122,
+      "sha256": "9f610bab3fe0c7546c23d560c0439779df70beeda4353614dbb5aa3bbc8ac343",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s2-live-runner.sh",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2760,
+      "sha256": "78dc1c5603f54cf61ef911d5df15b95a07fec492da78f314c82082f6fe6d6327",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s2-live-setup.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4716,
+      "sha256": "9804aa0300ed34a6c5e0dacfd34bd7b7348e700b9ef47be38f3d56940912d550",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s2-migration-custody.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5463,
+      "sha256": "02bfacaa86dcd832e19a8a3d54c56031b68f97e3ef861dadc1c7ff663a174269",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s2-postgres.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 29744,
+      "sha256": "530668f373ed36b9797d5e3e39ee45f7ed9050dced7077ccd241d247e59dfb83",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s2-reads.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6994,
+      "sha256": "147bfa5606a4dcebb9366a796ca966a53bd84dce32876cf0dfc8ba16966635ca",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s3-git-execution.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 40815,
+      "sha256": "b211893101f1f7289bcb52015240886e6910bc62cb673bf7c2d0b88af1b8f075",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s3-postgres.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 36550,
+      "sha256": "a6071a7a3edd3e6044d67c06c3f8461f689c1e6ee22bba826601fdd0c679ed1b",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s3-project-browser.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7087,
+      "sha256": "03be86a9da387f29a4078e35e0b5919ea84bde12ae630b8d286c0cd916b900b0",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s3-project-command.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 26239,
+      "sha256": "e0f8f71c01482bca2bbb2e1dd9eb18e15c3320f341ac4293b594784ec2a754e7",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s3-project-disclosure.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6575,
+      "sha256": "c3946f8ffea8289bc63b44e0060e7f2b774f5a901519870426e51171f6b0bb89",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s3-source-recovery.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 3476,
+      "sha256": "78ae111accf048b7a93ea0fbb8573deb62b931e6d38e492036df9161769a7f05",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s4-baseline-browser.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4899,
+      "sha256": "07cbb0f7a619d9d09cb5efde7f2f8a0a2720cc43e662f5803186a326415017ed",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s4-baseline-custody.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 2792,
+      "sha256": "9fd464fa4ff0ccc42ca8ee6b7a168769eb280267c24b08da2d9916ee7e0dae28",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s4-baseline-decision.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1617,
+      "sha256": "c32a0c253cf43a7db8afa331446b10a914d9903efe717a1eb1bad77ab33bbbc3",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s4-baseline-reentry.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4277,
+      "sha256": "f206d90970c3ff98f21b3ed2423557bfa2c2c0638a015c2fcfdd5bad803eb535",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s4-postgres.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8448,
+      "sha256": "ad3d824df1d53c1637fc93bdf8bf62c37591361e57d9185481d85bdfe50eddb7",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s5-browser-boundary.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4031,
+      "sha256": "1e2346440a91d89f9d54ea1d5d9739dd030a0d87281457df1690680f9cb41327",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s5-browser-hardening.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 14892,
+      "sha256": "c5b96fb5fc588bd655506ce187c2dc26e50f93927c2c9a4881fc202f16038776",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s6-baseline-explanation-browser.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5609,
+      "sha256": "875eaf2fa8fde8f62c15145a699375ef92aa1e0085ac059573d0c3cc86e79c03",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s6-baseline-explanation.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7067,
+      "sha256": "32cd0b6bef2d177a15a84903bbd8137ad529c3eee1fe0c757c175a8faa0345e5",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s6-composed-journey.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 13476,
+      "sha256": "9336fc0d933684df265e25426c01203aff39905d7a3649bfe93411081333fe92",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s6-postgres.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6415,
+      "sha256": "ade307572e7473411a5adf904540b7c865b95f8ce74a4f180422f3759c5a8c68",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s6-production-cognition.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 5625,
+      "sha256": "6e707a665f8d01704cccf3e3cbec66a2c366005fa09adb8b74c090e1417ec211",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s6-project-inception-browser.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6072,
+      "sha256": "38c232dca74503a6c62779279a043f8754a21879c1854d3c83df26d701adbe9c",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s6-project-inception.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 9371,
+      "sha256": "c2d3be7260f8bee00754e502ad8d51d12a688936978fc4d7ae942769776e2890",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s6-project-refinement-browser.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7611,
+      "sha256": "62a5533acbf6e51259bd1138e7ba059dbaf69f6645765d1458155bb3480e61b4",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s6-project-refinement.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8753,
+      "sha256": "61ba0bb67b6e5b1b27e05e6b29565a5317c3fc2e0d5c66f55a0d2a2eea3b74d8",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/implementation/r1-s6-refinement-postgres.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 8675,
+      "sha256": "6fa8709f52bda2753f2ecc632e123bd0c508381f10c768c5089c75a0477dfd89",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/4c-finalization.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 3327,
+      "sha256": "b0d8031a8a0f12ca62132d9344bca2bc32bf973cf00a390c493b3c79b503a370",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/4c-gf01-locked-screen-contract.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 3794,
+      "sha256": "8a84dfe7ea7cf9725a9f672068587a15703355149ccd8dc849177465ae56b2eb",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/4c-p01-app-first-status.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 1579,
+      "sha256": "fa24e82ef71b2a865237af40358365cbc50e35995c80989f80853ae8357f9dcb",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/4c-p01-builder-human-context.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 5962,
+      "sha256": "74aba9248edb558432eb88208f49a267fa4179d64dfe2acc21a9d3fd68cda1b8",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/4c-p01-focus-revision-status.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 1575,
+      "sha256": "309d04ea235de698b020a11812788b86e5889f6d8ad564f19d18e81fdda7572f",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/4c-p01-locked-screen-contract.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 5848,
+      "sha256": "9f2d810350d29048ecfda1520440023a6e698e0c97b2a462e103dc10dca28390",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/4c-p01-shell-revision-status.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 1234,
+      "sha256": "1de7bf090e6f8e809dfbaaaa2f67a265d58490a6ee57a809c1129744c139e171",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/4c-p01-structural-hypotheses.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 3728,
+      "sha256": "aaea7cf7be61e186f89cc230fc1ce8c73b4a178a9249c35d70c24ccd17290ef2",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/4c-w01-locked-screen-contract.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 3401,
+      "sha256": "7e287280afd1a345d6b1690f43deec7d464b0f77968b0cbdd720919a830e85f1",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/4c-w02-authority-feasibility.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 3349,
+      "sha256": "d06b99425d16ff82aa355be18cbe0667d0651b0c7e20996d4a23d8b470fa5c0d",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/4c-w02a-locked-screen-contract.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 3400,
+      "sha256": "d90ddb306ae9a3de70398b64aabcf439d0fb9eaaae107be6ddbdb103adf2a496",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/4c-w02b-locked-screen-contract.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 4539,
+      "sha256": "4a28911e26bbfadd21cbff7e0493bd1ae518f397d1e148957ecf25efa630422e",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/4c-w03-locked-screen-contract.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 5087,
+      "sha256": "1e095af42452f17dbe36323d6d334c3db386e7f44c87a7a5b39ceb9eb0c7fa1b",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/4c-w04-locked-screen-contract.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 5167,
+      "sha256": "d13402926f4f01a131971b0d0a47936ea475b8f0e3c7337a17b4b4c17ef409d5",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/c018-ratification.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 2003,
+      "sha256": "be041cd2a305ee52083296cdf2fa43d71e0751c31f0bb7bdf4011aa8a56a6755",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/conexus-preflight.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 6821,
+      "sha256": "4ab6bc9c5240c558ae0be3430deda6ddbe2e83dd63888d158bde59de75682d99",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/conexus-review.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 9672,
+      "sha256": "c05fd38477a26cc26a5bf489909d4a6bb87f74d0dcd1edb7dfcc9ed77e302200",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/conexus-verify.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 4184,
+      "sha256": "820e471df5e87b093801fac3c275985b7eb9074e59d7097cb4d16746f1aa53f9",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/import-law.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 7326,
+      "sha256": "dd359283e6225c920646f32194e963c8afda96e6d28662309aa1381524866e2c",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/opus-composed-receipt.test.mjs",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 1824,
+      "sha256": "ed7cf936eb6c75555f442644e551e19b5534e33834479c4b874f8728ff7ba051",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tests/repository/repository-contract.test.mjs",
+      "state": "tracked_modified",
+      "gitStatus": " M",
+      "size": 4985,
+      "sha256": "d1e66e196e228d5797138e129c7cacfe354e6c3a63efc4f658850daaaaa4f269",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": "PLATFORM-CONTRACT"
+    },
+    {
+      "path": "tsconfig.base.json",
+      "state": "untracked",
+      "gitStatus": "??",
+      "size": 406,
+      "sha256": "da878a216d8659618bc6341a57a1196081611c536e915bf22a96006976482535",
+      "classification": "PLATFORM_CONTRACT",
+      "sourceOwnership": null
+    }
+  ]
+}

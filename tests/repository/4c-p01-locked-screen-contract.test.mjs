@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { assert4DOpeningIsProperlyGated } from './_roadmap-phase-guards.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const path = p => resolve(root, p)
@@ -50,5 +51,6 @@ test('operator-approved P-01 baseline and bounded F05 delta remain pinned after 
 
   requireText(inventory,'Family 1 preserved; P12 Family 4 Agent-ingress `25e50771...` / RE-LOCKED / OPERATOR APPROVED','inventory must preserve Family 1 and expose the Family 4 re-lock')
   requireText(roadmap,'P-01 = LOCKED / OPERATOR APPROVED / AGENT STUDIO F05 DELTA RE-LOCKED / P9-P10 CLOSED','roadmap must preserve baseline and current Agent Studio lock')
-  if(/P11\s*=\s*ASSEMBLED/.test(roadmap)||/4D[^\n|]*=\s*OPEN/.test(roadmap)) throw new Error('later P-02 progression must not assemble P11 or open 4D')
+  if(/P11\s*=\s*ASSEMBLED/.test(roadmap)) throw new Error('later P-02 progression must not assemble P11')
+  assert4DOpeningIsProperlyGated(roadmap, 'later P-02 progression must not open 4D before 4C closure')
 })

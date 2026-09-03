@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://conexus.local/schemas/r1-a0-code-architecture-migration-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "migrationId",
+    "sourceRefs",
+    "prior",
+    "custodyScope",
+    "priorToolingPaths",
+    "oldToNew",
+    "changedPaths",
+    "unchangedProtected",
+    "adoptedExistingPaths",
+    "addedPaths",
+    "removedPaths",
+    "bootstrapPaths",
+    "controlArtifacts",
+    "dependencyTargets",
+    "affectedClaims",
+    "requiredConformanceIds",
+    "expectedProductDelta"
+  ],
+  "properties": {
+    "kind": { "const": "conexus.r1-a0-code-architecture-migration/v1" },
+    "migrationId": { "type": "string", "pattern": "^r1-a0-code-architecture-[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "sourceRefs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/sourceRef" } },
+    "prior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["s1ReceiptDigest", "s1ManifestDigest", "g0ReceiptDigest"],
+      "properties": {
+        "s1ReceiptDigest": { "$ref": "#/$defs/digest" },
+        "s1ManifestDigest": { "$ref": "#/$defs/digest" },
+        "g0ReceiptDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "custodyScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recursiveRoots", "exactFiles"],
+      "properties": {
+        "recursiveRoots": { "type": "array", "items": { "$ref": "#/$defs/path" } },
+        "exactFiles": { "type": "array", "items": { "$ref": "#/$defs/path" } }
+      }
+    },
+    "priorToolingPaths": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/priorPath" } },
+    "oldToNew": { "type": "array", "items": { "$ref": "#/$defs/move" } },
+    "changedPaths": { "type": "array", "items": { "$ref": "#/$defs/changed" } },
+    "unchangedProtected": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/protected" } },
+    "adoptedExistingPaths": { "type": "array", "items": { "$ref": "#/$defs/adopted" } },
+    "addedPaths": { "type": "array", "items": { "$ref": "#/$defs/added" } },
+    "removedPaths": { "type": "array", "items": { "$ref": "#/$defs/removed" } },
+    "bootstrapPaths": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/bootstrap" } },
+    "controlArtifacts": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/controlArtifact" } },
+    "dependencyTargets": { "type": "array", "items": { "$ref": "#/$defs/dependency" } },
+    "affectedClaims": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "requiredConformanceIds": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9:_-]+$" } },
+    "expectedProductDelta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operationsAdded",
+        "operationsRemoved",
+        "operationsChanged",
+        "ownersAdded",
+        "permissionsAdded",
+        "schemasAdded",
+        "tablesAdded",
+        "rolesAdded",
+        "durableRecordClassesAdded"
+      ],
+      "properties": {
+        "operationsAdded": { "type": "array", "maxItems": 0 },
+        "operationsRemoved": { "type": "array", "maxItems": 0 },
+        "operationsChanged": { "type": "array", "maxItems": 0 },
+        "ownersAdded": { "const": 0 },
+        "permissionsAdded": { "const": 0 },
+        "schemasAdded": { "const": 0 },
+        "tablesAdded": { "const": 0 },
+        "rolesAdded": { "const": 0 },
+        "durableRecordClassesAdded": { "const": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*:)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[^\\u0000]+$" },
+    "class": { "enum": ["GENERATED", "PLATFORM-CONTRACT"] },
+    "sourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "digest"],
+      "properties": { "path": { "$ref": "#/$defs/path" }, "digest": { "$ref": "#/$defs/digest" } }
+    },
+    "priorPath": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "digest"],
+      "properties": { "path": { "$ref": "#/$defs/path" }, "digest": { "$ref": "#/$defs/digest" } }
+    },
+    "move": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["oldPath", "oldDigest", "oldClass", "newPath", "newClass", "sourceRef", "mutationWindows"],
+      "properties": {
+        "oldPath": { "$ref": "#/$defs/path" }, "oldDigest": { "$ref": "#/$defs/digest" },
+        "oldClass": { "$ref": "#/$defs/class" }, "newPath": { "$ref": "#/$defs/path" },
+        "newClass": { "$ref": "#/$defs/class" }, "sourceRef": { "type": "string", "minLength": 1 },
+        "mutationWindows": { "$ref": "#/$defs/parts" }
+      }
+    },
+    "changed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "priorDigest", "class", "sourceRef", "mutationWindows"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" }, "priorDigest": { "$ref": "#/$defs/digest" },
+        "class": { "$ref": "#/$defs/class" }, "sourceRef": { "type": "string", "minLength": 1 },
+        "mutationWindows": { "$ref": "#/$defs/parts" },
+        "transitionRef": { "type": "string", "pattern": "^A0-T[0-9]{2}$" },
+        "transitionRole": { "enum": ["INPUT", "OUTPUT", "INPUT_OUTPUT"] }
+      },
+      "dependentRequired": { "transitionRef": ["transitionRole"], "transitionRole": ["transitionRef"] }
+    },
+    "protected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "digest", "class"],
+      "properties": { "path": { "$ref": "#/$defs/path" }, "digest": { "$ref": "#/$defs/digest" }, "class": { "$ref": "#/$defs/class" } }
+    },
+    "adopted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "preDigest", "class", "mutationLaw", "sourceRef", "mutationWindows"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" }, "preDigest": { "$ref": "#/$defs/digest" },
+        "class": { "$ref": "#/$defs/class" }, "mutationLaw": { "enum": ["PRESERVE", "REPLACE"] },
+        "sourceRef": { "type": "string", "minLength": 1 }, "mutationWindows": { "$ref": "#/$defs/parts" },
+        "transitionRef": { "type": "string", "pattern": "^A0-T[0-9]{2}$" },
+        "transitionRole": { "enum": ["INPUT", "OUTPUT", "INPUT_OUTPUT"] }
+      },
+      "dependentRequired": { "transitionRef": ["transitionRole"], "transitionRole": ["transitionRef"] }
+    },
+    "added": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "class", "sourceRef", "mutationWindows"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" }, "class": { "$ref": "#/$defs/class" },
+        "sourceRef": { "type": "string", "minLength": 1 }, "mutationWindows": { "$ref": "#/$defs/parts" },
+        "transitionRef": { "type": "string", "pattern": "^A0-T[0-9]{2}$" },
+        "transitionRole": { "enum": ["INPUT", "OUTPUT", "INPUT_OUTPUT"] }
+      },
+      "dependentRequired": { "transitionRef": ["transitionRole"], "transitionRole": ["transitionRef"] }
+    },
+    "removed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "priorDigest", "class", "reason", "mutationWindows"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" }, "priorDigest": { "$ref": "#/$defs/digest" },
+        "class": { "$ref": "#/$defs/class" }, "reason": { "type": "string", "minLength": 1 },
+        "mutationWindows": { "$ref": "#/$defs/parts" },
+        "transitionRef": { "type": "string", "pattern": "^A0-T[0-9]{2}$" },
+        "transitionRole": { "enum": ["INPUT", "OUTPUT", "INPUT_OUTPUT"] }
+      },
+      "dependentRequired": { "transitionRef": ["transitionRole"], "transitionRole": ["transitionRef"] }
+    },
+    "bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "outputDigest", "class", "sourceRef"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" }, "outputDigest": { "$ref": "#/$defs/digest" },
+        "class": { "$ref": "#/$defs/class" }, "sourceRef": { "type": "string", "minLength": 1 }
+      }
+    },
+    "controlArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "kind", "publicationPhase"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" }, "kind": { "type": "string", "minLength": 1 },
+        "publicationPhase": { "enum": ["BOOTSTRAP", "A0-P1", "A0-P2", "A0-P3", "A0-P4", "A0-P5"] }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "integrity", "class", "priorState"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 }, "version": { "type": "string", "minLength": 1 },
+        "integrity": { "type": "string", "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$" },
+        "class": { "const": "DEV" }, "priorState": { "const": "ABSENT" }
+      }
+    },
+    "part": { "enum": ["A0-P1", "A0-P2", "A0-P3", "A0-P4", "A0-P5"] },
+    "parts": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/part" } }
+  }
+}

@@ -3,6 +3,5 @@ export function assert4DOpeningIsProperlyGated(roadmap, message = '4D opened bef
   if (!open) return
 
   const closure = /4C\s*=\s*CLOSED \/ OPERATOR RATIFIED \/ METHOD v2\.3 \/ P12 CLOSED \/ 4C-13 CLOSED \/ P12-F03 CLOSED \/ 4C-14 CLOSED/.test(roadmap)
-  const implementationBlocked = /\| Product implementation \| BLOCKED(?: \/[^|]*)? \|/.test(roadmap)
-  if (!closure || !implementationBlocked) throw new Error(message)
+  if (!closure) throw new Error(message)
 }

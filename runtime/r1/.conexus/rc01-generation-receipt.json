@@ -1,0 +1,127 @@
+{
+  "kind": "conexus.rc01-generation-receipt/v1",
+  "verdict": "CANDIDATE_REPRODUCIBLE",
+  "baseCommit": "1619f14d9caed172b6cada9430e6b49ff77a4316",
+  "preChangeHead": "fd6f771be45102009f1887afaa9fc8a7e487e777",
+  "subjectTreeDigest": "63c894c9bef7d85dd97e1be5de72334904f48c235280935caf500edcdc017179",
+  "candidateInventoryDigest": "d611f97b5d97623f400a73a725514856794ab7cdca68a78c24463bb1d63b3087",
+  "ownershipManifestDigest": "faf0447f94aa7ba58b6ab5390e7243dcb010685d5806a3a92e3e5a0b87be7dff",
+  "ownershipClassCounts": {
+    "PLATFORM-CONTRACT": 782,
+    "GENERATED": 12
+  },
+  "operationsCensus": [
+    "IAM-01",
+    "IAM-02",
+    "IAM-03",
+    "WS-01",
+    "WS-02",
+    "PRJ-01",
+    "PRJ-02",
+    "PRJ-03",
+    "PRJ-07",
+    "PRJ-08",
+    "PRJ-09",
+    "PRJ-23",
+    "PRJ-24"
+  ],
+  "rbC0Frozen": true,
+  "laterTranchesStarted": [],
+  "appOwnedMutations": 0,
+  "generatedOutputs": [
+    {
+      "class": "GENERATED",
+      "outputDigest": "f6e39e2a61412259b28fec2ffe8ce4904e328ad6c3c9d57130acc396bbb7445e",
+      "path": "apps/hub/migrations/atlas.sum",
+      "size": 841
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "2183a8d86be9f3be4354d424166d4905000e82f38c6925ee01b39d068216621f",
+      "path": "apps/hub/src/generated/r1-new-project-seed.ts",
+      "size": 13582
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "4657153b85863ef106fb086f2679427e3a6b5410eeda000eb7004f9eb70061e5",
+      "path": "apps/hub/src/generated/r1c14-git-identity.ts",
+      "size": 1165
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "a575c411639370f8cac356b2de21d131deabe78c5328401b4b6e861bdcb40652",
+      "path": "apps/hub/src/generated/s1-routes.ts",
+      "size": 9357
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "0c4e0955c41372b038fa6ab053939893adc14b301152f49f2d9f583e41abbe0c",
+      "path": "apps/hub/src/generated/s2-routes.ts",
+      "size": 6980
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "7593d9d78e9b5a9978eda0ce9b9a30e234521600dfae1b16c9300b2323d5159f",
+      "path": "apps/hub/src/generated/s3-routes.ts",
+      "size": 36472
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "f340a8fe3b712fab9afee952f92226c2d6669294948cd56e99c626c88212c10b",
+      "path": "apps/web/src/generated/iam-client.ts",
+      "size": 1645
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "54f0760cf61a10ed9b4d595ff13ca390ea4a1ae87ccf9c91fc09e9cd3ca4b5d7",
+      "path": "apps/web/src/generated/project-client.ts",
+      "size": 4172
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "50e6bfea7eedfe64fe25b38acf35660cf083b73fb1400d73a4c29099d6644326",
+      "path": "apps/web/src/generated/workspace-client.ts",
+      "size": 1431
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "5d275df9bac214283c92da3bde873de1f23dae954a36b787ba760a404134af78",
+      "path": "qualification/4d/r1-foundation/postgres-migrations/migrations/atlas.sum",
+      "size": 118
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "6d86a8c7ffd04138c4ed051f99bc36a5dc06fe327848dde49b7ec0d505a436f7",
+      "path": "runtime/r1/generated/r1/operations.json",
+      "size": 4712
+    },
+    {
+      "class": "GENERATED",
+      "outputDigest": "e7c0f68c5e44b0062000bbdcd84d7d2d44d4ee407babd7d34a11433a3748e5bf",
+      "path": "runtime/r1/generated/r1/operations.mjs",
+      "size": 4490
+    }
+  ],
+  "noParallelDtoEvidence": [
+    "canonical Product OpenAPI remains the wire authority",
+    "generated R1 route/client projections are reproduced by admitted generators",
+    "tests/repository/import-law.test.mjs forbids generated-to-owner and owner-to-owner drift",
+    "scripts/check-project-operation-declarations.mjs preserves the exact 13-operation projection"
+  ],
+  "externalProofNotClaimed": [
+    "provider",
+    "Keycloak",
+    "Sankhya",
+    "E2B"
+  ],
+  "outputIdentities": {
+    "candidateInventory": {
+      "path": "docs/evidence/rc01/rc01-candidate-inventory.json",
+      "sha256": "d611f97b5d97623f400a73a725514856794ab7cdca68a78c24463bb1d63b3087"
+    },
+    "ownershipManifest": {
+      "path": "runtime/r1/.conexus/rc01-ownership-manifest.json",
+      "sha256": "faf0447f94aa7ba58b6ab5390e7243dcb010685d5806a3a92e3e5a0b87be7dff"
+    }
+  }
+}

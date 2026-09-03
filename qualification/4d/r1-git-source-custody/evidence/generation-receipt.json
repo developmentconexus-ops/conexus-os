@@ -1,0 +1,37 @@
+{
+  "kind": "conexus.r1c14.git-source-custody-generation-receipt/v1",
+  "gate": "R1C-14 GIT_SOURCE_CUSTODY",
+  "observedOn": "2026-08-31",
+  "predecessors": {
+    "s2GenerationReceiptSha256": "f505e67f1e31f2f94ab7268e31dee6882f5e0d58975b878f3e2ecbdb8aa487e7",
+    "s2OwnershipManifestSha256": "f3a132e9ab3ef6e682ebf25da73f0318e2a55b74c53557d1957241fe2b6d1242",
+    "foundationPinManifestSha256": "263519826e29245893d232a8130de079337e474b712f4ace9852a2dbc7b9a671"
+  },
+  "outputs": {
+    "resultSha256": "9f05ac20b221c9902fbeb3305e0f0636df59c6d4a296f3f72126afa270bc972b",
+    "buildMetadataSha256": "bd2f37cf76a7307a1d66bee226708386573f75c48c14d9d2304d8a414e384531",
+    "pinManifestSuccessorSha256": "55d9c70e122795e2441839605179ef5fdb7194091a2326c9b2b9644c508ec750",
+    "implementationResultSha256": "7044c07397f7c9c1f76512f70d72f476ddece9e0dd1e89a8d728aac959b14496",
+    "indexSha256": "23c4de40d1433bfc05250885b9ed308226b7a59360b0184997f12526082653dc",
+    "roadmapSha256": "a177c030276a1a5048ec802a4cb709fb6efcf3df16bed2bf134d1047f058c733"
+  },
+  "exactIdentities": {
+    "gitExecutableSha256": "b5d1f9f76f9805ce8721accc9d8bbff9af9b7407e182ab07a5677dafa6c22201",
+    "ociIndexDigest": "sha256:44ad647a10c0a9659e3cfebb28e6b384ac8af15ac53fc2d0cd662cd30d7817b0",
+    "linuxAmd64ManifestDigest": "sha256:800f870caa890432f5955cf2c4545af3ead7f3cd6bcc74b419cfd9934e8876e2",
+    "rootfsClosureSha256": "737d2733325ab0d6c49e102d16dc4892c5ca35a92dffe6c838dbe77c44f93fba",
+    "dependencyClosureSha256": "07ddbd90e07c40f18482f4cbf35c0587d6197b5e7563b96062d00ae86784959c"
+  },
+  "proof": {
+    "checksExpected": 15,
+    "checksPassed": 15,
+    "productDelta": 0,
+    "productCensusSha256": "af61650f85c396a51eca996a6825fdd942d6ced9dc410bfdc194b25afe275d8d",
+    "unresolvedConflicts": 0
+  },
+  "reviews": [
+    {"model": "claude-opus-5", "sessionId": "c29aa270-bfcf-4135-bb6f-7ed0fa639e27", "verdict": "ACCEPT", "materialFindings": 0},
+    {"model": "gemini-3.1-pro", "sessionId": "00f57a88-0d5b-43b6-ae06-0569186cd7ae", "verdict": "ACCEPT", "materialFindings": 0}
+  ],
+  "verdict": "PASS"
+}

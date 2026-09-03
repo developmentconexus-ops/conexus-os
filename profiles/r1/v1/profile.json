@@ -1,0 +1,29 @@
+{
+  "kind": "conexus.project-scaffold-profile/v1",
+  "profileId": "conexus-r1-managed",
+  "profileVersion": "1.0.0",
+  "generatorProtocolVersion": "ConexusProfileCompiler/v1",
+  "outputs": [
+    {
+      "id": "r1-wire-json",
+      "path": "generated/r1/operations.json",
+      "class": "GENERATED",
+      "render": "CANONICAL_JSON",
+      "inputKey": "wireProjection"
+    },
+    {
+      "id": "r1-wire-module",
+      "path": "generated/r1/operations.mjs",
+      "class": "GENERATED",
+      "render": "R1_OPERATION_MODULE",
+      "inputKey": "wireProjection"
+    },
+    {
+      "id": "r1-platform-contract",
+      "path": "platform/r1/contract.json",
+      "class": "PLATFORM-CONTRACT",
+      "render": "CANONICAL_JSON",
+      "inputKey": "platformContract"
+    }
+  ]
+}

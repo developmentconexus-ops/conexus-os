@@ -1,0 +1,145 @@
+{
+  "kind": "conexus.r1-a0-foundation-pin-manifest/v3",
+  "predecessor": {
+    "path": "docs/evidence/4d/4d-r1-foundation-pin-manifest-r1c14-successor.json",
+    "sha256": "55d9c70e122795e2441839605179ef5fdb7194091a2326c9b2b9644c508ec750"
+  },
+  "historicalEvidence": {
+    "generationReceipt": {
+      "path": "qualification/4d/r1-git-source-custody/evidence/generation-receipt.json",
+      "sha256": "c1a0ab24d2f1d1ee5cc6bc413af64972a8f8fe02808f0b3d6ad6b3964fe32ae7"
+    }
+  },
+  "productDeltaSemantics": "QUALIFICATION_RUN_WINDOW_NOT_STANDING_GATE",
+  "admittedGate": "R1C-14 GIT_SOURCE_CUSTODY NATIVE_READMISSION",
+  "decidingEnvironment": {
+    "host": "WSL2 Ubuntu 26.04 LTS",
+    "kernel": "6.18.33.2-microsoft-standard-WSL2",
+    "arch": "x64",
+    "hostNode": "v24.20.0",
+    "npm": "12.0.2",
+    "dockerEngine": "29.7.2",
+    "dockerBuildx": "0.36.1"
+  },
+  "git": {
+    "executablePath": "/usr/local/bin/git",
+    "executableSha256": "b5d1f9f76f9805ce8721accc9d8bbff9af9b7407e182ab07a5677dafa6c22201",
+    "version": "2.55.0",
+    "buildFlags": ["NO_TCLTK=YesPlease", "NO_GETTEXT=YesPlease", "NO_RUST=YesPlease"],
+    "buildOptionControl": "rust: disabled",
+    "source": {
+      "archive": "https://www.kernel.org/pub/software/scm/git/git-2.55.0.tar.xz",
+      "archiveSha256": "457fdb04dc8728e007d4688695e6912e6f680727920f2a40bf11eacc17505357",
+      "signature": "https://www.kernel.org/pub/software/scm/git/git-2.55.0.tar.sign",
+      "signatureSha256": "8673501946204c38ebfed09603c1f3a041ed8d12b31f0aa06a474d41e359e254",
+      "releaseKeySha256": "fd2809d850e844b614ac60f13ded554c55d9052e5c799a5814abcba2a68a063c",
+      "recordedPrimaryKeyFingerprint": "96E07AF25771955980DAD10020D04E5A713660A7",
+      "recordedSigningSubkeyFingerprint": "E1F036B1FEE7221FC778ECEFB0B5E88696AFE6CB"
+    }
+  },
+  "image": {
+    "tag": "conexus-r1c14-git:2.55.0-native-readmission-v3",
+    "buildInvocation": "BUILDX_GIT_INFO=0 BUILDX_METADATA_PROVENANCE=max docker buildx build --platform linux/amd64 --provenance=mode=max --metadata-file /home/leandrotheodoro/conexus-r1c14-native-readmission/build-metadata-v3.json --load --tag conexus-r1c14-git:2.55.0-native-readmission-v3 qualification/4d/r1-git-source-custody",
+    "base": "node@sha256:be23f54a88d34e8824c741b19b91064094f92c1c97b194144bfc8b50d67258e2",
+    "ociIndexDigest": "sha256:5e5c3526292bb87a97a3fa41c8e715800a02da5238fbe07bf99c1c4b614f7851",
+    "linuxAmd64ManifestDigest": "sha256:5c4c1731bb91b227c26ab40efd8298a8a9b3a3f8a5a40642d65817d581a72276",
+    "buildMetadataSha256": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+    "rootfsClosureSha256": "5d7ff67d036c769c39c19b06bba5e94f4dc7d69ef435843c2406bf16f63c3ea1",
+    "dependencyClosureSha256": "07ddbd90e07c40f18482f4cbf35c0587d6197b5e7563b96062d00ae86784959c"
+  },
+  "imageIdentityRoles": {
+    "bindingExecutionIdentity": "image.ociIndexDigest",
+    "corroboratingOnly": ["image.linuxAmd64ManifestDigest", "image.rootfsClosureSha256"],
+    "forbiddenForS3Binding": [
+      "image.linuxAmd64ManifestDigest",
+      "host Git",
+      "sha256:a75b3631df2a6e6bcdf94e4ee511bb81ddbab3f21b391badae9598f3bae1b9d7",
+      "sha256:4b52df3b20e6c4654bb8cf4270fbe911cc3b0e8bc738a54fa325496b24e2854a",
+      "sha256:44ad647a10c0a9659e3cfebb28e6b384ac8af15ac53fc2d0cd662cd30d7817b0"
+    ]
+  },
+  "protocolIdentityRoles": {
+    "digestEnforced": "all result.protocolDigests entries except existenceOnly",
+    "existenceOnly": [
+      "README.md",
+      "review-brief.md",
+      "evidence/superseded-protocol/README.md"
+    ]
+  },
+  "evidence": {
+    "resultPath": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/results.json",
+    "resultSha256": "d5ccba4ecf683417a5a78313c5fa7230fd3eb56fd8ced0eca7e14b844be767c6",
+    "productCensusSha256": "af61650f85c396a51eca996a6825fdd942d6ced9dc410bfdc194b25afe275d8d",
+    "admissionTestPath": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/admission-test.tap",
+    "admissionTestSha256": "78ad0bb18256925a1848d9c79129030a5d86b2346dcc9423ae68f79e930f0507",
+    "pinInputPath": "qualification/4d/r1-git-source-custody/native-readmission-pin.json",
+    "pinInputSha256": "97738f25d16ff9a258c6566c1ea9909fb3b8af835520ee78829ec38b2e74488f",
+    "negativeControlPath": "qualification/4d/r1-git-source-custody/evidence/native-readmission-rejections/first-vcs-hint-rejection.json",
+    "negativeControlSha256": "b449566831aa02311829a8a680d821bba25a072018887bf090b9e942eee7bb02",
+    "supersededControlPath": "qualification/4d/r1-git-source-custody/evidence/native-readmission-rejections/second-minimal-provenance-supersession.json",
+    "supersededControlSha256": "63b2bbd241ef9c303c2a6c92f25a4410730237c31bc683422b0838000e3ad479",
+    "supersededCandidatePath": "qualification/4d/r1-git-source-custody/evidence/superseded-candidates/native-readmission-linux-2026-09-01-v13.json",
+    "supersededCandidateSha256": "20e9990385e5cdf8524a23c8064e43981a0568123db9e230f7e302198343f065",
+    "command": "node qualification/4d/r1-git-source-custody/run.mjs --pin qualification/4d/r1-git-source-custody/native-readmission-pin.json --build-metadata /home/leandrotheodoro/conexus-r1c14-native-readmission/build-metadata-v3.json --evidence-directory evidence/native-readmission-linux-2026-09-01-v14 --work-root /var/tmp/conexus-r1c14-native-readmission-work-v14",
+    "expectedCheckIds": ["BUILD_OPTIONS", "BUNDLE_EXISTING_GIT", "BUNDLE_NEW", "CAS", "CORRUPT_BUNDLE", "CREDENTIAL_CONFIG", "EXISTING_GIT", "ISOLATION", "MISSING_REF", "NEW", "PARTIAL", "PIN", "PIN_NEGATIVE", "PROTOCOL", "REDIRECT", "REQUEST_TARGET_NEGATIVE", "SECRET_SCAN_NEGATIVE"]
+  },
+  "review": {
+    "status": "CLOSED_INDEPENDENT_CONVERGENCE",
+    "brief": "docs/evidence/4d/4d-r1-r1c14-native-readmission-review-brief.md",
+    "briefSha256": "a6d74e5c8b4ebe1173f0e5d3a0764958bff36b6a665762f49e797a10de7cbfa2",
+    "protectedClaims": [
+      "EXACT_OCI_IDENTITY_NO_SUBSTITUTION",
+      "FALSE_PASS_RESISTANCE",
+      "QUALIFICATION_RUN_PRODUCT_DELTA",
+      "SECRET_NON_DISCLOSURE",
+      "HISTORICAL_EVIDENCE_PRESERVATION",
+      "DECIDING_REVIEW_INTEGRITY"
+    ],
+    "blockerCensus": [
+      "EXACT_IDENTITY_SUBSTITUTION",
+      "FALSE_PASS_ROUTE",
+      "QUALIFICATION_RUN_PRODUCT_DELTA_FALSE",
+      "SECRET_DISCLOSURE",
+      "HISTORICAL_EVIDENCE_LOSS_OR_FALSE_CURRENT_AUTHORITY",
+      "DECIDING_REVIEW_INTEGRITY_FAILURE"
+    ],
+    "otherFindingsDisposition": "DEFER_SAFELY",
+    "lanes": [
+      {
+        "lane": "opus",
+        "executable": "claude",
+        "model": "opus",
+        "effort": "xhigh",
+        "mode": "plan",
+        "readOnly": true,
+        "cliVersion": "2.1.220",
+        "sessionOrConversation": "dc572141-99bf-41d5-aa51-e958686eb0ab",
+        "reviewerOutputPath": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/opus-final-review-result.json",
+        "reviewerOutputSha256": "315edbe81a3c3fafc76494f83ebce76176b59346a876c255725739325c4bf817",
+        "rawVerdict": "The qualification envelope itself survives independent attack — the exact OCI index is"
+      },
+      {
+        "lane": "gemini",
+        "executable": "agy",
+        "model": "gemini-3.1-pro-high",
+        "effort": "high",
+        "mode": "plan",
+        "readOnly": true,
+        "sandbox": true,
+        "cliVersion": "1.1.23",
+        "sessionOrConversation": "cefceb8b-d72c-4a65-a6dd-027444b1c0ef",
+        "reviewerOutputPath": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/gemini-final-review-result.json",
+        "reviewerOutputSha256": "63f388abe384896bb8a10082b14d752760353c834efbf52b768aba0f7db7a3f3",
+        "supportingArtifactPath": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/gemini-final-review-report.md",
+        "supportingArtifactSha256": "1484f6c1f239541f965d4d85f6295aa1083a81b473c03bc344f43d7837560702",
+        "rawVerdict": "PASS"
+      }
+    ],
+    "adjudication": {
+      "path": "docs/evidence/4d/4d-r1-r1c14-native-readmission-final-review-adjudication.json",
+      "sha256": "e5cc17006fb816c8863eb07b17120f8b763b2530ba0b74f93f3c603d1e48b518"
+    },
+    "receipt": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/generation-receipt.json"
+  },
+  "verdict": "PASS"
+}

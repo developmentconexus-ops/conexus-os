@@ -66,7 +66,7 @@ test('compressed Phase-4 program bounds 128 operations and opens one R1 foundati
   assert.match(phase, /Mutable status and exact next action.*owned only by/s)
   assert.match(roadmap, /BOUNDED PROGRAM COMPRESSION OPERATOR RATIFIED/)
   assert.match(roadmap, /OPERATION MAP 128↔128 CANDIDATE \/ R1 FOUNDATION SELECTION CLOSED \+ OPERATOR APPROVED \/ R1 PROBE GRANT OPERATOR APPROVED \/ R1F-A01\+R1F-E01 CORRECTED \/ P01\.\.P12 EVIDENCE OPERATOR APPROVED/)
-  assert.match(roadmap, /\| Product implementation \| BLOCKED \| Tranche-scoped law ratified:/)
+  assert.match(roadmap, /\| Product implementation \|[^\n]*\bR1\b[^\n]*\b(?:R2|RB)[^\n]*BLOCKED/)
   assert.match(index, /R1 operation reachability bounding map/)
   assert.match(index, /R1 Foundation Batch/)
 })

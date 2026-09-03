@@ -1,0 +1,26 @@
+{
+  "kind": "conexus.r1c14.native-readmission-supersession/v1",
+  "observedOn": "2026-09-01",
+  "disposition": "SUPERSEDED_NOT_AUTHORITY",
+  "predecessorSupersession": {
+    "path": "evidence/superseded-candidates/native-readmission-linux-2026-09-01-v8.json",
+    "sha256": "531e6fd54567c693be5193f6a03eae9ae23f03a281268669d621e17ec2cbb802"
+  },
+  "superseded": {
+    "evidenceDirectory": "evidence/native-readmission-linux-2026-09-01-v9",
+    "resultSha256": "586e07ca26f73542957b903f8dae71924b9f885839f549716277ab6b57be945d",
+    "candidateSha256": "514bf2b0f32c1185aace0b7f11fc3f0ff58a2cf858e458273600c39a1bbdb6a1",
+    "retained": true
+  },
+  "successor": {
+    "evidenceDirectory": "evidence/native-readmission-linux-2026-09-01-v10",
+    "resultSha256": "71c9113a1a8338fba73e63f718c23a72db9673d4c505e3704026cb9e2ae0009a",
+    "candidateSha256": "ccc7b7044738a87fc37e73c3c2aa809e9ae3fe3a112299a83acee85fd8c8ebf7"
+  },
+  "corrections": [
+    "Docker execution now uses --network none for admission and probe containers.",
+    "Admission TAP census expressions are anchored to complete lines.",
+    "Qualification locator admission refuses percent-decoded slash, backslash, NUL and dot-segment escapes.",
+    "The request-target secret disclosure field is renamed to the exact observed surface; firing proof remains a later correction."
+  ]
+}

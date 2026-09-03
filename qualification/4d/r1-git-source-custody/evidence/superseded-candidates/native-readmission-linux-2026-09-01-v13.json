@@ -1,0 +1,26 @@
+{
+  "kind": "conexus.r1c14.native-readmission-supersession/v1",
+  "observedOn": "2026-09-01",
+  "disposition": "SUPERSEDED_NOT_AUTHORITY",
+  "predecessorSupersession": {
+    "path": "evidence/superseded-candidates/native-readmission-linux-2026-09-01-v12.json",
+    "sha256": "d64ae858df0501e4bdc146b68a716a317dbc4ef2c2d8be3facc1d86b8481255c"
+  },
+  "superseded": {
+    "evidenceDirectory": "evidence/native-readmission-linux-2026-09-01-v13",
+    "resultSha256": "7af1dac74117f02fd3c87d6dc11f6fcbbd19c930287e1b83b7927c227dc09940",
+    "candidateSha256": "b20a4a79a376ba642e71f3f678884447d3aa8027a4d3529cde51e12194e18aad",
+    "retained": true
+  },
+  "successor": {
+    "evidenceDirectory": "evidence/native-readmission-linux-2026-09-01-v14",
+    "resultSha256": "d5ccba4ecf683417a5a78313c5fa7230fd3eb56fd8ced0eca7e14b844be767c6",
+    "candidateSha256": "cf02a48a2727ba90ba5f5d7c463524afedaff28a888a7ae4aa3706d7afadccce"
+  },
+  "corrections": [
+    "Independent-review wrappers bind the exact brief and candidate-result paths and SHA-256 identities and must live under the current Evidence review directory.",
+    "Reviewer read-only and sandbox posture is validated from exact argv values rather than flag presence.",
+    "All eight closed-result protocol identities, including the historical HTTPS fixture, are retained byte-exact and consumed.",
+    "Canonical Project-path denial throws before a caller can silently unwrap an undefined path."
+  ]
+}

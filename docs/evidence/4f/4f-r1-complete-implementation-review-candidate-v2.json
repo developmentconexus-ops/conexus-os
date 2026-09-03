@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "subject": "R1 complete implementation G0-S6 after whole-implementation review corrections",
+  "status": "CANDIDATE_FINAL_CONFIRMATION_PENDING",
+  "capturedAt": "2026-09-03",
+  "repository": "https://github.com/developmentconexus-ops/conexus-os.git",
+  "branch": "codex/4c-p02-integrations-ux",
+  "head": "fd6f771be45102009f1887afaa9fc8a7e487e777",
+  "originMain": "1619f14d9caed172b6cada9430e6b49ff77a4316",
+  "behind": 0,
+  "ahead": 3,
+  "pullRequest": null,
+  "mainCi": {
+    "workflow": "Verify",
+    "conclusion": "success",
+    "runId": 32895810427
+  },
+  "environment": {
+    "platform": "WSL Ubuntu",
+    "node": "24.20.0",
+    "npm": "12.0.2"
+  },
+  "workingTree": {
+    "porcelainPathsUntrackedAll": 417,
+    "preserveExistingAndUnownedState": true,
+    "trackedBinaryDiffSha256": "e90a59f5ff9afb194cc9c11599b83bcb6888432fc0e332f60e206a2520744b97",
+    "untrackedPathAndContentCensusSha256": "83c8e760c81cfd1df2b79cd3dc0f6400094645757cb6645322a7a3454eb58aab",
+    "repositoryTreeSha256": "51067494e7865ba536b608ead76e12fc866f2778a6b849e4a5aaa364b3787d43",
+    "implementationTreeSha256": "4f0957ebd38e610292644f8807a9aeea1205851b9725539ccef48a00ec0aa803",
+    "r1EvidenceTreeSha256": "5c8619358153bbf591aacd0d18e3c2d2fa2b5036305ca7bddd23c8e89c61882f",
+    "digestNote": "Digests freeze the corrected candidate immediately before adding this v2 manifest and its final-confirmation brief. They include the initial review framing and all surviving corrections but exclude later raw reviewer outputs and closure receipts."
+  },
+  "deliveredOperations": [
+    "IAM-01", "IAM-02", "IAM-03", "WS-01", "WS-02", "PRJ-01", "PRJ-02",
+    "PRJ-03", "PRJ-07", "PRJ-08", "PRJ-09", "PRJ-23", "PRJ-24"
+  ],
+  "operationCensus": "13/13",
+  "reviewCorrectionCensus": {
+    "productionComposition": "real Fastify, Project module, Mastra, Chromium and PostgreSQL 17.10; synthetic model only; no provider call",
+    "productionCognitionBoundaries": "bounded fetch, OAuth transport, budgets, provenance and zero-retry controls execute on shipped modules",
+    "telemetryBeforeImport": "MASTRA_TELEMETRY_DISABLED is set before dynamic Project/Mastra import",
+    "databaseIdentity": "postgres:17.10-bookworm index sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f; linux/amd64 manifest sha256:6e5a6518f9d2ff9e9f4cba2a5a87d8f41b0f067f6f92ac847c344351a6c8d923",
+    "migrationManifest": "Atlas 1.3.0 sha256:10d7913e3dce43ab99b8d71534a4cbadaf11a16dc293adf3b91d10e83a0ac70b reproduced unchanged atlas.sum sha256:f6e39e2a61412259b28fec2ffe8ce4904e328ad6c3c9d57130acc396bbb7445e",
+    "browserDeepLink": "/projects/:projectId/inception is an admitted SPA fallback",
+    "historicalReviewIdentity": "R1C-14 retained Opus argv remains immutable while new wrapper default remains Fable"
+  },
+  "nativeR1c14": {
+    "ociIndex": "sha256:5e5c3526292bb87a97a3fa41c8e715800a02da5238fbe07bf99c1c4b614f7851",
+    "resultSha256": "d5ccba4ecf683417a5a78313c5fa7230fd3eb56fd8ced0eca7e14b844be767c6",
+    "manifestChecks": "17/17 PASS",
+    "targeted": "31/31 PASS"
+  },
+  "decidingVerification": {
+    "npmCi": "PASS; 336 packages; 2 known low-severity advisories",
+    "npmRunVerify": "PASS; accepted Redocly warnings only",
+    "r1c13Isolated": "23/23 PASS; no live provider call",
+    "s6Targeted": "P0-P5 PASS",
+    "postgres17": "S4 P1/P2, S6 P0/P1 PASS on server_version_num 170010",
+    "productionComposition": "2/2 PASS on PostgreSQL 17.10 and real Chromium",
+    "reviewWrapper": "10/10 PASS; Fable default plus explicit operator-authorized Opus fallback",
+    "repositoryCurrent": "PASS"
+  },
+  "reviewExecution": {
+    "claudeLaneKey": "opus",
+    "claudeRequestedModel": "opus",
+    "claudeReason": "operator-authorized temporary fallback because Fable quota is exhausted",
+    "geminiModel": "gemini-3.1-pro-high",
+    "isolation": "fresh; neither lane receives the other lane output"
+  },
+  "blocked": [
+    "live Product/provider calls",
+    "production effects",
+    "commit, push, PR or merge",
+    "next-tranche Product implementation"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "kind": "conexus.r1c14.native-readmission-supersession/v1",
+  "observedOn": "2026-09-01",
+  "disposition": "SUPERSEDED_NOT_AUTHORITY",
+  "predecessorSupersession": {
+    "path": "evidence/superseded-candidates/native-readmission-linux-2026-09-01-v11.json",
+    "sha256": "41a24a63c42fcb835ca07334e2b9aa28e4c09ebb3728d629b29af54854494d7c"
+  },
+  "superseded": {
+    "evidenceDirectory": "evidence/native-readmission-linux-2026-09-01-v12",
+    "resultSha256": "b108a08866fae4eb53bf6bbf66095bb93ae591f55387db9d4a9da1215754ef48",
+    "candidateSha256": "228d603aea0dcd3d75295a7bf4c072c2adcd3c7accd3525bf64b0a8af7dcad60",
+    "retained": true
+  },
+  "successor": {
+    "evidenceDirectory": "evidence/native-readmission-linux-2026-09-01-v13",
+    "resultSha256": "7af1dac74117f02fd3c87d6dc11f6fcbbd19c930287e1b83b7927c227dc09940",
+    "candidateSha256": "b20a4a79a376ba642e71f3f678884447d3aa8027a4d3529cde51e12194e18aad"
+  },
+  "corrections": [
+    "Receipt location is derived from the manifest-selected current evidence directory and its refusal proof is phase-independent.",
+    "Raw reviewer outputs are retained and digest-recomputed; reviewer verdict remains Evidence while a machine-bound Lead adjudication owns surviving-findings closure.",
+    "Both live rejected OCI indices join the forbidden S3 identity census and mandatory RED controls.",
+    "The review brief stays digest-enforced after PASS and repository custody refuses intermediate symlinks and partial candidate directories.",
+    "Locator admission decodes to closure, refuses residual encoding, empty segments and caller query strings.",
+    "The generation receipt disclaims durable Git/OCI custody pending the separately gated operator action."
+  ]
+}

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { assert4DOpeningIsProperlyGated } from './_roadmap-phase-guards.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const path = p => resolve(root, p)
@@ -79,5 +80,5 @@ test('operator-approved W-02B Connections is locked and closed through exact P9/
 
   requireText(roadmap, 'W-02B LOCKED', 'roadmap must show W-02B locked')
   requireText(roadmap, 'W-03 = NEXT / NOT OPEN', 'roadmap must route the next material 4C block to W-03')
-  if (/\|\s*4D\b[^|\n]*\|\s*(?:OPEN|ACTIVE)\b/.test(roadmap)) throw new Error('W-02B lock must not open 4D before remaining 4C blocks, P11/P12 and closure')
+  assert4DOpeningIsProperlyGated(roadmap, 'W-02B lock must not open 4D before remaining 4C blocks, P11/P12 and closure')
 })

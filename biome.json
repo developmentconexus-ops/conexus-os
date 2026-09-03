@@ -1,0 +1,60 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.11/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "apps/**",
+      "packages/**",
+      "scripts/**",
+      "tests/**",
+      "!apps/**/src/generated",
+      "!!apps/**/public",
+      "!!**/dist",
+      "!!**/coverage"
+    ]
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended"
+    }
+  },
+  "assist": {
+    "enabled": false
+  },
+  "overrides": [
+    {
+      "includes": ["apps/hub/src/identity-access/routes.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noImplicitAnyLet": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/web/src/main.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noAutofocus": "off",
+            "noStaticElementInteractions": "off",
+            "useButtonType": "off"
+          },
+          "correctness": {
+            "useExhaustiveDependencies": "off"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -40,7 +40,6 @@ test('4C-13 consolidates generated consumption, custody, topology and P13 handof
 test('4C operator ratification precedes the separately gated 4D opening',()=>{
   assert.match(roadmap,/4C = CLOSED \/ OPERATOR RATIFIED \/ METHOD v2\.3 \/ P12 CLOSED \/ 4C-13 CLOSED \/ P12-F03 CLOSED \/ 4C-14 CLOSED/)
   assert.match(roadmap,/P12-F03 = CLOSED \/ CHECKPOINT 1eb33a93fd2bcd32c2cc7d9565aa617430a47771 \/ PUSH-PR-MERGE UNAUTHORIZED/)
-  assert.match(roadmap,/Product implementation \| BLOCKED/)
   assert.match(roadmap,/PUSH-PR-MERGE UNAUTHORIZED/)
   assert.doesNotMatch(closure,/selected (?:React|Next|Tailwind|Mastra|router|state library|SDK|runtime|design system)/i)
   const premature=roadmap.replace('4C = CLOSED / OPERATOR RATIFIED / METHOD v2.3 / P12 CLOSED / 4C-13 CLOSED / P12-F03 CLOSED / 4C-14 CLOSED','4C = OPEN')

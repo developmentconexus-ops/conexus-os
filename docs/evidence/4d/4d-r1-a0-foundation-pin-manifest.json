@@ -1,0 +1,138 @@
+{
+  "kind": "conexus.r1-a0-foundation-pin-manifest/v1",
+  "decidingRuntime": {
+    "node": "24.20.0",
+    "npm": "12.0.2",
+    "typescript": "6.0.2"
+  },
+  "lockfileSha256": "3f3364c8449e0bb73fafeaa588a2eef9e03cea4536dfa70867e0803db91f3baf",
+  "admittedDependency": {
+    "name": "@types/pg",
+    "version": "8.23.1",
+    "resolved": "https://registry.npmjs.org/@types/pg/-/pg-8.23.1.tgz",
+    "integrity": "sha512-fKVHpikPdg4GKks3JuLEhvwSyvwzF23hnabPy6DD8ljVbC7+6J5dQzdv4arV6jqq57djnMgs1HKBxX4P8aBI3A==",
+    "license": "MIT",
+    "class": "DEV_TYPE_ONLY",
+    "installScripts": false
+  },
+  "declarationWaiver": {
+    "package": "openid-client",
+    "version": "6.8.7",
+    "declarationPath": "node_modules/openid-client/build/index.d.ts",
+    "declarationSha256": "fe660b56f48e139161364738dca19b0babf533dea75545005e09fcf059a5fee8",
+    "scope": "apps/hub/tsconfig.json",
+    "compilerOption": "skipLibCheck=true",
+    "probeCompilerOption": "skipLibCheck=false",
+    "expectedDiagnostic": {
+      "code": 2420,
+      "class": "Configuration",
+      "interface": "ConfigurationProperties",
+      "property": "timeout"
+    }
+  },
+  "proofProtocols": [
+    {
+      "id": "A0:FOUNDATION-PIN",
+      "protocolDigest": "0ba775dc6db1608660af12429447c589c3e82c82f12e98d94763edb4638bb0d2",
+      "protocol": {
+        "claim": "exact @types/pg pin, lock digest and deciding identities",
+        "command": "node --test --test-concurrency=1 tests/implementation/r1-a0-admission.test.mjs",
+        "expected": "named test PASS",
+        "id": "A0:FOUNDATION-PIN",
+        "kind": "conexus.a0-proof-protocol/v1",
+        "runtime": { "arch": "x64", "node": "24.20.0", "npm": "12.0.2", "os": "linux" }
+      }
+    },
+    {
+      "id": "A0:HUB-TYPECHECK",
+      "protocolDigest": "d9e7593db40aa0132d6ea53a45a6fb4a98330dc594f19135f9263133f0992d26",
+      "protocol": {
+        "claim": "strict future Hub surfaces compile and TS2532+TS7006 RED fires",
+        "command": "node --test --test-concurrency=1 tests/implementation/r1-a0-admission.test.mjs",
+        "expected": "named test PASS",
+        "id": "A0:HUB-TYPECHECK",
+        "kind": "conexus.a0-proof-protocol/v1",
+        "runtime": { "arch": "x64", "node": "24.20.0", "npm": "12.0.2", "os": "linux" }
+      }
+    },
+    {
+      "id": "A0:MIGRATION-CUSTODY",
+      "protocolDigest": "55ea8cb8853809cb15cec2dce1912a34e3117b333a9be898a1423444e90fe8a9",
+      "protocol": {
+        "claim": "validated plan, exact P1 window and future/closed custody",
+        "command": "node scripts/check-r1-a0-migration.mjs --in-flight --part A0-P1",
+        "expected": { "scopedPaths": 65, "transitions": 2, "verdict": "PASS" },
+        "id": "A0:MIGRATION-CUSTODY",
+        "kind": "conexus.a0-proof-protocol/v1",
+        "runtime": { "arch": "x64", "node": "24.20.0", "npm": "12.0.2", "os": "linux" }
+      }
+    },
+    {
+      "id": "A0:OPENID-DECLARATION",
+      "protocolDigest": "a977f660a2a7a020daccdef2cce3a7d0155ec0228a6df40a4af4fecdc15433f7",
+      "protocol": {
+        "claim": "skipLibCheck false yields only pinned openid-client TS2420 fingerprint and true yields zero",
+        "command": "node --test --test-concurrency=1 tests/implementation/r1-a0-admission.test.mjs",
+        "expected": "named test PASS",
+        "id": "A0:OPENID-DECLARATION",
+        "kind": "conexus.a0-proof-protocol/v1",
+        "runtime": { "arch": "x64", "node": "24.20.0", "npm": "12.0.2", "os": "linux" }
+      }
+    },
+    {
+      "id": "A0:OPENID-RED",
+      "protocolDigest": "06409b4bffb670567777cccebfb2ca1520bba0271a1d2ff06d1e7d0aea6f6029",
+      "protocol": {
+        "claim": "distinct virtual dependency drift adds TS2416 and changes fingerprint",
+        "command": "node --test --test-concurrency=1 tests/implementation/r1-a0-admission.test.mjs",
+        "expected": "named test PASS",
+        "id": "A0:OPENID-RED",
+        "kind": "conexus.a0-proof-protocol/v1",
+        "runtime": { "arch": "x64", "node": "24.20.0", "npm": "12.0.2", "os": "linux" }
+      }
+    },
+    {
+      "id": "A0:WEB-TYPECHECK",
+      "protocolDigest": "162ee120bbabd4a579f63cd7c92269f0736f23d4753f0d57693b1e226ec54089",
+      "protocol": {
+        "claim": "real web strict Bundler typecheck without waiver",
+        "command": "node node_modules/typescript/bin/tsc --project apps/web/tsconfig.json --pretty false",
+        "expected": "exit 0",
+        "id": "A0:WEB-TYPECHECK",
+        "kind": "conexus.a0-proof-protocol/v1",
+        "runtime": { "arch": "x64", "node": "24.20.0", "npm": "12.0.2", "os": "linux" }
+      }
+    },
+    {
+      "id": "G0:VERIFY",
+      "protocolDigest": "d4e7fb97ee19551f410c8ef601c2d16190b5af82768523da5c1f6c7c4875d2ea",
+      "protocol": {
+        "claim": "new R1C-01 successor plus unchanged remaining 11 G0 claims",
+        "command": "npm run r1:a0:g0:verify",
+        "expected": { "admissionPass": 4, "fail": 0, "g0Pass": 11 },
+        "id": "G0:VERIFY",
+        "kind": "conexus.a0-proof-protocol/v1",
+        "oldTestPreDigest": "cd0b365e09ee5068ff6fa90959d6eba47bae626b011e15dcdbf4f043804889d8",
+        "packageJsonDigest": "d49d6371abf496070953ccec9db38abdc31911ae6ab9fab43d9d1a44ce5527a0",
+        "runtime": { "arch": "x64", "node": "24.20.0", "npm": "12.0.2", "os": "linux" }
+      }
+    },
+    {
+      "id": "S1:HTTP",
+      "protocolDigest": "693a914b2fbbde978325bd35ad314cc69da13386ac814568c206eb279d4c440c",
+      "protocol": {
+        "claim": "IAM-01..03 HTTP/OIDC behavior unchanged",
+        "command": "node --test --test-concurrency=1 tests/implementation/r1-s1-http.test.mjs",
+        "expected": { "fail": 0, "pass": 7 },
+        "id": "S1:HTTP",
+        "kind": "conexus.a0-proof-protocol/v1",
+        "runtime": { "arch": "x64", "node": "24.20.0", "npm": "12.0.2", "os": "linux" }
+      }
+    }
+  ],
+  "web": {
+    "skipLibCheck": false,
+    "moduleResolution": "Bundler",
+    "types": ["vite/client"]
+  }
+}

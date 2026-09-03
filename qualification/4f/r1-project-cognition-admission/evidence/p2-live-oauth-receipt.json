@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "subject": "R1C13-P2 Anthropic personal OAuth live qualification",
+  "status": "PASS",
+  "recordedAt": "2026-09-02T20:05:05.517Z",
+  "provider": "anthropic",
+  "modelId": "claude-fable-5",
+  "oauth": {
+    "authorizeOrigin": "https://claude.ai",
+    "tokenOrigin": "https://console.anthropic.com",
+    "redirectOrigin": "https://console.anthropic.com",
+    "scopes": [
+      "user:profile",
+      "user:inference"
+    ],
+    "credentialMechanism": "OAuth PKCE bearer; no API key"
+  },
+  "attempts": [
+    {
+      "origin": "https://api.anthropic.com",
+      "path": "/v1/messages",
+      "redirect": "manual"
+    }
+  ],
+  "observedHttpAttempts": 1,
+  "observedDnsAttempts": 1,
+  "observedSocketAttempts": 1,
+  "unauthorizedObservedHttpAttempts": 0,
+  "unauthorizedObservedNetworkAttempts": 0,
+  "responseObserved": true,
+  "responseContentDisclosed": false,
+  "credentialDisclosed": false,
+  "custody": {
+    "externalToRepository": true,
+    "regularFile": true,
+    "ownerOnlyFileMode": "0600",
+    "ownerOnlyDirectoryMode": "0700",
+    "tokenBytesRecorded": false
+  }
+}
