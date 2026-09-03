@@ -306,13 +306,13 @@ requires fresh independent review under a separate operator authorization. The
 corrected successor passed fresh WSL preflight, JSON parsing, `git diff --check`,
 `npm run repository:check` and the full `npm run verify` on `2026-09-03`; the
 existing non-failing OpenAPI warnings remained visible. See
-[`4d-rb-c0-independent-review-round-1-adjudication.md`](4d-rb-c0-independent-review-round-1-adjudication.md).
+[`4d-rb-c0-frozen-planning.md`](4d-rb-c0-frozen-planning.md).
 
 Round 2 used the operator-authorized Opus substitution and a fresh AGY attempt.
 Opus returned material findings; AGY canceled before reading the repository
 because its headless permission policy denied `read_file`, so the round produced
-no dual convergence. Lead disposition is recorded in
-[`4d-rb-c0-independent-review-round-2-adjudication.md`](4d-rb-c0-independent-review-round-2-adjudication.md).
+no dual convergence. Lead disposition is preserved in the consolidated frozen
+planning record.
 
 ## 10. Evidence basis
 

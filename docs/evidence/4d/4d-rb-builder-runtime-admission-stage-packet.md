@@ -300,13 +300,13 @@ The operator authorized `RB-C0` on `2026-09-03`. That bounded pass materialized:
 - [`4d-rb-c0-worker-eval-and-probe-design.md`](4d-rb-c0-worker-eval-and-probe-design.md),
   the owner-neutral adapter envelope, RB-C1 RED matrix and repeated paired RB-C2
   Worker Eval design;
-- [`4d-rb-c0-independent-review-brief.md`](4d-rb-c0-independent-review-brief.md),
-  a neutral whole-package review input; and
+- [`4d-rb-c0-frozen-planning.md`](4d-rb-c0-frozen-planning.md), the consolidated
+  frozen planning and review record retained by the RC-01 candidate; and
 - [`4d-rb-c1-live-probe-grant-request.md`](4d-rb-c1-live-probe-grant-request.md),
   a separate request that remains `NOT AUTHORIZED`.
 
-The authorized round-1 review is recorded in
-[`4d-rb-c0-independent-review-round-1-adjudication.md`](4d-rb-c0-independent-review-round-1-adjudication.md).
+The authorized round-1 review is preserved in the consolidated frozen planning
+record.
 AGY completed with one material `BLOCKED` finding: the original request could
 execute the unproven OpenCode binary on the control plane. The Lead accepted the
 finding and corrected RB-C1 so the no-model executable probe can run only in a
@@ -322,8 +322,8 @@ recorded as Opus rather than Fable. Opus returned material findings. The fresh
 AGY attempt canceled before repository inspection because headless `read_file`
 permission was denied and produced no report. Lead adjudication accepted the
 bounded ACP client-capability, E2B account-resource custody and environment-
-identity corrections while rejecting a claimed RB-C2 circularity. See
-[`4d-rb-c0-independent-review-round-2-adjudication.md`](4d-rb-c0-independent-review-round-2-adjudication.md).
+identity corrections while rejecting a claimed RB-C2 circularity. The bounded
+disposition is preserved in the consolidated frozen planning record.
 
 Current stage, authorization and exact next-action truth is intentionally not
 duplicated here; read `docs/roadmap.md`. This packet itself grants no external

@@ -2,7 +2,7 @@
   "kind": "conexus.rc01-candidate-inventory/v1",
   "baseCommit": "1619f14d9caed172b6cada9430e6b49ff77a4316",
   "preChangeHead": "fd6f771be45102009f1887afaa9fc8a7e487e777",
-  "subjectTreeDigest": "63c894c9bef7d85dd97e1be5de72334904f48c235280935caf500edcdc017179",
+  "subjectTreeDigest": "e6a8778f320826b065aa3cad176c83968346c78684da40215203fa79cec352ac",
   "summary": {
     "candidatePathCount": 794,
     "candidateClassCounts": {
@@ -48,8 +48,8 @@
       "status": "M",
       "classification": "PLATFORM_CONTRACT",
       "sourceOwnership": "PLATFORM-CONTRACT",
-      "size": 2944,
-      "sha256": "2cd5fbf4231f54bc7cb7870d91607deaa52a33f6eeec3e390da9fafcc72b6da7"
+      "size": 4699,
+      "sha256": "8107cb0aa5194c458c14af313e9691f35621d32ad46dec0ad4d9dc95614f9d12"
     },
     {
       "path": ".nvmrc",
@@ -1960,8 +1960,8 @@
       "status": "A",
       "classification": "RB_C0_FROZEN_FUTURE_PLANNING",
       "sourceOwnership": "PLATFORM-CONTRACT",
-      "size": 19667,
-      "sha256": "9ba782f9044e48479e5a57f44dcd5b81f042860181cfc0346426074a72bd63dc"
+      "size": 19594,
+      "sha256": "b0e23080554970b2eb532fdb75e7f91d8b81fc81bb60cf7bfe9045f7d23c0a9b"
     },
     {
       "path": "docs/evidence/4d/4d-rb-c0-candidate-pin-manifest.json",
@@ -1984,8 +1984,8 @@
       "status": "A",
       "classification": "RB_C0_FROZEN_FUTURE_PLANNING",
       "sourceOwnership": "PLATFORM-CONTRACT",
-      "size": 21090,
-      "sha256": "c713401c031ad797afe333fdfa0214b178654735345f8aa661e6805958b3df42"
+      "size": 20974,
+      "sha256": "d5a08b0e3bde1ebe0e698f37cad4a73dfd82a916629f7d24dc8d9527967e01d1"
     },
     {
       "path": "docs/evidence/4d/4d-rb-c1-live-probe-grant-request.md",
