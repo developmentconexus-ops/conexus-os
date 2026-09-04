@@ -15,13 +15,13 @@ const outputPaths = new Set([
   profile.generationReceipt,
 ])
 
-const git = args => execFileSync('git', args, { cwd: root })
+const git = (args, options = {}) => execFileSync('git', args, { cwd: root, ...options })
 const decode = buffer => buffer.toString('utf8')
 
 function diffEntries(mode) {
   const args = mode === 'index'
     ? ['diff', '--cached', '--name-status', '-z', profile.baseCommit]
-    : ['diff', '--name-status', '-z', profile.baseCommit, 'HEAD']
+    : ['diff', '--name-status', '-z', profile.baseCommit, profile.candidateCommit]
   const parts = decode(git(args)).split('\0').filter(Boolean)
   const entries = []
   for (let index = 0; index < parts.length;) {
@@ -33,8 +33,29 @@ function diffEntries(mode) {
   return entries.sort((left, right) => left.path.localeCompare(right.path))
 }
 
-function bytesFor(path, mode) {
-  return mode === 'index' ? git(['show', `:${path}`]) : readFileSync(resolve(root, path))
+function committedBytes(entries) {
+  const paths = entries.filter(({ status }) => status !== 'D').map(({ path }) => path)
+  const input = `${paths.map(path => `${profile.candidateCommit}:${path}`).join('\n')}\n`
+  const output = git(['cat-file', '--batch'], { input, maxBuffer: 128 * 1024 * 1024 })
+  const byPath = new Map()
+  let cursor = 0
+  for (const path of paths) {
+    const headerEnd = output.indexOf(0x0a, cursor)
+    if (headerEnd < 0) throw new Error(`RC01_CANDIDATE_BLOB_HEADER_MISSING:${path}`)
+    const header = output.subarray(cursor, headerEnd).toString('utf8')
+    if (header.endsWith(' missing')) throw new Error(`RC01_CANDIDATE_BLOB_MISSING:${path}`)
+    const size = Number(header.split(' ').at(-1))
+    if (!Number.isSafeInteger(size)) throw new Error(`RC01_CANDIDATE_BLOB_SIZE_INVALID:${path}`)
+    const start = headerEnd + 1
+    const end = start + size
+    byPath.set(path, output.subarray(start, end))
+    cursor = end + 1
+  }
+  return byPath
+}
+
+function bytesFor(path, mode, committed) {
+  return mode === 'index' ? git(['show', `:${path}`]) : committed.get(path)
 }
 
 function classification(path) {
@@ -87,13 +108,14 @@ function countBy(values, key) {
 function build(mode) {
   const prechange = JSON.parse(readFileSync(resolve(root, profile.preChangeInventory), 'utf8'))
   const changed = diffEntries(mode)
+  const committed = mode === 'commit' ? committedBytes(changed) : null
   const candidateEntries = changed
     .filter(({ path }) => !outputPaths.has(path))
     .map(({ path, status }) => {
       const semanticClass = classification(path)
       if (semanticClass === 'UNKNOWN') throw new Error(`RC01_UNKNOWN_CLASSIFICATION:${path}`)
       if (status === 'D') return { path, status, classification: semanticClass, sourceOwnership: sourceOwnership(path), size: 0, sha256: null }
-      const bytes = bytesFor(path, mode)
+      const bytes = bytesFor(path, mode, committed)
       return { path, status, classification: semanticClass, sourceOwnership: sourceOwnership(path), size: bytes.length, sha256: sha256(bytes) }
     })
   const candidatePaths = new Set(candidateEntries.map(({ path }) => path))

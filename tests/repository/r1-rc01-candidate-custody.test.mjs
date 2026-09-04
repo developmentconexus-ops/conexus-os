@@ -11,6 +11,7 @@ test('RC-01 binds one exact candidate and only the three ratified ownership clas
   const inventory = readJson(profile.candidateInventory)
   const manifest = readJson(profile.ownershipManifest)
   const receipt = readJson(profile.generationReceipt)
+  assert.equal(profile.candidateCommit, '32adcd3157550807253af7977b3e3cce0eb38a74')
   assert.equal(inventory.subjectTreeDigest, manifest.subjectTreeDigest)
   assert.equal(manifest.subjectTreeDigest, receipt.subjectTreeDigest)
   assert.deepEqual(Object.keys(manifest.classCounts).sort(), ['GENERATED', 'PLATFORM-CONTRACT'])

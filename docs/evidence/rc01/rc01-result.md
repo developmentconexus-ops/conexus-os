@@ -1,6 +1,6 @@
 # RC-01 candidate result
 
-Status: `EXACT_CANDIDATE_COMMITTED / CLEAN_WORKTREE_VERIFICATION RECORDED / PUBLICATION_PENDING`
+Status: `INTEGRATED / POST-MERGE CI GREEN / OPERATOR WALKTHROUGH APPROVED`
 
 RC-01 formed one exact Git candidate while preserving all 24 explicit
 exclusions. Its binding local acceptance is the clean detached-worktree rerun,
@@ -24,9 +24,15 @@ Three retained commands are diagnostic rather than deciding RC-01 gates:
 `r1:s4:p2:check` asserts the pre-S6 six-route census. Their current successors
 and owning closure packet remain enforced; no historical test was deleted.
 
-The immutable commit identity, Draft PR and CI result live in Git/GitHub after
-publication, avoiding a self-referential evidence commit. The PR must remain
-Draft and unmerged until the operator walkthrough decision.
+The immutable candidate is commit
+`32adcd3157550807253af7977b3e3cce0eb38a74`. After the operator completed the
+documented walkthrough and explicitly approved merge, PR #61 was squash-merged
+as `1417367cf44c818e63c492b7e7cd884d3c2c4477`. The fresh ready-for-review Verify
+run `33866343000` and post-merge `main` Verify run `33867343651` both passed.
 
-No Product semantic change is intended. RB-C0 remains frozen and R2–R7 remain
-not started. No real provider, Keycloak, Sankhya or E2B call is part of RC-01.
+The custody profile pins the candidate commit so its inventory, ownership
+manifest and generation receipt remain historical RC-01 Evidence rather than
+drifting with later repository commits.
+
+No Product semantic change was made. RB-C0 remains frozen and R2–R7 remain not
+started. No real provider, Keycloak, Sankhya or E2B call was part of RC-01.

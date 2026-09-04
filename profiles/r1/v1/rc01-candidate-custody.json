@@ -2,6 +2,7 @@
   "kind": "conexus.rc01-candidate-custody-profile/v1",
   "baseCommit": "1619f14d9caed172b6cada9430e6b49ff77a4316",
   "preChangeHead": "fd6f771be45102009f1887afaa9fc8a7e487e777",
+  "candidateCommit": "32adcd3157550807253af7977b3e3cce0eb38a74",
   "branch": "codex/r1-candidate-publication",
   "preChangeInventory": "docs/evidence/rc01/rc01-prechange-inventory.json",
   "candidateInventory": "docs/evidence/rc01/rc01-candidate-inventory.json",
