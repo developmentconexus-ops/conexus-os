@@ -72,7 +72,8 @@ test('selected F11 realization makes access administration human-reviewable at I
   const checker = read('scripts/check-wire-identity-workspace.mjs')
 
   requireText(ledger, 'N_platform = 116', 'F11 RED: fixed Product census must recompile to 116')
-  requireText(ledger, '## 5.1 Identity & Access — 19', 'F11 RED: IAM census must recompile to 19')
+  requireText(ledger, '## 5.1 Identity & Access — 20', 'current IAM census must include the later independently approved P-05 candidate read')
+  requireText(ledger, '= 116 fixed Conexus platform Product operations after F11', 'F11 historical closure count must remain preserved')
   for (const op of [
     '`IAM-18` | `ListWorkspaceMembershipCandidates`',
     '`IAM-19` | `GetWorkspaceMemberAccess`',
@@ -89,9 +90,11 @@ test('selected F11 realization makes access administration human-reviewable at I
     'Area.name != authorization',
   ]) requireText(identity, law, `F11 human-presentation authority missing law: ${law}`)
 
-  const provision = sliceBetween(wire, 'summary: ProvisionAccount', '\n  /api/control/workspaces/{workspaceId}/members:')
-  requireText(provision, 'required: [externalSubject, displayName]', 'F11 IAM-03 must require externalSubject + displayName')
-  requireText(provision, 'email:', 'F11 IAM-03 must admit optional email presentation/contact data')
+  const provision = sliceBetween(wire, '    ProvisionAccountRequest:\n', '    BootstrapProvisionAccountRequest:\n')
+  requireText(provision, 'required: [externalSubject, displayName]', 'F11 ordinary IAM-03 must require externalSubject + displayName')
+  requireText(provision, 'email:', 'F11 ordinary IAM-03 must admit optional email presentation/contact data')
+  const bootstrapProvision = sliceBetween(wire, '    BootstrapProvisionAccountRequest:\n', '    AccountSummary:\n')
+  requireText(bootstrapProvision, 'required: [displayName]', 'PRE11-F03 bootstrap IAM-03 derives externalSubject and requires displayName')
 
   const members = sliceBetween(wire, 'summary: ListWorkspaceMembers', '\n  /api/control/workspaces/{workspaceId}/members/{accountId}:')
   requireText(members, "$ref: '#/components/schemas/AccountSummary'", 'F11 IAM-04 must return AccountSummary rather than opaque accountId-only items')
@@ -115,7 +118,7 @@ test('selected F11 realization makes access administration human-reviewable at I
   requireText(projectWire, 'workspace.access.manage', 'F11 PRJ-01 wire description must preserve narrow access-administration summary disclosure')
 
   const ids = [...wire.matchAll(/x-conexus-4a-id: (IAM-\d+)/g)].map(m => m[1])
-  if (ids.length !== 19 || new Set(ids).size !== 19) throw new Error(`F11 IAM wire topology must contain 19 unique operations; got ${ids.length}`)
+  if (ids.length !== 20 || new Set(ids).size !== 20) throw new Error(`current IAM wire topology must contain 20 unique operations after later P-05 IAM-21 admission; got ${ids.length}`)
 })
 
 test('selected F12 realization makes immutable Audit server-searchable and historically human-readable', () => {

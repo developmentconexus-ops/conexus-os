@@ -1,0 +1,7 @@
+{
+  "appName": "Budget \"Analyzer\"",
+  "settings": {
+    "limit": 3,
+    "enabled": true
+  }
+}

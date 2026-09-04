@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
+import { assert4DOpeningIsProperlyGated } from './_roadmap-phase-guards.mjs'
 
 const root = resolve(new URL('../../', import.meta.url).pathname)
 const path = p => resolve(root, p)
@@ -83,10 +84,9 @@ test('P-01 P7 remains immutable historical Evidence while later authorized block
     'frontend-derived verification = FORBIDDEN',
   ]) requireText(doc, forbidden)
 
-  requireText(roadmap, 'P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED', 'roadmap must preserve current P-01 lock')
+  requireText(roadmap, 'P-01 = LOCKED / OPERATOR APPROVED / AGENT STUDIO DELTA RE-LOCKED / P9/P10 CLOSED', 'roadmap must preserve the P-01 baseline and approved Agent Studio delta')
 
   if (/P8\s*=\s*(?:GREEN|LOCKED|APPROVED)/.test(doc)) throw new Error('historical P7 must not itself pre-authorize P8')
-  if (/P11\s*=\s*ASSEMBLED/.test(roadmap) || /4D\s*=\s*OPEN/.test(roadmap)) {
-    throw new Error('later authorized progression must not assemble P11 or open 4D')
-  }
+  if (/P11\s*=\s*ASSEMBLED/.test(roadmap)) throw new Error('later authorized progression must not assemble P11')
+  assert4DOpeningIsProperlyGated(roadmap, 'later progression must not open 4D before 4C closure')
 })

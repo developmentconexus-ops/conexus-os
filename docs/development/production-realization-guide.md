@@ -246,7 +246,7 @@ Load only when the corresponding R1–R7 decision becomes concrete:
 
 - authentication/session → OIDC/OAuth BCP + exact Keycloak/OIDC-client docs + OWASP ASVS;
 - PostgreSQL persistence/concurrency → PostgreSQL 17 official docs and exact driver/ORM docs if selected;
-- Sankhya/Oracle integration → official source/provider/driver docs + controlled real-source Evidence;
+- Sankhya integration → official Gateway/API capability docs + controlled real-provider Evidence; provider-internal storage is not connector authority;
 - governed sync → PostgreSQL + exact queue/scheduler substrate + mature pipeline/recovery references;
 - React/frontend → exact React/TypeScript/Vite/TanStack docs + WCAG/browser security;
 - Release/serving → exact selected deployment/runtime/artifact docs + supply-chain guidance;

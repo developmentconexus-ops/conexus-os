@@ -1,0 +1,42 @@
+{
+  "kind": "conexus.r1f.pack-b-results/v1",
+  "observedOn": "2026-08-30",
+  "runtime": { "node": "24.20.0", "npm": "12.0.2", "platform": "linux-x64" },
+  "results": [
+    {
+      "id": "R1F-P03",
+      "verdict": "PASS",
+      "claim": "raw UTF-8/I-JSON/schema admission rejects every named invalid class before canonicalization"
+    },
+    {
+      "id": "R1F-P04",
+      "verdict": "PASS",
+      "claim": "RFC 8785 primitive/sort/UTF-8 vectors reproduce exact bytes and a noncanonical replacement is detected"
+    }
+  ],
+  "boundedCompilerMechanics": {
+    "verdict": "PASS",
+    "proved": [
+      "deterministic canonical tree/manifest/plan/receipt fixture identities",
+      "three closed render forms only",
+      "cross-platform path and ownership collision refusal",
+      "tracked/untracked/ignored-equivalent full filesystem census",
+      "symlink escape refusal",
+      "APP-OWNED byte preservation",
+      "protected drift refusal",
+      "digest-pinned plan plus compiled identity recheck",
+      "exclusive lock ownership and under-lock replan",
+      "receipt-last behavior under injected failure"
+    ],
+    "notClaimed": [
+      "complete production compiler",
+      "filesystem crash atomicity",
+      "distributed asset consumer conformance",
+      "Project duplication",
+      "canonical wire conformance",
+      "all RF01-P01..P14 obligations"
+    ]
+  },
+  "packVerdict": "PASS",
+  "laterProbeVerdicts": "NOT_PROVEN"
+}

@@ -114,6 +114,18 @@ function rejectProperties(schema, label, names) {
   for (const name of names) if (props[name]) throw new Error(`${label} must not expose framework/authority escape field ${name}`);
 }
 
+function assertNonBlank(schema, label) {
+  const resolved = resolveSchema(schema);
+  if (resolved?.type !== 'string' || (resolved.minLength ?? 0) < 1 || typeof resolved.pattern !== 'string') {
+    throw new Error(`${label} must be an explicit non-blank string`);
+  }
+}
+
+function assertDateTime(schema, label) {
+  const resolved = resolveSchema(schema);
+  if (resolved?.type !== 'string' || resolved.format !== 'date-time') throw new Error(`${label} must be an RFC3339 date-time`);
+}
+
 const runtimeEscapeFields = [
   'mastraRunId', 'toolCallId', 'threadId', 'requestContext', 'runtimeSnapshot', 'providerId',
   'provider', 'model', 'modelId', 'systemPrompt', 'instructions', 'activeTools', 'toolChoice',
@@ -127,8 +139,32 @@ rejectProperties(conversation, 'PAR-02 Conversation', ['threadId', 'mastraThread
 const messages = property(conversation, 'messages');
 if (messages?.type !== 'array' || !messages.items) throw new Error('PAR-02 messages must be a user-visible Conversation history');
 const message = assertClosedObject(messages.items, 'PAR-02 ConversationMessage');
-required(message, 'messageId', 'role', 'text');
+required(message, 'messageId', 'role', 'kind', 'text', 'createdAt');
 assertEnum(message, 'role', ['USER', 'AGENT'], 'ConversationMessage role');
+assertEnum(message, 'kind', ['TEXT', 'QUESTION'], 'ConversationMessage kind');
+assertDateTime(property(message, 'createdAt'), 'ConversationMessage createdAt');
+const responseOptions = property(message, 'responseOptions');
+if (responseOptions?.type !== 'array' || !responseOptions.items) throw new Error('QUESTION responseOptions must be a bounded typed array');
+const responseOption = assertClosedObject(responseOptions.items, 'ConversationResponseOption');
+required(responseOption, 'optionId', 'label');
+assertNonBlank(property(responseOption, 'label'), 'ConversationResponseOption label');
+
+required(conversation, 'startedAt', 'lastActivityAt', 'attention');
+assertDateTime(property(conversation, 'startedAt'), 'Conversation startedAt');
+assertDateTime(property(conversation, 'lastActivityAt'), 'Conversation lastActivityAt');
+assertEnum(conversation, 'attention', ['NONE', 'NEEDS_YOUR_RESPONSE'], 'Conversation attention');
+
+const conversationListDescription = op('PAR-01').responses?.['200']?.description ?? '';
+for (const orderingLaw of ['lastActivityAt DESC', 'conversationId DESC', 'tie-breaker']) {
+  if (!conversationListDescription.includes(orderingLaw)) throw new Error(`PAR-01 deterministic ordering missing ${orderingLaw}`);
+}
+const conversationList = assertClosedObject(successSchema('PAR-01'), 'PAR-01 success');
+required(conversationList, 'items');
+const conversationSummary = assertClosedObject(property(conversationList, 'items').items, 'ConversationSummary');
+required(conversationSummary, 'conversationId', 'projectId', 'agentId', 'startedAt', 'lastActivityAt', 'lastMessagePreview', 'attention');
+assertDateTime(property(conversationSummary, 'startedAt'), 'ConversationSummary startedAt');
+assertDateTime(property(conversationSummary, 'lastActivityAt'), 'ConversationSummary lastActivityAt');
+assertEnum(conversationSummary, 'attention', ['NONE', 'NEEDS_YOUR_RESPONSE'], 'ConversationSummary attention');
 
 if (!hasRequiredParameter('PAR-03', 'header', 'Idempotency-Key')) throw new Error('PAR-03 must require Idempotency-Key');
 const createConversation = requestSchema('PAR-03');
@@ -148,6 +184,8 @@ required(turn, 'text');
 if (property(turn, 'text')?.type !== 'string') throw new Error('PAR-04 text must be a string');
 rejectProperties(turn, 'PAR-04 request', runtimeEscapeFields);
 if (turn.properties?.messages) throw new Error('PAR-04 must not accept caller-supplied full conversation history as authority');
+if (property(turn, 'replyToQuestionMessageId')?.type !== 'string') throw new Error('PAR-04 must admit an exact current question reply reference');
+if (property(turn, 'selectedOptionId')?.type !== 'string') throw new Error('PAR-04 must admit an optional exact selected response option');
 const contextRefs = property(turn, 'contextRefs');
 if (contextRefs) {
   if (contextRefs.type !== 'array' || !contextRefs.items) throw new Error('PAR-04 contextRefs must be an array');
@@ -172,10 +210,19 @@ required(headlessAdmission, 'agentRunId', 'projectId', 'agentId', 'releaseId');
 rejectProperties(headlessAdmission, 'PAR-05 admission', ['mastraRunId', 'toolCallId', 'threadId', 'runtimeSnapshot']);
 
 // AgentRun is PAR owner truth; runtime finish/stream close never implies external-effect success.
+const runListDescription = op('PAR-06').responses?.['200']?.description ?? '';
+for (const orderingLaw of ['admittedAt DESC', 'agentRunId DESC', 'tie-breaker']) {
+  if (!runListDescription.includes(orderingLaw)) throw new Error(`PAR-06 deterministic ordering missing ${orderingLaw}`);
+}
 const agentRun = assertClosedObject(successSchema('PAR-07'), 'PAR-07 success');
-required(agentRun, 'agentRunId', 'projectId', 'agentId', 'releaseId', 'origin', 'runState');
+required(agentRun, 'agentRunId', 'projectId', 'agentId', 'releaseId', 'origin', 'runState', 'admittedAt');
 assertEnum(agentRun, 'origin', ['INTERACTIVE', 'HEADLESS', 'SCHEDULE'], 'AgentRun origin');
 assertOwnerIssuedState(agentRun, 'runState', 'AgentRun runState');
+assertDateTime(property(agentRun, 'admittedAt'), 'AgentRun admittedAt');
+assertDateTime(property(agentRun, 'settledAt'), 'AgentRun settledAt');
+const runProblem = assertClosedObject(property(agentRun, 'problem'), 'AgentRunProblem');
+required(runProblem, 'summary');
+for (const field of ['summary', 'detail', 'remediation']) assertNonBlank(property(runProblem, field), `AgentRunProblem ${field}`);
 rejectProperties(agentRun, 'PAR-07 AgentRun', ['mastraRunId', 'threadId', 'toolCallId', 'allEffectsSucceeded', 'overallSuccess', 'effectsSucceeded']);
 const runOutput = property(agentRun, 'output');
 if (runOutput && (runOutput.type !== 'object' || runOutput['x-conexus-schema-source'] !== 'RELEASE_AGENT_OUTPUT')) {
@@ -183,10 +230,29 @@ if (runOutput && (runOutput.type !== 'object' || runOutput['x-conexus-schema-sou
 }
 
 // Approval queue is current-eligibility Product authority; Mastra HITL is only pause/resume mechanics.
-const approval = assertClosedObject(successSchema('PAR-09'), 'PAR-09 success');
-required(approval, 'approvalRequestId', 'projectId', 'agentRunId', 'proposalRef', 'proposalDigest', 'approvalState', 'proposal');
+function assertApprovalHumanContext(schema, label) {
+  const value = assertClosedObject(schema, label);
+  required(value, 'approvalRequestId', 'agentRunId', 'agent', 'actionSummary', 'requestedAt', 'proposalRef', 'proposalDigest', 'approvalState');
+  const agent = assertClosedObject(property(value, 'agent'), `${label} ApprovalAgentSnapshot`);
+  required(agent, 'agentId', 'name', 'purpose', 'releaseId');
+  assertNonBlank(property(agent, 'name'), `${label} agent.name`);
+  assertNonBlank(property(agent, 'purpose'), `${label} agent.purpose`);
+  assertNonBlank(property(value, 'actionSummary'), `${label} actionSummary`);
+  assertDateTime(property(value, 'requestedAt'), `${label} requestedAt`);
+  assertDateTime(property(value, 'expiresAt'), `${label} expiresAt`);
+  rejectProperties(value, label, ['mastraRunId', 'toolCallId', 'threadId', 'requestContext']);
+  return value;
+}
+
+const approvalList = assertClosedObject(successSchema('PAR-08'), 'PAR-08 success');
+required(approvalList, 'items');
+const approvalItems = property(approvalList, 'items');
+if (approvalItems?.type !== 'array') throw new Error('PAR-08 items must be an array');
+assertApprovalHumanContext(approvalItems.items, 'PAR-08 ApprovalRequestSummary');
+
+const approval = assertApprovalHumanContext(successSchema('PAR-09'), 'PAR-09 ApprovalRequest');
+required(approval, 'projectId', 'proposal');
 assertOwnerIssuedState(approval, 'approvalState', 'ApprovalRequest approvalState');
-rejectProperties(approval, 'PAR-09 ApprovalRequest', ['mastraRunId', 'toolCallId', 'threadId', 'requestContext']);
 const sealedProposal = property(approval, 'proposal');
 if (sealedProposal?.type !== 'object' || sealedProposal?.['x-conexus-schema-source'] !== 'SEALED_APPROVAL_PROPOSAL') {
   throw new Error('PAR-09 proposal must project the exact sealed approval subject');

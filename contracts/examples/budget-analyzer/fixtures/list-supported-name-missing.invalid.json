@@ -1,0 +1,23 @@
+{
+  "truth": {
+    "state": "SUPPORTED_CURRENT",
+    "asOf": "coord-current-name-missing",
+    "freshness": "CURRENT",
+    "coverage": "COMPLETE",
+    "provenance": "VERIFIED"
+  },
+  "currencyCode": "BRL",
+  "items": [
+    {
+      "budgetRef": "budget:synthetic:name-missing",
+      "canonicalBusinessDate": "2026-08-01",
+      "budgetAgeDays": 25,
+      "agingBand": "AGE_8_30",
+      "budgetValue": "100.00",
+      "sellerId": "seller:synthetic:name-missing",
+      "customerId": "customer:synthetic:name-missing",
+      "sourceCompanyId": "company:synthetic:1",
+      "pendingEvidenceState": "CONFIRMED"
+    }
+  ]
+}

@@ -17,17 +17,17 @@ test('P-02 preserves its P7 candidate and operator approval history without coup
   const approval = read(approvalPath)
 
   for (const token of [
-    'P7 CANDIDATE / OPERATOR REVIEW REQUIRED / P8 BLOCKED / NOT LOCKED',
-    'A — Four focused Project routes',
+    'P7 REBASELINED / OPERATOR APPROVED DESIGN / P8 BLOCKED PENDING EXPLICIT EXECUTION AUTHORITY / NOT LOCKED',
+    'A — Four coherent Project lenses',
     'PRJ-S11', 'PRJ-S12', 'PRJ-S13', 'PRJ-S14', 'PRJ-S15', 'PRJ-S19',
-    'dataResourceId != name',
+    'physical identity != semantic meaning',
     'BRN-13 GetProjectAnalyticQueryCatalog',
     'BRN-12 RunAnalyticQuery',
     'connection.use -X-> generic connection.read',
-    'brain.bind -X-> generic brain.read',
+    'brain.bind promoted to brain.read = FORBIDDEN',
     'PRESENT-IN-AUTHORITY',
     'B — One Project Resources hub',
-    'C — Backend-owner-first resource console',
+    'C — Backend/engineering console',
   ]) assert.ok(structural.includes(token), `P-02 P7 candidate Evidence missing: ${token}`)
 
   for (const token of [

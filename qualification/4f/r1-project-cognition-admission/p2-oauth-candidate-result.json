@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "subject": "R1C13-P2 Anthropic personal OAuth qualification",
+  "status": "PASS",
+  "provider": "anthropic",
+  "modelId": "claude-fable-5",
+  "origins": {
+    "authorize": "https://claude.ai",
+    "token": "https://console.anthropic.com",
+    "redirect": "https://console.anthropic.com",
+    "inference": "https://api.anthropic.com"
+  },
+  "credentialMechanism": "OAuth PKCE bearer; no API key",
+  "oauthScopes": [
+    "user:profile",
+    "user:inference"
+  ],
+  "identityComposition": {
+    "projectInstructionFirst": true,
+    "providerCompatibilitySuffix": "Claude Code exact transport marker",
+    "callerSelectable": false
+  },
+  "externalCustody": {
+    "path": "/home/leandrotheodoro/.config/conexus/credentials/anthropic-oauth.json",
+    "fileMode": "0600",
+    "directoryMode": "0700",
+    "tokenBytesRecorded": false
+  },
+  "productDelta": {
+    "productFilesChanged": 0,
+    "rootDependenciesChanged": 0,
+    "qualificationOnly": true
+  },
+  "proof": {
+    "isolatedTests": "23/23 PASS",
+    "p2Tests": "8/8 PASS",
+    "liveAttempts": 1,
+    "observedHttpAttempts": 1,
+    "observedDnsAttempts": 1,
+    "observedSocketAttempts": 1,
+    "unauthorizedObservedHttpAttempts": 0,
+    "unauthorizedObservedNetworkAttempts": 0,
+    "liveEndpoint": "https://api.anthropic.com/v1/messages",
+    "redirectMode": "manual",
+    "responseObserved": true,
+    "responseContentRecorded": false,
+    "credentialRecorded": false,
+    "registrySignatures": "161 verified",
+    "registryAttestations": "37 verified",
+    "advisories": "0 high; 2 low historical GHSA-866g-f22w-33x8",
+    "liveReceipt": "evidence/p2-live-oauth-receipt.json"
+  },
+  "fileSha256": {
+    "README.md": "7561a18ae5ccebfb765672d196313ccc56fc36aaeafe4a792e2aac1f0db332fb",
+    "anthropic-oauth.mjs": "552ee86920fee0ebf6130c971cc81febcaf0f1de0eac7a7f9d2ee6967a939c04",
+    "oauth-token-store.mjs": "edb6582e42aa40146914a7405edc1eee11e700db774b2622f2331077526cec5e",
+    "anthropic-oauth-provider.mjs": "7263f48626b21104d11981f29cbcbbfca7824abe0c930b11561c6520f4af2e2e",
+    "auth-login.mjs": "06209ed31f0040db00a7a81ab02b54dbf0674cc4ec3f79c892ee77147345d143",
+    "bounded-provider-fetch.mjs": "dcd782671af14dab745007c866d0e58aa0dc294f427a0cbfa8263eb4dd917b45",
+    "p0-response-boundary.test.mjs": "5e46f4b985fc0ea51a90854f5e058cf2d7d673d65f5b549c8ebc25c33e89eca3",
+    "p1-project-mastra-admission.test.mjs": "4852f14ba1f1b5622c9c912b4a60207f70e90c78254d853128bdd97581fb433a",
+    "p2-egress-observer.mjs": "6cb24ae5b6099a7e29897d27a6802c1a53151c19fa227d59e3eff6bee3cf3454",
+    "p2-refresh-worker.mjs": "5c35ca8bd6d63dbeb91a0aa371712ca81cfc13d869407b2e6a84a1c384e59e69",
+    "p2-anthropic-oauth-admission.test.mjs": "38b45d233f1ad146472decaf6283739e4ccf8657126eafb091bb69b1b2357b7e",
+    "p2-live-anthropic-oauth.mjs": "8352bb8915ad0e28de07f1733d26d57035a33fb88c79ea6718afe643637897a3",
+    "evidence/p2-live-oauth-receipt.json": "a4c63b64b10d36a2c426b14d86b4f5691120e8071f23f39c425f61a9a4817171",
+    "package.json": "322c3326cf8c45262761e2b5b9ed2e714671de745fc21fb9d3b3ae1b56526272",
+    "package-lock.json": "afd64be2fafdc303b4bc767d3501862048877fc2aab187b48eec771779696a08"
+  },
+  "blocked": [
+    "S6/root Product adoption until a bounded S6 stage packet names its credential mechanism and owner",
+    "production or multi-user OAuth",
+    "commit, push, PR and merge"
+  ]
+}

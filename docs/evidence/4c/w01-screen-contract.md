@@ -1,9 +1,10 @@
 # 4C W-01 — Locked Screen Contract
 
-> **Status:** `LOCKED / OPERATOR APPROVED` · P9 EXACT TRACE CLOSED · P10 CONSOLIDATED · P11 NOT TRIGGERED SEPARATELY
+> **Status:** `LOCKED BASELINE / P12 FAMILY 1 IDENTITY DELTA RE-LOCKED / OPERATOR APPROVED` · P9/P10 consolidated
 > **Block:** `W-01` — Projects + source-complete Create Project + Inception + visual candidate/approved Baseline review
 > **Locked structure:** H2 cards/grid + focused Create/Inception + C1-R1 visual Baseline review/contextual refinement
 > **approved P8 artifact blob = 3d1d475d3ca7ce06ea549da12152cd386ab170a2**
+> **P12 Family 1 approved P8 delta blob = d466d66a125605471f2f879bbe376e4de7681d95**
 > **Product implementation authority:** none.
 
 The operator approved the complete W-01 structural package after the C1-R1 candidate survived independent Fable challenge with zero material findings and Lead adjudication required zero corrections. The approved HTML remains an immutable P8 Evidence snapshot; its in-artifact `CANDIDATE` label is not rewritten after approval. `LOCKED` authority lives in this Screen Contract and the W-01 structural record, pinned to the exact approved blob above.

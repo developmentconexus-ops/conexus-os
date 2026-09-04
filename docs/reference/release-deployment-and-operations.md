@@ -92,7 +92,12 @@ change_acceptance/current proof
 → stale/inadmissible proof refuses progression without rewriting history
 ```
 
-When a real Builder Change lifecycle is instantiated, `bld.change_acceptance` is the owner fact participating in this law. The first Budget Analyzer realization deliberately has no Builder/Change lifecycle; there, the current-proof subject is the exact verification/validation Evidence digest set closed into the ReleaseManifest. ComposeRelease and material Promotion steps must recheck that evidence remains the currently admitted candidate proof rather than manufacture a fake `change_acceptance` row or skip the recheck. The Builder-specific side inherits its original route when Builder is first instantiated.
+Bootstrap platform artifacts created before Builder exists use exact admitted
+verification/validation Evidence and never manufacture `bld.change_acceptance`.
+The first operational Budget Analyzer now traverses the real Builder Change
+lifecycle; its Release therefore requires current `bld.change_acceptance` plus
+the exact admitted Evidence digest set. ComposeRelease and material Promotion
+steps recheck both without allowing either to substitute for the other.
 
 F1 admits at most one non-terminal Promotion per `(Project, PROD)`. Admission must use a conflicting Release-owner guard; the concurrent loser performs zero DDL, drain or other material step. This is refusal, not a Promotion queue/lease.
 

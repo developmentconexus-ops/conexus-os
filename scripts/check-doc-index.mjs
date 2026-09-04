@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { dirname, relative, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 
-const root = resolve(new URL('../', import.meta.url).pathname)
+const root = fileURLToPath(new URL('../', import.meta.url))
 const errors = []
 const tracked = execFileSync('git', ['ls-files', '*.md'], { cwd: root, encoding: 'utf8' })
   .trim().split('\n').filter(Boolean)
@@ -23,8 +24,8 @@ for (const path of tracked) {
     const absolute = resolve(root, dirname(path), decodeURIComponent(target))
     if (!existsSync(absolute)) errors.push(`broken link: ${path} -> ${target}`)
     else {
-      const relative = absolute.slice(root.length + 1).replaceAll('\\', '/')
-      if (relative.endsWith('.md')) outgoing.push(relative)
+      const repositoryPath = relative(root, absolute).replaceAll('\\', '/')
+      if (repositoryPath.endsWith('.md')) outgoing.push(repositoryPath)
     }
   }
   links.set(path, outgoing)

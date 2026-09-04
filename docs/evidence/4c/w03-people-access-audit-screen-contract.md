@@ -1,14 +1,30 @@
 # 4C W-03 — Locked People/access + Audit Screen Contract
 
-> **Status:** `LOCKED / OPERATOR APPROVED` · P9 EXACT TRACE CLOSED · P10 CONSOLIDATED · P11 LATER ASSEMBLED PRODUCT
+> **Status:** `LOCKED / OPERATOR APPROVED / P11-W03-F01 SHELL RE-LOCKED` · P9 EXACT TRACE CLOSED · P10 CONSOLIDATED
 > **Block:** `W-03 — People/access + audit`
 > **Locked structure:** subject-first People/Areas current-access administration + sibling server-filtered immutable Audit
 > **approved P8 artifact blob = 7434c561ef0cfbc43c81ab8dd1f72b13cf032135**
+> **approved shell-corrected P8 artifact blob = e9d630622d853d6e352737f46202f2765526fd6a**
 > **Product implementation authority:** none.
 
 The operator explicitly approved the exact functional W-03 P8 after operating the artifact. The approved HTML remains an immutable P8 Evidence snapshot; its in-artifact `CANDIDATE · NOT LOCKED` label is historical and is not rewritten after approval. Current LOCK authority lives in this Screen Contract and the roadmap, pinned to the exact approved blob above.
 
 W-03 closes only the Workspace People/access administration and Workspace Audit interaction proved by the approved artifact. It does not decide Published-App access administration, Project lifecycle, future Workspace Agent catalog, final visual design, production component APIs, SDK/query/cache APIs, router/state implementation or Product code.
+
+## 0. P11-W03-F01 bounded shell re-lock
+
+The operator P11 walkthrough exposed that the prior HTML used a bespoke two-item W-03 sidebar instead of the inherited GF-01 Workspace shell. The operator authorized reopening only the outer shell, operated the corrected artifact and explicitly approved it. The re-locked artifact replaces that wrapper with the GF-01-style topbar, Workspace context menu, Account affordance, complete Workspace rail and narrow drawer/scrim while preserving the exact People/Areas/Audit regions and behavior owned below.
+
+```text
+historical inner/outer P8 blob = 7434c561ef0cfbc43c81ab8dd1f72b13cf032135
+approved shell P8 blob        = e9d630622d853d6e352737f46202f2765526fd6a
+inner Product/wire change      = 0
+operator re-lock               = CLOSED
+bounded P9/P10                 = CLOSED / CONSOLIDATED
+P11                            = eligible for faithful reassembly
+```
+
+The prior blob remains historical Evidence; the current canonical W-03 HTML is pinned to the approved shell-corrected blob above.
 
 ---
 

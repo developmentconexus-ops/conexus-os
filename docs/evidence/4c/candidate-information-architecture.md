@@ -190,7 +190,7 @@ Candidate decisions:
 - A generic top-level `Settings` destination is **not promoted in this candidate** merely because Phase 3 had a semantic Settings seed. `4B-F01` removed generic Workspace/Area mutation because no closed mutable property set exists. Any later Settings surface must be populated only by concrete accepted current tasks.
 - Workspace `Audit` is secondary governance/investigation, not a current-state dashboard.
 
-No ordering among non-primary Workspace items is treated as frequency evidence. That remains `4C-A02`.
+No ordering among non-primary Workspace items is treated as frequency evidence. `4C-A02` is terminally rejected as a current material dependency; the accepted ordering rests on authority-backed jobs and operator walkthrough rather than an invented frequency claim.
 
 ### 4.3 CONTROL PLANE — candidate Project IA
 
@@ -352,9 +352,9 @@ Collection-specific search/filter/sort is neither required nor forbidden by this
 | ID | Prior state | 4C-4 result | New state |
 | --- | --- | --- | --- |
 | `4C-A01` | semantic Workspace/Project shells are useful seeds but do not prove final nav | confirmed: candidate preserves semantic homes while changing grouping/labels (`Members`→`People & access`, `Versions`→`Releases`, generic Workspace `Settings` not promoted) and adds only an already-admitted Audit home | **VALIDATED** |
-| `4C-A02` | task frequency/urgency not established | no direct user/analytics frequency Evidence was found; candidate sets only authority-backed primary anchors (`Projects`, `Build`) and refuses to infer ordering among other destinations | **OPEN** |
+| `4C-A02` | task frequency/urgency not established | no direct analytics were found; current IA uses authority-backed primary anchors (`Projects`, `Build`) and operator-locked whole-product traversal without claiming relative frequency | **REJECTED AS MATERIAL CLOSURE DEPENDENCY / OPTIONAL P13 OR POST-OPERATIONAL MEASUREMENT** |
 
-`4C-A02` does not block candidate IA. It must be probed in the later rendered global-frame/operator walkthrough before IA can become `LOCKED`.
+The rendered GF-01/P11/P12 walkthroughs accepted the current task-backed ordering but did not create frequency analytics. Therefore missing frequency is not a material premise of the locked IA. Reopen only if new measured urgency/frequency evidence materially contradicts an affected order or density.
 
 ---
 
@@ -375,7 +375,7 @@ invented Product operation                   = 0
 invented Product owner                       = 0
 invented Product-wide policy domain          = 0
 4C-A01                                       = VALIDATED
-4C-A02                                       = OPEN
+4C-A02                                       = REJECTED AS MATERIAL CLOSURE DEPENDENCY
 4C-5                                         = NOT STARTED
 LOCKED IA                                    = 0
 ```

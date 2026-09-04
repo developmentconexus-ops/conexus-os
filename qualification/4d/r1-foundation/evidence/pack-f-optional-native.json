@@ -1,0 +1,23 @@
+{
+  "kind": "conexus.r1f.optional-native-delta/v1",
+  "optionalLocked": 37,
+  "absentOnLinuxX64": 33,
+  "windowsCandidates": [
+    "node_modules/@biomejs/cli-win32-arm64",
+    "node_modules/@biomejs/cli-win32-x64",
+    "node_modules/@rolldown/binding-win32-arm64-msvc",
+    "node_modules/@rolldown/binding-win32-x64-msvc",
+    "node_modules/lightningcss-win32-arm64-msvc",
+    "node_modules/lightningcss-win32-x64-msvc"
+  ],
+  "darwinCandidateCount": 8,
+  "linuxInstalled": [
+    "node_modules/@biomejs/cli-linux-x64",
+    "node_modules/@rolldown/binding-linux-x64-gnu",
+    "node_modules/lightningcss-linux-x64-gnu",
+    "node_modules/pg-cloudflare"
+  ],
+  "decidingLinuxTreeSha256": "5f276d1cfa0f6c1b199230c9bf5553ca98fa9a8ebe5ca7d6477dcc7decf9ec57",
+  "authority": "NON_AUTHORITATIVE_DEVELOPER_HOST_DELTA",
+  "verdict": "PASS"
+}

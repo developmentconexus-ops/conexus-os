@@ -1,13 +1,17 @@
 # Conexus OS — Human Context & Resource Presentation Identity Contract
 
-> **Status:** CURRENT / `4C-F01` + `4C-F04` + `4C-F11` + `4C-F13` OPERATOR ACCEPTED / BOUNDED 4A PROPERTY AUTHORITY
-> **Scope:** human-readable presentation identity only for currently proven Workspace, Project, logical Connection, Account, Area and Product Agent consumers.
-> **Operation impact:** `4C-F11` adds three I&A reads; `4C-F13` changes zero operation/Permission counts; `N_platform=116`.
+> **Status:** CURRENT / `4C-F01` + `4C-F04` + `4C-F11` + `4C-F13` + `4C-F35` + `4C-F36` + `4C-F37` + `4C-F38` OPERATOR ACCEPTED / BOUNDED 4A PROPERTY AUTHORITY
+> **Scope:** human-readable presentation identity and exact decision-recognition truth for currently proven Workspace, Project, logical Connection, Account, Area, Product Agent, Conversation and Published-App consumers.
+> **Current operation impact:** `4C-F35` adds one exact I&A read; `4C-F36..F38` enrich existing reads/writes; `4C-PRE11-F05` adds one Project model-policy read; `N_platform=128`.
 > **Implementation authority:** none.
 
 This contract owns the smallest sustainable Product semantics needed for humans to recognize exact server-owned resources and people without turning presentation labels into machine identity, routing, authorization, containment or generic metadata authority.
 
 `4C-F01` admitted this property class for Workspace and Project. `4C-F04` proved the same essential property for logical Connection. `4C-F11` proves that access administration cannot be safe or human-reviewable while Accounts and Areas are exposed only through opaque IDs. `4C-F13` now proves that the Workspace Agent catalog cannot be human-reviewable while Project-owned Product Agents and their owning Projects are projected only through opaque Agent/Project/revision/Release coordinates. The Global-Maximum assessments preserve the existing semantic owners rather than creating presentation owners, frontend label registries, generic metadata domains or fleet authority.
+
+`4C-F35` extends canonical Account presentation to independent Published-App grant administration and adds only the purpose-bound candidate read that job requires. `4C-F36` requires exact active-Release role consequences before a human chooses `admin|member`; it does not create a role editor. Keycloak remains the authentication provider and verified external-subject source, never the owner of Conexus Account admission or Product authorization.
+
+`4C-F37` makes existing PAR Conversations human-recognizable through owner time, safe preview and current clarification attention without creating a title service, notification owner or frontend pending registry. `4C-F38` reuses canonical `AccountSummary` for current Published-App session recognition and reuses the one I&A `EndSession` meaning across admitted human surfaces.
 
 ## 1. Falsifiers
 
@@ -53,6 +57,10 @@ human finds one Product Agent across several Projects
 ```
 
 The Product already defines `purpose` as authored `agent/v1` meaning. F13 does not invent a second description field; it makes the existing semantic purpose available in the canonical human-facing Agent projection.
+
+### Conversation / Published-App session — `4C-F37..F38`
+
+Opaque Conversation IDs and browser receipt/order are insufficient for recognizing or resuming human work. PAR therefore owns `startedAt`, `lastActivityAt`, safe last-message preview and exact `NEEDS_YOUR_RESPONSE` attention. I&A exposes canonical Account presentation in app access context; the browser never derives it from Keycloak claims.
 
 ## 2. Accepted bounded semantics
 
@@ -205,6 +213,15 @@ CON-05 CreateConnection
 → canonical Connection includes connectionId + name
 ```
 
+Control Plane current-session recognition:
+
+```text
+IAM-01 GetControlPlaneAccessContext
+→ account = canonical AccountSummary
+→ workspaces/projects = current disclosable context
+→ browser never derives displayName/email from Keycloak claims
+```
+
 Account / Area access administration:
 
 ```text
@@ -213,6 +230,18 @@ IAM-18 ListWorkspaceMembershipCandidates
 IAM-19 GetWorkspaceMemberAccess
 IAM-20 GetAreaAccess
 → AccountSummary = accountId + displayName + email?
+
+IAM-14 ListPublishedAppAccess
+IAM-15 SetPublishedAppAccess
+IAM-21 ListPublishedAppAccessCandidates
+→ current grants/candidates use canonical AccountSummary
+→ candidates are existing iam.account only and candidate inclusion grants nothing
+→ no-result never proves whether a Keycloak identity exists
+
+IAM-14 ListPublishedAppAccess
+→ roleOptions = exact admin/member capability consequences from current active Release
+→ capability summary = operationId + name + purpose + regime
+→ labels/presentation never become authorization
 
 WS-04 ListAreas
 IAM-19 GetWorkspaceMemberAccess
@@ -324,6 +353,12 @@ Product Agent presentation + owning Project context
 → canonical 4B Project wire
 → generated frontend/server projections
 → W-04 human Agent recognition + Workspace catalog
+
+Published-App Account recognition + role-decision truth
+→ IAM-14 / IAM-15 / IAM-21
+→ canonical 4B Identity/Workspace wire
+→ generated frontend/server projections
+→ P-05 human grant review, candidate selection and exact role consequence
 ```
 
 Repository proof must preserve no generic mutation resurrection, exact Project ownership, `project.read` vs `project.source.read` separation, no runtime-health inference from `activeReleaseId`, and Product implementation blockade.

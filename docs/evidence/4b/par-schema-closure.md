@@ -121,10 +121,13 @@ agentId
 releaseId
 origin = INTERACTIVE | HEADLESS | SCHEDULE
 runState = owner-issued string
+admittedAt = owner-issued RFC3339 time
+optional settledAt = owner-issued terminal settlement time
+optional problem = safe human summary/detail/remediation
 optional exact Release-owned output projection
 ```
 
-4B intentionally does not invent a complete AgentRun lifecycle enum from UI convenience or framework states.
+`PAR-06` orders owner results by `admittedAt DESC`, then stable `agentRunId DESC` before pagination. The identifier is only a tie-breaker, never a time encoding. 4B intentionally does not invent a complete AgentRun lifecycle enum, retry/resume action or raw provider/tool diagnostic from UI convenience or framework states.
 
 ## 5. Approval / HITL boundary
 
@@ -145,13 +148,16 @@ ApprovalRequest binds:
 ```text
 approvalRequestId
 agentRunId
+immutable request-time Agent snapshot = agentId + name + purpose + releaseId
+safe deterministic actionSummary
+requestedAt + optional expiresAt
 proposalRef
 proposalDigest
 owner approvalState
 safe exact sealed proposal projection
 ```
 
-`proposalRef` is owner identity/correlation, not Mastra `toolCallId` Product authority.
+The snapshot/action/time fields let the eligible human recognize the exact decision without a Project/source-read join. They are historical presentation Evidence, not current Agent/Release/authorization truth. `proposalRef` is owner identity/correlation, not Mastra `toolCallId` Product authority.
 
 `PAR-10 DecideApprovalRequest` closes exactly:
 

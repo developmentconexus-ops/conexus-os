@@ -13,15 +13,21 @@ paths:
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
+      parameters:
+        - name: pageToken
+          in: query
+          required: false
+          description: Opaque continuation for the same newest-created-first immutable Release collection; never Release identity or authority.
+          schema:
+            type: string
+            minLength: 1
       responses:
         '200':
-          description: Immutable Release identities currently disclosable for the exact Project; Release availability is not Promotion or serving truth.
+          description: Human-recognizable immutable Releases ordered by createdAt DESC then releaseId DESC; Release availability is not Promotion or serving truth.
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ReleaseSummary'
+                $ref: '#/components/schemas/ReleasePage'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
@@ -64,15 +70,28 @@ paths:
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
+      parameters:
+        - name: environmentId
+          in: query
+          required: false
+          description: Optional exact server-disclosed target environment filter; never target discovery or Promotion authority.
+          schema:
+            type: string
+            minLength: 1
+        - name: pageToken
+          in: query
+          required: false
+          description: Opaque continuation for the same requestedAt-descending Promotion history and environment filter.
+          schema:
+            type: string
+            minLength: 1
       responses:
         '200':
-          description: Promotion history for the exact Project; historical owner state does not itself mutate the current pointer.
+          description: Human-recognizable Promotion history ordered by requestedAt DESC then promotionId DESC; historical owner state does not itself mutate the current pointer.
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Promotion'
+                $ref: '#/components/schemas/PromotionPage'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
@@ -95,16 +114,16 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [releaseId, environment, expectedPointerGeneration]
+              required: [releaseId, environmentId, expectedPointerGeneration]
               properties:
                 releaseId:
                   type: string
                   minLength: 1
                   description: Exact immutable Release selected for governed Promotion; selecting an eligible prior Release is the rollback mechanism.
-                environment:
+                environmentId:
                   type: string
                   minLength: 1
-                  description: Exact target environment under Release-owner conformance and current pointer authority.
+                  description: Exact server-disclosed target environment under Release-owner conformance and current pointer authority.
                 expectedPointerGeneration:
                   type: integer
                   minimum: 0
@@ -168,7 +187,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact active Release pointer plus independently observed serving verification; an active pointer never proves served bytes by itself.
+          description: Exact server-disclosed target environments, active Release pointers and independently observed serving verification; an active pointer never proves served bytes by itself.
           content:
             application/json:
               schema:
@@ -247,31 +266,133 @@ components:
     ReleaseSummary:
       type: object
       additionalProperties: false
-      required: [releaseId, releaseManifestDigest, releaseState]
+      required: [releaseId, releaseLabel, releaseManifestDigest, sourceRevision, createdAt, releaseState, compositionSummary]
       properties:
         releaseId:
           type: string
           minLength: 1
+        releaseLabel:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Immutable Release-owner human presentation; never caller-selected identity or mutable Project naming authority.
         releaseManifestDigest:
           type: string
           minLength: 1
+        sourceRevision:
+          type: string
+          minLength: 1
+        createdAt:
+          type: string
+          format: date-time
         releaseState:
           type: string
           minLength: 1
           description: Release-owner state. 4B does not invent a closed lifecycle enum from conceptual architecture wording.
+        compositionSummary:
+          $ref: '#/components/schemas/ReleaseCompositionSummary'
+    ReleasePage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReleaseSummary'
+        nextPageToken:
+          type: string
+          minLength: 1
+          description: Opaque continuation for the same immutable Release collection when more results exist.
+    ReleaseCompositionSummary:
+      type: object
+      additionalProperties: false
+      required: [componentCount, bindingCount, managedJobCount]
+      properties:
+        componentCount:
+          type: integer
+          minimum: 0
+        bindingCount:
+          type: integer
+          minimum: 0
+        managedJobCount:
+          type: integer
+          minimum: 0
+    ReleaseComponentProjection:
+      type: object
+      additionalProperties: false
+      required: [kind, ref, label, digest]
+      properties:
+        kind:
+          type: string
+          minLength: 1
+          description: Release-owner component class; not a universal runtime or frontend taxonomy.
+        ref:
+          type: string
+          minLength: 1
+          description: Exact immutable component reference inside this Release.
+        label:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Immutable Release-time human presentation of this exact component.
+        digest:
+          type: string
+          minLength: 1
+    ReleaseBindingProjection:
+      type: object
+      additionalProperties: false
+      required: [kind, ref, label, revisionRef]
+      properties:
+        kind:
+          type: string
+          minLength: 1
+          description: Release-owner binding class; disclosure grants no Connection/Brain/config mutation authority.
+        ref:
+          type: string
+          minLength: 1
+        label:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Immutable Release-time human presentation of this exact binding.
+        revisionRef:
+          type: string
+          minLength: 1
     ReleaseManifestProjection:
       type: object
-      additionalProperties: true
+      additionalProperties: false
       x-conexus-schema-source: RELEASE_MANIFEST
-      description: Exact immutable owner-produced ReleaseManifest projection. Detailed manifest schema spelling remains owned by the later realization contract rather than a parallel hand-written 4B manifest authority.
+      description: Stable safe human inspection projection over the exact immutable owner-produced ReleaseManifest; it does not replace the full realization manifest authority.
+      required: [components, bindings, configurationDigest, runtimeContractDigest]
+      properties:
+        components:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReleaseComponentProjection'
+        bindings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReleaseBindingProjection'
+        configurationDigest:
+          type: string
+          minLength: 1
+        runtimeContractDigest:
+          type: string
+          minLength: 1
     Release:
       type: object
       additionalProperties: false
-      required: [releaseId, projectId, releaseManifestDigest, sourceRevision, verificationEvidenceDigest, releaseState, composition]
+      required: [releaseId, releaseLabel, projectId, releaseManifestDigest, sourceRevision, verificationEvidenceDigest, createdAt, releaseState, compositionSummary, composition]
       properties:
         releaseId:
           type: string
           minLength: 1
+        releaseLabel:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Immutable Release-owner human presentation; never caller-selected identity.
         projectId:
           type: string
           minLength: 1
@@ -285,16 +406,34 @@ components:
           type: string
           minLength: 1
           description: Digest over the exact verification/validation Evidence set admitted into the immutable Release composition.
+        createdAt:
+          type: string
+          format: date-time
         releaseState:
           type: string
           minLength: 1
           description: Release-owner state; availability is distinct from Promotion/current serving truth.
+        compositionSummary:
+          $ref: '#/components/schemas/ReleaseCompositionSummary'
         composition:
           $ref: '#/components/schemas/ReleaseManifestProjection'
+    HumanActorSnapshot:
+      type: object
+      additionalProperties: false
+      required: [accountId, displayName]
+      properties:
+        accountId:
+          type: string
+          minLength: 1
+        displayName:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Immutable request-time human presentation; never current Account authority.
     Promotion:
       type: object
       additionalProperties: false
-      required: [promotionId, projectId, releaseId, environment, expectedPointerGeneration, promotionState]
+      required: [promotionId, projectId, releaseId, environmentId, environmentLabel, expectedPointerGeneration, requestedAt, requestedBy, promotionState]
       properties:
         promotionId:
           type: string
@@ -305,9 +444,14 @@ components:
         releaseId:
           type: string
           minLength: 1
-        environment:
+        environmentId:
           type: string
           minLength: 1
+        environmentLabel:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Immutable request-time human presentation of the exact server-disclosed target environment.
         expectedPointerGeneration:
           type: integer
           minimum: 0
@@ -315,10 +459,32 @@ components:
           type: integer
           minimum: 0
           description: Present only after an admitted pointer transition; its existence is not serving verification.
+        requestedAt:
+          type: string
+          format: date-time
+        requestedBy:
+          $ref: '#/components/schemas/HumanActorSnapshot'
+        settledAt:
+          type: string
+          format: date-time
+          description: Release-owner settlement time when established; absence does not imply failure.
         promotionState:
           type: string
           minLength: 1
           description: Release-owner Promotion state. 4B preserves owner truth without inventing a universal deployment lifecycle enum.
+    PromotionPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Promotion'
+        nextPageToken:
+          type: string
+          minLength: 1
+          description: Opaque continuation for the same Promotion history when more results exist.
     ServingVerification:
       type: object
       additionalProperties: false
@@ -346,17 +512,23 @@ components:
           items:
             type: string
             minLength: 1
-    ProjectServingState:
+    EnvironmentServingState:
       type: object
       additionalProperties: false
-      required: [projectId, environment, activeReleaseId, activeReleaseManifestDigest, pointerGeneration, servingVerification]
+      required: [environmentId, environmentLabel, pointerState, pointerGeneration]
       properties:
-        projectId:
+        environmentId:
           type: string
           minLength: 1
-        environment:
+        environmentLabel:
           type: string
           minLength: 1
+          pattern: '.*\S.*'
+          description: Current server-owned human target presentation; never caller-created target authority.
+        pointerState:
+          type: string
+          enum: [UNSET, SET]
+          description: Whether this exact target currently has an active Release pointer.
         activeReleaseId:
           type: string
           minLength: 1
@@ -368,6 +540,27 @@ components:
           minimum: 0
         servingVerification:
           $ref: '#/components/schemas/ServingVerification'
+      allOf:
+        - if:
+            properties:
+              pointerState:
+                const: SET
+            required: [pointerState]
+          then:
+            required: [activeReleaseId, activeReleaseManifestDigest, servingVerification]
+    ProjectServingState:
+      type: object
+      additionalProperties: false
+      required: [projectId, environments]
+      properties:
+        projectId:
+          type: string
+          minLength: 1
+        environments:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/EnvironmentServingState'
     EnvironmentConformanceCheck:
       type: object
       additionalProperties: false
@@ -391,14 +584,19 @@ components:
     EnvironmentConformance:
       type: object
       additionalProperties: false
-      required: [projectId, environment, conformanceState, observedPointerGeneration, checks, evidenceRefs]
+      required: [projectId, environmentId, environmentLabel, conformanceState, observedPointerGeneration, checks, evidenceRefs]
       properties:
         projectId:
           type: string
           minLength: 1
-        environment:
+        environmentId:
           type: string
           minLength: 1
+        environmentLabel:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Current Release-owner human target presentation for this exact conformance subject.
         conformanceState:
           type: string
           minLength: 1

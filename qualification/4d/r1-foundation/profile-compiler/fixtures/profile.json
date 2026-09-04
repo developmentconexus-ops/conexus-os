@@ -1,0 +1,32 @@
+{
+  "kind": "conexus.fixture-profile/v1",
+  "profileId": "r1-foundation",
+  "profileVersion": "1.0.0",
+  "outputs": [
+    {
+      "id": "app-seed",
+      "path": "app/index.mjs",
+      "class": "APP-OWNED",
+      "render": "TOKEN_TEXT",
+      "segments": [
+        { "literal": "export const appName = " },
+        { "inputKey": "appName" },
+        { "literal": "\n" }
+      ]
+    },
+    {
+      "id": "settings",
+      "path": "generated/settings.json",
+      "class": "GENERATED",
+      "render": "CANONICAL_JSON",
+      "inputKey": "settings"
+    },
+    {
+      "id": "runtime",
+      "path": "platform/runtime.txt",
+      "class": "PLATFORM-CONTRACT",
+      "render": "STATIC",
+      "content": "platform-v1\n"
+    }
+  ]
+}

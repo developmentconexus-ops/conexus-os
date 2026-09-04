@@ -1,0 +1,11 @@
+{
+  "kind": "conexus.r1c14.git-source-custody-native-build-supersession/v1",
+  "observedOn": "2026-09-01",
+  "imageIndexDigest": "sha256:4b52df3b20e6c4654bb8cf4270fbe911cc3b0e8bc738a54fa325496b24e2854a",
+  "linuxAmd64ManifestDigest": "sha256:5c4c1731bb91b227c26ab40efd8298a8a9b3a3f8a5a40642d65817d581a72276",
+  "sourceMetadataSha256": "8e57958f59c861feea4aeb371fe1b036b2359e73d0a60b639a8323ea758852b4",
+  "retainedNormalizedMetadataPath": "qualification/4d/r1-git-source-custody/evidence/native-readmission-rejections/second-minimal-provenance-build-metadata.json",
+  "retainedNormalizedMetadataSha256": "07e0097b110caf0755e1cac55c917b03d5c57ab454d5ff531024584577939fda",
+  "reason": "VCS hints were absent, but the retained metadata file used default minimal detail; it was superseded by a build retaining explicit BUILDX_METADATA_PROVENANCE=max.",
+  "verdict": "SUPERSEDED_NOT_ADMITTED"
+}

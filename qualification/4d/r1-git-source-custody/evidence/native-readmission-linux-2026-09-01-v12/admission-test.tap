@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: admits only the closed provider-neutral destination
+ok 1 - admits only the closed provider-neutral destination
+  ---
+  duration_ms: 3.499396
+  type: 'test'
+  ...
+# Subtest: refuses caller credential
+ok 2 - refuses caller credential
+  ---
+  duration_ms: 0.336549
+  type: 'test'
+  ...
+# Subtest: refuses protocol
+ok 3 - refuses protocol
+  ---
+  duration_ms: 0.154218
+  type: 'test'
+  ...
+# Subtest: refuses host
+ok 4 - refuses host
+  ---
+  duration_ms: 1.583995
+  type: 'test'
+  ...
+# Subtest: refuses IP literal
+ok 5 - refuses IP literal
+  ---
+  duration_ms: 0.208884
+  type: 'test'
+  ...
+# Subtest: refuses fragment
+ok 6 - refuses fragment
+  ---
+  duration_ms: 0.122661
+  type: 'test'
+  ...
+# Subtest: refuses literal and server-decoded path escapes
+ok 7 - refuses literal and server-decoded path escapes
+  ---
+  duration_ms: 0.278331
+  type: 'test'
+  ...
+# Subtest: derives a canonical path only from a lower-case Project UUID
+ok 8 - derives a canonical path only from a lower-case Project UUID
+  ---
+  duration_ms: 0.291199
+  type: 'test'
+  ...
+# Subtest: refuses non-canonical Project path input: ../other-project
+ok 9 - refuses non-canonical Project path input: ../other-project
+  ---
+  duration_ms: 0.442931
+  type: 'test'
+  ...
+# Subtest: refuses non-canonical Project path input: 018F47A2-7B20-4E52-8A30-786F52EA6E0F
+ok 10 - refuses non-canonical Project path input: 018F47A2-7B20-4E52-8A30-786F52EA6E0F
+  ---
+  duration_ms: 0.164083
+  type: 'test'
+  ...
+# Subtest: refuses non-canonical Project path input: /absolute/path
+ok 11 - refuses non-canonical Project path input: /absolute/path
+  ---
+  duration_ms: 0.064851
+  type: 'test'
+  ...
+# Subtest: refuses non-canonical Project path input: project-a
+ok 12 - refuses non-canonical Project path input: project-a
+  ---
+  duration_ms: 0.049431
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 112.881174

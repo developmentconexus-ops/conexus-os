@@ -444,6 +444,92 @@ paths:
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
+  /api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ChangeId'
+    post:
+      summary: CreateChangeProductAgentDraft
+      operationId: CreateChangeProductAgentDraft
+      x-conexus-4a-id: BLD-19
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: IDEMPOTENCY_KEY
+      x-conexus-contract-state: SCHEMA_CLOSED
+      parameters:
+        - $ref: './openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProductAgentDraftRequest' }
+      responses:
+        '201':
+          description: Server-owned Product Agent authoring draft established inside the exact Change from an explicit new or current-authored origin; every model-policy, capability and Brain authoring reference is owner-validated, optional unowned refs are empty for NEW or preserved exactly for EXISTING, and no live Agent mutation occurs.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductAgentAuthoringDraft' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
+        '422':
+          $ref: './openapi.yaml#/components/responses/Problem422'
+          description: invalid authoring reference, nonempty unowned optional ref on NEW, or changed protected ref on EXISTING.
+
+  /api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts/{draftId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ChangeId'
+      - $ref: '#/components/parameters/DraftId'
+    get:
+      summary: GetChangeProductAgentDraft
+      operationId: GetChangeProductAgentDraft
+      x-conexus-4a-id: BLD-18
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: Exact current server-owned Product Agent authoring draft inside the Change, including its typed agent/v1 candidate and concurrency revision.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductAgentAuthoringDraft' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+
+  /api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts/{draftId}/commands/revise:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ChangeId'
+      - $ref: '#/components/parameters/DraftId'
+    post:
+      summary: ReviseChangeProductAgentDraft
+      operationId: ReviseChangeProductAgentDraft
+      x-conexus-4a-id: BLD-20
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: EXPLICIT_REVISION
+      x-conexus-contract-state: SCHEMA_CLOSED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviseProductAgentDraftRequest' }
+      responses:
+        '200':
+          description: Exact current draft intentionally revised after matching expectedDraftRevision; owner-validated construction refs may change, unowned optional refs remain preserved exactly for EXISTING, and the result remains one Change candidate rather than a live Agent mutation.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductAgentAuthoringDraft' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
+        '412': { $ref: './openapi.yaml#/components/responses/Problem412' }
+        '422':
+          $ref: './openapi.yaml#/components/responses/Problem422'
+          description: invalid authoring reference or attempted change to a protected unowned optional reference.
+
 components:
   parameters:
     ProjectId:
@@ -469,6 +555,12 @@ components:
       in: path
       required: true
       description: Untrusted reference only; current containment and authority are resolved server-side.
+      schema: { type: string, minLength: 1 }
+    DraftId:
+      name: draftId
+      in: path
+      required: true
+      description: Untrusted exact Product Agent authoring-draft reference; Project/Change containment and current authority are revalidated server-side.
       schema: { type: string, minLength: 1 }
     SourceRevision:
       name: sourceRevision
@@ -670,3 +762,87 @@ components:
         actorRuns:
           type: array
           items: { $ref: '#/components/schemas/ActorRunProjection' }
+    NewProductAgentDraftOrigin:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind: { type: string, const: NEW }
+    ExistingProductAgentDraftOrigin:
+      type: object
+      additionalProperties: false
+      required: [kind, agentId, expectedAuthoredRevisionId]
+      properties:
+        kind: { type: string, const: EXISTING }
+        agentId:
+          type: string
+          minLength: 1
+          description: Untrusted exact existing Product Agent reference; never authorization by possession.
+        expectedAuthoredRevisionId:
+          type: string
+          minLength: 1
+          description: Exact immutable authored revision from which the Change draft must branch.
+    CreateProductAgentDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [origin, definition]
+      properties:
+        origin:
+          oneOf:
+            - $ref: '#/components/schemas/NewProductAgentDraftOrigin'
+            - $ref: '#/components/schemas/ExistingProductAgentDraftOrigin'
+        definition:
+          $ref: './project-paths.yaml#/components/schemas/ProductAgentDefinition'
+      allOf:
+        - if:
+            required: [origin]
+            properties:
+              origin:
+                type: object
+                required: [kind]
+                properties:
+                  kind: { const: NEW }
+          then:
+            properties:
+              definition:
+                type: object
+                properties:
+                  policyRefs: { type: array, maxItems: 0 }
+                  approvalPolicyRefs: { type: array, maxItems: 0 }
+                  budgetPolicyRefs: { type: array, maxItems: 0 }
+                  verificationRefs: { type: array, maxItems: 0 }
+                description: 4C-PRE11-F05 minimal F1 — unowned optional references must be empty for NEW; the browser cannot invent free-form governed refs.
+    ReviseProductAgentDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedDraftRevision, definition]
+      properties:
+        expectedDraftRevision:
+          type: string
+          minLength: 1
+          description: Exact current server-owned draft revision; stale revision fails closed.
+        definition:
+          $ref: './project-paths.yaml#/components/schemas/ProductAgentDefinition'
+          description: Complete candidate definition. Model policy, capability and Brain refs must resolve through current owner truth; policyRefs, approvalPolicyRefs, budgetPolicyRefs and verificationRefs are preserved exactly for EXISTING until their semantic owners are admitted.
+    ProductAgentAuthoringDraft:
+      type: object
+      additionalProperties: false
+      required: [draftId, changeId, agentId, baseAuthoredRevisionId, draftRevision, candidateSubjectDigest, definition]
+      properties:
+        draftId: { type: string, minLength: 1 }
+        changeId: { type: string, minLength: 1 }
+        agentId:
+          type: string
+          minLength: 1
+          description: Stable server-issued or server-revalidated Product Agent identity inside this candidate; not proof of a live Agent.
+        baseAuthoredRevisionId:
+          type: [string, 'null']
+          minLength: 1
+          description: Exact immutable source authored revision for EXISTING, or null for NEW.
+        draftRevision: { type: string, minLength: 1 }
+        candidateSubjectDigest:
+          type: string
+          minLength: 1
+          description: Exact Change candidate subject containing this draft; binds later diff/proof without making the draft a second source authority.
+        definition:
+          $ref: './project-paths.yaml#/components/schemas/ProductAgentDefinition'

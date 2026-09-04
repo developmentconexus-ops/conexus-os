@@ -6,12 +6,12 @@
 
 ## 1. Decision question
 
-> Can all 17 current Builder Product operations be given exact wire shapes without exposing internal harness control as Product commands, weakening verification truth, or inventing lifecycle vocabularies?
+> Can all 20 current Builder Product operations be given exact wire shapes without exposing internal harness control as Product commands, weakening verification truth, inventing lifecycle vocabularies or turning Product Agent authoring into runtime/source CRUD?
 
 ## 2. Exact slice
 
 ```text
-BLD-01 → BLD-17
+BLD-01 → BLD-20
 ```
 
 Canonical active Path Items:
@@ -92,6 +92,20 @@ The accepted ActorRun lineage vocabulary remains exact:
 FRESH_BASE | CONTINUE_LINEAGE
 ```
 
+### F30 Product Agent definition + Change draft
+
+The operator-approved F30 recompile preserves PRJ-21 as Project-owned authored definition inspection and adds only three Builder operations over subordinate state inside one exact Change:
+
+```text
+BLD-18 = get exact current ProductAgentAuthoringDraft
+BLD-19 = create draft from explicit NEW | EXISTING origin with Idempotency-Key
+BLD-20 = revise exact draft with expectedDraftRevision
+```
+
+The shared `ProductAgentDefinition` is a closed `agent/v1` schema. It admits framework-neutral instructions, bounded model policy/sampling, governed capability bindings, Project-bound Brain context, currently admitted memory/interactions, policy/approval/budget/verification references and known limitations. It rejects arbitrary extensions, credentials, provider passthrough, Mastra/Stored-Agent identity and runtime revision overrides.
+
+The draft binds `changeId`, server-issued/revalidated `agentId`, optional base authored revision, current `draftRevision`, exact `candidateSubjectDigest` and the typed definition. It is not a live Agent, a second Agent/source database or direct Git mutation. BLD-19 protects duplicate creation; BLD-20 protects intentional concurrent revision.
+
 ## 4. Rejected generic mechanics remain absent
 
 ```text
@@ -144,7 +158,7 @@ literal IF_MATCH          = { PRJ-12, PAR-14 }
 
 Budget Analyzer declaration/codegen/truth-state positive and negative controls remained green in the same final run.
 
-## 6. Result
+## 6. Historical result before F30
 
 ```text
 IAM + Workspace = CLOSED inside 4B
@@ -156,3 +170,19 @@ Product code    = BLOCKED
 ```
 
 The next owner slice must continue compiling accepted semantics into this same OAD. Missing semantic/property authority remains a falsifier/reopen trigger, never permission to invent DTO meaning.
+
+## 7. Current bounded F30 recompile
+
+```text
+Project PRJ-21 definition detail = SCHEMA_CLOSED
+Builder BLD-01..20              = SCHEMA_CLOSED
+F30 new Builder operations       = 3
+ordinary Permissions             = unchanged
+semantic owners                  = unchanged
+principal/trust boundaries       = unchanged
+durable record classes           = unchanged; draft is Change candidate state
+Product code                      = BLOCKED
+```
+## Pre-P11 F05 bounded reference law
+
+`4C-PRE11-F05` preserves BLD-18..20 and Builder=20. NEW Product Agent drafts require unowned optional policy/approval/budget/verification ref arrays empty; EXISTING/revise preserves them exactly until semantic owners exist. Model-policy, capability and Brain authoring refs are validated against Project/Brain owner truth. Invalid or fabricated refs are `422`; stale draft revision remains `412`.

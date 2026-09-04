@@ -4,7 +4,7 @@ Current mutable status and the exact next action remain owned only by [../roadma
 
 ## 1. Decision
 
-**Outcome:** `CURRENT STRUCTURE CONFIRMED` for the first real vertical, with the bounded post-C-018 C-015 authentication refinement registered in the decision authority.
+**Outcome:** `CURRENT STRUCTURE CONFIRMED / 4D BUILDER APPLICABILITY REVISED` for the first real vertical, with the bounded post-C-018 C-015 authentication refinement registered in the decision authority and the operator-triggered Builder proving correction below.
 
 The first authorized build should realize only the architecture needed to deliver and falsify a real read-only **Analisador Inteligente de Orçamentos — Sankhya** slice:
 
@@ -14,18 +14,21 @@ minimum current authority
 → Workspace + Project
 → exact Brain semantic binding
 → exact Sankhya Connection binding
+→ minimum capable Builder over exact Baseline/context/Paved Road
 → governed read-only source access
-→ Project analytical/read model
-→ bounded governed sync
-→ static registered Queries
-→ Published Application dashboard
+→ Builder-authored Project analytical/read model + governed sync
+→ Builder-authored static registered Queries + Published Application dashboard
 → exact Release / Promotion / SERVED_VERIFIED
 → independent live-source reconciliation
 ```
 
 No material Evidence found during planning requires a new Product capability, semantic owner, trust zone, framework replacement, generic workflow/proof/recovery abstraction, or 3A–3O/3L reopen. C-015 alone was reopened by its explicit trigger and immediately refined through the operator-approved Keycloak selection while preserving its Account/session/authorization invariants.
 
-The first build deliberately does **not** use Mastra, Builder runtime, PAR, Product Agent, E2B, AnalyticQuery, external writes, or effect-capable managed jobs. Their accepted seams remain intact without dormant implementation.
+The foundation/bootstrap tranche may precede Builder because Conexus cannot use a
+runtime that does not yet exist. The first **operational Product proof**, however,
+must use the accepted Builder/Mastra/E2B path to create and evolve the Budget
+Analyzer. PAR, Product Agent, AnalyticQuery, external writes and effect-capable
+managed jobs remain absent. Bootstrap work is not Builder proof.
 
 ## 2. Planning question
 
@@ -113,7 +116,9 @@ The exact number of dashboard results is not fixed by implementation convenience
 - smallest dashboard needed to consume the registered supported results and expose freshness/unsupported/indeterminate states truthfully;
 - independent Published Application authorization/session boundary from Control Plane and Preview;
 - current F1 Published App roles only: `admin | member`;
-- no Builder UX, agent chat, low-code surface, generic analytics builder, or infrastructure console.
+- the exact locked app-first Builder/Conexus interaction is instantiated only
+  for the proving Project; no configurable Agent fleet, generic analytics
+  builder or infrastructure console is added.
 
 ### 4.7 Exact Release, Promotion and serving
 
@@ -127,6 +132,23 @@ The exact number of dashboard results is not fixed by implementation convenience
 
 The first-build proof target is **non-production**. FIRST_PRODUCTION recovery/activation obligations remain separate and are not simulated by a DEV deployment.
 
+### 4.8 Incremental-value delivery law
+
+The ordered slices are not one big-bang platform build. Each slice must end in
+one of two honest outcomes:
+
+```text
+usable internal capability exercised by its named company consumer
+OR
+enabling foundation immediately consumed by the next already-admitted slice
+```
+
+No slice may instantiate dormant future families merely because the complete
+Product is complex. Conversely, a small increment may not waive authority,
+security, real-data, recovery or proof properties reachable in that increment.
+The first useful vertical remains the real Builder-produced Budget Analyzer;
+operator/company use and Evidence determine the next expansion.
+
 ## 5. First-slice durable authority budget
 
 The 46-class architectural closure is not a table-generation checklist. The first build may instantiate only record classes with a concrete consumer in the scope above.
@@ -137,6 +159,7 @@ Initial allowed semantic record-class set:
 iam: account / session / workspace_membership / account_project_grant / published_app_access
 ws:  workspace
 prj: project / approved_baseline / brain_binding / connection_binding
+bld: change / contract_revision / plan_revision / work_unit / actor_run / coding_session / finding / change_acceptance
 reg: artifact / artifact_revision
 con: connection / connection_revision / connection_qualification
 brn: health / binding_validation
@@ -151,7 +174,6 @@ Project analytical/read-model tables are Project-owned business state and are no
 Deliberately absent from the first slice:
 
 ```text
-bld.*
 par.*
 gw.effect_attempt / gw.idempotency_claim / gw.budget_counter
 brn.knowledge_proposal
@@ -170,15 +192,14 @@ The first build MUST NOT add any of the following solely to exercise architectur
 
 ```text
 Product Agent / PAR
-Builder Product runtime / Change / Plan / WorkUnit / ActorRun / CodingSession UI
-E2B or any Z3 guest runtime
+configurable Agent fleet/marketplace or generic Missions UI
 AnalyticQuery
 Brain Discovery or feedback machinery
 external writes / Actions / effect attempts / approval / replay
 EVENT triggers
 DEDICATED runtime or guest→private-Hub inbound reachability
 advanced memory / RAG / semantic recall
-agent-as-tool / networks / subagents / MCP / A2A
+arbitrary agent-as-tool / networks / dynamic subagent graph / external MCP / A2A
 arbitrary managed jobs
 workflow/BPM/automation/scheduler Product domain
 generic Proof Engine / Evidence owner / Recovery owner
@@ -189,7 +210,29 @@ hard monetary reservation/accounting machinery
 generic observability/audit platform
 ```
 
-A later real consumer re-enters only the smallest owning Decision Loop. Preserved seams are not permission to prebuild them.
+A later real consumer re-enters only the smallest owning Decision Loop. Preserved
+seams are not permission to prebuild them. The Budget Analyzer is now the named
+first Builder consumer; only the advanced families still listed above remain
+excluded.
+
+### 6.1 Builder proving correction from 4D
+
+The operator challenged the earlier inference that the first proving Project
+could remain entirely hand-built while Builder stayed dormant. Current Mitra,
+Factory AI, Mastra and Package-A Evidence confirms:
+
+```text
+manual Hub/bootstrap foundation = necessary and allowed
+complete hand-built proving app  != proof that Conexus builds applications
+first operational Budget Analyzer = must traverse real Builder authority/runtime
+```
+
+The minimum capable Builder includes exact Change/CodingSession admission,
+persistent thread/tasks, Context Compiler/Paved-Road inputs, guarded E2B
+Workspace, code/command/search tools, mechanical questions/approvals, Hub-owned
+Git/result custody, build/test/browser feedback and independent material
+verification. Native Mastra coding versus Mastra-hosted SDK/ACP coding runtime
+remains a 4D-C Worker Eval decision.
 
 ## 7. Pre-build admission gates
 
@@ -223,13 +266,23 @@ Before any Mastra package enters Product realization:
 4. rerun only existing 3L criteria whose tested behavior is materially touched by the selected source/package delta or enabled surface;
 5. record exact lock/source/probe Evidence.
 
-Because the first Budget Analyzer build instantiates **no Mastra-backed Product surface**, this qualification MUST NOT add Mastra, workflows, DurableAgent, scorers, Builder or PAR to the Product merely to consume the result. The isolated qualification can complete independently; Product installation waits for a real Mastra consumer.
+Because the first Budget Analyzer now instantiates **BuilderMastra as an exact
+Builder consumer** but no Product-Agent/PAR Mastra surface, this qualification
+admits only the Builder package/runtime/store surfaces required by `RB`. It MUST
+NOT add workflows, DurableAgent, production scorers, ParMastra or other dormant
+Mastra families merely to consume the result. The isolated qualification may
+complete before `RB`; Builder installation begins only under the exact admitted
+Builder consumer and Evidence.
 
 Reopen 3L only if the bounded affected-criteria requalification materially falsifies an accepted 3L property. A packaging delay or lack of an admissible stable release is a dependency stop, not permission to use `1.60.0`.
 
 ### RP-G0.2 — Sankhya comparison-boundary probe
 
-Current repository authority does not fix an Oracle/column/SCN/timestamp watermark or other source-specific cutoff. Realization MUST NOT invent one.
+Current repository authority does not fix a Sankhya API transaction/change ID,
+column/timestamp watermark, provider-internal database coordinate or other
+source-specific cutoff. Realization MUST NOT invent one. In particular, Oracle
+SCN/Flashback is not a Sankhya contract unless the provider explicitly exposes
+and supports that coordinate for the exact proof.
 
 Before live reconciliation can claim `MATCH`, a bounded read-only source probe must establish one honest comparison coordinate for the exact Sankhya source and admitted semantic subject, such that:
 
@@ -261,9 +314,10 @@ Each slice must leave an independently falsifiable working boundary. Later slice
 | --- | --- | --- | --- | --- |
 | `R1` | Keycloak OIDC login + Conexus Account/session + Workspace + Project + approved Baseline and project access | I&A, Workspace, Project; Keycloak only as auth mechanism | `G0` admission | `3N-V01`; CR-1 contract prepared; Published-App/session security preconditions |
 | `R2` | canonical minimal Brain revision/binding + exact Sankhya Connection revision/binding + read-only Gateway path | Brain, Registry, Project, Connections, Gateway | `R1` | `3N-V06`, `V07`, `V10`; Brain conformance/health; Connection/Gateway egress |
-| `R3` | Project read-model migration + governed sync artifact/admission contract + cursor/merge semantics | Project DB, MAR, Release pins, Connections/Gateway | `R2` | `3N-V18`, `V19`; managed duplicate-authority/deciding-Evidence contract |
-| `R4` | static registered Query artifacts + Product-owned result API/boundary | Project, Registry, Gateway/read executor | `R3` | 3O semantic/unknown preconditions; read-only query enforcement |
-| `R5` | minimal React Published Application using only admitted results + independent app authorization | I&A, Project, MAR serving | `R4` | `3N-V21`, `V24`; frontend/security and Published App proof families |
+| `RB` | minimum capable Builder: real Change/CodingSession/Plan-WorkUnit/ActorRun path, guarded E2B Workspace, context/Paved Road, tools, Git custody and independent verification | Builder owns work/correctness; Project/Git/runtime remain bounded by existing owners | `R1–R2` + exact Mastra/E2B admission | `3N-V02..V05`, `V15..V17`; Package-A guard; Worker Eval baseline |
+| `R3` | Builder-authored Project read-model migration + governed sync artifact/admission contract + cursor/merge semantics | Builder authors candidate; Project DB, MAR, Release pins, Connections/Gateway own runtime truth | `RB` | `3N-V18`, `V19`; managed duplicate-authority/deciding-Evidence contract |
+| `R4` | Builder-authored static registered Query artifacts + Product-owned result API/boundary | Builder authors candidate; Project, Registry and Gateway/read executor own admitted result path | `R3` | 3O semantic/unknown preconditions; read-only query enforcement |
+| `R5` | Builder-authored minimal React Published Application using only admitted results + independent app authorization | Builder authors candidate; I&A, Project and MAR own app/serving truth | `R4` | `3N-V21`, `V24`; frontend/security and Published App proof families |
 | `R6` | exact candidate artifacts + current verification Evidence digests → Release → non-production Promotion → EnvironmentConformance → active serving → `SERVED_VERIFIED` | Registry, Release, Project, I&A, MAR | `R3–R5` | `3N-V22`, `V23`, `V24`; CR-1 representative concurrency proof; current-proof recheck; Release/serving family |
 | `R7` | real JobRun + governed Sankhya sync + real Product result + independent live oracle + negative control + complete verification manifest | existing owners; proof Evidence owns no Product meaning | `R6` + real source boundary | `3N-V18`, `V28` through `3O-P1..P7`; first-vertical reconciliation; minimal benchmark Evidence |
 
@@ -279,20 +333,24 @@ job code exists
 != queue presentation authority
 ```
 
-### 8.2 First-build current-proof subject without Builder
+### 8.2 Bootstrap proof versus Builder-produced Release proof
 
-The first slice does not instantiate Builder or `bld.change_acceptance`. It therefore MUST NOT manufacture a fake Change acceptance merely to satisfy Release wording.
+Bootstrap platform artifacts created before `RB` MUST NOT manufacture a fake
+Change acceptance. They use exact verification/validation Evidence identities.
 
-For this slice:
+For the operational Budget Analyzer candidate after `RB`:
 
 ```text
-candidate verification/validation Evidence digests
-→ closed into the exact ReleaseManifest
-→ rechecked as the current admitted proof at ComposeRelease
+exact Change + current bld.change_acceptance
++ candidate verification/validation Evidence digests
+→ closed/referenced by the exact Release composition
+→ rechecked as current admitted proof at ComposeRelease
 → rechecked again before material Promotion steps
 ```
 
-Stale/inadmissible proof refuses progression. When Builder is first instantiated, its `bld.change_acceptance` owner fact inherits the original Release current-proof route.
+Stale/inadmissible proof refuses progression. Bootstrap Evidence never
+self-promotes into Builder acceptance, and Builder acceptance never replaces
+owner-specific verification Evidence.
 
 ## 9. Exact FIRST_BUILD applicability manifest
 
@@ -301,10 +359,10 @@ The first-build implementation branch must carry one manifest keyed by the exist
 | ID | Realization disposition | First proof location / reason |
 | --- | --- | --- |
 | `3N-V01` | `EXECUTE` | `R1/R7`: cross-Workspace Project/query/app access must fail through real owner paths |
-| `3N-V02` | `NOT_INSTANTIATED` | Builder coding/Change execution is absent; approved Baseline exists but no Product coding runtime crosses it |
-| `3N-V03` | `NOT_INSTANTIATED` | no Builder runtime/session/Change lifecycle |
-| `3N-V04` | `NOT_INSTANTIATED` | no Builder Plan/tasks/UI operational-authority surface |
-| `3N-V05` | `NOT_INSTANTIATED` | no E2B/Z3 guest; no guest→private-Hub route is introduced |
+| `3N-V02` | `EXECUTE` | `RB/R3–R5`: real Builder Change execution produces the proving Project without bypassing owner boundaries |
+| `3N-V03` | `EXECUTE` | `RB`: CodingSession/ActorRun/runtime re-entry and honest failure are exercised |
+| `3N-V04` | `EXECUTE` | `RB`: proportional Plan/tasks/current progress remain Builder owner truth rather than chat inference |
+| `3N-V05` | `EXECUTE` | `RB`: E2B physical-incarnation, credential, network and guest→Hub denial guards fire |
 | `3N-V06` | `EXECUTE` | `R2`: Workspace Brain canonical source is physically/logically independent from Project Git |
 | `3N-V07` | `EXECUTE` | `R2/R6`: published Brain update cannot silently move exact Project binding/Release pins |
 | `3N-V08` | `NOT_INSTANTIATED` | no Brain Discovery proposal path |
@@ -314,9 +372,9 @@ The first-build implementation branch must carry one manifest keyed by the exist
 | `3N-V12` | `NOT_INSTANTIATED` | no Product Agent/effectful new admission |
 | `3N-V13` | `NOT_INSTANTIATED` | no effect idempotency/reconciliation scope |
 | `3N-V14` | `NOT_INSTANTIATED` | no Product Agent/suspension/restart |
-| `3N-V15` | `NOT_INSTANTIATED` | neither BuilderMastra nor ParMastra is instantiated |
-| `3N-V16` | `NOT_INSTANTIATED` | no Mastra RequestContext/runtime authorization surface; current I&A freshness is proved through owner checks + CR-1 without relabeling that as V16 |
-| `3N-V17` | `NOT_INSTANTIATED` | no Product model execution |
+| `3N-V15` | `EXECUTE` | `RB`: BuilderMastra is instantiated with role-local store/PubSub/Workspace; ParMastra remains absent |
+| `3N-V16` | `EXECUTE` | `RB`: runtime/RequestContext inputs remain non-authoritative and every governed Builder boundary rechecks current/pinned owner truth |
+| `3N-V17` | `EXECUTE` | `RB`: bounded Builder model execution, limits and truthful usage/cost Evidence are exercised |
 | `3N-V18` | `EXECUTE` | `R3/R7`: downtime admits at most one current catch-up, never N missed slots |
 | `3N-V19` | `EXECUTE` | `R3`: read-only sync recovery does not gain effect-capable machinery with no consumer |
 | `3N-V20` | `NOT_INSTANTIATED` | no OBS/telemetry-to-owner decision path; MAR/Project write their own owner facts directly and ordinary logs remain mechanics |
@@ -337,7 +395,7 @@ A later first instantiation of any `NOT_INSTANTIATED` surface inherits the origi
 | --- | --- |
 | Brain Discovery/feedback/conformance/health | execute only binding conformance + critical semantic health actually used; Discovery/feedback = `NOT_INSTANTIATED` |
 | scaffold/codegen/frontend contract/security invariants | `EXECUTE` for the real Published App scaffold and contract/security surface; no generic codegen platform required |
-| Builder UX progressive disclosure | `NOT_INSTANTIATED` because Builder Product UX is absent |
+| Builder UX progressive disclosure | `EXECUTE` in `RB`: ordinary work remains app-first while Plan/progress/Findings/Evidence and runtime detail stay progressively inspectable |
 | Observability/audit/redaction/GC Product paths | `NOT_INSTANTIATED` as a Product capability; ordinary logs/proof Evidence do not instantiate the OBS owner; this non-production slice explicitly classifies zero operations `audit-required`, and the first real audit-required/production consumer inherits the fail-closed OBS route |
 | Release/Promotion/EnvironmentConformance/serving | `EXECUTE` in `R6` |
 | Published App authorization/session/browser security | `EXECUTE` in `R1/R5/R7`, including Keycloak authentication vs Conexus authorization separation |
@@ -346,7 +404,7 @@ A later first instantiation of any `NOT_INSTANTIATED` surface inherits the origi
 | Connection/Gateway effect/egress | execute the real **read-only egress/binding** path; effect/write branch = `NOT_INSTANTIATED` |
 | first-production restore/emergency-stop/activation | `FIRST_PRODUCTION` only, now including Keycloak issuer/subject recovery continuity through C-015 |
 | first vertical live-source/read-model reconciliation | `EXECUTE` in `R7` through 3O |
-| Golden benchmark / Worker Eval integration | preserve the Budget Analyzer as benchmark Evidence; execute minimal deterministic result/reconciliation regression cases; Worker/Builder evaluator runtime = `NOT_INSTANTIATED` |
+| Golden benchmark / Worker Eval integration | `EXECUTE` the bounded private comparative Worker Eval harness in `RB`; no generic evaluator Product/scorer dashboard is instantiated, and Budget Analyzer remains the real operational benchmark |
 
 ## 11. CR-1 joint proof
 
@@ -540,10 +598,9 @@ Preference, framework convenience, or imagined future scale are not reopen trigg
 
 The plan intentionally deletes from first build:
 
-- two full runtime families (Builder/PAR) because the vertical has no consumer;
+- PAR/Product Agent while retaining the now-required Builder family for the proving Project;
 - AnalyticQuery because static Query is already admitted and sufficient;
 - Gateway effect/idempotency machinery because there is no write/effect;
-- E2B and Z3 guest topology because there is no Builder guest;
 - generic workflow/scheduler machinery because one governed sync consumer is enough;
 - generic proof/evidence/recovery platforms because existing proof routing/owners suffice;
 - OBS/attachment Product surfaces because no first-slice consumer requires them;

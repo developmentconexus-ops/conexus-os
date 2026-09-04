@@ -1,0 +1,12 @@
+{
+  "kind": "conexus.r1f.install-script-census/v1",
+  "packageJsonCount": 415,
+  "lifecycleScriptPackageCount": 0,
+  "entries": [],
+  "strictPolicyNegative": {
+    "unreviewed": { "exitCode": 1, "marker": false, "verdict": "PASS" },
+    "denied": { "exitCode": 0, "marker": false, "verdict": "PASS" },
+    "allowed": { "exitCode": 0, "marker": true, "verdict": "PASS" }
+  },
+  "verdict": "PASS"
+}

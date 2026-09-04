@@ -1,0 +1,145 @@
+{
+  "kind": "conexus.r1c14.native-readmission-review-adjudication/v1",
+  "observedOn": "2026-09-01",
+  "candidateResultSha256": "d5ccba4ecf683417a5a78313c5fa7230fd3eb56fd8ced0eca7e14b844be767c6",
+  "reviewBriefSha256": "a6d74e5c8b4ebe1173f0e5d3a0764958bff36b6a665762f49e797a10de7cbfa2",
+  "protectedClaims": [
+    "EXACT_OCI_IDENTITY_NO_SUBSTITUTION",
+    "FALSE_PASS_RESISTANCE",
+    "QUALIFICATION_RUN_PRODUCT_DELTA",
+    "SECRET_NON_DISCLOSURE",
+    "HISTORICAL_EVIDENCE_PRESERVATION",
+    "DECIDING_REVIEW_INTEGRITY"
+  ],
+  "lanes": [
+    {
+      "lane": "opus",
+      "executable": "claude",
+      "model": "opus",
+      "effort": "xhigh",
+      "mode": "plan",
+      "readOnly": true,
+      "cliVersion": "2.1.220",
+      "sessionOrConversation": "dc572141-99bf-41d5-aa51-e958686eb0ab",
+      "reviewerOutputPath": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/opus-final-review-result.json",
+      "reviewerOutputSha256": "315edbe81a3c3fafc76494f83ebce76176b59346a876c255725739325c4bf817",
+      "rawVerdict": "The qualification envelope itself survives independent attack — the exact OCI index is"
+    },
+    {
+      "lane": "gemini",
+      "executable": "agy",
+      "model": "gemini-3.1-pro-high",
+      "effort": "high",
+      "mode": "plan",
+      "readOnly": true,
+      "sandbox": true,
+      "cliVersion": "1.1.23",
+      "sessionOrConversation": "cefceb8b-d72c-4a65-a6dd-027444b1c0ef",
+      "reviewerOutputPath": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/gemini-final-review-result.json",
+      "reviewerOutputSha256": "63f388abe384896bb8a10082b14d752760353c834efbf52b768aba0f7db7a3f3",
+      "supportingArtifactPath": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/review/gemini-final-review-report.md",
+      "supportingArtifactSha256": "f5cd22108d8f8d50ec511fcaad12d7be1f3d6ee8f784364fff3b177308adbae1",
+      "rawVerdict": "PASS"
+    }
+  ],
+  "findings": [
+    {
+      "id": "OPUS-F1-CHECKOUT-PATH-BINDING",
+      "classification": "LOCAL_EXECUTION_GAP",
+      "material": true,
+      "disposition": "CORRECTED",
+      "correctionEvidence": [
+        "scripts/check-r1c14-native-readmission.mjs now treats wrapper.repositoryRoot as the observed execution path, reconstructs the exact recorded prompt from it, and does not turn a checkout-location convention into required-CI failure",
+        "tests/implementation/r1-r1c14-native-readmission.test.mjs verifies review bytes recorded against a different absolute checkout path"
+      ]
+    },
+    {
+      "id": "OPUS-F2-FAILED-OR-EMPTY-LANE",
+      "classification": "LOCAL_EXECUTION_GAP",
+      "material": true,
+      "disposition": "CORRECTED",
+      "correctionEvidence": [
+        "scripts/check-r1c14-native-readmission.mjs requires exitCode 0, null signal and a non-empty raw verdict in both the lane binding and retained wrapper",
+        "tests/implementation/r1-r1c14-native-readmission.test.mjs fires on non-zero exit and empty raw verdict"
+      ]
+    },
+    {
+      "id": "OPUS-F3-SELF-REFERENTIAL-READONLY-ARGV",
+      "classification": "LOCAL_EXECUTION_GAP",
+      "material": true,
+      "disposition": "CORRECTED",
+      "correctionEvidence": [
+        "scripts/check-r1c14-native-readmission.mjs freezes the canonical Opus and Gemini argv vectors independently of scripts/conexus-review.mjs",
+        "npm run r1:r1c14:native:check executes this consumer in required CI after PASS and its firing test rejects permission-vector drift"
+      ]
+    },
+    {
+      "id": "OPUS-F4-STALE-SUITE-CENSUS-PROSE",
+      "classification": "LOCAL_EXECUTION_GAP",
+      "material": false,
+      "disposition": "CORRECTED",
+      "correctionEvidence": [
+        "docs/evidence/4d/4d-r1-r1c14-native-readmission-result.md now records native 30/30 and review-wrapper 9/9 PASS"
+      ]
+    },
+    {
+      "id": "LEAD-GEMINI-LINKED-REPORT-CUSTODY",
+      "classification": "LOCAL_EXECUTION_GAP",
+      "material": false,
+      "disposition": "CORRECTED",
+      "correctionEvidence": [
+        "Gemini's exact linked report is retained beside its wrapper and SHA-256-bound by the lane manifest and consumer"
+      ]
+    },
+    {
+      "id": "OPUS-F6-CENSUS-FILE-REPRODUCIBILITY",
+      "classification": "NO_FINDING",
+      "material": false,
+      "disposition": "DEFER_SAFE",
+      "whySafe": "The deciding zero-delta assertion and canonical census digest live inside the digest-pinned result; standalone before/after files affect later re-derivation convenience, not the frozen run-window claim.",
+      "revisitTrigger": "Any future re-derivation of the Product-delta claim or first external Evidence custody export.",
+      "laterOwner": "R1C-14 Evidence custody under the operator-pending external-custody decision."
+    },
+    {
+      "id": "OPUS-F7-S3-CREDENTIAL-AND-CONTAINER-HARDENING",
+      "classification": "NO_FINDING",
+      "material": false,
+      "disposition": "DEFER_SAFE",
+      "whySafe": "The qualification claim is limited to its synthetic canary and exact detector surfaces; S3-P0 already requires its own credential-slot and hardened-container RED controls before Product bytes.",
+      "revisitTrigger": "S3-P0 exact Git execution adapter proof.",
+      "laterOwner": "4F(R1) §7 S3-P0."
+    },
+    {
+      "id": "OPUS-F8-DEAD-REDUNDANT-CONTROLS",
+      "classification": "LOCAL_EXECUTION_GAP",
+      "material": false,
+      "disposition": "DEFER_SAFE",
+      "whySafe": "Historical bytes are independently digest-checked and semantically cross-checked by firing tests; exact CLI versions and argv are bound from retained wrappers. The identified self-comparison and unused version-pattern fields carry no deciding claim.",
+      "revisitTrigger": "Next maintenance change to the native-review consumer or review CLI compatibility policy.",
+      "laterOwner": "R1C-14 consumer maintenance."
+    },
+    {
+      "id": "OPUS-F9-LOCAL-ONLY-CUSTODY",
+      "classification": "NO_FINDING",
+      "material": false,
+      "disposition": "DEFER_SAFE",
+      "whySafe": "Current local execution fails closed on absence of the exact index and the receipt declares local-worktree provenance only; no external durability is claimed.",
+      "revisitTrigger": "Daemon handoff/reset/prune/replacement, remote CI/runtime use, missing exact index, or external Evidence/image publication.",
+      "laterOwner": "docs/evidence/4d/4d-r1-operator-pending-actions.md and the operator-controlled custody boundary."
+    },
+    {
+      "id": "GEMINI-SIX-PROTECTED-CLAIMS",
+      "classification": "NO_FINDING",
+      "material": false,
+      "disposition": "NO_FINDING"
+    },
+    {
+      "id": "OPUS-FIVE-NONREVIEW-PROTECTED-CLAIMS",
+      "classification": "NO_FINDING",
+      "material": false,
+      "disposition": "NO_FINDING"
+    }
+  ],
+  "unresolvedMaterialFindings": 0,
+  "verdict": "PASS"
+}

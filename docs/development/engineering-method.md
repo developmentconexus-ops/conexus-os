@@ -1,6 +1,6 @@
 # DevelopmentConexus Engineering Method
 
-**Version:** 1.0.0  
+**Version:** 1.2.0
 **Status:** ACCEPTED  
 **Authority:** organizational engineering standard  
 **Scope:** all DevelopmentConexus repositories; human, agent, or hybrid engineering
@@ -131,6 +131,61 @@ Define how the protected claim could be proven false **before** implementing the
 Proof must match the claim and maturity level: architecture may require counterexample analysis, independent challenge, coherence review, or a targeted probe; implementation may require compile/type/schema failure, negative fixtures, integration, restart/recovery, concurrency, contract-diff, or end-to-end evidence.
 
 Artifact existence is not proof. **A control that cannot be shown to fire is not proven.**
+
+### Delivery and convergence
+
+Once accepted authority is sufficient, define the smallest observable vertical
+increment that realizes the protected Product/system property. Bind it to its
+owning invariant, exact dependency and ownership envelope, nominal and negative
+paths, falsifiers, proof, completion conditions and explicit non-goals.
+
+Planning is sufficient when remaining implementation choices are mechanical.
+Additional planning, abstraction, Evidence machinery or review requires a named
+material unknown, contradiction, dependency or falsifier.
+
+Progress means realizing a protected Product/system property or removing a real
+blocker to it. Plans, gates, receipts, review rounds and automation are not
+delivery progress unless they are necessary to enable or prove that protected
+property.
+
+A finding blocks the current increment only when accepted authority requires
+it, or Evidence shows that it can falsify the protected property, violate an
+owning authority or trust boundary, cause an unauthorized/irreversible effect,
+or make deciding proof unreliable. Other valid findings use DEFER SAFELY and
+must not silently widen the current gate.
+
+When assurance work repeats without a new material falsifier, perform a
+proportionality reset: restate the protected claim, retain only the proof needed
+for that claim, route safe findings to their later owner, and resume the
+vertical increment. Never use this reset to defer a real correctness blocker.
+Review machinery becomes part of the reviewed subject only when its integrity
+is necessary for the deciding verdict. A further independent round is required
+only when a correction materially changes the protected property or the
+reliability of its deciding proof.
+
+### Periodic independent assurance
+
+Independent review is both risk-triggered and cadence-bounded. A repository MAY
+define named stage/part units and require two fresh isolated challengers:
+
+- before every stage closes; and
+- no later than three completed parts since the last independent checkpoint in
+  an open stage.
+
+When both conditions coincide, one coherent whole-package round satisfies both.
+An earlier material-decision or material-diff review resets the rolling count
+only when it challenged the same current implementation subject. The Lead MUST
+freeze the candidate, protected-claim census, blocker census, falsifiers and
+deciding-proof route before the lanes start. Neither lane may receive the other
+lane's output before both complete.
+
+This assurance floor does not make reviewer output authority and does not
+permit recursive review expansion. The Lead adjudicates every finding against
+current owners. Apply `DEFER SAFELY` to valid non-blockers with why-safe, revisit
+trigger and later owner. After corrections, run another independent round only
+when a surviving material correction invalidated a protected property or the
+reliability of deciding proof; otherwise terminate the review cycle and resume
+delivery.
 
 ### Adversarial challenge and findings
 

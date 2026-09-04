@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "conexus.r1-s2-workspace-foundation-migration/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "migrationId",
+    "prior",
+    "sourceRefs",
+    "custodyRoots",
+    "bootstrapPaths",
+    "changedPaths",
+    "addedPaths",
+    "adoptedExistingPaths",
+    "generatedRoots",
+    "protectedExistingPaths",
+    "controlArtifacts",
+    "parts",
+    "expectedProductDelta"
+  ],
+  "properties": {
+    "kind": { "const": "conexus.r1-s2-workspace-foundation-migration/v1" },
+    "migrationId": { "const": "R1-S2-WORKSPACE-FOUNDATION" },
+    "prior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["a0ReceiptDigest", "a0ManifestDigest", "migration001Digest"],
+      "properties": {
+        "a0ReceiptDigest": { "$ref": "#/$defs/digest" },
+        "a0ManifestDigest": { "$ref": "#/$defs/digest" },
+        "migration001Digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "sourceRefs": { "type": "array", "items": { "$ref": "#/$defs/anchoredPath" }, "minItems": 1 },
+    "custodyRoots": { "type": "array", "items": { "$ref": "#/$defs/path" }, "minItems": 1 },
+    "bootstrapPaths": { "type": "array", "items": { "$ref": "#/$defs/outputPath" }, "minItems": 1 },
+    "changedPaths": { "type": "array", "items": { "$ref": "#/$defs/changedPath" } },
+    "addedPaths": { "type": "array", "items": { "$ref": "#/$defs/windowPath" } },
+    "adoptedExistingPaths": { "type": "array", "items": { "$ref": "#/$defs/anchoredClassPath" } },
+    "generatedRoots": { "type": "array", "items": { "$ref": "#/$defs/generatedRoot" } },
+    "protectedExistingPaths": { "type": "array", "items": { "$ref": "#/$defs/anchoredClassPath" } },
+    "controlArtifacts": { "type": "array", "items": { "$ref": "#/$defs/control" }, "minItems": 1 },
+    "parts": { "type": "array", "items": { "$ref": "#/$defs/part" }, "minItems": 6, "maxItems": 6 },
+    "expectedProductDelta": { "type": "object" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "path": { "type": "string", "pattern": "^(?!/)(?!.*\\\\)(?!.*:)(?!.*//)(?!.*(?:^|/)\\.{1,2}(?:/|$))[^\\u0000]+$" },
+    "class": { "enum": ["GENERATED", "PLATFORM-CONTRACT", "APP-OWNED"] },
+    "window": { "enum": ["S2-P0", "S2-P1", "S2-P2", "S2-P3", "S2-P4", "S2-P5"] },
+    "anchoredPath": {
+      "type": "object", "additionalProperties": false, "required": ["path", "digest"],
+      "properties": { "path": { "$ref": "#/$defs/path" }, "digest": { "$ref": "#/$defs/digest" } }
+    },
+    "anchoredClassPath": {
+      "type": "object", "additionalProperties": false, "required": ["path", "digest", "class"],
+      "properties": { "path": { "$ref": "#/$defs/path" }, "digest": { "$ref": "#/$defs/digest" }, "class": { "$ref": "#/$defs/class" } }
+    },
+    "outputPath": {
+      "type": "object", "additionalProperties": false, "required": ["path", "outputDigest", "class"],
+      "properties": { "path": { "$ref": "#/$defs/path" }, "outputDigest": { "$ref": "#/$defs/digest" }, "class": { "$ref": "#/$defs/class" } }
+    },
+    "windowPath": {
+      "type": "object", "additionalProperties": false, "required": ["path", "class", "mutationWindows"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" }, "class": { "$ref": "#/$defs/class" },
+        "mutationWindows": { "type": "array", "items": { "$ref": "#/$defs/window" }, "minItems": 1, "uniqueItems": true },
+        "currentDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "changedPath": {
+      "type": "object", "additionalProperties": false, "required": ["path", "class", "mutationWindows", "priorDigest"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" }, "class": { "$ref": "#/$defs/class" },
+        "mutationWindows": { "type": "array", "items": { "$ref": "#/$defs/window" }, "minItems": 1, "uniqueItems": true },
+        "priorDigest": { "$ref": "#/$defs/digest" },
+        "currentDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "generatedRoot": {
+      "type": "object", "additionalProperties": false,
+      "required": ["root", "priorTreeDigest", "class", "producer", "mutationWindows"],
+      "properties": {
+        "root": { "$ref": "#/$defs/path" }, "priorTreeDigest": { "$ref": "#/$defs/digest" },
+        "class": { "const": "GENERATED" }, "producer": { "type": "string", "minLength": 1 },
+        "mutationWindows": { "type": "array", "items": { "$ref": "#/$defs/window" }, "minItems": 1, "uniqueItems": true },
+        "currentTreeDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "control": {
+      "type": "object", "additionalProperties": false, "required": ["path", "kind", "publicationPhase"],
+      "properties": { "path": { "$ref": "#/$defs/path" }, "kind": { "type": "string", "minLength": 1 }, "publicationPhase": { "$ref": "#/$defs/window" } }
+    },
+    "part": {
+      "type": "object", "additionalProperties": false, "required": ["id", "requiredProofs"],
+      "properties": { "id": { "$ref": "#/$defs/window" }, "requiredProofs": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z0-9:_-]+$" }, "uniqueItems": true } }
+    }
+  }
+}

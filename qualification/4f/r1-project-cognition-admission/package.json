@@ -1,0 +1,20 @@
+{
+  "name": "@developmentconexus/conexus-r1c13-admission",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.20.0"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 p0-response-boundary.test.mjs p1-project-mastra-admission.test.mjs p2-anthropic-oauth-admission.test.mjs",
+    "auth:login": "node auth-login.mjs",
+    "qualify:live": "node p2-live-anthropic-oauth.mjs"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "4.0.48",
+    "@ai-sdk/openai-compatible": "3.0.43",
+    "@mastra/core": "1.63.2",
+    "zod": "4.5.2"
+  }
+}

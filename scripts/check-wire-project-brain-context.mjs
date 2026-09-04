@@ -13,6 +13,8 @@ const ingress = operation['x-conexus-ingress'] ?? [];
 if (ingress.length !== 1 || ingress[0] !== 'CONTROL_PLANE') throw new Error('BRN-14 must remain Control-Plane only');
 if (operation['x-conexus-non-http-ingress']) throw new Error('BRN-14 must not create non-HTTP/runtime ingress');
 if (operation.requestBody) throw new Error('BRN-14 must remain a read-only GET without request body');
+const authorityRoutes = operation['x-conexus-authority-routes'] ?? [];
+if (authorityRoutes.join(',') !== 'brain.read + project.read,project.build') throw new Error('BRN-14 must admit ordinary context inspection + purpose-bound project.build');
 
 function resolveLocalRef(value) {
   if (!value?.$ref || !value.$ref.startsWith('#/')) return value;
@@ -80,8 +82,10 @@ function assertProjectContextSchema(candidate) {
   const concepts = property(domain, 'concepts');
   if (concepts?.type !== 'array') throw new Error('F23 concepts must be an array');
   const concept = requireClosedObject(resolveSchema(concepts.items), 'ProjectBrainContextConcept');
-  requireFields(concept, 'conceptRef', 'label', 'summary', 'contentClasses', 'sections', 'provenanceRefs');
-  for (const name of ['conceptRef', 'label', 'summary']) requireNonBlankString(concept, name, `F23 concept ${name}`);
+  requireFields(concept, 'conceptRef', 'authoringRef', 'label', 'summary', 'contentClasses', 'detailDisclosed', 'sections', 'provenanceRefs');
+  for (const name of ['conceptRef', 'authoringRef', 'label', 'summary']) requireNonBlankString(concept, name, `F23 concept ${name}`);
+  if (property(concept, 'detailDisclosed')?.type !== 'boolean') throw new Error('F05 detailDisclosed must be boolean');
+  if (!(property(concept, 'detailDisclosed')?.description ?? '').includes('withheld by current authority')) throw new Error('F05 withheld detail must not masquerade as empty/invalid meaning');
 
   const classes = property(concept, 'contentClasses');
   if (classes?.type !== 'array' || (classes.minItems ?? 0) < 1 || classes.uniqueItems !== true) throw new Error('F23 contentClasses must be non-empty and unique');
@@ -130,4 +134,4 @@ expectNegative('F23 cannot expose tool authority', (schema) => {
   schema.properties.toolAuthority = { type: 'array', items: { type: 'string' } };
 });
 
-console.log('Project F23 Brain Context closure passed (1 Project-scoped Brain read; adopted Project context only; no Workspace publication/runtime-slice/tool authority).');
+console.log('Project Brain Context closure passed (BRN-14 ordinary detail + purpose-bound build authoring refs; no Workspace publication/runtime-slice/tool authority).');

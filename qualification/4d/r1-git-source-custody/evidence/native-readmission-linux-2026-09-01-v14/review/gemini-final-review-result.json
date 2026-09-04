@@ -1,0 +1,58 @@
+{
+  "schema": "conexus.review-run/v1",
+  "repositoryRoot": "/mnt/c/Users/leandro.theodoro/Documents/conexus-os",
+  "brief": "docs/evidence/4d/4d-r1-r1c14-native-readmission-review-brief.md",
+  "briefSha256": "a6d74e5c8b4ebe1173f0e5d3a0764958bff36b6a665762f49e797a10de7cbfa2",
+  "candidateResult": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/results.json",
+  "candidateResultSha256": "d5ccba4ecf683417a5a78313c5fa7230fd3eb56fd8ced0eca7e14b844be767c6",
+  "lane": "gemini",
+  "mode": "execute",
+  "dryRun": false,
+  "outputDir": "/home/leandrotheodoro/conexus-review/r1c14-native-v14-final-r3-gemini",
+  "lanes": [
+    {
+      "lane": "gemini",
+      "executable": "agy",
+      "args": [
+        "-p",
+        "Act as an independent, neutral whole/global reviewer of the current Conexus OS repository.\nRepository root: /mnt/c/Users/leandro.theodoro/Documents/conexus-os\nExact review brief: docs/evidence/4d/4d-r1-r1c14-native-readmission-review-brief.md\n\nReconstruct repository-current authority yourself before judging anything. Start with\nAGENTS.md, docs/roadmap.md, docs/index.md, docs/development/engineering-method.md,\ndocs/development/repository-method.md, and docs/development/blueprint-harness-design.md\nsections 10.4–10.6; then read the exact brief and only the routed evidence it names.\nTreat the brief as orientation and attack framing, not as authority or proof.\n\nAttack the complete named subject adversarially: inspect hidden coupling, duplicate or\nmissing authority, false completeness, over-stopping, under-stopping, weak falsifiers,\nsecurity/trust-boundary mistakes, recovery/concurrency gaps, and avoidable complexity.\nPreserve accepted upstream meaning unless current evidence actually falsifies it.\n\nDo not edit files, install dependencies, call Conexus/Product providers, run production\neffects, push, create a PR, merge, or ask another reviewer. Use only read-only inspection.\nDo not create a Docker builder or build, pull, tag, load, push or remove an image. If a\ndiagnostic is not admitted read-only, keep it as an unknown instead of requesting it.\n\nReturn a self-contained independent report. Classify every concrete finding using exactly\n- METHOD FINDING\n- PRODUCT / PLAN GAP\n- LOCAL EXECUTION GAP\n- NO FINDING\nFor every material finding include: evidence/reproducible observation; failure mode;\nwhy it is material; smallest real owner/stage; protected property or target invariant;\nwhether current work must stop; what must be re-evaluated; and what must not be reopened.\nKeep unknowns as unknowns and distinguish evidence from inference.\n\nDo not target, assume, imply, or borrow a preferred verdict. Do not compare your result\nwith another lane and do not claim convergence, consensus, or a Global Maximum. If you\ninclude a conclusion, emit only your own evidence-based raw line as `VERDICT = ...`.\nReviewer output is Evidence, not authority; the Lead/operator adjudicates it later.",
+        "--model",
+        "gemini-3.1-pro-high",
+        "--effort",
+        "high",
+        "--mode",
+        "plan",
+        "--sandbox",
+        "--output-format",
+        "json"
+      ],
+      "expectedVersion": "1.1.22-compatible",
+      "model": "gemini-3.1-pro-high",
+      "effort": "high",
+      "mode": "plan",
+      "sandbox": true,
+      "sessionOrConversation": "cefceb8b-d72c-4a65-a6dd-027444b1c0ef",
+      "version": "1.1.23",
+      "verdictRaw": "PASS",
+      "exitCode": 0,
+      "signal": null,
+      "raw": "{\"conversation_id\":\"cefceb8b-d72c-4a65-a6dd-027444b1c0ef\",\"status\":\"SUCCESS\",\"response\":\"I have completed the independent, neutral review of the R1C-14 Linux-native readmission as requested, strictly following the evidence-driven protocol using read-only access. The system successfully validates exact execution identity, false-pass resistance, non-disclosure, and ensures review integrity without invoking untrusted substitutions.\\n\\nYou can view the detailed breakdown of the findings in the artifact below:\\n\\n[R1C-14 Native Readmission Global Review](file:///home/leandrotheodoro/.gemini/antigravity-cli/brain/cefceb8b-d72c-4a65-a6dd-027444b1c0ef/r1c14-native-readmission-review.md)\\n\\nHere are the required final review metrics and verdict:\\n\\n```text\\nR1C14_NATIVE_READMISSION = ADMISSIBLE\\nMATERIAL_BLOCKERS = 0\\nEXACT_OCI_IDENTITY = PASS\\nFALSE_PASS_RESISTANCE = PASS\\nQUALIFICATION_RUN_PRODUCT_DELTA = PASS\\nSECRET_NON_DISCLOSURE = PASS\\nHISTORICAL_EVIDENCE_PRESERVED = PASS\\nDECIDING_REVIEW_INTEGRITY = PASS\\nVERDICT = PASS\\n```\\n\",\"duration_seconds\":178.673058757,\"num_turns\":1,\"usage\":{\"input_tokens\":153041,\"output_tokens\":10925,\"thinking_tokens\":8115,\"cache_read_tokens\":424656,\"total_tokens\":163966}}\n",
+      "stderr": "",
+      "parsed": {
+        "conversation_id": "cefceb8b-d72c-4a65-a6dd-027444b1c0ef",
+        "status": "SUCCESS",
+        "response": "I have completed the independent, neutral review of the R1C-14 Linux-native readmission as requested, strictly following the evidence-driven protocol using read-only access. The system successfully validates exact execution identity, false-pass resistance, non-disclosure, and ensures review integrity without invoking untrusted substitutions.\n\nYou can view the detailed breakdown of the findings in the artifact below:\n\n[R1C-14 Native Readmission Global Review](file:///home/leandrotheodoro/.gemini/antigravity-cli/brain/cefceb8b-d72c-4a65-a6dd-027444b1c0ef/r1c14-native-readmission-review.md)\n\nHere are the required final review metrics and verdict:\n\n```text\nR1C14_NATIVE_READMISSION = ADMISSIBLE\nMATERIAL_BLOCKERS = 0\nEXACT_OCI_IDENTITY = PASS\nFALSE_PASS_RESISTANCE = PASS\nQUALIFICATION_RUN_PRODUCT_DELTA = PASS\nSECRET_NON_DISCLOSURE = PASS\nHISTORICAL_EVIDENCE_PRESERVED = PASS\nDECIDING_REVIEW_INTEGRITY = PASS\nVERDICT = PASS\n```\n",
+        "duration_seconds": 178.673058757,
+        "num_turns": 1,
+        "usage": {
+          "input_tokens": 153041,
+          "output_tokens": 10925,
+          "thinking_tokens": 8115,
+          "cache_read_tokens": 424656,
+          "total_tokens": 163966
+        }
+      }
+    }
+  ],
+  "outputFile": "/home/leandrotheodoro/conexus-review/r1c14-native-v14-final-r3-gemini/conexus-review-result.json"
+}

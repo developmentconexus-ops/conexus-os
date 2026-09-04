@@ -1,8 +1,8 @@
 # 4C — Candidate Screen / Material-Surface Inventory
 
-> **Status:** CANDIDATE / 4C-5 / `4C-F02` + `4C-F03` + `4C-F11` + `4C-F12` + `4C-F14` + `4C-F15` COVERAGE RECOMPILED
+> **Status:** CANDIDATE / 4C-5 / TERMINAL PRE-P11 COVERAGE RECOMPILED THROUGH `4C-F40`
 > **Authority posture:** derived from the operator-accepted-for-progression 4C-4 candidate IA, the current 4C-0→4C-3 foundation and accepted Product authority. This document does not create Product operations, DTOs, authorization, runtime behavior, implementation authority or final visual structure.
-> **Method:** `docs/development/frontend-product-experience-planning-method.md` v2.2 profiled by the Conexus 4C contract.
+> **Method:** `docs/development/frontend-product-experience-planning-method.md` v2.3 profiled by the Conexus 4C contract.
 
 4C-5 answers one question only:
 
@@ -28,6 +28,10 @@ W-03 authority-feasibility subsequently exposed two accepted findings. `4C-F11` 
 W-04 later proved `WS-S03` as an Agent-first Workspace discovery catalog over `PRJ-22`. The operator-approved revised P8 makes Purpose and owning Project materially legible and ends `Open Agent` at the future Project-owned Agent workspace boundary without opening P-03 or widening `project.read` into `project.source.read`.
 
 P-01 subsequently proved the Project Build workspace. `4C-F14` preserves authored Change intent and optional exact Change context for `BLD-16`. Operator walkthrough then converged from shell coherence and density corrections to an app-first Build root: the current Project application is immediately visible, Conexus occupies the right sidebar, and an exact Change emerges only from a Build instruction. P9 exposed `4C-F15`, recompiling existing `BLD-10` as `GetBuildPreview(changeId?)`: omitted `changeId` returns `CURRENT_PROJECT`; an exact optional `changeId` returns `CHANGE_CANDIDATE`. P-01 is now locked without changing the 116-operation census.
+
+P-02 subsequently proved four focused Project Product lenses. `4C-F16..F23` close human presentation, purpose-bound selection, governed analytic discovery, physical read-only Data exploration and server-resolved Project Brain Context without merging owners. The operator-approved Integrations correction makes Project use and the contained Project-private Connection lifecycle operable while preserving independent Connection Permissions and exact revision/binding truth. P-02 is now locked; its exact P8 blob and P9/P10 closure are pinned by the P-02 Screen Contract.
+
+The terminal pre-P11 coverage pass adds only the accepted later operations that were missing from the historical 4C-5 table: `PRJ-25..28`, `BRN-13`, `BRN-14` and `BLD-18..20`. Later F31–F40 enrich existing operations or presentation truth without adding another platform operation. `PAR-05` remains the sole fixed operation with no direct browser surface. Budget Analyzer operations remain Product/API proving-instance truth outside the current platform frontend block set.
 
 ---
 
@@ -106,6 +110,7 @@ No generic Workspace `Settings` screen is created by symmetry. `4C-F11` adds evi
 | PRJ-S08 | Findings + Evidence | `MATERIAL_REGION` / drawers candidate | inspect Findings/Evidence and close only with current resolution authority | review/provenance + exact decision; on demand only |
 | PRJ-S09 | Change execution detail | `MATERIAL_REGION` / detail drawer | inspect subordinate WorkUnit/ActorRun facts | progressive platform detail, not separate owner |
 | PRJ-S10 | Builder contextual Conexus assistant | `INLINE_COMPOSITION` | converse in the right-side Build sidebar over current Project context and, after exact Change creation, optionally exact Change context | `BLD-16` under `project.build`; distinct from Baseline-management `PRJ-24`; no durable Builder thread owner or new authority |
+| PRJ-S10A | Agent Studio specialized Build lens | `ALTERNATE_VIEW` inside P-01 | inspect one exact authored `agent/v1`, start a NEW/EXISTING typed draft, revise it structurally or with Conexus and review the same Change candidate diff | `PRJ-21` + `BLD-18..20`; draft is server-owned Change candidate state, never live Agent/source/Mastra authority |
 | PRJ-S11 | Data | `ROUTE_PAGE` with master-detail candidate | inspect declared Product/read-model resources, grain, freshness, coverage and provenance | never generic DB explorer |
 | PRJ-S12 | Analytic Query interaction | `MATERIAL_REGION` / `APP_COMPOSED_SURFACE` | ask governed semantic analytical questions over exact Brain/dataset scope | placement remains block-level question |
 | PRJ-S13 | Capabilities | `ROUTE_PAGE` with detail candidate | inspect authored/Release Queries/Actions without gaining invocation by inspection | capability identity differs from source/integration mechanics |
@@ -142,8 +147,8 @@ Published Applications do not inherit Control Plane navigation. Their exact busi
 | PA-S03 | Product Agent conversation | `APP_COMPOSED_SURFACE` | list/open/create Conversation and send turns to exact active Agent | exact Release/Agent pinning |
 | PA-S04 | Agent run detail | `MATERIAL_REGION` | inspect exact AgentRun/receipts where admitted | runtime provenance differs from transcript |
 | PA-S05 | Exact effect approval | `MATERIAL_REGION` attached to exact app/AgentRun context | decide exact sealed ApprovalRequest when route admits it | app role alone never confers approval eligibility |
-| BUD-S01 | Budget Analyzer analysis dashboard | `ROUTE_PAGE` | run exact pending-budget analysis and understand truth state | no arbitrary metric/query builder |
-| BUD-S02 | Pending budgets drilldown | `ROUTE_PAGE` or focused detail route | inspect exact pending-budget rows under response/page result coordinate | distinct row-level/paging truth |
+
+Accepted `4C-F27` binds the later PA-01 block to test full-page, contextual-side-panel and inline Product Agent compositions over the same Conversation/AgentRun truth. An eligible exact `ApprovalRequest` may be projected inline and through an app-scoped `Needs your decision` affordance, but Published Applications do not inherit a universal chat bubble, Control Plane IA or a second approval owner.
 
 ---
 
@@ -172,18 +177,18 @@ These are later Screen Contract/wireframe obligations, not client-owned lifecycl
 
 | Block | Candidate scope | Why grouped | Reference / hypothesis trigger |
 | --- | --- | --- | --- |
-| `GF-01` | global frame + Workspace/Project navigation | whole-product coherence checkpoint | now `LOCKED / H1-R2`; later blocks inherit it unless a material falsifier reopens it |
-| `W-01` | Projects + source-complete create + Inception + candidate/approved Baseline | one continuous Journey-B entry/outcome | W-01 C1-R1 LOCKED; 4C-F02 + 4C-F03 remain its accepted bounded authority corrections |
-| `W-02` | Workspace Brain + Connections | reusable enterprise context/resources | W-02A Brain LOCKED; W-02B Connections LOCKED; later P11 assembly only after remaining material blocks |
-| `W-03` | People/access + audit | current authorization administration vs immutable investigation | LOCKED / OPERATOR APPROVED; F11/F12 GREEN; P8 blob `7434c561ef0cfbc43c81ab8dd1f72b13cf032135`; P9/P10 closed |
-| `W-04` | Workspace Agent catalog | access-filtered browse of Project-owned Agents | LOCKED / OPERATOR APPROVED; revised P8 blob `65073eb5f532f2675f04ec307eb0d9b91fd1b69d`; P9/P10 closed |
-| `P-01` | Build + Plan/Preview/Code/Diff/Findings/Evidence/assistant | primary Project workspace | LOCKED / OPERATOR APPROVED; final right-sidebar P8 blob `3f9d30f7e6fa0de814f0be20b7583b4e98aca7c8`; F14/F15; P9/P10 closed |
-| `P-02` | Data + Capabilities + Integrations + Project Connections + Brain binding | inspectable Product resources | NEXT / NOT OPEN; AnalyticQuery placement and Connection findability explicit questions |
-| `P-03` | Agents + triggers + runs + exact approvals | Product Agent lifecycle/runtime human work | approval discovery/placement trust-critical |
-| `P-04` | Releases + Promotions + Activity + effect/job/usage/audit evidence | operate/inspect work | avoid deployment-dashboard flattening |
-| `P-05` | bounded Project lifecycle + Published-App access administration | exact management actions only | no generic Settings symmetry |
-| `PA-01` | Published-App platform frame + Product Agent surfaces | independent app authority | platform-owned boundaries stay minimal |
-| `BUD-01` | Budget Analyzer dashboard + drilldown | first vertical/proving instance | dashboard→drilldown structural hypothesis |
+| `T-01` | trusted first setup + later internal Account provisioning | explicit pre-Account → normal-session authority transition | P12 Family 1 identity delta RE-LOCKED / OPERATOR APPROVED / `4da586d8...` |
+| `GF-01` | global frame + Workspace/Project navigation | whole-product coherence checkpoint | P12 Family 1 ingress/egress delta RE-LOCKED / OPERATOR APPROVED / `603b47cc...` |
+| `W-01` | Projects + source-complete create + Inception + candidate/approved Baseline | one continuous Journey-B entry/outcome | P12 Family 1 Workspace/Project delta RE-LOCKED / OPERATOR APPROVED / `d466d66a...` |
+| `W-02` | Workspace Brain + Connections | reusable enterprise context/resources | P12 Family 2 deltas RE-LOCKED / OPERATOR APPROVED: W-02A `f0a69027...`, W-02B `f8a4be72...` |
+| `W-03` | People/access + audit | current authorization administration vs immutable investigation | P11-W03-F01 shell RE-LOCKED / OPERATOR APPROVED / blob `e9d630622d853d6e352737f46202f2765526fd6a`; inner interactions and P9/P10 preserved/closed |
+| `W-04` | Workspace Agent catalog | access-filtered browse of Project-owned Agents | P12 Family 4 Agent-egress `71e03432...` / RE-LOCKED / OPERATOR APPROVED |
+| `P-01` | Build + Plan/Preview/Agent Studio/Code/Diff/Findings/Evidence/assistant | primary Project workspace | Family 1 preserved; P12 Family 4 Agent-ingress `25e50771...` / RE-LOCKED / OPERATOR APPROVED |
+| `P-02` | Data + Capabilities + Integrations + Project Connections + Brain binding | inspectable Product resources | P12 Family 2 governed-adoption delta RE-LOCKED / OPERATOR APPROVED / `fd23303a...` |
+| `P-03` | Agents + definition inspection + Agent Studio handoff + triggers + runs + exact approvals | Product Agent lifecycle/runtime human work | F05 preserved; P12 Family 4 Agent/ApprovalRun `17d31534...` / RE-LOCKED / OPERATOR APPROVED |
+| `P-04` | Releases + Promotions + Activity + effect/job/usage/audit evidence | operate/inspect work | Family 3 preserved; P12 Family 4 originatingRun `e036684e...` / RE-LOCKED / OPERATOR APPROVED |
+| `P-05` | bounded Project lifecycle + Published-App access administration | Project Management route with App access + Lifecycle task lenses | approved baseline `c8d18c94...`; P12 Family 3 access delta `d00b2126...` / RE-LOCKED / OPERATOR APPROVED |
+| `PA-01` | Published-App platform frame + Product Agent surfaces | independent app authority | Family 3 preserved; P12 Family 4 ApprovalRun `ffba5935...` / RE-LOCKED / OPERATOR APPROVED |
 
 ---
 
@@ -220,28 +225,28 @@ The set below must equal the current frontend-reachable concrete operation set. 
 | PRJ-S08 | `BLD-11`, `BLD-12`, `BLD-13`, `BLD-14`, `BLD-15` |
 | PRJ-S09 | `BLD-17` |
 | PRJ-S10 | `BLD-16` |
-| PRJ-S11 | `PRJ-18`, `PRJ-19` |
-| PRJ-S12 / PA-S02 | `BRN-12` |
+| PRJ-S10A | `BLD-18`, `BLD-19`, `BLD-20`, `PRJ-29` |
+| PRJ-S11 | `PRJ-18`, `PRJ-19`, `PRJ-25`, `PRJ-26`, `PRJ-27`, `PRJ-28` |
+| PRJ-S12 | `BRN-12`, `BRN-13` |
+| PA-S02 | `BRN-12` |
 | PRJ-S13 | `PRJ-16`, `PRJ-17` |
 | PRJ-S14 | `PRJ-13`, `PRJ-14`, `PRJ-15` |
 | PRJ-S16 | `PRJ-20`, `PRJ-21` |
 | PRJ-S17 | `PAR-11`, `PAR-12`, `PAR-13`, `PAR-14`, `PAR-15`, `PAR-16` |
 | PRJ-S18 / PA-S04 | `PAR-06`, `PAR-07` |
-| PRJ-S19 | `PRJ-10`, `PRJ-11`, `PRJ-12` |
+| PRJ-S19 | `PRJ-10`, `PRJ-11`, `PRJ-12`, `BRN-14` |
 | PRJ-S20 | `REL-01`, `REL-02`, `REL-07`, `REL-08` |
 | PRJ-S21 | `REL-04`, `REL-05`, `REL-06` |
 | PRJ-S22 | `OBS-01` |
 | PRJ-S23 | `OBS-02` |
 | PRJ-S24 | `OBS-03` |
 | PRJ-S25 | `GW-01`, `GW-02` |
-| PRJ-S26 | `MAR-01`, `MAR-02`, `MAR-03` |
+| PRJ-S26 | `MAR-01`, `MAR-02`, `MAR-03`, `MAR-04` |
 | PRJ-S28 / PA-S05 | `PAR-08`, `PAR-09`, `PAR-10` |
 | PRJ-S29 | `PRJ-05`, `PRJ-06` |
-| PRJ-S30 | `IAM-14`, `IAM-15`, `IAM-17` |
+| PRJ-S30 | `IAM-14`, `IAM-15`, `IAM-17`, `IAM-21` |
 | PA-S01 | `IAM-13` |
 | PA-S03 | `PAR-01`, `PAR-02`, `PAR-03`, `PAR-04` |
-| BUD-S01 | `BUD-01` |
-| BUD-S02 | `BUD-02` |
 
 ---
 
@@ -286,19 +291,18 @@ The original 4C-5 inventory exposed no upstream gap. W-01 later exposed `4C-F02`
 | ID | Candidate question | Next proving block |
 | --- | --- | --- |
 | `4C-S01` | exact global-frame navigation placement/order | `GF-01` — resolved by H1-R2 lock unless materially falsified |
-| `4C-S02` | Project-scoped Connection lifecycle placement | `P-02` |
-| `4C-S03` | Control Plane AnalyticQuery placement: Data-led vs Brain-led | `P-02` |
-| `4C-S04` | exact ApprovalRequest host | `P-03` / `PA-01` |
-| `4C-S05` | Budget drilldown route vs master-detail | `BUD-01` |
-| `4C-S06` | discover pending exact ApprovalRequest without universal Approval Center or invented aggregate authority | `P-03`, cross-check `P-04` / `PA-01` |
+| `4C-S02` | Project-scoped Connection lifecycle placement | resolved by P-02: secondary contained lifecycle inside Integrations, reusing W-02B grammar |
+| `4C-S03` | Control Plane AnalyticQuery placement: Data-led vs Brain-led | resolved by P-02: Data-led Analyze interaction over Brain-owned `BRN-13/12` authority |
+| `4C-S04` | exact ApprovalRequest host | resolved by P-03 + PA-01: exact context-attached subject with app-scoped discovery where admitted |
+| `4C-S06` | discover pending exact ApprovalRequest without universal Approval Center or invented aggregate authority | resolved by P-03/P-04/PA-01 owner-scoped queues, context links and the non-numeric app-scoped affordance |
 | `4C-S07` | W-03A People-first vs Area-first vs matrix-root interaction structure | resolved by W-03 subject-first operator lock |
 | `4C-S08` | W-03B chronological audit + filter/detail density | resolved by W-03 filtered immutable Audit operator lock |
 
-`4C-A02` relative frequency/urgency remains open only where it materially affects ordering/density.
+`4C-A02` is rejected as a current material closure dependency: no frequency is inferred, and current ordering/density was accepted through authority-backed tasks plus operator P11/P12 walkthrough. Optional P13/post-operational measurement reopens only the smallest affected ordering/density decision when material.
 
 ---
 
-## 10. Candidate closure result after P-01 lock
+## 10. Historical candidate closure result after P-01 lock
 
 ```text
 fixed Product operations                        = 116
@@ -314,4 +318,17 @@ parallel Product DTO authority                  = 0
 Product implementation                          = 0
 ```
 
-This remains a **candidate inventory**, not a global structural lock. `GF-01`, `W-01`, `W-02A Brain`, `W-02B Connections`, `W-03 People/access + Audit`, `W-04 Workspace Agent catalog` and `P-01 Build` are individually operator-locked where their exact block Evidence applies. P-01 exact final P8 is pinned by its Screen Contract. `P-02` is now `NEXT / NOT OPEN`; opening it requires explicit operator authorization.
+Current terminal pre-P11 coverage projection:
+
+```text
+fixed platform Product operations                = 128
+fixed direct-browser operations                  = 127
+explicit direct-browser disposition              = PAR-05 only
+frontend-reachable concrete operations mapped    = 127 / 127
+Budget Analyzer application wireframe            = 0 / FUTURE_PRODUCT_APP
+invented Product operations                      = 0
+screen-shaped Product operations                 = 0
+parallel frontend Product DTO authority          = 0
+```
+
+This remains a historical **candidate inventory**, not a global structural lock. Every material platform block and bounded pre-P11 delta is operator-locked where its exact Evidence applies, with prior baseline identities preserved historically. P12 Families 1-4 and the current transport-only P11 at `45172fd...` are operator-locked; P12 and 4C are closed and operator-ratified where required. Product-specific app wireframes, including Budget Analyzer, are not platform blocks. 4D remains `NOT STARTED` and Product implementation stays blocked.

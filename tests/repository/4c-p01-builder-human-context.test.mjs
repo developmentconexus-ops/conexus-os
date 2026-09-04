@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
+import { assert4DOpeningIsProperlyGated } from './_roadmap-phase-guards.mjs'
 
 const root = resolve(new URL('../../', import.meta.url).pathname)
 const path = p => resolve(root, p)
@@ -41,8 +42,9 @@ test('P-01 preserves operator-approved F14/P7 history through later authorized b
   requireText(selected, 'ChangeSummary requires intent', 'F14 must preserve durable Change intent selection')
   requireText(selected, 'BLD-16 admits optional changeId', 'F14 must preserve exact optional Change assistant context selection')
 
-  requireText(roadmap, 'P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED', 'roadmap must preserve current P-01 lock')
-  if (/P11\s*=\s*ASSEMBLED/.test(roadmap) || /4D[^\n|]*=\s*OPEN/.test(roadmap)) throw new Error('later authorized progression must not assemble P11 or open 4D')
+  requireText(roadmap, 'P-01 = LOCKED / OPERATOR APPROVED / AGENT STUDIO DELTA RE-LOCKED / P9/P10 CLOSED', 'roadmap must preserve the P-01 baseline and approved Agent Studio delta')
+  if (/P11\s*=\s*ASSEMBLED/.test(roadmap)) throw new Error('later authorized progression must not assemble P11')
+  assert4DOpeningIsProperlyGated(roadmap, 'later progression must not open 4D before 4C closure')
 })
 
 test('selected F14 realization preserves Change intent and exact optional Change context inside the Builder owner', () => {
@@ -52,7 +54,8 @@ test('selected F14 realization preserves Change intent and exact optional Change
   const checker = read('scripts/check-wire-builder.mjs')
 
   requireText(ledger, 'N_platform = 116', 'F14 must preserve fixed Product census 116')
-  requireText(ledger, '## 5.4 Builder — 17', 'F14 must preserve exactly 17 Builder operations')
+  requireText(ledger, 'Builder remains 17', 'F14 historical decision must preserve the original 17-operation census at F14')
+  requireText(ledger, '## 5.4 Builder — 20', 'current Builder census must include the later independently approved F30 operations')
   requireText(ledger, '4C-F14', 'F14 semantic correction must be projected into current 4A Builder authority')
   requireText(ledger, 'intent remains the required human semantic statement of what must become true', 'F14 ledger must preserve authored Change intent as human meaning')
   requireText(ledger, 'optional exact current Change context', 'F14 ledger must bind BLD-16 optional exact Change context')
@@ -87,5 +90,8 @@ test('selected F14 realization preserves Change intent and exact optional Change
   }
 
   const ids = [...wire.matchAll(/x-conexus-4a-id: (BLD-\d+)/g)].map(m => m[1])
-  if (ids.length !== 17 || new Set(ids).size !== 17) throw new Error(`F14 must preserve 17 unique Builder operations; got ${ids.length}`)
+  if (ids.length !== 20 || new Set(ids).size !== 20) throw new Error(`current wire must preserve 20 unique Builder operations after F30; got ${ids.length}`)
+  for (const id of ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-16', 'BLD-17']) {
+    if (!ids.includes(id)) throw new Error(`F30 must not erase historical F14 Builder operation ${id}`)
+  }
 })

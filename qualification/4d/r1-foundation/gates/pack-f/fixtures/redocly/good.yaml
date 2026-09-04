@@ -1,0 +1,20 @@
+openapi: 3.1.2
+info:
+  title: R1F clean fixture
+  version: 1.0.0
+  license:
+    name: Apache License 2.0
+    identifier: Apache-2.0
+servers:
+  - url: https://fixture.invalid
+security: []
+paths:
+  /ready:
+    get:
+      summary: Read fixture readiness
+      operationId: ready
+      responses:
+        '200':
+          description: Ready
+        '400':
+          description: Invalid fixture request

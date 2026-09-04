@@ -11,6 +11,9 @@ const forbiddenLegacy = ['m', 'n', 'f', 's'].join('')
 const reviewCandidate = process.env.REVIEW_CANDIDATE_REF || ''
 const temporaryGate = process.env.TEMPORARY_GATE === '1'
 const reviewFile = 'docs/work/current/ai-dialog.md'
+const preservedHistoricalEvidence = new Set([
+  'docs/evidence/4e/4e-r1-to-4f-handoff.md'
+])
 const gateFiles = new Set([
   'docs/work/current/index.md',
   'docs/work/current/proposal.md',
@@ -50,7 +53,9 @@ for (const path of tracked) {
   const normalized = path.toLowerCase()
   if (normalized.includes(forbiddenLegacy)) errors.push(`legacy path: ${path}`)
   if (normalized.startsWith('docs/superpowers/')) errors.push(`superseded documentation tree: ${path}`)
-  if (/(handoff|dialogue|round|correction-handoff)/i.test(path) && path !== reviewFile) errors.push(`transient path: ${path}`)
+  if (/(handoff|dialogue|round|correction-handoff)/i.test(path) && path !== reviewFile && !preservedHistoricalEvidence.has(path)) {
+    errors.push(`transient path: ${path}`)
+  }
   if (/^(ai_dialog|knowledge-migration)\.md$/i.test(path)) errors.push(`temporary root artifact: ${path}`)
   if (normalized.startsWith('docs/work/')) {
     const allowed = reviewCandidate ? path === reviewFile || gateFiles.has(path) : temporaryGate && gateFiles.has(path)

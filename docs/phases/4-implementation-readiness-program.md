@@ -6,19 +6,23 @@ Current mutable status and exact next action live only in [../roadmap.md](../roa
 
 Accepted Phase-3 architecture and accepted Realization Planning are necessary but not sufficient to begin Product code.
 
-The implementation gate is refined as:
+The implementation gate is refined globally and per reachable tranche as:
 
 ```text
 accepted Product / architecture authority
 → 4A Product Surface & Authority Contract
 → 4B Executable Wire Contract
 → 4C Frontend Interaction & Authority Realization
-→ 4D Project Paved Road & Runtime Realization
-→ 4E Whole-System Coherence & Golden Flows
-→ 4F Implementation Program & Execution Graph
-→ 4G Adversarial Implementation Readiness
-→ explicit operator Product execution grant
-→ Product implementation eligible
+→ global 4D-A/B/applicability contract
+→ for exact reachable tranche T:
+   applicable 4D-C selections + 4D-D conformance/version/proof
+   → 4E(T) composed coherence
+   → 4F(T) bounded implementation graph
+   → 4G(T) adversarial readiness
+   → explicit operator execution grant for T
+   → implementation eligible only for T
+→ later tranches remain blocked and plan just in time
+→ full-composition 4E over the first Budget Analyzer Golden Flow by R7/3O
 ```
 
 This is an implementation-readiness refinement, not a reopen of C-018 or 3A–3O by preference. Earlier authority reopens only when a concrete Phase-4 falsifier proves it materially incomplete or contradictory.
@@ -78,6 +82,27 @@ proof before implementation
 ```
 
 A stage may discover a bounded upstream defect. It may not silently repair it in a downstream mechanism.
+
+### 3.1 Tranche-scoped incremental eligibility
+
+The operator-ratified incremental-value law applies to the readiness program
+itself, not only to later coding:
+
+```text
+global direction + owners + protected seams
+→ exact next consumer tranche
+→ close only its mechanisms, conformance, coherence, graph and readiness
+→ explicit tranche grant
+→ useful implementation + real Evidence
+→ correct or open the next tranche just in time
+```
+
+Tranche scoping changes timing, not correctness. Every reachable authority,
+security, persistence, recovery and proof obligation remains non-degradable.
+Unreachable `PRESERVE_SEAM` and `DEFER` families receive no machinery.
+
+One tranche grant cannot authorize another tranche. R1 foundation/bootstrap is
+not the first operational Product proof; that proof still traverses RB Builder.
 
 ## 4. 4A — Product Surface & Authority Contract
 
@@ -314,7 +339,7 @@ Select concrete mechanisms only after the Paved-Road properties are exact.
 - PostgreSQL physical schema/tables/indexes/constraints;
 - owner-role capabilities and transaction/concurrency primitives including CR-1 realization;
 - migration tooling;
-- Gateway and Sankhya/Oracle adapters;
+- Gateway and Sankhya Gateway/API capability adapters;
 - MAR queue/scheduler/job mechanics;
 - process/binary topology;
 - configuration/secrets;
@@ -347,7 +372,9 @@ The non-authoritative [Blueprint Harness design input](../development/blueprint-
 
 ## 8. 4E — Whole-System Coherence & Golden Flows
 
-4E verifies that Product semantics, wire, frontend, Paved Road and runtime realization form one system before an implementation graph is authorized.
+4E verifies that Product semantics, wire, frontend, Paved Road and runtime
+realization form one coherent system at the exact composition boundary reached
+by the current tranche before that tranche's implementation graph is authorized.
 
 It composes representative positive and negative flows across real boundaries. The first Budget Analyzer path remains mandatory:
 
@@ -369,15 +396,23 @@ Keycloak authentication
 
 Negative flows must demonstrate fail-closed behavior for materially reachable classes such as wrong Workspace, revoked/narrowed authority, stale Release, wrong Connection, unsupported semantic meaning, partial/unverifiable source coverage, invalid serving bytes, forbidden Paved-Road bypass and recovery/continuity faults at their owning stage.
 
-3N falsifiers and `3O-P1..P7` remain routed proof obligations; 4E composes them with the concrete 4A–4D realization instead of creating a new Proof owner.
+3N falsifiers and `3O-P1..P7` remain routed proof obligations; 4E composes them
+with concrete 4A–4D realization instead of creating a new Proof owner. A
+tranche-scoped 4E is not final whole-Product closure. Full-composition 4E over
+the Budget Analyzer Golden Flow remains mandatory no later than the tranche that
+makes R7/3O reachable.
 
 ## 9. 4F — Implementation Program & Execution Graph
 
-4F converts accepted realization into bounded implementation work.
+4F converts accepted realization into bounded implementation work for one exact
+reachable tranche.
 
 The accepted [Realization Planning — First Build](realization-planning.md) becomes an **execution skeleton/input** here, not direct authority to code after Phase 3.
 
-4F must rederive R1–R7 against the now-exact 4A–4E contracts. Each implementation slice receives, at minimum:
+4F maintains a derived operation reachability map from the canonical operation
+ledger and rederives only the current tranche against exact 4A–4E inputs. The
+map bounds scope; it owns no Product meaning and is not a second operation
+authority. Each implementation slice receives, at minimum:
 
 - exact Product operations/consumers it realizes;
 - owning modules and allowed persistence surfaces;
@@ -394,9 +429,18 @@ The accepted [Realization Planning — First Build](realization-planning.md) bec
 
 No implementation slice may begin by selecting its own foundational stack. No slice may be kept merely because it appeared in the earlier planning skeleton if 4A–4E Evidence shows a smaller or different graph is correct.
 
+The current R1 derivation is the independently converged and operator-approved
+[`4F(R1) Global-Maximum execution graph`](../evidence/4f/4f-r1-implementation-slice-plan.md).
+It composes Chromium proof with each human-meaningful owner increment, reserves
+the full three-browser hardening boundary, places Project cognition last,
+attaches `R1C-14` immediately before PRJ-03 and `R1C-13` immediately before the
+final cognition slice. 4F(R1) is closed and opens only 4G(R1). It is not an
+implementation grant.
+
 ## 10. 4G — Adversarial Implementation Readiness
 
-4G is the final independent attack before Product execution can become eligible.
+4G is the final independent attack before one exact tranche can become eligible
+for its own execution grant.
 
 The review must challenge at least:
 
@@ -426,9 +470,15 @@ Phase-3 falsifier no longer reachable by a real proof path
 
 Findings are Evidence, not automatic requirements. Material findings reopen only the smallest implicated authority and require operator adjudication where they change an accepted decision.
 
-## 11. Final implementation eligibility
+The current R1 adversarial result is the independently converged and
+operator-approved [`4G(R1) semantic-CLEAR result`](../evidence/4g/4g-r1-independent-adversarial-review-adjudication.md).
+Its plan findings are corrected with no Product-authority change. The operator
+separately authorized this recoverable authority checkpoint. Once it exists,
+R1 is eligible only for a separate implementation-grant decision.
 
-Product implementation remains blocked until all are true:
+## 11. Tranche implementation eligibility
+
+Implementation of tranche `T` remains blocked until all are true:
 
 ```text
 4A CLOSED / OPERATOR-RATIFIED
@@ -437,19 +487,30 @@ Product implementation remains blocked until all are true:
   first Budget Analyzer N_budget exact
 4B CLOSED / OPERATOR-RATIFIED
 4C CLOSED / OPERATOR-RATIFIED
-4D CLOSED / OPERATOR-RATIFIED
-  scaffold + ownership exact
-  Paved Road exact
-  runtime/dependencies exact
-  conformance/escape-hatch/eval exact
-4E CLOSED / OPERATOR-RATIFIED
-4F CLOSED / OPERATOR-RATIFIED
-4G CLOSED / independent challenge converged
-repository current authority coherent on exact integrated main
-operator Product execution authorization explicit
+global 4D-A/B/applicability CLOSED / OPERATOR-RATIFIED
+applicable 4D-C selections for T exact
+applicable 4D-D conformance/version/escape/eval for T exact
+4E(T) CLOSED / operator-adjudicated
+4F(T) CLOSED / exact operations, owners, dependencies, mutations and proof graph
+4G(T) CLOSED / independent challenge converged
+repository current authority recoverable at an exact checkpoint
+operator execution authorization explicit for T
+all other tranches remain BLOCKED
 ```
 
-No architecture ratification, Realization Planning acceptance, CI success, PR merge, reviewer approval or framework qualification implicitly satisfies the final operator execution grant.
+No architecture ratification, prior tranche grant, Realization Planning
+acceptance, CI success, PR merge, reviewer approval, framework qualification or
+probe grant implicitly satisfies a tranche execution grant.
+
+Qualification probes are not Product implementation, but each probe batch still
+requires an explicit operator probe grant plus an isolated Evidence-only
+contract, exact pins and zero root/Product dependency. Probe success cannot grant
+tranche implementation; probe failure may reopen the smallest affected
+selection.
+
+Before the first operational Budget Analyzer can close, full-composition 4E,
+the Builder-produced candidate law, R6 Release/serving and R7/3O real-source
+reconciliation remain mandatory.
 
 ## 12. Reopen and YAGNI law
 

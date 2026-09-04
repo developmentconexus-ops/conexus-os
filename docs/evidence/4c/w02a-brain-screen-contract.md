@@ -1,9 +1,10 @@
 # 4C W-02A — Locked Brain Screen Contract
 
-> **Status:** `LOCKED / OPERATOR APPROVED` · P9 EXACT TRACE CLOSED · P10 CONSOLIDATED · P11 LATER ASSEMBLED PRODUCT
+> **Status:** `LOCKED BASELINE / P12 FAMILY 2 IDENTITY DELTA RE-LOCKED / OPERATOR APPROVED` · P9/P10 consolidated
 > **Block:** `W-02A — Workspace Brain`
 > **Locked structure:** domain/concept first + separate governance work, with explicit Project context for Discovery
 > **approved P8 artifact blob = 9ca84ddbf40f6bcd969bfa638203bff8b9abf46e**
+> **P12 Family 2 approved P8 delta blob = f0a6902737a36217b081ff61768caa39c98c4734**
 > **Product implementation authority:** none.
 
 The operator approved the revised functional P8 after F07 made published Brain knowledge structurally browseable from exact Brain truth and F08 made the Project subject of Discovery explicit. The approved HTML remains an immutable P8 Evidence snapshot; its in-artifact `CANDIDATE · NOT LOCKED` label is not rewritten after approval. `LOCKED` authority lives in this Screen Contract and the W-02A structural record, pinned to the exact approved blob above.

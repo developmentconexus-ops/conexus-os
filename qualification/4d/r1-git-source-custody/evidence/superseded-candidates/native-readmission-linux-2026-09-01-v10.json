@@ -1,0 +1,25 @@
+{
+  "kind": "conexus.r1c14.native-readmission-supersession/v1",
+  "observedOn": "2026-09-01",
+  "disposition": "SUPERSEDED_NOT_AUTHORITY",
+  "predecessorSupersession": {
+    "path": "evidence/superseded-candidates/native-readmission-linux-2026-09-01-v9.json",
+    "sha256": "79947b9e96f9e218925db63d11c187f30101ebc3c5b4ebeff777799eff3ed3a1"
+  },
+  "superseded": {
+    "evidenceDirectory": "evidence/native-readmission-linux-2026-09-01-v10",
+    "resultSha256": "71c9113a1a8338fba73e63f718c23a72db9673d4c505e3704026cb9e2ae0009a",
+    "candidateSha256": "ccc7b7044738a87fc37e73c3c2aa809e9ae3fe3a112299a83acee85fd8c8ebf7",
+    "retained": true
+  },
+  "successor": {
+    "evidenceDirectory": "evidence/native-readmission-linux-2026-09-01-v11",
+    "resultSha256": "bf2adbe3025d2171c306efd63e5ea703967a42041e6c4d518e2262587cb19424",
+    "candidateSha256": "7dc1f513546c2a87001f0a6b1fe744a18fd5269fbda65f9bd253fde547fb73d4"
+  },
+  "corrections": [
+    "All six closed protocol identities are retained byte-exact and asserted.",
+    "Fingerprint fields are recorded provenance, not an unperformed verification claim.",
+    "Failure cleanup preserves the primary error and independently attempts both owned roots."
+  ]
+}

@@ -33,14 +33,15 @@ GET /api/control/projects/{projectId}/effect-attempts
 GET /api/control/projects/{projectId}/effect-attempts/{effectAttemptId}
 ```
 
-`GW-01` supports only the existing bounded continuation law:
+`GW-01` supports the existing bounded continuation law plus one exact owner-coordinate filter accepted by `4C-PRE11-F04`:
 
 ```text
-pageToken     = optional opaque continuation
-nextPageToken = optional opaque continuation
+originatingRun = optional exact owner-issued { kind, ref } filter
+pageToken      = optional opaque continuation bound to Project + filter + ordering
+nextPageToken  = optional opaque continuation
 ```
 
-No generic filter/sort/status/provider/date query language was admitted.
+The exact filter is applied server-side before pagination. Results are ordered by `attemptedAt DESC`, then `effectAttemptId DESC`. No generic filter/sort/status/provider/date query language was admitted.
 
 ## 3. EffectAttempt projection
 
@@ -98,7 +99,8 @@ GW method/path changes
 non-SCHEMA_CLOSED GW rows
 request bodies on GW reads
 If-Match / Idempotency-Key on GW inspection
-invented collection filters beyond pageToken
+invented collection filters beyond pageToken + exact originatingRun
+incomplete originatingRun or continuation-token/filter mismatch without 422
 universal outcome/reconciliation enums
 loss of explicit OUTCOME_UNKNOWN semantics
 raw provider payload/credential exposure

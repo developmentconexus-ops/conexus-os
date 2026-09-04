@@ -26,10 +26,11 @@ test('documentation router reaches the C-018 durable contract', () => {
   assert.match(read('docs/index.md'), /phases\/c-018-final-architecture-ratification\.md/)
 })
 
-test('ratified C-018 projects operator ratification while Product remains blocked', () => {
+test('ratified C-018 preserves its deny-only law after later bounded Product authorization', () => {
   const roadmap = read('docs/roadmap.md')
   const decisions = read('docs/decisions/index.md')
   assert.match(roadmap, /\| C-018 \| RATIFIED \/ OPERATOR RATIFIED \|/)
-  assert.match(roadmap, /\| Product implementation \| BLOCKED \|/)
+  assert.match(roadmap, /\| Product implementation \|[^\n]*\bR1\b[^\n]*\b(?:R2|RB)[^\n]*BLOCKED/)
+  assert.match(read('docs/phases/c-018-final-architecture-ratification.md'), /C-018 = RATIFIED[\s\S]*!=[\s\S]*Product implementation authorized/)
   assert.match(decisions, /\| C-018 \| Final Product architecture ratification\. \| CURRENT \/ OPERATOR RATIFIED \|/)
 })

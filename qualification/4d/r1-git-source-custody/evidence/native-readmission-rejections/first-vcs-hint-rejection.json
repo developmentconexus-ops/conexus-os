@@ -1,0 +1,19 @@
+{
+  "kind": "conexus.r1c14.git-source-custody-native-build-rejection/v1",
+  "observedOn": "2026-09-01",
+  "imageIndexDigest": "sha256:a75b3631df2a6e6bcdf94e4ee511bb81ddbab3f21b391badae9598f3bae1b9d7",
+  "linuxAmd64ManifestDigest": "sha256:5c4c1731bb91b227c26ab40efd8298a8a9b3a3f8a5a40642d65817d581a72276",
+  "sourceMetadataSha256": "f0e49d75e2e17d67698a8fb867381cac170452717542a03a25a33e2b1895f54e",
+  "retainedNormalizedMetadataPath": "qualification/4d/r1-git-source-custody/evidence/native-readmission-rejections/first-vcs-hint-build-metadata.json",
+  "retainedNormalizedMetadataSha256": "238a44065dfab98be5b97dfc567a5d482a7639fa2cc9c5d159d9c9fa6d6399c3",
+  "normalization": "JSON values preserved; one terminal newline appended by repository patching",
+  "rejectionBasis": "OPERATOR_METADATA_INSPECTION",
+  "automatedRefusalPrecedence": "R1C14_METADATA_PIN_MISMATCH",
+  "latentAutomatedControl": "R1C14_METADATA_FALSE_VCS_IDENTITY",
+  "rejectedValues": {
+    "vcs:revision": "fd6f771be45102009f1887afaa9fc8a7e487e777",
+    "vcs:source": "https://github.com/developmentconexus-ops/conexus-os.git"
+  },
+  "reason": "The local build context contains uncommitted qualification bytes, so the commit hint does not identify the executed recipe.",
+  "verdict": "REJECTED"
+}

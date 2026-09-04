@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:conexus:qualification:profile:v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "profileId", "profileVersion", "outputs"],
+  "properties": {
+    "kind": { "const": "conexus.fixture-profile/v1" },
+    "profileId": { "type": "string", "minLength": 1 },
+    "profileVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "path", "class", "render", "content"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "path": { "type": "string", "minLength": 1 },
+              "class": { "enum": ["GENERATED", "PLATFORM-CONTRACT", "APP-OWNED"] },
+              "render": { "const": "STATIC" },
+              "content": { "type": "string" }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "path", "class", "render", "inputKey"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "path": { "type": "string", "minLength": 1 },
+              "class": { "enum": ["GENERATED", "PLATFORM-CONTRACT"] },
+              "render": { "const": "CANONICAL_JSON" },
+              "inputKey": { "type": "string", "minLength": 1 }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "path", "class", "render", "segments"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "path": { "type": "string", "minLength": 1 },
+              "class": { "enum": ["GENERATED", "PLATFORM-CONTRACT", "APP-OWNED"] },
+              "render": { "const": "TOKEN_TEXT" },
+              "segments": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "oneOf": [
+                    { "type": "object", "additionalProperties": false, "required": ["literal"], "properties": { "literal": { "type": "string" } } },
+                    { "type": "object", "additionalProperties": false, "required": ["inputKey"], "properties": { "inputKey": { "type": "string", "minLength": 1 } } }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

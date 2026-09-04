@@ -18,6 +18,7 @@ for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
 }
 
 const expected = {
+  'MAR-04': { method: 'GET', path: '/api/control/projects/{projectId}/managed-jobs', carrier: 'NONE' },
   'MAR-01': { method: 'GET', path: '/api/control/projects/{projectId}/job-runs', carrier: 'NONE' },
   'MAR-02': { method: 'GET', path: '/api/control/projects/{projectId}/job-runs/{jobRunId}', carrier: 'NONE' },
   'MAR-03': { method: 'POST', path: '/api/control/projects/{projectId}/jobs/{jobId}/runs', carrier: 'IDEMPOTENCY_KEY' }
@@ -122,6 +123,24 @@ const runtimeEscapeFields = [
   'catchUpSlots', 'markSucceeded', 'markFailed', 'setStatus', 'providerPayload', 'rawPayload'
 ];
 
+// 4C-F33 / MAR-04 exposes safe runnable-job discovery from the exact currently served Release.
+if (resolvedParameters('MAR-04').some((candidate) => candidate?.in === 'query')) throw new Error('MAR-04 must not accept caller Release/job discovery overrides');
+if (op('MAR-04').requestBody) throw new Error('MAR-04 must not accept a request body');
+const catalog = assertClosedObject(successSchema('MAR-04'), 'MAR-04 success');
+required(catalog, 'projectId', 'catalogState', 'items');
+rejectProperties(catalog, 'MAR-04 RunnableManagedJobCatalog', runtimeEscapeFields);
+const catalogStates = property(catalog, 'catalogState')?.enum ?? [];
+if (catalogStates.join(',') !== 'AVAILABLE,NO_SERVED_RELEASE') throw new Error('MAR-04 catalogState must distinguish AVAILABLE from NO_SERVED_RELEASE');
+const catalogItems = property(catalog, 'items');
+if (catalogItems?.type !== 'array' || !catalogItems.items) throw new Error('MAR-04 items must be an array');
+const runnableJob = assertClosedObject(catalogItems.items, 'MAR-04 RunnableManagedJobSummary');
+required(runnableJob, 'jobId', 'name', 'purpose');
+for (const name of ['jobId', 'name', 'purpose']) assertOpaqueString(property(runnableJob, name), `MAR-04 ${name}`);
+rejectProperties(runnableJob, 'MAR-04 RunnableManagedJobSummary', runtimeEscapeFields);
+for (const forbidden of ['runNowEligible', 'canRun', 'currentPermission', 'releaseSelector']) {
+  if (runnableJob.properties?.[forbidden]) throw new Error(`MAR-04 must not project browser authority field ${forbidden}`);
+}
+
 // MAR-01 exposes only exact Release/job filters plus the shared opaque continuation token.
 const listQuery = resolvedParameters('MAR-01').filter((candidate) => candidate?.in === 'query');
 const allowedListQuery = new Set(['releaseId', 'jobId', 'pageToken']);
@@ -186,4 +205,4 @@ for (const forbidden of ['releaseId', 'environmentId', 'queueId', 'scheduleId', 
   }
 }
 
-console.log('Managed Application Runtime schema closure passed (3 operations; JobRun owner truth and run-now admission closed without queue/scheduler authority).');
+console.log('Managed Application Runtime schema closure passed (4 operations; runnable-job discovery, JobRun owner truth and run-now admission closed without queue/scheduler authority).');

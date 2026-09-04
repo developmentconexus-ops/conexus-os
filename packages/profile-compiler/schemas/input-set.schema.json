@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:conexus:project-scaffold-input-set:v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "profileRef", "baselineRef", "applicationRuntimeProfile", "admittedConsumerRefs", "admittedPropertyIds", "wireProjection", "platformContract", "decidingConstraintRefs", "appSeed"],
+  "properties": {
+    "kind": { "const": "conexus.project-scaffold-input-set/v1" },
+    "profileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profileId", "profileVersion", "profileDigest", "generatorProtocolVersion"],
+      "properties": {
+        "profileId": { "const": "conexus-r1-managed" },
+        "profileVersion": { "const": "1.0.0" },
+        "profileDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "generatorProtocolVersion": { "const": "ConexusProfileCompiler/v1" }
+      }
+    },
+    "baselineRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority", "tranche", "operationCensus"],
+      "properties": {
+        "authority": { "const": "4E(R1)-OPERATOR-APPROVED" },
+        "tranche": { "const": "R1" },
+        "operationCensus": { "const": 13 }
+      }
+    },
+    "applicationRuntimeProfile": { "const": "MANAGED" },
+    "admittedConsumerRefs": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": { "enum": ["I&A", "Workspace", "Project", "ControlPlaneShell"] }
+    },
+    "admittedPropertyIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^(R1C|SCF)-[0-9]{2}$" }
+    },
+    "wireProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "digest", "sourceRefs", "operations"],
+      "properties": {
+        "kind": { "const": "conexus.r1-wire-projection/v1" },
+        "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "sourceRefs": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "sha256"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+            }
+          }
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 13,
+          "maxItems": 13,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ownerId", "operationId", "owner", "method", "path", "permission", "currentStateCarrier", "sourceRef"],
+            "properties": {
+              "ownerId": { "enum": ["IAM-01", "IAM-02", "IAM-03", "WS-01", "WS-02", "PRJ-01", "PRJ-02", "PRJ-03", "PRJ-07", "PRJ-08", "PRJ-09", "PRJ-23", "PRJ-24"] },
+              "operationId": { "type": "string", "minLength": 1 },
+              "owner": { "enum": ["I&A", "Workspace", "Project"] },
+              "method": { "enum": ["GET", "POST", "DELETE"] },
+              "path": { "type": "string", "pattern": "^/api/" },
+              "permission": { "type": "string", "minLength": 1 },
+              "currentStateCarrier": { "enum": ["NONE", "OWNER_CURRENT", "IDEMPOTENCY_KEY", "EXPLICIT_REVISION"] },
+              "sourceRef": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "platformContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "validator", "genericExecutor", "technicalIngressSeparated"],
+      "properties": {
+        "kind": { "const": "conexus.r1-platform-contract/v1" },
+        "validator": { "const": "SEALED_SINGLE_PORT" },
+        "genericExecutor": { "const": false },
+        "technicalIngressSeparated": { "const": true }
+      }
+    },
+    "decidingConstraintRefs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "appSeed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["paths"],
+      "properties": { "paths": { "type": "array", "maxItems": 0 } }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "kind": "conexus.r1f.pack-d-negative-controls/v1",
+  "controls": [
+    { "id": "server-secret-bundle-scan", "expected": "absent", "verdict": "PASS" },
+    { "id": "server-authority-bundle-scan", "expected": "absent", "verdict": "PASS" },
+    { "id": "url-workspace-admin-forgery", "expected": "Access denied", "verdict": "PASS" },
+    { "id": "localStorage-project-forgery", "expected": "Access denied", "verdict": "PASS" },
+    { "id": "query-cache-project-forgery", "expected": "command denied; mutation count unchanged", "verdict": "PASS" },
+    { "id": "query-cache-refetch", "expected": "server denial restored", "verdict": "PASS" },
+    { "id": "missing-origin-fetch-metadata", "expected": "HTTP 403", "verdict": "PASS" },
+    { "id": "cross-origin-command", "expected": "browser block or HTTP 403; no mutation", "verdict": "PASS" },
+    { "id": "secure-cookie-attributes", "expected": "HttpOnly+Secure+SameSite=Lax", "verdict": "PASS" },
+    { "id": "csrf-valid-same-origin", "expected": "command succeeds", "verdict": "PASS" }
+  ],
+  "verdict": "PASS"
+}

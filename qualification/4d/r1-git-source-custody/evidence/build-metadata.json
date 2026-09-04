@@ -1,0 +1,1812 @@
+{
+  "buildx.build.provenance": {
+    "builder": {
+      "id": ""
+    },
+    "buildType": "https://mobyproject.org/buildkit@v1",
+    "materials": [
+      {
+        "uri": "pkg:docker/docker/dockerfile@1.7",
+        "digest": {
+          "sha256": "a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e"
+        }
+      },
+      {
+        "uri": "pkg:docker/node?digest=sha256:be23f54a88d34e8824c741b19b91064094f92c1c97b194144bfc8b50d67258e2\u0026platform=linux%2Famd64",
+        "digest": {
+          "sha256": "be23f54a88d34e8824c741b19b91064094f92c1c97b194144bfc8b50d67258e2"
+        }
+      },
+      {
+        "uri": "https://keyserver.ubuntu.com/pks/lookup?op=get\u0026search=0xE1F036B1FEE7221FC778ECEFB0B5E88696AFE6CB",
+        "digest": {
+          "sha256": "fd2809d850e844b614ac60f13ded554c55d9052e5c799a5814abcba2a68a063c"
+        }
+      },
+      {
+        "uri": "https://www.kernel.org/pub/software/scm/git/git-2.55.0.tar.sign",
+        "digest": {
+          "sha256": "8673501946204c38ebfed09603c1f3a041ed8d12b31f0aa06a474d41e359e254"
+        }
+      },
+      {
+        "uri": "https://www.kernel.org/pub/software/scm/git/git-2.55.0.tar.xz",
+        "digest": {
+          "sha256": "457fdb04dc8728e007d4688695e6912e6f680727920f2a40bf11eacc17505357"
+        }
+      }
+    ],
+    "invocation": {
+      "configSource": {
+        "entryPoint": "Dockerfile"
+      },
+      "parameters": {
+        "frontend": "gateway.v0",
+        "args": {
+          "cmdline": "docker/dockerfile:1.7",
+          "source": "docker/dockerfile:1.7"
+        },
+        "locals": [
+          {
+            "name": "context"
+          },
+          {
+            "name": "dockerfile"
+          }
+        ],
+        "compatibilityVersion": 30
+      },
+      "environment": {
+        "platform": "linux/amd64"
+      }
+    },
+    "buildConfig": {
+      "llbDefinition": [
+        {
+          "id": "step0",
+          "op": {
+            "Op": {
+              "source": {
+                "identifier": "docker-image://docker.io/library/node@sha256:be23f54a88d34e8824c741b19b91064094f92c1c97b194144bfc8b50d67258e2",
+                "attrs": {
+                  "image.resolvemode": "local"
+                }
+              }
+            },
+            "platform": {
+              "Architecture": "amd64",
+              "OS": "linux"
+            },
+            "constraints": {}
+          }
+        },
+        {
+          "id": "step1",
+          "op": {
+            "Op": {
+              "source": {
+                "identifier": "https://www.kernel.org/pub/software/scm/git/git-2.55.0.tar.xz",
+                "attrs": {
+                  "http.checksum": "sha256:457fdb04dc8728e007d4688695e6912e6f680727920f2a40bf11eacc17505357",
+                  "http.filename": "git-2.55.0.tar.xz"
+                }
+              }
+            },
+            "constraints": {}
+          }
+        },
+        {
+          "id": "step2",
+          "op": {
+            "Op": {
+              "file": {
+                "actions": [
+                  {
+                    "input": 0,
+                    "secondaryInput": 1,
+                    "output": 0,
+                    "Action": {
+                      "copy": {
+                        "src": "/git-2.55.0.tar.xz",
+                        "dest": "/tmp/git.tar.xz",
+                        "mode": -1,
+                        "createDestPath": true,
+                        "timestamp": -1
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "constraints": {}
+          },
+          "inputs": [
+            "step0:0",
+            "step1:0"
+          ]
+        },
+        {
+          "id": "step3",
+          "op": {
+            "Op": {
+              "source": {
+                "identifier": "https://www.kernel.org/pub/software/scm/git/git-2.55.0.tar.sign",
+                "attrs": {
+                  "http.checksum": "sha256:8673501946204c38ebfed09603c1f3a041ed8d12b31f0aa06a474d41e359e254",
+                  "http.filename": "git-2.55.0.tar.sign"
+                }
+              }
+            },
+            "constraints": {}
+          }
+        },
+        {
+          "id": "step4",
+          "op": {
+            "Op": {
+              "file": {
+                "actions": [
+                  {
+                    "input": 0,
+                    "secondaryInput": 1,
+                    "output": 0,
+                    "Action": {
+                      "copy": {
+                        "src": "/git-2.55.0.tar.sign",
+                        "dest": "/tmp/git.tar.sign",
+                        "mode": -1,
+                        "createDestPath": true,
+                        "timestamp": -1
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "constraints": {}
+          },
+          "inputs": [
+            "step2:0",
+            "step3:0"
+          ]
+        },
+        {
+          "id": "step5",
+          "op": {
+            "Op": {
+              "source": {
+                "identifier": "https://keyserver.ubuntu.com/pks/lookup?op=get\u0026search=0xE1F036B1FEE7221FC778ECEFB0B5E88696AFE6CB",
+                "attrs": {
+                  "http.checksum": "sha256:fd2809d850e844b614ac60f13ded554c55d9052e5c799a5814abcba2a68a063c",
+                  "http.filename": "lookup"
+                }
+              }
+            },
+            "constraints": {}
+          }
+        },
+        {
+          "id": "step6",
+          "op": {
+            "Op": {
+              "file": {
+                "actions": [
+                  {
+                    "input": 0,
+                    "secondaryInput": 1,
+                    "output": 0,
+                    "Action": {
+                      "copy": {
+                        "src": "/lookup",
+                        "dest": "/tmp/release-key.asc",
+                        "mode": -1,
+                        "createDestPath": true,
+                        "timestamp": -1
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "constraints": {}
+          },
+          "inputs": [
+            "step4:0",
+            "step5:0"
+          ]
+        },
+        {
+          "id": "step7",
+          "op": {
+            "Op": {
+              "exec": {
+                "meta": {
+                  "args": [
+                    "/bin/sh",
+                    "-c",
+                    "test \"$(dpkg-query -W -f='${Version}' gcc)\" = \"4:12.2.0-3\"   \u0026\u0026 test \"$(dpkg-query -W -f='${Version}' make)\" = \"4.3-4.1\"   \u0026\u0026 test \"$(dpkg-query -W -f='${Version}' gnupg)\" = \"2.2.40-1.1+deb12u2\"   \u0026\u0026 test \"$(dpkg-query -W -f='${Version}' libcurl4-openssl-dev)\" = \"7.88.1-10+deb12u15\"   \u0026\u0026 test \"$(dpkg-query -W -f='${Version}' libexpat1-dev)\" = \"2.5.0-1+deb12u2\"   \u0026\u0026 test \"$(dpkg-query -W -f='${Version}' libssl-dev)\" = \"3.0.20-1~deb12u2\"   \u0026\u0026 test \"$(dpkg-query -W -f='${Version}' xz-utils)\" = \"5.4.1-1+deb12u1\"   \u0026\u0026 test \"$(dpkg-query -W -f='${Version}' zlib1g-dev)\" = \"1:1.2.13.dfsg-1\"   \u0026\u0026 test \"$(sha256sum /tmp/git.tar.xz | cut -d' ' -f1)\" = \"${GIT_SOURCE_SHA256}\"   \u0026\u0026 test \"$(sha256sum /tmp/git.tar.sign | cut -d' ' -f1)\" = \"${GIT_SIGNATURE_SHA256}\"   \u0026\u0026 test \"$(sha256sum /tmp/release-key.asc | cut -d' ' -f1)\" = \"${RELEASE_KEY_SHA256}\"   \u0026\u0026 mkdir -m 0700 /tmp/gnupg   \u0026\u0026 gpg --homedir /tmp/gnupg --import /tmp/release-key.asc   \u0026\u0026 gpg --homedir /tmp/gnupg --with-colons --fingerprint     | grep -Fqx \"fpr:::::::::${RELEASE_KEY_FINGERPRINT}:\"   \u0026\u0026 xz -dc /tmp/git.tar.xz \u003e /tmp/git.tar   \u0026\u0026 gpg --homedir /tmp/gnupg --verify /tmp/git.tar.sign /tmp/git.tar   \u0026\u0026 mkdir /tmp/git-source   \u0026\u0026 tar -xf /tmp/git.tar --strip-components=1 -C /tmp/git-source   \u0026\u0026 cd /tmp/git-source   \u0026\u0026 test \"$(./GIT-VERSION-GEN . --format=@GIT_VERSION@)\" = \"${GIT_VERSION}\"   \u0026\u0026 grep -q 'NO_TCLTK' Makefile   \u0026\u0026 grep -q 'NO_GETTEXT' Makefile   \u0026\u0026 grep -q 'NO_RUST' Makefile   \u0026\u0026 make -j2 prefix=/opt/conexus/git-${GIT_VERSION} all NO_TCLTK=YesPlease NO_GETTEXT=YesPlease NO_RUST=YesPlease   \u0026\u0026 make prefix=/opt/conexus/git-${GIT_VERSION} install NO_TCLTK=YesPlease NO_GETTEXT=YesPlease NO_RUST=YesPlease   \u0026\u0026 mkdir -p /opt/conexus/git-${GIT_VERSION}/share/conexus   \u0026\u0026 printf 'NO_TCLTK=YesPlease\\nNO_GETTEXT=YesPlease\\nNO_RUST=YesPlease\\n' \u003e /opt/conexus/git-${GIT_VERSION}/share/conexus/build-flags   \u0026\u0026 test ! -e /opt/conexus/git-${GIT_VERSION}/bin/gitk   \u0026\u0026 test ! -e /opt/conexus/git-${GIT_VERSION}/bin/git-gui   \u0026\u0026 test ! -d /opt/conexus/git-${GIT_VERSION}/share/locale   \u0026\u0026 rm -rf /tmp/git-source /tmp/git.tar /tmp/gnupg"
+                  ],
+                  "env": [
+                    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "NODE_VERSION=24.20.0",
+                    "YARN_VERSION=1.22.22",
+                    "GIT_VERSION=2.55.0",
+                    "GIT_SOURCE_SHA256=457fdb04dc8728e007d4688695e6912e6f680727920f2a40bf11eacc17505357",
+                    "GIT_SIGNATURE_SHA256=8673501946204c38ebfed09603c1f3a041ed8d12b31f0aa06a474d41e359e254",
+                    "RELEASE_KEY_SHA256=fd2809d850e844b614ac60f13ded554c55d9052e5c799a5814abcba2a68a063c",
+                    "RELEASE_KEY_FINGERPRINT=E1F036B1FEE7221FC778ECEFB0B5E88696AFE6CB"
+                  ],
+                  "cwd": "/",
+                  "removeMountStubsRecursive": true
+                },
+                "mounts": [
+                  {
+                    "dest": "/"
+                  }
+                ]
+              }
+            },
+            "platform": {
+              "Architecture": "amd64",
+              "OS": "linux"
+            },
+            "constraints": {}
+          },
+          "inputs": [
+            "step6:0"
+          ]
+        },
+        {
+          "id": "step8",
+          "op": {
+            "Op": {
+              "exec": {
+                "meta": {
+                  "args": [
+                    "/bin/sh",
+                    "-c",
+                    "ln -sf /opt/conexus/git-${GIT_VERSION}/bin/git /usr/local/bin/git   \u0026\u0026 /usr/local/bin/git version"
+                  ],
+                  "env": [
+                    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "NODE_VERSION=24.20.0",
+                    "YARN_VERSION=1.22.22",
+                    "GIT_VERSION=2.55.0",
+                    "GIT_SOURCE_SHA256=457fdb04dc8728e007d4688695e6912e6f680727920f2a40bf11eacc17505357",
+                    "GIT_SIGNATURE_SHA256=8673501946204c38ebfed09603c1f3a041ed8d12b31f0aa06a474d41e359e254",
+                    "RELEASE_KEY_SHA256=fd2809d850e844b614ac60f13ded554c55d9052e5c799a5814abcba2a68a063c",
+                    "RELEASE_KEY_FINGERPRINT=E1F036B1FEE7221FC778ECEFB0B5E88696AFE6CB"
+                  ],
+                  "cwd": "/",
+                  "removeMountStubsRecursive": true
+                },
+                "mounts": [
+                  {
+                    "dest": "/"
+                  }
+                ]
+              }
+            },
+            "platform": {
+              "Architecture": "amd64",
+              "OS": "linux"
+            },
+            "constraints": {}
+          },
+          "inputs": [
+            "step7:0"
+          ]
+        },
+        {
+          "id": "step9",
+          "op": {
+            "Op": {
+              "file": {
+                "actions": [
+                  {
+                    "input": 0,
+                    "secondaryInput": -1,
+                    "output": 0,
+                    "Action": {
+                      "mkdir": {
+                        "path": "/qualification",
+                        "mode": 493,
+                        "makeParents": true,
+                        "timestamp": -1
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "constraints": {}
+          },
+          "inputs": [
+            "step8:0"
+          ]
+        },
+        {
+          "id": "step10",
+          "op": {
+            "Op": {}
+          },
+          "inputs": [
+            "step9:0"
+          ]
+        }
+      ],
+      "digestMapping": {
+        "sha256:01d483f23c5e2ac8b6466af86da04f8052f15171bdf0d72ef300f6602b7212b5": "step10",
+        "sha256:2a3ce65ef593c15f3852ceefb0b9a12ecc6d5d96bb072d9e01ed94bb802c6ca5": "step3",
+        "sha256:359d625b3c86b3e8e8aeadc544f08042c5bd44d75b83ffdcc91d57296f16fb57": "step1",
+        "sha256:3ad111c2f836ec2d6eb9a7691d47b62e96d9d16cabfef2f5fb2cbcd48de5fb4a": "step7",
+        "sha256:635fc7ba8073c88f9311db07a06749787148b2912b4afcdae475faf9290fe1de": "step5",
+        "sha256:79b1d66df64d3c9ae3af9a2c7c7d716343b1c6b67f2a3f7a6d874b57370dc6eb": "step8",
+        "sha256:b93d9b14530a09338b9c88fdb812d7cf3bbf1e4b685bc2a1ad6c44629e5e349c": "step6",
+        "sha256:c2bfadeeef2ce928df0c3c18fa56c8ab467389147e01677f0f37a63a9189a9a5": "step2",
+        "sha256:c89bf18db2807a822cb295f24da19bff6fa1ed02e67d0b37d08ae3817bdda5f6": "step4",
+        "sha256:d3a8efd0c79aefa0ded695f605c2da44b64ebe5b7c9f32b2c65c4d2f4a128728": "step9",
+        "sha256:f85beaadaa995282e5a8e5d9b705b0ef4a46e7fdaca45326c30e3ae4545c711f": "step0"
+      }
+    },
+    "metadata": {
+      "buildInvocationID": "yhj690hxxtrz94wx1gfyl18uz",
+      "buildStartedOn": "2026-09-01T01:20:02.0497999Z",
+      "buildFinishedOn": "2026-09-01T01:22:47.305948581Z",
+      "completeness": {
+        "parameters": true,
+        "environment": true,
+        "materials": false
+      },
+      "reproducible": false,
+      "https://mobyproject.org/buildkit@v1#metadata": {
+        "source": {
+          "locations": {
+            "step0": {
+              "locations": [
+                {
+                  "ranges": [
+                    {
+                      "start": {
+                        "line": 2
+                      },
+                      "end": {
+                        "line": 2
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "step1": {},
+            "step2": {
+              "locations": [
+                {
+                  "ranges": [
+                    {
+                      "start": {
+                        "line": 10
+                      },
+                      "end": {
+                        "line": 10
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 11
+                      },
+                      "end": {
+                        "line": 11
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 12
+                      },
+                      "end": {
+                        "line": 12
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "step3": {},
+            "step4": {
+              "locations": [
+                {
+                  "ranges": [
+                    {
+                      "start": {
+                        "line": 13
+                      },
+                      "end": {
+                        "line": 13
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 14
+                      },
+                      "end": {
+                        "line": 14
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 15
+                      },
+                      "end": {
+                        "line": 15
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "step5": {},
+            "step6": {
+              "locations": [
+                {
+                  "ranges": [
+                    {
+                      "start": {
+                        "line": 16
+                      },
+                      "end": {
+                        "line": 16
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 17
+                      },
+                      "end": {
+                        "line": 17
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 18
+                      },
+                      "end": {
+                        "line": 18
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "step7": {
+              "locations": [
+                {
+                  "ranges": [
+                    {
+                      "start": {
+                        "line": 20
+                      },
+                      "end": {
+                        "line": 20
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 21
+                      },
+                      "end": {
+                        "line": 21
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 22
+                      },
+                      "end": {
+                        "line": 22
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 23
+                      },
+                      "end": {
+                        "line": 23
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 24
+                      },
+                      "end": {
+                        "line": 24
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 25
+                      },
+                      "end": {
+                        "line": 25
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 26
+                      },
+                      "end": {
+                        "line": 26
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 27
+                      },
+                      "end": {
+                        "line": 27
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 28
+                      },
+                      "end": {
+                        "line": 28
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 29
+                      },
+                      "end": {
+                        "line": 29
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 30
+                      },
+                      "end": {
+                        "line": 30
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 31
+                      },
+                      "end": {
+                        "line": 31
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 32
+                      },
+                      "end": {
+                        "line": 32
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 33
+                      },
+                      "end": {
+                        "line": 33
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 34
+                      },
+                      "end": {
+                        "line": 34
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 35
+                      },
+                      "end": {
+                        "line": 35
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 36
+                      },
+                      "end": {
+                        "line": 36
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 37
+                      },
+                      "end": {
+                        "line": 37
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 38
+                      },
+                      "end": {
+                        "line": 38
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 39
+                      },
+                      "end": {
+                        "line": 39
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 40
+                      },
+                      "end": {
+                        "line": 40
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 41
+                      },
+                      "end": {
+                        "line": 41
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 42
+                      },
+                      "end": {
+                        "line": 42
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 43
+                      },
+                      "end": {
+                        "line": 43
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 44
+                      },
+                      "end": {
+                        "line": 44
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 45
+                      },
+                      "end": {
+                        "line": 45
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 46
+                      },
+                      "end": {
+                        "line": 46
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 47
+                      },
+                      "end": {
+                        "line": 47
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 48
+                      },
+                      "end": {
+                        "line": 48
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 49
+                      },
+                      "end": {
+                        "line": 49
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 50
+                      },
+                      "end": {
+                        "line": 50
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 51
+                      },
+                      "end": {
+                        "line": 51
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "step8": {
+              "locations": [
+                {
+                  "ranges": [
+                    {
+                      "start": {
+                        "line": 53
+                      },
+                      "end": {
+                        "line": 53
+                      }
+                    },
+                    {
+                      "start": {
+                        "line": 54
+                      },
+                      "end": {
+                        "line": 54
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "step9": {
+              "locations": [
+                {
+                  "ranges": [
+                    {
+                      "start": {
+                        "line": 63
+                      },
+                      "end": {
+                        "line": 63
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "infos": [
+            {
+              "filename": "Dockerfile",
+              "language": "Dockerfile",
+              "data": "IyBzeW50YXg9ZG9ja2VyL2RvY2tlcmZpbGU6MS43CkZST00gbm9kZUBzaGEyNTY6YmUyM2Y1NGE4OGQzNGU4ODI0Yzc0MWIxOWI5MTA2NDA5NGY5MmMxYzk3YjE5NDE0NGJmYzhiNTBkNjcyNThlMgoKQVJHIEdJVF9WRVJTSU9OPTIuNTUuMApBUkcgR0lUX1NPVVJDRV9TSEEyNTY9NDU3ZmRiMDRkYzg3MjhlMDA3ZDQ2ODg2OTVlNjkxMmU2ZjY4MDcyNzkyMGYyYTQwYmYxMWVhY2MxNzUwNTM1NwpBUkcgR0lUX1NJR05BVFVSRV9TSEEyNTY9ODY3MzUwMTk0NjIwNGMzOGViZmVkMDk2MDNjMWYzYTA0MWVkOGQxMmIzMWYwYWEwNmE0NzRkNDFlMzU5ZTI1NApBUkcgUkVMRUFTRV9LRVlfU0hBMjU2PWZkMjgwOWQ4NTBlODQ0YjYxNGFjNjBmMTNkZWQ1NTRjNTVkOTA1MmU1Yzc5OWE1ODE0YWJjYmEyYTY4YTA2M2MKQVJHIFJFTEVBU0VfS0VZX0ZJTkdFUlBSSU5UPUUxRjAzNkIxRkVFNzIyMUZDNzc4RUNFRkIwQjVFODg2OTZBRkU2Q0IKCkFERCAtLWNoZWNrc3VtPXNoYTI1Njoke0dJVF9TT1VSQ0VfU0hBMjU2fSBcCiAgaHR0cHM6Ly93d3cua2VybmVsLm9yZy9wdWIvc29mdHdhcmUvc2NtL2dpdC9naXQtJHtHSVRfVkVSU0lPTn0udGFyLnh6IFwKICAvdG1wL2dpdC50YXIueHoKQUREIC0tY2hlY2tzdW09c2hhMjU2OiR7R0lUX1NJR05BVFVSRV9TSEEyNTZ9IFwKICBodHRwczovL3d3dy5rZXJuZWwub3JnL3B1Yi9zb2Z0d2FyZS9zY20vZ2l0L2dpdC0ke0dJVF9WRVJTSU9OfS50YXIuc2lnbiBcCiAgL3RtcC9naXQudGFyLnNpZ24KQUREIC0tY2hlY2tzdW09c2hhMjU2OiR7UkVMRUFTRV9LRVlfU0hBMjU2fSBcCiAgaHR0cHM6Ly9rZXlzZXJ2ZXIudWJ1bnR1LmNvbS9wa3MvbG9va3VwP29wPWdldCZzZWFyY2g9MHgke1JFTEVBU0VfS0VZX0ZJTkdFUlBSSU5UfSBcCiAgL3RtcC9yZWxlYXNlLWtleS5hc2MKClJVTiB0ZXN0ICIkKGRwa2ctcXVlcnkgLVcgLWY9JyR7VmVyc2lvbn0nIGdjYykiID0gIjQ6MTIuMi4wLTMiIFwKICAmJiB0ZXN0ICIkKGRwa2ctcXVlcnkgLVcgLWY9JyR7VmVyc2lvbn0nIG1ha2UpIiA9ICI0LjMtNC4xIiBcCiAgJiYgdGVzdCAiJChkcGtnLXF1ZXJ5IC1XIC1mPScke1ZlcnNpb259JyBnbnVwZykiID0gIjIuMi40MC0xLjErZGViMTJ1MiIgXAogICYmIHRlc3QgIiQoZHBrZy1xdWVyeSAtVyAtZj0nJHtWZXJzaW9ufScgbGliY3VybDQtb3BlbnNzbC1kZXYpIiA9ICI3Ljg4LjEtMTArZGViMTJ1MTUiIFwKICAmJiB0ZXN0ICIkKGRwa2ctcXVlcnkgLVcgLWY9JyR7VmVyc2lvbn0nIGxpYmV4cGF0MS1kZXYpIiA9ICIyLjUuMC0xK2RlYjEydTIiIFwKICAmJiB0ZXN0ICIkKGRwa2ctcXVlcnkgLVcgLWY9JyR7VmVyc2lvbn0nIGxpYnNzbC1kZXYpIiA9ICIzLjAuMjAtMX5kZWIxMnUyIiBcCiAgJiYgdGVzdCAiJChkcGtnLXF1ZXJ5IC1XIC1mPScke1ZlcnNpb259JyB4ei11dGlscykiID0gIjUuNC4xLTErZGViMTJ1MSIgXAogICYmIHRlc3QgIiQoZHBrZy1xdWVyeSAtVyAtZj0nJHtWZXJzaW9ufScgemxpYjFnLWRldikiID0gIjE6MS4yLjEzLmRmc2ctMSIgXAogICYmIHRlc3QgIiQoc2hhMjU2c3VtIC90bXAvZ2l0LnRhci54eiB8IGN1dCAtZCcgJyAtZjEpIiA9ICIke0dJVF9TT1VSQ0VfU0hBMjU2fSIgXAogICYmIHRlc3QgIiQoc2hhMjU2c3VtIC90bXAvZ2l0LnRhci5zaWduIHwgY3V0IC1kJyAnIC1mMSkiID0gIiR7R0lUX1NJR05BVFVSRV9TSEEyNTZ9IiBcCiAgJiYgdGVzdCAiJChzaGEyNTZzdW0gL3RtcC9yZWxlYXNlLWtleS5hc2MgfCBjdXQgLWQnICcgLWYxKSIgPSAiJHtSRUxFQVNFX0tFWV9TSEEyNTZ9IiBcCiAgJiYgbWtkaXIgLW0gMDcwMCAvdG1wL2dudXBnIFwKICAmJiBncGcgLS1ob21lZGlyIC90bXAvZ251cGcgLS1pbXBvcnQgL3RtcC9yZWxlYXNlLWtleS5hc2MgXAogICYmIGdwZyAtLWhvbWVkaXIgL3RtcC9nbnVwZyAtLXdpdGgtY29sb25zIC0tZmluZ2VycHJpbnQgXAogICAgfCBncmVwIC1GcXggImZwcjo6Ojo6Ojo6OiR7UkVMRUFTRV9LRVlfRklOR0VSUFJJTlR9OiIgXAogICYmIHh6IC1kYyAvdG1wL2dpdC50YXIueHogPiAvdG1wL2dpdC50YXIgXAogICYmIGdwZyAtLWhvbWVkaXIgL3RtcC9nbnVwZyAtLXZlcmlmeSAvdG1wL2dpdC50YXIuc2lnbiAvdG1wL2dpdC50YXIgXAogICYmIG1rZGlyIC90bXAvZ2l0LXNvdXJjZSBcCiAgJiYgdGFyIC14ZiAvdG1wL2dpdC50YXIgLS1zdHJpcC1jb21wb25lbnRzPTEgLUMgL3RtcC9naXQtc291cmNlIFwKICAmJiBjZCAvdG1wL2dpdC1zb3VyY2UgXAogICYmIHRlc3QgIiQoLi9HSVQtVkVSU0lPTi1HRU4gLiAtLWZvcm1hdD1AR0lUX1ZFUlNJT05AKSIgPSAiJHtHSVRfVkVSU0lPTn0iIFwKICAmJiBncmVwIC1xICdOT19UQ0xUSycgTWFrZWZpbGUgXAogICYmIGdyZXAgLXEgJ05PX0dFVFRFWFQnIE1ha2VmaWxlIFwKICAmJiBncmVwIC1xICdOT19SVVNUJyBNYWtlZmlsZSBcCiAgJiYgbWFrZSAtajIgcHJlZml4PS9vcHQvY29uZXh1cy9naXQtJHtHSVRfVkVSU0lPTn0gYWxsIE5PX1RDTFRLPVllc1BsZWFzZSBOT19HRVRURVhUPVllc1BsZWFzZSBOT19SVVNUPVllc1BsZWFzZSBcCiAgJiYgbWFrZSBwcmVmaXg9L29wdC9jb25leHVzL2dpdC0ke0dJVF9WRVJTSU9OfSBpbnN0YWxsIE5PX1RDTFRLPVllc1BsZWFzZSBOT19HRVRURVhUPVllc1BsZWFzZSBOT19SVVNUPVllc1BsZWFzZSBcCiAgJiYgbWtkaXIgLXAgL29wdC9jb25leHVzL2dpdC0ke0dJVF9WRVJTSU9OfS9zaGFyZS9jb25leHVzIFwKICAmJiBwcmludGYgJ05PX1RDTFRLPVllc1BsZWFzZVxuTk9fR0VUVEVYVD1ZZXNQbGVhc2Vcbk5PX1JVU1Q9WWVzUGxlYXNlXG4nID4gL29wdC9jb25leHVzL2dpdC0ke0dJVF9WRVJTSU9OfS9zaGFyZS9jb25leHVzL2J1aWxkLWZsYWdzIFwKICAmJiB0ZXN0ICEgLWUgL29wdC9jb25leHVzL2dpdC0ke0dJVF9WRVJTSU9OfS9iaW4vZ2l0ayBcCiAgJiYgdGVzdCAhIC1lIC9vcHQvY29uZXh1cy9naXQtJHtHSVRfVkVSU0lPTn0vYmluL2dpdC1ndWkgXAogICYmIHRlc3QgISAtZCAvb3B0L2NvbmV4dXMvZ2l0LSR7R0lUX1ZFUlNJT059L3NoYXJlL2xvY2FsZSBcCiAgJiYgcm0gLXJmIC90bXAvZ2l0LXNvdXJjZSAvdG1wL2dpdC50YXIgL3RtcC9nbnVwZwoKUlVOIGxuIC1zZiAvb3B0L2NvbmV4dXMvZ2l0LSR7R0lUX1ZFUlNJT059L2Jpbi9naXQgL3Vzci9sb2NhbC9iaW4vZ2l0IFwKICAmJiAvdXNyL2xvY2FsL2Jpbi9naXQgdmVyc2lvbgoKTEFCRUwgb3JnLm9wZW5jb250YWluZXJzLmltYWdlLnRpdGxlPSJDb25leHVzIFIxQy0xNCBHaXQgY3VzdG9keSBxdWFsaWZpY2F0aW9uIgpMQUJFTCBvcmcub3BlbmNvbnRhaW5lcnMuaW1hZ2UudmVyc2lvbj0iMi41NS4wIgpMQUJFTCBvcmcub3BlbmNvbnRhaW5lcnMuaW1hZ2Uuc291cmNlPSJodHRwczovL2dpdGh1Yi5jb20vZ2l0L2dpdCIKTEFCRUwgaW8uY29uZXh1cy5naXQuc291cmNlLXNoYTI1Nj0iNDU3ZmRiMDRkYzg3MjhlMDA3ZDQ2ODg2OTVlNjkxMmU2ZjY4MDcyNzkyMGYyYTQwYmYxMWVhY2MxNzUwNTM1NyIKTEFCRUwgaW8uY29uZXh1cy5naXQucmVsZWFzZS1rZXktZmluZ2VycHJpbnQ9IkUxRjAzNkIxRkVFNzIyMUZDNzc4RUNFRkIwQjVFODg2OTZBRkU2Q0IiCkxBQkVMIGlvLmNvbmV4dXMuZ2l0LmJ1aWxkLWZsYWdzPSJOT19UQ0xUSz1ZZXNQbGVhc2UgTk9fR0VUVEVYVD1ZZXNQbGVhc2UgTk9fUlVTVD1ZZXNQbGVhc2UiCgpXT1JLRElSIC9xdWFsaWZpY2F0aW9uCkVOVFJZUE9JTlQgWyIvdXNyL2xvY2FsL2Jpbi9naXQiXQo=",
+              "llbDefinition": [
+                {
+                  "id": "step0",
+                  "op": {
+                    "Op": {
+                      "source": {
+                        "identifier": "local://dockerfile",
+                        "attrs": {
+                          "local.differ": "none",
+                          "local.followpaths": "[\"Dockerfile\",\"Dockerfile.dockerignore\",\"dockerfile\"]",
+                          "local.sharedkeyhint": "dockerfile"
+                        }
+                      }
+                    },
+                    "constraints": {}
+                  }
+                },
+                {
+                  "id": "step1",
+                  "op": {
+                    "Op": {}
+                  },
+                  "inputs": [
+                    "step0:0"
+                  ]
+                }
+              ],
+              "digestMapping": {
+                "sha256:675069dd0116513cfaae58ed7e4373081d6968b23e5c3c69630f4937733cd039": "step0",
+                "sha256:e8fc12b1f686c52c39c377beeec54dca1af1914af0fb1f2d48160574025251d5": "step1"
+              }
+            }
+          ]
+        },
+        "sysUsage": [
+          {
+            "timestamp": "2026-09-01T01:20:03.538409078Z",
+            "cpuStat": {
+              "user": 2782.04,
+              "nice": 0,
+              "system": 1289.39,
+              "idle": 142010.09,
+              "iowait": 12127.2,
+              "irq": 0,
+              "softirq": 689.57,
+              "steal": 0,
+              "guest": 0,
+              "guestNice": 0
+            },
+            "procStat": {
+              "contextSwitches": 168207344,
+              "processCreated": 182160,
+              "processesRunning": 1
+            },
+            "memoryStat": {
+              "total": 8133228,
+              "free": 2726060,
+              "available": 7182184,
+              "buffers": 440116,
+              "cached": 3749576,
+              "active": 1623360,
+              "inactive": 2893032,
+              "swap": 2097152,
+              "dirty": 108,
+              "writeback": 4,
+              "slab": 585360
+            },
+            "cpuPressure": {
+              "some": {
+                "avg10": 0.42,
+                "avg60": 0.28,
+                "avg300": 0.27,
+                "total": 301200131
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "memoryPressure": {
+              "some": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "ioPressure": {
+              "some": {
+                "avg10": 12.88,
+                "avg60": 3.62,
+                "avg300": 7.41,
+                "total": 6329492888
+              },
+              "full": {
+                "avg10": 12.7,
+                "avg60": 3.59,
+                "avg300": 7.25,
+                "total": 6188948949
+              }
+            }
+          },
+          {
+            "timestamp": "2026-09-01T01:20:19.541832401Z",
+            "cpuStat": {
+              "user": 2782.88,
+              "nice": 0,
+              "system": 1289.84,
+              "idle": 142054.25,
+              "iowait": 12145.63,
+              "irq": 0,
+              "softirq": 689.72,
+              "steal": 0,
+              "guest": 0,
+              "guestNice": 0
+            },
+            "procStat": {
+              "contextSwitches": 168292991,
+              "processCreated": 182182,
+              "processesRunning": 1
+            },
+            "memoryStat": {
+              "total": 8133228,
+              "free": 2724592,
+              "available": 7180736,
+              "buffers": 440144,
+              "cached": 3749576,
+              "active": 1623376,
+              "inactive": 2892992,
+              "swap": 2097152,
+              "dirty": 152,
+              "writeback": 32,
+              "slab": 585348
+            },
+            "cpuPressure": {
+              "some": {
+                "avg10": 0.29,
+                "avg60": 0.32,
+                "avg300": 0.28,
+                "total": 301303922
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "memoryPressure": {
+              "some": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "ioPressure": {
+              "some": {
+                "avg10": 56.98,
+                "avg60": 18.6,
+                "avg300": 10.63,
+                "total": 6340434451
+              },
+              "full": {
+                "avg10": 56.23,
+                "avg60": 18.32,
+                "avg300": 10.41,
+                "total": 6199771540
+              }
+            }
+          },
+          {
+            "timestamp": "2026-09-01T01:20:35.546280519Z",
+            "cpuStat": {
+              "user": 2783.66,
+              "nice": 0,
+              "system": 1290.18,
+              "idle": 142098.4,
+              "iowait": 12164.2,
+              "irq": 0,
+              "softirq": 689.89,
+              "steal": 0,
+              "guest": 0,
+              "guestNice": 0
+            },
+            "procStat": {
+              "contextSwitches": 168366214,
+              "processCreated": 182252,
+              "processesRunning": 2
+            },
+            "memoryStat": {
+              "total": 8133228,
+              "free": 2716168,
+              "available": 7172360,
+              "buffers": 440160,
+              "cached": 3749624,
+              "active": 1623416,
+              "inactive": 2902488,
+              "swap": 2097152,
+              "dirty": 236,
+              "writeback": 0,
+              "slab": 585372
+            },
+            "cpuPressure": {
+              "some": {
+                "avg10": 0.22,
+                "avg60": 0.3,
+                "avg300": 0.28,
+                "total": 301402973
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "memoryPressure": {
+              "some": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "ioPressure": {
+              "some": {
+                "avg10": 65.83,
+                "avg60": 30.92,
+                "avg300": 13.9,
+                "total": 6352135719
+              },
+              "full": {
+                "avg10": 64.57,
+                "avg60": 30.36,
+                "avg300": 13.62,
+                "total": 6211231911
+              }
+            }
+          },
+          {
+            "timestamp": "2026-09-01T01:20:51.547963796Z",
+            "cpuStat": {
+              "user": 2784.28,
+              "nice": 0,
+              "system": 1290.46,
+              "idle": 142143.13,
+              "iowait": 12182.39,
+              "irq": 0,
+              "softirq": 690.03,
+              "steal": 0,
+              "guest": 0,
+              "guestNice": 0
+            },
+            "procStat": {
+              "contextSwitches": 168428639,
+              "processCreated": 182283,
+              "processesRunning": 1
+            },
+            "memoryStat": {
+              "total": 8133228,
+              "free": 2717176,
+              "available": 7173388,
+              "buffers": 440208,
+              "cached": 3749576,
+              "active": 1623448,
+              "inactive": 2894988,
+              "swap": 2097152,
+              "dirty": 92,
+              "writeback": 0,
+              "slab": 585348
+            },
+            "cpuPressure": {
+              "some": {
+                "avg10": 0.29,
+                "avg60": 0.29,
+                "avg300": 0.28,
+                "total": 301490229
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "memoryPressure": {
+              "some": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "ioPressure": {
+              "some": {
+                "avg10": 63.88,
+                "avg60": 39.34,
+                "avg300": 16.77,
+                "total": 6363126599
+              },
+              "full": {
+                "avg10": 62.93,
+                "avg60": 38.71,
+                "avg300": 16.45,
+                "total": 6222107151
+              }
+            }
+          },
+          {
+            "timestamp": "2026-09-01T01:21:07.55324465Z",
+            "cpuStat": {
+              "user": 2786.64,
+              "nice": 0,
+              "system": 1292.1,
+              "idle": 142182.96,
+              "iowait": 12198.26,
+              "irq": 0,
+              "softirq": 690.4,
+              "steal": 0,
+              "guest": 0,
+              "guestNice": 0
+            },
+            "procStat": {
+              "contextSwitches": 168490879,
+              "processCreated": 182558,
+              "processesRunning": 1
+            },
+            "memoryStat": {
+              "total": 8133228,
+              "free": 2497492,
+              "available": 7069420,
+              "buffers": 440236,
+              "cached": 3861600,
+              "active": 1675360,
+              "inactive": 2976632,
+              "swap": 2097152,
+              "dirty": 111928,
+              "writeback": 1304,
+              "slab": 589684
+            },
+            "cpuPressure": {
+              "some": {
+                "avg10": 0.96,
+                "avg60": 0.44,
+                "avg300": 0.31,
+                "total": 301697754
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "memoryPressure": {
+              "some": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "ioPressure": {
+              "some": {
+                "avg10": 51.16,
+                "avg60": 42.9,
+                "avg300": 18.85,
+                "total": 6371847351
+              },
+              "full": {
+                "avg10": 49.67,
+                "avg60": 42.06,
+                "avg300": 18.47,
+                "total": 6230535249
+              }
+            }
+          },
+          {
+            "timestamp": "2026-09-01T01:21:23.553918219Z",
+            "cpuStat": {
+              "user": 2807.36,
+              "nice": 0,
+              "system": 1294.61,
+              "idle": 142203.45,
+              "iowait": 12218.01,
+              "irq": 0,
+              "softirq": 692.06,
+              "steal": 0,
+              "guest": 0,
+              "guestNice": 0
+            },
+            "procStat": {
+              "contextSwitches": 168594006,
+              "processCreated": 183018,
+              "processesRunning": 3
+            },
+            "memoryStat": {
+              "total": 8133228,
+              "free": 2367528,
+              "available": 6947692,
+              "buffers": 440268,
+              "cached": 3869796,
+              "active": 1679224,
+              "inactive": 3037896,
+              "swap": 2097152,
+              "dirty": 121948,
+              "writeback": 0,
+              "slab": 589564
+            },
+            "cpuPressure": {
+              "some": {
+                "avg10": 1.09,
+                "avg60": 0.55,
+                "avg300": 0.34,
+                "total": 301921438
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "memoryPressure": {
+              "some": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "ioPressure": {
+              "some": {
+                "avg10": 34.45,
+                "avg60": 42.29,
+                "avg300": 20.08,
+                "total": 6378517539
+              },
+              "full": {
+                "avg10": 29.54,
+                "avg60": 39.81,
+                "avg300": 19.28,
+                "total": 6235939608
+              }
+            }
+          },
+          {
+            "timestamp": "2026-09-01T01:21:39.557565639Z",
+            "cpuStat": {
+              "user": 2836.02,
+              "nice": 0,
+              "system": 1297.88,
+              "idle": 142234.35,
+              "iowait": 12218.94,
+              "irq": 0,
+              "softirq": 693.86,
+              "steal": 0,
+              "guest": 0,
+              "guestNice": 0
+            },
+            "procStat": {
+              "contextSwitches": 168669948,
+              "processCreated": 183585,
+              "processesRunning": 5
+            },
+            "memoryStat": {
+              "total": 8133228,
+              "free": 2295580,
+              "available": 6890864,
+              "buffers": 440292,
+              "cached": 3884572,
+              "active": 1684264,
+              "inactive": 3021904,
+              "swap": 2097152,
+              "dirty": 136904,
+              "writeback": 44,
+              "slab": 589704
+            },
+            "cpuPressure": {
+              "some": {
+                "avg10": 0.58,
+                "avg60": 0.53,
+                "avg300": 0.35,
+                "total": 302104145
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "memoryPressure": {
+              "some": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "ioPressure": {
+              "some": {
+                "avg10": 8.33,
+                "avg60": 32.74,
+                "avg300": 19.08,
+                "total": 6378811431
+              },
+              "full": {
+                "avg10": 6.9,
+                "avg60": 30.72,
+                "avg300": 18.3,
+                "total": 6236183824
+              }
+            }
+          },
+          {
+            "timestamp": "2026-09-01T01:21:55.562055408Z",
+            "cpuStat": {
+              "user": 2862.68,
+              "nice": 0,
+              "system": 1301.51,
+              "idle": 142264.75,
+              "iowait": 12221.94,
+              "irq": 0,
+              "softirq": 695.57,
+              "steal": 0,
+              "guest": 0,
+              "guestNice": 0
+            },
+            "procStat": {
+              "contextSwitches": 168770295,
+              "processCreated": 184220,
+              "processesRunning": 4
+            },
+            "memoryStat": {
+              "total": 8133228,
+              "free": 2315164,
+              "available": 6924704,
+              "buffers": 440328,
+              "cached": 3898596,
+              "active": 1688628,
+              "inactive": 3053932,
+              "swap": 2097152,
+              "dirty": 35416,
+              "writeback": 0,
+              "slab": 589904
+            },
+            "cpuPressure": {
+              "some": {
+                "avg10": 0.75,
+                "avg60": 0.63,
+                "avg300": 0.38,
+                "total": 302368034
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "memoryPressure": {
+              "some": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "ioPressure": {
+              "some": {
+                "avg10": 7.79,
+                "avg60": 26.52,
+                "avg300": 18.38,
+                "total": 6379828842
+              },
+              "full": {
+                "avg10": 5.82,
+                "avg60": 24.63,
+                "avg300": 17.56,
+                "total": 6236991093
+              }
+            }
+          },
+          {
+            "timestamp": "2026-09-01T01:22:11.564056128Z",
+            "cpuStat": {
+              "user": 2886.63,
+              "nice": 0,
+              "system": 1306.63,
+              "idle": 142295.44,
+              "iowait": 12225.81,
+              "irq": 0,
+              "softirq": 696.94,
+              "steal": 0,
+              "guest": 0,
+              "guestNice": 0
+            },
+            "procStat": {
+              "contextSwitches": 168902826,
+              "processCreated": 185910,
+              "processesRunning": 2
+            },
+            "memoryStat": {
+              "total": 8133228,
+              "free": 2054296,
+              "available": 6935580,
+              "buffers": 440352,
+              "cached": 4164628,
+              "active": 1820916,
+              "inactive": 3160176,
+              "swap": 2097152,
+              "dirty": 263120,
+              "writeback": 128,
+              "slab": 596248
+            },
+            "cpuPressure": {
+              "some": {
+                "avg10": 1.48,
+                "avg60": 0.82,
+                "avg300": 0.44,
+                "total": 302661199
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "memoryPressure": {
+              "some": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "ioPressure": {
+              "some": {
+                "avg10": 6.63,
+                "avg60": 21.83,
+                "avg300": 17.74,
+                "total": 6380931341
+              },
+              "full": {
+                "avg10": 5.91,
+                "avg60": 20.27,
+                "avg300": 16.94,
+                "total": 6238009403
+              }
+            }
+          },
+          {
+            "timestamp": "2026-09-01T01:22:27.567237558Z",
+            "cpuStat": {
+              "user": 2890.84,
+              "nice": 0,
+              "system": 1307.92,
+              "idle": 142329.84,
+              "iowait": 12249.62,
+              "irq": 0,
+              "softirq": 697.35,
+              "steal": 0,
+              "guest": 0,
+              "guestNice": 0
+            },
+            "procStat": {
+              "contextSwitches": 168973065,
+              "processCreated": 186512,
+              "processesRunning": 3
+            },
+            "memoryStat": {
+              "total": 8133228,
+              "free": 2487504,
+              "available": 7065056,
+              "buffers": 440388,
+              "cached": 3867984,
+              "active": 1624036,
+              "inactive": 3013300,
+              "swap": 2097152,
+              "dirty": 148,
+              "writeback": 4,
+              "slab": 588452
+            },
+            "cpuPressure": {
+              "some": {
+                "avg10": 0.48,
+                "avg60": 0.71,
+                "avg300": 0.43,
+                "total": 302764372
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "memoryPressure": {
+              "some": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "ioPressure": {
+              "some": {
+                "avg10": 51.55,
+                "avg60": 30.69,
+                "avg300": 19.94,
+                "total": 6390732666
+              },
+              "full": {
+                "avg10": 50.57,
+                "avg60": 29.23,
+                "avg300": 19.12,
+                "total": 6247615366
+              }
+            }
+          },
+          {
+            "timestamp": "2026-09-01T01:22:43.569336004Z",
+            "cpuStat": {
+              "user": 2895.6,
+              "nice": 0,
+              "system": 1308.7,
+              "idle": 142367.91,
+              "iowait": 12269.71,
+              "irq": 0,
+              "softirq": 699.05,
+              "steal": 0,
+              "guest": 0,
+              "guestNice": 0
+            },
+            "procStat": {
+              "contextSwitches": 169086245,
+              "processCreated": 186595,
+              "processesRunning": 1
+            },
+            "memoryStat": {
+              "total": 8133228,
+              "free": 2418060,
+              "available": 7054572,
+              "buffers": 440556,
+              "cached": 3926864,
+              "active": 1626024,
+              "inactive": 3076188,
+              "swap": 2097152,
+              "dirty": 220,
+              "writeback": 0,
+              "slab": 588096
+            },
+            "cpuPressure": {
+              "some": {
+                "avg10": 0.44,
+                "avg60": 0.63,
+                "avg300": 0.43,
+                "total": 302918360
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "memoryPressure": {
+              "some": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "ioPressure": {
+              "some": {
+                "avg10": 45.27,
+                "avg60": 34.88,
+                "avg300": 21.52,
+                "total": 6398606425
+              },
+              "full": {
+                "avg10": 42.29,
+                "avg60": 33.06,
+                "avg300": 20.59,
+                "total": 6255015637
+              }
+            }
+          },
+          {
+            "timestamp": "2026-09-01T01:22:59.572916792Z",
+            "cpuStat": {
+              "user": 2896.8,
+              "nice": 0,
+              "system": 1309.37,
+              "idle": 142414.49,
+              "iowait": 12285.15,
+              "irq": 0,
+              "softirq": 699.37,
+              "steal": 0,
+              "guest": 0,
+              "guestNice": 0
+            },
+            "procStat": {
+              "contextSwitches": 169200339,
+              "processCreated": 186627,
+              "processesRunning": 1
+            },
+            "memoryStat": {
+              "total": 8133228,
+              "free": 2324096,
+              "available": 7079296,
+              "buffers": 440788,
+              "cached": 4045324,
+              "active": 1626256,
+              "inactive": 3187892,
+              "swap": 2097152,
+              "dirty": 118820,
+              "writeback": 4,
+              "slab": 588052
+            },
+            "cpuPressure": {
+              "some": {
+                "avg10": 0.17,
+                "avg60": 0.51,
+                "avg300": 0.41,
+                "total": 303008399
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "memoryPressure": {
+              "some": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "ioPressure": {
+              "some": {
+                "avg10": 36.67,
+                "avg60": 34.9,
+                "avg300": 22.25,
+                "total": 6404336122
+              },
+              "full": {
+                "avg10": 35.94,
+                "avg60": 33.46,
+                "avg300": 21.36,
+                "total": 6260693225
+              }
+            }
+          },
+          {
+            "timestamp": "2026-09-01T01:23:01.999258203Z",
+            "cpuStat": {
+              "user": 2897.27,
+              "nice": 0,
+              "system": 1309.53,
+              "idle": 142421.24,
+              "iowait": 12287.38,
+              "irq": 0,
+              "softirq": 699.42,
+              "steal": 0,
+              "guest": 0,
+              "guestNice": 0
+            },
+            "procStat": {
+              "contextSwitches": 169232284,
+              "processCreated": 186627,
+              "processesRunning": 11
+            },
+            "memoryStat": {
+              "total": 8133228,
+              "free": 2323356,
+              "available": 7078568,
+              "buffers": 440796,
+              "cached": 4045328,
+              "active": 1626264,
+              "inactive": 3190244,
+              "swap": 2097152,
+              "dirty": 118840,
+              "writeback": 0,
+              "slab": 588016
+            },
+            "cpuPressure": {
+              "some": {
+                "avg10": 0.32,
+                "avg60": 0.52,
+                "avg300": 0.41,
+                "total": 303093887
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "memoryPressure": {
+              "some": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              },
+              "full": {
+                "avg10": 0,
+                "avg60": 0,
+                "avg300": 0,
+                "total": 0
+              }
+            },
+            "ioPressure": {
+              "some": {
+                "avg10": 36.73,
+                "avg60": 34.97,
+                "avg300": 22.35,
+                "total": 6405344667
+              },
+              "full": {
+                "avg10": 35.77,
+                "avg60": 33.51,
+                "avg300": 21.45,
+                "total": 6261655987
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "buildx.build.ref": "desktop-linux/desktop-linux/q60od1s7ycjiy653supuv3igq",
+  "containerimage.descriptor": {
+    "mediaType": "application/vnd.oci.image.index.v1+json",
+    "digest": "sha256:44ad647a10c0a9659e3cfebb28e6b384ac8af15ac53fc2d0cd662cd30d7817b0",
+    "size": 856
+  },
+  "containerimage.digest": "sha256:44ad647a10c0a9659e3cfebb28e6b384ac8af15ac53fc2d0cd662cd30d7817b0",
+  "image.name": "docker.io/library/conexus-r1c14-git:2.55.0-qualified"
+}

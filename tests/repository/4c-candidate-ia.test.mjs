@@ -42,7 +42,7 @@ test('4C-4 candidate IA stays human-centered and inside accepted authority', () 
   assert.match(ia, /global search.*NOT ADMITTED/s)
   assert.match(ia, /Phase-3 Workspace\/Project shells.*semantic seeds.*not a pre-approved navbar/s)
   assert.match(ia, /4C-A01.*VALIDATED/)
-  assert.match(ia, /4C-A02.*OPEN/)
+  assert.match(ia, /4C-A02.*REJECTED AS MATERIAL CLOSURE DEPENDENCY/)
   assert.match(ia, /4C-5.*NOT STARTED/)
   assert.match(ia, /LOCKED.*operator-only/s)
 

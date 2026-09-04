@@ -1,0 +1,31 @@
+{
+  "kind": "conexus.r1f.pack-a-rerun-results/v1",
+  "observedOn": "2026-08-30",
+  "correction": "R1F-A01",
+  "results": [
+    {
+      "id": "R1F-P01",
+      "verdict": "PASS",
+      "claims": [
+        "25 direct pins equal corrected manifest",
+        "224-package lock is exact",
+        "two clean Linux installs produced identical 10788-record trees",
+        "floating, alternate-registry, manifest-lock and integrity negatives fired"
+      ]
+    },
+    {
+      "id": "R1F-P02",
+      "verdict": "PASS",
+      "claims": [
+        "zero selected-tree lifecycle scripts",
+        "strict allow/deny/unreviewed policy fired",
+        "zero invalid or missing registry signatures",
+        "zero npm audit vulnerabilities",
+        "zero installed packages missing license",
+        "bounded Ajv gate accepted valid and rejected invalid data without mutation"
+      ]
+    }
+  ],
+  "packVerdict": "PASS",
+  "laterProbeVerdicts": "NOT_PROVEN"
+}

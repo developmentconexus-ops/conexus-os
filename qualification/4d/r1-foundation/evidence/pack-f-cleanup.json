@@ -1,0 +1,12 @@
+{
+  "kind": "conexus.r1f.pack-f-cleanup/v1",
+  "observedOn": "2026-08-30",
+  "container": "ABSENT",
+  "twoTemporaryInstalls": "DESTROYED_WITH_TMPFS",
+  "temporaryBuildAndGateOutputs": "DESTROYED_WITH_TMPFS",
+  "temporaryBrowserProfiles": "DESTROYED_WITH_TMPFS",
+  "qualificationNodeModules": "ABSENT",
+  "retainedQualificationImage": "sha256:fd3b87c0e3ccb67da347e896702fbce1ab7f01d6875a6f2a2faa3839d4dff23b",
+  "removal": "docker image rm conexus-r1f-playwright:1.62.1-node24.20.0",
+  "verdict": "PASS"
+}

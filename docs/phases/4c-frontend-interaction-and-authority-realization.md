@@ -481,6 +481,8 @@ Only after locked semantic surfaces, interaction ownership, state ownership, gen
 
 4C MUST NOT select final SDK APIs, router/framework, state library, component package, codegen package implementation, database mechanism or runtime version. Those are 4D decisions from proved properties/consumers.
 
+The accepted `4C-F29` walkthrough finding now provides concrete future Published-App Agent consumers without selecting their mechanism. The 4D handoff must preserve a Product-owned, application-composable boundary across Conversation, AgentRun and exact ApprovalRequest truth; compare a framework-neutral client, React headless bindings and optional accessible/themable primitives; and reject a universal chat bubble, browser-direct Mastra authority, runtime Agent CRUD, arbitrary model-authored component code or parallel DTO/persistence authority. The deciding Evidence and mandatory comparative-study dimensions live in the current [`P-03 authority feasibility + structural hypotheses`](../evidence/4c/p03-authority-feasibility-and-structural-hypotheses.md) owner; the [`PA-01 Screen Contract`](../evidence/4c/pa01-published-app-product-agent-screen-contract.md) now supplies the exact operator-locked Published-App consumers and protected interaction properties.
+
 ## 19. Conexus 4C working order after bounded rebaseline
 
 ```text
@@ -560,7 +562,7 @@ Do not create one file per row merely for ceremony.
 13. shared patterns derive from repeated protected behavior;
 14. P11 complete journeys are operable across assembled LOCKED blocks;
 15. P12 leaves no unresolved material UX/architecture finding;
-16. first Budget Analyzer operations have exact frontend proving consumers without generic analytics invention;
+16. first Budget Analyzer operations retain an explicit `FUTURE_PRODUCT_APP` disposition and do not force a fabricated application wireframe into platform planning;
 17. independent Fable challenge + Lead adjudication converge before operator ratification.
 
 ## 22. Explicit non-scope
@@ -639,7 +641,7 @@ complete human-goal / end-to-end flow inventory
 + accessibility/responsive structural viability
 + feature/package topology derived only after interaction closure
 + visual-design handoff inputs / structural conformance obligations
-+ exact Budget Analyzer frontend proving instance
++ explicit Budget Analyzer `FUTURE_PRODUCT_APP` disposition with no current app wireframe
 + zero invented frontend Product operations
 + zero screen-shaped/BFF Product authority
 + zero unresolved material assumptions/findings

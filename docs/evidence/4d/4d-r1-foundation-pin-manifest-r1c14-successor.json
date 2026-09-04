@@ -1,0 +1,48 @@
+{
+  "kind": "conexus.r1-a0-foundation-pin-manifest/v2",
+  "predecessor": {
+    "path": "docs/evidence/4d/4d-r1-a0-foundation-pin-manifest.json",
+    "sha256": "263519826e29245893d232a8130de079337e474b712f4ace9852a2dbc7b9a671"
+  },
+  "admittedGate": "R1C-14 GIT_SOURCE_CUSTODY",
+  "decidingRuntime": {
+    "os": "linux",
+    "arch": "x64",
+    "node": "24.20.0",
+    "git": "2.55.0"
+  },
+  "git": {
+    "executablePath": "/usr/local/bin/git",
+    "executableSha256": "b5d1f9f76f9805ce8721accc9d8bbff9af9b7407e182ab07a5677dafa6c22201",
+    "buildFlags": ["NO_TCLTK=YesPlease", "NO_GETTEXT=YesPlease", "NO_RUST=YesPlease"],
+    "buildOptionControl": "rust: disabled",
+    "source": {
+      "archive": "https://www.kernel.org/pub/software/scm/git/git-2.55.0.tar.xz",
+      "archiveSha256": "457fdb04dc8728e007d4688695e6912e6f680727920f2a40bf11eacc17505357",
+      "signature": "https://www.kernel.org/pub/software/scm/git/git-2.55.0.tar.sign",
+      "signatureSha256": "8673501946204c38ebfed09603c1f3a041ed8d12b31f0aa06a474d41e359e254",
+      "primaryKeyFingerprint": "96E07AF25771955980DAD10020D04E5A713660A7",
+      "signingSubkeyFingerprint": "E1F036B1FEE7221FC778ECEFB0B5E88696AFE6CB"
+    }
+  },
+  "image": {
+    "base": "node@sha256:be23f54a88d34e8824c741b19b91064094f92c1c97b194144bfc8b50d67258e2",
+    "ociIndexDigest": "sha256:44ad647a10c0a9659e3cfebb28e6b384ac8af15ac53fc2d0cd662cd30d7817b0",
+    "linuxAmd64ManifestDigest": "sha256:800f870caa890432f5955cf2c4545af3ead7f3cd6bcc74b419cfd9934e8876e2",
+    "buildMetadataSha256": "bd2f37cf76a7307a1d66bee226708386573f75c48c14d9d2304d8a414e384531",
+    "rootfsClosureSha256": "737d2733325ab0d6c49e102d16dc4892c5ca35a92dffe6c838dbe77c44f93fba",
+    "dependencyClosureSha256": "07ddbd90e07c40f18482f4cbf35c0587d6197b5e7563b96062d00ae86784959c"
+  },
+  "evidence": {
+    "resultPath": "qualification/4d/r1-git-source-custody/evidence/results.json",
+    "resultSha256": "9f05ac20b221c9902fbeb3305e0f0636df59c6d4a296f3f72126afa270bc972b",
+    "productCensusSha256": "af61650f85c396a51eca996a6825fdd942d6ced9dc410bfdc194b25afe275d8d",
+    "command": "powershell -File qualification/4d/r1-git-source-custody/run.ps1",
+    "expectedCheckIds": ["BUILD_OPTIONS", "BUNDLE_EXISTING_GIT", "BUNDLE_NEW", "CAS", "CORRUPT_BUNDLE", "CREDENTIAL_CONFIG", "EXISTING_GIT", "ISOLATION", "MISSING_REF", "NEW", "PARTIAL", "PIN", "PIN_NEGATIVE", "PROTOCOL", "REDIRECT"]
+  },
+  "reviews": [
+    {"reviewer": "Claude Code independent lane", "model": "claude-opus-5", "sessionId": "c29aa270-bfcf-4135-bb6f-7ed0fa639e27", "verdict": "ACCEPT"},
+    {"reviewer": "AGY Gemini Pro", "model": "gemini-3.1-pro", "sessionId": "00f57a88-0d5b-43b6-ae06-0569186cd7ae", "verdict": "ACCEPT"}
+  ],
+  "verdict": "PASS"
+}

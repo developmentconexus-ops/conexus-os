@@ -1,0 +1,38 @@
+{
+  "kind": "conexus.r1f.pack-a-supply-chain/v1",
+  "observedOn": "2026-08-30",
+  "npmAuditSignatures": {
+    "invalid": [],
+    "missing": [],
+    "verdict": "PASS"
+  },
+  "npmAudit": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 2,
+    "critical": 0,
+    "total": 2,
+    "finding": {
+      "directPackage": "ajv-cli@5.0.0",
+      "transitivePackage": "fast-json-patch@<3.1.1",
+      "advisory": "GHSA-8gh8-hqwg-xf34",
+      "severity": "high",
+      "cvss": 7.3,
+      "patchedVersion": "3.1.1",
+      "upstreamFixPullRequestOpenSince": "2023-06-21"
+    },
+    "verdict": "FAIL"
+  },
+  "deprecations": [
+    "inflight@1.0.6",
+    "glob@7.2.3"
+  ],
+  "licenseDisposition": "NOT_PROVEN_STOPPED_BEFORE_COMPLETION",
+  "sources": [
+    "https://github.com/advisories/GHSA-8gh8-hqwg-xf34",
+    "https://github.com/ajv-validator/ajv-cli/releases/tag/v5.0.0",
+    "https://github.com/ajv-validator/ajv-cli/pull/233"
+  ],
+  "verdict": "FAIL_STOP"
+}

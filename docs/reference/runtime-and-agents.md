@@ -60,6 +60,8 @@ Memory Extractors             = OFF until admitted/evaluated
 
 Scheduled Agent runs are threadless by default.
 
+`4C-F37` adds no new runtime owner. PAR persists typed `TEXT | QUESTION` Conversation messages, owner chronology and current clarification attention. A clarification-producing run settles; answering the exact still-open question through the existing turn admission starts a new AgentRun. Native runtime suspension remains reserved for accepted durable waits such as exact effect approval rather than ordinary conversation questions.
+
 Memory resource scope includes Workspace + Project + Agent + memory class/purpose + subject where applicable.
 
 ## 24.5 Suspension/resume

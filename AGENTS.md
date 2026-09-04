@@ -37,11 +37,16 @@ Expand into additional Product, architecture, contracts, Evidence, research, Git
 
 ## Verification
 
-Required verification:
+Required verification floor:
 
 ```bash
 npm ci
 npm run verify
 ```
+
+This floor does not replace the additional objective checks named in
+`.github/workflows/verify.yml`. Before publication or gate closure, reproduce
+the applicable workflow checks in Linux, including
+`npm run r1:r1c14:native:check` while R1C-14 remains a required CI property.
 
 Run additional targeted or extended proof only when the current claim requires it. A required CI failure should represent a broken objective repository/Product property, not a planning preference, context convention, review ceremony, or historical status projection.

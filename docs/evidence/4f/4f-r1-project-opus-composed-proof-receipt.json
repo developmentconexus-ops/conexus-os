@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 2,
+  "subject": "R1 Project cognition Opus successor production-composed journey",
+  "status": "PASS",
+  "recordedAt": "2026-09-03T18:35:50.461Z",
+  "producer": {
+    "script": "scripts/record-r1-project-opus-composed-proof-receipt.mjs",
+    "scriptSha256": "578135ec8ce887d4071a3410310916efbc8dcb2a3d293abba19c78d67bb44281",
+    "invocation": "node scripts/record-r1-project-opus-composed-proof-receipt.mjs --publish",
+    "elapsedMs": 177477,
+    "testOutputSha256": "6fe6e001b8d84c90362042e154789aa4ed17a7661acb1d8eb8d6e86170a5cf04"
+  },
+  "environment": {
+    "os": "WSL Ubuntu",
+    "node": "24.20.0",
+    "npm": "12.0.2"
+  },
+  "postgres": {
+    "image": "postgres:17.10-bookworm",
+    "digest": "sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f",
+    "executionReference": "postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f",
+    "pullPolicy": "never",
+    "storage": "ephemeral tmpfs",
+    "network": "loopback ephemeral port"
+  },
+  "command": "/home/leandrotheodoro/.nvm/versions/node/v24.20.0/bin/node --test --test-concurrency=1 tests/implementation/r1-s6-composed-journey.test.mjs",
+  "subjectHashes": {
+    "apps/hub/src/project/anthropic-oauth-provider.ts": "6e81482c4c003b0a69e34c1c494d76c32a1781a58220769e35416a7dd2fa7520",
+    "apps/hub/src/project/module.ts": "8f17ac8a88e0cd74c05408746c768f49726d0c35882aeef8a33d7d09dd1c5b96",
+    "tests/implementation/r1-s6-composed-journey.test.mjs": "9336fc0d933684df265e25426c01203aff39905d7a3649bfe93411081333fe92"
+  },
+  "result": {
+    "tests": 1,
+    "pass": 1,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "durationMs": 177455.647588,
+    "name": "production Project composition completes the S6 browser journey on PostgreSQL 17.10"
+  },
+  "providerCall": false,
+  "credentialDisclosed": false
+}

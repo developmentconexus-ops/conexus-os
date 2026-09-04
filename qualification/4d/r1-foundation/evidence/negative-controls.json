@@ -1,0 +1,13 @@
+{
+  "kind": "conexus.r1f.pack-a-negative-controls/v1",
+  "controls": [
+    { "id": "floating-selector", "expected": "reject", "observedExitCode": 1, "verdict": "PASS" },
+    { "id": "alternate-registry", "expected": "reject", "observedExitCode": 1, "verdict": "PASS" },
+    { "id": "manifest-lock-mismatch", "expected": "reject", "observedExitCode": 1, "verdict": "PASS" },
+    { "id": "integrity-mismatch", "expected": "reject", "observedExitCode": 1, "verdict": "PASS" },
+    { "id": "unreviewed-install-script", "expected": "reject-before-script", "observedExitCode": 1, "marker": false, "verdict": "PASS" },
+    { "id": "explicitly-denied-install-script", "expected": "install-without-script", "observedExitCode": 0, "marker": false, "verdict": "PASS" },
+    { "id": "explicitly-allowed-install-script", "expected": "install-and-run-script", "observedExitCode": 0, "marker": true, "verdict": "PASS" }
+  ],
+  "verdict": "PASS"
+}

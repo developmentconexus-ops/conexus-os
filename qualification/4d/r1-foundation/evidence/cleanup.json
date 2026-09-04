@@ -1,0 +1,21 @@
+{
+  "kind": "conexus.r1f.cleanup/v1",
+  "observedOn": "2026-08-30",
+  "temporaryInstallDirectories": "ABSENT",
+  "qualificationNodeModules": "ABSENT",
+  "qualificationListeners": "NONE",
+  "containersStarted": 0,
+  "credentialsCreated": 0,
+  "retainedImmutableCache": [
+    {
+      "path": "/home/leandrotheodoro/.cache/conexus-r1-admission/node-v24.20.0.tar.xz",
+      "sha256": "2f2c0da162318f0de47665410c7c8c2ed3d36c8f3105de4bbc61176c70a7cbf2",
+      "removal": "rm -- /home/leandrotheodoro/.cache/conexus-r1-admission/node-v24.20.0.tar.xz"
+    },
+    {
+      "path": "/home/leandrotheodoro/.cache/conexus-r1-admission/node-v24.20.0",
+      "removal": "rm -rf -- /home/leandrotheodoro/.cache/conexus-r1-admission/node-v24.20.0"
+    }
+  ],
+  "verdict": "PASS"
+}

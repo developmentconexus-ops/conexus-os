@@ -14,13 +14,13 @@ Current caller Product operations are exactly:
 
 ```text
 BRN-01 → BRN-10
-BRN-12
+BRN-12 → BRN-14
 ```
 
 Total:
 
 ```text
-11 Product operations
+13 Product operations
 ```
 
 `BRN-11 RunBrainHealthProbe` remains absent from caller Product wire because current authority classifies it as `SYSTEM_OWNER_TRANSITION`.
@@ -317,3 +317,6 @@ new F05/F06/F07 records      = 0
 ```
 
 F05 closes proposal-intake expressibility; F06 closes exact-source human inspectability; F07 closes exact-revision structured knowledge browse. None creates Product implementation authority.
+## Pre-P11 F05 bounded Project-build disclosure
+
+`BRN-14` remains one Project-scoped Brain read and Brain=13. It now admits a purpose-bound `project.build` route exposing exact `authoringRef` plus human concept recognition. `detailDisclosed=false` distinguishes withheld sections/provenance from absent or invalid meaning. The route grants no Workspace Brain browse/publication, Project binding administration or runtime effective-slice authority.

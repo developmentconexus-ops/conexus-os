@@ -2,8 +2,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { assert4DOpeningIsProperlyGated } from './_roadmap-phase-guards.mjs'
 
-const root = resolve(new URL('../../', import.meta.url).pathname)
+const root = fileURLToPath(new URL('../../', import.meta.url))
 const path = p => resolve(root, p)
 const read = p => readFileSync(path(p), 'utf8')
 
@@ -12,7 +14,7 @@ function requireText(text, needle, message) {
 }
 
 function gitBlobSha(text) {
-  const bytes = Buffer.from(text, 'utf8')
+  const bytes = Buffer.from(text.replaceAll('\r\n', '\n'), 'utf8')
   return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')
 }
 
@@ -27,8 +29,10 @@ test('operator-approved W-01 C1-R1 is locked and closed through exact P9/P10 tra
   const roadmap = read('docs/roadmap.md')
 
   const approvedBlob = '3d1d475d3ca7ce06ea549da12152cd386ab170a2'
-  if (gitBlobSha(html) !== approvedBlob) throw new Error('operator-approved W-01 HTML artifact changed after lock')
+  const family1Candidate = 'd466d66a125605471f2f879bbe376e4de7681d95'
+  if (gitBlobSha(html) !== family1Candidate) throw new Error('P12 Family 1 W-01 candidate identity drifted before operator walkthrough')
   requireText(contract, `approved P8 artifact blob = ${approvedBlob}`, 'W-01 Screen Contract must pin the exact approved HTML blob')
+  requireText(contract, `P12 Family 1 approved P8 delta blob = ${family1Candidate}`, 'W-01 contract must pin the re-locked Family 1 delta')
 
   requireText(hypotheses, 'LOCKED / OPERATOR APPROVED', 'W-01 hypotheses must record the operator-only lock')
   requireText(hypotheses, 'C1-R1', 'W-01 lock must identify C1-R1 exactly')
@@ -60,8 +64,8 @@ test('operator-approved W-01 C1-R1 is locked and closed through exact P9/P10 tra
     'W-02B LOCKED',
     'W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED',
     'W-04 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED',
-    'P-01 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED',
+    'P-01 = LOCKED / OPERATOR APPROVED / AGENT STUDIO DELTA RE-LOCKED / P9/P10 CLOSED',
   ]) requireText(roadmap, currentLock, `roadmap must preserve current lock: ${currentLock}`)
 
-  if (/4D[^\n|]*\|\s*OPEN/.test(roadmap)) throw new Error('W-01 lock must not permit opening 4D before remaining 4C/P11/P12 closure')
+  assert4DOpeningIsProperlyGated(roadmap, 'W-01 lock must not permit opening 4D before remaining 4C/P11/P12 closure')
 })

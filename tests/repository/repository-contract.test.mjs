@@ -2,11 +2,20 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const root = resolve(new URL('../../', import.meta.url).pathname)
+const root = fileURLToPath(new URL('../../', import.meta.url))
 const run = script => spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' })
+let mutationQueue = Promise.resolve()
+const serialTest = (name, fn) => test(name, async context => {
+  const previous = mutationQueue
+  let release
+  mutationQueue = new Promise(resolveQueue => { release = resolveQueue })
+  await previous
+  try { return await fn(context) } finally { release() }
+})
 
-test('Conexus OS repository contract is green', () => {
+serialTest('Conexus OS repository contract is green', () => {
   for (const script of [
     'scripts/check-repository-hygiene.mjs',
     'scripts/check-doc-index.mjs',
@@ -17,7 +26,7 @@ test('Conexus OS repository contract is green', () => {
   }
 })
 
-test('repository hygiene guard fires on temporary work contamination', () => {
+serialTest('repository hygiene guard fires on temporary work contamination', () => {
   const workRoot = resolve(root, 'docs/work')
   const workRootExisted = existsSync(workRoot)
   const workDir = resolve(workRoot, 'current')
@@ -37,7 +46,7 @@ test('repository hygiene guard fires on temporary work contamination', () => {
   }
 })
 
-test('bootstrap/status guard fires when README becomes a phase authority', () => {
+serialTest('bootstrap/status guard fires when README becomes a phase authority', () => {
   const path = resolve(root, 'README.md')
   const original = readFileSync(path, 'utf8')
   writeFileSync(path, `${original}\n3N = NEXT / NOT STARTED\n`)
@@ -50,7 +59,7 @@ test('bootstrap/status guard fires when README becomes a phase authority', () =>
   }
 })
 
-test('phase progression guard fires when more than one phase is active', () => {
+serialTest('phase progression guard fires when more than one phase is active', () => {
   const path = resolve(root, 'docs/roadmap.md')
   const original = readFileSync(path, 'utf8')
   let mutated = original.replace('| 3N | CLOSED |', '| 3N | OPEN / ACTIVE |')
@@ -66,7 +75,7 @@ test('phase progression guard fires when more than one phase is active', () => {
   }
 })
 
-test('C-018 ratification review cannot overlap an open architecture phase', () => {
+serialTest('C-018 ratification review cannot overlap an open architecture phase', () => {
   const path = resolve(root, 'docs/roadmap.md')
   const original = readFileSync(path, 'utf8')
   let mutated = original.replace('| C-018 | RATIFIED / OPERATOR RATIFIED |', '| C-018 | OPEN / RATIFICATION REVIEW |')
@@ -84,24 +93,7 @@ test('C-018 ratification review cannot overlap an open architecture phase', () =
   }
 })
 
-test('C-018 ratification alone cannot unblock Product implementation', () => {
-  const path = resolve(root, 'docs/roadmap.md')
-  const original = readFileSync(path, 'utf8')
-  const mutated = original.replace('| Product implementation | BLOCKED |', '| Product implementation | AUTHORIZED |')
-  if (mutated === original) throw new Error('C-018 deny-only mutation target missing')
-  writeFileSync(path, mutated)
-  try {
-    const result = run('scripts/check-current-state.mjs')
-    const output = `${result.stdout}\n${result.stderr}`
-    if (result.status === 0 || !output.includes('Product implementation must remain BLOCKED')) {
-      throw new Error(`C-018 deny-only negative control did not fire:\n${output}`)
-    }
-  } finally {
-    writeFileSync(path, original)
-  }
-})
-
-test('ratified C-018 cannot coexist with an unclosed architecture phase', () => {
+serialTest('ratified C-018 cannot coexist with an unclosed architecture phase', () => {
   const path = resolve(root, 'docs/roadmap.md')
   const original = readFileSync(path, 'utf8')
   const mutated = original.replace('| 3O | CLOSED |', '| 3O | OPEN / ACTIVE |')

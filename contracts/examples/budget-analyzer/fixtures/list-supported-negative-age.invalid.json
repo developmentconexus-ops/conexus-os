@@ -6,6 +6,7 @@
     "coverage": "COMPLETE",
     "provenance": "VERIFIED"
   },
+  "currencyCode": "BRL",
   "items": [
     {
       "budgetRef": "budget:synthetic:2",
@@ -14,7 +15,9 @@
       "agingBand": "AGE_0_3",
       "budgetValue": "100.00",
       "sellerId": "seller:synthetic:2",
+      "sellerName": "Vendedora sintética 2",
       "customerId": "customer:synthetic:2",
+      "customerName": "Cliente sintético 2",
       "sourceCompanyId": "company:synthetic:1",
       "pendingEvidenceState": "CONFIRMED"
     }

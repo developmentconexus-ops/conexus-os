@@ -157,6 +157,21 @@ Seller, customer, company and Budget identities remain source-qualified.
 
 If one Connection credential can technically see multiple companies, that does **not** authorize ambient all-company analysis. The exact ProjectConnectionBinding/source scope decides what is admitted.
 
+### 3.8 Monetary unit and human dimension presentation
+
+Every admitted response/page that returns a monetary value carries one exact ISO 4217 `currencyCode` applying to every monetary value in that response/page. A result scope containing multiple currencies is not aggregated in F1: without a separately accepted grouping or conversion semantic it fails closed through the applicable `UNSUPPORTED` / `INDETERMINATE` truth state and returns no business values.
+
+The historical Mitra benchmark's `R$` is Evidence only. It does not authorize the frontend to hardcode BRL.
+
+Every returned seller/customer aggregate member and drilldown row carries both:
+
+```text
+stable source-qualified seller/customer ID
++ owner-issued non-empty seller/customer name
+```
+
+The ID remains filter/trace authority; the name is the required human presentation. If the current source/Brain projection cannot resolve that presentation, existing degraded truth/coverage semantics apply. The browser does not invent a name or perform an undisclosed directory join.
+
 ---
 
 ## 4. Supported first Product-visible results
@@ -168,6 +183,7 @@ The accepted minimum useful result inventory is:
 ```text
 pending_budget_count
 pending_budget_value
+currency_code
 as_of
 freshness / coverage / provenance state
 ```
@@ -182,6 +198,7 @@ Per exact seller identity:
 budget_count
 budget_value
 average_budget_age_days
+seller identity + required human name
 ```
 
 ### R3 — Pending by customer
@@ -192,6 +209,7 @@ Per exact customer identity:
 budget_count
 budget_value
 average_budget_age_days
+customer identity + required human name
 ```
 
 ### R4 — Pending by aging band
@@ -224,8 +242,9 @@ canonical Budget business date
 last-change time/date as provenance where useful
 budget_age_days
 value
-seller identity/presentation
-customer identity/presentation
+currency code for the response/page
+seller identity + required human name
+customer identity + required human name
 source/company identity where admitted
 current pending/derivation evidence state
 ```
@@ -411,6 +430,8 @@ Snapshot coherence        = no retained cross-call/page pinning promised in F1; 
 Budget age                = as_of - canonical Budget business date; negative values are not clamped/banded
 Age bands                 = 0–3 / 4–7 / 8–30 / 31+
 Supported results         = summary + seller + customer + aging + month + drilldown
+Monetary unit             = one required ISO 4217 currencyCode per value-bearing response/page; no implicit cross-currency aggregation
+Human dimensions         = stable seller/customer IDs + required owner-issued non-empty names
 Margin                    = unsupported
 Heuristic probability     = rejected
 Conversion metric         = deferred until separately proved and admitted
@@ -419,6 +440,8 @@ N_budget                   = 2
 App roles                  = admin + member read access
 Product Agent/MAR/DEDICATED= not admitted for these operations in F1
 ```
+
+The operator explicitly accepted the bounded 4C findings `4C-F39` and `4C-F40` on **2026-08-26**. This closes monetary-unit and seller/customer presentation truth without changing `N_budget`, caller classes, Permissions, owners or result families.
 
 ### Reopen triggers
 
@@ -432,3 +455,11 @@ Reopen only the smallest owning item if material Evidence establishes that:
 - correct conversion semantics are proved and explicitly proposed for admission.
 
 A source-code/field mapping correction alone does not manufacture a new Product operation or automatically reopen 4A.
+
+---
+
+## 11. Future Product direction — recorded, not admitted into current platform-planning scope
+
+The operator recorded a credible later evolution of the Budget Analyzer: all admitted Budgets, exact line items, table/quoted/promotional value comparison, explicit savings and a read-only intelligent analysis using complementary relations already configured in the application's Product catalog. Alternative-product optimization by margin/turnover and Sankhya write-back remain later questions.
+
+This direction is intentionally **not** a current 4A/4B/4C expansion. The Budget Analyzer remains the locked two-Query proving instance. Exact application UX, additional Project operations, Connector/SDK mechanics and runtime realization are reconsidered only when the platform program reaches the owning stage or a separately authorized Product-app cycle.

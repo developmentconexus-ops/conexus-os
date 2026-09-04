@@ -1,0 +1,34 @@
+{
+  "kind": "conexus.r1f.pack-a-input-receipt/v1",
+  "observedOn": "2026-08-30",
+  "platform": {
+    "os": "linux",
+    "arch": "x64",
+    "distribution": "Ubuntu 26.04 LTS",
+    "kernel": "6.18.33.2-microsoft-standard-WSL2"
+  },
+  "node": {
+    "version": "24.20.0",
+    "archive": "node-v24.20.0-linux-x64.tar.xz",
+    "sha256": "2f2c0da162318f0de47665410c7c8c2ed3d36c8f3105de4bbc61176c70a7cbf2",
+    "officialChecksumMatched": true
+  },
+  "npm": {
+    "version": "12.0.2",
+    "directIntegrityMatched": true,
+    "registry": "https://registry.npmjs.org/"
+  },
+  "lock": {
+    "lockfileVersion": 3,
+    "directPackages": 26,
+    "lockedPackages": 243,
+    "canonicalSha256": "a16ff079069a42b48bc496b14780318ad7441973bb7bfa0b2a37369b34010761"
+  },
+  "deferredAfterStop": [
+    "Keycloak runtime image digest",
+    "Atlas executable digest",
+    "Playwright browser build digests",
+    "complete license disposition"
+  ],
+  "verdict": "PARTIAL_STOP"
+}

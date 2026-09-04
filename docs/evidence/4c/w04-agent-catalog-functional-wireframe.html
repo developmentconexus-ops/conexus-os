@@ -571,12 +571,12 @@
       },
       {
         agent: {
-          agentId: 'agt-sales-brief',
-          name: 'Sales Brief Assistant',
-          purpose: 'Summarizes the sales context exposed by its Project for human review before decisions.',
-          authoredRevisionId: 'agent-rev-013',
-          releaseRefs: ['rel-sales-022'],
-          activeReleaseId: 'rel-sales-022'
+          agentId: 'agent-sales-follow-up',
+          name: 'Sales Follow-up',
+          purpose: 'Reviews stalled opportunities and proposes the next governed customer follow-up.',
+          authoredRevisionId: 'agent-rev-018',
+          releaseRefs: ['rel-042'],
+          activeReleaseId: 'rel-042'
         },
         project: {
           projectId: 'prj-sales-ops',
@@ -735,17 +735,30 @@
 
     function openAgentWorkspaceBoundary(agentId, trigger) {
       const item = workspaceAgentCatalog.find(candidate => candidate.agent.agentId === agentId);
-      if (!item) return;
+      if (!item) return null;
 
       state.boundaryItem = item;
       state.returnFocusTo = trigger ?? document.activeElement;
-      document.getElementById('workspace-agent-name').textContent = item.agent.name;
-      document.getElementById('workspace-project-name').textContent = item.project.name;
-      document.getElementById('workspace-boundary-status').textContent = 'P-03 boundary — future Project-owned Agent workspace is not realized in W-04';
+      const detail = {
+        sourceBlock: 'w04',
+        sourceEvent: 'W04_AGENT_OPEN',
+        destinationBlock: 'p03',
+        ownerCoordinates: {
+          workspaceId: item.project.workspaceId,
+          projectId: item.project.projectId,
+          agentId: item.agent.agentId
+        },
+        failureDisposition: 'P-03 re-resolves the exact Project-owned Agent; no authored fields travel in navigation.'
+      };
+      window.dispatchEvent(new CustomEvent('conexus:wireframe-egress', { detail }));
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: 'conexus:wireframe-egress', detail }, window.location.origin);
+        return detail;
+      }
 
-      const dialog = document.getElementById('agent-workspace-dialog');
-      dialog.hidden = false;
-      document.getElementById('workspace-boundary-close').focus();
+      const query = new URLSearchParams(detail.ownerCoordinates);
+      location.href = `p03-product-agent-functional-wireframe.html?${query.toString()}`;
+      return detail;
     }
 
     function returnFocusTo() {

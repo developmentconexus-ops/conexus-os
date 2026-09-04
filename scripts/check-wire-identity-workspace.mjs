@@ -14,11 +14,11 @@ for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
 
 const expectedIds = [
   ...Array.from({ length: 15 }, (_, i) => `IAM-${String(i + 1).padStart(2, '0')}`).filter((id) => id !== 'IAM-16'),
-  'IAM-17', 'IAM-18', 'IAM-19', 'IAM-20',
+  'IAM-17', 'IAM-18', 'IAM-19', 'IAM-20', 'IAM-21',
   'WS-01', 'WS-02', 'WS-04', 'WS-05'
 ];
 
-if (expectedIds.length !== 23) throw new Error(`internal test setup error: expected 23 ids, got ${expectedIds.length}`);
+if (expectedIds.length !== 24) throw new Error(`internal test setup error: expected 24 ids, got ${expectedIds.length}`);
 
 for (const id of expectedIds) {
   const entry = operations.get(id);
@@ -35,6 +35,12 @@ function op(id) {
   const entry = operations.get(id);
   if (!entry) throw new Error(`missing operation ${id}`);
   return entry.operation;
+}
+
+function operationEntry(id) {
+  const entry = operations.get(id);
+  if (!entry) throw new Error(`missing operation ${id}`);
+  return entry;
 }
 
 function resolveLocalRef(value) {
@@ -111,17 +117,34 @@ function assertAreaSummary(schema, label) {
   return resolved;
 }
 
-const provision = jsonRequestSchema('IAM-03');
-if (!provision || provision.type !== 'object' || provision.additionalProperties !== false) {
-  throw new Error('IAM-03 must have a closed object request schema');
-}
-for (const field of ['externalSubject', 'displayName']) {
-  if (!provision.required?.includes(field)) throw new Error(`IAM-03 must require ${field}`);
-}
-if (provision.properties?.issuer) throw new Error('IAM-03 must not accept caller-selected issuer');
-if (provision.properties?.email?.format !== 'email') throw new Error('IAM-03 optional email must be format=email');
+const provisionUnion = jsonRequestSchema('IAM-03');
+const provisionVariants = provisionUnion?.oneOf?.map(resolveSchema) ?? [];
+if (provisionVariants.length !== 2) throw new Error('IAM-03 must expose ordinary and bootstrap provisioning request variants');
+const provision = provisionVariants.find((candidate) => candidate?.required?.includes('externalSubject'));
+const bootstrapProvision = provisionVariants.find((candidate) => !candidate?.properties?.externalSubject);
+assertClosedObject(provision, 'IAM-03 ordinary provision request');
+assertClosedObject(bootstrapProvision, 'IAM-03 bootstrap provision request');
+for (const field of ['externalSubject', 'displayName']) if (!provision.required?.includes(field)) throw new Error(`IAM-03 ordinary route must require ${field}`);
+if (!bootstrapProvision.required?.includes('displayName')) throw new Error('IAM-03 bootstrap route must require displayName');
+if (provision.properties?.issuer || bootstrapProvision.properties?.issuer) throw new Error('IAM-03 must not accept caller-selected issuer');
+if (bootstrapProvision.properties?.externalSubject) throw new Error('IAM-03 bootstrap route must derive externalSubject server-side');
+if (!bootstrapProvision.description?.includes('externalSubject is resolved from the exact trusted bootstrap context')) throw new Error('IAM-03 bootstrap subject derivation must be explicit');
+if (provision.properties?.email?.format !== 'email' || bootstrapProvision.properties?.email?.format !== 'email') throw new Error('IAM-03 optional email must be format=email');
+const provisionRoutes = op('IAM-03')['x-conexus-authority-routes'] ?? [];
+if (provisionRoutes.join(',') !== 'platform_operator,trusted_bootstrap_context') throw new Error('IAM-03 authority routes must be platform_operator + trusted_bootstrap_context');
 if (!hasRequiredParameter('IAM-03', 'header', 'Idempotency-Key')) throw new Error('IAM-03 must require Idempotency-Key');
 assertAccountSummary(successSchema('IAM-03', '201'), 'IAM-03 success AccountSummary');
+
+// 4C-F38: one I&A-owned opaque-session termination meaning is admitted from both human surfaces.
+const endSession = operationEntry('IAM-02');
+if (endSession.path !== '/api/session') throw new Error('IAM-02 must use the surface-neutral /api/session path');
+const endSessionIngress = [...(endSession.operation['x-conexus-ingress'] ?? [])].sort();
+if (endSessionIngress.join(',') !== 'CONTROL_PLANE,PUBLISHED_APP') {
+  throw new Error(`IAM-02 ingress must be exactly CONTROL_PLANE/PUBLISHED_APP; got ${endSessionIngress.join(',')}`);
+}
+if (!endSession.operation.responses?.['204']?.description?.includes('does not claim global Keycloak SSO logout')) {
+  throw new Error('IAM-02 must preserve the Conexus-session vs Keycloak-SLO distinction');
+}
 
 const workspaceMembers = assertClosedObject(successSchema('IAM-04'), 'IAM-04 success');
 assertAccountSummary(workspaceMembers.properties?.items?.items, 'IAM-04 member AccountSummary');
@@ -167,6 +190,40 @@ if (states.join(',') !== 'ABSENT,PRESENT') {
   throw new Error(`IAM-15 expectedCurrent must close ABSENT/PRESENT; got ${states.join(',')}`);
 }
 
+// 4C-F38: the Published-App frame recognizes the current Conexus Account without provider claims.
+const appContext = assertClosedObject(successSchema('IAM-13'), 'IAM-13 success');
+for (const field of ['account', 'projectId', 'activeReleaseId', 'role']) {
+  if (!appContext.required?.includes(field)) throw new Error(`IAM-13 must require ${field}`);
+}
+assertAccountSummary(appContext.properties?.account, 'IAM-13 current AccountSummary');
+
+// 4C-F35/F36: app grants are human-recognizable and the role choice exposes exact active-Release consequences.
+const appAccess = assertClosedObject(successSchema('IAM-14'), 'IAM-14 success');
+assertAccountSummary(appAccess.properties?.items?.items?.properties?.account, 'IAM-14 grant AccountSummary');
+const roleOptions = resolveSchema(appAccess.properties?.roleOptions);
+if ((roleOptions?.minItems ?? 0) !== 2 || roleOptions?.maxItems !== 2) {
+  throw new Error('IAM-14 must expose exactly the admin/member role decision options');
+}
+const roleOption = assertClosedObject(roleOptions.items, 'IAM-14 PublishedAppRoleOption');
+const optionRoles = resolveSchema(roleOption.properties?.role)?.enum ?? [];
+if (optionRoles.length !== 2 || !optionRoles.includes('admin') || !optionRoles.includes('member')) {
+  throw new Error('IAM-14 role options must remain exactly admin/member');
+}
+const roleCapability = assertClosedObject(roleOption.properties?.capabilities?.items, 'IAM-14 role capability summary');
+for (const field of ['operationId', 'name', 'purpose', 'regime']) {
+  if (!roleCapability.required?.includes(field)) throw new Error(`IAM-14 role capability summary must require ${field}`);
+}
+
+assertAccountSummary(successSchema('IAM-15').properties?.account, 'IAM-15 success AccountSummary');
+
+const appCandidatePage = assertClosedObject(successSchema('IAM-21'), 'IAM-21 success');
+assertAccountSummary(appCandidatePage.properties?.items?.items, 'IAM-21 candidate AccountSummary');
+const appCandidateQuery = resolvedParameters('IAM-21').find((p) => p?.in === 'query' && p?.name === 'query');
+if (!appCandidateQuery) throw new Error('IAM-21 must admit optional human query over existing Conexus Accounts');
+if (!op('IAM-21').responses?.['200']?.description?.includes('absence never proves')) {
+  throw new Error('IAM-21 must preserve the Keycloak provider-identity non-disclosure boundary');
+}
+
 if (!hasRequiredParameter('IAM-17', 'query', 'expectedRole')) {
   throw new Error('IAM-17 must carry the expected current app role explicitly');
 }
@@ -178,6 +235,8 @@ if (revokeRoles.length !== 2 || !revokeRoles.includes('admin') || !revokeRoles.i
 
 // 4C-F01: current Control Plane disclosure must carry human-recognizable Workspace and Project identity.
 const accessContext = assertClosedObject(successSchema('IAM-01'), 'IAM-01 success');
+assertAccountSummary(accessContext.properties?.account, 'IAM-01 current AccountSummary');
+if (accessContext.properties?.accountId) throw new Error('IAM-01 must not duplicate canonical Account identity outside AccountSummary');
 const workspaceItems = resolveSchema(accessContext.properties?.workspaces?.items);
 const projectItems = resolveSchema(accessContext.properties?.projects?.items);
 if (!workspaceItems?.required?.includes('workspaceId')) throw new Error('IAM-01 Workspace projection must require workspaceId');
@@ -194,7 +253,8 @@ for (const forbidden of ['description', 'settings', 'metadata']) {
 }
 if (!hasRequiredParameter('WS-01', 'header', 'Idempotency-Key')) throw new Error('WS-01 must require Idempotency-Key');
 const createdWorkspace = assertClosedObject(successSchema('WS-01', '201'), 'WS-01 success');
-if (!createdWorkspace.required?.includes('workspaceId')) throw new Error('WS-01 success must require workspaceId');
+for (const field of ['workspaceId', 'creatorAccountId', 'initialAccessEstablished']) if (!createdWorkspace.required?.includes(field)) throw new Error(`WS-01 success must require ${field}`);
+if (createdWorkspace.properties?.initialAccessEstablished?.const !== true) throw new Error('WS-01 success must prove initial creator access');
 assertHumanName(createdWorkspace, 'WS-01 success');
 const workspaceRead = assertClosedObject(successSchema('WS-02'), 'WS-02 success');
 if (!workspaceRead.required?.includes('workspaceId')) throw new Error('WS-02 success must require workspaceId');
@@ -216,4 +276,4 @@ if (!areaAuthorityRoutes.includes('workspace.manage') || !areaAuthorityRoutes.in
 if (operations.has('WS-03')) throw new Error('4C-F11 must not resurrect WS-03 UpdateWorkspace');
 if (operations.has('WS-06')) throw new Error('4C-F11 must not resurrect WS-06 UpdateArea');
 
-console.log('IAM/Workspace schema closure passed (23 operations; Account/Area human identity + IAM-18..20 access reads closed; no generic mutation/RBAC authority).');
+console.log('IAM/Workspace schema closure passed (24 operations; Account/Area/app-access human identity + IAM-18..21 reads closed; active-Release role consequences; no generic mutation/RBAC authority).');

@@ -1,0 +1,39 @@
+{
+  "kind": "conexus.r1c14.git-source-custody-native-readmission-pin/v1",
+  "observedOn": "2026-09-01",
+  "hostRuntime": {
+    "node": "v24.20.0"
+  },
+  "predecessors": {
+    "s2GenerationReceiptSha256": "f505e67f1e31f2f94ab7268e31dee6882f5e0d58975b878f3e2ecbdb8aa487e7",
+    "s2OwnershipManifestSha256": "f3a132e9ab3ef6e682ebf25da73f0318e2a55b74c53557d1957241fe2b6d1242"
+  },
+  "git": {
+    "version": "2.55.0",
+    "executableSha256": "b5d1f9f76f9805ce8721accc9d8bbff9af9b7407e182ab07a5677dafa6c22201"
+  },
+  "image": {
+    "tag": "conexus-r1c14-git:2.55.0-native-readmission-v3",
+    "ociIndexDigest": "sha256:5e5c3526292bb87a97a3fa41c8e715800a02da5238fbe07bf99c1c4b614f7851",
+    "linuxAmd64ManifestDigest": "sha256:5c4c1731bb91b227c26ab40efd8298a8a9b3a3f8a5a40642d65817d581a72276",
+    "buildMetadataSha256": "841a96b0bdfca1f96e1b4b532f35e05c5ea5f11486b61f49d246e7fb93a4aa6a",
+    "rootfsClosureSha256": "5d7ff67d036c769c39c19b06bba5e94f4dc7d69ef435843c2406bf16f63c3ea1",
+    "dependencyClosureSha256": "07ddbd90e07c40f18482f4cbf35c0587d6197b5e7563b96062d00ae86784959c",
+    "rootfsLayers": [
+      "sha256:cd482426e5675a31e31f2bddad58815b83b309a587bf56b46a308586d9fd6eb5",
+      "sha256:ffc8aa3c6d1eee538ec70f1c9d749b8bebe8f016bfd4b16ee45c623c9cffa402",
+      "sha256:74a032b83597c9456f0d3bc320e33b56a52127ce0027d313a80e31a32ab99a42",
+      "sha256:3ae67b6c3bdf10cd6600d5cf69601a33d304b74372b690fd736562f67d3a5f41",
+      "sha256:491a4b8c316a73dbfd8d1abe2130d70284801ce8255206f900037604a931e18d",
+      "sha256:fbfe4a3372927cee81452ee2d3d853b3be07ad478a74b074a6941b11afaad5e8",
+      "sha256:30f8742377fe325048abf083d2c3f3735e5f72a1ed038dc01bccf9bbd0316db4",
+      "sha256:f6a9135a676c69f7066d1c4ac8803ddf6dc4eb696c8b60d95ae22b3cb3c82303",
+      "sha256:83fe7f6b51f55bf6f29229a08f4a99fb1eff22727535640bf5e26191d979061b",
+      "sha256:fc413040011cb283fbbebedbfb971484680698831099964e4bd8d074a3774664",
+      "sha256:b326e7c3d81d7fba26b49ffb0091f0807bd241953b4e33373c7c6ebce6489d95",
+      "sha256:3387be43378c30788d3b3a0fb89ba63356b03a75c8d60df77cce4f0992bbe980",
+      "sha256:59361229b3cde103659f7d9dba35bd789f03f93b1b7071ba7f4d7532205ca87f",
+      "sha256:1fa049348a26597a3739948ea87c7061157bfe6ea8835284a667d160753bff5d"
+    ]
+  }
+}

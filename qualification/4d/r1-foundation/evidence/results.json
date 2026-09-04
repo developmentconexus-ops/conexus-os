@@ -1,0 +1,29 @@
+{
+  "kind": "conexus.r1f.probe-results/v1",
+  "observedOn": "2026-08-30",
+  "results": [
+    {
+      "id": "R1F-P01",
+      "verdict": "PASS",
+      "claims": [
+        "exact Node/npm identity",
+        "26 direct pins equal candidate manifest",
+        "243-package lock",
+        "two clean ignore-script installs produced identical 11088-record tree",
+        "floating, alternate-registry, manifest-lock and integrity negatives fired"
+      ],
+      "treeSha256": "12df6431627f0b9979fcbd356d9f5464337f136d252e844290577746dc7aa54d"
+    },
+    {
+      "id": "R1F-P02",
+      "verdict": "FAIL",
+      "claims": [
+        "install-script census and strict policy firing passed",
+        "registry signature verification passed",
+        "supply-chain admission failed on one HIGH advisory path"
+      ],
+      "finding": "R1F-A01"
+    }
+  ],
+  "batchVerdict": "STOP_R1F07_REOPEN_REQUIRED"
+}

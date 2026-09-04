@@ -1,0 +1,28 @@
+{
+  "kind": "conexus.r1c14.native-readmission-supersession/v1",
+  "observedOn": "2026-09-01",
+  "disposition": "SUPERSEDED_NOT_AUTHORITY",
+  "predecessorSupersession": {
+    "path": "evidence/superseded-candidates/native-readmission-linux-2026-09-01-v10.json",
+    "sha256": "8670a63694dddc07998481b0eaa88eca9fde3abe12008d8deaf50ce752040cb0"
+  },
+  "superseded": {
+    "evidenceDirectory": "evidence/native-readmission-linux-2026-09-01-v11",
+    "resultSha256": "bf2adbe3025d2171c306efd63e5ea703967a42041e6c4d518e2262587cb19424",
+    "candidateSha256": "7dc1f513546c2a87001f0a6b1fe744a18fd5269fbda65f9bd253fde547fb73d4",
+    "retained": true
+  },
+  "successor": {
+    "evidenceDirectory": "evidence/native-readmission-linux-2026-09-01-v12",
+    "resultSha256": "b108a08866fae4eb53bf6bbf66095bb93ae591f55387db9d4a9da1215754ef48",
+    "candidateSha256": "228d603aea0dcd3d75295a7bf4c072c2adcd3c7accd3525bf64b0a8af7dcad60"
+  },
+  "corrections": [
+    "Every retained native candidate is covered by a digest-linked v8→v9→v10→v11→v12 supersession census.",
+    "Request-target and filesystem secret detectors each fire against a planted canary before retained surfaces are scrubbed and rescanned.",
+    "Finalizer negative controls load the manifest-selected current candidate rather than rewriting a historical fixture.",
+    "Build metadata admission refuses COPY, local ADD and build-context bind mounts not covered by retained materials.",
+    "Receipt closure structurally requires exact independent Opus and Gemini lane identities, read-only posture, output digests, zero material findings and ACCEPT verdicts.",
+    "The review brief names the deciding runner identity and external image custody records an objective revisit trigger and later owner."
+  ]
+}

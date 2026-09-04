@@ -2,8 +2,9 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const root = resolve(new URL('../../', import.meta.url).pathname)
+const root = fileURLToPath(new URL('../../', import.meta.url))
 const read = path => readFileSync(resolve(root, path), 'utf8')
 
 const operationId = /`((?:IAM|WS|PRJ|BLD|BRN|CON|REL|PAR|GW|MAR|OBS|BUD)-\d+)`/g
@@ -30,18 +31,18 @@ test('4C-5 candidate surface inventory maps only valid browser-facing Product op
 
   const valid = fixedOperationIds(ledger)
   assert.equal(valid.delete('PAR-05'), true, 'PAR-05 must remain the one no-direct-browser fixed operation')
-  valid.add('BUD-01')
-  valid.add('BUD-02')
-
   const coverageStart = inventory.indexOf('## 7. Concrete operation-to-surface coverage')
   const coverageEnd = inventory.indexOf('\n---\n\n## 8.', coverageStart)
   assert.ok(coverageStart >= 0 && coverageEnd > coverageStart, 'operation-to-surface coverage section must be bounded')
 
   const mapped = new Set([...inventory.slice(coverageStart, coverageEnd).matchAll(operationId)].map(match => match[1]))
   assert.equal(mapped.has('PAR-05'), false, 'PAR-05 must not gain a browser surface')
-  assert.equal(mapped.has('BUD-01'), true, 'Budget Analyzer BUD-01 must remain mapped')
-  assert.equal(mapped.has('BUD-02'), true, 'Budget Analyzer BUD-02 must remain mapped')
+  assert.equal(mapped.has('BUD-01'), false, 'Budget Analyzer proving operations must not force a platform-planning app screen')
+  assert.equal(mapped.has('BUD-02'), false, 'Budget Analyzer proving operations must not force a platform-planning app screen')
 
   const extra = [...mapped].filter(id => !valid.has(id))
   assert.deepEqual(extra, [], `surface inventory invented/non-browser operation mappings: ${extra.join(', ')}`)
+
+  const missing = [...valid].filter(id => !mapped.has(id))
+  assert.deepEqual(missing, [], `surface inventory omitted frontend-reachable operation mappings: ${missing.join(', ')}`)
 })

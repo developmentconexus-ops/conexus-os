@@ -1,0 +1,16 @@
+{
+  "name": "@developmentconexus/conexus-4e-project-mastra-admission",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.18.0"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 probe.test.mjs"
+  },
+  "dependencies": {
+    "@mastra/core": "1.63.2",
+    "zod": "4.5.2"
+  }
+}

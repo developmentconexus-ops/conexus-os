@@ -91,9 +91,9 @@ Counts are derivation results, never planning targets.
 | ID | Assumption / evidence gap | Evidence level | Influences | Probe / resolution | Status |
 | --- | --- | --- | --- | --- |
 | `4C-A01` | Phase-3 Workspace/Project semantic groupings are seeds, not automatic final navigation. | semantic architecture accepted | global frame / IA | GF-01 functional HTML + operator walkthrough | VALIDATED for locked GF-01 baseline; later block terminology may reopen locally |
-| `4C-A02` | Relative task frequency/urgency and resulting navigation/layout priority are not established by Product authority. | no direct frequency analytics | later density/order hypotheses | use bounded operator/user/reference evidence; P12 final probe | OPEN |
+| `4C-A02` | Relative task frequency/urgency and resulting navigation/layout priority are not established by Product authority. | no direct frequency analytics; current ordering operated and locked without a frequency claim | later density/order hypotheses only if new evidence makes them material | do not infer frequency; current IA rests on authority-backed tasks + operator/P12 walkthrough | REJECTED AS MATERIAL CLOSURE DEPENDENCY / OPTIONAL P13 OR POST-OPERATIONAL MEASUREMENT |
 
-No assumption authorizes a Product operation or backend behavior. v2.2 P12 must resolve remaining material assumptions before 4C closure.
+No assumption authorizes a Product operation or backend behavior. `4C-A02` does not convert missing analytics into truth: it rejects frequency as a current closure dependency. New material frequency/urgency evidence may reopen only affected ordering/density.
 
 ---
 

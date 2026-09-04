@@ -2,7 +2,7 @@
 
 > **Status:** 4B CLOSED / OPERATOR RATIFIED / AWAITING INTEGRATION
 > **Owner:** 4B — Executable Wire Contract.
-> **Product semantics:** current operator-ratified 4A authority, including bounded `4B-F01`, remains canonical above this wire.
+> **Product semantics:** current operator-ratified 4A authority, including bounded corrections through `4C-F36`, remains canonical above this wire.
 > **Implementation:** BLOCKED.
 
 This document owns the human-readable 4B decisions that govern the canonical machine-readable wire artifacts. The machine-readable Product wire must conform to this contract; neither this prose nor generated code may invent Product meaning beyond accepted 4A.
@@ -249,6 +249,7 @@ PromoteRelease
 
 DecideApprovalRequest
 → exact ApprovalRequest/proposal digest explicitly carried
+→ request-time Agent/action/time presentation supports recognition but never replaces the sealed subject
 
 EnableAgentTrigger
 → exact TriggerRevision explicitly carried
@@ -313,6 +314,30 @@ Keycloak OIDC
 
 Keycloak bearer tokens, realm roles, groups, organizations and Authorization Services are never accepted as Product authorization substitutes.
 
+`4C-F38` keeps one I&A-owned session meaning across both human surfaces:
+
+```text
+IAM-13 Published-App context
+→ canonical AccountSummary + exact active Release + exact app role
+
+IAM-02 /api/session
+→ CONTROL_PLANE or PUBLISHED_APP
+→ end exact opaque Conexus session
+-X-> claim global Keycloak SSO logout
+```
+
+For Published-App access administration, the wire preserves that boundary explicitly:
+
+```text
+IAM-21 candidate source = existing I&A-owned Conexus Accounts only
+IAM-14 grant subject presentation = canonical AccountSummary
+IAM-14 role decision truth = server-composed current active-Release role subsets
+IAM-15 success = canonical AccountSummary + exact current app role
+
+browser Keycloak-directory search -X-> Product candidate discovery
+Keycloak role/group/Organization -X-> Conexus app role or grant
+```
+
 ### 9.2 Non-HTTP/runtime authority
 
 `PAR_TOOL`, `MAR_JOB`, owner/system transitions and future DEDICATED service projections are not converted into fake human HTTP cookies or arbitrary caller headers merely because OAS needs a security object.
@@ -373,6 +398,18 @@ PAR-04 / PAR-05
 → admit exact Conexus AgentRun owner truth
 → 202 AgentRun identity / exact Release pin
 
+PAR-01 / PAR-02 / PAR-04
+→ Conversation summaries ordered by lastActivityAt DESC + stable conversationId DESC
+→ safe last-message preview + exact NONE | NEEDS_YOUR_RESPONSE attention
+→ durable TEXT | QUESTION message history
+→ exact open-question reply admits a new AgentRun
+-X-> clarification as ApprovalRequest or ordinary-run suspension
+
+PAR-06 / PAR-07
+→ admittedAt + optional settledAt are PAR temporal truth
+→ lists order by admittedAt DESC + stable agentRunId DESC before pagination
+→ optional safe human problem supports investigation without retry/resume authority
+
 live stream / reconnect / runtime observe
 → Technical Ingress/projection over that exact AgentRun
 -X-> seventeenth PAR Product operation
@@ -414,6 +451,8 @@ Whole-wire Evidence: [../evidence/4b/whole-wire-adversarial-proof.md](../evidenc
 There is no global filter/sort/include language.
 
 Each operation exposes only accepted filters.
+
+`4C-PRE11-F04` admits one Gateway-owner filter on `GW-01`: optional exact `originatingRun { kind, ref }`, encoded as a deep-object query and applied server-side before pagination. It is not a generic filter DSL. The continuation token is bound to the exact Project, originating-run filter and deterministic `attemptedAt DESC / effectAttemptId DESC` ordering; incomplete filter shape or token/query mismatch fails with `422`.
 
 For mutable/unbounded list results, the reusable transport primitive is an **opaque continuation token**, not database offset/cursor internals. The token:
 
@@ -467,6 +506,22 @@ empty supported-current result != dependency failure
 
 The first Budget Analyzer operation schemas are the proving instance for this shared law.
 
+For the same proving instance, `4C-F39/F40` close two presentation-bearing wire laws:
+
+```text
+monetary values present
+→ one required ISO 4217 currencyCode for the whole response/page
+→ every monetary value uses that unit
+→ mixed-currency aggregation without accepted conversion/grouping = no business values + applicable unsupported/indeterminate truth
+
+seller/customer member or row present
+→ stable source-qualified ID
++ required non-empty owner-issued human name
+→ browser fallback/join is not authority
+```
+
+These are enrichments of the existing two Project Query schemas. They create no operation, Permission, caller, durable owner or generic money/directory API.
+
 Gateway effect provenance adds one separate owner-specific truth law:
 
 ```text
@@ -483,6 +538,10 @@ possible external acceptance + ambiguous response
 MAR adds a parallel mechanism-separation law for managed occurrences:
 
 ```text
+ListRunnableManagedJobs
+→ safe human job identity from exact currently served Release
+-X-> JobRun history / queue / schedule / run authority
+
 JobRun owner state / exact pinned Release + job
 != pg-boss queue / worker / redelivery state
 
@@ -496,6 +555,11 @@ RunManagedJobNow
 OBS/Audit adds a separate observation-truth law:
 
 ```text
+Project Activity
+→ projection-time subject label + deterministic summary
+→ optional exact admitted owner-read target
+-X-> generic dispatch / current owner state / Audit replacement
+
 telemetry / trace / provider / guest observation
 → correlation + provenance only
 -X-> owner terminal/current state
@@ -671,3 +735,26 @@ Ratification does not authorize merge by itself. Until this candidate is integra
 Whole-wire Evidence: [../evidence/4b/whole-wire-adversarial-proof.md](../evidence/4b/whole-wire-adversarial-proof.md).
 
 Do not begin 4C, router/framework selection, persistence design, Paved Road selection, migrations, Sankhya implementation or Product code before 4B is integrated.
+## Pre-P11 F03–F05 bounded wire recompile
+
+The operator-ratified pre-P11 corrections preserve the canonical wire laws while moving the fixed platform census to `128`:
+
+```text
+F03
+→ IAM-03 ordinary platform_operator OR exact trusted_bootstrap_context
+→ bootstrap request derives externalSubject server-side
+→ WS-01 success proves initial creator access
+
+F04
+→ GW-01 optional exact originatingRun deep-object filter
+→ filter before deterministic pagination
+
+F05
+→ PRJ-16/17 purpose-bound project.build discovery
+→ BRN-14 authoringRef + explicit detailDisclosed boundary
+→ PRJ-29 Project-owned model-policy summaries
+→ BLD-19 NEW optional unowned refs empty
+→ BLD-19/20 EXISTING protected refs preserved
+```
+
+No generic catalog/filter DSL, ordinary Permission, frontend authority, runtime/provider field or screen-shaped owner is admitted.

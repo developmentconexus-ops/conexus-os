@@ -12,8 +12,8 @@ for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
   }
 }
 
-const expectedIds = Array.from({ length: 17 }, (_, i) => `BLD-${String(i + 1).padStart(2, '0')}`);
-if (expectedIds.length !== 17) throw new Error('internal Builder gate setup error');
+const expectedIds = Array.from({ length: 20 }, (_, i) => `BLD-${String(i + 1).padStart(2, '0')}`);
+if (expectedIds.length !== 20) throw new Error('internal Builder gate setup error');
 
 for (const id of expectedIds) {
   const entry = operations.get(id);
@@ -224,4 +224,44 @@ if (actorRun) {
   exactEnum(property(actorRun, 'lineageDisposition'), ['FRESH_BASE', 'CONTINUE_LINEAGE'], 'ActorRun lineageDisposition');
 }
 
-console.log('Builder schema closure passed (17 operations; F14 Change intent/context + F15 current/candidate Build preview + Plan/Evidence/source authority remain owner-truthful).');
+// F30: structured/manual Agent authoring is server-owned Change candidate state, not prose, source mutation or runtime CRUD.
+const draft = assertClosedObject(successSchema('BLD-18'), 'BLD-18 success');
+required(draft, 'draftId', 'changeId', 'agentId', 'baseAuthoredRevisionId', 'draftRevision', 'candidateSubjectDigest', 'definition');
+const definition = assertClosedObject(property(draft, 'definition'), 'ProductAgentDefinition');
+required(definition, 'schemaVersion', 'name', 'purpose', 'instructions', 'modelPolicy', 'tools', 'brainContext', 'memory', 'interactions', 'policyRefs', 'approvalPolicyRefs', 'budgetPolicyRefs', 'verificationRefs', 'knownLimitations');
+if (property(definition, 'schemaVersion')?.const !== 'agent/v1') throw new Error('F30 definition must be exact agent/v1');
+for (const forbidden of ['mastraAgentId', 'storedAgentId', 'providerConfig', 'credential', 'runtimeRevisionId', 'extensions']) {
+  if (definition.properties?.[forbidden]) throw new Error(`F30 definition must not expose mechanism/authority field ${forbidden}`);
+}
+
+const createDraft = assertClosedObject(requestSchema('BLD-19'), 'BLD-19 request');
+required(createDraft, 'origin', 'definition');
+if (!hasRequiredParameter('BLD-19', 'header', 'Idempotency-Key')) throw new Error('BLD-19 must require Idempotency-Key');
+const origins = property(createDraft, 'origin')?.oneOf ?? [];
+const originKinds = origins.map(resolveSchema).map((candidate) => property(candidate, 'kind')?.const).filter(Boolean).sort();
+if (originKinds.join(',') !== 'EXISTING,NEW') throw new Error(`BLD-19 origin must be exactly EXISTING/NEW; got ${originKinds.join(',')}`);
+const existingOrigin = origins.map(resolveSchema).find((candidate) => property(candidate, 'kind')?.const === 'EXISTING');
+required(existingOrigin, 'agentId', 'expectedAuthoredRevisionId');
+const newConstraint = (createDraft.allOf ?? []).find((candidate) => candidate?.if?.properties?.origin?.properties?.kind?.const === 'NEW');
+if (!newConstraint) throw new Error('F05 BLD-19 must constrain NEW optional unowned refs');
+const constrainedDefinition = newConstraint.then?.properties?.definition?.properties ?? {};
+for (const field of ['policyRefs', 'approvalPolicyRefs', 'budgetPolicyRefs', 'verificationRefs']) {
+  if (constrainedDefinition[field]?.maxItems !== 0) throw new Error(`F05 BLD-19 NEW ${field} must be empty`);
+}
+if (!(op('BLD-19').responses?.['422']?.description ?? '').includes('invalid authoring reference')) throw new Error('F05 BLD-19 must reject invalid authoring references');
+
+const reviseDraft = assertClosedObject(requestSchema('BLD-20'), 'BLD-20 request');
+required(reviseDraft, 'expectedDraftRevision', 'definition');
+if (op('BLD-20')['x-conexus-current-state-carrier'] !== 'EXPLICIT_REVISION') throw new Error('BLD-20 must fail closed on explicit current draft revision');
+if (!(reviseDraft.properties?.definition?.description ?? '').includes('preserved exactly for EXISTING')) throw new Error('F05 BLD-20 must preserve unowned refs for EXISTING');
+for (const [id, method, path] of [
+  ['BLD-18', 'GET', '/api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts/{draftId}'],
+  ['BLD-19', 'POST', '/api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts'],
+  ['BLD-20', 'POST', '/api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts/{draftId}/commands/revise'],
+]) {
+  const current = entry(id);
+  if (current.method !== method || current.path !== path) throw new Error(`${id} must remain exact ${method} ${path}`);
+  if (/\/product-agents(?:\/|$)/.test(current.path)) throw new Error(`${id} must not become direct Product Agent CRUD`);
+}
+
+console.log('Builder schema closure passed (20 operations; F30 typed Product Agent Change draft + prior Plan/Evidence/source authority remain owner-truthful).');

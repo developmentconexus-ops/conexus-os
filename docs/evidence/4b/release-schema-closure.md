@@ -46,15 +46,18 @@ They become authority only through the canonical `contracts/api/product/openapi.
 
 ```text
 releaseId
+releaseLabel
 projectId
 releaseManifestDigest
 sourceRevision
 verificationEvidenceDigest
+createdAt
 releaseState
+compositionSummary
 composition
 ```
 
-The detailed `ReleaseManifest` property inventory remains owned by later realization authority rather than being independently re-authored in 4B. The wire marks the composition projection as sourced from the ReleaseManifest authority.
+The full realization `ReleaseManifest` remains Release-owned. The operator-approved `4C-F31` closes only its stable safe human inspection projection: exact component/binding kind/ref/immutable label/revision or digest plus configuration/runtime-contract digests. `REL-01` uses the same immutable presentation and newest-created-first opaque pagination; neither surface becomes a second manifest authority.
 
 The Release projection does not collapse immutable identity into mutable serving truth such as:
 
@@ -134,9 +137,11 @@ Production down migration remains outside normal Release rollback semantics.
 
 A Promotion record can disclose its Release/environment/current owner state and resulting pointer generation where one exists, but this does not establish serving success.
 
-`GetProjectServingState` keeps the current pointer separate from independently observed serving verification:
+The operator-approved `4C-F32` makes target discovery server-owned. `GetProjectServingState` returns a non-empty exact environment matrix with human target presentation and keeps each current pointer separate from independently observed serving verification:
 
 ```text
+environmentId / environmentLabel
+pointerState = UNSET | SET
 activeReleaseId
 activeReleaseManifestDigest
 pointerGeneration
@@ -157,6 +162,8 @@ Release available
 ```
 
 HTTP reachability or a generic `ready/live/success` boolean cannot replace exact served identity/digest proof.
+
+Promotion history is paged by owner `requestedAt DESC / promotionId DESC` and carries immutable request-time actor/target presentation. `PromoteRelease` accepts the exact disclosed `environmentId`; a free-text environment name never becomes authority.
 
 ### 3.6 EnvironmentConformance measures the real target
 

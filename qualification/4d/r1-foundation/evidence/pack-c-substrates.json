@@ -1,0 +1,23 @@
+{
+  "kind": "conexus.r1f.pack-c-substrates/v1",
+  "observedOn": "2026-08-30",
+  "runtime": { "node": "24.20.0", "npm": "12.0.2", "platform": "linux-x64", "transport": "WSL2 + Docker Desktop host CLI" },
+  "keycloak": {
+    "version": "26.7.2",
+    "parentReference": "quay.io/keycloak/keycloak@sha256:c2a17fe407e892196d0b7cf9cef54e60952d6c372a9205f661a9efa0911463b0",
+    "qualificationOptimizedImageId": "sha256:a3b52c7dfe3c27df11c0665957d92b9eb3a3b73b640a5cde4c2473385833585c",
+    "qualificationOptimizedManifest": "sha256:ad2e73ba9021196a85dd0a3a678b84816446186c840b62e4b4656346e48dc229",
+    "qualificationOptimizedConfig": "sha256:772e69795a7eae3bffb454ab697ff61ef474d76db9c7e6210834a1f650e5631d",
+    "build": "kc.sh build only",
+    "network": "loopback dynamic port",
+    "state": "synthetic ephemeral realm/clients/user"
+  },
+  "postgresql": {
+    "version": "17.10",
+    "reference": "docker.io/library/postgres@sha256:6e5a6518f9d2ff9e9f4cba2a5a87d8f41b0f067f6f92ac847c344351a6c8d923",
+    "network": "loopback dynamic port",
+    "state": "synthetic ephemeral database/tables"
+  },
+  "harnessSourceSha256": "98c6a11bf7c35af7ebc5b266b3e53333c91997a0d050f287ad48f61a30d3227f",
+  "verdict": "PASS"
+}

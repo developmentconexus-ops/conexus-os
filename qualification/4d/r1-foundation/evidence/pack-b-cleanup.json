@@ -1,0 +1,10 @@
+{
+  "kind": "conexus.r1f.pack-b-cleanup/v1",
+  "observedOn": "2026-08-30",
+  "temporaryInstallDirectory": "ABSENT",
+  "qualificationNodeModules": "ABSENT",
+  "qualificationListeners": "NONE",
+  "containersStarted": 0,
+  "credentialsCreated": 0,
+  "verdict": "PASS"
+}

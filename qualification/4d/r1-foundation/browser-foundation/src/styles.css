@@ -1,0 +1,5 @@
+:root { font-family: system-ui, sans-serif; color: #172033; background: #f7f8fb; }
+body { margin: 0; }
+main { max-width: 48rem; margin: 0 auto; padding: 2rem; }
+header, footer { padding: 1rem 0; }
+button { min-height: 2.75rem; padding: 0.5rem 1rem; }

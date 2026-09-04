@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="en" data-wireframe="t-01" data-scope="trusted-setup">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>T-01 · Trusted setup / first access · functional low-fi candidate</title>
+  <style>
+    :root {
+      --ink: #1e1e1e;
+      --muted: #626262;
+      --line: #bcbcbc;
+      --line-strong: #6d6d6d;
+      --paper: #fff;
+      --soft: #f1f1f1;
+      --soft-2: #e5e5e5;
+      --ok: #e8f3e8;
+      --warn: #fff5d9;
+      --error: #fbe8e8;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #ededed; color: var(--ink); font: 15px/1.45 Arial, sans-serif; }
+    button, input { color: inherit; font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    button:focus-visible, input:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
+      outline: 3px solid #1e5aa8;
+      outline-offset: 2px;
+    }
+    .page { width: min(1040px, calc(100% - 28px)); margin: 0 auto; padding: 22px 0 46px; }
+    .topline { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+    .wordmark { font-weight: 700; letter-spacing: .03em; }
+    .candidate-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+    .surface { background: var(--paper); border: 1px solid var(--line-strong); padding: 22px; }
+    .evidence-note { background: var(--soft); border: 1px dashed var(--line-strong); color: var(--muted); font-size: 12px; margin-bottom: 18px; padding: 10px 12px; }
+    h1, h2, h3 { line-height: 1.2; }
+    h1 { font-size: 26px; margin: 0 0 8px; }
+    h2 { font-size: 20px; margin: 0 0 8px; }
+    h3 { font-size: 16px; margin: 0 0 6px; }
+    p { margin: 7px 0 12px; }
+    .muted, .hint { color: var(--muted); }
+    .hint { font-size: 13px; }
+    .setup-progress { border-bottom: 1px solid var(--line); margin: 0 -22px 20px; padding: 0 22px 16px; }
+    .setup-progress ol { display: flex; gap: 8px; list-style: none; margin: 0; padding: 0; }
+    .setup-progress li { background: var(--soft); border: 1px solid var(--line); flex: 1; min-width: 0; padding: 8px 10px; }
+    .setup-progress li[aria-current="step"] { background: var(--soft-2); border-color: var(--line-strong); font-weight: 700; }
+    .setup-progress small { color: var(--muted); display: block; font-size: 11px; margin-top: 2px; }
+    .status { border: 1px solid var(--line); margin: 0 0 18px; padding: 11px 13px; }
+    .status[data-tone="ok"] { background: var(--ok); }
+    .status[data-tone="warn"] { background: var(--warn); }
+    .status[data-tone="error"] { background: var(--error); }
+    .stage { border: 1px solid var(--line); margin-top: 14px; padding: 18px; }
+    .stage[hidden] { display: none; }
+    .stage-head { align-items: start; display: flex; gap: 18px; justify-content: space-between; }
+    .stage-head > div:first-child { min-width: 0; }
+    .stage-tag { border: 1px solid var(--line-strong); font-size: 11px; padding: 5px 7px; white-space: nowrap; }
+    .form-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
+    .field { display: grid; gap: 5px; }
+    .field.full { grid-column: 1 / -1; }
+    .field label { font-weight: 700; }
+    .field input { background: #fff; border: 1px solid var(--line-strong); min-height: 40px; padding: 8px 10px; width: 100%; }
+    .field input[aria-invalid="true"] { border-color: #9b1c1c; }
+    .actions { align-items: center; display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
+    .button { background: #fff; border: 1px solid var(--line-strong); padding: 9px 13px; }
+    .button.primary { background: #252525; color: #fff; }
+    .button.secondary { background: var(--soft); }
+    .button.danger { background: var(--error); }
+    .message { border-left: 4px solid var(--line-strong); margin-top: 14px; padding: 9px 11px; }
+    .message[hidden] { display: none; }
+    .message.error { border-left-color: #9b1c1c; }
+    .message.ok { border-left-color: #2d6b37; }
+    .identity-card, .result-card { background: var(--soft); border: 1px solid var(--line); margin-top: 14px; padding: 13px; }
+    .identity-card dl, .result-card dl { display: grid; gap: 7px 14px; grid-template-columns: max-content minmax(0, 1fr); margin: 0; }
+    dt { color: var(--muted); }
+    dd { margin: 0; overflow-wrap: anywhere; }
+    .operator-entry { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 18px; }
+    .operator-entry[hidden] { display: none; }
+    .handoff { background: var(--soft); border: 1px dashed var(--line-strong); margin-top: 16px; padding: 14px; }
+    .review-controls { border-top: 1px solid var(--line); margin-top: 22px; padding-top: 14px; }
+    .review-controls summary { cursor: pointer; font-weight: 700; }
+    .review-controls .review-body { background: #fafafa; border: 1px solid var(--line); margin-top: 10px; padding: 14px; }
+    .review-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .review-item { border: 1px solid var(--line); padding: 10px; }
+    .review-item code, .review-body code { overflow-wrap: anywhere; }
+    .review-state { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .review-state select { background: #fff; border: 1px solid var(--line-strong); min-height: 38px; padding: 7px; }
+    @media (max-width: 700px) {
+      .page { width: min(100% - 18px, 640px); padding-top: 12px; }
+      .surface { padding: 16px; }
+      .setup-progress { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
+      .setup-progress ol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .form-grid, .review-grid { grid-template-columns: 1fr; }
+      .field.full { grid-column: auto; }
+      .stage-head { display: block; }
+      .stage-tag { display: inline-block; margin-top: 10px; }
+      .identity-card dl, .result-card dl { grid-template-columns: 1fr; }
+      dt { margin-top: 4px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topline">
+      <div class="wordmark">Conexus</div>
+      <div class="candidate-label">T-01 · first access</div>
+    </div>
+
+    <main class="surface" id="trusted-setup-root" data-surface="first-access">
+      <div class="evidence-note" aria-label="Wireframe status">
+        <strong>T-01 P8 FUNCTIONAL LOW-FI CANDIDATE</strong> · <strong>NOT LOCKED</strong> · fixture-only interaction Evidence; this page has no live service behavior.
+      </div>
+
+      <h1>Set up this Conexus instance</h1>
+      <p class="hint">A configured setup identity can establish one Account, then continue through the normal signed-in Workspace path.</p>
+
+      <nav class="setup-progress" aria-label="Trusted setup progress">
+        <ol>
+          <li data-stage="account" aria-current="step">1 · Account<small>Establish your Conexus identity</small></li>
+          <li data-stage="reentry">2 · Re-entry<small>Start the normal session</small></li>
+          <li data-stage="workspace">3 · Workspace<small>Create the first Workspace</small></li>
+          <li data-stage="ready">4 · Ready<small>Continue to Projects</small></li>
+        </ol>
+      </nav>
+
+      <div id="state-banner" class="status" role="status" aria-live="polite" data-state="BOOTSTRAP_ELIGIBLE" data-tone="warn">
+        This configured setup identity is eligible to establish the first Account.
+      </div>
+
+      <section class="stage" id="authentication-stage" aria-labelledby="authentication-title" hidden>
+        <div class="stage-head">
+          <div>
+            <h2 id="authentication-title">Authentication required</h2>
+            <p>Return to the configured sign-in flow before any Account or Workspace truth is shown.</p>
+          </div>
+          <span class="stage-tag">AUTHENTICATION_REQUIRED</span>
+        </div>
+        <div id="authentication-message" class="message">The current session is not available.</div>
+        <div class="actions">
+          <button class="button primary" id="authentication-recovery" type="button">Return to sign-in</button>
+        </div>
+      </section>
+
+      <section class="stage" id="account-stage" aria-labelledby="account-title">
+        <div class="stage-head">
+          <div>
+            <h2 id="account-title">Step 1 — Configure your Account</h2>
+            <p>Choose the human presentation used by Conexus. The configured authentication identity is resolved by the server.</p>
+          </div>
+          <span class="stage-tag">ACCOUNT</span>
+        </div>
+        <form id="bootstrap-account-form" novalidate>
+          <div class="form-grid">
+            <div class="field">
+              <label for="account-display-name">Display name <span aria-hidden="true">*</span></label>
+              <input id="account-display-name" name="displayName" autocomplete="name" required>
+            </div>
+            <div class="field">
+              <label for="account-email">Email <span class="hint">(optional)</span></label>
+              <input id="account-email" name="email" type="email" autocomplete="email">
+            </div>
+          </div>
+          <p id="account-input-help" class="hint">This form establishes only the Account presentation for the exact authenticated setup identity.</p>
+          <div class="actions">
+            <button class="button primary" id="bootstrap-submit" type="submit">Create my Account</button>
+          </div>
+        </form>
+        <div id="account-message" class="message" aria-live="polite" hidden></div>
+        <div id="account-recovery" class="message error" hidden>
+          <strong>We could not confirm this intake.</strong>
+          <p id="account-recovery-copy">Review the message and retry the same intake. A retry does not create a second Account.</p>
+          <button class="button secondary" id="retry-account" type="button">Retry same intake</button>
+        </div>
+      </section>
+
+      <section class="stage" id="reentry-stage" aria-labelledby="reentry-title" hidden>
+        <div class="stage-head">
+          <div>
+            <h2 id="reentry-title">Account established</h2>
+            <p>The setup context is sealed. Sign in again to continue with normal Account/session and Workspace authority.</p>
+          </div>
+          <span class="stage-tag">ACCOUNT_ESTABLISHED_REENTRY_REQUIRED</span>
+        </div>
+        <div class="identity-card" aria-label="Established Account">
+          <dl>
+            <dt>Account</dt><dd id="established-account-name">—</dd>
+            <dt>Presentation</dt><dd>Server-owned AccountSummary</dd>
+            <dt>Next step</dt><dd>Normal Conexus sign-in</dd>
+          </dl>
+        </div>
+        <div class="message ok" id="sealed-message">Bootstrap access sealed. The old setup context cannot continue into Workspace creation.</div>
+        <div class="actions">
+          <button class="button primary" id="normal-reentry" type="button">Sign in to continue</button>
+        </div>
+      </section>
+
+      <section class="stage" id="workspace-stage" aria-labelledby="workspace-title" hidden>
+        <div class="stage-head">
+          <div>
+            <h2 id="workspace-title">Step 3 — Create your first Workspace</h2>
+            <p id="workspace-intro">Your normal Conexus session is active. There are no disclosed Workspaces yet.</p>
+          </div>
+          <span class="stage-tag">SESSION_ESTABLISHED · NO_WORKSPACE</span>
+        </div>
+        <div class="identity-card" aria-label="Current Account">
+          <dl>
+            <dt>Current Account</dt><dd id="current-account-name">—</dd>
+            <dt>Account presentation</dt><dd>Server projection</dd>
+            <dt>Workspace collection</dt><dd id="workspace-collection-state">Known empty — create the first Workspace</dd>
+          </dl>
+        </div>
+        <form id="workspace-form" novalidate>
+          <div class="form-grid">
+            <div class="field full">
+              <label for="workspace-name">Workspace name <span aria-hidden="true">*</span></label>
+              <input id="workspace-name" name="workspaceName" required>
+            </div>
+          </div>
+          <p id="workspace-input-help" class="hint">The Workspace name is human presentation identity; access is established by the server at creation.</p>
+          <div class="actions">
+            <button class="button primary" id="workspace-submit" type="submit">Create Workspace</button>
+          </div>
+        </form>
+        <div id="workspace-message" class="message" aria-live="polite" hidden></div>
+        <div id="workspace-recovery" class="message error" hidden>
+          <strong>Workspace creation needs another attempt.</strong>
+          <p id="workspace-recovery-copy">The outcome is not treated as a known-empty collection or a successful creation.</p>
+          <button class="button secondary" id="retry-workspace" type="button">Retry same intake</button>
+        </div>
+      </section>
+
+      <section class="stage" id="ready-stage" aria-labelledby="ready-title" hidden>
+        <div class="stage-head">
+          <div>
+            <h2 id="ready-title">Workspace access confirmed</h2>
+            <p>The first Workspace is ready for the current Account. Continue at the existing Projects boundary.</p>
+          </div>
+          <span class="stage-tag">WORKSPACE_ESTABLISHED</span>
+        </div>
+        <div class="result-card" aria-label="Created Workspace">
+          <dl>
+            <dt>Workspace</dt><dd id="created-workspace-name">—</dd>
+            <dt>Current Account</dt><dd id="created-workspace-account">—</dd>
+            <dt>Access</dt><dd>Initial access confirmed</dd>
+          </dl>
+        </div>
+        <div class="actions">
+          <button class="button primary" id="projects-handoff" type="button">Continue to Projects</button>
+        </div>
+        <div class="handoff" id="gf01-boundary" data-egress="T-01_TO_GF-01" data-owner-result-state="UNEMITTED" hidden>
+          <strong>GF-01 boundary</strong>
+          <p>Continue at the existing Projects frame. T-01 does not redraw the Control Plane rail or invent a Workspace chooser.</p>
+          <div class="identity-card" id="projects-owner-result" aria-label="T-01 owner result for GF-01">
+            <dl>
+              <dt>Account</dt><dd id="handoff-account-id">—</dd>
+              <dt>Workspace</dt><dd id="handoff-workspace-id">—</dd>
+              <dt>Creator Account</dt><dd id="handoff-creator-account-id">—</dd>
+              <dt>Initial access</dt><dd id="handoff-initial-access">—</dd>
+            </dl>
+          </div>
+        </div>
+      </section>
+
+      <section class="stage" id="trusted-stage" aria-labelledby="trusted-title" hidden>
+        <div class="stage-head">
+          <div>
+            <h2 id="trusted-title">Trusted Account provisioning</h2>
+            <p>This is a separate internal surface for a normal trusted platform operator. It is not part of first-run progression.</p>
+          </div>
+          <span class="stage-tag">PLATFORM_OPERATOR</span>
+        </div>
+        <form id="trusted-account-form" novalidate>
+          <div class="form-grid">
+            <div class="field full">
+              <label for="trusted-external-subject">Exact external subject <span aria-hidden="true">*</span></label>
+              <input id="trusted-external-subject" name="externalSubject" required>
+            </div>
+            <div class="field">
+              <label for="trusted-display-name">Display name <span aria-hidden="true">*</span></label>
+              <input id="trusted-display-name" name="displayName" required>
+            </div>
+            <div class="field">
+              <label for="trusted-email">Email <span class="hint">(optional)</span></label>
+              <input id="trusted-email" name="email" type="email">
+            </div>
+          </div>
+          <p class="hint">This route admits an existing exact subject and returns AccountSummary. Membership and application access remain separate owner decisions.</p>
+          <div class="actions">
+            <button class="button primary" id="trusted-account-submit" type="submit">Provision Account</button>
+            <button class="button secondary" id="return-to-workspace" type="button">Back to first Workspace</button>
+          </div>
+        </form>
+        <div id="trusted-message" class="message" aria-live="polite" hidden></div>
+        <div class="result-card" id="trusted-result" hidden aria-label="Provisioned Account">
+          <dl>
+            <dt>Account</dt><dd id="trusted-result-name">—</dd>
+            <dt>Result</dt><dd>AccountSummary returned; no membership or app access was created</dd>
+          </dl>
+          <div class="actions">
+            <button class="button secondary" id="trusted-handoff" type="button">Continue to W-03 / P-05 candidate selection</button>
+          </div>
+          <div class="handoff" id="trusted-handoff-boundary" hidden>
+            <strong>Future-block boundary</strong>
+            <p>W-03 / P-05 owns candidate selection and access decisions. T-01 stops at the Account result.</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="operator-entry" id="operator-entry" hidden>
+        <h3>Operator-only continuation</h3>
+        <p class="hint">This link is available only after a normal session is established.</p>
+        <button class="button secondary" id="open-trusted-provisioning" type="button">Open trusted Account provisioning</button>
+      </div>
+
+      <details class="review-controls" id="review-controls">
+        <summary>Review controls — closed by default</summary>
+        <div class="review-body">
+          <p><strong>P8 WALKTHROUGH FIXTURES</strong> · deterministic local responses only. Review controls expose proof coordinates; they do not grant authority.</p>
+          <div class="review-state">
+            <label for="scenario-select">Scenario</label>
+            <select id="scenario-select">
+              <option>BOOTSTRAP_ELIGIBLE</option>
+              <option>AUTHENTICATION_REQUIRED</option>
+              <option>IDENTITY_NOT_ELIGIBLE</option>
+              <option>BOOTSTRAP_IN_PROGRESS</option>
+              <option>ACCOUNT_INPUT_INVALID</option>
+              <option>ACCOUNT_CONFLICT_OR_AMBIGUOUS_INTAKE</option>
+              <option>DEPENDENCY_FAILURE</option>
+              <option>ACCOUNT_ESTABLISHED_REENTRY_REQUIRED</option>
+              <option>BOOTSTRAP_SEALED</option>
+              <option>SESSION_ESTABLISHED</option>
+              <option>NO_WORKSPACE</option>
+              <option>WORKSPACE_INPUT_INVALID</option>
+              <option>WORKSPACE_IN_PROGRESS</option>
+              <option>WORKSPACE_CONFLICT_OR_AMBIGUOUS_INTAKE</option>
+              <option>WORKSPACE_ESTABLISHED</option>
+              <option>TRUSTED_ACCOUNT_PROVISIONING_READY</option>
+              <option>TRUSTED_ACCOUNT_PROVISIONED</option>
+            </select>
+            <button class="button secondary" id="apply-scenario" type="button">Apply scenario</button>
+            <button class="button danger" id="attempt-old-bootstrap-workspace" type="button">Attempt WS-01 with sealed bootstrap context</button>
+          </div>
+          <div class="review-grid">
+            <div class="review-item" data-operation="IAM-03">
+              <strong>IAM-03 ProvisionAccount</strong>
+              <p>Bootstrap variant accepts displayName/email only; <code>externalSubject</code> is server-derived from the exact configured identity. Ordinary <code>platform_operator</code> provisioning accepts an exact external subject.</p>
+            </div>
+            <div class="review-item" data-operation="IAM-01">
+              <strong>IAM-01 GetControlPlaneAccessContext</strong>
+              <p>Normal re-entry returns the server-owned AccountSummary and disclosable Workspace context. A known-empty Workspace result is not a failure projection.</p>
+            </div>
+            <div class="review-item" data-operation="WS-01">
+              <strong>WS-01 CreateWorkspace</strong>
+              <p>Only the normal trusted operator session may create the first Workspace. Success requires <code>workspaceId</code>, <code>name</code>, <code>creatorAccountId</code> and <code>initialAccessEstablished=true</code>.</p>
+            </div>
+            <div class="review-item" data-principal="TRUSTED_BOOTSTRAP_CONTEXT">
+              <strong>TRUSTED_BOOTSTRAP_CONTEXT</strong>
+              <p>One-shot pre-Account context for the exact configured identity. It ends after Account establishment and cannot call WS-01 or enter normal Product routes.</p>
+            </div>
+          </div>
+          <div class="review-item" style="margin-top:12px">
+            <strong>Proof laws</strong>
+            <p><code>Idempotency-Key</code> stays the same across a retry; ambiguous intake never claims success. <code>AccountSummary</code> and Workspace access are server projections. <code>visible control != authorization</code>; <code>old bootstrap context cannot call WS-01</code>.</p>
+          </div>
+          <div class="review-state" aria-live="polite">
+            <span>Current fixture state:</span>
+            <code id="fixture-state">BOOTSTRAP_ELIGIBLE</code>
+          </div>
+        </div>
+      </details>
+    </main>
+  </div>
+
+  <script>
+    // Disposable P8 fixture behavior. No live service or browser persistence is claimed.
+    const fixtures = {
+      bootstrapAccount: {
+        accountId: 'acct-leandro',
+        displayName: 'Leandro Theodoro',
+        email: 'leandro@example.com'
+      },
+      firstWorkspace: {
+        workspaceId: 'ws-metal-nobre',
+        name: 'Metal Nobre',
+        creatorAccountId: 'acct-leandro',
+        initialAccessEstablished: true
+      },
+      trustedAccount: {
+        accountId: 'acct:trusted-person',
+        displayName: 'Trusted Teammate',
+        email: 'teammate@example.test'
+      }
+    };
+
+    const state = {
+      stage: 'ACCOUNT',
+      status: 'BOOTSTRAP_ELIGIBLE',
+      context: 'TRUSTED_BOOTSTRAP_CONTEXT',
+      normalSession: false,
+      accountCreated: false,
+      workspaceCreated: false,
+      trustedProvisioned: false,
+      pendingKind: '',
+      recoveryKind: '',
+      accountIdempotencyKey: 't01-account-intake-001',
+      workspaceIdempotencyKey: 't01-workspace-intake-001',
+      workspaceResult: null,
+      projectsHandoff: null,
+      message: ''
+    };
+
+    const byId = id => document.getElementById(id);
+    const show = (id, visible) => { byId(id).hidden = !visible; };
+    const setText = (id, value) => { byId(id).textContent = value; };
+
+    const messages = {
+      BOOTSTRAP_ELIGIBLE: 'This configured setup identity is eligible to establish the first Account.',
+      AUTHENTICATION_REQUIRED: 'Authentication is required before Conexus can disclose Account or Workspace context.',
+      IDENTITY_NOT_ELIGIBLE: 'This configured setup identity is not eligible for this setup path. No Account existence detail is disclosed.',
+      BOOTSTRAP_IN_PROGRESS: 'Establishing the Account. Keep this intake available for a safe retry.',
+      ACCOUNT_INPUT_INVALID: 'Enter a non-blank display name before establishing the Account.',
+      ACCOUNT_CONFLICT_OR_AMBIGUOUS_INTAKE: 'The Account intake conflicts or its outcome is not confirmed. Retry the same intake; do not create a second effect.',
+      DEPENDENCY_FAILURE: 'A required dependency did not answer. The result is not treated as an empty Workspace or a successful Account.',
+      ACCOUNT_ESTABLISHED_REENTRY_REQUIRED: 'Account established. Bootstrap access is sealed; normal re-entry is required.',
+      BOOTSTRAP_SEALED: 'Bootstrap access is sealed. The old context cannot call Workspace creation.',
+      SESSION_ESTABLISHED: 'Normal Conexus session established. IAM-01 returned the current Account context.',
+      NO_WORKSPACE: 'Normal session established. IAM-01 returned a known-empty Workspace collection.',
+      WORKSPACE_INPUT_INVALID: 'Enter a non-blank Workspace name before creating it.',
+      WORKSPACE_IN_PROGRESS: 'Creating the first Workspace and establishing initial access.',
+      WORKSPACE_CONFLICT_OR_AMBIGUOUS_INTAKE: 'Workspace creation conflicts or its outcome is not confirmed. Retry the same intake; do not create a duplicate.',
+      WORKSPACE_ESTABLISHED: 'Workspace identity and initial access are confirmed. Continue to Projects.',
+      TRUSTED_ACCOUNT_PROVISIONING_READY: 'The separate trusted Account provisioning surface is available to a normal platform operator.',
+      TRUSTED_ACCOUNT_PROVISIONED: 'Account provisioned. Membership and application access remain separate decisions.'
+    };
+
+    function currentMessage() {
+      return state.message || messages[state.status] || state.status;
+    }
+
+    function toneForStatus() {
+      if (state.status === 'WORKSPACE_ESTABLISHED' || state.status === 'TRUSTED_ACCOUNT_PROVISIONED') return 'ok';
+      if (state.status === 'IDENTITY_NOT_ELIGIBLE' || state.status === 'ACCOUNT_INPUT_INVALID' || state.status === 'WORKSPACE_INPUT_INVALID' || state.status === 'DEPENDENCY_FAILURE' || state.status.indexOf('CONFLICT') >= 0) return 'error';
+      return 'warn';
+    }
+
+    function activeProgressStage() {
+      if (state.stage === 'REENTRY') return 'reentry';
+      if (state.stage === 'WORKSPACE') return 'workspace';
+      if (state.stage === 'READY' || state.stage === 'HANDOFF') return 'ready';
+      return 'account';
+    }
+
+    function setProgress() {
+      const current = activeProgressStage();
+      document.querySelectorAll('[data-stage]').forEach(item => {
+        item.setAttribute('aria-current', item.dataset.stage === current ? 'step' : 'false');
+      });
+    }
+
+    function renderRecovery() {
+      const accountRecovery = state.recoveryKind === 'account';
+      const workspaceRecovery = state.recoveryKind === 'workspace';
+      show('account-recovery', accountRecovery);
+      show('workspace-recovery', workspaceRecovery);
+      if (accountRecovery) {
+        setText('account-recovery-copy', 'Retry with the same Idempotency-Key. An ambiguous result never claims success and cannot create a second Account.');
+      }
+      if (workspaceRecovery) {
+        setText('workspace-recovery-copy', 'Retry with the same Idempotency-Key. An ambiguous result never claims success and cannot create a duplicate Workspace.');
+      }
+    }
+
+    function render() {
+      const accountStage = state.stage === 'ACCOUNT';
+      const reentryStage = state.stage === 'REENTRY';
+      const workspaceStage = state.stage === 'WORKSPACE';
+      const readyStage = state.stage === 'READY' || state.stage === 'HANDOFF';
+      const trustedStage = state.stage === 'TRUSTED';
+      const authenticationStage = state.stage === 'AUTH';
+
+      show('authentication-stage', authenticationStage);
+      show('account-stage', accountStage);
+      show('reentry-stage', reentryStage);
+      show('workspace-stage', workspaceStage);
+      show('ready-stage', readyStage);
+      show('trusted-stage', trustedStage);
+      show('operator-entry', state.normalSession && !trustedStage);
+      show('gf01-boundary', state.stage === 'HANDOFF');
+      show('trusted-result', trustedStage && state.trustedProvisioned);
+
+      const status = byId('state-banner');
+      status.dataset.state = state.status;
+      status.dataset.tone = toneForStatus();
+      status.textContent = currentMessage();
+      setText('fixture-state', state.status);
+      setProgress();
+
+      const account = state.accountCreated ? fixtures.bootstrapAccount : { accountId: '—', displayName: '—', email: '—' };
+      setText('established-account-name', account.displayName);
+      setText('current-account-name', account.displayName);
+      setText('created-workspace-account', account.displayName);
+      setText('created-workspace-name', fixtures.firstWorkspace.name);
+      const ownerResult = state.workspaceResult || {};
+      setText('handoff-account-id', ownerResult.accountId || '—');
+      setText('handoff-workspace-id', ownerResult.workspaceId || '—');
+      setText('handoff-creator-account-id', ownerResult.creatorAccountId || '—');
+      setText('handoff-initial-access', ownerResult.initialAccessEstablished === true ? 'true' : '—');
+      byId('gf01-boundary').dataset.ownerResultState = state.projectsHandoff ? 'EMITTED' : 'UNEMITTED';
+      setText('trusted-result-name', fixtures.trustedAccount.displayName);
+      setText('workspace-collection-state', state.normalSession ? (state.workspaceCreated ? 'One disclosed Workspace' : 'Known empty — create the first Workspace') : 'Not disclosed before normal re-entry');
+      setText('workspace-intro', state.status === 'SESSION_ESTABLISHED' ? 'Your normal Conexus session is active. There are no disclosed Workspaces yet.' : 'Your normal Conexus session is active. The current Account and Workspace result are server-owned.');
+
+      byId('bootstrap-submit').disabled = state.pendingKind === 'account' || state.accountCreated;
+      byId('workspace-submit').disabled = state.pendingKind === 'workspace' || state.workspaceCreated;
+      byId('trusted-account-submit').disabled = state.pendingKind === 'trusted';
+      renderRecovery();
+    }
+
+    function resetForms() {
+      byId('bootstrap-account-form').reset();
+      byId('workspace-form').reset();
+      byId('trusted-account-form').reset();
+      byId('gf01-boundary').hidden = true;
+    }
+
+    function completeBootstrapAccount() {
+      if (state.pendingKind !== 'account') return;
+      state.pendingKind = '';
+      state.accountCreated = true;
+      state.context = 'SEALED_BOOTSTRAP_CONTEXT';
+      state.status = 'ACCOUNT_ESTABLISHED_REENTRY_REQUIRED';
+      state.stage = 'REENTRY';
+      state.recoveryKind = '';
+      state.message = 'Account established. Bootstrap access sealed. Sign in to continue.';
+      render();
+    }
+
+    function submitBootstrapAccount(event) {
+      event.preventDefault();
+      if (state.context !== 'TRUSTED_BOOTSTRAP_CONTEXT') {
+        state.status = 'BOOTSTRAP_SEALED';
+        state.stage = 'REENTRY';
+        state.message = 'The old bootstrap context cannot call WS-01. Complete normal re-entry first.';
+        render();
+        return;
+      }
+      const displayName = byId('account-display-name').value.trim();
+      if (!displayName) {
+        byId('account-display-name').setAttribute('aria-invalid', 'true');
+        state.status = 'ACCOUNT_INPUT_INVALID';
+        state.stage = 'ACCOUNT';
+        state.message = 'Display name is required.';
+        render();
+        byId('account-display-name').focus();
+        return;
+      }
+      byId('account-display-name').removeAttribute('aria-invalid');
+      fixtures.bootstrapAccount.displayName = displayName;
+      fixtures.bootstrapAccount.email = byId('account-email').value.trim() || undefined;
+      state.pendingKind = 'account';
+      state.recoveryKind = '';
+      state.status = 'BOOTSTRAP_IN_PROGRESS';
+      state.stage = 'ACCOUNT';
+      state.message = 'Account intake is pending. The same Idempotency-Key remains available for recovery.';
+      render();
+      window.setTimeout(completeBootstrapAccount, 180);
+    }
+
+    function retrySameIntake(kind) {
+      if (kind === 'account') {
+        state.pendingKind = 'account';
+        state.recoveryKind = '';
+        state.status = 'BOOTSTRAP_IN_PROGRESS';
+        state.stage = 'ACCOUNT';
+        state.message = 'Retrying the same Account intake with Idempotency-Key ' + state.accountIdempotencyKey + '.';
+        render();
+        window.setTimeout(completeBootstrapAccount, 180);
+        return;
+      }
+      if (kind === 'workspace') {
+        if (!state.normalSession) {
+          state.status = 'BOOTSTRAP_SEALED';
+          state.stage = 'REENTRY';
+          state.message = 'Normal re-entry is required before retrying WS-01.';
+          render();
+          return;
+        }
+        state.pendingKind = 'workspace';
+        state.recoveryKind = '';
+        state.status = 'WORKSPACE_IN_PROGRESS';
+        state.stage = 'WORKSPACE';
+        state.message = 'Retrying the same Workspace intake with Idempotency-Key ' + state.workspaceIdempotencyKey + '.';
+        render();
+        window.setTimeout(completeWorkspace, 180);
+      }
+    }
+
+    function continueNormalReentry() {
+      if (!state.accountCreated) {
+        state.status = 'AUTHENTICATION_REQUIRED';
+        state.stage = 'AUTH';
+        state.message = 'An Account must be established before normal re-entry.';
+        render();
+        return;
+      }
+      state.normalSession = true;
+      state.context = 'HUMAN_ACCOUNT_SESSION';
+      state.status = 'NO_WORKSPACE';
+      state.stage = 'WORKSPACE';
+      state.recoveryKind = '';
+      state.message = 'SESSION_ESTABLISHED · IAM-01 returned a known-empty Workspace collection.';
+      render();
+      byId('workspace-name').focus();
+    }
+
+    function completeWorkspace() {
+      if (state.pendingKind !== 'workspace') return;
+      state.pendingKind = '';
+      const ownerResult = {
+        accountId: fixtures.bootstrapAccount.accountId,
+        workspaceId: fixtures.firstWorkspace.workspaceId,
+        name: fixtures.firstWorkspace.name,
+        creatorAccountId: fixtures.firstWorkspace.creatorAccountId,
+        initialAccessEstablished: fixtures.firstWorkspace.initialAccessEstablished
+      };
+      if (!state.normalSession || state.context !== 'HUMAN_ACCOUNT_SESSION' || ownerResult.creatorAccountId !== ownerResult.accountId || ownerResult.initialAccessEstablished !== true) {
+        state.workspaceCreated = false;
+        state.workspaceResult = null;
+        state.status = 'DEPENDENCY_FAILURE';
+        state.stage = 'WORKSPACE';
+        state.message = 'WS-01 did not return a verified current-Account initial-access result. No Workspace success is claimed.';
+        render();
+        return;
+      }
+      state.workspaceCreated = true;
+      state.workspaceResult = ownerResult;
+      state.status = 'WORKSPACE_ESTABLISHED';
+      state.stage = 'READY';
+      state.recoveryKind = '';
+      state.message = 'Workspace identity and initial access are confirmed.';
+      render();
+    }
+
+    function submitWorkspace(event) {
+      event.preventDefault();
+      if (!state.normalSession || state.context !== 'HUMAN_ACCOUNT_SESSION') {
+        state.status = 'BOOTSTRAP_SEALED';
+        state.stage = 'REENTRY';
+        state.message = 'WS-01 is unavailable to the old bootstrap context. Sign in normally first.';
+        render();
+        return;
+      }
+      const workspaceName = byId('workspace-name').value.trim();
+      if (!workspaceName) {
+        byId('workspace-name').setAttribute('aria-invalid', 'true');
+        state.status = 'WORKSPACE_INPUT_INVALID';
+        state.stage = 'WORKSPACE';
+        state.message = 'Workspace name is required.';
+        render();
+        byId('workspace-name').focus();
+        return;
+      }
+      byId('workspace-name').removeAttribute('aria-invalid');
+      fixtures.firstWorkspace.name = workspaceName;
+      state.pendingKind = 'workspace';
+      state.recoveryKind = '';
+      state.status = 'WORKSPACE_IN_PROGRESS';
+      state.stage = 'WORKSPACE';
+      state.message = 'Creating the Workspace and establishing initial access.';
+      render();
+      window.setTimeout(completeWorkspace, 180);
+    }
+
+    function openTrustedProvisioning() {
+      if (!state.normalSession || state.context !== 'HUMAN_ACCOUNT_SESSION') {
+        state.status = 'AUTHENTICATION_REQUIRED';
+        state.stage = 'AUTH';
+        state.message = 'Only a normal trusted platform operator session may open this surface.';
+        render();
+        return;
+      }
+      state.stage = 'TRUSTED';
+      state.status = state.trustedProvisioned ? 'TRUSTED_ACCOUNT_PROVISIONED' : 'TRUSTED_ACCOUNT_PROVISIONING_READY';
+      state.recoveryKind = '';
+      state.message = '';
+      render();
+      byId('trusted-external-subject').focus();
+    }
+
+    function submitTrustedProvisioning(event) {
+      event.preventDefault();
+      if (!state.normalSession || state.context !== 'HUMAN_ACCOUNT_SESSION') {
+        state.status = 'AUTHENTICATION_REQUIRED';
+        state.stage = 'AUTH';
+        state.message = 'The separate provisioning surface requires the normal trusted operator session.';
+        render();
+        return;
+      }
+      const subject = byId('trusted-external-subject').value.trim();
+      const displayName = byId('trusted-display-name').value.trim();
+      if (!subject || !displayName) {
+        state.status = 'ACCOUNT_INPUT_INVALID';
+        state.stage = 'TRUSTED';
+        state.message = 'Exact external subject and display name are required on this internal route.';
+        render();
+        return;
+      }
+      state.pendingKind = 'trusted';
+      state.status = 'BOOTSTRAP_IN_PROGRESS';
+      state.stage = 'TRUSTED';
+      state.message = 'Provisioning the exact Account through the ordinary trusted operator route.';
+      render();
+      window.setTimeout(function () {
+        state.pendingKind = '';
+        state.trustedProvisioned = true;
+        state.status = 'TRUSTED_ACCOUNT_PROVISIONED';
+        state.stage = 'TRUSTED';
+        state.message = 'Account provisioned. AccountSummary returned; no membership or app access was created.';
+        render();
+      }, 180);
+    }
+
+    function returnToWorkspace() {
+      if (!state.normalSession) {
+        state.status = 'AUTHENTICATION_REQUIRED';
+        state.stage = 'AUTH';
+        state.message = 'Normal re-entry is required before the Workspace surface is disclosed.';
+      } else {
+        state.stage = state.workspaceCreated ? 'READY' : 'WORKSPACE';
+        state.status = state.workspaceCreated ? 'WORKSPACE_ESTABLISHED' : 'NO_WORKSPACE';
+        state.message = '';
+      }
+      render();
+    }
+
+    function continueToProjects() {
+      const ownerResult = state.workspaceResult;
+      if (!state.normalSession || state.context !== 'HUMAN_ACCOUNT_SESSION' || !state.workspaceCreated || !ownerResult || ownerResult.initialAccessEstablished !== true || ownerResult.creatorAccountId !== ownerResult.accountId) {
+        state.status = state.context === 'SEALED_BOOTSTRAP_CONTEXT' ? 'BOOTSTRAP_SEALED' : 'DEPENDENCY_FAILURE';
+        state.message = 'Continue to Projects is unavailable until normal re-entry and a verified WS-01 initialAccessEstablished=true result exist.';
+        render();
+        return;
+      }
+      state.stage = 'HANDOFF';
+      state.status = 'WORKSPACE_ESTABLISHED';
+      state.message = 'Workspace identity and initial access are confirmed. GF-01 owns the next Projects frame.';
+      state.projectsHandoff = {
+        source: 't-01',
+        destination: 'gf-01',
+        event: 'PROJECTS_BOUNDARY',
+        accountId: ownerResult.accountId,
+        workspaceId: ownerResult.workspaceId,
+        name: ownerResult.name,
+        creatorAccountId: ownerResult.creatorAccountId,
+        initialAccessEstablished: ownerResult.initialAccessEstablished
+      };
+      render();
+      window.dispatchEvent(new CustomEvent('conexus:wireframe-egress', { detail: state.projectsHandoff }));
+      if (window.parent && window.parent !== window) {
+        const targetOrigin = window.location.protocol === 'file:' ? '*' : window.location.origin;
+        window.parent.postMessage({ type: 'conexus:wireframe-egress', detail: state.projectsHandoff }, targetOrigin);
+      }
+      byId('projects-handoff').focus();
+    }
+
+    function continueToAccessSelection() {
+      byId('trusted-handoff-boundary').hidden = false;
+    }
+
+    function attemptOldBootstrapWorkspace() {
+      state.normalSession = false;
+      state.context = 'SEALED_BOOTSTRAP_CONTEXT';
+      state.workspaceCreated = false;
+      state.workspaceResult = null;
+      state.projectsHandoff = null;
+      state.pendingKind = '';
+      state.status = 'BOOTSTRAP_SEALED';
+      state.stage = 'REENTRY';
+      state.message = 'Rejected: old bootstrap context cannot call WS-01. No Workspace was created.';
+      render();
+    }
+
+    function applyScenario() {
+      const selected = byId('scenario-select').value;
+      resetForms();
+      state.pendingKind = '';
+      state.recoveryKind = '';
+      state.message = '';
+      state.workspaceCreated = false;
+      state.workspaceResult = null;
+      state.projectsHandoff = null;
+      state.trustedProvisioned = false;
+      if (selected === 'BOOTSTRAP_ELIGIBLE') {
+        state.stage = 'ACCOUNT';
+        state.status = selected;
+        state.context = 'TRUSTED_BOOTSTRAP_CONTEXT';
+        state.normalSession = false;
+        state.accountCreated = false;
+      } else if (selected === 'AUTHENTICATION_REQUIRED') {
+        state.stage = 'AUTH';
+        state.status = selected;
+        state.context = 'NONE';
+        state.normalSession = false;
+        state.accountCreated = false;
+      } else if (selected === 'IDENTITY_NOT_ELIGIBLE') {
+        state.stage = 'ACCOUNT';
+        state.status = selected;
+        state.context = 'INELIGIBLE_BOOTSTRAP_CONTEXT';
+        state.normalSession = false;
+        state.accountCreated = false;
+        state.message = messages[selected];
+      } else if (selected === 'BOOTSTRAP_IN_PROGRESS' || selected === 'ACCOUNT_INPUT_INVALID' || selected === 'ACCOUNT_CONFLICT_OR_AMBIGUOUS_INTAKE' || selected === 'DEPENDENCY_FAILURE') {
+        state.stage = 'ACCOUNT';
+        state.status = selected;
+        state.context = 'TRUSTED_BOOTSTRAP_CONTEXT';
+        state.normalSession = false;
+        state.accountCreated = false;
+        state.recoveryKind = selected === 'ACCOUNT_CONFLICT_OR_AMBIGUOUS_INTAKE' || selected === 'DEPENDENCY_FAILURE' ? 'account' : '';
+      } else if (selected === 'ACCOUNT_ESTABLISHED_REENTRY_REQUIRED' || selected === 'BOOTSTRAP_SEALED') {
+        state.stage = 'REENTRY';
+        state.status = selected;
+        state.context = 'SEALED_BOOTSTRAP_CONTEXT';
+        state.normalSession = false;
+        state.accountCreated = true;
+      } else if (selected === 'SESSION_ESTABLISHED' || selected === 'NO_WORKSPACE') {
+        state.stage = 'WORKSPACE';
+        state.status = selected;
+        state.context = 'HUMAN_ACCOUNT_SESSION';
+        state.normalSession = true;
+        state.accountCreated = true;
+      } else if (selected === 'WORKSPACE_INPUT_INVALID' || selected === 'WORKSPACE_IN_PROGRESS' || selected === 'WORKSPACE_CONFLICT_OR_AMBIGUOUS_INTAKE') {
+        state.stage = 'WORKSPACE';
+        state.status = selected;
+        state.context = 'HUMAN_ACCOUNT_SESSION';
+        state.normalSession = true;
+        state.accountCreated = true;
+        state.recoveryKind = selected === 'WORKSPACE_CONFLICT_OR_AMBIGUOUS_INTAKE' ? 'workspace' : '';
+      } else if (selected === 'WORKSPACE_ESTABLISHED') {
+        state.stage = 'READY';
+        state.status = selected;
+        state.context = 'HUMAN_ACCOUNT_SESSION';
+        state.normalSession = true;
+        state.accountCreated = true;
+        state.workspaceCreated = true;
+      } else if (selected === 'TRUSTED_ACCOUNT_PROVISIONING_READY' || selected === 'TRUSTED_ACCOUNT_PROVISIONED') {
+        state.stage = 'TRUSTED';
+        state.status = selected;
+        state.context = 'HUMAN_ACCOUNT_SESSION';
+        state.normalSession = true;
+        state.accountCreated = true;
+        state.trustedProvisioned = selected === 'TRUSTED_ACCOUNT_PROVISIONED';
+      }
+      render();
+    }
+
+    byId('bootstrap-account-form').addEventListener('submit', submitBootstrapAccount);
+    byId('workspace-form').addEventListener('submit', submitWorkspace);
+    byId('trusted-account-form').addEventListener('submit', submitTrustedProvisioning);
+    byId('normal-reentry').addEventListener('click', continueNormalReentry);
+    byId('authentication-recovery').addEventListener('click', function () {
+      if (state.accountCreated) continueNormalReentry();
+      else {
+        state.stage = 'ACCOUNT';
+        state.status = 'BOOTSTRAP_ELIGIBLE';
+        state.context = 'TRUSTED_BOOTSTRAP_CONTEXT';
+        state.message = 'Return from authentication to the configured first-access surface.';
+        render();
+      }
+    });
+    byId('retry-account').addEventListener('click', function () { retrySameIntake('account'); });
+    byId('retry-workspace').addEventListener('click', function () { retrySameIntake('workspace'); });
+    byId('open-trusted-provisioning').addEventListener('click', openTrustedProvisioning);
+    byId('return-to-workspace').addEventListener('click', returnToWorkspace);
+    byId('projects-handoff').addEventListener('click', continueToProjects);
+    byId('trusted-handoff').addEventListener('click', continueToAccessSelection);
+    byId('apply-scenario').addEventListener('click', applyScenario);
+    byId('attempt-old-bootstrap-workspace').addEventListener('click', attemptOldBootstrapWorkspace);
+    byId('scenario-select').addEventListener('change', applyScenario);
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && byId('review-controls').open) {
+        byId('review-controls').removeAttribute('open');
+        byId('apply-scenario').focus();
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>

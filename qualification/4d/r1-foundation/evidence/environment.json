@@ -1,0 +1,12 @@
+{
+  "kind": "conexus.r1f.environment/v1",
+  "observedOn": "2026-08-30",
+  "os": "linux",
+  "arch": "x64",
+  "distribution": "Ubuntu 26.04 LTS",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "node": "24.20.0",
+  "npm": "12.0.2",
+  "transport": "WSL2",
+  "workspaceNodeModulesRetained": false
+}

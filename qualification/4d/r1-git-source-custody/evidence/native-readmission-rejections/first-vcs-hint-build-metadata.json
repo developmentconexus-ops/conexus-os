@@ -1,0 +1,85 @@
+{
+  "buildx.build.provenance": {
+    "builder": {
+      "id": ""
+    },
+    "buildType": "https://mobyproject.org/buildkit@v1",
+    "materials": [
+      {
+        "uri": "pkg:docker/docker/dockerfile@1.7",
+        "digest": {
+          "sha256": "a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e"
+        }
+      },
+      {
+        "uri": "pkg:docker/node?digest=sha256:be23f54a88d34e8824c741b19b91064094f92c1c97b194144bfc8b50d67258e2\u0026platform=linux%2Famd64",
+        "digest": {
+          "sha256": "be23f54a88d34e8824c741b19b91064094f92c1c97b194144bfc8b50d67258e2"
+        }
+      },
+      {
+        "uri": "https://keyserver.ubuntu.com/pks/lookup?op=get\u0026search=0xE1F036B1FEE7221FC778ECEFB0B5E88696AFE6CB",
+        "digest": {
+          "sha256": "fd2809d850e844b614ac60f13ded554c55d9052e5c799a5814abcba2a68a063c"
+        }
+      },
+      {
+        "uri": "https://www.kernel.org/pub/software/scm/git/git-2.55.0.tar.sign",
+        "digest": {
+          "sha256": "8673501946204c38ebfed09603c1f3a041ed8d12b31f0aa06a474d41e359e254"
+        }
+      },
+      {
+        "uri": "https://www.kernel.org/pub/software/scm/git/git-2.55.0.tar.xz",
+        "digest": {
+          "sha256": "457fdb04dc8728e007d4688695e6912e6f680727920f2a40bf11eacc17505357"
+        }
+      }
+    ],
+    "invocation": {
+      "configSource": {
+        "entryPoint": "Dockerfile"
+      },
+      "parameters": {
+        "frontend": "gateway.v0",
+        "args": {
+          "cmdline": "docker/dockerfile:1.7",
+          "source": "docker/dockerfile:1.7"
+        },
+        "locals": [
+          {
+            "name": "context"
+          },
+          {
+            "name": "dockerfile"
+          }
+        ],
+        "root": {
+          "configSource": {
+            "path": "Dockerfile"
+          },
+          "request": {
+            "args": {
+              "vcs:localdir:context": "qualification/4d/r1-git-source-custody",
+              "vcs:localdir:dockerfile": "qualification/4d/r1-git-source-custody",
+              "vcs:revision": "fd6f771be45102009f1887afaa9fc8a7e487e777",
+              "vcs:source": "https://github.com/developmentconexus-ops/conexus-os.git"
+            }
+          }
+        },
+        "compatibilityVersion": 30
+      },
+      "environment": {
+        "platform": "linux/amd64"
+      }
+    }
+  },
+  "buildx.build.ref": "default/default/g9i6x3yegcsvdh4qrbq62jios",
+  "containerimage.descriptor": {
+    "mediaType": "application/vnd.oci.image.index.v1+json",
+    "digest": "sha256:a75b3631df2a6e6bcdf94e4ee511bb81ddbab3f21b391badae9598f3bae1b9d7",
+    "size": 856
+  },
+  "containerimage.digest": "sha256:a75b3631df2a6e6bcdf94e4ee511bb81ddbab3f21b391badae9598f3bae1b9d7",
+  "image.name": "docker.io/library/conexus-r1c14-git:2.55.0-native-readmission"
+}

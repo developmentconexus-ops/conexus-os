@@ -1,0 +1,32 @@
+{
+  "kind": "conexus.r1f.pack-f-results/v1",
+  "observedOn": "2026-08-30",
+  "results": [
+    {
+      "id": "R1F-P11",
+      "verdict": "PASS",
+      "claims": [
+        "two clean exact Linux installs produced identical tree inventories",
+        "tree SHA-256 equals the Pack A admitted Linux tree",
+        "37 optional packages are explicit and 33 are absent on Linux x64",
+        "Windows and macOS native candidates remain non-authoritative developer-host deltas"
+      ]
+    },
+    {
+      "id": "R1F-P12",
+      "verdict": "PASS",
+      "claims": [
+        "Biome RED and GREEN",
+        "TypeScript RED and GREEN",
+        "Vite build RED and GREEN",
+        "Node test RED and GREEN",
+        "bounded Ajv gate RED and GREEN",
+        "Redocly RED and GREEN",
+        "Playwright Chromium RED and GREEN"
+      ]
+    }
+  ],
+  "harnessSourceSha256": "fb9f45dd0f2f0a83fe706c899197db617cc58ecf7a8663cbdde3e4e118a3fff0",
+  "packVerdict": "PASS",
+  "foundationProbeVerdicts": "P01_THROUGH_P12_PASS"
+}

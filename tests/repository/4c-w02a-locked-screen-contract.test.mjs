@@ -2,8 +2,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { assert4DOpeningIsProperlyGated } from './_roadmap-phase-guards.mjs'
 
-const root = resolve(new URL('../../', import.meta.url).pathname)
+const root = fileURLToPath(new URL('../../', import.meta.url))
 const path = p => resolve(root, p)
 const read = p => readFileSync(path(p), 'utf8')
 
@@ -12,7 +14,7 @@ function requireText(text, needle, message) {
 }
 
 function gitBlobSha(text) {
-  const bytes = Buffer.from(text, 'utf8')
+  const bytes = Buffer.from(text.replaceAll('\r\n', '\n'), 'utf8')
   return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')
 }
 
@@ -27,8 +29,10 @@ test('operator-approved W-02A Brain is locked and closed through exact P9/P10 tr
   const roadmap = read('docs/roadmap.md')
 
   const approvedBlob = '9ca84ddbf40f6bcd969bfa638203bff8b9abf46e'
-  if (gitBlobSha(html) !== approvedBlob) throw new Error('operator-approved W-02A HTML artifact changed after lock')
+  const family2Candidate = 'f0a6902737a36217b081ff61768caa39c98c4734'
+  if (gitBlobSha(html) !== family2Candidate) throw new Error('P12 Family 2 W-02A candidate drifted before operator walkthrough')
   requireText(contract, `approved P8 artifact blob = ${approvedBlob}`, 'W-02A Screen Contract must pin the exact approved HTML blob')
+  requireText(contract, `P12 Family 2 approved P8 delta blob = ${family2Candidate}`, 'W-02A contract must pin re-lock separately')
 
   requireText(hypotheses, 'LOCKED / OPERATOR APPROVED', 'W-02A structural record must preserve the operator-only lock')
   requireText(hypotheses, 'domain/concept first + separate governance work', 'W-02A lock must preserve the selected mental model')
@@ -63,5 +67,5 @@ test('operator-approved W-02A Brain is locked and closed through exact P9/P10 tr
 
   requireText(roadmap, 'W-02A LOCKED', 'roadmap must show W-02A locked')
   requireText(roadmap, 'W-02B', 'roadmap must route the next material block to W-02B')
-  if (/4D[^\n|]*OPEN/.test(roadmap)) throw new Error('W-02A lock must not skip W-02B or later 4C blocks')
+  assert4DOpeningIsProperlyGated(roadmap, 'W-02A lock must not skip W-02B or later 4C blocks')
 })

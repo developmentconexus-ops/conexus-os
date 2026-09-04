@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "subject": "R1C-13 Project cognition admission",
+  "status": "CLOSED_PASS",
+  "recordedAt": "2026-09-02T20:09:02Z",
+  "repository": {
+    "branch": "codex/4c-p02-integrations-ux",
+    "head": "fd6f771be45102009f1887afaa9fc8a7e487e777",
+    "originMain": "1619f14d9caed172b6cada9430e6b49ff77a4316",
+    "ahead": 3,
+    "behind": 0,
+    "pullRequest": null,
+    "mainCi": "Verify success"
+  },
+  "runtime": {
+    "environment": "WSL Ubuntu",
+    "node": "24.20.0",
+    "npm": "12.0.2"
+  },
+  "proof": {
+    "isolatedTests": "23/23 PASS",
+    "p2Tests": "8/8 PASS",
+    "liveProvider": "PASS",
+    "liveModel": "claude-fable-5",
+    "observedDnsAttempts": 1,
+    "observedSocketAttempts": 1,
+    "observedHttpAttempts": 1,
+    "unauthorizedObservedNetworkAttempts": 0,
+    "responseContentRecorded": false,
+    "credentialRecorded": false,
+    "registrySignatures": 161,
+    "registryAttestations": 37,
+    "highAdvisories": 0,
+    "rootNpmCi": "PASS",
+    "rootVerify": "PASS",
+    "preflight": "PASS"
+  },
+  "review": {
+    "firstResultSha256": "f04b1ceefa76310f1f7555b5c2513dd7bb1213642e89db6f79d4fd420755212d",
+    "finalResultSha256": "9f7b9cc38d4c64b9ed17861cb575f4b1b2dfa4611c28c0804beb3ca175c39e52",
+    "fableSession": "c609162b-fb70-4846-b459-7d719208764a",
+    "fableVerdictBeforeCorrections": "REVISE",
+    "agyConversation": "7cf81c15-d667-4732-9a5b-f5d5acaa5615",
+    "agyDelivery": "TIMEOUT_NO_VERDICT",
+    "leadAdjudication": "CLEAR",
+    "furtherReviewRequired": false
+  },
+  "sha256": {
+    "candidate": "3f19bb10dbd948890d7d05d898ab1f5f1fc42566a9372381d0e59d3db91f0a79",
+    "liveReceipt": "a4c63b64b10d36a2c426b14d86b4f5691120e8071f23f39c425f61a9a4817171",
+    "stagePacket": "0eca1c56888bd5037cc47fc6a73e268e5e842ad6e609f236a7540e340a343b6a",
+    "p2Result": "0e2ce2f67adc725d0258f0fc8f6a91788771fd2ad950da8ab7b8fc26b9328882",
+    "reviewAdjudication": "e5b85d9aa508a1987dd0809a04e45a2727c54cfb60d94be45e82a34e91655964",
+    "roadmap": "7c167fdc92c57a8b43aa0c7d3cf1f05a20e922e8597f7f54436076d2b473d9c2",
+    "index": "18b7c8ba9f5d129ad2b09249dc70097955a6323d40c2c4cd0c95da1dbe189ac1"
+  },
+  "productDelta": {
+    "productFilesChanged": 0,
+    "rootDependenciesChanged": 0
+  },
+  "blocked": [
+    "S6/root Product bytes until the bounded S6 packet names the exact credential mechanism and owner",
+    "production, multi-user or pooled OAuth",
+    "commit, push, PR and merge"
+  ]
+}
