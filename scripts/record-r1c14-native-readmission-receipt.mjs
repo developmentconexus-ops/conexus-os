@@ -46,6 +46,8 @@ const transitionReasons = Object.freeze({
   'apps/web/src/styles.css': 'S5_RESPONSIVE_FOCUS_REDUCED_MOTION_BOUNDARY',
   'docs/index.md': 'S5_AUTHORITY_ROUTING',
   'docs/roadmap.md': 'S5_AUTHORITY_ROUTING',
+  'docs/evidence/4f/4f-r1-s2-implementation-result.md': 'RC01_CANDIDATE_HYGIENE_NO_SEMANTIC_CHANGE',
+  'docs/evidence/4f/4f-r1-s2-p5-source-ref-classification-reopen.md': 'RC01_CANDIDATE_HYGIENE_NO_SEMANTIC_CHANGE',
   'package.json': 'S5_BROWSER_PROOF_SURFACE',
   'scripts/check-import-law.mjs': 'S3_P5_PROJECT_IMPORT_BOUNDARY',
   'scripts/run-hub-migrations.mjs': 'S3_P6_PROJECT_READ_MIGRATION_CUSTODY',

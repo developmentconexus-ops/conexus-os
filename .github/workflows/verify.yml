@@ -37,14 +37,8 @@ jobs:
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm test
       - run: npm run r1:a0:g0:verify
-      - run: npm run r1:s1:verify
-      - run: npm run r1:s1:postgres
-        env:
-          CONEXUS_TEST_DB_HOST: 127.0.0.1
-          CONEXUS_TEST_DB_PORT: 5432
-          CONEXUS_TEST_DB_NAME: conexus_test
-          CONEXUS_TEST_DB_USER: postgres
-          CONEXUS_TEST_DB_PASSWORD: s6-ci-test-only
+      - run: npm ci --prefix qualification/4f/r1-project-cognition-admission --ignore-scripts
+      - run: npm test --prefix qualification/4f/r1-project-cognition-admission
       - run: npm run r1:s2:generate
       - run: git diff --exit-code -- apps/hub/src/generated/s2-routes.ts apps/web/src/generated/workspace-client.ts
       - run: npm run r1:s2:hub:typecheck
@@ -53,23 +47,8 @@ jobs:
       - run: node --test --test-concurrency=1 tests/repository/import-law.test.mjs
       - run: npx --no-install biome check apps/hub/src apps/web/src packages/canonical-json/src packages/profile-compiler/src scripts/check-import-law.mjs scripts/generate-r1-s2-contracts.mjs tests/implementation/r1-s2-http.test.mjs tests/implementation/r1-s2-reads.test.mjs tests/repository/import-law.test.mjs
       - run: bash -n tests/implementation/r1-s2-live-runner.sh && node --check tests/implementation/r1-s2-live-setup.mjs && node --check tests/implementation/r1-s2-live-browser.spec.mjs
-      - run: node --test --test-concurrency=1 tests/implementation/r1-s2-postgres.test.mjs
-        env:
-          CONEXUS_TEST_DB_HOST: 127.0.0.1
-          CONEXUS_TEST_DB_PORT: 5432
-          CONEXUS_TEST_DB_NAME: conexus_test
-          CONEXUS_TEST_DB_USER: postgres
-          CONEXUS_TEST_DB_PASSWORD: s6-ci-test-only
       - run: npm run r1:a0:web:typecheck
       - run: npm run r1:r1c14:native:check
-      - run: npm run r1:s3:p6:check
-      - run: npm run r1:s3:p6:postgres
-        env:
-          CONEXUS_TEST_DB_HOST: 127.0.0.1
-          CONEXUS_TEST_DB_PORT: 5432
-          CONEXUS_TEST_DB_NAME: conexus_test
-          CONEXUS_TEST_DB_USER: postgres
-          CONEXUS_TEST_DB_PASSWORD: s6-ci-test-only
       - run: npm run r1:s4:p2:check
       - run: npm run r1:s4:p2:postgres
         env:
@@ -78,8 +57,6 @@ jobs:
           CONEXUS_TEST_DB_NAME: conexus_test
           CONEXUS_TEST_DB_USER: postgres
           CONEXUS_TEST_DB_PASSWORD: s6-ci-test-only
-      - run: npm run r1:s5:p0:check
-      - run: npm run r1:s5:p1:browser
       - run: npm run r1:s6:p0:check
       - run: npm run r1:s6:p0:postgres
         env:

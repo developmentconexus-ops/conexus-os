@@ -1,5 +1,4 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { canonicalBytes, sha256 } from '../packages/canonical-json/src/index.mjs'
@@ -14,7 +13,7 @@ const expectedOperations = [
   { ownerId: 'WS-02', operationId: 'GetWorkspace', method: 'GET', path: '/api/control/workspaces/{workspaceId}' },
 ]
 
-const temporary = mkdtempSync(resolve(tmpdir(), 'conexus-s2-wire-'))
+const temporary = mkdtempSync(resolve(dirname(target), '.conexus-s2-wire-'))
 const bundlePath = resolve(temporary, 'openapi.json')
 const stagedTarget = resolve(temporary, 's2-routes.ts')
 const stagedClientTarget = resolve(temporary, 'workspace-client.ts')

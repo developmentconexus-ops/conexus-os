@@ -2,7 +2,7 @@
   "kind": "conexus.rc01-candidate-inventory/v1",
   "baseCommit": "1619f14d9caed172b6cada9430e6b49ff77a4316",
   "preChangeHead": "fd6f771be45102009f1887afaa9fc8a7e487e777",
-  "subjectTreeDigest": "f5b3317b89d5154691479b55e00c5165831a6f2f51db8398d42a61934a8e9474",
+  "subjectTreeDigest": "6aa6f91dc5609c4819f924957aa789de30938eb50d0c7f06c1ec9bd590ee0cba",
   "summary": {
     "candidatePathCount": 794,
     "candidateClassCounts": {
@@ -48,8 +48,8 @@
       "status": "M",
       "classification": "PLATFORM_CONTRACT",
       "sourceOwnership": "PLATFORM-CONTRACT",
-      "size": 4702,
-      "sha256": "b7a63aa1108ce1afc079bd4f9abd69e6b213ffb8803222b31ae85bb2623a06f9"
+      "size": 3875,
+      "sha256": "5cb20c9b9c5eebe988b4e1b3eba60d8a672aaddbe97c1f6b48e8a6ba8e3e9f11"
     },
     {
       "path": ".nvmrc",
@@ -1777,7 +1777,7 @@
       "classification": "R1_DURABLE_EVIDENCE",
       "sourceOwnership": "PLATFORM-CONTRACT",
       "size": 8397,
-      "sha256": "b2f6d25a20e63c375f87d07fdea5b4f0f977e53599a33b49540c882e537be9a9"
+      "sha256": "35dc0b37c65568eaaac099da4036b9bee0a5e21ac1c97d8b05b4047b893a973e"
     },
     {
       "path": "docs/evidence/4d/4d-r1-foundation-pin-manifest-r1c14-successor.json",
@@ -1905,7 +1905,7 @@
       "classification": "R1_DURABLE_EVIDENCE",
       "sourceOwnership": "PLATFORM-CONTRACT",
       "size": 6922,
-      "sha256": "e5cc17006fb816c8863eb07b17120f8b763b2530ba0b74f93f3c603d1e48b518"
+      "sha256": "49f353ad02b6c73841e8fbe62af5c1c7e0bb457073e5a3115bffa9bc0320254c"
     },
     {
       "path": "docs/evidence/4d/4d-r1-r1c14-native-readmission-result.md",
@@ -4225,7 +4225,7 @@
       "classification": "R1_DURABLE_EVIDENCE",
       "sourceOwnership": "PLATFORM-CONTRACT",
       "size": 22728,
-      "sha256": "efeb59e2c486659fea0088bf5779280e74f3c8fe490a9fab8a1bf0452e0ee66f"
+      "sha256": "4d913917f51762793548110560d1ff30276405e1266ae0f6bd2e48ad2f8a8a25"
     },
     {
       "path": "qualification/4d/r1-git-source-custody/evidence/native-readmission-linux-2026-09-01-v14/product-census-after.json",
@@ -5192,8 +5192,8 @@
       "status": "A",
       "classification": "PLATFORM_CONTRACT",
       "sourceOwnership": "PLATFORM-CONTRACT",
-      "size": 11332,
-      "sha256": "5226c9c72947e706423e543f09a0e8108b6d0bf9b370a295737f6d607300c76d"
+      "size": 11307,
+      "sha256": "c86049e5e30e6c35e17aa87b8a4da3d912d44181171825881eca4dccf733ec2d"
     },
     {
       "path": "scripts/generate-r1-s3-contracts.mjs",
@@ -5304,8 +5304,8 @@
       "status": "A",
       "classification": "PLATFORM_CONTRACT",
       "sourceOwnership": "PLATFORM-CONTRACT",
-      "size": 7087,
-      "sha256": "3516fcefb3233342457526b778cd79aad64efc9cf522141fadbf2f88d3ca32aa"
+      "size": 7303,
+      "sha256": "61a650474f1ed43c2e01afc0ccea86d609bcefbded5450b65bd1a95558eac0f6"
     },
     {
       "path": "scripts/run-hub-migrations.mjs",
