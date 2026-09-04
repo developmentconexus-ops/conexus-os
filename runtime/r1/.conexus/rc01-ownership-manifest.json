@@ -1,7 +1,7 @@
 {
   "kind": "conexus.rc01-ownership-manifest/v1",
   "baseCommit": "1619f14d9caed172b6cada9430e6b49ff77a4316",
-  "subjectTreeDigest": "6aa6f91dc5609c4819f924957aa789de30938eb50d0c7f06c1ec9bd590ee0cba",
+  "subjectTreeDigest": "6acfb2c74277285fd1d2323e0908941deeb84ecc3a9570fb71589a3127d319c9",
   "classCounts": {
     "PLATFORM-CONTRACT": 782,
     "GENERATED": 12
@@ -27,9 +27,9 @@
     },
     {
       "class": "PLATFORM-CONTRACT",
-      "outputDigest": "5cb20c9b9c5eebe988b4e1b3eba60d8a672aaddbe97c1f6b48e8a6ba8e3e9f11",
+      "outputDigest": "7b71731158cd813e2d80735a793837805b6795647e4e73409afbd54f49b079b1",
       "path": ".github/workflows/verify.yml",
-      "size": 3875
+      "size": 3839
     },
     {
       "class": "PLATFORM-CONTRACT",
@@ -2025,9 +2025,9 @@
     },
     {
       "class": "PLATFORM-CONTRACT",
-      "outputDigest": "e6670db8a2e85db4a7eef68559f518f583566cf282b73e16db7d3167a581c8d2",
+      "outputDigest": "1bc4c28301323eaa969fb99475f18edd7c8cc21df5390165e208a1df1ab50868",
       "path": "docs/evidence/rc01/rc01-result.md",
-      "size": 969
+      "size": 1802
     },
     {
       "class": "PLATFORM-CONTRACT",
@@ -2037,9 +2037,9 @@
     },
     {
       "class": "PLATFORM-CONTRACT",
-      "outputDigest": "cf1735820758f10083467f87135c5aa7dc64121659988bb12b14861c415c886d",
+      "outputDigest": "2c5e38ba23502f9da583e7dfb169ad76abe6ba942ce4a74ff46038d1b72a5290",
       "path": "docs/evidence/rc01/rc01-test-disposition.md",
-      "size": 4814
+      "size": 5942
     },
     {
       "class": "PLATFORM-CONTRACT",
@@ -2127,9 +2127,9 @@
     },
     {
       "class": "PLATFORM-CONTRACT",
-      "outputDigest": "bc6ae71fe0678744a8f2c61c837c166eaf396021d2528223a309c9920e460621",
+      "outputDigest": "00159566ad8e7933fcf442a8150e6c3e19f96dfab77ed95ed5907959a6a0e947",
       "path": "docs/roadmap.md",
-      "size": 25251
+      "size": 25481
     },
     {
       "class": "PLATFORM-CONTRACT",
@@ -3969,9 +3969,9 @@
     },
     {
       "class": "PLATFORM-CONTRACT",
-      "outputDigest": "61a650474f1ed43c2e01afc0ccea86d609bcefbded5450b65bd1a95558eac0f6",
+      "outputDigest": "16f9473c1e2fe621a52dce59de5ada49a2c4aba66d546145eb052a024deb4286",
       "path": "scripts/record-r1c14-native-readmission-receipt.mjs",
-      "size": 7303
+      "size": 7386
     },
     {
       "class": "PLATFORM-CONTRACT",
@@ -4209,9 +4209,9 @@
     },
     {
       "class": "PLATFORM-CONTRACT",
-      "outputDigest": "ade307572e7473411a5adf904540b7c865b95f8ce74a4f180422f3759c5a8c68",
+      "outputDigest": "3f2c187cd09d487e60b4b4b6568591fa2614286a7673b1a28891409518aae604",
       "path": "tests/implementation/r1-s6-postgres.test.mjs",
-      "size": 6415
+      "size": 6258
     },
     {
       "class": "PLATFORM-CONTRACT",

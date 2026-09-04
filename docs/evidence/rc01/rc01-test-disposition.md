@@ -39,3 +39,17 @@ small: current invariants remain active, while historical “Product must remain
 blocked forever” assertions no longer override the operator-opened bounded R1
 tranche. The six unknown historical identities remain a disclosed provenance
 limitation, not a manufactured PASS.
+
+## Additional diagnostic dispositions
+
+These commands remain available but are not members of the current S6/RC-01
+deciding proof set:
+
+| Command | Classification | Exact disposition |
+| --- | --- | --- |
+| `npm run r1:g0:verify` | `SUPERSEDED_STATUS_PROJECTION` | Retains the pre-project-cognition root dependency equality and therefore rejects the operator-authorized Mastra/Anthropic/Zod adoption. The admitted successor is `npm run r1:a0:g0:verify`; the owning truth is `docs/evidence/4f/4f-r1-s6-final-closure-stage-packet.md`. |
+| `npm run r1:s1:verify` | `HISTORICAL_EXTENDED_PROOF` | Replays the superseded A0 source digest/convention. The S6 closure owner explicitly does not require replaying historical S1–S5 receipts merely for assurance. |
+| `npm run r1:s4:p2:check` | `HISTORICAL_EXTENDED_PROOF` | Asserts the pre-S6 exact six-route census and rejects authorized `PRJ-07`/`PRJ-24`. The current S4 PostgreSQL regression remains in the deciding proof set. |
+
+Their source and tests are retained. Their exclusion from CI removes stale
+status/census projection only; it does not convert a failed claim into a pass.

@@ -18,9 +18,9 @@ This is the single current phase/status authority.
 | 4C — Frontend Interaction & Authority Realization | CLOSED / OPERATOR RATIFIED / METHOD v2.3 / P12 CLOSED / 4C-13 CLOSED / P12-F03 CLOSED / 4C-14 CLOSED / PRODUCT-APP WIREFRAMES OUT OF CURRENT SCOPE | Frontend Product/interaction model, P13 inputs and structural conformance obligations preserved for later phases | Material 4A/4B/P11/P13 conformance falsifier |
 | 4D — Project Paved Road & Runtime Realization | OPEN / BOUNDED PROGRAM COMPRESSION OPERATOR RATIFIED / OPERATION MAP 128↔128 CANDIDATE / R1 FOUNDATION SELECTION CLOSED + OPERATOR APPROVED / R1 PROBE GRANT OPERATOR APPROVED / R1F-A01+R1F-E01 CORRECTED / P01..P12 EVIDENCE OPERATOR APPROVED / 4D-D(R1) FOUNDATION CLAIMS PRESERVED + R1C-13/14 ADDENDA / 4E-R1-F01 CLOSED / 4E(R1) CLOSED + OPERATOR APPROVED / R1 13/13 LOCAL IMPLEMENTATION PRESERVED / RC-01 CANDIDATE CUSTODY + PUBLICATION + WALKTHROUGH AUTHORIZED / RB-C0 FROZEN / R2+ NOT STARTED | Exact R1 candidate committed, clean-worktree verified, published as Draft PR, CI recorded and ready for operator walkthrough; no merge | Material R1 invariant failure or operator decision after walkthrough |
 | 4E — Whole-System Coherence & Golden Flows | CLOSED(R1) / OPERATOR APPROVED / 13↔13 / GITINFRA + FIRST-AUTHORITY CORRECTED / MASTRA DEFER ACCEPTED / INDEPENDENT CONVERGENCE CLEAR / RB NOT OPEN | R1 composition routes exact tranche to 4F | Composed-flow contradiction |
-| 4F — Implementation Program & Execution Graph | R1 LOCAL IMPLEMENTATION 13/13 COMPLETE / RC-01 CANDIDATE FORMATION OPEN / RB GRAPH NOT OPEN | Exact committed and reproducible R1 candidate; no successor slice follows RC-01 | Current candidate proof fails or an exact later tranche is authorized |
+| 4F — Implementation Program & Execution Graph | R1 LOCAL IMPLEMENTATION 13/13 COMPLETE / RC-01 EXACT CANDIDATE COMMITTED + CLEAN-WORKTREE VERIFIED / PUBLICATION BOUNDARY ACTIVE / RB GRAPH NOT OPEN | Exact committed and reproducible R1 candidate; no successor slice follows RC-01 | Current candidate proof fails or an exact later tranche is authorized |
 | 4G — Adversarial Implementation Readiness | CLOSED ON PRIOR SUBJECT / OPERATOR APPROVED / SEMANTIC CLEAR PRESERVED / EXECUTION TOPOLOGY CHALLENGED BY PRE-S2 A0 FINDING / RB NOT OPEN | Prior semantic readiness remains Evidence; new physical-topology subject routes to bounded 4F reopen | Material readiness finding on the current tranche subject |
-| Product implementation | R1 13/13 LOCAL IMPLEMENTATION PRESERVED / RC-01 EXACT CANDIDATE FORMATION OPEN / NOT YET PUBLISHED / RB + R2+ IMPLEMENTATION BLOCKED | Exact candidate commit + clean proof + Draft PR + CI + operator-walkthrough readiness; not merged | Product meaning changes, a protected R1 claim fails, or a new tranche is authorized |
+| Product implementation | R1 13/13 LOCAL IMPLEMENTATION PRESERVED / RC-01 EXACT CANDIDATE COMMITTED + CLEAN-WORKTREE VERIFIED / DRAFT-PR-ONLY PUBLICATION / RB + R2+ IMPLEMENTATION BLOCKED | Exact candidate commit + clean proof + Draft PR + CI + operator-walkthrough readiness; not merged | Product meaning changes, a protected R1 claim fails, or a new tranche is authorized |
 
 ```text
 4A = CLOSED / PRE11-F05 RATIFIED / N_platform=128
@@ -67,9 +67,9 @@ P12 Family 2 = LOCKED / OPERATOR APPROVED / W-02A f0a6902737a36217b081ff61768caa
 P12 Family 3 = LOCKED / OPERATOR APPROVED / P-04 77820d283e47ba6c9f5efd19f45471c88675e0b0 / P-05 d00b2126667a0a51317c653c57c237444a129dfb / PA-01 612ec41d91104e01b3942f7d90f35c37ad89c9f0
 P12 Family 4 = LOCKED / OPERATOR APPROVED / W-04 71e03432a0abd34ae35301094010fd670bb78b98 / P-01 25e5077106892c4ff6aba6774987e73a12ccff51 / P-03 17d31534fac0e57a74f70202567b23d8a63cd3c0 / P-04 e036684e3e66d028361db2d708cf05811a367f4b / PA-01 ffba5935d8fccd0fc5d7ad4d275fe38b09294674
 Pre-P11 global coherence review = CLOSED / F03-F05 OPERATOR RATIFIED / 128↔128 REQUIRED VERIFY GREEN / REPOSITORY 224↔224 GREEN / T-01 + GF-01/P-01/P-03 DELTAS LOCKED / TERMINAL P10 RECONCILED
-4D = OPEN / R1 LOCAL IMPLEMENTATION 13/13 PRESERVED / RC-01 CANDIDATE CUSTODY + PUBLICATION + WALKTHROUGH AUTHORIZED / RB-C0 FROZEN / R2+ NOT STARTED
-4E(R1) = CLOSED / OPERATOR APPROVED / 13↔13 / 4F(R1) LOCAL IMPLEMENTATION COMPLETE / RC-01 CANDIDATE FORMATION OPEN / RB 4E-4G NOT OPEN
-Product implementation = R1 13/13 LOCAL IMPLEMENTATION PRESERVED / IAM-01..03 + WS-01/02 + PRJ-01/02/03/07(first-use+refinement)/08/09/23/24 REALIZED / EXACT CANDIDATE + PR + CI PENDING / RB + R2+ IMPLEMENTATION BLOCKED
+4D = OPEN / R1 LOCAL IMPLEMENTATION 13/13 PRESERVED / RC-01 EXACT CANDIDATE COMMITTED + CLEAN-WORKTREE VERIFIED / DRAFT-PR-ONLY PUBLICATION / RB-C0 FROZEN / R2+ NOT STARTED
+4E(R1) = CLOSED / OPERATOR APPROVED / 13↔13 / 4F(R1) LOCAL IMPLEMENTATION COMPLETE / RC-01 PUBLICATION BOUNDARY ACTIVE / RB 4E-4G NOT OPEN
+Product implementation = R1 13/13 LOCAL IMPLEMENTATION PRESERVED / IAM-01..03 + WS-01/02 + PRJ-01/02/03/07(first-use+refinement)/08/09/23/24 REALIZED / EXACT CANDIDATE COMMITTED + CLEAN-WORKTREE VERIFIED / DRAFT PR + CI ARE EXTERNAL PUBLICATION EVIDENCE / RB + R2+ IMPLEMENTATION BLOCKED
 ```
 
 Preserved 4C decision projection (the owning Screen Contracts and Evidence records retain the complete rationale and exact artifacts):
@@ -224,10 +224,11 @@ checkpoints use one whole-package round.
 
 ## Exact next action
 
-**Complete RC-01 only: classify and commit one exact R1 candidate, reproduce it
-from a clean detached worktree, publish it as a Draft PR, record CI, and leave
-the exact PR commit ready for the operator browser walkthrough. Stop before
-merge. Do not begin RB-C0 review/design/runtime or R2 and later tranches.
+**Maintain the RC-01 publication boundary: the exact committed and clean-worktree
+verified candidate may be published only as a Draft PR; PR CI is the deciding
+external publication Evidence and the next operator action after green CI is
+the documented browser walkthrough. Stop before merge. Do not begin RB-C0
+review/design/runtime or R2 and later tranches.
 
 RB-C0 remains frozen planning dependent on its unopened successor gates. The
 Budget Analyzer remains the current vertical target and is not yet realized.

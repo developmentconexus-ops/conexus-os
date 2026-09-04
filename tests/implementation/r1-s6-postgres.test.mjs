@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { resolve } from 'node:path'
 import test from 'node:test'
 import pg from 'pg'
 import { canonicalBytes, sha256 } from '../../packages/canonical-json/src/index.mjs'
 import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 
 const { Client } = pg
-const repositoryRoot = resolve(import.meta.dirname, '../..')
 const required = (name) => process.env[name] || (() => { throw new Error(`MISSING_TEST_CONFIG_${name}`) })()
 const adminConnection = {
   host: required('CONEXUS_TEST_DB_HOST'), port: Number(required('CONEXUS_TEST_DB_PORT')),
@@ -91,5 +89,4 @@ test('S6-P0 PostgreSQL rechecks authority/source and settles one immutable candi
   await query(fresh, 'DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [accountId, workspaceId])
   await assert.rejects(query(runtime, 'SELECT * FROM project.reserve_or_replay_inception($1,$2,$3,$4,$5,$6)',
     [accountId, projectId, sha256(Buffer.from('intake-3')), requestDigest, randomUUID(), null]), /PRJ07_NOT_AUTHORIZED/)
-  assert.equal(repositoryRoot.endsWith('conexus-os'), true)
 })

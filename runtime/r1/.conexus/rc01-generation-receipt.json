@@ -3,9 +3,9 @@
   "verdict": "CANDIDATE_REPRODUCIBLE",
   "baseCommit": "1619f14d9caed172b6cada9430e6b49ff77a4316",
   "preChangeHead": "fd6f771be45102009f1887afaa9fc8a7e487e777",
-  "subjectTreeDigest": "6aa6f91dc5609c4819f924957aa789de30938eb50d0c7f06c1ec9bd590ee0cba",
-  "candidateInventoryDigest": "bd9905a5e54e16c55fbc0b5d77f82d476ac99fc57aff9f6613dc6e1b6601e038",
-  "ownershipManifestDigest": "9608a08403ea07eadee846910c4c2d424bf684bdd8709610aa5a272d1f2e86ad",
+  "subjectTreeDigest": "6acfb2c74277285fd1d2323e0908941deeb84ecc3a9570fb71589a3127d319c9",
+  "candidateInventoryDigest": "67fb1801390456093ef62e3bbf61a92b506419e3326d37a48eaa81f8ae5a9100",
+  "ownershipManifestDigest": "a1ed8ec1b453210d460ceabc9d3eab4d820d58dbac9a1cba4e29a2f2078fbfe4",
   "ownershipClassCounts": {
     "PLATFORM-CONTRACT": 782,
     "GENERATED": 12
@@ -117,11 +117,11 @@
   "outputIdentities": {
     "candidateInventory": {
       "path": "docs/evidence/rc01/rc01-candidate-inventory.json",
-      "sha256": "bd9905a5e54e16c55fbc0b5d77f82d476ac99fc57aff9f6613dc6e1b6601e038"
+      "sha256": "67fb1801390456093ef62e3bbf61a92b506419e3326d37a48eaa81f8ae5a9100"
     },
     "ownershipManifest": {
       "path": "runtime/r1/.conexus/rc01-ownership-manifest.json",
-      "sha256": "9608a08403ea07eadee846910c4c2d424bf684bdd8709610aa5a272d1f2e86ad"
+      "sha256": "a1ed8ec1b453210d460ceabc9d3eab4d820d58dbac9a1cba4e29a2f2078fbfe4"
     }
   }
 }

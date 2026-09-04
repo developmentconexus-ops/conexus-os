@@ -50,6 +50,7 @@ const transitionReasons = Object.freeze({
   'docs/evidence/4f/4f-r1-s2-p5-source-ref-classification-reopen.md': 'RC01_CANDIDATE_HYGIENE_NO_SEMANTIC_CHANGE',
   'package.json': 'S5_BROWSER_PROOF_SURFACE',
   'scripts/check-import-law.mjs': 'S3_P5_PROJECT_IMPORT_BOUNDARY',
+  'scripts/generate-r1-s2-contracts.mjs': 'RC01_CLEAN_WORKTREE_ATOMIC_GENERATION',
   'scripts/run-hub-migrations.mjs': 'S3_P6_PROJECT_READ_MIGRATION_CUSTODY',
   'tests/implementation/r1-s2-postgres.test.mjs': 'S3_P1_MIGRATION_REGRESSION_PROOF',
   'tests/repository/import-law.test.mjs': 'R1C14_NATIVE_CI_WIRING_PROOF',

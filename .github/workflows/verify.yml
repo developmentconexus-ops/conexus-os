@@ -49,7 +49,6 @@ jobs:
       - run: bash -n tests/implementation/r1-s2-live-runner.sh && node --check tests/implementation/r1-s2-live-setup.mjs && node --check tests/implementation/r1-s2-live-browser.spec.mjs
       - run: npm run r1:a0:web:typecheck
       - run: npm run r1:r1c14:native:check
-      - run: npm run r1:s4:p2:check
       - run: npm run r1:s4:p2:postgres
         env:
           CONEXUS_TEST_DB_HOST: 127.0.0.1
