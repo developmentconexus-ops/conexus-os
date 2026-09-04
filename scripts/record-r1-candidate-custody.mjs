@@ -15,13 +15,13 @@ const outputPaths = new Set([
   profile.generationReceipt,
 ])
 
-const git = args => execFileSync('git', args, { cwd: root })
+const git = (args, options = {}) => execFileSync('git', args, { cwd: root, ...options })
 const decode = buffer => buffer.toString('utf8')
 
 function diffEntries(mode) {
   const args = mode === 'index'
     ? ['diff', '--cached', '--name-status', '-z', profile.baseCommit]
-    : ['diff', '--name-status', '-z', profile.baseCommit, 'HEAD']
+    : ['diff', '--name-status', '-z', profile.baseCommit, profile.candidateCommit]
   const parts = decode(git(args)).split('\0').filter(Boolean)
   const entries = []
   for (let index = 0; index < parts.length;) {
@@ -33,8 +33,29 @@ function diffEntries(mode) {
   return entries.sort((left, right) => left.path.localeCompare(right.path))
 }
 
-function bytesFor(path, mode) {
-  return mode === 'index' ? git(['show', `:${path}`]) : readFileSync(resolve(root, path))
+function committedBytes(entries) {
+  const paths = entries.filter(({ status }) => status !== 'D').map(({ path }) => path)
+  const input = `${paths.map(path => `${profile.candidateCommit}:${path}`).join('\n')}\n`
+  const output = git(['cat-file', '--batch'], { input, maxBuffer: 128 * 1024 * 1024 })
+  const byPath = new Map()
+  let cursor = 0
+  for (const path of paths) {
+    const headerEnd = output.indexOf(0x0a, cursor)
+    if (headerEnd < 0) throw new Error(`RC01_CANDIDATE_BLOB_HEADER_MISSING:${path}`)
+    const header = output.subarray(cursor, headerEnd).toString('utf8')
+    if (header.endsWith(' missing')) throw new Error(`RC01_CANDIDATE_BLOB_MISSING:${path}`)
+    const size = Number(header.split(' ').at(-1))
+    if (!Number.isSafeInteger(size)) throw new Error(`RC01_CANDIDATE_BLOB_SIZE_INVALID:${path}`)
+    const start = headerEnd + 1
+    const end = start + size
+    byPath.set(path, output.subarray(start, end))
+    cursor = end + 1
+  }
+  return byPath
+}
+
+function bytesFor(path, mode, committed) {
+  return mode === 'index' ? git(['show', `:${path}`]) : committed.get(path)
 }
 
 function classification(path) {
@@ -84,16 +105,59 @@ function countBy(values, key) {
   }, {})
 }
 
+function manifestFor(candidateEntries, subjectTreeDigest) {
+  const entries = candidateEntries
+    .filter(entry => entry.status !== 'D')
+    .map(entry => ({ class: entry.sourceOwnership, outputDigest: entry.sha256, path: entry.path, size: entry.size }))
+  return {
+    kind: 'conexus.rc01-ownership-manifest/v1',
+    baseCommit: profile.baseCommit,
+    subjectTreeDigest,
+    classCounts: countBy(entries, 'class'),
+    entries,
+  }
+}
+
+function receiptFor(inventoryBytes, manifestBytes, manifest, subjectTreeDigest) {
+  return {
+    kind: 'conexus.rc01-generation-receipt/v1',
+    verdict: 'CANDIDATE_REPRODUCIBLE',
+    baseCommit: profile.baseCommit,
+    preChangeHead: profile.preChangeHead,
+    subjectTreeDigest,
+    candidateInventoryDigest: sha256(inventoryBytes),
+    ownershipManifestDigest: sha256(manifestBytes),
+    ownershipClassCounts: manifest.classCounts,
+    operationsCensus: profile.operations,
+    rbC0Frozen: true,
+    laterTranchesStarted: [],
+    appOwnedMutations: manifest.classCounts['APP-OWNED'] ?? 0,
+    generatedOutputs: manifest.entries.filter(entry => entry.class === 'GENERATED'),
+    noParallelDtoEvidence: [
+      'canonical Product OpenAPI remains the wire authority',
+      'generated R1 route/client projections are reproduced by admitted generators',
+      'tests/repository/import-law.test.mjs forbids generated-to-owner and owner-to-owner drift',
+      'scripts/check-project-operation-declarations.mjs preserves the exact 13-operation projection',
+    ],
+    externalProofNotClaimed: ['provider', 'Keycloak', 'Sankhya', 'E2B'],
+    outputIdentities: {
+      candidateInventory: { path: profile.candidateInventory, sha256: sha256(inventoryBytes) },
+      ownershipManifest: { path: profile.ownershipManifest, sha256: sha256(manifestBytes) },
+    },
+  }
+}
+
 function build(mode) {
   const prechange = JSON.parse(readFileSync(resolve(root, profile.preChangeInventory), 'utf8'))
   const changed = diffEntries(mode)
+  const committed = mode === 'commit' ? committedBytes(changed) : null
   const candidateEntries = changed
     .filter(({ path }) => !outputPaths.has(path))
     .map(({ path, status }) => {
       const semanticClass = classification(path)
       if (semanticClass === 'UNKNOWN') throw new Error(`RC01_UNKNOWN_CLASSIFICATION:${path}`)
       if (status === 'D') return { path, status, classification: semanticClass, sourceOwnership: sourceOwnership(path), size: 0, sha256: null }
-      const bytes = bytesFor(path, mode)
+      const bytes = bytesFor(path, mode, committed)
       return { path, status, classification: semanticClass, sourceOwnership: sourceOwnership(path), size: bytes.length, sha256: sha256(bytes) }
     })
   const candidatePaths = new Set(candidateEntries.map(({ path }) => path))
@@ -130,44 +194,10 @@ function build(mode) {
     candidateEntries,
     prechangeEntries,
   }
-  const manifestEntries = candidateEntries
-    .filter(entry => entry.status !== 'D')
-    .map(entry => ({ class: entry.sourceOwnership, outputDigest: entry.sha256, path: entry.path, size: entry.size }))
-  const manifest = {
-    kind: 'conexus.rc01-ownership-manifest/v1',
-    baseCommit: profile.baseCommit,
-    subjectTreeDigest,
-    classCounts: countBy(manifestEntries, 'class'),
-    entries: manifestEntries,
-  }
+  const manifest = manifestFor(candidateEntries, subjectTreeDigest)
   const inventoryBytes = json(inventory)
   const manifestBytes = json(manifest)
-  const receipt = {
-    kind: 'conexus.rc01-generation-receipt/v1',
-    verdict: 'CANDIDATE_REPRODUCIBLE',
-    baseCommit: profile.baseCommit,
-    preChangeHead: profile.preChangeHead,
-    subjectTreeDigest,
-    candidateInventoryDigest: sha256(inventoryBytes),
-    ownershipManifestDigest: sha256(manifestBytes),
-    ownershipClassCounts: manifest.classCounts,
-    operationsCensus: profile.operations,
-    rbC0Frozen: true,
-    laterTranchesStarted: [],
-    appOwnedMutations: manifest.classCounts['APP-OWNED'] ?? 0,
-    generatedOutputs: manifestEntries.filter(entry => entry.class === 'GENERATED'),
-    noParallelDtoEvidence: [
-      'canonical Product OpenAPI remains the wire authority',
-      'generated R1 route/client projections are reproduced by admitted generators',
-      'tests/repository/import-law.test.mjs forbids generated-to-owner and owner-to-owner drift',
-      'scripts/check-project-operation-declarations.mjs preserves the exact 13-operation projection',
-    ],
-    externalProofNotClaimed: ['provider', 'Keycloak', 'Sankhya', 'E2B'],
-    outputIdentities: {
-      candidateInventory: { path: profile.candidateInventory, sha256: sha256(inventoryBytes) },
-      ownershipManifest: { path: profile.ownershipManifest, sha256: sha256(manifestBytes) },
-    },
-  }
+  const receipt = receiptFor(inventoryBytes, manifestBytes, manifest, subjectTreeDigest)
   return new Map([
     [profile.candidateInventory, inventoryBytes],
     [profile.ownershipManifest, manifestBytes],
@@ -192,9 +222,34 @@ function checkOutputs(outputs) {
   }
 }
 
+function checkFrozenOutputs() {
+  const inventoryBytes = readFileSync(resolve(root, profile.candidateInventory), 'utf8')
+  const manifestBytes = readFileSync(resolve(root, profile.ownershipManifest), 'utf8')
+  const receiptBytes = readFileSync(resolve(root, profile.generationReceipt), 'utf8')
+  const inventory = JSON.parse(inventoryBytes)
+  const manifest = JSON.parse(manifestBytes)
+  const receipt = JSON.parse(receiptBytes)
+  if (json(inventory) !== inventoryBytes) throw new Error(`RC01_OUTPUT_NOT_CANONICAL:${profile.candidateInventory}`)
+  if (json(manifest) !== manifestBytes) throw new Error(`RC01_OUTPUT_NOT_CANONICAL:${profile.ownershipManifest}`)
+  if (json(receipt) !== receiptBytes) throw new Error(`RC01_OUTPUT_NOT_CANONICAL:${profile.generationReceipt}`)
+  const subjectTreeDigest = sha256(json(inventory.candidateEntries))
+  if (inventory.baseCommit !== profile.baseCommit) throw new Error('RC01_INVENTORY_BASE_COMMIT_DRIFT')
+  if (inventory.preChangeHead !== profile.preChangeHead) throw new Error('RC01_INVENTORY_PRECHANGE_HEAD_DRIFT')
+  if (inventory.subjectTreeDigest !== subjectTreeDigest) throw new Error('RC01_INVENTORY_SUBJECT_DIGEST_DRIFT')
+  const expectedManifest = manifestFor(inventory.candidateEntries, subjectTreeDigest)
+  if (json(manifest) !== json(expectedManifest)) throw new Error('RC01_OWNERSHIP_MANIFEST_DRIFT')
+  const expectedReceipt = receiptFor(inventoryBytes, manifestBytes, manifest, subjectTreeDigest)
+  if (json(receipt) !== json(expectedReceipt)) throw new Error('RC01_GENERATION_RECEIPT_DRIFT')
+}
+
 const check = process.argv.includes('--check')
 const mode = process.argv.includes('--index') ? 'index' : 'commit'
-const outputs = build(mode)
-if (check) checkOutputs(outputs)
-else writeOutputs(outputs)
-console.log(`RC01 custody ${check ? 'check' : 'record'} passed (${mode}; outputs=${outputs.size}).`)
+if (check) {
+  checkFrozenOutputs()
+  console.log('RC01 custody check passed (frozen outputs=3).')
+} else {
+  const outputs = build(mode)
+  writeOutputs(outputs)
+  checkOutputs(outputs)
+  console.log(`RC01 custody record passed (${mode}; outputs=${outputs.size}).`)
+}

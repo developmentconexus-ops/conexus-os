@@ -12,4 +12,6 @@ gates plus an explicit execution grant. No RB runtime, package installation,
 review round, model/provider call, E2B call, `PRJ-29`, `BLD-01..20`, or R2
 operation is admitted by RC-01.
 
-The next action is RC-01 publication and operator walkthrough, not RB-C0.
+RC-01 is now integrated. Current routing lives only in `docs/roadmap.md`;
+RB-C0 remains frozen and cannot become current work without its dependent R2
+closure, exact Mastra/E2B admission and a separate operator grant.
