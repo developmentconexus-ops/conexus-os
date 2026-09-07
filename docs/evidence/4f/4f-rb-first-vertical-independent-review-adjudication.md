@@ -61,11 +61,44 @@ admission into a coding-worker hardcode. This contradicted the accepted closed
 deployment-catalog portability law, although the `CodingWorkerRuntime` itself
 was already model-neutral.
 
-The correction introduces a finite server-owned `BUILDER_CODING` admission
-catalog, retains an explicit configured selection, reuses the Project-owned
+The correction extends the finite server-owned Project catalog with a
+`BUILDER_CODING` admission, retains an explicit configured selection, reuses the Project-owned
 external credential slots, and persists the exact non-secret admission,
 provider and model identities on ActorRun admission. Anthropic remains the only
 currently implemented provider transport and may remain the initial default;
 other providers require their own bounded transport admission, not changes to
 Builder runtime semantics. `PRJ-29` remains Product-Agent model-policy
 discovery and is not widened into a raw coding-worker model picker.
+
+## Model-admission correction review and adjudication
+
+The correction subject `8de4855a58f4319e0a54c6b684de00482daa5f56`
+was challenged through the neutral
+[model-admission review brief](4f-rb-builder-model-admission-review-brief.md).
+The read-only Fable lane (requested alias `fable`, effort `xhigh`, session
+`237866ef-78d5-4482-855f-646325ceddae`) found no protected-claim falsifier,
+method finding or Product/plan gap. It reported four non-blocking local gaps.
+The AGY `gemini-3.1-pro-high` lane again produced no review output because its
+headless command permission was auto-denied. The Lead did not weaken the
+sandbox and does not claim dual-lane convergence.
+
+- `F1` accepted before publication. One accepted Project-owned catalog now
+  carries both the exact R1 Inception/Explanation admission and configured
+  Builder coding admissions. R1 retains its exact Opus selector; Builder uses
+  its configured admission ID and neither can consume the other's capability.
+  The duplicate Builder catalog file/env knob and duplicate parser are removed.
+- `F2` accepted. A constructor-level negative control now fires when the exact
+  admitted model ID and instantiated Mastra model disagree, without creating a
+  sandbox or making a provider call.
+- `F3` accepted. The unused exported constructor that encoded the old Inception
+  admission shortcut is removed.
+- `F4` accepted in the smallest shared owner. The OAuth token store exposes the
+  same custody/content validation used at token access, and admission resolution
+  now invokes it before an ActorRun or E2B sandbox can be created. Missing file,
+  malformed content and unsafe permissions all fire locally; expiry may still
+  trigger the existing bounded refresh during use.
+
+These corrections do not add a provider, model-routing policy, browser picker,
+fallback, external call or new credential store. Because `F1` materially changes
+the challenged catalog property, the corrected frozen candidate requires one
+fresh independent confirmation before publication.

@@ -13,7 +13,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
-    e2bTemplateId: string; modelCatalogFile: string; modelAdmissionId: string
+    e2bTemplateId: string; modelAdmissionId: string
   }>
   projectSource: Readonly<{ storageRoot: string; ownership: Readonly<Record<string, string>>; git: BuilderGitSourceCapability }>
   model: MastraLanguageModel

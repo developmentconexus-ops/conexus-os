@@ -27,12 +27,12 @@ credentials, or turn narration/sandbox completion into an owner transition.
 - Runtime: `@mastra/core@1.63.2` native coding agent behind
   `CodingWorkerRuntime`; `@mastra/e2b@0.11.0` + `e2b@2.46.1`; no local-host
   fallback, ACP, private MCP or guest provider credential.
-- Model: one server-owned `BUILDER_CODING` admission is selected from a finite
-  closed deployment catalog and frozen on ActorRun admission. The current
+- Model: one server-owned `BUILDER_CODING` admission is selected from the finite
+  shared closed Project deployment catalog and frozen on ActorRun admission. The current
   default may be Anthropic/Opus, but Builder runtime code is not tied to the
   Project Inception admission; browser/model output cannot select provider,
   model, endpoint or credential. The catalog entry shape is
-  `admissionId + providerId + exact modelId + officialHttpsOrigin +
+  `admissionId + providerKey + exact modelId + officialHttpsOrigin +
   credentialSlot + capabilitySet + enabled`. Credential slots reuse the
   Project server-side external-slot file and never enter the guest.
 - Data: one Builder-owned schema/migration with idempotent Change creation,

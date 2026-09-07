@@ -2,7 +2,10 @@ import { chmodSync, closeSync, existsSync, lstatSync, openSync, readFileSync, re
 import { dirname } from 'node:path'
 import { refreshAuthorizationToken } from './anthropic-oauth.js'
 
-export type OAuthTokenStore = Readonly<{ getAccessToken(): Promise<string> }>
+export type OAuthTokenStore = Readonly<{
+  validate(): void
+  getAccessToken(): Promise<string>
+}>
 
 export const createOAuthTokenStore = (
   filePath: string,
@@ -47,6 +50,7 @@ export const createOAuthTokenStore = (
   }
   let refreshing: Promise<string> | undefined
   return Object.freeze({
+    validate: () => { read() },
     getAccessToken: async () => {
       const current = read()
       if (now() < current.expiresAt) return current.access

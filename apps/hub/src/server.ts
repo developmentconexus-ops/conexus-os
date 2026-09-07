@@ -143,10 +143,10 @@ const connections = config.connections ? createConfiguredConnectionModule({
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
 const builderModel = config.builder && config.project ? resolveProjectModelAdmission({
-  catalogFile: config.builder.modelCatalogFile,
+  catalogFile: config.project.modelCatalogFile,
   credentialSlotsFile: config.project.externalFileSlotsFile,
   admissionId: config.builder.modelAdmissionId,
-  capability: 'BUILDER_CODING',
+  requiredCapabilities: ['BUILDER_CODING'],
 }) : undefined
 const builder = config.builder && config.project && builderModel ? createConfiguredBuilderModule({
   database: {

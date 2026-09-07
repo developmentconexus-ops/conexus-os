@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -20,6 +20,7 @@ const { createHttpApp } = await import(built('http/app.js'))
 const { registerBuilderRoutes } = await import(built('builder/routes.js'))
 const { createBuilderService } = await import(built('builder/service.js'))
 const { createBuilderSourcePort } = await import(built('builder/source.js'))
+const { createMastraE2BCodingWorkerRuntime } = await import(built('builder/runtime.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
 const { resolveProjectModelAdmission } = await import(built('project/module.js'))
 
@@ -162,44 +163,80 @@ test('Builder model admission is a closed purpose-bound catalog, not an Inceptio
   const root = mkdtempSync(resolve(repositoryRoot, 'apps/hub/rb-model-catalog-'))
   const catalogFile = resolve(root, 'models.json')
   const slotsFile = resolve(root, 'slots.json')
-  const entry = {
-    admissionId: 'builder-coding-primary', providerId: 'anthropic', modelId: 'claude-sonnet-4-5',
+  const credentialFile = resolve(root, 'oauth.json')
+  const builderEntry = {
+    admissionId: 'builder-coding-primary', providerKey: 'anthropic', modelId: 'claude-sonnet-4-5',
     officialHttpsOrigin: 'https://api.anthropic.com', credentialSlot: 'shared-anthropic-oauth',
     capabilitySet: ['BUILDER_CODING'], enabled: true,
+  }
+  const inceptionEntry = {
+    admissionId: 'project-inception-opus-5', providerKey: 'anthropic', modelId: 'claude-opus-5',
+    officialHttpsOrigin: 'https://api.anthropic.com', credentialSlot: 'shared-anthropic-oauth',
+    capabilitySet: ['PROJECT_INCEPTION', 'BASELINE_EXPLANATION'], enabled: true,
   }
   const writeCatalog = (entries) => writeFileSync(catalogFile, JSON.stringify({
     schemaVersion: 'conexus-model-admission-catalog/v1', entries,
   }))
   try {
-    writeFileSync(slotsFile, JSON.stringify({ 'shared-anthropic-oauth': resolve(root, 'oauth.json') }))
-    writeCatalog([entry])
+    writeFileSync(credentialFile, JSON.stringify({ access: 'fixture-access', refresh: 'fixture-refresh', expiresAt: Date.now() + 60_000 }), { mode: 0o600 })
+    writeFileSync(slotsFile, JSON.stringify({ 'shared-anthropic-oauth': credentialFile }))
+    writeCatalog([inceptionEntry, builderEntry])
     const selected = resolveProjectModelAdmission({
-      catalogFile, credentialSlotsFile: slotsFile, admissionId: entry.admissionId, capability: 'BUILDER_CODING',
+      catalogFile, credentialSlotsFile: slotsFile, admissionId: builderEntry.admissionId,
+      requiredCapabilities: ['BUILDER_CODING'],
     })
     assert.deepEqual({ admissionId: selected.admissionId, providerId: selected.providerId, modelId: selected.modelId }, {
-      admissionId: entry.admissionId, providerId: 'anthropic', modelId: 'claude-sonnet-4-5',
+      admissionId: builderEntry.admissionId, providerId: 'anthropic', modelId: 'claude-sonnet-4-5',
     })
     assert.equal(selected.model.modelId, 'claude-sonnet-4-5')
+    const inception = resolveProjectModelAdmission({
+      catalogFile, credentialSlotsFile: slotsFile, admissionId: inceptionEntry.admissionId,
+      requiredCapabilities: ['PROJECT_INCEPTION', 'BASELINE_EXPLANATION'],
+    })
+    assert.equal(inception.modelId, 'claude-opus-5')
     assert.throws(() => resolveProjectModelAdmission({
-      catalogFile, credentialSlotsFile: slotsFile, admissionId: 'missing', capability: 'BUILDER_CODING',
+      catalogFile, credentialSlotsFile: slotsFile, admissionId: 'missing', requiredCapabilities: ['BUILDER_CODING'],
+    }), /PROJECT_MODEL_ADMISSION_UNAVAILABLE/)
+    assert.throws(() => resolveProjectModelAdmission({
+      catalogFile, credentialSlotsFile: slotsFile, admissionId: inceptionEntry.admissionId,
+      requiredCapabilities: ['BUILDER_CODING'],
     }), /PROJECT_MODEL_ADMISSION_UNAVAILABLE/)
     for (const refused of [
-      [{ ...entry, enabled: false }],
-      [{ ...entry, modelId: 'claude-latest' }],
-      [{ ...entry, capabilitySet: ['PROJECT_INCEPTION'] }],
-      [{ ...entry, providerId: 'openai', officialHttpsOrigin: 'https://api.openai.com' }],
-      [entry, entry],
+      [{ ...builderEntry, enabled: false }],
+      [{ ...builderEntry, modelId: 'claude-latest' }],
+      [{ ...builderEntry, capabilitySet: ['PROJECT_INCEPTION'] }],
+      [{ ...builderEntry, providerKey: 'openai', officialHttpsOrigin: 'https://api.openai.com' }],
+      [builderEntry, builderEntry],
     ]) {
       writeCatalog(refused)
       assert.throws(() => resolveProjectModelAdmission({
-        catalogFile, credentialSlotsFile: slotsFile, admissionId: entry.admissionId, capability: 'BUILDER_CODING',
+        catalogFile, credentialSlotsFile: slotsFile, admissionId: builderEntry.admissionId,
+        requiredCapabilities: ['BUILDER_CODING'],
       }), /PROJECT_MODEL_(CATALOG_REFUSED|ADMISSION_UNAVAILABLE|PROVIDER_UNSUPPORTED)/)
     }
-    writeCatalog([entry])
+    writeCatalog([builderEntry])
     writeFileSync(slotsFile, '{}')
     assert.throws(() => resolveProjectModelAdmission({
-      catalogFile, credentialSlotsFile: slotsFile, admissionId: entry.admissionId, capability: 'BUILDER_CODING',
+      catalogFile, credentialSlotsFile: slotsFile, admissionId: builderEntry.admissionId,
+      requiredCapabilities: ['BUILDER_CODING'],
     }), /PROJECT_MODEL_CREDENTIAL_SLOT_REFUSED/)
+    writeFileSync(slotsFile, JSON.stringify({ 'shared-anthropic-oauth': resolve(root, 'missing-oauth.json') }))
+    assert.throws(() => resolveProjectModelAdmission({
+      catalogFile, credentialSlotsFile: slotsFile, admissionId: builderEntry.admissionId,
+      requiredCapabilities: ['BUILDER_CODING'],
+    }), /ANTHROPIC_OAUTH_LOGIN_REQUIRED/)
+    writeFileSync(slotsFile, JSON.stringify({ 'shared-anthropic-oauth': credentialFile }))
+    writeFileSync(credentialFile, '{}', { mode: 0o600 })
+    assert.throws(() => resolveProjectModelAdmission({
+      catalogFile, credentialSlotsFile: slotsFile, admissionId: builderEntry.admissionId,
+      requiredCapabilities: ['BUILDER_CODING'],
+    }), /ANTHROPIC_OAUTH_TOKEN_FILE_INVALID/)
+    writeFileSync(credentialFile, JSON.stringify({ access: 'a', refresh: 'r', expiresAt: Date.now() + 60_000 }), { mode: 0o600 })
+    chmodSync(credentialFile, 0o644)
+    assert.throws(() => resolveProjectModelAdmission({
+      catalogFile, credentialSlotsFile: slotsFile, admissionId: builderEntry.admissionId,
+      requiredCapabilities: ['BUILDER_CODING'],
+    }), /ANTHROPIC_OAUTH_CUSTODY_INVALID/)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -221,14 +258,22 @@ test('Builder configuration requires one complete catalog-selected runtime', () 
     CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE: '/etc/conexus/ownership.json',
     CONEXUS_DB_RB_INGRESS_PASSWORD_FILE: '/run/secrets/rb-ingress', CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE: '/run/secrets/rb-executor',
     CONEXUS_BUILDER_E2B_API_KEY_FILE: '/run/secrets/e2b', CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'template-pinned-1',
-    CONEXUS_BUILDER_MODEL_CATALOG_FILE: '/etc/conexus/builder-models.json', CONEXUS_BUILDER_MODEL_ADMISSION_ID: 'builder-coding-primary',
+    CONEXUS_BUILDER_MODEL_ADMISSION_ID: 'builder-coding-primary',
   }
-  assert.equal(readHubConfig(environment).builder?.modelCatalogFile, '/etc/conexus/builder-models.json')
-  for (const omitted of ['CONEXUS_BUILDER_MODEL_CATALOG_FILE', 'CONEXUS_BUILDER_MODEL_ADMISSION_ID']) {
+  assert.equal(readHubConfig(environment).builder?.modelAdmissionId, 'builder-coding-primary')
+  for (const omitted of ['CONEXUS_PROJECT_MODEL_CATALOG_FILE', 'CONEXUS_BUILDER_MODEL_ADMISSION_ID']) {
     const partial = { ...environment }
     delete partial[omitted]
     assert.throws(() => readHubConfig(partial), /MISSING_CONFIG_/)
   }
+})
+
+test('Builder runtime refuses a model object that disagrees with the admitted exact model identity', () => {
+  assert.throws(() => createMastraE2BCodingWorkerRuntime({
+    apiKey: 'fixture-e2b-key', templateId: 'template-pinned-1',
+    modelIdentity: { admissionId: 'builder-coding-primary', providerId: 'anthropic', modelId: 'claude-sonnet-4-5' },
+    model: { modelId: 'claude-opus-5' },
+  }), /BUILDER_RUNTIME_CONFIG_REFUSED/)
 })
 
 const gitFixture = (cwd, args) => {
