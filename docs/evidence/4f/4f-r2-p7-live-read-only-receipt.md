@@ -1,8 +1,8 @@
 # R2-P7 read-only Sankhya qualification receipt
 
-**Receipt status:** `CLOSED PASS`  
-**Candidate:** `1833dfc62a22eba4f4376bfa794a8f1716ae898d`  
-**Execution date:** 2026-09-07  
+**Receipt status:** `CLOSED PASS`
+**Candidate:** `1833dfc62a22eba4f4376bfa794a8f1716ae898d`
+**Execution date:** 2026-09-07
 **Scope:** production Sankhya read-only proof for company `1` (Matriz) and
 company `2` (Filial), plus the bounded whole-R2 composition.
 
