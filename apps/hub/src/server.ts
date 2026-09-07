@@ -31,7 +31,11 @@ const {
   createConfiguredProjectSourceSnapshotFactory,
   createProjectKeyConformanceBasisResolver,
   createProjectBrainRealizationPort,
+  createBuilderProjectGitCapability,
+  createProjectAdmittedModel,
+  readProjectSourceOwnership,
 } = await import('./project/module.js')
+const { createConfiguredBuilderModule } = await import('./builder/module.js')
 type ProjectBindingsRuntime = ReturnType<typeof createConfiguredProjectConnectionBindingModule> |
   ReturnType<typeof createConfiguredProjectBindingModule>
 
@@ -138,6 +142,25 @@ const connections = config.connections ? createConfiguredConnectionModule({
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
+const builder = config.builder && config.project ? createConfiguredBuilderModule({
+  database: {
+    host: config.database.host,
+    port: config.database.port,
+    database: config.database.database,
+  },
+  builder: config.builder,
+  projectSource: {
+    storageRoot: config.project.storageRoot,
+    ownership: readProjectSourceOwnership(config.project.sourceOwnershipManifestFile),
+    git: createBuilderProjectGitCapability(config.project.storageRoot),
+  },
+  model: createProjectAdmittedModel({
+    admissionId: config.builder.modelAdmissionId,
+    credentialFile: config.builder.modelCredentialFile,
+  }),
+  origin: config.origin,
+  resolveCurrentSession: identityAccess.resolveCurrentSession,
+}) : undefined
 let keyConformanceSubjectPool: ReturnType<typeof createPostgresPool> | undefined
 if (config.projectBindings?.brain) {
   if (!config.connections || !credentialBackend || !sharedSourceSnapshot) throw new Error('PROJECT_BINDING_BRAIN_RUNTIME_UNAVAILABLE')
@@ -203,6 +226,7 @@ const app = await createHttpApp({
     ...(project ? await project.registerProjectRoutes(server) : []),
     ...(brain ? await brain.registerBrainRoutes(server) : []),
     ...(connections ? await connections.registerConnectionRoutes(server) : []),
+    ...(builder ? await builder.registerBuilderRoutes(server) : []),
     ...(projectBindings ? await projectBindings.registerProjectConnectionBindingRoutes(server) : []),
     ...(projectBindings && 'registerProjectBrainBindingRoutes' in projectBindings
       ? await projectBindings.registerProjectBrainBindingRoutes(server) : []),
@@ -210,13 +234,14 @@ const app = await createHttpApp({
   staticRoot: resolve(import.meta.dirname, '../public'),
 })
 await app.listen({ host: '127.0.0.1', port: config.port })
+await builder?.recover()
 
 let closed = false
 const close = async (): Promise<void> => {
   if (closed) return
   closed = true
   await app.close()
-  await Promise.all([projectBindings?.close(), keyConformanceSubjectPool?.end(), connections?.close(), brain?.close(), project?.close(), workspace?.close(), identityAccess.close()])
+  await Promise.all([builder?.close(), projectBindings?.close(), keyConformanceSubjectPool?.end(), connections?.close(), brain?.close(), project?.close(), workspace?.close(), identityAccess.close()])
 }
 process.once('SIGINT', close)
 process.once('SIGTERM', close)

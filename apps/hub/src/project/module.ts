@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import type { MastraLanguageModel } from '@mastra/core/agent'
 import { lstatSync, readFileSync } from 'node:fs'
 import { createPostgresPool } from '../platform/postgres.js'
 import type { PostgresPool } from '../platform/postgres.js'
@@ -224,6 +225,20 @@ export const composeProjectSourceOwnership = (input: unknown): Readonly<Record<s
     result[entry.path] = entry.class
   }
   return Object.freeze(result)
+}
+
+export const readProjectSourceOwnership = (path: string): Readonly<Record<string, string>> =>
+  composeProjectSourceOwnership(readJsonFile(path))
+
+export const createBuilderProjectGitCapability = (storageRoot: string): GitExecutionPort =>
+  createOciGitExecutionPort({ projectStorageRoot: storageRoot })
+
+export const createProjectAdmittedModel = ({ admissionId, credentialFile }: Readonly<{
+  admissionId: string
+  credentialFile: string
+}>): MastraLanguageModel => {
+  if (admissionId !== PROJECT_ANTHROPIC_ADMISSION_ID) throw new Error('PROJECT_MODEL_ADMISSION_REFUSED')
+  return createAnthropicOAuthModel({ tokenStore: createOAuthTokenStore(credentialFile) })
 }
 
 export const createConfiguredProjectSourceSnapshotFactory = ({

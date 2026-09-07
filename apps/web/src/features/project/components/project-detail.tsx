@@ -33,6 +33,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
         <code>{project.data.projectRevision}</code>
       </details>
       <p><Link to="/projects/$projectId/inception" params={{ projectId }}>Iniciar Project Inception</Link></p>
+      <p><Link to="/projects/$projectId/build" params={{ projectId }}>Construir com o Conexus</Link></p>
       <Link to="/workspaces/$workspaceId/projects" params={{ workspaceId: project.data.workspaceId }}>
         Voltar aos Projects
       </Link>
