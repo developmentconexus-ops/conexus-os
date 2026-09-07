@@ -25,8 +25,10 @@ const withIdentity = (body: BodyInit | null | undefined): BodyInit | null | unde
 
 export const createAnthropicOAuthModel = ({
   tokenStore,
+  modelId = PROJECT_ANTHROPIC_MODEL_ID,
   fetchImpl = globalThis.fetch,
-}: Readonly<{ tokenStore: OAuthTokenStore; fetchImpl?: typeof globalThis.fetch }>): MastraLanguageModel => {
+}: Readonly<{ tokenStore: OAuthTokenStore; modelId?: string; fetchImpl?: typeof globalThis.fetch }>): MastraLanguageModel => {
+  if (!modelId || /latest|\*/i.test(modelId)) throw new Error('PROJECT_MODEL_ID_REFUSED')
   const bounded = createBoundedProviderFetch({
     officialOrigin: ORIGIN,
     maxResponseBytes: 8 * 1024 * 1024,
@@ -45,5 +47,5 @@ export const createAnthropicOAuthModel = ({
     authToken: 'replaced-by-closed-oauth-transport',
     baseURL: `${ORIGIN}v1`,
     fetch: bounded,
-  })(PROJECT_ANTHROPIC_MODEL_ID) as unknown as MastraLanguageModel
+  })(modelId) as unknown as MastraLanguageModel
 }

@@ -20,6 +20,8 @@ const { createHttpApp } = await import(built('http/app.js'))
 const { registerBuilderRoutes } = await import(built('builder/routes.js'))
 const { createBuilderService } = await import(built('builder/service.js'))
 const { createBuilderSourcePort } = await import(built('builder/source.js'))
+const { readHubConfig } = await import(built('platform/config.js'))
+const { resolveProjectModelAdmission } = await import(built('project/module.js'))
 
 test.after(() => rmSync(buildRoot, { recursive: true, force: true }))
 
@@ -31,6 +33,7 @@ const admissionToken = '55555555-5555-4555-8555-555555555555'
 const sandboxId = 'sbx_exact'
 const baseSourceRevision = 'a'.repeat(40)
 const candidateSourceRevision = 'b'.repeat(40)
+const modelIdentity = { admissionId: 'builder-coding-primary', providerId: 'anthropic', modelId: 'claude-opus-5' }
 const projection = { changeId, projectId, intent: 'Add a health page', baselineDigest: 'c'.repeat(64), planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', state: 'QUEUED' }
 const claim = { projectId, changeId, workUnitId, actorRunId, admissionToken, intent: projection.intent, baseSourceRevision }
 
@@ -55,6 +58,7 @@ test('Builder admits only an explicitly remote runtime and settles a fully scope
   }
   const runtime = {
     kind: 'REMOTE_E2B',
+    modelIdentity,
     execute: async (input) => {
       calls.push(['execute', input])
       await input.bindPhysicalSandbox(sandboxId)
@@ -84,6 +88,7 @@ test('Builder refuses mismatched worker lineage and never settles its narration'
   }
   const runtime = {
     kind: 'REMOTE_E2B',
+    modelIdentity,
     execute: async () => ({ runtimeId: 'mastra-native-e2b-v1', ...claim, changeId: projectId, sandboxId, candidateSourceRevision, resultBundle: Uint8Array.from([2]), summary: 'I declare success.' }),
   }
   const service = createBuilderService({ store, source, runtime })
@@ -151,6 +156,79 @@ test('runtime, migration and custody source preserve the Builder trust boundary'
   assert.doesNotMatch(migration, /can_manage.*can_build/s)
   assert.match(migration, /receipt\.operation_id = 'PRJ-03'/)
   assert.ok(server.indexOf('await builder?.recover()') < server.indexOf("await app.listen({ host: '127.0.0.1'"))
+})
+
+test('Builder model admission is a closed purpose-bound catalog, not an Inception hardcode', () => {
+  const root = mkdtempSync(resolve(repositoryRoot, 'apps/hub/rb-model-catalog-'))
+  const catalogFile = resolve(root, 'models.json')
+  const slotsFile = resolve(root, 'slots.json')
+  const entry = {
+    admissionId: 'builder-coding-primary', providerId: 'anthropic', modelId: 'claude-sonnet-4-5',
+    officialHttpsOrigin: 'https://api.anthropic.com', credentialSlot: 'shared-anthropic-oauth',
+    capabilitySet: ['BUILDER_CODING'], enabled: true,
+  }
+  const writeCatalog = (entries) => writeFileSync(catalogFile, JSON.stringify({
+    schemaVersion: 'conexus-model-admission-catalog/v1', entries,
+  }))
+  try {
+    writeFileSync(slotsFile, JSON.stringify({ 'shared-anthropic-oauth': resolve(root, 'oauth.json') }))
+    writeCatalog([entry])
+    const selected = resolveProjectModelAdmission({
+      catalogFile, credentialSlotsFile: slotsFile, admissionId: entry.admissionId, capability: 'BUILDER_CODING',
+    })
+    assert.deepEqual({ admissionId: selected.admissionId, providerId: selected.providerId, modelId: selected.modelId }, {
+      admissionId: entry.admissionId, providerId: 'anthropic', modelId: 'claude-sonnet-4-5',
+    })
+    assert.equal(selected.model.modelId, 'claude-sonnet-4-5')
+    assert.throws(() => resolveProjectModelAdmission({
+      catalogFile, credentialSlotsFile: slotsFile, admissionId: 'missing', capability: 'BUILDER_CODING',
+    }), /PROJECT_MODEL_ADMISSION_UNAVAILABLE/)
+    for (const refused of [
+      [{ ...entry, enabled: false }],
+      [{ ...entry, modelId: 'claude-latest' }],
+      [{ ...entry, capabilitySet: ['PROJECT_INCEPTION'] }],
+      [{ ...entry, providerId: 'openai', officialHttpsOrigin: 'https://api.openai.com' }],
+      [entry, entry],
+    ]) {
+      writeCatalog(refused)
+      assert.throws(() => resolveProjectModelAdmission({
+        catalogFile, credentialSlotsFile: slotsFile, admissionId: entry.admissionId, capability: 'BUILDER_CODING',
+      }), /PROJECT_MODEL_(CATALOG_REFUSED|ADMISSION_UNAVAILABLE|PROVIDER_UNSUPPORTED)/)
+    }
+    writeCatalog([entry])
+    writeFileSync(slotsFile, '{}')
+    assert.throws(() => resolveProjectModelAdmission({
+      catalogFile, credentialSlotsFile: slotsFile, admissionId: entry.admissionId, capability: 'BUILDER_CODING',
+    }), /PROJECT_MODEL_CREDENTIAL_SLOT_REFUSED/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('Builder configuration requires one complete catalog-selected runtime', () => {
+  const environment = {
+    NODE_ENV: 'test', CONEXUS_ORIGIN: 'https://control.example.test', CONEXUS_BOOTSTRAP_SUBJECT: 'subject',
+    CONEXUS_DB_HOST: '127.0.0.1', CONEXUS_DB_PORT: '5432', CONEXUS_DB_NAME: 'conexus', CONEXUS_DB_USER: 'conexus',
+    CONEXUS_DB_PASSWORD_FILE: '/run/secrets/database', CONEXUS_OIDC_ISSUER: 'https://issuer.example.test',
+    CONEXUS_OIDC_CLIENT_ID: 'client', CONEXUS_OIDC_CLIENT_SECRET_FILE: '/run/secrets/oidc',
+    CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE: '/run/secrets/project-command',
+    CONEXUS_DB_S3_READ_PASSWORD_FILE: '/run/secrets/project-read',
+    CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE: '/run/secrets/baseline-read',
+    CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE: '/run/secrets/baseline-command',
+    CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE: '/run/secrets/inception-command',
+    CONEXUS_PROJECT_STORAGE_ROOT: '/var/lib/conexus/projects', CONEXUS_GIT_IMPORT_CATALOG_FILE: '/etc/conexus/git.json',
+    CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE: '/etc/conexus/slots.json', CONEXUS_PROJECT_MODEL_CATALOG_FILE: '/etc/conexus/project-models.json',
+    CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE: '/etc/conexus/ownership.json',
+    CONEXUS_DB_RB_INGRESS_PASSWORD_FILE: '/run/secrets/rb-ingress', CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE: '/run/secrets/rb-executor',
+    CONEXUS_BUILDER_E2B_API_KEY_FILE: '/run/secrets/e2b', CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'template-pinned-1',
+    CONEXUS_BUILDER_MODEL_CATALOG_FILE: '/etc/conexus/builder-models.json', CONEXUS_BUILDER_MODEL_ADMISSION_ID: 'builder-coding-primary',
+  }
+  assert.equal(readHubConfig(environment).builder?.modelCatalogFile, '/etc/conexus/builder-models.json')
+  for (const omitted of ['CONEXUS_BUILDER_MODEL_CATALOG_FILE', 'CONEXUS_BUILDER_MODEL_ADMISSION_ID']) {
+    const partial = { ...environment }
+    delete partial[omitted]
+    assert.throws(() => readHubConfig(partial), /MISSING_CONFIG_/)
+  }
 })
 
 const gitFixture = (cwd, args) => {
@@ -351,10 +429,19 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
     accountId, subjectProjectId, 'e'.repeat(64), '9'.repeat(64), subjectChangeId, planRevision, itemId,
     codingSessionId, subjectWorkUnitId, 'Different payload under the same key',
   ]), /BLD03_IDEMPOTENCY_CONFLICT/)
-  const claimed = await query(executor, 'SELECT builder.claim_change($1,$2,$3) AS value', [subjectChangeId, subjectActorRunId, subjectToken])
+  const claimed = await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6) AS value', [
+    subjectChangeId, subjectActorRunId, subjectToken, modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
+  ])
   assert.equal(claimed.rows[0].value.baseSourceRevision, baseSourceRevision)
-  await assert.rejects(query(executor, 'SELECT builder.claim_change($1,$2,$3)', [
+  assert.deepEqual((await query(current, `SELECT model_admission_id, model_provider_id, model_id
+    FROM builder.actor_run WHERE actor_run_id = $1`, [subjectActorRunId])).rows[0], {
+    model_admission_id: modelIdentity.admissionId,
+    model_provider_id: modelIdentity.providerId,
+    model_id: modelIdentity.modelId,
+  })
+  await assert.rejects(query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6)', [
     subjectChangeId, '60000000-0000-4000-8000-000000000011', '60000000-0000-4000-8000-000000000012',
+    modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
   ]), /BUILDER_CHANGE_NOT_QUEUED/)
   await query(executor, 'SELECT builder.bind_sandbox($1,$2,$3)', [subjectActorRunId, subjectToken, sandboxId])
   const late = await query(executor, 'SELECT builder.settle_result($1,$2,$3,$4,$5,$6,$7) AS settled', [
@@ -378,8 +465,9 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
     '60000000-0000-4000-8000-000000000023', '60000000-0000-4000-8000-000000000024', 'Revoked authority refusal',
   ])
   await query(current, 'UPDATE iam.project_builder_grant SET can_build = false WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
-  const revoked = await query(executor, 'SELECT builder.claim_change($1,$2,$3) AS value', [
+  const revoked = await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6) AS value', [
     revokedChange, '60000000-0000-4000-8000-000000000025', '60000000-0000-4000-8000-000000000026',
+    modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
   ])
   assert.equal(revoked.rows[0].value.refusedCode, 'BUILDER_AUTHORITY_REVOKED')
   assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [revokedChange])).rows[0].state, 'FAILED')
@@ -395,8 +483,9 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   await query(current, `INSERT INTO project.baseline_candidate(project_id, candidate_digest, source_revision, source_text, application_runtime_profile)
     VALUES ($1, $2, $3, 'Replacement baseline', 'MANAGED')`, [subjectProjectId, replacementDigest, 'c'.repeat(40)])
   await query(current, 'UPDATE project.baseline_state SET current_candidate_digest = $2, approved_candidate_digest = $2 WHERE project_id = $1', [subjectProjectId, replacementDigest])
-  const stale = await query(executor, 'SELECT builder.claim_change($1,$2,$3) AS value', [
+  const stale = await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6) AS value', [
     staleChange, '60000000-0000-4000-8000-000000000055', '60000000-0000-4000-8000-000000000056',
+    modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
   ])
   assert.equal(stale.rows[0].value.refusedCode, 'BUILDER_BASELINE_STALE')
   assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [staleChange])).rows[0].state, 'FAILED')

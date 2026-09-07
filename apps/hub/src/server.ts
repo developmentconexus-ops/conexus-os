@@ -32,7 +32,7 @@ const {
   createProjectKeyConformanceBasisResolver,
   createProjectBrainRealizationPort,
   createBuilderProjectGitCapability,
-  createProjectAdmittedModel,
+  resolveProjectModelAdmission,
   readProjectSourceOwnership,
 } = await import('./project/module.js')
 const { createConfiguredBuilderModule } = await import('./builder/module.js')
@@ -142,7 +142,13 @@ const connections = config.connections ? createConfiguredConnectionModule({
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
-const builder = config.builder && config.project ? createConfiguredBuilderModule({
+const builderModel = config.builder && config.project ? resolveProjectModelAdmission({
+  catalogFile: config.builder.modelCatalogFile,
+  credentialSlotsFile: config.project.externalFileSlotsFile,
+  admissionId: config.builder.modelAdmissionId,
+  capability: 'BUILDER_CODING',
+}) : undefined
+const builder = config.builder && config.project && builderModel ? createConfiguredBuilderModule({
   database: {
     host: config.database.host,
     port: config.database.port,
@@ -154,10 +160,12 @@ const builder = config.builder && config.project ? createConfiguredBuilderModule
     ownership: readProjectSourceOwnership(config.project.sourceOwnershipManifestFile),
     git: createBuilderProjectGitCapability(config.project.storageRoot),
   },
-  model: createProjectAdmittedModel({
-    admissionId: config.builder.modelAdmissionId,
-    credentialFile: config.builder.modelCredentialFile,
-  }),
+  model: builderModel.model,
+  modelIdentity: {
+    admissionId: builderModel.admissionId,
+    providerId: builderModel.providerId,
+    modelId: builderModel.modelId,
+  },
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined

@@ -57,7 +57,7 @@ export type BuilderStore = Readonly<{
   createChange(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; intent: string }>): Promise<ChangeProjection>
   listChanges(input: Readonly<{ accountId: string; projectId: string }>): Promise<readonly ChangeProjection[]>
   readSnapshot(input: Readonly<{ accountId: string; projectId: string; changeId: string; requireSource: boolean }>): Promise<BuilderSnapshot | null>
-  claimChange(changeId: string): Promise<ClaimedChange>
+  claimChange(changeId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<ClaimedChange>
   bindSandbox(actorRunId: string, admissionToken: string, sandboxId: string): Promise<void>
   settleResult(input: Readonly<ClaimedChange & { sandboxId: string; candidateSourceRevision: string; patch: string; summary: string }>): Promise<void>
   failRun(actorRunId: string, admissionToken: string): Promise<void>
@@ -97,11 +97,13 @@ export const createBuilderStore = ({
     )
     return result.rows[0]?.value ?? null
   },
-  claimChange: async (changeId) => {
+  claimChange: async (changeId, modelIdentity) => {
     const actorRunId = mintIdentity()
     const admissionToken = mintIdentity()
     const result = await executorPool.query<JsonRow<ClaimedChange>>(
-      'SELECT builder.claim_change($1,$2,$3) AS value', [changeId, actorRunId, admissionToken],
+      'SELECT builder.claim_change($1,$2,$3,$4,$5,$6) AS value', [
+        changeId, actorRunId, admissionToken, modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
+      ],
     )
     const value = result.rows[0]?.value
     if (!value || value.actorRunId !== actorRunId || value.admissionToken !== admissionToken) {

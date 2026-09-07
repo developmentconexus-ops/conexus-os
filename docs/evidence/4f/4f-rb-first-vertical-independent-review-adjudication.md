@@ -51,3 +51,21 @@ No finding reopens R1, R2, the Builder owner semantics, ACP, private MCP, runtim
 tournaments, Product-Agent work or R3. No live E2B/model run is claimed because
 the required external credentials were unavailable; this remains a truthful
 bounded proof unknown, not a favorable result.
+
+## Post-publication model-admission correction
+
+Operator questioning after PR publication exposed a localized composition
+mistake not raised by the independent lane: Builder reused the exact
+`project-inception-opus-5` constructor, turning a purpose-specific initial R1
+admission into a coding-worker hardcode. This contradicted the accepted closed
+deployment-catalog portability law, although the `CodingWorkerRuntime` itself
+was already model-neutral.
+
+The correction introduces a finite server-owned `BUILDER_CODING` admission
+catalog, retains an explicit configured selection, reuses the Project-owned
+external credential slots, and persists the exact non-secret admission,
+provider and model identities on ActorRun admission. Anthropic remains the only
+currently implemented provider transport and may remain the initial default;
+other providers require their own bounded transport admission, not changes to
+Builder runtime semantics. `PRJ-29` remains Product-Agent model-policy
+discovery and is not widened into a raw coding-worker model picker.

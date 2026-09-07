@@ -51,7 +51,7 @@ export type HubConfig = Readonly<{
     executorPasswordFile: string
     e2bApiKeyFile: string
     e2bTemplateId: string
-    modelCredentialFile: string
+    modelCatalogFile: string
     modelAdmissionId: string
   }> | undefined
   oidc: Readonly<{ issuer: string; clientId: string; clientSecretFile: string; allowInsecureForTest: boolean }>
@@ -203,7 +203,7 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
     executorPasswordFile: environment.CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE,
     e2bApiKeyFile: environment.CONEXUS_BUILDER_E2B_API_KEY_FILE,
     e2bTemplateId: environment.CONEXUS_BUILDER_E2B_TEMPLATE_ID,
-    modelCredentialFile: environment.CONEXUS_BUILDER_MODEL_CREDENTIAL_FILE,
+    modelCatalogFile: environment.CONEXUS_BUILDER_MODEL_CATALOG_FILE,
     modelAdmissionId: environment.CONEXUS_BUILDER_MODEL_ADMISSION_ID,
   }
   if (Object.values(values).every(Boolean)) return values as NonNullable<HubConfig['builder']>
@@ -213,7 +213,7 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
       CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE: values.executorPasswordFile,
       CONEXUS_BUILDER_E2B_API_KEY_FILE: values.e2bApiKeyFile,
       CONEXUS_BUILDER_E2B_TEMPLATE_ID: values.e2bTemplateId,
-      CONEXUS_BUILDER_MODEL_CREDENTIAL_FILE: values.modelCredentialFile,
+      CONEXUS_BUILDER_MODEL_CATALOG_FILE: values.modelCatalogFile,
       CONEXUS_BUILDER_MODEL_ADMISSION_ID: values.modelAdmissionId,
     })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
   }

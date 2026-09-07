@@ -34,6 +34,7 @@ export type CodingWorkerResult = Readonly<{
 
 export type CodingWorkerRuntime = Readonly<{
   kind: 'REMOTE_E2B'
+  modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   execute(input: CodingWorkerInput): Promise<CodingWorkerResult>
 }>
 
@@ -41,6 +42,7 @@ export type E2BBuilderRuntimeConfig = Readonly<{
   apiKey: string
   templateId: string
   model: MastraLanguageModel
+  modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   timeoutMs?: number
 }>
 
@@ -56,11 +58,14 @@ const safeIdentity = (value: string): boolean => /^[0-9a-f-]{36}$/i.test(value)
 export const createMastraE2BCodingWorkerRuntime = (
   config: E2BBuilderRuntimeConfig,
 ): CodingWorkerRuntime => {
-  if (!config.apiKey || !config.templateId || /latest|\*/i.test(config.templateId)) {
+  if (!config.apiKey || !config.templateId || /latest|\*/i.test(config.templateId) ||
+    !config.modelIdentity.admissionId || !config.modelIdentity.providerId || !config.modelIdentity.modelId ||
+    /latest|\*/i.test(config.modelIdentity.modelId) || config.model.modelId !== config.modelIdentity.modelId) {
     throw new Error('BUILDER_RUNTIME_CONFIG_REFUSED')
   }
   return Object.freeze({
     kind: 'REMOTE_E2B' as const,
+    modelIdentity: Object.freeze({ ...config.modelIdentity }),
     execute: async (input) => {
       if (![input.projectId, input.changeId, input.workUnitId, input.actorRunId, input.admissionToken].every(safeIdentity) ||
         !oid.test(input.baseSourceRevision) || !input.intent.trim() || input.sourceBundle.byteLength === 0 ||

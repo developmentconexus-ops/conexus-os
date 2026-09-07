@@ -18,7 +18,7 @@ export const createBuilderService = ({ store, source, runtime }: Readonly<{
   const dispatch = (changeId: string): void => {
     if (active.has(changeId)) return
     const work = (async () => {
-      const claim = await store.claimChange(changeId)
+      const claim = await store.claimChange(changeId, runtime.modelIdentity)
       try {
         const sourceBundle = await source.prepareSource({
           projectId: claim.projectId,

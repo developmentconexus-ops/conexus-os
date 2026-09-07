@@ -27,6 +27,14 @@ credentials, or turn narration/sandbox completion into an owner transition.
 - Runtime: `@mastra/core@1.63.2` native coding agent behind
   `CodingWorkerRuntime`; `@mastra/e2b@0.11.0` + `e2b@2.46.1`; no local-host
   fallback, ACP, private MCP or guest provider credential.
+- Model: one server-owned `BUILDER_CODING` admission is selected from a finite
+  closed deployment catalog and frozen on ActorRun admission. The current
+  default may be Anthropic/Opus, but Builder runtime code is not tied to the
+  Project Inception admission; browser/model output cannot select provider,
+  model, endpoint or credential. The catalog entry shape is
+  `admissionId + providerId + exact modelId + officialHttpsOrigin +
+  credentialSlot + capabilitySet + enabled`. Credential slots reuse the
+  Project server-side external-slot file and never enter the guest.
 - Data: one Builder-owned schema/migration with idempotent Change creation,
   immutable base identity, one Plan item, one WorkUnit, one ActorRun and exact
   candidate/result coordinates. One lineage has at most one admitted writer.
@@ -62,8 +70,11 @@ Nominal tests cover durable creation, derived Plan, admitted transition order,
 real admitted-OCI candidate custody, exact diff and browser trigger/inspection.
 PostgreSQL negatives fire for idempotency mismatch, missing authorization and
 Baseline, a second writer, revoked authority, stale Baseline and late/replaced
-settlement. A fake runtime proves only Hub orchestration. A real E2B/model run is
-required before claiming the remote coding journey itself proven.
+settlement. Model negatives fire for unknown/disabled or duplicate admission,
+mutable model alias, wrong purpose/provider/origin and absent credential slot;
+the selected non-secret identity is persisted with the ActorRun. A fake runtime
+proves only Hub orchestration. A real E2B/model run is required before claiming
+the remote coding journey itself proven.
 
 ## Completion and non-goals
 

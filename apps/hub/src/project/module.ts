@@ -241,6 +241,61 @@ export const createProjectAdmittedModel = ({ admissionId, credentialFile }: Read
   return createAnthropicOAuthModel({ tokenStore: createOAuthTokenStore(credentialFile) })
 }
 
+export type ResolvedProjectModelAdmission = Readonly<{
+  admissionId: string
+  providerId: string
+  modelId: string
+  model: MastraLanguageModel
+}>
+
+export const resolveProjectModelAdmission = ({
+  catalogFile,
+  credentialSlotsFile,
+  admissionId,
+  capability,
+}: Readonly<{
+  catalogFile: string
+  credentialSlotsFile: string
+  admissionId: string
+  capability: 'BUILDER_CODING'
+}>): ResolvedProjectModelAdmission => {
+  const catalog = readJsonFile(catalogFile)
+  const slots = readJsonFile(credentialSlotsFile)
+  if (!catalog || typeof catalog !== 'object' || Array.isArray(catalog) ||
+    !('schemaVersion' in catalog) || catalog.schemaVersion !== 'conexus-model-admission-catalog/v1' ||
+    !('entries' in catalog) || !Array.isArray(catalog.entries) || catalog.entries.length < 1 || catalog.entries.length > 16 ||
+    !slots || typeof slots !== 'object' || Array.isArray(slots)) throw new Error('PROJECT_MODEL_CATALOG_REFUSED')
+  const identities = new Set<string>()
+  for (const value of catalog.entries) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('PROJECT_MODEL_CATALOG_REFUSED')
+    const entry = value as Record<string, unknown>
+    const keys = Object.keys(entry).sort().join(',')
+    if (keys !== 'admissionId,capabilitySet,credentialSlot,enabled,modelId,officialHttpsOrigin,providerId' ||
+      typeof entry.admissionId !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(entry.admissionId) ||
+      identities.has(entry.admissionId) || typeof entry.providerId !== 'string' ||
+      typeof entry.modelId !== 'string' || !entry.modelId || /latest|\*/i.test(entry.modelId) ||
+      typeof entry.credentialSlot !== 'string' || !/^[a-zA-Z0-9._-]{1,128}$/.test(entry.credentialSlot) ||
+      !Array.isArray(entry.capabilitySet) || entry.capabilitySet.some((item) => item !== 'BUILDER_CODING') ||
+      entry.capabilitySet.length !== 1 || typeof entry.enabled !== 'boolean') throw new Error('PROJECT_MODEL_CATALOG_REFUSED')
+    identities.add(entry.admissionId)
+  }
+  const selected = catalog.entries.find((value) => (value as Record<string, unknown>).admissionId === admissionId) as Record<string, unknown> | undefined
+  if (!selected || selected.enabled !== true || !(selected.capabilitySet as unknown[]).includes(capability)) {
+    throw new Error('PROJECT_MODEL_ADMISSION_UNAVAILABLE')
+  }
+  if (selected.providerId !== 'anthropic' || selected.officialHttpsOrigin !== 'https://api.anthropic.com') {
+    throw new Error('PROJECT_MODEL_PROVIDER_UNSUPPORTED')
+  }
+  const credentialFile = (slots as Record<string, unknown>)[selected.credentialSlot as string]
+  if (typeof credentialFile !== 'string' || !credentialFile) throw new Error('PROJECT_MODEL_CREDENTIAL_SLOT_REFUSED')
+  return Object.freeze({
+    admissionId: selected.admissionId as string,
+    providerId: selected.providerId,
+    modelId: selected.modelId as string,
+    model: createAnthropicOAuthModel({ tokenStore: createOAuthTokenStore(credentialFile), modelId: selected.modelId as string }),
+  })
+}
+
 export const createConfiguredProjectSourceSnapshotFactory = ({
   storageRoot,
   sourceOwnershipManifestFile,

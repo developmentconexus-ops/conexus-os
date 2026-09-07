@@ -133,6 +133,9 @@ CREATE TABLE builder.actor_run (
   admission_token uuid NOT NULL UNIQUE,
   lineage_disposition text NOT NULL CHECK (lineage_disposition = 'FRESH_BASE'),
   runtime_id text NOT NULL CHECK (runtime_id = 'mastra-native-e2b-v1'),
+  model_admission_id text NOT NULL CHECK (model_admission_id ~ '^[a-z0-9][a-z0-9._-]{0,127}$'),
+  model_provider_id text NOT NULL CHECK (model_provider_id ~ '^[a-z0-9][a-z0-9._-]{0,127}$'),
+  model_id text NOT NULL CHECK (model_id ~ '\S' AND model_id !~* '(latest|\*)'),
   base_source_revision text NOT NULL CHECK (base_source_revision ~ '^[0-9a-f]{40}$'),
   sandbox_id text,
   state text NOT NULL CHECK (state IN ('ADMITTED', 'RUNNING', 'COMPLETED', 'FAILED', 'INTERRUPTED', 'QUARANTINED')),
@@ -187,7 +190,10 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION builder.claim_change(p_change_id uuid, p_actor_run_id uuid, p_admission_token uuid)
+CREATE FUNCTION builder.claim_change(
+  p_change_id uuid, p_actor_run_id uuid, p_admission_token uuid,
+  p_model_admission_id text, p_model_provider_id text, p_model_id text
+)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE stored builder.change%ROWTYPE; baseline record; unit builder.work_unit%ROWTYPE;
 BEGIN
@@ -210,7 +216,8 @@ BEGIN
   SELECT * INTO STRICT unit FROM builder.work_unit WHERE change_id = p_change_id FOR UPDATE;
   INSERT INTO builder.actor_run VALUES (
     p_actor_run_id, p_change_id, unit.work_unit_id, p_admission_token, 'FRESH_BASE',
-    'mastra-native-e2b-v1', stored.base_source_revision, NULL, 'ADMITTED', clock_timestamp(), clock_timestamp()
+    'mastra-native-e2b-v1', p_model_admission_id, p_model_provider_id, p_model_id,
+    stored.base_source_revision, NULL, 'ADMITTED', clock_timestamp(), clock_timestamp()
   );
   UPDATE builder.change SET state = 'RUNNING', updated_at = clock_timestamp() WHERE change_id = p_change_id;
   UPDATE builder.plan SET item_state = 'RUNNING' WHERE change_id = p_change_id;
@@ -343,7 +350,7 @@ RESET ROLE;
 GRANT USAGE ON SCHEMA builder TO hub_rb_ingress, hub_rb_executor;
 GRANT EXECUTE ON FUNCTION builder.create_change(uuid,uuid,text,text,uuid,uuid,uuid,uuid,uuid,text),
   builder.read_snapshot(uuid,uuid,uuid,boolean), builder.list_changes(uuid,uuid) TO hub_rb_ingress;
-GRANT EXECUTE ON FUNCTION builder.claim_change(uuid,uuid,uuid), builder.bind_sandbox(uuid,uuid,text),
+GRANT EXECUTE ON FUNCTION builder.claim_change(uuid,uuid,uuid,text,text,text), builder.bind_sandbox(uuid,uuid,text),
   builder.settle_result(uuid,uuid,text,text,text,text,text), builder.fail_run(uuid,uuid),
   builder.recover_and_list_queued() TO hub_rb_executor;
 REVOKE ALL ON ALL TABLES IN SCHEMA builder FROM hub_rb_ingress, hub_rb_executor;
