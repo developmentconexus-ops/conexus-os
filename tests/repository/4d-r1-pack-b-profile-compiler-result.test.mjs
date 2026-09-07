@@ -41,5 +41,6 @@ test('Pack B proves strict admission, RFC8785 and bounded compiler mechanics wit
   }
 
   assert.match(roadmap, /R1F-A01\+R1F-E01 CORRECTED \/ P01\.\.P12 EVIDENCE OPERATOR APPROVED \/ 4D-D\(R1\) FOUNDATION CLAIMS PRESERVED/)
-  assert.match(roadmap, /IMPLEMENTATION BLOCKED/)
+  assert.match(result, /Product implementation, push, PR and merge\s+remain unauthorized\./)
+  assert.match(roadmap, /Product implementation = R1 INTEGRATED \/ R2 INTEGRATED \/ RB NEXT PLANNED BUT NOT OPEN \/ R3\+ BLOCKED/)
 })

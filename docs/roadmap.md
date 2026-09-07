@@ -16,11 +16,11 @@ This is the single current phase/status authority.
 | 4A — Product Surface & Authority Contract | CLOSED / `PRE11-F05` RATIFIED | `128` fixed Product operations | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / `PRE11-F05` RATIFIED / REQUIRED VERIFY GREEN | `128↔128`; Project=28; Builder=20; Brain=13; PAR=16; MAR=4 | 4A change or wire/proof falsifier |
 | 4C — Frontend Interaction & Authority Realization | CLOSED / OPERATOR RATIFIED / METHOD v2.3 / P12 CLOSED / 4C-13 CLOSED / P12-F03 CLOSED / 4C-14 CLOSED / PRODUCT-APP WIREFRAMES OUT OF CURRENT SCOPE | Frontend Product/interaction model, P13 inputs and structural conformance obligations preserved for later phases | Material 4A/4B/P11/P13 conformance falsifier |
-| 4D — Project Paved Road & Runtime Realization | OPEN / BOUNDED PROGRAM COMPRESSION OPERATOR RATIFIED / OPERATION MAP 128↔128 CANDIDATE / R1 FOUNDATION SELECTION CLOSED + OPERATOR APPROVED / R1 PROBE GRANT OPERATOR APPROVED / R1F-A01+R1F-E01 CORRECTED / P01..P12 EVIDENCE OPERATOR APPROVED / 4D-D(R1) FOUNDATION CLAIMS PRESERVED + R1C-13/14 ADDENDA / 4E-R1-F01 CLOSED / 4E(R1) CLOSED + OPERATOR APPROVED / R1 13/13 INTEGRATED / RC-01 CLOSED / RB-C0 FROZEN / R2 AUTONOMOUS THROUGH P7 / R2-P0..P7 CLOSED PASS / R3+ NOT STARTED | R2 stage code packet bounds the exact 20-operation Brain/Connection/read-only-Gateway tranche; P7 proves exact live read-only qualification/egress and closes whole R2 | Material R1 invariant failure, R2 packet falsifier or an exact ambiguity/Global-Maximum doubt |
+| 4D — Project Paved Road & Runtime Realization | OPEN / BOUNDED PROGRAM COMPRESSION OPERATOR RATIFIED / OPERATION MAP 128↔128 CANDIDATE / R1 13/13 INTEGRATED / RC-01 CLOSED / R2-P0..P7 CLOSED + INTEGRATED / RB-C0 FROZEN INPUT / RB NEXT PLANNED BUT NOT OPEN / R3+ BLOCKED | PR #63 integrates the bounded 20-operation R2 Brain/Connection/read-only-Gateway tranche at `main@87598b3`; post-merge Verify is green | Material R1/R2 protected-claim falsifier, exact RB admission failure, or named ambiguity/Global-Maximum doubt |
 | 4E — Whole-System Coherence & Golden Flows | CLOSED(R1) / OPERATOR APPROVED / 13↔13 / GITINFRA + FIRST-AUTHORITY CORRECTED / MASTRA DEFER ACCEPTED / INDEPENDENT CONVERGENCE CLEAR / RB NOT OPEN | R1 composition routes exact tranche to 4F | Composed-flow contradiction |
-| 4F — Implementation Program & Execution Graph | R1 IMPLEMENTATION 13/13 INTEGRATED / RC-01 CLOSED / R2 STAGE CODE PACKET CLOSED / R2-P0..P7 CLOSED PASS / RB GRAPH NOT OPEN | One bounded R2 packet freezes the 20-operation scope, claims, parts, proof and external blocker census | Integrated R1 proof fails, an R2 packet claim fails or the packet reopens |
+| 4F — Implementation Program & Execution Graph | R1 IMPLEMENTATION 13/13 INTEGRATED / RC-01 CLOSED / R2 STAGE CODE PACKET CLOSED / R2 INTEGRATED / POST-MERGE VERIFY GREEN / RB GRAPH NOT OPEN | R2 is merged and verified; the next implementation graph is RB only after exact Mastra/E2B admission and operator grant | Integrated R1/R2 proof fails or the RB admission subject materially changes |
 | 4G — Adversarial Implementation Readiness | CLOSED ON PRIOR SUBJECT / OPERATOR APPROVED / SEMANTIC CLEAR PRESERVED / EXECUTION TOPOLOGY CHALLENGED BY PRE-S2 A0 FINDING / RB NOT OPEN | Prior semantic readiness remains Evidence; new physical-topology subject routes to bounded 4F reopen | Material readiness finding on the current tranche subject |
-| Product implementation | R1 13/13 INTEGRATED / RC-01 CLOSED / R2-P0..P7 CLOSED PASS / R3+ BLOCKED / RB BLOCKED | R2 P7 receipt proves exact safe read-only Sankhya qualification/egress and whole-R2 composition | Product meaning changes, a protected R1/R2 claim fails, or an ambiguity/Global-Maximum doubt appears |
+| Product implementation | R1 INTEGRATED / R2 INTEGRATED / RB NEXT PLANNED BUT NOT OPEN / R3+ BLOCKED | R2 safe read-only foundation is integrated; first operational Budget Analyzer proof still must traverse Builder | Product meaning changes, a protected R1/R2 claim fails, or RB admission exposes a material gap |
 
 ```text
 4A = CLOSED / PRE11-F05 RATIFIED / N_platform=128
@@ -67,9 +67,10 @@ P12 Family 2 = LOCKED / OPERATOR APPROVED / W-02A f0a6902737a36217b081ff61768caa
 P12 Family 3 = LOCKED / OPERATOR APPROVED / P-04 77820d283e47ba6c9f5efd19f45471c88675e0b0 / P-05 d00b2126667a0a51317c653c57c237444a129dfb / PA-01 612ec41d91104e01b3942f7d90f35c37ad89c9f0
 P12 Family 4 = LOCKED / OPERATOR APPROVED / W-04 71e03432a0abd34ae35301094010fd670bb78b98 / P-01 25e5077106892c4ff6aba6774987e73a12ccff51 / P-03 17d31534fac0e57a74f70202567b23d8a63cd3c0 / P-04 e036684e3e66d028361db2d708cf05811a367f4b / PA-01 ffba5935d8fccd0fc5d7ad4d275fe38b09294674
 Pre-P11 global coherence review = CLOSED / F03-F05 OPERATOR RATIFIED / 128↔128 REQUIRED VERIFY GREEN / REPOSITORY 224↔224 GREEN / T-01 + GF-01/P-01/P-03 DELTAS LOCKED / TERMINAL P10 RECONCILED
-4D = OPEN / R1 13/13 INTEGRATED / RC-01 OPERATOR WALKTHROUGH APPROVED + CLOSED / PR #61 SQUASH 1417367 / POST-MERGE VERIFY GREEN / RB-C0 FROZEN / R2 AUTONOMOUS THROUGH P7 / R2-P0..P7 CLOSED PASS / R3+ NOT STARTED
+4D = OPEN / R1 13/13 INTEGRATED / RC-01 CLOSED / R2-P0..P7 CLOSED + INTEGRATED / PR #63 SQUASH 87598b3 / POST-MERGE VERIFY GREEN / RB-C0 FROZEN INPUT / RB NEXT PLANNED BUT NOT OPEN / R3+ BLOCKED
 4E(R1) = CLOSED / OPERATOR APPROVED / 13↔13 / 4F(R1) IMPLEMENTATION INTEGRATED / RC-01 CLOSED / RB 4E-4G NOT OPEN
-Product implementation = R1 13/13 INTEGRATED / IAM-01..03 + WS-01/02 + PRJ-01/02/03/07(first-use+refinement)/08/09/23/24 REALIZED / R2 AUTONOMOUS THROUGH P7 / EXACT 20 OPERATIONS BOUNDED / R2-P0..P7 CLOSED PASS / R3+ IMPLEMENTATION BLOCKED / RB BLOCKED
+Product implementation = R1 INTEGRATED / R2 INTEGRATED / RB NEXT PLANNED BUT NOT OPEN / R3+ BLOCKED
+R1 foundation custody marker (historical / non-current routing) = OPERATION MAP 128↔128 CANDIDATE / R1 FOUNDATION SELECTION CLOSED + OPERATOR APPROVED / R1 PROBE GRANT OPERATOR APPROVED / R1F-A01+R1F-E01 CORRECTED / P01..P12 EVIDENCE OPERATOR APPROVED / 4D-D(R1) FOUNDATION CLAIMS PRESERVED + R1C-13/14 ADDENDA / 4E-R1-F01 CLOSED / 4E(R1) CLOSED + OPERATOR APPROVED / R1 13/13 INTEGRATED / RC-01 CLOSED
 ```
 
 Preserved 4C decision projection (the owning Screen Contracts and Evidence records retain the complete rationale and exact artifacts):
@@ -207,7 +208,9 @@ F39/F40 remain valid bounded wire truth corrections: monetary values require a c
 
 PR #61 is integrated into `main` as squash commit `1417367cf44c818e63c492b7e7cd884d3c2c4477` after the operator completed the RC-01 walkthrough and explicitly approved merge. The exact candidate remains `32adcd3157550807253af7977b3e3cce0eb38a74`; ready-for-review Verify run `33866343000` and post-merge `main` Verify run `33867343651` are green. R1 is therefore integrated and RC-01 is closed. The 24 explicit exclusions remain preserved outside the candidate. Product-specific application wireframes, including Budget Analyzer, remain outside the platform scope. No successor Product implementation was authorized by the RC-01 approval.
 
-The operator explicitly authorized opening R2, the exact P0 commit gate, bounded P1 implementation and then autonomous continuation through P7 on 2026-09-04, stopping for ambiguity, a Global-Maximum improvement or a material doubt. The single bounded [R2 stage code packet](evidence/4f/4f-r2-stage-code-packet.md) is the implementation owner for the exact 20-operation Brain/Connections/Project-binding/read-only-Gateway tranche. `R2-P0..P7` are committed and closed; the [P7 read-only receipt](evidence/4f/4f-r2-p7-live-read-only-receipt.md) records the admitted live qualification, read-only Gateway observation, whole-R2 composition and independent closure review. RB-C0 remains frozen and R3+ remains blocked. No push, PR, merge, deployment or ERP write is authorized. Credential values must not enter chat, Git, logs, output or Evidence.
+The operator explicitly authorized opening R2, the exact P0 commit gate, bounded P1 implementation and then autonomous continuation through P7 on 2026-09-04, stopping for ambiguity, a Global-Maximum improvement or a material doubt. The single bounded [R2 stage code packet](evidence/4f/4f-r2-stage-code-packet.md) is the implementation owner for the exact 20-operation Brain/Connections/Project-binding/read-only-Gateway tranche. `R2-P0..P7` are closed. PR #63 is now merged: head `3c18ebcb18777fa11287955a54fce7e05922f114` was integrated into `main` as squash commit `87598b38c4b2167b4face4f75a6493f562a2752b` on 2026-09-07, and post-merge Verify run `34138333401` completed `success` on that exact `main` SHA. R2 is therefore `CLOSED / INTEGRATED`, not merely a pre-merge candidate.
+
+The [P7 read-only receipt](evidence/4f/4f-r2-p7-live-read-only-receipt.md) records the admitted live qualification, read-only Gateway observation and whole-R2 composition. Its post-merge traceability note corrects stale source paths and records that the proof-time local SHA `1833dfc62a22eba4f4376bfa794a8f1716ae898d` is not resolvable in the current GitHub object graph; no candidate-to-merge equivalence is invented. The integrated repository identity is the PR #63 head plus the squash commit above. This traceability correction does not broaden the live-provider claim or by itself establish a runtime falsifier.
 
 The durable Claude Code / AI_DIALOG / Fable interaction and whole/global Product-realization review protocol lives in [Blueprint Harness §10.4–10.6](development/blueprint-harness-design.md#104-wholeglobal-review-handoff-and-interaction). The independent review of this checkpoint concluded `LOCAL EXECUTION CORRECTION ONLY`: no method finding and no Product/plan gap survived; the one stale-current-facts defect in the open 4C phase contract was accepted and corrected by removing duplicated mutable census/method-version facts. Lead adjudication is recorded in [Fable Product-realization review adjudication](evidence/4c/fable-product-realization-working-model-adjudication.md). No second Fable round is justified because the correction does not change the reviewed Product-realization working model.
 
@@ -224,19 +227,11 @@ or Global Maximum decisions; there is no fixed three-part cadence.
 
 ## Exact next action
 
-R2-P0..P7 are `CLOSED PASS`. The [P6 closure adjudication](evidence/4f/4f-r2-p6-control-plane-review-adjudication.md)
-records the exact 20-route browser/production composition, independent review
-and clean deciding verification. The [P7 read-only receipt](evidence/4f/4f-r2-p7-live-read-only-receipt.md)
-records the admitted live qualification, Gateway observation, whole-R2
-composition and independent Fable+AGY closure review. R2 is therefore closed;
-R3+ and RB remain blocked pending a new explicit grant.
+R2 is `CLOSED / INTEGRATED` at `main@87598b38c4b2167b4face4f75a6493f562a2752b`, with post-merge Verify run `34138333401` green. The next planned implementation tranche is **RB — minimum capable Builder**. R3 is not an alternative parallel next step: the accepted realization plan makes R3 depend on RB.
 
-The next Product action requires a new explicit grant for R3 or RB. No provider
-write, deployment or successor implementation is implied by this closure.
+RB is **not open yet**. Before implementation, revalidate the frozen RB-C0 inputs against current repository truth and close the exact Mastra/E2B admission needed by RB. Opening RB implementation still requires a separate explicit operator grant. R3+ remain blocked until their accepted dependencies are satisfied.
 
-Push, PR, merge, deployment, ERP writes, R3+, RB/Mastra and later Budget work
-remain blocked. Credential values must not enter chat, Git, logs, terminal
-output or Evidence.
+No successor provider write, deployment, ERP write, RB implementation, R3 implementation or later Budget implementation is authorized by R2 closure. Credential values must not enter chat, Git, logs, terminal output or Evidence. Repository branch/PR hygiene that repairs post-merge state and proof traceability does not itself authorize a successor Product tranche.
 
 ### Preserved P4/P5 history
 
@@ -299,14 +294,15 @@ or Evidence.
 BRN-14 remains READ-only at HTTP because physical IAM has no accepted
 `project.build` fact. Controlled Git/PostgreSQL fixtures prove only their named
 local properties. The only current live-provider claim is the exact authorized
-read-only source-admission result above. Local P4/P5-prerequisite composition
-and proof remain authorized through P7; push, PR, merge, deployment, ERP writes
-or other production effects, R3+ and RB/Mastra remain outside this window.
-Preserve unowned state.
+read-only source-admission result above. At that historical P4/P5 checkpoint,
+local prerequisite composition and proof were authorized through P7 while
+provider writes, deployment, ERP writes, R3+ and RB/Mastra remained outside the
+window. That sentence is provenance only; current routing is the Exact next
+action above. Preserve unowned state.
 
-RB-C0 remains frozen and is not the next tranche; it still depends on R2
-closure, exact Mastra/E2B admission and a separate operator grant. R3+ remain
-blocked. The Budget Analyzer remains the current vertical target and is not yet
-realized. P7 now owns the exact newly authorized live read-only
-qualification/egress proof and whole-R2 closure under the source-safe conditions
-at the start of this section.
+RB-C0 remains frozen Evidence and is now retained input for the next planned
+tranche, not current execution authority. Its R2-closure dependency is satisfied
+by PR #63 integration; exact Mastra/E2B admission must be revalidated and a
+separate operator grant is still required before RB implementation opens. R3+
+remain blocked, and R3 depends on RB. The Budget Analyzer remains the current
+vertical target and is not yet realized.

@@ -124,6 +124,6 @@ jobs:
           CONEXUS_TEST_DB_USER: postgres
           CONEXUS_TEST_DB_PASSWORD: s6-ci-test-only
       - run: npm run verify
-      - run: npm run verify:extended
+      - run: npm run repository:check:extended
       - run: git diff --check
       - run: test -z "$(git status --porcelain)"

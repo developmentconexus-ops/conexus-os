@@ -49,5 +49,6 @@ test('Pack C proves HTTP, real Keycloak OIDC and PostgreSQL session boundaries w
   }
 
   assert.match(roadmap, /R1F-A01\+R1F-E01 CORRECTED \/ P01\.\.P12 EVIDENCE OPERATOR APPROVED \/ 4D-D\(R1\) FOUNDATION CLAIMS PRESERVED/)
-  assert.match(roadmap, /IMPLEMENTATION BLOCKED/)
+  assert.match(result.replace(/\s+/g, ' '), /Product implementation, push, PR and merge remain unauthorized\./)
+  assert.match(roadmap, /Product implementation = R1 INTEGRATED \/ R2 INTEGRATED \/ RB NEXT PLANNED BUT NOT OPEN \/ R3\+ BLOCKED/)
 })
