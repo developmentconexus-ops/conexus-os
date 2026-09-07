@@ -193,8 +193,8 @@ export function validateConfig(options, root = repositoryRoot) {
   if (!options || options.help) return options
   const canonicalRoot = realpathSync(root)
   const briefAbsolute = realOrResolved(resolve(process.cwd(), options.brief))
-  if (!inside(briefAbsolute, canonicalRoot) || briefAbsolute === canonicalRoot) {
-    fail('--brief must point to a file inside the repository')
+  if (briefAbsolute === canonicalRoot) {
+    fail('--brief must point to a regular file')
   }
   if (!existsSync(briefAbsolute) || !statSync(briefAbsolute).isFile()) {
     fail(`brief file does not exist or is not a regular file: ${options.brief}`)

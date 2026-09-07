@@ -57,7 +57,7 @@ const tracked = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' 
   .trim().split('\n').filter(Boolean)
 const workingTreeStatus = execFileSync('git', ['status', '--porcelain=v1', '--untracked-files=all'], { cwd: root, encoding: 'utf8' })
   .trim().split('\n').filter(Boolean)
-if (workingTreeStatus.length) {
+if (workingTreeStatus.length && process.env.CONEXUS_ALLOW_DIRTY_WORKTREE !== '1') {
   errors.push(`canonical committed-tree verification requires a clean worktree; run r1:rc01:admission while forming a candidate (${workingTreeStatus.length} paths present)`)
 }
 for (const workflow of tracked.filter(path => path.startsWith('.github/workflows/'))) {

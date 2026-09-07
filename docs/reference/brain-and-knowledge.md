@@ -30,6 +30,68 @@ Builder/PAR              → bounded final context composition
 
 Every admitted `ProjectBrainBinding` must carry/pass the accepted local conformance proof, including required grain/uniqueness assertions; inheriting semantic meaning is not proof that the Project realizes it correctly.
 
+### 20.2.1 Authorized typed input successor
+
+The operator-authorized `conexus-brain/v2` preserves `reviewText` and the v1
+knowledge-browse structure, adding an explicit `itemRef` to each concept and
+closed `items` and `assertions` arrays. Existing immutable v1 sources and their
+Workspace reads remain unchanged; v1 is not silently upgraded for adoption.
+
+An item has `itemId`, `kind` (DATASET, SEMANTIC, KNOWLEDGE or GROUP) and unique
+`dependsOn` item IDs. DATASET additionally requires `grainId`; other kinds
+cannot declare it. IDs are canonical source identities, never derived from
+browse coordinates or prose. Joins must resolve, dependency cycles refuse,
+and each concept must name exactly one existing item.
+
+An assertion has unique `assertionId`, DATASET `itemId`, `kind=KEY_CONFORMANCE`,
+`predicateVersion=1` (string) and explicit `scope=REVISION|SELECTED`. Every
+DATASET requires at least one such assertion. REVISION requirements remain
+required even for empty Project selection; SELECTED requirements apply to the
+selected dependency closure. Unsupported predicates refuse, rather than
+silently dropping a proof obligation. Grain remains declared business meaning;
+this grammar neither chooses physical ERP columns nor proves their conformance.
+
+V2 health retains the existing health grammar and state enum, but requires
+exact coverage of canonical item IDs with no missing or foreign semanticRef.
+This validates identity joins, not health truth or Project-local conformance.
+
+The APP-OWNED `.conexus/brain/realization.json` uses closed
+`conexus-project-brain-realization/v1`: `selectedRoots`, `mappings`,
+`sourceInputs`. A mapping contains `itemId`, `queryId`, `mappingDigest`; it pins
+a trusted registered physical definition, never supplies SQL or a caller PASS.
+Source inputs are unique `{path,digest}` references to other APP-owned files.
+The manifest cannot reference itself or platform binding declarations. Missing
+input is invalid; explicit empty roots are valid input but cannot bypass a
+REVISION assertion. Required mappings cover exactly the datasets demanded by
+the selected closure and REVISION assertions. The subsequent admission consumer
+must read referenced files at the frozen source, check APP ownership and each
+digest, and match registration, dataset, grain and mapping identities before
+executing proof. Parser success alone is never binding admission or usable
+Project context. NEW authoring, source ownership activation, health projection
+and shared settlement remain separately verified integration work.
+
+### 20.2.2 Adoption authority and unavailable Project context
+
+Connection-backed adoption proof follows the compound `PRJ-11` authority in
+[the permission contract](../product/permission-contract.md#34-brain).
+An admitted candidate revision, a prior proof or a stored binding alone grants
+no physical read authority.
+
+For `BRN-14`, stale or missing local conformance, missing required health, or
+health that blocks the required applicability/dependency closure makes the
+context unavailable until the owning prerequisites are restored/revalidated.
+Do not serve an earlier usable projection or relabel this as known-empty.
+After normal disclosure checks, use the existing `503` Problem response and
+return no usable domains or authoring references. Missing binding and denied
+disclosure retain their existing `404`/`403` behavior; unavailable dependencies
+do not bypass that boundary. A `200` response with empty `domains` is reserved
+for a successfully validated, genuinely known-empty Project context.
+
+This response rule does not mutate the persisted Project binding validation
+snapshot, publish global Brain health, trigger ERP reads from `BRN-14`, or
+introduce a new global lifecycle enum. The wire owner is
+[`ProjectBrainContext`](../../contracts/api/product/project-brain-context-paths.yaml).
+
 ## 20.3 Brain is not memory/RAG
 
 ```text

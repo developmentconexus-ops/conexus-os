@@ -19,7 +19,8 @@ const ok = value => !value.error && value.status === 0 && value.signal === null
 const finish = value => { process.stdout.write(JSON.stringify(value) + '\n'); process.exit(0) }
 const ref = git(['rev-parse', '--verify', 'refs/heads/main'])
 const object = git(['cat-file', '-e', request.sourceRevision + '^{commit}'])
-if (!ok(ref) || ref.stdout.trim() !== request.sourceRevision || !ok(object)) finish({ status: 'REFUSED' })
+if (!ok(ref) || !ok(object)) finish({ status: 'REFUSED' })
+if (ref.stdout.trim() !== request.sourceRevision) finish({ status: 'SOURCE_CHANGED' })
 const listed = git(['ls-tree', '-r', '-z', '--long', request.sourceRevision])
 if (!ok(listed)) finish({ status: 'REFUSED' })
 const entries = listed.stdout.split('\0').filter(Boolean).map(line => {
@@ -57,9 +58,11 @@ finish({ status: 'PASS', files })
 type Runner = (repositoryRoot: string, requestPath: string) => Promise<unknown>
 
 const dockerRunner: Runner = (repositoryRoot, requestPath) => new Promise((complete, reject) => {
+  if (!process.getuid || !process.getgid) return reject(new Error('PROJECT_SOURCE_UNSUPPORTED'))
   const child = spawn('docker', [
     'run', '--rm', '--pull', 'never', '--network', 'none', '--cap-drop', 'ALL',
     '--security-opt', 'no-new-privileges', '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=16m',
+    '--user', `${process.getuid()}:${process.getgid()}`,
     '--mount', `type=bind,src=${repositoryRoot},dst=/repository.git,readonly`,
     '--mount', `type=bind,src=${requestPath},dst=/run/conexus/request.json,readonly`,
     '--entrypoint', '/usr/local/bin/node', R1C14_GIT_IDENTITY.ociIndexDigest, '-e', PROJECT_SOURCE_PROGRAM,
@@ -100,6 +103,7 @@ export const createProjectSourceSnapshot = ({
       await writeFile(requestPath, `${JSON.stringify(request)}\n`, { flag: 'wx', mode: 0o400 })
       const value = await runner(repositoryRoot, requestPath)
       if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('PROJECT_SOURCE_UNSUPPORTED')
+      if ('status' in value && value.status === 'SOURCE_CHANGED') throw new Error('PRJ07_SOURCE_STALE')
       return value as Record<string, unknown>
     } finally {
       await rm(requestRoot, { recursive: true, force: true })
@@ -115,8 +119,8 @@ export const createProjectSourceSnapshot = ({
       listed = Object.freeze(value.entries.map((entry): ProjectSourcePath => {
         if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('PROJECT_SOURCE_UNSUPPORTED')
         const item = entry as Record<string, unknown>
-        const owner = typeof item.path === 'string' ? ownership[item.path] : undefined
-        if (!owner || typeof item.path !== 'string' || typeof item.mediaType !== 'string' ||
+        const owner = typeof item.path === 'string' && Object.hasOwn(ownership, item.path) ? ownership[item.path] : undefined
+        if (!owner || !['GENERATED', 'PLATFORM-CONTRACT', 'APP-OWNED'].includes(owner) || typeof item.path !== 'string' || typeof item.mediaType !== 'string' ||
           !Number.isSafeInteger(item.byteLength) || typeof item.digest !== 'string' || !/^[0-9a-f]{64}$/.test(item.digest)) {
           throw new Error('PROJECT_SOURCE_UNSUPPORTED')
         }

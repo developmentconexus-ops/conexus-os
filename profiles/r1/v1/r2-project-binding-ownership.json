@@ -1,0 +1,23 @@
+{
+  "kind": "conexus.r2-project-binding-ownership-profile/v1",
+  "entries": [
+    {
+      "class": "APP-OWNED",
+      "ownerRef": "Project APP",
+      "path": ".conexus/brain/realization.json",
+      "version": "v1"
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "ownerRef": "PRJ-11/12",
+      "path": ".conexus/project/brain-binding.json",
+      "version": "v1"
+    },
+    {
+      "class": "PLATFORM-CONTRACT",
+      "ownerRef": "PRJ-14/15",
+      "path": ".conexus/project/connection-bindings.json",
+      "version": "v1"
+    }
+  ]
+}

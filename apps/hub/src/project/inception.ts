@@ -35,12 +35,14 @@ export const createProjectInceptionService = ({
   sourceSnapshot,
   admissionId,
   mintIdentity = randomUUID,
+  reconcileBindingSource,
 }: Readonly<{
   pool: PostgresPool
   cognition: ProjectMastraPort
   sourceSnapshot: ProjectSourceSnapshotFactory
   admissionId: string
   mintIdentity?: () => string
+  reconcileBindingSource?: (accountId: string, projectId: string) => Promise<void>
 }>): ProjectInceptionService => Object.freeze({
   close: async () => pool.end(),
   run: async (input) => {
@@ -54,6 +56,18 @@ export const createProjectInceptionService = ({
     const attemptId = mintIdentity()
     const keyDigest = sha256(Buffer.from(input.idempotencyKey, 'utf8'))
     const requestDigest = sha256(canonicalBytes(input.body))
+    const reconcileSource = async () => {
+      if (!reconcileBindingSource) return
+      try {
+        await reconcileBindingSource(input.accountId, input.projectId)
+      } catch (error) {
+        const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+        if (code === '42501' || code === 'P0002') throw new Error('PRJ07_NOT_AUTHORIZED')
+        if (['P0001', 'P0412', '40001', '40P01'].includes(String(code))) throw new Error('PRJ07_BINDING_SOURCE_CONFLICT')
+        throw error
+      }
+    }
+    await reconcileSource()
     const client = await pool.connect()
     let reserved = false
     try {
@@ -72,7 +86,9 @@ export const createProjectInceptionService = ({
         return reservation.response_body
       }
       reserved = true
+      await reconcileSource()
       const source = sourceSnapshot({ projectId: input.projectId, sourceRevision: reservation.source_revision })
+      await source.listPaths()
       const priorDigest = reservation.prior_candidate_digest
       const priorSourceText = reservation.prior_source_text
       const priorProfile = reservation.prior_application_runtime_profile

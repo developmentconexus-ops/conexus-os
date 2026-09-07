@@ -24,6 +24,8 @@ paths:
             This is not the whole Workspace Brain merely because a Project is bound, and it is not a runtime-specific
             effective Brain slice or ToolProjection. The purpose-bound project.build route exposes safe authoring
             reference recognition while withholding sections/provenance that current authority does not disclose.
+            Stale or missing required conformance, missing required health, or health-blocked dependencies cannot
+            produce this successful projection; they use the existing unavailable-dependency response.
           content:
             application/json:
               schema:
@@ -36,6 +38,10 @@ paths:
           $ref: './openapi.yaml#/components/responses/Problem404'
         '503':
           $ref: './openapi.yaml#/components/responses/Problem503'
+          description: >-
+            After normal disclosure checks, required Project-local conformance is stale or missing, required
+            health is unavailable, or required dependencies are health-blocked. No usable domains or authoring
+            references are returned. This is not a successful known-empty context and does not mutate the binding.
 
 components:
   parameters:

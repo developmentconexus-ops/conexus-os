@@ -60,6 +60,60 @@ fieldset input { margin: 0; }
 .candidate-answer { margin-top: 1rem; padding: 1rem; border-left: .3rem solid #416453; background: white; }
 .candidate-answer ul { padding-left: 1.25rem; }
 code { overflow-wrap: anywhere; }
+.control-plane-page { width: min(72rem, calc(100% - 2rem)); margin-top: 2rem; }
+.control-plane-page > nav { margin-bottom: 2rem; }
+.brain-surface, .connections-surface { min-width: 0; }
+.subject-summary { max-width: 24rem; margin: 0; text-align: right; color: #416453; }
+.section-tabs { display: flex; gap: .5rem; border-bottom: 1px solid #ccd4cf; }
+.section-tabs button { border-bottom: 0; border-radius: .55rem .55rem 0 0; }
+.section-tabs button[aria-selected="true"] { background: #183b2c; color: white; }
+.brain-section { padding: 1.5rem 0; }
+.brain-section > input[type="search"] { width: min(32rem, 100%); display: block; margin-top: .4rem; }
+.brain-domains { display: grid; gap: 1.5rem; }
+.brain-domain { padding: 1.25rem; border: 1px solid #ccd4cf; border-radius: .8rem; background: white; }
+.brain-domain h2 { margin-top: 0; }
+.brain-concepts { display: grid; gap: .75rem; }
+.brain-concept { border-top: 1px solid #d9dfda; padding: 1rem 0 0; }
+.brain-concept > summary { cursor: pointer; display: grid; gap: .25rem; }
+.brain-concept > summary span { color: #617068; }
+.brain-concept section h3 { margin-bottom: .25rem; font-size: .9rem; color: #416453; }
+.content-class-list { display: flex; flex-wrap: wrap; gap: .4rem; padding: 0; list-style: none; }
+.content-class-list li, .status-pill { display: inline-block; padding: .2rem .45rem; border-radius: 99rem; background: #e8ede9; color: #416453; font-size: .76rem; }
+.revision-list, .health-list, .connection-grid { display: grid; gap: 1rem; padding: 0; list-style: none; }
+.revision-list li, .health-list li { padding: 1rem; border: 1px solid #ccd4cf; border-radius: .7rem; background: white; }
+.revision-list li > div { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+.revision-list details code { display: block; margin-top: .4rem; }
+.health-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.health-list li { display: grid; gap: .45rem; }
+.connection-toolbar { display: grid; gap: .4rem; max-width: 32rem; margin-bottom: 1.5rem; }
+.connection-toolbar input { margin: 0; }
+.connection-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.connection-card { display: grid; gap: .7rem; align-content: start; padding: 1.25rem; border: 1px solid #ccd4cf; border-radius: .8rem; background: white; }
+.connection-card h2, .connection-card p { margin: 0; }
+.connection-card button { justify-self: start; }
+.connection-state { display: grid; gap: .2rem; padding-left: .7rem; border-left: .25rem solid #8b9991; }
+.connection-state[data-state="PASSED"] { border-color: #2e7654; }
+.connection-state[data-state="FAILED"], .connection-state[data-state="INDETERMINATE"] { border-color: #a24938; }
+.connection-state[data-state="NEEDS_RETEST"] { border-color: #d49318; }
+.connection-state span { color: #617068; font-size: .85rem; }
+.surface-overlay { position: fixed; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; padding: 1rem; background: #13261d70; }
+.surface-dialog { width: min(34rem, 100%); max-height: calc(100vh - 2rem); overflow: auto; padding: 1.5rem; border-radius: .9rem; background: white; box-shadow: 0 1rem 3rem #13261d50; }
+.connection-overlay { justify-content: flex-end; padding: 0; }
+.connection-panel { width: min(38rem, 100%); height: 100%; overflow: auto; padding: clamp(1.25rem, 4vw, 2rem); background: white; box-shadow: -1rem 0 3rem #13261d40; }
+.panel-heading, .work-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.panel-heading h2, .work-heading h3 { margin: .25rem 0; }
+.connection-work { margin-top: 1.25rem; padding: 1rem; border: 1px solid #d9dfda; border-radius: .7rem; }
+.connection-work > label, .connection-work > select { display: block; }
+.connection-work > select { width: 100%; margin: .4rem 0 .7rem; }
+.connection-work form { margin-top: 1rem; }
+.form-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .4rem; }
+.qualification-result { margin-top: 1rem; padding: 1rem; border-left: .3rem solid #416453; background: #f4f6f2; }
+.qualification-result details code { display: block; margin-top: .4rem; }
+.technical-details { margin-top: 1.25rem; }
+.fact-list { display: grid; gap: .7rem; }
+.fact-list div { min-width: 0; }
+.fact-list dt { color: #617068; font-weight: 700; }
+.fact-list dd { margin: .2rem 0 0; }
 @media (max-width: 48rem) {
   .topbar { flex-wrap: wrap; }
   .context-trail { order: 3; flex-basis: 100%; }
@@ -68,6 +122,7 @@ code { overflow-wrap: anywhere; }
   .navigation-drawer { display: none; position: fixed; inset: 0 auto 0 0; width: min(18rem, calc(100vw - 3rem)); padding-top: 1rem; box-shadow: .8rem 0 2rem #13261d30; z-index: 3; }
   .navigation-drawer[data-open="true"] { display: block; }
   .navigation-close { display: block; width: 100%; margin-bottom: 1rem; }
+  .connection-panel { width: 100%; }
 }
-@media (max-width: 36rem) { main { margin-top: 2rem; } .setup, .status { padding: 1.25rem; } .page-heading { align-items: stretch; flex-direction: column; } .project-toolbar, .project-grid, .candidate-facts { grid-template-columns: 1fr; } }
+@media (max-width: 36rem) { main { margin-top: 2rem; } .setup, .status { padding: 1.25rem; } .page-heading, .panel-heading { align-items: stretch; flex-direction: column; } .subject-summary { text-align: left; } .section-tabs { overflow-x: auto; } .project-toolbar, .project-grid, .candidate-facts, .health-list, .connection-grid { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { :root { scroll-behavior: auto; } :root *, :root *::before, :root *::after { transition-duration: 0s; animation-duration: 0s; animation-iteration-count: 1; } }

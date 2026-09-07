@@ -91,6 +91,43 @@ The grant does not imply `project.build`, `project.review`,
 at its first accepted consumer; creator status never implies a generic admin
 bundle.
 
+The operator-approved `R2-P2` successor on `2026-09-04` is that first accepted
+consumer for `brain.read`. It extends the exact `WS-01` settlement so the exact
+Workspace creator receives an independently stored `brain.read` fact, including
+a one-time backfill for pre-R2 creator memberships. This is an explicit
+successor consequence, not an inference at read time: `can_create_project` and
+`can_read_brain` remain independently revocable, neither implies the other,
+and no other later-tranche Permission is added. A member without the fact is
+denied; a non-member receives no Workspace disclosure. Transferable or broader
+Brain-access administration remains with the later exact I&A consumer.
+
+The operator-approved `R2-P3` successor on `2026-09-04` is the first accepted
+consumer for `connection.read`, `connection.manage` and
+`connection.qualify`. It extends the exact creator settlements with three
+independently stored and independently revocable facts in the exact created
+owner scope: the Workspace creator receives them only for that Workspace and
+the Project creator receives them only for that Project. A one-time backfill
+applies the same consequences to pre-R2 creator memberships/direct creator
+grants. No fact implies another fact, creator status is not consulted at
+admission time, and no cross-scope or generic administration authority is
+created. `CON-01/02` connector-definition discovery requires at least one
+current `connection.read` fact. `connection.use` is deliberately excluded: it
+receives no automatic creator grant and remains for its first exact binding or
+external-source consumer.
+
+The operator-approved `R2-P4` successor on `2026-09-04` is the first accepted
+consumer for `brain.bind` and `connection.use`. It extends only the exact
+Project-creator settlement with two independently stored and independently
+revocable Project-scoped facts, including a one-time backfill for existing
+exact Project creators. Neither fact implies the other, creator status is not
+consulted at admission time, and neither implies `brain.read`,
+`connection.read`, `connection.manage`, `connection.qualify`,
+`project.manage`, runtime execution, generic read/admin or any cross-scope
+authority. Clear/remove remains narrowing under the already accepted
+`project.manage` route and does not require either specialist fact to remain.
+Transferable or broader grant administration remains with a later exact I&A
+consumer.
+
 ---
 
 ## 3. Ordinary Permission vocabulary
@@ -180,6 +217,19 @@ Release composition is an owner/system transition gated by exact accepted proof;
 | `brain.publish` | publish a reviewed/validated immutable Brain revision | `BRN-09` |
 | `brain.bind` | authorize a Project to adopt an exact Brain revision/binding, distinct from generic Brain inspection | `PRJ-11` together with `project.manage`; purpose-bound `BRN-02` immutable revision selection only together with `project.manage` + exact target Project; removal/narrowing needs no continued bind grant |
 
+For `PRJ-11` adoption that requires physical Connection-backed conformance,
+the operator-approved R2-P4 successor additionally requires current
+`connection.use` for each exact server-resolved Project Connection subject.
+`project.manage + brain.bind` alone cannot authorize that physical read. Check
+the compound authority before executing the registered read and revalidate it
+at settlement; a candidate Brain binding cannot authorize its own proof.
+The read remains bounded to the admitted registered conformance capability,
+current qualified binding, source scope and egress admission. It grants no
+arbitrary query, business-data browsing or credential disclosure. Adoptions
+without a physical-read requirement do not acquire an unconditional
+`connection.use` prerequisite. Removal/narrowing retains its existing authority.
+This permission rule is not operator authorization for a live ERP proof run.
+
 `brain.bind` remains separate from generic Brain read:
 
 ```text
@@ -232,7 +282,7 @@ Project-context domain/concept coordinates are presentation/navigation coordinat
 | `connection.read` | inspect exact Connector/Connection/revision/qualification facts in the admitted owner scope | ordinary `CON-01..04/09` |
 | `connection.manage` | create/revise Connection configuration and write credential material through the protected write-only boundary | `CON-05..07` |
 | `connection.qualify` | run exact environment/revision qualification Evidence without granting Project use | `CON-08` |
-| `connection.use` | authorize use/binding of an exact Connection resource by an admitted Project/Brain operation; same Workspace alone is insufficient | `PRJ-14` with `project.manage`; external-source `BRN-04` with `brain.discover`; purpose-bound `CON-03` binding-selection disclosure only together with `project.manage` + exact target Project |
+| `connection.use` | authorize use/binding of an exact Connection resource by an admitted Project/Brain operation; same Workspace alone is insufficient | `PRJ-14` with `project.manage`; Connection-backed `PRJ-11` conformance with `project.manage + brain.bind`; external-source `BRN-04` with `brain.discover`; purpose-bound `CON-03` binding-selection disclosure only together with `project.manage` + exact target Project |
 
 `connection.use` does not itself grant runtime invocation or generic Connection inspection.
 
@@ -365,6 +415,7 @@ CON-03 purpose-bound Project binding-selection disclosure
 
 SetProjectBrainBinding
 → project.manage + brain.bind + exact immutable Brain revision + binding conformance
+→ additionally connection.use for each required physical Connection-backed proof
 
 BRN-02 purpose-bound Project Brain revision-selection disclosure
 → project.manage + brain.bind + exact target Project

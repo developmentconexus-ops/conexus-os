@@ -1,4 +1,5 @@
 node_modules/
+apps/hub/public/
 dist/
 coverage/
 *.log

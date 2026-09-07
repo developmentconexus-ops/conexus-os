@@ -16,10 +16,10 @@
   "admittedPropertyIds": ["R1C-01", "R1C-02", "R1C-03", "R1C-04", "R1C-05", "R1C-09", "R1C-10", "R1C-11", "R1C-12", "SCF-01", "SCF-02", "SCF-03", "SCF-04", "SCF-05", "SCF-06", "SCF-09", "SCF-10", "SCF-11"],
   "wireProjection": {
     "kind": "conexus.r1-wire-projection/v1",
-    "digest": "9838085a99a5a649ddb1226eec6e1dfbf12b64380f25f1ea9b49899af386005e",
+    "digest": "c7ce7ca1c7d23cc43f0c88b0296f59f8322c4e65854b56aa9411253ab29b9b53",
     "sourceRefs": [
       { "path": "contracts/api/product/identity-workspace-paths.yaml", "sha256": "d0e31426720c15f8dbec239afe420e22dbfd5aec7cc6b1e998b1cb47ed867d13" },
-      { "path": "contracts/api/product/project-paths.yaml", "sha256": "aae096aed3bbd2d2e925dcba06beb220418c5267e930d640d069cd1359ef3df2" },
+      { "path": "contracts/api/product/project-paths.yaml", "sha256": "ec18e9755c35c94bea439e4de6da0fd85e5a5e2e1625084b0680d7da52dd6dd8" },
       { "path": "docs/evidence/4d/4d-r1-operation-reachability-map.md", "sha256": "35ef5eae8617ac591f3a0e7c57deaaa73ac62526b3d690ad46169fa23a7ecc53" },
       { "path": "docs/product/operation-ledger.md", "sha256": "92faa951f7bc01bd9baf364094e4d17b59eb3f42946fa8f994b8022c5231eb2c" }
     ],

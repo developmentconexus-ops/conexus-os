@@ -152,6 +152,9 @@ test('one shared pool object serves both operation-specific ports and I&A does n
 
   const server = readFileSync(resolve(repositoryRoot, 'apps/hub/src/server.ts'), 'utf8')
   assert.match(server, /workspaceReadPool:\s*s2ReadPool/)
-  assert.match(server, /readPool:\s*s2ReadPool!/)
+  const sharedWorkspacePool = /\breadPool:\s*s2ReadPool\s*[,}]/
+  assert.match(server, sharedWorkspacePool)
+  assert.doesNotMatch(server.replace('readPool: s2ReadPool,', 'readPool: unrelatedPool,'), sharedWorkspacePool)
+  assert.match(server, /config\.database\.workspace\s*&&\s*s2ReadPool\s*\?\s*createWorkspaceModule/)
   assert.equal((server.match(/user:\s*'hub_s2_read'/g) ?? []).length, 1)
 })

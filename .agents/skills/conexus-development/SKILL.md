@@ -75,11 +75,11 @@ later owner; do not silently add them to the gate.
 Never allow a gate to recursively expand into a review of every mechanism used
 to review that gate. Freeze the protected-claim and blocker census before an
 independent round. Conexus requires fresh isolated Fable and AGY/Gemini lanes
-before every `S` stage closes and no later than three completed `P` parts since
-the last independent checkpoint in an open stage. One whole-package round
-satisfies both when the thresholds coincide; a material-decision or material-
-diff review resets the rolling count only when it challenged the same current
-implementation subject. No stage may project `CLOSED PASS` while either
+before every `S` stage closes and for material authority, trust-boundary,
+structural-runtime, external-effect, contradiction or Global-Maximum triggers.
+Routine mechanical parts use targeted proof and Lead review. The previous
+three-part rolling quota is retired.
+No stage may project `CLOSED PASS` while either
 required lane or Lead adjudication is pending.
 
 After a complete round, another round requires a surviving material correction
@@ -110,8 +110,10 @@ authority + explicit grant
 → operator checkpoint or next authorized part
 ```
 
-Use `npm run conexus:verify -- --scope <scope>` to select an admitted proof
-sequence. The command result is technical Evidence only; it never declares a
+Use affected checks during local implementation and `npm run verify` for a
+candidate gate; use `npm run verify:local` when the worktree is intentionally
+dirty. The deciding candidate graph must run each applicable leaf once. The
+command result is technical Evidence only; it never declares a
 Product or gate `PASS`. `scope final` must execute in Linux; for local work that
 means the pinned WSL Ubuntu environment.
 

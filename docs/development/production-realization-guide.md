@@ -1,7 +1,7 @@
 # Evidence-Grounded Realization Engineering
 
 > **Status:** CURRENT REALIZATION COMPANION / DERIVED
-> **Parent authority:** DevelopmentConexus Engineering Method v1.0.0
+> **Parent authority:** DevelopmentConexus Engineering Method v1.3.0
 > **Current gate:** [Realization Planning](../phases/realization-planning.md)
 > **Boundary:** this guide governs how material realization choices are researched and proven. It does not create Product meaning, semantic owners, stage authority, implementation authorization, or technology-decision authority; accepted material technology decisions are discoverable through the [decision register](../decisions/index.md).
 
@@ -258,7 +258,7 @@ A technology may remain `REFERENCE_ONLY`. No research result silently adds a Pro
 
 Primary starting points; exact versions are revalidated when used:
 
-- DevelopmentConexus Engineering Method v1.0.0 — `developmentconexus-ops/conexus-methodology/METHOD.md`
+- DevelopmentConexus Engineering Method v1.3.0 — `docs/development/engineering-method.md`
 - Keycloak securing applications / OIDC — https://www.keycloak.org/securing-apps/oidc-layers
 - Keycloak application-security planning — https://www.keycloak.org/securing-apps/overview
 - Keycloak server administration — https://www.keycloak.org/docs/latest/server_admin/

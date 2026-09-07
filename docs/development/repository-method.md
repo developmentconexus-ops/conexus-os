@@ -121,6 +121,11 @@ Targeted proof protects the current task or block.
 
 Extended audits protect broader historical or structural claims when explicitly needed.
 
+For a candidate gate, compose the applicable checks as a flat claim graph:
+each equivalent leaf runs once, while intentionally distinct environment or
+coverage checks remain explicit. Local shortcuts do not replace candidate or
+publication coverage.
+
 Do not promote every historical proof into a permanent required gate.
 
 A red required check should mean integration would violate a protected property, not that a preferred process shape was skipped.

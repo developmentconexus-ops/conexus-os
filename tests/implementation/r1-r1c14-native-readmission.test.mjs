@@ -214,7 +214,10 @@ test('R1C-14 native successor accepts canonical receipt key ordering', () => {
   const receiptPath = manifest.evidence.resultPath.replace(/results\.json$/, `.canonical-test-${process.pid}.json`)
   const absolute = resolve(repositoryRoot, receiptPath)
   try {
-    writeFileSync(absolute, canonicalBytes(buildReceipt()))
+    // This control tests serialization of the admitted receipt, not publication
+    // of a new historical receipt against the current development worktree.
+    const admittedReceipt = JSON.parse(readFileSync(resolve(repositoryRoot, manifest.review.receipt), 'utf8'))
+    writeFileSync(absolute, canonicalBytes(admittedReceipt))
     assert.equal(verifyNativeReadmission({ receiptPathOverride: receiptPath }).verification, 'PASS')
   } finally {
     rmSync(absolute, { force: true })

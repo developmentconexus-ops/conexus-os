@@ -1,0 +1,6 @@
+{
+  "kind": "conexus.r2-project-binding-ownership-receipt/v1",
+  "inputDigest": "baf0a4563c620dbdce5af469882dec901c3f3c0239dc24dcefb696189120add3",
+  "generatorDigest": "1e81792c6d5b206a797281884b89be05e42c24cd1297febd40a6a6fb99a12090",
+  "outputDigest": "bb723b8b42a434b1d46877c1ea661a1142c414948033e782f26bc10a8a58071e"
+}

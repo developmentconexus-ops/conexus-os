@@ -38,6 +38,7 @@ Within that same WSL shell:
 ```bash
 npm run conexus:preflight
 npm ci
+npx --no-install playwright install chromium
 npm run conexus:verify -- --scope <scope>
 ```
 
