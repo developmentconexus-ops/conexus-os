@@ -1,6 +1,6 @@
 # RB — first observable Builder vertical stage code packet
 
-Status: `OPEN / OPERATOR AUTHORIZED / IMPLEMENTATION IN PROGRESS`
+Status: `OPEN / OPERATOR AUTHORIZED / IMPLEMENTATION CANDIDATE`
 
 ## Observable outcome and invariant
 
@@ -59,9 +59,11 @@ sandbox output; non-descendant/multi-commit candidate; protected-path edit; and
 guest attempt to update a remote.
 
 Nominal tests cover durable creation, derived Plan, admitted transition order,
-candidate custody, exact diff and browser trigger/inspection. A fake runtime
-proves only Hub orchestration. A real E2B/model run is required before claiming
-the remote coding journey itself proven.
+real admitted-OCI candidate custody, exact diff and browser trigger/inspection.
+PostgreSQL negatives fire for idempotency mismatch, missing authorization and
+Baseline, a second writer, revoked authority, stale Baseline and late/replaced
+settlement. A fake runtime proves only Hub orchestration. A real E2B/model run is
+required before claiming the remote coding journey itself proven.
 
 ## Completion and non-goals
 

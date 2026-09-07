@@ -233,8 +233,8 @@ const app = await createHttpApp({
   ],
   staticRoot: resolve(import.meta.dirname, '../public'),
 })
-await app.listen({ host: '127.0.0.1', port: config.port })
 await builder?.recover()
+await app.listen({ host: '127.0.0.1', port: config.port })
 
 let closed = false
 const close = async (): Promise<void> => {

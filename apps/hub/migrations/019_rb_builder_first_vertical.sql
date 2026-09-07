@@ -294,10 +294,11 @@ CREATE FUNCTION builder.read_snapshot(p_account_id uuid, p_project_id uuid, p_ch
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE stored builder.change%ROWTYPE; plan_row builder.plan%ROWTYPE; unit builder.work_unit%ROWTYPE;
 BEGIN
-  PERFORM 1 FROM iam.admit_project_build(p_account_id, p_project_id);
-  IF NOT FOUND THEN RETURN NULL; END IF;
   IF p_require_source THEN
     PERFORM 1 FROM iam.admit_project_source_read(p_account_id, p_project_id);
+    IF NOT FOUND THEN RETURN NULL; END IF;
+  ELSE
+    PERFORM 1 FROM iam.admit_project_build(p_account_id, p_project_id);
     IF NOT FOUND THEN RETURN NULL; END IF;
   END IF;
   SELECT * INTO stored FROM builder.change WHERE change_id = p_change_id AND project_id = p_project_id;

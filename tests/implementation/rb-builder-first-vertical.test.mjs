@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -19,6 +19,7 @@ const built = (path) => pathToFileURL(resolve(buildRoot, path)).href
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerBuilderRoutes } = await import(built('builder/routes.js'))
 const { createBuilderService } = await import(built('builder/service.js'))
+const { createBuilderSourcePort } = await import(built('builder/source.js'))
 
 test.after(() => rmSync(buildRoot, { recursive: true, force: true }))
 
@@ -135,6 +136,7 @@ test('runtime, migration and custody source preserve the Builder trust boundary'
   const runtime = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/runtime.ts'), 'utf8')
   const source = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/source.ts'), 'utf8')
   const migration = readFileSync(resolve(repositoryRoot, 'apps/hub/migrations/019_rb_builder_first_vertical.sql'), 'utf8')
+  const server = readFileSync(resolve(repositoryRoot, 'apps/hub/src/server.ts'), 'utf8')
   assert.match(runtime, /Sandbox\.create\(config\.templateId/)
   assert.match(runtime, /allowInternetAccess: false/)
   assert.match(runtime, /envs: \{\}/)
@@ -148,6 +150,104 @@ test('runtime, migration and custody source preserve the Builder trust boundary'
   assert.match(migration, /RETURN false;/)
   assert.doesNotMatch(migration, /can_manage.*can_build/s)
   assert.match(migration, /receipt\.operation_id = 'PRJ-03'/)
+  assert.ok(server.indexOf('await builder?.recover()') < server.indexOf("await app.listen({ host: '127.0.0.1'"))
+})
+
+const gitFixture = (cwd, args) => {
+  const result = spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_AUTHOR_NAME: 'Conexus RB fixture',
+      GIT_AUTHOR_EMAIL: 'rb-fixture@conexus.invalid',
+      GIT_COMMITTER_NAME: 'Conexus RB fixture',
+      GIT_COMMITTER_EMAIL: 'rb-fixture@conexus.invalid',
+    },
+  })
+  assert.equal(result.status, 0, result.stderr)
+  return result.stdout.trim()
+}
+
+test('RB real OCI custody admits one exact child and refuses multi-commit and protected candidates', {
+  skip: process.env.CONEXUS_RB_CUSTODY_LIVE !== 'true' ? 'set CONEXUS_RB_CUSTODY_LIVE=true for exact-image custody proof' : false,
+  timeout: 180_000,
+}, async () => {
+  const root = mkdtempSync('/tmp/conexus-rb-custody-')
+  const storageRoot = resolve(root, 'storage')
+  const work = resolve(root, 'work')
+  const repository = resolve(storageRoot, 'projects', projectId)
+  mkdirSync(resolve(storageRoot, 'projects'), { recursive: true })
+  mkdirSync(work)
+  try {
+    gitFixture(work, ['init', '--initial-branch=main'])
+    writeFileSync(resolve(work, 'README.md'), 'base\n')
+    writeFileSync(resolve(work, 'policy.txt'), 'protected\n')
+    gitFixture(work, ['add', '--all'])
+    gitFixture(work, ['commit', '-m', 'base'])
+    const base = gitFixture(work, ['rev-parse', 'HEAD'])
+    gitFixture(root, ['clone', '--bare', work, repository])
+    gitFixture(root, ['--git-dir', repository, 'remote', 'set-url', 'origin', 'ssh://write.invalid/project.git'])
+    const port = createBuilderSourcePort({
+      git: {
+        verifyAdmittedImage: async () => ({ status: 'VERIFIED' }),
+        createProjectSourceBundle: async () => ({ status: 'BUNDLED' }),
+      },
+      storageRoot,
+      sourceOwnership: { 'README.md': 'APP-OWNED', 'policy.txt': 'DOMAIN-OWNED' },
+    })
+    const candidateBundle = (name, mutate) => {
+      gitFixture(work, ['checkout', '-B', 'conexus-result', base])
+      mutate()
+      const candidate = gitFixture(work, ['rev-parse', 'HEAD'])
+      const bundlePath = resolve(root, `${name}.bundle`)
+      gitFixture(work, ['bundle', 'create', bundlePath, 'refs/heads/conexus-result'])
+      return { candidate, bytes: readFileSync(bundlePath) }
+    }
+
+    const accepted = candidateBundle('accepted', () => {
+      writeFileSync(resolve(work, 'README.md'), 'base\naccepted\n')
+      gitFixture(work, ['add', 'README.md'])
+      gitFixture(work, ['commit', '-m', 'accepted child'])
+    })
+    const admitted = await port.admitCandidate({
+      projectId, changeId, actorRunId, baseSourceRevision: base,
+      claimedCandidateSourceRevision: accepted.candidate, resultBundle: accepted.bytes,
+    })
+    assert.equal(admitted.candidateSourceRevision, accepted.candidate)
+    assert.match(admitted.patch, /accepted/)
+    assert.equal(gitFixture(root, ['--git-dir', repository, 'rev-parse', 'refs/heads/main']), base)
+    assert.equal(gitFixture(root, ['--git-dir', repository, 'rev-parse', `refs/conexus/changes/${changeId}`]), accepted.candidate)
+    assert.equal(gitFixture(root, ['--git-dir', repository, 'remote', 'get-url', 'origin']), 'ssh://write.invalid/project.git')
+
+    const multi = candidateBundle('multi', () => {
+      writeFileSync(resolve(work, 'one.txt'), 'one\n')
+      gitFixture(work, ['add', 'one.txt'])
+      gitFixture(work, ['commit', '-m', 'one'])
+      writeFileSync(resolve(work, 'two.txt'), 'two\n')
+      gitFixture(work, ['add', 'two.txt'])
+      gitFixture(work, ['commit', '-m', 'two'])
+    })
+    await assert.rejects(port.admitCandidate({
+      projectId, changeId: '22222222-2222-4222-8222-222222222223', actorRunId,
+      baseSourceRevision: base, claimedCandidateSourceRevision: multi.candidate, resultBundle: multi.bytes,
+    }), /MULTI_COMMIT_RESULT/)
+
+    const protectedCandidate = candidateBundle('protected', () => {
+      writeFileSync(resolve(work, 'policy.txt'), 'mutated\n')
+      gitFixture(work, ['add', 'policy.txt'])
+      gitFixture(work, ['commit', '-m', 'protected mutation'])
+    })
+    await assert.rejects(port.admitCandidate({
+      projectId, changeId: '22222222-2222-4222-8222-222222222224', actorRunId,
+      baseSourceRevision: base, claimedCandidateSourceRevision: protectedCandidate.candidate, resultBundle: protectedCandidate.bytes,
+    }), /PROTECTED_PATH/)
+    assert.equal(gitFixture(root, ['--git-dir', repository, 'rev-parse', 'refs/heads/main']), base)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
 })
 
 const postgresConfigured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every((name) => process.env[name])
@@ -219,13 +319,43 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   await query(current, "ALTER ROLE hub_rb_ingress PASSWORD 'rb-ingress-test'; ALTER ROLE hub_rb_executor PASSWORD 'rb-executor-test'")
   const ingress = { ...current, user: 'hub_rb_ingress', password: 'rb-ingress-test' }
   const executor = { ...current, user: 'hub_rb_executor', password: 'rb-executor-test' }
+  const unauthorizedAccount = '60000000-0000-4000-8000-000000000030'
+  await query(current, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'rb-reader', 'RB Reader')", [unauthorizedAccount])
+  await query(current, 'INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project) VALUES ($1, $2, false)', [unauthorizedAccount, workspaceId])
+  await query(current, 'INSERT INTO iam.account_project_grant(account_id, project_id, can_read, can_manage) VALUES ($1, $2, true, true)', [unauthorizedAccount, subjectProjectId])
+  await assert.rejects(query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+    unauthorizedAccount, subjectProjectId, '3'.repeat(64), '4'.repeat(64), '60000000-0000-4000-8000-000000000031',
+    '60000000-0000-4000-8000-000000000032', '60000000-0000-4000-8000-000000000033',
+    '60000000-0000-4000-8000-000000000034', '60000000-0000-4000-8000-000000000035', 'Unauthorized build',
+  ]), /BLD03_NOT_AUTHORIZED/)
+
+  const noBaselineProject = '60000000-0000-4000-8000-000000000040'
+  await query(current, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
+    VALUES ($1, $2, 'No Baseline', 'NEW', $3, 'no-baseline-revision')`, [noBaselineProject, workspaceId, baseSourceRevision])
+  await query(current, 'INSERT INTO iam.account_project_grant(account_id, project_id, can_read, can_manage) VALUES ($1, $2, true, true)', [accountId, noBaselineProject])
+  await query(current, `INSERT INTO project.operation_idempotency(operation_id, account_id, workspace_id, key_digest, request_digest,
+    reserved_project_id, outcome, response_status, response_digest, response_body, completed_at)
+    VALUES ('PRJ-03', $1, $2, $3, $3, $4, 'SUCCEEDED', 201, $3, '{}'::jsonb, clock_timestamp())`, [accountId, workspaceId, '5'.repeat(64), noBaselineProject])
+  await assert.rejects(query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+    accountId, noBaselineProject, '6'.repeat(64), '7'.repeat(64), '60000000-0000-4000-8000-000000000041',
+    '60000000-0000-4000-8000-000000000042', '60000000-0000-4000-8000-000000000043',
+    '60000000-0000-4000-8000-000000000044', '60000000-0000-4000-8000-000000000045', 'Missing baseline',
+  ]), /BLD03_BASELINE_REQUIRED/)
+
   const created = await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value', [
     accountId, subjectProjectId, 'e'.repeat(64), 'f'.repeat(64), subjectChangeId, planRevision, itemId,
     codingSessionId, subjectWorkUnitId, 'Add a governed page',
   ])
   assert.equal(created.rows[0].value.state, 'QUEUED')
+  await assert.rejects(query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+    accountId, subjectProjectId, 'e'.repeat(64), '9'.repeat(64), subjectChangeId, planRevision, itemId,
+    codingSessionId, subjectWorkUnitId, 'Different payload under the same key',
+  ]), /BLD03_IDEMPOTENCY_CONFLICT/)
   const claimed = await query(executor, 'SELECT builder.claim_change($1,$2,$3) AS value', [subjectChangeId, subjectActorRunId, subjectToken])
   assert.equal(claimed.rows[0].value.baseSourceRevision, baseSourceRevision)
+  await assert.rejects(query(executor, 'SELECT builder.claim_change($1,$2,$3)', [
+    subjectChangeId, '60000000-0000-4000-8000-000000000011', '60000000-0000-4000-8000-000000000012',
+  ]), /BUILDER_CHANGE_NOT_QUEUED/)
   await query(executor, 'SELECT builder.bind_sandbox($1,$2,$3)', [subjectActorRunId, subjectToken, sandboxId])
   const late = await query(executor, 'SELECT builder.settle_result($1,$2,$3,$4,$5,$6,$7) AS settled', [
     subjectActorRunId, subjectToken, 'replacement_sandbox', baseSourceRevision, candidateSourceRevision, 'diff', 'narration',
@@ -233,4 +363,41 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   assert.equal(late.rows[0].settled, false)
   assert.equal((await query(current, 'SELECT state FROM builder.actor_run WHERE actor_run_id = $1', [subjectActorRunId])).rows[0].state, 'QUARANTINED')
   assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [subjectChangeId])).rows[0].state, 'FAILED')
+
+  await query(current, 'UPDATE iam.project_builder_grant SET can_build = false, can_read_source = true WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
+  const sourceOnly = await query(ingress, 'SELECT builder.read_snapshot($1,$2,$3,true) AS value', [accountId, subjectProjectId, subjectChangeId])
+  const buildOnly = await query(ingress, 'SELECT builder.read_snapshot($1,$2,$3,false) AS value', [accountId, subjectProjectId, subjectChangeId])
+  assert.equal(sourceOnly.rows[0].value.change.changeId, subjectChangeId)
+  assert.equal(buildOnly.rows[0].value, null)
+  await query(current, 'UPDATE iam.project_builder_grant SET can_build = true WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
+
+  const revokedChange = '60000000-0000-4000-8000-000000000020'
+  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+    accountId, subjectProjectId, '1'.repeat(64), '2'.repeat(64), revokedChange,
+    '60000000-0000-4000-8000-000000000021', '60000000-0000-4000-8000-000000000022',
+    '60000000-0000-4000-8000-000000000023', '60000000-0000-4000-8000-000000000024', 'Revoked authority refusal',
+  ])
+  await query(current, 'UPDATE iam.project_builder_grant SET can_build = false WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
+  const revoked = await query(executor, 'SELECT builder.claim_change($1,$2,$3) AS value', [
+    revokedChange, '60000000-0000-4000-8000-000000000025', '60000000-0000-4000-8000-000000000026',
+  ])
+  assert.equal(revoked.rows[0].value.refusedCode, 'BUILDER_AUTHORITY_REVOKED')
+  assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [revokedChange])).rows[0].state, 'FAILED')
+  await query(current, 'UPDATE iam.project_builder_grant SET can_build = true WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
+
+  const staleChange = '60000000-0000-4000-8000-000000000050'
+  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+    accountId, subjectProjectId, '8'.repeat(64), '9'.repeat(64), staleChange,
+    '60000000-0000-4000-8000-000000000051', '60000000-0000-4000-8000-000000000052',
+    '60000000-0000-4000-8000-000000000053', '60000000-0000-4000-8000-000000000054', 'Stale baseline refusal',
+  ])
+  const replacementDigest = 'a'.repeat(64)
+  await query(current, `INSERT INTO project.baseline_candidate(project_id, candidate_digest, source_revision, source_text, application_runtime_profile)
+    VALUES ($1, $2, $3, 'Replacement baseline', 'MANAGED')`, [subjectProjectId, replacementDigest, 'c'.repeat(40)])
+  await query(current, 'UPDATE project.baseline_state SET current_candidate_digest = $2, approved_candidate_digest = $2 WHERE project_id = $1', [subjectProjectId, replacementDigest])
+  const stale = await query(executor, 'SELECT builder.claim_change($1,$2,$3) AS value', [
+    staleChange, '60000000-0000-4000-8000-000000000055', '60000000-0000-4000-8000-000000000056',
+  ])
+  assert.equal(stale.rows[0].value.refusedCode, 'BUILDER_BASELINE_STALE')
+  assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [staleChange])).rows[0].state, 'FAILED')
 })

@@ -62,7 +62,7 @@ const env = {
 const git = (dir, args, raw = false) => spawnSync('/usr/local/bin/git', ['--git-dir=' + dir, '-c', 'core.hooksPath=/dev/null', ...args], { env, encoding: raw ? null : 'utf8', maxBuffer: 10 * 1024 * 1024 })
 const ok = value => !value.error && value.status === 0 && value.signal === null && (!value.stderr || value.stderr.length === 0)
 const text = value => typeof value.stdout === 'string' ? value.stdout : value.stdout.toString('utf8')
-const finish = value => { process.stdout.write(JSON.stringify(value) + '\n'); process.exit(0) }
+const finish = value => { process.stdout.write(JSON.stringify(value) + '\\n'); process.exit(0) }
 if (!oid.test(request.baseSourceRevision) || !oid.test(request.claimedCandidateSourceRevision) || !/^[0-9a-f-]{36}$/i.test(request.changeId)) finish({ status: 'REFUSED', code: 'IDENTITY_REFUSED' })
 let value = git('/repository.git', ['rev-parse', '--verify', 'refs/heads/main'])
 if (!ok(value) || text(value).trim() !== request.baseSourceRevision) finish({ status: 'REFUSED', code: 'BASE_STALE' })
@@ -75,13 +75,16 @@ value = git('/tmp/inspect.git', ['fetch', '--quiet', '--no-tags', '/run/conexus/
 if (!ok(value)) finish({ status: 'REFUSED', code: 'BUNDLE_REFUSED' })
 const candidate = git('/tmp/inspect.git', ['rev-parse', '--verify', 'refs/heads/result'])
 if (!ok(candidate) || text(candidate).trim() !== request.claimedCandidateSourceRevision) finish({ status: 'REFUSED', code: 'CANDIDATE_MISMATCH' })
-value = git('/tmp/inspect.git', ['rev-parse', '--verify', 'refs/heads/result^'])
-if (!ok(value) || text(value).trim() !== request.baseSourceRevision) finish({ status: 'REFUSED', code: 'NON_DESCENDANT' })
+value = git('/tmp/inspect.git', ['merge-base', '--is-ancestor', request.baseSourceRevision, 'refs/heads/result'])
+if (value.status === 1) finish({ status: 'REFUSED', code: 'NON_DESCENDANT' })
+if (!ok(value)) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
 value = git('/tmp/inspect.git', ['rev-list', '--count', request.baseSourceRevision + '..refs/heads/result'])
 if (!ok(value) || text(value).trim() !== '1') finish({ status: 'REFUSED', code: 'MULTI_COMMIT_RESULT' })
+value = git('/tmp/inspect.git', ['rev-parse', '--verify', 'refs/heads/result^'])
+if (!ok(value) || text(value).trim() !== request.baseSourceRevision) finish({ status: 'REFUSED', code: 'NON_DESCENDANT' })
 const changed = git('/tmp/inspect.git', ['diff', '--name-only', '-z', request.baseSourceRevision, 'refs/heads/result'], true)
 if (!ok(changed)) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
-const paths = text(changed).split('\0').filter(Boolean)
+const paths = text(changed).split('\\0').filter(Boolean)
 if (paths.length === 0 || paths.length > 1000) finish({ status: 'REFUSED', code: 'CHANGESET_REFUSED' })
 for (const path of paths) {
   if (path.startsWith('/') || path.includes('\\\\') || path.split('/').some(part => !part || part === '.' || part === '..') || path.startsWith('.conexus/') || (ownership[path] && ownership[path] !== 'APP-OWNED')) finish({ status: 'REFUSED', code: 'PROTECTED_PATH' })

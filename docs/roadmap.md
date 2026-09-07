@@ -318,9 +318,9 @@ provider writes, deployment, ERP writes, R3+ and RB/Mastra remained outside the
 window. That sentence is provenance only; current routing is the Exact next
 action above. Preserve unowned state.
 
-RB-C0 remains frozen Evidence and is now retained input for the next planned
+RB-C0 remains frozen Evidence and is retained input for this first implementation
 tranche, not current execution authority. Its R2-closure dependency is satisfied
-by PR #63 integration; exact Mastra/E2B admission must be revalidated and a
-separate operator grant is still required before RB implementation opens. R3+
+by PR #63 integration; the exact adopted Mastra/E2B packages were revalidated,
+and the operator grant opening this vertical was supplied on `2026-09-07`. R3+
 remain blocked, and R3 depends on RB. The Budget Analyzer remains the current
-vertical target and is not yet realized.
+vertical target beyond this bounded Builder foundation and is not yet realized.
