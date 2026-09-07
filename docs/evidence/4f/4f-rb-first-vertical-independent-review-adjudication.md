@@ -93,8 +93,9 @@ sandbox and does not claim dual-lane convergence.
 - `F3` accepted. The unused exported constructor that encoded the old Inception
   admission shortcut is removed.
 - `F4` accepted in the smallest shared owner. The OAuth token store exposes the
-  same custody/content validation used at token access, and admission resolution
-  now invokes it before an ActorRun or E2B sandbox can be created. Missing file,
+  same custody/content validation used at token access. Startup admission invokes
+  it before any ActorRun, and each execution revalidates immediately before E2B
+  sandbox creation. Missing file,
   malformed content and unsafe permissions all fire locally; expiry may still
   trigger the existing bounded refresh during use.
 
@@ -102,3 +103,35 @@ These corrections do not add a provider, model-routing policy, browser picker,
 fallback, external call or new credential store. Because `F1` materially changes
 the challenged catalog property, the corrected frozen candidate requires one
 fresh independent confirmation before publication.
+
+## Corrected-candidate confirmation
+
+The shared-catalog subject `ad79b6780501bd90ea0f9f44e5e58eaf0414e1c9`
+was challenged through the neutral
+[confirmation brief](4f-rb-builder-model-admission-confirmation-brief.md).
+The read-only Fable lane (requested alias `fable`, effort `xhigh`, session
+`c2d85190-229d-4535-9ea7-cfacab87fa93`) found no material falsifier and
+confirmed all named protected properties. It reported four non-blocking local
+gaps and one non-blocking review-environment method finding. The AGY lane was
+again auto-denied before output; no dual convergence is claimed.
+
+- Credential drift after startup is now checked by the same local validator at
+  the start of every `CodingWorkerRuntime.execute`, before `Sandbox.create`; an
+  executable negative proves no sandbox-binding path is reached.
+- R1 and Builder resolution of the same credential path now share one token
+  store and therefore one in-process refresh single-flight. Cross-process token
+  refresh coordination remains outside the single-process deployment assumption.
+- The stage packet now states the exact catalog version, shared env/file roles
+  and loud migration required from the former singleton R1 shape. The catalog
+  resolver and its combined R1+Builder fixture prove the new composition branch;
+  no live deployment migration is claimed.
+- Catalog entries are checked offline against `PROVIDER_REGISTRY` exported by
+  exact adopted `@mastra/core@1.63.2`; a registry-unknown model fires before
+  credential or sandbox work. No dynamic registry refresh/network is enabled.
+- The AGY permission failure is an honest assurance shortfall. It must be fixed
+  or explicitly accepted by the operator before RB stage closure, but it does
+  not falsify this PR candidate or justify weakening the read-only sandbox.
+
+No external model/E2B execution is claimed by either review round. That live
+qualification remains the next bounded step once operator-held configuration
+and credentials are supplied.

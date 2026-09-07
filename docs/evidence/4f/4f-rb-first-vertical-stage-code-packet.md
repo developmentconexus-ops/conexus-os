@@ -35,6 +35,15 @@ credentials, or turn narration/sandbox completion into an owner transition.
   `admissionId + providerKey + exact modelId + officialHttpsOrigin +
   credentialSlot + capabilitySet + enabled`. Credential slots reuse the
   Project server-side external-slot file and never enter the guest.
+
+The deployment format is `conexus-model-admission-catalog/v1`. The existing
+R1 entry must carry `PROJECT_INCEPTION` and `BASELINE_EXPLANATION`; a Builder
+entry carries `BUILDER_CODING`. `CONEXUS_PROJECT_MODEL_CATALOG_FILE` names this
+single non-secret catalog and `CONEXUS_BUILDER_MODEL_ADMISSION_ID` selects the
+Builder entry. `CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE` maps each catalog
+`credentialSlot` to its restrictive-permission OAuth token file. Deployments
+using the former R1 singleton entry shape must update that file before restart;
+there is no silent legacy normalization or second Builder catalog.
 - Data: one Builder-owned schema/migration with idempotent Change creation,
   immutable base identity, one Plan item, one WorkUnit, one ActorRun and exact
   candidate/result coordinates. One lineage has at most one admitted writer.
@@ -71,7 +80,9 @@ real admitted-OCI candidate custody, exact diff and browser trigger/inspection.
 PostgreSQL negatives fire for idempotency mismatch, missing authorization and
 Baseline, a second writer, revoked authority, stale Baseline and late/replaced
 settlement. Model negatives fire for unknown/disabled or duplicate admission,
-mutable model alias, wrong purpose/provider/origin and absent credential slot;
+mutable or registry-unknown model, wrong purpose/provider/origin, absent
+credential slot and missing/malformed/unsafe credential file. The credential is
+revalidated immediately before remote sandbox creation;
 the selected non-secret identity is persisted with the ActorRun. A fake runtime
 proves only Hub orchestration. A real E2B/model run is required before claiming
 the remote coding journey itself proven.

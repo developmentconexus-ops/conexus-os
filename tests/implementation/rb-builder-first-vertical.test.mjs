@@ -22,7 +22,7 @@ const { createBuilderService } = await import(built('builder/service.js'))
 const { createBuilderSourcePort } = await import(built('builder/source.js'))
 const { createMastraE2BCodingWorkerRuntime } = await import(built('builder/runtime.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
-const { resolveProjectModelAdmission } = await import(built('project/module.js'))
+const { resolveProjectCognitionModelAdmission, resolveProjectModelAdmission } = await import(built('project/module.js'))
 
 test.after(() => rmSync(buildRoot, { recursive: true, force: true }))
 
@@ -189,11 +189,13 @@ test('Builder model admission is a closed purpose-bound catalog, not an Inceptio
       admissionId: builderEntry.admissionId, providerId: 'anthropic', modelId: 'claude-sonnet-4-5',
     })
     assert.equal(selected.model.modelId, 'claude-sonnet-4-5')
-    const inception = resolveProjectModelAdmission({
-      catalogFile, credentialSlotsFile: slotsFile, admissionId: inceptionEntry.admissionId,
-      requiredCapabilities: ['PROJECT_INCEPTION', 'BASELINE_EXPLANATION'],
-    })
+    const inception = resolveProjectCognitionModelAdmission({ catalogFile, credentialSlotsFile: slotsFile })
     assert.equal(inception.modelId, 'claude-opus-5')
+    assert.equal(inception.validateCredential, selected.validateCredential)
+    writeCatalog([{ ...inceptionEntry, modelId: 'claude-sonnet-4-5' }, builderEntry])
+    assert.throws(() => resolveProjectCognitionModelAdmission({ catalogFile, credentialSlotsFile: slotsFile }),
+      /PROJECT_MODEL_CATALOG_REFUSED/)
+    writeCatalog([inceptionEntry, builderEntry])
     assert.throws(() => resolveProjectModelAdmission({
       catalogFile, credentialSlotsFile: slotsFile, admissionId: 'missing', requiredCapabilities: ['BUILDER_CODING'],
     }), /PROJECT_MODEL_ADMISSION_UNAVAILABLE/)
@@ -204,6 +206,7 @@ test('Builder model admission is a closed purpose-bound catalog, not an Inceptio
     for (const refused of [
       [{ ...builderEntry, enabled: false }],
       [{ ...builderEntry, modelId: 'claude-latest' }],
+      [{ ...builderEntry, modelId: 'claude-sonnet-4-5-typo' }],
       [{ ...builderEntry, capabilitySet: ['PROJECT_INCEPTION'] }],
       [{ ...builderEntry, providerKey: 'openai', officialHttpsOrigin: 'https://api.openai.com' }],
       [builderEntry, builderEntry],
@@ -273,7 +276,24 @@ test('Builder runtime refuses a model object that disagrees with the admitted ex
     apiKey: 'fixture-e2b-key', templateId: 'template-pinned-1',
     modelIdentity: { admissionId: 'builder-coding-primary', providerId: 'anthropic', modelId: 'claude-sonnet-4-5' },
     model: { modelId: 'claude-opus-5' },
+    validateModelCredential() {},
   }), /BUILDER_RUNTIME_CONFIG_REFUSED/)
+})
+
+test('Builder revalidates model credential before creating a remote sandbox', async () => {
+  let validations = 0
+  const runtime = createMastraE2BCodingWorkerRuntime({
+    apiKey: 'fixture-e2b-key', templateId: 'template-pinned-1',
+    modelIdentity: { admissionId: 'builder-coding-primary', providerId: 'anthropic', modelId: 'claude-sonnet-4-5' },
+    model: { modelId: 'claude-sonnet-4-5' },
+    validateModelCredential() { validations += 1; throw new Error('MODEL_CREDENTIAL_PREFLIGHT_REFUSED') },
+  })
+  await assert.rejects(runtime.execute({
+    projectId, changeId, workUnitId, actorRunId, admissionToken,
+    intent: 'bounded intent', baseSourceRevision, sourceBundle: new Uint8Array([1]),
+    bindPhysicalSandbox: async () => { throw new Error('SANDBOX_MUST_NOT_EXIST') },
+  }), /MODEL_CREDENTIAL_PREFLIGHT_REFUSED/)
+  assert.equal(validations, 1)
 })
 
 const gitFixture = (cwd, args) => {

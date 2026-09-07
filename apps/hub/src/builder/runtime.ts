@@ -43,6 +43,7 @@ export type E2BBuilderRuntimeConfig = Readonly<{
   templateId: string
   model: MastraLanguageModel
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
+  validateModelCredential(): void
   timeoutMs?: number
 }>
 
@@ -60,7 +61,8 @@ export const createMastraE2BCodingWorkerRuntime = (
 ): CodingWorkerRuntime => {
   if (!config.apiKey || !config.templateId || /latest|\*/i.test(config.templateId) ||
     !config.modelIdentity.admissionId || !config.modelIdentity.providerId || !config.modelIdentity.modelId ||
-    /latest|\*/i.test(config.modelIdentity.modelId) || config.model.modelId !== config.modelIdentity.modelId) {
+    /latest|\*/i.test(config.modelIdentity.modelId) || config.model.modelId !== config.modelIdentity.modelId ||
+    typeof config.validateModelCredential !== 'function') {
     throw new Error('BUILDER_RUNTIME_CONFIG_REFUSED')
   }
   return Object.freeze({
@@ -70,6 +72,8 @@ export const createMastraE2BCodingWorkerRuntime = (
       if (![input.projectId, input.changeId, input.workUnitId, input.actorRunId, input.admissionToken].every(safeIdentity) ||
         !oid.test(input.baseSourceRevision) || !input.intent.trim() || input.sourceBundle.byteLength === 0 ||
         input.sourceBundle.byteLength > 256 * 1024 * 1024) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
+
+      config.validateModelCredential()
 
       const logicalSandboxId = `conexus-rb-${input.actorRunId}`
       const timeoutMs = config.timeoutMs ?? 15 * 60_000

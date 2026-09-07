@@ -9,7 +9,7 @@ import { createBuilderSourcePort } from './source.js'
 import type { BuilderGitSourceCapability } from './source.js'
 import { createBuilderStore } from './store.js'
 
-export const createConfiguredBuilderModule = ({ database, builder, projectSource, model, modelIdentity, origin, resolveCurrentSession }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, projectSource, model, modelIdentity, validateModelCredential, origin, resolveCurrentSession }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
@@ -18,6 +18,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   projectSource: Readonly<{ storageRoot: string; ownership: Readonly<Record<string, string>>; git: BuilderGitSourceCapability }>
   model: MastraLanguageModel
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
+  validateModelCredential(): void
   origin: string
   resolveCurrentSession: (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
 }>) => {
@@ -35,6 +36,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     templateId: builder.e2bTemplateId,
     model,
     modelIdentity,
+    validateModelCredential,
   })
   const service = createBuilderService({ store, source, runtime })
   return Object.freeze({

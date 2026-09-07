@@ -166,6 +166,7 @@ const builder = config.builder && config.project && builderModel ? createConfigu
     providerId: builderModel.providerId,
     modelId: builderModel.modelId,
   },
+  validateModelCredential: builderModel.validateCredential,
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
