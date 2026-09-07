@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { QueryResultRow } from 'pg'
+import type { PoolClient, QueryResultRow } from 'pg'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type {
   Prj01Response,
@@ -11,13 +11,49 @@ import type {
   Prj23Response,
 } from '../generated/s3-routes.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import type {
+  R2HubPRJ13Contract,
+  R2HubPRJ14Contract,
+  R2HubPRJ15Contract,
+} from '../generated/r2-routes.js'
 import { projectError } from './errors.js'
-import type { GitExecutionPort } from './git-execution.js'
+import type { GitExecutionPort, ProjectBindingRecoveryGitCapability } from './git-execution.js'
+import { createProjectBindingRecovery } from './binding-recovery.js'
 import { isProjectIdentity } from './identity.js'
 import type { ProjectSourceRecovery } from './source-recovery.js'
 
 const ABANDONED_ATTEMPT_AGE_MS = 60 * 60 * 1_000
 const RECOVERY_SCAN_LIMIT = 16
+
+export type ProjectConnectionBinding = R2HubPRJ13Contract['responses']['200'][number]
+export type ProjectBindingResult<T> = Readonly<
+  | { status: 'FOUND'; value: T }
+  | { status: 'DENIED' }
+  | { status: 'NOT_FOUND' }
+  | { status: 'CONFLICT' }
+  | { status: 'STALE' }
+  | { status: 'INVALID' }
+  | { status: 'UNAVAILABLE' }
+>
+
+// Separate from R1 creation/baseline custody: these methods own only the
+// exact PRJ-13..15 Connection binding job, never Connection lifecycle.
+export type ProjectConnectionBindingStore = Readonly<{
+  listConnectionBindings(input: Readonly<{
+    accountId: string
+    projectId: string
+  }>): Promise<ProjectBindingResult<ProjectConnectionBinding[]>>
+  setConnectionBinding(input: Readonly<{
+    accountId: string
+    projectId: string
+    body: R2HubPRJ14Contract['body']
+  }>): Promise<ProjectBindingResult<ProjectConnectionBinding>>
+  removeConnectionBinding(input: Readonly<{
+    accountId: string
+    projectId: string
+    body: R2HubPRJ15Contract['body']
+  }>): Promise<ProjectBindingResult<undefined>>
+}>
 
 type CreateProjectInput = Readonly<{
   accountId: string
@@ -428,5 +464,135 @@ export const createProjectStore = ({
     getBaselineCandidate,
     getApprovedBaseline,
     approveBaseline,
+  })
+}
+
+type ConnectionBindingRow = QueryResultRow & Readonly<{
+  connection_id: string
+  connection_revision_id: string
+  environment: string
+  connection_name: string
+}>
+
+const bindingObject = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+const bindingIdentity = (value: unknown): value is string =>
+  typeof value === 'string' && isProjectIdentity(value)
+const bindingEnvironment = (value: unknown): value is 'SANDBOX' | 'PRODUCTION' =>
+  value === 'SANDBOX' || value === 'PRODUCTION'
+const bindingProjection = (value: unknown): ProjectConnectionBinding | null => {
+  if (!bindingObject(value) || Object.keys(value).sort().join(',') !==
+    'connectionId,connectionName,connectionRevisionId,environment' ||
+    !bindingIdentity(value.connectionId) || !bindingIdentity(value.connectionRevisionId) ||
+    !bindingEnvironment(value.environment) || typeof value.connectionName !== 'string' ||
+    !/\S/.test(value.connectionName)) return null
+  return {
+    connectionId: value.connectionId,
+    connectionRevisionId: value.connectionRevisionId,
+    environment: value.environment,
+    connectionName: value.connectionName,
+  }
+}
+
+const bindingDatabaseCode = (error: unknown): string | undefined =>
+  bindingObject(error) && typeof error.code === 'string' ? error.code : undefined
+const bindingFailure = (error: unknown): Exclude<ProjectBindingResult<never>, { status: 'FOUND' }> => {
+  switch (bindingDatabaseCode(error)) {
+    case 'P0002':
+    case '22P02': return { status: 'NOT_FOUND' }
+    case '42501': return { status: 'DENIED' }
+    case 'P0412': return { status: 'STALE' }
+    case 'P0001':
+    case '40001':
+    case '40P01': return { status: 'CONFLICT' }
+    case '22023': return { status: 'INVALID' }
+    default: return { status: 'UNAVAILABLE' }
+  }
+}
+
+/** Project-owned source-first settlement; no Connection lifecycle capability. */
+export const createProjectConnectionBindingStore = ({ pool, git }: Readonly<{
+  pool: PostgresPool
+  git: ProjectBindingRecoveryGitCapability
+}>): ProjectConnectionBindingStore => {
+  const recovery = createProjectBindingRecovery({ pool, git })
+  const transaction = async <T>(work: (client: PoolClient) => Promise<T>): Promise<T> => {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await work(client)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  const listConnectionBindings: ProjectConnectionBindingStore['listConnectionBindings'] = async ({ accountId, projectId }) => {
+    try {
+      const values = await transaction(async (client) => {
+        const rows = (await client.query<ConnectionBindingRow>(
+          'SELECT * FROM project.list_connection_bindings($1, $2)', [accountId, projectId],
+        )).rows
+        return rows.map((row) => bindingProjection({
+          connectionId: row.connection_id, connectionRevisionId: row.connection_revision_id,
+          environment: row.environment, connectionName: row.connection_name,
+        }))
+      })
+      if (values.some((value) => value === null)) return { status: 'UNAVAILABLE' }
+      return { status: 'FOUND', value: values as ProjectConnectionBinding[] }
+    } catch (error) {
+      return bindingFailure(error)
+    }
+  }
+
+  const mutate = async (
+    accountId: string,
+    projectId: string,
+    connectionId: string,
+    revisionId: string,
+    environment: string,
+    expectedCurrent: R2HubPRJ14Contract['body']['expectedCurrent'],
+    remove: boolean,
+  ): Promise<ProjectBindingResult<ProjectConnectionBinding | undefined>> => {
+    try {
+      const exactProjection = (value: unknown): ProjectConnectionBinding | null => {
+        const projection = bindingProjection(value)
+        return projection && projection.connectionId === connectionId &&
+          projection.connectionRevisionId === revisionId && projection.environment === environment ? projection : null
+      }
+      const settled = await recovery.execute({
+        accountId, projectId, connectionId, revisionId, environment, expectedCurrent, remove,
+      })
+      if (settled.state === 'ABORTED') {
+        return bindingFailure({ code: settled.refusal_code })
+      }
+      if (settled.state !== 'COMPLETED') return { status: 'UNAVAILABLE' }
+      if (remove) return settled.terminal_result === null
+        ? { status: 'FOUND', value: undefined } : { status: 'UNAVAILABLE' }
+      const projection = exactProjection(settled.terminal_result)
+      return projection ? { status: 'FOUND', value: projection } : { status: 'UNAVAILABLE' }
+    } catch (error) {
+      return bindingFailure(error)
+    }
+  }
+
+  return Object.freeze({
+    listConnectionBindings,
+    setConnectionBinding: async ({ accountId, projectId, body }) => {
+      const result = await mutate(accountId, projectId, body.connectionId, body.connectionRevisionId,
+        body.environment, body.expectedCurrent, false)
+      if (result.status !== 'FOUND') return result
+      return result.value ? { status: 'FOUND', value: result.value } : { status: 'UNAVAILABLE' }
+    },
+    removeConnectionBinding: async ({ accountId, projectId, body }) => {
+      const result = await mutate(accountId, projectId, body.connectionId, body.expectedConnectionRevisionId,
+        body.expectedEnvironment, { state: 'PRESENT', connectionRevisionId: body.expectedConnectionRevisionId,
+          environment: body.expectedEnvironment }, true)
+      return result.status === 'FOUND' ? { status: 'FOUND', value: undefined } : result
+    },
   })
 }

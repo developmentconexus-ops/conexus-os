@@ -1,7 +1,7 @@
 # DevelopmentConexus Engineering Method
 
-**Version:** 1.2.0
-**Status:** ACCEPTED  
+**Version:** 1.3.0
+**Status:** ACCEPTED / OPERATOR RATIFIED
 **Authority:** organizational engineering standard  
 **Scope:** all DevelopmentConexus repositories; human, agent, or hybrid engineering
 
@@ -22,6 +22,8 @@ This is a **reasoning method, not a process framework**.
 - Summaries, prompt snippets, templates, and local copies are derived aids unless explicitly designated canonical. They MUST cite the canonical version and MUST NOT become a second authority.
 
 Reopen this method only when evidence shows a core rule is systematically misclassifying work, creating ceremony without decision-quality gain, forcing repository bindings to violate the method, or failing for a materially new actor/work class.
+
+The 1.3 amendment preserves authority, safety, proportionality and independent-challenge principles while replacing fixed review cadence with explicit risk triggers. Repository-specific methods define the verification graph and may deduplicate equivalent leaves without reducing the applicable claim set. Local development may use affected checks; candidate and publication gates retain the complete applicable claim set.
 
 ## 2. Materiality and proportionality
 
@@ -165,16 +167,11 @@ reliability of its deciding proof.
 
 ### Periodic independent assurance
 
-Independent review is both risk-triggered and cadence-bounded. A repository MAY
-define named stage/part units and require two fresh isolated challengers:
-
-- before every stage closes; and
-- no later than three completed parts since the last independent checkpoint in
-  an open stage.
-
-When both conditions coincide, one coherent whole-package round satisfies both.
-An earlier material-decision or material-diff review resets the rolling count
-only when it challenged the same current implementation subject. The Lead MUST
+Independent review is risk-triggered. Require two fresh isolated challengers
+before every stage closes and whenever a change creates or moves authority or a
+trust boundary, changes a structural runtime/database/service boundary, has an
+external or hard-to-reverse effect, or presents a material contradiction or
+Global-Maximum question. The Lead MUST
 freeze the candidate, protected-claim census, blocker census, falsifiers and
 deciding-proof route before the lanes start. Neither lane may receive the other
 lane's output before both complete.
@@ -186,6 +183,12 @@ trigger and later owner. After corrections, run another independent round only
 when a surviving material correction invalidated a protected property or the
 reliability of deciding proof; otherwise terminate the review cycle and resume
 delivery.
+
+Verification must be a flat graph of leaf checks. A targeted local check may
+prove the affected boundary; a candidate gate runs each applicable leaf once;
+publication/CI adds clean-install and custody checks. A suite must not invoke a
+whole prior suite recursively, and duplicate execution may be removed only
+after confirming equivalent claim and environment coverage.
 
 ### Adversarial challenge and findings
 

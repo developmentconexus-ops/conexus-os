@@ -6,7 +6,7 @@
 
 Conexus OS consumes these repository-local operating method copies:
 
-- [`engineering-method.md`](engineering-method.md) — DevelopmentConexus Engineering Method v1.0.0;
+- [`engineering-method.md`](engineering-method.md) — DevelopmentConexus Engineering Method v1.3.0 (operator ratified);
 - [`repository-method.md`](repository-method.md) — DevelopmentConexus Repository Method v1.0.0;
 - [`frontend-product-experience-planning-method.md`](frontend-product-experience-planning-method.md) — Frontend Product Experience Planning Method v2.3.
 

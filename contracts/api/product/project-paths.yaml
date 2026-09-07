@@ -411,6 +411,8 @@ paths:
           $ref: './openapi.yaml#/components/responses/Problem403'
         '404':
           $ref: './openapi.yaml#/components/responses/Problem404'
+        '503':
+          $ref: './openapi.yaml#/components/responses/Problem503'
     put:
       summary: SetProjectBrainBinding
       operationId: SetProjectBrainBinding
@@ -477,6 +479,8 @@ paths:
           $ref: './openapi.yaml#/components/responses/Problem412'
         '422':
           $ref: './openapi.yaml#/components/responses/Problem422'
+        '503':
+          $ref: './openapi.yaml#/components/responses/Problem503'
     delete:
       summary: ClearProjectBrainBinding
       operationId: ClearProjectBrainBinding

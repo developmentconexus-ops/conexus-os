@@ -70,6 +70,31 @@ execution receipt / traffic-state truth
 external-effect unit/budget authority
 ```
 
+### 19.1.1 Registered key-conformance read
+
+Operator-approved scope amendment `2026-09-05`: Gateway may execute an internal
+registered aggregate read for the Brain admission consumer. Only trusted
+composition registers query definitions/executors. A caller selects no SQL,
+table, URL, credential, source scope or successful proof result. Project and
+Connection owners resolve current authority and the exact qualified binding;
+the not-yet-admitted Brain binding cannot authorize its own validation read.
+
+The producer checks missing/null source-qualified key components and duplicate
+key groups over a complete coherent observation of the registered population.
+Brain owns the intended grain and mapping requirements. Predicate success does
+not itself establish business meaning, general Brain conformance, continued
+source freshness or synchronization correctness. Empty complete data and
+unknown/incomplete data remain distinct.
+
+The executor must be separately admitted for its source, query revision,
+observation-coherence and invalidation semantics. A caller-written PASS,
+timestamp, page count or connection qualification cannot replace this proof.
+Current binding/input identities are checked before and after observation;
+drift or indeterminate execution refuses a positive result. This is an
+owner-local result, not a new public operation or generic durable receipt class.
+Controlled-source tests establish only their named module/adapter properties;
+they do not admit a live Sankhya source or arbitrary SQL execution.
+
 ## 19.2 Does not own
 
 ```text

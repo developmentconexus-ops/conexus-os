@@ -33,6 +33,7 @@ export const createHttpApp = async ({
     return sendProblem(reply, status, status === 500 ? 'internal-error' : 'request-refused', status === 500 ? 'Internal server error' : 'Request refused')
   })
   const ajv = new Ajv2020({ allErrors: true, strict: true, coerceTypes: false, useDefaults: false, removeAdditional: false })
+  ajv.addKeyword({ keyword: 'x-conexus-schema-source', schemaType: 'string', valid: true })
   const addFormats = addFormatsModule.default
   addFormats(ajv)
   let validatorInstallCount = 0
@@ -51,7 +52,11 @@ export const createHttpApp = async ({
       '/workspaces/new',
       '/workspaces/:workspaceId/projects',
       '/workspaces/:workspaceId/projects/new',
+      '/workspaces/:workspaceId/brain',
+      '/workspaces/:workspaceId/connections',
       '/projects/:projectId',
+      '/projects/:projectId/brain',
+      '/projects/:projectId/integrations',
       '/projects/:projectId/inception',
       '/projects/:projectId/baseline-candidates/:candidateBaselineDigest',
     ] as const

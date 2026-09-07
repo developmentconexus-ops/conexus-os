@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { runInNewContext } from 'node:vm'
 import test from 'node:test'
 
 process.env.MASTRA_TELEMETRY_DISABLED = '1'
@@ -21,6 +23,60 @@ const compileHub = (t) => {
 
 const hasToolResult = (prompt, toolName) => prompt.some((message) =>
   message.role === 'tool' && JSON.stringify(message.content).includes(toolName))
+
+test('P4 recovery preflights pending and raced Project source before any cognition call', async (t) => {
+  const built = compileHub(t)
+  const { createProjectInceptionService } = await import(built('project/inception.js'))
+  for (const branch of ['pending', 'pending-after-reservation', 'source-race', 'aligned']) {
+    await t.test(branch, async () => {
+      const events = []
+      const service = createProjectInceptionService({
+        admissionId: 'no-provider-call',
+        pool: { end: async () => {}, connect: async () => ({
+          release() {},
+          query: async (sql, values) => {
+            events.push(sql)
+            if (sql.includes('reserve_or_replay_inception')) return { rows: [{
+              state: 'RESERVED', source_revision: 'a'.repeat(40), response_body: null,
+            }] }
+            if (sql.includes('complete_inception')) return { rows: [{ complete_inception: JSON.parse(values[10]) }] }
+            return { rows: [] }
+          },
+        }) },
+        reconcileBindingSource: async () => {
+          events.push('reconcile')
+          if (branch === 'pending' || (branch === 'pending-after-reservation' &&
+            events.some((event) => event.includes('reserve_or_replay_inception')))) {
+            throw Object.assign(new Error('pending'), { code: 'P0001' })
+          }
+        },
+        sourceSnapshot: () => ({
+          sourceRevision: 'a'.repeat(40), readBatch: async () => [],
+          listPaths: async () => {
+            events.push('source-preflight')
+            if (branch === 'source-race') throw new Error('PRJ07_SOURCE_STALE')
+            return []
+          },
+        }),
+        cognition: { runInception: async () => {
+          events.push('cognition')
+          return { sourceText: 'bounded contract fixture', applicationRuntimeProfile: 'MANAGED' }
+        } },
+      })
+      const run = service.run({ accountId: '10000000-0000-4000-8000-000000000001',
+        projectId: '30000000-0000-4000-8000-000000000001', idempotencyKey: branch, body: { intent: 'inspect' } })
+      if (branch === 'aligned') {
+        await run
+        assert.ok(events.indexOf('source-preflight') < events.indexOf('cognition'))
+      } else {
+        await assert.rejects(run, /PRJ07_BINDING_SOURCE_CONFLICT|PRJ07_SOURCE_STALE/)
+        assert.equal(events.includes('cognition'), false)
+        if (branch !== 'pending') assert.ok(events.some((event) => event.includes('abandon_inception')))
+        else assert.deepEqual(events, ['reconcile'])
+      }
+    })
+  }
+})
 
 const fakeInceptionModel = (calls) => ({
   specificationVersion: 'v3', provider: 'conexus-s6-fake', modelId: 'inception-fake-1', supportedUrls: {},
@@ -140,6 +196,97 @@ test('S6-P0 catalog, migration and external OAuth custody fail closed', async (t
     import(built('generated/s3-routes.js')),
   ])
   assert.doesNotThrow(() => new Function(PROJECT_SOURCE_PROGRAM))
+  const sourceSnapshotModule = readFileSync(resolve(repositoryRoot, 'apps/hub/src/project/source-snapshot.ts'), 'utf8')
+  const dockerInvocation = sourceSnapshotModule.match(/const child = spawn\('docker', \[([\s\S]*?)\n {2}\],/)
+  assert.ok(dockerInvocation, 'source snapshot must retain one bounded Docker runner')
+  assert.match(dockerInvocation[1], /'--user',\s*`\$\{process\.getuid\(\)\}:\$\{process\.getgid\(\)\}`/)
+  assert.match(sourceSnapshotModule, /if \(!process\.getuid \|\| !process\.getgid\) return reject\(new Error\('PROJECT_SOURCE_UNSUPPORTED'\)\)/)
+
+  // Controlled fixture only: fake request/file/Git boundaries; no OCI or production source read.
+  const sourceRevision = 'a'.repeat(40)
+  const sourceFiles = new Map([
+    ['zeta.txt', Buffer.from('zeta source\n', 'utf8')],
+    ['alpha.txt', Buffer.from([0, 1, 2, 255])],
+  ])
+  const digest = (bytes) => createHash('sha256').update(bytes).digest('hex')
+  const executeProgram = (request) => {
+    const writes = []
+    const reads = []
+    const exits = []
+    const spawnCalls = []
+    const exit = new Error('PROGRAM_EXIT')
+    const fakeReadFileSync = (path, encoding) => {
+      reads.push({ path, encoding })
+      assert.equal(path, '/run/conexus/request.json')
+      assert.equal(encoding, 'utf8')
+      return JSON.stringify(request)
+    }
+    const fakeSpawnSync = (command, args, options) => {
+      spawnCalls.push({ command, args, options })
+      assert.equal(command, '/usr/local/bin/git')
+      assert.equal(args[0], '--git-dir=/repository.git')
+      if (args[1] === 'rev-parse') return { status: 0, signal: null, stdout: `${sourceRevision}\n` }
+      if (args[1] === 'cat-file' && args[2] === '-e') return { status: 0, signal: null, stdout: '' }
+      if (args[1] === 'ls-tree') {
+        const lines = [...sourceFiles].map(([path, bytes], index) =>
+          `100644 blob ${String(index + 1).repeat(40)} ${bytes.length}\t${path}`,
+        )
+        return { status: 0, signal: null, stdout: `${lines.join('\0')}\0` }
+      }
+      if (args[1] === 'cat-file' && args[2] === 'blob') {
+        const path = args[3].slice(sourceRevision.length + 1)
+        const bytes = sourceFiles.get(path)
+        assert.ok(bytes, `missing fake source path ${path}`)
+        return { status: 0, signal: null, stdout: bytes }
+      }
+      throw new Error(`UNEXPECTED_FAKE_GIT_COMMAND ${args.join(' ')}`)
+    }
+    const fakeRequire = (moduleName) => {
+      if (moduleName === 'node:fs') return { readFileSync: fakeReadFileSync }
+      if (moduleName === 'node:crypto') return { createHash }
+      if (moduleName === 'node:child_process') return { spawnSync: fakeSpawnSync }
+      throw new Error(`UNEXPECTED_FAKE_REQUIRE ${moduleName}`)
+    }
+    const processShim = {
+      stdout: { write: (value) => writes.push(value) },
+      exit: (code) => {
+        exits.push(code)
+        throw exit
+      },
+    }
+    try {
+      runInNewContext(PROJECT_SOURCE_PROGRAM, {
+        Buffer,
+        process: processShim,
+        require: fakeRequire,
+      })
+      assert.fail('PROJECT_SOURCE_PROGRAM must terminate through process.exit')
+    } catch (error) {
+      assert.equal(error, exit)
+    }
+    assert.deepEqual(exits, [0])
+    assert.equal(reads.length, 1)
+    assert.equal(writes.length, 1)
+    return { value: JSON.parse(writes[0]), spawnCalls }
+  }
+
+  const listed = executeProgram({ operation: 'list', sourceRevision })
+  assert.deepEqual(listed.value, {
+    status: 'PASS',
+    entries: [
+      { path: 'alpha.txt', byteLength: 4, digest: digest(sourceFiles.get('alpha.txt')), mediaType: 'application/octet-stream' },
+      { path: 'zeta.txt', byteLength: 12, digest: digest(sourceFiles.get('zeta.txt')), mediaType: 'text/plain; charset=utf-8' },
+    ],
+  })
+  assert.ok(listed.spawnCalls.some(({ args }) => args[1] === 'ls-tree' && args.includes('-z')))
+
+  const read = executeProgram({ operation: 'read', sourceRevision, paths: ['zeta.txt'] })
+  assert.deepEqual(read.value, {
+    status: 'PASS',
+    files: [
+      { path: 'zeta.txt', digest: digest(sourceFiles.get('zeta.txt')), utf8Bytes: 'zeta source\n' },
+    ],
+  })
   assert.equal(generated.S3_GENERATED_ROUTES['PRJ-07'].operationId, 'RunInceptionInvestigation')
   assert.equal(generated.S3_GENERATED_ROUTES['PRJ-07'].url, '/api/control/projects/:projectId/inception-investigations')
   assert.throws(() => createProjectMastra([{

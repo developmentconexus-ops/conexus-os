@@ -87,10 +87,12 @@ test('execute is opt-in and cannot be combined with dry-run', () => {
   assert.match(result.stderr, /mutually exclusive/)
 })
 
-test('rejects a brief outside the repository', () => {
-  const result = run('--brief', resolve(repositoryRoot, '..', 'outside-review-brief.md'), '--json')
-  assert.notEqual(result.status, 0)
-  assert.match(result.stdout, /inside the repository/)
+test('accepts a regular review brief outside the repository', () => {
+  const outside = resolve(mkdtempSync(resolve(tmpdir(), 'conexus-review-brief-')), 'brief.md')
+  writeFileSync(outside, '# Review brief\n')
+  const result = run('--brief', outside, '--lane', 'opus', '--json')
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
+  assert.match(result.stdout, /"mode": "dry-run"/)
 })
 
 test('binds an explicitly selected candidate result by repository path and digest', () => {

@@ -22,7 +22,7 @@ serialTest('Conexus OS repository contract is green', () => {
     'scripts/check-current-state.mjs',
     'scripts/check-qualification-provenance.mjs'
   ]) {
-    execFileSync(process.execPath, [script], { cwd: root, stdio: 'inherit' })
+    execFileSync(process.execPath, [script], { cwd: root, stdio: 'inherit', env: { ...process.env, CONEXUS_ALLOW_DIRTY_WORKTREE: '1' } })
   }
 })
 

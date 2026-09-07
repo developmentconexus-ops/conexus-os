@@ -41,6 +41,7 @@ Required verification floor:
 
 ```bash
 npm ci
+npx --no-install playwright install chromium
 npm run verify
 ```
 

@@ -23,10 +23,8 @@ design and unsafe actions with the Lead.
 
 ## When Fable and Gemini are justified
 
-Independent dual review is required for Conexus periodic assurance before every
-`S` stage closes and no later than three completed `P` parts since the previous
-independent checkpoint in an open stage. A single coherent round satisfies both
-when they coincide. Invoke it earlier when the named subject:
+Independent dual review is required before every `S` stage closes and whenever
+the named subject:
 
 - creates or moves authority or a trust boundary;
 - changes cross-owner architecture or a structural database/runtime/service
@@ -37,8 +35,8 @@ when they coincide. Invoke it earlier when the named subject:
   Global-Maximum question that local proof cannot settle.
 
 Ordinary bounded code, naming, local refactors and already-specified mechanics
-use targeted tests and Lead review between periodic checkpoints. Do not call a
-reviewer for every file or every `P`. A second independent round over the same
+use targeted tests and Lead review. Do not call a reviewer for every file or
+every `P`. A second independent round over the same
 checkpoint is warranted only when a material correction changed the reviewed
 property enough that the prior challenge no longer covers it.
 
@@ -52,12 +50,10 @@ Use two distinct modes; never blur their claims:
 - **independent closure** uses isolated fresh lanes over one frozen candidate,
   brief, protected-claim census and blocker census.
 
-The normal council checkpoints are: stage code packet when materially
-uncertain, first material vertical diff, each third completed `P` since the
-previous review, and every `S`/gate closure. The rolling checkpoint is mandatory
-even when each individual part was mechanical; combine it with closure when
-they coincide. Do not invoke the council for each file, test, receipt field or
-documentation correction.
+The normal council checkpoints are: a materially uncertain stage packet, the
+first material vertical diff, a trust/authority or structural-boundary change,
+an external effect, and every `S`/gate closure. Do not invoke the council for
+each file, test, receipt field or documentation correction.
 
 Before independent closure, state the exact claims whose failure would stop the
 stage. A finding about method, review machinery, recoverability or Evidence

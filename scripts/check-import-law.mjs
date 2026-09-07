@@ -227,11 +227,16 @@ export function checkImportLaw(rootDirectory) {
       if (source === 'apps/hub/src/server.ts' && isRelative) {
         const allowed = new Set([
           'apps/hub/src/http/app.ts',
+          'apps/hub/src/brain/module.ts',
+          'apps/hub/src/connections/module.ts',
+          'apps/hub/src/gateway/module.ts',
           'apps/hub/src/identity-access/module.ts',
           'apps/hub/src/platform/config.ts',
           'apps/hub/src/platform/postgres.ts',
           'apps/hub/src/platform/secrets.ts',
+          'apps/hub/src/platform/credential-backend.ts',
           'apps/hub/src/project/module.ts',
+          'apps/hub/src/registry/module.ts',
           'apps/hub/src/workspace/module.ts',
         ])
         if (!allowed.has(target)) {

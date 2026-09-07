@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "subject": "R2-P2 canonical Workspace Brain bootstrap and reads",
+  "status": "CANDIDATE_INDEPENDENT_REVIEW_PENDING",
+  "capturedAt": "2026-09-04",
+  "repository": "https://github.com/developmentconexus-ops/conexus-os.git",
+  "branch": "codex/post-r1-session",
+  "implementationCommit": "025339096af65d19a7aa9bd07892262367cc6644",
+  "implementationTree": "d40698155b14f046a7969f95622837d3a860c0a3",
+  "originMain": "00204e277a52e965e11b748e39ff899e25570ee4",
+  "behind": 0,
+  "ahead": 6,
+  "environment": {
+    "platform": "WSL Ubuntu",
+    "node": "24.20.0",
+    "npm": "12.0.2",
+    "postgres": "17.10",
+    "gitOciIndex": "sha256:5e5c3526292bb87a97a3fa41c8e715800a02da5238fbe07bf99c1c4b614f7851",
+    "gitVersion": "2.55.0",
+    "gitExecutableSha256": "b5d1f9f76f9805ce8721accc9d8bbff9af9b7407e182ab07a5677dafa6c22201"
+  },
+  "migration": {
+    "file": "apps/hub/migrations/011_r2_brain_connections.sql",
+    "sha256": "5c7f74c42fd3690edfe435c673e9dda499aac523167ab4edf636da155c654800",
+    "atlasSumSha256": "4bef6c32c1c12b0836aacfd2463d6e00534f2cfd0bbee3a594a4fc08254ace86"
+  },
+  "operationsFirstReachable": ["BRN-01", "BRN-02", "BRN-03", "BRN-10"],
+  "decidingVerification": {
+    "r2P2Check": "PASS; 12 pass, 2 correctly skipped live-only tests",
+    "r2P2Postgres": "PASS on real PostgreSQL 17.10",
+    "r2P2Live": "PASS on real admitted Git OCI plus PostgreSQL 17.10; synthetic non-production Brain; production CLI and four production routes",
+    "r2P1PostgresRegression": "PASS",
+    "r1R1c14NativeRegression": "PASS; 31/31",
+    "npmTest": "PASS; 320/320",
+    "npmRunVerify": "PASS; inherited Redocly warnings only",
+    "npmRunVerifyExtended": "PASS; inherited Redocly warnings only",
+    "conexusPreflight": "PASS; clean tree at implementation commit before this review envelope"
+  },
+  "proofLimits": [
+    "The Brain is synthetic and non-production.",
+    "The trusted bootstrap role is operational and is not exposed by the server.",
+    "The human-review receipt is owner-custodied input, not a generic cryptographically signed production admission system.",
+    "No Mastra, LLM or provider claim is made by P2.",
+    "No production effect, push, pull request or merge is authorized."
+  ]
+}

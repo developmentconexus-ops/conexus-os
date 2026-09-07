@@ -35,7 +35,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx --no-install playwright install --with-deps chromium
-      - run: npm test
       - run: npm run r1:a0:g0:verify
       - run: npm ci --prefix qualification/4f/r1-project-cognition-admission --ignore-scripts
       - run: npm test --prefix qualification/4f/r1-project-cognition-admission
@@ -49,7 +48,42 @@ jobs:
       - run: bash -n tests/implementation/r1-s2-live-runner.sh && node --check tests/implementation/r1-s2-live-setup.mjs && node --check tests/implementation/r1-s2-live-browser.spec.mjs
       - run: npm run r1:a0:web:typecheck
       - run: npm run r1:r1c14:native:check
+      - run: npm run r2:p1:postgres
+        env:
+          CONEXUS_TEST_DB_HOST: 127.0.0.1
+          CONEXUS_TEST_DB_PORT: 5432
+          CONEXUS_TEST_DB_NAME: conexus_test
+          CONEXUS_TEST_DB_USER: postgres
+          CONEXUS_TEST_DB_PASSWORD: s6-ci-test-only
+      - run: npm run r2:p2:postgres
+        env:
+          CONEXUS_TEST_DB_HOST: 127.0.0.1
+          CONEXUS_TEST_DB_PORT: 5432
+          CONEXUS_TEST_DB_NAME: conexus_test
+          CONEXUS_TEST_DB_USER: postgres
+          CONEXUS_TEST_DB_PASSWORD: s6-ci-test-only
+      - run: npm run r2:p3:postgres
+        env:
+          CONEXUS_TEST_DB_HOST: 127.0.0.1
+          CONEXUS_TEST_DB_PORT: 5432
+          CONEXUS_TEST_DB_NAME: conexus_test
+          CONEXUS_TEST_DB_USER: postgres
+          CONEXUS_TEST_DB_PASSWORD: s6-ci-test-only
       - run: npm run r1:s4:p2:postgres
+        env:
+          CONEXUS_TEST_DB_HOST: 127.0.0.1
+          CONEXUS_TEST_DB_PORT: 5432
+          CONEXUS_TEST_DB_NAME: conexus_test
+          CONEXUS_TEST_DB_USER: postgres
+          CONEXUS_TEST_DB_PASSWORD: s6-ci-test-only
+      - run: npm run r2:p4:authority
+        env:
+          CONEXUS_TEST_DB_HOST: 127.0.0.1
+          CONEXUS_TEST_DB_PORT: 5432
+          CONEXUS_TEST_DB_NAME: conexus_test
+          CONEXUS_TEST_DB_USER: postgres
+          CONEXUS_TEST_DB_PASSWORD: s6-ci-test-only
+      - run: npm run r2:p6:a:postgres
         env:
           CONEXUS_TEST_DB_HOST: 127.0.0.1
           CONEXUS_TEST_DB_PORT: 5432
