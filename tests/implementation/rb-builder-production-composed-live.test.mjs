@@ -103,15 +103,6 @@ test('RB production composition executes one governed Change through HTTP, Postg
   chmodSync(executorPasswordFile, 0o400)
   const liveCatalogFile = resolve(proofRoot, 'project-models.json')
   const configuredCatalog = JSON.parse(readFileSync(process.env.CONEXUS_PROJECT_MODEL_CATALOG_FILE, 'utf8'))
-  if (!configuredCatalog.entries.some((entry) => entry.admissionId === process.env.CONEXUS_BUILDER_VERIFIER_MODEL_ADMISSION_ID)) {
-    const sourceAdmission = configuredCatalog.entries.find((entry) => entry.admissionId === 'project-inception-opus-5')
-    if (!sourceAdmission) throw new Error('CONEXUS_RB_VERIFIER_SOURCE_ADMISSION_REQUIRED')
-    configuredCatalog.entries.push({
-      ...sourceAdmission,
-      admissionId: process.env.CONEXUS_BUILDER_VERIFIER_MODEL_ADMISSION_ID,
-      capabilitySet: ['BUILDER_VERIFICATION'],
-    })
-  }
   writeFileSync(liveCatalogFile, JSON.stringify(configuredCatalog), { mode: 0o600 })
 
   const accountId = randomUUID()

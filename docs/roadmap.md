@@ -268,11 +268,20 @@ falsified the claimed immutability of its `build-<UUID>` E2B tag. E2B's native
 in PR #66, squash `839d549`. The verification/acceptance candidate now has real
 PostgreSQL refusal/recovery proof, two complete Chromium→HTTP→Git→Mastra→E2B
 user replays, a clean Linux repository floor and final isolated Fable/Gemini
-convergence. Normal PR #67 is open from documentation head `bcd683b`; required
-Verify run `34263788664` is GREEN on that exact head. This factual roadmap
-rebaseline is the only later change. The next smallest action is to preserve
-objective CI green on the resulting PR head and request the separate operator
-merge decision. Merge remains unauthorized.
+convergence. PR #67 head `220334c` is integrated into `main` as squash
+`a1130fe979ddbdda0e2b5125801d75e414608659`; post-merge Verify run
+`34266529029` is GREEN on that exact squash. The operator then approved the
+smallest operational follow-up: admit registry-valid `claude-sonnet-5` through
+the shared catalog for the separate `BUILDER_CODING` and
+`BUILDER_VERIFICATION` purposes and repeat the composed live Product journey
+without synthesizing a verifier admission inside the proof. This follow-up is
+now a candidate on branch `rb-builder-sonnet5-admission`: the owner-only host
+catalog has both distinct admissions over the existing credential slot, the
+proof fallback was removed, and the real Chromium→HTTP→PostgreSQL→Git→Mastra→E2B
+writer+verifier journey is GREEN `1/1` in `178.7 s` using Sonnet 5 for both
+roles. It changes model selection and proof fidelity, not Builder authority or
+Product meaning. The next smallest action is the clean candidate floor and one
+normal PR; merge remains a separate operator decision.
 
 ACP, runtime tournaments, Worker Eval infrastructure, private MCP, concurrent
 writers, `BLD-18..20`, R3+, Release/deployment and broad Sankhya writes remain
