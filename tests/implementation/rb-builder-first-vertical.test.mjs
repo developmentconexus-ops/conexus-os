@@ -345,7 +345,7 @@ test('RB real OCI custody admits one exact child and refuses multi-commit and pr
     gitFixture(work, ['init', '--initial-branch=main'])
     writeFileSync(resolve(work, 'README.md'), 'base\n')
     writeFileSync(resolve(work, 'policy.txt'), 'protected\n')
-    writeFileSync(resolve(work, 'orphan.txt'), 'existing but unowned\n')
+    writeFileSync(resolve(work, ':(literal)protected.txt'), 'existing pathspec-shaped but unowned\n')
     gitFixture(work, ['add', '--all'])
     gitFixture(work, ['commit', '-m', 'base'])
     const base = gitFixture(work, ['rev-parse', 'HEAD'])
@@ -407,9 +407,9 @@ test('RB real OCI custody admits one exact child and refuses multi-commit and pr
     }), /PROTECTED_PATH/)
 
     const unownedCandidate = candidateBundle('unowned-existing', () => {
-      writeFileSync(resolve(work, 'orphan.txt'), 'mutated without ownership\n')
-      gitFixture(work, ['add', 'orphan.txt'])
-      gitFixture(work, ['commit', '-m', 'unowned existing mutation'])
+      writeFileSync(resolve(work, ':(literal)protected.txt'), 'mutated without ownership\n')
+      gitFixture(work, ['--literal-pathspecs', 'add', '--', ':(literal)protected.txt'])
+      gitFixture(work, ['commit', '-m', 'pathspec-shaped unowned existing mutation'])
     })
     await assert.rejects(port.admitCandidate({
       projectId, changeId: '22222222-2222-4222-8222-222222222225', actorRunId,

@@ -87,11 +87,11 @@ if (!ok(changed)) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
 const paths = text(changed).split('\\0').filter(Boolean)
 if (paths.length === 0 || paths.length > 1000) finish({ status: 'REFUSED', code: 'CHANGESET_REFUSED' })
 for (const path of paths) {
-  const baseEntry = git('/tmp/inspect.git', ['ls-tree', request.baseSourceRevision, '--', path])
+  const baseEntry = git('/tmp/inspect.git', ['--literal-pathspecs', 'ls-tree', request.baseSourceRevision, '--', path])
   if (!ok(baseEntry)) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
   if (path.startsWith('/') || path.includes('\\\\') || path.split('/').some(part => !part || part === '.' || part === '..') || path.startsWith('.conexus/') ||
     (text(baseEntry) ? ownership[path] !== 'APP-OWNED' : (ownership[path] && ownership[path] !== 'APP-OWNED'))) finish({ status: 'REFUSED', code: 'PROTECTED_PATH' })
-  const entry = git('/tmp/inspect.git', ['ls-tree', 'refs/heads/result', '--', path])
+  const entry = git('/tmp/inspect.git', ['--literal-pathspecs', 'ls-tree', 'refs/heads/result', '--', path])
   if (!ok(entry)) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
   if (text(entry) && !/^(100644|100755) blob [0-9a-f]{40}\t/.test(text(entry))) finish({ status: 'REFUSED', code: 'UNSAFE_ENTRY' })
 }

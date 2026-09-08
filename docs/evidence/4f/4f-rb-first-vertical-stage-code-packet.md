@@ -176,7 +176,7 @@ bytes, and left `refs/heads/main` unchanged.
 
 The proof exposed and closed three material trust-boundary defects before that
 live pass: mutable E2B template aliases are now refused, pre-existing unowned
-paths and protected-path renames are refused, and Project Git safety admits only
+paths, Git pathspec-shaped filenames and protected-path renames are refused, and Project Git safety admits only
 the canonical `main` ref plus commit-valued
 `refs/conexus/changes/<change UUID>` result refs. Arbitrary and case-variant refs
 remain refused. Independent review then proved that the build-looking E2B tag
