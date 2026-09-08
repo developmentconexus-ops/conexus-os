@@ -16,11 +16,11 @@ This is the single current phase/status authority.
 | 4A — Product Surface & Authority Contract | CLOSED / `PRE11-F05` RATIFIED | `128` fixed Product operations | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / `PRE11-F05` RATIFIED / REQUIRED VERIFY GREEN | `128↔128`; Project=28; Builder=20; Brain=13; PAR=16; MAR=4 | 4A change or wire/proof falsifier |
 | 4C — Frontend Interaction & Authority Realization | CLOSED / OPERATOR RATIFIED / METHOD v2.3 / P12 CLOSED / 4C-13 CLOSED / P12-F03 CLOSED / 4C-14 CLOSED / PRODUCT-APP WIREFRAMES OUT OF CURRENT SCOPE | Frontend Product/interaction model, P13 inputs and structural conformance obligations preserved for later phases | Material 4A/4B/P11/P13 conformance falsifier |
-| 4D — Project Paved Road & Runtime Realization | OPEN / R1 13/13 INTEGRATED / R2 INTEGRATED / RB VERIFIED FIRST LOOP INTEGRATED / BOUNDED CORRECTION CANDIDATE + LIVE/FLOOR GREEN + REVIEW CLEAR / R3+ BLOCKED | Publish one normal PR and evaluate objective CI; merge remains operator-gated | Material R1/R2 protected-claim falsifier, RB protected-property falsifier, objective CI regression, or named ambiguity/Global-Maximum doubt |
+| 4D — Project Paved Road & Runtime Realization | OPEN / R1 13/13 INTEGRATED / R2 INTEGRATED / RB VERIFIED FIRST LOOP INTEGRATED / BOUNDED CORRECTION PR #69 + LIVE/FLOOR GREEN + REVIEW CLEAR / R3+ BLOCKED | Evaluate PR #69 objective CI; merge remains operator-gated | Material R1/R2 protected-claim falsifier, RB protected-property falsifier, objective CI regression, or named ambiguity/Global-Maximum doubt |
 | 4E — Whole-System Coherence & Golden Flows | CLOSED(R1) / OPERATOR APPROVED / 13↔13 / GITINFRA + FIRST-AUTHORITY CORRECTED / MASTRA DEFER ACCEPTED / INDEPENDENT CONVERGENCE CLEAR / RB NOT OPEN | R1 composition routes exact tranche to 4F | Composed-flow contradiction |
 | 4F — Implementation Program & Execution Graph | R1 IMPLEMENTATION 13/13 INTEGRATED / R2 INTEGRATED / RB VERIFIED FIRST LOOP INTEGRATED / BOUNDED CORRECTION CANDIDATE | The bounded RB correction packet owns candidate closure | Integrated R1/R2 proof fails or an RB packet protected claim fails |
 | 4G — Adversarial Implementation Readiness | CLOSED ON PRIOR SUBJECT / OPERATOR APPROVED / SEMANTIC CLEAR PRESERVED / EXECUTION TOPOLOGY CHALLENGED BY PRE-S2 A0 FINDING / RB NOT OPEN | Prior semantic readiness remains Evidence; new physical-topology subject routes to bounded 4F reopen | Material readiness finding on the current tranche subject |
-| Product implementation | R1 INTEGRATED / R2 INTEGRATED / RB VERIFIED FIRST LOOP INTEGRATED / BOUNDED CORRECTION CANDIDATE / R3+ BLOCKED | Publish the proven bounded correction candidate and evaluate objective CI; merge remains operator-gated | Product meaning changes, a protected R1/R2/RB claim fails, or RB admission exposes a material gap |
+| Product implementation | R1 INTEGRATED / R2 INTEGRATED / RB VERIFIED FIRST LOOP INTEGRATED / BOUNDED CORRECTION PR #69 / R3+ BLOCKED | Evaluate PR #69 objective CI; merge remains operator-gated | Product meaning changes, a protected R1/R2/RB claim fails, or RB admission exposes a material gap |
 
 ```text
 4A = CLOSED / PRE11-F05 RATIFIED / N_platform=128
@@ -251,20 +251,21 @@ failed exact candidate + retained Finding
 → Builder alone recomputes acceptance
 ```
 
-The path is now a concrete candidate on branch `rb-builder-next-vertical`.
+The path is now published as normal PR #69 from branch
+`rb-builder-next-vertical`.
 PostgreSQL 17, local OCI Git custody, Chromium Product interaction, the normal
 Sonnet 5 composed build loop and a production-shaped Sonnet 5 correction replay
 are GREEN. A bounded GPT-6 Astra review found six material defects during
 implementation; each was corrected and the final re-review is `CLEAR`. The next
-smallest action is one normal PR and objective CI evaluation.
+smallest action is objective PR #69 CI evaluation followed by the separately
+operator-gated merge decision.
 This does not reopen the runtime choice: both roles remain deployment-selected
 through the shared catalog and the controlled Mastra/E2B runtime. Merge remains
 separately operator-gated.
 
 ACP, runtime tournaments, Worker Eval infrastructure, private MCP, concurrent
 writers, `BLD-18..20`, R3+, Release/deployment and broad Sankhya writes remain
-deferred unless a named material falsifier reopens their smallest owner. Push
-and a normal PR are authorized only when there is an actual candidate; merge
+deferred unless a named material falsifier reopens their smallest owner. Merge
 still requires a separate explicit operator decision. Credential values must
 not enter chat, Git, logs, terminal output or Evidence.
 

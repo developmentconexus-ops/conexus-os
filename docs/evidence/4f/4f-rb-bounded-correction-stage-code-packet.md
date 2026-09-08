@@ -1,6 +1,6 @@
 # RB — bounded correction and Finding resolution stage code packet
 
-Status: `CANDIDATE / TARGETED + LIVE + LINUX FLOOR GREEN / GPT-6 ASTRA REVIEW CLEAR / PR NEXT`
+Status: `PR #69 / TARGETED + LIVE + LINUX FLOOR GREEN / GPT-6 ASTRA REVIEW CLEAR / OBJECTIVE CI IN PROGRESS`
 
 ## Observable outcome and invariant
 
