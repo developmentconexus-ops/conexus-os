@@ -67,6 +67,9 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   await page.getByText('O candidato satisfaz a intenção aceita do Change.', { exact: false }).waitFor()
   assert.equal(evidenceFetchStates.includes('VERIFIED'), true)
   await page.getByText('+health: ok', { exact: true }).waitFor()
+  state = 'VERIFICATION_FAILED'
+  await page.reload()
+  await page.getByText('Verificação reprovada.', { exact: false }).waitFor()
   await page.setViewportSize({ width: 360, height: 800 })
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true)
 })

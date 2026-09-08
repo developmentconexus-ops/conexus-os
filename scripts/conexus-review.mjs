@@ -287,6 +287,21 @@ export function buildReviewPrompt({ repositoryRoot: root = repositoryRoot, brief
   ].join('\n')
 }
 
+/** Keep AGY headless review on native workspace reads that require no approval. */
+export function buildLaneReviewPrompt(lane, options) {
+  const prompt = buildReviewPrompt(options)
+  if (lane !== 'gemini') return prompt
+  return [
+    prompt,
+    '',
+    'AGY HEADLESS READ-ONLY CONSTRAINTS:',
+    `- Inspect only the exact workspace root ${options.repositoryRoot}. Do not search or read its parent or sibling directories.`,
+    '- Use only native read-only repository tools: view_file, grep_search, list_dir, and find_by_name scoped to that exact root.',
+    '- Never call run_command, command_status, send_command_input, write/edit tools, browser/web tools, or subagents.',
+    '- The exact commit/base and changed-path orientation are in the brief. If native reads cannot establish a claim, report it as an unknown; do not request permission or substitute a command.',
+  ].join('\n')
+}
+
 const shellWriteTools = Object.freeze(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
 
 /** Return one argv vector; this function never invokes a reviewer. */
@@ -513,6 +528,21 @@ async function executeLane(lane, options, prompt, runProcess = spawnCapture) {
     fail(`unable to invoke ${lane} CLI: ${error.message}`)
   }
   const parsed = rawJson(result.stdout)
+  if (result.code !== 0) {
+    fail(`${lane} review failed with exit ${result.code ?? 'unknown'}: ${result.stderr.trim()}`)
+  }
+  if (lane === 'gemini') {
+    if (!parsed || typeof parsed !== 'object') fail('gemini review did not return JSON')
+    const status = valueAt(parsed, 'status', 'result.status')
+    if (status !== 'SUCCESS') fail(`gemini review returned status ${JSON.stringify(status)}`)
+    const deniedActions = valueAt(parsed, 'denied_actions', 'result.denied_actions')
+    if (Array.isArray(deniedActions) && deniedActions.length > 0) {
+      const names = deniedActions.map((entry) => entry?.display_name ?? entry?.action ?? 'unknown')
+      fail(`gemini review was permission-denied: ${names.join(', ')}`)
+    }
+    const response = valueAt(parsed, 'response', 'result.response')
+    if (typeof response !== 'string' || !response.trim()) fail('gemini review returned an empty response')
+  }
   return {
     ...invocation,
     version,
@@ -531,17 +561,21 @@ const publicInvocation = ({ parsed: _parsed, ...invocation }) => invocation
 /** Build a dry-run result or execute explicitly selected lanes. */
 export async function runReview(options, { runProcess = spawnCapture } = {}) {
   const validated = validateConfig(options)
-  const prompt = buildReviewPrompt(validated)
-  const laneOptions = {
-    prompt,
+  const lanes = lanesFor(validated.lane)
+  const laneOptions = (lane) => ({
+    prompt: buildLaneReviewPrompt(lane, validated),
     session: validated.session,
     conversation: validated.conversation,
     claudeModel: validated.claudeModel,
-  }
-  const lanes = lanesFor(validated.lane)
+  })
   const records = validated.dryRun
-    ? lanes.map((lane) => publicInvocation(buildLaneInvocation(lane, laneOptions)))
-    : await Promise.all(lanes.map((lane) => executeLane(lane, validated, prompt, runProcess)))
+    ? lanes.map((lane) => publicInvocation(buildLaneInvocation(lane, laneOptions(lane))))
+    : await Promise.all(lanes.map((lane) => executeLane(
+        lane,
+        validated,
+        laneOptions(lane).prompt,
+        runProcess,
+      )))
   const result = {
     schema: 'conexus.review-run/v1',
     repositoryRoot: validated.repositoryRoot,

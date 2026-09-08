@@ -184,9 +184,6 @@ DECLARE stored builder.change%ROWTYPE; baseline record; unit builder.work_unit%R
 BEGIN
   SELECT * INTO STRICT stored FROM builder.change WHERE change_id = p_change_id FOR UPDATE;
   IF stored.state <> 'RESULT_READY' THEN RAISE EXCEPTION 'BUILDER_CHANGE_NOT_RESULT_READY' USING ERRCODE = 'P0001'; END IF;
-  PERFORM 1 FROM iam.admit_project_review(stored.created_by_account_id, stored.project_id);
-  IF NOT FOUND THEN UPDATE builder.change SET state = 'UNVERIFIED', updated_at = clock_timestamp() WHERE change_id = p_change_id;
-    RETURN jsonb_build_object('refusedCode', 'BUILDER_REVIEW_AUTHORITY_REVOKED'); END IF;
   SELECT * INTO baseline FROM project.get_approved_baseline(stored.project_id, ARRAY[stored.project_id]);
   IF NOT FOUND OR baseline.baseline_digest <> stored.baseline_digest OR baseline.source_revision <> stored.base_source_revision THEN
     UPDATE builder.change SET state = 'UNVERIFIED', updated_at = clock_timestamp() WHERE change_id = p_change_id;

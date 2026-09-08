@@ -777,9 +777,11 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   await query(executor, 'SELECT builder.bind_sandbox($1,$2,$3)', [failedCodingRun, failedCodingToken, 'failed_coding'])
   await query(executor, 'SELECT builder.settle_result($1,$2,$3,$4,$5,$6,$7)', [failedCodingRun, failedCodingToken,
     'failed_coding', baseSourceRevision, 'e'.repeat(40), 'diff', 'worker success claim'])
+  await query(current, 'UPDATE iam.project_builder_grant SET can_review = false WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
   const failedVerification = (await query(executor, 'SELECT builder.claim_verification($1,$2,$3,$4,$5,$6) AS value', [
     failedChange, failedVerifierRun, failedVerifierToken, verifierIdentity.admissionId, verifierIdentity.providerId, verifierIdentity.modelId,
   ])).rows[0].value
+  assert.equal(failedVerification.changeId, failedChange)
   await query(executor, 'SELECT builder.bind_sandbox($1,$2,$3)', [failedVerifierRun, failedVerifierToken, 'failed_verifier'])
   const failingReport = { outcome: 'FAIL', intentSatisfied: false, summary: 'The requested endpoint is absent.', findings: ['Missing endpoint.'], checks: [{ name: 'intent', outcome: 'FAIL', detail: 'No route exists.' }] }
   await query(executor, 'SELECT builder.settle_verification($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)', [
@@ -791,6 +793,10 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   ])
   assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [failedChange])).rows[0].state, 'VERIFICATION_FAILED')
   assert.equal((await query(current, 'SELECT count(*)::int AS count FROM builder.change_acceptance WHERE change_id = $1', [failedChange])).rows[0].count, 0)
+  assert.equal((await query(ingress, 'SELECT count(*)::int AS count FROM builder.list_findings($1,$2,$3)', [
+    accountId, subjectProjectId, failedChange,
+  ])).rows[0].count, 0)
+  await query(current, 'UPDATE iam.project_builder_grant SET can_review = true WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
   const disclosedFindings = await query(ingress, 'SELECT value FROM builder.list_findings($1,$2,$3) AS value', [accountId, subjectProjectId, failedChange])
   assert.equal(disclosedFindings.rows[0].value.summary, 'The requested endpoint is absent.')
   assert.equal((await query(ingress, 'SELECT builder.get_finding($1,$2,$3,$4) AS value', [

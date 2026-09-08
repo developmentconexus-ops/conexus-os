@@ -83,6 +83,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
               {change.data?.state === 'FAILED' && <p role="alert">O trabalho foi interrompido sem produzir um resultado aceito.</p>}
               {change.data?.state === 'VERIFYING' && <p>O Conexus está verificando o candidato em uma execução independente.</p>}
               {change.data?.state === 'VERIFIED' && <p><strong>Resultado verificado.</strong> O Hub confirmou a Evidence contra o candidato e o Baseline exatos.</p>}
+              {change.data?.state === 'VERIFICATION_FAILED' && <p role="alert"><strong>Verificação reprovada.</strong> O candidato não foi aceito; confira os pontos encontrados.</p>}
               {change.data?.state === 'UNVERIFIED' && <p role="alert">Há um candidato, mas a verificação não estabeleceu aceitação.</p>}
               {findings.data && findings.data.length > 0 && <section aria-labelledby="change-findings-title"><h4 id="change-findings-title">Pontos encontrados</h4><ul>{findings.data.map((finding) => <li key={finding.findingId}>{finding.summary} — {finding.state}</li>)}</ul></section>}
               {evidence.data && evidence.data.length > 0 && <section aria-labelledby="change-evidence-title"><h4 id="change-evidence-title">Verificação</h4><ul>{evidence.data.map((item) => <li key={item.evidenceId}>{item.claim} — candidato <code>{item.subjectDigest}</code></li>)}</ul></section>}

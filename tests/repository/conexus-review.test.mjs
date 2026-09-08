@@ -50,6 +50,9 @@ test('default is a two-lane dry-run and emits no provider output', () => {
   assert.match(result.body.lanes[0].args.join(' '), /--disallowed-tools .*Write.*Edit.*MultiEdit.*NotebookEdit/)
   assert.match(result.body.lanes[0].args.join(' '), /--output-format stream-json --verbose --include-partial-messages/)
   assert.match(result.body.lanes[1].args.join(' '), /--mode plan .*--sandbox .*--output-format json/)
+  assert.match(result.body.lanes[1].args[1], /AGY HEADLESS READ-ONLY CONSTRAINTS:/)
+  assert.match(result.body.lanes[1].args[1], /Never call run_command/)
+  assert.doesNotMatch(result.body.lanes[0].args[1], /AGY HEADLESS READ-ONLY CONSTRAINTS:/)
   assert.doesNotMatch(result.output, /REVISE|ACCEPT|CONVERGENCE|GLOBAL_MAXIMUM/)
 })
 
@@ -197,6 +200,82 @@ if (process.argv.includes('--version')) {
     assert.equal(body.lanes[0].raw.includes('FIRST_PROGRESS'), false)
     assert.deepEqual(JSON.parse(body.lanes[0].raw).type, 'result')
     assert.deepEqual(JSON.parse(readFileSync(body.outputFile, 'utf8')), body)
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true })
+  }
+})
+
+test('AGY execution fails closed on denied actions or empty output', () => {
+  const temporaryRoot = mkdtempSync(resolve(tmpdir(), 'conexus-review-agy-denied-'))
+  const fakeAgy = resolve(temporaryRoot, 'agy')
+  writeFileSync(fakeAgy, `#!/usr/bin/env node
+if (process.argv.includes('--version')) {
+  process.stdout.write('1.1.27\\n')
+} else {
+  process.stdout.write(JSON.stringify({
+    conversation_id: '11111111-1111-4111-8111-111111111111',
+    status: 'SUCCESS',
+    response: '',
+    denied_actions: [{ action: 'command', display_name: 'RunCommand' }],
+  }) + '\\n')
+}
+`, 'utf8')
+  chmodSync(fakeAgy, 0o755)
+
+  try {
+    const result = spawnSync(process.execPath, [
+      script,
+      '--brief', brief,
+      '--lane', 'gemini',
+      '--execute',
+    ], {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      windowsHide: true,
+      env: { ...process.env, CONEXUS_REVIEW_AGY_BIN: fakeAgy },
+    })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /gemini review was permission-denied: RunCommand/)
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true })
+  }
+})
+
+test('AGY execution preserves a non-empty native-read review', () => {
+  const temporaryRoot = mkdtempSync(resolve(tmpdir(), 'conexus-review-agy-success-'))
+  const fakeAgy = resolve(temporaryRoot, 'agy')
+  writeFileSync(fakeAgy, `#!/usr/bin/env node
+if (process.argv.includes('--version')) {
+  process.stdout.write('1.1.27\\n')
+} else {
+  const prompt = process.argv[process.argv.indexOf('-p') + 1]
+  if (!prompt.includes('Never call run_command')) process.exit(9)
+  process.stdout.write(JSON.stringify({
+    conversation_id: '22222222-2222-4222-8222-222222222222',
+    status: 'SUCCESS',
+    response: 'NO FINDING\\nVERDICT = CLEAR',
+  }) + '\\n')
+}
+`, 'utf8')
+  chmodSync(fakeAgy, 0o755)
+
+  try {
+    const result = spawnSync(process.execPath, [
+      script,
+      '--brief', brief,
+      '--lane', 'gemini',
+      '--execute',
+      '--json',
+    ], {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      windowsHide: true,
+      env: { ...process.env, CONEXUS_REVIEW_AGY_BIN: fakeAgy },
+    })
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
+    const body = JSON.parse(result.stdout)
+    assert.equal(body.lanes[0].verdictRaw, 'CLEAR')
+    assert.match(body.lanes[0].raw, /NO FINDING/)
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true })
   }
