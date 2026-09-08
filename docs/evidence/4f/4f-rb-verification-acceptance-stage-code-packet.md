@@ -1,6 +1,6 @@
 # RB — governed verification and Change acceptance stage code packet
 
-Status: `OPEN / OPERATOR AUTHORIZED`
+Status: `CANDIDATE / INDEPENDENT CONVERGENCE CLEAR / OPERATOR ACCEPTANCE PENDING`
 
 ## Observable outcome and invariant
 
@@ -67,6 +67,10 @@ Product UX.
   `project.source.read` for Findings/Evidence disclosure. It is a human
   disclosure/decision permission, not authority over system-owned verifier
   settlement.
+- The existing first-vertical creator grant receives an explicit independent
+  `can_review` fact in this bounded migration because no grant-management
+  operation is admitted in this slice. The column remains separately revocable;
+  this initial dual grant does not make `project.build` imply `project.review`.
 - The creator's current `project.build` authority is re-applied when admitting
   the separate verifier ActorRun and again before acceptance settlement.
   Revocation leaves the exact candidate/diff inspectable as `UNVERIFIED`; it
@@ -94,7 +98,9 @@ The verifier report outcome is exactly `PASS | FAIL | INCONCLUSIVE`.
 
 ## RED falsifiers and proof
 
-Targeted tests must first prove these failures:
+The proof graph must establish these falsifiers proportionally through firing
+controls for reachable runtime/state paths and exact schema/source checks where
+the property is structural:
 
 1. generic green mechanical checks plus a failed intent assertion cannot accept;
 2. missing contract/assertion mapping cannot accept;
