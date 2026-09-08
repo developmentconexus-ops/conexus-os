@@ -32,11 +32,12 @@ Product UX.
 - Product operations added to the realized surface: `BLD-11`, `BLD-12`,
   `BLD-14`, `BLD-15`. Existing `BLD-02/04/06/07/17` project the resulting owner
   truth.
-- `BLD-03.intent` remains the accepted human meaning of a Change. For new
-  Changes, Builder derives one immutable `contract_revision` whose required
-  cognitive assertion binds the exact intent digest; the Plan links its only
-  item to that assertion. Existing Changes without this mapping remain honestly
-  unverified.
+- `BLD-03.intent` remains the accepted human meaning of a Change. Builder
+  derives one immutable `contract_revision` whose required cognitive assertion
+  binds the exact intent digest; the Plan links its only item to that assertion.
+  Migration derives the same mapping for already-durable first-vertical Changes
+  from their existing operation receipt and fails atomically if that provenance
+  is absent; it does not manufacture a different contract meaning.
 - Builder owns contract revision, verifier ActorRun, Finding and
   `change_acceptance`. Verification reports are immutable subordinate payloads
   of the verifier ActorRun, not a generic Evidence semantic owner.
@@ -83,8 +84,9 @@ The verifier report outcome is exactly `PASS | FAIL | INCONCLUSIVE`.
 - `INCONCLUSIVE`, verifier interruption, missing required Evidence, stale
   authority or stale subject leaves the Change unaccepted in `UNVERIFIED`.
 - Late/replaced verifier output is quarantined and cannot settle current work.
-- Restart interrupts an in-flight verifier honestly; it does not replay a
-  writer or manufacture acceptance.
+- Restart interrupts an in-flight verifier honestly. A writer result not yet
+  admitted to verification becomes `UNVERIFIED` while retaining its exact
+  candidate and diff; neither case replays a writer or manufactures acceptance.
 
 ## RED falsifiers and proof
 

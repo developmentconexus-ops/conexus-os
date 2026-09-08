@@ -92,6 +92,7 @@ export type BuilderStore = Readonly<{
   bindSandbox(actorRunId: string, admissionToken: string, sandboxId: string): Promise<void>
   settleResult(input: Readonly<ClaimedChange & { sandboxId: string; candidateSourceRevision: string; patch: string; summary: string }>): Promise<void>
   claimVerification(changeId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<ClaimedVerification>
+  failVerificationClaim(changeId: string): Promise<void>
   settleVerification(input: Readonly<ClaimedVerification & { sandboxId: string; report: unknown }>): Promise<void>
   failVerification(actorRunId: string, admissionToken: string, failureCode: string): Promise<void>
   failRun(actorRunId: string, admissionToken: string): Promise<void>
@@ -174,6 +175,9 @@ export const createBuilderStore = ({
       throw new Error('BUILDER_VERIFICATION_CLAIM_REFUSED')
     }
     return value
+  },
+  failVerificationClaim: async (changeId) => {
+    await executorPool.query('SELECT builder.fail_verification_claim($1)', [changeId])
   },
   settleVerification: async (input) => {
     const reportFindings = typeof input.report === 'object' && input.report !== null &&

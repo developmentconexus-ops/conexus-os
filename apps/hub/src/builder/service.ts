@@ -1,7 +1,7 @@
 import type { BuilderSourcePort } from './source.js'
 import type { CodingWorkerRuntime } from './runtime.js'
 import type { CandidateVerificationRuntime } from './verification-runtime.js'
-import type { BuilderStore, ChangeProjection } from './store.js'
+import type { BuilderStore, ChangeProjection, ClaimedVerification } from './store.js'
 
 export type BuilderService = Readonly<{
   createChange(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; intent: string }>): Promise<ChangeProjection>
@@ -54,7 +54,13 @@ export const createBuilderService = ({ store, source, runtime, verifier }: Reado
         await store.failRun(claim.actorRunId, claim.admissionToken).catch(() => undefined)
         throw error
       }
-      const verification = await store.claimVerification(changeId, verifier.modelIdentity)
+      let verification: ClaimedVerification
+      try {
+        verification = await store.claimVerification(changeId, verifier.modelIdentity)
+      } catch (error) {
+        await store.failVerificationClaim(changeId).catch(() => undefined)
+        throw error
+      }
       try {
         const candidateMaterial = await source.prepareCandidate({
           projectId: verification.projectId, changeId: verification.changeId,

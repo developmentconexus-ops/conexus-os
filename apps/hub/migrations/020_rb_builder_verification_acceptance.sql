@@ -225,32 +225,44 @@ BEGIN
   SELECT * INTO current_baseline FROM project.get_approved_baseline(stored.project_id, ARRAY[stored.project_id]);
   report_outcome := p_report->>'outcome'; report_summary := p_report->>'summary';
   IF run_row.state <> 'RUNNING' THEN RETURN false; END IF;
-  IF run_row.admission_token <> p_admission_token OR run_row.purpose <> 'VERIFICATION' OR
-    run_row.sandbox_id <> p_sandbox_id OR stored.state <> 'VERIFYING' OR contract.assertion_ref <> p_assertion_ref OR
-    contract.contract_revision <> p_contract_revision OR plan_row.plan_revision <> p_plan_revision OR
+  IF run_row.admission_token IS DISTINCT FROM p_admission_token OR run_row.purpose IS DISTINCT FROM 'VERIFICATION' OR
+    run_row.sandbox_id IS DISTINCT FROM p_sandbox_id OR stored.state IS DISTINCT FROM 'VERIFYING' OR
+    contract.assertion_ref IS DISTINCT FROM p_assertion_ref OR
+    contract.contract_revision IS DISTINCT FROM p_contract_revision OR plan_row.plan_revision IS DISTINCT FROM p_plan_revision OR
     current_baseline.baseline_digest IS DISTINCT FROM p_baseline_digest OR current_baseline.source_revision IS DISTINCT FROM p_base_source_revision OR
-    stored.baseline_digest <> p_baseline_digest OR stored.base_source_revision <> p_base_source_revision OR
-    stored.candidate_source_revision <> p_candidate_source_revision OR p_evidence_set_digest !~ '^[0-9a-f]{64}$' OR
-    report_outcome NOT IN ('PASS', 'FAIL', 'INCONCLUSIVE') OR report_summary !~ '\S' OR
-    jsonb_typeof(p_report->'intentSatisfied') <> 'boolean' OR
-    jsonb_typeof(p_report->'findings') <> 'array' OR jsonb_typeof(p_report->'checks') <> 'array' OR
-    jsonb_array_length(p_report->'checks') < 1 THEN
+    stored.baseline_digest IS DISTINCT FROM p_baseline_digest OR stored.base_source_revision IS DISTINCT FROM p_base_source_revision OR
+    stored.candidate_source_revision IS DISTINCT FROM p_candidate_source_revision OR
+    p_evidence_set_digest IS NULL OR p_evidence_set_digest !~ '^[0-9a-f]{64}$' OR
+    report_outcome IS NULL OR report_outcome NOT IN ('PASS', 'FAIL', 'INCONCLUSIVE') OR
+    report_summary IS NULL OR report_summary !~ '\S' OR
+    jsonb_typeof(p_report->'intentSatisfied') IS DISTINCT FROM 'boolean' OR
+    jsonb_typeof(p_report->'findings') IS DISTINCT FROM 'array' OR
+    jsonb_typeof(p_report->'checks') IS DISTINCT FROM 'array' THEN
     UPDATE builder.actor_run SET state = 'QUARANTINED', updated_at = clock_timestamp() WHERE actor_run_id = p_actor_run_id;
     UPDATE builder.change SET state = 'UNVERIFIED', updated_at = clock_timestamp() WHERE change_id = run_row.change_id AND state = 'VERIFYING';
     RETURN false;
   END IF;
-  IF cardinality(p_finding_ids) IS DISTINCT FROM jsonb_array_length(p_report->'findings') OR
+  IF jsonb_array_length(p_report->'checks') < 1 OR
+    cardinality(p_finding_ids) IS DISTINCT FROM jsonb_array_length(p_report->'findings') OR
     cardinality(p_finding_revisions) IS DISTINCT FROM jsonb_array_length(p_report->'findings') OR
     EXISTS (SELECT 1 FROM jsonb_array_elements(p_report->'findings') AS finding_row
-      WHERE jsonb_typeof(finding_row) <> 'string' OR finding_row #>> '{}' !~ '\S') OR
+      WHERE jsonb_typeof(finding_row) IS DISTINCT FROM 'string' OR finding_row #>> '{}' IS NULL OR finding_row #>> '{}' !~ '\S') OR
+    EXISTS (SELECT 1 FROM jsonb_array_elements(p_report->'checks') AS check_row
+      WHERE jsonb_typeof(check_row) IS DISTINCT FROM 'object' OR
+        check_row->>'name' IS NULL OR check_row->>'name' !~ '\S' OR
+        check_row->>'outcome' IS NULL OR check_row->>'outcome' NOT IN ('PASS', 'FAIL', 'INCONCLUSIVE') OR
+        check_row->>'detail' IS NULL OR check_row->>'detail' !~ '\S') OR
     (report_outcome = 'FAIL') <> (jsonb_array_length(p_report->'findings') > 0 AND
       EXISTS (SELECT 1 FROM jsonb_array_elements(p_report->'checks') AS check_row WHERE check_row->>'outcome' = 'FAIL')) THEN
     UPDATE builder.actor_run SET state = 'QUARANTINED', updated_at = clock_timestamp() WHERE actor_run_id = p_actor_run_id;
     UPDATE builder.change SET state = 'UNVERIFIED', updated_at = clock_timestamp() WHERE change_id = run_row.change_id AND state = 'VERIFYING';
     RETURN false;
   END IF;
-  valid_pass := report_outcome = 'PASS' AND (p_report->>'intentSatisfied')::boolean AND jsonb_array_length(p_report->'findings') = 0
-    AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(p_report->'checks') AS check_row WHERE check_row->>'outcome' <> 'PASS');
+  valid_pass := report_outcome = 'PASS' AND (p_report->>'intentSatisfied')::boolean IS TRUE AND
+    jsonb_array_length(p_report->'findings') = 0 AND NOT EXISTS (
+      SELECT 1 FROM jsonb_array_elements(p_report->'checks') AS check_row
+      WHERE check_row->>'outcome' IS DISTINCT FROM 'PASS'
+    );
   INSERT INTO builder.verification_evidence(evidence_id, change_id, actor_run_id, assertion_ref, claim,
     subject_digest, outcome, provenance, report, evidence_set_digest)
   VALUES (p_evidence_id, run_row.change_id, p_actor_run_id, p_assertion_ref,
@@ -296,11 +308,21 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION builder.fail_verification_claim(p_change_id uuid)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+  UPDATE builder.change SET state = 'UNVERIFIED', updated_at = clock_timestamp()
+  WHERE change_id = p_change_id AND state = 'RESULT_READY';
+  RETURN FOUND;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION builder.recover_and_list_queued() RETURNS SETOF uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
   UPDATE builder.actor_run SET state = 'INTERRUPTED', updated_at = clock_timestamp() WHERE state IN ('ADMITTED', 'RUNNING');
   UPDATE builder.change SET state = 'UNVERIFIED', updated_at = clock_timestamp() WHERE state = 'VERIFYING';
+  UPDATE builder.change SET state = 'UNVERIFIED', updated_at = clock_timestamp() WHERE state = 'RESULT_READY';
   UPDATE builder.work_unit SET state = 'INTERRUPTED' WHERE state = 'RUNNING';
   UPDATE builder.plan SET item_state = 'INTERRUPTED' WHERE item_state = 'RUNNING';
   UPDATE builder.change SET state = 'INTERRUPTED', updated_at = clock_timestamp() WHERE state = 'RUNNING';
@@ -383,7 +405,7 @@ GRANT EXECUTE ON FUNCTION builder.list_findings(uuid,uuid,uuid), builder.get_fin
   builder.list_evidence(uuid,uuid,uuid), builder.get_evidence(uuid,uuid,uuid,uuid) TO hub_rb_ingress;
 GRANT EXECUTE ON FUNCTION builder.claim_verification(uuid,uuid,uuid,text,text,text),
   builder.settle_verification(uuid,uuid,text,text,uuid,uuid,text,text,text,uuid,uuid[],uuid[],text,jsonb),
-  builder.fail_verification(uuid,uuid,text) TO hub_rb_executor;
+  builder.fail_verification(uuid,uuid,text), builder.fail_verification_claim(uuid) TO hub_rb_executor;
 REVOKE ALL ON ALL TABLES IN SCHEMA builder FROM hub_rb_ingress, hub_rb_executor;
 
 COMMIT;

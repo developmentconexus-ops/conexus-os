@@ -62,6 +62,7 @@ test('Builder admits only an explicitly remote runtime and settles a fully scope
     bindSandbox: async (...args) => { calls.push(['bind', ...args]) },
     settleResult: async (input) => { calls.push(['settle', input]) },
     claimVerification: async () => { calls.push('claim-verification'); return verificationClaim },
+    failVerificationClaim: async () => { calls.push('fail-verification-claim') },
     settleVerification: async (input) => { calls.push(['settle-verification', input]) },
     failVerification: async (...args) => { calls.push(['fail-verification', ...args]) },
     failRun: async (...args) => { calls.push(['fail', ...args]) },
@@ -107,6 +108,39 @@ test('Builder admits only an explicitly remote runtime and settles a fully scope
   assert.equal(settlement.baseSourceRevision, baseSourceRevision)
   assert.equal(settlement.candidateSourceRevision, candidateSourceRevision)
   assert.equal(settlement.sandboxId, sandboxId)
+})
+
+test('Builder turns a verifier claim failure into honest unverified state without replaying the writer', async () => {
+  const calls = []
+  const store = {
+    createChange: async () => projection,
+    claimChange: async () => { calls.push('claim'); return claim },
+    bindSandbox: async () => {},
+    settleResult: async () => { calls.push('settle') },
+    claimVerification: async () => { calls.push('claim-verification'); throw new Error('VERIFIER_CLAIM_UNAVAILABLE') },
+    failVerificationClaim: async (failedChangeId) => { calls.push(['fail-verification-claim', failedChangeId]) },
+    settleVerification: async () => { throw new Error('must not settle') },
+    failVerification: async () => { throw new Error('must not fail an unclaimed ActorRun') },
+    failRun: async () => {},
+    recoverAndListQueued: async () => [],
+    close: async () => { calls.push('close') },
+  }
+  const source = {
+    prepareSource: async () => Uint8Array.from([1]),
+    admitCandidate: async () => ({ baseSourceRevision, candidateSourceRevision, patch: 'diff' }),
+  }
+  const runtime = {
+    kind: 'REMOTE_E2B', modelIdentity,
+    execute: async () => ({ runtimeId: 'mastra-native-e2b-v1', ...claim, sandboxId, candidateSourceRevision, resultBundle: Uint8Array.from([2]), summary: 'Implemented.' }),
+  }
+  const service = createBuilderService({
+    store, source, runtime, verifier: { kind: 'REMOTE_E2B', modelIdentity: verifierIdentity },
+  })
+  await service.createChange({ accountId: projectId, projectId, idempotencyKey: 'claim-failure', intent: projection.intent })
+  await service.close()
+  assert.deepEqual(calls, [
+    'claim', 'settle', 'claim-verification', ['fail-verification-claim', changeId], 'close',
+  ])
 })
 
 test('Builder refuses mismatched worker lineage and never settles its narration', async () => {
@@ -679,6 +713,13 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
     '60000000-0000-4000-8000-000000000042', '60000000-0000-4000-8000-000000000043',
     '60000000-0000-4000-8000-000000000044', '60000000-0000-4000-8000-000000000045', 'Missing baseline',
   ]), /BLD03_BASELINE_REQUIRED/)
+  await query(current, `INSERT INTO project.baseline_candidate(project_id, candidate_digest, source_revision, source_text, application_runtime_profile)
+    VALUES ($1, $2, $3, 'Foreign accepted baseline', 'MANAGED')`, [noBaselineProject, '5'.repeat(64), baseSourceRevision])
+  await query(current, `INSERT INTO project.baseline_state(project_id, current_candidate_digest, approved_candidate_digest, approval_revision)
+    VALUES ($1, $2, $2, $3)`, [noBaselineProject, '5'.repeat(64), '60000000-0000-4000-8000-000000000046'])
+  await query(current, 'SELECT iam.ensure_project_builder_grant($1,$2)', [accountId, noBaselineProject])
+  assert.equal((await query(current, `SELECT count(*)::int AS count FROM iam.project_builder_grant
+    WHERE account_id = $1 AND project_id = $2 AND can_review`, [accountId, noBaselineProject])).rows[0].count, 1)
 
   const created = await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value', [
     accountId, subjectProjectId, 'e'.repeat(64), 'f'.repeat(64), subjectChangeId, planRevision, itemId,
@@ -733,6 +774,106 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
     [], [],
     '1'.repeat(64), passingReport,
   ])).rows[0].settled, true)
+  assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [verifiedChange])).rows[0].state, 'VERIFIED')
+
+  const prepareVerification = async ({ change, plan, item, session, unit, codingRun, codingToken, verifierRun, verifierToken, keyDigest, requestDigest, candidate, intent }) => {
+    await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+      accountId, subjectProjectId, keyDigest, requestDigest, change, plan, item, session, unit, intent,
+    ])
+    await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6)', [
+      change, codingRun, codingToken, modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
+    ])
+    await query(executor, 'SELECT builder.bind_sandbox($1,$2,$3)', [codingRun, codingToken, `${change}-coding`])
+    await query(executor, 'SELECT builder.settle_result($1,$2,$3,$4,$5,$6,$7)', [
+      codingRun, codingToken, `${change}-coding`, baseSourceRevision, candidate, 'diff', 'summary',
+    ])
+    const claimedVerification = (await query(executor, 'SELECT builder.claim_verification($1,$2,$3,$4,$5,$6) AS value', [
+      change, verifierRun, verifierToken, verifierIdentity.admissionId, verifierIdentity.providerId, verifierIdentity.modelId,
+    ])).rows[0].value
+    await query(executor, 'SELECT builder.bind_sandbox($1,$2,$3)', [verifierRun, verifierToken, `${change}-verifier`])
+    return claimedVerification
+  }
+
+  const missingReportChange = '64000000-0000-4000-8000-000000000001'
+  const missingReportVerification = await prepareVerification({
+    change: missingReportChange, plan: '64000000-0000-4000-8000-000000000002', item: '64000000-0000-4000-8000-000000000003',
+    session: '64000000-0000-4000-8000-000000000004', unit: '64000000-0000-4000-8000-000000000005',
+    codingRun: '64000000-0000-4000-8000-000000000006', codingToken: '64000000-0000-4000-8000-000000000007',
+    verifierRun: '64000000-0000-4000-8000-000000000008', verifierToken: '64000000-0000-4000-8000-000000000009',
+    keyDigest: '6'.repeat(64), requestDigest: '7'.repeat(64), candidate: '6'.repeat(40), intent: 'Reject an incomplete verifier report',
+  })
+  assert.equal((await query(executor, 'SELECT builder.fail_verification_claim($1) AS changed', [missingReportChange])).rows[0].changed, false)
+  assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [missingReportChange])).rows[0].state, 'VERIFYING')
+  assert.equal((await query(executor, 'SELECT builder.settle_verification($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) AS settled', [
+    missingReportVerification.actorRunId, missingReportVerification.admissionToken, `${missingReportChange}-verifier`,
+    missingReportVerification.assertionRef, missingReportVerification.contractRevision, missingReportVerification.planRevision,
+    missingReportVerification.baselineDigest, missingReportVerification.baseSourceRevision,
+    missingReportVerification.candidateSourceRevision, '64000000-0000-4000-8000-000000000010', [], [],
+    '6'.repeat(64), { outcome: 'PASS', intentSatisfied: true, summary: 'Missing checks must not pass.', findings: [] },
+  ])).rows[0].settled, false)
+  assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [missingReportChange])).rows[0].state, 'UNVERIFIED')
+  assert.equal((await query(current, 'SELECT count(*)::int AS count FROM builder.change_acceptance WHERE change_id = $1', [missingReportChange])).rows[0].count, 0)
+
+  const emptyCheckChange = '64100000-0000-4000-8000-000000000001'
+  const emptyCheckVerification = await prepareVerification({
+    change: emptyCheckChange, plan: '64100000-0000-4000-8000-000000000002', item: '64100000-0000-4000-8000-000000000003',
+    session: '64100000-0000-4000-8000-000000000004', unit: '64100000-0000-4000-8000-000000000005',
+    codingRun: '64100000-0000-4000-8000-000000000006', codingToken: '64100000-0000-4000-8000-000000000007',
+    verifierRun: '64100000-0000-4000-8000-000000000008', verifierToken: '64100000-0000-4000-8000-000000000009',
+    keyDigest: '8'.repeat(64), requestDigest: '9'.repeat(64), candidate: '7'.repeat(40), intent: 'Reject an empty verifier check',
+  })
+  assert.equal((await query(executor, 'SELECT builder.settle_verification($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) AS settled', [
+    emptyCheckVerification.actorRunId, emptyCheckVerification.admissionToken, `${emptyCheckChange}-verifier`,
+    emptyCheckVerification.assertionRef, emptyCheckVerification.contractRevision, emptyCheckVerification.planRevision,
+    emptyCheckVerification.baselineDigest, emptyCheckVerification.baseSourceRevision,
+    emptyCheckVerification.candidateSourceRevision, '64100000-0000-4000-8000-000000000010', [], [],
+    null, { outcome: 'PASS', intentSatisfied: true, summary: 'An empty check must not pass.', findings: [], checks: [{}] },
+  ])).rows[0].settled, false)
+  assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [emptyCheckChange])).rows[0].state, 'UNVERIFIED')
+  assert.equal((await query(current, 'SELECT count(*)::int AS count FROM builder.change_acceptance WHERE change_id = $1', [emptyCheckChange])).rows[0].count, 0)
+
+  const inconclusiveChange = '64200000-0000-4000-8000-000000000001'
+  const inconclusiveVerification = await prepareVerification({
+    change: inconclusiveChange, plan: '64200000-0000-4000-8000-000000000002', item: '64200000-0000-4000-8000-000000000003',
+    session: '64200000-0000-4000-8000-000000000004', unit: '64200000-0000-4000-8000-000000000005',
+    codingRun: '64200000-0000-4000-8000-000000000006', codingToken: '64200000-0000-4000-8000-000000000007',
+    verifierRun: '64200000-0000-4000-8000-000000000008', verifierToken: '64200000-0000-4000-8000-000000000009',
+    keyDigest: '8b'.repeat(32), requestDigest: '9b'.repeat(32), candidate: '9'.repeat(40), intent: 'Preserve an inconclusive verifier result',
+  })
+  assert.equal((await query(executor, 'SELECT builder.settle_verification($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) AS settled', [
+    inconclusiveVerification.actorRunId, inconclusiveVerification.admissionToken, `${inconclusiveChange}-verifier`,
+    inconclusiveVerification.assertionRef, inconclusiveVerification.contractRevision, inconclusiveVerification.planRevision,
+    inconclusiveVerification.baselineDigest, inconclusiveVerification.baseSourceRevision,
+    inconclusiveVerification.candidateSourceRevision, '64200000-0000-4000-8000-000000000010', [], [],
+    '9'.repeat(64), { outcome: 'INCONCLUSIVE', intentSatisfied: false, summary: 'Available evidence is insufficient.', findings: [], checks: [{ name: 'intent', outcome: 'INCONCLUSIVE', detail: 'The candidate cannot establish this assertion.' }] },
+  ])).rows[0].settled, true)
+  assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [inconclusiveChange])).rows[0].state, 'UNVERIFIED')
+  assert.equal((await query(current, 'SELECT outcome FROM builder.verification_evidence WHERE change_id = $1', [inconclusiveChange])).rows[0].outcome, 'INCONCLUSIVE')
+  assert.equal((await query(current, 'SELECT count(*)::int AS count FROM builder.change_acceptance WHERE change_id = $1', [inconclusiveChange])).rows[0].count, 0)
+
+  const recoveryChange = '65000000-0000-4000-8000-000000000001'
+  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+    accountId, subjectProjectId, 'a1'.repeat(32), 'b1'.repeat(32), recoveryChange,
+    '65000000-0000-4000-8000-000000000002', '65000000-0000-4000-8000-000000000003',
+    '65000000-0000-4000-8000-000000000004', '65000000-0000-4000-8000-000000000005', 'Preserve a result across recovery',
+  ])
+  await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6)', [
+    recoveryChange, '65000000-0000-4000-8000-000000000006', '65000000-0000-4000-8000-000000000007',
+    modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
+  ])
+  await query(executor, 'SELECT builder.bind_sandbox($1,$2,$3)', [
+    '65000000-0000-4000-8000-000000000006', '65000000-0000-4000-8000-000000000007', 'recovery-coding',
+  ])
+  await query(executor, 'SELECT builder.settle_result($1,$2,$3,$4,$5,$6,$7)', [
+    '65000000-0000-4000-8000-000000000006', '65000000-0000-4000-8000-000000000007', 'recovery-coding',
+    baseSourceRevision, '8'.repeat(40), 'recovery diff', 'completed before restart',
+  ])
+  assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [recoveryChange])).rows[0].state, 'RESULT_READY')
+  await query(executor, 'SELECT builder.recover_and_list_queued()')
+  await query(executor, 'SELECT builder.recover_and_list_queued()')
+  const recovered = (await query(current, 'SELECT state, patch FROM builder.change WHERE change_id = $1', [recoveryChange])).rows[0]
+  assert.deepEqual(recovered, { state: 'UNVERIFIED', patch: 'recovery diff' })
+  assert.equal((await query(current, 'SELECT count(*)::int AS count FROM builder.actor_run WHERE change_id = $1', [recoveryChange])).rows[0].count, 1)
   assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [verifiedChange])).rows[0].state, 'VERIFIED')
   assert.equal((await query(current, 'SELECT count(*)::int AS count FROM builder.change_acceptance WHERE change_id = $1', [verifiedChange])).rows[0].count, 1)
   const disclosedEvidence = await query(ingress, 'SELECT value FROM builder.list_evidence($1,$2,$3) AS value', [accountId, subjectProjectId, verifiedChange])
@@ -890,7 +1031,7 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
 
   const staleChange = '60000000-0000-4000-8000-000000000050'
   await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
-    accountId, subjectProjectId, '8'.repeat(64), '9'.repeat(64), staleChange,
+    accountId, subjectProjectId, '8a'.repeat(32), '9a'.repeat(32), staleChange,
     '60000000-0000-4000-8000-000000000051', '60000000-0000-4000-8000-000000000052',
     '60000000-0000-4000-8000-000000000053', '60000000-0000-4000-8000-000000000054', 'Stale baseline refusal',
   ])

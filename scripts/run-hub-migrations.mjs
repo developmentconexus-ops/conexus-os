@@ -40,7 +40,7 @@ const migration016Digest = '75c7f915ca25f9ebdf29f2e047b68903f25232a92dc38b434717
 const migration017Digest = '6627c95995e642579257b80450c4c0d342a5deaa9a73f3fe57ff097d666ca61d'
 const migration018Digest = '85db476ba4b6acbaa65cf1e538ef760c2812613ae171c0cf13d21394c9d3453c'
 const migration019Digest = '819fe3ae150517a03a2e7e036f18a73b6cbec745b653c1f0ab3dc82565470353'
-const migration020Digest = '6cf88f38e5ad1357d85216ef216859fb122a57bf8baf2b08450f1a11a8f0c378'
+const migration020Digest = 'cbff52cbfaf9c7fd5059b0f76d79344e7e1da7e2e89205f067c9595bc7d6be5a'
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }
@@ -3118,7 +3118,7 @@ const assert019Catalog = async (client, { after020 = false } = {}) => {
     SELECT p.proname || ':' || pg_get_userbyid(p.proowner) || ':' || p.prosecdef || ':' ||
       coalesce(array_to_string(p.proconfig, ','), '') AS signature
     FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
-    WHERE (n.nspname = 'builder' ${after020 ? "AND p.proname NOT IN ('claim_verification','fail_verification','get_evidence','get_finding','list_evidence','list_findings','settle_verification')" : ''})
+    WHERE (n.nspname = 'builder' ${after020 ? "AND p.proname NOT IN ('claim_verification','fail_verification','fail_verification_claim','get_evidence','get_finding','list_evidence','list_findings','settle_verification')" : ''})
       OR (n.nspname = 'iam' AND p.proname IN ('admit_project_build','admit_project_source_read','ensure_project_builder_grant'))
     ORDER BY n.nspname, p.proname
   `, [
@@ -3163,12 +3163,13 @@ const assert020Catalog = async (client) => {
     SELECT n.nspname || '.' || p.proname || ':' || pg_get_userbyid(p.proowner) || ':' || p.prosecdef || ':' ||
       coalesce(array_to_string(p.proconfig, ','), '') AS signature
     FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
-    WHERE (n.nspname = 'builder' AND p.proname IN ('claim_verification','fail_verification','get_evidence','get_finding','list_evidence','list_findings','settle_verification'))
+    WHERE (n.nspname = 'builder' AND p.proname IN ('claim_verification','fail_verification','fail_verification_claim','get_evidence','get_finding','list_evidence','list_findings','settle_verification'))
       OR (n.nspname = 'iam' AND p.proname = 'admit_project_review')
     ORDER BY n.nspname, p.proname
   `, [
     'builder.claim_verification:builder_owner:true:search_path=pg_catalog, pg_temp',
     'builder.fail_verification:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'builder.fail_verification_claim:builder_owner:true:search_path=pg_catalog, pg_temp',
     'builder.get_evidence:builder_owner:true:search_path=pg_catalog, pg_temp',
     'builder.get_finding:builder_owner:true:search_path=pg_catalog, pg_temp',
     'builder.list_evidence:builder_owner:true:search_path=pg_catalog, pg_temp',
