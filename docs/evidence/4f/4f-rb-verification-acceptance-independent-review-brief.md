@@ -4,7 +4,7 @@
 
 Repository: `https://github.com/developmentconexus-ops/conexus-os.git`.
 Exact implementation candidate:
-`9cb777a237ef5890bb0168e2df48b54ff1bf1537` on
+`c332d3012da06a98645c2cc44010bdb33b9ef524` on
 `rb-builder-verification-acceptance`.
 Implementation comparison base:
 `839d5496359b95261c59906f51c0ce439d20c251`.
@@ -72,8 +72,12 @@ work remain inactive.
   Baseline, Plan, contract revision, required assertion, verifier incarnation,
   required Evidence coverage and absence of unresolved blocking Findings.
 - Late, interrupted, cancelled or replaced verifier output cannot settle the
-  current Change. Repeated identical human intents remain valid distinct
-  Changes; assertion references do not impose accidental global uniqueness.
+  current Change. A claim failure or restart moves only an unchanged
+  `RESULT_READY` candidate to honest `UNVERIFIED`, retains its exact diff and
+  never replays the writer; a concurrently admitted `VERIFYING` attempt is not
+  cancelled by that claim-failure correction. Repeated identical human intents
+  remain valid distinct Changes; assertion references do not impose accidental
+  global uniqueness.
 - `project.review` remains a human review-material disclosure permission, not
   authority over the system verifier. It is checked independently before
   Findings/Evidence disclosure. Cross-Project references disclose nothing.
@@ -104,7 +108,9 @@ Lead used Linux Node `24.20.0` and npm `12.0.2`. On the exact final candidate:
 - the targeted Builder suite passed unit, HTTP, browser, migration-custody and
   runtime refusal controls;
 - real PostgreSQL 17 migration/role/transaction tests passed, including repeated
-  intents and a Baseline changed after verifier claim;
+  intents, a Baseline changed after verifier claim, fail-closed malformed and
+  NULL reports, cross-Project disclosure with valid foreign review authority,
+  and idempotent `RESULT_READY` recovery without writer replay;
 - real OCI Git custody passed, including added/modified/deleted manifest sides;
 - a final real user composition passed through Chromium UI, HTTP, PostgreSQL,
   Git, Mastra `1.63.2`, the explicitly pinned E2B template, writer E2B sandbox,
