@@ -229,7 +229,9 @@ export const createMastraE2BCandidateVerificationRuntime = (
           `git -C /workspace/repo worktree add --quiet --detach /workspace/base ${input.baseSourceRevision}`,
           'test -z "$(git -C /workspace/repo remote)"',
           `test "$(git -C /workspace/repo rev-parse HEAD)" = "${input.candidateSourceRevision}"`,
-          `test "$(git -C /workspace/repo rev-parse HEAD^)" = "${input.baseSourceRevision}"`,
+          `git -C /workspace/repo merge-base --is-ancestor ${input.baseSourceRevision} ${input.candidateSourceRevision}`,
+          `test "$(git -C /workspace/repo rev-list --count ${input.baseSourceRevision}..${input.candidateSourceRevision})" -ge 1`,
+          `test "$(git -C /workspace/repo rev-list --count ${input.baseSourceRevision}..${input.candidateSourceRevision})" -le 2`,
         ].join(' && ')])
         if (!prepared.success) throw new Error('BUILDER_VERIFIER_MATERIALIZATION_REFUSED')
 

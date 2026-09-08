@@ -64,6 +64,7 @@ test('Builder admits only an explicitly remote runtime and settles a fully scope
     claimVerification: async () => { calls.push('claim-verification'); return verificationClaim },
     failVerificationClaim: async () => { calls.push('fail-verification-claim') },
     settleVerification: async (input) => { calls.push(['settle-verification', input]) },
+    claimCorrection: async () => { calls.push('claim-correction'); return null },
     failVerification: async (...args) => { calls.push(['fail-verification', ...args]) },
     failRun: async (...args) => { calls.push(['fail', ...args]) },
     recoverAndListQueued: async () => [],
@@ -102,12 +103,71 @@ test('Builder admits only an explicitly remote runtime and settles a fully scope
   await service.close()
   assert.deepEqual(calls.map((entry) => Array.isArray(entry) ? entry[0] : entry), [
     'claim', 'source', 'execute', 'bind', 'admit', 'settle', 'claim-verification',
-    'candidate-source', 'verify', 'bind', 'settle-verification', 'close',
+    'candidate-source', 'verify', 'bind', 'settle-verification', 'claim-correction', 'close',
   ])
   const settlement = calls.find((entry) => Array.isArray(entry) && entry[0] === 'settle')[1]
   assert.equal(settlement.baseSourceRevision, baseSourceRevision)
   assert.equal(settlement.candidateSourceRevision, candidateSourceRevision)
   assert.equal(settlement.sandboxId, sandboxId)
+})
+
+test('Builder performs exactly one serial correction from the rejected candidate', async () => {
+  const correctedWorkUnitId = '33333333-3333-4333-8333-333333333334'
+  const correctedRunId = '44444444-4444-4444-8444-444444444445'
+  const correctedToken = '55555555-5555-4555-8555-555555555556'
+  const correctedCandidate = 'c'.repeat(40)
+  const correctionClaim = {
+    ...claim, workUnitId: correctedWorkUnitId, actorRunId: correctedRunId, admissionToken: correctedToken,
+    baseSourceRevision: candidateSourceRevision, changeBaseSourceRevision: baseSourceRevision,
+    correctionFindings: [{ findingId: randomUUID(), findingRevision: randomUUID(), summary: 'Health route is missing.' }],
+  }
+  const codingInputs = []
+  const admissions = []
+  let correctionClaims = 0
+  let verificationAttempt = 0
+  const store = {
+    createChange: async () => projection,
+    claimChange: async () => claim,
+    claimCorrection: async () => { correctionClaims += 1; return correctionClaims === 1 ? correctionClaim : null },
+    bindSandbox: async () => {}, settleResult: async () => {}, failRun: async () => {},
+    claimVerification: async () => {
+      verificationAttempt += 1
+      return { ...verificationClaim, workUnitId: verificationAttempt === 1 ? workUnitId : correctedWorkUnitId,
+        actorRunId: randomUUID(), admissionToken: randomUUID(),
+        candidateSourceRevision: verificationAttempt === 1 ? candidateSourceRevision : correctedCandidate }
+    },
+    settleVerification: async () => {}, failVerificationClaim: async () => {}, failVerification: async () => {},
+    recoverAndListQueued: async () => [], close: async () => {},
+  }
+  const source = {
+    prepareSource: async () => Uint8Array.from([1]),
+    admitCandidate: async (input) => {
+      admissions.push(input)
+      return { baseSourceRevision: input.changeBaseSourceRevision,
+        candidateSourceRevision: input.claimedCandidateSourceRevision, patch: 'cumulative diff' }
+    },
+    prepareCandidate: async () => ({ bundle: Uint8Array.from([2]), changedFiles: [{ path: 'health.ts', status: 'ADDED', base: null, candidate: { mode: '100644', blobOid: 'a'.repeat(40), byteLength: 7 } }] }),
+  }
+  const runtime = { kind: 'REMOTE_E2B', modelIdentity, execute: async (input) => {
+    codingInputs.push(input)
+    return { runtimeId: 'mastra-native-e2b-v1', ...input, sandboxId: `sandbox-${codingInputs.length}`,
+      candidateSourceRevision: codingInputs.length === 1 ? candidateSourceRevision : correctedCandidate,
+      resultBundle: Uint8Array.from([3]), summary: 'Candidate produced.' }
+  } }
+  const verifier = { kind: 'REMOTE_E2B', modelIdentity: verifierIdentity, verify: async (input) => ({
+    runtimeId: 'mastra-native-e2b-verifier-v1', ...input, sandboxId: `verifier-${verificationAttempt}`,
+    report: verificationAttempt === 1
+      ? { outcome: 'FAIL', intentSatisfied: false, summary: 'Missing route.', findings: ['Health route is missing.'], checks: [{ name: 'intent', outcome: 'FAIL', detail: 'Missing.' }] }
+      : { outcome: 'PASS', intentSatisfied: true, summary: 'Corrected.', findings: [], checks: [{ name: 'intent', outcome: 'PASS', detail: 'Present.' }] },
+  }) }
+  const service = createBuilderService({ store, source, runtime, verifier })
+  await service.createChange({ accountId: projectId, projectId, idempotencyKey: 'correction', intent: projection.intent })
+  await service.close()
+  assert.deepEqual(codingInputs.map((input) => input.baseSourceRevision), [baseSourceRevision, candidateSourceRevision])
+  assert.equal(codingInputs[1].correctionFindings[0].summary, 'Health route is missing.')
+  assert.deepEqual(admissions.map((input) => input.changeBaseSourceRevision), [baseSourceRevision, baseSourceRevision])
+  assert.equal(correctionClaims, 1)
+  assert.equal(verificationAttempt, 2)
 })
 
 test('Builder turns a verifier claim failure into honest unverified state without replaying the writer', async () => {
@@ -185,13 +245,14 @@ test('BLD-01/02/03/04/06/07/17 expose owner projections with command authenticit
     listChanges: async (input) => { calls.push(['list', input]); return [projection] },
     readSnapshot: async (input) => { calls.push(['read', input]); return snapshot },
     listFindings: async () => [finding], getFinding: async () => finding,
+    closeFinding: async (input) => { calls.push(['close-finding', input]); return { ...finding, state: 'CLOSED' } },
     listEvidence: async () => [evidence], getEvidence: async () => evidence,
   }
   const service = { createChange: async (input) => { calls.push(['create', input]); return projection } }
   const resolveCurrentSession = async (_request, requireCsrf) => { calls.push(['session', requireCsrf]); return { account: { accountId: projectId } } }
   const app = await createHttpApp({ registerRoutes: (server) => registerBuilderRoutes(server, { store, service, resolveCurrentSession, origin }) })
   try {
-    assert.deepEqual(app.routeCensus(), ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-11', 'BLD-12', 'BLD-14', 'BLD-15', 'BLD-17'])
+    assert.deepEqual(app.routeCensus(), ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17'])
     const denied = await app.inject({ method: 'POST', url: `/api/control/projects/${projectId}/changes`, payload: { intent: projection.intent } })
     assert.equal(denied.statusCode, 403)
     const created = await app.inject({
@@ -216,6 +277,14 @@ test('BLD-01/02/03/04/06/07/17 expose owner projections with command authenticit
       assert.equal(response.statusCode, 200)
       assert.deepEqual(JSON.parse(response.body), expected)
     }
+    const closed = await app.inject({
+      method: 'POST', url: `/api/control/projects/${projectId}/changes/${changeId}/findings/${finding.findingId}/commands/close`,
+      headers: { origin, cookie: `__Host-conexus_csrf=${csrf}`, 'x-conexus-csrf': csrf },
+      payload: { expectedFindingRevision: finding.findingRevision, resolutionEvidenceIds: [evidence.evidenceId] },
+    })
+    assert.equal(closed.statusCode, 200)
+    assert.equal(JSON.parse(closed.body).state, 'CLOSED')
+    assert.deepEqual(calls.find((entry) => entry[0] === 'close-finding')[1].resolutionEvidenceIds, [evidence.evidenceId])
   } finally { await app.close() }
 })
 
@@ -528,7 +597,7 @@ test('RB real OCI custody admits one exact child and refuses multi-commit and pr
       gitFixture(work, ['commit', '-m', 'accepted child'])
     })
     const admitted = await port.admitCandidate({
-      projectId, changeId, actorRunId, baseSourceRevision: base,
+      projectId, changeId, actorRunId, baseSourceRevision: base, changeBaseSourceRevision: base,
       claimedCandidateSourceRevision: accepted.candidate, resultBundle: accepted.bytes,
     })
     assert.equal(admitted.candidateSourceRevision, accepted.candidate)
@@ -549,13 +618,58 @@ test('RB real OCI custody admits one exact child and refuses multi-commit and pr
     assert.equal(verifierMaterial.changedFiles[0].candidate.blobOid, gitFixture(root, ['--git-dir', repository, 'rev-parse', `${accepted.candidate}:README.md`]))
     assert.match(gitFixture(root, ['bundle', 'list-heads', verifierBundlePath]), new RegExp(`^${accepted.candidate} refs/conexus/changes/${changeId}$`))
 
+    gitFixture(work, ['checkout', '-B', 'conexus-result', accepted.candidate])
+    writeFileSync(resolve(work, 'README.md'), 'base\naccepted\ncorrected\n')
+    gitFixture(work, ['add', 'README.md'])
+    gitFixture(work, ['commit', '-m', 'corrected child'])
+    const corrected = gitFixture(work, ['rev-parse', 'HEAD'])
+    const correctedBundlePath = resolve(root, 'corrected.bundle')
+    gitFixture(work, ['bundle', 'create', correctedBundlePath, 'refs/heads/conexus-result'])
+    const correction = await port.admitCandidate({
+      projectId, changeId, actorRunId, baseSourceRevision: accepted.candidate, changeBaseSourceRevision: base,
+      claimedCandidateSourceRevision: corrected, resultBundle: readFileSync(correctedBundlePath),
+    })
+    assert.equal(correction.baseSourceRevision, base)
+    assert.match(correction.patch, /corrected/)
+    assert.equal(gitFixture(root, ['--git-dir', repository, 'rev-parse', `refs/conexus/changes/${changeId}`]), corrected)
+    const correctedMaterial = await port.prepareCandidate({
+      projectId, changeId, actorRunId, baseSourceRevision: base, candidateSourceRevision: corrected,
+    })
+    assert.equal(correctedMaterial.changedFiles[0].candidate.byteLength, 24)
+    await assert.rejects(port.admitCandidate({
+      projectId, changeId, actorRunId, baseSourceRevision: accepted.candidate, changeBaseSourceRevision: base,
+      claimedCandidateSourceRevision: corrected, resultBundle: readFileSync(correctedBundlePath),
+    }), /CURRENT_CANDIDATE_STALE/)
+
+    const addedPathChangeId = '22222222-2222-4222-8222-222222222227'
+    const addedPath = candidateBundle('added-path', () => {
+      writeFileSync(resolve(work, 'new-app-file.txt'), 'first candidate\n')
+      gitFixture(work, ['add', 'new-app-file.txt'])
+      gitFixture(work, ['commit', '-m', 'add app-owned path in candidate'])
+    })
+    await port.admitCandidate({
+      projectId, changeId: addedPathChangeId, actorRunId, baseSourceRevision: base, changeBaseSourceRevision: base,
+      claimedCandidateSourceRevision: addedPath.candidate, resultBundle: addedPath.bytes,
+    })
+    gitFixture(work, ['checkout', '-B', 'conexus-result', addedPath.candidate])
+    writeFileSync(resolve(work, 'new-app-file.txt'), 'corrected candidate\n')
+    gitFixture(work, ['add', 'new-app-file.txt'])
+    gitFixture(work, ['commit', '-m', 'correct candidate-created path'])
+    const correctedAddedPath = gitFixture(work, ['rev-parse', 'HEAD'])
+    const correctedAddedPathBundle = resolve(root, 'corrected-added-path.bundle')
+    gitFixture(work, ['bundle', 'create', correctedAddedPathBundle, 'refs/heads/conexus-result'])
+    assert.equal((await port.admitCandidate({
+      projectId, changeId: addedPathChangeId, actorRunId, baseSourceRevision: addedPath.candidate, changeBaseSourceRevision: base,
+      claimedCandidateSourceRevision: correctedAddedPath, resultBundle: readFileSync(correctedAddedPathBundle),
+    })).candidateSourceRevision, correctedAddedPath)
+
     const deleted = candidateBundle('deleted', () => {
       gitFixture(work, ['rm', 'README.md'])
       gitFixture(work, ['commit', '-m', 'deleted child'])
     })
     const deletedChangeId = '22222222-2222-4222-8222-222222222226'
     await port.admitCandidate({
-      projectId, changeId: deletedChangeId, actorRunId, baseSourceRevision: base,
+      projectId, changeId: deletedChangeId, actorRunId, baseSourceRevision: base, changeBaseSourceRevision: base,
       claimedCandidateSourceRevision: deleted.candidate, resultBundle: deleted.bytes,
     })
     const deletedMaterial = await port.prepareCandidate({
@@ -577,7 +691,7 @@ test('RB real OCI custody admits one exact child and refuses multi-commit and pr
     })
     await assert.rejects(port.admitCandidate({
       projectId, changeId: '22222222-2222-4222-8222-222222222223', actorRunId,
-      baseSourceRevision: base, claimedCandidateSourceRevision: multi.candidate, resultBundle: multi.bytes,
+      baseSourceRevision: base, changeBaseSourceRevision: base, claimedCandidateSourceRevision: multi.candidate, resultBundle: multi.bytes,
     }), /MULTI_COMMIT_RESULT/)
 
     const protectedCandidate = candidateBundle('protected', () => {
@@ -586,7 +700,7 @@ test('RB real OCI custody admits one exact child and refuses multi-commit and pr
     })
     await assert.rejects(port.admitCandidate({
       projectId, changeId: '22222222-2222-4222-8222-222222222224', actorRunId,
-      baseSourceRevision: base, claimedCandidateSourceRevision: protectedCandidate.candidate, resultBundle: protectedCandidate.bytes,
+      baseSourceRevision: base, changeBaseSourceRevision: base, claimedCandidateSourceRevision: protectedCandidate.candidate, resultBundle: protectedCandidate.bytes,
     }), /PROTECTED_PATH/)
 
     const unownedCandidate = candidateBundle('unowned-existing', () => {
@@ -596,7 +710,7 @@ test('RB real OCI custody admits one exact child and refuses multi-commit and pr
     })
     await assert.rejects(port.admitCandidate({
       projectId, changeId: '22222222-2222-4222-8222-222222222225', actorRunId,
-      baseSourceRevision: base, claimedCandidateSourceRevision: unownedCandidate.candidate, resultBundle: unownedCandidate.bytes,
+      baseSourceRevision: base, changeBaseSourceRevision: base, claimedCandidateSourceRevision: unownedCandidate.candidate, resultBundle: unownedCandidate.bytes,
     }), /PROTECTED_PATH/)
 
     assert.equal(gitFixture(root, ['--git-dir', repository, 'rev-parse', 'refs/heads/main']), base)
@@ -647,12 +761,12 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   url.pathname = `/${database}`
   url.username = current.user
   url.password = current.password
-  assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).versions, Array.from({ length: 20 }, (_, index) => String(index + 1).padStart(3, '0')))
+  assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).versions, Array.from({ length: 21 }, (_, index) => String(index + 1).padStart(3, '0')))
   assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).appliedNow, [])
   const tables = await query(current, `SELECT tablename FROM pg_tables WHERE schemaname = 'builder' ORDER BY tablename`)
   assert.deepEqual(tables.rows.map((row) => row.tablename), [
     'actor_run', 'change', 'change_acceptance', 'coding_session', 'contract_revision',
-    'finding', 'operation_receipt', 'plan', 'verification_evidence', 'work_unit',
+    'finding', 'finding_resolution', 'operation_receipt', 'plan', 'verification_evidence', 'work_unit',
   ])
   const leaked = await query(current, `
     SELECT grantee, table_name FROM information_schema.table_privileges
@@ -997,6 +1111,117 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   assert.equal((await query(ingress, 'SELECT builder.get_finding($1,$2,$3,$4) AS value', [
     accountId, subjectProjectId, failedChange, disclosedFindings.rows[0].value.findingId,
   ])).rows[0].value.findingId, disclosedFindings.rows[0].value.findingId)
+
+  const correctionWorkUnit = '62000000-0000-4000-8000-000000000015'
+  const correctionRun = '62000000-0000-4000-8000-000000000016'
+  const correctionToken = '62000000-0000-4000-8000-000000000017'
+  const correctionClaim = (await query(executor,
+    'SELECT builder.claim_correction($1,$2,$3,$4,$5,$6,$7) AS value', [
+      failedChange, correctionWorkUnit, correctionRun, correctionToken,
+      modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
+    ])).rows[0].value
+  assert.equal(correctionClaim.baseSourceRevision, 'e'.repeat(40))
+  assert.equal(correctionClaim.changeBaseSourceRevision, baseSourceRevision)
+  assert.deepEqual(correctionClaim.correctionFindings.map((finding) => finding.summary), ['Missing endpoint.', 'Missing route registration.'])
+  assert.equal((await query(executor, 'SELECT builder.settle_result($1,$2,$3,$4,$5,$6,$7) AS settled', [
+    failedCodingRun, failedCodingToken, 'failed_coding', baseSourceRevision, '9'.repeat(40), 'late diff', 'late result',
+  ])).rows[0].settled, false)
+  assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [failedChange])).rows[0].state, 'RUNNING')
+  await query(executor, 'SELECT builder.bind_sandbox($1,$2,$3)', [correctionRun, correctionToken, 'correction_coding'])
+  await query(executor, 'SELECT builder.settle_result($1,$2,$3,$4,$5,$6,$7)', [
+    correctionRun, correctionToken, 'correction_coding', 'e'.repeat(40), 'f'.repeat(40), 'corrected diff', 'corrected candidate',
+  ])
+  const correctionVerifierRun = '62000000-0000-4000-8000-000000000018'
+  const correctionVerifierToken = '62000000-0000-4000-8000-000000000019'
+  const correctionVerification = (await query(executor, 'SELECT builder.claim_verification($1,$2,$3,$4,$5,$6) AS value', [
+    failedChange, correctionVerifierRun, correctionVerifierToken,
+    verifierIdentity.admissionId, verifierIdentity.providerId, verifierIdentity.modelId,
+  ])).rows[0].value
+  assert.equal(correctionVerification.workUnitId, correctionWorkUnit)
+  assert.equal(correctionVerification.candidateSourceRevision, 'f'.repeat(40))
+  await query(executor, 'SELECT builder.bind_sandbox($1,$2,$3)', [correctionVerifierRun, correctionVerifierToken, 'correction_verifier'])
+  const correctionEvidence = '62000000-0000-4000-8000-000000000020'
+  await query(executor, 'SELECT builder.settle_verification($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)', [
+    correctionVerifierRun, correctionVerifierToken, 'correction_verifier', correctionVerification.assertionRef,
+    correctionVerification.contractRevision, correctionVerification.planRevision, correctionVerification.baselineDigest,
+    correctionVerification.baseSourceRevision, correctionVerification.candidateSourceRevision,
+    correctionEvidence, [], [], '5'.repeat(64), passingReport,
+  ])
+  assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [failedChange])).rows[0].state, 'UNVERIFIED')
+  assert.equal((await query(current, 'SELECT count(*)::int AS count FROM builder.work_unit WHERE change_id = $1', [failedChange])).rows[0].count, 2)
+  assert.equal((await query(executor, 'SELECT builder.claim_correction($1,$2,$3,$4,$5,$6,$7) AS value', [
+    failedChange, randomUUID(), randomUUID(), randomUUID(), modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
+  ])).rows[0].value, null)
+  await assert.rejects(query(ingress, 'SELECT builder.close_finding($1,$2,$3,$4,$5,$6)', [
+    accountId, subjectProjectId, failedChange, disclosedFindings.rows[0].value.findingId,
+    disclosedFindings.rows[0].value.findingRevision, ['62000000-0000-4000-8000-000000000010'],
+  ]), /BLD13_EVIDENCE_REFUSED/)
+  const correctionReplacementDigest = '5'.repeat(64)
+  await query(current, `INSERT INTO project.baseline_candidate(project_id, candidate_digest, source_revision, source_text, application_runtime_profile)
+    VALUES ($1, $2, $3, 'Correction-window replacement', 'MANAGED')`, [subjectProjectId, correctionReplacementDigest, '9'.repeat(40)])
+  await query(current, 'UPDATE project.baseline_state SET current_candidate_digest = $2, approved_candidate_digest = $2 WHERE project_id = $1', [subjectProjectId, correctionReplacementDigest])
+  await assert.rejects(query(ingress, 'SELECT builder.close_finding($1,$2,$3,$4,$5,$6)', [
+    accountId, subjectProjectId, failedChange, disclosedFindings.rows[0].value.findingId,
+    disclosedFindings.rows[0].value.findingRevision, [correctionEvidence],
+  ]), /BLD13_BASELINE_STALE/)
+  await query(current, 'UPDATE project.baseline_state SET current_candidate_digest = $2, approved_candidate_digest = $2 WHERE project_id = $1', [subjectProjectId, digest])
+  const firstClosed = (await query(ingress, 'SELECT builder.close_finding($1,$2,$3,$4,$5,$6) AS value', [
+    accountId, subjectProjectId, failedChange, disclosedFindings.rows[0].value.findingId,
+    disclosedFindings.rows[0].value.findingRevision, [correctionEvidence],
+  ])).rows[0].value
+  assert.equal(firstClosed.state, 'CLOSED')
+  assert.notEqual(firstClosed.findingRevision, disclosedFindings.rows[0].value.findingRevision)
+  assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [failedChange])).rows[0].state, 'UNVERIFIED')
+  await assert.rejects(query(ingress, 'SELECT builder.close_finding($1,$2,$3,$4,$5,$6)', [
+    accountId, subjectProjectId, failedChange, disclosedFindings.rows[1].value.findingId,
+    randomUUID(), [correctionEvidence],
+  ]), /BLD13_REVISION_STALE/)
+  await query(ingress, 'SELECT builder.close_finding($1,$2,$3,$4,$5,$6)', [
+    accountId, subjectProjectId, failedChange, disclosedFindings.rows[1].value.findingId,
+    disclosedFindings.rows[1].value.findingRevision, [correctionEvidence],
+  ])
+  assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [failedChange])).rows[0].state, 'VERIFIED')
+  assert.equal((await query(current, 'SELECT count(*)::int AS count FROM builder.change_acceptance WHERE change_id = $1 AND candidate_source_revision = $2', [failedChange, 'f'.repeat(40)])).rows[0].count, 1)
+  const correctionSnapshot = (await query(ingress, 'SELECT builder.read_snapshot($1,$2,$3,false) AS value', [
+    accountId, subjectProjectId, failedChange,
+  ])).rows[0].value
+  assert.equal(correctionSnapshot.execution.workUnits.length, 2)
+  assert.deepEqual(correctionSnapshot.execution.workUnits.map((unit) => unit.actorRunIds.length), [2, 2])
+
+  const interruptedCorrectionChange = '62100000-0000-4000-8000-000000000001'
+  const interruptedVerification = await prepareVerification({
+    change: interruptedCorrectionChange, plan: '62100000-0000-4000-8000-000000000002',
+    item: '62100000-0000-4000-8000-000000000003', session: '62100000-0000-4000-8000-000000000004',
+    unit: '62100000-0000-4000-8000-000000000005', codingRun: '62100000-0000-4000-8000-000000000006',
+    codingToken: '62100000-0000-4000-8000-000000000007', verifierRun: '62100000-0000-4000-8000-000000000008',
+    verifierToken: '62100000-0000-4000-8000-000000000009', keyDigest: '51'.repeat(32),
+    requestDigest: '52'.repeat(32), candidate: '8'.repeat(40), intent: 'Preserve a candidate across correction recovery',
+  })
+  await query(executor, 'SELECT builder.settle_verification($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)', [
+    interruptedVerification.actorRunId, interruptedVerification.admissionToken, `${interruptedCorrectionChange}-verifier`,
+    interruptedVerification.assertionRef, interruptedVerification.contractRevision, interruptedVerification.planRevision,
+    interruptedVerification.baselineDigest, interruptedVerification.baseSourceRevision,
+    interruptedVerification.candidateSourceRevision, '62100000-0000-4000-8000-000000000010',
+    ['62100000-0000-4000-8000-000000000011'], ['62100000-0000-4000-8000-000000000012'],
+    '53'.repeat(32), { outcome: 'FAIL', intentSatisfied: false, summary: 'Correction required.', findings: ['Fix the retained candidate.'], checks: [{ name: 'intent', outcome: 'FAIL', detail: 'Not yet fixed.' }] },
+  ])
+  const interruptedCorrectionRun = '62100000-0000-4000-8000-000000000014'
+  const interruptedCorrectionToken = '62100000-0000-4000-8000-000000000015'
+  await query(executor, 'SELECT builder.claim_correction($1,$2,$3,$4,$5,$6,$7)', [
+    interruptedCorrectionChange, '62100000-0000-4000-8000-000000000013', interruptedCorrectionRun,
+    interruptedCorrectionToken, modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
+  ])
+  await query(executor, 'SELECT builder.bind_sandbox($1,$2,$3)', [interruptedCorrectionRun, interruptedCorrectionToken, 'interrupted_correction'])
+  await query(executor, 'SELECT builder.recover_and_list_queued()')
+  assert.deepEqual((await query(current, 'SELECT state, candidate_source_revision FROM builder.change WHERE change_id = $1', [interruptedCorrectionChange])).rows[0], {
+    state: 'UNVERIFIED', candidate_source_revision: '8'.repeat(40),
+  })
+  assert.equal((await query(current, 'SELECT state FROM builder.actor_run WHERE actor_run_id = $1', [interruptedCorrectionRun])).rows[0].state, 'INTERRUPTED')
+  assert.equal((await query(executor, 'SELECT builder.settle_result($1,$2,$3,$4,$5,$6,$7) AS settled', [
+    interruptedCorrectionRun, interruptedCorrectionToken, 'interrupted_correction', '8'.repeat(40),
+    '7'.repeat(40), 'late correction', 'late correction',
+  ])).rows[0].settled, false)
+  assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [interruptedCorrectionChange])).rows[0].state, 'UNVERIFIED')
 
   const settlementStaleChange = '63000000-0000-4000-8000-000000000001'
   const settlementStalePlan = '63000000-0000-4000-8000-000000000002'

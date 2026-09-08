@@ -13,6 +13,7 @@ export type CodingWorkerInput = Readonly<{
   admissionToken: string
   intent: string
   baseSourceRevision: string
+  correctionFindings?: readonly Readonly<{ findingId: string; findingRevision: string; summary: string }>[]
   sourceBundle: Uint8Array
   bindPhysicalSandbox(sandboxId: string): Promise<void>
   signal?: AbortSignal
@@ -130,11 +131,14 @@ export const createMastraE2BCodingWorkerRuntime = (
         // bound to the one physical E2B incarnation admitted above.
         sandbox.executeCommand = direct
         await sandbox.writeFiles([{ path: '/workspace/source.bundle', content: Buffer.from(input.sourceBundle) }])
+        const admittedSourceRef = input.correctionFindings?.length
+          ? `refs/conexus/changes/${input.changeId}`
+          : 'refs/heads/main'
         const prepared = await direct('sh', ['-lc', [
           'rm -rf /workspace/repo',
-          'git clone /workspace/source.bundle /workspace/repo',
+          'git init --quiet --initial-branch=main /workspace/repo',
+          `git -C /workspace/repo fetch --quiet --no-tags /workspace/source.bundle ${admittedSourceRef}:refs/heads/conexus-source`,
           `git -C /workspace/repo checkout --detach ${input.baseSourceRevision}`,
-          'git -C /workspace/repo remote remove origin',
           'test -z "$(git -C /workspace/repo remote)"',
         ].join(' && ')])
         if (!prepared.success) throw new Error('BUILDER_SOURCE_MATERIALIZATION_REFUSED')
@@ -153,8 +157,11 @@ export const createMastraE2BCodingWorkerRuntime = (
           ].join(' '),
           tools: {},
         })
+        const correction = input.correctionFindings?.length
+          ? ` This is the one admitted correction attempt. Resolve these retained verification findings: ${input.correctionFindings.map((finding) => `[${finding.findingId}] ${finding.summary}`).join('; ')}.`
+          : ''
         const response = await agent.generate(
-          `Project ${input.projectId}; Change ${input.changeId}; exact base ${input.baseSourceRevision}. Human intent: ${input.intent}`,
+          `Project ${input.projectId}; Change ${input.changeId}; exact work-unit parent ${input.baseSourceRevision}. Human intent: ${input.intent}.${correction}`,
           {
             maxSteps: 24,
             abortSignal: input.signal,

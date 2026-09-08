@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
-import { BuilderRequestError, createChange, getChange, getChangeDiff, getChangePlan, getChangeProgress, listChangeEvidence, listChangeFindings, listChanges } from '../api'
+import { BuilderRequestError, closeChangeFinding, createChange, getChange, getChangeDiff, getChangePlan, getChangeProgress, listChangeEvidence, listChangeFindings, listChanges } from '../api'
 
-const terminal = new Set(['VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED', 'FAILED', 'INTERRUPTED'])
+const terminal = new Set(['VERIFIED', 'UNVERIFIED', 'FAILED', 'INTERRUPTED'])
 const hasCandidate = new Set(['RESULT_READY', 'VERIFYING', 'VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED'])
 
 export function ProjectBuild({ projectId }: { projectId: string }) {
@@ -27,9 +27,11 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   })
   const plan = useQuery({ queryKey: ['builder-plan', projectId, currentId], queryFn: () => getChangePlan(projectId, requireCurrentId()), enabled: Boolean(currentId), refetchInterval: (query) => terminal.has(query.state.data?.progress ?? '') ? false : 2_000 })
   const progress = useQuery({ queryKey: ['builder-progress', projectId, currentId], queryFn: () => getChangeProgress(projectId, requireCurrentId()), enabled: Boolean(currentId), refetchInterval: (query) => terminal.has(query.state.data?.overallState ?? '') ? false : 1_500 })
-  const diff = useQuery({ queryKey: ['builder-diff', projectId, currentId], queryFn: () => getChangeDiff(projectId, requireCurrentId()), enabled: hasCandidate.has(change.data?.state ?? '') })
-  const findings = useQuery({ queryKey: ['builder-findings', projectId, currentId, change.data?.state], queryFn: () => listChangeFindings(projectId, requireCurrentId()), enabled: hasCandidate.has(change.data?.state ?? '') })
-  const evidence = useQuery({ queryKey: ['builder-evidence', projectId, currentId, change.data?.state], queryFn: () => listChangeEvidence(projectId, requireCurrentId()), enabled: hasCandidate.has(change.data?.state ?? '') })
+  const diff = useQuery({ queryKey: ['builder-diff', projectId, currentId, change.data?.state], queryFn: () => getChangeDiff(projectId, requireCurrentId()), enabled: hasCandidate.has(change.data?.state ?? ''), refetchInterval: terminal.has(change.data?.state ?? '') ? false : 2_000 })
+  const findings = useQuery({ queryKey: ['builder-findings', projectId, currentId, change.data?.state], queryFn: () => listChangeFindings(projectId, requireCurrentId()), enabled: hasCandidate.has(change.data?.state ?? ''), refetchInterval: terminal.has(change.data?.state ?? '') ? false : 2_000 })
+  const evidence = useQuery({ queryKey: ['builder-evidence', projectId, currentId, change.data?.state], queryFn: () => listChangeEvidence(projectId, requireCurrentId()), enabled: hasCandidate.has(change.data?.state ?? ''), refetchInterval: terminal.has(change.data?.state ?? '') ? false : 2_000 })
+  const currentResolutionEvidence = evidence.data?.filter((item) => item.subjectDigest === diff.data?.candidateSourceRevision &&
+    item.claim === 'Candidate satisfies the accepted Change intent.') ?? []
   const mutation = useMutation({
     mutationFn: (value: Readonly<{ intent: string; key: string }>) => createChange(projectId, value.intent, value.key),
     onSuccess: async (created) => {
@@ -45,6 +47,22 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       else if (error instanceof BuilderRequestError && error.status === 409) setMessage('O resultado desta tentativa ainda não foi confirmado. Reenvie sem alterar o pedido.')
       else setMessage('O Change não foi confirmado. Tente novamente sem alterar o pedido.')
     },
+  })
+  const closeFinding = useMutation({
+    mutationFn: (finding: Readonly<{ findingId: string; findingRevision: string }>) => {
+      const resolution = currentResolutionEvidence.map((item) => item.evidenceId)
+      if (resolution.length === 0) throw new Error('No current resolution Evidence')
+      return closeChangeFinding(projectId, requireCurrentId(), finding.findingId, finding.findingRevision, resolution)
+    },
+    onSuccess: async () => {
+      setMessage('Ponto resolvido com a verificação do candidato atual.')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['builder-change', projectId, currentId] }),
+        queryClient.invalidateQueries({ queryKey: ['builder-findings', projectId, currentId] }),
+        queryClient.invalidateQueries({ queryKey: ['builder-changes', projectId] }),
+      ])
+    },
+    onError: () => setMessage('A resolução não foi aceita. Atualize o Change e confirme a evidência atual.'),
   })
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -82,10 +100,13 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
               {progress.data && <p><strong>Progresso:</strong> {progress.data.overallState}</p>}
               {change.data?.state === 'FAILED' && <p role="alert">O trabalho foi interrompido sem produzir um resultado aceito.</p>}
               {change.data?.state === 'VERIFYING' && <p>O Conexus está verificando o candidato em uma execução independente.</p>}
+              {change.data?.state === 'RUNNING' && <p>O Conexus está produzindo ou corrigindo o candidato em uma execução controlada.</p>}
               {change.data?.state === 'VERIFIED' && <p><strong>Resultado verificado.</strong> O Hub confirmou a Evidence contra o candidato e o Baseline exatos.</p>}
               {change.data?.state === 'VERIFICATION_FAILED' && <p role="alert"><strong>Verificação reprovada.</strong> O candidato não foi aceito; confira os pontos encontrados.</p>}
-              {change.data?.state === 'UNVERIFIED' && <p role="alert">Há um candidato, mas a verificação não estabeleceu aceitação.</p>}
-              {findings.data && findings.data.length > 0 && <section aria-labelledby="change-findings-title"><h4 id="change-findings-title">Pontos encontrados</h4><ul>{findings.data.map((finding) => <li key={finding.findingId}>{finding.summary} — {finding.state}</li>)}</ul></section>}
+              {change.data?.state === 'UNVERIFIED' && (currentResolutionEvidence.length > 0
+                ? <p><strong>Correção verificada.</strong> Confirme abaixo quais pontos esta Evidence resolveu.</p>
+                : <p role="alert">Há um candidato, mas a verificação não estabeleceu aceitação.</p>)}
+              {findings.data && findings.data.length > 0 && <section aria-labelledby="change-findings-title"><h4 id="change-findings-title">Pontos encontrados</h4><ul>{findings.data.map((finding) => <li key={finding.findingId}>{finding.summary} — {finding.state}{finding.state === 'OPEN' && change.data?.state === 'UNVERIFIED' && currentResolutionEvidence.length > 0 && <button type="button" disabled={closeFinding.isPending} onClick={() => closeFinding.mutate(finding)}>Confirmar resolução verificada</button>}</li>)}</ul></section>}
               {evidence.data && evidence.data.length > 0 && <section aria-labelledby="change-evidence-title"><h4 id="change-evidence-title">Verificação</h4><ul>{evidence.data.map((item) => <li key={item.evidenceId}>{item.claim} — candidato <code>{item.subjectDigest}</code></li>)}</ul></section>}
               {diff.data && <section aria-labelledby="change-diff-title"><h4 id="change-diff-title">Diff do resultado</h4><p><code>{diff.data.baseSourceRevision}</code> → <code>{diff.data.candidateSourceRevision}</code></p><pre>{diff.data.patch}</pre></section>}
             </article>}

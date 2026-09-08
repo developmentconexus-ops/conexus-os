@@ -14,7 +14,7 @@ const repositoryRoot = resolve(import.meta.dirname, '../..')
 
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
 
-test('RB live Mastra worker produces one exact E2B-hosted Git candidate', {
+test('RB live Mastra worker produces initial and bounded-correction E2B candidates', {
   skip: live ? false : 'requires explicit CONEXUS_RB_BUILDER_LIVE=true authority and live model/E2B configuration',
   timeout: 15 * 60_000,
 }, async () => {
@@ -99,6 +99,38 @@ test('RB live Mastra worker produces one exact E2B-hosted Git candidate', {
     assert.equal(git(resultRoot, 'rev-parse', 'HEAD'), result.candidateSourceRevision)
     assert.equal(git(resultRoot, 'diff', '--name-only', 'HEAD^', 'HEAD'), 'BUILDER_RESULT.txt')
     assert.equal(readFileSync(resolve(resultRoot, 'BUILDER_RESULT.txt'), 'utf8'), 'governed-by-conexus\n')
+
+    git(sourceRoot, 'checkout', '-B', 'failed-candidate', baseSourceRevision)
+    writeFileSync(resolve(sourceRoot, 'CORRECTION_RESULT.txt'), 'incomplete\n')
+    git(sourceRoot, 'add', 'CORRECTION_RESULT.txt')
+    git(sourceRoot, 'commit', '-m', 'Exact rejected candidate fixture')
+    const failedCandidate = git(sourceRoot, 'rev-parse', 'HEAD')
+    const correctionIdentity = {
+      projectId: identity.projectId, changeId: randomUUID(), workUnitId: randomUUID(),
+      actorRunId: randomUUID(), admissionToken: randomUUID(),
+    }
+    const correctionSourceRef = `refs/conexus/changes/${correctionIdentity.changeId}`
+    git(sourceRoot, 'update-ref', correctionSourceRef, failedCandidate)
+    const failedBundlePath = resolve(proofRoot, 'failed-candidate.bundle')
+    git(sourceRoot, 'bundle', 'create', failedBundlePath, correctionSourceRef)
+    let correctionSandboxId
+    const correction = await runtime.execute({
+      ...correctionIdentity,
+      intent: 'Make CORRECTION_RESULT.txt contain exactly corrected-by-conexus followed by a newline. Do not modify any other file.',
+      baseSourceRevision: failedCandidate,
+      correctionFindings: [{ findingId: randomUUID(), findingRevision: randomUUID(), summary: 'CORRECTION_RESULT.txt contains incomplete instead of the required exact corrected-by-conexus line.' }],
+      sourceBundle: readFileSync(failedBundlePath),
+      bindPhysicalSandbox: async (sandboxId) => { correctionSandboxId = sandboxId },
+    })
+    assert.equal(correction.sandboxId, correctionSandboxId)
+    assert.equal(correction.baseSourceRevision, failedCandidate)
+    const correctionBundlePath = resolve(proofRoot, 'correction-result.bundle')
+    const correctionRoot = resolve(proofRoot, 'correction-result')
+    writeFileSync(correctionBundlePath, correction.resultBundle)
+    git(proofRoot, 'clone', '--branch', 'conexus-result', correctionBundlePath, correctionRoot)
+    assert.equal(git(correctionRoot, 'rev-parse', 'HEAD^'), failedCandidate)
+    assert.equal(git(correctionRoot, 'diff', '--name-only', 'HEAD^', 'HEAD'), 'CORRECTION_RESULT.txt')
+    assert.equal(readFileSync(resolve(correctionRoot, 'CORRECTION_RESULT.txt'), 'utf8'), 'corrected-by-conexus\n')
   } finally {
     rmSync(proofRoot, { recursive: true, force: true })
     rmSync(buildRoot, { recursive: true, force: true })
