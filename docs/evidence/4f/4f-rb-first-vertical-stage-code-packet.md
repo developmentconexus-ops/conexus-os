@@ -36,6 +36,18 @@ credentials, or turn narration/sandbox completion into an owner transition.
   credentialSlot + capabilitySet + enabled`. Credential slots reuse the
   Project server-side external-slot file and never enter the guest.
 
+The E2B template source is `scripts/rb-builder-e2b-template.mjs`. It pins the
+Node `24.20.0` Bookworm-slim OCI index by digest, installs only the Git/TLS
+mechanics required by this vertical, copies no Project bytes or credentials at
+build time, and derives its human build tag from the canonical recipe hash.
+`npm run rb:e2b:template:check` is local and effect-free. The external build is
+separately guarded by `CONEXUS_RB_E2B_TEMPLATE_BUILD=true` and reads the E2B
+key only from the owner-only file named by
+`CONEXUS_BUILDER_E2B_API_KEY_FILE`. The build assigns a unique
+`build-<buildId>` tag and emits `templateId:build-<buildId>` as
+`runtimeTemplateRef`; that exact ref, rather than a mutable human name/default
+tag, is the value admitted by the Hub runtime.
+
 The deployment format is `conexus-model-admission-catalog/v1`. The existing
 R1 entry must carry `PROJECT_INCEPTION` and `BASELINE_EXPLANATION`; a Builder
 entry carries `BUILDER_CODING`. `CONEXUS_PROJECT_MODEL_CATALOG_FILE` names this
