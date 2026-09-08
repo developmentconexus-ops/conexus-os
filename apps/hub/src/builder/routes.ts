@@ -7,10 +7,12 @@ const CSRF_COOKIE = '__Host-conexus_csrf'
 const uuid = { type: 'string', format: 'uuid' } as const
 const params = { type: 'object', additionalProperties: false, required: ['projectId'], properties: { projectId: uuid } } as const
 const changeParams = { type: 'object', additionalProperties: false, required: ['projectId', 'changeId'], properties: { projectId: uuid, changeId: uuid } } as const
+const findingParams = { type: 'object', additionalProperties: false, required: ['projectId', 'changeId', 'findingId'], properties: { projectId: uuid, changeId: uuid, findingId: uuid } } as const
+const evidenceParams = { type: 'object', additionalProperties: false, required: ['projectId', 'changeId', 'evidenceId'], properties: { projectId: uuid, changeId: uuid, evidenceId: uuid } } as const
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 const message = (error: unknown): string => error instanceof Error ? error.message : ''
 
-export type BuilderOperationId = 'BLD-01' | 'BLD-02' | 'BLD-03' | 'BLD-04' | 'BLD-06' | 'BLD-07' | 'BLD-17'
+export type BuilderOperationId = 'BLD-01' | 'BLD-02' | 'BLD-03' | 'BLD-04' | 'BLD-06' | 'BLD-07' | 'BLD-11' | 'BLD-12' | 'BLD-14' | 'BLD-15' | 'BLD-17'
 type ResolveBuilderSession = (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
 
 const current = (snapshot: BuilderSnapshot, operation: BuilderOperationId): unknown => {
@@ -92,5 +94,36 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       },
     )
   }
-  return ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-17']
+
+  app.get<{ Params: { projectId: string; changeId: string } }>('/api/control/projects/:projectId/changes/:changeId/findings', { schema: { params: changeParams } }, async (request, reply) => {
+    const session = await dependencies.resolveCurrentSession(request)
+    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    try { return await dependencies.store.listFindings({ accountId: session.account.accountId, ...request.params }) } catch {
+      return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')
+    }
+  })
+  app.get<{ Params: { projectId: string; changeId: string; findingId: string } }>('/api/control/projects/:projectId/changes/:changeId/findings/:findingId', { schema: { params: findingParams } }, async (request, reply) => {
+    const session = await dependencies.resolveCurrentSession(request)
+    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    try {
+      const value = await dependencies.store.getFinding({ accountId: session.account.accountId, ...request.params })
+      return value ?? sendProblem(reply, 404, 'finding-not-found', 'Finding not found')
+    } catch { return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable') }
+  })
+  app.get<{ Params: { projectId: string; changeId: string } }>('/api/control/projects/:projectId/changes/:changeId/evidence', { schema: { params: changeParams } }, async (request, reply) => {
+    const session = await dependencies.resolveCurrentSession(request)
+    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    try { return await dependencies.store.listEvidence({ accountId: session.account.accountId, ...request.params }) } catch {
+      return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')
+    }
+  })
+  app.get<{ Params: { projectId: string; changeId: string; evidenceId: string } }>('/api/control/projects/:projectId/changes/:changeId/evidence/:evidenceId', { schema: { params: evidenceParams } }, async (request, reply) => {
+    const session = await dependencies.resolveCurrentSession(request)
+    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    try {
+      const value = await dependencies.store.getEvidence({ accountId: session.account.accountId, ...request.params })
+      return value ?? sendProblem(reply, 404, 'evidence-not-found', 'Evidence not found')
+    } catch { return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable') }
+  })
+  return ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-11', 'BLD-12', 'BLD-14', 'BLD-15', 'BLD-17']
 }

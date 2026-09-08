@@ -14,8 +14,28 @@ export type BuilderCandidate = Readonly<{
   patch: string
 }>
 
+export type BuilderCandidateFileVersion = Readonly<{
+  mode: '100644' | '100755'
+  blobOid: string
+  byteLength: number
+}>
+
+export type BuilderCandidateChangedFile = Readonly<{
+  path: string
+  status: 'ADDED' | 'MODIFIED' | 'DELETED'
+  base: BuilderCandidateFileVersion | null
+  candidate: BuilderCandidateFileVersion | null
+}>
+
 export type BuilderSourcePort = Readonly<{
   prepareSource(input: Readonly<{ projectId: string; actorRunId: string; sourceRevision: string }>): Promise<Uint8Array>
+  prepareCandidate(input: Readonly<{
+    projectId: string
+    changeId: string
+    actorRunId: string
+    baseSourceRevision: string
+    candidateSourceRevision: string
+  }>): Promise<Readonly<{ bundle: Uint8Array; changedFiles: readonly BuilderCandidateChangedFile[] }>>
   admitCandidate(input: Readonly<{
     projectId: string
     changeId: string
@@ -106,6 +126,54 @@ writeFileSync('/out/patch', patch.stdout)
 finish({ status: 'ADMITTED', candidateSourceRevision: request.claimedCandidateSourceRevision })
 `
 
+const CANDIDATE_BUNDLE_PROGRAM = `
+const { spawnSync } = require('node:child_process')
+const { readFileSync } = require('node:fs')
+const request = JSON.parse(readFileSync('/run/conexus/request.json', 'utf8'))
+const oid = /^[0-9a-f]{40}$/
+const ref = 'refs/conexus/changes/' + request.changeId
+const env = { GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HOME: '/tmp', GIT_TERMINAL_PROMPT: '0', GIT_ALLOW_PROTOCOL: 'file', GIT_NO_REPLACE_OBJECTS: '1' }
+const git = (args, raw = false) => spawnSync('/usr/local/bin/git', ['--git-dir=/repository.git', '-c', 'core.hooksPath=/dev/null', ...args], { env, encoding: raw ? null : 'utf8', maxBuffer: 10 * 1024 * 1024 })
+const ok = value => !value.error && value.status === 0 && value.signal === null && (!value.stderr || value.stderr.length === 0)
+const text = value => typeof value.stdout === 'string' ? value.stdout : value.stdout.toString('utf8')
+const finish = value => { process.stdout.write(JSON.stringify(value) + '\\n'); process.exit(0) }
+if (!oid.test(request.baseSourceRevision) || !oid.test(request.candidateSourceRevision) || !/^[0-9a-f-]{36}$/i.test(request.changeId)) finish({ status: 'REFUSED', code: 'IDENTITY_REFUSED' })
+let value = git(['rev-parse', '--verify', 'refs/heads/main'])
+if (!ok(value) || text(value).trim() !== request.baseSourceRevision) finish({ status: 'REFUSED', code: 'BASE_STALE' })
+value = git(['rev-parse', '--verify', ref])
+if (!ok(value) || text(value).trim() !== request.candidateSourceRevision) finish({ status: 'REFUSED', code: 'CANDIDATE_MISMATCH' })
+value = git(['rev-parse', '--verify', ref + '^'])
+if (!ok(value) || text(value).trim() !== request.baseSourceRevision) finish({ status: 'REFUSED', code: 'NON_DIRECT_CANDIDATE' })
+const changed = git(['diff', '--no-renames', '--name-only', '-z', request.baseSourceRevision, ref], true)
+if (!ok(changed)) finish({ status: 'REFUSED', code: 'CHANGED_PATHS_REFUSED' })
+const changedPaths = text(changed).split('\\0').filter(Boolean)
+if (changedPaths.length < 1 || changedPaths.length > 1000) finish({ status: 'REFUSED', code: 'CHANGED_PATHS_REFUSED' })
+const safePath = path => typeof path === 'string' && path.length > 0 && path.length <= 4096 && !path.startsWith('/') &&
+  !path.includes('\\\\') && !path.includes('\\0') && path.split('/').every(part => part && part !== '.' && part !== '..')
+const entryAt = (revision, path) => {
+  const entry = git(['--literal-pathspecs', 'ls-tree', '-z', revision, '--', path], true)
+  if (!ok(entry)) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
+  if (entry.stdout.length === 0) return null
+  const match = text(entry).match(/^(100644|100755) blob ([0-9a-f]{40})\\t([\\s\\S]*)\\0$/)
+  if (!match || match[3] !== path) finish({ status: 'REFUSED', code: 'UNSAFE_ENTRY' })
+  const size = git(['cat-file', '-s', match[2]])
+  if (!ok(size) || !/^(0|[1-9][0-9]*)$/.test(text(size).trim())) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
+  const byteLength = Number(text(size).trim())
+  if (!Number.isSafeInteger(byteLength) || byteLength > 8 * 1024 * 1024) finish({ status: 'REFUSED', code: 'FILE_SIZE_REFUSED' })
+  return { mode: match[1], blobOid: match[2], byteLength }
+}
+const changedFiles = changedPaths.map(path => {
+  if (!safePath(path)) finish({ status: 'REFUSED', code: 'UNSAFE_PATH' })
+  const base = entryAt(request.baseSourceRevision, path)
+  const candidate = entryAt(ref, path)
+  if (!base && !candidate) finish({ status: 'REFUSED', code: 'EMPTY_CHANGE' })
+  return { path, status: !base ? 'ADDED' : !candidate ? 'DELETED' : 'MODIFIED', base, candidate }
+})
+value = git(['bundle', 'create', '/out/candidate.bundle', ref])
+if (!ok(value)) finish({ status: 'REFUSED', code: 'BUNDLE_REFUSED' })
+finish({ status: 'BUNDLED', candidateSourceRevision: request.candidateSourceRevision, changedFiles })
+`
+
 const exactFile = async (path: string): Promise<boolean> => {
   try {
     const stat = await lstat(path)
@@ -135,6 +203,59 @@ export const createBuilderSourcePort = ({
       const bytes = await readFile(path)
       if (bytes.byteLength === 0 || bytes.byteLength > 256 * 1024 * 1024) throw new Error('BUILDER_SOURCE_BUNDLE_REFUSED')
       return bytes
+    },
+    prepareCandidate: async (input) => {
+      if (![input.projectId, input.changeId, input.actorRunId].every(isIdentity) ||
+        !/^[0-9a-f]{40}$/.test(input.baseSourceRevision) || !/^[0-9a-f]{40}$/.test(input.candidateSourceRevision)) {
+        throw new Error('BUILDER_CANDIDATE_BUNDLE_INPUT_REFUSED')
+      }
+      if ((await git.verifyAdmittedImage()).status !== 'VERIFIED') throw new Error('BUILDER_GIT_IMAGE_REFUSED')
+      const repository = resolve(root, 'projects', input.projectId)
+      if (!repository.startsWith(`${root}${sep}`)) throw new Error('BUILDER_SOURCE_CONFIG_REFUSED')
+      const temporary = await mkdtemp(resolve(root, '.conexus-builder-verifier-'))
+      try {
+        const requestPath = resolve(temporary, 'request.json')
+        const outputRoot = resolve(temporary, 'out')
+        await writeFile(requestPath, `${JSON.stringify(input)}\n`, { flag: 'wx', mode: 0o400 })
+        await (await import('node:fs/promises')).mkdir(outputRoot, { mode: 0o700 })
+        const user = process.getuid && process.getgid ? `${process.getuid()}:${process.getgid()}` : null
+        if (!user) throw new Error('BUILDER_GIT_POSIX_OWNER_REQUIRED')
+        const result = await run('docker', [
+          'run', '--rm', '--pull', 'never', '--network', 'none', '--cap-drop', 'ALL',
+          '--security-opt', 'no-new-privileges', '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=512m',
+          '--user', user,
+          '--mount', `type=bind,src=${repository},dst=/repository.git,readonly`,
+          '--mount', `type=bind,src=${requestPath},dst=/run/conexus/request.json,readonly`,
+          '--mount', `type=bind,src=${outputRoot},dst=/out`,
+          '--entrypoint', '/usr/local/bin/node', R1C14_GIT_IDENTITY.ociIndexDigest,
+          '-e', CANDIDATE_BUNDLE_PROGRAM,
+        ])
+        if (result.exitCode !== 0 || result.signal !== null || result.overflow || result.stderr !== '') throw new Error('BUILDER_CANDIDATE_BUNDLE_REFUSED')
+        const parsed = JSON.parse(result.stdout) as Record<string, unknown>
+        if (parsed.status !== 'BUNDLED' || parsed.candidateSourceRevision !== input.candidateSourceRevision ||
+          !Array.isArray(parsed.changedFiles)) {
+          throw new Error(`BUILDER_CANDIDATE_BUNDLE_${typeof parsed.code === 'string' ? parsed.code : 'REFUSED'}`)
+        }
+        const changedFiles = parsed.changedFiles as BuilderCandidateChangedFile[]
+        if (changedFiles.length < 1 || changedFiles.length > 1000 || changedFiles.some((entry) =>
+          !entry || typeof entry.path !== 'string' || !['ADDED', 'MODIFIED', 'DELETED'].includes(entry.status))) {
+          throw new Error('BUILDER_CANDIDATE_BUNDLE_MANIFEST_REFUSED')
+        }
+        const path = resolve(outputRoot, 'candidate.bundle')
+        if (!await exactFile(path)) throw new Error('BUILDER_CANDIDATE_BUNDLE_REFUSED')
+        const bytes = await readFile(path)
+        if (bytes.byteLength === 0 || bytes.byteLength > 256 * 1024 * 1024) throw new Error('BUILDER_CANDIDATE_BUNDLE_REFUSED')
+        return Object.freeze({
+          bundle: bytes,
+          changedFiles: Object.freeze(changedFiles.map((entry) => Object.freeze({
+            ...entry,
+            base: entry.base ? Object.freeze({ ...entry.base }) : null,
+            candidate: entry.candidate ? Object.freeze({ ...entry.candidate }) : null,
+          }))),
+        })
+      } finally {
+        await rm(temporary, { recursive: true, force: true })
+      }
     },
     admitCandidate: async (input) => {
       if (![input.projectId, input.changeId, input.actorRunId].every(isIdentity) ||

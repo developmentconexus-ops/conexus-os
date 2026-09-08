@@ -242,7 +242,7 @@ export type ResolvedProjectModelAdmission = Readonly<{
   validateCredential(): void
 }>
 
-export type ProjectModelCapability = 'PROJECT_INCEPTION' | 'BASELINE_EXPLANATION' | 'BUILDER_CODING'
+export type ProjectModelCapability = 'PROJECT_INCEPTION' | 'BASELINE_EXPLANATION' | 'BUILDER_CODING' | 'BUILDER_VERIFICATION'
 
 type ProjectModelAdmissionCatalogEntry = Readonly<{
   admissionId: string
@@ -273,7 +273,7 @@ const readProjectModelAdmissionCatalog = (catalogFile: string): readonly Project
   }
   const identities = new Set<string>()
   const admittedCapabilities = new Set<ProjectModelCapability>([
-    'PROJECT_INCEPTION', 'BASELINE_EXPLANATION', 'BUILDER_CODING',
+    'PROJECT_INCEPTION', 'BASELINE_EXPLANATION', 'BUILDER_CODING', 'BUILDER_VERIFICATION',
   ])
   return Object.freeze(catalog.entries.map((value): ProjectModelAdmissionCatalogEntry => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('PROJECT_MODEL_CATALOG_REFUSED')
@@ -326,7 +326,7 @@ export const resolveProjectModelAdmission = ({
     Object.values(slots).some((value) => typeof value !== 'string') ||
     requiredCapabilities.length < 1 || new Set(requiredCapabilities).size !== requiredCapabilities.length ||
     requiredCapabilities.some((capability) =>
-      !(['PROJECT_INCEPTION', 'BASELINE_EXPLANATION', 'BUILDER_CODING'] as const).includes(capability))) {
+      !(['PROJECT_INCEPTION', 'BASELINE_EXPLANATION', 'BUILDER_CODING', 'BUILDER_VERIFICATION'] as const).includes(capability))) {
     throw new Error('PROJECT_MODEL_CATALOG_REFUSED')
   }
   const selected = catalog.find((entry) => entry.admissionId === admissionId)

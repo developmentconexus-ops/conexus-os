@@ -22,6 +22,7 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   let state = 'QUEUED'
   const attempts = []
+  const evidenceFetchStates = []
   const change = () => ({ changeId, projectId, intent: 'Adicionar uma página de saúde', baselineDigest: 'a'.repeat(64), planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', state })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId: workspaceId, displayName: 'Builder Operator' }, workspaces: [{ workspaceId, name: 'Workspace' }], projects: [] }) }))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId, name: 'Health App', projectRevision: 'revision', archived: false }) }))
@@ -34,9 +35,14 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(attempts.length ? [change()] : []) })
   })
   await page.route(`**/api/control/projects/${projectId}/changes/${changeId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(change()) }))
-  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/plan`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ planRevision: workspaceId, planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', items: [{ itemId: projectId, summary: change().intent, state: state === 'RESULT_READY' ? 'COMPLETED' : 'RUNNING' }], dependencyEdges: [], acceptanceLinks: [], blockers: [], unknowns: [], progress: state }) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/plan`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ planRevision: workspaceId, planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', items: [{ itemId: projectId, summary: change().intent, state: ['RESULT_READY', 'VERIFYING', 'VERIFIED'].includes(state) ? 'COMPLETED' : 'RUNNING' }], dependencyEdges: [], acceptanceLinks: [{ itemId: projectId, assertionRef: `change-intent:${'d'.repeat(64)}` }], blockers: [], unknowns: [], progress: state }) }))
   await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/progress`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ planRevision: workspaceId, items: [], overallState: state }) }))
   await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/diff`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ baseSourceRevision: 'b'.repeat(40), candidateSourceRevision: 'c'.repeat(40), patch: '+health: ok' }) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/findings`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/evidence`, (route) => {
+    evidenceFetchStates.push(state)
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state === 'VERIFIED' ? [{ evidenceId: workspaceId, changeId, claim: 'O candidato satisfaz a intenção aceita do Change.', subjectDigest: 'c'.repeat(40), provenance: [] }] : []) })
+  })
 
   await page.goto(`${origin}/projects/${projectId}`)
   await page.getByRole('link', { name: 'Construir com o Conexus' }).click()
@@ -48,9 +54,22 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   assert.deepEqual(attempts[0].body, { intent: 'Adicionar uma página de saúde' })
   assert.match(attempts[0].key, /^[0-9a-f-]{36}$/)
   await page.getByText('Progresso:').waitFor()
-  state = 'RESULT_READY'
+  state = 'VERIFYING'
+  await page.getByText('O Conexus está verificando o candidato em uma execução independente.').waitFor({ timeout: 7_000 })
+  for (let attempt = 0; attempt < 20 && !evidenceFetchStates.includes('VERIFYING'); attempt += 1) {
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 50))
+  }
+  assert.equal(evidenceFetchStates.includes('VERIFYING'), true)
+  state = 'VERIFIED'
   await page.getByRole('heading', { name: 'Diff do resultado' }).waitFor({ timeout: 7_000 })
+  await page.getByText('Resultado verificado.', { exact: false }).waitFor()
+  await page.getByRole('heading', { name: 'Verificação' }).waitFor()
+  await page.getByText('O candidato satisfaz a intenção aceita do Change.', { exact: false }).waitFor()
+  assert.equal(evidenceFetchStates.includes('VERIFIED'), true)
   await page.getByText('+health: ok', { exact: true }).waitFor()
+  state = 'VERIFICATION_FAILED'
+  await page.reload()
+  await page.getByText('Verificação reprovada.', { exact: false }).waitFor()
   await page.setViewportSize({ width: 360, height: 800 })
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true)
 })
