@@ -110,22 +110,20 @@ export const createMastraE2BCodingWorkerRuntime = (
         if (!sandbox.sandboxId || sandbox.sandboxId !== physical.sandboxId) throw new Error('BUILDER_SANDBOX_FRESH_CREATE_REQUIRED')
         observedSandboxId = sandbox.sandboxId
         await input.bindPhysicalSandbox(observedSandboxId)
+        const providerExecuteCommand = sandbox.executeCommand?.bind(sandbox)
+        if (!providerExecuteCommand) throw new Error('BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED')
 
         const direct = async (command: string, args: string[] = [], options: ExecuteCommandOptions = {}): Promise<CommandResult> => {
           if (input.signal?.aborted) throw new Error('BUILDER_RUN_CANCELLED')
           if (!observedSandboxId || sandbox.sandboxId !== observedSandboxId) throw new Error('BUILDER_SANDBOX_INCARNATION_CHANGED')
-          const startedAt = Date.now()
-          const value = await sandbox.e2b.commands.run([command, ...args].map((part) => `'${part.replaceAll("'", "'\\''")}'`).join(' '), {
-            cwd: options.cwd ?? '/workspace', timeoutMs: options.timeout ?? 120_000, envs: {},
+          const value = await providerExecuteCommand(command, args, {
+            ...options,
+            cwd: options.cwd ?? '/workspace',
+            timeout: options.timeout ?? 120_000,
+            env: {},
           })
           if (sandbox.sandboxId !== observedSandboxId) throw new Error('BUILDER_SANDBOX_INCARNATION_CHANGED')
-          return {
-            success: value.exitCode === 0,
-            exitCode: value.exitCode,
-            stdout: value.stdout,
-            stderr: value.stderr,
-            executionTimeMs: Date.now() - startedAt,
-          }
+          return value
         }
         // Override Mastra's provider retry path. Every agent command remains
         // bound to the one physical E2B incarnation admitted above.

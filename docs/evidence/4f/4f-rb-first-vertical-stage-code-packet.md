@@ -68,15 +68,19 @@ ordinary local verification.
 The owner-only Anthropic OAuth file was installed and its real refresh exchange
 completed on `2026-09-07` without exposing token material. The local deployment
 catalog first admitted `claude-sonnet-5`, then changed only the Builder entry to
-`claude-sonnet-4-6` as a diagnostic control; both are active in current official
-Anthropic documentation and present in the registry shipped by the adopted
-Mastra pin. In both cases the native Mastra coding agent reached the
-authenticated Anthropic Messages API with its coding tools, but received the
-same retryable `429 rate_limit_error` before model execution. This proves the
-credential refresh, catalog selection and provider transport but not coding
-output. Anthropic documents that Claude and Claude Code subscription usage is
-shared and resets by usage window, so arbitrary model rotation is not an
-honest remedy for this result.
+`claude-sonnet-4-6` as a diagnostic control; both are present in the registry
+shipped by the adopted Mastra pin. The first Conexus calls returned a retryable
+`429`, but a same-credential/same-model differential probe through Mastra
+Code's current official Claude Max provider succeeded. Exact source comparison
+then found that Conexus appended the required Claude Code identity after its
+own system instructions while Mastra Code prepends it as the first system
+block, and also established the provider's exact OAuth header/beta merge and
+placeholder API-key construction. Conexus now matches those transport
+mechanics without importing Mastra Code's Product/domain authority. A second
+live failure exposed a separate adapter defect: raw E2B command failures were
+thrown past the agent rather than returned as `CommandResult`. The runtime now
+keeps its physical-incarnation guard while delegating ordinary command result
+translation to the adopted `@mastra/e2b` interface.
 
 `npm run rb:builder:live` now preserves the deciding replay. It creates an exact
 one-commit Git base, resolves the `BUILDER_CODING` admission from the deployment
@@ -84,8 +88,18 @@ catalog, runs the native Mastra worker inside the exact build-qualified E2B
 template, and accepts the proof only if the returned bundle is one child commit
 that changes exactly `BUILDER_RESULT.txt` with exact expected bytes. It is
 explicitly gated by `CONEXUS_RB_BUILDER_LIVE=true` and is skipped by ordinary
-verification. Both rate-limited attempts destroyed their sandboxes; the E2B
-account had zero active or paused Builder proof sandboxes afterward.
+verification. The deciding replay passed end to end in `22.1 s`; the result
+bundle's explicit `conexus-result` branch had the exact base parent and expected
+file bytes. All failed and successful attempts destroyed their sandboxes; the
+E2B account had zero running or paused sandboxes afterward.
+
+After the transport/runtime corrections, a clean `npm ci`, Chromium admission,
+the complete local required `verify`, `npm run r1:r1c14:native:check`, the
+focused R1 OAuth regression control and the live Builder replay are green. A
+GPT-6 Astra independent advisor found no remaining material runtime, isolation,
+custody or settlement defect; its one P2 proof finding was accepted by adding a
+pre-existing Conexus system instruction so the test now distinguishes prepend
+from the broken append behavior.
 
 The deployment format is `conexus-model-admission-catalog/v1`. The existing
 R1 entry must carry `PROJECT_INCEPTION` and `BASELINE_EXPLANATION`; a Builder

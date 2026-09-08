@@ -251,14 +251,18 @@ the template. The exact template build and paired deny-all/allow TLS control
 are now real and green; no proof sandbox remains active. The selected Anthropic
 OAuth credential is installed under owner-only custody, its real refresh path
 is green, and the Builder model is selected through the shared deployment
-catalog rather than runtime code. The bounded live Mastra/E2B Git-candidate
-harness reached the authenticated Anthropic Messages API with both admitted
-Sonnet 5 and Sonnet 4.6 entries, but both calls received the same retryable
-account/workspace `429` before model execution. Every attempted sandbox was
-destroyed. The next deciding action is to rerun that exact harness after the
-shared Claude/Claude Code usage window resets (or after a separately admitted
-PAYG credential is provided); no real model-produced candidate or full Change
-execution claim exists yet.
+catalog rather than runtime code. A differential probe against Mastra Code's
+current official Claude Max provider falsified the earlier account-quota
+diagnosis: the same credential and model succeeded there. Aligning Conexus's
+OAuth request identity/header transport and preserving Mastra E2B's ordinary
+nonzero-command result semantics then made `npm run rb:builder:live` green. The
+real worker created one exact child commit in the controlled remote sandbox,
+returned its Git bundle, changed only `BUILDER_RESULT.txt` with the required
+bytes, and left zero running or paused E2B sandboxes. The next smallest action
+is to publish this correction to the already open normal PR #65 and let its
+required CI adjudicate the refreshed candidate. Clean-install local `verify`,
+the required native R1C-14 check, the focused OAuth regression control and the
+live Builder replay are green; merge remains separately unauthorized.
 
 ACP, runtime tournaments, Worker Eval infrastructure, private MCP, concurrent
 writers, `BLD-18..20`, R3+, Release/deployment and broad Sankhya writes remain

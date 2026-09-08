@@ -20,7 +20,7 @@ const withIdentity = (body: BodyInit | null | undefined): BodyInit | null | unde
     ? [{ type: 'text', text: request.system }]
     : Array.isArray(request.system) ? request.system : null
   if (!prior) throw new Error('PROJECT_MODEL_REQUEST_INVALID')
-  return JSON.stringify({ ...request, system: [...prior, { type: 'text', text: IDENTITY }] })
+  return JSON.stringify({ ...request, system: [{ type: 'text', text: IDENTITY }, ...prior] })
 }
 
 export const createAnthropicOAuthModel = ({
@@ -34,17 +34,19 @@ export const createAnthropicOAuthModel = ({
     maxResponseBytes: 8 * 1024 * 1024,
     fetchImpl: async (input, init = {}) => {
       const headers = new Headers(init.headers)
+      headers.delete('authorization')
       headers.delete('x-api-key')
       headers.set('authorization', `Bearer ${await tokenStore.getAccessToken()}`)
       headers.set('anthropic-version', '2023-06-01')
-      headers.set('anthropic-beta', BETAS.join(','))
+      const requestBetas = (headers.get('anthropic-beta') ?? '').split(',').map((beta) => beta.trim()).filter(Boolean)
+      headers.set('anthropic-beta', [...new Set([...BETAS, ...requestBetas])].join(','))
       headers.delete('content-length')
       const body = withIdentity(init.body)
       return fetchImpl(input, { ...init, redirect: 'manual', headers, ...(body === undefined ? {} : { body }) })
     },
   })
   return createAnthropic({
-    authToken: 'replaced-by-closed-oauth-transport',
+    apiKey: 'replaced-by-closed-oauth-transport',
     baseURL: `${ORIGIN}v1`,
     fetch: bounded,
   })(modelId) as unknown as MastraLanguageModel

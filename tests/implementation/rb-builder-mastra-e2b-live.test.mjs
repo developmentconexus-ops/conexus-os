@@ -94,7 +94,7 @@ test('RB live Mastra worker produces one exact E2B-hosted Git candidate', {
     assert.notEqual(result.candidateSourceRevision, baseSourceRevision)
     const resultBundlePath = resolve(proofRoot, 'result.bundle')
     writeFileSync(resultBundlePath, result.resultBundle)
-    git(proofRoot, 'clone', resultBundlePath, resultRoot)
+    git(proofRoot, 'clone', '--branch', 'conexus-result', resultBundlePath, resultRoot)
     assert.equal(git(resultRoot, 'rev-parse', 'HEAD^'), baseSourceRevision)
     assert.equal(git(resultRoot, 'rev-parse', 'HEAD'), result.candidateSourceRevision)
     assert.equal(git(resultRoot, 'diff', '--name-only', 'HEAD^', 'HEAD'), 'BUILDER_RESULT.txt')

@@ -77,7 +77,12 @@ test('production cognition boundaries fire on the admitted Hub modules', async (
       })
     },
   })
-  const generated = await model.doGenerate(generateInput())
+  const generated = await model.doGenerate({
+    prompt: [
+      { role: 'system', content: 'Conexus governed system instruction.' },
+      ...generateInput().prompt,
+    ],
+  })
   assert.equal(generated.content.find((part) => part.type === 'text')?.text, 'READY')
   assert.equal(captured.length, 1)
   assert.equal(new URL(captured[0].url).origin, 'https://api.anthropic.com')
@@ -88,7 +93,9 @@ test('production cognition boundaries fire on the admitted Hub modules', async (
   assert.equal(PROJECT_ANTHROPIC_ADMISSION_ID, 'project-inception-opus-5')
   assert.equal(PROJECT_ANTHROPIC_MODEL_ID, 'claude-opus-5')
   assert.equal(request.model, PROJECT_ANTHROPIC_MODEL_ID)
-  assert.equal(request.system.at(-1).text, "You are Claude Code, Anthropic's official CLI for Claude.")
+  assert.equal(request.system.at(0).text, "You are Claude Code, Anthropic's official CLI for Claude.")
+  assert.equal(request.system.at(1).text, 'Conexus governed system instruction.')
+  assert.equal(headers.get('anthropic-beta').split(',').includes('oauth-2025-04-20'), true)
 
   const budget = new ProjectToolBudget()
   const release = budget.enter()
