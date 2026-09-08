@@ -240,6 +240,13 @@ const run = (args, input, raw) => spawnSync(
 const ok = value => !value.error && value.status === 0 && value.signal === null &&
   (value.stderr === '' || (Buffer.isBuffer(value.stderr) && value.stderr.length === 0))
 const text = value => typeof value.stdout === 'string' ? value.stdout : value.stdout.toString('utf8')
+const safeRepositoryRefs = value => {
+  if (!ok(value)) return false
+  const refs = text(value).trim().split('\\n').filter(Boolean)
+  const changeRef = new RegExp('^refs/conexus/changes/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12} commit$')
+  return refs.filter(ref => ref === 'refs/heads/main commit').length === 1 && refs.every(ref =>
+    ref === 'refs/heads/main commit' || changeRef.test(ref))
+}
 const entries = value => {
   if (!ok(value)) return null
   const output = text(value)
@@ -323,9 +330,8 @@ const expected = request.expectedSourceRevision
 if (!safeRepositoryMetadata()) finish({ status: 'REFUSED', code: 'UNSAFE_REPOSITORY' })
 const bare = run(['rev-parse', '--is-bare-repository'])
 const ref = run(['rev-parse', '--verify', 'refs/heads/main'])
-const refs = run(['for-each-ref', '--format=%(refname)'])
-if (!ok(bare) || text(bare).trim() !== 'true' || !ok(ref) || !ok(refs) ||
-  text(refs).trim() !== 'refs/heads/main') finish({ status: 'REFUSED', code: 'UNSAFE_REPOSITORY' })
+const refs = run(['for-each-ref', '--format=%(refname) %(objecttype)'])
+if (!ok(bare) || text(bare).trim() !== 'true' || !ok(ref) || !safeRepositoryRefs(refs)) finish({ status: 'REFUSED', code: 'UNSAFE_REPOSITORY' })
 const current = text(ref).trim()
 if (!oidPattern.test(current) || !exactFile('/repository.git/refs/heads/main') ||
   readFileSync('/repository.git/refs/heads/main', 'utf8') !== current + '\\n') finish({ status: 'REFUSED', code: 'UNSAFE_REPOSITORY' })
@@ -438,6 +444,13 @@ const run = (args, input, raw) => spawnSync(
 const ok = value => !value.error && value.status === 0 && value.signal === null &&
   (value.stderr === '' || (Buffer.isBuffer(value.stderr) && value.stderr.length === 0))
 const text = value => typeof value.stdout === 'string' ? value.stdout : value.stdout.toString('utf8')
+const safeRepositoryRefs = value => {
+  if (!ok(value)) return false
+  const refs = text(value).trim().split('\\n').filter(Boolean)
+  const changeRef = new RegExp('^refs/conexus/changes/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12} commit$')
+  return refs.filter(ref => ref === 'refs/heads/main commit').length === 1 && refs.every(ref =>
+    ref === 'refs/heads/main commit' || changeRef.test(ref))
+}
 const entries = value => {
   if (!ok(value)) return null
   const output = text(value)
@@ -491,8 +504,8 @@ const safeRepository = () => {
   for (const entry of readdirSync('/repository.git/hooks', { withFileTypes: true })) {
     if (entry.isSymbolicLink() || !entry.isFile() || (!entry.name.endsWith('.sample') && !entry.name.endsWith('.example'))) return false
   }
-  const refs = run(['for-each-ref', '--format=%(refname)'])
-  if (!ok(refs) || text(refs).trim() !== 'refs/heads/main') return false
+  const refs = run(['for-each-ref', '--format=%(refname) %(objecttype)'])
+  if (!safeRepositoryRefs(refs)) return false
   const bare = run(['rev-parse', '--is-bare-repository'])
   const head = run(['rev-parse', '--verify', 'refs/heads/main'])
   return ok(bare) && text(bare).trim() === 'true' && ok(head) && oidPattern.test(text(head).trim()) &&
@@ -630,6 +643,13 @@ const run = (args, input, raw) => spawnSync('/usr/local/bin/git', ['-c', 'core.h
 }, encoding: raw ? null : 'utf8', input })
 const ok = value => !value.error && value.status === 0 && value.signal === null && (value.stderr === '' || (Buffer.isBuffer(value.stderr) && value.stderr.length === 0))
 const text = value => typeof value.stdout === 'string' ? value.stdout : value.stdout.toString('utf8')
+const safeRepositoryRefs = value => {
+  if (!ok(value)) return false
+  const refs = text(value).trim().split('\\n').filter(Boolean)
+  const changeRef = new RegExp('^refs/conexus/changes/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12} commit$')
+  return refs.filter(ref => ref === 'refs/heads/main commit').length === 1 && refs.every(ref =>
+    ref === 'refs/heads/main commit' || changeRef.test(ref))
+}
 const entries = value => {
   if (!ok(value)) return null
   const output = text(value)
@@ -653,8 +673,8 @@ const safeRepository = () => {
   const configEntries = text(configuration).split('\\0').filter(Boolean).map(value => { const separator = value.indexOf('\\n'); return separator < 0 ? null : [value.slice(0, separator), value.slice(separator + 1)] })
   if (configEntries.length !== 3 || configEntries.some(entry => !entry || !allowed.has(entry[0]) || allowed.get(entry[0]) !== entry[1])) return false
   for (const entry of readdirSync('/repository.git/hooks', { withFileTypes: true })) if (entry.isSymbolicLink() || !entry.isFile() || (!entry.name.endsWith('.sample') && !entry.name.endsWith('.example'))) return false
-  const refs = run(['for-each-ref', '--format=%(refname)']); const bare = run(['rev-parse', '--is-bare-repository']); const head = run(['rev-parse', '--verify', 'refs/heads/main']);
-  return ok(refs) && text(refs).trim() === 'refs/heads/main' && ok(bare) && text(bare).trim() === 'true' && ok(head) && oidPattern.test(text(head).trim()) && exactFile('/repository.git/refs/heads/main') && readFileSync('/repository.git/refs/heads/main', 'utf8') === text(head).trim() + '\\n'
+  const refs = run(['for-each-ref', '--format=%(refname) %(objecttype)']); const bare = run(['rev-parse', '--is-bare-repository']); const head = run(['rev-parse', '--verify', 'refs/heads/main']);
+  return safeRepositoryRefs(refs) && ok(bare) && text(bare).trim() === 'true' && ok(head) && oidPattern.test(text(head).trim()) && exactFile('/repository.git/refs/heads/main') && readFileSync('/repository.git/refs/heads/main', 'utf8') === text(head).trim() + '\\n'
 }
 const valid = request && typeof request === 'object' && !Array.isArray(request) && identityPattern.test(request.projectId) && identityPattern.test(request.intentId) && request.operation && ['inspect', 'apply', 'cancel'].includes(request.operation) && oidPattern.test(request.expectedSourceRevision) && request.oldSourceRevision === request.expectedSourceRevision && oidPattern.test(request.baseTree) && oidPattern.test(request.applySourceRevision) && oidPattern.test(request.cancelBaseSourceRevision) && oidPattern.test(request.cancelAppliedSourceRevision) && (request.previousDeclarationBlob === null || oidPattern.test(request.previousDeclarationBlob)) && typeof request.path === 'string' && allowedPaths.has(request.path) && ['UPSERT', 'DELETE'].includes(request.mutation) && ((request.mutation === 'UPSERT' && declaration.length > 0 && declaration.length <= 1048576) || (request.mutation === 'DELETE' && request.path === '.conexus/project/brain-binding.json' && declaration.length === 0 && request.previousDeclarationBlob !== null))
 if (!valid) finish({ status: 'REFUSED', code: 'DECLARATION_REFUSED' })

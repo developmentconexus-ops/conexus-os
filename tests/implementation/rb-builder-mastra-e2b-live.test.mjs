@@ -22,7 +22,7 @@ test('RB live Mastra worker produces one exact E2B-hosted Git candidate', {
   const catalogFile = process.env.CONEXUS_PROJECT_MODEL_CATALOG_FILE
   const slotsFile = process.env.CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE
   const admissionId = process.env.CONEXUS_BUILDER_MODEL_ADMISSION_ID
-  if (!templateRef || !/^[a-z0-9]+:build-[0-9a-f-]{36}$/.test(templateRef) ||
+  if (!templateRef || !/^[a-z0-9]+:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(templateRef) ||
     !catalogFile || !slotsFile || !admissionId) throw new Error('CONEXUS_RB_BUILDER_LIVE_CONFIG_REFUSED')
 
   const apiKey = readBuilderE2BApiKey(process.env.CONEXUS_BUILDER_E2B_API_KEY_FILE)

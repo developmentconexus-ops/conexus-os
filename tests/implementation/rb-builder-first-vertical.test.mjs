@@ -23,6 +23,7 @@ const { createBuilderSourcePort } = await import(built('builder/source.js'))
 const { createMastraE2BCodingWorkerRuntime } = await import(built('builder/runtime.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
 const { resolveProjectCognitionModelAdmission, resolveProjectModelAdmission } = await import(built('project/module.js'))
+const { createOciProjectBindingGitCapability } = await import(built('project/git-execution.js'))
 
 test.after(() => rmSync(buildRoot, { recursive: true, force: true }))
 
@@ -34,6 +35,7 @@ const admissionToken = '55555555-5555-4555-8555-555555555555'
 const sandboxId = 'sbx_exact'
 const baseSourceRevision = 'a'.repeat(40)
 const candidateSourceRevision = 'b'.repeat(40)
+const immutableTemplateId = 'fixturetemplate:66666666-6666-4666-8666-666666666666'
 const modelIdentity = { admissionId: 'builder-coding-primary', providerId: 'anthropic', modelId: 'claude-opus-5' }
 const projection = { changeId, projectId, intent: 'Add a health page', baselineDigest: 'c'.repeat(64), planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', state: 'QUEUED' }
 const claim = { projectId, changeId, workUnitId, actorRunId, admissionToken, intent: projection.intent, baseSourceRevision }
@@ -260,7 +262,7 @@ test('Builder configuration requires one complete catalog-selected runtime', () 
     CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE: '/etc/conexus/slots.json', CONEXUS_PROJECT_MODEL_CATALOG_FILE: '/etc/conexus/project-models.json',
     CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE: '/etc/conexus/ownership.json',
     CONEXUS_DB_RB_INGRESS_PASSWORD_FILE: '/run/secrets/rb-ingress', CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE: '/run/secrets/rb-executor',
-    CONEXUS_BUILDER_E2B_API_KEY_FILE: '/run/secrets/e2b', CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'template-pinned-1',
+    CONEXUS_BUILDER_E2B_API_KEY_FILE: '/run/secrets/e2b', CONEXUS_BUILDER_E2B_TEMPLATE_ID: immutableTemplateId,
     CONEXUS_BUILDER_MODEL_ADMISSION_ID: 'builder-coding-primary',
   }
   assert.equal(readHubConfig(environment).builder?.modelAdmissionId, 'builder-coding-primary')
@@ -273,9 +275,24 @@ test('Builder configuration requires one complete catalog-selected runtime', () 
 
 test('Builder runtime refuses a model object that disagrees with the admitted exact model identity', () => {
   assert.throws(() => createMastraE2BCodingWorkerRuntime({
-    apiKey: 'fixture-e2b-key', templateId: 'template-pinned-1',
+    apiKey: 'fixture-e2b-key', templateId: immutableTemplateId,
     modelIdentity: { admissionId: 'builder-coding-primary', providerId: 'anthropic', modelId: 'claude-sonnet-4-5' },
     model: { modelId: 'claude-opus-5' },
+    validateModelCredential() {},
+  }), /BUILDER_RUNTIME_CONFIG_REFUSED/)
+})
+
+test('Builder runtime refuses a mutable E2B template alias before sandbox creation', () => {
+  assert.throws(() => createMastraE2BCodingWorkerRuntime({
+    apiKey: 'fixture-e2b-key', templateId: 'mutable-template',
+    modelIdentity: { admissionId: 'builder-coding-primary', providerId: 'anthropic', modelId: 'claude-sonnet-4-5' },
+    model: { modelId: 'claude-sonnet-4-5' },
+    validateModelCredential() {},
+  }), /BUILDER_RUNTIME_CONFIG_REFUSED/)
+  assert.throws(() => createMastraE2BCodingWorkerRuntime({
+    apiKey: 'fixture-e2b-key', templateId: 'fixturetemplate:build-66666666-6666-4666-8666-666666666666',
+    modelIdentity: { admissionId: 'builder-coding-primary', providerId: 'anthropic', modelId: 'claude-sonnet-4-5' },
+    model: { modelId: 'claude-sonnet-4-5' },
     validateModelCredential() {},
   }), /BUILDER_RUNTIME_CONFIG_REFUSED/)
 })
@@ -283,7 +300,7 @@ test('Builder runtime refuses a model object that disagrees with the admitted ex
 test('Builder revalidates model credential before creating a remote sandbox', async () => {
   let validations = 0
   const runtime = createMastraE2BCodingWorkerRuntime({
-    apiKey: 'fixture-e2b-key', templateId: 'template-pinned-1',
+    apiKey: 'fixture-e2b-key', templateId: immutableTemplateId,
     modelIdentity: { admissionId: 'builder-coding-primary', providerId: 'anthropic', modelId: 'claude-sonnet-4-5' },
     model: { modelId: 'claude-sonnet-4-5' },
     validateModelCredential() { validations += 1; throw new Error('MODEL_CREDENTIAL_PREFLIGHT_REFUSED') },
@@ -316,7 +333,7 @@ const gitFixture = (cwd, args) => {
 
 test('RB real OCI custody admits one exact child and refuses multi-commit and protected candidates', {
   skip: process.env.CONEXUS_RB_CUSTODY_LIVE !== 'true' ? 'set CONEXUS_RB_CUSTODY_LIVE=true for exact-image custody proof' : false,
-  timeout: 180_000,
+  timeout: 300_000,
 }, async () => {
   const root = mkdtempSync('/tmp/conexus-rb-custody-')
   const storageRoot = resolve(root, 'storage')
@@ -328,10 +345,12 @@ test('RB real OCI custody admits one exact child and refuses multi-commit and pr
     gitFixture(work, ['init', '--initial-branch=main'])
     writeFileSync(resolve(work, 'README.md'), 'base\n')
     writeFileSync(resolve(work, 'policy.txt'), 'protected\n')
+    writeFileSync(resolve(work, ':(literal)protected.txt'), 'existing pathspec-shaped but unowned\n')
     gitFixture(work, ['add', '--all'])
     gitFixture(work, ['commit', '-m', 'base'])
     const base = gitFixture(work, ['rev-parse', 'HEAD'])
     gitFixture(root, ['clone', '--bare', work, repository])
+    writeFileSync(resolve(repository, 'refs', 'heads', 'main'), `${base}\n`, { mode: 0o644 })
     gitFixture(root, ['--git-dir', repository, 'remote', 'set-url', 'origin', 'ssh://write.invalid/project.git'])
     const port = createBuilderSourcePort({
       git: {
@@ -379,15 +398,39 @@ test('RB real OCI custody admits one exact child and refuses multi-commit and pr
     }), /MULTI_COMMIT_RESULT/)
 
     const protectedCandidate = candidateBundle('protected', () => {
-      writeFileSync(resolve(work, 'policy.txt'), 'mutated\n')
-      gitFixture(work, ['add', 'policy.txt'])
-      gitFixture(work, ['commit', '-m', 'protected mutation'])
+      gitFixture(work, ['mv', 'policy.txt', 'renamed-policy.txt'])
+      gitFixture(work, ['commit', '-m', 'protected rename'])
     })
     await assert.rejects(port.admitCandidate({
       projectId, changeId: '22222222-2222-4222-8222-222222222224', actorRunId,
       baseSourceRevision: base, claimedCandidateSourceRevision: protectedCandidate.candidate, resultBundle: protectedCandidate.bytes,
     }), /PROTECTED_PATH/)
+
+    const unownedCandidate = candidateBundle('unowned-existing', () => {
+      writeFileSync(resolve(work, ':(literal)protected.txt'), 'mutated without ownership\n')
+      gitFixture(work, ['--literal-pathspecs', 'add', '--', ':(literal)protected.txt'])
+      gitFixture(work, ['commit', '-m', 'pathspec-shaped unowned existing mutation'])
+    })
+    await assert.rejects(port.admitCandidate({
+      projectId, changeId: '22222222-2222-4222-8222-222222222225', actorRunId,
+      baseSourceRevision: base, claimedCandidateSourceRevision: unownedCandidate.candidate, resultBundle: unownedCandidate.bytes,
+    }), /PROTECTED_PATH/)
+
     assert.equal(gitFixture(root, ['--git-dir', repository, 'rev-parse', 'refs/heads/main']), base)
+    gitFixture(root, ['--git-dir', repository, 'remote', 'remove', 'origin'])
+    const binding = createOciProjectBindingGitCapability({ projectStorageRoot: storageRoot })
+    const bindingInput = {
+      projectId,
+      expectedSourceRevision: base,
+      path: '.conexus/project/connection-bindings.json',
+      declarationBytes: Buffer.from('{"bindings":[]}'),
+    }
+    gitFixture(root, ['--git-dir', repository, 'update-ref', `refs/CONEXUS/CHANGES/${changeId}`, accepted.candidate])
+    assert.deepEqual(await binding.applyProjectBinding(bindingInput), { status: 'REFUSED', code: 'UNSAFE_REPOSITORY' })
+    gitFixture(root, ['--git-dir', repository, 'update-ref', '-d', `refs/CONEXUS/CHANGES/${changeId}`])
+    const applied = await binding.applyProjectBinding(bindingInput)
+    assert.equal(applied.status, 'APPLIED', JSON.stringify(applied))
+    assert.equal(gitFixture(root, ['--git-dir', repository, 'rev-parse', 'refs/heads/main']), applied.newSourceRevision)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

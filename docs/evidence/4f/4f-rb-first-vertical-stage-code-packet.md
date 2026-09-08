@@ -1,6 +1,6 @@
 # RB — first observable Builder vertical stage code packet
 
-Status: `OPEN / OPERATOR AUTHORIZED / IMPLEMENTATION CANDIDATE`
+Status: `FIRST VERTICAL INTEGRATED / COMPOSED LIVE CANDIDATE GREEN`
 
 ## Observable outcome and invariant
 
@@ -44,16 +44,24 @@ derives its human build tag from the canonical recipe hash.
 `npm run rb:e2b:template:check` is local and effect-free. The external build is
 separately guarded by `CONEXUS_RB_E2B_TEMPLATE_BUILD=true` and reads the E2B
 key only from the owner-only file named by
-`CONEXUS_BUILDER_E2B_API_KEY_FILE`. The build assigns a unique
-`build-<buildId>` tag and emits `templateId:build-<buildId>` as
-`runtimeTemplateRef`; that exact ref, rather than a mutable human name/default
-tag, is the value admitted by the Hub runtime.
+`CONEXUS_BUILDER_E2B_API_KEY_FILE`. The build emits the E2B-native
+`templateId:<raw build UUID>` as `runtimeTemplateRef`; the raw UUID selects the
+exact build and cannot be assigned as a mutable tag. Human names, ordinary tags,
+including the previously emitted `build-<buildId>` tag, and defaults are refused
+by the Hub runtime. This follows E2B's official
+[build lookup](https://github.com/e2b-dev/infra/blob/main/packages/db/queries/templates/get_template_with_build_by_tag.sql)
+and [UUID tag refusal](https://github.com/e2b-dev/infra/blob/main/packages/shared/pkg/id/id.go)
+rather than a Conexus-specific naming convention.
 
 The authorized live build on `2026-09-07` produced recipe digest
 `3979a94f69948d972c7021ba30aac2ece3a590557fbed79bb27a0c87bfb0e0ab`,
-template `refny0yzdr3kend4t50u`, build
-`b62f8103-b206-481f-a0c0-f56c8ebb5205`, and exact runtime ref
-`refny0yzdr3kend4t50u:build-b62f8103-b206-481f-a0c0-f56c8ebb5205`.
+template `refny0yzdr3kend4t50u` and build
+`b62f8103-b206-481f-a0c0-f56c8ebb5205`. The build script originally also
+assigned and emitted the ordinary mutable tag
+`refny0yzdr3kend4t50u:build-b62f8103-b206-481f-a0c0-f56c8ebb5205`; independent
+candidate review on `2026-09-08` falsified its immutability claim. The corrected
+native exact-build ref is
+`refny0yzdr3kend4t50u:b62f8103-b206-481f-a0c0-f56c8ebb5205`.
 The real sandbox proved Node `24.20.0`, Git `2.39.5`, writable `/workspace`,
 no provider/API-key/token/secret/database/Conexus credential variables, and a
 stored deny-all policy. The guest retains only E2B's exact non-secret template,
@@ -155,10 +163,35 @@ required before claiming the remote coding journey itself proven.
 
 ## Completion and non-goals
 
-The increment is a candidate when the production composition exists, targeted
-negative/nominal tests are green, a real authorized remote run is green when
-credentials are available, and the applicable clean Linux workflow floor is
-green. It does not accept the Change, merge source, release/deploy, add generic
+The first implementation increment was integrated through PR #65 as squash
+`ceab9a12a313e48ac7853605b6abcabab09621b8`. On `2026-09-08`, the bounded
+composed proof passed through production HTTP route handlers, PostgreSQL 17.10
+runtime roles, canonical Project Git custody, the closed
+`builder-coding-primary` catalog admission (`claude-sonnet-4-6`), native Mastra
+coding mechanics and the immutable E2B runtime template. BLD-03 reached
+`RESULT_READY`; BLD-04/06/07/17 read-back exposed one completed WorkUnit and
+ActorRun plus the exact patch. The candidate was exactly one child of the
+accepted source, changed exactly `BUILDER_COMPOSED_RESULT.txt` with the requested
+bytes, and left `refs/heads/main` unchanged.
+
+The proof exposed and closed three material trust-boundary defects before that
+live pass: mutable E2B template aliases are now refused, pre-existing unowned
+paths, Git pathspec-shaped filenames and protected-path renames are refused, and Project Git safety admits only
+the canonical `main` ref plus commit-valued
+`refs/conexus/changes/<change UUID>` result refs. Arbitrary and case-variant refs
+remain refused. Independent review then proved that the build-looking E2B tag
+used by that pass was mutable. The runtime/build path now uses the native raw
+build UUID identity. The paired sandbox isolation proof passed on that identity,
+and the complete composed replay passed again in `141.7 s` with the same exact
+source/result assertions.
+The composed proof adds no new Product operation or authority and does not claim
+real OIDC/browser transport, restart/idempotency replay, explicit post-run
+sandbox destruction inspection, or Change acceptance.
+
+The composed-proof increment is a candidate because the corrected exact-build
+composition and targeted negative/nominal tests are green; publication still
+requires the applicable clean Linux workflow floor. It does not accept the
+Change, merge source, release/deploy, add generic
 workflow/eval/telemetry infrastructure, implement `BLD-05/08..16/18..20`, add
 concurrent writers, or open R3.
 
