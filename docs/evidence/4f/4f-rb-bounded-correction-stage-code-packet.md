@@ -1,6 +1,6 @@
 # RB — bounded correction and Finding resolution stage code packet
 
-Status: `PR #69 / TARGETED + LIVE + LINUX FLOOR GREEN / GPT-6 ASTRA REVIEW CLEAR / OBJECTIVE CI IN PROGRESS`
+Status: `PR #69 / TARGETED + LIVE + LINUX FLOOR + OBJECTIVE CI GREEN / GPT-6 ASTRA REVIEW CLEAR / MERGE OPERATOR-GATED`
 
 ## Observable outcome and invariant
 
@@ -89,3 +89,5 @@ deployment. Reopen only on a named material falsifier.
   implementation; all were corrected and its final disposition is `CLEAR`.
 - The clean candidate floor is GREEN: `npm ci`, Chromium installation,
   `npm run verify`, and `npm run r1:r1c14:native:check` (`31/31`).
+- PR #69 Verify run `34278003622` is GREEN on candidate
+  `0c45c0350db44922767e967cce56a886368462e5`.
