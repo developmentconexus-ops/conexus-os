@@ -1,4 +1,4 @@
-h1:PrDPttH58cdToenVtENhfwZ5Ktyj/XX/rQOmQFMIFFE=
+h1:oP9HKt8hGFvqhbEvQaIqxmv+flCBTPmSGKvNdru6/JU=
 001_iam_foundation.sql h1:ih7KgxT4QSUs31Jq9IBWenpW30Mzcei8QiCgVbtBYr8=
 002_workspace_foundation.sql h1:pRPSRqhE8LmOzXZ8WASCWm4fV3fJRT6iwi4kBq2jKt0=
 003_project_foundation.sql h1:drJNSedizJfWNzrcrbw6OH75JsS3rtPYkiVyVGo6dMA=
@@ -15,5 +15,6 @@ h1:PrDPttH58cdToenVtENhfwZ5Ktyj/XX/rQOmQFMIFFE=
 014_r2_brain_binding_settlement.sql h1:TJYr2tniJDRwwTo+UhRNkr76zxhdf/NhLMOiJL7aZ54=
 015_r2_project_brain_read_envelopes.sql h1:YNx2dm/la6DciLRfu4gx9UGaKRpDtrtfNdLBkbd5a+I=
 016_r2_brain_binding_removal.sql h1:58lsoX1NUMN19fADZKWKo5ldxt6vSZhD4nE318xJ5/I=
-017_r2_key_conformance_subject.sql h1:ZifJWZXmQleSV7gEUMTA00Kl3qqac/P+V/8JfWZsph0=
-018_r2_brain_revision_selection.sql h1:hdtHa6S2rLqmXPHlOO92DCgSYTrhccDPE9ITlMnTRTw=
+017_r2_key_conformance_subject.sql h1:mpBe7sDe4ADM/lNggrRLz7lztAtzOAK58/R157u5FII=
+018_r2_brain_revision_selection.sql h1:0yKld56RZTp8Uh7uJNQImm0IbiBsz2ZfFrvvR4lCxbc=
+019_rb_builder_first_vertical.sql h1:bOtdv9YqSOQqiUe61IckRyz37ykODal23Ivm+yRY5Lc=

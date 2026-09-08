@@ -19,7 +19,8 @@ const r1MigrationNames = [
   '009_project_inception.sql',
   '010_project_inception_refinement.sql',
 ]
-const expectedMigrationNames = [...r1MigrationNames, '011_r2_brain_connections.sql', '012_r2_project_binding_recovery.sql', '013_r2_binding_source_concordance.sql', '014_r2_brain_binding_settlement.sql', '015_r2_project_brain_read_envelopes.sql', '016_r2_brain_binding_removal.sql', '017_r2_key_conformance_subject.sql', '018_r2_brain_revision_selection.sql']
+const r2MigrationNames = ['011_r2_brain_connections.sql', '012_r2_project_binding_recovery.sql', '013_r2_binding_source_concordance.sql', '014_r2_brain_binding_settlement.sql', '015_r2_project_brain_read_envelopes.sql', '016_r2_brain_binding_removal.sql', '017_r2_key_conformance_subject.sql', '018_r2_brain_revision_selection.sql']
+const expectedMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql']
 const migration001Digest = 'd27e76b972145bc3a6bf669d4fd32734fc06153d07cddaf1072c6b29845b112f'
 const migration002Digest = 'b64a8e041a8e63ac3b85559805ac5573a1d53f6d5d95ba1421ffe3f9803804b5'
 const migration003Digest = '866c6da3d1a4171437b2c0a5beb72ff4994cfce499826cd8b397c2daa60037f2'
@@ -38,6 +39,7 @@ const migration015Digest = 'ad10379d135d8bdd238fe114f6fcb7c26fb51adc4c5d5b186a87
 const migration016Digest = '75c7f915ca25f9ebdf29f2e047b68903f25232a92dc38b434717f2df8c11903b'
 const migration017Digest = '6627c95995e642579257b80450c4c0d342a5deaa9a73f3fe57ff097d666ca61d'
 const migration018Digest = '85db476ba4b6acbaa65cf1e538ef760c2812613ae171c0cf13d21394c9d3453c'
+const migration019Digest = '819fe3ae150517a03a2e7e036f18a73b6cbec745b653c1f0ab3dc82565470353'
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }
@@ -72,6 +74,7 @@ const loadCurrentMigrationFiles = (migrationsRoot = defaultMigrationsRoot) => {
   if (migrations[15].version !== '016' || migrations[15].checksum !== migration016Digest) fail('MIGRATION_016_DIGEST_REFUSED')
   if (migrations[16].version !== '017' || migrations[16].checksum !== migration017Digest) fail('MIGRATION_017_DIGEST_REFUSED')
   if (migrations[17].version !== '018' || migrations[17].checksum !== migration018Digest) fail('MIGRATION_018_DIGEST_REFUSED')
+  if (migrations[18].version !== '019' || migrations[18].checksum !== migration019Digest) fail('MIGRATION_019_DIGEST_REFUSED')
   return migrations
 }
 
@@ -79,6 +82,9 @@ export const loadMigrationFiles = (migrationsRoot = defaultMigrationsRoot) =>
   loadCurrentMigrationFiles(migrationsRoot).filter(({ name }) => r1MigrationNames.includes(name))
 
 export const loadR2MigrationFiles = (migrationsRoot = defaultMigrationsRoot) =>
+  loadCurrentMigrationFiles(migrationsRoot).filter(({ name }) => [...r1MigrationNames, ...r2MigrationNames].includes(name))
+
+export const loadCurrentHubMigrationFiles = (migrationsRoot = defaultMigrationsRoot) =>
   loadCurrentMigrationFiles(migrationsRoot)
 
 const migrationBody = ({ name, bytes }) => {
@@ -2065,7 +2071,7 @@ const assert012Catalog = async (
   migration006,
   migration011,
   migration012,
-  { withR2Concordance = false, after014 = false, after015 = false, after017 = false } = {},
+  { withR2Concordance = false, after014 = false, after015 = false, after017 = false, after019 = false } = {},
 ) => {
   await assert011Catalog(client, migration003, migration005, migration006, migration011, {
     withR2Recovery: true,
@@ -2078,12 +2084,15 @@ const assert012Catalog = async (
       rolcreatedb || ':' || rolreplication || ':' || rolbypassrls AS signature
     FROM pg_roles
     WHERE (rolname LIKE 'hub\\_%' ESCAPE '\\'
-      OR rolname IN ('brain_owner', 'connections_owner', 'iam_owner', 'project_owner', 'registry_owner', 'workspace_owner'))
+      OR rolname IN ('brain_owner', 'connections_owner', 'iam_owner', 'project_owner', 'registry_owner', 'workspace_owner'
+        ${after019 ? ", 'builder_owner'" : ''}))
       ${after015 ? '' : "AND rolname <> 'hub_r2_brain_attester'"}
       ${after017 ? '' : "AND rolname <> 'hub_r2_key_conformance_subject'"}
+      ${after019 ? '' : "AND rolname NOT IN ('builder_owner', 'hub_rb_ingress', 'hub_rb_executor')"}
     ORDER BY rolname
   `, [
     'brain_owner:false:false:false:false:false:false:false',
+    ...(after019 ? ['builder_owner:false:false:false:false:false:false:false'] : []),
     'connections_owner:false:false:false:false:false:false:false',
     'hub_iam_runtime:true:false:false:false:false:false:false',
     'hub_prj03_command:true:false:false:false:false:false:false',
@@ -2093,6 +2102,7 @@ const assert012Catalog = async (
     'hub_r2_connections:true:false:false:false:false:false:false',
     ...(after017 ? ['hub_r2_key_conformance_subject:true:false:false:false:false:false:false'] : []),
     'hub_r2_project_binding:true:false:false:false:false:false:false',
+    ...(after019 ? ['hub_rb_executor:true:false:false:false:false:false:false', 'hub_rb_ingress:true:false:false:false:false:false:false'] : []),
     'hub_s2_read:true:false:false:false:false:false:false',
     'hub_s3_read:true:false:false:false:false:false:false',
     'hub_s4_baseline_command:true:false:false:false:false:false:false',
@@ -2194,13 +2204,14 @@ const assert013Catalog = async (
   migration011,
   migration012,
   migration013,
-  { after014 = false, after015 = false, after017 = false } = {},
+  { after014 = false, after015 = false, after017 = false, after019 = false } = {},
 ) => {
   await assert012Catalog(client, migration003, migration005, migration006, migration011, migration012, {
     withR2Concordance: true,
     after014,
     after015,
     after017,
+    after019,
   })
   const functionBodies = (await client.query(`
     SELECT n.nspname || '.' || p.proname AS name, p.prosrc AS definition
@@ -2230,11 +2241,11 @@ const assert013Catalog = async (
 
 const assert014Catalog = async (
   client, migration003, migration005, migration006, migration011, migration012, migration013, migration014,
-  { after015 = false, after016 = false, after017 = false, after018 = false } = {},
+  { after015 = false, after016 = false, after017 = false, after018 = false, after019 = false } = {},
 ) => {
   await assert013Catalog(
     client, migration003, migration005, migration006, migration011, migration012, migration013,
-    { after014: true, after015, after017 },
+    { after014: true, after015, after017, after019 },
   )
   const expectedFunctionBodies = [
     ...expected011FunctionBodies(migration011),
@@ -2521,11 +2532,11 @@ const assert014Catalog = async (
 
 const assert015Catalog = async (
   client, migration003, migration005, migration006, migration011, migration012, migration013, migration014, migration015,
-  { after016 = false, after017 = false, after018 = false } = {},
+  { after016 = false, after017 = false, after018 = false, after019 = false } = {},
 ) => {
   await assert014Catalog(
     client, migration003, migration005, migration006, migration011, migration012, migration013, migration014,
-    { after015: true, after016, after017, after018 },
+    { after015: true, after016, after017, after018, after019 },
   )
   const expectedFunctionBodies = expected015FunctionBodies(migration015).filter(({ name }) =>
     !after016 || !['project.complete_binding_source_intent', 'project.validate_binding_source_intent'].includes(name))
@@ -2579,6 +2590,7 @@ const assert015Catalog = async (
       ${after016 ? "AND NOT (n.nspname = 'project' AND p.proname IN ('begin_brain_binding_removal_intent','prepare_brain_binding_removal','settle_brain_binding_removal'))" : ''}
       ${after017 ? "AND NOT ((n.nspname = 'project' OR n.nspname = 'con') AND p.proname = 'resolve_key_conformance_subject')" : ''}
       ${after018 ? "AND NOT (n.nspname = 'iam' AND p.proname = 'admit_brain_revision_selection')" : ''}
+      ${after019 ? "AND NOT (n.nspname = 'iam' AND p.proname IN ('admit_project_build','admit_project_source_read','ensure_project_builder_grant'))" : ''}
     ORDER BY n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)
   `, 'c0686086aaa82af22c1774be61d4a02dfffcceb1a09ec8e7ac41670474023563')
   await assertSignatures(client, 'MIGRATION_015_EXECUTE_PRIVILEGE_REFUSED', `
@@ -2686,6 +2698,7 @@ const assert015Catalog = async (
     allowed(object_name, role_name, privilege_type) AS (VALUES
       ('project.project','connections_owner','REFERENCES'),
       ('project.project','iam_owner','REFERENCES'),
+      ${after019 ? "('project.project','builder_owner','REFERENCES')," : ''}
       ('workspace.workspace','connections_owner','REFERENCES'),
       ('workspace.workspace','iam_owner','REFERENCES'),
       ('workspace.workspace','project_owner','REFERENCES'),
@@ -2764,6 +2777,7 @@ const assert015Catalog = async (
       ('hub_iam_runtime'), ('hub_prj03_command'), ('hub_r2_brain_bootstrap'), ('hub_r2_brain_read'),
       ('hub_r2_brain_attester'), ('hub_r2_connections'), ('hub_r2_project_binding'),
       ${after017 ? "('hub_r2_key_conformance_subject')," : ''}
+      ${after019 ? "('hub_rb_executor'), ('hub_rb_ingress'), ('builder_owner')," : ''}
       ('hub_s2_read'), ('hub_s3_read'), ('hub_s4_baseline_command'), ('hub_s4_baseline_read'),
       ('hub_s6_inception_command'), ('hub_ws01_command'),
       ('brain_owner'), ('connections_owner'), ('iam_owner'), ('project_owner'),
@@ -2844,6 +2858,7 @@ const assert015Catalog = async (
       ${after018 ? `AND NOT (object_kind = 'function' AND schema_name = 'iam'
         AND object_identity = 'admit_brain_revision_selection(uuid, uuid, uuid)'
         AND grantee.rolname = 'hub_r2_brain_read')` : ''}
+      ${after019 ? "AND grantee.rolname <> 'builder_owner'" : ''}
     ORDER BY object_kind, schema_name, object_identity, grantee.rolname, privilege_type
   `, 'cda16be172fd2da01af4c128a70820289ee32d644139149de669f2ed754e94db')
   await assertSignatures(client, 'MIGRATION_015_DEFAULT_ACL_REFUSED', `
@@ -3076,6 +3091,57 @@ const assert018Catalog = async (client, migration018) => {
   `, [])
 }
 
+const assert019Catalog = async (client) => {
+  await assertSignatures(client, 'MIGRATION_019_SCHEMA_OWNER_REFUSED', `
+    SELECT nspname || ':' || pg_get_userbyid(nspowner) AS signature
+    FROM pg_namespace WHERE nspname = 'builder'
+  `, ['builder:builder_owner'])
+  await assertSignatures(client, 'MIGRATION_019_TABLE_OWNER_REFUSED', `
+    SELECT relname || ':' || pg_get_userbyid(relowner) AS signature
+    FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'builder' AND c.relkind = 'r' ORDER BY relname
+  `, [
+    'actor_run:builder_owner', 'change:builder_owner', 'coding_session:builder_owner',
+    'operation_receipt:builder_owner', 'plan:builder_owner', 'work_unit:builder_owner',
+  ])
+  await assertSignatures(client, 'MIGRATION_019_IAM_GRANT_OWNER_REFUSED', `
+    SELECT pg_get_userbyid(c.relowner) AS signature
+    FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'iam' AND c.relname = 'project_builder_grant' AND c.relkind = 'r'
+  `, ['iam_owner'])
+  await assertSignatures(client, 'MIGRATION_019_FUNCTION_SECURITY_REFUSED', `
+    SELECT p.proname || ':' || pg_get_userbyid(p.proowner) || ':' || p.prosecdef || ':' ||
+      coalesce(array_to_string(p.proconfig, ','), '') AS signature
+    FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
+    WHERE (n.nspname = 'builder') OR (n.nspname = 'iam' AND p.proname IN ('admit_project_build','admit_project_source_read','ensure_project_builder_grant'))
+    ORDER BY n.nspname, p.proname
+  `, [
+    'bind_sandbox:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'change_json:builder_owner:false:search_path=pg_catalog, pg_temp',
+    'claim_change:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'create_change:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'fail_run:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'list_changes:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'read_snapshot:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'recover_and_list_queued:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'settle_result:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'admit_project_build:iam_owner:true:search_path=pg_catalog, pg_temp',
+    'admit_project_source_read:iam_owner:true:search_path=pg_catalog, pg_temp',
+    'ensure_project_builder_grant:iam_owner:true:search_path=pg_catalog, pg_temp',
+  ])
+  await assertSignatures(client, 'MIGRATION_019_TABLE_PRIVILEGE_REFUSED', `
+    SELECT grantee || ':' || table_name || ':' || privilege_type AS signature
+    FROM information_schema.table_privileges
+    WHERE table_schema = 'builder' AND grantee IN ('hub_rb_ingress','hub_rb_executor','public')
+    ORDER BY grantee, table_name, privilege_type
+  `, [])
+  await assertSignatures(client, 'MIGRATION_019_WRITER_INDEX_REFUSED', `
+    SELECT indexname AS signature FROM pg_indexes
+    WHERE schemaname = 'builder' AND indexname = 'one_active_writer_per_change'
+      AND indexdef LIKE '%WHERE (state = ANY (%ADMITTED%RUNNING%'
+  `, ['one_active_writer_per_change'])
+}
+
 const verifyLedger = async (client, migrations) => {
   if (!await tableExists(client, 'iam.schema_migration')) return { applied: new Map(), maximum: null }
   const rows = (await client.query('SELECT version, checksum_sha256 FROM iam.schema_migration ORDER BY version')).rows
@@ -3086,7 +3152,17 @@ const verifyLedger = async (client, migrations) => {
     if (migration.checksum !== row.checksum_sha256) fail('MIGRATION_APPLIED_DIGEST_DRIFT', row.version)
   }
   const applied = new Map(rows.map((row) => [row.version, row.checksum_sha256]))
-  if (applied.has('018')) {
+  if (applied.has('019')) {
+    await assert015Catalog(
+      client, files.get('003'), files.get('005'), files.get('006'), files.get('011'),
+      files.get('012'), files.get('013'), files.get('014'), files.get('015'),
+      { after016: true, after017: true, after018: true, after019: true },
+    )
+    await assert016Catalog(client, files.get('016'))
+    await assert017Catalog(client, files.get('017'))
+    await assert018Catalog(client, files.get('018'))
+    await assert019Catalog(client)
+  } else if (applied.has('018')) {
     await assert015Catalog(
       client, files.get('003'), files.get('005'), files.get('006'), files.get('011'),
       files.get('012'), files.get('013'), files.get('014'), files.get('015'),
@@ -3198,6 +3274,9 @@ export const runHubMigrations = ({ connectionString, migrationsRoot = defaultMig
 export const runR2HubMigrations = ({ connectionString, migrationsRoot = defaultMigrationsRoot }) =>
   runMigrations({ connectionString, migrations: loadR2MigrationFiles(migrationsRoot) })
 
+export const runCurrentHubMigrations = ({ connectionString, migrationsRoot = defaultMigrationsRoot }) =>
+  runMigrations({ connectionString, migrations: loadCurrentHubMigrationFiles(migrationsRoot) })
+
 const readConnectionString = (path) => {
   if (!path || !existsSync(path) || !lstatSync(path).isFile() || lstatSync(path).isSymbolicLink()) fail('MIGRATION_DATABASE_URL_FILE_REFUSED')
   const value = readFileSync(path, 'utf8').trim()
@@ -3208,5 +3287,5 @@ const readConnectionString = (path) => {
 const isEntrypoint = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 if (isEntrypoint) {
   const connectionString = readConnectionString(process.env.CONEXUS_MIGRATION_DATABASE_URL_FILE)
-  process.stdout.write(`${JSON.stringify(await runR2HubMigrations({ connectionString }))}\n`)
+  process.stdout.write(`${JSON.stringify(await runCurrentHubMigrations({ connectionString }))}\n`)
 }

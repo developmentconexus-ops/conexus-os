@@ -46,6 +46,13 @@ export type HubConfig = Readonly<{
       registrationCatalogFile: string
     }>
   }> | undefined
+  builder: Readonly<{
+    ingressPasswordFile: string
+    executorPasswordFile: string
+    e2bApiKeyFile: string
+    e2bTemplateId: string
+    modelAdmissionId: string
+  }> | undefined
   oidc: Readonly<{ issuer: string; clientId: string; clientSecretFile: string; allowInsecureForTest: boolean }>
 }>
 
@@ -189,6 +196,27 @@ const projectBindingRuntime = (environment: NodeJS.ProcessEnv): HubConfig['proje
   return { passwordFile, storageRoot }
 }
 
+const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] => {
+  const values = {
+    ingressPasswordFile: environment.CONEXUS_DB_RB_INGRESS_PASSWORD_FILE,
+    executorPasswordFile: environment.CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE,
+    e2bApiKeyFile: environment.CONEXUS_BUILDER_E2B_API_KEY_FILE,
+    e2bTemplateId: environment.CONEXUS_BUILDER_E2B_TEMPLATE_ID,
+    modelAdmissionId: environment.CONEXUS_BUILDER_MODEL_ADMISSION_ID,
+  }
+  if (Object.values(values).every(Boolean)) return values as NonNullable<HubConfig['builder']>
+  if (Object.values(values).some(Boolean)) {
+    for (const [name, value] of Object.entries({
+      CONEXUS_DB_RB_INGRESS_PASSWORD_FILE: values.ingressPasswordFile,
+      CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE: values.executorPasswordFile,
+      CONEXUS_BUILDER_E2B_API_KEY_FILE: values.e2bApiKeyFile,
+      CONEXUS_BUILDER_E2B_TEMPLATE_ID: values.e2bTemplateId,
+      CONEXUS_BUILDER_MODEL_ADMISSION_ID: values.modelAdmissionId,
+    })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
+  }
+  return undefined
+}
+
 export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): HubConfig => {
   const config: HubConfig = {
     origin: required(environment, 'CONEXUS_ORIGIN'),
@@ -206,6 +234,7 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
     brain: brainRuntime(environment),
     connections: connectionsRuntime(environment),
     projectBindings: projectBindingRuntime(environment),
+    builder: builderRuntime(environment),
     oidc: {
       issuer: required(environment, 'CONEXUS_OIDC_ISSUER'),
       clientId: required(environment, 'CONEXUS_OIDC_CLIENT_ID'),
@@ -216,5 +245,6 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
   if (config.projectBindings?.brain && (!config.brain || !config.connections)) {
     throw new Error('PROJECT_BINDING_BRAIN_RUNTIME_UNAVAILABLE')
   }
+  if (config.builder && !config.project) throw new Error('BUILDER_PROJECT_RUNTIME_REQUIRED')
   return config
 }

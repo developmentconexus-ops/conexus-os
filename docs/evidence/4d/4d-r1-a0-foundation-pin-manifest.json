@@ -5,7 +5,7 @@
     "npm": "12.0.2",
     "typescript": "6.0.2"
   },
-  "lockfileSha256": "3f3364c8449e0bb73fafeaa588a2eef9e03cea4536dfa70867e0803db91f3baf",
+  "lockfileSha256": "ede0a3a28c66f20226594143ee1a3e549523a2442f30dd7036eaa6d8a7c3cd7a",
   "admittedDependency": {
     "name": "@types/pg",
     "version": "8.23.1",

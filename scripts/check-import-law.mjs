@@ -228,6 +228,7 @@ export function checkImportLaw(rootDirectory) {
         const allowed = new Set([
           'apps/hub/src/http/app.ts',
           'apps/hub/src/brain/module.ts',
+          'apps/hub/src/builder/module.ts',
           'apps/hub/src/connections/module.ts',
           'apps/hub/src/gateway/module.ts',
           'apps/hub/src/identity-access/module.ts',
