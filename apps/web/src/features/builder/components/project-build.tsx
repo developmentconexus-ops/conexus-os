@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
-import { BuilderRequestError, createChange, getChange, getChangeDiff, getChangePlan, getChangeProgress, listChanges } from '../api'
+import { BuilderRequestError, createChange, getChange, getChangeDiff, getChangePlan, getChangeProgress, listChangeEvidence, listChangeFindings, listChanges } from '../api'
 
-const terminal = new Set(['RESULT_READY', 'FAILED', 'INTERRUPTED'])
+const terminal = new Set(['VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED', 'FAILED', 'INTERRUPTED'])
+const hasCandidate = new Set(['RESULT_READY', 'VERIFYING', 'VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED'])
 
 export function ProjectBuild({ projectId }: { projectId: string }) {
   const inputId = useId()
@@ -26,7 +27,9 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   })
   const plan = useQuery({ queryKey: ['builder-plan', projectId, currentId], queryFn: () => getChangePlan(projectId, requireCurrentId()), enabled: Boolean(currentId), refetchInterval: (query) => terminal.has(query.state.data?.progress ?? '') ? false : 2_000 })
   const progress = useQuery({ queryKey: ['builder-progress', projectId, currentId], queryFn: () => getChangeProgress(projectId, requireCurrentId()), enabled: Boolean(currentId), refetchInterval: (query) => terminal.has(query.state.data?.overallState ?? '') ? false : 1_500 })
-  const diff = useQuery({ queryKey: ['builder-diff', projectId, currentId], queryFn: () => getChangeDiff(projectId, requireCurrentId()), enabled: change.data?.state === 'RESULT_READY' })
+  const diff = useQuery({ queryKey: ['builder-diff', projectId, currentId], queryFn: () => getChangeDiff(projectId, requireCurrentId()), enabled: hasCandidate.has(change.data?.state ?? '') })
+  const findings = useQuery({ queryKey: ['builder-findings', projectId, currentId, change.data?.state], queryFn: () => listChangeFindings(projectId, requireCurrentId()), enabled: hasCandidate.has(change.data?.state ?? '') })
+  const evidence = useQuery({ queryKey: ['builder-evidence', projectId, currentId, change.data?.state], queryFn: () => listChangeEvidence(projectId, requireCurrentId()), enabled: hasCandidate.has(change.data?.state ?? '') })
   const mutation = useMutation({
     mutationFn: (value: Readonly<{ intent: string; key: string }>) => createChange(projectId, value.intent, value.key),
     onSuccess: async (created) => {
@@ -78,6 +81,11 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
               {plan.data && <div><strong>Plano mínimo</strong><ul>{plan.data.items.map((item) => <li key={item.itemId}>{item.summary} — {item.state}</li>)}</ul></div>}
               {progress.data && <p><strong>Progresso:</strong> {progress.data.overallState}</p>}
               {change.data?.state === 'FAILED' && <p role="alert">O trabalho foi interrompido sem produzir um resultado aceito.</p>}
+              {change.data?.state === 'VERIFYING' && <p>O Conexus está verificando o candidato em uma execução independente.</p>}
+              {change.data?.state === 'VERIFIED' && <p><strong>Resultado verificado.</strong> O Hub confirmou a Evidence contra o candidato e o Baseline exatos.</p>}
+              {change.data?.state === 'UNVERIFIED' && <p role="alert">Há um candidato, mas a verificação não estabeleceu aceitação.</p>}
+              {findings.data && findings.data.length > 0 && <section aria-labelledby="change-findings-title"><h4 id="change-findings-title">Pontos encontrados</h4><ul>{findings.data.map((finding) => <li key={finding.findingId}>{finding.summary} — {finding.state}</li>)}</ul></section>}
+              {evidence.data && evidence.data.length > 0 && <section aria-labelledby="change-evidence-title"><h4 id="change-evidence-title">Verificação</h4><ul>{evidence.data.map((item) => <li key={item.evidenceId}>{item.claim} — candidato <code>{item.subjectDigest}</code></li>)}</ul></section>}
               {diff.data && <section aria-labelledby="change-diff-title"><h4 id="change-diff-title">Diff do resultado</h4><p><code>{diff.data.baseSourceRevision}</code> → <code>{diff.data.candidateSourceRevision}</code></p><pre>{diff.data.patch}</pre></section>}
             </article>}
           </div>

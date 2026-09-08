@@ -58,11 +58,13 @@ fieldset input { margin: 0; }
 .candidate-assistant textarea { width: 100%; resize: vertical; padding: .8rem; border: 1px solid #8b9991; border-radius: .5rem; background: white; color: inherit; }
 .project-build { display: grid; gap: 2rem; }
 .build-layout { display: grid; grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr); gap: 1rem; }
-.build-layout nav { display: grid; align-content: start; gap: .5rem; }
-.build-layout nav button { display: grid; gap: .25rem; text-align: left; padding: .7rem; border: 1px solid #8b9991; border-radius: .5rem; background: white; color: inherit; }
+.build-layout nav { min-width: 0; display: grid; align-content: start; gap: .5rem; }
+.build-layout nav button { min-width: 0; width: 100%; display: grid; gap: .25rem; text-align: left; padding: .7rem; border: 1px solid #8b9991; border-radius: .5rem; background: white; color: inherit; }
 .build-layout nav button[aria-current="true"] { border-color: #226547; box-shadow: 0 0 0 2px #b8d8c8; }
 .build-result { min-width: 0; padding: 1rem; border: 1px solid #ccd5d0; border-radius: .65rem; background: #f8faf9; }
-.build-result pre { max-height: 34rem; overflow: auto; padding: 1rem; border-radius: .5rem; background: #17231d; color: #e8f1ec; white-space: pre; }
+.build-layout nav button span, .build-result h3, .build-result li { overflow-wrap: anywhere; }
+.build-result section { min-width: 0; }
+.build-result pre { max-width: 100%; max-height: 34rem; overflow: auto; padding: 1rem; border-radius: .5rem; background: #17231d; color: #e8f1ec; white-space: pre; }
 @media (max-width: 700px) { .build-layout { grid-template-columns: 1fr; } }
 .candidate-assistant button { justify-self: start; }
 .candidate-answer { margin-top: 1rem; padding: 1rem; border-left: .3rem solid #416453; background: white; }

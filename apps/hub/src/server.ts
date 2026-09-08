@@ -148,7 +148,13 @@ const builderModel = config.builder && config.project ? resolveProjectModelAdmis
   admissionId: config.builder.modelAdmissionId,
   requiredCapabilities: ['BUILDER_CODING'],
 }) : undefined
-const builder = config.builder && config.project && builderModel ? createConfiguredBuilderModule({
+const builderVerifierModel = config.builder && config.project ? resolveProjectModelAdmission({
+  catalogFile: config.project.modelCatalogFile,
+  credentialSlotsFile: config.project.externalFileSlotsFile,
+  admissionId: config.builder.verifierModelAdmissionId,
+  requiredCapabilities: ['BUILDER_VERIFICATION'],
+}) : undefined
+const builder = config.builder && config.project && builderModel && builderVerifierModel ? createConfiguredBuilderModule({
   database: {
     host: config.database.host,
     port: config.database.port,
@@ -167,6 +173,13 @@ const builder = config.builder && config.project && builderModel ? createConfigu
     modelId: builderModel.modelId,
   },
   validateModelCredential: builderModel.validateCredential,
+  verifierModel: builderVerifierModel.model,
+  verifierModelIdentity: {
+    admissionId: builderVerifierModel.admissionId,
+    providerId: builderVerifierModel.providerId,
+    modelId: builderVerifierModel.modelId,
+  },
+  validateVerifierModelCredential: builderVerifierModel.validateCredential,
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined

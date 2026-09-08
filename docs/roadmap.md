@@ -16,11 +16,11 @@ This is the single current phase/status authority.
 | 4A — Product Surface & Authority Contract | CLOSED / `PRE11-F05` RATIFIED | `128` fixed Product operations | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / `PRE11-F05` RATIFIED / REQUIRED VERIFY GREEN | `128↔128`; Project=28; Builder=20; Brain=13; PAR=16; MAR=4 | 4A change or wire/proof falsifier |
 | 4C — Frontend Interaction & Authority Realization | CLOSED / OPERATOR RATIFIED / METHOD v2.3 / P12 CLOSED / 4C-13 CLOSED / P12-F03 CLOSED / 4C-14 CLOSED / PRODUCT-APP WIREFRAMES OUT OF CURRENT SCOPE | Frontend Product/interaction model, P13 inputs and structural conformance obligations preserved for later phases | Material 4A/4B/P11/P13 conformance falsifier |
-| 4D — Project Paved Road & Runtime Realization | OPEN / R1 13/13 INTEGRATED / R2 INTEGRATED / RB FIRST VERTICAL INTEGRATED / COMPOSED LIVE CANDIDATE GREEN / R3+ BLOCKED | Form the clean Linux candidate and publish one normal PR without expanding Product scope | Material R1/R2 protected-claim falsifier, RB protected-property falsifier, or named ambiguity/Global-Maximum doubt |
+| 4D — Project Paved Road & Runtime Realization | OPEN / R1 13/13 INTEGRATED / R2 INTEGRATED / RB FIRST VERTICAL + COMPOSED LIVE INTEGRATED / VERIFICATION-ACCEPTANCE VERTICAL OPEN + OPERATOR AUTHORIZED / R3+ BLOCKED | Deliver exact candidate verification, Findings/Evidence and Hub-owned Change acceptance without expanding into R3 | Material R1/R2 protected-claim falsifier, RB protected-property falsifier, or named ambiguity/Global-Maximum doubt |
 | 4E — Whole-System Coherence & Golden Flows | CLOSED(R1) / OPERATOR APPROVED / 13↔13 / GITINFRA + FIRST-AUTHORITY CORRECTED / MASTRA DEFER ACCEPTED / INDEPENDENT CONVERGENCE CLEAR / RB NOT OPEN | R1 composition routes exact tranche to 4F | Composed-flow contradiction |
-| 4F — Implementation Program & Execution Graph | R1 IMPLEMENTATION 13/13 INTEGRATED / R2 INTEGRATED / RB FIRST VERTICAL INTEGRATED / COMPOSED LIVE CANDIDATE GREEN | The bounded RB packet owns the integrated first vertical and its green exact-build composition candidate | Integrated R1/R2 proof fails or an RB packet protected claim fails |
+| 4F — Implementation Program & Execution Graph | R1 IMPLEMENTATION 13/13 INTEGRATED / R2 INTEGRATED / RB FIRST VERTICAL + COMPOSED LIVE INTEGRATED / VERIFICATION-ACCEPTANCE VERTICAL OPEN | The bounded RB packets own the integrated build loop and the open exact verification/acceptance increment | Integrated R1/R2 proof fails or an RB packet protected claim fails |
 | 4G — Adversarial Implementation Readiness | CLOSED ON PRIOR SUBJECT / OPERATOR APPROVED / SEMANTIC CLEAR PRESERVED / EXECUTION TOPOLOGY CHALLENGED BY PRE-S2 A0 FINDING / RB NOT OPEN | Prior semantic readiness remains Evidence; new physical-topology subject routes to bounded 4F reopen | Material readiness finding on the current tranche subject |
-| Product implementation | R1 INTEGRATED / R2 INTEGRATED / RB FIRST VERTICAL INTEGRATED / COMPOSED LIVE CANDIDATE GREEN / R3+ BLOCKED | A user can create one durable Change and inspect real Hub-owned progress/result/diff from the Project Build experience | Product meaning changes, a protected R1/R2/RB claim fails, or RB admission exposes a material gap |
+| Product implementation | R1 INTEGRATED / R2 INTEGRATED / RB FIRST VERTICAL + COMPOSED LIVE INTEGRATED / VERIFICATION-ACCEPTANCE VERTICAL OPEN / R3+ BLOCKED | A user can distinguish an exact independently verified/accepted candidate from a failed or inconclusive one and inspect the deciding Evidence/Findings | Product meaning changes, a protected R1/R2/RB claim fails, or RB admission exposes a material gap |
 
 ```text
 4A = CLOSED / PRE11-F05 RATIFIED / N_platform=128
@@ -67,9 +67,9 @@ P12 Family 2 = LOCKED / OPERATOR APPROVED / W-02A f0a6902737a36217b081ff61768caa
 P12 Family 3 = LOCKED / OPERATOR APPROVED / P-04 77820d283e47ba6c9f5efd19f45471c88675e0b0 / P-05 d00b2126667a0a51317c653c57c237444a129dfb / PA-01 612ec41d91104e01b3942f7d90f35c37ad89c9f0
 P12 Family 4 = LOCKED / OPERATOR APPROVED / W-04 71e03432a0abd34ae35301094010fd670bb78b98 / P-01 25e5077106892c4ff6aba6774987e73a12ccff51 / P-03 17d31534fac0e57a74f70202567b23d8a63cd3c0 / P-04 e036684e3e66d028361db2d708cf05811a367f4b / PA-01 ffba5935d8fccd0fc5d7ad4d275fe38b09294674
 Pre-P11 global coherence review = CLOSED / F03-F05 OPERATOR RATIFIED / 128↔128 REQUIRED VERIFY GREEN / REPOSITORY 224↔224 GREEN / T-01 + GF-01/P-01/P-03 DELTAS LOCKED / TERMINAL P10 RECONCILED
-4D = OPEN / R1 13/13 INTEGRATED / RC-01 CLOSED / R2-P0..P7 CLOSED + INTEGRATED / PR #63 SQUASH 87598b3 / RB FIRST VERTICAL PR #65 SQUASH ceab9a1 / COMPOSED LIVE CANDIDATE GREEN / R3+ BLOCKED
+4D = OPEN / R1 13/13 INTEGRATED / RC-01 CLOSED / R2-P0..P7 CLOSED + INTEGRATED / PR #63 SQUASH 87598b3 / RB FIRST VERTICAL PR #65 SQUASH ceab9a1 / RB COMPOSED LIVE PR #66 SQUASH 839d549 / VERIFICATION-ACCEPTANCE VERTICAL OPEN + OPERATOR AUTHORIZED / R3+ BLOCKED
 4E(R1) = CLOSED / OPERATOR APPROVED / 13↔13 / 4F(R1) IMPLEMENTATION INTEGRATED / RC-01 CLOSED / RB 4E-4G NOT OPEN
-Product implementation = R1 INTEGRATED / R2 INTEGRATED / RB FIRST VERTICAL INTEGRATED / COMPOSED LIVE CANDIDATE GREEN / R3+ BLOCKED
+Product implementation = R1 INTEGRATED / R2 INTEGRATED / RB FIRST VERTICAL + COMPOSED LIVE INTEGRATED / VERIFICATION-ACCEPTANCE VERTICAL OPEN / R3+ BLOCKED
 R1 foundation custody marker (historical / non-current routing) = OPERATION MAP 128↔128 CANDIDATE / R1 FOUNDATION SELECTION CLOSED + OPERATOR APPROVED / R1 PROBE GRANT OPERATOR APPROVED / R1F-A01+R1F-E01 CORRECTED / P01..P12 EVIDENCE OPERATOR APPROVED / 4D-D(R1) FOUNDATION CLAIMS PRESERVED + R1C-13/14 ADDENDA / 4E-R1-F01 CLOSED / 4E(R1) CLOSED + OPERATOR APPROVED / R1 13/13 INTEGRATED / RC-01 CLOSED
 ```
 
@@ -227,25 +227,26 @@ or Global Maximum decisions; there is no fixed three-part cadence.
 
 ## Exact next action
 
-R2 is `CLOSED / INTEGRATED`. The operator opened **RB — Minimum Capable
-Builder** on `2026-09-07` for the first bounded observable implementation
-vertical. The current owner is the [RB first-vertical stage code packet](evidence/4f/4f-rb-first-vertical-stage-code-packet.md).
+R2 is `CLOSED / INTEGRATED`. The first RB vertical and its exact-build live
+composition are integrated through PRs #65 and #66. On `2026-09-08` the operator
+opened the bounded **governed verification and Change acceptance** vertical. Its
+current owner is the [RB verification/acceptance stage code packet](evidence/4f/4f-rb-verification-acceptance-stage-code-packet.md); the
+[first-vertical packet](evidence/4f/4f-rb-first-vertical-stage-code-packet.md)
+remains accepted upstream Evidence.
 
-The coherent path below is implemented and its production composition is green.
-Form the clean Linux candidate, publish one normal PR, and stop before merge:
+Implement the next observable path on a fresh branch from squash `839d549`:
 
 ```text
-Project + approved Baseline/current source
-→ BLD-03 durable Change + minimum derived Plan
-→ one serial Hub-admitted WorkUnit/ActorRun
-→ Conexus-owned CodingWorkerRuntime
-→ explicit remote E2B sandbox through native Mastra coding mechanics
-→ Hub-custodied exact candidate lineage
-→ BLD-04/06/07/17 progress, result and diff
-→ existing Project/Build Product surface
+exact Hub-custodied candidate + Change intent-derived contract assertion
+→ fresh independent verifier ActorRun + immutable candidate materialization
+→ exact server-selected BUILDER_VERIFICATION model admission
+→ Mastra structured verification in a fresh deny-all E2B sandbox
+→ immutable exact-subject Evidence + blocking Finding when applicable
+→ Hub recomputes eligibility and alone writes current change_acceptance
+→ BLD-02/04/06/11/12/14/15 + Project Build inspection
 ```
 
-The implementation candidate and its required local workflow are green. Its
+The integrated first vertical and its required local workflow are green. Its
 E2B recipe is source-controlled, pins the Node base by OCI digest, and emits an
 exact build-qualified runtime ref without copying source or credentials into
 the template. The exact template build and paired deny-all/allow TLS control
@@ -262,9 +263,12 @@ returned its Git bundle, changed only `BUILDER_RESULT.txt` with the required
 bytes, and left zero running or paused E2B sandboxes. PR #65 is integrated at
 squash `ceab9a1`. Independent review of the subsequent composed-proof candidate
 falsified the claimed immutability of its `build-<UUID>` E2B tag. E2B's native
-`templateId:<raw build UUID>` isolation and complete composed replay are now
-green. The next smallest action is to form the clean Linux candidate and open a
-new normal PR. Merge remains separately unauthorized.
+`templateId:<raw build UUID>` isolation and complete composed replay are green
+in PR #66, squash `839d549`. The next smallest action is to implement and prove
+the open verification/acceptance packet. Reuse the admitted Mastra/E2B
+substrate; prior coding proof is not proof of the new independent verifier.
+Form and publish one normal PR only after an actual clean candidate. Merge
+remains separately unauthorized.
 
 ACP, runtime tournaments, Worker Eval infrastructure, private MCP, concurrent
 writers, `BLD-18..20`, R3+, Release/deployment and broad Sankhya writes remain

@@ -10,7 +10,7 @@ export type ChangeProjection = Readonly<{
   baselineDigest: string
   planningDepth: 'DIRECT'
   rigorProfile: 'CONTROLLED'
-  state: 'QUEUED' | 'RUNNING' | 'RESULT_READY' | 'FAILED' | 'INTERRUPTED'
+  state: 'QUEUED' | 'RUNNING' | 'RESULT_READY' | 'VERIFYING' | 'VERIFIED' | 'VERIFICATION_FAILED' | 'UNVERIFIED' | 'FAILED' | 'INTERRUPTED'
 }>
 export type PlanProjection = Readonly<{
   planRevision: string
@@ -18,7 +18,7 @@ export type PlanProjection = Readonly<{
   rigorProfile: 'CONTROLLED'
   items: readonly Readonly<{ itemId: string; summary: string; state: string }>[]
   dependencyEdges: readonly never[]
-  acceptanceLinks: readonly never[]
+  acceptanceLinks: readonly Readonly<{ itemId: string; assertionRef: string }>[]
   blockers: readonly string[]
   unknowns: readonly string[]
   progress: string
@@ -51,6 +51,39 @@ export type ClaimedChange = Readonly<{
   baseSourceRevision: string
 }>
 
+export type ClaimedVerification = Readonly<{
+  projectId: string
+  changeId: string
+  workUnitId: string
+  actorRunId: string
+  admissionToken: string
+  intent: string
+  assertionRef: string
+  contractRevision: string
+  planRevision: string
+  baselineDigest: string
+  baseSourceRevision: string
+  candidateSourceRevision: string
+}>
+
+export type FindingProjection = Readonly<{
+  findingId: string
+  changeId: string
+  findingRevision: string
+  state: 'OPEN' | 'CLOSED'
+  summary: string
+}>
+
+export type EvidenceProjection = Readonly<{
+  evidenceId: string
+  changeId: string
+  claim: string
+  subjectDigest: string
+  provenance: readonly string[]
+  outcome: 'PASS' | 'FAIL' | 'INCONCLUSIVE'
+  report: unknown
+}>
+
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
 export type BuilderStore = Readonly<{
@@ -60,7 +93,14 @@ export type BuilderStore = Readonly<{
   claimChange(changeId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<ClaimedChange>
   bindSandbox(actorRunId: string, admissionToken: string, sandboxId: string): Promise<void>
   settleResult(input: Readonly<ClaimedChange & { sandboxId: string; candidateSourceRevision: string; patch: string; summary: string }>): Promise<void>
+  claimVerification(changeId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<ClaimedVerification>
+  settleVerification(input: Readonly<ClaimedVerification & { sandboxId: string; report: unknown }>): Promise<void>
+  failVerification(actorRunId: string, admissionToken: string, failureCode: string): Promise<void>
   failRun(actorRunId: string, admissionToken: string): Promise<void>
+  listFindings(input: Readonly<{ accountId: string; projectId: string; changeId: string }>): Promise<readonly FindingProjection[]>
+  getFinding(input: Readonly<{ accountId: string; projectId: string; changeId: string; findingId: string }>): Promise<FindingProjection | null>
+  listEvidence(input: Readonly<{ accountId: string; projectId: string; changeId: string }>): Promise<readonly EvidenceProjection[]>
+  getEvidence(input: Readonly<{ accountId: string; projectId: string; changeId: string; evidenceId: string }>): Promise<EvidenceProjection | null>
   recoverAndListQueued(): Promise<readonly string[]>
   close(): Promise<void>
 }>
@@ -123,8 +163,65 @@ export const createBuilderStore = ({
     )
     if (result.rows[0]?.settled !== true) throw new Error('BUILDER_LATE_RESULT_REFUSED')
   },
+  claimVerification: async (changeId, modelIdentity) => {
+    const actorRunId = mintIdentity()
+    const admissionToken = mintIdentity()
+    const result = await executorPool.query<JsonRow<ClaimedVerification>>(
+      'SELECT builder.claim_verification($1,$2,$3,$4,$5,$6) AS value', [
+        changeId, actorRunId, admissionToken, modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
+      ],
+    )
+    const value = result.rows[0]?.value
+    if (!value || value.actorRunId !== actorRunId || value.admissionToken !== admissionToken) {
+      throw new Error('BUILDER_VERIFICATION_CLAIM_REFUSED')
+    }
+    return value
+  },
+  settleVerification: async (input) => {
+    const evidenceSetDigest = sha256(canonicalBytes({
+      projectId: input.projectId, changeId: input.changeId, actorRunId: input.actorRunId,
+      assertionRef: input.assertionRef, contractRevision: input.contractRevision, planRevision: input.planRevision,
+      baselineDigest: input.baselineDigest, baseSourceRevision: input.baseSourceRevision,
+      candidateSourceRevision: input.candidateSourceRevision, report: input.report,
+    }))
+    const result = await executorPool.query<QueryResultRow & Readonly<{ settled: boolean }>>(
+      'SELECT builder.settle_verification($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) AS settled', [
+        input.actorRunId, input.admissionToken, input.sandboxId, input.assertionRef,
+        input.contractRevision, input.planRevision, input.baselineDigest, input.baseSourceRevision,
+        input.candidateSourceRevision, mintIdentity(), mintIdentity(), mintIdentity(), evidenceSetDigest, input.report,
+      ],
+    )
+    if (result.rows[0]?.settled !== true) throw new Error('BUILDER_LATE_VERIFICATION_REFUSED')
+  },
+  failVerification: async (actorRunId, admissionToken, failureCode) => {
+    await executorPool.query('SELECT builder.fail_verification($1,$2,$3)', [actorRunId, admissionToken, failureCode])
+  },
   failRun: async (actorRunId, admissionToken) => {
     await executorPool.query('SELECT builder.fail_run($1,$2)', [actorRunId, admissionToken])
+  },
+  listFindings: async ({ accountId, projectId, changeId }) => {
+    const result = await ingressPool.query<JsonRow<FindingProjection>>(
+      'SELECT value FROM builder.list_findings($1,$2,$3) AS value', [accountId, projectId, changeId],
+    )
+    return result.rows.map((row) => row.value)
+  },
+  getFinding: async ({ accountId, projectId, changeId, findingId }) => {
+    const result = await ingressPool.query<JsonRow<FindingProjection | null>>(
+      'SELECT builder.get_finding($1,$2,$3,$4) AS value', [accountId, projectId, changeId, findingId],
+    )
+    return result.rows[0]?.value ?? null
+  },
+  listEvidence: async ({ accountId, projectId, changeId }) => {
+    const result = await ingressPool.query<JsonRow<EvidenceProjection>>(
+      'SELECT value FROM builder.list_evidence($1,$2,$3) AS value', [accountId, projectId, changeId],
+    )
+    return result.rows.map((row) => row.value)
+  },
+  getEvidence: async ({ accountId, projectId, changeId, evidenceId }) => {
+    const result = await ingressPool.query<JsonRow<EvidenceProjection | null>>(
+      'SELECT builder.get_evidence($1,$2,$3,$4) AS value', [accountId, projectId, changeId, evidenceId],
+    )
+    return result.rows[0]?.value ?? null
   },
   recoverAndListQueued: async () => {
     const result = await executorPool.query<QueryResultRow & Readonly<{ change_id: string }>>(

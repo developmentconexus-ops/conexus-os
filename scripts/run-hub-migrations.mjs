@@ -20,7 +20,7 @@ const r1MigrationNames = [
   '010_project_inception_refinement.sql',
 ]
 const r2MigrationNames = ['011_r2_brain_connections.sql', '012_r2_project_binding_recovery.sql', '013_r2_binding_source_concordance.sql', '014_r2_brain_binding_settlement.sql', '015_r2_project_brain_read_envelopes.sql', '016_r2_brain_binding_removal.sql', '017_r2_key_conformance_subject.sql', '018_r2_brain_revision_selection.sql']
-const expectedMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql']
+const expectedMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql']
 const migration001Digest = 'd27e76b972145bc3a6bf669d4fd32734fc06153d07cddaf1072c6b29845b112f'
 const migration002Digest = 'b64a8e041a8e63ac3b85559805ac5573a1d53f6d5d95ba1421ffe3f9803804b5'
 const migration003Digest = '866c6da3d1a4171437b2c0a5beb72ff4994cfce499826cd8b397c2daa60037f2'
@@ -40,6 +40,7 @@ const migration016Digest = '75c7f915ca25f9ebdf29f2e047b68903f25232a92dc38b434717
 const migration017Digest = '6627c95995e642579257b80450c4c0d342a5deaa9a73f3fe57ff097d666ca61d'
 const migration018Digest = '85db476ba4b6acbaa65cf1e538ef760c2812613ae171c0cf13d21394c9d3453c'
 const migration019Digest = '819fe3ae150517a03a2e7e036f18a73b6cbec745b653c1f0ab3dc82565470353'
+const migration020Digest = '73a0989fd970ec9f5465e9b4a1a2f5e5c36d8a69b00f0566766ed643b6cb0e0b'
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }
@@ -75,6 +76,7 @@ const loadCurrentMigrationFiles = (migrationsRoot = defaultMigrationsRoot) => {
   if (migrations[16].version !== '017' || migrations[16].checksum !== migration017Digest) fail('MIGRATION_017_DIGEST_REFUSED')
   if (migrations[17].version !== '018' || migrations[17].checksum !== migration018Digest) fail('MIGRATION_018_DIGEST_REFUSED')
   if (migrations[18].version !== '019' || migrations[18].checksum !== migration019Digest) fail('MIGRATION_019_DIGEST_REFUSED')
+  if (migrations[19].version !== '020' || migrations[19].checksum !== migration020Digest) fail('MIGRATION_020_DIGEST_REFUSED')
   return migrations
 }
 
@@ -2532,7 +2534,7 @@ const assert014Catalog = async (
 
 const assert015Catalog = async (
   client, migration003, migration005, migration006, migration011, migration012, migration013, migration014, migration015,
-  { after016 = false, after017 = false, after018 = false, after019 = false } = {},
+  { after016 = false, after017 = false, after018 = false, after019 = false, after020 = false } = {},
 ) => {
   await assert014Catalog(
     client, migration003, migration005, migration006, migration011, migration012, migration013, migration014,
@@ -2591,6 +2593,7 @@ const assert015Catalog = async (
       ${after017 ? "AND NOT ((n.nspname = 'project' OR n.nspname = 'con') AND p.proname = 'resolve_key_conformance_subject')" : ''}
       ${after018 ? "AND NOT (n.nspname = 'iam' AND p.proname = 'admit_brain_revision_selection')" : ''}
       ${after019 ? "AND NOT (n.nspname = 'iam' AND p.proname IN ('admit_project_build','admit_project_source_read','ensure_project_builder_grant'))" : ''}
+      ${after020 ? "AND NOT (n.nspname = 'iam' AND p.proname = 'admit_project_review')" : ''}
     ORDER BY n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)
   `, 'c0686086aaa82af22c1774be61d4a02dfffcceb1a09ec8e7ac41670474023563')
   await assertSignatures(client, 'MIGRATION_015_EXECUTE_PRIVILEGE_REFUSED', `
@@ -3091,7 +3094,7 @@ const assert018Catalog = async (client, migration018) => {
   `, [])
 }
 
-const assert019Catalog = async (client) => {
+const assert019Catalog = async (client, { after020 = false } = {}) => {
   await assertSignatures(client, 'MIGRATION_019_SCHEMA_OWNER_REFUSED', `
     SELECT nspname || ':' || pg_get_userbyid(nspowner) AS signature
     FROM pg_namespace WHERE nspname = 'builder'
@@ -3099,7 +3102,9 @@ const assert019Catalog = async (client) => {
   await assertSignatures(client, 'MIGRATION_019_TABLE_OWNER_REFUSED', `
     SELECT relname || ':' || pg_get_userbyid(relowner) AS signature
     FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace
-    WHERE n.nspname = 'builder' AND c.relkind = 'r' ORDER BY relname
+    WHERE n.nspname = 'builder' AND c.relkind = 'r'
+      ${after020 ? "AND c.relname NOT IN ('change_acceptance','contract_revision','finding','verification_evidence')" : ''}
+    ORDER BY relname
   `, [
     'actor_run:builder_owner', 'change:builder_owner', 'coding_session:builder_owner',
     'operation_receipt:builder_owner', 'plan:builder_owner', 'work_unit:builder_owner',
@@ -3113,7 +3118,8 @@ const assert019Catalog = async (client) => {
     SELECT p.proname || ':' || pg_get_userbyid(p.proowner) || ':' || p.prosecdef || ':' ||
       coalesce(array_to_string(p.proconfig, ','), '') AS signature
     FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
-    WHERE (n.nspname = 'builder') OR (n.nspname = 'iam' AND p.proname IN ('admit_project_build','admit_project_source_read','ensure_project_builder_grant'))
+    WHERE (n.nspname = 'builder' ${after020 ? "AND p.proname NOT IN ('claim_verification','fail_verification','get_evidence','get_finding','list_evidence','list_findings','settle_verification')" : ''})
+      OR (n.nspname = 'iam' AND p.proname IN ('admit_project_build','admit_project_source_read','ensure_project_builder_grant'))
     ORDER BY n.nspname, p.proname
   `, [
     'bind_sandbox:builder_owner:true:search_path=pg_catalog, pg_temp',
@@ -3138,8 +3144,44 @@ const assert019Catalog = async (client) => {
   await assertSignatures(client, 'MIGRATION_019_WRITER_INDEX_REFUSED', `
     SELECT indexname AS signature FROM pg_indexes
     WHERE schemaname = 'builder' AND indexname = 'one_active_writer_per_change'
-      AND indexdef LIKE '%WHERE (state = ANY (%ADMITTED%RUNNING%'
+      AND indexdef LIKE '${after020 ? "%purpose = ''CODING''%state = ANY (%ADMITTED%RUNNING%" : '%WHERE (state = ANY (%ADMITTED%RUNNING%'}'
   `, ['one_active_writer_per_change'])
+}
+
+const assert020Catalog = async (client) => {
+  await assertSignatures(client, 'MIGRATION_020_TABLE_OWNER_REFUSED', `
+    SELECT relname || ':' || pg_get_userbyid(relowner) AS signature
+    FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'builder' AND c.relkind = 'r'
+      AND c.relname IN ('change_acceptance','contract_revision','finding','verification_evidence')
+    ORDER BY relname
+  `, [
+    'change_acceptance:builder_owner', 'contract_revision:builder_owner',
+    'finding:builder_owner', 'verification_evidence:builder_owner',
+  ])
+  await assertSignatures(client, 'MIGRATION_020_FUNCTION_SECURITY_REFUSED', `
+    SELECT n.nspname || '.' || p.proname || ':' || pg_get_userbyid(p.proowner) || ':' || p.prosecdef || ':' ||
+      coalesce(array_to_string(p.proconfig, ','), '') AS signature
+    FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
+    WHERE (n.nspname = 'builder' AND p.proname IN ('claim_verification','fail_verification','get_evidence','get_finding','list_evidence','list_findings','settle_verification'))
+      OR (n.nspname = 'iam' AND p.proname = 'admit_project_review')
+    ORDER BY n.nspname, p.proname
+  `, [
+    'builder.claim_verification:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'builder.fail_verification:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'builder.get_evidence:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'builder.get_finding:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'builder.list_evidence:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'builder.list_findings:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'builder.settle_verification:builder_owner:true:search_path=pg_catalog, pg_temp',
+    'iam.admit_project_review:iam_owner:true:search_path=pg_catalog, pg_temp',
+  ])
+  await assertSignatures(client, 'MIGRATION_020_TABLE_PRIVILEGE_REFUSED', `
+    SELECT grantee || ':' || table_name || ':' || privilege_type AS signature
+    FROM information_schema.table_privileges
+    WHERE table_schema = 'builder' AND grantee IN ('hub_rb_ingress','hub_rb_executor','public')
+    ORDER BY grantee, table_name, privilege_type
+  `, [])
 }
 
 const verifyLedger = async (client, migrations) => {
@@ -3152,7 +3194,18 @@ const verifyLedger = async (client, migrations) => {
     if (migration.checksum !== row.checksum_sha256) fail('MIGRATION_APPLIED_DIGEST_DRIFT', row.version)
   }
   const applied = new Map(rows.map((row) => [row.version, row.checksum_sha256]))
-  if (applied.has('019')) {
+  if (applied.has('020')) {
+    await assert015Catalog(
+      client, files.get('003'), files.get('005'), files.get('006'), files.get('011'),
+      files.get('012'), files.get('013'), files.get('014'), files.get('015'),
+      { after016: true, after017: true, after018: true, after019: true, after020: true },
+    )
+    await assert016Catalog(client, files.get('016'))
+    await assert017Catalog(client, files.get('017'))
+    await assert018Catalog(client, files.get('018'))
+    await assert019Catalog(client, { after020: true })
+    await assert020Catalog(client)
+  } else if (applied.has('019')) {
     await assert015Catalog(
       client, files.get('003'), files.get('005'), files.get('006'), files.get('011'),
       files.get('012'), files.get('013'), files.get('014'), files.get('015'),

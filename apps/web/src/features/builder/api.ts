@@ -15,6 +15,13 @@ export type ChangeProgress = Readonly<{
   planRevision: string; items: readonly Readonly<{ itemId: string; summary: string; state: string }>[]; overallState: string
 }>
 export type ChangeDiff = Readonly<{ baseSourceRevision: string; candidateSourceRevision: string; patch: string }>
+export type ChangeFinding = Readonly<{
+  findingId: string; changeId: string; findingRevision: string; state: 'OPEN' | 'CLOSED'; summary: string
+}>
+export type ChangeEvidence = Readonly<{
+  evidenceId: string; changeId: string; claim: string; subjectDigest: string
+  provenance: readonly string[]
+}>
 
 export class BuilderRequestError extends Error {
   constructor(readonly status: number | null) { super(status === null ? 'Builder request did not complete' : `Builder request failed with ${status}`) }
@@ -67,4 +74,14 @@ export const getChangeDiff = async (projectId: string, changeId: string): Promis
   const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}/diff`)
   if (!response.ok) reject(response)
   return response.json() as Promise<ChangeDiff>
+}
+export const listChangeFindings = async (projectId: string, changeId: string): Promise<ChangeFinding[]> => {
+  const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}/findings`)
+  if (!response.ok) reject(response)
+  return response.json() as Promise<ChangeFinding[]>
+}
+export const listChangeEvidence = async (projectId: string, changeId: string): Promise<ChangeEvidence[]> => {
+  const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}/evidence`)
+  if (!response.ok) reject(response)
+  return response.json() as Promise<ChangeEvidence[]>
 }
