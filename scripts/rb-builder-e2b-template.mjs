@@ -78,15 +78,16 @@ export const buildBuilderTemplate = async (environment = process.env, E2BClient 
     cpuCount: BUILDER_TEMPLATE_CPU_COUNT,
     memoryMB: BUILDER_TEMPLATE_MEMORY_MB,
   })
-  if (!built.templateId || !built.buildId) throw new Error('BUILDER_E2B_TEMPLATE_BUILD_IDENTITY_REFUSED')
-  const immutableTag = `build-${built.buildId}`
-  await client.Template.assignTags(inspected.buildName, immutableTag)
+  if (!/^[a-z0-9]+$/.test(built.templateId) ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(built.buildId)) {
+    throw new Error('BUILDER_E2B_TEMPLATE_BUILD_IDENTITY_REFUSED')
+  }
   return Object.freeze({
     recipeSha256: inspected.recipeSha256,
     buildName: inspected.buildName,
     templateId: built.templateId,
     buildId: built.buildId,
-    runtimeTemplateRef: `${built.templateId}:${immutableTag}`,
+    runtimeTemplateRef: `${built.templateId}:${built.buildId}`,
   })
 }
 

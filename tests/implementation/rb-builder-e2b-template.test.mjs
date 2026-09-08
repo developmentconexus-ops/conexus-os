@@ -33,14 +33,11 @@ test('RB Builder E2B template build uses an explicitly keyed client and returns 
     const keyFile = resolve(temporary, 'e2b-api-key')
     writeFileSync(keyFile, 'fixture-e2b-key\n', { mode: 0o600 })
     const calls = []
+    let buildIdentity = { templateId: 'tplimmutable123', buildId: '66666666-6666-4666-8666-666666666666' }
     const fakeTemplate = new E2B({ apiKey: 'fixture' }).Template
     fakeTemplate.build = async (_template, name, options) => {
       calls.push({ kind: 'build', name, options })
-      return { templateId: 'tpl_immutable_123', buildId: 'bld_immutable_456' }
-    }
-    fakeTemplate.assignTags = async (targetName, tags) => {
-      calls.push({ kind: 'tags', targetName, tags })
-      return { buildId: 'bld_immutable_456', tags: [tags] }
+      return buildIdentity
     }
     class FakeE2BClient {
       constructor(options) {
@@ -56,15 +53,16 @@ test('RB Builder E2B template build uses an explicitly keyed client and returns 
         name: built.buildName,
         options: { cpuCount: BUILDER_TEMPLATE_CPU_COUNT, memoryMB: BUILDER_TEMPLATE_MEMORY_MB },
       },
-      {
-        kind: 'tags',
-        targetName: built.buildName,
-        tags: 'build-bld_immutable_456',
-      },
     ])
-    assert.equal(built.templateId, 'tpl_immutable_123')
-    assert.equal(built.buildId, 'bld_immutable_456')
-    assert.equal(built.runtimeTemplateRef, 'tpl_immutable_123:build-bld_immutable_456')
+    assert.equal(built.templateId, 'tplimmutable123')
+    assert.equal(built.buildId, '66666666-6666-4666-8666-666666666666')
+    assert.equal(built.runtimeTemplateRef, 'tplimmutable123:66666666-6666-4666-8666-666666666666')
+
+    buildIdentity = { templateId: 'tplimmutable123', buildId: 'mutable-tag' }
+    await assert.rejects(
+      buildBuilderTemplate({ CONEXUS_BUILDER_E2B_API_KEY_FILE: keyFile }, FakeE2BClient),
+      /BUILDER_E2B_TEMPLATE_BUILD_IDENTITY_REFUSED/,
+    )
 
     chmodSync(keyFile, 0o644)
     await assert.rejects(buildBuilderTemplate({ CONEXUS_BUILDER_E2B_API_KEY_FILE: keyFile }), /BUILDER_E2B_API_KEY_FILE_REFUSED/)

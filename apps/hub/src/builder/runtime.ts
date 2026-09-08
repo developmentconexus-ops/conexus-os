@@ -55,11 +55,12 @@ class ConexusGuardedE2BSandbox extends E2BSandbox {
 
 const oid = /^[0-9a-f]{40}$/
 const safeIdentity = (value: string): boolean => /^[0-9a-f-]{36}$/i.test(value)
+const immutableE2BTemplate = /^[a-z0-9]+:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
 export const createMastraE2BCodingWorkerRuntime = (
   config: E2BBuilderRuntimeConfig,
 ): CodingWorkerRuntime => {
-  if (!config.apiKey || !config.templateId || /latest|\*/i.test(config.templateId) ||
+  if (!config.apiKey || !immutableE2BTemplate.test(config.templateId) ||
     !config.modelIdentity.admissionId || !config.modelIdentity.providerId || !config.modelIdentity.modelId ||
     /latest|\*/i.test(config.modelIdentity.modelId) || config.model.modelId !== config.modelIdentity.modelId ||
     typeof config.validateModelCredential !== 'function') {

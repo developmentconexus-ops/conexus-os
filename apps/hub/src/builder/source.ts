@@ -82,12 +82,15 @@ value = git('/tmp/inspect.git', ['rev-list', '--count', request.baseSourceRevisi
 if (!ok(value) || text(value).trim() !== '1') finish({ status: 'REFUSED', code: 'MULTI_COMMIT_RESULT' })
 value = git('/tmp/inspect.git', ['rev-parse', '--verify', 'refs/heads/result^'])
 if (!ok(value) || text(value).trim() !== request.baseSourceRevision) finish({ status: 'REFUSED', code: 'NON_DESCENDANT' })
-const changed = git('/tmp/inspect.git', ['diff', '--name-only', '-z', request.baseSourceRevision, 'refs/heads/result'], true)
+const changed = git('/tmp/inspect.git', ['diff', '--no-renames', '--name-only', '-z', request.baseSourceRevision, 'refs/heads/result'], true)
 if (!ok(changed)) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
 const paths = text(changed).split('\\0').filter(Boolean)
 if (paths.length === 0 || paths.length > 1000) finish({ status: 'REFUSED', code: 'CHANGESET_REFUSED' })
 for (const path of paths) {
-  if (path.startsWith('/') || path.includes('\\\\') || path.split('/').some(part => !part || part === '.' || part === '..') || path.startsWith('.conexus/') || (ownership[path] && ownership[path] !== 'APP-OWNED')) finish({ status: 'REFUSED', code: 'PROTECTED_PATH' })
+  const baseEntry = git('/tmp/inspect.git', ['ls-tree', request.baseSourceRevision, '--', path])
+  if (!ok(baseEntry)) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
+  if (path.startsWith('/') || path.includes('\\\\') || path.split('/').some(part => !part || part === '.' || part === '..') || path.startsWith('.conexus/') ||
+    (text(baseEntry) ? ownership[path] !== 'APP-OWNED' : (ownership[path] && ownership[path] !== 'APP-OWNED'))) finish({ status: 'REFUSED', code: 'PROTECTED_PATH' })
   const entry = git('/tmp/inspect.git', ['ls-tree', 'refs/heads/result', '--', path])
   if (!ok(entry)) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
   if (text(entry) && !/^(100644|100755) blob [0-9a-f]{40}\t/.test(text(entry))) finish({ status: 'REFUSED', code: 'UNSAFE_ENTRY' })
