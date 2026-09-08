@@ -146,7 +146,7 @@ test('BLD-01/02/03/04/06/07/17 expose owner projections with command authenticit
   }
   const calls = []
   const finding = { findingId: actorRunId, changeId, findingRevision: admissionToken, state: 'OPEN', summary: 'Intent is incomplete.' }
-  const evidence = { evidenceId: workUnitId, changeId, claim: 'Candidate checked.', subjectDigest: candidateSourceRevision, provenance: [], outcome: 'FAIL', report: { summary: 'Not verified.' } }
+  const evidence = { evidenceId: workUnitId, changeId, claim: 'Candidate checked.', subjectDigest: candidateSourceRevision, provenance: [] }
   const store = {
     listChanges: async (input) => { calls.push(['list', input]); return [projection] },
     readSnapshot: async (input) => { calls.push(['read', input]); return snapshot },
@@ -195,6 +195,7 @@ test('runtime, migration and custody source preserve the Builder trust boundary'
   assert.match(runtime, /envs: \{\}/)
   assert.doesNotMatch(runtime, /LocalSandbox/)
   assert.match(runtime, /override retryOnDead/)
+  assert.doesNotMatch(readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/verification-runtime.ts'), 'utf8'), /diff --check/)
   assert.match(source, /'--network', 'none'/)
   assert.match(source, /refs\/conexus\/changes\//)
   assert.match(source, /ownership\[path\] && ownership\[path\] !== 'APP-OWNED'/)
@@ -729,7 +730,7 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
     verifiedRun, verifiedToken, 'verifier_exact', verification.assertionRef, verification.contractRevision,
     verification.planRevision, verification.baselineDigest, verification.baseSourceRevision,
     verification.candidateSourceRevision, '61000000-0000-4000-8000-000000000010',
-    '61000000-0000-4000-8000-000000000011', '61000000-0000-4000-8000-000000000012',
+    [], [],
     '1'.repeat(64), passingReport,
   ])).rows[0].settled, true)
   assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [verifiedChange])).rows[0].state, 'VERIFIED')
@@ -756,7 +757,7 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
     verifiedRun, verifiedToken, 'replacement_verifier', verification.assertionRef, verification.contractRevision,
     verification.planRevision, verification.baselineDigest, verification.baseSourceRevision,
     verification.candidateSourceRevision, '61000000-0000-4000-8000-000000000013',
-    '61000000-0000-4000-8000-000000000014', '61000000-0000-4000-8000-000000000015',
+    [], [],
     '2'.repeat(64), passingReport,
   ])).rows[0].settled, false)
   assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [verifiedChange])).rows[0].state, 'VERIFIED')
@@ -783,13 +784,15 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   ])).rows[0].value
   assert.equal(failedVerification.changeId, failedChange)
   await query(executor, 'SELECT builder.bind_sandbox($1,$2,$3)', [failedVerifierRun, failedVerifierToken, 'failed_verifier'])
-  const failingReport = { outcome: 'FAIL', intentSatisfied: false, summary: 'The requested endpoint is absent.', findings: ['Missing endpoint.'], checks: [{ name: 'intent', outcome: 'FAIL', detail: 'No route exists.' }] }
+  const failingReport = { outcome: 'FAIL', intentSatisfied: false, summary: 'The requested endpoint is absent.', findings: ['Missing endpoint.', 'Missing route registration.'], checks: [{ name: 'intent', outcome: 'FAIL', detail: 'No route exists.' }] }
   await query(executor, 'SELECT builder.settle_verification($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)', [
     failedVerifierRun, failedVerifierToken, 'failed_verifier', failedVerification.assertionRef,
     failedVerification.contractRevision, failedVerification.planRevision, failedVerification.baselineDigest,
     failedVerification.baseSourceRevision, failedVerification.candidateSourceRevision,
-    '62000000-0000-4000-8000-000000000010', '62000000-0000-4000-8000-000000000011',
-    '62000000-0000-4000-8000-000000000012', '3'.repeat(64), failingReport,
+    '62000000-0000-4000-8000-000000000010',
+    ['62000000-0000-4000-8000-000000000011', '62000000-0000-4000-8000-000000000012'],
+    ['62000000-0000-4000-8000-000000000013', '62000000-0000-4000-8000-000000000014'],
+    '3'.repeat(64), failingReport,
   ])
   assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [failedChange])).rows[0].state, 'VERIFICATION_FAILED')
   assert.equal((await query(current, 'SELECT count(*)::int AS count FROM builder.change_acceptance WHERE change_id = $1', [failedChange])).rows[0].count, 0)
@@ -798,7 +801,7 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   ])).rows[0].count, 0)
   await query(current, 'UPDATE iam.project_builder_grant SET can_review = true WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
   const disclosedFindings = await query(ingress, 'SELECT value FROM builder.list_findings($1,$2,$3) AS value', [accountId, subjectProjectId, failedChange])
-  assert.equal(disclosedFindings.rows[0].value.summary, 'The requested endpoint is absent.')
+  assert.deepEqual(disclosedFindings.rows.map((row) => row.value.summary), ['Missing endpoint.', 'Missing route registration.'])
   assert.equal((await query(ingress, 'SELECT builder.get_finding($1,$2,$3,$4) AS value', [
     accountId, subjectProjectId, failedChange, disclosedFindings.rows[0].value.findingId,
   ])).rows[0].value.findingId, disclosedFindings.rows[0].value.findingId)
@@ -835,8 +838,7 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
     settlementStaleVerifierRun, settlementStaleVerifierToken, 'stale_verifier', settlementStaleVerification.assertionRef,
     settlementStaleVerification.contractRevision, settlementStaleVerification.planRevision, settlementStaleVerification.baselineDigest,
     settlementStaleVerification.baseSourceRevision, settlementStaleVerification.candidateSourceRevision,
-    '63000000-0000-4000-8000-000000000010', '63000000-0000-4000-8000-000000000011',
-    '63000000-0000-4000-8000-000000000012', '4'.repeat(64), passingReport,
+    '63000000-0000-4000-8000-000000000010', [], [], '4'.repeat(64), passingReport,
   ])).rows[0].settled, false)
   assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [settlementStaleChange])).rows[0].state, 'UNVERIFIED')
   assert.equal((await query(current, 'SELECT count(*)::int AS count FROM builder.change_acceptance WHERE change_id = $1', [settlementStaleChange])).rows[0].count, 0)

@@ -80,8 +80,6 @@ export type EvidenceProjection = Readonly<{
   claim: string
   subjectDigest: string
   provenance: readonly string[]
-  outcome: 'PASS' | 'FAIL' | 'INCONCLUSIVE'
-  report: unknown
 }>
 
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
@@ -178,6 +176,12 @@ export const createBuilderStore = ({
     return value
   },
   settleVerification: async (input) => {
+    const reportFindings = typeof input.report === 'object' && input.report !== null &&
+      Array.isArray((input.report as Readonly<{ findings?: unknown }>).findings)
+      ? (input.report as Readonly<{ findings: readonly unknown[] }>).findings
+      : []
+    const findingIds = reportFindings.map(() => mintIdentity())
+    const findingRevisions = reportFindings.map(() => mintIdentity())
     const evidenceSetDigest = sha256(canonicalBytes({
       projectId: input.projectId, changeId: input.changeId, actorRunId: input.actorRunId,
       assertionRef: input.assertionRef, contractRevision: input.contractRevision, planRevision: input.planRevision,
@@ -188,7 +192,7 @@ export const createBuilderStore = ({
       'SELECT builder.settle_verification($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) AS settled', [
         input.actorRunId, input.admissionToken, input.sandboxId, input.assertionRef,
         input.contractRevision, input.planRevision, input.baselineDigest, input.baseSourceRevision,
-        input.candidateSourceRevision, mintIdentity(), mintIdentity(), mintIdentity(), evidenceSetDigest, input.report,
+        input.candidateSourceRevision, mintIdentity(), findingIds, findingRevisions, evidenceSetDigest, input.report,
       ],
     )
     if (result.rows[0]?.settled !== true) throw new Error('BUILDER_LATE_VERIFICATION_REFUSED')

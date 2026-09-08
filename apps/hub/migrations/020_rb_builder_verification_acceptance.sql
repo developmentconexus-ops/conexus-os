@@ -212,7 +212,7 @@ CREATE FUNCTION builder.settle_verification(
   p_actor_run_id uuid, p_admission_token uuid, p_sandbox_id text,
   p_assertion_ref text, p_contract_revision uuid, p_plan_revision uuid,
   p_baseline_digest text, p_base_source_revision text, p_candidate_source_revision text,
-  p_evidence_id uuid, p_finding_id uuid, p_finding_revision uuid,
+  p_evidence_id uuid, p_finding_ids uuid[], p_finding_revisions uuid[],
   p_evidence_set_digest text, p_report jsonb
 ) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE run_row builder.actor_run%ROWTYPE; stored builder.change%ROWTYPE; contract builder.contract_revision%ROWTYPE;
@@ -232,8 +232,19 @@ BEGIN
     stored.baseline_digest <> p_baseline_digest OR stored.base_source_revision <> p_base_source_revision OR
     stored.candidate_source_revision <> p_candidate_source_revision OR p_evidence_set_digest !~ '^[0-9a-f]{64}$' OR
     report_outcome NOT IN ('PASS', 'FAIL', 'INCONCLUSIVE') OR report_summary !~ '\S' OR
+    jsonb_typeof(p_report->'intentSatisfied') <> 'boolean' OR
     jsonb_typeof(p_report->'findings') <> 'array' OR jsonb_typeof(p_report->'checks') <> 'array' OR
     jsonb_array_length(p_report->'checks') < 1 THEN
+    UPDATE builder.actor_run SET state = 'QUARANTINED', updated_at = clock_timestamp() WHERE actor_run_id = p_actor_run_id;
+    UPDATE builder.change SET state = 'UNVERIFIED', updated_at = clock_timestamp() WHERE change_id = run_row.change_id AND state = 'VERIFYING';
+    RETURN false;
+  END IF;
+  IF cardinality(p_finding_ids) IS DISTINCT FROM jsonb_array_length(p_report->'findings') OR
+    cardinality(p_finding_revisions) IS DISTINCT FROM jsonb_array_length(p_report->'findings') OR
+    EXISTS (SELECT 1 FROM jsonb_array_elements(p_report->'findings') AS finding_row
+      WHERE jsonb_typeof(finding_row) <> 'string' OR finding_row #>> '{}' !~ '\S') OR
+    (report_outcome = 'FAIL') <> (jsonb_array_length(p_report->'findings') > 0 AND
+      EXISTS (SELECT 1 FROM jsonb_array_elements(p_report->'checks') AS check_row WHERE check_row->>'outcome' = 'FAIL')) THEN
     UPDATE builder.actor_run SET state = 'QUARANTINED', updated_at = clock_timestamp() WHERE actor_run_id = p_actor_run_id;
     UPDATE builder.change SET state = 'UNVERIFIED', updated_at = clock_timestamp() WHERE change_id = run_row.change_id AND state = 'VERIFYING';
     RETURN false;
@@ -258,7 +269,11 @@ BEGIN
     UPDATE builder.change SET state = 'VERIFIED', updated_at = clock_timestamp() WHERE change_id = run_row.change_id;
   ELSIF report_outcome = 'FAIL' THEN
     INSERT INTO builder.finding(finding_id, change_id, finding_revision, assertion_ref, subject_digest, state, summary)
-    VALUES (p_finding_id, run_row.change_id, p_finding_revision, p_assertion_ref, p_candidate_source_revision, 'OPEN', report_summary);
+    SELECT finding_id.value, run_row.change_id, finding_revision.value, p_assertion_ref,
+      p_candidate_source_revision, 'OPEN', finding_text.summary
+    FROM jsonb_array_elements_text(p_report->'findings') WITH ORDINALITY AS finding_text(summary, ordinal)
+    JOIN unnest(p_finding_ids) WITH ORDINALITY AS finding_id(value, ordinal) USING (ordinal)
+    JOIN unnest(p_finding_revisions) WITH ORDINALITY AS finding_revision(value, ordinal) USING (ordinal);
     UPDATE builder.change SET state = 'VERIFICATION_FAILED', updated_at = clock_timestamp() WHERE change_id = run_row.change_id;
   ELSE
     UPDATE builder.change SET state = 'UNVERIFIED', updated_at = clock_timestamp() WHERE change_id = run_row.change_id;
@@ -367,7 +382,7 @@ RESET ROLE;
 GRANT EXECUTE ON FUNCTION builder.list_findings(uuid,uuid,uuid), builder.get_finding(uuid,uuid,uuid,uuid),
   builder.list_evidence(uuid,uuid,uuid), builder.get_evidence(uuid,uuid,uuid,uuid) TO hub_rb_ingress;
 GRANT EXECUTE ON FUNCTION builder.claim_verification(uuid,uuid,uuid,text,text,text),
-  builder.settle_verification(uuid,uuid,text,text,uuid,uuid,text,text,text,uuid,uuid,uuid,text,jsonb),
+  builder.settle_verification(uuid,uuid,text,text,uuid,uuid,text,text,text,uuid,uuid[],uuid[],text,jsonb),
   builder.fail_verification(uuid,uuid,text) TO hub_rb_executor;
 REVOKE ALL ON ALL TABLES IN SCHEMA builder FROM hub_rb_ingress, hub_rb_executor;
 

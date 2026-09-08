@@ -230,7 +230,6 @@ export const createMastraE2BCandidateVerificationRuntime = (
           'test -z "$(git -C /workspace/repo remote)"',
           `test "$(git -C /workspace/repo rev-parse HEAD)" = "${input.candidateSourceRevision}"`,
           `test "$(git -C /workspace/repo rev-parse HEAD^)" = "${input.baseSourceRevision}"`,
-          'git -C /workspace/repo diff --check HEAD^ HEAD',
         ].join(' && ')])
         if (!prepared.success) throw new Error('BUILDER_VERIFIER_MATERIALIZATION_REFUSED')
 
@@ -336,7 +335,9 @@ export const createMastraE2BCandidateVerificationRuntime = (
         )
         const report = verificationReportSchema.parse(result.object)
         if ((report.outcome === 'PASS') !== (report.intentSatisfied && report.findings.length === 0 &&
-          report.checks.every((check) => check.outcome === 'PASS'))) throw new Error('BUILDER_VERIFIER_REPORT_REFUSED')
+          report.checks.every((check) => check.outcome === 'PASS')) ||
+          (report.outcome === 'FAIL') !== (report.findings.length > 0 &&
+            report.checks.some((check) => check.outcome === 'FAIL'))) throw new Error('BUILDER_VERIFIER_REPORT_REFUSED')
         assertCandidateInspectionCoverage(report.outcome, requiredReads, inspected)
         if (sandbox.sandboxId !== observedSandboxId || input.signal?.aborted) throw new Error('BUILDER_VERIFIER_LATE_RESULT_REFUSED')
         return Object.freeze({
