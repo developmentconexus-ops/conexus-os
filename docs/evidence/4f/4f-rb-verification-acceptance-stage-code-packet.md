@@ -67,6 +67,10 @@ Product UX.
   `project.source.read` for Findings/Evidence disclosure. It is a human
   disclosure/decision permission, not authority over system-owned verifier
   settlement.
+- The creator's current `project.build` authority is re-applied when admitting
+  the separate verifier ActorRun and again before acceptance settlement.
+  Revocation leaves the exact candidate/diff inspectable as `UNVERIFIED`; it
+  never turns `project.review` into system settlement authority.
 
 ## State and settlement
 
@@ -77,8 +81,8 @@ post-custody states `VERIFYING`, `VERIFIED`, `VERIFICATION_FAILED` and
 The verifier report outcome is exactly `PASS | FAIL | INCONCLUSIVE`.
 
 - `PASS` may create acceptance only when the report binds the current candidate,
-  Baseline, Plan, contract, assertion and verifier ActorRun and all current
-  eligibility checks still hold.
+  Baseline, Plan, contract, assertion and verifier ActorRun, and the creator's
+  current `project.build` eligibility still hold.
 - `FAIL` records immutable Evidence plus an open blocking Finding and leaves the
   Change unaccepted in `VERIFICATION_FAILED`.
 - `INCONCLUSIVE`, verifier interruption, missing required Evidence, stale

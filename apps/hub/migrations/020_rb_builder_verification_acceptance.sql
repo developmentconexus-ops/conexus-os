@@ -184,6 +184,11 @@ DECLARE stored builder.change%ROWTYPE; baseline record; unit builder.work_unit%R
 BEGIN
   SELECT * INTO STRICT stored FROM builder.change WHERE change_id = p_change_id FOR UPDATE;
   IF stored.state <> 'RESULT_READY' THEN RAISE EXCEPTION 'BUILDER_CHANGE_NOT_RESULT_READY' USING ERRCODE = 'P0001'; END IF;
+  PERFORM 1 FROM iam.admit_project_build(stored.created_by_account_id, stored.project_id);
+  IF NOT FOUND THEN
+    UPDATE builder.change SET state = 'UNVERIFIED', updated_at = clock_timestamp() WHERE change_id = p_change_id;
+    RETURN jsonb_build_object('refusedCode', 'BUILDER_VERIFICATION_AUTHORITY_REVOKED');
+  END IF;
   SELECT * INTO baseline FROM project.get_approved_baseline(stored.project_id, ARRAY[stored.project_id]);
   IF NOT FOUND OR baseline.baseline_digest <> stored.baseline_digest OR baseline.source_revision <> stored.base_source_revision THEN
     UPDATE builder.change SET state = 'UNVERIFIED', updated_at = clock_timestamp() WHERE change_id = p_change_id;
@@ -232,6 +237,7 @@ BEGIN
     current_baseline.baseline_digest IS DISTINCT FROM p_baseline_digest OR current_baseline.source_revision IS DISTINCT FROM p_base_source_revision OR
     stored.baseline_digest IS DISTINCT FROM p_baseline_digest OR stored.base_source_revision IS DISTINCT FROM p_base_source_revision OR
     stored.candidate_source_revision IS DISTINCT FROM p_candidate_source_revision OR
+    NOT EXISTS (SELECT 1 FROM iam.admit_project_build(stored.created_by_account_id, stored.project_id)) OR
     p_evidence_set_digest IS NULL OR p_evidence_set_digest !~ '^[0-9a-f]{64}$' OR
     report_outcome IS NULL OR report_outcome NOT IN ('PASS', 'FAIL', 'INCONCLUSIVE') OR
     report_summary IS NULL OR report_summary !~ '\S' OR

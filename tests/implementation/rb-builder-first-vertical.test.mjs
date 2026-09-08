@@ -851,6 +851,57 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   assert.equal((await query(current, 'SELECT outcome FROM builder.verification_evidence WHERE change_id = $1', [inconclusiveChange])).rows[0].outcome, 'INCONCLUSIVE')
   assert.equal((await query(current, 'SELECT count(*)::int AS count FROM builder.change_acceptance WHERE change_id = $1', [inconclusiveChange])).rows[0].count, 0)
 
+  const claimRevokedChange = '64300000-0000-4000-8000-000000000001'
+  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+    accountId, subjectProjectId, '8c'.repeat(32), '9c'.repeat(32), claimRevokedChange,
+    '64300000-0000-4000-8000-000000000002', '64300000-0000-4000-8000-000000000003',
+    '64300000-0000-4000-8000-000000000004', '64300000-0000-4000-8000-000000000005', 'Refuse verifier admission after build revocation',
+  ])
+  await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6)', [
+    claimRevokedChange, '64300000-0000-4000-8000-000000000006', '64300000-0000-4000-8000-000000000007',
+    modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
+  ])
+  await query(executor, 'SELECT builder.bind_sandbox($1,$2,$3)', [
+    '64300000-0000-4000-8000-000000000006', '64300000-0000-4000-8000-000000000007', 'claim-revoked-coding',
+  ])
+  await query(executor, 'SELECT builder.settle_result($1,$2,$3,$4,$5,$6,$7)', [
+    '64300000-0000-4000-8000-000000000006', '64300000-0000-4000-8000-000000000007', 'claim-revoked-coding',
+    baseSourceRevision, 'a'.repeat(40), 'claim revoked diff', 'completed before revocation',
+  ])
+  await query(current, 'UPDATE iam.project_builder_grant SET can_build = false WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
+  const refusedVerification = (await query(executor, 'SELECT builder.claim_verification($1,$2,$3,$4,$5,$6) AS value', [
+    claimRevokedChange, '64300000-0000-4000-8000-000000000008', '64300000-0000-4000-8000-000000000009',
+    verifierIdentity.admissionId, verifierIdentity.providerId, verifierIdentity.modelId,
+  ])).rows[0].value
+  assert.equal(refusedVerification.refusedCode, 'BUILDER_VERIFICATION_AUTHORITY_REVOKED')
+  assert.deepEqual((await query(current, 'SELECT state, patch FROM builder.change WHERE change_id = $1', [claimRevokedChange])).rows[0], {
+    state: 'UNVERIFIED', patch: 'claim revoked diff',
+  })
+  assert.equal((await query(current, `SELECT count(*)::int AS count FROM builder.actor_run
+    WHERE change_id = $1 AND purpose = 'VERIFICATION'`, [claimRevokedChange])).rows[0].count, 0)
+  await query(current, 'UPDATE iam.project_builder_grant SET can_build = true WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
+
+  const settlementRevokedChange = '64400000-0000-4000-8000-000000000001'
+  const settlementRevokedVerification = await prepareVerification({
+    change: settlementRevokedChange, plan: '64400000-0000-4000-8000-000000000002', item: '64400000-0000-4000-8000-000000000003',
+    session: '64400000-0000-4000-8000-000000000004', unit: '64400000-0000-4000-8000-000000000005',
+    codingRun: '64400000-0000-4000-8000-000000000006', codingToken: '64400000-0000-4000-8000-000000000007',
+    verifierRun: '64400000-0000-4000-8000-000000000008', verifierToken: '64400000-0000-4000-8000-000000000009',
+    keyDigest: '8d'.repeat(32), requestDigest: '9d'.repeat(32), candidate: 'b'.repeat(40), intent: 'Refuse acceptance after build revocation',
+  })
+  await query(current, 'UPDATE iam.project_builder_grant SET can_build = false WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
+  assert.equal((await query(executor, 'SELECT builder.settle_verification($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) AS settled', [
+    settlementRevokedVerification.actorRunId, settlementRevokedVerification.admissionToken, `${settlementRevokedChange}-verifier`,
+    settlementRevokedVerification.assertionRef, settlementRevokedVerification.contractRevision, settlementRevokedVerification.planRevision,
+    settlementRevokedVerification.baselineDigest, settlementRevokedVerification.baseSourceRevision,
+    settlementRevokedVerification.candidateSourceRevision, '64400000-0000-4000-8000-000000000010', [], [], 'b'.repeat(64), passingReport,
+  ])).rows[0].settled, false)
+  assert.deepEqual((await query(current, 'SELECT state, patch FROM builder.change WHERE change_id = $1', [settlementRevokedChange])).rows[0], {
+    state: 'UNVERIFIED', patch: 'diff',
+  })
+  assert.equal((await query(current, 'SELECT count(*)::int AS count FROM builder.change_acceptance WHERE change_id = $1', [settlementRevokedChange])).rows[0].count, 0)
+  await query(current, 'UPDATE iam.project_builder_grant SET can_build = true WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
+
   const recoveryChange = '65000000-0000-4000-8000-000000000001'
   await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
     accountId, subjectProjectId, 'a1'.repeat(32), 'b1'.repeat(32), recoveryChange,
