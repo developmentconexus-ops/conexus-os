@@ -268,9 +268,11 @@ falsified the claimed immutability of its `build-<UUID>` E2B tag. E2B's native
 in PR #66, squash `839d549`. The verification/acceptance candidate now has real
 PostgreSQL refusal/recovery proof, two complete Chromium→HTTP→Git→Mastra→E2B
 user replays, a clean Linux repository floor and final isolated Fable/Gemini
-convergence. The next smallest action is to commit this adjudication/status,
-publish one normal PR and require objective CI green. Merge remains separately
-unauthorized.
+convergence. Normal PR #67 is open from documentation head `bcd683b`; required
+Verify run `34263788664` is GREEN on that exact head. This factual roadmap
+rebaseline is the only later change. The next smallest action is to preserve
+objective CI green on the resulting PR head and request the separate operator
+merge decision. Merge remains unauthorized.
 
 ACP, runtime tournaments, Worker Eval infrastructure, private MCP, concurrent
 writers, `BLD-18..20`, R3+, Release/deployment and broad Sankhya writes remain
