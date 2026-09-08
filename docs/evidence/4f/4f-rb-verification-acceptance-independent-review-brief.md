@@ -4,7 +4,7 @@
 
 Repository: `https://github.com/developmentconexus-ops/conexus-os.git`.
 Exact implementation candidate:
-`76a7603b67f67ccce5f2bfaa9880d53faa8075e7` on
+`9cb777a237ef5890bb0168e2df48b54ff1bf1537` on
 `rb-builder-verification-acceptance`.
 Implementation comparison base:
 `839d5496359b95261c59906f51c0ce439d20c251`.
