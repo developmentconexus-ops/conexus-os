@@ -13,8 +13,6 @@ test('4D-03 maps every post-scaffold property into a consumer-gated mechanism-ne
   const ledger = read('docs/evidence/4d/4d-01-protected-property-ledger.md')
   const contract = read('docs/evidence/4d/4d-03-paved-road-property-contract.md')
   const phase = read('docs/phases/4d-project-paved-road-and-runtime-realization.md')
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
 
   const ledgerIds = [...new Set(ledger.match(propertyPattern) ?? [])].sort()
   const contractIds = [...new Set(contract.match(propertyPattern) ?? [])]
@@ -71,5 +69,4 @@ test('4D-03 maps every post-scaffold property into a consumer-gated mechanism-ne
   assert.match(contract, /operator approved it on 2026-08-29;\s+4D-B is closed and only 4D-04 runtime-family applicability may now open/)
 
   assert.match(phase, /Mutable status and exact next action.*owned only by/s)
-  assert.match(index, /4D-03 approved Paved-Road property contract/)
 })

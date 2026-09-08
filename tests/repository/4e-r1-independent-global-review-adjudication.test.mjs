@@ -14,8 +14,6 @@ test('independent 4E review converges after correcting GitInfra and first-author
   const ledger = read('docs/product/operation-ledger.md')
   const security = read('docs/reference/security-and-authority.md')
   const applicability = read('docs/evidence/4d/4d-04-runtime-family-applicability.md')
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
 
   for (const token of [
     'CONVERGED CLEAR / 4E(R1) OPERATOR APPROVED / 4F NEXT',
@@ -43,7 +41,4 @@ test('independent 4E review converges after correcting GitInfra and first-author
   assert.match(security, /sole F1 `platform_operator` source/)
   assert.match(applicability, /R1 GitInfra is an owner-local foundation mechanism/)
   assert.match(applicability, /keeps the `24`-family census unchanged/)
-  assert.match(index, /4E\(R1\) independent whole\/global review/)
-  assert.match(index, /4E-R1 GitInfra \+ first-authority correction/)
-  assert.match(roadmap, /4E — Whole-System Coherence & Golden Flows \| CLOSED\(R1\) \/ OPERATOR APPROVED/)
 })

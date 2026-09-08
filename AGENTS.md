@@ -4,18 +4,25 @@
 
 Before relying on chat, handoff, or remembered state:
 
-1. revalidate repository identity, current branch/HEAD, remote `main`, the relevant PR, and current CI state;
-2. read [`docs/roadmap.md`](docs/roadmap.md) for current stage, allowed work, implementation gate, and exact next action;
-3. use [`docs/index.md`](docs/index.md) to locate the smallest current authority for the task;
-4. select only the methods that apply:
+1. run the read-only preflight in the pinned WSL environment;
+2. read [`docs/roadmap.md`](docs/roadmap.md) for current stage, grant, and exact next action;
+3. use [`docs/index.md`](docs/index.md) to locate the smallest current owner;
+4. load only the applicable method:
    - [`engineering-method.md`](docs/development/engineering-method.md) for material engineering and Global Maximum decisions;
    - [`repository-method.md`](docs/development/repository-method.md) for repository, context, Git, documentation, and CI;
    - [`frontend-product-experience-planning-method.md`](docs/development/frontend-product-experience-planning-method.md) for frontend Product Experience;
-5. load the current task owner(s).
+5. load the current task owner(s) and compare the requested action with the grant.
 
 Expand into additional Product, architecture, contracts, Evidence, research, Git history, code, runtime, qualification, or external sources only because of a named material question, uncertainty, contradiction, dependency, falsifier, or proof need.
 
-**Global coverage does not require global context.** Do not recursively read the repository by default.
+```bash
+source /home/leandrotheodoro/.nvm/nvm.sh
+nvm use
+npm run conexus:preflight
+```
+
+The preflight reports facts; it does not grant work. Chat and handoffs are
+orientation only. **Global coverage does not require global context.**
 
 ## Authority
 
@@ -37,7 +44,7 @@ Expand into additional Product, architecture, contracts, Evidence, research, Git
 
 ## Verification
 
-Required verification floor:
+Candidate verification floor in pinned Linux:
 
 ```bash
 npm ci

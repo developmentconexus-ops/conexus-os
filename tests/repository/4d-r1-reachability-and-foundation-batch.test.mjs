@@ -14,8 +14,6 @@ test('compressed Phase-4 program bounds 128 operations and opens one R1 foundati
   const batch = read('docs/evidence/4d/4d-r1-foundation-batch.md')
   const program = read('docs/phases/4-implementation-readiness-program.md')
   const phase = read('docs/phases/4d-project-paved-road-and-runtime-realization.md')
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
 
   const canonicalIds = [...new Set(operationLedger.split(/\r?\n/)
     .filter(line => /^\| `(?:IAM|WS|PRJ|BLD|BRN|CON|REL|PAR|GW|MAR|OBS)-\d{2}` \|/.test(line))
@@ -64,9 +62,4 @@ test('compressed Phase-4 program bounds 128 operations and opens one R1 foundati
 
   assert.doesNotMatch(phase, /^> \*\*Status:/m)
   assert.match(phase, /Mutable status and exact next action.*owned only by/s)
-  assert.match(roadmap, /BOUNDED PROGRAM COMPRESSION OPERATOR RATIFIED/)
-  assert.match(roadmap, /OPERATION MAP 128↔128 CANDIDATE \/ R1 FOUNDATION SELECTION CLOSED \+ OPERATOR APPROVED \/ R1 PROBE GRANT OPERATOR APPROVED \/ R1F-A01\+R1F-E01 CORRECTED \/ P01\.\.P12 EVIDENCE OPERATOR APPROVED/)
-  assert.match(roadmap, /\| Product implementation \|[^\n]*\bR1\b[^\n]*\b(?:R2|RB)[^\n]*BLOCKED/)
-  assert.match(index, /R1 operation reachability bounding map/)
-  assert.match(index, /R1 Foundation Batch/)
 })

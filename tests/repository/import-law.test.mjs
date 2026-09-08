@@ -5,43 +5,7 @@ import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 import { checkImportLaw } from '../../scripts/check-import-law.mjs'
 
-const REQUIRED_CI_RUN_STEPS = [
-  'npm ci',
-  'npx --no-install playwright install --with-deps chromium',
-  'npm run r1:s2:generate',
-  'git diff --exit-code -- apps/hub/src/generated/s2-routes.ts apps/web/src/generated/workspace-client.ts',
-  'npm run r1:s2:hub:typecheck',
-  'npm run r1:s2:http',
-  'node --test --test-concurrency=1 tests/implementation/r1-s2-reads.test.mjs',
-  'node --test --test-concurrency=1 tests/repository/import-law.test.mjs',
-  'npx --no-install biome check apps/hub/src apps/web/src packages/canonical-json/src packages/profile-compiler/src scripts/check-import-law.mjs scripts/generate-r1-s2-contracts.mjs tests/implementation/r1-s2-http.test.mjs tests/implementation/r1-s2-reads.test.mjs tests/repository/import-law.test.mjs',
-  'bash -n tests/implementation/r1-s2-live-runner.sh && node --check tests/implementation/r1-s2-live-setup.mjs && node --check tests/implementation/r1-s2-live-browser.spec.mjs',
-  'npm run r1:a0:web:typecheck',
-  'npm run r1:r1c14:native:check',
-  'npm run r1:s6:p0:check',
-  'npm run r1:s6:p0:postgres',
-  'npm run r1:s6:p1:check',
-  'npm run r1:s6:p1:postgres',
-  'npm run r1:s6:p2:check',
-  'npm run r1:s6:p3:check',
-  'npm run r1:s6:p5:check',
-  'npm run r1:s6:closure:composed',
-  'npm run verify',
-]
 const REQUIRED_POSTGRES_SERVICE = 'image: postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f'
-
-function assertRequiredCiWiring(workflow) {
-  let previousIndex = -1
-  for (const command of REQUIRED_CI_RUN_STEPS) {
-    const line = `      - run: ${command}`
-    const matches = [...workflow.matchAll(new RegExp(`^${line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'gm'))]
-    assert.equal(matches.length, 1, `required CI step must occur exactly once: ${command}`)
-    assert.ok(matches[0].index > previousIndex, `required CI step is out of order: ${command}`)
-    previousIndex = matches[0].index
-  }
-  assert.equal(workflow.split(REQUIRED_POSTGRES_SERVICE).length - 1, 1,
-    'required CI PostgreSQL identity must occur exactly once')
-}
 
 function fixture(files) {
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-import-law-'))
@@ -67,22 +31,14 @@ test('real production graph satisfies the import law', () => {
   assert.deepEqual(checkImportLaw(resolve(import.meta.dirname, '../..')), [])
 })
 
-test('required CI executes every A0-P4 objective proof in order', () => {
+test('required CI delegates once to the flattened candidate graph', () => {
   const workflow = readFileSync(resolve(import.meta.dirname, '../../.github/workflows/verify.yml'), 'utf8')
-  assertRequiredCiWiring(workflow)
-
-  const withoutImportLaw = workflow.replace(
-    '      - run: node --test --test-concurrency=1 tests/repository/import-law.test.mjs\n',
-    '',
-  )
-  assert.throws(
-    () => assertRequiredCiWiring(withoutImportLaw),
-    /required CI step must occur exactly once: node --test/,
-  )
-
-  const substitutedPostgres = workflow.replace(REQUIRED_POSTGRES_SERVICE,
-    'image: postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297')
-  assert.throws(() => assertRequiredCiWiring(substitutedPostgres), /PostgreSQL identity/)
+  assert.equal(workflow.match(/^ {6}- run: npm run verify$/gm)?.length, 1)
+  assert.equal(workflow.match(/^ {6}- run: npm run r1:s2:hub:typecheck$/gm)?.length ?? 0, 0)
+  assert.equal(workflow.match(/^ {6}- run: npm run r1:a0:web:typecheck$/gm)?.length ?? 0, 0)
+  assert.ok(workflow.includes('npm run verify'))
+  assert.equal(workflow.split(REQUIRED_POSTGRES_SERVICE).length - 1, 1,
+    'required CI PostgreSQL identity must occur exactly once')
 })
 
 test('every import-law RED control fires its named rule', async (suite) => {

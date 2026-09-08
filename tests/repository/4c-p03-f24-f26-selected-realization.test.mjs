@@ -108,18 +108,17 @@ test('F26 makes AgentRun history temporally ordered and human-diagnosable withou
 
 test('P-03 preserves the REVISE history and closes the operator-approved lock with F27-F30 handoffs', () => {
   const evidence = read('docs/evidence/4c/p03-authority-feasibility-and-structural-hypotheses.md')
-  const roadmap = read('docs/roadmap.md')
   const inventory = read('docs/evidence/4c/candidate-screen-surface-inventory.md')
   const phase = read('docs/phases/4c-frontend-interaction-and-authority-realization.md')
   const blueprint = read('docs/development/blueprint-harness-design.md')
 
   for (const token of [
-    'P-03 — Product Agent work — LOCKED / OPERATOR APPROVED / P9-P10 CLOSED',
-    'P8 operator walkthrough = REVISE',
+    'P-03 LOCKED / OPERATOR APPROVED / P9 EXACT TRACE CLOSED / P10 CONSOLIDATED',
+    'operator walkthrough = REVISE',
     'F30 = OPERATOR APPROVED / 4A/4B GREEN',
-    'P-01 Agent Studio delta = RE-LOCKED',
+    'P-01 Agent Studio delta = RE-LOCKED / OPERATOR APPROVED',
     'P-03 = LOCKED / P9 EXACT TRACE CLOSED / P10 CONSOLIDATED',
-  ]) requireText(roadmap, token, `roadmap missing ${token}`)
+  ]) requireText(evidence, token, `P-03 owner missing ${token}`)
 
   for (const token of [
     '## 14. Operator walkthrough REVISE — F27–F29',

@@ -9,7 +9,6 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 
 test('Pack A preserves the firing falsifier and passes after the bounded R1F-A01 correction', () => {
   const result = read('docs/evidence/4d/4d-r1-pack-a-admission-result.md')
-  const roadmap = read('docs/roadmap.md')
   const evidence = JSON.parse(read('qualification/4d/r1-foundation/evidence/results.json'))
   const supplyChain = JSON.parse(read('qualification/4d/r1-foundation/admission/supply-chain.json'))
   const cleanup = JSON.parse(read('qualification/4d/r1-foundation/evidence/cleanup.json'))
@@ -42,5 +41,4 @@ test('Pack A preserves the firing falsifier and passes after the bounded R1F-A01
   assert.equal(rerunCleanup.verdict, 'PASS')
   assert.equal(lock.lockfileVersion, 3)
   assert.equal(Object.keys(lock.packages).length - 1, 224)
-  assert.match(roadmap, /R1F-A01\+R1F-E01 CORRECTED \/ P01\.\.P12 EVIDENCE OPERATOR APPROVED \/ 4D-D\(R1\) FOUNDATION CLAIMS PRESERVED/)
 })

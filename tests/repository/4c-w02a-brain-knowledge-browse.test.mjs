@@ -59,7 +59,6 @@ test('selected F07 realization keeps BRN-03 as owner and makes exact published k
   const ledger = read('docs/product/operation-ledger.md')
   const wire = read('contracts/api/product/brain-paths.yaml')
   const checker = read('scripts/check-wire-brain.mjs')
-  const roadmap = read('docs/roadmap.md')
 
   for (const law of [
     'OPERATOR ACCEPTED / SELECTED REALIZATION',
@@ -101,6 +100,5 @@ test('selected F07 realization keeps BRN-03 as owner and makes exact published k
   requireText(ledger, 'structured source-bound', 'F07 4A authority must keep the projection exact-source bound')
   requireText(checker, 'knowledgeBrowse', 'Brain wire checker must protect F07 structured browse')
   requireText(checker, 'BrainRevisionDetail', 'Brain wire checker must protect BRN-03 detail shape')
-  requireText(roadmap, 'F07 OPERATOR ACCEPTED', 'roadmap must preserve operator acceptance of F07')
-  requireText(roadmap, 'F07 SELECTED REALIZATION', 'roadmap must route F07 through selected RED/GREEN before lock')
+  requireText(selected, 'OPERATOR ACCEPTED / SELECTED REALIZATION', 'F07 selected realization must own operator acceptance')
 })

@@ -9,7 +9,6 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 
 test('Pack D proves three-browser URL/cache/CSRF boundaries without Product frontend authority', () => {
   const result = read('docs/evidence/4d/4d-r1-pack-d-browser-foundation-result.md')
-  const roadmap = read('docs/roadmap.md')
   const results = JSON.parse(read('qualification/4d/r1-foundation/evidence/pack-d-results.json'))
   const negatives = JSON.parse(read('qualification/4d/r1-foundation/evidence/pack-d-negative-controls.json'))
   const substrates = JSON.parse(read('qualification/4d/r1-foundation/evidence/pack-d-substrates.json'))
@@ -47,7 +46,5 @@ test('Pack D proves three-browser URL/cache/CSRF boundaries without Product fron
     assert.ok(build.includes(token), `build proof missing ${token}`)
   }
 
-  assert.match(roadmap, /R1F-A01\+R1F-E01 CORRECTED \/ P01\.\.P12 EVIDENCE OPERATOR APPROVED \/ 4D-D\(R1\) FOUNDATION CLAIMS PRESERVED/)
   assert.match(result, /Product implementation, push, PR and merge\s+remain unauthorized\./)
-  assert.match(roadmap, /Product implementation = R1 INTEGRATED \/ R2 INTEGRATED \/ RB NEXT PLANNED BUT NOT OPEN \/ R3\+ BLOCKED/)
 })

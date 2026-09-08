@@ -11,7 +11,6 @@ test('R1 foundation review adjudicates findings and routes only material correct
   const review = read('docs/evidence/4d/4d-r1-foundation-independent-review-adjudication.md')
   const candidate = read('docs/evidence/4d/4d-r1-foundation-selection-candidate.md')
   const batch = read('docs/evidence/4d/4d-r1-foundation-batch.md')
-  const index = read('docs/index.md')
 
   for (const token of [
     'PASS 2 CONVERGED / OPERATOR APPROVED / 2026-08-30',
@@ -34,5 +33,4 @@ test('R1 foundation review adjudicates findings and routes only material correct
   assert.match(candidate, /CR-1 selected contract/)
   assert.match(candidate, /representative `PromoteRelease` first appears in R6/)
   assert.match(batch, /CR-1 concurrency remains selected.*first real\s+consumer is R6/s)
-  assert.match(index, /R1 Foundation independent review/)
 })

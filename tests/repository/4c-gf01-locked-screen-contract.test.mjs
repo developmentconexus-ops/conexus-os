@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assert4DOpeningIsProperlyGated } from './_roadmap-phase-guards.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const path = p => resolve(root, p)
@@ -26,7 +25,6 @@ test('operator-approved GF-01 H1-R2 and Account/session delta remain pinned afte
   const html = read(htmlPath)
   const hypotheses = read('docs/evidence/4c/gf01-structural-hypotheses.md')
   const contract = read(contractPath)
-  const roadmap = read('docs/roadmap.md')
 
   const historicalBlob = '2d899d00484c41c927829bd9f529d3a870159db3'
   const approvedBlob = 'e83a0e8c9e64ee47d28a58d267f5fb1169b41ed3'
@@ -59,15 +57,5 @@ test('operator-approved GF-01 H1-R2 and Account/session delta remain pinned afte
     'P11 = NOT TRIGGERED SEPARATELY',
   ]) requireText(contract, law, `GF-01 closure missing law: ${law}`)
 
-  for (const currentLock of [
-    'GF-01 = LOCKED BASELINE / PRE11-F03 ACCOUNT-MENU DELTA RE-LOCKED',
-    'W-01 LOCKED',
-    'W-02A LOCKED',
-    'W-02B LOCKED',
-    'W-03 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED',
-    'W-04 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED',
-    'P-01 = LOCKED / OPERATOR APPROVED / AGENT STUDIO F05 DELTA RE-LOCKED / P9-P10 CLOSED',
-  ]) requireText(roadmap, currentLock, `roadmap must preserve current lock: ${currentLock}`)
-
-  assert4DOpeningIsProperlyGated(roadmap, 'GF-01 lock must not permit opening 4D before 4C/P11/P12 closure')
+  requireText(contract, 'LOCKED / OPERATOR APPROVED', 'GF-01 Screen Contract must own the current lock')
 })

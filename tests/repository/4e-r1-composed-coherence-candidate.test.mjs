@@ -9,8 +9,6 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 
 test('4E R1 composes a usable Account-to-approved-Baseline Product slice without later-tranche leakage', () => {
   const candidate = read('docs/evidence/4e/4e-r1-composed-coherence-candidate.md')
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
 
   for (const token of [
     'CLOSED / OPERATOR APPROVED / INDEPENDENT CONVERGENCE CLEAR',
@@ -34,7 +32,4 @@ test('4E R1 composes a usable Account-to-approved-Baseline Product slice without
   assert.match(candidate, /R1C-13 cognition \+ R1C-14 Git custody/)
   assert.match(candidate, /sole configured bootstrap identity derives F1 `platform_operator`/)
   assert.match(candidate, /Safe exact repin\/response-boundary proof is due\s+before the first root dependency or real provider call/)
-  assert.match(index, /Operator-approved 4E\(R1\) composed Product coherence/)
-  assert.match(roadmap, /4E — Whole-System Coherence & Golden Flows \| CLOSED\(R1\) \/ OPERATOR APPROVED/)
-  assert.match(roadmap, /Product implementation.*BLOCKED/)
 })

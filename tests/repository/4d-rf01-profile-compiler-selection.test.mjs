@@ -10,8 +10,6 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 test('RF-01 selects a bounded custom compiler candidate from current exact Evidence', () => {
   const selection = read('docs/evidence/4d/4d-05-rf01-profile-compiler-selection.md')
   const phase = read('docs/phases/4d-project-paved-road-and-runtime-realization.md')
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
 
   for (const token of [
     'CLOSED / OPERATOR APPROVED / BUILD SELECTED / 2026-08-29',
@@ -48,5 +46,4 @@ test('RF-01 selects a bounded custom compiler candidate from current exact Evide
   assert.match(selection, /No\s+dependency is installed and no compiler\/source\/topology is implemented/)
 
   assert.match(phase, /Mutable status and exact next action.*owned only by/s)
-  assert.match(index, /4D-05 approved RF-01 profile compiler selection/)
 })

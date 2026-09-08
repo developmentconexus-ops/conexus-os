@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assert4DOpeningIsProperlyGated } from './_roadmap-phase-guards.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const path = p => resolve(root, p)
@@ -28,7 +27,6 @@ test('operator-approved W-04 Workspace Agent catalog remains locked through late
   const revision = read('docs/evidence/4c/w04-p8-agent-information-hierarchy-revision.md')
   const contract = read(contractPath)
   const inventory = read('docs/evidence/4c/candidate-screen-surface-inventory.md')
-  const roadmap = read('docs/roadmap.md')
 
   const approvedBlob = '65073eb5f532f2675f04ec307eb0d9b91fd1b69d'
   const family4Candidate = '71e03432a0abd34ae35301094010fd670bb78b98'
@@ -81,8 +79,5 @@ test('operator-approved W-04 Workspace Agent catalog remains locked through late
   requireText(inventory, 'P12 Family 4 Agent-egress `71e03432...` / RE-LOCKED / OPERATOR APPROVED', 'W-04 re-lock must be explicit in the material-block ledger')
   requireText(inventory, 'Family 1 preserved', 'P-01 Family 1 re-lock must not be erased by Family 4')
 
-  requireText(roadmap, 'W-04 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED', 'roadmap must preserve current W-04 lock')
-  requireText(roadmap, 'P-01 = LOCKED / OPERATOR APPROVED / AGENT STUDIO F05 DELTA RE-LOCKED / P9-P10 CLOSED', 'later P-01 baseline and current Agent Studio re-lock must be visible')
-  if (/P11\s*=\s*ASSEMBLED/.test(roadmap)) throw new Error('later authorized progression must not assemble P11')
-  assert4DOpeningIsProperlyGated(roadmap, 'later progression must not open 4D before 4C closure')
+  requireText(contract, 'LOCKED / OPERATOR APPROVED', 'W-04 Screen Contract must own the lock')
 })

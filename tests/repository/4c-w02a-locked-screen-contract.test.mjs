@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assert4DOpeningIsProperlyGated } from './_roadmap-phase-guards.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const path = p => resolve(root, p)
@@ -26,7 +25,6 @@ test('operator-approved W-02A Brain is locked and closed through exact P9/P10 tr
   const html = read(htmlPath)
   const hypotheses = read('docs/evidence/4c/w02a-brain-structural-hypotheses.md')
   const contract = read(contractPath)
-  const roadmap = read('docs/roadmap.md')
 
   const approvedBlob = '9ca84ddbf40f6bcd969bfa638203bff8b9abf46e'
   const family2Candidate = 'f0a6902737a36217b081ff61768caa39c98c4734'
@@ -65,7 +63,5 @@ test('operator-approved W-02A Brain is locked and closed through exact P9/P10 tr
     'P11 = LATER ASSEMBLED PRODUCT',
   ]) requireText(contract, law, `W-02A closure missing law: ${law}`)
 
-  requireText(roadmap, 'W-02A LOCKED', 'roadmap must show W-02A locked')
-  requireText(roadmap, 'W-02B', 'roadmap must route the next material block to W-02B')
-  assert4DOpeningIsProperlyGated(roadmap, 'W-02A lock must not skip W-02B or later 4C blocks')
+  requireText(contract, 'LOCKED / OPERATOR APPROVED', 'W-02A Screen Contract must own the lock')
 })

@@ -24,8 +24,6 @@ test('4D-04 classifies exhaustive runtime families without selecting technology'
   const ledger = read('docs/evidence/4d/4d-01-protected-property-ledger.md')
   const applicability = read('docs/evidence/4d/4d-04-runtime-family-applicability.md')
   const phase = read('docs/phases/4d-project-paved-road-and-runtime-realization.md')
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
 
   const ledgerIds = expandedPropertyIds(ledger)
   const applicabilityIds = expandedPropertyIds(applicability)
@@ -61,5 +59,4 @@ test('4D-04 classifies exhaustive runtime families without selecting technology'
   assert.match(applicability, /`PRESERVE_SEAM` and `DEFER` families do not admit dependency selection/)
 
   assert.match(phase, /Mutable status and exact next action.*owned only by/s)
-  assert.match(index, /4D-04 approved runtime-family applicability/)
 })

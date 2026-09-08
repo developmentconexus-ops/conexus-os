@@ -153,7 +153,7 @@
     "wire:verify": "npm run wire:lint && npm run wire:bundle && npm run wire:schema && npm run wire:bijection && npm run wire:carriers && npm run wire:identity-workspace && npm run wire:project && npm run wire:builder && npm run wire:brain && npm run wire:connections && npm run wire:release && npm run wire:par && npm run wire:gateway && npm run wire:mar && npm run wire:observability && npm run wire:technical-lint && npm run wire:technical-ingress && npm run wire:projections && npm run wire:budget-verify && npm run wire:whole-4b",
     "repository:check:local": "CONEXUS_ALLOW_DIRTY_WORKTREE=1 node scripts/check-current-state.mjs",
     "verify:local": "CONEXUS_ALLOW_DIRTY_WORKTREE=1 npm run verify",
-    "verify": "npm run r1:a0:admission && npm run r1:s2:hub:typecheck && npm run r1:a0:web:typecheck && npm run r1:s2:import-law && npm run r2:p0:check && npm run r2:p1:check && npm run r2:p2:check && npm run r2:p3:check && npm run r2:p4:check && npm run r2:p5:check && npm run r2:p6:check && npm run rb:first:check && npm run repository:check && npm run r1:rc01:custody:check && npm run wire:verify"
+    "verify": "npm run conexus:verify -- --scope candidate"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "4.0.48",

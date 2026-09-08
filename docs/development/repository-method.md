@@ -1,7 +1,7 @@
 # DevelopmentConexus Repository Method
 
-**Version:** 1.0.0  
-**Status:** ACCEPTED  
+**Version:** 1.1.0
+**Status:** ACCEPTED / OPERATOR RATIFIED
 **Authority:** organizational repository operating method  
 **Scope:** DevelopmentConexus product and platform repositories
 
@@ -10,6 +10,12 @@
 A fresh actor must be able to recover current state, find the correct authority, and continue work without chat archaeology or speculative whole-repository reading.
 
 Repository organization exists to increase decision signal, not ceremony.
+
+The 1.1 amendment, operator-ratified on 2026-09-08, distinguishes stage, part
+and PR authority; requires one integrator for disjoint writers; and makes the
+flat verification graph a shared executable profile with explicit environment
+classes. It preserves the existing Product, publication, merge and proof
+authority boundaries.
 
 ## 1. Authority surfaces
 
@@ -107,7 +113,17 @@ Do not delete still-current Evidence merely to reduce file count.
 
 ## 6. Git and PRs
 
+Concurrent writers must receive disjoint file envelopes and report to one named
+integrator. The integrator owns overlap resolution, whole-diff review and the
+deciding proof; collaborative writers are not independent closure reviewers.
+
 Prefer one coherent acceptance increment per PR.
+
+A stage/tranche owns an authorized outcome; a part is a mechanical unit inside
+that grant; a PR is only a review/publication container. Do not turn part or PR
+boundaries into new approval gates when the active grant already covers the
+remaining mechanical work. Publication and merge still require their exact
+authority.
 
 Do not stack unrelated stages by default. Do not rewrite shared history merely to make it look cleaner. Never force-push shared work. Squash merge is the normal integration shape. Merge always requires explicit operator authority when the repository says so.
 
@@ -125,6 +141,15 @@ For a candidate gate, compose the applicable checks as a flat claim graph:
 each equivalent leaf runs once, while intentionally distinct environment or
 coverage checks remain explicit. Local shortcuts do not replace candidate or
 publication coverage.
+
+Expose that graph through a shared executable profile used by local and CI
+callers. Environment classes (for example static/local, browser, PostgreSQL or
+custody) must be explicit; sharing a command name must not erase different
+fixtures, credentials, patterns or claim coverage.
+
+Parallelize only leaves whose resource and state isolation is established.
+Workflow-event or concurrency changes require evidence that branch protection
+and trigger coverage remain equivalent.
 
 Do not promote every historical proof into a permanent required gate.
 

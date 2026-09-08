@@ -7,7 +7,7 @@
 Conexus OS consumes these repository-local operating method copies:
 
 - [`engineering-method.md`](engineering-method.md) — DevelopmentConexus Engineering Method v1.3.0 (operator ratified);
-- [`repository-method.md`](repository-method.md) — DevelopmentConexus Repository Method v1.0.0;
+- [`repository-method.md`](repository-method.md) — DevelopmentConexus Repository Method v1.1.0 (operator ratified);
 - [`frontend-product-experience-planning-method.md`](frontend-product-experience-planning-method.md) — Frontend Product Experience Planning Method v2.3.
 
 These method files are intended to remain byte-identical across DevelopmentConexus repositories that adopt the same versions. Normal Product work does not locally reinterpret them. A method-content change requires explicit operator approval and deliberate propagation; normal repository work does not require a runtime dependency on another repository.
@@ -36,6 +36,7 @@ Required verification:
 
 ```bash
 npm ci
+npx --no-install playwright install chromium
 npm run verify
 ```
 

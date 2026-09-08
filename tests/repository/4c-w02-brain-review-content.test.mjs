@@ -56,7 +56,6 @@ test('selected F06 realization makes exact Brain detail reads human-reviewable w
   const ledger = read('docs/product/operation-ledger.md')
   const wire = read('contracts/api/product/brain-paths.yaml')
   const selected = read('docs/evidence/4c/w02-brain-review-content-selected-realization.md')
-  const roadmap = read('docs/roadmap.md')
 
   requireText(selected, 'reviewText -X-> decision identity', 'F06 selected realization must keep presentation content outside decision identity')
   requireText(selected, 'reviewText -X-> source authority', 'F06 selected realization must keep canonical source authority separate')
@@ -81,6 +80,5 @@ test('selected F06 realization makes exact Brain detail reads human-reviewable w
   requireText(publish, 'required: [candidateSourceRevision]', 'F06-B BRN-09 publication subject must remain candidateSourceRevision')
   if (publish.includes('reviewText:')) throw new Error('F06-B reviewText must never become BRN-09 publication input')
 
-  requireText(roadmap, 'F06 OPERATOR ACCEPTED', 'roadmap must preserve accepted F06 decision')
-  requireText(roadmap, 'F06 GREEN', 'roadmap must project F06 as GREEN after the bounded 4A/4B recompile')
+  requireText(selected, 'OPERATOR ACCEPTED / SELECTED REALIZATION', 'F06 selected realization must own accepted status')
 })

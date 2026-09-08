@@ -9,7 +9,7 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 const t01 = read('docs/evidence/4c/t01-trusted-setup-structural-hypotheses.md')
 const gf = read('docs/evidence/4c/gf01-account-session-delta-structural-hypothesis.md')
 const agent = read('docs/evidence/4c/p01-p03-reference-delta-structural-hypothesis.md')
-const roadmap = read('docs/roadmap.md')
+const assembly = read('docs/evidence/4c/p11-faithful-assembly-contract.md')
 
 test('T-01 P7 keeps bootstrap and normal authority transitions explicit', () => {
   for (const token of ['Account-first explicit re-entry', 'TRUSTED_BOOTSTRAP_CONTEXT', 'IAM-03', 'WS-01', 'initialAccessEstablished=true', 'later trusted Account provisioning', 'P8 = LOCKED / OPERATOR APPROVED']) {
@@ -29,6 +29,7 @@ test('P-01/P-03 delta uses owner reads and protects optional refs', () => {
   for (const token of ['universal catalog', 'frontend registry', 'free-form governed ref input']) assert.ok(agent.includes(token), `Agent delta must reject ${token}`)
 })
 
-test('roadmap locks P11 only after the mounted W-03 block is re-locked and walkthrough completes', () => {
-  assert.match(roadmap, /P11 = LOCKED \/ OPERATOR APPROVED \/ blob 536052096dd10dec2f604ccef49aa64ba52e4dac/)
+test('assembly owner locks P11 only after the mounted W-03 block is re-locked and walkthrough completes', () => {
+  assert.match(assembly, /CURRENT P11 LOCKED \/ OPERATOR APPROVED \/ HISTORICAL P11 LOCK PRESERVED/)
+  assert.match(assembly, /W-03 = e9d630622d853d6e352737f46202f2765526fd6a/)
 })

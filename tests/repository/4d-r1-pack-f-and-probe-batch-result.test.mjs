@@ -10,7 +10,6 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 test('Pack F closes P11/P12 and whole R1 Foundation Evidence remains implementation-deny-only', () => {
   const pack = read('docs/evidence/4d/4d-r1-pack-f-gates-result.md')
   const batch = read('docs/evidence/4d/4d-r1-foundation-probe-batch-result.md')
-  const roadmap = read('docs/roadmap.md')
   const results = JSON.parse(read('qualification/4d/r1-foundation/evidence/pack-f-results.json'))
   const gates = JSON.parse(read('qualification/4d/r1-foundation/evidence/pack-f-gate-results.json'))
   const optional = JSON.parse(read('qualification/4d/r1-foundation/evidence/pack-f-optional-native.json'))
@@ -40,6 +39,4 @@ test('Pack F closes P11/P12 and whole R1 Foundation Evidence remains implementat
   assert.equal(cleanup.verdict, 'PASS')
   assert.equal(cleanup.container, 'ABSENT')
 
-  assert.match(roadmap, /P01\.\.P12 EVIDENCE OPERATOR APPROVED \/ 4D-D\(R1\) FOUNDATION CLAIMS PRESERVED \+ R1C-13\/14 ADDENDA \/ 4E-R1-F01 CLOSED \/ 4E\(R1\) CLOSED \+ OPERATOR APPROVED/)
-  assert.match(roadmap, /Product implementation.*BLOCKED/)
 })

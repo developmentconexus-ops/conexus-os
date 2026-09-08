@@ -13,8 +13,6 @@ test('P13 preserves Mastra structure and defers production repin without blockin
   const probe = read('qualification/4e/project-mastra-admission/probe.test.mjs')
   const manifest = JSON.parse(read('qualification/4e/project-mastra-admission/package.json'))
   const lock = JSON.parse(read('qualification/4e/project-mastra-admission/package-lock.json'))
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
 
   for (const token of [
     'P13 OPERATOR ACCEPTED / MECHANICS PASS / PRODUCTION REPIN GATE DEFER SAFELY',
@@ -34,6 +32,4 @@ test('P13 preserves Mastra structure and defers production repin without blockin
   assert.match(harness, /HOLD FOR PRODUCT\s+USE/)
   assert.match(probe, /process\.env\.MASTRA_TELEMETRY_DISABLED = '1'/)
   assert.match(probe, /TRANSITIVE_RESPONSE_LIMIT_TOO_LARGE_FOR_IN_PROCESS_HUB/)
-  assert.match(index, /Operator-accepted P13 ProjectMastra probe/)
-  assert.match(roadmap, /MASTRA DEFER ACCEPTED/)
 })

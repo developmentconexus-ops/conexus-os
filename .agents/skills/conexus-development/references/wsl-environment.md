@@ -6,25 +6,23 @@ filesystem path semantics and command results are not deciding Evidence.
 
 ## Session entry
 
-Resolve the Windows repository root, translate it with `wslpath`, then execute
-the work in Ubuntu. Every non-interactive invocation must source NVM explicitly
-because non-interactive shells do not reliably load `.bashrc`:
+Execute local work in Ubuntu. Every non-interactive invocation must source NVM
+explicitly because non-interactive shells do not reliably load `.bashrc`:
 
 ```bash
 export NVM_DIR="$HOME/.nvm"
 . "$NVM_DIR/nvm.sh"
-cd /mnt/c/Users/leandro.theodoro/Documents/conexus-os
+cd /home/leandrotheodoro/conexus-os
 nvm use
 node --version
 npm --version
 ```
 
-When PowerShell launches WSL, prevent it from consuming shell variables before
-Bash receives them. On this workstation the robust non-interactive form uses
-the admitted user's literal Linux paths:
+When PowerShell launches WSL, keep the repository on the Linux filesystem and
+prevent PowerShell from consuming shell variables before Bash receives them:
 
 ```bash
-wsl.exe -d Ubuntu -- bash -c 'source /home/leandrotheodoro/.nvm/nvm.sh; cd /mnt/c/Users/leandro.theodoro/Documents/conexus-os; nvm use; node --version; npm --version'
+wsl.exe -d Ubuntu -- bash -c 'source /home/leandrotheodoro/.nvm/nvm.sh; cd /home/leandrotheodoro/conexus-os; nvm use; node --version; npm --version'
 ```
 
 The required values come from `.nvmrc` and `package.json`, currently Node

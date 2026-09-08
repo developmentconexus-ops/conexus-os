@@ -36,8 +36,6 @@ test('4D-01 compiles consumer-backed protected properties without selecting tech
   const dedicatedReachability = read('docs/evidence/4d/4d-opp-c08-saas-private-reachability-dedicated-deployment-study.md')
   const designSystem = read('docs/evidence/4d/4d-opp-c09-design-system-headless-primitives-study.md')
   const realization = read('docs/phases/realization-planning.md')
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
 
   for (const token of [
     '4D-01R CLOSED / OPERATOR APPROVED / 117 PROTECTED PROPERTIES / NO TECHNOLOGY SELECTION',
@@ -86,8 +84,6 @@ test('4D-01 compiles consumer-backed protected properties without selecting tech
   assert.match(ledger,/`DXE-01`.*durable runtime remains subordinate/)
   assert.match(ledger,/`DXE-02`.*single-winner, version-compatible/)
   assert.match(ledger,/`DXE-03`.*never authorizes external-effect replay/)
-  assert.match(index,/4D-01 protected-property ledger candidate/)
-  assert.match(index,/4D-01R strategic opportunity challenge/)
   assert.match(ledger,/exact scaffold\/profile schema and physical tree/)
   assert.match(ledger,/exact supported Keycloak and Node OIDC-client versions/)
   assert.match(ledger,/first-slice PAR\/Product Agent\/ParMastra instantiation/)

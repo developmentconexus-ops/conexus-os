@@ -56,7 +56,6 @@ test('selected F09 realization exposes current non-secret configuration only on 
   const ledger = read('docs/product/operation-ledger.md')
   const checker = read('scripts/check-wire-connections.mjs')
   const preflight = read('docs/evidence/4c/w02-authority-feasibility-preflight.md')
-  const roadmap = read('docs/roadmap.md')
 
   const con04 = sliceBetween(wire, 'summary: GetConnection', '\n  /api/control/connections/{connectionId}/revisions:')
   requireText(con04, "$ref: '#/components/schemas/ConnectionDetail'", 'F09 RED: CON-04 must return ConnectionDetail')
@@ -89,7 +88,7 @@ test('selected F09 realization exposes current non-secret configuration only on 
   requireText(checker, 'ConnectionDetail', 'Connections checker must protect F09 detail shape')
   requireText(checker, 'configuration', 'Connections checker must protect F09 configuration projection')
   requireText(preflight, 'F09 Connection current non-secret configuration = OPERATOR ACCEPTED / GREEN', 'W-02 P7 preflight must recompile F09 as GREEN')
-  requireText(roadmap, 'F09 OPERATOR ACCEPTED / GREEN', 'roadmap must preserve F09 accepted GREEN state')
+  requireText(preflight, 'F09 Connection current non-secret configuration = OPERATOR ACCEPTED / GREEN', 'W-02 preflight must own F09 accepted GREEN state')
 
   const operationIds = [...wire.matchAll(/x-conexus-4a-id: (CON-\d+)/g)].map(match => match[1])
   if (operationIds.length !== 9 || new Set(operationIds).size !== 9) {

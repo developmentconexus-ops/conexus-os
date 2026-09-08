@@ -13,8 +13,6 @@ test('independent planning review converges on bounded compression without autho
   const adjudication = read('docs/evidence/4d/4d-planning-acceleration-independent-review-adjudication.md')
   const selection = read('docs/evidence/4d/4d-05-rf01-profile-compiler-selection.md')
   const phase = read('docs/phases/4d-project-paved-road-and-runtime-realization.md')
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
 
   for (const token of [
     'Planning Acceleration and Executability Independent Review Brief',
@@ -55,6 +53,4 @@ test('independent planning review converges on bounded compression without autho
 
   assert.match(selection, /RF-12A reopens RF-01 if schema-validation\/canonicalization admission proves/)
   assert.match(phase, /Mutable status and exact next action.*owned only by/s)
-  assert.match(roadmap, /BOUNDED PROGRAM COMPRESSION OPERATOR RATIFIED/)
-  assert.match(index, /Phase-4 planning acceleration review/)
 })

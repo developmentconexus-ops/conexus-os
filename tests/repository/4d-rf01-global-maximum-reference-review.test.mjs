@@ -10,7 +10,6 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 test('RF-01 reference review strengthens the candidate without manufacturing runtime proof', () => {
   const review = read('docs/evidence/4d/4d-05-rf01-global-maximum-reference-review.md')
   const selection = read('docs/evidence/4d/4d-05-rf01-profile-compiler-selection.md')
-  const index = read('docs/index.md')
 
   for (const token of [
     'REFERENCE REVIEW COMPLETE / SELECTION APPROVED / RUNTIME PROOF OPEN',
@@ -43,5 +42,4 @@ test('RF-01 reference review strengthens the candidate without manufacturing run
 
   const proofIds = [...selection.matchAll(/`RF01-P(\d{2})`/g)].map(match => match[1])
   assert.deepEqual(proofIds, Array.from({ length: 14 }, (_value, index) => String(index + 1).padStart(2, '0')))
-  assert.match(index, /RF-01 Global-Maximum reference review/)
 })

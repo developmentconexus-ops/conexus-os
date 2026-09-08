@@ -1,6 +1,9 @@
 # RB — exact source inspection stage code packet
 
-Status: `CANDIDATE / TARGETED + POSTGRESQL + OCI + CHROMIUM GREEN / GPT-6 ASTRA REVIEW CLEAR / NOT YET PUBLISHED`
+Status: `FROZEN CANDIDATE SNAPSHOT / INTEGRATED BY PR #70 AS fc3f279 / POST-MERGE VERIFY GREEN`
+
+This packet preserves the execution contract and candidate-time proof. Current
+stage, grant and next action live only in [`docs/roadmap.md`](../../roadmap.md).
 
 ## Observable outcome and invariant
 
@@ -51,6 +54,11 @@ foreign SHA / revoked authority / hostile path / symlink / binary / oversized
 
 ## Current Evidence
 
+- PR [#70](https://github.com/developmentconexus-ops/conexus-os/pull/70) merged
+  the reviewed candidate as `fc3f2795fd3f8bfe302811ec1a5558d407cdafd3`;
+  post-merge `Verify` run
+  [34285637465](https://github.com/developmentconexus-ops/conexus-os/actions/runs/34285637465)
+  completed successfully on that exact SHA.
 - PR #69 was squash-merged as `51677d73f865f0856a63bb802ff57ed59e8a0ed5`;
   post-merge Verify run `34280265609` is GREEN.
 - Targeted Hub/Web typechecks, Biome, HTTP/service tests and two Chromium user
