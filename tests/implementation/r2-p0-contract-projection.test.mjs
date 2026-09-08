@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
+import { CANDIDATE_GRAPH } from '../../scripts/conexus-verify.mjs'
 import { assertGeneratedBytes } from '../../scripts/generate-r2-contracts.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -42,9 +43,11 @@ test('R2-P0 check rejects editable generated-output drift', () => {
 })
 
 test('R2-P0 remains a required verification property', () => {
-  const packageJson = JSON.parse(readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'))
-  assert.match(packageJson.scripts.verify, /npm run r2:p0:check/)
-  assert.ok(packageJson.scripts.verify.indexOf('r2:p0:check') < packageJson.scripts.verify.indexOf('repository:check'))
+  const scopes = CANDIDATE_GRAPH.map(entry => entry.scope)
+  const r2P0Index = scopes.indexOf('r2-p0-check')
+  const repositoryIndex = scopes.indexOf('repository-check')
+  assert.notEqual(r2P0Index, -1)
+  assert.ok(r2P0Index < repositoryIndex)
 })
 
 function digest(bytes) {
