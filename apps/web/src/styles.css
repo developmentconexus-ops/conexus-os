@@ -65,7 +65,11 @@ fieldset input { margin: 0; }
 .build-layout nav button span, .build-result h3, .build-result li { overflow-wrap: anywhere; }
 .build-result section { min-width: 0; }
 .build-result pre { max-width: 100%; max-height: 34rem; overflow: auto; padding: 1rem; border-radius: .5rem; background: #17231d; color: #e8f1ec; white-space: pre; }
-@media (max-width: 700px) { .build-layout { grid-template-columns: 1fr; } }
+.source-browser { display: grid; grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr); gap: 1rem; margin-top: 1rem; }
+.source-browser nav { max-height: 28rem; overflow: auto; padding: .5rem; border: 1px solid #ccd5d0; border-radius: .5rem; background: white; }
+.source-browser nav span { padding: .35rem .5rem; color: #617068; overflow-wrap: anywhere; }
+.source-browser nav button { overflow-wrap: anywhere; }
+@media (max-width: 700px) { .build-layout, .source-browser { grid-template-columns: 1fr; } }
 .candidate-assistant button { justify-self: start; }
 .candidate-answer { margin-top: 1rem; padding: 1rem; border-left: .3rem solid #416453; background: white; }
 .candidate-answer ul { padding-left: 1.25rem; }

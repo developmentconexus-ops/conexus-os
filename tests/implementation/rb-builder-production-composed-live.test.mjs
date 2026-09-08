@@ -94,7 +94,7 @@ test('RB production composition executes one governed Change through HTTP, Postg
   const current = { ...admin, database }
   assert.equal((await query(current, 'SHOW server_version_num')).rows[0].server_version_num, '170010')
   const migration = await runCurrentHubMigrations({ connectionString: connectionString(current) })
-  assert.equal(migration.versions.at(-1), '021')
+  assert.equal(migration.versions.at(-1), '022')
   await query(current, `ALTER ROLE hub_rb_ingress PASSWORD '${ingressPassword}'`)
   await query(current, `ALTER ROLE hub_rb_executor PASSWORD '${executorPassword}'`)
   writeFileSync(ingressPasswordFile, `${ingressPassword}\n`, { mode: 0o400 })

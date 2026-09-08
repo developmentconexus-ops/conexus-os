@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
-import { useId, useRef, useState } from 'react'
-import { BuilderRequestError, closeChangeFinding, createChange, getChange, getChangeDiff, getChangePlan, getChangeProgress, listChangeEvidence, listChangeFindings, listChanges } from '../api'
+import { useEffect, useId, useRef, useState } from 'react'
+import { BuilderRequestError, closeChangeFinding, createChange, getChange, getChangeDiff, getChangePlan, getChangeProgress, getProjectSourceFile, listChangeEvidence, listChangeFindings, listChanges, listProjectSourceTree } from '../api'
 
 const terminal = new Set(['VERIFIED', 'UNVERIFIED', 'FAILED', 'INTERRUPTED'])
 const hasCandidate = new Set(['RESULT_READY', 'VERIFYING', 'VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED'])
@@ -12,6 +12,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const attempt = useRef<Readonly<{ intent: string; key: string }> | undefined>(undefined)
   const [intent, setIntent] = useState('')
   const [selectedId, setSelectedId] = useState<string>()
+  const [sourceSelection, setSourceSelection] = useState<Readonly<{ changeId: string; sourceRevision: string; path?: string }>>()
   const [message, setMessage] = useState('')
   const changes = useQuery({
     queryKey: ['builder-changes', projectId], queryFn: () => listChanges(projectId), refetchInterval: 2_000,
@@ -30,6 +31,22 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const diff = useQuery({ queryKey: ['builder-diff', projectId, currentId, change.data?.state], queryFn: () => getChangeDiff(projectId, requireCurrentId()), enabled: hasCandidate.has(change.data?.state ?? ''), refetchInterval: terminal.has(change.data?.state ?? '') ? false : 2_000 })
   const findings = useQuery({ queryKey: ['builder-findings', projectId, currentId, change.data?.state], queryFn: () => listChangeFindings(projectId, requireCurrentId()), enabled: hasCandidate.has(change.data?.state ?? ''), refetchInterval: terminal.has(change.data?.state ?? '') ? false : 2_000 })
   const evidence = useQuery({ queryKey: ['builder-evidence', projectId, currentId, change.data?.state], queryFn: () => listChangeEvidence(projectId, requireCurrentId()), enabled: hasCandidate.has(change.data?.state ?? ''), refetchInterval: terminal.has(change.data?.state ?? '') ? false : 2_000 })
+  const selectedSource = sourceSelection?.changeId === currentId ? sourceSelection : undefined
+  const sourceTree = useQuery({
+    queryKey: ['builder-source-tree', projectId, selectedSource?.sourceRevision],
+    queryFn: () => listProjectSourceTree(projectId, selectedSource?.sourceRevision ?? ''),
+    enabled: Boolean(selectedSource?.sourceRevision), staleTime: Number.POSITIVE_INFINITY,
+  })
+  const sourceFile = useQuery({
+    queryKey: ['builder-source-file', projectId, selectedSource?.sourceRevision, selectedSource?.path],
+    queryFn: () => getProjectSourceFile(projectId, selectedSource?.sourceRevision ?? '', selectedSource?.path ?? ''),
+    enabled: Boolean(selectedSource?.sourceRevision && selectedSource.path), staleTime: Number.POSITIVE_INFINITY,
+  })
+  useEffect(() => {
+    if (currentId && diff.data?.candidateSourceRevision && sourceSelection?.changeId !== currentId) {
+      setSourceSelection({ changeId: currentId, sourceRevision: diff.data.candidateSourceRevision })
+    }
+  }, [currentId, diff.data?.candidateSourceRevision, sourceSelection?.changeId])
   const currentResolutionEvidence = evidence.data?.filter((item) => item.subjectDigest === diff.data?.candidateSourceRevision &&
     item.claim === 'Candidate satisfies the accepted Change intent.') ?? []
   const mutation = useMutation({
@@ -109,6 +126,30 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
               {findings.data && findings.data.length > 0 && <section aria-labelledby="change-findings-title"><h4 id="change-findings-title">Pontos encontrados</h4><ul>{findings.data.map((finding) => <li key={finding.findingId}>{finding.summary} — {finding.state}{finding.state === 'OPEN' && change.data?.state === 'UNVERIFIED' && currentResolutionEvidence.length > 0 && <button type="button" disabled={closeFinding.isPending} onClick={() => closeFinding.mutate(finding)}>Confirmar resolução verificada</button>}</li>)}</ul></section>}
               {evidence.data && evidence.data.length > 0 && <section aria-labelledby="change-evidence-title"><h4 id="change-evidence-title">Verificação</h4><ul>{evidence.data.map((item) => <li key={item.evidenceId}>{item.claim} — candidato <code>{item.subjectDigest}</code></li>)}</ul></section>}
               {diff.data && <section aria-labelledby="change-diff-title"><h4 id="change-diff-title">Diff do resultado</h4><p><code>{diff.data.baseSourceRevision}</code> → <code>{diff.data.candidateSourceRevision}</code></p><pre>{diff.data.patch}</pre></section>}
+              {diff.data && <section aria-labelledby="change-code-title">
+                <h4 id="change-code-title">Código</h4>
+                <p>Inspecione arquivos completos presos à revisão exata.</p>
+                <fieldset>
+                  <legend>Revisão do código</legend>
+                  <button type="button" aria-pressed={selectedSource?.sourceRevision === diff.data.baseSourceRevision} onClick={() => setSourceSelection({ changeId: currentId, sourceRevision: diff.data.baseSourceRevision })}>Fonte original</button>
+                  <button type="button" aria-pressed={selectedSource?.sourceRevision === diff.data.candidateSourceRevision} onClick={() => setSourceSelection({ changeId: currentId, sourceRevision: diff.data.candidateSourceRevision })}>Resultado atual</button>
+                </fieldset>
+                {selectedSource && <p>Revisão selecionada: <code>{selectedSource.sourceRevision}</code></p>}
+                {sourceTree.isPending && <p>Carregando árvore do código…</p>}
+                {sourceTree.isError && <p role="alert">Esta revisão não está disponível para leitura com sua autoridade atual.</p>}
+                {sourceTree.data && <div className="source-browser">
+                  <nav aria-label="Arquivos da revisão">
+                    {sourceTree.data.entries.map((entry) => entry.kind === 'DIRECTORY'
+                      ? <span key={`directory:${entry.path}`}>{entry.path}/</span>
+                      : <button key={`file:${entry.path}`} type="button" aria-current={selectedSource?.path === entry.path} onClick={() => setSourceSelection({ changeId: currentId, sourceRevision: sourceTree.data.sourceRevision, path: entry.path })}>{entry.path}</button>)}
+                  </nav>
+                  <div>
+                    {selectedSource?.path && sourceFile.isPending && <p>Carregando arquivo…</p>}
+                    {sourceFile.isError && <p role="alert">O arquivo não existe ou não pode ser exibido integralmente nesta revisão.</p>}
+                    {sourceFile.data && <><p><strong>{sourceFile.data.path}</strong> em <code>{sourceFile.data.sourceRevision}</code></p><pre>{sourceFile.data.content}</pre></>}
+                  </div>
+                </div>}
+              </section>}
             </article>}
           </div>
         </section>

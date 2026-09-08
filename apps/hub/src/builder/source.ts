@@ -27,6 +27,17 @@ export type BuilderCandidateChangedFile = Readonly<{
   candidate: BuilderCandidateFileVersion | null
 }>
 
+export type BuilderSourceTree = Readonly<{
+  sourceRevision: string
+  entries: readonly Readonly<{ path: string; kind: 'FILE' | 'DIRECTORY' }>[]
+}>
+
+export type BuilderSourceFile = Readonly<{
+  sourceRevision: string
+  path: string
+  content: string
+}>
+
 export type BuilderSourcePort = Readonly<{
   prepareSource(input: Readonly<{ projectId: string; actorRunId: string; sourceRevision: string }>): Promise<Uint8Array>
   prepareCandidate(input: Readonly<{
@@ -45,6 +56,8 @@ export type BuilderSourcePort = Readonly<{
     claimedCandidateSourceRevision: string
     resultBundle: Uint8Array
   }>): Promise<BuilderCandidate>
+  listSourceTree(input: Readonly<{ projectId: string; sourceRevision: string }>): Promise<BuilderSourceTree>
+  readSourceFile(input: Readonly<{ projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
 }>
 
 type ProcessResult = Readonly<{ exitCode: number | null; signal: NodeJS.Signals | null; stdout: string; stderr: string; overflow: boolean }>
@@ -183,6 +196,68 @@ if (!ok(value)) finish({ status: 'REFUSED', code: 'BUNDLE_REFUSED' })
 finish({ status: 'BUNDLED', candidateSourceRevision: request.candidateSourceRevision, changedFiles })
 `
 
+const SOURCE_READ_PROGRAM = `
+const { spawnSync } = require('node:child_process')
+const { readFileSync } = require('node:fs')
+const request = JSON.parse(readFileSync('/run/conexus/request.json', 'utf8'))
+const oid = /^[0-9a-f]{40}$/
+const env = { GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HOME: '/tmp', GIT_TERMINAL_PROMPT: '0', GIT_NO_REPLACE_OBJECTS: '1' }
+const git = (args, raw = false) => spawnSync('/usr/local/bin/git', ['--git-dir=/repository.git', '--literal-pathspecs', ...args], { env, encoding: raw ? null : 'utf8', maxBuffer: 8 * 1024 * 1024 })
+const ok = value => !value.error && value.status === 0 && value.signal === null && (!value.stderr || value.stderr.length === 0)
+const text = value => typeof value.stdout === 'string' ? value.stdout : value.stdout.toString('utf8')
+const exactUtf8 = value => Buffer.isBuffer(value) && Buffer.from(value.toString('utf8'), 'utf8').equals(value)
+const safePath = path => typeof path === 'string' && path.length > 0 && path.length <= 4096 && !path.startsWith('/') &&
+  !path.includes('\\\\') && !path.includes('\\0') && path.split('/').every(part => part && part !== '.' && part !== '..')
+const finish = value => { process.stdout.write(JSON.stringify(value) + '\\n'); process.exit(0) }
+if (!oid.test(request.sourceRevision) || !['tree', 'file'].includes(request.operation)) finish({ status: 'REFUSED', code: 'IDENTITY_REFUSED' })
+let value = git(['cat-file', '-e', request.sourceRevision + '^{commit}'])
+if (!ok(value)) finish({ status: 'REFUSED', code: 'REVISION_NOT_FOUND' })
+if (request.operation === 'tree') {
+  value = git(['ls-tree', '-r', '-z', '--long', request.sourceRevision], true)
+  if (!ok(value) || !exactUtf8(value.stdout)) finish({ status: 'REFUSED', code: 'TREE_REFUSED' })
+  const lines = text(value).split('\\0').filter(Boolean)
+  if (lines.length > 10000) finish({ status: 'REFUSED', code: 'TREE_TOO_LARGE' })
+  const files = []
+  const directories = new Set()
+  let entryCount = 0
+  let disclosureBytes = 0
+  const reserve = path => {
+    entryCount += 1
+    disclosureBytes += Buffer.byteLength(path, 'utf8') + 32
+    if (entryCount > 10000 || disclosureBytes > 3 * 1024 * 1024) finish({ status: 'REFUSED', code: 'TREE_TOO_LARGE' })
+  }
+  for (const line of lines) {
+    const match = /^(100644|100755) blob [0-9a-f]{40}\\s+(0|[1-9][0-9]*)\\t([\\s\\S]+)$/.exec(line)
+    if (!match || !safePath(match[3])) finish({ status: 'REFUSED', code: 'UNSAFE_ENTRY' })
+    const path = match[3]
+    reserve(path)
+    files.push({ path, kind: 'FILE' })
+    const parts = path.split('/')
+    for (let index = 1; index < parts.length; index += 1) {
+      const directory = parts.slice(0, index).join('/')
+      if (!directories.has(directory)) { reserve(directory); directories.add(directory) }
+    }
+  }
+  const entries = [...directories].map(path => ({ path, kind: 'DIRECTORY' })).concat(files)
+    .sort((left, right) => left.path.localeCompare(right.path) || left.kind.localeCompare(right.kind))
+  finish({ status: 'PASS', sourceRevision: request.sourceRevision, entries })
+}
+if (!safePath(request.path)) finish({ status: 'REFUSED', code: 'PATH_REFUSED' })
+value = git(['ls-tree', '-z', request.sourceRevision, '--', request.path], true)
+if (!ok(value) || !exactUtf8(value.stdout)) finish({ status: 'REFUSED', code: 'FILE_REFUSED' })
+const match = text(value).match(/^(100644|100755) blob ([0-9a-f]{40})\\t([\\s\\S]*)\\0$/)
+if (!match || match[3] !== request.path) finish({ status: 'REFUSED', code: 'FILE_NOT_FOUND' })
+const size = git(['cat-file', '-s', match[2]])
+if (!ok(size) || !/^(0|[1-9][0-9]*)$/.test(text(size).trim()) || Number(text(size).trim()) > 1048576) {
+  finish({ status: 'REFUSED', code: 'FILE_NOT_DISCLOSABLE' })
+}
+const blob = git(['cat-file', 'blob', match[2]], true)
+if (!ok(blob) || blob.stdout.includes(0) || !Buffer.from(blob.stdout.toString('utf8'), 'utf8').equals(blob.stdout)) {
+  finish({ status: 'REFUSED', code: 'FILE_NOT_DISCLOSABLE' })
+}
+finish({ status: 'PASS', sourceRevision: request.sourceRevision, path: request.path, content: blob.stdout.toString('utf8') })
+`
+
 const exactFile = async (path: string): Promise<boolean> => {
   try {
     const stat = await lstat(path)
@@ -202,6 +277,36 @@ export const createBuilderSourcePort = ({
 }>): BuilderSourcePort => {
   if (!isAbsolute(storageRoot) || storageRoot.includes(',') || storageRoot.includes(':')) throw new Error('BUILDER_SOURCE_CONFIG_REFUSED')
   const root = resolve(storageRoot)
+  const inspectSource = async (input: Readonly<{ projectId: string; sourceRevision: string; operation: 'tree' | 'file'; path?: string }>): Promise<Record<string, unknown>> => {
+    if (!isIdentity(input.projectId) || !/^[0-9a-f]{40}$/.test(input.sourceRevision)) throw new Error('BUILDER_SOURCE_READ_REFUSED')
+    if ((await git.verifyAdmittedImage()).status !== 'VERIFIED') throw new Error('BUILDER_GIT_IMAGE_REFUSED')
+    const repository = resolve(root, 'projects', input.projectId)
+    if (!repository.startsWith(`${root}${sep}`)) throw new Error('BUILDER_SOURCE_CONFIG_REFUSED')
+    const temporary = await mkdtemp(resolve(root, '.conexus-builder-source-'))
+    try {
+      const requestPath = resolve(temporary, 'request.json')
+      await writeFile(requestPath, `${JSON.stringify(input)}\n`, { flag: 'wx', mode: 0o400 })
+      const user = process.getuid && process.getgid ? `${process.getuid()}:${process.getgid()}` : null
+      if (!user) throw new Error('BUILDER_GIT_POSIX_OWNER_REQUIRED')
+      const result = await run('docker', [
+        'run', '--rm', '--pull', 'never', '--network', 'none', '--cap-drop', 'ALL',
+        '--security-opt', 'no-new-privileges', '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=32m',
+        '--user', user,
+        '--mount', `type=bind,src=${repository},dst=/repository.git,readonly`,
+        '--mount', `type=bind,src=${requestPath},dst=/run/conexus/request.json,readonly`,
+        '--entrypoint', '/usr/local/bin/node', R1C14_GIT_IDENTITY.ociIndexDigest,
+        '-e', SOURCE_READ_PROGRAM,
+      ], 4 * 1024 * 1024, 60_000)
+      if (result.exitCode !== 0 || result.signal !== null || result.overflow || result.stderr !== '') throw new Error('BUILDER_SOURCE_READ_REFUSED')
+      const parsed = JSON.parse(result.stdout) as Record<string, unknown>
+      if (parsed.status !== 'PASS' || parsed.sourceRevision !== input.sourceRevision) {
+        throw new Error(`BUILDER_SOURCE_READ_${typeof parsed.code === 'string' ? parsed.code : 'REFUSED'}`)
+      }
+      return parsed
+    } finally {
+      await rm(temporary, { recursive: true, force: true })
+    }
+  }
   return Object.freeze({
     prepareSource: async ({ projectId, actorRunId, sourceRevision }) => {
       if (!isIdentity(projectId) || !isIdentity(actorRunId) || !/^[0-9a-f]{40}$/.test(sourceRevision)) throw new Error('BUILDER_SOURCE_INPUT_REFUSED')
@@ -318,6 +423,22 @@ export const createBuilderSourcePort = ({
       } finally {
         await rm(temporary, { recursive: true, force: true })
       }
+    },
+    listSourceTree: async (input) => {
+      const value = await inspectSource({ ...input, operation: 'tree' })
+      if (!Array.isArray(value.entries) || value.entries.some((entry) => !entry || typeof entry !== 'object' ||
+        typeof (entry as Record<string, unknown>).path !== 'string' || !['FILE', 'DIRECTORY'].includes(String((entry as Record<string, unknown>).kind)))) {
+        throw new Error('BUILDER_SOURCE_TREE_REFUSED')
+      }
+      return Object.freeze({
+        sourceRevision: input.sourceRevision,
+        entries: Object.freeze((value.entries as { path: string; kind: 'FILE' | 'DIRECTORY' }[]).map((entry) => Object.freeze({ ...entry }))),
+      })
+    },
+    readSourceFile: async (input) => {
+      const value = await inspectSource({ ...input, operation: 'file' })
+      if (value.path !== input.path || typeof value.content !== 'string') throw new Error('BUILDER_SOURCE_FILE_REFUSED')
+      return Object.freeze({ sourceRevision: input.sourceRevision, path: input.path, content: value.content })
     },
   })
 }

@@ -104,6 +104,7 @@ export type BuilderStore = Readonly<{
   closeFinding(input: Readonly<{ accountId: string; projectId: string; changeId: string; findingId: string; expectedFindingRevision: string; resolutionEvidenceIds: readonly string[] }>): Promise<FindingProjection>
   listEvidence(input: Readonly<{ accountId: string; projectId: string; changeId: string }>): Promise<readonly EvidenceProjection[]>
   getEvidence(input: Readonly<{ accountId: string; projectId: string; changeId: string; evidenceId: string }>): Promise<EvidenceProjection | null>
+  admitSourceRevision(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<boolean>
   recoverAndListQueued(): Promise<readonly string[]>
   close(): Promise<void>
 }>
@@ -258,6 +259,12 @@ export const createBuilderStore = ({
       'SELECT builder.get_evidence($1,$2,$3,$4) AS value', [accountId, projectId, changeId, evidenceId],
     )
     return result.rows[0]?.value ?? null
+  },
+  admitSourceRevision: async ({ accountId, projectId, sourceRevision }) => {
+    const result = await ingressPool.query<QueryResultRow & Readonly<{ admitted: boolean }>>(
+      'SELECT builder.admit_source_revision($1,$2,$3) AS admitted', [accountId, projectId, sourceRevision],
+    )
+    return result.rows[0]?.admitted === true
   },
   recoverAndListQueued: async () => {
     const result = await executorPool.query<QueryResultRow & Readonly<{ change_id: string }>>(
