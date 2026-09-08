@@ -65,6 +65,28 @@ Both sandboxes were killed. `npm run rb:e2b:template:live` preserves this exact
 negative/positive proof and remains explicitly external rather than part of
 ordinary local verification.
 
+The owner-only Anthropic OAuth file was installed and its real refresh exchange
+completed on `2026-09-07` without exposing token material. The local deployment
+catalog first admitted `claude-sonnet-5`, then changed only the Builder entry to
+`claude-sonnet-4-6` as a diagnostic control; both are active in current official
+Anthropic documentation and present in the registry shipped by the adopted
+Mastra pin. In both cases the native Mastra coding agent reached the
+authenticated Anthropic Messages API with its coding tools, but received the
+same retryable `429 rate_limit_error` before model execution. This proves the
+credential refresh, catalog selection and provider transport but not coding
+output. Anthropic documents that Claude and Claude Code subscription usage is
+shared and resets by usage window, so arbitrary model rotation is not an
+honest remedy for this result.
+
+`npm run rb:builder:live` now preserves the deciding replay. It creates an exact
+one-commit Git base, resolves the `BUILDER_CODING` admission from the deployment
+catalog, runs the native Mastra worker inside the exact build-qualified E2B
+template, and accepts the proof only if the returned bundle is one child commit
+that changes exactly `BUILDER_RESULT.txt` with exact expected bytes. It is
+explicitly gated by `CONEXUS_RB_BUILDER_LIVE=true` and is skipped by ordinary
+verification. Both rate-limited attempts destroyed their sandboxes; the E2B
+account had zero active or paused Builder proof sandboxes afterward.
+
 The deployment format is `conexus-model-admission-catalog/v1`. The existing
 R1 entry must carry `PROJECT_INCEPTION` and `BASELINE_EXPLANATION`; a Builder
 entry carries `BUILDER_CODING`. `CONEXUS_PROJECT_MODEL_CATALOG_FILE` names this
@@ -113,8 +135,9 @@ mutable or registry-unknown model, wrong purpose/provider/origin, absent
 credential slot and missing/malformed/unsafe credential file. The credential is
 revalidated immediately before remote sandbox creation;
 the selected non-secret identity is persisted with the ActorRun. A fake runtime
-proves only Hub orchestration. A real E2B/model run is required before claiming
-the remote coding journey itself proven.
+proves only Hub orchestration. The live E2B substrate and authenticated model
+transport are proven separately; a model-produced Git candidate is still
+required before claiming the remote coding journey itself proven.
 
 ## Completion and non-goals
 
