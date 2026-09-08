@@ -4,7 +4,7 @@
 
 Repository: `https://github.com/developmentconexus-ops/conexus-os.git`.
 Exact implementation candidate:
-`c332d3012da06a98645c2cc44010bdb33b9ef524` on
+`7bd8e5487347d568769e7ec0c698791145c8c398` on
 `rb-builder-verification-acceptance`.
 Implementation comparison base:
 `839d5496359b95261c59906f51c0ce439d20c251`.
@@ -81,6 +81,10 @@ work remain inactive.
 - `project.review` remains a human review-material disclosure permission, not
   authority over the system verifier. It is checked independently before
   Findings/Evidence disclosure. Cross-Project references disclose nothing.
+- The creator's current `project.build` authority is re-applied before verifier
+  ActorRun admission and again before acceptance settlement. Revocation at
+  either boundary preserves the exact candidate/diff as `UNVERIFIED`, creates
+  no acceptance, and never makes human `project.review` the settlement owner.
 - Public `Evidence` and `ActorRunProjection` responses retain exactly the closed
   Builder wire fields (`additionalProperties: false`); internal report/outcome
   and verifier purpose do not leak as parallel Product semantics.
@@ -110,7 +114,8 @@ Lead used Linux Node `24.20.0` and npm `12.0.2`. On the exact final candidate:
 - real PostgreSQL 17 migration/role/transaction tests passed, including repeated
   intents, a Baseline changed after verifier claim, fail-closed malformed and
   NULL reports, cross-Project disclosure with valid foreign review authority,
-  and idempotent `RESULT_READY` recovery without writer replay;
+  idempotent `RESULT_READY` recovery without writer replay, and build-authority
+  revocation both before verifier admission and before settlement;
 - real OCI Git custody passed, including added/modified/deleted manifest sides;
 - a final real user composition passed through Chromium UI, HTTP, PostgreSQL,
   Git, Mastra `1.63.2`, the explicitly pinned E2B template, writer E2B sandbox,
