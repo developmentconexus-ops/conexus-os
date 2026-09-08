@@ -12,7 +12,7 @@ const evidenceParams = { type: 'object', additionalProperties: false, required: 
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 const message = (error: unknown): string => error instanceof Error ? error.message : ''
 
-export type BuilderOperationId = 'BLD-01' | 'BLD-02' | 'BLD-03' | 'BLD-04' | 'BLD-06' | 'BLD-07' | 'BLD-11' | 'BLD-12' | 'BLD-14' | 'BLD-15' | 'BLD-17'
+export type BuilderOperationId = 'BLD-01' | 'BLD-02' | 'BLD-03' | 'BLD-04' | 'BLD-06' | 'BLD-07' | 'BLD-11' | 'BLD-12' | 'BLD-13' | 'BLD-14' | 'BLD-15' | 'BLD-17'
 type ResolveBuilderSession = (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
 
 const current = (snapshot: BuilderSnapshot, operation: BuilderOperationId): unknown => {
@@ -110,6 +110,38 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       return value ?? sendProblem(reply, 404, 'finding-not-found', 'Finding not found')
     } catch { return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable') }
   })
+  app.post<{ Params: { projectId: string; changeId: string; findingId: string }; Body: { expectedFindingRevision: string; resolutionEvidenceIds: string[] } }>(
+    '/api/control/projects/:projectId/changes/:changeId/findings/:findingId/commands/close', {
+      schema: { params: findingParams, body: { type: 'object', additionalProperties: false,
+        required: ['expectedFindingRevision', 'resolutionEvidenceIds'], properties: {
+          expectedFindingRevision: uuid,
+          resolutionEvidenceIds: { type: 'array', minItems: 1, uniqueItems: true, items: uuid },
+        } } },
+    }, async (request, reply) => {
+      const csrf = header(request.headers['x-conexus-csrf'])
+      if (request.headers.origin !== dependencies.origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
+        return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+      }
+      const session = await dependencies.resolveCurrentSession(request, true)
+      if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      try {
+        return await dependencies.store.closeFinding({ accountId: session.account.accountId, ...request.params, ...request.body })
+      } catch (error) {
+        const detail = message(error)
+        if (detail.includes('NOT_AUTHORIZED') || detail.includes('BUILD_AUTHORITY_STALE')) {
+          return sendProblem(reply, 403, 'finding-close-denied', 'Finding close denied')
+        }
+        if (detail.includes('query returned no rows') || detail.includes('NO_DATA_FOUND') || detail.includes('P0002')) {
+          return sendProblem(reply, 404, 'finding-not-found', 'Finding not found')
+        }
+        if (detail.includes('BASELINE_STALE')) return sendProblem(reply, 409, 'finding-baseline-stale', 'Finding Baseline is stale')
+        if (detail.includes('REVISION_STALE')) return sendProblem(reply, 412, 'finding-revision-stale', 'Finding revision is stale')
+        if (detail.includes('CURRENT_STATE_REFUSED')) return sendProblem(reply, 409, 'finding-state-conflict', 'Finding state conflict')
+        if (detail.includes('EVIDENCE_REFUSED')) return sendProblem(reply, 422, 'finding-evidence-refused', 'Resolution Evidence refused')
+        return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')
+      }
+    },
+  )
   app.get<{ Params: { projectId: string; changeId: string } }>('/api/control/projects/:projectId/changes/:changeId/evidence', { schema: { params: changeParams } }, async (request, reply) => {
     const session = await dependencies.resolveCurrentSession(request)
     if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
@@ -125,5 +157,5 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       return value ?? sendProblem(reply, 404, 'evidence-not-found', 'Evidence not found')
     } catch { return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable') }
   })
-  return ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-11', 'BLD-12', 'BLD-14', 'BLD-15', 'BLD-17']
+  return ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17']
 }

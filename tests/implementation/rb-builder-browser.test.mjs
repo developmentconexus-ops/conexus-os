@@ -73,3 +73,59 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   await page.setViewportSize({ width: 360, height: 800 })
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true)
 })
+
+test('Project Build shows one correction and closes a Finding only with current Evidence', async (t) => {
+  const workspaceId = '71000000-0000-4000-8000-000000000001'
+  const projectId = '71000000-0000-4000-8000-000000000002'
+  const changeId = '71000000-0000-4000-8000-000000000003'
+  const findingId = '71000000-0000-4000-8000-000000000004'
+  const findingRevision = '71000000-0000-4000-8000-000000000005'
+  const evidenceId = '71000000-0000-4000-8000-000000000006'
+  const origin = 'http://127.0.0.1:41750'
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41750, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  let state = 'VERIFICATION_FAILED'
+  let findingState = 'OPEN'
+  let candidate = 'b'.repeat(40)
+  let closePayload
+  const change = () => ({ changeId, projectId, intent: 'Adicionar rota de saúde', baselineDigest: 'a'.repeat(64), planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', state })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId: workspaceId, displayName: 'Builder Operator' }, workspaces: [{ workspaceId, name: 'Workspace' }], projects: [] }) }))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId, name: 'Health App', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/changes`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([change()]) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(change()) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/plan`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ planRevision: workspaceId, planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', items: [{ itemId: projectId, summary: change().intent, state: state === 'RUNNING' ? 'RUNNING' : 'COMPLETED' }], dependencyEdges: [], acceptanceLinks: [], blockers: [], unknowns: [], progress: state }) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/progress`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ planRevision: workspaceId, items: [], overallState: state }) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/diff`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ baseSourceRevision: 'a'.repeat(40), candidateSourceRevision: candidate, patch: candidate === 'b'.repeat(40) ? '+broken' : '+health: corrected' }) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/findings`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ findingId, changeId, findingRevision, state: findingState, summary: candidate === 'b'.repeat(40) ? 'A rota de saúde está ausente.' : 'A rota corrigida ainda exige confirmação.' }]) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/evidence`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state === 'UNVERIFIED' || state === 'VERIFIED' ? [{ evidenceId, changeId, claim: 'Candidate satisfies the accepted Change intent.', subjectDigest: candidate, provenance: [] }] : [{ evidenceId: workspaceId, changeId, claim: 'Candidate verification did not establish acceptance.', subjectDigest: candidate, provenance: [] }]) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/findings/${findingId}/commands/close`, (route) => {
+    closePayload = route.request().postDataJSON()
+    findingState = 'CLOSED'
+    state = 'VERIFIED'
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ findingId, changeId, findingRevision: workspaceId, state: findingState, summary: 'A rota de saúde está ausente.' }) })
+  })
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByText('Verificação reprovada.', { exact: false }).waitFor()
+  await page.getByText('A rota de saúde está ausente.', { exact: false }).waitFor()
+  candidate = 'c'.repeat(40)
+  await page.getByText('A rota corrigida ainda exige confirmação.', { exact: false }).waitFor({ timeout: 7_000 })
+  await page.getByText('+health: corrected', { exact: true }).waitFor()
+  await page.getByText('c'.repeat(40), { exact: true }).first().waitFor()
+  state = 'UNVERIFIED'
+  const closeButton = page.getByRole('button', { name: 'Confirmar resolução verificada' })
+  await closeButton.waitFor({ timeout: 7_000 })
+  await page.getByText('Correção verificada.', { exact: false }).waitFor()
+  await closeButton.click()
+  await page.getByText('Ponto resolvido com a verificação do candidato atual.').waitFor()
+  await page.getByText('Resultado verificado.', { exact: false }).waitFor({ timeout: 7_000 })
+  assert.deepEqual(closePayload, { expectedFindingRevision: findingRevision, resolutionEvidenceIds: [evidenceId] })
+  await page.getByText('+health: corrected', { exact: true }).waitFor()
+})

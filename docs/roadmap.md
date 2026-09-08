@@ -16,11 +16,11 @@ This is the single current phase/status authority.
 | 4A — Product Surface & Authority Contract | CLOSED / `PRE11-F05` RATIFIED | `128` fixed Product operations | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / `PRE11-F05` RATIFIED / REQUIRED VERIFY GREEN | `128↔128`; Project=28; Builder=20; Brain=13; PAR=16; MAR=4 | 4A change or wire/proof falsifier |
 | 4C — Frontend Interaction & Authority Realization | CLOSED / OPERATOR RATIFIED / METHOD v2.3 / P12 CLOSED / 4C-13 CLOSED / P12-F03 CLOSED / 4C-14 CLOSED / PRODUCT-APP WIREFRAMES OUT OF CURRENT SCOPE | Frontend Product/interaction model, P13 inputs and structural conformance obligations preserved for later phases | Material 4A/4B/P11/P13 conformance falsifier |
-| 4D — Project Paved Road & Runtime Realization | OPEN / R1 13/13 INTEGRATED / R2 INTEGRATED / RB FIRST VERTICAL + COMPOSED LIVE INTEGRATED / VERIFICATION-ACCEPTANCE CANDIDATE + INDEPENDENT CONVERGENCE CLEAR / PR+CI NEXT / R3+ BLOCKED | Publish and verify the bounded verification/acceptance candidate without expanding into R3; merge remains operator-gated | Material R1/R2 protected-claim falsifier, RB protected-property falsifier, objective CI regression, or named ambiguity/Global-Maximum doubt |
+| 4D — Project Paved Road & Runtime Realization | OPEN / R1 13/13 INTEGRATED / R2 INTEGRATED / RB VERIFIED FIRST LOOP INTEGRATED / BOUNDED CORRECTION PR #69 + CI/LIVE/FLOOR GREEN + REVIEW CLEAR / R3+ BLOCKED | Operator-gated PR #69 merge decision | Material R1/R2 protected-claim falsifier, RB protected-property falsifier, objective CI regression, or named ambiguity/Global-Maximum doubt |
 | 4E — Whole-System Coherence & Golden Flows | CLOSED(R1) / OPERATOR APPROVED / 13↔13 / GITINFRA + FIRST-AUTHORITY CORRECTED / MASTRA DEFER ACCEPTED / INDEPENDENT CONVERGENCE CLEAR / RB NOT OPEN | R1 composition routes exact tranche to 4F | Composed-flow contradiction |
-| 4F — Implementation Program & Execution Graph | R1 IMPLEMENTATION 13/13 INTEGRATED / R2 INTEGRATED / RB FIRST VERTICAL + COMPOSED LIVE INTEGRATED / VERIFICATION-ACCEPTANCE CANDIDATE | The bounded RB packets own the integrated build loop and the candidate verification/acceptance increment | Integrated R1/R2 proof fails or an RB packet protected claim fails |
+| 4F — Implementation Program & Execution Graph | R1 IMPLEMENTATION 13/13 INTEGRATED / R2 INTEGRATED / RB VERIFIED FIRST LOOP INTEGRATED / BOUNDED CORRECTION CANDIDATE | The bounded RB correction packet owns candidate closure | Integrated R1/R2 proof fails or an RB packet protected claim fails |
 | 4G — Adversarial Implementation Readiness | CLOSED ON PRIOR SUBJECT / OPERATOR APPROVED / SEMANTIC CLEAR PRESERVED / EXECUTION TOPOLOGY CHALLENGED BY PRE-S2 A0 FINDING / RB NOT OPEN | Prior semantic readiness remains Evidence; new physical-topology subject routes to bounded 4F reopen | Material readiness finding on the current tranche subject |
-| Product implementation | R1 INTEGRATED / R2 INTEGRATED / RB FIRST VERTICAL + COMPOSED LIVE INTEGRATED / VERIFICATION-ACCEPTANCE CANDIDATE / R3+ BLOCKED | A user can distinguish an exact independently verified/accepted candidate from a failed or inconclusive one and inspect the deciding Evidence/Findings | Product meaning changes, a protected R1/R2/RB claim fails, or RB admission exposes a material gap |
+| Product implementation | R1 INTEGRATED / R2 INTEGRATED / RB VERIFIED FIRST LOOP INTEGRATED / BOUNDED CORRECTION PR #69 CI GREEN / R3+ BLOCKED | Operator-gated PR #69 merge decision | Product meaning changes, a protected R1/R2/RB claim fails, or RB admission exposes a material gap |
 
 ```text
 4A = CLOSED / PRE11-F05 RATIFIED / N_platform=128
@@ -227,66 +227,45 @@ or Global Maximum decisions; there is no fixed three-part cadence.
 
 ## Exact next action
 
-R2 is `CLOSED / INTEGRATED`. The first RB vertical and its exact-build live
-composition are integrated through PRs #65 and #66. On `2026-09-08` the operator
-opened the bounded **governed verification and Change acceptance** vertical. Its
-current owner is the [RB verification/acceptance stage code packet](evidence/4f/4f-rb-verification-acceptance-stage-code-packet.md); the
-[first-vertical packet](evidence/4f/4f-rb-first-vertical-stage-code-packet.md)
-remains accepted upstream Evidence.
+R2 is `CLOSED / INTEGRATED`. The first RB build loop, exact-build E2B
+composition, independent verification/acceptance and deployment-selected
+Sonnet 5 writer/verifier proof are integrated through PRs #65–#68. PR #68 was
+squash-merged as `7b4aeee8c10a3fe7536430ff9e5f0ac95cc75aff`; its candidate tree was
+already green and is identical to the merged tree. The post-merge Verify is a
+non-blocking confirmation unless it reports a genuine objective regression.
 
-Candidate `7bd8e5487347d568769e7ec0c698791145c8c398` implements the observable path
-from squash `839d549`:
+The operator has now opened the bounded **correction and Finding resolution**
+vertical. Its current owner is the
+[RB bounded-correction stage code packet](evidence/4f/4f-rb-bounded-correction-stage-code-packet.md);
+the [verification/acceptance packet](evidence/4f/4f-rb-verification-acceptance-stage-code-packet.md)
+and [first-vertical packet](evidence/4f/4f-rb-first-vertical-stage-code-packet.md)
+remain accepted upstream Evidence.
 
 ```text
-exact Hub-custodied candidate + Change intent-derived contract assertion
-→ fresh independent verifier ActorRun + immutable candidate materialization
-→ exact server-selected BUILDER_VERIFICATION model admission
-→ Mastra structured verification in a fresh deny-all E2B sandbox
-→ immutable exact-subject Evidence + blocking Finding when applicable
-→ Hub recomputes eligibility and alone writes current change_acceptance
-→ BLD-02/04/06/11/12/14/15 + Project Build inspection
+failed exact candidate + retained Finding
+→ one fresh serial correction WorkUnit from that candidate
+→ corrected direct-child candidate with cumulative original-base diff
+→ fresh independent exact-subject verification
+→ BLD-13 refuses stale/foreign Evidence and stale Finding revisions
+→ eligible reviewer resolves with current PASS Evidence
+→ Builder alone recomputes acceptance
 ```
 
-The integrated first vertical and its required local workflow are green. Its
-E2B recipe is source-controlled, pins the Node base by OCI digest, and emits an
-exact build-qualified runtime ref without copying source or credentials into
-the template. The exact template build and paired deny-all/allow TLS control
-are now real and green; no proof sandbox remains active. The selected Anthropic
-OAuth credential is installed under owner-only custody, its real refresh path
-is green, and the Builder model is selected through the shared deployment
-catalog rather than runtime code. A differential probe against Mastra Code's
-current official Claude Max provider falsified the earlier account-quota
-diagnosis: the same credential and model succeeded there. Aligning Conexus's
-OAuth request identity/header transport and preserving Mastra E2B's ordinary
-nonzero-command result semantics then made `npm run rb:builder:live` green. The
-real worker created one exact child commit in the controlled remote sandbox,
-returned its Git bundle, changed only `BUILDER_RESULT.txt` with the required
-bytes, and left zero running or paused E2B sandboxes. PR #65 is integrated at
-squash `ceab9a1`. Independent review of the subsequent composed-proof candidate
-falsified the claimed immutability of its `build-<UUID>` E2B tag. E2B's native
-`templateId:<raw build UUID>` isolation and complete composed replay are green
-in PR #66, squash `839d549`. The verification/acceptance candidate now has real
-PostgreSQL refusal/recovery proof, two complete Chromium→HTTP→Git→Mastra→E2B
-user replays, a clean Linux repository floor and final isolated Fable/Gemini
-convergence. PR #67 head `220334c` is integrated into `main` as squash
-`a1130fe979ddbdda0e2b5125801d75e414608659`; post-merge Verify run
-`34266529029` is GREEN on that exact squash. The operator then approved the
-smallest operational follow-up: admit registry-valid `claude-sonnet-5` through
-the shared catalog for the separate `BUILDER_CODING` and
-`BUILDER_VERIFICATION` purposes and repeat the composed live Product journey
-without synthesizing a verifier admission inside the proof. This follow-up is
-now a candidate on branch `rb-builder-sonnet5-admission`: the owner-only host
-catalog has both distinct admissions over the existing credential slot, the
-proof fallback was removed, and the real Chromium→HTTP→PostgreSQL→Git→Mastra→E2B
-writer+verifier journey is GREEN `1/1` in `178.7 s` using Sonnet 5 for both
-roles. It changes model selection and proof fidelity, not Builder authority or
-Product meaning. The next smallest action is the clean candidate floor and one
-normal PR; merge remains a separate operator decision.
+The path is now published as normal PR #69 from branch
+`rb-builder-next-vertical`.
+PostgreSQL 17, local OCI Git custody, Chromium Product interaction, the normal
+Sonnet 5 composed build loop and a production-shaped Sonnet 5 correction replay
+are GREEN. A bounded GPT-6 Astra review found six material defects during
+implementation; each was corrected and the final re-review is `CLEAR`. The next
+smallest action is the separately operator-gated PR #69 merge decision. Verify
+run `34278003622` is GREEN on candidate `0c45c0350db44922767e967cce56a886368462e5`.
+This does not reopen the runtime choice: both roles remain deployment-selected
+through the shared catalog and the controlled Mastra/E2B runtime. Merge remains
+separately operator-gated.
 
 ACP, runtime tournaments, Worker Eval infrastructure, private MCP, concurrent
 writers, `BLD-18..20`, R3+, Release/deployment and broad Sankhya writes remain
-deferred unless a named material falsifier reopens their smallest owner. Push
-and a normal PR are authorized only when there is an actual candidate; merge
+deferred unless a named material falsifier reopens their smallest owner. Merge
 still requires a separate explicit operator decision. Credential values must
 not enter chat, Git, logs, terminal output or Evidence.
 

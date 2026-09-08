@@ -85,3 +85,14 @@ export const listChangeEvidence = async (projectId: string, changeId: string): P
   if (!response.ok) reject(response)
   return response.json() as Promise<ChangeEvidence[]>
 }
+export const closeChangeFinding = async (
+  projectId: string, changeId: string, findingId: string,
+  expectedFindingRevision: string, resolutionEvidenceIds: readonly string[],
+): Promise<ChangeFinding> => {
+  const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}/findings/${encodeURIComponent(findingId)}/commands/close`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ expectedFindingRevision, resolutionEvidenceIds }),
+  })
+  if (!response.ok) reject(response)
+  return response.json() as Promise<ChangeFinding>
+}

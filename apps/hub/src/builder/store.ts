@@ -49,6 +49,8 @@ export type ClaimedChange = Readonly<{
   admissionToken: string
   intent: string
   baseSourceRevision: string
+  changeBaseSourceRevision?: string
+  correctionFindings?: readonly Readonly<{ findingId: string; findingRevision: string; summary: string }>[]
 }>
 
 export type ClaimedVerification = Readonly<{
@@ -89,6 +91,7 @@ export type BuilderStore = Readonly<{
   listChanges(input: Readonly<{ accountId: string; projectId: string }>): Promise<readonly ChangeProjection[]>
   readSnapshot(input: Readonly<{ accountId: string; projectId: string; changeId: string; requireSource: boolean }>): Promise<BuilderSnapshot | null>
   claimChange(changeId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<ClaimedChange>
+  claimCorrection(changeId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<ClaimedChange | null>
   bindSandbox(actorRunId: string, admissionToken: string, sandboxId: string): Promise<void>
   settleResult(input: Readonly<ClaimedChange & { sandboxId: string; candidateSourceRevision: string; patch: string; summary: string }>): Promise<void>
   claimVerification(changeId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<ClaimedVerification>
@@ -98,6 +101,7 @@ export type BuilderStore = Readonly<{
   failRun(actorRunId: string, admissionToken: string): Promise<void>
   listFindings(input: Readonly<{ accountId: string; projectId: string; changeId: string }>): Promise<readonly FindingProjection[]>
   getFinding(input: Readonly<{ accountId: string; projectId: string; changeId: string; findingId: string }>): Promise<FindingProjection | null>
+  closeFinding(input: Readonly<{ accountId: string; projectId: string; changeId: string; findingId: string; expectedFindingRevision: string; resolutionEvidenceIds: readonly string[] }>): Promise<FindingProjection>
   listEvidence(input: Readonly<{ accountId: string; projectId: string; changeId: string }>): Promise<readonly EvidenceProjection[]>
   getEvidence(input: Readonly<{ accountId: string; projectId: string; changeId: string; evidenceId: string }>): Promise<EvidenceProjection | null>
   recoverAndListQueued(): Promise<readonly string[]>
@@ -148,6 +152,21 @@ export const createBuilderStore = ({
     if (!value || value.actorRunId !== actorRunId || value.admissionToken !== admissionToken) {
       throw new Error('BUILDER_CLAIM_REFUSED')
     }
+    return value
+  },
+  claimCorrection: async (changeId, modelIdentity) => {
+    const workUnitId = mintIdentity()
+    const actorRunId = mintIdentity()
+    const admissionToken = mintIdentity()
+    const result = await executorPool.query<JsonRow<ClaimedChange | null>>(
+      'SELECT builder.claim_correction($1,$2,$3,$4,$5,$6,$7) AS value', [
+        changeId, workUnitId, actorRunId, admissionToken,
+        modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
+      ],
+    )
+    const value = result.rows[0]?.value ?? null
+    if (value && (value.workUnitId !== workUnitId || value.actorRunId !== actorRunId ||
+      value.admissionToken !== admissionToken)) throw new Error('BUILDER_CORRECTION_CLAIM_REFUSED')
     return value
   },
   bindSandbox: async (actorRunId, admissionToken, sandboxId) => {
@@ -218,6 +237,15 @@ export const createBuilderStore = ({
       'SELECT builder.get_finding($1,$2,$3,$4) AS value', [accountId, projectId, changeId, findingId],
     )
     return result.rows[0]?.value ?? null
+  },
+  closeFinding: async ({ accountId, projectId, changeId, findingId, expectedFindingRevision, resolutionEvidenceIds }) => {
+    const result = await ingressPool.query<JsonRow<FindingProjection>>(
+      'SELECT builder.close_finding($1,$2,$3,$4,$5,$6) AS value',
+      [accountId, projectId, changeId, findingId, expectedFindingRevision, resolutionEvidenceIds],
+    )
+    const value = result.rows[0]?.value
+    if (!value) throw new Error('BLD13_CLOSE_FAILED')
+    return value
   },
   listEvidence: async ({ accountId, projectId, changeId }) => {
     const result = await ingressPool.query<JsonRow<EvidenceProjection>>(
