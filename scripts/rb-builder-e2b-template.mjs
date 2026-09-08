@@ -11,6 +11,7 @@ export const BUILDER_TEMPLATE_MEMORY_MB = 2_048
 
 export const createBuilderTemplate = (Template) => Template()
   .fromImage(BUILDER_TEMPLATE_BASE_IMAGE)
+  .setUser('root')
   .runCmd([
     'apt-get update',
     'DEBIAN_FRONTEND=noninteractive DEBCONF_NOWARNINGS=yes apt-get install -y --no-install-recommends ca-certificates git',
@@ -36,7 +37,7 @@ export const inspectBuilderTemplate = async (Template) => {
   })
 }
 
-const readOwnerSecret = (path) => {
+export const readBuilderE2BApiKey = (path) => {
   if (!path) throw new Error('MISSING_CONFIG_CONEXUS_BUILDER_E2B_API_KEY_FILE')
   let file
   try {
@@ -62,14 +63,15 @@ export const checkBuilderTemplate = async () => {
   const inspected = await inspectBuilderTemplate(Template)
   const parsed = JSON.parse(inspected.recipe)
   if (parsed.fromImage !== BUILDER_TEMPLATE_BASE_IMAGE || parsed.readyCmd.includes('E2B_API_KEY') ||
-    parsed.steps.some((step) => JSON.stringify(step).includes('COPY'))) {
+    parsed.steps.some((step) => JSON.stringify(step).includes('COPY')) ||
+    !parsed.steps.some((step) => step.type === 'USER' && step.args[0] === 'root')) {
     throw new Error('BUILDER_E2B_TEMPLATE_RECIPE_REFUSED')
   }
   return inspected
 }
 
 export const buildBuilderTemplate = async (environment = process.env, E2BClient = E2B) => {
-  const apiKey = readOwnerSecret(environment.CONEXUS_BUILDER_E2B_API_KEY_FILE)
+  const apiKey = readBuilderE2BApiKey(environment.CONEXUS_BUILDER_E2B_API_KEY_FILE)
   const client = new E2BClient({ apiKey })
   const inspected = await inspectBuilderTemplate(client.Template)
   const built = await client.Template.build(inspected.template, inspected.buildName, {

@@ -247,9 +247,11 @@ Project + approved Baseline/current source
 The implementation candidate and its required local workflow are green. Its
 E2B recipe is source-controlled, pins the Node base by OCI digest, and emits an
 exact build-qualified runtime ref without copying source or credentials into
-the template. The next deciding action is one explicitly authorized template
-build followed by the bounded real E2B/model Change journey when the operator
-has installed the required secret files; no live external claim exists yet.
+the template. The exact template build and paired deny-all/allow TLS control
+are now real and green; no proof sandbox remains active. The next deciding
+action is the bounded real Mastra/model Change journey after the operator
+installs the selected admission's provider credential; no real model or full
+Change execution claim exists yet.
 
 ACP, runtime tournaments, Worker Eval infrastructure, private MCP, concurrent
 writers, `BLD-18..20`, R3+, Release/deployment and broad Sankhya writes remain

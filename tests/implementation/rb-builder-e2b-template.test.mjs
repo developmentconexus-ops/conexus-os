@@ -21,6 +21,7 @@ test('RB Builder E2B template is a source-free exact Node recipe with required l
   assert.match(parsed.fromImage, new RegExp(`^node:${BUILDER_TEMPLATE_NODE_VERSION}-bookworm-slim@sha256:[0-9a-f]{64}$`))
   assert.match(parsed.readyCmd, /git --version/)
   assert.match(parsed.readyCmd, /\/workspace/)
+  assert.equal(parsed.steps.some((step) => step.type === 'USER' && step.args[0] === 'root'), true)
   assert.equal(parsed.steps.some((step) => step.type === 'COPY'), false)
   assert.equal(JSON.stringify(parsed).includes('E2B_API_KEY'), false)
   assert.match(checked.buildName, /^conexus-rb-builder-first:recipe-[0-9a-f]{16}$/)

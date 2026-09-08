@@ -39,7 +39,8 @@ credentials, or turn narration/sandbox completion into an owner transition.
 The E2B template source is `scripts/rb-builder-e2b-template.mjs`. It pins the
 Node `24.20.0` Bookworm-slim OCI index by digest, installs only the Git/TLS
 mechanics required by this vertical, copies no Project bytes or credentials at
-build time, and derives its human build tag from the canonical recipe hash.
+build time, runs as root only inside the credential-free disposable guest, and
+derives its human build tag from the canonical recipe hash.
 `npm run rb:e2b:template:check` is local and effect-free. The external build is
 separately guarded by `CONEXUS_RB_E2B_TEMPLATE_BUILD=true` and reads the E2B
 key only from the owner-only file named by
@@ -47,6 +48,22 @@ key only from the owner-only file named by
 `build-<buildId>` tag and emits `templateId:build-<buildId>` as
 `runtimeTemplateRef`; that exact ref, rather than a mutable human name/default
 tag, is the value admitted by the Hub runtime.
+
+The authorized live build on `2026-09-07` produced recipe digest
+`3979a94f69948d972c7021ba30aac2ece3a590557fbed79bb27a0c87bfb0e0ab`,
+template `refny0yzdr3kend4t50u`, build
+`b62f8103-b206-481f-a0c0-f56c8ebb5205`, and exact runtime ref
+`refny0yzdr3kend4t50u:build-b62f8103-b206-481f-a0c0-f56c8ebb5205`.
+The real sandbox proved Node `24.20.0`, Git `2.39.5`, writable `/workspace`,
+no provider/API-key/token/secret/database/Conexus credential variables, and a
+stored deny-all policy. The guest retains only E2B's exact non-secret template,
+sandbox and events-address mechanics. A raw TCP
+connect initially appeared to contradict isolation but was an invalid proxy-
+boundary probe: the deciding paired TLS/HTTP control received `ECONNRESET`
+under deny-all and HTTP `301` only in the explicitly internet-enabled control.
+Both sandboxes were killed. `npm run rb:e2b:template:live` preserves this exact
+negative/positive proof and remains explicitly external rather than part of
+ordinary local verification.
 
 The deployment format is `conexus-model-admission-catalog/v1`. The existing
 R1 entry must carry `PROJECT_INCEPTION` and `BASELINE_EXPLANATION`; a Builder
