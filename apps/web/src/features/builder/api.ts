@@ -15,6 +15,10 @@ export type ChangeProgress = Readonly<{
   planRevision: string; items: readonly Readonly<{ itemId: string; summary: string; state: string }>[]; overallState: string
 }>
 export type ChangeDiff = Readonly<{ baseSourceRevision: string; candidateSourceRevision: string; patch: string }>
+export type SourceTree = Readonly<{
+  sourceRevision: string; entries: readonly Readonly<{ path: string; kind: 'FILE' | 'DIRECTORY' }>[]
+}>
+export type SourceFile = Readonly<{ sourceRevision: string; path: string; content: string }>
 export type ChangeFinding = Readonly<{
   findingId: string; changeId: string; findingRevision: string; state: 'OPEN' | 'CLOSED'; summary: string
 }>
@@ -42,6 +46,7 @@ const reject = (response: Response): never => {
   throw new BuilderRequestError(response.status)
 }
 const base = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/changes`
+const sourceBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/source`
 
 export const listChanges = async (projectId: string): Promise<ChangeSummary[]> => {
   const response = await request(base(projectId))
@@ -74,6 +79,18 @@ export const getChangeDiff = async (projectId: string, changeId: string): Promis
   const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}/diff`)
   if (!response.ok) reject(response)
   return response.json() as Promise<ChangeDiff>
+}
+export const listProjectSourceTree = async (projectId: string, sourceRevision: string): Promise<SourceTree> => {
+  const query = new URLSearchParams({ sourceRevision })
+  const response = await request(`${sourceBase(projectId)}/tree?${query}`)
+  if (!response.ok) reject(response)
+  return response.json() as Promise<SourceTree>
+}
+export const getProjectSourceFile = async (projectId: string, sourceRevision: string, path: string): Promise<SourceFile> => {
+  const query = new URLSearchParams({ sourceRevision, path })
+  const response = await request(`${sourceBase(projectId)}/file?${query}`)
+  if (!response.ok) reject(response)
+  return response.json() as Promise<SourceFile>
 }
 export const listChangeFindings = async (projectId: string, changeId: string): Promise<ChangeFinding[]> => {
   const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}/findings`)

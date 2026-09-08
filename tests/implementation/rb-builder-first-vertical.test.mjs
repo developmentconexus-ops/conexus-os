@@ -228,7 +228,7 @@ test('Builder refuses mismatched worker lineage and never settles its narration'
   assert.equal(state.failed, true)
 })
 
-test('BLD-01/02/03/04/06/07/17 expose owner projections with command authenticity', async () => {
+test('BLD-01/02/03/04/06/07/08/09/17 expose owner projections with command authenticity', async () => {
   const origin = 'https://control.example.test'
   const csrf = 'csrf'
   const snapshot = {
@@ -248,11 +248,17 @@ test('BLD-01/02/03/04/06/07/17 expose owner projections with command authenticit
     closeFinding: async (input) => { calls.push(['close-finding', input]); return { ...finding, state: 'CLOSED' } },
     listEvidence: async () => [evidence], getEvidence: async () => evidence,
   }
-  const service = { createChange: async (input) => { calls.push(['create', input]); return projection } }
+  const sourceTree = { sourceRevision: candidateSourceRevision, entries: [{ path: 'src', kind: 'DIRECTORY' }, { path: 'src/app.ts', kind: 'FILE' }] }
+  const sourceFile = { sourceRevision: candidateSourceRevision, path: 'src/app.ts', content: 'export const health = true\n' }
+  const service = {
+    createChange: async (input) => { calls.push(['create', input]); return projection },
+    listSourceTree: async (input) => { calls.push(['source-tree', input]); return sourceTree },
+    getSourceFile: async (input) => { calls.push(['source-file', input]); return sourceFile },
+  }
   const resolveCurrentSession = async (_request, requireCsrf) => { calls.push(['session', requireCsrf]); return { account: { accountId: projectId } } }
   const app = await createHttpApp({ registerRoutes: (server) => registerBuilderRoutes(server, { store, service, resolveCurrentSession, origin }) })
   try {
-    assert.deepEqual(app.routeCensus(), ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17'])
+    assert.deepEqual(app.routeCensus(), ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-08', 'BLD-09', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17'])
     const denied = await app.inject({ method: 'POST', url: `/api/control/projects/${projectId}/changes`, payload: { intent: projection.intent } })
     assert.equal(denied.statusCode, 403)
     const created = await app.inject({
@@ -269,6 +275,22 @@ test('BLD-01/02/03/04/06/07/17 expose owner projections with command authenticit
     assert.equal(calls.findLast((entry) => entry[0] === 'read')[1].requireSource, false)
     const diffRead = calls.filter((entry) => entry[0] === 'read').find((entry) => entry[1].requireSource)
     assert.equal(diffRead[1].changeId, changeId)
+    const treeResponse = await app.inject({
+      method: 'GET', url: `/api/control/projects/${projectId}/source/tree?sourceRevision=${candidateSourceRevision}`,
+    })
+    assert.equal(treeResponse.statusCode, 200)
+    assert.deepEqual(JSON.parse(treeResponse.body), sourceTree)
+    assert.deepEqual(calls.find((entry) => entry[0] === 'source-tree')[1], {
+      accountId: projectId, projectId, sourceRevision: candidateSourceRevision,
+    })
+    const fileResponse = await app.inject({
+      method: 'GET', url: `/api/control/projects/${projectId}/source/file?sourceRevision=${candidateSourceRevision}&path=src%2Fapp.ts`,
+    })
+    assert.equal(fileResponse.statusCode, 200)
+    assert.deepEqual(JSON.parse(fileResponse.body), sourceFile)
+    assert.deepEqual(calls.find((entry) => entry[0] === 'source-file')[1], {
+      accountId: projectId, projectId, sourceRevision: candidateSourceRevision, path: 'src/app.ts',
+    })
     for (const [suffix, expected] of [
       ['/findings', [finding]], [`/findings/${finding.findingId}`, finding],
       ['/evidence', [evidence]], [`/evidence/${evidence.evidenceId}`, evidence],
@@ -286,6 +308,33 @@ test('BLD-01/02/03/04/06/07/17 expose owner projections with command authenticit
     assert.equal(JSON.parse(closed.body).state, 'CLOSED')
     assert.deepEqual(calls.find((entry) => entry[0] === 'close-finding')[1].resolutionEvidenceIds, [evidence.evidenceId])
   } finally { await app.close() }
+})
+
+test('source inspection admits Project-bound revisions and withholds account identity from custody', async () => {
+  let admitted = false
+  const calls = []
+  const service = createBuilderService({
+    store: {
+      admitSourceRevision: async (input) => { calls.push(['admit', input]); return admitted },
+      recoverAndListQueued: async () => [], close: async () => {},
+    },
+    source: {
+      listSourceTree: async (input) => { calls.push(['tree', input]); return { sourceRevision: input.sourceRevision, entries: [] } },
+      readSourceFile: async (input) => { calls.push(['file', input]); return { ...input, content: 'exact\n' } },
+    },
+    runtime: { kind: 'REMOTE_E2B', modelIdentity },
+    verifier: { kind: 'REMOTE_E2B', modelIdentity: verifierIdentity },
+  })
+  const input = { accountId: actorRunId, projectId, sourceRevision: candidateSourceRevision }
+  await assert.rejects(service.listSourceTree(input), /BUILDER_SOURCE_SUBJECT_NOT_FOUND/)
+  assert.equal(calls.some(([name]) => name === 'tree'), false)
+  admitted = true
+  assert.deepEqual(await service.listSourceTree(input), { sourceRevision: candidateSourceRevision, entries: [] })
+  assert.deepEqual(calls.find(([name]) => name === 'tree')[1], { projectId, sourceRevision: candidateSourceRevision })
+  assert.deepEqual(await service.getSourceFile({ ...input, path: 'src/app.ts' }), {
+    projectId, sourceRevision: candidateSourceRevision, path: 'src/app.ts', content: 'exact\n',
+  })
+  assert.equal('accountId' in calls.find(([name]) => name === 'file')[1], false)
 })
 
 test('runtime, migration and custody source preserve the Builder trust boundary', () => {
@@ -733,6 +782,66 @@ test('RB real OCI custody admits one exact child and refuses multi-commit and pr
   }
 })
 
+test('RB real OCI source inspection preserves exact revision and literal path', {
+  skip: process.env.CONEXUS_RB_CUSTODY_LIVE !== 'true' ? 'set CONEXUS_RB_CUSTODY_LIVE=true for exact-image source proof' : false,
+  timeout: 180_000,
+}, async () => {
+  const root = mkdtempSync('/tmp/conexus-rb-source-read-')
+  const storageRoot = resolve(root, 'storage')
+  const work = resolve(root, 'work')
+  const repository = resolve(storageRoot, 'projects', projectId)
+  mkdirSync(resolve(storageRoot, 'projects'), { recursive: true })
+  mkdirSync(resolve(work))
+  try {
+    gitFixture(work, ['init', '--initial-branch=main'])
+    mkdirSync(resolve(work, 'src'))
+    writeFileSync(resolve(work, 'README.md'), 'base\n')
+    writeFileSync(resolve(work, 'src/app.ts'), 'export const state = "base"\n')
+    gitFixture(work, ['add', '--all'])
+    gitFixture(work, ['commit', '-m', 'base'])
+    const base = gitFixture(work, ['rev-parse', 'HEAD'])
+    gitFixture(root, ['clone', '--bare', work, repository])
+    gitFixture(work, ['checkout', '-b', 'candidate'])
+    writeFileSync(resolve(work, 'src/app.ts'), 'export const state = "candidate"\n')
+    gitFixture(work, ['rm', 'README.md'])
+    gitFixture(work, ['commit', '-am', 'candidate'])
+    const candidate = gitFixture(work, ['rev-parse', 'HEAD'])
+    gitFixture(root, ['--git-dir', repository, 'fetch', work, `refs/heads/candidate:refs/conexus/changes/${changeId}`])
+    const port = createBuilderSourcePort({
+      git: {
+        verifyAdmittedImage: async () => ({ status: 'VERIFIED' }),
+        createProjectSourceBundle: async () => ({ status: 'BUNDLED' }),
+      },
+      storageRoot, sourceOwnership: {},
+    })
+    assert.deepEqual((await port.listSourceTree({ projectId, sourceRevision: base })).entries, [
+      { path: 'README.md', kind: 'FILE' }, { path: 'src', kind: 'DIRECTORY' }, { path: 'src/app.ts', kind: 'FILE' },
+    ])
+    assert.deepEqual((await port.listSourceTree({ projectId, sourceRevision: candidate })).entries, [
+      { path: 'src', kind: 'DIRECTORY' }, { path: 'src/app.ts', kind: 'FILE' },
+    ])
+    assert.deepEqual(await port.readSourceFile({ projectId, sourceRevision: base, path: 'src/app.ts' }), {
+      sourceRevision: base, path: 'src/app.ts', content: 'export const state = "base"\n',
+    })
+    assert.deepEqual(await port.readSourceFile({ projectId, sourceRevision: candidate, path: 'src/app.ts' }), {
+      sourceRevision: candidate, path: 'src/app.ts', content: 'export const state = "candidate"\n',
+    })
+    await assert.rejects(port.readSourceFile({ projectId, sourceRevision: candidate, path: '../app.ts' }), /PATH_REFUSED/)
+    await assert.rejects(port.readSourceFile({ projectId, sourceRevision: candidate, path: 'README.md' }), /BUILDER_SOURCE_READ_/)
+    const deepPaths = Array.from({ length: 6 }, (_, branch) =>
+      `branch-${branch}/${Array.from({ length: 1_700 }, () => 'd').join('/')}/file.txt`)
+    const imported = spawnSync('git', ['--git-dir', repository, 'fast-import', '--quiet'], {
+      encoding: 'utf8', maxBuffer: 1024 * 1024,
+      input: `blob\nmark :1\ndata 2\nx\ncommit refs/heads/deep\ncommitter Conexus RB fixture <rb-fixture@conexus.invalid> 0 +0000\ndata 4\ndeep\n${deepPaths.map((path) => `M 100644 :1 ${path}`).join('\n')}\ndone\n`,
+    })
+    assert.equal(imported.status, 0, imported.stderr)
+    const deepRevision = gitFixture(root, ['--git-dir', repository, 'rev-parse', 'refs/heads/deep'])
+    await assert.rejects(port.listSourceTree({ projectId, sourceRevision: deepRevision }), /TREE_TOO_LARGE/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 const postgresConfigured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every((name) => process.env[name])
 const quoteIdentifier = (value) => {
   if (!/^[a-z_][a-z0-9_]*$/.test(value)) throw new Error('Unsafe database identity')
@@ -761,7 +870,7 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   url.pathname = `/${database}`
   url.username = current.user
   url.password = current.password
-  assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).versions, Array.from({ length: 21 }, (_, index) => String(index + 1).padStart(3, '0')))
+  assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).versions, Array.from({ length: 22 }, (_, index) => String(index + 1).padStart(3, '0')))
   assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).appliedNow, [])
   const tables = await query(current, `SELECT tablename FROM pg_tables WHERE schemaname = 'builder' ORDER BY tablename`)
   assert.deepEqual(tables.rows.map((row) => row.tablename), [
@@ -1187,6 +1296,25 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   ])).rows[0].value
   assert.equal(correctionSnapshot.execution.workUnits.length, 2)
   assert.deepEqual(correctionSnapshot.execution.workUnits.map((unit) => unit.actorRunIds.length), [2, 2])
+  for (const sourceRevision of [baseSourceRevision, candidateSourceRevision, 'e'.repeat(40), 'f'.repeat(40)]) {
+    assert.equal((await query(ingress, 'SELECT builder.admit_source_revision($1,$2,$3) AS admitted', [
+      accountId, subjectProjectId, sourceRevision,
+    ])).rows[0].admitted, true)
+  }
+  assert.equal((await query(ingress, 'SELECT builder.admit_source_revision($1,$2,$3) AS admitted', [
+    accountId, subjectProjectId, '4'.repeat(40),
+  ])).rows[0].admitted, false)
+  assert.equal((await query(ingress, 'SELECT builder.admit_source_revision($1,$2,$3) AS admitted', [
+    unauthorizedAccount, subjectProjectId, baseSourceRevision,
+  ])).rows[0].admitted, false)
+  await assert.rejects(query(executor, 'SELECT builder.admit_source_revision($1,$2,$3)', [
+    accountId, subjectProjectId, baseSourceRevision,
+  ]), /permission denied/)
+  await query(current, 'UPDATE iam.project_builder_grant SET can_read_source = false WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
+  assert.equal((await query(ingress, 'SELECT builder.admit_source_revision($1,$2,$3) AS admitted', [
+    accountId, subjectProjectId, baseSourceRevision,
+  ])).rows[0].admitted, false)
+  await query(current, 'UPDATE iam.project_builder_grant SET can_read_source = true WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
 
   const interruptedCorrectionChange = '62100000-0000-4000-8000-000000000001'
   const interruptedVerification = await prepareVerification({

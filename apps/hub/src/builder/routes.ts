@@ -12,7 +12,7 @@ const evidenceParams = { type: 'object', additionalProperties: false, required: 
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 const message = (error: unknown): string => error instanceof Error ? error.message : ''
 
-export type BuilderOperationId = 'BLD-01' | 'BLD-02' | 'BLD-03' | 'BLD-04' | 'BLD-06' | 'BLD-07' | 'BLD-11' | 'BLD-12' | 'BLD-13' | 'BLD-14' | 'BLD-15' | 'BLD-17'
+export type BuilderOperationId = 'BLD-01' | 'BLD-02' | 'BLD-03' | 'BLD-04' | 'BLD-06' | 'BLD-07' | 'BLD-08' | 'BLD-09' | 'BLD-11' | 'BLD-12' | 'BLD-13' | 'BLD-14' | 'BLD-15' | 'BLD-17'
 type ResolveBuilderSession = (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
 
 const current = (snapshot: BuilderSnapshot, operation: BuilderOperationId): unknown => {
@@ -65,6 +65,51 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')
     }
   })
+
+  const sourceQuery = { type: 'object', additionalProperties: false, required: ['sourceRevision'], properties: {
+    sourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' },
+  } } as const
+  app.get<{ Params: { projectId: string }; Querystring: { sourceRevision: string } }>(
+    '/api/control/projects/:projectId/source/tree', { schema: { params, querystring: sourceQuery } }, async (request, reply) => {
+      const session = await dependencies.resolveCurrentSession(request)
+      if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      try {
+        return await dependencies.service.listSourceTree({
+          accountId: session.account.accountId, projectId: request.params.projectId,
+          sourceRevision: request.query.sourceRevision,
+        })
+      } catch (error) {
+        const detail = message(error)
+        if (detail.includes('SUBJECT_NOT_FOUND') || detail.includes('REVISION_NOT_FOUND')) {
+          return sendProblem(reply, 404, 'source-revision-not-found', 'Source revision not found')
+        }
+        return sendProblem(reply, 503, 'builder-source-unavailable', 'Builder source unavailable')
+      }
+    },
+  )
+  const sourceFileQuery = { type: 'object', additionalProperties: false, required: ['sourceRevision', 'path'], properties: {
+    sourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' },
+    path: { type: 'string', minLength: 1, maxLength: 4096 },
+  } } as const
+  app.get<{ Params: { projectId: string }; Querystring: { sourceRevision: string; path: string } }>(
+    '/api/control/projects/:projectId/source/file', { schema: { params, querystring: sourceFileQuery } }, async (request, reply) => {
+      const session = await dependencies.resolveCurrentSession(request)
+      if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      try {
+        return await dependencies.service.getSourceFile({
+          accountId: session.account.accountId, projectId: request.params.projectId,
+          sourceRevision: request.query.sourceRevision, path: request.query.path,
+        })
+      } catch (error) {
+        const detail = message(error)
+        if (detail.includes('SUBJECT_NOT_FOUND') || detail.includes('NOT_FOUND') ||
+          detail.includes('NOT_DISCLOSABLE') || detail.includes('PATH_REFUSED')) {
+          return sendProblem(reply, 404, 'source-file-not-found', 'Source file not found')
+        }
+        return sendProblem(reply, 503, 'builder-source-unavailable', 'Builder source unavailable')
+      }
+    },
+  )
 
   const reads: readonly Readonly<{ suffix: string; id: BuilderOperationId; requireSource: boolean }>[] = [
     { suffix: '', id: 'BLD-02', requireSource: false },
@@ -157,5 +202,5 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       return value ?? sendProblem(reply, 404, 'evidence-not-found', 'Evidence not found')
     } catch { return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable') }
   })
-  return ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17']
+  return ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-08', 'BLD-09', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17']
 }

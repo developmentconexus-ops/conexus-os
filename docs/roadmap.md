@@ -16,11 +16,11 @@ This is the single current phase/status authority.
 | 4A — Product Surface & Authority Contract | CLOSED / `PRE11-F05` RATIFIED | `128` fixed Product operations | Interaction Evidence proves missing Product meaning/authority |
 | 4B — Executable Wire Contract | CLOSED / `PRE11-F05` RATIFIED / REQUIRED VERIFY GREEN | `128↔128`; Project=28; Builder=20; Brain=13; PAR=16; MAR=4 | 4A change or wire/proof falsifier |
 | 4C — Frontend Interaction & Authority Realization | CLOSED / OPERATOR RATIFIED / METHOD v2.3 / P12 CLOSED / 4C-13 CLOSED / P12-F03 CLOSED / 4C-14 CLOSED / PRODUCT-APP WIREFRAMES OUT OF CURRENT SCOPE | Frontend Product/interaction model, P13 inputs and structural conformance obligations preserved for later phases | Material 4A/4B/P11/P13 conformance falsifier |
-| 4D — Project Paved Road & Runtime Realization | OPEN / R1 13/13 INTEGRATED / R2 INTEGRATED / RB VERIFIED FIRST LOOP INTEGRATED / BOUNDED CORRECTION PR #69 + CI/LIVE/FLOOR GREEN + REVIEW CLEAR / R3+ BLOCKED | Operator-gated PR #69 merge decision | Material R1/R2 protected-claim falsifier, RB protected-property falsifier, objective CI regression, or named ambiguity/Global-Maximum doubt |
+| 4D — Project Paved Road & Runtime Realization | OPEN / R1 13/13 INTEGRATED / R2 INTEGRATED / RB CORRECTION INTEGRATED / EXACT SOURCE INSPECTION VERTICAL OPEN + OPERATOR AUTHORIZED / R3+ BLOCKED | Complete and publish the bounded `BLD-08/09` Product vertical | Material R1/R2 protected-claim falsifier, RB protected-property falsifier, objective CI regression, or named ambiguity/Global-Maximum doubt |
 | 4E — Whole-System Coherence & Golden Flows | CLOSED(R1) / OPERATOR APPROVED / 13↔13 / GITINFRA + FIRST-AUTHORITY CORRECTED / MASTRA DEFER ACCEPTED / INDEPENDENT CONVERGENCE CLEAR / RB NOT OPEN | R1 composition routes exact tranche to 4F | Composed-flow contradiction |
-| 4F — Implementation Program & Execution Graph | R1 IMPLEMENTATION 13/13 INTEGRATED / R2 INTEGRATED / RB VERIFIED FIRST LOOP INTEGRATED / BOUNDED CORRECTION CANDIDATE | The bounded RB correction packet owns candidate closure | Integrated R1/R2 proof fails or an RB packet protected claim fails |
+| 4F — Implementation Program & Execution Graph | R1 IMPLEMENTATION 13/13 INTEGRATED / R2 INTEGRATED / RB CORRECTION INTEGRATED / EXACT SOURCE INSPECTION IMPLEMENTING | The bounded RB source-inspection packet owns candidate closure | Integrated R1/R2 proof fails or an RB packet protected claim fails |
 | 4G — Adversarial Implementation Readiness | CLOSED ON PRIOR SUBJECT / OPERATOR APPROVED / SEMANTIC CLEAR PRESERVED / EXECUTION TOPOLOGY CHALLENGED BY PRE-S2 A0 FINDING / RB NOT OPEN | Prior semantic readiness remains Evidence; new physical-topology subject routes to bounded 4F reopen | Material readiness finding on the current tranche subject |
-| Product implementation | R1 INTEGRATED / R2 INTEGRATED / RB VERIFIED FIRST LOOP INTEGRATED / BOUNDED CORRECTION PR #69 CI GREEN / R3+ BLOCKED | Operator-gated PR #69 merge decision | Product meaning changes, a protected R1/R2/RB claim fails, or RB admission exposes a material gap |
+| Product implementation | R1 INTEGRATED / R2 INTEGRATED / RB CORRECTION INTEGRATED / `BLD-08/09` SOURCE INSPECTION OPEN / R3+ BLOCKED | User can inspect exact original/result files from Project Build | Product meaning changes, a protected R1/R2/RB claim fails, or RB admission exposes a material gap |
 
 ```text
 4A = CLOSED / PRE11-F05 RATIFIED / N_platform=128
@@ -67,9 +67,9 @@ P12 Family 2 = LOCKED / OPERATOR APPROVED / W-02A f0a6902737a36217b081ff61768caa
 P12 Family 3 = LOCKED / OPERATOR APPROVED / P-04 77820d283e47ba6c9f5efd19f45471c88675e0b0 / P-05 d00b2126667a0a51317c653c57c237444a129dfb / PA-01 612ec41d91104e01b3942f7d90f35c37ad89c9f0
 P12 Family 4 = LOCKED / OPERATOR APPROVED / W-04 71e03432a0abd34ae35301094010fd670bb78b98 / P-01 25e5077106892c4ff6aba6774987e73a12ccff51 / P-03 17d31534fac0e57a74f70202567b23d8a63cd3c0 / P-04 e036684e3e66d028361db2d708cf05811a367f4b / PA-01 ffba5935d8fccd0fc5d7ad4d275fe38b09294674
 Pre-P11 global coherence review = CLOSED / F03-F05 OPERATOR RATIFIED / 128↔128 REQUIRED VERIFY GREEN / REPOSITORY 224↔224 GREEN / T-01 + GF-01/P-01/P-03 DELTAS LOCKED / TERMINAL P10 RECONCILED
-4D = OPEN / R1 13/13 INTEGRATED / RC-01 CLOSED / R2-P0..P7 CLOSED + INTEGRATED / PR #63 SQUASH 87598b3 / RB FIRST VERTICAL PR #65 SQUASH ceab9a1 / RB COMPOSED LIVE PR #66 SQUASH 839d549 / VERIFICATION-ACCEPTANCE CANDIDATE 7bd8e54 + INDEPENDENT CONVERGENCE CLEAR / PR+CI NEXT / R3+ BLOCKED
+4D = OPEN / R1 13/13 INTEGRATED / RC-01 CLOSED / R2-P0..P7 CLOSED + INTEGRATED / PR #63 SQUASH 87598b3 / RB FIRST VERTICAL PR #65 SQUASH ceab9a1 / RB COMPOSED LIVE PR #66 SQUASH 839d549 / VERIFICATION+DEPLOYMENT PIN+CORRECTION INTEGRATED THROUGH PR #69 SQUASH 51677d73 / EXACT SOURCE INSPECTION OPEN / R3+ BLOCKED
 4E(R1) = CLOSED / OPERATOR APPROVED / 13↔13 / 4F(R1) IMPLEMENTATION INTEGRATED / RC-01 CLOSED / RB 4E-4G NOT OPEN
-Product implementation = R1 INTEGRATED / R2 INTEGRATED / RB FIRST VERTICAL + COMPOSED LIVE INTEGRATED / VERIFICATION-ACCEPTANCE CANDIDATE / R3+ BLOCKED
+Product implementation = R1 INTEGRATED / R2 INTEGRATED / RB FIRST LOOP + VERIFICATION + CORRECTION INTEGRATED / BLD-08+09 SOURCE INSPECTION IMPLEMENTING / R3+ BLOCKED
 R1 foundation custody marker (historical / non-current routing) = OPERATION MAP 128↔128 CANDIDATE / R1 FOUNDATION SELECTION CLOSED + OPERATOR APPROVED / R1 PROBE GRANT OPERATOR APPROVED / R1F-A01+R1F-E01 CORRECTED / P01..P12 EVIDENCE OPERATOR APPROVED / 4D-D(R1) FOUNDATION CLAIMS PRESERVED + R1C-13/14 ADDENDA / 4E-R1-F01 CLOSED / 4E(R1) CLOSED + OPERATOR APPROVED / R1 13/13 INTEGRATED / RC-01 CLOSED
 ```
 
@@ -228,40 +228,37 @@ or Global Maximum decisions; there is no fixed three-part cadence.
 ## Exact next action
 
 R2 is `CLOSED / INTEGRATED`. The first RB build loop, exact-build E2B
-composition, independent verification/acceptance and deployment-selected
-Sonnet 5 writer/verifier proof are integrated through PRs #65–#68. PR #68 was
-squash-merged as `7b4aeee8c10a3fe7536430ff9e5f0ac95cc75aff`; its candidate tree was
-already green and is identical to the merged tree. The post-merge Verify is a
-non-blocking confirmation unless it reports a genuine objective regression.
+composition, independent verification/acceptance, deployment-selected Sonnet 5
+writer/verifier proof and bounded correction are integrated through PRs
+#65–#69. PR #69 was squash-merged as
+`51677d73f865f0856a63bb802ff57ed59e8a0ed5`; post-merge Verify run
+`34280265609` is GREEN.
 
-The operator has now opened the bounded **correction and Finding resolution**
-vertical. Its current owner is the
-[RB bounded-correction stage code packet](evidence/4f/4f-rb-bounded-correction-stage-code-packet.md);
-the [verification/acceptance packet](evidence/4f/4f-rb-verification-acceptance-stage-code-packet.md)
+The operator has now opened the bounded **exact source inspection** vertical.
+Its current owner is the
+[RB source-inspection stage code packet](evidence/4f/4f-rb-source-inspection-stage-code-packet.md);
+the [bounded-correction packet](evidence/4f/4f-rb-bounded-correction-stage-code-packet.md),
+[verification/acceptance packet](evidence/4f/4f-rb-verification-acceptance-stage-code-packet.md)
 and [first-vertical packet](evidence/4f/4f-rb-first-vertical-stage-code-packet.md)
 remain accepted upstream Evidence.
 
 ```text
-failed exact candidate + retained Finding
-→ one fresh serial correction WorkUnit from that candidate
-→ corrected direct-child candidate with cumulative original-base diff
-→ fresh independent exact-subject verification
-→ BLD-13 refuses stale/foreign Evidence and stale Finding revisions
-→ eligible reviewer resolves with current PASS Evidence
-→ Builder alone recomputes acceptance
+Project Build + disclosed exact diff
+→ choose original Baseline or current/retained Change result
+→ Hub checks project.source.read + Project/revision lineage
+→ read-only networkless OCI Git inspection
+→ BLD-08 exact tree + BLD-09 complete textual file
+→ UI preserves Project + revision + path identity across late responses
 ```
 
-The path is now published as normal PR #69 from branch
-`rb-builder-next-vertical`.
-PostgreSQL 17, local OCI Git custody, Chromium Product interaction, the normal
-Sonnet 5 composed build loop and a production-shaped Sonnet 5 correction replay
-are GREEN. A bounded GPT-6 Astra review found six material defects during
-implementation; each was corrected and the final re-review is `CLEAR`. The next
-smallest action is the separately operator-gated PR #69 merge decision. Verify
-run `34278003622` is GREEN on candidate `0c45c0350db44922767e967cce56a886368462e5`.
-This does not reopen the runtime choice: both roles remain deployment-selected
-through the shared catalog and the controlled Mastra/E2B runtime. Merge remains
-separately operator-gated.
+The candidate is committed on branch `rb-builder-next-product-vertical`.
+PostgreSQL 17, exact OCI custody, Chromium Product interaction, the clean Linux
+floor and bounded GPT-6 Astra adversarial review are GREEN. The next smallest
+action is to publish one normal PR and let objective CI validate the candidate.
+This read-only Product increment does not add model/E2B execution or reopen the
+runtime choice: writer and verifier remain deployment-selected through the
+shared catalog and controlled Mastra/E2B runtime. Merge remains separately
+operator-gated.
 
 ACP, runtime tournaments, Worker Eval infrastructure, private MCP, concurrent
 writers, `BLD-18..20`, R3+, Release/deployment and broad Sankhya writes remain

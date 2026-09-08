@@ -1,10 +1,12 @@
-import type { BuilderSourcePort } from './source.js'
+import type { BuilderSourceFile, BuilderSourcePort, BuilderSourceTree } from './source.js'
 import type { CodingWorkerRuntime } from './runtime.js'
 import type { CandidateVerificationRuntime } from './verification-runtime.js'
 import type { BuilderStore, ChangeProjection, ClaimedChange, ClaimedVerification } from './store.js'
 
 export type BuilderService = Readonly<{
   createChange(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; intent: string }>): Promise<ChangeProjection>
+  listSourceTree(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<BuilderSourceTree>
+  getSourceFile(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
   recover(): Promise<void>
   close(): Promise<void>
 }>
@@ -111,6 +113,16 @@ export const createBuilderService = ({ store, source, runtime, verifier }: Reado
       const change = await store.createChange(input)
       if (change.state === 'QUEUED') dispatch(change.changeId)
       return change
+    },
+    listSourceTree: async (input) => {
+      if (!await store.admitSourceRevision(input)) throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND')
+      return source.listSourceTree({ projectId: input.projectId, sourceRevision: input.sourceRevision })
+    },
+    getSourceFile: async (input) => {
+      if (!await store.admitSourceRevision(input)) throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND')
+      return source.readSourceFile({
+        projectId: input.projectId, sourceRevision: input.sourceRevision, path: input.path,
+      })
     },
     recover: async () => { for (const changeId of await store.recoverAndListQueued()) dispatch(changeId) },
     close: async () => { await Promise.all(active.values()); await store.close() },
