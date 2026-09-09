@@ -88,8 +88,10 @@ Lead adjudication accepted six bounded findings: restore compact R1C-14/RC-01
 and Foundation/A0/S2 routes; assert the exact 68-scope graph; stop pinning
 mutable roadmap values in required CI; route an unusable reviewer report;
 keep Repository Method 1.1 explicitly candidate pending operator acceptance;
-and remove the duplicate import-law test invocation. Targeted proof covers
-these corrections. They do not invalidate the independent challenge: the graph
+and remove the duplicate import-law test invocation. Post-adjudication targeted
+proof (`import-law`, preflight, graph-runner and R2-P0 tests) is `41/41` GREEN;
+root `npm test` is `327/327`, repository extended/local checks and skill
+`quick_validate.py` are GREEN. They do not invalidate the independent challenge: the graph
 leaf/claim set is unchanged, its assertion is a strict superset, durable routes
 are restored, mutable-value coupling is removed, and only an equivalent
 duplicate invocation is removed. No further independent round is justified.
@@ -103,8 +105,9 @@ Command success is technical Evidence, not Product or stage acceptance.
 The historical repository projection suite was corrected with the routing
 change: 57 affected `4c`/`4d`/`4e` files now read durable claims from their
 exact Evidence, contract, result or artifact owners instead of mutable
-roadmap/index prose. No callback, objective artifact/hash/wire assertion or
-negative control was removed. The focused historical set is `232/232` GREEN
+roadmap/index prose. All callbacks and objective artifact/hash/wire or
+trust-boundary negative assertions were preserved; obsolete mutable roadmap-
+status assertions were removed. The focused historical set is `232/232` GREEN
 and root `npm test` is `327/327` GREEN.
 
 ## Deferred safely
@@ -116,6 +119,7 @@ and root `npm test` is `327/327` GREEN.
 | Broad rewrite of tests that invoke TypeScript preparation | Existing tests may depend on standalone build preparation; changing 50 files without a firing dependency model risks false negatives | Profiling identifies a repeated preparation leaf and a shared setup proves identical standalone and aggregate behavior | Exact affected test-suite owner |
 | Reviewer brief packaging | The valid round used one temporary workspace-readable brief with embedded base facts; the candidate and reviewer isolation were explicit | The wrapper can embed brief bytes for native-read lanes while retaining ephemeral outside-repository storage and exact digest binding | Review-wrapper owner |
 | Login-shell execution in shared runner | Local pinned WSL proof preserved the selected toolchain; changing shell semantics after the complete run would invalidate more proof than this minor unknown warrants | Candidate CI resolves a different Node/npm or a leaf differs under non-login `bash -c` | Verification-runner owner |
+| Legacy roadmap-phase helper | Historical snapshot tests no longer consume it, but repository hygiene still owns the path; deleting it without updating that objective owner breaks the repository contract | The hygiene owner is revised to remove or replace the compatibility path with an equivalent firing control | Repository-hygiene owner |
 
 No Product P0–P14 replay, new universal authority metadata, additional blanket
 stage, provider substitution, or reduced two-lane assurance floor is part of
