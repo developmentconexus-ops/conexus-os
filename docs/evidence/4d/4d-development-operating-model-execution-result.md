@@ -119,6 +119,13 @@ deferrals; it does not rewrite the reviewers' `REVISE` verdicts or claim proof
 against later bytes. Adoption is repository-local; no propagation to other
 repositories, publication, push, PR, merge or Product resumption was authorized.
 
+Later on 2026-09-08 the operator separately authorized alignment of the
+resumption documentation, one owned local commit and direct fast-forward
+publication to `main` without a PR, force or branch-protection bypass. That
+publication grant does not include Product implementation, an external reviewer
+call or deployment. The roadmap owns the resulting current grant and next
+action.
+
 ## Deferred safely
 
 | Item | Why safe now | Revisit trigger | Later owner |

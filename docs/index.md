@@ -22,6 +22,7 @@ unknown, contradiction, dependency, falsifier or proof need.
 | --- | --- | --- |
 | Current stage / grant / next action | [`roadmap.md`](roadmap.md) | Do not derive current status from Evidence or Git history |
 | Operating-model correction | [`execution/result owner`](evidence/4d/4d-development-operating-model-execution-result.md), [`C-019 adjudication`](evidence/4d/4d-development-method-acceleration-adjudication.md) | Product work is paused; deferred CI experiments are not implemented claims |
+| Preview resumption planning | [`preparation packet`](evidence/4f/4f-preview-resumption-preparation.md), [`BLD-10 owner`](product/operation-ledger.md), [`Product Preview laws`](product/contract.md) | Admit serving/browser boundary before code; do not add a URL, operation or owner by convenience |
 | Integrated RB source inspection | [`source-inspection packet`](evidence/4f/4f-rb-source-inspection-stage-code-packet.md), [`Builder owner`](reference/builder-and-harness.md) | Frozen integrated result; not the current execution grant |
 | Prior RB verification and build-loop inputs | [`verification packet`](evidence/4f/4f-rb-verification-acceptance-stage-code-packet.md), [`first-vertical packet`](evidence/4f/4f-rb-first-vertical-stage-code-packet.md) | Historical upstream Evidence; no Preview, R3+, deployment or broad provider grant |
 | Integrated R2 | [`R2 packet`](evidence/4f/4f-r2-stage-code-packet.md), [`P7 receipt`](evidence/4f/4f-r2-p7-live-read-only-receipt.md) | Closed/integrated; do not project P7 as open |

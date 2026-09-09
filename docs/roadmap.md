@@ -16,30 +16,34 @@ this file routes to them instead of repeating their history.
 | 3O | CLOSED | First Budget Analyzer proof contract accepted | Material contract/downstream falsifier |
 | C-018 | RATIFIED / OPERATOR RATIFIED | Product architecture continuity ratified | Material Product/architecture falsifier |
 | 4A–4C | CLOSED / OPERATOR RATIFIED | Product surface, wire contract and frontend interaction authority preserved in their owners | Material owning-authority falsifier |
-| 4D | OPEN / OPERATING-MODEL CORRECTION ACCEPTED / PRODUCT PAUSED | R1, R2 and RB exact-source inspection integrated | Explicit next-work grant or material prior-claim falsifier |
+| 4D | OPEN / PRODUCT RESUMPTION PLANNING AUTHORIZED | R1, R2 and RB exact-source inspection integrated; operating-model correction accepted | Preview serving/browser admission or material prior-claim falsifier |
 | 4E | CLOSED(R1) / OPERATOR APPROVED | R1 whole-system coherence preserved | Material composed-flow contradiction |
 | 4F | R1 + R2 + RB SOURCE INSPECTION INTEGRATED / PRODUCT PAUSED | Integrated realization Evidence remains valid | Current correction checkpoint or protected-claim falsifier |
 | 4G | CLOSED ON PRIOR SUBJECT | Prior readiness result preserved | Material readiness finding on a current tranche |
-| Product implementation | PAUSED / R1 + R2 + RB SOURCE INSPECTION INTEGRATED / R3+ BLOCKED | Acceptance of the correction does not authorize Product code or a new vertical | Explicit next-work grant and roadmap transition |
+| Product implementation | PAUSED / R1 + R2 + RB SOURCE INSPECTION INTEGRATED / PREVIEW ADMISSION PENDING / R3+ BLOCKED | Product resumption may be planned, but no new Product code is admitted yet | Accepted Preview boundary packet plus explicit implementation grant |
 
 ## Current grant
 
-The operator authorized a bounded development operating-model correction on
-2026-09-08 before returning to Product. Its current owner is the
-[execution/result record](evidence/4d/4d-development-operating-model-execution-result.md),
-with the ratified [C-019 adjudication](evidence/4d/4d-development-method-acceleration-adjudication.md)
+The operator accepted the completed operating-model correction and Repository
+Method 1.1 on 2026-09-08, then authorized this bounded documentation alignment,
+an owned local commit and direct fast-forward publication to `main` without a
+PR, force or branch-protection bypass. The
+[execution/result record](evidence/4d/4d-development-operating-model-execution-result.md)
+owns that correction, with the ratified
+[C-019 adjudication](evidence/4d/4d-development-method-acceleration-adjudication.md)
 as upstream authority.
 
-The operator accepted the completed correction and Repository Method 1.1 on
-2026-09-08, bound to handoff commit `82469db50a0e1e26cfebcf4c74ec77ac1d2407de`.
-The implementation grant is fulfilled. Remaining mechanical work is limited to
-recording this acceptance, checking documentation consistency, and preserving
-an owned local checkpoint. Read-only preflight remains allowed.
+This grant also permits a later fresh session to plan the smallest deliberate
+admission of the existing `BLD-10` Preview vertical from the
+[resumption packet](evidence/4f/4f-preview-resumption-preparation.md). It does
+not authorize Product code until that boundary is accepted and the roadmap
+grants its implementation.
 
-No Product feature/code, `BLD-10` Preview, R3+, real Product/runtime
-provider-model/E2B/Sankhya call, deployment, publication, PR, push or merge is
-authorized by this acceptance. No further reviewer call is required or granted
-by this acceptance. Preserve unowned state.
+No Product feature/code, R3+, real Product/runtime provider-model/E2B/Sankhya
+call, deployment, PR, merge commit or branch-protection bypass is authorized.
+Publication is limited to a normal fast-forward push of the accepted
+operating-model correction plus these resumption documents directly to `main`.
+No new external reviewer call is required or granted. Preserve unowned state.
 
 ## Integrated baseline
 
@@ -52,13 +56,18 @@ by this acceptance. Preserve unowned state.
   current execution authority.
 - Measured pre-correction reference points are recorded in the current result
   owner; they are not speedup claims.
+- After the authorized publication, a fresh actor resumes from `main`; the
+  retained local `operating-model-acceleration` branch is history, not a second
+  current authority. A push to `main` triggers `Verify`, which must bind and
+  report the exact published SHA before this handoff is complete.
 
 ## Exact next action
 
-**Await an explicit next-work grant after operator acceptance.**
-The operating-model correction and Repository Method 1.1 are accepted locally.
-Publication/integration and Product resumption require their own explicit
-authority; neither follows automatically from acceptance. Product remains paused.
+**Prepare and seek acceptance of the `BLD-10` Preview serving/browser boundary.**
+Start from the resumption packet; resolve its named unknowns and falsifiers
+without inventing a Preview URL, operation, owner or Product meaning. Freeze the
+interface before any implementation writers begin. Product code and R3+ remain
+blocked until their own explicit roadmap grant.
 
 ## History and authority routing
 
