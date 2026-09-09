@@ -120,10 +120,15 @@ against later bytes. Adoption is repository-local; no propagation to other
 repositories, publication, push, PR, merge or Product resumption was authorized.
 
 Later on 2026-09-08 the operator separately authorized alignment of the
-resumption documentation, one owned local commit and direct fast-forward
-publication to `main` without a PR, force or branch-protection bypass. That
-publication grant does not include Product implementation, an external reviewer
-call or deployment. The roadmap owns the resulting current grant and next
+resumption documentation and publication. Candidate
+`a6a2bf7543a38d40f37ce4061ede9e918bc2aa00` completed the clean 68-leaf Linux
+floor in `560.00 s`. A subsequent normal direct push to `main` was rejected by
+GitHub branch protection (`GH006`: PR and required `verify`) before any remote
+ref changed; no bypass was attempted. The operator then authorized the normal
+protected route: publish `operating-model-acceleration`, open a PR, await its
+exact-SHA CI, squash merge it, and await exact-SHA post-merge CI. That grant does
+not include Product implementation, an external reviewer call, deployment,
+force or admin bypass. The roadmap owns the resulting current grant and next
 action.
 
 ## Deferred safely

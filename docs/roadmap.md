@@ -25,9 +25,12 @@ this file routes to them instead of repeating their history.
 ## Current grant
 
 The operator accepted the completed operating-model correction and Repository
-Method 1.1 on 2026-09-08, then authorized this bounded documentation alignment,
-an owned local commit and direct fast-forward publication to `main` without a
-PR, force or branch-protection bypass. The
+Method 1.1 on 2026-09-08, then authorized this bounded documentation alignment
+and publication. A normal direct push to `main` was attempted only after the
+clean candidate floor and was rejected by branch protection before any remote
+ref changed. The operator then explicitly authorized publishing
+`operating-model-acceleration`, opening a PR, awaiting exact-SHA CI, and squash
+merging it to `main` without force, admin bypass or protection changes. The
 [execution/result record](evidence/4d/4d-development-operating-model-execution-result.md)
 owns that correction, with the ratified
 [C-019 adjudication](evidence/4d/4d-development-method-acceleration-adjudication.md)
@@ -40,10 +43,11 @@ not authorize Product code until that boundary is accepted and the roadmap
 grants its implementation.
 
 No Product feature/code, R3+, real Product/runtime provider-model/E2B/Sankhya
-call, deployment, PR, merge commit or branch-protection bypass is authorized.
-Publication is limited to a normal fast-forward push of the accepted
-operating-model correction plus these resumption documents directly to `main`.
-No new external reviewer call is required or granted. Preserve unowned state.
+call, deployment, unrelated publication or branch-protection bypass is
+authorized. Publication is limited to the normal branch push, PR, required CI,
+squash merge and post-merge exact-SHA CI for the accepted operating-model
+correction plus these resumption documents. No new external reviewer call is
+required or granted. Preserve unowned state.
 
 ## Integrated baseline
 
@@ -56,10 +60,11 @@ No new external reviewer call is required or granted. Preserve unowned state.
   current execution authority.
 - Measured pre-correction reference points are recorded in the current result
   owner; they are not speedup claims.
-- After the authorized publication, a fresh actor resumes from `main`; the
+- After the authorized squash merge, a fresh actor resumes from `main`; the
   retained local `operating-model-acceleration` branch is history, not a second
-  current authority. A push to `main` triggers `Verify`, which must bind and
-  report the exact published SHA before this handoff is complete.
+  current authority. PR CI must bind the exact candidate SHA and the push to
+  `main` must produce terminal post-merge `Verify` on the exact merge SHA before
+  this handoff is complete.
 
 ## Exact next action
 
