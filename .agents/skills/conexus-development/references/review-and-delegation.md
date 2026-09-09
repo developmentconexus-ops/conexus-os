@@ -85,6 +85,13 @@ reopened the smallest falsified owner, or declared `STOP / SPLIT
 PREREQUISITE`. Review persistence must improve decision quality, not replace
 delivery.
 
+If a required lane returns no usable report, the round is incomplete and no
+closure/convergence claim is available. A fresh replacement attempt over the
+same frozen candidate completes the missing lane; it is not a new review round.
+Retry only after naming and correcting the execution cause. If the cause
+persists, report the incomplete proof instead of looping or substituting the
+Lead's judgment.
+
 ## Independent lanes
 
 Create one neutral review brief using Blueprint Harness sections 10.4–10.6. It

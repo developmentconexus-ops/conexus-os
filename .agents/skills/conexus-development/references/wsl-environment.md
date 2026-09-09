@@ -40,6 +40,11 @@ npx --no-install playwright install chromium
 npm run conexus:verify -- --scope <scope>
 ```
 
+The final candidate profile includes real PostgreSQL leaves and does not
+silently skip them. Before `scope final` or root `npm run verify`, provide one
+complete `CONEXUS_TEST_DB_*` set or run the disposable PostgreSQL service pinned
+in `.github/workflows/verify.yml`; a partial set fails before execution.
+
 `scope final` is deciding only on Linux with the pinned versions. Windows may
 use dry-run/status inspection, but a Windows result cannot close a proof or gate.
 

@@ -62,15 +62,41 @@ speedup:
 
 ## Proof and result
 
-Pending candidate freeze:
+The clean technical candidate was `5249e527252992ccb0b3f91d3838df373a88705f`.
+Observed local WSL proof was GREEN:
 
-- focused preflight and verification-composition regressions;
-- skill `quick_validate.py`;
-- `npm ci` and Chromium installation in pinned WSL Ubuntu;
-- the complete shared verification profile, including native R1C-14,
-  PostgreSQL, browser, custody, repository and wire claims;
-- one fresh isolated Fable + AGY/Gemini round over the exact frozen candidate,
-  followed by Lead adjudication.
+- `npm ci`: `5.23 s`; cached Chromium installation: `0.59 s`;
+- root `npm test`: `327/327`;
+- complete `npm run verify`: all `68` leaves in `545.664 s`, including
+  native R1C-14, 11 real PostgreSQL leaves, five browser leaves, two custody
+  leaves, repository checks and the complete wire graph;
+- post-run worktree: clean.
+
+These local timings are not directly comparable to the GitHub Actions baseline
+and establish no measured speedup.
+
+The valid fresh isolated review round bound that SHA:
+
+- Fable: Claude CLI `2.1.257`, requested alias `fable`, resolved
+  `claude-fable-5-1`, session `f06699ff-b292-473b-bd7e-2552ff5d748d`,
+  `REVISE`; CLI-reported duration `869121 ms` and cost `$8.1431575`;
+- AGY/Gemini: AGY `1.1.27`, `gemini-3.1-pro-high`, conversation
+  `a1666ad1-52c8-4e0c-bb4e-0b3f604a3fbf`, `REVISE`; reported duration
+  `219.352 s`, with no price reported.
+
+Lead adjudication accepted six bounded findings: restore compact R1C-14/RC-01
+and Foundation/A0/S2 routes; assert the exact 68-scope graph; stop pinning
+mutable roadmap values in required CI; route an unusable reviewer report;
+keep Repository Method 1.1 explicitly candidate pending operator acceptance;
+and remove the duplicate import-law test invocation. Targeted proof covers
+these corrections. They do not invalidate the independent challenge: the graph
+leaf/claim set is unchanged, its assertion is a strict superset, durable routes
+are restored, mutable-value coupling is removed, and only an equivalent
+duplicate invocation is removed. No further independent round is justified.
+
+One earlier dual invocation was interrupted before any usable report because an
+outside-workspace brief was incompatible with AGY's native-read constraint. It
+is `NO REPORT`, was not used in adjudication, and no output crossed lanes.
 
 Command success is technical Evidence, not Product or stage acceptance.
 
@@ -88,6 +114,8 @@ and root `npm test` is `327/327` GREEN.
 | Parallel CI jobs | The current sequential job preserves shared service/workspace assumptions; this correction can remove duplicate leaves without asserting isolation | Measured remaining critical path justifies splitting and each job's PostgreSQL/filesystem/cache isolation is proven | Repository/CI owner |
 | Workflow event or concurrency changes | Current PR and push-to-main coverage remains untouched | Branch-protection and trigger-equivalence Evidence plus a demonstrated queue/cancellation cost | Repository/CI owner |
 | Broad rewrite of tests that invoke TypeScript preparation | Existing tests may depend on standalone build preparation; changing 50 files without a firing dependency model risks false negatives | Profiling identifies a repeated preparation leaf and a shared setup proves identical standalone and aggregate behavior | Exact affected test-suite owner |
+| Reviewer brief packaging | The valid round used one temporary workspace-readable brief with embedded base facts; the candidate and reviewer isolation were explicit | The wrapper can embed brief bytes for native-read lanes while retaining ephemeral outside-repository storage and exact digest binding | Review-wrapper owner |
+| Login-shell execution in shared runner | Local pinned WSL proof preserved the selected toolchain; changing shell semantics after the complete run would invalidate more proof than this minor unknown warrants | Candidate CI resolves a different Node/npm or a leaf differs under non-login `bash -c` | Verification-runner owner |
 
 No Product P0–P14 replay, new universal authority metadata, additional blanket
 stage, provider substitution, or reduced two-lane assurance floor is part of

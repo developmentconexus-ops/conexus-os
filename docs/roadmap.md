@@ -60,12 +60,11 @@ unowned state.
 
 ## Exact next action
 
-**Freeze and prove the operating-model candidate.** Run focused regressions, the shared Linux
-verification graph including `r1:r1c14:native:check`, and one frozen fresh
-Fable + AGY/Gemini review round with Lead adjudication. Record actual results
-and deferred experiments in the execution/result owner, then return to the
-operator checkpoint. Product remains paused until this roadmap explicitly
-opens the next Product action.
+**Review the completed operating-model correction at the operator checkpoint.**
+The clean Linux graph and one fresh Fable + AGY/Gemini round are complete, with
+Lead-adjudicated corrections recorded in the execution/result owner. Decide
+whether to accept or revise Repository Method 1.1 and this correction. Product
+remains paused until this roadmap explicitly opens the next Product action.
 
 ## History and authority routing
 

@@ -26,6 +26,8 @@ unknown, contradiction, dependency, falsifier or proof need.
 | Prior RB verification and build-loop inputs | [`verification packet`](evidence/4f/4f-rb-verification-acceptance-stage-code-packet.md), [`first-vertical packet`](evidence/4f/4f-rb-first-vertical-stage-code-packet.md) | Historical upstream Evidence; no Preview, R3+, deployment or broad provider grant |
 | Integrated R2 | [`R2 packet`](evidence/4f/4f-r2-stage-code-packet.md), [`P7 receipt`](evidence/4f/4f-r2-p7-live-read-only-receipt.md) | Closed/integrated; do not project P7 as open |
 | Integrated R1 | [`S6 result`](evidence/4f/4f-r1-s6-final-closure-result.md), [`final adjudication`](evidence/4f/4f-r1-complete-implementation-final-review-adjudication.md) | Closed/integrated; successor routing comes from roadmap |
+| Retained R1 foundation / A0 / S2 proof | [`Foundation result`](evidence/4d/4d-r1-foundation-probe-batch-result.md), [`A0 result`](evidence/4d/4d-r1-g0-implementation-result.md), [`S2 result`](evidence/4f/4f-r1-s2-implementation-result.md) | Closed proof owners; reopen only on a named pin, conformance, generation or custody falsifier |
+| Required R1C-14 / RC-01 proof | [`R1C-14 native result`](evidence/4d/4d-r1-r1c14-native-readmission-result.md), [`native manifest`](evidence/4d/4d-r1-foundation-pin-manifest-r1c14-native-successor.json), [`RC-01 stage packet`](evidence/rc01/rc01-stage-packet.md), [`RC-01 integrated result`](evidence/rc01/rc01-result.md) | Current CI/custody routes to retained closed proof; no successor Product authority |
 | Frozen RB-C0 history | [`disposition`](evidence/4d/4d-rb-c0-frozen-planning.md) | Retained Evidence only; not a prerequisite chain |
 
 ## Methods and operations

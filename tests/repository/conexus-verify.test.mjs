@@ -23,6 +23,30 @@ const packageScripts = Object.freeze({
   'r1:s1:receipt:record': 'node scripts/record-r1-s1-receipt.mjs',
 })
 
+const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
+  'a0-g0-admission', '4f-project-cognition-admission', 'r1-s2-generate',
+  'r1-s2-generated-drift', 'r1-s2-http', 'r1-s2-reads', 'import-law',
+  'verification-tool-regressions', 'r1-s2-live-syntax', 'biome-union',
+  'r1c14-native', 'rb-first-postgres-migration-selection', 'r2-p1-postgres',
+  'r2-p2-postgres', 'r2-p3-postgres', 'r1-s4-p2-postgres', 'r2-p0-check',
+  'r2-p1-check', 'r2-p2-check', 'r2-p3-check', 'r2-p4-check',
+  'r2-p4-authority-postgres', 'r2-p5-check', 'r2-p6-brain-revision',
+  'r2-p6-brain-revision-postgres', 'r2-p6-web-api', 'r2-p6-ui-surfaces',
+  'r2-p6-browser', 'r2-p6-composed-postgres', 'r1-s6-contract-generation',
+  'r1-s6-project-inception', 'r1-s6-project-refinement',
+  'r1-s6-baseline-explanation', 'r1-s6-p0-postgres', 'r1-s6-p1-postgres',
+  'r1-s6-browser-baseline', 'r1-s6-browser-inception',
+  'r1-s6-browser-refinement', 'r1-s6-composed', 'r1-rc01-walkthrough',
+  'rb-e2b-template', 'rb-first-source-checks', 'rb-first-hub-typecheck',
+  'rb-first-web-typecheck', 'web-build', 'repository-check', 'r1-rc01-custody',
+  'repository-hygiene', 'wire-openapi-lint', 'wire-openapi-bundle',
+  'wire-schema', 'wire-bijection', 'wire-carriers', 'wire-identity-workspace',
+  'wire-project', 'wire-builder', 'wire-brain', 'wire-connections',
+  'wire-release', 'wire-par', 'wire-gateway', 'wire-mar', 'wire-observability',
+  'wire-technical-lint', 'wire-technical-ingress', 'wire-projections',
+  'wire-budget', 'wire-whole-4b',
+])
+
 test('manifest exposes only the three bounded aliases and exact npm routing', () => {
   assert.deepEqual(ALLOWED_ALIASES, ['preflight', 'repository', 'final'])
   assert.deepEqual(SCOPE_MANIFEST.preflight, { npmScript: 'conexus:preflight', npmArgs: ['--no-network'] })
@@ -108,8 +132,7 @@ test('final proof refuses a real Windows execution but remains inspectable as dr
 
 test('candidate graph flattens equivalent leaves while preserving distinct proof selections', () => {
   const scopes = CANDIDATE_GRAPH.map(entry => entry.scope)
-  assert.equal(new Set(scopes).size, scopes.length)
-  assert.ok(CANDIDATE_GRAPH.length >= 50)
+  assert.deepEqual(scopes, EXPECTED_CANDIDATE_SCOPES)
 
   const commands = CANDIDATE_GRAPH.map(entry => entry.command)
   assert.equal(commands.filter(command => command === 'npm run r1:s2:hub:typecheck').length, 1)

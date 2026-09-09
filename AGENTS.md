@@ -16,7 +16,7 @@ Before relying on chat, handoff, or remembered state:
 Expand into additional Product, architecture, contracts, Evidence, research, Git history, code, runtime, qualification, or external sources only because of a named material question, uncertainty, contradiction, dependency, falsifier, or proof need.
 
 ```bash
-source /home/leandrotheodoro/.nvm/nvm.sh
+source "$HOME/.nvm/nvm.sh"
 nvm use
 npm run conexus:preflight
 ```
