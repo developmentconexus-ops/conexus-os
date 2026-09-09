@@ -110,6 +110,15 @@ trust-boundary negative assertions were preserved; obsolete mutable roadmap-
 status assertions were removed. The focused historical set is `232/232` GREEN
 and root `npm test` is `327/327` GREEN.
 
+## Operator acceptance
+
+On 2026-09-08 the operator replied “aceito” to the completed handoff for
+`82469db50a0e1e26cfebcf4c74ec77ac1d2407de`, accepting this correction and
+Repository Method 1.1. This accepts the adjudicated result and its explicit
+deferrals; it does not rewrite the reviewers' `REVISE` verdicts or claim proof
+against later bytes. Adoption is repository-local; no propagation to other
+repositories, publication, push, PR, merge or Product resumption was authorized.
+
 ## Deferred safely
 
 | Item | Why safe now | Revisit trigger | Later owner |

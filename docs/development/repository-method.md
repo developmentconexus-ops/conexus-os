@@ -1,7 +1,7 @@
 # DevelopmentConexus Repository Method
 
 **Version:** 1.1.0
-**Status:** ACCEPTED METHOD / 1.1 AMENDMENT CANDIDATE
+**Status:** ACCEPTED METHOD / OPERATOR RATIFIED
 **Authority:** organizational repository operating method  
 **Scope:** DevelopmentConexus product and platform repositories
 
@@ -11,14 +11,14 @@ A fresh actor must be able to recover current state, find the correct authority,
 
 Repository organization exists to increase decision signal, not ceremony.
 
-The 1.1 amendment candidate was prepared under the operator-authorized
-2026-09-08 operating-model correction recorded in the
+The 1.1 amendment was accepted by the operator on 2026-09-08 as part of the
+operating-model correction recorded in the
 [execution/result owner](../evidence/4d/4d-development-operating-model-execution-result.md).
 It distinguishes stage, part and PR authority; requires one integrator for
 disjoint writers; and makes the flat verification graph a shared executable
-profile with explicit environment classes. Final acceptance remains at the
-operator checkpoint. The candidate preserves existing Product, publication,
-merge and proof authority boundaries.
+profile with explicit environment classes. Acceptance applies to this
+repository; propagation to other repositories is not claimed or authorized.
+Existing Product, publication, merge and proof authority boundaries remain unchanged.
 
 ## 1. Authority surfaces
 
