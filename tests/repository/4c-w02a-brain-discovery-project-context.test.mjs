@@ -54,7 +54,7 @@ test('F08 preserves the P9 finding and Global-Maximum decision history', () => {
 
 test('selected F08 realization makes Project context explicit before BRN-04 without adding backend authority', () => {
   const html = read('docs/evidence/4c/w02a-brain-functional-wireframe.html')
-  const roadmap = read('docs/roadmap.md')
+  const selected = read('docs/evidence/4c/w02a-brain-discovery-project-context-selected-realization.md')
 
   requireText(html, 'id="discoveryProject"', 'Discovery must expose an explicit Project context control')
   requireText(html, 'data-read-operation="PRJ-01"', 'Discovery Project context must trace to PRJ-01')
@@ -75,7 +75,6 @@ test('selected F08 realization makes Project context explicit before BRN-04 with
     throw new Error('F08 must not add frontend source/Connection/credential selection authority')
   }
 
-  requireText(roadmap, 'F08 OPERATOR ACCEPTED', 'roadmap must preserve F08 operator acceptance')
-  requireText(roadmap, 'F08 SELECTED REALIZATION', 'roadmap must preserve selected F08 history')
-  requireText(roadmap, 'W-02A LOCKED', 'roadmap must show W-02A locked after operator re-approval')
+  requireText(selected, 'OPERATOR ACCEPTED / SELECTED REALIZATION / P8 REVISION RED', 'F08 selected realization must own acceptance')
+  requireText(selected, 'OPERATOR RE-APPROVED', 'F08 selected realization must own final re-approval')
 })

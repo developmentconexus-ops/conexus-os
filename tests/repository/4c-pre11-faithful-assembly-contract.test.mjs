@@ -8,7 +8,6 @@ const root = fileURLToPath(new URL('../../', import.meta.url))
 const read = path => readFileSync(resolve(root, path), 'utf8')
 const contract = read('docs/evidence/4c/p11-faithful-assembly-contract.md')
 const patterns = read('docs/evidence/4c/pre11-terminal-p10-pattern-vocabulary.md')
-const roadmap = read('docs/roadmap.md')
 
 test('faithful P11 gate enumerates every final input block and accepted journey', () => {
   for (const block of ['T-01', 'GF-01', 'W-01', 'W-02A', 'W-02B', 'W-03', 'W-04', 'P-01', 'P-02', 'P-03', 'P-04', 'P-05', 'PA-01']) {
@@ -25,9 +24,7 @@ test('assembly proof floor is behavioral and P11 authoring is now explicitly gat
     'fail when any manifest item is removed',
     'CURRENT P11 LOCKED / OPERATOR APPROVED / HISTORICAL P11 LOCK PRESERVED',
   ]) assert.ok(contract.includes(token), `faithful assembly contract missing ${token}`)
-  assert.match(roadmap, /P11 = LOCKED \/ OPERATOR APPROVED \/ blob 536052096dd10dec2f604ccef49aa64ba52e4dac/)
-  assert.match(roadmap, /P12 = CLOSED \/ CLEAR \/ GLOBAL MAXIMUM \+ EDGE MATRIX OPERATOR APPROVED \/ FAMILIES 1-4 RE-LOCKED \/ CURRENT P11 RE-LOCKED \/ MATERIAL UX-ARCHITECTURE FINDINGS=0/)
-  assert.match(roadmap, /P11 = LOCKED \/ OPERATOR APPROVED/)
+  assert.match(contract, /CURRENT P11 LOCKED \/ OPERATOR APPROVED \/ HISTORICAL P11 LOCK PRESERVED/)
 })
 
 test('terminal P10 vocabulary remains semantic and rejects premature abstractions', () => {

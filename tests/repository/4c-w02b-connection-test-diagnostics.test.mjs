@@ -55,7 +55,6 @@ test('selected F10 realization exposes current test applicability and exact huma
   const ledger = read('docs/product/operation-ledger.md')
   const checker = read('scripts/check-wire-connections.mjs')
   const preflight = read('docs/evidence/4c/w02-authority-feasibility-preflight.md')
-  const roadmap = read('docs/roadmap.md')
 
   const connection = sliceBetween(wire, '    Connection:\n', '    ConnectionDetail:\n')
   requireText(connection, 'connectionTest:', 'F10 RED: lightweight Connection must expose current connectionTest projection')
@@ -95,7 +94,7 @@ test('selected F10 realization exposes current test applicability and exact huma
   requireText(checker, 'connectionTest', 'Connections checker must protect F10 current test projection')
   requireText(checker, 'credentialGeneration', 'Connections checker must protect F10 exact qualification basis')
   requireText(preflight, 'F10 Connection test applicability + diagnostics = OPERATOR ACCEPTED / GREEN', 'W-02 preflight must recompile F10 GREEN')
-  requireText(roadmap, 'F10 OPERATOR ACCEPTED / GREEN', 'roadmap must preserve F10 accepted GREEN state')
+  requireText(preflight, 'F10 Connection test applicability + diagnostics = OPERATOR ACCEPTED / GREEN', 'W-02 preflight must own F10 accepted GREEN state')
 
   const operationIds = [...wire.matchAll(/x-conexus-4a-id: (CON-\d+)/g)].map(match => match[1])
   if (operationIds.length !== 9 || new Set(operationIds).size !== 9) {

@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assert4DOpeningIsProperlyGated } from './_roadmap-phase-guards.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const path = p => resolve(root, p)
@@ -27,7 +26,6 @@ test('operator-approved W-02B Connections is locked and closed through exact P9/
   const hypotheses = read('docs/evidence/4c/w02b-connections-structural-hypotheses.md')
   const contract = read(contractPath)
   const inventory = read('docs/evidence/4c/candidate-screen-surface-inventory.md')
-  const roadmap = read('docs/roadmap.md')
 
   const approvedBlob = '421f5b8e08d6e5c96f5a56d8c24123902cbe3fab'
   const family2Candidate = 'f8a4be72cd5af86ea06b4dd82d8710e58edb203f'
@@ -78,7 +76,5 @@ test('operator-approved W-02B Connections is locked and closed through exact P9/
     '| WS-S09 | Connection qualification | `MATERIAL_REGION` inside contextual panel |',
   ]) requireText(inventory, recompiledSurface, `W-02B lock must recompile affected surface inventory: ${recompiledSurface}`)
 
-  requireText(roadmap, 'W-02B LOCKED', 'roadmap must show W-02B locked')
-  requireText(roadmap, 'W-03 = NEXT / NOT OPEN', 'roadmap must route the next material 4C block to W-03')
-  assert4DOpeningIsProperlyGated(roadmap, 'W-02B lock must not open 4D before remaining 4C blocks, P11/P12 and closure')
+  requireText(contract, 'LOCKED / OPERATOR APPROVED', 'W-02B Screen Contract must own the lock')
 })

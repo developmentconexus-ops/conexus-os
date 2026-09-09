@@ -173,7 +173,52 @@ const ghIsAvailable = (command, repositoryRoot) => {
   }
 }
 
-const inspectGh = ({ command, repositoryRoot, branch, noNetwork }) => {
+const normalizeCommit = value => {
+  const commit = trimLine(value)
+  return /^[0-9a-f]{40}$/i.test(commit) ? commit.toLowerCase() : null
+}
+
+const pullRequestCommit = pullRequest => {
+  const mergeCommit = typeof pullRequest?.mergeCommit === 'string'
+    ? pullRequest.mergeCommit
+    : pullRequest?.mergeCommit?.oid
+  return {
+    head: normalizeCommit(pullRequest?.headRefOid ?? pullRequest?.headSha),
+    merge: normalizeCommit(mergeCommit)
+  }
+}
+
+const resolvePullRequest = ({ values, branch, head }) => {
+  const currentOpen = values
+    .filter(item => item?.state === 'OPEN' && item?.headRefName === branch)
+  const latestOpen = sortByNewest(currentOpen, ['updatedAt'], 'number')[0] ?? null
+  if (latestOpen) return { status: 'found', match: 'open-current-branch', ...latestOpen }
+
+  const normalizedHead = normalizeCommit(head)
+  const merged = values
+    .filter(item => item?.state === 'MERGED')
+    .filter(item => {
+      const commits = pullRequestCommit(item)
+      return normalizedHead !== null && (commits.merge === normalizedHead || commits.head === normalizedHead)
+    })
+  const latestMerged = sortByNewest(merged, ['updatedAt'], 'number')[0] ?? null
+  if (latestMerged) return { status: 'found', match: 'merged-exact-sha', ...latestMerged }
+
+  return { status: 'none', branch, head: normalizedHead }
+}
+
+const resolveCiRun = ({ values, headSha, workflowName }) => {
+  const targetSha = normalizeCommit(headSha)
+  const matching = values
+    .filter(item => normalizeCommit(item?.headSha) === targetSha)
+    .filter(item => !workflowName || item?.workflowName === workflowName)
+  const latest = sortByNewest(matching, ['createdAt', 'updatedAt'], 'databaseId')[0] ?? null
+  return latest
+    ? { ...latest, lookupStatus: 'found', targetSha, workflow: workflowName }
+    : { lookupStatus: 'none', targetSha, workflow: workflowName }
+}
+
+const inspectGh = ({ command, repositoryRoot, branch, head, remoteMain, noNetwork }) => {
   if (noNetwork) {
     return {
       network: { mode: 'disabled' },
@@ -194,30 +239,34 @@ const inspectGh = ({ command, repositoryRoot, branch, noNetwork }) => {
     command,
     repositoryRoot,
     label: 'gh pr list',
-    args: ['pr', 'list', '--head', branch, '--state', 'all', '--limit', '100', '--json', 'number,title,state,url,headRefName,baseRefName,updatedAt']
+    args: ['pr', 'list', '--state', 'all', '--limit', '100', '--json', 'number,title,state,url,headRefName,baseRefName,headRefOid,mergeCommit,updatedAt']
   })
   const pullRequest = !pullRequests.ok
     ? ghUnavailable('gh-request-failed', pullRequests.error)
-    : (() => {
-        const values = Array.isArray(pullRequests.value) ? pullRequests.value : []
-        const matching = values.filter(item => !item.headRefName || item.headRefName === branch)
-        const latest = sortByNewest(matching, ['updatedAt'], 'number')[0] ?? null
-        return latest ? { status: 'found', ...latest } : { status: 'none', branch }
-      })()
+    : resolvePullRequest({
+        values: Array.isArray(pullRequests.value) ? pullRequests.value : [],
+        branch,
+        head
+      })
 
-  const ciRuns = runGhJson({
-    command,
-    repositoryRoot,
-    label: 'gh run list',
-    args: ['run', 'list', '--branch', 'main', '--limit', '100', '--json', 'databaseId,workflowName,status,conclusion,headBranch,headSha,event,url,createdAt,updatedAt']
-  })
-  const mainCi = !ciRuns.ok
-    ? ghUnavailable('gh-request-failed', ciRuns.error)
-    : (() => {
-        const values = Array.isArray(ciRuns.value) ? ciRuns.value : []
-        const latest = sortByNewest(values, ['createdAt', 'updatedAt'], 'databaseId')[0] ?? null
-        return latest ? { ...latest, lookupStatus: 'found' } : { lookupStatus: 'none', branch: 'main' }
-      })()
+  const ciWorkflow = 'Verify'
+  const ciRuns = remoteMain
+    ? runGhJson({
+        command,
+        repositoryRoot,
+        label: 'gh run list',
+        args: ['run', 'list', '--workflow', ciWorkflow, '--commit', remoteMain, '--limit', '100', '--json', 'databaseId,workflowName,status,conclusion,headBranch,headSha,event,url,createdAt,updatedAt']
+      })
+    : { ok: true, value: [] }
+  const mainCi = !remoteMain
+    ? { lookupStatus: 'skipped', reason: 'remote-main-unavailable', targetSha: null, workflow: ciWorkflow }
+    : !ciRuns.ok
+      ? { ...ghUnavailable('gh-request-failed', ciRuns.error), targetSha: remoteMain, workflow: ciWorkflow }
+      : resolveCiRun({
+          values: Array.isArray(ciRuns.value) ? ciRuns.value : [],
+          headSha: remoteMain,
+          workflowName: ciWorkflow
+        })
 
   return {
     network: { mode: 'enabled', gh: 'available' },
@@ -320,29 +369,50 @@ const inspectToolchain = ({ command, repositoryRoot, expected }) => {
 }
 
 const inspectOriginMain = ({ command, repositoryRoot, noNetwork }) => {
-  const fetch = { attempted: false, status: noNetwork ? 'skipped' : 'pending' }
-  if (!noNetwork) {
-    fetch.attempted = true
-    const fetchResult = commandAllowFailure(command, 'git', ['fetch', '--quiet', 'origin', 'main'], repositoryRoot, 'git fetch origin main')
-    fetch.status = fetchResult.ok ? 'fetched' : 'failed'
-    if (!fetchResult.ok) {
-      const detail = oneLine(fetchResult.stderr || fetchResult.stdout) || 'fetch failed'
-      throw new PreflightError(`git fetch origin main failed: ${detail}`, 'EXECUTION_ERROR')
-    }
+  const localRef = commandAllowFailure(command, 'git', ['rev-parse', '--verify', 'refs/remotes/origin/main^{commit}'], repositoryRoot, 'git origin/main')
+  const localOriginMain = localRef.ok ? normalizeCommit(localRef.stdout) : null
+  const fetch = {
+    attempted: false,
+    status: noNetwork ? 'skipped' : 'not-used',
+    reason: 'remote inspection uses git ls-remote and never updates local refs'
   }
 
-  const ref = commandAllowFailure(command, 'git', ['rev-parse', '--verify', 'refs/remotes/origin/main^{commit}'], repositoryRoot, 'git origin/main')
+  const remote = noNetwork
+    ? { status: 'skipped', reason: 'no-network', sha: null }
+    : (() => {
+        const result = commandAllowFailure(command, 'git', ['ls-remote', 'origin', 'refs/heads/main'], repositoryRoot, 'git ls-remote origin main')
+        if (!result.ok) return { status: 'unavailable', reason: 'ls-remote-failed', detail: oneLine(result.stderr || result.stdout) || 'command failed', sha: null }
+        const line = String(result.stdout ?? '').split(/\r?\n/).map(trimLine).find(Boolean) ?? ''
+        const [sha, ref] = line.split(/\s+/)
+        if (ref !== 'refs/heads/main' || !normalizeCommit(sha)) {
+          return { status: 'unavailable', reason: 'invalid-ls-remote-result', detail: oneLine(result.stdout) || 'main ref not returned', sha: null }
+        }
+        return { status: 'found', sha: normalizeCommit(sha) }
+      })()
 
-  if (!ref.ok) {
-    throw new PreflightError(`origin/main is unavailable${fetch.detail ? `: ${fetch.detail}` : ''}`, 'STRUCTURAL_IDENTITY_ERROR')
+  let ahead = null
+  let behind = null
+  if (localOriginMain) {
+    const counts = commandAllowFailure(command, 'git', ['rev-list', '--left-right', '--count', 'refs/remotes/origin/main...HEAD'], repositoryRoot, 'git ahead/behind')
+    if (!counts.ok) throw new PreflightError(`git ahead/behind failed: ${oneLine(counts.stderr || counts.stdout)}`, 'EXECUTION_ERROR')
+    const [behindCount, aheadCount] = trimLine(counts.stdout).split(/\s+/).map(Number)
+    if (!Number.isInteger(behindCount) || !Number.isInteger(aheadCount)) throw new PreflightError(`invalid ahead/behind result: ${trimLine(counts.stdout)}`, 'EXECUTION_ERROR')
+    behind = behindCount
+    ahead = aheadCount
   }
-  const originMain = trimLine(ref.stdout)
-  const counts = commandAllowFailure(command, 'git', ['rev-list', '--left-right', '--count', 'refs/remotes/origin/main...HEAD'], repositoryRoot, 'git ahead/behind')
-  if (!counts.ok) throw new PreflightError(`git ahead/behind failed: ${oneLine(counts.stderr || counts.stdout)}`, 'EXECUTION_ERROR')
-  const [behind, ahead] = trimLine(counts.stdout).split(/\s+/).map(Number)
-  if (!Number.isInteger(behind) || !Number.isInteger(ahead)) throw new PreflightError(`invalid ahead/behind result: ${trimLine(counts.stdout)}`, 'EXECUTION_ERROR')
 
-  return { originMain, ahead, behind, fetch }
+  const remoteMain = remote.sha
+  return {
+    // `originMain` remains a compatibility alias for the local tracking ref.
+    originMain: localOriginMain,
+    localOriginMain,
+    remoteMain,
+    localRemoteMismatch: localOriginMain !== null && remoteMain !== null ? localOriginMain !== remoteMain : null,
+    ahead,
+    behind,
+    fetch,
+    remoteInspection: remote
+  }
 }
 
 /** Run the read-only repository preflight. The command option exists for deterministic tests. */
@@ -355,9 +425,20 @@ export function runPreflight({ repositoryRoot = defaultRepositoryRoot, noNetwork
   const workingTree = getWorkingTree({ command, repositoryRoot: root })
   const toolchain = inspectToolchain({ command, repositoryRoot: root, expected: identity.package.engines })
   const runtime = classifyRuntimeEnvironment()
-  const external = inspectGh({ command, repositoryRoot: root, branch: identity.branch, noNetwork })
+  const external = inspectGh({
+    command,
+    repositoryRoot: root,
+    branch: identity.branch,
+    head: identity.head,
+    remoteMain: main.remoteMain,
+    noNetwork
+  })
   const mainCi = external.mainCi.lookupStatus === 'found'
-    ? { ...external.mainCi, matchesOriginMain: external.mainCi.headSha === main.originMain }
+    ? {
+        ...external.mainCi,
+        matchesRemoteMain: external.mainCi.headSha === main.remoteMain,
+        matchesLocalOriginMain: main.localOriginMain !== null && external.mainCi.headSha === main.localOriginMain
+      }
     : external.mainCi
 
   return {
@@ -374,7 +455,7 @@ export function runPreflight({ repositoryRoot = defaultRepositoryRoot, noNetwork
   }
 }
 
-const printHuman = result => {
+export const formatHuman = result => {
   const { repository, base, runtime, toolchain, workingTree, roadmap, pullRequest, mainCi } = result
   const product = roadmap.productImplementation
   const phase4D = roadmap.phaseRows.find(row => /^4D(?:\s|—)/.test(row.name))
@@ -384,7 +465,8 @@ const printHuman = result => {
     `remote: ${repository.remote.url}`,
     `branch: ${repository.branch}`,
     `HEAD: ${repository.head}`,
-    `origin/main: ${base.originMain} (ahead ${base.ahead}, behind ${base.behind})`,
+    `origin/main (local): ${base.localOriginMain ?? 'unavailable'} (ahead ${base.ahead ?? 'unknown'}, behind ${base.behind ?? 'unknown'})`,
+    `main (remote): ${base.remoteMain ?? base.remoteInspection.status}${base.localRemoteMismatch === null ? '' : base.localRemoteMismatch ? ' (local origin/main differs)' : ' (matches local origin/main)'}`,
     `environment: ${runtime.role}${runtime.wslDistro ? ` (${runtime.wslDistro})` : ''}`,
     `toolchain: node ${toolchain.node.actual}${toolchain.node.matches === false ? ` (expected ${toolchain.node.expected})` : ''}; npm ${toolchain.npm.actual ?? 'unavailable'}${toolchain.npm.matches === false ? ` (expected ${toolchain.npm.expected})` : ''}`,
     `working tree: ${workingTree.clean ? 'clean' : `dirty (${workingTree.changedPathCount} path${workingTree.changedPathCount === 1 ? '' : 's'})`}`
@@ -395,9 +477,16 @@ const printHuman = result => {
   if (roadmap.exactNextAction) lines.push(`next: ${roadmap.exactNextAction}`)
   if (pullRequest.status === 'found') lines.push(`PR: #${pullRequest.number} ${pullRequest.state}${pullRequest.url ? ` ${pullRequest.url}` : ''}`)
   else lines.push(`PR: ${pullRequest.status}${pullRequest.reason ? ` (${pullRequest.reason})` : ''}`)
-  if (mainCi.lookupStatus === 'found') lines.push(`CI main: ${mainCi.workflowName ?? 'run'} ${mainCi.conclusion ?? mainCi.status}${mainCi.matchesOriginMain === false ? ' (head differs from origin/main)' : ''}${mainCi.url ? ` ${mainCi.url}` : ''}`)
+  if (mainCi.lookupStatus === 'found') {
+    const ciState = trimLine(mainCi.conclusion) || trimLine(mainCi.status) || 'unknown'
+    lines.push(`CI main: ${mainCi.workflowName ?? mainCi.workflow ?? 'run'} ${ciState}${mainCi.matchesRemoteMain === false ? ' (head differs from remote main)' : ''}${mainCi.url ? ` ${mainCi.url}` : ''}`)
+  }
   else lines.push(`CI main: ${mainCi.lookupStatus ?? mainCi.status}${mainCi.reason ? ` (${mainCi.reason})` : ''}`)
-  process.stdout.write(`${lines.join('\n')}\n`)
+  return lines.join('\n')
+}
+
+const printHuman = result => {
+  process.stdout.write(`${formatHuman(result)}\n`)
 }
 
 const usage = () => 'Usage: node scripts/conexus-preflight.mjs [--json] [--no-network]'

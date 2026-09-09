@@ -2,12 +2,15 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   ALLOWED_ALIASES,
+  CANDIDATE_GRAPH,
   SCOPE_MANIFEST,
   assertExecutionEnvironment,
+  executionEnvironment,
   listScopes,
   parseArguments,
   resolveScope,
   runVerification,
+  runNpmScript,
 } from '../../scripts/conexus-verify.mjs'
 
 const packageScripts = Object.freeze({
@@ -19,6 +22,30 @@ const packageScripts = Object.freeze({
   'r1:g0:generate': 'node scripts/generate-r1-g0.mjs',
   'r1:s1:receipt:record': 'node scripts/record-r1-s1-receipt.mjs',
 })
+
+const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
+  'a0-g0-admission', '4f-project-cognition-admission', 'r1-s2-generate',
+  'r1-s2-generated-drift', 'r1-s2-http', 'r1-s2-reads', 'import-law',
+  'verification-tool-regressions', 'r1-s2-live-syntax', 'biome-union',
+  'r1c14-native', 'rb-first-postgres-migration-selection', 'r2-p1-postgres',
+  'r2-p2-postgres', 'r2-p3-postgres', 'r1-s4-p2-postgres', 'r2-p0-check',
+  'r2-p1-check', 'r2-p2-check', 'r2-p3-check', 'r2-p4-check',
+  'r2-p4-authority-postgres', 'r2-p5-check', 'r2-p6-brain-revision',
+  'r2-p6-brain-revision-postgres', 'r2-p6-web-api', 'r2-p6-ui-surfaces',
+  'r2-p6-browser', 'r2-p6-composed-postgres', 'r1-s6-contract-generation',
+  'r1-s6-project-inception', 'r1-s6-project-refinement',
+  'r1-s6-baseline-explanation', 'r1-s6-p0-postgres', 'r1-s6-p1-postgres',
+  'r1-s6-browser-baseline', 'r1-s6-browser-inception',
+  'r1-s6-browser-refinement', 'r1-s6-composed', 'r1-rc01-walkthrough',
+  'rb-e2b-template', 'rb-first-source-checks', 'rb-first-hub-typecheck',
+  'rb-first-web-typecheck', 'web-build', 'repository-check', 'r1-rc01-custody',
+  'repository-hygiene', 'wire-openapi-lint', 'wire-openapi-bundle',
+  'wire-schema', 'wire-bijection', 'wire-carriers', 'wire-identity-workspace',
+  'wire-project', 'wire-builder', 'wire-brain', 'wire-connections',
+  'wire-release', 'wire-par', 'wire-gateway', 'wire-mar', 'wire-observability',
+  'wire-technical-lint', 'wire-technical-ingress', 'wire-projections',
+  'wire-budget', 'wire-whole-4b',
+])
 
 test('manifest exposes only the three bounded aliases and exact npm routing', () => {
   assert.deepEqual(ALLOWED_ALIASES, ['preflight', 'repository', 'final'])
@@ -101,4 +128,85 @@ test('final proof refuses a real Windows execution but remains inspectable as dr
   )
   assert.doesNotThrow(() => assertExecutionEnvironment(finalEntry, { platform: 'win32', dryRun: true }))
   assert.doesNotThrow(() => assertExecutionEnvironment(finalEntry, { platform: 'linux', dryRun: false }))
+})
+
+test('candidate graph flattens equivalent leaves while preserving distinct proof selections', () => {
+  const scopes = CANDIDATE_GRAPH.map(entry => entry.scope)
+  assert.deepEqual(scopes, EXPECTED_CANDIDATE_SCOPES)
+
+  const commands = CANDIDATE_GRAPH.map(entry => entry.command)
+  assert.equal(commands.filter(command => command === 'npm run r1:s2:hub:typecheck').length, 1)
+  assert.equal(commands.filter(command => command === 'npm run r1:a0:web:typecheck').length, 1)
+  assert.equal(commands.filter(command => command === 'npm run r1:s2:import-law').length, 1)
+  assert.equal(commands.filter(command => command === 'npm run r2:p4:authority').length, 1,
+    'R2-P4 static selection and PostgreSQL authority remain distinct')
+  assert.equal(commands.filter(command => command === 'npm run rb:first:postgres').length, 1)
+  assert.equal(commands.filter(command => command.includes('node --test --test-concurrency=1 tests/implementation/rb-builder-e2b-template.test.mjs') && command.includes('tests/implementation/rb-builder-first-vertical.test.mjs')).length, 1,
+    'RB migration selection and the unpatterned Builder suite remain distinct')
+  assert.equal(commands.filter(command => command.includes('node --check scripts/run-hub-migrations.mjs')).length, 1)
+  assert.equal(commands.filter(command => command.includes('node scripts/generate-r2-contracts.mjs --check')).length, 1)
+  assert.equal(commands.filter(command => command.includes('node scripts/rb-builder-e2b-template.mjs --check')).length, 1)
+  assert.equal(commands.filter(command => command.startsWith('npx --no-install biome check')).length, 1)
+  assert.equal(commands.filter(command => command.startsWith('vite build --config apps/web/vite.config.mjs apps/web')).length, 1)
+
+  const result = runVerification({
+    scopes: ['candidate'],
+    packageScripts,
+    dryRun: true,
+    runCommand: () => assert.fail('candidate dry-run must not execute commands'),
+  })
+  assert.equal(result.records.length, CANDIDATE_GRAPH.length)
+  assert.deepEqual(result.records.map(record => record.command), commands)
+  assert.deepEqual(result.records.map(record => record.environmentClass), CANDIDATE_GRAPH.map(entry => entry.environmentClass))
+  assert.deepEqual(result.records.every(record => record.status === 'dry-run'), true)
+})
+
+test('candidate graph labels execution environments and passes shell argv correctly', () => {
+  const classes = new Set(CANDIDATE_GRAPH.map(entry => entry.environmentClass))
+  assert.deepEqual([...classes].sort(), ['browser', 'custody', 'postgres', 'static'])
+
+  const p4Check = CANDIDATE_GRAPH.find(entry => entry.scope === 'r2-p4-check')
+  const p4Authority = CANDIDATE_GRAPH.find(entry => entry.scope === 'r2-p4-authority-postgres')
+  assert.equal(p4Check.environmentClass, 'static')
+  assert.equal(p4Authority.environmentClass, 'postgres')
+  assert.equal(p4Authority.command, 'npm run r2:p4:authority')
+  assert.equal(CANDIDATE_GRAPH.find(entry => entry.scope === 'r2-p6-composed-postgres').command.includes('CONEXUS_R2_P4_GIT_LIVE'), false)
+
+  const candidate = CANDIDATE_GRAPH[0]
+  let observed
+  runNpmScript(candidate, {
+    root: '/tmp/conexus-verify-test',
+    processEnvironment: { PATH: '/fixture/bin' },
+    spawn: (file, args, options) => {
+      observed = { file, args, options }
+      return { status: 0, stdout: '', stderr: '' }
+    },
+  })
+  assert.deepEqual(observed, {
+    file: 'bash',
+    args: ['-lc', candidate.command],
+    options: { cwd: '/tmp/conexus-verify-test', windowsHide: true, stdio: 'inherit', env: { PATH: '/fixture/bin' } },
+  })
+
+  const postgresDefaults = executionEnvironment(p4Authority, { PATH: '/fixture/bin' })
+  assert.deepEqual(postgresDefaults, {
+    PATH: '/fixture/bin',
+    CONEXUS_TEST_DB_HOST: '127.0.0.1',
+    CONEXUS_TEST_DB_PORT: '5432',
+    CONEXUS_TEST_DB_NAME: 'conexus_test',
+    CONEXUS_TEST_DB_USER: 'postgres',
+    CONEXUS_TEST_DB_PASSWORD: 's6-ci-test-only',
+  })
+  const selectedPostgres = {
+    CONEXUS_TEST_DB_HOST: 'db.internal',
+    CONEXUS_TEST_DB_PORT: '6543',
+    CONEXUS_TEST_DB_NAME: 'selected',
+    CONEXUS_TEST_DB_USER: 'runner',
+    CONEXUS_TEST_DB_PASSWORD: 'opaque',
+  }
+  assert.deepEqual(executionEnvironment(p4Authority, selectedPostgres), selectedPostgres)
+  assert.throws(
+    () => executionEnvironment(p4Authority, { CONEXUS_TEST_DB_HOST: 'db.internal' }),
+    /requires either all CONEXUS_TEST_DB_\* values or none/,
+  )
 })

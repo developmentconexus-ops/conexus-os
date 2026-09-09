@@ -1,5 +1,13 @@
 # Delegation and independent-review routing
 
+## Lead and advisor routing
+
+Use `gpt-5.6-sol` at medium effort as the default Lead for execution and
+integration. Use `gpt-6-astra` only as a bounded advisor for a difficult
+blocker, a credible structural improvement, or unresolved material design; the
+Lead retains ownership and adjudication. Model availability never expands the
+operator grant.
+
 ## Luna implementation lane
 
 Use a Luna subagent at `xhigh` when all of these are true:
@@ -11,11 +19,13 @@ Use a Luna subagent at `xhigh` when all of these are true:
 - shared-file overlap with another active writer is absent or explicitly
   coordinated.
 
-Give Luna the repository path, required bootstrap owners, exact allowed files,
-acceptance tests, forbidden effects and reporting contract. Prefer no history or
-only the minimum recent turns; repository authority must be reconstructed. The
-Lead reviews the diff and runs deciding verification. Do not delegate merely to
-avoid resolving a material unknown.
+Give each Luna writer the repository path, required bootstrap owners, exact
+disjoint file envelope, acceptance tests, forbidden effects and reporting
+contract. Name one integrator before work begins. Prefer no history or only the
+minimum recent turns; repository authority must be reconstructed. Writers do
+not commit, publish, or edit another lane's files unless the integrator changes
+the envelope explicitly. The Lead/integrator reviews all diffs and runs deciding
+verification. Do not delegate merely to avoid resolving a material unknown.
 
 Good uses include a small script plus focused test, a named adapter, a bounded
 migration part, or mechanical fixtures. Keep authority/adjudication, cross-owner
@@ -50,6 +60,10 @@ Use two distinct modes; never blur their claims:
 - **independent closure** uses isolated fresh lanes over one frozen candidate,
   brief, protected-claim census and blocker census.
 
+Independent closure reviewers must not have authored the candidate or received
+another lane's output. Use fresh sessions. One integrator freezes the candidate
+and adjudicates both results; collaborative subagents are not independent proof.
+
 The normal council checkpoints are: a materially uncertain stage packet, the
 first material vertical diff, a trust/authority or structural-boundary change,
 an external effect, and every `S`/gate closure. Do not invoke the council for
@@ -70,6 +84,13 @@ provider/model call until a delivery-stall review has narrowed the subject,
 reopened the smallest falsified owner, or declared `STOP / SPLIT
 PREREQUISITE`. Review persistence must improve decision quality, not replace
 delivery.
+
+If a required lane returns no usable report, the round is incomplete and no
+closure/convergence claim is available. A fresh replacement attempt over the
+same frozen candidate completes the missing lane; it is not a new review round.
+Retry only after naming and correcting the execution cause. If the cause
+persists, report the incomplete proof instead of looping or substituting the
+Lead's judgment.
 
 ## Independent lanes
 

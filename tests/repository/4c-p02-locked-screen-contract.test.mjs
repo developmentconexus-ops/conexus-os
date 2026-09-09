@@ -25,9 +25,7 @@ test('operator-approved P-02 remains locked through exact P9 trace and bounded P
 
   const html = read(htmlPath)
   const contract = read(contractPath)
-  const roadmap = read('docs/roadmap.md')
   const inventory = read('docs/evidence/4c/candidate-screen-surface-inventory.md')
-  const index = read('docs/index.md')
 
   if (gitBlobSha(html) !== family2Candidate) throw new Error('P12 Family 2 P-02 candidate drifted before operator walkthrough')
 
@@ -57,8 +55,5 @@ test('operator-approved P-02 remains locked through exact P9 trace and bounded P
   ]) requireText(contract, forbidden)
 
   requireText(html, 'LOCKED / OPERATOR APPROVED', 'locked artifact marker')
-  requireText(roadmap, 'P-02 = LOCKED / OPERATOR APPROVED / P9/P10 CLOSED', 'roadmap P-02 closure')
-  requireText(roadmap, 'P-03 = LOCKED / OPERATOR APPROVED / P9 EXACT TRACE CLOSED / P10 CONSOLIDATED', 'later P-03 lock must remain visible without weakening P-02 lock')
   requireText(inventory, 'P12 Family 2 governed-adoption delta RE-LOCKED', 'inventory Family 2 P-02 re-lock')
-  requireText(index, 'p02-project-product-surfaces-screen-contract.md', 'current P-02 Screen Contract index entry')
 })

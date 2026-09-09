@@ -35,19 +35,17 @@ test('terminal pre-P11 delta locks pin the exact operator-approved HTML identiti
     assert.match(owner, /P9[\s\S]*(?:CLOSED|closed)/, `${block} P9 is not closed`)
     assert.match(owner, /P10[\s\S]*(?:CONSOLIDATED|consolidated)/, `${block} P10 is not consolidated`)
   }
-  const roadmap = read('docs/roadmap.md')
-  assert.match(roadmap, /P11 historical assembly = INVALIDATED AS CURRENT PROOF BY OPERATOR-AUTHORIZED P12 CHILD DELTAS/)
+  const lock = read('docs/evidence/4c/p11-assembled-product-lock.md')
+  assert.match(lock, /Historical approved artifact:[\s\S]*preserved, superseded as current proof/)
 })
 
 test('terminal P10 and faithful assembly gate authorize only P11', () => {
   const p10 = read('docs/evidence/4c/pre11-terminal-p10-pattern-vocabulary.md')
   const gate = read('docs/evidence/4c/p11-faithful-assembly-contract.md')
-  const roadmap = read('docs/roadmap.md')
 
   assert.match(p10, /TERMINAL P10 RECONCILED \/ CLOSED FOR P11 INPUT/)
   assert.match(gate, /CURRENT P11 LOCKED \/ OPERATOR APPROVED \/ HISTORICAL P11 LOCK PRESERVED/)
   for (const [, , , expected] of locks) assert.ok(gate.includes(expected), `P11 gate missing ${expected}`)
-  assert.match(roadmap, /P11 = LOCKED \/ OPERATOR APPROVED \/ blob 536052096dd10dec2f604ccef49aa64ba52e4dac/)
-  assert.match(roadmap, /P12 \/ 4D \/ Product implementation = NOT AUTHORIZED/)
-  assert.match(roadmap, /Budget Analyzer remains[\s\S]*not a current Conexus-platform frontend block/i)
+  assert.match(gate, /CURRENT P11 LOCKED \/ OPERATOR APPROVED \/ HISTORICAL P11 LOCK PRESERVED/)
+  assert.match(gate, /implementation authority/i)
 })

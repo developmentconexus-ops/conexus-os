@@ -9,7 +9,6 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 
 test('Pack E proves PostgreSQL owner isolation and Atlas migration admission without early CR-1', () => {
   const result = read('docs/evidence/4d/4d-r1-pack-e-postgres-migrations-result.md')
-  const roadmap = read('docs/roadmap.md')
   const results = JSON.parse(read('qualification/4d/r1-foundation/evidence/pack-e-results.json'))
   const negatives = JSON.parse(read('qualification/4d/r1-foundation/evidence/pack-e-negative-controls.json'))
   const cleanup = JSON.parse(read('qualification/4d/r1-foundation/evidence/pack-e-cleanup.json'))
@@ -39,7 +38,5 @@ test('Pack E proves PostgreSQL owner isolation and Atlas migration admission wit
   assert.match(migration, /REVOKE ALL ON SCHEMA app FROM PUBLIC/)
   assert.match(atlasSum, /^h1:/)
 
-  assert.match(roadmap, /R1F-A01\+R1F-E01 CORRECTED \/ P01\.\.P12 EVIDENCE OPERATOR APPROVED/)
   assert.match(result, /Product implementation, push, PR and merge\s+remain unauthorized\./)
-  assert.match(roadmap, /Product implementation = R1 INTEGRATED \/ R2 INTEGRATED \/ RB NEXT PLANNED BUT NOT OPEN \/ R3\+ BLOCKED/)
 })

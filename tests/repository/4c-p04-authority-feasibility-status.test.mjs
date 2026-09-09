@@ -22,8 +22,6 @@ test('operator-approved P-04 closes the revised P8 through exact P9/P10 trace', 
   if (!existsSync(path(ownerPath))) throw new Error('canonical P-04 authority/feasibility owner must exist')
 
   const owner = read(ownerPath)
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
   const inventory = read('docs/evidence/4c/candidate-screen-surface-inventory.md')
 
   for (const token of [
@@ -41,11 +39,6 @@ test('operator-approved P-04 closes the revised P8 through exact P9/P10 trace', 
     'P11 / 4D / Product implementation = NOT AUTHORIZED',
   ]) requireText(owner, token)
 
-  requireText(roadmap, 'P-04 = LOCKED / OPERATOR APPROVED / P9 EXACT TRACE CLOSED / P10 CONSOLIDATED')
-  requireText(roadmap, '128↔128', 'current whole-wire census after later approved pre-P11 correction')
-  requireText(roadmap, 'P-05 = LOCKED / OPERATOR APPROVED / P9 EXACT TRACE CLOSED / P10 CONSOLIDATED', 'later P-05 lock must not reopen the locked P-04 block')
-  requireText(index, 'p04-release-operations-authority-feasibility-and-structural-hypotheses.md')
-  requireText(index, 'p04-release-operations-functional-wireframe.html')
   requireText(inventory, 'P-04', 'P-04 inventory route')
 
   if (!existsSync(path('docs/evidence/4c/p04-release-operations-functional-wireframe.html'))) throw new Error('canonical P-04 P8 artifact must exist')

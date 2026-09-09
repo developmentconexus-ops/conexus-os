@@ -9,8 +9,6 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 
 test('operator-approved 4D-D(R1) binds independent conformance claims without authorizing implementation', () => {
   const contract = read('docs/evidence/4d/4d-06-r1-foundation-conformance-version-escape-evaluation-contract.md')
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
   const pinManifest = JSON.parse(read('docs/evidence/4d/4d-r1-foundation-pin-manifest.json'))
 
   for (const token of [
@@ -44,7 +42,4 @@ test('operator-approved 4D-D(R1) binds independent conformance claims without au
   assert.match(contract, /framework-owned conformance plugin\/API \| `REJECT`/)
 
   assert.equal(pinManifest.status, 'P01_P12_GREEN_OPERATOR_APPROVED')
-  assert.match(index, /Operator-approved 4D-06 R1 Foundation conformance contract/)
-  assert.match(roadmap, /4E — Whole-System Coherence & Golden Flows \| CLOSED\(R1\) \/ OPERATOR APPROVED \/ 13↔13 \/ GITINFRA \+ FIRST-AUTHORITY CORRECTED \/ MASTRA DEFER ACCEPTED \/ INDEPENDENT CONVERGENCE CLEAR/)
-  assert.match(roadmap, /Product implementation.*BLOCKED/)
 })

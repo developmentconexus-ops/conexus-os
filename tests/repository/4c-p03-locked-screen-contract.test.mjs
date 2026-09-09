@@ -34,9 +34,7 @@ test('operator-approved P-03 and P-01 baselines and F05 deltas remain pinned aft
   const contract = read(contractPath)
   const p01Contract = read('docs/evidence/4c/p01-build-workspace-screen-contract.md')
   const evidence = read('docs/evidence/4c/p03-authority-feasibility-and-structural-hypotheses.md')
-  const roadmap = read('docs/roadmap.md')
   const inventory = read('docs/evidence/4c/candidate-screen-surface-inventory.md')
-  const index = read('docs/index.md')
 
   if (gitBlobSha(p03Html) !== p03Family4Candidate) throw new Error('P12 Family 4 re-locked P-03 drifted')
   if (gitBlobSha(p01Html) !== p01Family4Candidate) throw new Error('P12 Family 4 re-locked P-01 drifted')
@@ -63,11 +61,5 @@ test('operator-approved P-03 and P-01 baselines and F05 deltas remain pinned aft
   requireText(p01Contract, `approved identity-custody P8 delta blob = ${p01Family1Candidate}`, 'P-01 exact Family 1 re-lock')
   requireText(p01Contract, `approved Agent-ingress P8 delta blob = ${p01Family4Candidate} / OPERATOR APPROVED 2026-08-28`, 'P-01 exact Family 4 re-lock')
   requireText(evidence, '## 17. Operator LOCK closure', 'decision/Evidence closure')
-  requireText(roadmap, 'P-03 = LOCKED / OPERATOR APPROVED / P9 EXACT TRACE CLOSED / P10 CONSOLIDATED', 'roadmap P-03 closure')
   requireText(inventory, '| `P-03` | Agents + definition inspection + Agent Studio handoff + triggers + runs + exact approvals |', 'inventory includes the P-03 block')
-  requireText(index, 'p03-product-agent-screen-contract.md', 'index routes to locked P-03 Screen Contract')
-
-  if (/^(?:P-04 = (?:OPEN|AUTHORIZED)|P11 = ASSEMBLED|4D = OPEN|Product implementation = AUTHORIZED)$/m.test(roadmap)) {
-    throw new Error('P-03 lock must not silently advance a later gate')
-  }
 })

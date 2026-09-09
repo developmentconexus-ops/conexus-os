@@ -9,7 +9,6 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 
 test('Pack C proves HTTP, real Keycloak OIDC and PostgreSQL session boundaries without Product authority', () => {
   const result = read('docs/evidence/4d/4d-r1-pack-c-http-identity-session-result.md')
-  const roadmap = read('docs/roadmap.md')
   const results = JSON.parse(read('qualification/4d/r1-foundation/evidence/pack-c-results.json'))
   const negatives = JSON.parse(read('qualification/4d/r1-foundation/evidence/pack-c-negative-controls.json'))
   const substrates = JSON.parse(read('qualification/4d/r1-foundation/evidence/pack-c-substrates.json'))
@@ -48,7 +47,5 @@ test('Pack C proves HTTP, real Keycloak OIDC and PostgreSQL session boundaries w
     assert.ok(http.includes(token), `HTTP harness missing ${token}`)
   }
 
-  assert.match(roadmap, /R1F-A01\+R1F-E01 CORRECTED \/ P01\.\.P12 EVIDENCE OPERATOR APPROVED \/ 4D-D\(R1\) FOUNDATION CLAIMS PRESERVED/)
   assert.match(result.replace(/\s+/g, ' '), /Product implementation, push, PR and merge remain unauthorized\./)
-  assert.match(roadmap, /Product implementation = R1 INTEGRATED \/ R2 INTEGRATED \/ RB NEXT PLANNED BUT NOT OPEN \/ R3\+ BLOCKED/)
 })

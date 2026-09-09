@@ -9,8 +9,6 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 
 test('ProjectMastra candidate pins one framework while keeping provider admission closed and evidence-only', () => {
   const candidate = read('docs/evidence/4e/4e-r1-f01-project-mastra-admission-candidate.md')
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
 
   for (const token of [
     'OPERATOR APPROVED / P13 ACCEPTED / PRODUCTION REPIN GATE DEFERRED',
@@ -37,5 +35,4 @@ test('ProjectMastra candidate pins one framework while keeping provider admissio
   assert.match(candidate, /no root\/Product dependency or implementation/)
   assert.doesNotMatch(candidate, /ADOPT (OpenAI|Anthropic|Google)/)
 
-  assert.match(index, /Operator-approved ProjectMastra admission/)
 })

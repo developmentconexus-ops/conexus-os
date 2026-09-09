@@ -26,9 +26,7 @@ test('operator-approved P-05 artifact remains pinned and closed through P9/P10',
   const html = read(htmlPath)
   const contract = read(contractPath)
   const evidence = read('docs/evidence/4c/p05-project-lifecycle-and-published-app-access-authority-feasibility-and-structural-hypotheses.md')
-  const roadmap = read('docs/roadmap.md')
   const inventory = read('docs/evidence/4c/candidate-screen-surface-inventory.md')
-  const index = read('docs/index.md')
 
   if (gitBlobSha(html) !== family3Locked) throw new Error('P12 Family 3 re-locked P-05 artifact drifted')
 
@@ -47,11 +45,5 @@ test('operator-approved P-05 artifact remains pinned and closed through P9/P10',
 
   requireText(evidence, '## 11. Operator LOCK closure', 'decision/Evidence closure')
   requireText(evidence, `approved final P8 artifact blob = ${blob}`, 'decision/Evidence exact artifact')
-  requireText(roadmap, 'P-05 = LOCKED / OPERATOR APPROVED / P9 EXACT TRACE CLOSED / P10 CONSOLIDATED', 'roadmap P-05 closure')
   requireText(inventory, 'P12 Family 3 access delta `d00b2126...` / RE-LOCKED / OPERATOR APPROVED', 'inventory exact P-05 re-lock')
-  requireText(index, 'p05-project-lifecycle-and-published-app-access-screen-contract.md', 'index routes to locked P-05 Screen Contract')
-
-  if (/^(?:PA-01 = (?:OPEN|AUTHORIZED)|BUD-01 = (?:OPEN|AUTHORIZED)|P11 = ASSEMBLED|4D = OPEN|Product implementation = AUTHORIZED)$/m.test(roadmap)) {
-    throw new Error('P-05 lock must not silently advance a later gate')
-  }
 })

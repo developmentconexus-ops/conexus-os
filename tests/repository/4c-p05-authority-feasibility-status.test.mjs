@@ -15,8 +15,6 @@ test('operator-approved P-05 remains locked through exact P9/P10 trace', () => {
   if (!existsSync(path(ownerPath))) throw new Error('canonical P-05 authority/feasibility owner must exist')
 
   const owner = read(ownerPath)
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
   const inventory = read('docs/evidence/4c/candidate-screen-surface-inventory.md')
 
   for (const token of [
@@ -33,9 +31,6 @@ test('operator-approved P-05 remains locked through exact P9/P10 trace', () => {
     'PA-01 / BUD-01 / P11 / 4D / Product implementation = NOT AUTHORIZED',
   ]) requireText(owner, token)
 
-  requireText(roadmap, 'P-05 = LOCKED / OPERATOR APPROVED / P9 EXACT TRACE CLOSED / P10 CONSOLIDATED')
-  requireText(roadmap, 'PA-01 = LOCKED / OPERATOR APPROVED / P9 EXACT TRACE CLOSED / P10 CONSOLIDATED', 'later PA-01 progression must not reopen the locked P-05 block')
-  requireText(index, ownerPath.split('/').at(-1))
   requireText(inventory, 'P12 Family 3 access delta `d00b2126...` / RE-LOCKED / OPERATOR APPROVED')
 
   if (!existsSync(path('docs/evidence/4c/p05-project-lifecycle-and-published-app-access-functional-wireframe.html'))) {

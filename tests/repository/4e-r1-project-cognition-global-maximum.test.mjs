@@ -9,8 +9,6 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 
 test('operator-approved Project cognition reuses Mastra without provider lock or new runtime family', () => {
   const decision = read('docs/evidence/4e/4e-r1-f01-project-cognition-global-maximum.md')
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
   const ledger = read('docs/evidence/4d/4d-01-protected-property-ledger.md')
   const pavedRoad = read('docs/evidence/4d/4d-03-paved-road-property-contract.md')
   const applicability = read('docs/evidence/4d/4d-04-runtime-family-applicability.md')
@@ -39,5 +37,4 @@ test('operator-approved Project cognition reuses Mastra without provider lock or
   assert.match(pavedRoad, /R1 `PRJ-24` Project cognition and later `BLD-16` Builder cognition/)
   assert.match(applicability, /R1 Project cognition is an owner-local adapter, not a runtime family/)
   assert.match(applicability, /CURRENT STRUCTURE CONFIRMED \/ 24 CONSUMER-GATED FAMILIES/)
-  assert.match(index, /Operator-approved 4E-R1-F01 Mastra Project cognition Global Maximum/)
 })

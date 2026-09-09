@@ -10,8 +10,6 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 test('R1 foundation selection preserves exact pins and bounded Pack A admission', () => {
   const candidate = read('docs/evidence/4d/4d-r1-foundation-selection-candidate.md')
   const batch = read('docs/evidence/4d/4d-r1-foundation-batch.md')
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
 
   for (const token of [
     'CLOSED / OPERATOR APPROVED / R1F-A01+R1F-E01 CORRECTED / P01..P12 EVIDENCE OPERATOR APPROVED',
@@ -41,8 +39,6 @@ test('R1 foundation selection preserves exact pins and bounded Pack A admission'
   }
 
   assert.match(batch, /SELECTION CLOSED \/ INDEPENDENT REVIEW CONVERGED \/ OPERATOR APPROVED \/ 2026-08-30/)
-  assert.match(roadmap, /R1 FOUNDATION SELECTION CLOSED \+ OPERATOR APPROVED \/ R1 PROBE GRANT OPERATOR APPROVED/)
-  assert.match(index, /Approved R1 Foundation selection/)
 
   const pinManifest = JSON.parse(read('docs/evidence/4d/4d-r1-foundation-pin-manifest.json'))
   assert.equal(pinManifest.kind, 'conexus.r1-foundation-pin-manifest/v1')

@@ -56,4 +56,14 @@ This section makes accepted downstream refinements discoverable. It creates no s
 | 4C-P12-F03 — immutable repository checkpoint | CLOSED / `1eb33a93fd2bcd32c2cc7d9565aa617430a47771` / NO PUSH-PR-MERGE | The accepted post-main 4A/4B/4C package is reachable through one coherent local checkpoint and survived exact-SHA Fable review after bounded correction. | [P12 Fusion review](../evidence/4c/p12-whole-product-fusion-review.md), [4C-13 finalization](../evidence/4c/4c-finalization-and-visual-inputs.md), [4C-14 review](../evidence/4c/4c-final-review.md) | Checkpoint becomes unreachable or a later exact-SHA review exposes repository incoherence |
 | 4C final ratification | OPERATOR RATIFIED / CLOSED | The frontend Product/interaction model, generated/state/auth custody, framework-neutral topology and P13 structural conformance inputs are accepted. This creates no 4D, merge or implementation authority. | [4C-14 final review](../evidence/4c/4c-final-review.md), [4C finalization](../evidence/4c/4c-finalization-and-visual-inputs.md) | Material 4A/4B/P11/P13 conformance falsifier |
 
+## Repository operating-model adoption
+
+**CURRENT / OPERATOR RATIFIED — 2026-09-08:** Repository Method 1.1 and the
+C-019 operating-model implementation at `82469db50a0e1e26cfebcf4c74ec77ac1d2407de`
+are accepted for this repository. The [acceptance record](../evidence/4d/4d-development-operating-model-execution-result.md#operator-acceptance)
+preserves the exact subject, adjudication and scope. Reopen only on a material
+authority, navigation, verification-coverage or independent-review falsifier.
+This adoption grants neither cross-repository propagation nor publication,
+merge or Product resumption.
+
 Global reopen law: reopen only on material evidence—changed requirement/ownership/scale, new real consumer, newly reachable failure mode, external change, or implementation evidence invalidating an assumption.

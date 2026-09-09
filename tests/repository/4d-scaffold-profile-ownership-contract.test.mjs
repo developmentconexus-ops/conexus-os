@@ -10,8 +10,6 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 test('4D-02 preserves the operator-approved mechanism-neutral scaffold/profile ownership contract', () => {
   const contract = read('docs/evidence/4d/4d-02-project-scaffold-profile-and-ownership-contract.md')
   const phase = read('docs/phases/4d-project-paved-road-and-runtime-realization.md')
-  const roadmap = read('docs/roadmap.md')
-  const index = read('docs/index.md')
 
   for (const token of [
     'CLOSED / OPERATOR APPROVED / 2026-08-29',
@@ -50,5 +48,4 @@ test('4D-02 preserves the operator-approved mechanism-neutral scaffold/profile o
   assert.match(contract, /operator approved it on 2026-08-29; 4D-A is\s+closed and only 4D-B property-contract planning may now open/)
 
   assert.match(phase, /Mutable status and exact next action.*owned only by/s)
-  assert.match(index, /4D-02 approved Project scaffold\/profile and ownership contract/)
 })

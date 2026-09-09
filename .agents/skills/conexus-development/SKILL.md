@@ -72,23 +72,9 @@ correctness. Route recovery improvements, generic framework hardening and
 non-claim defects through `DEFER SAFELY` with why-safe, revisit trigger and
 later owner; do not silently add them to the gate.
 
-Never allow a gate to recursively expand into a review of every mechanism used
-to review that gate. Freeze the protected-claim and blocker census before an
-independent round. Conexus requires fresh isolated Fable and AGY/Gemini lanes
-before every `S` stage closes and for material authority, trust-boundary,
-structural-runtime, external-effect, contradiction or Global-Maximum triggers.
-Routine mechanical parts use targeted proof and Lead review. The previous
-three-part rolling quota is retired.
-No stage may project `CLOSED PASS` while either
-required lane or Lead adjudication is pending.
-
-After a complete round, another round requires a surviving material correction
-that changed the reviewed property or reliability of deciding proof enough to
-invalidate the prior challenge. If another round is proposed without that
-falsifier, stop reviewer calls and run a delivery-stall review: narrow the
-subject to the actual protected claim, reopen the smallest falsified owner, or
-issue an explicit `STOP / SPLIT PREREQUISITE`. Do not continue meta-work by
-default.
+Apply the Engineering Method's periodic-assurance triggers and termination law.
+Conexus's exact lane, model and delegation routing lives only in
+[review-and-delegation.md](references/review-and-delegation.md).
 
 Every work cycle must end with the next measurable delivery checkpoint and its
 remaining blocker census. Before starting a cycle whose intended output is only
