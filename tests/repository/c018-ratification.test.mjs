@@ -30,7 +30,7 @@ test('ratified C-018 preserves its deny-only law after later bounded Product aut
   const roadmap = read('docs/roadmap.md')
   const decisions = read('docs/decisions/index.md')
   assert.match(roadmap, /\| C-018 \| RATIFIED \/ OPERATOR RATIFIED \|/)
-  assert.match(roadmap, /\| Product implementation \|[^\n]*\bR1\b[^\n]*\b(?:R2|RB)[^\n]*BLOCKED/)
+  assert.match(roadmap, /\| Product implementation \|[^\n]*\bBLD-10 COMPLETE\b[^\n]*\bR3 IMPLEMENTATION PAUSED\b/)
   assert.match(read('docs/phases/c-018-final-architecture-ratification.md'), /C-018 = RATIFIED[\s\S]*!=[\s\S]*Product implementation authorized/)
   assert.match(decisions, /\| C-018 \| Final Product architecture ratification\. \| CURRENT \/ OPERATOR RATIFIED \|/)
 })

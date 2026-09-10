@@ -175,7 +175,14 @@ migrate      = false
 schedule     = false
 ```
 
-The exact vendor DDL is still third-party substrate DDL even though it lives physically under `mar`; Conexus code must not hand-edit pg-boss internals to create a forked schema.
+The exact vendor DDL is still third-party substrate DDL even though it lives
+physically under `mar`; Conexus code must not hand-edit pg-boss object
+definitions to create a forked schema. A final Project migration may wrap that
+exact source with the Hub-owned schema/role/grant prelude, privilege closure and
+the single migration transaction envelope required by the native runner, while
+leaving provider object definitions unchanged. The wrapper is a new deciding
+artifact: its bytes, vendor-source digest and runtime configuration must be
+requalified together before Product MAR admission.
 
 ### 5.4 Accepted bounded risk
 

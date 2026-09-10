@@ -20,6 +20,7 @@ const laneDefinitions = Object.freeze({
     versionPattern: /\b2\.1\.220\b/,
     model: 'fable',
     effort: 'xhigh',
+    profileEffort: Object.freeze({ material: 'xhigh', delta: 'high', focused: 'medium' }),
     mode: 'plan',
     sandbox: false,
     sessionFlag: '--resume',
@@ -38,6 +39,8 @@ const laneDefinitions = Object.freeze({
 
 const laneNames = Object.freeze(['opus', 'gemini'])
 const maxCaptureBytes = 8 * 1024 * 1024
+const reviewProfiles = Object.freeze(['material', 'delta', 'focused'])
+const defaultTimeoutMs = Object.freeze({ material: 30 * 60 * 1000, delta: 10 * 60 * 1000, focused: 5 * 60 * 1000 })
 const findingClasses = Object.freeze([
   'METHOD FINDING',
   'PRODUCT / PLAN GAP',
@@ -55,9 +58,12 @@ const usage = [
   '  --session <id>           Resume Claude Code session (opus only)',
   '  --conversation <id>      Resume AGY conversation (gemini only)',
   '  --claude-model <alias>   Claude alias: fable (default) or opus',
+  '  --profile <name>         material (default), delta, or focused',
+  '  --timeout-ms <number>    Per-lane timeout; profile default otherwise',
   '  --json                   Emit one machine-readable result object',
   '  --output-dir <directory> Write execute results outside this repository',
   '  --candidate-result <file> Bind output to exact candidate-result bytes',
+  '  --attestation <file>     Bind output to an additional custody attestation',
   '  --help                   Show this help',
 ].join('\n')
 
@@ -90,8 +96,12 @@ export function parseArgs(argv = process.argv.slice(2)) {
     session: undefined,
     conversation: undefined,
     claudeModel: undefined,
+    profile: 'material',
+    timeoutMs: undefined,
+    attestation: undefined,
     help: false,
     laneExplicit: false,
+    profileExplicit: false,
   }
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -142,6 +152,22 @@ export function parseArgs(argv = process.argv.slice(2)) {
         if (options.claudeModel !== undefined) fail('duplicate --claude-model')
         options.claudeModel = inlineValue ?? valueFor(argv, index++, flag)
         break
+      case '--profile':
+        if (options.profileExplicit) fail('duplicate --profile')
+        options.profile = inlineValue ?? valueFor(argv, index++, flag)
+        options.profileExplicit = true
+        break
+      case '--timeout-ms': {
+        if (options.timeoutMs !== undefined) fail('duplicate --timeout-ms')
+        const value = inlineValue ?? valueFor(argv, index++, flag)
+        if (!/^\d+$/.test(value) || Number(value) < 1000) fail('--timeout-ms must be an integer >= 1000')
+        options.timeoutMs = Number(value)
+        break
+      }
+      case '--attestation':
+        if (options.attestation !== undefined) fail('duplicate --attestation')
+        options.attestation = inlineValue ?? valueFor(argv, index++, flag)
+        break
       case '--help':
         options.help = true
         break
@@ -155,6 +181,9 @@ export function parseArgs(argv = process.argv.slice(2)) {
   if (!['opus', 'gemini', 'both'].includes(options.lane)) {
     fail(`invalid --lane ${JSON.stringify(options.lane)}; expected opus, gemini, or both`)
   }
+  if (!reviewProfiles.includes(options.profile)) {
+    fail(`invalid --profile ${JSON.stringify(options.profile)}; expected material, delta, or focused`)
+  }
   if (options.session !== undefined && options.lane === 'gemini') {
     fail('--session is only valid for --lane opus or both')
   }
@@ -166,6 +195,9 @@ export function parseArgs(argv = process.argv.slice(2)) {
   }
   if (options.claudeModel !== undefined && options.lane === 'gemini') {
     fail('--claude-model is only valid for --lane opus or both')
+  }
+  if (options.attestation !== undefined && options.candidateResult === undefined) {
+    fail('--attestation requires --candidate-result')
   }
   for (const [name, value] of [['--session', options.session], ['--conversation', options.conversation]]) {
     if (value !== undefined && (!value.trim() || value.includes('\0') || /\s/.test(value))) {
@@ -228,6 +260,21 @@ export function validateConfig(options, root = repositoryRoot) {
     candidateResultSha256 = createHash('sha256').update(readFileSync(candidateResultAbsolute)).digest('hex')
   }
 
+  let attestationAbsolute
+  let attestationRelative
+  let attestationSha256
+  if (options.attestation !== undefined) {
+    attestationAbsolute = realOrResolved(resolve(process.cwd(), options.attestation))
+    if (!inside(attestationAbsolute, canonicalRoot) || attestationAbsolute === canonicalRoot) {
+      fail('--attestation must point to a file inside the repository')
+    }
+    if (!existsSync(attestationAbsolute) || !statSync(attestationAbsolute).isFile()) {
+      fail(`attestation file does not exist or is not a regular file: ${options.attestation}`)
+    }
+    attestationRelative = relative(canonicalRoot, attestationAbsolute).split(sep).join('/')
+    attestationSha256 = createHash('sha256').update(readFileSync(attestationAbsolute)).digest('hex')
+  }
+
   let outputAbsolute
   if (options.outputDir !== undefined) {
     outputAbsolute = realOrResolved(resolve(process.cwd(), options.outputDir))
@@ -245,23 +292,43 @@ export function validateConfig(options, root = repositoryRoot) {
     candidateResultAbsolute,
     candidateResultRelative,
     candidateResultSha256,
+    attestationAbsolute,
+    attestationRelative,
+    attestationSha256,
     outputAbsolute,
   }
 }
 
 /** Build the neutral handoff sent independently to either reviewer. */
-export function buildReviewPrompt({ repositoryRoot: root = repositoryRoot, briefRelative }) {
+export function buildReviewPrompt({
+  repositoryRoot: root = repositoryRoot,
+  briefRelative,
+  candidateResultRelative,
+  attestationRelative,
+  profile = 'material',
+}) {
   const classes = findingClasses.map((value) => `- ${value}`).join('\n')
   return [
-    'Act as an independent, neutral whole/global reviewer of the current Conexus OS repository.',
+    profile === 'material'
+      ? 'Act as an independent, neutral whole/global reviewer of the current Conexus OS repository.'
+      : 'Act as an independent, neutral reviewer of the named bounded delta in the current Conexus OS repository.',
     `Repository root: ${root}`,
     `Exact review brief: ${briefRelative}`,
+    `Review profile: ${profile}`,
+    ...(candidateResultRelative ? [`Exact candidate result: ${candidateResultRelative}`] : []),
+    ...(attestationRelative ? [`Exact custody attestation: ${attestationRelative}`] : []),
     '',
-    'Reconstruct repository-current authority yourself before judging anything. Start with',
+    ...(profile === 'material'
+      ? ['Reconstruct repository-current authority yourself before judging anything. Start with']
+      : ['Reconstruct only the authority and protected claims needed for this bounded delta/focused review. Start with']),
     'AGENTS.md, docs/roadmap.md, docs/index.md, docs/development/engineering-method.md,',
     'docs/development/repository-method.md, and docs/development/blueprint-harness-design.md',
     'sections 10.4–10.6; then read the exact brief and only the routed evidence it names.',
     'Treat the brief as orientation and attack framing, not as authority or proof.',
+    ...(profile === 'material'
+      ? []
+      : ['Do not replay unchanged historical context or reopen accepted decisions for preference.',
+         'Expand beyond the named changed claims only when a concrete falsifier requires it; record that trigger.']),
     '',
     'Attack the complete named subject adversarially: inspect hidden coupling, duplicate or',
     'missing authority, false completeness, over-stopping, under-stopping, weak falsifiers,',
@@ -273,7 +340,7 @@ export function buildReviewPrompt({ repositoryRoot: root = repositoryRoot, brief
     'Do not create a Docker builder or build, pull, tag, load, push or remove an image. If a',
     'diagnostic is not admitted read-only, keep it as an unknown instead of requesting it.',
     '',
-    'Return a self-contained independent report. Classify every concrete finding using exactly',
+    'Return a concise, self-contained independent report (maximum 6 material findings; do not repeat method text). Classify every concrete finding using exactly',
     classes,
     'For every material finding include: evidence/reproducible observation; failure mode;',
     'why it is material; smallest real owner/stage; protected property or target invariant;',
@@ -304,13 +371,21 @@ export function buildLaneReviewPrompt(lane, options) {
 
 const shellWriteTools = Object.freeze(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
 
+const effortFor = (lane, profile = 'material') => {
+  if (lane === 'gemini') return laneDefinitions.gemini.effort
+  return laneDefinitions.opus.profileEffort[profile] ?? laneDefinitions.opus.effort
+}
+
+const timeoutFor = ({ profile = 'material', timeoutMs }) => timeoutMs ?? defaultTimeoutMs[profile]
+
 /** Return one argv vector; this function never invokes a reviewer. */
-export function buildLaneInvocation(lane, { prompt, session, conversation, claudeModel }) {
+export function buildLaneInvocation(lane, { prompt, session, conversation, claudeModel, profile = 'material' }) {
   const definition = laneDefinitions[lane]
   if (!definition) fail(`unknown lane ${lane}`)
   const identity = lane === 'opus' ? session : conversation
   const model = lane === 'opus' && claudeModel ? claudeModel : definition.model
-  const args = ['-p', prompt, '--model', model, '--effort', definition.effort]
+  const effort = effortFor(lane, profile)
+  const args = ['-p', prompt, '--model', model, '--effort', effort]
   if (lane === 'opus') {
     args.push('--permission-mode', definition.mode, '--disallowed-tools', ...shellWriteTools)
     args.push('--output-format', 'stream-json', '--verbose', '--include-partial-messages')
@@ -325,7 +400,8 @@ export function buildLaneInvocation(lane, { prompt, session, conversation, claud
     args,
     expectedVersion: definition.expectedVersion,
     model,
-    effort: definition.effort,
+    effort,
+    profile,
     mode: definition.mode,
     sandbox: definition.sandbox,
     sessionOrConversation: identity ?? null,
@@ -375,7 +451,7 @@ const progressFromClaudeEvent = (event, label) => {
 const spawnCapture = (
   command,
   args,
-  { cwd, input, env = process.env, streamJson = false, progressLabel = command } = {},
+  { cwd, input, env = process.env, streamJson = false, progressLabel = command, timeoutMs } = {},
 ) => new Promise((resolvePromise, reject) => {
   const child = spawn(command, args, { cwd, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
   let stdout = ''
@@ -386,10 +462,12 @@ const spawnCapture = (
   let streamBufferBytes = 0
   let finalStreamEvent
   let settled = false
+  let timeoutHandle
 
   const stopWith = (error) => {
     if (settled) return
     settled = true
+    if (timeoutHandle) clearTimeout(timeoutHandle)
     child.kill('SIGTERM')
     reject(error)
   }
@@ -444,6 +522,7 @@ const spawnCapture = (
   child.once('close', (code, signal) => {
     if (settled) return
     try {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
       if (streamJson && streamBuffer.trim()) acceptStreamLine(streamBuffer)
       if (streamJson) {
         if (!finalStreamEvent) fail('Claude stream ended without a final result event')
@@ -455,6 +534,11 @@ const spawnCapture = (
       stopWith(error)
     }
   })
+  if (timeoutMs !== undefined) {
+    timeoutHandle = setTimeout(() => {
+      stopWith(new Error(`${progressLabel} review timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+  }
   if (input !== undefined) child.stdin.end(input)
   else child.stdin.end()
 })
@@ -482,8 +566,16 @@ export function captureRawVerdict(stdout, parsed = rawJson(stdout)) {
   if (structured !== undefined) return structured
   const response = valueAt(parsed, 'response', 'result.response', 'result', 'output')
   const source = typeof response === 'string' ? response : stdout
-  const match = source.match(/^\s*VERDICT\s*=\s*(.+?)\s*$/im)
-  return match ? match[1] : null
+  const line = source.split(/\r?\n/).find((candidate) => {
+    const normalized = candidate.trim().replace(/^[`*_#>\-\s]+/, '')
+    return /^VERDICT\s*=/i.test(normalized)
+  })
+  if (!line) return null
+  return line.trim()
+    .replace(/^[`*_#>\-\s]*/, '')
+    .replace(/^VERDICT\s*=\s*/i, '')
+    .replace(/[`*_\s]+$/, '')
+    .trim()
 }
 
 const captureIdentity = (lane, parsed, requested) => {
@@ -523,6 +615,7 @@ async function executeLane(lane, options, prompt, runProcess = spawnCapture) {
       cwd: options.repositoryRoot,
       streamJson: lane === 'opus',
       progressLabel: lane,
+      timeoutMs: timeoutFor(options),
     })
   } catch (error) {
     fail(`unable to invoke ${lane} CLI: ${error.message}`)
@@ -543,11 +636,14 @@ async function executeLane(lane, options, prompt, runProcess = spawnCapture) {
     const response = valueAt(parsed, 'response', 'result.response')
     if (typeof response !== 'string' || !response.trim()) fail('gemini review returned an empty response')
   }
+  const verdictRaw = captureRawVerdict(result.stdout, parsed)
   return {
     ...invocation,
+    status: verdictRaw === null ? 'INVALID_OUTPUT' : 'COMPLETED',
     version,
     sessionOrConversation: captureIdentity(lane, parsed, invocation.sessionOrConversation),
-    verdictRaw: captureRawVerdict(result.stdout, parsed),
+    verdictRaw,
+    ...(verdictRaw === null ? { error: `${lane} review omitted the required VERDICT = line` } : {}),
     exitCode: result.code,
     signal: result.signal ?? null,
     raw: result.stdout,
@@ -567,22 +663,42 @@ export async function runReview(options, { runProcess = spawnCapture } = {}) {
     session: validated.session,
     conversation: validated.conversation,
     claudeModel: validated.claudeModel,
+    profile: validated.profile,
   })
+  const plannedInvocations = lanes.map((lane) => buildLaneInvocation(lane, laneOptions(lane)))
   const records = validated.dryRun
-    ? lanes.map((lane) => publicInvocation(buildLaneInvocation(lane, laneOptions(lane))))
-    : await Promise.all(lanes.map((lane) => executeLane(
+    ? plannedInvocations.map(publicInvocation)
+    : (await Promise.allSettled(lanes.map((lane) => executeLane(
         lane,
         validated,
         laneOptions(lane).prompt,
         runProcess,
-      )))
+      )))).map((settled, index) => settled.status === 'fulfilled'
+      ? settled.value
+      : {
+          ...publicInvocation(plannedInvocations[index]),
+          status: 'FAILED',
+          error: settled.reason instanceof Error ? settled.reason.message : String(settled.reason),
+        })
+  const inputDrift = !validated.dryRun && [
+    [validated.briefAbsolute, validated.briefSha256, 'brief'],
+    [validated.candidateResultAbsolute, validated.candidateResultSha256, 'candidateResult'],
+    [validated.attestationAbsolute, validated.attestationSha256, 'attestation'],
+  ].some(([path, expected]) => path && createHash('sha256').update(readFileSync(path)).digest('hex') !== expected)
+  const failed = records.filter((record) => record.status !== 'COMPLETED')
   const result = {
     schema: 'conexus.review-run/v1',
+    status: validated.dryRun ? 'PLANNED' : (failed.length || inputDrift ? 'INCOMPLETE' : 'COMPLETED'),
     repositoryRoot: validated.repositoryRoot,
     brief: validated.briefRelative,
     briefSha256: validated.briefSha256,
     candidateResult: validated.candidateResultRelative ?? null,
     candidateResultSha256: validated.candidateResultSha256 ?? null,
+    attestation: validated.attestationRelative ?? null,
+    attestationSha256: validated.attestationSha256 ?? null,
+    profile: validated.profile,
+    timeoutMs: timeoutFor(validated),
+    inputDrift,
     lane: validated.lane,
     mode: validated.dryRun ? 'dry-run' : 'execute',
     dryRun: validated.dryRun,
@@ -616,7 +732,13 @@ export async function main(argv = process.argv.slice(2)) {
       for (const record of result.lanes) process.stdout.write(`${record.lane}: ${commandLine(record)}\n`)
       if (result.outputFile) process.stdout.write(`output = ${result.outputFile}\n`)
     }
-    return 0
+    if (result.status === 'INCOMPLETE') {
+      for (const record of result.lanes.filter((entry) => entry.status !== 'COMPLETED')) {
+        process.stderr.write(`${record.lane}: ${record.error}\n`)
+      }
+      if (result.inputDrift) process.stderr.write('review inputs changed while lanes were running\n')
+    }
+    return result.status === 'INCOMPLETE' ? 1 : 0
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (options?.json || argv.includes('--json')) process.stdout.write(`${JSON.stringify({ error: message })}\n`)

@@ -37,9 +37,9 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'r1-s6-baseline-explanation', 'r1-s6-p0-postgres', 'r1-s6-p1-postgres',
   'r1-s6-browser-baseline', 'r1-s6-browser-inception',
   'r1-s6-browser-refinement', 'r1-s6-composed', 'r1-rc01-walkthrough',
-  'rb-e2b-template', 'rb-first-source-checks', 'rb-first-hub-typecheck',
+  'rb-e2b-template', 'rb-first-source-checks', 'bld-10-preview-projection', 'rb-first-hub-typecheck',
   'rb-first-web-typecheck', 'web-build', 'repository-check', 'r1-rc01-custody',
-  'repository-hygiene', 'wire-openapi-lint', 'wire-openapi-bundle',
+  'repository-hygiene', 'repository-candidate-census', 'wire-openapi-lint', 'wire-openapi-bundle',
   'wire-schema', 'wire-bijection', 'wire-carriers', 'wire-identity-workspace',
   'wire-project', 'wire-builder', 'wire-brain', 'wire-connections',
   'wire-release', 'wire-par', 'wire-gateway', 'wire-mar', 'wire-observability',
@@ -147,7 +147,8 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.equal(commands.filter(command => command.includes('node scripts/generate-r2-contracts.mjs --check')).length, 1)
   assert.equal(commands.filter(command => command.includes('node scripts/rb-builder-e2b-template.mjs --check')).length, 1)
   assert.equal(commands.filter(command => command.startsWith('npx --no-install biome check')).length, 1)
-  assert.equal(commands.filter(command => command.startsWith('vite build --config apps/web/vite.config.mjs apps/web')).length, 1)
+  assert.equal(commands.filter(command => command.startsWith('node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web')).length, 1)
+  assert.equal(commands.filter(command => command === 'npm run repository:candidate-census').length, 1)
 
   const result = runVerification({
     scopes: ['candidate'],

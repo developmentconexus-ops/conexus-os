@@ -1,0 +1,10 @@
+{
+  "schema": "conexus.r3-candidate-attestation/v1",
+  "base": "e9ff12e4394c855e5a15656b0d74e26bc5f46a02",
+  "freezeSha256": "d742d2ee5a1f793a73af585c5c7c9a0a18bf1e7972b26d3963a8d54de5a4a0cd",
+  "briefSha256": "0e7726ca3038ffdd58277b5c623d44448d245f97f2789db36efb0bf5d72dffdb",
+  "candidateManifestDigest": "4349cf91ef5d29d46a649647b8c5964fa5303894f23e3f93dd1b6d8c8dabb797",
+  "migrationCorpusDigest": "515da3cba54560ab47b3fa2bc52bb8b3c70010ee1ceb42251d60a852550f6a7f",
+  "attestedBy": "Lead custody checker after operator waiver",
+  "authority": "Evidence only"
+}

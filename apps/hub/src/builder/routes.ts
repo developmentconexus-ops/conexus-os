@@ -1,10 +1,12 @@
 import type { FastifyInstance } from 'fastify'
 import { sendProblem } from '../http/problem.js'
+import { projectBuildPreview } from './preview.js'
 import type { BuilderService } from './service.js'
 import type { BuilderSnapshot, BuilderStore } from './store.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const uuid = { type: 'string', format: 'uuid' } as const
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const params = { type: 'object', additionalProperties: false, required: ['projectId'], properties: { projectId: uuid } } as const
 const changeParams = { type: 'object', additionalProperties: false, required: ['projectId', 'changeId'], properties: { projectId: uuid, changeId: uuid } } as const
 const findingParams = { type: 'object', additionalProperties: false, required: ['projectId', 'changeId', 'findingId'], properties: { projectId: uuid, changeId: uuid, findingId: uuid } } as const
@@ -12,7 +14,7 @@ const evidenceParams = { type: 'object', additionalProperties: false, required: 
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 const message = (error: unknown): string => error instanceof Error ? error.message : ''
 
-export type BuilderOperationId = 'BLD-01' | 'BLD-02' | 'BLD-03' | 'BLD-04' | 'BLD-06' | 'BLD-07' | 'BLD-08' | 'BLD-09' | 'BLD-11' | 'BLD-12' | 'BLD-13' | 'BLD-14' | 'BLD-15' | 'BLD-17'
+export type BuilderOperationId = 'BLD-01' | 'BLD-02' | 'BLD-03' | 'BLD-04' | 'BLD-06' | 'BLD-07' | 'BLD-08' | 'BLD-09' | 'BLD-10' | 'BLD-11' | 'BLD-12' | 'BLD-13' | 'BLD-14' | 'BLD-15' | 'BLD-17'
 type ResolveBuilderSession = (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
 
 const current = (snapshot: BuilderSnapshot, operation: BuilderOperationId): unknown => {
@@ -85,6 +87,26 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
         }
         return sendProblem(reply, 503, 'builder-source-unavailable', 'Builder source unavailable')
       }
+    },
+  )
+
+  const previewQuery = { type: 'object', additionalProperties: false, required: [], properties: {
+    changeId: { type: 'string', minLength: 1, maxLength: 128 },
+  } } as const
+  app.get<{ Params: { projectId: string }; Querystring: { changeId?: string } }>(
+    '/api/control/projects/:projectId/preview', { schema: { params, querystring: previewQuery } }, async (request, reply) => {
+      const session = await dependencies.resolveCurrentSession(request)
+      if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      if (request.query.changeId && !UUID_PATTERN.test(request.query.changeId)) {
+        return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
+      }
+      try {
+        const subjectInput = { accountId: session.account.accountId, projectId: request.params.projectId }
+        const subject = await dependencies.store.readPreviewSubject(request.query.changeId
+          ? { ...subjectInput, changeId: request.query.changeId }
+          : subjectInput)
+        return subject ? projectBuildPreview(subject) : sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
+      } catch { return sendProblem(reply, 503, 'builder-preview-unavailable', 'Builder Preview unavailable') }
     },
   )
   const sourceFileQuery = { type: 'object', additionalProperties: false, required: ['sourceRevision', 'path'], properties: {
@@ -202,5 +224,5 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       return value ?? sendProblem(reply, 404, 'evidence-not-found', 'Evidence not found')
     } catch { return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable') }
   })
-  return ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-08', 'BLD-09', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17']
+  return ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-08', 'BLD-09', 'BLD-10', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17']
 }

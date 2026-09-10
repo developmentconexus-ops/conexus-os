@@ -61,6 +61,12 @@ For C-015 human authentication, the verified external identity key `(issuer, sub
 
 Exact table/column spellings belong post-C-018 derived Realization Planning. Logical owner schemas/capabilities remain explicit.
 
+The `hub_control` migration lineage and schema-integrity ledger are owned by
+the Project/platform persistence authority: the ordered SQL under
+`apps/hub/migrations` and `scripts/run-hub-migrations.mjs` are the sole runtime
+apply and checksum path. Atlas or another migration CLI may remain historical
+Evidence, but it is not a competing runtime owner.
+
 ## 5.4 Project Database
 
 Project-owned business/application data:
@@ -209,7 +215,10 @@ mastra_builder
 mastra_par
 -X-> hub_control / mastra_builder / Project DB / Keycloak provider persistence
 
-Project query/action/migrator role
+Project query/action/migrator capability roles (NOLOGIN; adopted by an
+already-admitted per-capability session; controlled qualification proves this
+with transient adopters, while Product runtime credential provisioning remains
+an owning-stage dependency; public database `CONNECT` revoked)
 -X-> hub_control / Mastra stores / another Project DB / Keycloak provider persistence
 
 Keycloak provider persistence credential

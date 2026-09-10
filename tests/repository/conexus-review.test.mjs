@@ -84,6 +84,15 @@ test('operator can select the bounded Opus fallback without changing the Fable d
   assert.match(wrongLane.stderr, /only valid for --lane opus or both/)
 })
 
+test('bounded review profiles reduce Opus effort without weakening lane selection', () => {
+  const result = jsonRun('--brief', brief, '--lane', 'opus', '--profile', 'delta')
+  assert.equal(result.status, 0, result.output)
+  assert.equal(result.body.profile, 'delta')
+  assert.equal(result.body.lanes[0].effort, 'high')
+  assert.match(result.body.lanes[0].args.join(' '), /--effort high/)
+  assert.match(result.body.lanes[0].args[1], /bounded delta\/focused review/)
+})
+
 test('execute is opt-in and cannot be combined with dry-run', () => {
   const result = run('--brief', brief, '--execute', '--dry-run')
   assert.notEqual(result.status, 0)
@@ -96,6 +105,16 @@ test('accepts a regular review brief outside the repository', () => {
   const result = run('--brief', outside, '--lane', 'opus', '--json')
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
   assert.match(result.stdout, /"mode": "dry-run"/)
+})
+
+test('candidate-bound review records the separate custody attestation digest', () => {
+  const candidate = 'docs/evidence/4f/4f-r3-rf05-rf08-candidate-freeze.md'
+  const attestation = 'docs/evidence/4f/4f-r3-rf05-rf08-candidate-attestation.json'
+  const result = jsonRun('--brief', 'docs/evidence/4f/4f-r3-rf05-rf08-candidate-review-brief.md', '--candidate-result', candidate, '--attestation', attestation, '--lane', 'opus')
+  assert.equal(result.status, 0, result.output)
+  assert.equal(result.body.attestation, attestation)
+  assert.match(result.body.attestationSha256, /^[a-f0-9]{64}$/)
+  assert.match(result.body.lanes[0].args[1], /Exact custody attestation:/)
 })
 
 test('binds an explicitly selected candidate result by repository path and digest', () => {
@@ -134,6 +153,10 @@ test('rejects invalid lanes and lane-specific continuity options', () => {
   const invalidConversation = run('--brief', brief, '--lane', 'opus', '--conversation', 'forbidden')
   assert.notEqual(invalidConversation.status, 0)
   assert.match(invalidConversation.stderr, /--conversation is only valid/)
+
+  const invalidProfile = run('--brief', brief, '--profile', 'quick')
+  assert.notEqual(invalidProfile.status, 0)
+  assert.match(invalidProfile.stderr, /invalid --profile/)
 })
 
 test('does not accidentally invoke a reviewer in dry-run mode', () => {
@@ -200,6 +223,70 @@ if (process.argv.includes('--version')) {
     assert.equal(body.lanes[0].raw.includes('FIRST_PROGRESS'), false)
     assert.deepEqual(JSON.parse(body.lanes[0].raw).type, 'result')
     assert.deepEqual(JSON.parse(readFileSync(body.outputFile, 'utf8')), body)
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true })
+  }
+})
+
+test('missing reviewer verdict produces an incomplete receipt instead of closure', () => {
+  const temporaryRoot = mkdtempSync(resolve(tmpdir(), 'conexus-review-no-verdict-'))
+  const fakeClaude = resolve(temporaryRoot, 'claude')
+  const outputDir = resolve(temporaryRoot, 'output')
+  writeFileSync(fakeClaude, `#!/usr/bin/env node
+if (process.argv.includes('--version')) {
+  process.stdout.write('2.1.257\\n')
+} else {
+  process.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', session_id: '33333333-3333-4333-8333-333333333333', result: 'NO FINDING' }) + '\\n')
+}
+`, 'utf8')
+  chmodSync(fakeClaude, 0o755)
+
+  try {
+    const result = spawnSync(process.execPath, [
+      script, '--brief', brief, '--lane', 'opus', '--execute', '--json', '--output-dir', outputDir,
+    ], {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      windowsHide: true,
+      env: { ...process.env, CONEXUS_REVIEW_CLAUDE_BIN: fakeClaude },
+    })
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`)
+    const body = JSON.parse(result.stdout)
+    assert.equal(body.status, 'INCOMPLETE')
+    assert.equal(body.lanes[0].status, 'INVALID_OUTPUT')
+    assert.match(result.stderr, /omitted the required VERDICT/)
+    assert.deepEqual(JSON.parse(readFileSync(body.outputFile, 'utf8')), body)
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true })
+  }
+})
+
+test('review lane timeout fails closed with a bounded receipt', () => {
+  const temporaryRoot = mkdtempSync(resolve(tmpdir(), 'conexus-review-timeout-'))
+  const fakeClaude = resolve(temporaryRoot, 'claude')
+  writeFileSync(fakeClaude, `#!/usr/bin/env node
+if (process.argv.includes('--version')) {
+  process.stdout.write('2.1.257\\n')
+} else {
+  setInterval(() => {}, 1000)
+}
+`, 'utf8')
+  chmodSync(fakeClaude, 0o755)
+
+  try {
+    const result = spawnSync(process.execPath, [
+      script, '--brief', brief, '--lane', 'opus', '--execute', '--json', '--timeout-ms', '1000',
+    ], {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      windowsHide: true,
+      env: { ...process.env, CONEXUS_REVIEW_CLAUDE_BIN: fakeClaude },
+    })
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`)
+    const body = JSON.parse(result.stdout)
+    assert.equal(body.status, 'INCOMPLETE')
+    assert.equal(body.lanes[0].status, 'FAILED')
+    assert.match(result.stderr, /timed out after 1000ms/)
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true })
   }

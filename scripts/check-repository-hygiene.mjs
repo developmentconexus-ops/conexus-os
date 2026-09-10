@@ -1,11 +1,15 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { resolve, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const root = resolve(new URL('../', import.meta.url).pathname)
-const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' })
+const repositoryRoot = fileURLToPath(new URL('../', import.meta.url))
+const root = process.argv[2] ? resolve(process.argv[2]) : repositoryRoot
+// Inspect the complete candidate census. Ignored build output stays excluded,
+// while non-ignored untracked files remain visible to hygiene checks.
+const tracked = [...new Set(execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: root, encoding: 'utf8' })
   .split('\0')
-  .filter(Boolean)
+  .filter(Boolean))].filter(path => existsSync(resolve(root, path)))
 const errors = []
 const forbiddenLegacy = ['m', 'n', 'f', 's'].join('')
 const reviewCandidate = process.env.REVIEW_CANDIDATE_REF || ''
@@ -92,5 +96,5 @@ if (errors.length) {
   console.error(errors.join('\n'))
   process.exitCode = 1
 } else {
-  console.log(`Repository hygiene passed (${tracked.length} tracked files).`)
+  console.log(`Repository hygiene passed (${tracked.length} candidate files, including non-ignored untracked paths).`)
 }

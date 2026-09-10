@@ -40,14 +40,17 @@ Project read-model state != sync correctness proof
 
 ## 3. Existing deciding Evidence
 
-Package D already proved with PostgreSQL 17.10 and pg-boss 12.26.3:
+Package D already proved a bounded **test-only fixture composition** with
+PostgreSQL 17.10 and pg-boss 12.26.3. The fixture demonstrates the class-level
+properties below; it is not Product MAR DDL and does not establish the identity
+or constraints of the future `mar.job_run` table:
 
-- same transaction commits `mar.job_run` and queue projection;
+- same transaction commits an owner fixture and queue projection;
 - forced rollback leaves neither;
 - commit followed by process loss leaves both discoverable;
-- concurrent same logical occurrence admits one owner row and a fail-closed
+- concurrent same logical occurrence admits one owner fixture and a fail-closed
   loser;
-- queue delivery without an admissible owner fact is refused before effect;
+- queue delivery without an admissible owner fixture is refused before effect;
 - external/provider/Mastra/Sankhya calls remain zero in the qualification probe.
 
 The qualification fixes the important composition properties:
@@ -62,7 +65,7 @@ retryLimit    = 0 for bounded first admission path
 vendor DDL    = exported/reviewed into one hub_control migration lineage
 ```
 
-It does not prove real sync cursor/merge/restart, Release handoff, one catch-up,
+It does not prove Product `mar.job_run` DDL, real sync cursor/merge/restart, Release handoff, one catch-up,
 cancel/timeout or current external-source behavior. Those remain first-build
 properties.
 

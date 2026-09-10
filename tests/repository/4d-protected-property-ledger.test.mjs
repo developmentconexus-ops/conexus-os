@@ -207,7 +207,7 @@ test('4D-01 compiles consumer-backed protected properties without selecting tech
 
   for (const token of [
     'PASS 1 OPERATOR APPROVED / PG-BOSS INCUMBENT CONFIRMED / NO DEPENDENCY SELECTION',
-    'same transaction commits `mar.job_run` and queue projection',
+    'same transaction commits an owner fixture and queue projection',
     'Graphile Worker',
     'BullMQ PostgreSQL backend',
     'Temporal',

@@ -26,6 +26,14 @@ export type ChangeEvidence = Readonly<{
   evidenceId: string; changeId: string; claim: string; subjectDigest: string
   provenance: readonly string[]
 }>
+export type BuildPreview = Readonly<{
+  previewId: string
+  subjectKind: 'CURRENT_PROJECT' | 'CHANGE_CANDIDATE'
+  subjectDigest: string
+  ready: boolean
+  verified: boolean
+  live: false
+}>
 
 export class BuilderRequestError extends Error {
   constructor(readonly status: number | null) { super(status === null ? 'Builder request did not complete' : `Builder request failed with ${status}`) }
@@ -47,6 +55,7 @@ const reject = (response: Response): never => {
 }
 const base = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/changes`
 const sourceBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/source`
+const previewBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/preview`
 
 export const listChanges = async (projectId: string): Promise<ChangeSummary[]> => {
   const response = await request(base(projectId))
@@ -91,6 +100,12 @@ export const getProjectSourceFile = async (projectId: string, sourceRevision: st
   const response = await request(`${sourceBase(projectId)}/file?${query}`)
   if (!response.ok) reject(response)
   return response.json() as Promise<SourceFile>
+}
+export const getBuildPreview = async (projectId: string, changeId?: string): Promise<BuildPreview> => {
+  const query = changeId ? `?${new URLSearchParams({ changeId })}` : ''
+  const response = await request(`${previewBase(projectId)}${query}`)
+  if (!response.ok) reject(response)
+  return response.json() as Promise<BuildPreview>
 }
 export const listChangeFindings = async (projectId: string, changeId: string): Promise<ChangeFinding[]> => {
   const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}/findings`)

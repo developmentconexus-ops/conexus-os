@@ -1,11 +1,27 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { test } from 'node:test'
-import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const run = script => spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' })
+const runAt = (script, candidateRoot) => spawnSync(process.execPath, [resolve(root, script), candidateRoot], {
+  cwd: root,
+  encoding: 'utf8',
+})
+const gitFixture = (trackedFiles) => {
+  const target = mkdtempSync(resolve(tmpdir(), 'conexus-repository-contract-'))
+  execFileSync('git', ['init', '--quiet'], { cwd: target })
+  for (const [path, contents] of Object.entries(trackedFiles)) {
+    const destination = resolve(target, path)
+    mkdirSync(dirname(destination), { recursive: true })
+    writeFileSync(destination, contents)
+  }
+  execFileSync('git', ['add', '--', ...Object.keys(trackedFiles)], { cwd: target })
+  return target
+}
 let mutationQueue = Promise.resolve()
 const serialTest = (name, fn) => test(name, async context => {
   const previous = mutationQueue
@@ -43,6 +59,42 @@ serialTest('repository hygiene guard fires on temporary work contamination', () 
     if (existed) writeFileSync(file, original)
     else rmSync(file, { force: true })
     if (!workRootExisted) rmSync(workRoot, { recursive: true, force: true })
+  }
+})
+
+serialTest('candidate census: documentation index guard inspects an untracked document', () => {
+  const candidateRoot = gitFixture({ 'docs/index.md': '# Documentation index\n' })
+  const directory = resolve(candidateRoot, 'docs/evidence/4f')
+  const file = resolve(directory, 'untracked-doc-index-fixture.md')
+  mkdirSync(directory, { recursive: true })
+  writeFileSync(file, '[broken](./missing-untracked-fixture.md)\n')
+  try {
+    const result = runAt('scripts/check-doc-index.mjs', candidateRoot)
+    const output = `${result.stdout}\n${result.stderr}`
+    if (result.status === 0 || !output.includes('untracked-doc-index-fixture.md')) {
+      throw new Error(`documentation index negative control did not fire:\n${output}`)
+    }
+  } finally {
+    rmSync(candidateRoot, { recursive: true, force: true })
+  }
+})
+
+serialTest('candidate census: repository hygiene guard inspects an untracked transient path', () => {
+  const candidateRoot = gitFixture({
+    'package.json': '{"name":"conexus-os","private":true}\n',
+  })
+  const directory = resolve(candidateRoot, 'docs/evidence/4f')
+  const file = resolve(directory, 'untracked-handoff-fixture.md')
+  mkdirSync(directory, { recursive: true })
+  writeFileSync(file, '# transient candidate\n')
+  try {
+    const result = runAt('scripts/check-repository-hygiene.mjs', candidateRoot)
+    const output = `${result.stdout}\n${result.stderr}`
+    if (result.status === 0 || !output.includes('transient path: docs/evidence/4f/untracked-handoff-fixture.md')) {
+      throw new Error(`hygiene untracked negative control did not fire:\n${output}`)
+    }
+  } finally {
+    rmSync(candidateRoot, { recursive: true, force: true })
   }
 })
 

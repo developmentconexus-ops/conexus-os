@@ -114,6 +114,15 @@ commands without spending model quota. Add `--execute` only for an authorized,
 meaningful checkpoint. Resume a session/conversation only when continuity is
 part of the Evidence contract; otherwise prefer fresh context.
 
+The review wrapper supports proportional profiles without changing the
+independence floor: `material` keeps Opus at `xhigh`, while `delta` and
+`focused` lower only Opus effort for a bounded correction whose protected
+property and deciding-proof reliability are unchanged. A stage closure,
+authority/trust-boundary change or structural runtime/database change remains
+`material` and still requires two fresh lanes. Every executed lane has a
+bounded timeout and must emit an explicit `VERDICT = ...` line; a timeout,
+missing verdict or input-digest drift is incomplete Evidence, never closure.
+
 Reviewer output is Evidence, not authority. Classify each finding as `METHOD
 FINDING`, `PRODUCT / PLAN GAP`, `LOCAL EXECUTION GAP`, or `NO FINDING`. The Lead
 adjudicates each finding against current owners through the Engineering Method,

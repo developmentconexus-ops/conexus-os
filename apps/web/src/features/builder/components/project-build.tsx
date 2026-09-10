@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
-import { BuilderRequestError, closeChangeFinding, createChange, getChange, getChangeDiff, getChangePlan, getChangeProgress, getProjectSourceFile, listChangeEvidence, listChangeFindings, listChanges, listProjectSourceTree } from '../api'
+import { BuilderRequestError, closeChangeFinding, createChange, getBuildPreview, getChange, getChangeDiff, getChangePlan, getChangeProgress, getProjectSourceFile, listChangeEvidence, listChangeFindings, listChanges, listProjectSourceTree } from '../api'
 
-const terminal = new Set(['VERIFIED', 'UNVERIFIED', 'FAILED', 'INTERRUPTED'])
+const terminal = new Set(['VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED', 'FAILED', 'INTERRUPTED'])
 const hasCandidate = new Set(['RESULT_READY', 'VERIFYING', 'VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED'])
 
 export function ProjectBuild({ projectId }: { projectId: string }) {
@@ -22,9 +22,17 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     if (!currentId) throw new Error('No current Change')
     return currentId
   }
+  const currentPreview = useQuery({
+    queryKey: ['builder-preview', projectId, 'current'], queryFn: () => getBuildPreview(projectId),
+  })
   const change = useQuery({
     queryKey: ['builder-change', projectId, currentId], queryFn: () => getChange(projectId, requireCurrentId()),
     enabled: Boolean(currentId), refetchInterval: (query) => terminal.has(query.state.data?.state ?? '') ? false : 1_500,
+  })
+  const candidatePreview = useQuery({
+    queryKey: ['builder-preview', projectId, currentId, change.data?.state], queryFn: () => getBuildPreview(projectId, requireCurrentId()),
+    enabled: Boolean(currentId) && hasCandidate.has(change.data?.state ?? ''),
+    refetchInterval: () => terminal.has(change.data?.state ?? '') ? false : 2_000,
   })
   const plan = useQuery({ queryKey: ['builder-plan', projectId, currentId], queryFn: () => getChangePlan(projectId, requireCurrentId()), enabled: Boolean(currentId), refetchInterval: (query) => terminal.has(query.state.data?.progress ?? '') ? false : 2_000 })
   const progress = useQuery({ queryKey: ['builder-progress', projectId, currentId], queryFn: () => getChangeProgress(projectId, requireCurrentId()), enabled: Boolean(currentId), refetchInterval: (query) => terminal.has(query.state.data?.overallState ?? '') ? false : 1_500 })
@@ -100,6 +108,18 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
         <p role="status" aria-live="polite">{message}</p>
       </form>
 
+      <section aria-labelledby="build-preview-title">
+        <h2 id="build-preview-title">Preview</h2>
+        {currentPreview.isError && <p role="alert">{currentPreview.error instanceof BuilderRequestError && currentPreview.error.status === 404
+          ? 'Não foi possível obter um Preview para este Project.'
+          : 'Não foi possível consultar o Preview do Baseline aprovado.'}</p>}
+        {currentPreview.data && <div>
+          <p><strong>{currentPreview.data.subjectKind === 'CURRENT_PROJECT' ? 'Baseline aprovado' : 'Candidato de Change'}</strong> — sujeito <code>{currentPreview.data.subjectDigest}</code></p>
+          <p>{currentPreview.data.ready ? 'Preview pronto para servir.' : 'Preview ainda não está pronto: não há artefato de aplicação admitido.'}</p>
+          <small>Verificado: {currentPreview.data.verified ? 'sim' : 'não'} · live: {currentPreview.data.live ? 'sim' : 'não'}</small>
+        </div>}
+      </section>
+
       {changes.isError && <p role="alert">Não foi possível consultar os Changes deste Project.</p>}
       {changes.data && changes.data.length > 0 && (
         <section aria-labelledby="build-activity-title">
@@ -113,6 +133,12 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
             {currentId && <article className="build-result">
               <p className="eyebrow">{change.data?.state ?? 'Carregando'}</p>
               <h3>{change.data?.intent ?? 'Change'}</h3>
+              {candidatePreview.isError && <p role="alert">Não foi possível consultar o Preview deste candidato.</p>}
+              {candidatePreview.data && <section aria-labelledby="candidate-preview-title">
+                <h4 id="candidate-preview-title">Preview do candidato</h4>
+                <p>{candidatePreview.data.subjectKind === 'CHANGE_CANDIDATE' ? 'Candidato de Change' : 'Baseline aprovado'} · sujeito <code>{candidatePreview.data.subjectDigest}</code> · verificado: {candidatePreview.data.verified ? 'sim' : 'não'} · live: {candidatePreview.data.live ? 'sim' : 'não'}</p>
+                <p>{candidatePreview.data.ready ? 'Preview pronto para servir.' : 'Preview ainda não está pronto: não há artefato de aplicação admitido.'}</p>
+              </section>}
               {plan.data && <div><strong>Plano mínimo</strong><ul>{plan.data.items.map((item) => <li key={item.itemId}>{item.summary} — {item.state}</li>)}</ul></div>}
               {progress.data && <p><strong>Progresso:</strong> {progress.data.overallState}</p>}
               {change.data?.state === 'FAILED' && <p role="alert">O trabalho foi interrompido sem produzir um resultado aceito.</p>}

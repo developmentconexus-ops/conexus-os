@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type { PostgresPool } from '../platform/postgres.js'
+import type { BuilderPreviewSubject } from './preview.js'
 
 export type ChangeProjection = Readonly<{
   changeId: string
@@ -89,6 +90,7 @@ type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 export type BuilderStore = Readonly<{
   createChange(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; intent: string }>): Promise<ChangeProjection>
   listChanges(input: Readonly<{ accountId: string; projectId: string }>): Promise<readonly ChangeProjection[]>
+  readPreviewSubject(input: Readonly<{ accountId: string; projectId: string; changeId?: string }>): Promise<BuilderPreviewSubject | null>
   readSnapshot(input: Readonly<{ accountId: string; projectId: string; changeId: string; requireSource: boolean }>): Promise<BuilderSnapshot | null>
   claimChange(changeId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<ClaimedChange>
   claimCorrection(changeId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<ClaimedChange | null>
@@ -134,6 +136,12 @@ export const createBuilderStore = ({
       'SELECT value FROM builder.list_changes($1,$2) AS value', [accountId, projectId],
     )
     return result.rows.map((row) => row.value)
+  },
+  readPreviewSubject: async ({ accountId, projectId, changeId }) => {
+    const result = await ingressPool.query<JsonRow<BuilderPreviewSubject | null>>(
+      'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, projectId, changeId ?? null],
+    )
+    return result.rows[0]?.value ?? null
   },
   readSnapshot: async ({ accountId, projectId, changeId, requireSource }) => {
     const result = await ingressPool.query<JsonRow<BuilderSnapshot | null>>(

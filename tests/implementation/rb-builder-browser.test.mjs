@@ -24,9 +24,21 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   const attempts = []
   const evidenceFetchStates = []
   const sourceReads = []
+  const previewReads = []
+  let baselineAvailable = false
   const change = () => ({ changeId, projectId, intent: 'Adicionar uma página de saúde', baselineDigest: 'a'.repeat(64), planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', state })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId: workspaceId, displayName: 'Builder Operator' }, workspaces: [{ workspaceId, name: 'Workspace' }], projects: [] }) }))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId, name: 'Health App', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/preview*`, (route) => {
+    const requestedChangeId = new URL(route.request().url()).searchParams.get('changeId')
+    previewReads.push(requestedChangeId)
+    const candidate = requestedChangeId === changeId
+    if (!candidate && !baselineAvailable) return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ type: 'about:blank', title: 'Not Found', status: 404 }) })
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      previewId: candidate ? 'preview-candidate' : 'preview-current', subjectKind: candidate ? 'CHANGE_CANDIDATE' : 'CURRENT_PROJECT',
+      subjectDigest: candidate ? 'c'.repeat(40) : 'a'.repeat(64), ready: false, verified: candidate && state === 'VERIFIED', live: false,
+    }) })
+  })
   await page.route(`**/api/control/projects/${projectId}/changes`, (route) => {
     if (route.request().method() === 'POST') {
       attempts.push({ body: route.request().postDataJSON(), key: route.request().headers()['idempotency-key'] })
@@ -64,6 +76,17 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   await page.goto(`${origin}/projects/${projectId}`)
   await page.getByRole('link', { name: 'Construir com o Conexus' }).click()
   await page.getByRole('heading', { name: 'Construir com o Conexus' }).waitFor()
+  await page.getByText('Não foi possível obter um Preview para este Project.', { exact: true }).waitFor()
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 2_500))
+  assert.deepEqual(previewReads.filter((requestedChangeId) => requestedChangeId === null), [null])
+  previewReads.length = 0
+  baselineAvailable = true
+  await page.reload()
+  await page.getByText('Baseline aprovado', { exact: true }).waitFor()
+  await page.getByText('a'.repeat(64), { exact: true }).waitFor()
+  await page.getByText('Preview ainda não está pronto: não há artefato de aplicação admitido.').waitFor()
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 2_500))
+  assert.deepEqual(previewReads.filter((requestedChangeId) => requestedChangeId === null), [null])
   await page.getByLabel('O que deve mudar neste Project?').fill('Adicionar uma página de saúde')
   await page.getByRole('button', { name: 'Pedir mudança' }).click()
   await page.getByText('Change criado. O Conexus iniciou o trabalho governado.').waitFor()
@@ -79,6 +102,9 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   assert.equal(evidenceFetchStates.includes('VERIFYING'), true)
   state = 'VERIFIED'
   await page.getByRole('heading', { name: 'Diff do resultado' }).waitFor({ timeout: 7_000 })
+  const candidatePreview = page.getByRole('heading', { name: 'Preview do candidato' }).locator('..')
+  await candidatePreview.getByText('c'.repeat(40), { exact: true }).waitFor()
+  await candidatePreview.getByText('verificado: sim', { exact: false }).waitFor()
   await page.getByText('Resultado verificado.', { exact: false }).waitFor()
   await page.getByRole('heading', { name: 'Verificação' }).waitFor()
   await page.getByText('O candidato satisfaz a intenção aceita do Change.', { exact: false }).waitFor()
@@ -93,9 +119,14 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   assert.deepEqual(sourceReads.filter(([kind]) => kind === 'file'), [
     ['file', 'c'.repeat(40), 'src/health.ts'], ['file', 'b'.repeat(40), 'README.md'],
   ])
+  assert.equal(previewReads.includes(null), true)
+  assert.equal(previewReads.includes(changeId), true)
+  const candidateReadsBeforeFailure = previewReads.filter((requestedChangeId) => requestedChangeId === changeId).length
   state = 'VERIFICATION_FAILED'
   await page.reload()
   await page.getByText('Verificação reprovada.', { exact: false }).waitFor()
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 2_500))
+  assert.equal(previewReads.filter((requestedChangeId) => requestedChangeId === changeId).length, candidateReadsBeforeFailure + 1)
   await page.setViewportSize({ width: 360, height: 800 })
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true)
 })
@@ -124,11 +155,19 @@ test('Project Build shows one correction and closes a Finding only with current 
   const change = () => ({ changeId, projectId, intent: 'Adicionar rota de saúde', baselineDigest: 'a'.repeat(64), planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', state })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId: workspaceId, displayName: 'Builder Operator' }, workspaces: [{ workspaceId, name: 'Workspace' }], projects: [] }) }))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId, name: 'Health App', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/preview*`, (route) => {
+    const requestedChangeId = new URL(route.request().url()).searchParams.get('changeId')
+    const isCandidate = requestedChangeId === changeId
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      previewId: isCandidate ? 'preview-candidate' : 'preview-current', subjectKind: isCandidate ? 'CHANGE_CANDIDATE' : 'CURRENT_PROJECT',
+      subjectDigest: isCandidate ? candidate : 'a'.repeat(64), ready: false, verified: false, live: false,
+    }) })
+  })
   await page.route(`**/api/control/projects/${projectId}/changes`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([change()]) }))
   await page.route(`**/api/control/projects/${projectId}/changes/${changeId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(change()) }))
   await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/plan`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ planRevision: workspaceId, planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', items: [{ itemId: projectId, summary: change().intent, state: state === 'RUNNING' ? 'RUNNING' : 'COMPLETED' }], dependencyEdges: [], acceptanceLinks: [], blockers: [], unknowns: [], progress: state }) }))
   await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/progress`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ planRevision: workspaceId, items: [], overallState: state }) }))
-  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/diff`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ baseSourceRevision: 'a'.repeat(40), candidateSourceRevision: candidate, patch: candidate === 'b'.repeat(40) ? '+broken' : '+health: corrected' }) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/diff`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ baseSourceRevision: 'b'.repeat(40), candidateSourceRevision: candidate, patch: candidate === 'b'.repeat(40) ? '+broken' : '+health: corrected' }) }))
   await page.route(`**/api/control/projects/${projectId}/source/tree*`, (route) => {
     const sourceRevision = new URL(route.request().url()).searchParams.get('sourceRevision')
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision, entries: [{ path: 'src/route.ts', kind: 'FILE' }] }) })
@@ -154,8 +193,12 @@ test('Project Build shows one correction and closes a Finding only with current 
   await page.getByRole('button', { name: 'src/route.ts' }).click()
   await page.getByText(`candidate=${'b'.repeat(40)}`, { exact: true }).waitFor()
   candidate = 'c'.repeat(40)
+  state = 'VERIFYING'
+  await page.reload()
   await page.getByText('A rota corrigida ainda exige confirmação.', { exact: false }).waitFor({ timeout: 7_000 })
   await page.getByText('+health: corrected', { exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Fonte original' }).click()
+  await page.getByRole('button', { name: 'src/route.ts' }).click()
   await page.getByText(`candidate=${'b'.repeat(40)}`, { exact: true }).waitFor()
   await page.getByRole('button', { name: 'Resultado atual' }).click()
   await page.getByRole('button', { name: 'src/route.ts' }).click()
@@ -170,4 +213,62 @@ test('Project Build shows one correction and closes a Finding only with current 
   await page.getByText('Resultado verificado.', { exact: false }).waitFor({ timeout: 7_000 })
   assert.deepEqual(closePayload, { expectedFindingRevision: findingRevision, resolutionEvidenceIds: [evidenceId] })
   await page.getByText('+health: corrected', { exact: true }).waitFor()
+})
+
+test('Project Build keeps an open source revision pinned while the candidate advances', async (t) => {
+  const workspaceId = '72000000-0000-4000-8000-000000000001'
+  const projectId = '72000000-0000-4000-8000-000000000002'
+  const changeId = '72000000-0000-4000-8000-000000000003'
+  const findingId = '72000000-0000-4000-8000-000000000004'
+  const findingRevision = '72000000-0000-4000-8000-000000000005'
+  const origin = 'http://127.0.0.1:41751'
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41751, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  let state = 'VERIFYING'
+  let candidate = 'b'.repeat(40)
+  const change = () => ({ changeId, projectId, intent: 'Adicionar rota de saúde', baselineDigest: 'a'.repeat(64), planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', state })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId: workspaceId, displayName: 'Builder Operator' }, workspaces: [{ workspaceId, name: 'Workspace' }], projects: [] }) }))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId, name: 'Health App', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/preview*`, (route) => {
+    const requestedChangeId = new URL(route.request().url()).searchParams.get('changeId')
+    const isCandidate = requestedChangeId === changeId
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      previewId: isCandidate ? 'preview-candidate' : 'preview-current', subjectKind: isCandidate ? 'CHANGE_CANDIDATE' : 'CURRENT_PROJECT',
+      subjectDigest: isCandidate ? candidate : 'a'.repeat(64), ready: false, verified: false, live: false,
+    }) })
+  })
+  await page.route(`**/api/control/projects/${projectId}/changes`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([change()]) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(change()) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/plan`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ planRevision: workspaceId, planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', items: [{ itemId: projectId, summary: change().intent, state: 'COMPLETED' }], dependencyEdges: [], acceptanceLinks: [], blockers: [], unknowns: [], progress: state }) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/progress`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ planRevision: workspaceId, items: [], overallState: state }) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/diff`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ baseSourceRevision: 'a'.repeat(40), candidateSourceRevision: candidate, patch: candidate === 'b'.repeat(40) ? '+broken' : '+health: corrected' }) }))
+  await page.route(`**/api/control/projects/${projectId}/source/tree*`, (route) => {
+    const sourceRevision = new URL(route.request().url()).searchParams.get('sourceRevision')
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision, entries: [{ path: 'src/route.ts', kind: 'FILE' }] }) })
+  })
+  await page.route(`**/api/control/projects/${projectId}/source/file*`, (route) => {
+    const query = new URL(route.request().url()).searchParams
+    const sourceRevision = query.get('sourceRevision')
+    const path = query.get('path')
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision, path, content: `candidate=${sourceRevision}\n` }) })
+  })
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/findings`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ findingId, changeId, findingRevision, state: 'OPEN', summary: candidate === 'b'.repeat(40) ? 'A rota de saúde está ausente.' : 'A rota corrigida ainda exige confirmação.' }]) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/evidence`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByText('O Conexus está verificando o candidato em uma execução independente.', { exact: false }).waitFor()
+  await page.getByRole('button', { name: 'src/route.ts' }).click()
+  await page.getByText(`candidate=${'b'.repeat(40)}`, { exact: true }).waitFor()
+  candidate = 'c'.repeat(40)
+  state = 'UNVERIFIED'
+  await page.getByText('A rota corrigida ainda exige confirmação.', { exact: false }).waitFor({ timeout: 7_000 })
+  await page.getByText('+health: corrected', { exact: true }).waitFor()
+  await page.getByText(`candidate=${'b'.repeat(40)}`, { exact: true }).waitFor()
 })

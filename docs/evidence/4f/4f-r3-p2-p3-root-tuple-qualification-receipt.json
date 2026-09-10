@@ -1,0 +1,96 @@
+{
+  "schema": "conexus.r3-p2-p3-root-tuple-qualification/v1",
+  "status": "HISTORICAL_PROJECTION_NOT_CURRENT_PROOF",
+  "executedAt": "2026-09-10",
+  "authority": "Historical R3 P2/P3 owner decision and implementation review projection",
+  "historicalDisposition": {
+    "currentUse": "Context only; do not use as current P2/P3 qualification or provenance proof",
+    "reason": "This aggregate record was composed from separate qualification outputs and is not emitted by one reproducible root-tuple command",
+    "replacementRoute": "R3-IMP-P6 must regenerate one aggregate receipt from the exact frozen Project, Hub and managed-execution subjects before downstream consumption"
+  },
+  "repoHead": "e9ff12e4394c855e5a15656b0d74e26bc5f46a02",
+  "candidate": {
+    "base": "e9ff12e4394c855e5a15656b0d74e26bc5f46a02",
+    "freezeSha256": "46da4f909050dfa17c5a7f6851a7d8becaafba63893d14563c735c074686d976",
+    "candidateManifestDigest": "7caa7ddfb2523a159e9697efebae9c0e099d8d03d0567f9e71c11745e0ef16df",
+    "projectSourceRevision": "r3-p2-p3-implementation-candidate/2026-09-09"
+  },
+  "tuple": {
+    "node": "24.20.0",
+    "pg": "8.23.0",
+    "pgBoss": "12.26.3",
+    "postgres": "17.10",
+    "serverVersionNum": "170010"
+  },
+  "subjects": {
+    "project": {
+      "script": "qualification/4f/r3-root-tuple/run.mjs",
+      "database": "conexus_r3_project",
+      "migration": {
+        "firstRun": ["001", "002"],
+        "restartRun": [],
+        "sourceRevisionMismatch": "PROJECT_MIGRATION_SOURCE_REVISION_MISMATCH:001",
+        "isolationLedger": "project_meta.schema_migration"
+      },
+      "falsifiers": {
+        "snapshotAtomicVisibility": "PASS",
+        "snapshotDeletion": "PASS",
+        "deltaOmissionRetains": "PASS",
+        "deltaExplicitTombstoneDeletes": "PASS",
+        "staleWriterRejected": "PASS",
+        "firstGenerationDriftRejected": "PASS",
+        "sourceDriftDegradesCurrent": "PASS",
+        "deltaRebaselineRejectedAfterDrift": "PASS",
+        "multiBatchRebaselineAfterDrift": "PASS",
+        "ambiguousObservationRemainsUnknown": "PASS",
+        "observationGapKindVisible": "PASS",
+        "observationGapPartialRemainsUnknown": "PASS",
+        "observationGapKindClearedOnDrift": "PASS",
+        "observationGapKindClearedOnRecovery": "PASS",
+        "observationGapRebaseline": "PASS",
+        "workingStateVisible": "PASS",
+        "directDmlDenied": { "insert": "42501", "update": "42501", "delete": "42501" },
+        "queryBaseTableDenied": "42501",
+        "queryExecute": false,
+        "publicExecute": false,
+        "definerOwner": "project_migration_owner",
+        "definerSearchPath": "pg_catalog, budget_analyzer, pg_temp"
+      }
+    },
+    "hub": {
+      "runner": "scripts/run-hub-migrations.mjs",
+      "database": "conexus_r3_hub",
+      "firstRun": ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "014", "015", "016", "017", "018", "019", "020", "021", "022", "023", "024", "025"],
+      "restartRun": [],
+      "catalogAssertions": ["024 vendor object and privilege boundary", "025 admission function security and execute boundary"]
+    },
+    "syntheticManagedExecution": {
+      "script": "qualification/4f/r3-root-tuple/managed-execution.mjs",
+      "database": "conexus_r3_managed",
+      "fixture": "mar.dt1_owner_job_run",
+      "queue": "dt1-root-tuple-projection",
+      "vendorDdlSha256": "9b5b191f613733ae68fd43a455ce986a89e5ba4c369dc33eb148230b74a647f9",
+      "runtime": { "schema": "mar", "createSchema": false, "migrate": false, "schedule": false, "retryLimit": 0 },
+      "falsifiers": {
+        "atomicOwnerAndProjection": "PASS",
+        "rollbackRemovesBoth": "PASS",
+        "concurrentUniqueAdmission": "PASS",
+        "productJobRunRelation": null,
+        "externalCalls": { "provider": 0, "model": 0, "e2b": 0, "sankhya": 0, "realEffects": 0 }
+      }
+    }
+  },
+  "verdict": "HISTORICAL_PROJECTION_ONLY",
+  "nonClaims": [
+    "R3-P1..P7 closure",
+    "independent review closure",
+    "live JobRun, Sankhya, provider, model or external effect",
+    "served Release, deployment, publication or merge"
+  ],
+  "reopenTriggers": [
+    "tuple, dependency, vendor-DDL or runtime-config drift",
+    "source-revision or migration-ledger drift",
+    "new Product meaning, shared database or cross-owner write",
+    "a failing P2/P3, recovery or live-target falsifier"
+  ]
+}

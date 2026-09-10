@@ -3,10 +3,14 @@ import { dirname, relative, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
-const root = fileURLToPath(new URL('../', import.meta.url))
+const repositoryRoot = fileURLToPath(new URL('../', import.meta.url))
+const root = process.argv[2] ? resolve(process.argv[2]) : repositoryRoot
 const errors = []
-const tracked = execFileSync('git', ['ls-files', '*.md'], { cwd: root, encoding: 'utf8' })
-  .trim().split('\n').filter(Boolean)
+// Candidate Evidence may still be untracked while a dirty worktree is being
+// reviewed. Include every tracked and non-ignored Markdown path so a new
+// packet cannot pass merely because it has not been committed yet.
+const tracked = [...new Set(execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', '*.md'], { cwd: root, encoding: 'utf8' })
+  .split('\0').filter(Boolean))].filter(path => existsSync(resolve(root, path)))
 const durable = tracked.filter(path =>
   path.startsWith('docs/') &&
   !path.startsWith('docs/work/') &&

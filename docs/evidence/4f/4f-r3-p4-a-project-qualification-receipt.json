@@ -1,0 +1,353 @@
+{
+  "schema": "conexus.r3-p4-a-project-qualification/v1",
+  "status": "QUALIFIED_CONTROLLED_PROJECT_P4_A",
+  "executedAt": "2026-09-10T14:05:38.901Z",
+  "authority": "R3 P4-A implementation review brief",
+  "repoHead": "e9ff12e4394c855e5a15656b0d74e26bc5f46a02",
+  "candidate": {
+    "base": "e9ff12e4394c855e5a15656b0d74e26bc5f46a02",
+    "freezeSha256": "d742d2ee5a1f793a73af585c5c7c9a0a18bf1e7972b26d3963a8d54de5a4a0cd",
+    "candidateManifestDigest": "4349cf91ef5d29d46a649647b8c5964fa5303894f23e3f93dd1b6d8c8dabb797",
+    "projectSourceRevision": "r3-p2-p3-implementation-candidate/2026-09-09"
+  },
+  "tuple": {
+    "node": "24.20.0",
+    "pg": "8.23.0",
+    "pgBoss": "12.26.3",
+    "postgres": "17.10 (Debian 17.10-1.pgdg12+1)",
+    "serverVersionNum": "170010",
+    "projectSourceRevision": "r3-p2-p3-implementation-candidate/2026-09-09",
+    "projectRoles": {
+      "migration": "project_migration_owner_a927ba5cab266f0921d9e3173b212e51",
+      "sync": "project_sync_runtime_a927ba5cab266f0921d9e3173b212e51",
+      "query": "project_query_runtime_a927ba5cab266f0921d9e3173b212e51"
+    }
+  },
+  "subject": {
+    "script": "qualification/4f/r3-root-tuple/run.mjs",
+    "database": "conexus_r3_project",
+    "migration": {
+      "firstRun": [
+        "001",
+        "002"
+      ],
+      "restartRun": [],
+      "sourceRevisionMismatch": "PROJECT_MIGRATION_SOURCE_REVISION_MISMATCH:001",
+      "isolationLedger": "project_meta.schema_migration"
+    },
+    "proofGate": {
+      "status": "PASS_AFTER_LINEAR_ASSERTION_GATE",
+      "note": "The fixture aborts on any failed assertion; falsifier records below are observations from that one gated execution."
+    },
+    "falsifiers": {
+      "semanticOnlyDriftRejected": {
+        "observed": {
+          "status": "REJECTED_DRIFT",
+          "committedGeneration": "0",
+          "workingGeneration": null,
+          "freshness": "UNKNOWN"
+        }
+      },
+      "snapshotAtomicVisibility": {
+        "observed": {
+          "status": "STAGED",
+          "committedGeneration": "0",
+          "workingGeneration": "1",
+          "freshness": "UNKNOWN",
+          "coverage": "UNKNOWN",
+          "currentItems": []
+        }
+      },
+      "workingStateVisible": {
+        "observed": {
+          "workingGeneration": "1",
+          "workingCursor": {
+            "page": 1,
+            "snapshot": 1
+          },
+          "observationKind": "FULL_SNAPSHOT",
+          "freshness": "UNKNOWN",
+          "coverage": "UNKNOWN",
+          "mergeState": "UNKNOWN"
+        }
+      },
+      "snapshotDeletion": {
+        "observed": {
+          "status": "COMMITTED",
+          "currentRefs": [
+            "B-001",
+            "B-003"
+          ],
+          "omittedRef": "B-002"
+        }
+      },
+      "deltaOmissionRetains": {
+        "observed": {
+          "status": "COMMITTED",
+          "currentRefs": [
+            "B-001",
+            "B-003"
+          ],
+          "retainedRef": "B-003"
+        }
+      },
+      "deltaExplicitTombstoneDeletes": {
+        "observed": {
+          "status": "COMMITTED",
+          "currentRefs": [
+            "B-001"
+          ],
+          "deletedRef": "B-003"
+        }
+      },
+      "staleWriterRejected": {
+        "observed": "PROJECT_SYNC_STALE_WRITER"
+      },
+      "midRecoveryDriftRejected": {
+        "observed": {
+          "status": "REJECTED_DRIFT",
+          "committedGeneration": "4",
+          "workingGeneration": null,
+          "freshness": "UNKNOWN",
+          "coverage": "UNKNOWN",
+          "mergeState": "UNKNOWN"
+        }
+      },
+      "sourceDriftDegradesCurrent": {
+        "observed": {
+          "status": "REJECTED_DRIFT",
+          "freshness": "UNKNOWN",
+          "coverage": "UNKNOWN",
+          "mergeState": "UNKNOWN",
+          "currentRefs": [
+            "B-001"
+          ]
+        }
+      },
+      "deltaRebaselineRejectedAfterDrift": {
+        "observed": "PROJECT_SYNC_REBASELINE_REQUIRED"
+      },
+      "multiBatchRebaselineAfterDrift": {
+        "observed": {
+          "partialStatus": "STAGED",
+          "partialFreshness": "UNKNOWN",
+          "partialCoverage": "UNKNOWN",
+          "persistedFreshness": "UNKNOWN",
+          "persistedCoverage": "UNKNOWN",
+          "persistedMergeState": "UNKNOWN",
+          "commitStatus": null,
+          "terminationStatus": "REJECTED_DRIFT"
+        }
+      },
+      "ambiguousObservationRemainsUnknown": {
+        "observed": {
+          "status": "GAP_RECORDED",
+          "freshness": "UNKNOWN",
+          "coverage": "UNKNOWN",
+          "mergeState": "UNKNOWN",
+          "lastGapKind": "AMBIGUOUS",
+          "currentRefs": [
+            "B-004"
+          ]
+        }
+      },
+      "observationGapKindVisible": {
+        "observed": {
+          "status": "GAP_RECORDED",
+          "lastGapKind": "AMBIGUOUS"
+        }
+      },
+      "observationGapReplayIdempotent": {
+        "observed": {
+          "status": "REPLAYED",
+          "checkpointRevision": "12",
+          "committedGeneration": "5"
+        }
+      },
+      "observationGapConflictRejected": {
+        "observed": "PROJECT_SYNC_OBSERVATION_CONFLICT"
+      },
+      "observationGapStaleWriterRejected": {
+        "observed": "PROJECT_SYNC_STALE_WRITER"
+      },
+      "observationGapPartialRemainsUnknown": {
+        "observed": {
+          "status": "STAGED",
+          "returnedFreshness": "UNKNOWN",
+          "persistedFreshness": "UNKNOWN",
+          "persistedCoverage": "UNKNOWN",
+          "persistedMergeState": "UNKNOWN",
+          "persistedLastGapKind": "AMBIGUOUS"
+        }
+      },
+      "observationGapKindClearedOnDrift": {
+        "observed": {
+          "status": "REJECTED_DRIFT",
+          "freshness": "UNKNOWN",
+          "lastGapKind": null
+        }
+      },
+      "observationGapKindClearedOnRecovery": {
+        "observed": {
+          "status": "COMMITTED",
+          "freshness": "CURRENT",
+          "lastGapKind": null
+        }
+      },
+      "missingObservationRemainsUnknown": {
+        "observed": {
+          "status": "GAP_RECORDED",
+          "freshness": "UNKNOWN",
+          "coverage": "UNKNOWN",
+          "mergeState": "UNKNOWN",
+          "lastGapKind": "MISSING",
+          "currentRefs": [
+            "B-004"
+          ]
+        }
+      },
+      "missingObservationRebaseline": {
+        "observed": {
+          "status": "COMMITTED",
+          "freshness": "CURRENT",
+          "lastGapKind": null,
+          "committedGeneration": "8"
+        }
+      },
+      "emptyCompleteRejected": {
+        "observed": "PROJECT_SYNC_EMPTY_COMPLETE_REFUSED"
+      },
+      "readModelAdapterObserved": {
+        "observed": {
+          "committedGeneration": "8",
+          "freshness": "CURRENT",
+          "coverage": "COMPLETE",
+          "mergeState": "IDLE",
+          "currentRefs": [
+            "B-004"
+          ],
+          "canonicalBusinessDate": "2026-09-09"
+        }
+      },
+      "observationGapRebaseline": {
+        "observed": {
+          "status": "COMMITTED",
+          "freshness": "CURRENT",
+          "lastGapKind": null
+        }
+      },
+      "directDmlDenied": {
+        "observed": {
+          "insert": "42501",
+          "update": "42501",
+          "delete": "42501"
+        }
+      },
+      "queryBaseTableDenied": {
+        "observed": "42501"
+      },
+      "catalog": {
+        "observed": {
+          "prosecdef": true,
+          "owner": "project_migration_owner_a927ba5cab266f0921d9e3173b212e51",
+          "proconfig": [
+            "search_path=pg_catalog, budget_analyzer, pg_temp"
+          ],
+          "sync_execute": true,
+          "query_execute": false,
+          "public_execute": false,
+          "sync_insert": false,
+          "query_view_select": true,
+          "public_database_connect_grant": false,
+          "sync_database_connect_grant": true,
+          "query_database_connect_grant": true
+        }
+      },
+      "gapCatalog": {
+        "observed": {
+          "prosecdef": true,
+          "owner": "project_migration_owner_a927ba5cab266f0921d9e3173b212e51",
+          "proconfig": [
+            "search_path=pg_catalog, budget_analyzer, pg_temp"
+          ],
+          "sync_execute": true,
+          "query_execute": false,
+          "public_execute": false
+        }
+      },
+      "defaultFunctionPublicExecuteClosed": {
+        "observed": {
+          "public_execute": false
+        }
+      },
+      "projectRolesNoLogin": {
+        "observed": [
+          {
+            "rolname": "project_migration_owner_a927ba5cab266f0921d9e3173b212e51",
+            "rolcanlogin": false
+          },
+          {
+            "rolname": "project_query_runtime_a927ba5cab266f0921d9e3173b212e51",
+            "rolcanlogin": false
+          },
+          {
+            "rolname": "project_sync_runtime_a927ba5cab266f0921d9e3173b212e51",
+            "rolcanlogin": false
+          }
+        ]
+      },
+      "runtimeRoleAdoption": {
+        "observed": {
+          "sync": {
+            "session_user": "project_qualification_sync_a927ba5cab266f0921d9e3173b212e51",
+            "current_user": "project_sync_runtime_a927ba5cab266f0921d9e3173b212e51"
+          },
+          "query": {
+            "session_user": "project_qualification_query_a927ba5cab266f0921d9e3173b212e51",
+            "current_user": "project_query_runtime_a927ba5cab266f0921d9e3173b212e51"
+          }
+        }
+      },
+      "definerOwner": {
+        "observed": "project_migration_owner_a927ba5cab266f0921d9e3173b212e51"
+      },
+      "definerSearchPath": {
+        "observed": [
+          "search_path=pg_catalog, budget_analyzer, pg_temp"
+        ]
+      },
+      "duplicateBudgetRefAdapterRejected": {
+        "observed": "PROJECT_SYNC_DUPLICATE_BUDGET_REF_REFUSED"
+      },
+      "duplicateBudgetRefCapabilityRejected": {
+        "observed": "PROJECT_SYNC_DUPLICATE_BUDGET_REF_REFUSED"
+      }
+    },
+    "finalState": {
+      "freshness": "CURRENT",
+      "coverage": "COMPLETE",
+      "mergeState": "IDLE",
+      "committedGeneration": "8",
+      "lastGapKind": null,
+      "currentRefs": [
+        "B-004"
+      ],
+      "currentValue": "430.00"
+    }
+  },
+  "verdict": "P4_A_CONTROLLED_PROJECT_FALSIFIERS_PASS",
+  "nonClaims": [
+    "R3-P1..P7 closure",
+    "independent dual-lane review closure",
+    "Product runtime Project credential provisioning",
+    "MAR single-flight, settlement or quiescence",
+    "live JobRun, Sankhya, provider, model or external effect",
+    "served Release, deployment, publication or merge"
+  ],
+  "reopenTriggers": [
+    "candidate freeze, tuple, dependency, vendor-DDL or runtime-config drift",
+    "project source-revision or migration-ledger drift",
+    "a P4-A falsifier failure or material independent-review finding",
+    "new Product meaning, shared database, cross-owner write or effect route"
+  ]
+}

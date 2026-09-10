@@ -243,6 +243,14 @@ test('BLD-01/02/03/04/06/07/08/09/17 expose owner projections with command authe
   const evidence = { evidenceId: workUnitId, changeId, claim: 'Candidate checked.', subjectDigest: candidateSourceRevision, provenance: [] }
   const store = {
     listChanges: async (input) => { calls.push(['list', input]); return [projection] },
+    readPreviewSubject: async (input) => {
+      calls.push(['preview', input])
+      if (input.changeId === '22222222-2222-4222-8222-222222222223') return null
+      if (input.changeId === '22222222-2222-4222-8222-222222222224') throw new Error('preview store unavailable')
+      return input.changeId
+        ? { subjectKind: 'CHANGE_CANDIDATE', subjectDigest: candidateSourceRevision, sourceRevision: candidateSourceRevision, verified: true }
+        : { subjectKind: 'CURRENT_PROJECT', subjectDigest: projection.baselineDigest, sourceRevision: baseSourceRevision, verified: false }
+    },
     readSnapshot: async (input) => { calls.push(['read', input]); return snapshot },
     listFindings: async () => [finding], getFinding: async () => finding,
     closeFinding: async (input) => { calls.push(['close-finding', input]); return { ...finding, state: 'CLOSED' } },
@@ -258,7 +266,32 @@ test('BLD-01/02/03/04/06/07/08/09/17 expose owner projections with command authe
   const resolveCurrentSession = async (_request, requireCsrf) => { calls.push(['session', requireCsrf]); return { account: { accountId: projectId } } }
   const app = await createHttpApp({ registerRoutes: (server) => registerBuilderRoutes(server, { store, service, resolveCurrentSession, origin }) })
   try {
-    assert.deepEqual(app.routeCensus(), ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-08', 'BLD-09', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17'])
+    assert.deepEqual(app.routeCensus(), ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-08', 'BLD-09', 'BLD-10', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17'])
+    const anonymous = await createHttpApp({ registerRoutes: (server) => registerBuilderRoutes(server, {
+      store, service, origin, resolveCurrentSession: async () => null,
+    }) })
+    assert.equal((await anonymous.inject({ method: 'GET', url: `/api/control/projects/${projectId}/preview` })).statusCode, 401)
+    await anonymous.close()
+    const currentPreview = await app.inject({ method: 'GET', url: `/api/control/projects/${projectId}/preview` })
+    assert.equal(currentPreview.statusCode, 200)
+    assert.deepEqual(JSON.parse(currentPreview.body), {
+      previewId: JSON.parse(currentPreview.body).previewId,
+      subjectKind: 'CURRENT_PROJECT', subjectDigest: projection.baselineDigest,
+      ready: false, verified: false, live: false,
+    })
+    const candidatePreview = await app.inject({ method: 'GET', url: `/api/control/projects/${projectId}/preview?changeId=${changeId}` })
+    assert.equal(candidatePreview.statusCode, 200)
+    assert.equal(JSON.parse(candidatePreview.body).subjectKind, 'CHANGE_CANDIDATE')
+    assert.equal(JSON.parse(candidatePreview.body).verified, true)
+    assert.equal(JSON.parse(candidatePreview.body).ready, false)
+    assert.equal(JSON.parse(candidatePreview.body).live, false)
+    assert.deepEqual(calls.filter((entry) => entry[0] === 'preview').map((entry) => entry[1]), [
+      { accountId: projectId, projectId }, { accountId: projectId, projectId, changeId },
+    ])
+    assert.equal((await app.inject({ method: 'GET', url: `/api/control/projects/${projectId}/preview?changeId=foreign` })).statusCode, 404)
+    assert.equal((await app.inject({ method: 'GET', url: `/api/control/projects/${projectId}/preview?changeId=${'-'.repeat(36)}` })).statusCode, 404)
+    assert.equal((await app.inject({ method: 'GET', url: `/api/control/projects/${projectId}/preview?changeId=22222222-2222-4222-8222-222222222223` })).statusCode, 404)
+    assert.equal((await app.inject({ method: 'GET', url: `/api/control/projects/${projectId}/preview?changeId=22222222-2222-4222-8222-222222222224` })).statusCode, 503)
     const denied = await app.inject({ method: 'POST', url: `/api/control/projects/${projectId}/changes`, payload: { intent: projection.intent } })
     assert.equal(denied.statusCode, 403)
     const created = await app.inject({
@@ -870,7 +903,7 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   url.pathname = `/${database}`
   url.username = current.user
   url.password = current.password
-  assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).versions, Array.from({ length: 22 }, (_, index) => String(index + 1).padStart(3, '0')))
+  assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).versions, Array.from({ length: 24 }, (_, index) => String(index + 1).padStart(3, '0')))
   assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).appliedNow, [])
   const tables = await query(current, `SELECT tablename FROM pg_tables WHERE schemaname = 'builder' ORDER BY tablename`)
   assert.deepEqual(tables.rows.map((row) => row.tablename), [
@@ -914,6 +947,33 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   await query(current, "ALTER ROLE hub_rb_ingress PASSWORD 'rb-ingress-test'; ALTER ROLE hub_rb_executor PASSWORD 'rb-executor-test'")
   const ingress = { ...current, user: 'hub_rb_ingress', password: 'rb-ingress-test' }
   const executor = { ...current, user: 'hub_rb_executor', password: 'rb-executor-test' }
+  await query(current, 'SELECT iam.ensure_project_builder_grant($1,$2)', [accountId, subjectProjectId])
+  const currentPreviewSubject = (await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, subjectProjectId, null])).rows[0].value
+  assert.deepEqual(currentPreviewSubject, {
+    subjectKind: 'CURRENT_PROJECT', subjectDigest: digest, sourceRevision: baseSourceRevision, verified: false,
+  })
+  const unapprovedProjectHead = 'c'.repeat(40)
+  await query(current, 'UPDATE project.project SET source_revision = $1 WHERE project_id = $2', [unapprovedProjectHead, subjectProjectId])
+  assert.deepEqual((await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, subjectProjectId, null])).rows[0].value, {
+    subjectKind: 'CURRENT_PROJECT', subjectDigest: digest, sourceRevision: baseSourceRevision, verified: false,
+  })
+  await query(current, 'UPDATE project.project SET source_revision = $1 WHERE project_id = $2', [baseSourceRevision, subjectProjectId])
+  assert.equal((await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, subjectProjectId, subjectChangeId])).rows[0].value, null)
+  const foreignProjectId = '60000000-0000-4000-8000-000000000050'
+  const foreignChangeId = '60000000-0000-4000-8000-000000000051'
+  await query(current, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
+    VALUES ($1, $2, 'Foreign Preview Project', 'NEW', $3, 'foreign-preview-revision')`, [foreignProjectId, workspaceId, baseSourceRevision])
+  await query(current, `INSERT INTO iam.project_builder_grant(account_id, project_id, can_build, can_read_source)
+    VALUES ($1, $2, true, true)`, [accountId, foreignProjectId])
+  await query(current, `INSERT INTO builder.change(
+    change_id, project_id, created_by_account_id, intent, baseline_digest, base_source_revision,
+    planning_depth, rigor_profile, state, candidate_source_revision, patch, result_summary)
+    VALUES ($1, $2, $3, 'Foreign preview candidate', $4, $5, 'DIRECT', 'CONTROLLED', 'RESULT_READY', $6, 'diff', 'ready')`,
+  [foreignChangeId, foreignProjectId, accountId, digest, baseSourceRevision, candidateSourceRevision])
+  assert.equal((await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, subjectProjectId, foreignChangeId])).rows[0].value, null)
+  await query(current, 'UPDATE iam.project_builder_grant SET can_build = false WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
+  assert.equal((await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, subjectProjectId, null])).rows[0].value, null)
+  await query(current, 'UPDATE iam.project_builder_grant SET can_build = true WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
   const unauthorizedAccount = '60000000-0000-4000-8000-000000000030'
   await query(current, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'rb-reader', 'RB Reader')", [unauthorizedAccount])
   await query(current, 'INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project) VALUES ($1, $2, false)', [unauthorizedAccount, workspaceId])
@@ -998,6 +1058,12 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
     '1'.repeat(64), passingReport,
   ])).rows[0].settled, true)
   assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [verifiedChange])).rows[0].state, 'VERIFIED')
+  const candidatePreviewSubject = (await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, subjectProjectId, verifiedChange])).rows[0].value
+  assert.deepEqual(candidatePreviewSubject, {
+    subjectKind: 'CHANGE_CANDIDATE', subjectDigest: candidateSourceRevision,
+    sourceRevision: candidateSourceRevision, verified: true,
+  })
+  assert.equal((await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [unauthorizedAccount, subjectProjectId, null])).rows[0].value, null)
 
   const prepareVerification = async ({ change, plan, item, session, unit, codingRun, codingToken, verifierRun, verifierToken, keyDigest, requestDigest, candidate, intent }) => {
     await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
