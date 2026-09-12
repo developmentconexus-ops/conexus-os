@@ -26,8 +26,8 @@ const packageScripts = Object.freeze({
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'a0-g0-admission', '4f-project-cognition-admission', 'r1-s2-generate',
   'r1-s2-generated-drift', 'r1-s2-http', 'r1-s2-reads', 'import-law',
-  'verification-tool-regressions', 'r1-s2-live-syntax', 'biome-union',
-  'r1c14-native', 'rb-first-postgres-migration-selection', 'r2-p1-postgres',
+  'verification-tool-regressions', 'hub-migration-selection', 'r1-s2-live-syntax', 'biome-union',
+  'r1c14-native', 'rb-first-postgres-migration-selection', 'hub-migration-postgres', 'r2-p1-postgres',
   'r2-p2-postgres', 'r2-p3-postgres', 'r1-s4-p2-postgres', 'r2-p0-check',
   'r2-p1-check', 'r2-p2-check', 'r2-p3-check', 'r2-p4-check',
   'r2-p4-authority-postgres', 'r2-p5-check', 'r2-p6-brain-revision',

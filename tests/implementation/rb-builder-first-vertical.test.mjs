@@ -903,7 +903,11 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   url.pathname = `/${database}`
   url.username = current.user
   url.password = current.password
-  assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).versions, Array.from({ length: 24 }, (_, index) => String(index + 1).padStart(3, '0')))
+  assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).versions, [
+    '001', '002', '003', '004', '005', '006', '007', '008', '009', '010',
+    '011', '012', '013', '014', '015', '016', '017', '018', '019', '020',
+    '021', '022', '023',
+  ])
   assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).appliedNow, [])
   const tables = await query(current, `SELECT tablename FROM pg_tables WHERE schemaname = 'builder' ORDER BY tablename`)
   assert.deepEqual(tables.rows.map((row) => row.tablename), [

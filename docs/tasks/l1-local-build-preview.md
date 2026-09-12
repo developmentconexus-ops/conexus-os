@@ -7,14 +7,18 @@
 ## Goal and design
 
 A human signs in locally, creates a Project, asks Builder to create a small
-application, opens its isolated Preview, requests a change and sees the new
-candidate without losing the last usable Preview. The app is an interchangeable
-proof consumer; it has no required business domain or Budget Analyzer schema.
+application, opens its isolated Preview, interacts with the real application,
+requests a change and sees the new candidate without losing the last usable
+Preview. The app is an interchangeable proof consumer; it has no required
+business domain or Budget Analyzer schema.
 
 Use the accepted Keycloak/Hub/Workspace/Project and Mastra/E2B architecture.
 Builder authors candidates; Registry owns immutable application artifacts;
-MAR serves admitted bytes; Identity & Access owns current access checks.
-Local access does not mean a local replacement for the remote coding sandbox.
+Managed Application Runtime (MAR) serves or runs the admitted application;
+Identity & Access owns current access checks. Preview is the application
+running from its own URL. An iframe is only the Builder presentation of that
+URL; opening the same URL directly is a supported Preview path. Local access
+does not mean a local replacement for the remote coding sandbox.
 
 **Design:** [approved local delivery design](../roadmap.md#approved-local-platform-delivery-design).
 Status and execution authority live only in that roadmap. The selected design
@@ -82,8 +86,8 @@ reconciliation and material design checkpoint before Product code.
 | Source meaning | CURRENT_PROJECT remains approved Baseline; CHANGE_CANDIDATE remains its exact Project-contained candidate | Mutable Git HEAD is already rejected by accepted BLD-10 authority |
 | Artifact production | A deterministic, non-agent build in a fresh pinned E2B sandbox, from Hub-custodied source | The coding worker is mutable and its summary is not build evidence; the present independent verifier cannot execute builds. Extending its role would mix two responsibilities |
 | App scaffold | Versioned React/TS/Vite/TanStack profile delivered through an admitted Builder tool; preserve the existing R1 NEW seed | Rewriting old seed bytes breaks pinned custody. Asking the model to invent package versions and build configuration defeats the paved road |
-| Preview transport | Authenticated Hub returns a bounded inert JSON app bundle; a separate-origin, opaque sandbox viewer receives bytes through a one-shot message channel | Same-origin app execution exposes the Hub. Direct E2B URLs couple Preview to a live coding sandbox. Preview cookies/tickets would add credential lifecycle and third-party cookie dependence |
-| Artifact persistence | Extend existing Registry artifact/revision storage for a Project app artifact; store the bounded bundle in its existing JSON payload | A new generic CAS service is unnecessary for this bounded consumer. Revisit blob backing at L3/larger bundles; the digest-addressed artifact port hides backing |
+| Preview transport | MAR serves the admitted application from a separate application origin and exact Preview route; Builder embeds that URL and can open the same URL directly | Same-origin app execution exposes the Hub. Direct E2B URLs couple Preview to a live coding sandbox. A frame transport would make pixels the product contract and lose normal application URL/DOM behavior |
+| Artifact persistence | Extend existing Registry artifact/revision storage for a Project app artifact with an exact file manifest and bounded payload/backing | A new generic CAS service is unnecessary for this bounded consumer. Revisit blob backing at L3/larger bundles; the digest-addressed artifact port hides backing |
 | Serving state | Existing MAR serving_route record class, with exact subject identity, route generation and expiry | previewId possession alone must not serve app bytes; an in-memory route cannot preserve last-good through Hub restart |
 
 The existing Registry schema in migration 011 accepts only kind=brain and
@@ -98,8 +102,12 @@ create a parallel kind vocabulary.
 
 The producer materializes only a Hub-admitted source bundle at the exact
 sourceRevision. It uses a platform-owned runner/configuration, not candidate
-npm scripts or candidate Vite plugins. No candidate code executes in the Hub.
-The sandbox has no credentials, Git remote, host mount or runtime network.
+npm scripts or candidate Vite plugins. No candidate server code executes in the
+Hub. The sandbox has no credentials, Git remote or host mount; any build-time
+network is separately pinned and admitted. The resulting application artifact
+is a normal web application artifact, including its entry HTML, JavaScript,
+CSS and bounded static assets, rather than a pixel stream or a Hub-fetched
+executable bundle.
 
 Select the already installed versions for the initial profile: Node 24.20.0,
 npm 12.0.2, Vite 8.2.2, React/react-dom 19.2.8, TanStack Router 1.170.32 and Query
@@ -113,36 +121,38 @@ template, with lifecycle scripts disabled; no npm install/network at app build
 time. Template publication is a separately authorized E2B action. The existing
 template contains Node/Git, not this app toolchain.
 
-The profile provides src/main.tsx, a React root, memory-history routing and
+The profile provides src/main.tsx, a React root, browser routing and
 QueryClient setup, a minimal app component, CSS, an ordinary index.html for
-future standalone serving, and exact package/lock metadata. Generated
-toolchain declarations are PLATFORM-CONTRACT; business components/styles are
-APP-OWNED. The scaffold tool obtains profile bytes from trusted composition,
-takes no arbitrary path/URL/package input, and refuses collisions instead of
-overwriting an existing app. Existing apps must explicitly conform to this
-profile; no silent conversion of imported apps.
+standalone serving, and exact package/lock metadata. Generated toolchain
+declarations are PLATFORM-CONTRACT; business components/styles are APP-OWNED.
+The scaffold tool obtains profile bytes from trusted composition, takes no
+arbitrary path/URL/package input, and refuses collisions instead of overwriting
+an existing app. Existing apps must explicitly conform to this profile; no
+silent conversion of imported apps.
 
-The artifact runner invokes Vite's library build with configFile:false,
-src/main.tsx as the sole entry, an IIFE output, bundled dependencies, no public
-directory copy, no source maps, no CSS splitting and production defines.
-Imported images/fonts must be inlined; external assets, extra JS chunks and
-unresolved runtime imports refuse this profile. Use Vite 8's adopted
-rolldownOptions, not an unverified old Rollup example. The app still uses
-normal source files: this packaging choice does not force L3's serving format.
+The artifact runner invokes the adopted Vite build in a clean, platform-owned
+configuration and collects the complete bounded output tree needed by the
+application route. It may emit multiple JavaScript/CSS/assets files and must
+preserve the routing fallback required by the profile. It refuses symlinks,
+unresolved imports, unbounded assets, source maps where the profile does not
+admit them and any output that cannot be served reproducibly. Use Vite 8's
+adopted rolldownOptions, not an unverified old Rollup example. The app uses
+normal source files and remains a normal web application when served directly.
 
 L1 limits: 120 seconds per deterministic build; one active build per Project
-and two per Hub; at most 8 MiB decoded JS plus CSS and 12 MiB JSON transport.
-Reject extra output files, symlinks, invalid UTF-8 and byte limits before
-registration. Bind producer recipe/template/profile/source digests into the
-artifact identity. Canonical JSON and SHA-256 come from packages/canonical-json.
+and two per Hub; at most 8 MiB decoded JS plus CSS and 12 MiB total application
+artifact payload. Reject extra output files, symlinks, invalid UTF-8 and byte
+limits before registration. Bind producer recipe/template/profile/source
+digests into the artifact identity. Canonical JSON and SHA-256 come from
+packages/canonical-json.
 
 ```typescript
 // New internal interfaces, defined in registry/application-artifact.ts.
-export type ApplicationBundle = Readonly<{
-  schema: 'conexus.preview-app/v1'
-  entry: 'main.js'
-  javascript: string
-  css: string
+export type ApplicationFile = Readonly<{
+  path: string
+  mediaType: string
+  bytes: Uint8Array
+  sha256: string
 }>
 export type ApplicationArtifactInput = Readonly<{
   projectId: string
@@ -152,7 +162,8 @@ export type ApplicationArtifactInput = Readonly<{
   profileDigest: string
   recipeDigest: string
   templateRef: string
-  bundle: ApplicationBundle
+  entryPath: 'index.html'
+  files: readonly ApplicationFile[]
 }>
 export type ApplicationArtifact = Readonly<ApplicationArtifactInput & {
   artifactRevisionId: string
@@ -178,72 +189,73 @@ match; differing bytes for the same production identity refuse admission.
 Store no timestamps or execution-attempt IDs inside the content digest.
 Availability means registered bytes exist; verified remains Builder truth.
 
-### Preview viewer and access contract
+### Preview application URL and access contract
 
-Use localhost for the Control Plane and a loopback-only viewer on
-http://127.0.0.1:4319 for the initial local profile. Configuration rejects a
-Control Plane on the same hostname as the viewer, non-loopback viewer binding,
-unexpected Host, or a widened cookie Domain. Ports alone do not isolate cookies.
-The viewer is a second HTTP listener in the existing Hub process serving only
-the platform bootstrap page; it has no database credential or app-byte route.
+For the initial local profile, use separate local application ingress from the
+Control Plane. The mental model may be `http://localhost:8080` for the Hub and
+`http://localhost:8081` for the Preview application ingress. This port split is
+process/topology information, not the security boundary: cookies ignore ports.
+The concrete local configuration therefore uses distinct hosts/origins such as
+`hub.localhost` and `preview-<route>.localhost`, or equivalent loopback hosts,
+and rejects a widened cookie Domain. Hub cookies are host-only; the application
+never receives the Control Plane session cookie.
 
-Hub adds a technical byte read:
-GET /api/control/projects/:projectId/preview-content/:previewId.
-It returns ApplicationArtifact bundle data as application/json, nosniff,
-Cache-Control:no-store. No executable HTML is returned from the Hub origin.
-Every read resolves current human session, project.build, route/Project/subject
-containment, expiry and available immutable artifact; denied/expired/missing
-subjects do not disclose bytes. It supports no caller-selected source or URL.
-Register this transport in the technical contract, not as a universal Product
-operation. Its owner/contract classification is part of T1.
+The `8081` ingress is owned by MAR. For a static L1 application it serves the
+immutable artifact directly. For a later dynamic application it may reverse
+proxy to a separately managed process/container/sandbox. The user-visible
+Preview URL remains the governed MAR route, not an arbitrary worker port or a
+mutable coding-worker URL. No candidate server code executes in the trusted
+Hub process.
+
+MAR resolves the route from the current server-side subject, Project, exact
+artifact, runtime profile, generation, access lease and expiry. A route must
+never accept a caller-selected source, Project, artifact or destination. The
+route serves the normal application entry HTML and its bounded static assets,
+preserving browser routing and ordinary application behavior. The same exact
+route is used in the Builder and when the operator opens Preview in a new tab.
 
 For ready results, BLD-10's existing previewId becomes the stable route
-reference; non-ready values stay correlation-only. This is an explicit owner
-refinement, not a change hidden inside the resolver. Keep the existing closed
-BuildPreview shape, ready/verified separation and live:false.
+reference only after the owner reconciliation admits that meaning. Non-ready
+values stay correlation-only. Keep the existing closed BuildPreview shape,
+ready/verified separation and live:false.
 
-The trusted parent obtains the bundle only through its authenticated API.
-Embed the viewer with sandbox="allow-scripts" and referrerpolicy="no-referrer";
-omit allow-same-origin, forms, downloads, popups and top navigation. A fresh
-MessageChannel is transferred to the exact frame after the known bootstrap
-loads. The receiver checks event.source===parent and the configured exact
-Control Plane event.origin, accepts one transferred port, then removes its
-window message listener. The parent must use "*" solely for this opaque-origin
-bootstrap; it contains no candidate bytes, token or credential. Bytes travel
-only on the established private port; close both ports after one bundle.
-Do not accept app-to-Hub RPC, resize commands, readiness claims or authority
-messages from candidate code in L1.
+The Builder presents the application with `<iframe src="previewUrl">` when it
+needs an in-panel view. The iframe is a presentation boundary, not the runtime
+or the primary security boundary. The application origin, host-only session,
+server-side route checks and capability policy provide the boundary. Use an
+exact `frame-ancestors` policy and `referrer-policy: no-referrer`; permit only
+the embedding Control Plane origin. Any parent/app `postMessage` protocol is
+optional, versioned and checked with exact `event.source` and `targetOrigin`.
+L1 does not admit app-to-Hub authority RPC or client-supplied readiness claims.
 
-The viewer renders fixed platform HTML with #root, adds a CSS Blob and an IIFE
-JavaScript Blob from the received bundle, then revokes URLs on disposal.
-It never evaluates the bundle in the parent or uses candidate HTML as Hub DOM.
-Viewer headers select: sandbox allow-scripts; default-src 'none';
-script-src with the fixed bootstrap SHA-256 and blob:; style-src blob:
-'unsafe-inline'; img-src data: blob:; font-src data: blob:; connect-src 'none';
-frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none';
-form-action 'none'; frame-ancestors exact Control Plane origin.
-The parent frame-src permits only the configured viewer origin in addition to
-already accepted needs; do not loosen parent script-src to run app code.
-Disable logs containing query strings or bundle content on the viewer.
+Preview access must not silently become Published-App access. Preview uses the
+selected candidate and its test/private environment, while Published App uses
+an exact active Release and independent app authorization. Revocation blocks
+new route requests and serving; already delivered browser bytes are not
+claimed to be retractable.
 
-Browser proof must attempt fetch/XHR/WebSocket, image/CSS external loads,
-iframe self-navigation, nested frames, window.open, form submission,
-parent access, cookie/storage access and forged messages. If Chromium permits
-a forbidden path under this composition, stop and amend the selected boundary;
-do not weaken the test or claim CSP proves behavior it does not enforce.
+Browser proof must exercise the actual application URL both embedded and
+standalone: navigation, forms, keyboard, storage behavior admitted by the
+profile, popups/downloads where admitted, route identity, parent access and
+forged messages. Network proof must distinguish requests to the Control Plane,
+the application's own runtime, the Gateway and external destinations. A
+request being rejected is different from claiming that the browser never
+attempted it. If the selected product contract requires zero candidate request
+to the Control Plane or zero external egress, the exact owner must admit and
+prove that stronger property before implementation.
 
 Routes expire after 15 minutes without renewal. An authenticated BLD-10 read
 may renew an existing route for the same current subject; it never runs a build.
-The parent rechecks access/route every 15 seconds, on focus and before replacing
-the displayed bundle; hide/unmount on expiry, mismatch or denied/failed recheck.
-Revocation blocks the next server read immediately. Already disclosed bytes
+The Builder rechecks access/route before loading or replacing the iframe and on
+focus; it removes the frame on expiry, mismatch or denied/failed recheck.
+Revocation blocks the next server request immediately. Already delivered bytes
 cannot be retracted from a browser; the UI removal interval is bounded to the
 next active check, not a claim of retroactive secrecy or a timer guarantee in
 a suspended tab.
 
 Last-good belongs to a route with its own exact subject/artifact. While a new
 candidate builds or fails, retain and label the old displayed subject; never
-assign the old bytes to the new subjectDigest. A new candidate becomes selected
+assign the old route to the new subjectDigest. A new candidate becomes selected
 only after Registry admission and an expected-generation CAS in MAR.
 Crash after registration before route update leaves an unreferenced immutable
 artifact, not ready serving. Restart rechecks route bytes and current access.
@@ -267,10 +279,11 @@ non-cognitive build without fabricated Change/actor semantics, the owner
 checkpoint must select a bounded extension. No implementation may silently
 allocate a fake Change for a read or reuse the R3 queue to bypass its hold.
 
-L1 handles static, data-free applications. L2 adds only the admitted app-data
-transport it actually needs; L3 may use a normal multi-file distribution.
-Artifact identity and authorization ports remain reusable. These are delivery
-boundaries, not a permanent restriction of Conexus to static applications.
+L1 handles static, data-free applications with a normal bounded multi-file
+distribution. L2 adds only the admitted app-data transport it actually needs;
+L3 may add server-side application execution. Artifact identity and
+authorization ports remain reusable. These are delivery boundaries, not a
+permanent restriction of Conexus to static applications.
 
 ## Ordered execution tasks
 
@@ -290,15 +303,17 @@ The integrator owns this cross-owner write set; no parallel writer.
 
 - [ ] Present the exact selected design above to Builder/Registry/MAR/I&A/R1
   review, including the preparation command, stable previewId refinement,
-  app Registry extension and non-cognitive preparation record mapping.
-- [ ] Before accepting this viewer design or starting T2, admit a disposable
+  app Registry extension, application-origin route and non-cognitive
+  preparation record mapping.
+- [ ] Before accepting this serving design or starting T2, admit a disposable
   browser-feasibility probe with synthetic bytes and no credentials/providers.
-  Attempt iframe self-navigation as well as fetch, image/CSS loads, nested
-  frames, popups, forms and parent access. Sandbox/CSP attributes alone do not
-  establish a network-denial boundary. Record observed requests in Chromium;
-  if self-navigation or another channel defeats the claimed egress boundary,
-  reject this mechanism at the security owner before implementation. T4 later
-  repeats the accepted assertions against the actual integrated viewer.
+  Exercise the same application URL embedded and standalone, including
+  navigation, forms, storage, parent access, forged messages and the complete
+  network matrix. Record which requests are attempted and which are denied.
+  If the required zero-Control-Plane or zero-external-egress property cannot
+  be proved for a normal app runtime, route that exact requirement to the
+  security owner; do not silently substitute a frame transport. T4 repeats the
+  accepted assertions against the integrated runtime.
 - [ ] Adjudicate the two fresh material review lanes under the repository
   routing before ratifying changed public/trust/storage semantics. This is
   one frozen design subject; unrelated findings do not expand L1.
@@ -381,29 +396,32 @@ do not overwrite another session's migration.
 node --test --test-concurrency=1 tests/implementation/l1-preview-service.test.mjs tests/implementation/l1-preview-store-postgres.test.mjs
 ```
 
-### T4 — Deliver authenticated bytes to the isolated viewer
+### T4 — Serve and compose the real Preview application
 
 **Create:** apps/hub/src/mar/preview-routes.ts;
-apps/hub/src/mar/preview-viewer-server.ts;
-apps/hub/src/mar/preview-viewer-bootstrap.ts;
 apps/web/src/features/builder/components/build-preview-frame.tsx;
 tests/implementation/l1-preview-http.test.mjs;
 tests/implementation/l1-preview-browser.test.mjs.
 **Modify:** builder/routes.ts; platform/config.ts; server.ts; http/app.ts;
 apps/web/src/features/builder/api.ts and components/project-build.tsx.
 
-- [ ] Start with HTTP denial/cache/content-type tests and real-browser tests
-  for the hostile behaviors listed above, including navigation and messages.
-- [ ] Add loopback viewer configuration and fail closed on Host/origin/cookie
-  collision. Serve only fixed bootstrap, no app bytes and no session endpoints.
-- [ ] Implement admitted preparation and content transports with current session,
-  Project/subject checks, finite limits and request authenticity for mutation.
-- [ ] Implement one-shot MessageChannel delivery; use no candidate HTML in
-  parent DOM and no app-to-Hub RPC. Dispose frame/ports/blob URLs on unmount.
+- [ ] Start with HTTP route, denial, cache, content-type, artifact-identity and
+  application-origin tests, followed by real-browser tests for the same URL
+  embedded and standalone.
+- [ ] Add local application-ingress configuration and fail closed on
+  Host/origin/cookie collision. Serve only the exact MAR route and admitted
+  artifact; candidate server code never executes in the Hub.
+- [ ] Implement route serving with current access, Project/subject/artifact
+  checks, finite limits, exact entry/assets and request authenticity for any
+  mutation or preparation.
+- [ ] Implement the Builder iframe as a URL presentation of the MAR route and
+  support opening that same route directly. Do not copy candidate HTML into the
+  parent DOM or create app-to-Hub authority RPC.
 - [ ] Wire last-good display, explicit candidate status and renewal/revocation.
   Keep BLD-10 ready independent of verification/live.
-- [ ] Validate browser security before accepting the viewer mechanism. If a
-  falsifier survives, stop at this task and revise its owner contract.
+- [ ] Validate application fidelity and browser security before accepting the
+  runtime mechanism. If a falsifier survives, stop at this task and revise its
+  owner contract or route the stronger requirement to PBR/another runtime.
 
 **Focused command:**
 ```bash
@@ -452,13 +470,14 @@ Example required assertion shape for the new HTTP suite:
 ```typescript
 const denied = await app.inject({
   method: 'GET',
-  url: '/api/control/projects/' + otherProjectId + '/preview-content/' + routeId,
+  url: '/preview/' + routeId + '/index.html',
   headers: authorizedHeaders,
 })
 assert.ok([403, 404].includes(denied.statusCode))
-assert.equal(denied.body.includes(bundle.javascript), false)
 ```
-In browser proof, assert observed network attempts and frame behavior, not just
+The route must resolve Project/subject/artifact server-side; the request above
+uses a caller from another Project and must not disclose application bytes. In
+browser proof, assert observed network attempts and frame behavior, not just
 the presence of CSP/sandbox attributes. PostgreSQL proof must cover runtime
 roles and stale transitions, not only mock port responses.
 
@@ -467,8 +486,8 @@ roles and stale transitions, not only mock port responses.
 The plan is written for owner/design review and ordered execution preparation.
 It is not independently ratified or code-proven. The next session starts at T1,
 not another general architecture survey. The exact unresolved admission is
-the changed transport/Registry/record mapping and browser-isolation feasibility
-in this selected proposal;
+the changed transport/Registry/record mapping, application-origin serving and
+browser/runtime feasibility in this selected proposal;
 acceptance is not inferred from writing the plan. Once the roadmap admits the
 bounded code envelope after that checkpoint, routine T2–T5 steps do not each
 need another planning approval.
@@ -489,8 +508,16 @@ Sources inspected for the choices above:
 - [MDN iframe](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe),
   [CSP sandbox](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/sandbox)
   and [postMessage](https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage):
-  opaque-origin and messaging constraints inform T4; they are not browser proof
-  for this exact composition.
+  origin, embedding and messaging constraints inform T4; they are not browser
+  proof for this exact composition.
+- Comparative platform evidence: [Replit preview and publishing](https://docs.replit.com/learn/projects-and-artifacts/replit-deployments),
+  [Lovable preview links and publishing](https://docs.lovable.dev/features/share-project),
+  [v0 sandbox](https://api2.v0.dev/docs/sandbox),
+  [Netlify preview server and iframe composition](https://docs.netlify.com/manage/visual-editor/local-development/),
+  [StackBlitz WebContainers](https://developer.stackblitz.com/guides/user-guide/available-environments),
+  [Base44 test-data Preview](https://docs.base44.com/documentation/managing-app-data/testing-your-data),
+  [Vercel Sandbox](https://vercel.com/docs/sandbox) and
+  [E2B sandbox ports](https://e2b.dev/docs/sdk-reference/js-sdk/v2.6.2/sandbox).
 - Context7 /mastra-ai/mastra: E2BSandbox sandboxId, executeCommand and the public
   e2b.files access path; installed code already uses these interfaces.
   No framework version or runtime replacement was selected.

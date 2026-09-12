@@ -20,7 +20,9 @@ const r1MigrationNames = [
   '010_project_inception_refinement.sql',
 ]
 const r2MigrationNames = ['011_r2_brain_connections.sql', '012_r2_project_binding_recovery.sql', '013_r2_binding_source_concordance.sql', '014_r2_brain_binding_settlement.sql', '015_r2_project_brain_read_envelopes.sql', '016_r2_brain_binding_removal.sql', '017_r2_key_conformance_subject.sql', '018_r2_brain_revision_selection.sql']
-const expectedMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql', '021_rb_builder_bounded_correction.sql', '022_rb_builder_source_inspection.sql', '023_rb_builder_preview_subject.sql', '024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
+const currentMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql', '021_rb_builder_bounded_correction.sql', '022_rb_builder_source_inspection.sql', '023_rb_builder_preview_subject.sql']
+const heldMigrationNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
+const expectedMigrationNames = [...currentMigrationNames, ...heldMigrationNames]
 const migration001Digest = 'd27e76b972145bc3a6bf669d4fd32734fc06153d07cddaf1072c6b29845b112f'
 const migration002Digest = 'b64a8e041a8e63ac3b85559805ac5573a1d53f6d5d95ba1421ffe3f9803804b5'
 const migration003Digest = '866c6da3d1a4171437b2c0a5beb72ff4994cfce499826cd8b397c2daa60037f2'
@@ -49,55 +51,61 @@ const migration025Digest = '707852bfe0b820ea5df21aa40076dbbb62733f9ce38e8911f9a9
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }
-const loadCurrentMigrationFiles = (migrationsRoot = defaultMigrationsRoot) => {
+const migrationDigests = new Map([
+  ['001_iam_foundation.sql', migration001Digest],
+  ['002_workspace_foundation.sql', migration002Digest],
+  ['003_project_foundation.sql', migration003Digest],
+  ['004_project_source_recovery.sql', migration004Digest],
+  ['005_project_source_recovery_scan.sql', migration005Digest],
+  ['006_project_create_authorization.sql', migration006Digest],
+  ['007_project_read_disclosure.sql', migration007Digest],
+  ['008_project_baseline_custody.sql', migration008Digest],
+  ['009_project_inception.sql', migration009Digest],
+  ['010_project_inception_refinement.sql', migration010Digest],
+  ['011_r2_brain_connections.sql', migration011Digest],
+  ['012_r2_project_binding_recovery.sql', migration012Digest],
+  ['013_r2_binding_source_concordance.sql', migration013Digest],
+  ['014_r2_brain_binding_settlement.sql', migration014Digest],
+  ['015_r2_project_brain_read_envelopes.sql', migration015Digest],
+  ['016_r2_brain_binding_removal.sql', migration016Digest],
+  ['017_r2_key_conformance_subject.sql', migration017Digest],
+  ['018_r2_brain_revision_selection.sql', migration018Digest],
+  ['019_rb_builder_first_vertical.sql', migration019Digest],
+  ['020_rb_builder_verification_acceptance.sql', migration020Digest],
+  ['021_rb_builder_bounded_correction.sql', migration021Digest],
+  ['022_rb_builder_source_inspection.sql', migration022Digest],
+  ['023_rb_builder_preview_subject.sql', migration023Digest],
+  ['024_mar_pg_boss_projection.sql', migration024Digest],
+  ['025_mar_admission_function.sql', migration025Digest],
+])
+const recognizedMigrationNames = new Set(expectedMigrationNames)
+
+const loadSelectedMigrationFiles = (selectedNames, migrationsRoot = defaultMigrationsRoot) => {
   const files = readdirSync(migrationsRoot).filter((name) => name.endsWith('.sql')).sort()
-  if (JSON.stringify(files) !== JSON.stringify(expectedMigrationNames)) fail('MIGRATION_CENSUS_REFUSED')
-  const migrations = files.map((name) => {
+  if (files.some((name) => !recognizedMigrationNames.has(name))) fail('MIGRATION_CENSUS_REFUSED')
+  const presentNames = new Set(files)
+  if (selectedNames.some((name) => !presentNames.has(name))) fail('MIGRATION_CENSUS_REFUSED')
+  return selectedNames.map((name) => {
     const match = migrationPattern.exec(name)
     if (!match) fail('MIGRATION_NAME_REFUSED', name)
     const path = resolve(migrationsRoot, name)
-    if (!lstatSync(path).isFile() || lstatSync(path).isSymbolicLink()) fail('MIGRATION_ENTRY_REFUSED', name)
+    const entry = lstatSync(path)
+    if (!entry.isFile() || entry.isSymbolicLink()) fail('MIGRATION_ENTRY_REFUSED', name)
     const bytes = readFileSync(path)
-    return { version: match[1], name, path, bytes, checksum: sha256(bytes) }
+    const checksum = sha256(bytes)
+    if (checksum !== migrationDigests.get(name)) fail(`MIGRATION_${match[1]}_DIGEST_REFUSED`)
+    return { version: match[1], name, path, bytes, checksum }
   })
-  if (migrations.length === 0 || new Set(migrations.map(({ version }) => version)).size !== migrations.length) fail('MIGRATION_CENSUS_REFUSED')
-  if (migrations.map(({ version }) => version).join(',') !== migrations.map(({ version }) => version).sort().join(',')) fail('MIGRATION_ORDER_REFUSED')
-  if (migrations[0].version !== '001' || migrations[0].checksum !== migration001Digest) fail('MIGRATION_001_DIGEST_REFUSED')
-  if (migrations[1].version !== '002' || migrations[1].checksum !== migration002Digest) fail('MIGRATION_002_DIGEST_REFUSED')
-  if (migrations[2].version !== '003' || migrations[2].checksum !== migration003Digest) fail('MIGRATION_003_DIGEST_REFUSED')
-  if (migrations[3].version !== '004' || migrations[3].checksum !== migration004Digest) fail('MIGRATION_004_DIGEST_REFUSED')
-  if (migrations[4].version !== '005' || migrations[4].checksum !== migration005Digest) fail('MIGRATION_005_DIGEST_REFUSED')
-  if (migrations[5].version !== '006' || migrations[5].checksum !== migration006Digest) fail('MIGRATION_006_DIGEST_REFUSED')
-  if (migrations[6].version !== '007' || migrations[6].checksum !== migration007Digest) fail('MIGRATION_007_DIGEST_REFUSED')
-  if (migrations[7].version !== '008' || migrations[7].checksum !== migration008Digest) fail('MIGRATION_008_DIGEST_REFUSED')
-  if (migrations[8].version !== '009' || migrations[8].checksum !== migration009Digest) fail('MIGRATION_009_DIGEST_REFUSED')
-  if (migrations[9].version !== '010' || migrations[9].checksum !== migration010Digest) fail('MIGRATION_010_DIGEST_REFUSED')
-  if (migrations[10].version !== '011' || migrations[10].checksum !== migration011Digest) fail('MIGRATION_011_DIGEST_REFUSED')
-  if (migrations[11].version !== '012' || migrations[11].checksum !== migration012Digest) fail('MIGRATION_012_DIGEST_REFUSED')
-  if (migrations[12].version !== '013' || migrations[12].checksum !== migration013Digest) fail('MIGRATION_013_DIGEST_REFUSED')
-  if (migrations[13].version !== '014' || migrations[13].checksum !== migration014Digest) fail('MIGRATION_014_DIGEST_REFUSED')
-  if (migrations[14].version !== '015' || migrations[14].checksum !== migration015Digest) fail('MIGRATION_015_DIGEST_REFUSED')
-  if (migrations[15].version !== '016' || migrations[15].checksum !== migration016Digest) fail('MIGRATION_016_DIGEST_REFUSED')
-  if (migrations[16].version !== '017' || migrations[16].checksum !== migration017Digest) fail('MIGRATION_017_DIGEST_REFUSED')
-  if (migrations[17].version !== '018' || migrations[17].checksum !== migration018Digest) fail('MIGRATION_018_DIGEST_REFUSED')
-  if (migrations[18].version !== '019' || migrations[18].checksum !== migration019Digest) fail('MIGRATION_019_DIGEST_REFUSED')
-  if (migrations[19].version !== '020' || migrations[19].checksum !== migration020Digest) fail('MIGRATION_020_DIGEST_REFUSED')
-  if (migrations[20].version !== '021' || migrations[20].checksum !== migration021Digest) fail('MIGRATION_021_DIGEST_REFUSED')
-  if (migrations[21].version !== '022' || migrations[21].checksum !== migration022Digest) fail('MIGRATION_022_DIGEST_REFUSED')
-  if (migrations[22].version !== '023' || migrations[22].checksum !== migration023Digest) fail('MIGRATION_023_DIGEST_REFUSED')
-  if (migrations[23].version !== '024' || migrations[23].checksum !== migration024Digest) fail('MIGRATION_024_DIGEST_REFUSED')
-  if (migrations[24].version !== '025' || migrations[24].checksum !== migration025Digest) fail('MIGRATION_025_DIGEST_REFUSED')
-  return migrations
 }
 
 export const loadMigrationFiles = (migrationsRoot = defaultMigrationsRoot) =>
-  loadCurrentMigrationFiles(migrationsRoot).filter(({ name }) => r1MigrationNames.includes(name))
+  loadSelectedMigrationFiles(r1MigrationNames, migrationsRoot)
 
 export const loadR2MigrationFiles = (migrationsRoot = defaultMigrationsRoot) =>
-  loadCurrentMigrationFiles(migrationsRoot).filter(({ name }) => [...r1MigrationNames, ...r2MigrationNames].includes(name))
+  loadSelectedMigrationFiles([...r1MigrationNames, ...r2MigrationNames], migrationsRoot)
 
 export const loadCurrentHubMigrationFiles = (migrationsRoot = defaultMigrationsRoot) =>
-  loadCurrentMigrationFiles(migrationsRoot)
+  loadSelectedMigrationFiles(currentMigrationNames, migrationsRoot)
 
 const migrationBody = ({ name, bytes }) => {
   const source = bytes.toString('utf8')

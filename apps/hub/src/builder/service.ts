@@ -2,23 +2,30 @@ import type { BuilderSourceFile, BuilderSourcePort, BuilderSourceTree } from './
 import type { CodingWorkerRuntime } from './runtime.js'
 import type { CandidateVerificationRuntime } from './verification-runtime.js'
 import type { BuilderStore, ChangeProjection, ClaimedChange, ClaimedVerification } from './store.js'
+import { compileVerifiedApplication } from './application-build.js'
+import type { ApplicationBuildRequest } from './application-build.js'
+import type { ApplicationCompilerRuntime, CompiledApplication } from './application-artifact-runtime.js'
 
 export type BuilderService = Readonly<{
   createChange(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; intent: string }>): Promise<ChangeProjection>
   listSourceTree(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<BuilderSourceTree>
   getSourceFile(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
+  compileApplication(input: ApplicationBuildRequest): Promise<CompiledApplication>
   recover(): Promise<void>
   close(): Promise<void>
 }>
 
-export const createBuilderService = ({ store, source, runtime, verifier }: Readonly<{
+export const createBuilderService = ({ store, source, runtime, verifier, compiler }: Readonly<{
   store: BuilderStore
   source: BuilderSourcePort
   runtime: CodingWorkerRuntime
   verifier: CandidateVerificationRuntime
+  compiler: ApplicationCompilerRuntime
 }>): BuilderService => {
   if (runtime.kind !== 'REMOTE_E2B' || verifier.kind !== 'REMOTE_E2B') throw new Error('BUILDER_LOCAL_RUNTIME_REFUSED')
   const active = new Map<string, Promise<void>>()
+  const applicationBuilds = new Set<Promise<CompiledApplication>>()
+  const applicationShutdown = new AbortController()
   const verificationFailureCode = (error: unknown): string => {
     const code = error instanceof Error ? error.message : ''
     return /^[A-Z0-9_]{1,120}$/.test(code) ? code : 'BUILDER_VERIFIER_RUNTIME_FAILURE'
@@ -124,7 +131,21 @@ export const createBuilderService = ({ store, source, runtime, verifier }: Reado
         projectId: input.projectId, sourceRevision: input.sourceRevision, path: input.path,
       })
     },
+    compileApplication: async (input) => {
+      if (applicationShutdown.signal.aborted) throw new Error('BUILDER_APPLICATION_CLOSED')
+      const signal = input.signal
+        ? AbortSignal.any([input.signal, applicationShutdown.signal])
+        : applicationShutdown.signal
+      const work = compileVerifiedApplication({ store, source, compiler }, { ...input, signal })
+      applicationBuilds.add(work)
+      try { return await work } finally { applicationBuilds.delete(work) }
+    },
     recover: async () => { for (const changeId of await store.recoverAndListQueued()) dispatch(changeId) },
-    close: async () => { await Promise.all(active.values()); await store.close() },
+    close: async () => {
+      applicationShutdown.abort()
+      await Promise.allSettled(applicationBuilds)
+      await Promise.all(active.values())
+      await store.close()
+    },
   })
 }

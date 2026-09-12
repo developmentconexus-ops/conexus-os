@@ -9,6 +9,7 @@ import { createBuilderService } from './service.js'
 import { createBuilderSourcePort } from './source.js'
 import type { BuilderGitSourceCapability } from './source.js'
 import { createBuilderStore } from './store.js'
+import { createE2BApplicationCompiler } from './application-artifact-runtime.js'
 
 export const createConfiguredBuilderModule = ({ database, builder, projectSource, model, modelIdentity, validateModelCredential, verifierModel, verifierModelIdentity, validateVerifierModelCredential, origin, resolveCurrentSession }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
@@ -49,9 +50,11 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     modelIdentity: verifierModelIdentity,
     validateModelCredential: validateVerifierModelCredential,
   })
-  const service = createBuilderService({ store, source, runtime, verifier })
+  const compiler = createE2BApplicationCompiler({ apiKey: readSecretFile(builder.e2bApiKeyFile) })
+  const service = createBuilderService({ store, source, runtime, verifier, compiler })
   return Object.freeze({
     registerBuilderRoutes: (app: FastifyInstance) => registerBuilderRoutes(app, { store, service, resolveCurrentSession, origin }),
+    compileApplication: service.compileApplication,
     recover: service.recover,
     close: service.close,
   })
