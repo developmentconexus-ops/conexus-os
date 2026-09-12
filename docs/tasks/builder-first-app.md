@@ -27,6 +27,186 @@ deployment, business Product Agents or whole-repository consolidation.
 
 ## Delivery checkpoints
 
+### Interactive browser result and streaming follow-up
+
+On 2026-09-12 root completed the first Create and open journey through the real
+compiled Hub UI, Keycloak login, admitted model and E2B. The plain Portuguese
+request asked for a counter starting at zero with an Adicionar button. It did
+not specify a framework, source paths, dependency setup or commands. Root read
+the proposed Baseline on screen, approved it, submitted the Builder request,
+prepared Preview and opened the actual retained app.
+
+The iframe displayed `Contador`, `0` and `Adicionar`. Clicking once displayed
+`1`; two more clicks displayed `3`. The UI's new-tab button opened the same app,
+where the initial value was `0` and one click displayed `1`. Root inspected the
+screenshots as well as the rendered controls. No mock routes or replacement app
+were used for this journey.
+
+| Binding | Observed value |
+| --- | --- |
+| Project | `3e72b95f-c629-4063-a442-8eb1d703c539` |
+| Change | `50b591a0-89a9-44f0-9061-cd48a79db55a` |
+| Verified candidate source | `8fc689f1835fdb2c805a90c89eeea96f1138bd30` |
+| Retained application revision | `2aa6efa9-687b-477a-83e1-adb032922d66` |
+| Retained digest | `a137492a453dfb9e7153e1c9edb466229ff304d2c48b8d1d6d21352f492ed77a` |
+
+The local proof remains in `/tmp/conexus-generated-app-ZL6xep`, with its
+disposable database `preview_access_c47209909bc64bf6a33c6f62a1dcf63d`. Browser
+captures are under `/tmp/conexus-preview-access-design-qZIiQj/visual-counter-*`.
+These are local proof resources, not production deployment. The generated app
+has not yet passed second-human-request continuation or restart recovery.
+Full candidate verification, Brain/SDK integration and colleague access remain
+unproved. The existing warning about current-Project Preview and the stale
+loading wording are still visible even while the candidate app works.
+
+The operator then requested a focused deep study and architecture proposal for
+real streaming chat UI using Mastra, its APIs/SDKs, Context7 and mature platform
+references including Palantir. Research may challenge this Build interaction;
+it does not restart whole-platform planning or authorize replacing the execution
+stack. Preserve the generated app while studying the smallest streaming design.
+
+### Streaming investigation result
+
+#### Real streaming result and current blocker
+
+Root exercised the compiled Hub and React UI with trusted local TLS, real
+Keycloak login, the admitted model and E2B on 2026-09-12. One plain Portuguese
+request created Change `f5aff913-67af-4644-8d45-08cef13fe23c` in the existing
+`Contador da equipe` Project `3e72b95f-c629-4063-a442-8eb1d703c539`.
+No model/provider response, app source or browser route was substituted.
+
+- At 37.694 seconds after the click, the browser displayed the partial text
+  `Vou começar in` while the durable Change was `RUNNING`.
+- Reloading the page restored that prefix while the same Change remained
+  `RUNNING`. Tool activities then appeared and advanced to completed. The
+  browser issued exactly one CreateChange POST. The database recorded one
+  coding actor and one verification actor, not a duplicate coding execution.
+- The coding actor completed and retained candidate
+  `087eef7169d13b699edba5a6f11dd3612e91b373`.
+- The verifier failed with `BUILDER_VERIFIER_REPORT_REFUSED`; the Change became
+  `UNVERIFIED`. The UI reported unavailable observation and did not offer
+  preparation of this candidate. This attempt did **not** produce an opened
+  new application and is not a successful end-to-end build receipt.
+- The previous real generated counter was reopened through the UI, counted
+  from zero to two in the iframe, and remained at two when the refused
+  candidate was selected. It also opened in a new tab and counted to one.
+  That is preservation of the prior application, not acceptance of the new one.
+
+The verifier's existing consistency predicate throws that code. The exact
+rejected report was not retained, so its particular conflicting fields cannot
+be reconstructed from this run. Do not infer that the generated app was wrong
+or weaken the predicate to obtain a green demonstration. The next diagnostic
+needs a safe reason for report refusal and a reproduced verification outcome
+through the admitted workflow. Do not manually settle this Change or bypass
+verification to compile it.
+
+Screenshots inspected by root are in
+`/tmp/conexus-streaming-implementation-3Khw8l/`: `live-streaming-before-reload.png`,
+`live-streaming-after-reload.png`, and `live-failed-candidate-preserves-app.png`.
+The desktop Build route now uses the existing wide layout after the live
+screenshot exposed a narrow Preview; the browser regression requires the
+application column to be wider than the conversation.
+
+Final focused results: 21 observation/mapper/feed/service/HTTP tests and four
+Chromium UI tests passed. Hub and web typechecks, scoped Biome, web production
+build and `git diff --check` passed. Two isolated Luna reviewers inspected the
+revised candidate; identified lifetime, subscriber-cap, interrupted-tool and
+incomplete-model-status issues were corrected and checked.
+
+`npm ci` and Chromium installation completed. The full verification attempt
+stopped on the unchanged profile source hash. A separate run executed all 69
+remaining graph commands rather than hiding that failure. Across both runs,
+67 of 71 commands passed. Failures were `g0-profile-compiler`,
+`r1-s2-generate`, `r2-p0-check`, and `r1-s6-contract-generation`, due to the
+existing source hash and generated-route synchronization drift. Their relevant
+Product inputs/generators were unchanged from `2830d3b`; the new technical
+stream contract checks passed. This is not a green full verification receipt.
+
+No commit, push, merge, hosting change or business-data write occurred during
+the implementation and live proof. The operator subsequently authorized
+publishing this snapshot to the existing analysis branch for GPT Pro review,
+without accepting the unfinished delivery or authorizing a merge.
+The failed candidate, earlier generated app and owned proof database remain
+available for diagnosis. Local proof servers are stopped at handoff.
+
+#### Implementation and comparison checkpoint
+
+Implementation checkpoint on 2026-09-12: native Mastra text/tool observation is
+integrated with the server-owned Change job and existing React Build panel.
+TI-04 carries only the bounded safe projection; it grants no new Product action.
+Coding, verification, correction and Preview keep their existing owners.
+
+The executable Arena selected candidate A. Both candidates passed their own
+suites, but an independent slow-reader probe showed that B kept an extra native
+stream queue outside its byte accounting. A also accepted a large frame directly
+when a reader was waiting; B incorrectly rejected it. Integrated A retains its
+zero-high-water-mark stream and explicit live queue. Grafted repeated-terminal
+checks and the distinguishing queue probe. The isolated comparison is in
+`/tmp/conexus-streaming-implementation-3Khw8l/independent-judge.md`.
+
+Controlled verification passed the initial 17 event/feed/service/HTTP tests and
+the real Chromium UI test with an explicitly controlled SSE source. Those prove
+incremental rendering, tool correlation, prefix retention, detachment and access
+checks, not a live model response. Model/E2B/browser proof remains pending at
+this checkpoint. New tests belong to the existing candidate verification graph.
+
+The full `npm run verify` attempt stopped at a pre-existing source hash mismatch
+in the retained profile compiler test: the unchanged `profiles/r1/v1/input-set.json`
+pins `docs/product/operation-ledger.md` to `92faa951…`, while the current committed
+file is `1acef1bd…`. Neither file was changed by streaming. A separate run checks
+the remaining graph without reporting the failed full command as green.
+
+Implementation was approved on 2026-09-12. The immediate vertical outcome is
+an authenticated Build request with actual Mastra text and tool activity visible
+before completion, while existing coding/verification/Preview settlement stays
+authoritative. Arena will compare executable bounded-feed implementations,
+not repeat the platform study. Root owns wire/runtime/UI integration. Target
+falsifiers are lost initial parts, mixed-run output, unbounded slow readers,
+disconnect canceling or duplicating work, unauthorized stream disclosure and
+stream completion falsely promoting Preview. Controlled tests cover these seams;
+only a real model/E2B/browser run closes the incremental-display claim. No
+database migration or new chat/session engine is included.
+
+The focused [Mastra streaming study](../research/mastra/builder-streaming-ui.md)
+now records the current implementation, exact adopted APIs, Context7 and guide
+cross-checks, pinned Mastra Studio source, Palantir/Factory references, and two
+Luna architecture candidates with cross-review. This is a researched proposal,
+not implemented streaming or permission inferred from a reference product.
+
+Recommended next slice is real native Mastra text/tool observation attached to
+the existing BLD-03 background Change, rendered in the existing app-first Build
+UI. Keep separate text blocks and correlated activity parts, not a single status
+string. The model, worker lifecycle, candidate verification and Preview owners
+stay in place. Browser disconnect releases observation, not the paid run.
+
+Studio's own UI uses `@mastra/react` and native client streams; its AI SDK guide
+describes a different integration. Neither hook can simply observe our current
+Change without adaptation. Do not copy Studio's memory/session infrastructure
+or implement a replacement session controller merely to show streaming.
+AgentController remains the framework option to examine before later session,
+steering or approval work, not an immediate replacement of the proven worker.
+
+- [x] Trace current flow and read installed Mastra API, Studio code and guides.
+- [x] Compare native observation against AI SDK UI transport and record risks.
+- [ ] Admit the narrow Builder-specific technical observation wire and implement
+  its bounded feed, actual runtime events and ordered UI parts.
+- [ ] Prove incremental output and real tool activity in the authenticated
+  browser while the actual coding job runs. Verify disconnect does not duplicate
+  execution or destroy the previous app. Controlled streams do not close this.
+- [ ] Continue the existing second-request and generated-app recovery journey;
+  run the full current verification graph after integration.
+
+No dependency was installed and no streaming Product code was changed in this
+investigation. Temporary design alternatives and the cross-judge are under
+`/tmp/conexus-streaming-design-ZXlXsZ`; the linked study contains the selected
+synthesis and its limits so those temporary files are not required authority.
+
+At the end of the research, root stopped the owned Chromium and Hub processes.
+The retained generated app, source directory, private restart context and
+disposable database were preserved. Local Hub/Preview URLs are therefore offline
+until the owned Hub is started again; this shutdown is not a generated-app
+restart/reopen proof.
+
 ### GPT Pro review snapshot, 2026-09-12
 
 The operator requested publication of the current implementation for a concise
@@ -56,18 +236,94 @@ removed without losing source continuity, actual app execution or existing
 access boundaries. Do not reopen R/L plans, add a new architecture, or treat
 Brain and Sankhya's existing module proofs as integrated app behavior.
 
+### Pro review follow-up
+
+#### Configured-server recovery proof after Pro review
+
+Root ran the compiled production `server.ts` with real Keycloak TLS login,
+disposable PostgreSQL and normal-trust Chromium. BLD-21 reused a retained app,
+BLD-22 opened it in an iframe and new tab, and the counter responded in both.
+After restarting the owned Hub process, the old access was refused. Fresh
+authorization reopened the same artifact at its stable URL. Builder run counts
+and retained artifact identities were unchanged. The runner reported `PASS`.
+
+This proof uses controlled retained app files, not model-generated source or
+the Build UI controls. It does not establish the first-app journey or SDK use.
+The runner is `/tmp/conexus-preview-access-design-qZIiQj/configured-server-proof.mjs`.
+It orchestrates actual browser fetches and navigation against the full server.
+The earlier runner failures included a lost evaluation promise, premature
+interaction before script load, and an incorrect expectation of a changed URL.
+No Product implementation change was needed to pass this bounded proof.
+
+The operator returned GPT Pro's review of `2830d3b`. It supports the existing
+recut and prioritizes integration, not another architecture. Apply two bounded
+checks before the real first-app journey:
+
+- Reproduce a successful pending iframe GET and HEAD followed by a failed fresh
+  displayed-iframe GET. In `project-build.tsx`, promote the same keyed, loaded
+  iframe without changing its `src`. Keep the previous frame until settlement.
+  The existing browser test must prove no extra promotion GET, preserved app
+  state, and retention of the previous frame on a failed pending navigation.
+- Inject failure after entry-grant issuance. Check access-owned record cleanup
+  and capacity through existing I&A/MAR operations. The entry grant expires
+  after 30 seconds; a consumed Preview cookie has a separate lifetime. Do not
+  describe retained unusable records as a demonstrated credential leak.
+
+Then drive login, the real model request, retained compilation, and iframe/new
+tab interaction through the configured Hub. Continue to the explicit second
+request and restart proof. Full verification follows integration. Existing
+compiler, storage, authentication, and concluded experiments are reused.
+
+Root reproduced retained unusable I&A records through the public access and MAR
+APIs, then reviewed the exact-token compensation. I&A now discards the issued
+entry grant when Hub launch settlement fails. MAR discards the redeemed cookie
+when activation fails. The targeted access, Preview HTTP and workspace HTTP
+checks passed 23 tests. They cover capacity recovery without expiry, repeated
+discard, unrelated-token preservation and refusal after failed activation.
+No new storage, service or revocation registry was introduced.
+
+Root also reran the four Build browser tests after reviewing the iframe fix.
+The Preview test uses an actual HTTP 303 from a local test server. It increments
+the app counter before HEAD settlement, then proves promotion performs no second
+GET and preserves the counter value. A later refused HEAD leaves that same
+previous app usable. The implementation keeps the loaded iframe's key and `src`
+unchanged and gives each pending launch its own form target. These are controlled
+UI checks, not a model-generated app demonstration.
+
+The first full generated-app runner reached real login, NEW Project creation,
+model-backed Inception, UI Baseline approval and a `VERIFIED` Builder candidate.
+Its source Git contained the requested counter files. The runner then timed out
+after 60 seconds waiting for the Open Preview button. It did not observe a
+terminal preparation result and cannot establish a compilation failure. Its
+disposable database and source directory were cleaned up by that runner.
+
+A second run exposed the same 60-second observation limit during Project
+creation, before another model request. The revised runner retains failed proof
+state and observes preparation states through the server's 180-second lifetime.
+Root switched to interactive Chromium inspection against the retained local
+Hub environment. The operator explicitly requested browser validation as a user.
+Root created `Contador da equipe`, inspected the actual screens, reviewed the
+model's proposed Baseline and submitted a plain Portuguese counter request
+without specifying stack, source paths or commands. Browser interaction remains
+the deciding proof; backend `VERIFIED` alone is insufficient.
+
+The observed UI still exposes technical Baseline/Change vocabulary and shows a
+Preview-unavailable warning during initial generation. These are concrete UX
+observations for the existing Build consumer, not a new architecture prerequisite.
+
 ### Checkpoint definitions
 
 The operator approved these checkpoints on 2026-09-12. They split one first-app
 delivery into observable results, not new R/L phases or independent approval
 gates. [Roadmap](../roadmap.md#current-direction-and-tracking) owns delivery state
-and the next action. None of the checkpoints below has an end-to-end result yet.
+and the next action. Create and open now has the interactive browser result above;
+the other checkpoints still lack their generated-app journey proof.
 
 | Checkpoint | What the operator demonstrates | Existing proof and missing behavior |
 | --- | --- | --- |
-| Create and open | Log in through the real UI, request an app, use its compiled output in iframe and a new tab | [Compiler proof](#observed-compiler-result) exists; app-template wiring, retained output and authorized browser serving remain to be integrated |
+| Create and open | Log in through the real UI, request an app, use its compiled output in iframe and a new tab | [Interactive browser result](#interactive-browser-result-and-streaming-follow-up) passed for a real model-created counter; streaming remains a separate UI gap |
 | Continue | Make a second request against that app; use the added behavior while retaining the first feature | [Continuation semantics](#exact-continuation-semantics) are proposed; real second-request source ancestry and browser behavior are not demonstrated |
-| Preserve and recover | Restart Hub and reopen without recompilation; a failed or late build cannot replace the correct version; revoked access cannot retrieve it | Existing local controls do not establish the composed Preview behavior |
+| Preserve and recover | Restart Hub and reopen without recompilation; a failed or late build cannot replace the correct version; revoked access cannot retrieve it | [Configured-server recovery](#configured-server-recovery-proof-after-pro-review) passed with controlled artifacts; the generated app still needs this journey |
 
 Source identity, authorization, retention and failure handling constrain the
 first checkpoint. The last checkpoint exercises recovery across the assembled
@@ -81,7 +337,7 @@ Reuse the current Mastra coding path, verified-source reader and E2B compiler.
 The intended change connects them to retained compiled output and the existing
 Build UI. Do not rebuild the compiler or add a separate editor/runtime framework.
 
-- [ ] Confirm the fixed `app/` template and Builder instructions produce source
+- [x] Confirm the fixed `app/` template and Builder instructions produce source
   accepted by the existing compiler. Read the actual seed consumer before
   deciding whether the recorded seed mismatch blocks this path.
 - [x] Compare the isolated Registry draft with the current migration runner and
@@ -102,13 +358,14 @@ Build UI. Do not rebuild the compiler or add a separate editor/runtime framework
   without implementing that checkpoint silently.
 - [x] Record exact implementation files, unresolved choices and the bounded
   real-model/E2B/browser proof request. Then obtain the required execution grant.
-- [ ] Implement and demonstrate Create and open after that grant. Record actual
+- [x] Implement and demonstrate Create and open after that grant. Record actual
   prompts, source/artifact identities, browser result and remaining limits.
 
 Current resolution evidence is the [access consumer proof](#access-consumer-proof--2026-09-12)
 and the Registry/preparation observations below. The autonomous grant is in the
-roadmap. The fixed profile and actual Build UI/generated-app demonstration
-remain open; checked preparation items do not establish those results.
+roadmap. The fixed profile and real Create and open demonstration now have the
+[interactive result](#interactive-browser-result-and-streaming-follow-up).
+Streaming, explicit continuation and generated-app recovery remain open.
 
 A checked planning item means its question was resolved with a decision or
 evidence pointer. It does not mean the app was delivered. The technical sketches

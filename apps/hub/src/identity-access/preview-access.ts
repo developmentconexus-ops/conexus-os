@@ -47,6 +47,8 @@ export type PreviewAccess = Readonly<{
     exactHost: string
     now?: Date
   }>): Promise<PreviewCookieBinding | null>
+  discardEntryGrant(entryGrant: string): void
+  discardCookie(cookie: string): void
   close(): Promise<void>
 }>
 
@@ -187,6 +189,14 @@ export const createPreviewAccess = ({
     return Object.freeze({ ...record.route, issuer: session.issuer, subject: session.subject })
   }
 
+  const discardEntryGrant = (entryGrant: string): void => {
+    if (entryGrant) entries.delete(sha256(entryGrant).toString('hex'))
+  }
+
+  const discardCookie = (cookie: string): void => {
+    if (cookie) cookies.delete(sha256(cookie).toString('hex'))
+  }
+
   const close = async (): Promise<void> => {
     if (closing !== null) return closing
     if (closed) return
@@ -199,5 +209,5 @@ export const createPreviewAccess = ({
     await closing
   }
 
-  return Object.freeze({ issueEntryGrant, consumeEntryGrant, resolvePreviewCookie, close })
+  return Object.freeze({ issueEntryGrant, consumeEntryGrant, resolvePreviewCookie, discardEntryGrant, discardCookie, close })
 }

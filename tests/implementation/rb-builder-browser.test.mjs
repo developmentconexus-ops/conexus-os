@@ -15,10 +15,24 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   const projectId = '70000000-0000-4000-8000-000000000002'
   const changeId = '70000000-0000-4000-8000-000000000003'
   const origin = 'http://127.0.0.1:41749'
+  let observationResponse
+  let observationSequence = 0
+  const observe = (event) => observationResponse.write(`data: ${JSON.stringify({ generation: 'browser-proof', sequence: ++observationSequence, event })}\n\n`)
+  const serveObservation = (request, response, next) => {
+    if (request.url !== `/protocol/projects/${projectId}/builder-changes/${changeId}/stream`) return next()
+    observationResponse = response
+    response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store' })
+    observe({ kind: 'TEXT_START', blockId: 'first' })
+    observe({ kind: 'TEXT_DELTA', blockId: 'first', text: 'Vou analisar os arquivos.' })
+    observe({ kind: 'TEXT_END', blockId: 'first' })
+    observe({ kind: 'ACTIVITY', activityId: 'read-1', label: 'READ_FILES', state: 'started' })
+  }
   const server = await createServer({
     configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
     server: { host: '127.0.0.1', port: 41749, strictPort: true },
+    plugins: [{ name: 'controlled-builder-observation', configureServer(instance) { instance.middlewares.use(serveObservation) } }],
   })
+  t.after(() => observationResponse?.end())
   await server.listen()
   t.after(() => server.close())
   const browser = await chromium.launch({ headless: true })
@@ -80,6 +94,9 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   await page.goto(`${origin}/projects/${projectId}`)
   await page.getByRole('link', { name: 'Construir com o Conexus' }).click()
   await page.getByRole('heading', { name: 'Construir com o Conexus' }).waitFor()
+  const previewBox = await page.locator('.build-preview-surface').boundingBox()
+  const conversationBox = await page.locator('.conexus-panel').boundingBox()
+  assert.ok(previewBox.width > conversationBox.width, 'the application remains wider than the conversation on desktop')
   await page.getByText('Não foi possível obter um Preview para este Project.', { exact: true }).waitFor()
   await new Promise((resolvePromise) => setTimeout(resolvePromise, 2_500))
   assert.deepEqual(previewReads.filter((requestedChangeId) => requestedChangeId === null), [null])
@@ -94,6 +111,19 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   await page.getByLabel('O que deve mudar neste Project?').fill('Adicionar uma página de saúde')
   await page.getByRole('button', { name: 'Pedir mudança' }).click()
   await page.getByText('Change criado. O Conexus iniciou o trabalho governado.').waitFor()
+  await page.getByText('Vou analisar os arquivos.', { exact: true }).waitFor({ timeout: 5_000 })
+  assert.equal(state, 'RUNNING')
+  assert.equal(await page.getByRole('button', { name: 'Pedir mudança' }).isDisabled(), true)
+  observe({ kind: 'ACTIVITY', activityId: 'read-1', label: 'READ_FILES', state: 'succeeded' })
+  observe({ kind: 'TEXT_START', blockId: 'second' })
+  observe({ kind: 'TEXT_DELTA', blockId: 'second', text: 'Agora vou criar a página.' })
+  await page.getByText('Agora vou criar a página.', { exact: true }).waitFor()
+  assert.equal(await page.locator('[data-activity-id="read-1"]').count(), 1)
+  assert.equal(await page.locator('[data-activity-id="read-1"]').getAttribute('data-state'), 'succeeded')
+  observe({ kind: 'TEXT_END', blockId: 'second' })
+  observe({ kind: 'OBSERVATION_END' })
+  observationResponse.end()
+  assert.equal(await page.getByRole('button', { name: 'Pedir mudança' }).isDisabled(), true)
   assert.equal(attempts.length, 1)
   assert.deepEqual(attempts[0].body, { intent: 'Adicionar uma página de saúde' })
   assert.match(attempts[0].key, /^[0-9a-f-]{36}$/)
@@ -296,20 +326,60 @@ test('Project Build explicitly prepares and opens the exact candidate in iframe 
   const origin = 'http://127.0.0.1:41752'
   const subjectDigest = 'c'.repeat(40)
   const artifactDigest = 'd'.repeat(64)
+  let headAllowed = true
+  let previewGets = 0
+  let previewHeads = 0
   const server = await createServer({
     configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
     server: { host: '127.0.0.1', port: 41752, strictPort: true },
   })
+  const previewMiddleware = (request, response, next) => {
+    if (request.url !== '/__test-preview-entry' || request.method !== 'POST') {
+      if (request.url !== '/__test-preview/' || !['GET', 'HEAD'].includes(request.method ?? '')) return next()
+      if (request.method === 'HEAD') {
+        previewHeads += 1
+        response.statusCode = headAllowed ? 200 : 403
+        response.end()
+        return
+      }
+      previewGets += 1
+      response.statusCode = 200
+      response.setHeader('Content-Type', 'text/html')
+      response.end('<!doctype html><title>Generated app</title><main>Generated app is running</main><button id="counter" type="button">Count: <span id="count">0</span></button><script>document.querySelector("#counter").addEventListener("click", () => { const count = document.querySelector("#count"); count.textContent = String(Number(count.textContent) + 1) })</script>')
+      return
+    }
+    const chunks = []
+    request.on('data', (chunk) => chunks.push(chunk))
+    request.on('end', () => {
+      assert.equal(Buffer.concat(chunks).toString(), 'entryGrant=grant-secret')
+      entryPosts += 1
+      response.statusCode = 303
+      response.setHeader('Location', '/__test-preview/')
+      response.end()
+    })
+  }
+  server.middlewares.use(previewMiddleware)
+  server.middlewares.stack.unshift(server.middlewares.stack.pop())
   await server.listen()
   t.after(() => server.close())
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  await page.addInitScript(() => {
+    let releaseHead
+    const headReleased = new Promise((resolve) => { releaseHead = resolve })
+    window.__releasePreviewHead = () => releaseHead()
+    const originalFetch = window.fetch.bind(window)
+    window.fetch = async (input, init) => {
+      if (window.top === window && init?.method === 'HEAD' && String(input).endsWith('/__test-preview/')) await headReleased
+      return originalFetch(input, init)
+    }
+  })
+  const releaseFirstHead = () => page.evaluate(() => window.__releasePreviewHead())
   let preparationStarted = false
   let preparationPolls = 0
   let launchBody
   let entryPosts = 0
-  let headAllowed = true
   const change = () => ({ changeId, projectId, intent: 'Adicionar uma página de saúde', baselineDigest: 'a'.repeat(64), planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', state: 'VERIFIED' })
   const preview = (preparation) => ({
     previewId: 'preview-candidate', subjectKind: 'CHANGE_CANDIDATE', subjectDigest,
@@ -346,17 +416,6 @@ test('Project Build explicitly prepares and opens the exact candidate in iframe 
   await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/diff`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ baseSourceRevision: 'b'.repeat(40), candidateSourceRevision: subjectDigest, patch: '+health: ok' }) }))
   await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/findings`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
   await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/evidence`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
-  await page.route('**/__test-preview-entry', (route) => {
-    assert.equal(route.request().method(), 'POST')
-    assert.equal(route.request().postData(), 'entryGrant=grant-secret')
-    entryPosts += 1
-    return route.fulfill({ status: 303, headers: { location: '/__test-preview/' } })
-  })
-  await page.context().route('**/__test-preview/', (route) => {
-    if (route.request().method() === 'HEAD' && !headAllowed) return route.fulfill({ status: 403 })
-    return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>Generated app</title><main>Generated app is running</main>' })
-  })
-
   await page.goto(`${origin}/projects/${projectId}/build`)
   await page.getByRole('heading', { name: 'Preview' }).waitFor()
   await page.getByRole('button', { name: 'Preparar Preview' }).click()
@@ -366,10 +425,18 @@ test('Project Build explicitly prepares and opens the exact candidate in iframe 
   assert.deepEqual(launchBody, { changeId, subjectDigest, attemptId, artifactRevisionId, artifactDigest })
   assert.equal(entryPosts, 1)
   assert.equal(await page.locator('iframe[title="Preview do aplicativo"]').count(), 1)
-  assert.equal(await page.locator('iframe[title="Preview do aplicativo"]').first().getAttribute('src'), `${origin}/__test-preview/`)
+  assert.equal(await page.locator('iframe[title="Preview do aplicativo"]').first().getAttribute('src'), 'about:blank')
   const frame = page.frameLocator('iframe[title="Preview do aplicativo"]')
   await frame.getByText('Generated app is running', { exact: true }).waitFor({ timeout: 7_000 })
-  assert.equal(await page.locator('iframe[title="Preview do aplicativo"]').first().getAttribute('src'), `${origin}/__test-preview/`)
+  await frame.getByRole('button', { name: 'Count: 0' }).click()
+  await frame.getByRole('button', { name: 'Count: 1' }).waitFor()
+  assert.equal(previewGets, 1)
+  await releaseFirstHead()
+  for (let attempt = 0; attempt < 100 && previewHeads === 0; attempt += 1) await page.waitForTimeout(10)
+  assert.equal(previewHeads, 1)
+  await page.getByRole('status').filter({ hasText: 'Preview carregando no endereço autorizado.' }).waitFor()
+  assert.equal(previewGets, 1)
+  await page.frameLocator('iframe[title="Preview do aplicativo"]').getByRole('button', { name: 'Count: 1' }).waitFor()
   const popupPromise = page.waitForEvent('popup')
   await page.getByRole('button', { name: 'Abrir em nova aba' }).click()
   const popup = await popupPromise
@@ -380,7 +447,9 @@ test('Project Build explicitly prepares and opens the exact candidate in iframe 
   headAllowed = false
   await page.getByRole('button', { name: 'Abrir Preview' }).click()
   await page.getByRole('status').filter({ hasText: 'não confirmou uma entrada autorizada' }).waitFor()
-  await page.frameLocator('iframe[title="Preview do aplicativo"]').getByText('Generated app is running', { exact: true }).waitFor()
+  const retainedFrame = page.frameLocator('iframe[title="Preview do aplicativo"]')
+  await retainedFrame.getByText('Generated app is running', { exact: true }).waitFor()
+  await retainedFrame.getByRole('button', { name: 'Count: 1' }).waitFor()
 
   headAllowed = true
   await page.reload()

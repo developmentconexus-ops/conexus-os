@@ -4,6 +4,8 @@ import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspac
 import { Workspace } from '@mastra/core/workspace'
 import { E2BSandbox } from '@mastra/e2b'
 import { Sandbox } from 'e2b'
+import type { BuilderObservation } from '../../../../packages/builder-observation/src/index.mjs'
+import { createMastraObservationMapper, notifyObservation } from './runtime-observation.js'
 import {
   FIXED_APPLICATION_STARTER_INSTRUCTIONS,
   materializeFixedApplicationStarter,
@@ -21,6 +23,7 @@ export type CodingWorkerInput = Readonly<{
   sourceBundle: Uint8Array
   bindPhysicalSandbox(sandboxId: string): Promise<void>
   signal?: AbortSignal
+  observe?(event: BuilderObservation): void
 }>
 
 export type CodingWorkerResult = Readonly<{
@@ -164,6 +167,7 @@ export const createMastraE2BCodingWorkerRuntime = (
             'Work only in /workspace/repo. Implement the human intent with the smallest sustainable change.',
             'Inspect before editing, run focused checks when available, and do not claim acceptance or mutate any Conexus owner state.',
             'Never add a Git remote, use network access, read outside /workspace/repo, or expose credentials.',
+            'Send brief Portuguese progress updates before starting work and before important edits. Report only the action and visible result; never reveal chain-of-thought.',
             FIXED_APPLICATION_STARTER_INSTRUCTIONS,
           ].join(' '),
           tools: {},
@@ -171,14 +175,35 @@ export const createMastraE2BCodingWorkerRuntime = (
         const correction = input.correctionFindings?.length
           ? ` This is the one admitted correction attempt. Resolve these retained verification findings: ${input.correctionFindings.map((finding) => `[${finding.findingId}] ${finding.summary}`).join('; ')}.`
           : ''
-        const response = await agent.generate(
-          `Project ${input.projectId}; Change ${input.changeId}; exact work-unit parent ${input.baseSourceRevision}. Human intent: ${input.intent}.${correction}`,
-          {
-            maxSteps: 24,
-            abortSignal: input.signal,
-            modelSettings: { maxRetries: 0, maxOutputTokens: 4_096, timeout: { totalMs: config.timeoutMs ?? 15 * 60_000, stepMs: 120_000 } },
-          },
-        )
+        const mapper = createMastraObservationMapper()
+        const publish = (event: BuilderObservation) => notifyObservation(input.observe, event)
+        let summaryText = ''
+        try {
+          const response = await agent.stream(
+            `Project ${input.projectId}; Change ${input.changeId}; exact work-unit parent ${input.baseSourceRevision}. Human intent: ${input.intent}.${correction}`,
+            {
+              maxSteps: 24,
+              abortSignal: input.signal,
+              modelSettings: { maxRetries: 0, maxOutputTokens: 4_096, timeout: { totalMs: config.timeoutMs ?? 15 * 60_000, stepMs: 120_000 } },
+            },
+          )
+          for await (const chunk of response.fullStream) {
+            for (const event of mapper.map(chunk)) publish(event)
+          }
+          for (const event of mapper.finish()) publish(event)
+          const fullOutput = await response.getFullOutput()
+          if (fullOutput.error) throw fullOutput.error
+          if (fullOutput.tripwire || response.tripwire || response.status === 'tripwire') throw new Error('BUILDER_MODEL_TRIPWIRE')
+          if (response.status === 'failed') throw response.error ?? new Error('BUILDER_MODEL_STREAM_FAILED')
+          if (response.status === 'canceled' || input.signal?.aborted) throw new Error('BUILDER_RUN_CANCELLED')
+          if (response.status !== 'success') throw new Error('BUILDER_MODEL_INCOMPLETE')
+          // A successful tool-driven maxSteps result remains governed by the
+          // existing candidate finalizer; finishReason alone is not failure.
+          summaryText = fullOutput.text
+        } catch (error) {
+          for (const event of mapper.finish()) publish(event)
+          throw error
+        }
         const finalized = await direct('sh', ['-lc', [
           'test -z "$(git -C /workspace/repo remote)"',
           `test "$(git -C /workspace/repo rev-parse HEAD)" = "${input.baseSourceRevision}"`,
@@ -205,7 +230,7 @@ export const createMastraE2BCodingWorkerRuntime = (
           baseSourceRevision: input.baseSourceRevision,
           candidateSourceRevision,
           resultBundle,
-          summary: response.text.trim() || 'Coding worker produced a candidate result.',
+          summary: summaryText.trim() || 'Coding worker produced a candidate result.',
         })
       } finally {
         await sandbox.destroy().catch(() => undefined)

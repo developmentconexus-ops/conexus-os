@@ -69,6 +69,43 @@ test('I&A entry grants bind the session digest, consume once and expire with the
   await access.close()
 })
 
+test('I&A exact-token discards free entry and cookie capacity without invalidating unrelated access', async () => {
+  const now = 1_000
+  const access = createPreviewAccess({ now: () => now, readSession: async () => ({ account: { accountId: ACCOUNT }, issuer: 'issuer-a', subject: 'subject-a' }) })
+  const target = await access.issueEntryGrant({ sessionToken: 'target-session', route: routeInput('target') })
+  const unrelated = await access.issueEntryGrant({ sessionToken: 'unrelated-session', route: routeInput('unrelated') })
+  for (let index = 0; index < 4094; index += 1) {
+    await access.issueEntryGrant({ sessionToken: `entry-session-${index}`, route: routeInput(`entry-${index}`) })
+  }
+  await assert.rejects(() => access.issueEntryGrant({ sessionToken: 'full-session', route: routeInput('full') }), /PREVIEW_ACCESS_UNAVAILABLE/)
+  access.discardEntryGrant(target.entryGrant)
+  access.discardEntryGrant(target.entryGrant)
+  assert.equal(await access.consumeEntryGrant({ entryGrant: target.entryGrant, exactHost: routeInput('target').exactHost }), null)
+  await access.issueEntryGrant({ sessionToken: 'replacement-session', route: routeInput('replacement') })
+  const unrelatedCookie = await access.consumeEntryGrant({ entryGrant: unrelated.entryGrant, exactHost: routeInput('unrelated').exactHost })
+  assert.ok(unrelatedCookie)
+  assert.equal(await access.resolvePreviewCookie({ cookie: unrelatedCookie.cookie, exactHost: routeInput('unrelated').exactHost }) !== null, true)
+  await access.close()
+
+  const cookieAccess = createPreviewAccess({ now: () => now, readSession: async () => ({ account: { accountId: ACCOUNT }, issuer: 'issuer-a', subject: 'subject-a' }) })
+  const targetEntry = await cookieAccess.issueEntryGrant({ sessionToken: 'cookie-target-session', route: routeInput('cookie-target') })
+  const unrelatedEntry = await cookieAccess.issueEntryGrant({ sessionToken: 'cookie-unrelated-session', route: routeInput('cookie-unrelated') })
+  const targetCookie = await cookieAccess.consumeEntryGrant({ entryGrant: targetEntry.entryGrant, exactHost: routeInput('cookie-target').exactHost })
+  const unrelatedCookie2 = await cookieAccess.consumeEntryGrant({ entryGrant: unrelatedEntry.entryGrant, exactHost: routeInput('cookie-unrelated').exactHost })
+  assert.ok(targetCookie)
+  assert.ok(unrelatedCookie2)
+  for (let index = 0; index < 4094; index += 1) {
+    await cookieAccess.issueEntryGrant({ sessionToken: `cookie-entry-session-${index}`, route: routeInput(`cookie-entry-${index}`) })
+  }
+  await assert.rejects(() => cookieAccess.issueEntryGrant({ sessionToken: 'cookie-full-session', route: routeInput('cookie-full') }), /PREVIEW_ACCESS_UNAVAILABLE/)
+  cookieAccess.discardCookie(targetCookie.cookie)
+  cookieAccess.discardCookie(targetCookie.cookie)
+  await cookieAccess.issueEntryGrant({ sessionToken: 'cookie-replacement-session', route: routeInput('cookie-replacement') })
+  assert.equal(await cookieAccess.resolvePreviewCookie({ cookie: targetCookie.cookie, exactHost: routeInput('cookie-target').exactHost }), null)
+  assert.equal(await cookieAccess.resolvePreviewCookie({ cookie: unrelatedCookie2.cookie, exactHost: routeInput('cookie-unrelated').exactHost }) !== null, true)
+  await cookieAccess.close()
+})
+
 test('MAR activates the exact route, serves manifest files through the Registry reader, and refuses wrong hosts and paths', async (t) => {
   const now = 1_000
   let live = true
@@ -146,12 +183,44 @@ test('MAR activates the exact route, serves manifest files through the Registry 
   assert.equal(revokedObservation.headers['access-control-allow-origin'], HUB_ORIGIN)
 })
 
+test('MAR discards a cookie when route activation fails after entry consumption', async (t) => {
+  const access = createPreviewAccess({ readSession: async () => ({ account: { accountId: ACCOUNT }, issuer: 'issuer-a', subject: 'subject-a' }) })
+  let consumedCookie
+  const mar = createMarModule({
+    access: {
+      consumeEntryGrant: async (input) => {
+        const consumed = await access.consumeEntryGrant(input)
+        consumedCookie = consumed?.cookie
+        return consumed
+      },
+      resolvePreviewCookie: (input) => access.resolvePreviewCookie(input),
+      discardCookie: (cookie) => access.discardCookie(cookie),
+    },
+    exactHubOrigin: HUB_ORIGIN, previewPort: 43101, registryReader: async () => null,
+  })
+  const opened = mar.openRoute({ ...routeInput(), manifest: { entryPath: 'index.html', files: [{ path: 'index.html', mediaType: 'text/html' }] } })
+  const issued = await access.issueEntryGrant({ sessionToken: 'hub-session-a', route: opened.route })
+  mar.closeRoute(opened.route.routeId)
+  const app = await createHttpApp({ registerRoutes: mar.registerPreviewRoutes, staticRoot: null })
+  t.after(async () => { await app.close(); await mar.close(); await access.close() })
+  const response = await app.inject({
+    method: 'POST', url: '/__conexus/preview-entry',
+    headers: { host: `${opened.route.exactHost}:43101`, origin: HUB_ORIGIN, 'content-type': 'application/x-www-form-urlencoded' },
+    payload: `entryGrant=${encodeURIComponent(issued.entryGrant)}`,
+  })
+  assert.equal(response.statusCode, 403)
+  assert.equal(response.headers['set-cookie'], undefined)
+  assert.ok(consumedCookie)
+  assert.equal(await access.resolvePreviewCookie({ cookie: consumedCookie, exactHost: opened.route.exactHost }), null)
+})
+
 test('MAR refuses requests after close without consulting I&A', async (t) => {
   let reads = 0
   const mar = createMarModule({
     access: {
       consumeEntryGrant: async () => { reads++; return null },
       resolvePreviewCookie: async () => { reads++; return null },
+      discardCookie: () => {},
     },
     exactHubOrigin: HUB_ORIGIN, previewPort: 43102, registryReader: async () => null,
   })
@@ -179,6 +248,7 @@ test('MAR close drains a pending entry and cannot activate its route afterward',
         return { cookie: 'not-issued', binding: { ...opened.route, issuer: 'issuer-a', subject: 'subject-a' } }
       },
       resolvePreviewCookie: async () => null,
+      discardCookie: () => {},
     },
     exactHubOrigin: HUB_ORIGIN, previewPort: 43102, registryReader: async () => null,
   })

@@ -55,7 +55,7 @@ function assertWhole(currentProduct, currentTechnical, currentProject, currentPr
   const projectOps = collectOperations(currentProject);
 
   if (productOps.length !== expectedProductOperations) throw new Error(`whole-4B Product census drifted: ${productOps.length}`);
-  if (technicalOps.length !== 3) throw new Error(`whole-4B Technical census drifted: ${technicalOps.length}`);
+  if (technicalOps.length !== 4) throw new Error(`whole-4B Technical census drifted: ${technicalOps.length}`);
   if (projectOps.length !== 2) throw new Error(`whole-4B Budget proving census drifted: ${projectOps.length}`);
   if (currentProject['x-conexus-generated'] !== true) throw new Error('Project OAD must remain a generated projection');
   if (currentProjection.authority !== 'PROJECTION_ONLY') throw new Error('wire projection must remain PROJECTION_ONLY');

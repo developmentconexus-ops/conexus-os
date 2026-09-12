@@ -47,6 +47,7 @@ type PreviewAccess = Readonly<{
     binding: PreviewCookieBinding
   }> | null>
   resolvePreviewCookie(input: Readonly<{ cookie: string; exactHost: string; now?: Date }>): Promise<PreviewCookieBinding | null>
+  discardCookie(cookie: string): void
 }>
 
 type RegistryReader = (input: Readonly<{
@@ -148,11 +149,16 @@ export const registerPreviewRoutes = async (
     } catch {
       return reply.code(503).send()
     }
-    const route = redeemed ? dependencies.routes.get(redeemed.binding.routeId) : undefined
-    if (route?.lifecycle !== 'OPENING' || !hostMatches(requestHost, route, dependencies.previewPort)) return reply.code(403).send()
-    if (!redeemed || !sameBinding(route, redeemed.binding) || route.expiresAt <= dependencies.now()) return reply.code(403).send()
+    if (!redeemed) return reply.code(403).send()
+    const route = dependencies.routes.get(redeemed.binding.routeId)
+    if (route?.lifecycle !== 'OPENING' || !hostMatches(requestHost, route, dependencies.previewPort) ||
+      !sameBinding(route, redeemed.binding) || route.expiresAt <= dependencies.now()) {
+      dependencies.access.discardCookie(redeemed.cookie)
+      return reply.code(403).send()
+    }
     const current = dependencies.routes.get(route.routeId)
     if (current?.lifecycle !== 'OPENING' || current.generation !== route.generation || current.attemptId !== route.attemptId) {
+      dependencies.access.discardCookie(redeemed.cookie)
       return reply.code(403).send()
     }
     dependencies.routes.set(route.routeId, Object.freeze({ ...current, lifecycle: 'ACTIVE' }))

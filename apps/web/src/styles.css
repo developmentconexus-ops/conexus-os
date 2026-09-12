@@ -62,6 +62,12 @@ fieldset input { margin: 0; }
 .build-preview-surface { display: grid; gap: .75rem; }
 .build-preview-surface h2, .conexus-panel h2 { margin: .25rem 0; }
 .conexus-panel form { margin-top: 1rem; }
+.builder-conversation { max-height: 26rem; overflow: auto; overflow-wrap: anywhere; }
+.builder-message { white-space: pre-wrap; line-height: 1.5; }
+.builder-request { padding: .75rem; border-radius: .5rem; background: #e7efe8; white-space: pre-wrap; }
+.builder-activity, .builder-phase { padding: .55rem .7rem; border-radius: .45rem; background: #f0f4f1; font-size: .85rem; }
+.builder-activity[data-state="failed"] { color: #8b2828; background: #fff1ee; }
+button:disabled { opacity: .6; cursor: wait; }
 .preview-empty { min-height: 18rem; display: grid; place-items: center; padding: 2rem; border: 1px dashed #8b9991; border-radius: .6rem; color: #617068; text-align: center; }
 .preview-frame-stack { display: grid; min-height: 24rem; overflow: hidden; border: 1px solid #ccd5d0; border-radius: .6rem; background: #17231d; }
 .preview-frame-stack iframe { grid-area: 1 / 1; width: 100%; min-height: 24rem; border: 0; background: white; }

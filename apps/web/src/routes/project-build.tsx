@@ -22,5 +22,5 @@ function ProjectBuildRoute() {
     return <Shell context={access.data}><main className="status"><h1>{hidden ? 'Project indisponível' : 'Não foi possível consultar o Project'}</h1></main></Shell>
   }
   const workspace = access.data.workspaces.find((candidate) => candidate.workspaceId === project.data.workspaceId)
-  return <Shell context={access.data} scope={workspace ? { workspace, project: project.data } : undefined}><main><p className="eyebrow">{project.data.name} / Build</p><h1>Construir com o Conexus</h1><p>Descreva a mudança e acompanhe o resultado governado no próprio Project.</p><ProjectBuild projectId={projectId} /><Link to="/projects/$projectId" params={{ projectId }}>Voltar ao Project</Link></main></Shell>
+  return <Shell context={access.data} scope={workspace ? { workspace, project: project.data } : undefined}><main className="control-plane-page"><p className="eyebrow">{project.data.name} / Build</p><h1>Construir com o Conexus</h1><p>Descreva a mudança e acompanhe o resultado governado no próprio Project.</p><ProjectBuild projectId={projectId} /><Link to="/projects/$projectId" params={{ projectId }}>Voltar ao Project</Link></main></Shell>
 }

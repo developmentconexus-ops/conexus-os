@@ -178,8 +178,9 @@ const launchPreview = mar ? async (request: import('fastify').FastifyRequest, in
     artifactDigest: input.artifactDigest,
     manifest: { entryPath: input.artifact.entryPath, files: input.artifact.files },
   })
+  let issued: Awaited<ReturnType<typeof identityAccess.issuePreviewEntry>> | undefined
   try {
-    const issued = await identityAccess.issuePreviewEntry(request, { accountId: input.accountId, route: opened.route })
+    issued = await identityAccess.issuePreviewEntry(request, { accountId: input.accountId, route: opened.route })
     const current = builder && await builder.readPreviewPreparation({
       accountId: input.accountId,
       projectId: input.projectId,
@@ -189,7 +190,6 @@ const launchPreview = mar ? async (request: import('fastify').FastifyRequest, in
     if (current?.state !== 'PREPARED' || current.attemptId !== input.attemptId ||
       current.artifact.artifactRevisionId !== input.artifactRevisionId || current.artifact.artifactDigest !== input.artifactDigest ||
       !mar.isRouteOpening({ routeId: opened.route.routeId, generation: opened.route.generation, attemptId: opened.route.attemptId })) {
-      mar.closeRoute(opened.route.routeId)
       throw new Error('PREVIEW_LAUNCH_STALE')
     }
     return {
@@ -201,6 +201,7 @@ const launchPreview = mar ? async (request: import('fastify').FastifyRequest, in
       expiresAt: new Date(opened.route.expiresAt).toISOString(),
     }
   } catch (error) {
+    if (issued) identityAccess.previewAccess.discardEntryGrant(issued.entryGrant)
     mar.closeRoute(opened.route.routeId)
     throw error
   }

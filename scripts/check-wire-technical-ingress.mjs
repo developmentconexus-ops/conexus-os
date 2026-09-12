@@ -46,6 +46,7 @@ const expected = new Map([
   ['TI-01', { operationId: 'BeginOidcLoginProtocol', method: 'GET', path: '/protocol/oidc/login' }],
   ['TI-02', { operationId: 'CompleteOidcCallbackProtocol', method: 'GET', path: '/protocol/oidc/callback' }],
   ['TI-03', { operationId: 'StreamAgentRunProjection', method: 'GET', path: '/protocol/projects/{projectId}/agent-runs/{agentRunId}/stream' }],
+  ['TI-04', { operationId: 'StreamBuilderChangeObservation', method: 'GET', path: '/protocol/projects/{projectId}/builder-changes/{changeId}/stream' }],
 ]);
 
 if (technical['x-conexus-surface'] !== 'TECHNICAL_INGRESS') {
@@ -204,4 +205,15 @@ for (const { path } of technicalOperations) {
   }
 }
 
-console.log(`Technical Ingress contract passed (3 protocol-only operations; Product-count impact remains 0 over the current ${productOperations.length}-operation Product census, and schedule/MAR/runtime mechanics remain internal).`);
+const ti04 = byTechnicalId.get('TI-04');
+assertNoQuery(ti04, 'TI-04');
+for (const name of ['projectId', 'changeId']) {
+  const value = parameter(ti04, 'path', name);
+  if (!value?.required || value.schema?.format !== 'uuid') throw new Error(`TI-04 requires exact ${name}`);
+}
+if (!ti04.operation.security?.some((entry) => Object.hasOwn(entry, 'ConexusSession'))) throw new Error('TI-04 requires Conexus session');
+if (ti04.operation.responses?.['200']?.content?.['text/event-stream']?.schema?.type !== 'string') throw new Error('TI-04 requires SSE observation');
+for (const status of ['400', '401', '404', '410', '503']) {
+  if (!ti04.operation.responses?.[status]) throw new Error(`TI-04 missing ${status} response`);
+}
+console.log(`Technical Ingress contract passed (${technicalOperations.length} protocol-only operations; Product-count impact remains 0 over the current ${productOperations.length}-operation Product census, and schedule/MAR/runtime mechanics remain internal).`);

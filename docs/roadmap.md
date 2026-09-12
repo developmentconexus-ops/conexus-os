@@ -23,7 +23,7 @@ Keep useful implementation and the original proof limits.
 | Delivery | State | Observable result and evidence | Next action |
 | --- | --- | --- | --- |
 | [Repository cleanup](tasks/repository-consolidation.md) | DELIVERED | Current graph and final changed Builder leaf passed; published in `9945329`; no claim that the app is ready | No further cleanup prerequisite |
-| [First Builder-created app](tasks/builder-first-app.md#delivery-checkpoints) | IN PROGRESS | Local access consumer passed real Keycloak/PG/Chromium proof with seeded artifacts; two access reviews adjudicated; real Build UI and generated-app journey remain unproved | Bind the real Build UI and fixed app profile, then prove creation and explicit continuation |
+| [First Builder-created app](tasks/builder-first-app.md#delivery-checkpoints) | IN PROGRESS | Real streaming/reload proved with model/E2B; new candidate refused by verifier; previous real app remains usable | Diagnose the retained verifier refusal without bypassing it; continuation and complete generated-app recovery remain pending |
 | [Manually maintained Brain](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Existing context code retained; Builder must demonstrably consume selected store knowledge | Detail with the first app's consumer; no automatic learning |
 | [Narrow SDK and Sankhya](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Existing integration proof retained; the app must perform a real authorized operation | Select that operation before defining its SDK details |
 | [Colleague uses the app](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Another authorized person must open the usable app; creator Preview does not establish this | Detail access when the app is usable |
@@ -39,11 +39,37 @@ their consumer needs detail. These labels are not CI gates.
 
 | Work | Status | Preserved result | Reopen trigger |
 | --- | --- | --- | --- |
-| Product implementation | IN PROGRESS / LOCAL ACCESS PROVED / UI PENDING | Real-session browser proof and scoped access review completed for controlled retained artifacts; not a full Builder journey | Real Build UI, fixed app profile and generated-app journey |
+| Product implementation | IN PROGRESS / STREAMING PROVED / VERIFIER REFUSAL | Real incremental text/tool UI and reload without duplicate coding proved; new candidate remains UNVERIFIED; prior app still works | Verifier report refusal, explicit continuation and generated-app recovery |
 
-Continuation readiness = INTERNAL PILOT / LOCAL ACCESS PROVED / UI PENDING
+Continuation readiness = INTERNAL PILOT / STREAMING PROVED / VERIFIER REFUSAL
 
 ## Current grant
+
+On 2026-09-12, after the live streaming result, the operator authorized publishing
+the current implementation and evidence to `analysis/internal-mvp-2026-09-12`
+for GPT Pro review. This supersedes the streaming grant's publication restriction
+for this snapshot only. The verifier refusal and four verification failures
+remain open. No merge, deployment or delivery acceptance is authorized.
+
+On 2026-09-12 the operator approved implementing and validating the researched
+Builder streaming increment and requested Arena where useful. This supersedes
+the research-only restriction below for the narrow Builder observation wire,
+runtime event projection, existing React UI and their verification. Compare
+executable bounded-feed candidates with Luna, integrate the smallest sustainable
+result, and use the admitted model/E2B configuration through real login and UI
+to prove live streaming. Routine reversible implementation and checks are
+included. Preserve the generated app and existing candidate/Preview authority.
+No replacement runtime, durable chat owner, business writes, hosting, publication
+or merge is authorized.
+
+On 2026-09-12 the operator requested deep research and a grounded architecture
+proposal for streaming Builder chat, using Mastra, Context7, APIs/SDKs and
+similar platforms including Palantir. Compare the smallest viable integrations
+with the existing UI, background execution and Preview. Keep this a focused
+research/design increment; do not silently implement a new chat contract,
+install dependencies or replace the runtime. Preserve the real generated app.
+The ongoing first-app grant remains, with streaming design addressed before
+further material UI changes. Use Luna high/xhigh researchers.
 
 On 2026-09-12 the operator authorized committing and pushing the current work
 to the existing analysis branch for GPT Pro review. This is an implementation
@@ -166,7 +192,19 @@ not the real Builder/Preview journey. The original draft remains unchanged at
 
 ## Exact next action
 
-**Complete the real Build UI consumer of the implemented preparation, launch and isolated MAR serving. Preserve the previous displayed candidate during preparation or failure and reject stale selections. The fixed app profile is wired and its helper output passed real E2B compilation and Chromium execution; verify model-created source through that path without replacing the NEW seed or compiler. Prove the configured Hub/login/generated-app journey, then explicit second-request continuation and restart recovery. The scoped access proof already covers real Keycloak, Registry/PostgreSQL and Chromium with controlled retained artifacts; do not rebuild those consumers or count that fixture as the whole journey. Run the full current verification graph after integration. Keep 024/025 held. No hosting, publication, production database changes or historical-stage restart is authorized or required.**
+Diagnose `BUILDER_VERIFIER_REPORT_REFUSED` from the
+[real streaming run](tasks/builder-first-app.md#real-streaming-result-and-current-blocker),
+Change `f5aff913-67af-4644-8d45-08cef13fe23c`, without bypassing verification or
+manually accepting its candidate. Streaming/reload and prior-app preservation
+were proved with the actual model/E2B/browser. The new candidate was not opened.
+Recover a safe reason for the verifier's inconsistent report before changing
+its behavior. Preserve both candidates and the previous app. Then resume
+explicit second-request continuation and generated-app restart recovery.
+The full verification graph also has four recorded pre-existing hash/generated
+projection failures; do not claim a green graph until they are resolved.
+Do not repeat the Mastra study or rebuild compiler, storage or authentication
+without a concrete contradiction. Keep 024/025 held. No hosting, publication,
+production database changes or historical-stage restart is authorized.
 
 ## Approved local platform delivery design
 

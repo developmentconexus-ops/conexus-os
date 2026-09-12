@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent, SyntheticEvent } from 'react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { BuilderRequestError, closeChangeFinding, createChange, getBuildPreview, getChange, getChangeDiff, getChangePlan, getChangeProgress, getProjectSourceFile, launchBuildPreview, listChangeEvidence, listChangeFindings, listChanges, listProjectSourceTree, prepareBuildPreview } from '../api'
+import { BuilderConversation } from './builder-conversation'
 
 const terminal = new Set(['VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED', 'FAILED', 'INTERRUPTED'])
 const hasCandidate = new Set(['RESULT_READY', 'VERIFYING', 'VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED'])
@@ -14,6 +15,7 @@ type PreviewSurfaceState = 'IDLE' | 'OPENING' | 'OPEN'
 export function ProjectBuild({ projectId }: { projectId: string }) {
   const inputId = useId()
   const iframeName = `preview-frame-${inputId.replaceAll(':', '')}`
+  const previewFrameName = (launch: PreviewLaunch) => `${iframeName}-${launch.generation}`
   const queryClient = useQueryClient()
   const attempt = useRef<Readonly<{ intent: string; key: string }> | undefined>(undefined)
   const [intent, setIntent] = useState('')
@@ -80,11 +82,11 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     ? { projectId, changeId: currentId, subjectDigest: candidatePreview.data.subjectDigest }
     : undefined
   latestPreview.current = previewIdentity
-  const isCurrent = (command: PreviewCommand): boolean => generation.current === command.generation && latestProject.current === command.projectId && latestSelection.current.changeId === command.changeId && latestPreview.current?.subjectDigest === command.subjectDigest
-  const invalidateGeneration = () => {
+  const isCurrent = useCallback((command: PreviewCommand): boolean => generation.current === command.generation && latestProject.current === command.projectId && latestSelection.current.changeId === command.changeId && latestPreview.current?.subjectDigest === command.subjectDigest, [])
+  const invalidateGeneration = useCallback(() => {
     generation.current += 1
     return generation.current
-  }
+  }, [])
   useEffect(() => {
     latestProject.current = projectId
     invalidateGeneration()
@@ -96,7 +98,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     setPendingLaunch(undefined)
     setPreviewSurfaceState('IDLE')
     setPreviewMessage('')
-  }, [projectId])
+  }, [projectId, invalidateGeneration])
   const prepare = useMutation({
     mutationFn: (command: PreviewCommand) => prepareBuildPreview(command.projectId, { changeId: command.changeId, subjectDigest: command.subjectDigest }),
     onSuccess: async (result, command) => {
@@ -145,7 +147,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       if (entrySubmitted.current !== key || !isCurrent(pendingLaunch) || !entryForm.current) return
       entryForm.current.requestSubmit()
     })
-  }, [pendingLaunch])
+  }, [pendingLaunch, isCurrent])
   const settleEntry = async (event: SyntheticEvent<HTMLIFrameElement>) => {
     if (!pendingLaunch || !isCurrent(pendingLaunch)) return
     try {
@@ -246,10 +248,10 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
           <p role="status" aria-live="polite">{previewMessage}</p>
           {activeLaunch && <p>Aplicação exibida do Change <code>{activeLaunch.changeId}</code>, revisão <code>{activeLaunch.subjectDigest}</code>.{activeLaunch.changeId !== currentId && ' A versão anterior permanece aberta enquanto você trabalha no candidato selecionado.'}</p>}
           {(activeLaunch || pendingLaunch) && <div className="preview-frame-stack" data-state={previewSurfaceState}>
-            {activeLaunch && <iframe title="Preview do aplicativo" src={activeLaunch.previewUrl} />}
-            {pendingLaunch && <iframe title="Preview do aplicativo" style={activeLaunch ? { visibility: 'hidden' } : undefined} name={iframeName} src="about:blank" onLoad={settleEntry} />}
+            {activeLaunch && <iframe key={activeLaunch.generation} title="Preview do aplicativo" name={previewFrameName(activeLaunch)} src="about:blank" />}
+            {pendingLaunch && <iframe key={pendingLaunch.generation} title="Preview do aplicativo" style={activeLaunch ? { visibility: 'hidden' } : undefined} name={previewFrameName(pendingLaunch)} src="about:blank" onLoad={settleEntry} />}
           </div>}
-          {pendingLaunch && <form ref={entryForm} hidden method="post" action={pendingLaunch.entryUrl} target={iframeName}>
+          {pendingLaunch && <form ref={entryForm} hidden method="post" action={pendingLaunch.entryUrl} target={previewFrameName(pendingLaunch)}>
             <input type="hidden" name="entryGrant" value={pendingLaunch.entryGrant} />
           </form>}
           {!activeLaunch && !pendingLaunch && <p className="preview-empty">O Preview do aplicativo aparecerá aqui quando você preparar um candidato verificado.</p>}
@@ -258,11 +260,12 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
         <aside className="conexus-panel" aria-labelledby="conexus-panel-title">
           <p className="eyebrow">Conexus</p>
           <h2 id="conexus-panel-title">O que deve mudar?</h2>
+          {currentId && <BuilderConversation key={`${projectId}:${currentId}`} projectId={projectId} changeId={currentId} intent={change.data?.intent} />}
           <form onSubmit={submit}>
             <label htmlFor={inputId}>O que deve mudar neste Project?</label>
             <textarea id={inputId} rows={5} required value={intent} onChange={(event) => setIntent(event.target.value)} />
             <p>O Conexus trabalhará sobre o Baseline aceito e mostrará o resultado antes de qualquer aceitação.</p>
-            <button className="primary" type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Criando Change…' : 'Pedir mudança'}</button>
+            <button className="primary" type="submit" disabled={mutation.isPending || Boolean(currentId && (!change.data || !terminal.has(change.data.state)))}>{mutation.isPending ? 'Criando Change…' : 'Pedir mudança'}</button>
             <p role="status" aria-live="polite">{message}</p>
           </form>
         </aside>
@@ -309,12 +312,12 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
                 : <p role="alert">Há um candidato, mas a verificação não estabeleceu aceitação.</p>)}
               {findings.data && findings.data.length > 0 && <section aria-labelledby="change-findings-title"><h4 id="change-findings-title">Pontos encontrados</h4><ul>{findings.data.map((finding) => <li key={finding.findingId}>{finding.summary} — {finding.state}{finding.state === 'OPEN' && change.data?.state === 'UNVERIFIED' && currentResolutionEvidence.length > 0 && <button type="button" disabled={closeFinding.isPending} onClick={() => closeFinding.mutate(finding)}>Confirmar resolução verificada</button>}</li>)}</ul></section>}
               {evidence.data && evidence.data.length > 0 && <section aria-labelledby="change-evidence-title"><h4 id="change-evidence-title">Verificação</h4><ul>{evidence.data.map((item) => <li key={item.evidenceId}>{item.claim} — candidato <code>{item.subjectDigest}</code></li>)}</ul></section>}
-              {diff.data && <details className="build-disclosure" open={previewLens === 'DIFF'}>
-                <summary onClick={(event) => { event.preventDefault(); setPreviewLens((current) => current === 'DIFF' ? null : 'DIFF') }}>Diff (somente leitura)</summary>
+              {diff.data && <details className="build-disclosure" open={previewLens === 'DIFF'} onToggle={(event) => { const open = event.currentTarget.open; setPreviewLens((current) => open ? 'DIFF' : current === 'DIFF' ? null : current) }}>
+                <summary>Diff (somente leitura)</summary>
                 <section aria-labelledby="change-diff-title"><h4 id="change-diff-title">Diff do resultado</h4><p><code>{diff.data.baseSourceRevision}</code> → <code>{diff.data.candidateSourceRevision}</code></p><pre>{diff.data.patch}</pre></section>
               </details>}
-              {diff.data && <details className="build-disclosure" open={previewLens === 'CODE'}>
-                <summary onClick={(event) => { event.preventDefault(); setPreviewLens((current) => current === 'CODE' ? null : 'CODE') }}>Código (somente leitura)</summary>
+              {diff.data && <details className="build-disclosure" open={previewLens === 'CODE'} onToggle={(event) => { const open = event.currentTarget.open; setPreviewLens((current) => open ? 'CODE' : current === 'CODE' ? null : current) }}>
+                <summary>Código (somente leitura)</summary>
                 <h4 id="change-code-title">Código</h4>
                 <p>Inspecione arquivos completos presos à revisão exata.</p>
                 <fieldset>

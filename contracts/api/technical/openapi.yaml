@@ -161,6 +161,67 @@ paths:
           description: Exact AgentRun exists but has no currently streamable live projection under F1 semantics.
         '503':
           description: Required live runtime projection dependency is unavailable.
+  /protocol/projects/{projectId}/builder-changes/{changeId}/stream:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        description: Project containing the already-admitted Builder Change.
+        schema:
+          type: string
+          format: uuid
+      - name: changeId
+        in: path
+        required: true
+        description: Builder Change whose observation is requested; never starts or resumes work.
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Observe an existing Builder Change
+      operationId: StreamBuilderChangeObservation
+      x-conexus-technical-id: TI-04
+      x-conexus-surface: TECHNICAL_INGRESS
+      x-conexus-protocol-state: PROTOCOL_CLOSED
+      description: >-
+        Read-only SSE observation of server-owned Builder work. Current Conexus session and
+        Project/Change access are checked before attachment and each disclosure. Data frames
+        follow packages/builder-observation: generation, consecutive sequence starting at one,
+        and safe text, correlated activity, phase or observation-end events. Provider identities,
+        reasoning, tool arguments/results and credentials are excluded. Each attachment gets the
+        complete bounded process-local prefix followed by live events. No Last-Event-ID resume or
+        durable history is promised. Prefix retention is at most 1 MiB/4096 frames per Change,
+        16 observations per process, four subscribers per observation, one hour while active,
+        and two minutes after work settles. Completed observations are evicted before active
+        ones when capacity is reached. Overflow, eviction,
+        restart or disconnect may end observation, never cancel or duplicate work. EOF and
+        OBSERVATION_END do not imply verification, compilation, Preview readiness or publication;
+        existing Builder reads remain authoritative.
+      security:
+        - ConexusSession: []
+      responses:
+        '200':
+          description: Complete retained prefix and live safe observation; access loss ends disclosure.
+          headers:
+            Cache-Control:
+              description: Observation is never reusable authorization or durable state.
+              schema:
+                type: string
+                enum: [no-store]
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          description: Malformed Project/Change reference or unsupported query parameter.
+        '401':
+          description: No valid Conexus session.
+        '404':
+          description: Project/Change does not exist or cannot be disclosed.
+        '410':
+          description: No complete retained observation; consult the existing Change reads.
+        '503':
+          description: Authorization or observation dependency unavailable.
 components:
   securitySchemes:
     ConexusSession:

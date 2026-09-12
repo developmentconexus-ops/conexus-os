@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
+import { Readable } from 'node:stream'
 import { sendProblem } from '../http/problem.js'
 import { projectBuildPreview } from './preview.js'
 import type { BuildPreviewPreparation } from './preview.js'
@@ -79,6 +80,43 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
   origin: string
   launchPreview?: BuilderLaunchPreviewPort
 }>): Promise<readonly BuilderOperationId[]> => {
+  app.get<{ Params: { projectId: string; changeId: string } }>('/protocol/projects/:projectId/builder-changes/:changeId/stream', {
+    schema: { params: changeParams, querystring: { type: 'object', additionalProperties: false, properties: {} } },
+  }, async (request, reply) => {
+    const session = await dependencies.resolveCurrentSession(request)
+    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    const subject = { accountId: session.account.accountId, ...request.params, requireSource: false }
+    const authorized = async () => {
+      const currentSession = await dependencies.resolveCurrentSession(request)
+      return currentSession?.account.accountId === subject.accountId && Boolean(await dependencies.store.readSnapshot(subject))
+    }
+    try {
+      if (!await authorized()) return sendProblem(reply, 404, 'builder-subject-not-found', 'Builder subject not found')
+      const stream = dependencies.service.observeChange(request.params)
+      if (!stream) return sendProblem(reply, 410, 'builder-observation-unavailable', 'Live observation unavailable; consult Change state')
+      const reader = stream.getReader()
+      const detach = () => { void reader.cancel().catch(() => {}) }
+      reply.raw.once('close', detach)
+      const frames = async function* () {
+        try {
+          for (;;) {
+            const frame = await reader.read()
+            if (frame.done || !await authorized()) return
+            yield frame.value
+          }
+        } catch {
+          // The browser falls back to Change reads; observation never owns the job.
+        } finally {
+          reply.raw.off('close', detach)
+          await reader.cancel().catch(() => {})
+          reader.releaseLock()
+        }
+      }
+      return reply.header('content-type', 'text/event-stream; charset=utf-8').header('cache-control', 'no-store').header('x-accel-buffering', 'no').send(Readable.from(frames(), { highWaterMark: 1 }))
+    } catch {
+      return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')
+    }
+  })
   app.get<{ Params: { projectId: string } }>('/api/control/projects/:projectId/changes', { schema: { params } }, async (request, reply) => {
     const session = await dependencies.resolveCurrentSession(request)
     if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
