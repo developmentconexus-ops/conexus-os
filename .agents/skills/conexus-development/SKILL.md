@@ -1,6 +1,6 @@
 ---
 name: conexus-development
-description: Resume, implement, verify, review, or hand off Conexus OS development while preserving repository authority, bounded execution grants, independent-review economics, and unowned state.
+description: Use when resuming, implementing, verifying, reviewing, or handing off development in the Conexus OS repository.
 ---
 
 # Conexus Development
@@ -39,7 +39,7 @@ code.
 
 ### Delivery and progress law
 
-Translate accepted authority into a stage code packet before Product editing.
+Describe the next observable increment in the current task before Product editing.
 Keep it in the smallest current owner; do not create a separate planning
 artifact without a durable consumer. The packet must name:
 
@@ -52,10 +52,10 @@ artifact without a durable consumer. The packet must name:
   contract fixture or stand-in. A fixture/mock may prove its local contract but
   MUST NOT satisfy a production-composition or end-to-end journey claim.
 
-The packet must make implementation mechanical without choosing a deliberately
-inferior local minimum. Implement the smallest **sustainable vertical slice**
-that fully satisfies the accepted invariant and leaves no known structural dead
-end; do not confuse this with the fewest changed lines or a disposable MVP.
+Make the current increment concrete enough to implement and test. Resolve only
+unknowns that affect it. An approved increment includes routine reversible
+implementation and verification steps; do not request approval per file or part.
+R1–R7 and L1–L6 are historical plans, not the MVP queue or admission requirements.
 
 Progress means one of:
 
@@ -96,9 +96,10 @@ authority + explicit grant
 → operator checkpoint or next authorized part
 ```
 
-Use affected checks during local implementation and `npm run verify` for a
-candidate gate; use `npm run verify:local` when the worktree is intentionally
-dirty. The deciding candidate graph must run each applicable leaf once. The
+Use affected checks during implementation and `npm run verify` for the complete
+current graph. Ordinary working-tree edits are allowed; CI alone checks checkout
+cleanliness. Historical custody commands apply only to their named subjects.
+Do not regenerate old receipts to pass current verification. The
 command result is technical Evidence only; it never declares a
 Product or gate `PASS`. `scope final` must execute in Linux; for local work that
 means the pinned WSL Ubuntu environment.
@@ -106,11 +107,11 @@ means the pinned WSL Ubuntu environment.
 ## Delegation and independent review
 
 Read [review-and-delegation.md](references/review-and-delegation.md) before
-delegating implementation or invoking Fable/Gemini. Do not load it for a simple
+delegating implementation or independent review. Do not load it for a simple
 read-only status answer.
 
-Use council effort at material decision and material-diff checkpoints and at
-the mandatory Conexus periodic-assurance checkpoints above. Collaborative
+Use independent review when a concrete material risk triggers it under the
+locally amended Engineering Method, not merely because a stage closes. Collaborative
 design challenge may compare alternatives; independent closure lanes must
 remain fresh and isolated. Neither mode replaces Lead adjudication or operator
 authority.

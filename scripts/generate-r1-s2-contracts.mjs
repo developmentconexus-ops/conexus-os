@@ -106,13 +106,22 @@ try {
   mkdirSync(dirname(clientTarget), { recursive: true })
   writeFileSync(stagedTarget, output, 'utf8')
   writeFileSync(stagedClientTarget, client, 'utf8')
-  publishAtomically([
-    { staged: stagedTarget, target },
-    { staged: stagedClientTarget, target: clientTarget },
-  ], temporary)
+  if (process.argv.includes('--check')) {
+    assertGeneratedTarget(target, output, 'S2_GENERATED_ROUTE_DRIFT')
+    assertGeneratedTarget(clientTarget, client, 'S2_GENERATED_CLIENT_DRIFT')
+  } else {
+    publishAtomically([
+      { staged: stagedTarget, target },
+      { staged: stagedClientTarget, target: clientTarget },
+    ], temporary)
+  }
   process.stdout.write(`${JSON.stringify({ sourceDigest, projectionDigest, routes: definitions.length })}\n`)
 } finally {
   rmSync(temporary, { recursive: true, force: true })
+}
+
+function assertGeneratedTarget(path, expected, code) {
+  if (!existsSync(path) || readFileSync(path, 'utf8') !== expected) throw new Error(code)
 }
 
 function sameProjection(actual, expected) {

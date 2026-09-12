@@ -41,6 +41,9 @@ orientation only. **Global coverage does not require global context.**
 - Qualification suites prove only their named claims. Live provider/model/E2B/Sankhya execution requires explicit authority for the exact proof task.
 - Preserve unowned state. Never reset, clean, stash, force-update, force-push, or discard work you do not own.
 - Never merge without explicit operator authority.
+- An approved increment includes routine reversible implementation and checks.
+  Do not seek approval for each mechanical step. Review follows material risk,
+  not stage closure. Use only Luna subagents with high or xhigh reasoning.
 
 ## Verification
 
@@ -52,9 +55,10 @@ npx --no-install playwright install chromium
 npm run verify
 ```
 
-This floor does not replace the additional objective checks named in
-`.github/workflows/verify.yml`. Before publication or gate closure, reproduce
-the applicable workflow checks in Linux, including
-`npm run r1:r1c14:native:check` while R1C-14 remains a required CI property.
+Use the same current graph locally and in `.github/workflows/verify.yml`.
+Ordinary working-tree edits are allowed locally; CI checks checkout cleanliness.
+Provide the disposable PostgreSQL service or complete `CONEXUS_TEST_DB_*`
+configuration described in the workflow. Historical qualification and custody
+commands are explicit audits of their recorded subjects, not the MVP gate.
 
 Run additional targeted or extended proof only when the current claim requires it. A required CI failure should represent a broken objective repository/Product property, not a planning preference, context convention, review ceremony, or historical status projection.

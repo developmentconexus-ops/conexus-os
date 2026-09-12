@@ -1,6 +1,6 @@
 # DevelopmentConexus Repository Method
 
-**Version:** 1.1.0
+**Version:** 1.1.0 with Conexus OS local amendment 2026-09-12
 **Status:** ACCEPTED METHOD / OPERATOR RATIFIED
 **Authority:** organizational repository operating method  
 **Scope:** DevelopmentConexus product and platform repositories
@@ -19,6 +19,12 @@ disjoint writers; and makes the flat verification graph a shared executable
 profile with explicit environment classes. Acceptance applies to this
 repository; propagation to other repositories is not claimed or authorized.
 Existing Product, publication, merge and proof authority boundaries remain unchanged.
+
+The operator ratified the local verification cleanup on 2026-09-12 in
+[repository consolidation](../tasks/repository-consolidation.md). One current
+verification graph serves local work and CI. Historical admission is explicit
+audit work, not a prerequisite for unrelated development. This amendment applies
+only to Conexus OS.
 
 ## 1. Authority surfaces
 
@@ -155,6 +161,15 @@ Workflow-event or concurrency changes require evidence that branch protection
 and trigger coverage remain equivalent.
 
 Do not promote every historical proof into a permanent required gate.
+
+Run `npm run verify` with ordinary tracked and untracked development edits.
+CI alone requires a clean checkout after verification. Checks must not regenerate
+their expected output to conceal drift. Use explicit generation commands when
+intentionally updating a current generated artifact.
+
+Document names, working notes and historical phase wording are not correctness
+gates. Keep broken-link, conflict-marker and unsafe-workflow detection. Preserve
+historical receipts unchanged and reproduce them only against their named subject.
 
 A red required check should mean integration would violate a protected property, not that a preferred process shape was skipped.
 

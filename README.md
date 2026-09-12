@@ -14,7 +14,17 @@ Public route: [https://conexus.fun/conexus](https://conexus.fun/conexus)
 
 ```bash
 npm ci
+npx --no-install playwright install chromium
 npm run verify
 ```
+
+`npm test` runs the same graph. `test:repository`, `verify:extended` and the
+named historical audits remain explicit tools; they are not the MVP's default
+gate. Paid model/E2B experiments require their explicit live commands.
+
+Use pinned Node/npm in Linux and the disposable PostgreSQL configuration in
+[the workflow](.github/workflows/verify.yml). Local verification accepts ordinary
+development edits. CI runs the same current checks and checks checkout cleanliness.
+Historical admission is not required for unrelated MVP work.
 
 This README is a landing page only; it owns no mutable program status or architecture authority.

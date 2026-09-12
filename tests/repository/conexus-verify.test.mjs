@@ -21,25 +21,27 @@ const packageScripts = Object.freeze({
   'test:two': 'node -e "process.exit(0)"',
   'r1:g0:generate': 'node scripts/generate-r1-g0.mjs',
   'r1:s1:receipt:record': 'node scripts/record-r1-s1-receipt.mjs',
+  'r1:history:foundation-pins': 'node --test --test-concurrency=1 tests/implementation/r1-foundation-pin-history.test.mjs',
 })
 
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
-  'a0-g0-admission', '4f-project-cognition-admission', 'r1-s2-generate',
-  'r1-s2-generated-drift', 'r1-s2-http', 'r1-s2-reads', 'import-law',
+  'a0-type-safety', 'g0-profile-compiler',
+  'r1-s2-generate',
+  'r1-s2-http', 'r1-s2-reads', 'import-law',
   'verification-tool-regressions', 'hub-migration-selection', 'r1-s2-live-syntax', 'biome-union',
-  'r1c14-native', 'rb-first-postgres-migration-selection', 'hub-migration-postgres', 'r2-p1-postgres',
+  'rb-first-postgres-migration-selection', 'hub-migration-postgres', 'r2-p1-postgres',
   'r2-p2-postgres', 'r2-p3-postgres', 'r1-s4-p2-postgres', 'r2-p0-check',
   'r2-p1-check', 'r2-p2-check', 'r2-p3-check', 'r2-p4-check',
   'r2-p4-authority-postgres', 'r2-p5-check', 'r2-p6-brain-revision',
   'r2-p6-brain-revision-postgres', 'r2-p6-web-api', 'r2-p6-ui-surfaces',
-  'r2-p6-browser', 'r2-p6-composed-postgres', 'r1-s6-contract-generation',
+  'r2-p6-browser', 'r2-p6-composed-postgres', 'r1-s6-contract-generation', 'r1-s3-git-identity',
   'r1-s6-project-inception', 'r1-s6-project-refinement',
   'r1-s6-baseline-explanation', 'r1-s6-p0-postgres', 'r1-s6-p1-postgres',
   'r1-s6-browser-baseline', 'r1-s6-browser-inception',
-  'r1-s6-browser-refinement', 'r1-s6-composed', 'r1-rc01-walkthrough',
+  'r1-s6-browser-refinement', 'r1-s6-composed',
   'rb-e2b-template', 'rb-first-source-checks', 'bld-10-preview-projection', 'rb-first-hub-typecheck',
-  'rb-first-web-typecheck', 'web-build', 'repository-check', 'r1-rc01-custody',
-  'repository-hygiene', 'repository-candidate-census', 'wire-openapi-lint', 'wire-openapi-bundle',
+  'rb-first-web-typecheck', 'web-build', 'repository-check', 'repository-hygiene', 'repository-doc-index',
+  'repository-architecture', 'wire-openapi-lint', 'wire-openapi-bundle',
   'wire-schema', 'wire-bijection', 'wire-carriers', 'wire-identity-workspace',
   'wire-project', 'wire-builder', 'wire-brain', 'wire-connections',
   'wire-release', 'wire-par', 'wire-gateway', 'wire-mar', 'wire-observability',
@@ -65,7 +67,7 @@ test('manifest exposes only the three bounded aliases and exact npm routing', ()
 test('--list is deterministic and includes aliases plus explicit npm scripts', () => {
   const available = listScopes(packageScripts)
   assert.deepEqual(available.aliases.map(alias => alias.scope), ['preflight', 'repository', 'final'])
-  assert.deepEqual(available.scripts, ['conexus:preflight', 'repository:check', 'test:one', 'test:two', 'verify'])
+  assert.deepEqual(available.scripts, ['conexus:preflight', 'r1:history:foundation-pins', 'repository:check', 'test:one', 'test:two', 'verify'])
   assert.deepEqual(available.rejectedScripts, ['r1:g0:generate', 'r1:s1:receipt:record'])
   assert.deepEqual(available.scopes.slice(0, 3), ['preflight', 'repository', 'final'])
   assert.ok(available.scopes.includes('test:one'))
@@ -148,7 +150,16 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.equal(commands.filter(command => command.includes('node scripts/rb-builder-e2b-template.mjs --check')).length, 1)
   assert.equal(commands.filter(command => command.startsWith('npx --no-install biome check')).length, 1)
   assert.equal(commands.filter(command => command.startsWith('node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web')).length, 1)
-  assert.equal(commands.filter(command => command === 'npm run repository:candidate-census').length, 1)
+  assert.equal(commands.filter(command => command === 'npm run repository:check').length, 1)
+  assert.equal(commands.filter(command => command === 'npm run repository:check:extended').length, 0)
+  assert.equal(commands.some(command => /node scripts\/generate-[^ ]+\.mjs/.test(command) && !command.includes('--check')), false)
+  assert.equal(commands.includes('npm run r1:s2:generate'), false)
+  assert.equal(commands.filter(command => command === 'npm run r1:s2:check').length, 1)
+  assert.equal(commands.filter(command => command === 'node scripts/generate-r1-s3-git-identity.mjs --check').length, 1)
+  assert.equal(scopes.some(scope => ['4f-project-cognition-admission', 'r1c14-native', 'r1-rc01-walkthrough', 'r1-rc01-custody'].includes(scope)), false)
+  const builderCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'rb-first-source-checks').command
+  assert.equal(builderCommand.includes('-live.test.mjs'), false,
+    'paid live experiments are explicit commands, not inherited flags in default verification')
 
   const result = runVerification({
     scopes: ['candidate'],
@@ -164,7 +175,7 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
 
 test('candidate graph labels execution environments and passes shell argv correctly', () => {
   const classes = new Set(CANDIDATE_GRAPH.map(entry => entry.environmentClass))
-  assert.deepEqual([...classes].sort(), ['browser', 'custody', 'postgres', 'static'])
+  assert.deepEqual([...classes].sort(), ['browser', 'postgres', 'static'])
 
   const p4Check = CANDIDATE_GRAPH.find(entry => entry.scope === 'r2-p4-check')
   const p4Authority = CANDIDATE_GRAPH.find(entry => entry.scope === 'r2-p4-authority-postgres')

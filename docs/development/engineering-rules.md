@@ -10,7 +10,9 @@ Conexus OS consumes these repository-local operating method copies:
 - [`repository-method.md`](repository-method.md) — DevelopmentConexus Repository Method v1.1.0 (operator ratified);
 - [`frontend-product-experience-planning-method.md`](frontend-product-experience-planning-method.md) — Frontend Product Experience Planning Method v2.3.
 
-These method files are intended to remain byte-identical across DevelopmentConexus repositories that adopt the same versions. Normal Product work does not locally reinterpret them. A method-content change requires explicit operator approval and deliberate propagation; normal repository work does not require a runtime dependency on another repository.
+The operator approved the Conexus OS local amendment dated 2026-09-12 in
+both methods. Do not propagate it to other repositories without authorization.
+Normal Product work does not silently reinterpret methods.
 
 ## Local execution environment
 
@@ -41,6 +43,12 @@ npm run verify
 ```
 
 The protected GitHub check remains named `verify`. Required CI protects objective repository and executable-contract properties that must remain true for every change.
+
+Local `npm run verify` accepts ordinary development edits and runs the same
+current graph as CI. Historical R1C/RC-01 qualification commands are explicit
+audits, not global prerequisites. Preserve current executable identity, types,
+build, database, browser and behavior checks. Reviews follow material risk,
+not stage names or a fixed number of mechanical steps.
 
 Use targeted proof for the current task/block and extended proof for broader repository, historical, architecture, documentation-reachability, or qualification claims when those claims are actually in scope.
 

@@ -9,12 +9,6 @@ import ts from 'typescript'
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const readJson = (path) => JSON.parse(readFileSync(resolve(repositoryRoot, path), 'utf8'))
 const sha256 = (path) => createHash('sha256').update(readFileSync(resolve(repositoryRoot, path))).digest('hex')
-const canonicalValue = (value) => {
-  if (value === null || typeof value !== 'object') return value
-  if (Array.isArray(value)) return value.map(canonicalValue)
-  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalValue(value[key])]))
-}
-const canonicalBytes = (value) => Buffer.from(`${JSON.stringify(canonicalValue(value))}\n`, 'utf8')
 const tscPath = resolve(repositoryRoot, 'node_modules/typescript/bin/tsc')
 
 const readConfig = (path) => {
@@ -44,42 +38,6 @@ const strictNodeArgs = [
   '--useUnknownInCatchVariables',
   '--types', 'node',
 ]
-
-test('A0 foundation pin binds the exact admitted type dependency and lock', () => {
-  const manifest = readJson('docs/evidence/4d/4d-r1-a0-foundation-pin-manifest.json')
-  const packageJson = readJson('package.json')
-  const lock = readJson('package-lock.json')
-  const installed = readJson('node_modules/@types/pg/package.json')
-  const target = manifest.admittedDependency
-  const locked = lock.packages['node_modules/@types/pg']
-
-  assert.equal(manifest.kind, 'conexus.r1-a0-foundation-pin-manifest/v1')
-  assert.deepEqual(manifest.decidingRuntime, { node: '24.20.0', npm: '12.0.2', typescript: '6.0.2' })
-  assert.equal(manifest.lockfileSha256, sha256('package-lock.json'))
-  assert.equal(packageJson.devDependencies[target.name], target.version)
-  assert.equal(installed.version, target.version)
-  assert.equal(installed.license, target.license)
-  assert.equal(locked.version, target.version)
-  assert.equal(locked.resolved, target.resolved)
-  assert.equal(locked.integrity, target.integrity)
-  assert.equal(locked.dev, true)
-  assert.equal(target.class, 'DEV_TYPE_ONLY')
-  assert.equal(target.installScripts, false)
-  assert.deepEqual(manifest.proofProtocols.map(({ id }) => id).sort(), [
-    'A0:FOUNDATION-PIN',
-    'A0:HUB-TYPECHECK',
-    'A0:MIGRATION-CUSTODY',
-    'A0:OPENID-DECLARATION',
-    'A0:OPENID-RED',
-    'A0:WEB-TYPECHECK',
-    'G0:VERIFY',
-    'S1:HTTP',
-  ])
-  for (const entry of manifest.proofProtocols) {
-    assert.equal(createHash('sha256').update(canonicalBytes(entry.protocol)).digest('hex'), entry.protocolDigest)
-    assert.equal(entry.protocol.id, entry.id)
-  }
-})
 
 test('Hub strict options compile the future named request and database surfaces', () => {
   const parsed = readConfig('apps/hub/tsconfig.json')

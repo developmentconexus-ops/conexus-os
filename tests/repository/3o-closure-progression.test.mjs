@@ -18,17 +18,21 @@ const authorityPaths = [
 ]
 
 const outputOf = result => `${result.stdout ?? ''}\n${result.stderr ?? ''}`
-const run = verificationRoot => spawnSync(process.execPath, [script, verificationRoot], {
+const run = (verificationRoot, { historical = false } = {}) => spawnSync(process.execPath, [script, ...(historical ? ['--historical'] : []), verificationRoot], {
   cwd: root,
   encoding: 'utf8'
 })
 
-const fixture = () => {
+const fixture = ({ historical = false } = {}) => {
   const target = mkdtempSync(resolve(tmpdir(), 'conexus-3o-closure-'))
   for (const path of authorityPaths) {
     const destination = resolve(target, path)
     mkdirSync(dirname(destination), { recursive: true })
-    copyFileSync(resolve(root, path), destination)
+    if (historical && path === 'docs/roadmap.md') {
+      writeFileSync(destination, ['3A', '3B–3K', '3L', '3M', '3N', '3O'].map(phase => `| ${phase} | CLOSED | fixture | fixture |`).join('\n') + '\n| C-018 | RATIFIED / OPERATOR RATIFIED | fixture | fixture |\n| Product implementation | BLOCKED | fixture | fixture |\n')
+    } else {
+      copyFileSync(resolve(root, path), destination)
+    }
   }
   return target
 }
@@ -41,10 +45,10 @@ const set3OStatus = (target, status) => {
   writeFileSync(path, original.replace(pattern, `$1${status}`))
 }
 
-test('closed 3N verifier admits the operator-authorized 3O CLOSED closure state', () => {
-  const target = fixture()
+test('default architecture verification does not require a historical 3O status', () => {
+  const target = fixture({ historical: true })
   try {
-    set3OStatus(target, 'CLOSED')
+    set3OStatus(target, 'NOT STARTED')
     const result = run(target)
     assert.equal(result.status, 0, outputOf(result))
   } finally {
@@ -52,11 +56,22 @@ test('closed 3N verifier admits the operator-authorized 3O CLOSED closure state'
   }
 })
 
-test('closed 3N verifier still rejects an illegal post-3N 3O status', () => {
-  const target = fixture()
+test('historical architecture audit admits the operator-authorized 3O CLOSED closure state', () => {
+  const target = fixture({ historical: true })
+  try {
+    set3OStatus(target, 'CLOSED')
+    const result = run(target, { historical: true })
+    assert.equal(result.status, 0, outputOf(result))
+  } finally {
+    rmSync(target, { recursive: true, force: true })
+  }
+})
+
+test('historical architecture audit rejects an illegal post-3N 3O status', () => {
+  const target = fixture({ historical: true })
   try {
     set3OStatus(target, 'NOT STARTED')
-    const result = run(target)
+    const result = run(target, { historical: true })
     const output = outputOf(result)
     assert.notEqual(result.status, 0, `illegal 3O status unexpectedly passed:\n${output}`)
     assert.match(output, /3O must be/)

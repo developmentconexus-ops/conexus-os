@@ -88,7 +88,7 @@ test('no-network preflight observes a temporary repository without mutating it',
     mkdirSync(docsRoot, { recursive: true })
     writeFileSync(join(repositoryRoot, 'AGENTS.md'), '# fixture\n')
     writeFileSync(join(docsRoot, 'index.md'), '# fixture\n')
-    writeFileSync(join(docsRoot, 'roadmap.md'), '| Phase | Status | Exit condition / preserved result | Reopen trigger |\n| --- | --- | --- | --- |\n| Product implementation | BLOCKED | Fixture | Fixture |\n')
+    writeFileSync(join(docsRoot, 'roadmap.md'), '| Phase | Status | Exit condition / preserved result | Reopen trigger |\n| --- | --- | --- | --- |\n| Product implementation | BLOCKED | Fixture | Fixture |\n| 4D — history | CLOSED | Historical | Historical |\n')
     writeFileSync(join(repositoryRoot, 'package.json'), '{"name":"conexus-os","private":true}\n')
     execFileSync('git', ['add', '.'], { cwd: repositoryRoot, stdio: 'ignore' })
     execFileSync('git', ['-c', 'user.name=Preflight Test', '-c', 'user.email=preflight@example.invalid', 'commit', '-m', 'fixture'], { cwd: repositoryRoot, stdio: 'ignore' })
@@ -113,6 +113,7 @@ test('no-network preflight observes a temporary repository without mutating it',
     const result = runPreflight({ repositoryRoot, noNetwork: true, command: observedCommand })
 
     assert.equal(result.ok, true)
+    assert.doesNotMatch(formatHuman(result), /roadmap 4D:/)
     assert.equal(result.repository.branch, 'feature')
     assert.equal(result.base.ahead, 0)
     assert.equal(result.base.behind, 0)

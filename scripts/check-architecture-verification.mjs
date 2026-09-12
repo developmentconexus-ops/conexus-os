@@ -2,7 +2,10 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const repositoryRoot = resolve(new URL('../', import.meta.url).pathname)
-const root = process.argv[2] ? resolve(process.argv[2]) : repositoryRoot
+const args = process.argv.slice(2)
+const historical = args.includes('--historical')
+const rootArgument = args.find(argument => argument !== '--historical')
+const root = rootArgument ? resolve(rootArgument) : repositoryRoot
 const errors = []
 
 const read = path => {
@@ -14,13 +17,9 @@ const read = path => {
   }
 }
 
-const roadmap = read('docs/roadmap.md')
 const architecture = read('docs/architecture/index.md')
-const phase3M = read('docs/phases/3m-failure-recovery-architecture.md')
-const contract = read('docs/phases/3n-architecture-verification.md')
 const data = read('docs/reference/data-and-persistence.md')
 const gateway = read('docs/reference/integrations-and-gateway.md')
-const managedQualification = read('docs/reference/managed-execution-qualification.md')
 
 const normalize = value => value.trim().replace(/\s+/g, ' ')
 const sameSet = (left, right) => {
@@ -39,45 +38,7 @@ const sectionBetween = (text, startMarker, endMarker, label) => {
   return text.slice(start + startMarker.length, end)
 }
 
-// 3N-S1 — progression boundary.
-const roadmapRows = [...roadmap.matchAll(/^\| ([^|]+?) \| ([^|]+?) \|/gm)]
-  .map(([, name, status]) => [name.trim(), status.trim()])
-const statusByName = new Map(roadmapRows)
-
-for (const phase of ['3A', '3B–3K', '3L', '3M']) {
-  if (statusByName.get(phase) !== 'CLOSED') errors.push(`${phase} must remain CLOSED during 3N`)
-}
-
-const phase3N = statusByName.get('3N')
-const phase3O = statusByName.get('3O')
-if (phase3N === 'NEXT / NOT STARTED') {
-  if (phase3O !== 'NOT STARTED') errors.push('3O must remain NOT STARTED before 3N closure')
-} else if (phase3N === 'CLOSED') {
-  if (!['NEXT / NOT STARTED', 'OPEN / ACTIVE', 'CLOSED'].includes(phase3O)) {
-    errors.push('3O must be NEXT / NOT STARTED, OPEN / ACTIVE, or CLOSED after 3N closure')
-  }
-} else {
-  errors.push(`3N has illegal verification-stage status: ${phase3N ?? 'missing'}`)
-}
-
-const phaseC018 = statusByName.get('C-018')
-if (phaseC018 === 'OPEN / RATIFICATION REVIEW') {
-  if (!(phase3N === 'CLOSED' && phase3O === 'CLOSED')) {
-    errors.push('C-018 must remain NOT RATIFIED until 3O closure')
-  }
-} else if (phaseC018 === 'RATIFIED / OPERATOR RATIFIED') {
-  if (!(phase3N === 'CLOSED' && phase3O === 'CLOSED')) {
-    errors.push('C-018 ratification requires 3N and 3O CLOSED')
-  }
-} else if (phaseC018 !== 'NOT RATIFIED') {
-  errors.push(`C-018 has illegal post-3N status: ${phaseC018 ?? 'missing'}`)
-}
-const architectureProgramClosed = phase3N === 'CLOSED' && phase3O === 'CLOSED' && phaseC018 === 'RATIFIED / OPERATOR RATIFIED'
-if (!architectureProgramClosed && statusByName.get('Product implementation') !== 'BLOCKED') {
-  errors.push('Product implementation must remain BLOCKED until 3N, 3O and C-018 are closed')
-}
-
-// 3N-S2 — semantic-owner closure.
+// Current architecture owner and dependency constraints.
 const expectedOwners = [
   'Identity & Access',
   'Workspace',
@@ -138,12 +99,7 @@ if (!sameSet(actualInfrastructureBoundaries, expectedInfrastructureBoundaries)) 
   errors.push(`infrastructure boundary set changed: expected ${expectedInfrastructureBoundaries.join(', ')}; got ${actualInfrastructureBoundaries.join(', ') || 'none'}`)
 }
 
-// 3N-S4 — current-authority coherence and data closure.
-const staleSpendWording = 'provider call occurring without spend reservation'
-if (architecture.includes(staleSpendWording) || contract.includes(staleSpendWording)) {
-  errors.push('superseded model-spend reservation wording reappeared after 3L-R1')
-}
-
+// Current data closure.
 const schemaMatch = data.match(/`hub_control` has exactly (\d+) owner schemas:\s*```text\s*([\s\S]*?)```/)
 const declaredSchemaCount = Number(schemaMatch?.[1] ?? NaN)
 const declaredSchemas = schemaMatch
@@ -212,138 +168,183 @@ if (recordsBySchema.get('gw')?.has('budget_counter')) {
   if (!budgetProjectionComplete) errors.push('gw.budget_counter lacks current Gateway consumer/invariant projection')
 }
 
-// 3N-S5 — accepted explicit minimum and contract/execution routing.
-const invariantSection = sectionBetween(
-  architecture,
-  '## 46. Verification invariants carried into 3N / 3O',
-  '## 47. Reopen triggers by family',
-  'section-46 invariant'
-)
-const declaredInvariantCount = Number(invariantSection.match(/Accepted explicit minimum count = (\d+)/)?.[1] ?? NaN)
-const invariantMatch = invariantSection.match(/```text\s*([\s\S]*?)```/)
-const architectureRoutes = invariantMatch
-  ? invariantMatch[1].split('\n').map(line => line.trim()).filter(Boolean).map(line => {
-      const separator = line.indexOf(' | ')
-      return separator < 0 ? { route: '', falsifier: line } : { route: line.slice(0, separator), falsifier: line.slice(separator + 3) }
-    })
-  : []
-if (!Number.isFinite(declaredInvariantCount) || architectureRoutes.length !== declaredInvariantCount) {
-  errors.push(`section-46 minimum falsifier count changed: projected=${architectureRoutes.length}, declared=${declaredInvariantCount}`)
-}
-if (new Set(architectureRoutes.map(row => row.falsifier)).size !== architectureRoutes.length) {
-  errors.push('section-46 minimum contains duplicate falsifiers')
-}
+if (historical) {
+  const roadmap = read('docs/roadmap.md')
+  const phase3M = read('docs/phases/3m-failure-recovery-architecture.md')
+  const contract = read('docs/phases/3n-architecture-verification.md')
+  const managedQualification = read('docs/reference/managed-execution-qualification.md')
 
-const routeRows = [...contract.matchAll(/^\| (3N-V\d{2}) \| ([A-Z0-9_]+) \| ([A-Z0-9_]+) \| (.+?) \|$/gm)]
-  .map(([, id, contractStage, executionStage, falsifier]) => ({ id, contractStage, executionStage, falsifier }))
-if (routeRows.length !== architectureRoutes.length) {
-  errors.push(`3N routing table must contain ${architectureRoutes.length} explicit minimum falsifiers; found ${routeRows.length}`)
-}
-const routeById = new Map()
-for (const row of routeRows) {
-  if (routeById.has(row.id)) errors.push(`duplicate 3N routing id: ${row.id}`)
-  routeById.set(row.id, row)
-}
+  // Historical phase progression and closure routing audit.
+  const roadmapRows = [...roadmap.matchAll(/^\| ([^|]+?) \| ([^|]+?) \|/gm)]
+    .map(([, name, status]) => [name.trim(), status.trim()])
+  const statusByName = new Map(roadmapRows)
 
-for (let index = 0; index < architectureRoutes.length; index += 1) {
-  const id = `3N-V${String(index + 1).padStart(2, '0')}`
-  const source = architectureRoutes[index]
-  const [expectedContractStage, expectedExecutionStage] = source.route.includes('→')
-    ? source.route.split('→')
-    : [source.route, source.route]
-  const row = routeById.get(id)
-  if (!row) {
-    errors.push(`missing 3N routing id: ${id}`)
-    continue
+  for (const phase of ['3A', '3B–3K', '3L', '3M']) {
+    if (statusByName.get(phase) !== 'CLOSED') errors.push(`${phase} must remain CLOSED during 3N`)
   }
-  if (row.contractStage !== expectedContractStage || row.executionStage !== expectedExecutionStage) {
-    errors.push(`${id} routing differs from architecture authority: expected ${expectedContractStage}→${expectedExecutionStage}; got ${row.contractStage}→${row.executionStage}`)
-  }
-  if (row.falsifier !== source.falsifier) errors.push(`${id} falsifier text differs from architecture authority`)
-}
 
-// 3N-S6 — downstream proof-family coverage from Architecture §42.
-const proofFamilySection = sectionBetween(
-  architecture,
-  '## 42. Downstream proof families not pulled artificially into 3L',
-  '## 43. Explicit future seams — no dormant machinery',
-  'downstream proof family'
-)
-const proofFamilyMatch = proofFamilySection.match(/Examples:\s*```text\s*([\s\S]*?)```/)
-const architectureProofFamilies = proofFamilyMatch
-  ? proofFamilyMatch[1].split('\n').map(line => line.trim()).filter(Boolean)
-  : []
-const contractProofSection = sectionBetween(
-  contract,
-  '## Downstream proof-family coverage',
-  '## Current 3N-routed obligation intake',
-  '3N downstream proof-family'
-)
-const contractProofRows = [...contractProofSection.matchAll(/^\| ([^|]+?) \| ([^|]+?) \|$/gm)]
-  .filter(([, family]) => family.trim() !== 'Proof family' && !family.trim().startsWith('---'))
-  .map(([, family, route]) => ({ family: family.trim(), route: route.trim() }))
-if (!sameSet(contractProofRows.map(row => row.family), architectureProofFamilies)) {
-  errors.push(`downstream proof-family coverage missing or extra: architecture=${architectureProofFamilies.length}, contract=${contractProofRows.length}`)
-}
-for (const row of contractProofRows) {
-  if (!['FIRST_BUILD', 'FIRST_PRODUCTION', '3O_CONTRACT → FIRST_BUILD'].includes(row.route)) {
-    errors.push(`invalid downstream proof-family route for ${row.family}: ${row.route}`)
-  }
-}
-
-// 3N-S7 — bounded current-owner intake explicitly routed to 3N/3O.
-const sourceIntake = []
-const phase3MRoute = phase3M.match(/^- \*\*3N:\*\* (.+)\.$/m)
-if (!phase3MRoute) {
-  errors.push('3M current 3N routing is missing')
-} else {
-  const obligations = phase3MRoute[1]
-    .split(', ')
-    .map(value => normalize(value.replace(/^and /, '')))
-    .filter(Boolean)
-  for (const obligation of obligations) sourceIntake.push(`3M closure::${obligation}`)
-}
-
-const cr1Obligation = 'current-authority serialization × owner isolation'
-if (!data.includes('3N/3O must prove both sides together')) {
-  errors.push('CR-1 current 3N routing is missing')
-} else {
-  sourceIntake.push(`data CR-1::${cr1Obligation}`)
-}
-
-for (const obligation of ['architecture-wide duplicate-authority proof', 'architecture-wide deciding-evidence completeness']) {
-  if (!managedQualification.includes(`${obligation}`) || !managedQualification.includes('→ 3N/3O')) {
-    errors.push(`managed-execution current 3N routing is missing: ${obligation}`)
+  const phase3N = statusByName.get('3N')
+  const phase3O = statusByName.get('3O')
+  if (phase3N === 'NEXT / NOT STARTED') {
+    if (phase3O !== 'NOT STARTED') errors.push('3O must remain NOT STARTED before 3N closure')
+  } else if (phase3N === 'CLOSED') {
+    if (!['NEXT / NOT STARTED', 'OPEN / ACTIVE', 'CLOSED'].includes(phase3O)) {
+      errors.push('3O must be NEXT / NOT STARTED, OPEN / ACTIVE, or CLOSED after 3N closure')
+    }
   } else {
-    sourceIntake.push(`managed qualification::${obligation}`)
+    errors.push(`3N has illegal verification-stage status: ${phase3N ?? 'missing'}`)
   }
-}
 
-const intakeSection = sectionBetween(
-  contract,
-  '## Current 3N-routed obligation intake',
-  '## Lead global-coherence challenge',
-  'current 3N-routed obligation intake'
-)
-const intakeRows = [...intakeSection.matchAll(/^\| ([^|]+?) \| ([^|]+?) \| ([^|]+?) \| ([^|]+?) \|$/gm)]
-  .filter(([, source]) => source.trim() !== 'Source' && !source.trim().startsWith('---'))
-  .map(([, source, obligation]) => `${normalize(source)}::${normalize(obligation)}`)
-if (!sameSet(intakeRows, sourceIntake)) {
-  errors.push(`3N-routed obligation intake differs from current owners: owners=${sourceIntake.length}, contract=${intakeRows.length}`)
-}
+  const phaseC018 = statusByName.get('C-018')
+  if (phaseC018 === 'OPEN / RATIFICATION REVIEW') {
+    if (!(phase3N === 'CLOSED' && phase3O === 'CLOSED')) {
+      errors.push('C-018 must remain NOT RATIFIED until 3O closure')
+    }
+  } else if (phaseC018 === 'RATIFIED / OPERATOR RATIFIED') {
+    if (!(phase3N === 'CLOSED' && phase3O === 'CLOSED')) {
+      errors.push('C-018 ratification requires 3N and 3O CLOSED')
+    }
+  } else if (phaseC018 !== 'NOT RATIFIED') {
+    errors.push(`C-018 has illegal post-3N status: ${phaseC018 ?? 'missing'}`)
+  }
+  const architectureProgramClosed = phase3N === 'CLOSED' && phase3O === 'CLOSED' && phaseC018 === 'RATIFIED / OPERATOR RATIFIED'
+  if (!architectureProgramClosed && statusByName.get('Product implementation') !== 'BLOCKED') {
+    errors.push('Product implementation must remain BLOCKED until 3N, 3O and C-018 are closed')
+  }
 
-if (!contract.includes('explicit operator closure authority') || !contract.includes('`3N = CLOSED`') || !contract.includes('`3O = NEXT / NOT STARTED`')) {
-  errors.push('3N closure gate does not bind operator authority to the roadmap transition')
+  const staleSpendWording = 'provider call occurring without spend reservation'
+  if (architecture.includes(staleSpendWording) || contract.includes(staleSpendWording)) {
+    errors.push('superseded model-spend reservation wording reappeared after 3L-R1')
+  }
+
+  // Historical section-46 minimum and contract/execution routing audit.
+  const invariantSection = sectionBetween(
+    architecture,
+    '## 46. Verification invariants carried into 3N / 3O',
+    '## 47. Reopen triggers by family',
+    'section-46 invariant'
+  )
+  const declaredInvariantCount = Number(invariantSection.match(/Accepted explicit minimum count = (\d+)/)?.[1] ?? NaN)
+  const invariantMatch = invariantSection.match(/```text\s*([\s\S]*?)```/)
+  const architectureRoutes = invariantMatch
+    ? invariantMatch[1].split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+        const separator = line.indexOf(' | ')
+        return separator < 0 ? { route: '', falsifier: line } : { route: line.slice(0, separator), falsifier: line.slice(separator + 3) }
+      })
+    : []
+  if (!Number.isFinite(declaredInvariantCount) || architectureRoutes.length !== declaredInvariantCount) {
+    errors.push(`section-46 minimum falsifier count changed: projected=${architectureRoutes.length}, declared=${declaredInvariantCount}`)
+  }
+  if (new Set(architectureRoutes.map(row => row.falsifier)).size !== architectureRoutes.length) {
+    errors.push('section-46 minimum contains duplicate falsifiers')
+  }
+
+  const routeRows = [...contract.matchAll(/^\| (3N-V\d{2}) \| ([A-Z0-9_]+) \| ([A-Z0-9_]+) \| (.+?) \|$/gm)]
+    .map(([, id, contractStage, executionStage, falsifier]) => ({ id, contractStage, executionStage, falsifier }))
+  if (routeRows.length !== architectureRoutes.length) {
+    errors.push(`3N routing table must contain ${architectureRoutes.length} explicit minimum falsifiers; found ${routeRows.length}`)
+  }
+  const routeById = new Map()
+  for (const row of routeRows) {
+    if (routeById.has(row.id)) errors.push(`duplicate 3N routing id: ${row.id}`)
+    routeById.set(row.id, row)
+  }
+
+  for (let index = 0; index < architectureRoutes.length; index += 1) {
+    const id = `3N-V${String(index + 1).padStart(2, '0')}`
+    const source = architectureRoutes[index]
+    const [expectedContractStage, expectedExecutionStage] = source.route.includes('→')
+      ? source.route.split('→')
+      : [source.route, source.route]
+    const row = routeById.get(id)
+    if (!row) {
+      errors.push(`missing 3N routing id: ${id}`)
+      continue
+    }
+    if (row.contractStage !== expectedContractStage || row.executionStage !== expectedExecutionStage) {
+      errors.push(`${id} routing differs from architecture authority: expected ${expectedContractStage}→${expectedExecutionStage}; got ${row.contractStage}→${row.executionStage}`)
+    }
+    if (row.falsifier !== source.falsifier) errors.push(`${id} falsifier text differs from architecture authority`)
+  }
+
+  // Historical downstream proof-family and owner-intake routing audit.
+  const proofFamilySection = sectionBetween(
+    architecture,
+    '## 42. Downstream proof families not pulled artificially into 3L',
+    '## 43. Explicit future seams — no dormant machinery',
+    'downstream proof family'
+  )
+  const proofFamilyMatch = proofFamilySection.match(/Examples:\s*```text\s*([\s\S]*?)```/)
+  const architectureProofFamilies = proofFamilyMatch
+    ? proofFamilyMatch[1].split('\n').map(line => line.trim()).filter(Boolean)
+    : []
+  const contractProofSection = sectionBetween(
+    contract,
+    '## Downstream proof-family coverage',
+    '## Current 3N-routed obligation intake',
+    '3N downstream proof-family'
+  )
+  const contractProofRows = [...contractProofSection.matchAll(/^\| ([^|]+?) \| ([^|]+?) \|$/gm)]
+    .filter(([, family]) => family.trim() !== 'Proof family' && !family.trim().startsWith('---'))
+    .map(([, family, route]) => ({ family: family.trim(), route: route.trim() }))
+  if (!sameSet(contractProofRows.map(row => row.family), architectureProofFamilies)) {
+    errors.push(`downstream proof-family coverage missing or extra: architecture=${architectureProofFamilies.length}, contract=${contractProofRows.length}`)
+  }
+  for (const row of contractProofRows) {
+    if (!['FIRST_BUILD', 'FIRST_PRODUCTION', '3O_CONTRACT → FIRST_BUILD'].includes(row.route)) {
+      errors.push(`invalid downstream proof-family route for ${row.family}: ${row.route}`)
+    }
+  }
+
+  const sourceIntake = []
+  const phase3MRoute = phase3M.match(/^- \*\*3N:\*\* (.+)\.$/m)
+  if (!phase3MRoute) {
+    errors.push('3M current 3N routing is missing')
+  } else {
+    const obligations = phase3MRoute[1]
+      .split(', ')
+      .map(value => normalize(value.replace(/^and /, '')))
+      .filter(Boolean)
+    for (const obligation of obligations) sourceIntake.push(`3M closure::${obligation}`)
+  }
+
+  const cr1Obligation = 'current-authority serialization × owner isolation'
+  if (!data.includes('3N/3O must prove both sides together')) {
+    errors.push('CR-1 current 3N routing is missing')
+  } else {
+    sourceIntake.push(`data CR-1::${cr1Obligation}`)
+  }
+
+  for (const obligation of ['architecture-wide duplicate-authority proof', 'architecture-wide deciding-evidence completeness']) {
+    if (!managedQualification.includes(`${obligation}`) || !managedQualification.includes('→ 3N/3O')) {
+      errors.push(`managed-execution current 3N routing is missing: ${obligation}`)
+    } else {
+      sourceIntake.push(`managed qualification::${obligation}`)
+    }
+  }
+
+  const intakeSection = sectionBetween(
+    contract,
+    '## Current 3N-routed obligation intake',
+    '## Lead global-coherence challenge',
+    'current 3N-routed obligation intake'
+  )
+  const intakeRows = [...intakeSection.matchAll(/^\| ([^|]+?) \| ([^|]+?) \| ([^|]+?) \| ([^|]+?) \|$/gm)]
+    .filter(([, source]) => source.trim() !== 'Source' && !source.trim().startsWith('---'))
+    .map(([, source, obligation]) => `${normalize(source)}::${normalize(obligation)}`)
+  if (!sameSet(intakeRows, sourceIntake)) {
+    errors.push(`3N-routed obligation intake differs from current owners: owners=${sourceIntake.length}, contract=${intakeRows.length}`)
+  }
+
+  if (!contract.includes('explicit operator closure authority') || !contract.includes('`3N = CLOSED`') || !contract.includes('`3O = NEXT / NOT STARTED`')) {
+    errors.push('3N closure gate does not bind operator authority to the roadmap transition')
+  }
 }
 
 if (errors.length) {
   console.error(errors.join('\n'))
   process.exitCode = 1
 } else {
-  const buildCount = architectureRoutes.filter(row => row.route === 'FIRST_BUILD').length
-  const productionCount = architectureRoutes.filter(row => row.route === 'FIRST_PRODUCTION').length
-  const verticalCount = architectureRoutes.filter(row => row.route === '3O_CONTRACT→FIRST_BUILD').length
-  console.log(
-    `3N architecture verification passed (${architectureRoutes.length} explicit minimum falsifiers: ${buildCount} FIRST_BUILD→FIRST_BUILD, ${productionCount} FIRST_PRODUCTION→FIRST_PRODUCTION, ${verticalCount} 3O_CONTRACT→FIRST_BUILD; ${architectureProofFamilies.length} downstream proof families; ${sourceIntake.length} current-owner routed obligations; data ${actualRecordCount} records/${fkRows.length} Tier-2 FKs).`
-  )
+  const historicalSummary = historical ? ' with historical phase and routing audit' : ''
+  console.log(`Architecture verification passed${historicalSummary} (${actualOwners.length} semantic owners; ${actualL7.length} dependency flows; data ${actualRecordCount} records/${fkRows.length} Tier-2 FKs).`)
 }

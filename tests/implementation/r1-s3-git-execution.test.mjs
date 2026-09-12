@@ -45,7 +45,7 @@ const filesBelow = (root) => readdirSync(root, { withFileTypes: true }).flatMap(
   return entry.isDirectory() ? filesBelow(path) : entry.isFile() ? [path] : []
 })
 
-test('S3-P0 generated identity is receipt-bound and refuses every forbidden binding identity', () => {
+test('generated Git identity preserves operational pins and forbidden bindings', () => {
   assert.deepEqual(checkR1S3GitIdentity(repositoryRoot), buildR1S3GitIdentity(repositoryRoot))
   assert.equal(R1C14_GIT_IDENTITY.ociIndexDigest, 'sha256:5e5c3526292bb87a97a3fa41c8e715800a02da5238fbe07bf99c1c4b614f7851')
   assert.equal(R1C14_GIT_IDENTITY.gitExecutableSha256, 'b5d1f9f76f9805ce8721accc9d8bbff9af9b7407e182ab07a5677dafa6c22201')
@@ -56,6 +56,26 @@ test('S3-P0 generated identity is receipt-bound and refuses every forbidden bind
     'sha256:4b52df3b20e6c4654bb8cf4270fbe911cc3b0e8bc738a54fa325496b24e2854a',
     'sha256:44ad647a10c0a9659e3cfebb28e6b384ac8af15ac53fc2d0cd662cd30d7817b0',
   ])
+})
+
+test('Git identity checks ignore report prose but reject operational drift', context => {
+  const candidate = mkdtempSync('/tmp/conexus-git-identity-')
+  context.after(() => rmSync(candidate, { recursive: true, force: true }))
+  const manifestPath = 'docs/evidence/4d/4d-r1-foundation-pin-manifest-r1c14-native-successor.json'
+  const generatedPath = 'apps/hub/src/generated/r1c14-git-identity.ts'
+  mkdirSync(resolve(candidate, 'docs/evidence/4d'), { recursive: true })
+  mkdirSync(resolve(candidate, 'apps/hub/src/generated'), { recursive: true })
+  const manifest = JSON.parse(readFileSync(resolve(repositoryRoot, manifestPath), 'utf8'))
+  manifest.note = 'Changed historical report prose without renewed admission'
+  writeFileSync(resolve(candidate, manifestPath), JSON.stringify(manifest))
+  writeFileSync(resolve(candidate, generatedPath), readFileSync(resolve(repositoryRoot, generatedPath)))
+  assert.equal(checkR1S3GitIdentity(candidate).gitExecutablePath, '/usr/local/bin/git')
+  manifest.git.executableSha256 = '0'.repeat(64)
+  writeFileSync(resolve(candidate, manifestPath), JSON.stringify(manifest))
+  assert.throws(() => checkR1S3GitIdentity(candidate), /S3_GIT_GENERATED_IDENTITY_DRIFT/)
+  manifest.git.executableSha256 = 'invalid'
+  writeFileSync(resolve(candidate, manifestPath), JSON.stringify(manifest))
+  assert.throws(() => checkR1S3GitIdentity(candidate), /S3_GIT_IDENTITY_FORMAT/)
 })
 
 test('S3-P2 generated NEW seed is exact and has an empty APP-owned set', () => {

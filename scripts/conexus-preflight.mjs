@@ -458,7 +458,6 @@ export function runPreflight({ repositoryRoot = defaultRepositoryRoot, noNetwork
 export const formatHuman = result => {
   const { repository, base, runtime, toolchain, workingTree, roadmap, pullRequest, mainCi } = result
   const product = roadmap.productImplementation
-  const phase4D = roadmap.phaseRows.find(row => /^4D(?:\s|—)/.test(row.name))
   const lines = [
     'Conexus preflight',
     `root: ${repository.repositoryRoot}`,
@@ -471,7 +470,6 @@ export const formatHuman = result => {
     `toolchain: node ${toolchain.node.actual}${toolchain.node.matches === false ? ` (expected ${toolchain.node.expected})` : ''}; npm ${toolchain.npm.actual ?? 'unavailable'}${toolchain.npm.matches === false ? ` (expected ${toolchain.npm.expected})` : ''}`,
     `working tree: ${workingTree.clean ? 'clean' : `dirty (${workingTree.changedPathCount} path${workingTree.changedPathCount === 1 ? '' : 's'})`}`
   ]
-  if (phase4D) lines.push(`roadmap 4D: ${phase4D.status}`)
   if (product) lines.push(`product implementation: ${product.status}`)
   if (roadmap.continuationReadiness) lines.push(`continuation: ${roadmap.continuationReadiness}`)
   if (roadmap.exactNextAction) lines.push(`next: ${roadmap.exactNextAction}`)

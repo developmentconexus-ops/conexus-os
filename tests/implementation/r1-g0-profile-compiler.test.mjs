@@ -46,55 +46,6 @@ const expectAdmission = (raw, code, validator = validateInput) => assert.throws(
   (error) => error instanceof AdmissionError && error.code === code,
 )
 
-test('R1C-01 exact root dependency and runtime pins match the admitted Foundation manifest', () => {
-  const packageJson = JSON.parse(readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'))
-  const packageLock = JSON.parse(readFileSync(resolve(repositoryRoot, 'package-lock.json'), 'utf8'))
-  const pinManifest = JSON.parse(readFileSync(resolve(repositoryRoot, 'docs/evidence/4d/4d-r1-foundation-pin-manifest.json'), 'utf8'))
-  const a0PinManifest = JSON.parse(readFileSync(resolve(repositoryRoot, 'docs/evidence/4d/4d-r1-a0-foundation-pin-manifest.json'), 'utf8'))
-  assert.deepEqual(packageJson.engines, { node: '24.20.0', npm: '12.0.2' })
-  assert.equal(readFileSync(resolve(repositoryRoot, '.nvmrc'), 'utf8').trim(), '24.20.0')
-  assert.deepEqual(packageJson.dependencies, {
-    '@fastify/cookie': '11.1.2',
-    '@fastify/helmet': '13.1.1',
-    '@fastify/static': '10.1.3',
-    '@tanstack/react-query': '5.102.8',
-    '@tanstack/react-router': '1.170.32',
-    ajv: '8.20.0',
-    'ajv-formats': '3.0.1',
-    canonicalize: '4.0.0',
-    fastify: '5.12.1',
-    'jsonc-parser': '3.3.1',
-    'openid-client': '6.8.7',
-    pg: '8.23.0',
-    react: '19.2.8',
-    'react-dom': '19.2.8',
-  })
-  assert.deepEqual(packageJson.devDependencies, {
-    '@biomejs/biome': '2.5.11',
-    '@playwright/test': '1.62.1',
-    '@redocly/cli': '2.47.0',
-    '@tanstack/router-plugin': '1.168.35',
-    '@types/node': '24.13.3',
-    '@types/pg': '8.23.1',
-    '@types/react': '19.2.18',
-    '@types/react-dom': '19.2.5',
-    '@vitejs/plugin-react': '6.1.1',
-    typescript: '6.0.2',
-    vite: '8.2.2',
-  })
-  assert.equal(packageLock.lockfileVersion, pinManifest.decidingPlatform.lockfileVersion)
-  for (const [name, version] of Object.entries({ ...packageJson.dependencies, ...packageJson.devDependencies })) {
-    const admitted = name === a0PinManifest.admittedDependency.name
-      ? a0PinManifest.admittedDependency
-      : pinManifest.npmPackages.find((candidate) => candidate.name === name)
-    assert.ok(admitted, `${name} must be admitted by the Foundation pin manifest`)
-    assert.equal(admitted.version, version)
-    const locked = packageLock.packages[`node_modules/${name}`]
-    assert.equal(locked.version, version)
-    assert.equal(locked.integrity, admitted.integrity)
-  }
-})
-
 test('R1C-02 rejects malformed raw I-JSON and schema input before compilation', () => {
   expectAdmission(Buffer.from([0xc3, 0x28]), 'INVALID_UTF8')
   expectAdmission(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), bytes(baseInput)]), 'BOM_FORBIDDEN')

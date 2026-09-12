@@ -1,163 +1,102 @@
+import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
-const run = script => spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' })
 const runAt = (script, candidateRoot) => spawnSync(process.execPath, [resolve(root, script), candidateRoot], {
-  cwd: root,
+  cwd: candidateRoot,
   encoding: 'utf8',
 })
-const gitFixture = (trackedFiles) => {
+const gitFixture = (context, files) => {
   const target = mkdtempSync(resolve(tmpdir(), 'conexus-repository-contract-'))
-  execFileSync('git', ['init', '--quiet'], { cwd: target })
-  for (const [path, contents] of Object.entries(trackedFiles)) {
-    const destination = resolve(target, path)
-    mkdirSync(dirname(destination), { recursive: true })
-    writeFileSync(destination, contents)
+  context.after(() => rmSync(target, { recursive: true, force: true }))
+  execFileSync('git', ['init', '--quiet', '-b', 'main'], { cwd: target })
+  for (const [path, contents] of Object.entries(files)) {
+    mkdirSync(dirname(resolve(target, path)), { recursive: true })
+    writeFileSync(resolve(target, path), contents)
   }
-  execFileSync('git', ['add', '--', ...Object.keys(trackedFiles)], { cwd: target })
+  execFileSync('git', ['add', '.'], { cwd: target })
+  execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+    'commit', '--quiet', '-m', 'fixture'], { cwd: target })
   return target
 }
-let mutationQueue = Promise.resolve()
-const serialTest = (name, fn) => test(name, async context => {
-  const previous = mutationQueue
-  let release
-  mutationQueue = new Promise(resolveQueue => { release = resolveQueue })
-  await previous
-  try { return await fn(context) } finally { release() }
-})
+const currentFiles = () => Object.fromEntries([
+  'AGENTS.md', 'README.md', 'docs/index.md', 'docs/roadmap.md',
+  'docs/product/contract.md', 'docs/architecture/index.md', 'docs/decisions/index.md',
+  'docs/development/engineering-method.md', 'docs/development/repository-method.md',
+  'docs/development/frontend-product-experience-planning-method.md',
+  'docs/development/engineering-rules.md', 'contracts/api/product/openapi.yaml',
+].map(path => [path, '# fixture\n']).concat([
+  ['package.json', '{"name":"conexus-os","private":true}\n'],
+  ['.github/workflows/verify.yml', 'on: [push]\npermissions:\n  contents: read\n'],
+]))
+const assertPass = result => assert.equal(result.status, 0, result.stdout + result.stderr)
+const assertFailure = (result, message) => {
+  assert.equal(result.status, 1, result.stdout + result.stderr)
+  assert.match(result.stderr, message)
+}
 
-serialTest('Conexus OS repository contract is green', () => {
-  for (const script of [
-    'scripts/check-repository-hygiene.mjs',
-    'scripts/check-doc-index.mjs',
-    'scripts/check-current-state.mjs',
-    'scripts/check-qualification-provenance.mjs'
-  ]) {
-    execFileSync(process.execPath, [script], { cwd: root, stdio: 'inherit', env: { ...process.env, CONEXUS_ALLOW_DIRTY_WORKTREE: '1' } })
+test('current repository checks accept ordinary development edits', () => {
+  for (const script of ['check-repository-hygiene', 'check-doc-index', 'check-current-state']) {
+    assertPass(runAt('scripts/' + script + '.mjs', root))
   }
 })
 
-serialTest('repository hygiene guard fires on temporary work contamination', () => {
-  const workRoot = resolve(root, 'docs/work')
-  const workRootExisted = existsSync(workRoot)
-  const workDir = resolve(workRoot, 'current')
-  const file = resolve(workDir, 'forbidden-fixture.md')
-  const existed = existsSync(file)
-  const original = existed ? readFileSync(file, 'utf8') : null
-  mkdirSync(workDir, { recursive: true })
-  writeFileSync(file, '# temporary review\n')
-  try {
-    const result = run('scripts/check-repository-hygiene.mjs')
-    const output = `${result.stdout}\n${result.stderr}`
-    if (result.status === 0 || !output.includes('docs/work')) throw new Error('hygiene negative control did not fire')
-  } finally {
-    if (existed) writeFileSync(file, original)
-    else rmSync(file, { force: true })
-    if (!workRootExisted) rmSync(workRoot, { recursive: true, force: true })
-  }
+test('working documents and historical phase prose do not require admission', context => {
+  const candidate = gitFixture(context, currentFiles())
+  writeFileSync(resolve(candidate, 'docs/roadmap.md'), '# Current work\nNo phase table is required.\n')
+  writeFileSync(resolve(candidate, 'README.md'), '# History\n3N = NEXT / NOT STARTED\n')
+  mkdirSync(resolve(candidate, 'docs/work'), { recursive: true })
+  writeFileSync(resolve(candidate, 'docs/work/handoff-round.md'), '# local dialogue\n')
+  assertPass(runAt('scripts/check-current-state.mjs', candidate))
+  assertPass(runAt('scripts/check-repository-hygiene.mjs', candidate))
 })
 
-serialTest('candidate census: documentation index guard inspects an untracked document', () => {
-  const candidateRoot = gitFixture({ 'docs/index.md': '# Documentation index\n' })
-  const directory = resolve(candidateRoot, 'docs/evidence/4f')
-  const file = resolve(directory, 'untracked-doc-index-fixture.md')
-  mkdirSync(directory, { recursive: true })
-  writeFileSync(file, '[broken](./missing-untracked-fixture.md)\n')
-  try {
-    const result = runAt('scripts/check-doc-index.mjs', candidateRoot)
-    const output = `${result.stdout}\n${result.stderr}`
-    if (result.status === 0 || !output.includes('untracked-doc-index-fixture.md')) {
-      throw new Error(`documentation index negative control did not fire:\n${output}`)
+test('document index checks untracked documents for broken links', context => {
+  const candidate = gitFixture(context, { 'docs/index.md': '# Documentation index\n' })
+  writeFileSync(resolve(candidate, 'docs/handoff.md'), '[broken](./missing.md)\n')
+  assertFailure(runAt('scripts/check-doc-index.mjs', candidate), /handoff.md/)
+})
+
+for (const state of ['unstaged', 'staged', 'untracked', 'untracked-crlf', 'committed']) {
+  test('current-state rejects ' + state + ' conflict markers', context => {
+    const candidate = gitFixture(context, currentFiles())
+    const path = state.startsWith('untracked') ? 'new-file.md' : 'README.md'
+    const markers = '<<<<<<< ours\nfirst\n=======\nsecond\n>>>>>>> theirs\n'
+    writeFileSync(resolve(candidate, path), state === 'untracked-crlf' ? markers.replaceAll('\n', '\r\n') : markers)
+    if (state === 'staged' || state === 'committed') {
+      execFileSync('git', ['add', path], { cwd: candidate })
     }
-  } finally {
-    rmSync(candidateRoot, { recursive: true, force: true })
-  }
-})
-
-serialTest('candidate census: repository hygiene guard inspects an untracked transient path', () => {
-  const candidateRoot = gitFixture({
-    'package.json': '{"name":"conexus-os","private":true}\n',
+    if (state === 'committed') {
+      execFileSync('git', ['switch', '-c', 'candidate'], { cwd: candidate, stdio: 'ignore' })
+      execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+        'commit', '--quiet', '-m', 'conflict'], { cwd: candidate })
+    }
+    assertFailure(runAt('scripts/check-current-state.mjs', candidate), /conflict marker/)
   })
-  const directory = resolve(candidateRoot, 'docs/evidence/4f')
-  const file = resolve(directory, 'untracked-handoff-fixture.md')
-  mkdirSync(directory, { recursive: true })
-  writeFileSync(file, '# transient candidate\n')
-  try {
-    const result = runAt('scripts/check-repository-hygiene.mjs', candidateRoot)
-    const output = `${result.stdout}\n${result.stderr}`
-    if (result.status === 0 || !output.includes('transient path: docs/evidence/4f/untracked-handoff-fixture.md')) {
-      throw new Error(`hygiene untracked negative control did not fire:\n${output}`)
-    }
-  } finally {
-    rmSync(candidateRoot, { recursive: true, force: true })
-  }
+}
+
+test('current-state ignores a deleted workflow and rejects a new unsafe workflow', context => {
+  const candidate = gitFixture(context, currentFiles())
+  rmSync(resolve(candidate, '.github/workflows/verify.yml'))
+  assertPass(runAt('scripts/check-current-state.mjs', candidate))
+  writeFileSync(resolve(candidate, '.github/workflows/new.yml'), 'on: pull_request_target\n')
+  assertFailure(runAt('scripts/check-current-state.mjs', candidate), /unsafe pull_request_target/)
+  writeFileSync(resolve(candidate, '.github/workflows/new.yml'), 'on: push\npermissions:\n  contents: write\n')
+  assertFailure(runAt('scripts/check-current-state.mjs', candidate), /contents: write/)
 })
 
-serialTest('bootstrap/status guard fires when README becomes a phase authority', () => {
-  const path = resolve(root, 'README.md')
-  const original = readFileSync(path, 'utf8')
-  writeFileSync(path, `${original}\n3N = NEXT / NOT STARTED\n`)
-  try {
-    const result = run('scripts/check-current-state.mjs')
-    const output = `${result.stdout}\n${result.stderr}`
-    if (result.status === 0 || !output.includes('README.md')) throw new Error('status negative control did not fire')
-  } finally {
-    writeFileSync(path, original)
+test('repository checks reject public package identity and missing files', context => {
+  const candidate = gitFixture(context, currentFiles())
+  writeFileSync(resolve(candidate, 'package.json'), '{"name":"conexus-os","private":false}\n')
+  for (const script of ['check-current-state', 'check-repository-hygiene']) {
+    assertFailure(runAt('scripts/' + script + '.mjs', candidate), /private/)
   }
-})
-
-serialTest('phase progression guard fires when more than one phase is active', () => {
-  const path = resolve(root, 'docs/roadmap.md')
-  const original = readFileSync(path, 'utf8')
-  let mutated = original.replace('| 3N | CLOSED |', '| 3N | OPEN / ACTIVE |')
-  mutated = mutated.replace('| 3O | CLOSED |', '| 3O | OPEN / ACTIVE |')
-  if (mutated === original) throw new Error('active-phase negative-control mutation target missing')
-  writeFileSync(path, mutated)
-  try {
-    const result = run('scripts/check-current-state.mjs')
-    const output = `${result.stdout}\n${result.stderr}`
-    if (result.status === 0 || !output.includes('OPEN / ACTIVE')) throw new Error('active-phase negative control did not fire')
-  } finally {
-    writeFileSync(path, original)
-  }
-})
-
-serialTest('C-018 ratification review cannot overlap an open architecture phase', () => {
-  const path = resolve(root, 'docs/roadmap.md')
-  const original = readFileSync(path, 'utf8')
-  let mutated = original.replace('| C-018 | RATIFIED / OPERATOR RATIFIED |', '| C-018 | OPEN / RATIFICATION REVIEW |')
-  mutated = mutated.replace('| 3O | CLOSED |', '| 3O | OPEN / ACTIVE |')
-  if (mutated === original) throw new Error('C-018 overlap mutation target missing')
-  writeFileSync(path, mutated)
-  try {
-    const result = run('scripts/check-current-state.mjs')
-    const output = `${result.stdout}\n${result.stderr}`
-    if (result.status === 0 || !output.includes('C-018 ratification review requires all phases CLOSED')) {
-      throw new Error(`C-018 overlap negative control did not fire:\n${output}`)
-    }
-  } finally {
-    writeFileSync(path, original)
-  }
-})
-
-serialTest('ratified C-018 cannot coexist with an unclosed architecture phase', () => {
-  const path = resolve(root, 'docs/roadmap.md')
-  const original = readFileSync(path, 'utf8')
-  const mutated = original.replace('| 3O | CLOSED |', '| 3O | OPEN / ACTIVE |')
-  if (mutated === original) throw new Error('C-018 ratified-continuity mutation target missing')
-  writeFileSync(path, mutated)
-  try {
-    const result = run('scripts/check-current-state.mjs')
-    const output = `${result.stdout}\n${result.stderr}`
-    if (result.status === 0 || !output.includes('C-018 ratification requires all phases CLOSED')) {
-      throw new Error(`C-018 ratified continuity negative control did not fire:\n${output}`)
-    }
-  } finally {
-    writeFileSync(path, original)
-  }
+  writeFileSync(resolve(candidate, 'package.json'), '{"name":"conexus-os","private":true}\n')
+  rmSync(resolve(candidate, 'docs/roadmap.md'))
+  assertFailure(runAt('scripts/check-current-state.mjs', candidate), /missing required repository file/)
 })

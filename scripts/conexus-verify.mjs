@@ -33,25 +33,23 @@ const candidateStep = (scope, command, environmentClass = 'static') => Object.fr
 /**
  * The candidate profile is the review-lane composition. Each entry is an
  * objective leaf or an intentionally distinct environment/selection proof.
- * Historical npm aliases remain available below, but composite aliases are not
- * used here because they would repeat equivalent leaves. Candidate-freeze
- * custody is invoked explicitly by its own repository command; it is not a
- * permanent required-main CI property while the candidate remains unadmitted.
+ * Historical npm scripts remain available for explicit invocation, but are not
+ * part of this current graph. Composite aliases are not used here because
+ * they would repeat equivalent leaves. Candidate-freeze custody is invoked
+ * explicitly by its own repository command; it is not a required-main CI
+ * property while the candidate remains unadmitted.
  */
 export const CANDIDATE_GRAPH = Object.freeze([
-  candidateStep('a0-g0-admission', 'npm run r1:a0:g0:verify'),
-  candidateStep('4f-project-cognition-admission', 'npm ci --prefix qualification/4f/r1-project-cognition-admission --ignore-scripts && npm test --prefix qualification/4f/r1-project-cognition-admission'),
-  candidateStep('r1-s2-generate', 'npm run r1:s2:generate'),
-  candidateStep('r1-s2-generated-drift', 'git diff --exit-code -- apps/hub/src/generated/s2-routes.ts apps/web/src/generated/workspace-client.ts'),
+  candidateStep('a0-type-safety', 'npm run r1:a0:admission'),
+  candidateStep('g0-profile-compiler', 'npm run r1:g0:verify'),
+  candidateStep('r1-s2-generate', 'npm run r1:s2:check'),
   candidateStep('r1-s2-http', 'npm run r1:s2:http'),
   candidateStep('r1-s2-reads', 'node --test --test-concurrency=1 tests/implementation/r1-s2-reads.test.mjs'),
   candidateStep('import-law', 'npm run r1:s2:import-law'),
-  candidateStep('verification-tool-regressions', 'node --test --test-concurrency=1 tests/repository/conexus-preflight.test.mjs tests/repository/conexus-verify.test.mjs'),
+  candidateStep('verification-tool-regressions', 'node --test --test-concurrency=1 tests/repository/conexus-preflight.test.mjs tests/repository/conexus-verify.test.mjs tests/repository/repository-contract.test.mjs tests/repository/architecture-verification.test.mjs'),
   candidateStep('hub-migration-selection', 'node --test tests/implementation/hub-migration-selection.test.mjs && npx --no-install biome check tests/implementation/hub-migration-selection.test.mjs tests/implementation/hub-migration-postgres.test.mjs'),
   candidateStep('r1-s2-live-syntax', 'bash -n tests/implementation/r1-s2-live-runner.sh && node --check tests/implementation/r1-s2-live-setup.mjs && node --check tests/implementation/r1-s2-live-browser.spec.mjs'),
   candidateStep('biome-union', 'npx --no-install biome check apps/hub/src apps/web/src packages/canonical-json/src packages/profile-compiler/src scripts/check-import-law.mjs scripts/generate-r1-s2-contracts.mjs scripts/bootstrap-r2-brain.mjs scripts/run-hub-migrations.mjs scripts/generate-r2-contracts.mjs scripts/rb-builder-e2b-template.mjs tests/implementation/r1-s2-http.test.mjs tests/implementation/r1-s2-reads.test.mjs tests/implementation/r2-p2-brain.test.mjs tests/implementation/r2-p2-brain-bootstrap.test.mjs tests/implementation/r2-p3-connections.test.mjs tests/implementation/r2-p5-connection-qualification.test.mjs tests/implementation/r2-p5-sankhya-key-conformance.test.mjs tests/implementation/r2-p5-production-composition.test.mjs tests/implementation/r2-p5-production-composed-postgres.test.mjs tests/implementation/r2-p6-brain-revision-selection.test.mjs tests/implementation/r2-p6-web-api.test.mjs tests/implementation/r2-p6-workspace-surfaces.test.mjs tests/implementation/r2-p6-project-surfaces.test.mjs tests/implementation/rb-builder-first-vertical.test.mjs tests/implementation/rb-builder-browser.test.mjs tests/implementation/bld-10-preview.test.mjs tests/implementation/rb-builder-e2b-template.test.mjs tests/implementation/rb-builder-e2b-live.test.mjs tests/implementation/rb-builder-mastra-e2b-live.test.mjs tests/implementation/rb-builder-production-composed-live.test.mjs tests/repository/import-law.test.mjs'),
-  candidateStep('r1c14-native', 'npm run r1:r1c14:native:check', 'custody'),
-
   candidateStep('rb-first-postgres-migration-selection', 'npm run rb:first:postgres', 'postgres'),
   candidateStep('hub-migration-postgres', 'node --test --test-concurrency=1 tests/implementation/hub-migration-postgres.test.mjs', 'postgres'),
   candidateStep('r2-p1-postgres', 'npm run r2:p1:postgres', 'postgres'),
@@ -74,6 +72,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('r2-p6-composed-postgres', 'node --test --test-concurrency=1 tests/implementation/r2-p6-production-composed-postgres.test.mjs'),
 
   candidateStep('r1-s6-contract-generation', 'node scripts/generate-r1-s3-contracts.mjs --check'),
+  candidateStep('r1-s3-git-identity', 'node scripts/generate-r1-s3-git-identity.mjs --check'),
   candidateStep('r1-s6-project-inception', 'node --test --test-concurrency=1 tests/implementation/r1-s6-project-inception.test.mjs'),
   candidateStep('r1-s6-project-refinement', 'node --test --test-concurrency=1 tests/implementation/r1-s6-project-refinement.test.mjs'),
   candidateStep('r1-s6-baseline-explanation', 'node --test --test-concurrency=1 tests/implementation/r1-s6-baseline-explanation.test.mjs'),
@@ -83,19 +82,17 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('r1-s6-browser-inception', 'node --test --test-concurrency=1 tests/implementation/r1-s6-project-inception-browser.test.mjs', 'browser'),
   candidateStep('r1-s6-browser-refinement', 'node --test --test-concurrency=1 tests/implementation/r1-s6-project-refinement-browser.test.mjs', 'browser'),
   candidateStep('r1-s6-composed', 'node --test --test-concurrency=1 tests/implementation/r1-s6-composed-journey.test.mjs tests/implementation/r1-s6-production-cognition.test.mjs', 'postgres'),
-  candidateStep('r1-rc01-walkthrough', 'npm run r1:rc01:walkthrough:verify', 'postgres'),
-
   candidateStep('rb-e2b-template', 'node scripts/rb-builder-e2b-template.mjs --check'),
-  candidateStep('rb-first-source-checks', 'node --check scripts/run-hub-migrations.mjs && node --test --test-concurrency=1 tests/implementation/rb-builder-e2b-template.test.mjs tests/implementation/rb-builder-e2b-live.test.mjs tests/implementation/rb-builder-first-vertical.test.mjs tests/implementation/rb-builder-browser.test.mjs tests/implementation/rb-builder-mastra-e2b-live.test.mjs tests/implementation/rb-builder-production-composed-live.test.mjs tests/implementation/builder-application-build.test.mjs tests/implementation/builder-application-runtime.test.mjs tests/implementation/builder-application-live.test.mjs && npx --no-install biome check tests/implementation/builder-application-*.test.mjs', 'browser'),
+  candidateStep('rb-first-source-checks', 'node --check scripts/run-hub-migrations.mjs && node --test --test-concurrency=1 tests/implementation/rb-builder-e2b-template.test.mjs tests/implementation/rb-builder-first-vertical.test.mjs tests/implementation/rb-builder-browser.test.mjs tests/implementation/builder-application-build.test.mjs tests/implementation/builder-application-runtime.test.mjs && npx --no-install biome check tests/implementation/builder-application-*.test.mjs', 'browser'),
   candidateStep('bld-10-preview-projection', 'node --test --test-concurrency=1 tests/implementation/bld-10-preview.test.mjs'),
   candidateStep('rb-first-hub-typecheck', 'npm run r1:s2:hub:typecheck'),
   candidateStep('rb-first-web-typecheck', 'npm run r1:a0:web:typecheck'),
   candidateStep('web-build', 'node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web --outDir ../../node_modules/.cache/conexus-candidate-web-build --emptyOutDir'),
 
   candidateStep('repository-check', 'npm run repository:check'),
-  candidateStep('r1-rc01-custody', 'npm run r1:rc01:custody:check', 'custody'),
-  candidateStep('repository-hygiene', 'npm run repository:check:extended'),
-  candidateStep('repository-candidate-census', 'npm run repository:candidate-census'),
+  candidateStep('repository-hygiene', 'node scripts/check-repository-hygiene.mjs'),
+  candidateStep('repository-doc-index', 'node scripts/check-doc-index.mjs'),
+  candidateStep('repository-architecture', 'node scripts/check-architecture-verification.mjs'),
 
   candidateStep('wire-openapi-lint', 'npm run wire:lint'),
   candidateStep('wire-openapi-bundle', 'npm run wire:bundle'),

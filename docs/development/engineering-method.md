@@ -1,9 +1,14 @@
 # DevelopmentConexus Engineering Method
 
-**Version:** 1.3.0
+**Version:** 1.3.0 with Conexus OS local amendment 2026-09-12
 **Status:** ACCEPTED / OPERATOR RATIFIED
 **Authority:** organizational engineering standard  
 **Scope:** all DevelopmentConexus repositories; human, agent, or hybrid engineering
+
+The operator ratified the Conexus OS local amendment on 2026-09-12 in
+[repository consolidation](../tasks/repository-consolidation.md). It removes
+stage-based review cadence and universal historical custody from this repository.
+It does not amend other repositories or weaken current Product proof.
 
 ## Objective
 
@@ -145,6 +150,11 @@ Planning is sufficient when remaining implementation choices are mechanical.
 Additional planning, abstraction, Evidence machinery or review requires a named
 material unknown, contradiction, dependency or falsifier.
 
+An approved increment includes routine reversible implementation and verification
+steps. Do not request approval for each file, command, part or checklist item.
+New Product scope, external effects and irreversible actions still require their
+own authority. Record progress in the current task, not a new process artifact.
+
 Progress means realizing a protected Product/system property or removing a real
 blocker to it. Plans, gates, receipts, review rounds and automation are not
 delivery progress unless they are necessary to enable or prove that protected
@@ -168,7 +178,7 @@ reliability of its deciding proof.
 ### Periodic independent assurance
 
 Independent review is risk-triggered. Require two fresh isolated challengers
-before every stage closes and whenever a change creates or moves authority or a
+when a change creates or moves authority or a
 trust boundary, changes a structural runtime/database/service boundary, has an
 external or hard-to-reverse effect, or presents a material contradiction or
 Global-Maximum question. The Lead MUST
@@ -186,7 +196,8 @@ delivery.
 
 Verification must be a flat graph of leaf checks. A targeted local check may
 prove the affected boundary; a candidate gate runs each applicable leaf once;
-publication/CI adds clean-install and custody checks. A suite must not invoke a
+publication/CI adds clean-install and clean-checkout checks. Historical custody
+checks apply only when the work invokes their named historical claims. A suite must not invoke a
 whole prior suite recursively, and duplicate execution may be removed only
 after confirming equivalent claim and environment coverage.
 
@@ -219,7 +230,7 @@ Under deadline, keep Unknown as Unknown, state residual risk, prefer the safest/
 
 Local correctness does not guarantee global coherence.
 
-Run a Global Coherence Review when closing a major design stage, after a `RESTRUCTURE NOW`, before ratifying a decision that binds multiple repositories, or when repeated local exceptions suggest a systemic problem.
+Run a Global Coherence Review after a material restructuring, before ratifying a decision that binds multiple repositories, or when repeated local exceptions suggest a systemic problem. Closing a named stage alone does not trigger review.
 
 Look for duplicate/missing authority, circular ownership, contradictory assumptions, repeated correctness machinery, God components, excessive fragmentation, abstractions caused only by other abstractions, removed necessary seams, and speculative extensibility.
 
