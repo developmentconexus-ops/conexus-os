@@ -57,6 +57,16 @@ fieldset input { margin: 0; }
 .candidate-assistant form { margin-top: 1rem; }
 .candidate-assistant textarea { width: 100%; resize: vertical; padding: .8rem; border: 1px solid #8b9991; border-radius: .5rem; background: white; color: inherit; }
 .project-build { display: grid; gap: 2rem; }
+.build-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem); gap: 1rem; align-items: start; }
+.build-preview-surface, .conexus-panel { min-width: 0; padding: 1.25rem; border: 1px solid #ccd5d0; border-radius: .7rem; background: white; }
+.build-preview-surface { display: grid; gap: .75rem; }
+.build-preview-surface h2, .conexus-panel h2 { margin: .25rem 0; }
+.conexus-panel form { margin-top: 1rem; }
+.preview-empty { min-height: 18rem; display: grid; place-items: center; padding: 2rem; border: 1px dashed #8b9991; border-radius: .6rem; color: #617068; text-align: center; }
+.preview-frame-stack { display: grid; min-height: 24rem; overflow: hidden; border: 1px solid #ccd5d0; border-radius: .6rem; background: #17231d; }
+.preview-frame-stack iframe { grid-area: 1 / 1; width: 100%; min-height: 24rem; border: 0; background: white; }
+.build-disclosure { margin-top: 1rem; padding: .75rem 1rem; border: 1px solid #ccd5d0; border-radius: .6rem; background: white; }
+.build-disclosure summary { cursor: pointer; font-weight: 700; }
 .build-layout { display: grid; grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr); gap: 1rem; }
 .build-layout nav { min-width: 0; display: grid; align-content: start; gap: .5rem; }
 .build-layout nav button { min-width: 0; width: 100%; display: grid; gap: .25rem; text-align: left; padding: .7rem; border: 1px solid #8b9991; border-radius: .5rem; background: white; color: inherit; }
@@ -69,7 +79,7 @@ fieldset input { margin: 0; }
 .source-browser nav { max-height: 28rem; overflow: auto; padding: .5rem; border: 1px solid #ccd5d0; border-radius: .5rem; background: white; }
 .source-browser nav span { padding: .35rem .5rem; color: #617068; overflow-wrap: anywhere; }
 .source-browser nav button { overflow-wrap: anywhere; }
-@media (max-width: 700px) { .build-layout, .source-browser { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .build-workspace, .build-layout, .source-browser { grid-template-columns: 1fr; } }
 .candidate-assistant button { justify-self: start; }
 .candidate-answer { margin-top: 1rem; padding: 1rem; border-left: .3rem solid #416453; background: white; }
 .candidate-answer ul { padding-left: 1.25rem; }

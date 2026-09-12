@@ -20,38 +20,129 @@ R1–R7 and L1–L6 are historical plans, not the current execution queue.
 Their names in code, migrations and receipts do not require stage readmission.
 Keep useful implementation and the original proof limits.
 
-| Work | Current state | Observable result needed |
-| --- | --- | --- |
-| Remove obsolete checks and working rules | Completed on 2026-09-12; analysis snapshot publication authorized for GPT Pro | Current graph passed all 70 leaves; final changed Builder leaf also passed; historical admission and document-name gates removed |
-| First Builder-created app | Compiler mechanism tested; real Builder/Preview journey incomplete | Create an app, open the actual compiled result, request a change and see the correct preserved version |
-| Manually maintained Brain | Existing context code and prior proof retained; pilot composition not demonstrated | Builder consumes the selected store-knowledge revision |
-| Narrow SDK and Sankhya | Existing integration code and prior read proof retained; exact app operation not selected | The app performs its admitted real operation without exposing credentials |
-| Colleague uses the app | Not demonstrated by creator Preview | Another authorized person opens the usable app |
+| Delivery | State | Observable result and evidence | Next action |
+| --- | --- | --- | --- |
+| [Repository cleanup](tasks/repository-consolidation.md) | DELIVERED | Current graph and final changed Builder leaf passed; published in `9945329`; no claim that the app is ready | No further cleanup prerequisite |
+| [First Builder-created app](tasks/builder-first-app.md#delivery-checkpoints) | IN PROGRESS | Local access consumer passed real Keycloak/PG/Chromium proof with seeded artifacts; two access reviews adjudicated; real Build UI and generated-app journey remain unproved | Bind the real Build UI and fixed app profile, then prove creation and explicit continuation |
+| [Manually maintained Brain](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Existing context code retained; Builder must demonstrably consume selected store knowledge | Detail with the first app's consumer; no automatic learning |
+| [Narrow SDK and Sankhya](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Existing integration proof retained; the app must perform a real authorized operation | Select that operation before defining its SDK details |
+| [Colleague uses the app](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Another authorized person must open the usable app; creator Preview does not establish this | Detail access when the app is usable |
+
+States are PLANNED, IN PROGRESS, VALIDATING, DELIVERED and BLOCKED. BLOCKED
+requires a concrete reason and the action that removes it. DELIVERED requires
+the named observable result, not only written code or passing unit tests.
+This table owns delivery state. Tasks own implementation steps and observations;
+do not maintain duplicate status boards. Future deliveries stay summarized until
+their consumer needs detail. These labels are not CI gates.
 
 ## Program state
 
 | Work | Status | Preserved result | Reopen trigger |
 | --- | --- | --- | --- |
-| Product implementation | PAUSED / FIRST-APP INCREMENT TO BE DEFINED | Existing compiler, Brain, auth and integration work retained; no ready Preview claimed | Current first-app design and bounded implementation grant |
+| Product implementation | IN PROGRESS / LOCAL ACCESS PROVED / UI PENDING | Real-session browser proof and scoped access review completed for controlled retained artifacts; not a full Builder journey | Real Build UI, fixed app profile and generated-app journey |
 
-Continuation readiness = INTERNAL PILOT / REPOSITORY CLEANUP COMPLETE LOCALLY / FIRST-APP PLANNING NEXT / PRODUCT IMPLEMENTATION PAUSED
+Continuation readiness = INTERNAL PILOT / LOCAL ACCESS PROVED / UI PENDING
 
 ## Current grant
 
-The operator approved [repository consolidation](tasks/repository-consolidation.md)
-and its local method amendment on 2026-09-12. That bounded cleanup and local
-verification are complete. Resume the existing first-app planning: settle the
-smallest missing Builder/Preview increment and its real-user proof. Do not
-restart whole-platform planning. Routine reversible follow-up checks and
-documentation corrections inside this cleanup need no further approval.
+On 2026-09-12 the operator authorized committing and pushing the current work
+to the existing analysis branch for GPT Pro review. This is an implementation
+snapshot, not acceptance of the first-app delivery or permission to merge,
+deploy, or change production data. Full candidate verification and the complete
+generated-app journey remain outstanding.
 
-Keep the three pre-existing planning edits and all existing Product candidates.
-Do not rewrite historical receipts or regenerate their hashes to obtain a pass.
-The operator subsequently authorized committing and pushing this cleanup to
-`analysis/internal-mvp-2026-09-12` for GPT Pro to inspect. This publishes an
-analysis snapshot, not a Product acceptance or remote CI result.
-No new Product behavior, live model/E2B/Sankhya call, company-data access,
-production activation, PR or merge is included. Keep `main` unchanged.
+On 2026-09-12 the operator requested autonomous continuation until the aligned
+roadmap/task implementation is finished and verified. Continue across mechanical
+unit boundaries without asking for another approval. Keep the full first-app
+outcome and the current semantic owners; a partial service or test result does
+not complete this objective. Existing external-effect and publication limits
+remain. Ask only for a genuinely missing Product decision or new authority.
+
+On 2026-09-12 the operator approved the complete local Preview consumer proposed
+after Builder preparation. This includes the necessary bounded contract changes,
+exact-candidate invocation and late-result settlement, authorized HTTP asset
+serving, iframe and new-tab integration in the existing Build UI, and real
+browser verification of refusal, failure and reopening without compilation.
+Routine reversible implementation and checks are included without per-file
+approval. Use architect where the integration shape needs validation and
+interrogate for a contested decision. Preserve Builder, Registry, MAR and I&A
+ownership. This supersedes the prior exclusion of HTTP serving and ready Preview
+for this consumer only. It does not authorize public ingress, hosting, production
+database changes, business writes, publication or merge. Existing named live-proof
+authority remains. New material Product contradictions still return to their owner.
+
+On 2026-09-12 the operator approved proceeding with the recorded Builder
+preparation consumer. Replace the internal transient compilation API with
+retained preparation, reuse the existing Registry adapter and executor pool,
+migrate current callers, and prove reuse, refusal and cancellation. Routine
+reversible implementation and verification are included. No new HTTP serving,
+Preview readiness, database schema, public ingress or publication is admitted
+by this bounded continuation. Existing named live-proof authority remains.
+
+On 2026-09-12 the operator authorized the proposed Registry implementation and
+required real paid calls and company-data validation rather than treating local
+tests as Product proof. Implement the existing Registry unit, including migration
+026, current-loader/catalog adaptation, typed adapter and real disposable-DB
+checks. Routine reversible integration and verification are included. This grant
+supersedes the older Product-code pause for this unit only.
+
+Live validation of the first-app journey may use the existing admitted model and
+E2B configuration for app creation, compilation and the second-change proof when
+the corresponding integration is ready. Do not run unrelated paid experiments
+or publish replacement provider images implicitly. The operator authorized any
+read-only Sankhya query. Source inspection found no admitted customer mapping,
+so use the existing fixed TGFCAB key-conformance aggregate for company 1,
+with no names, identifiers or contact details in output. Use the real existing
+authentication and observer modules. Synthetic descriptor coordinates in a
+module proof must not be presented as a registered Project or Hub journey.
+Do not mutate business records or export raw customer data. Preserve credentials
+outside logs/Git. A successful query alone is not an app/SDK integration claim.
+No public ingress, production database migration, commit, push, PR or merge is
+authorized by this continuation.
+
+The operator explicitly authorized installing a local development CA in
+Windows/WSL, keeping its private key outside the repository. The CA and server
+certificate are prepared under the user's private `conexus-local-tls` directory.
+The operator reported WSL/Windows trust installation; the Windows certificate
+thumbprint matches. WSL system verification and a strict Chromium iframe/new-tab
+probe passed after the authorized local CA was also imported into user NSS trust.
+No certificate-error bypass was used. Windows browser navigation and the real
+Hub/Keycloak journey remain unproven. Do not change WSL interoperability or
+collect the operator password.
+
+The operator approved proceeding locally and deferring public-domain access,
+tunnels and hosting. Use the tested nested `conexus.localhost` browser profile
+to avoid DNS/hosts-file setup. This direction does not authorize public exposure,
+DNS changes or an implicit system root-certificate installation. Prepare the
+local certificate binding and make any required trust-store effect explicit.
+
+On 2026-09-12 the operator requested the proposed PostgreSQL retention proof.
+Run a bounded local experiment with a disposable database, synthetic app files
+and the existing Registry draft. The grant includes temporary probe scripts,
+current baseline migrations, the identified narrow schema permission correction
+in that disposable database, mechanical SQL name-disambiguation in an isolated
+candidate when the actual call exposes it, and runtime-role retain/read/reconnect and refusal
+checks. The operator's continuation includes a disposable persistent-volume
+database restart and bounded larger-payload reads to close the recorded proof
+limits. It does not include restarting the actual Hub or a company database.
+Record every candidate modification and distinguish fixture setup from
+the actual storage path. Do not replace admission functions to manufacture success.
+This does not authorize integrating Product code, invoking live providers,
+accessing company data, publishing changes or claiming a composed Hub/browser proof.
+
+On 2026-09-12 the operator approved roadmap-plus-task tracking and requested
+root-led orchestration with subagents when useful. Organize the existing records
+and continue bounded planning for **Create and open**. Inspect code and retained
+drafts, resolve observable facts locally, and use external research for named
+unknowns. Ask the operator for material Product choices or new execution effects,
+not permission for each read or documentation edit. Do not restart whole-platform
+planning or rerun successful compiler experiments without a new question.
+
+The cleanup and its publication are complete at `9945329`. Preserve all existing
+Product candidates and original receipts. That publication grant is not an
+ongoing permission to publish later changes. This tracking/planning approval
+does not start Product code, live model/E2B/Sankhya calls, company-data access,
+production activation, commits, pushes, PRs or merges. Keep `main` unchanged.
 
 Use only Luna subagents, with high or xhigh reasoning. Root is the integrator;
 parallel writers use isolated copies and disjoint file scopes. Review follows
@@ -67,13 +158,15 @@ whole-platform design or require a purge of all historical documents first.
 The compiler experiment validated one fixed frontend build mechanism and the
 production adapter in isolated runs. It did not prove real Builder generation,
 Registry retention, authorized Preview serving or the complete user journey.
-The migration-selection candidate remains in the checkout. The separate Registry
-draft remains outside it at
-`/home/leandrotheodoro/.cache/conexus-registry-draft-iKOXtK`; it is not integrated.
+That result predates the current Registry integration. The corrected SQL,
+current-loader changes and adapter are now in the checkout and passed the
+71-step current verification graph. This proves the bounded Registry unit,
+not the real Builder/Preview journey. The original draft remains unchanged at
+`/home/leandrotheodoro/.cache/conexus-registry-draft-iKOXtK` for provenance.
 
 ## Exact next action
 
-**Resume first-app planning from demonstrated compiler behavior and the missing Builder → preserved compiled app → browser connection. Check the recorded seed mismatch only if the selected path consumes it. Define one observable increment and its bounded implementation/live-proof authority, not R3 or L1. Do not resume Product implementation or live experiments automatically.**
+**Complete the real Build UI consumer of the implemented preparation, launch and isolated MAR serving. Preserve the previous displayed candidate during preparation or failure and reject stale selections. The fixed app profile is wired and its helper output passed real E2B compilation and Chromium execution; verify model-created source through that path without replacing the NEW seed or compiler. Prove the configured Hub/login/generated-app journey, then explicit second-request continuation and restart recovery. The scoped access proof already covers real Keycloak, Registry/PostgreSQL and Chromium with controlled retained artifacts; do not rebuild those consumers or count that fixture as the whole journey. Run the full current verification graph after integration. Keep 024/025 held. No hosting, publication, production database changes or historical-stage restart is authorized or required.**
 
 ## Approved local platform delivery design
 

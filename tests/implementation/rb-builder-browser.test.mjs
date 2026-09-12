@@ -5,6 +5,10 @@ import { chromium } from '@playwright/test'
 import { createServer } from 'vite'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
+const openDisclosure = async (page, label) => {
+  const details = page.locator('details').filter({ hasText: label })
+  if (await details.getAttribute('open') === null) await details.locator('summary').click()
+}
 
 test('Project Build creates one Change and reveals Hub progress and exact diff', async (t) => {
   const workspaceId = '70000000-0000-4000-8000-000000000001'
@@ -101,6 +105,7 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   }
   assert.equal(evidenceFetchStates.includes('VERIFYING'), true)
   state = 'VERIFIED'
+  await openDisclosure(page, 'Diff (somente leitura)')
   await page.getByRole('heading', { name: 'Diff do resultado' }).waitFor({ timeout: 7_000 })
   const candidatePreview = page.getByRole('heading', { name: 'Preview do candidato' }).locator('..')
   await candidatePreview.getByText('c'.repeat(40), { exact: true }).waitFor()
@@ -109,8 +114,10 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   await page.getByRole('heading', { name: 'Verificação' }).waitFor()
   await page.getByText('O candidato satisfaz a intenção aceita do Change.', { exact: false }).waitFor()
   assert.equal(evidenceFetchStates.includes('VERIFIED'), true)
+  await openDisclosure(page, 'Diff (somente leitura)')
   await page.getByText('+health: ok', { exact: true }).waitFor()
-  await page.getByRole('heading', { name: 'Código' }).waitFor()
+  await openDisclosure(page, 'Código (somente leitura)')
+  await page.locator('details').filter({ hasText: 'Código (somente leitura)' }).getByRole('heading', { name: 'Código' }).waitFor()
   await page.getByRole('button', { name: 'src/health.ts' }).click()
   await page.getByText('export const health = "ok"', { exact: true }).waitFor()
   await page.getByRole('button', { name: 'Fonte original' }).click()
@@ -190,13 +197,16 @@ test('Project Build shows one correction and closes a Finding only with current 
   await page.goto(`${origin}/projects/${projectId}/build`)
   await page.getByText('Verificação reprovada.', { exact: false }).waitFor()
   await page.getByText('A rota de saúde está ausente.', { exact: false }).waitFor()
+  await openDisclosure(page, 'Código (somente leitura)')
   await page.getByRole('button', { name: 'src/route.ts' }).click()
   await page.getByText(`candidate=${'b'.repeat(40)}`, { exact: true }).waitFor()
   candidate = 'c'.repeat(40)
   state = 'VERIFYING'
   await page.reload()
   await page.getByText('A rota corrigida ainda exige confirmação.', { exact: false }).waitFor({ timeout: 7_000 })
+  await openDisclosure(page, 'Diff (somente leitura)')
   await page.getByText('+health: corrected', { exact: true }).waitFor()
+  await openDisclosure(page, 'Código (somente leitura)')
   await page.getByRole('button', { name: 'Fonte original' }).click()
   await page.getByRole('button', { name: 'src/route.ts' }).click()
   await page.getByText(`candidate=${'b'.repeat(40)}`, { exact: true }).waitFor()
@@ -211,6 +221,7 @@ test('Project Build shows one correction and closes a Finding only with current 
   await closeButton.click()
   await page.getByText('Ponto resolvido com a verificação do candidato atual.').waitFor()
   await page.getByText('Resultado verificado.', { exact: false }).waitFor({ timeout: 7_000 })
+  await openDisclosure(page, 'Diff (somente leitura)')
   assert.deepEqual(closePayload, { expectedFindingRevision: findingRevision, resolutionEvidenceIds: [evidenceId] })
   await page.getByText('+health: corrected', { exact: true }).waitFor()
 })
@@ -264,11 +275,121 @@ test('Project Build keeps an open source revision pinned while the candidate adv
 
   await page.goto(`${origin}/projects/${projectId}/build`)
   await page.getByText('O Conexus está verificando o candidato em uma execução independente.', { exact: false }).waitFor()
+  await openDisclosure(page, 'Código (somente leitura)')
   await page.getByRole('button', { name: 'src/route.ts' }).click()
   await page.getByText(`candidate=${'b'.repeat(40)}`, { exact: true }).waitFor()
   candidate = 'c'.repeat(40)
   state = 'UNVERIFIED'
   await page.getByText('A rota corrigida ainda exige confirmação.', { exact: false }).waitFor({ timeout: 7_000 })
+  await openDisclosure(page, 'Diff (somente leitura)')
   await page.getByText('+health: corrected', { exact: true }).waitFor()
+  await openDisclosure(page, 'Código (somente leitura)')
   await page.getByText(`candidate=${'b'.repeat(40)}`, { exact: true }).waitFor()
+})
+
+test('Project Build explicitly prepares and opens the exact candidate in iframe and clean new tab', async (t) => {
+  const workspaceId = '73000000-0000-4000-8000-000000000001'
+  const projectId = '73000000-0000-4000-8000-000000000002'
+  const changeId = '73000000-0000-4000-8000-000000000003'
+  const attemptId = '73000000-0000-4000-8000-000000000004'
+  const artifactRevisionId = '73000000-0000-4000-8000-000000000005'
+  const origin = 'http://127.0.0.1:41752'
+  const subjectDigest = 'c'.repeat(40)
+  const artifactDigest = 'd'.repeat(64)
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41752, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  let preparationStarted = false
+  let preparationPolls = 0
+  let launchBody
+  let entryPosts = 0
+  let headAllowed = true
+  const change = () => ({ changeId, projectId, intent: 'Adicionar uma página de saúde', baselineDigest: 'a'.repeat(64), planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', state: 'VERIFIED' })
+  const preview = (preparation) => ({
+    previewId: 'preview-candidate', subjectKind: 'CHANGE_CANDIDATE', subjectDigest,
+    ready: false, verified: true, live: false, ...(preparation ? { preparation } : {}),
+  })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId: workspaceId, displayName: 'Builder Operator' }, workspaces: [{ workspaceId, name: 'Workspace' }], projects: [] }) }))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId, name: 'Health App', projectRevision: 'revision', archived: false }) }))
+  await page.route((url) => new URL(url).pathname === `/api/control/projects/${projectId}/preview`, (route) => {
+    const preparation = preparationStarted
+      ? preparationPolls++ === 0
+        ? { changeId, subjectDigest, attemptId, state: 'PREPARING', expiresAt: new Date(Date.now() + 120_000).toISOString() }
+        : { changeId, subjectDigest, attemptId, state: 'PREPARED', artifactRevisionId, artifactDigest, expiresAt: new Date(Date.now() + 120_000).toISOString() }
+      : undefined
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(preview(preparation)) })
+  })
+  await page.route(`**/api/control/projects/${projectId}/preview-preparations`, (route) => {
+    assert.equal(route.request().method(), 'POST')
+    assert.deepEqual(route.request().postDataJSON(), { changeId, subjectDigest })
+    preparationStarted = true
+    return route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ changeId, subjectDigest, attemptId, state: 'PREPARING', expiresAt: new Date(Date.now() + 120_000).toISOString() }) })
+  })
+  await page.route(`**/api/control/projects/${projectId}/preview-launches`, (route) => {
+    assert.equal(route.request().method(), 'POST')
+    launchBody = route.request().postDataJSON()
+    return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({
+      entryUrl: `${origin}/__test-preview-entry`, previewUrl: `${origin}/__test-preview/`, entryGrant: 'grant-secret',
+      artifactRevisionId, artifactDigest, expiresAt: new Date(Date.now() + 900_000).toISOString(),
+    }) })
+  })
+  await page.route(`**/api/control/projects/${projectId}/changes`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([change()]) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(change()) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/plan`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ planRevision: workspaceId, planningDepth: 'DIRECT', rigorProfile: 'CONTROLLED', items: [], dependencyEdges: [], acceptanceLinks: [], blockers: [], unknowns: [], progress: 'VERIFIED' }) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/progress`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ planRevision: workspaceId, items: [], overallState: 'VERIFIED' }) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/diff`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ baseSourceRevision: 'b'.repeat(40), candidateSourceRevision: subjectDigest, patch: '+health: ok' }) }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/findings`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
+  await page.route(`**/api/control/projects/${projectId}/changes/${changeId}/evidence`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
+  await page.route('**/__test-preview-entry', (route) => {
+    assert.equal(route.request().method(), 'POST')
+    assert.equal(route.request().postData(), 'entryGrant=grant-secret')
+    entryPosts += 1
+    return route.fulfill({ status: 303, headers: { location: '/__test-preview/' } })
+  })
+  await page.context().route('**/__test-preview/', (route) => {
+    if (route.request().method() === 'HEAD' && !headAllowed) return route.fulfill({ status: 403 })
+    return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>Generated app</title><main>Generated app is running</main>' })
+  })
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByRole('heading', { name: 'Preview' }).waitFor()
+  await page.getByRole('button', { name: 'Preparar Preview' }).click()
+  await page.getByRole('status').filter({ hasText: 'Preparando Preview' }).first().waitFor()
+  await page.getByRole('button', { name: 'Abrir Preview' }).click()
+  await page.waitForTimeout(1_000)
+  assert.deepEqual(launchBody, { changeId, subjectDigest, attemptId, artifactRevisionId, artifactDigest })
+  assert.equal(entryPosts, 1)
+  assert.equal(await page.locator('iframe[title="Preview do aplicativo"]').count(), 1)
+  assert.equal(await page.locator('iframe[title="Preview do aplicativo"]').first().getAttribute('src'), `${origin}/__test-preview/`)
+  const frame = page.frameLocator('iframe[title="Preview do aplicativo"]')
+  await frame.getByText('Generated app is running', { exact: true }).waitFor({ timeout: 7_000 })
+  assert.equal(await page.locator('iframe[title="Preview do aplicativo"]').first().getAttribute('src'), `${origin}/__test-preview/`)
+  const popupPromise = page.waitForEvent('popup')
+  await page.getByRole('button', { name: 'Abrir em nova aba' }).click()
+  const popup = await popupPromise
+  await popup.waitForLoadState()
+  assert.equal(popup.url(), `${origin}/__test-preview/`)
+  await popup.getByText('Generated app is running', { exact: true }).waitFor()
+
+  headAllowed = false
+  await page.getByRole('button', { name: 'Abrir Preview' }).click()
+  await page.getByRole('status').filter({ hasText: 'não confirmou uma entrada autorizada' }).waitFor()
+  await page.frameLocator('iframe[title="Preview do aplicativo"]').getByText('Generated app is running', { exact: true }).waitFor()
+
+  headAllowed = true
+  await page.reload()
+  await page.getByRole('button', { name: 'Abrir Preview' }).click()
+  await page.frameLocator('iframe[title="Preview do aplicativo"]').getByText('Generated app is running', { exact: true }).waitFor({ timeout: 7_000 })
+  assert.equal(entryPosts, 3)
+  const codeDisclosure = page.locator('details').filter({ has: page.getByText('Código (somente leitura)', { exact: true }) })
+  await page.getByText('Código (somente leitura)', { exact: true }).click()
+  assert.equal(await codeDisclosure.getAttribute('open'), '')
+  await page.getByText('Código (somente leitura)', { exact: true }).click()
+  assert.equal(await codeDisclosure.getAttribute('open'), null)
 })

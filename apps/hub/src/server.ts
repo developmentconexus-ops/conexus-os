@@ -1,4 +1,5 @@
 import { resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { createBrainBindingValidator, createBrainModule } from './brain/module.js'
 import {
   authenticateSankhya,
@@ -15,10 +16,11 @@ import {
 } from './gateway/module.js'
 import { createHttpApp } from './http/app.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
+import { createMarModule } from './mar/module.js'
 import { readHubConfig } from './platform/config.js'
 import { createPostgresPool } from './platform/postgres.js'
 import { readSecretFile } from './platform/secrets.js'
-import { createRegistryStore } from './registry/module.js'
+import { createApplicationArtifactStore, createRegistryStore } from './registry/module.js'
 import { createWorkspaceModule } from './workspace/module.js'
 
 // Mastra is loaded only after the production entrypoint has disabled its
@@ -154,13 +156,64 @@ const builderVerifierModel = config.builder && config.project ? resolveProjectMo
   admissionId: config.builder.verifierModelAdmissionId,
   requiredCapabilities: ['BUILDER_VERIFICATION'],
 }) : undefined
-const builder = config.builder && config.project && builderModel && builderVerifierModel ? createConfiguredBuilderModule({
+let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
+const mar = config.preview ? createMarModule({
+  access: identityAccess.previewAccess,
+  exactHubOrigin: config.origin,
+  previewPort: config.preview.port,
+  registryReader: (input) => {
+    if (!builder) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
+    return builder.readApplicationFile(input)
+  },
+}) : undefined
+const launchPreview = mar ? async (request: import('fastify').FastifyRequest, input: Parameters<NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>>[1]) => {
+  const opened = mar.openRoute({
+    accountId: input.accountId,
+    projectId: input.projectId,
+    changeId: input.changeId,
+    subjectDigest: input.subjectDigest,
+    attemptId: input.attemptId,
+    sourceRevision: input.artifact.sourceRevision,
+    artifactRevisionId: input.artifactRevisionId,
+    artifactDigest: input.artifactDigest,
+    manifest: { entryPath: input.artifact.entryPath, files: input.artifact.files },
+  })
+  try {
+    const issued = await identityAccess.issuePreviewEntry(request, { accountId: input.accountId, route: opened.route })
+    const current = builder && await builder.readPreviewPreparation({
+      accountId: input.accountId,
+      projectId: input.projectId,
+      changeId: input.changeId,
+      subjectDigest: input.subjectDigest,
+    })
+    if (current?.state !== 'PREPARED' || current.attemptId !== input.attemptId ||
+      current.artifact.artifactRevisionId !== input.artifactRevisionId || current.artifact.artifactDigest !== input.artifactDigest ||
+      !mar.isRouteOpening({ routeId: opened.route.routeId, generation: opened.route.generation, attemptId: opened.route.attemptId })) {
+      mar.closeRoute(opened.route.routeId)
+      throw new Error('PREVIEW_LAUNCH_STALE')
+    }
+    return {
+      entryUrl: opened.entryUrl,
+      previewUrl: opened.previewUrl,
+      entryGrant: issued.entryGrant,
+      artifactRevisionId: input.artifactRevisionId,
+      artifactDigest: input.artifactDigest,
+      expiresAt: new Date(opened.route.expiresAt).toISOString(),
+    }
+  } catch (error) {
+    mar.closeRoute(opened.route.routeId)
+    throw error
+  }
+} : undefined
+builder = config.builder && config.project && builderModel && builderVerifierModel ? createConfiguredBuilderModule({
   database: {
     host: config.database.host,
     port: config.database.port,
     database: config.database.database,
   },
   builder: config.builder,
+  applicationArtifacts: createApplicationArtifactStore(),
+  ...(launchPreview ? { launchPreview } : {}),
   projectSource: {
     storageRoot: config.project.storageRoot,
     ownership: readProjectSourceOwnership(config.project.sourceOwnershipManifestFile),
@@ -254,15 +307,32 @@ const app = await createHttpApp({
       ? await projectBindings.registerProjectBrainBindingRoutes(server) : []),
   ],
   staticRoot: resolve(import.meta.dirname, '../public'),
+  ...(config.preview ? {
+    previewCspSource: `https://*.conexus.localhost:${config.preview.port}`,
+    https: {
+      cert: readFileSync(config.preview.certFile),
+      key: readFileSync(config.preview.keyFile),
+    },
+  } : {}),
 })
+const previewApp = mar && config.preview ? await createHttpApp({
+  registerRoutes: mar.registerPreviewRoutes,
+  staticRoot: null,
+  https: {
+    cert: readFileSync(config.preview.certFile),
+    key: readFileSync(config.preview.keyFile),
+  },
+}) : undefined
 await builder?.recover()
 await app.listen({ host: '127.0.0.1', port: config.port })
+if (previewApp && config.preview) await previewApp.listen({ host: '127.0.0.1', port: config.preview.port })
 
 let closed = false
 const close = async (): Promise<void> => {
   if (closed) return
   closed = true
-  await app.close()
+  await Promise.all([app.close(), previewApp?.close()])
+  await mar?.close()
   await Promise.all([builder?.close(), projectBindings?.close(), keyConformanceSubjectPool?.end(), connections?.close(), brain?.close(), project?.close(), workspace?.close(), identityAccess.close()])
 }
 process.once('SIGINT', close)

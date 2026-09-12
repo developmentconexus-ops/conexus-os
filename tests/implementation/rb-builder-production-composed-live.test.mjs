@@ -94,7 +94,7 @@ test('RB production composition executes one governed Change through HTTP, Postg
   const current = { ...admin, database }
   assert.equal((await query(current, 'SHOW server_version_num')).rows[0].server_version_num, '170010')
   const migration = await runCurrentHubMigrations({ connectionString: connectionString(current) })
-  assert.equal(migration.versions.at(-1), '022')
+  assert.equal(migration.versions.at(-1), '026')
   await query(current, `ALTER ROLE hub_rb_ingress PASSWORD '${ingressPassword}'`)
   await query(current, `ALTER ROLE hub_rb_executor PASSWORD '${executorPassword}'`)
   writeFileSync(ingressPasswordFile, `${ingressPassword}\n`, { mode: 0o400 })
@@ -141,10 +141,11 @@ test('RB production composition executes one governed Change through HTTP, Postg
   const built = (path) => pathToFileURL(resolve(buildRoot, path)).href
   const [{ createHttpApp }, { createConfiguredBuilderModule }, {
     createBuilderProjectGitCapability, resolveProjectModelAdmission,
-  }] = await Promise.all([
+  }, { createApplicationArtifactStore }] = await Promise.all([
     import(built('http/app.js')),
     import(built('builder/module.js')),
     import(built('project/module.js')),
+    import(built('registry/module.js')),
   ])
   const admission = resolveProjectModelAdmission({
     catalogFile: liveCatalogFile,
@@ -169,6 +170,7 @@ test('RB production composition executes one governed Change through HTTP, Postg
       modelAdmissionId: admission.admissionId,
       verifierModelAdmissionId: verifierAdmission.admissionId,
     },
+    applicationArtifacts: createApplicationArtifactStore(),
     projectSource: {
       storageRoot,
       ownership: { 'README.md': 'APP-OWNED' },

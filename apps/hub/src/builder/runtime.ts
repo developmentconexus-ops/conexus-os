@@ -4,6 +4,10 @@ import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspac
 import { Workspace } from '@mastra/core/workspace'
 import { E2BSandbox } from '@mastra/e2b'
 import { Sandbox } from 'e2b'
+import {
+  FIXED_APPLICATION_STARTER_INSTRUCTIONS,
+  materializeFixedApplicationStarter,
+} from './application-starter.js'
 
 export type CodingWorkerInput = Readonly<{
   projectId: string
@@ -143,6 +147,12 @@ export const createMastraE2BCodingWorkerRuntime = (
         ].join(' && ')])
         if (!prepared.success) throw new Error('BUILDER_SOURCE_MATERIALIZATION_REFUSED')
 
+        await materializeFixedApplicationStarter({
+          repositoryRoot: '/workspace/repo',
+          directCommand: (command, args) => direct(command, [...args]),
+          writeFiles: sandbox.writeFiles.bind(sandbox),
+        })
+
         const workspace = new Workspace({ sandbox })
         const agent = createCodingAgent({
           id: `builder-${input.actorRunId}`,
@@ -154,6 +164,7 @@ export const createMastraE2BCodingWorkerRuntime = (
             'Work only in /workspace/repo. Implement the human intent with the smallest sustainable change.',
             'Inspect before editing, run focused checks when available, and do not claim acceptance or mutate any Conexus owner state.',
             'Never add a Git remote, use network access, read outside /workspace/repo, or expose credentials.',
+            FIXED_APPLICATION_STARTER_INSTRUCTIONS,
           ].join(' '),
           tools: {},
         })

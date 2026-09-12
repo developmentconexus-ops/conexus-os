@@ -9,7 +9,7 @@ This ledger is the canonical 4A Product-operation authority. It is intentionally
 The ledger closes three different surfaces because Conexus is a software-publishing platform rather than one fixed business application:
 
 ```text
-fixed Conexus platform operations = 128
+fixed Conexus platform operations = 130
 Project-defined operations        = exact finite Ops(R) admitted by the grammar in §4
 first Budget Analyzer operations  = 2
 ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
@@ -24,10 +24,10 @@ The numbers are derivation results, not targets. The original 4A candidate survi
 ### 1.1 Fixed platform census
 
 ```text
-N_platform = 128
-platform operations with named owner       = 128
-platform operations with real consumer     = 128
-platform operations with authority mapping = 128
+N_platform = 130
+platform operations with named owner       = 130
+platform operations with real consumer     = 130
+platform operations with authority mapping = 130
 orphaned platform operations                = 0
 speculative platform operations             = 0
 ```
@@ -651,7 +651,7 @@ new trust boundaries = 0
 new durable records = 0
 ```
 
-## 5.4 Builder — 20
+## 5.4 Builder — 22
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
@@ -675,6 +675,8 @@ new durable records = 0
 | `BLD-18` | `GetChangeProductAgentDraft` | Builder | exact Change + current server-owned typed Product Agent draft | read |
 | `BLD-19` | `CreateChangeProductAgentDraft` | Builder | exact Change + explicit NEW or current authored origin + typed `agent/v1`; idempotent candidate establishment | command |
 | `BLD-20` | `ReviseChangeProductAgentDraft` | Builder | exact Change/draft + expected current draft revision + typed `agent/v1` | command/current-state |
+| `BLD-21` | `PrepareBuildPreview` | Builder | exact Project + verified Change candidate subject digest; retained preparation status remains distinct from MAR serving/readiness | command/current-state |
+| `BLD-22` | `LaunchBuildPreview` | Builder | exact PREPARED attempt and immutable artifact coordinates; I&A session-bound grant and MAR route are created without compilation | command/current-state |
 
 A generic `AcceptChange` is rejected. `bld.change_acceptance` remains an owner current-proof fact produced by exact checkpoints/verifier/Builder settlement. Direct `CreateWorkUnit`, plan-JSON patch, `SetWorkItemStatus`, `CreateActorRun`, `ResumeSandbox` and `MarkVerified` are owner/runtime mechanics.
 
@@ -1467,7 +1469,7 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | `PRJ-21` | `HUMAN_ACCOUNT_SESSION / CP` | `project.source.read` | exact Project/Agent safe complete authored `agent/v1` definition plus immutable authored-revision/Release coordinates; no runtime/provider/Mastra authority | `READ` | `IC0` |
 | `PRJ-22` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` | Workspace-filtered Project-owned Agent disclosure; no fleet owner | `READ` | `IC0` |
 | `PRJ-29` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `project.read` or purpose-bound `project.build` | exact Project-owned model-policy summaries; server-issued default and sampling envelope grant no provider/model/runtime selection or policy mutation | `READ` | `IC0` |
-| `BLD-01..04,BLD-06,BLD-10,BLD-16..20` | `HUMAN_ACCOUNT_SESSION / CP` | `project.build` | exact Project/Change human intent/Plan/current-or-candidate Preview/context plus typed Product Agent draft; BLD-18 reads current draft, BLD-19 idempotently establishes NEW/EXISTING draft and BLD-20 revises only the expected current draft revision | reads `READ`; create/revise `COMMAND` | reads `IC0`; BLD-03/19 `IC3`; BLD-20 `IC2` |
+| `BLD-01..04,BLD-06,BLD-10,BLD-16..22` | `HUMAN_ACCOUNT_SESSION / CP` | `project.build` | exact Project/Change human intent/Plan/current-or-candidate Preview/context plus typed Product Agent draft and exact verified Change candidate preparation; BLD-18 reads current draft, BLD-19 idempotently establishes NEW/EXISTING draft, BLD-20 revises only the expected current draft revision, BLD-21 starts/coalesces preparation without setting MAR readiness, and BLD-22 launches only the exact currently prepared attempt with a one-use entry grant | reads `READ`; create/revise/prepare/launch `COMMAND` | reads `IC0`; BLD-03/19 `IC3`; BLD-20/21/22 `IC2` |
 | `BLD-05,BLD-11..15` | `HUMAN_ACCOUNT_SESSION / CP` | `project.review` | exact Change/Plan/Finding/Evidence subject + current eligibility | reads `READ`; decisions `DECISION` | reads `IC0`; decisions `IC2` |
 | `BLD-07..09` | `HUMAN_ACCOUNT_SESSION / CP` | `project.source.read` | exact immutable/current source revision/path/lineage | `READ` | `IC0` |
 | `BRN-01,BRN-03,BRN-10` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.read` | exact Workspace Brain/detail/health disclosure; BRN-03 includes exact-source deterministic human-readable review content plus structured source-bound knowledge browse | `PROVENANCE_READ` | `IC0` |
@@ -1735,7 +1737,7 @@ The bounded SoftwareForge review itself adds no Product operation, Permission, o
 
 ---
 
-# 12. Closure assertions after independent review + bounded downstream corrections
+# 12. Historical closure assertions after independent review + bounded downstream corrections
 
 ```text
 N_platform                              = 128
@@ -2003,4 +2005,27 @@ The original independent Fable review remains historical Evidence. Later bounded
 → ordinary Permissions remain 25
 ```
 
-4A is **operator-ratified as boundedly corrected through `4C-PRE11-F05`**. 4B must preserve/recompile the canonical 128-operation machine wire/checker/projection stack before frontend realization resumes. Product implementation remains blocked.
+The historical 4A/4C closure above remains preserved at its recorded 128-operation count. The current bounded Builder consumer adds the following operation mapping:
+
+```text
+CURRENT INTERNAL MVP PREVIEW PREPARATION CONSUMER
+→ add BLD-21 PrepareBuildPreview under the existing Builder owner
+→ exact Project + verified Change candidate subjectDigest + server-derived Account/session
+→ explicit Origin/CSRF-protected preparation command returns only attempt/state/expiry and prepared artifact identity
+→ BLD-10 remains the sole Preview read and may passively project one exact candidate preparation
+→ PREPARED does not set BLD-10 ready before MAR serving
+→ no new Permission / owner / principal / durable record class
+→ Builder 20 → 21
+→ N_platform 128 → 129
+```
+
+```text
+CURRENT INTERNAL MVP PREVIEW LAUNCH CONSUMER
+→ add BLD-22 LaunchBuildPreview under the existing Builder owner
+→ exact PREPARED attempt/artifact coordinates plus server-derived Account/session
+→ immutable MAR route and single-use I&A entry grant; no compilation or mutable current-route pointer
+→ Builder 21 → 22
+→ N_platform 129 → 130
+```
+
+The current ledger is therefore **130 fixed operations with 22 Builder operations**. The 4A/4C historical counts and mappings remain unchanged as historical authority, while the current Preview wire/checker stack must include BLD-21 and BLD-22.

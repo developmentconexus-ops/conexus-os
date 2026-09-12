@@ -33,6 +33,28 @@ export type BuildPreview = Readonly<{
   ready: boolean
   verified: boolean
   live: false
+  preparation?: PreviewPreparation
+}>
+
+type PreviewPreparationBase = Readonly<{
+  changeId: string
+  subjectDigest: string
+  attemptId: string
+  expiresAt: string
+}>
+export type PreviewPreparation = PreviewPreparationBase & (
+  | Readonly<{ state: 'PREPARING' }>
+  | Readonly<{ state: 'PREPARED'; artifactRevisionId: string; artifactDigest: string }>
+  | Readonly<{ state: 'FAILED'; code: 'PREPARATION_FAILED' }>
+  | Readonly<{ state: 'EXPIRED' }>
+)
+export type PreviewLaunch = Readonly<{
+  entryUrl: string
+  previewUrl: string
+  entryGrant: string
+  artifactRevisionId: string
+  artifactDigest: string
+  expiresAt: string
 }>
 
 export class BuilderRequestError extends Error {
@@ -106,6 +128,26 @@ export const getBuildPreview = async (projectId: string, changeId?: string): Pro
   const response = await request(`${previewBase(projectId)}${query}`)
   if (!response.ok) reject(response)
   return response.json() as Promise<BuildPreview>
+}
+export const prepareBuildPreview = async (projectId: string, input: Readonly<{ changeId: string; subjectDigest: string }>): Promise<PreviewPreparation> => {
+  const response = await request(`${previewBase(projectId)}-preparations`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+  })
+  if (response.status !== 202) reject(response)
+  return response.json() as Promise<PreviewPreparation>
+}
+export const launchBuildPreview = async (projectId: string, input: Readonly<{
+  changeId: string
+  subjectDigest: string
+  attemptId: string
+  artifactRevisionId: string
+  artifactDigest: string
+}>): Promise<PreviewLaunch> => {
+  const response = await request(`${previewBase(projectId)}-launches`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+  })
+  if (response.status !== 201) reject(response)
+  return response.json() as Promise<PreviewLaunch>
 }
 export const listChangeFindings = async (projectId: string, changeId: string): Promise<ChangeFinding[]> => {
   const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}/findings`)

@@ -1,6 +1,7 @@
 export type HubConfig = Readonly<{
   origin: string
   port: number
+  preview: Readonly<{ port: number; certFile: string; keyFile: string }> | undefined
   bootstrapSubject: string
   database: Readonly<{
     host: string
@@ -220,10 +221,31 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
   return undefined
 }
 
+const previewRuntime = (environment: NodeJS.ProcessEnv, hubOrigin: string, hubPort: number): HubConfig['preview'] => {
+  const portValue = environment.CONEXUS_PREVIEW_PORT
+  const certFile = environment.CONEXUS_PREVIEW_CERT_FILE
+  const keyFile = environment.CONEXUS_PREVIEW_KEY_FILE
+  if (!portValue && !certFile && !keyFile) return undefined
+  if (!portValue) throw new Error('MISSING_CONFIG_CONEXUS_PREVIEW_PORT')
+  if (!certFile) throw new Error('MISSING_CONFIG_CONEXUS_PREVIEW_CERT_FILE')
+  if (!keyFile) throw new Error('MISSING_CONFIG_CONEXUS_PREVIEW_KEY_FILE')
+  const previewPort = port(portValue, 'CONEXUS_PREVIEW_PORT')
+  if (previewPort === hubPort) throw new Error('INVALID_CONFIG_CONEXUS_PREVIEW_PORT')
+  let origin: URL
+  try { origin = new URL(hubOrigin) } catch { throw new Error('INVALID_CONFIG_CONEXUS_ORIGIN_FOR_PREVIEW') }
+  if (origin.protocol !== 'https:' || origin.hostname !== 'hub.conexus.localhost' ||
+    origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash ||
+    origin.port !== String(hubPort)) throw new Error('INVALID_CONFIG_CONEXUS_ORIGIN_FOR_PREVIEW')
+  return { port: previewPort, certFile, keyFile }
+}
+
 export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): HubConfig => {
+  const hubOrigin = required(environment, 'CONEXUS_ORIGIN')
+  const hubPort = port(environment.CONEXUS_PORT ?? '3000', 'CONEXUS_PORT')
   const config: HubConfig = {
-    origin: required(environment, 'CONEXUS_ORIGIN'),
-    port: port(environment.CONEXUS_PORT ?? '3000', 'CONEXUS_PORT'),
+    origin: hubOrigin,
+    port: hubPort,
+    preview: previewRuntime(environment, hubOrigin, hubPort),
     bootstrapSubject: required(environment, 'CONEXUS_BOOTSTRAP_SUBJECT'),
     database: {
       host: required(environment, 'CONEXUS_DB_HOST'),

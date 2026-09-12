@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
-import { runCurrentHubMigrations, runHubMigrations, runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { loadCurrentHubMigrationFiles, runCurrentHubMigrations, runHubMigrations, runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
 
 const required = (name) => {
   const value = process.env[name]
@@ -18,6 +18,7 @@ const versions = [
   '001', '002', '003', '004', '005', '006', '007', '008', '009', '010',
   '011', '012', '013', '014', '015', '016', '017', '018', '019', '020',
   '021', '022', '023',
+  '026',
 ]
 const query = async (connection, sql, parameters = []) => {
   const client = new pg.Client(connection)
@@ -65,11 +66,28 @@ test('R1 and R2 upgrade to current Hub without rewriting prior ledger or account
   assert.deepEqual((await runR2HubMigrations(fixture)).appliedNow, versions.slice(10, 18))
   const before = await ledger(fixture.connection)
   const upgraded = await runCurrentHubMigrations(fixture)
-  assert.deepEqual(upgraded, { verdict: 'PASS', appliedNow: ['019', '020', '021', '022', '023'], versions })
+  assert.deepEqual(upgraded, { verdict: 'PASS', appliedNow: ['019', '020', '021', '022', '023', '026'], versions })
   assert.deepEqual((await ledger(fixture.connection)).slice(0, 18), before)
   assert.deepEqual((await query(fixture.connection,
     'SELECT account_id, display_name FROM iam.account WHERE account_id = $1', [accountId])).rows,
   [{ account_id: accountId, display_name: 'Keep this account' }])
+})
+
+test('current Hub upgrades an existing 023 database and refuses removed Registry permissions', async (t) => {
+  const fixture = await databaseFixture(t)
+  await runR2HubMigrations(fixture)
+  for (const migration of loadCurrentHubMigrationFiles().filter(({ version }) => version >= '019' && version <= '023')) {
+    await query(fixture.connection, migration.bytes.toString('utf8'))
+    await query(fixture.connection, 'INSERT INTO iam.schema_migration(version, checksum_sha256) VALUES ($1,$2)', [migration.version, migration.checksum])
+  }
+  const before = await ledger(fixture.connection)
+  assert.deepEqual(before.map(({ version }) => version), versions.slice(0, 23))
+  assert.deepEqual(await runCurrentHubMigrations(fixture), { verdict: 'PASS', appliedNow: ['026'], versions })
+  assert.deepEqual((await ledger(fixture.connection)).slice(0, 23), before)
+  await query(fixture.connection, 'REVOKE USAGE ON SCHEMA builder FROM registry_owner')
+  await assert.rejects(runCurrentHubMigrations(fixture), /MIGRATION_026_SCHEMA_PRIVILEGE_REFUSED/)
+  await query(fixture.connection, 'GRANT USAGE ON SCHEMA builder TO registry_owner')
+  assert.deepEqual(await runCurrentHubMigrations(fixture), { verdict: 'PASS', appliedNow: [], versions })
 })
 
 test('concurrent current Hub installers record each accepted migration once', async (t) => {

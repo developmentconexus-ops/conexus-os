@@ -12,8 +12,8 @@ for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
   }
 }
 
-const expectedIds = Array.from({ length: 20 }, (_, i) => `BLD-${String(i + 1).padStart(2, '0')}`);
-if (expectedIds.length !== 20) throw new Error('internal Builder gate setup error');
+const expectedIds = Array.from({ length: 22 }, (_, i) => `BLD-${String(i + 1).padStart(2, '0')}`);
+if (expectedIds.length !== 22) throw new Error('internal Builder gate setup error');
 
 for (const id of expectedIds) {
   const entry = operations.get(id);
@@ -264,4 +264,55 @@ for (const [id, method, path] of [
   if (/\/product-agents(?:\/|$)/.test(current.path)) throw new Error(`${id} must not become direct Product Agent CRUD`);
 }
 
-console.log('Builder schema closure passed (20 operations; F30 typed Product Agent Change draft + prior Plan/Evidence/source authority remain owner-truthful).');
+const preparePreview = entry('BLD-21');
+if (preparePreview.method !== 'POST' || preparePreview.path !== '/api/control/projects/{projectId}/preview-preparations') {
+  throw new Error('BLD-21 must remain the exact preparation POST');
+}
+const preparationRequest = assertClosedObject(requestSchema('BLD-21'), 'BLD-21 request');
+required(preparationRequest, 'changeId', 'subjectDigest');
+if (preparationRequest.properties?.accountId || preparationRequest.properties?.session || preparationRequest.properties?.sourceRevision) {
+  throw new Error('BLD-21 must derive account/session/source from the server, not caller input');
+}
+if (property(preparationRequest, 'changeId')?.format !== 'uuid') throw new Error('BLD-21 changeId must be a UUID');
+const preparationDigest = property(preparationRequest, 'subjectDigest');
+if (preparationDigest?.type !== 'string' || preparationDigest.minLength !== 40 || preparationDigest.maxLength !== 128 || preparationDigest.pattern !== '^[0-9a-f]+$') {
+  throw new Error('BLD-21 subjectDigest must be a bounded lowercase hex digest');
+}
+const preparationResponse = resolveSchema(op('BLD-21').responses?.['202']?.content?.['application/json']?.schema);
+if (!preparationResponse || !Array.isArray(preparationResponse.oneOf) || preparationResponse.oneOf.length !== 4) {
+  throw new Error('BLD-21 must use four discriminated closed preparation states');
+}
+const preparationStates = preparationResponse.oneOf.map((candidate) => {
+  const state = assertClosedObject(candidate, 'BLD-21 preparation state');
+  required(state, 'changeId', 'subjectDigest', 'attemptId', 'state', 'expiresAt');
+  return property(state, 'state')?.const;
+}).filter(Boolean).sort();
+if (preparationStates.join(',') !== 'EXPIRED,FAILED,PREPARED,PREPARING') {
+  throw new Error(`BLD-21 preparation states must be PREPARING/PREPARED/FAILED/EXPIRED; got ${preparationStates.join(',')}`);
+}
+const preparedState = preparationResponse.oneOf.map(resolveSchema).find((candidate) => property(candidate, 'state')?.const === 'PREPARED');
+required(preparedState, 'artifactRevisionId', 'artifactDigest');
+const failedState = preparationResponse.oneOf.map(resolveSchema).find((candidate) => property(candidate, 'state')?.const === 'FAILED');
+if (property(failedState, 'code')?.const !== 'PREPARATION_FAILED') throw new Error('BLD-21 FAILED must expose only PREPARATION_FAILED');
+const projectedPreparation = property(preview, 'preparation');
+if (!projectedPreparation || !Array.isArray(projectedPreparation.oneOf) || projectedPreparation.oneOf.length !== 4) {
+  throw new Error('BLD-10 must optionally project the same four preparation states');
+}
+
+const launchPreview = entry('BLD-22');
+if (launchPreview.method !== 'POST' || launchPreview.path !== '/api/control/projects/{projectId}/preview-launches') {
+  throw new Error('BLD-22 must remain the exact launch POST');
+}
+const launchRequest = assertClosedObject(requestSchema('BLD-22'), 'BLD-22 request');
+required(launchRequest, 'changeId', 'subjectDigest', 'attemptId', 'artifactRevisionId', 'artifactDigest');
+for (const forbidden of ['accountId', 'session', 'sourceRevision', 'compile', 'files']) {
+  if (launchRequest.properties?.[forbidden]) throw new Error(`BLD-22 must not expose ${forbidden}`);
+}
+const launchResponse = assertClosedObject(successSchema('BLD-22', '201'), 'BLD-22 success');
+required(launchResponse, 'entryUrl', 'previewUrl', 'entryGrant', 'artifactRevisionId', 'artifactDigest', 'expiresAt');
+for (const forbidden of ['sessionToken', 'hubCredential', 'files', 'source']) {
+  if (launchResponse.properties?.[forbidden]) throw new Error(`BLD-22 must not return ${forbidden}`);
+}
+if (property(launchResponse, 'entryGrant')?.type !== 'string') throw new Error('BLD-22 entryGrant must remain a bounded opaque string');
+
+console.log('Builder schema closure passed (22 operations; BLD-21 preparation and BLD-22 exact launch are closed and BLD-10 remains the sole passive Preview read).');

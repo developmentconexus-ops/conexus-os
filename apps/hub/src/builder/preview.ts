@@ -14,11 +14,23 @@ export type BuildPreview = Readonly<{
   ready: boolean
   verified: boolean
   live: false
+  preparation?: BuildPreviewPreparation
 }>
+
+export type BuildPreviewPreparation = Readonly<{
+  changeId: string
+  subjectDigest: string
+  attemptId: string
+  expiresAt: string
+}> & (
+  | Readonly<{ state: 'PREPARING' | 'EXPIRED' }>
+  | Readonly<{ state: 'PREPARED'; artifactRevisionId: string; artifactDigest: string }>
+  | Readonly<{ state: 'FAILED'; code: 'PREPARATION_FAILED' }>
+)
 
 export const projectBuildPreview = (
   subject: BuilderPreviewSubject,
-  options: Readonly<{ previewId?: string }> = {},
+  options: Readonly<{ previewId?: string; preparation?: BuildPreviewPreparation | null }> = {},
 ): BuildPreview => Object.freeze({
   previewId: options.previewId ?? randomUUID(),
   subjectKind: subject.subjectKind,
@@ -26,4 +38,5 @@ export const projectBuildPreview = (
   ready: false,
   verified: subject.verified,
   live: false,
+  ...(options.preparation ? { preparation: options.preparation } : {}),
 })

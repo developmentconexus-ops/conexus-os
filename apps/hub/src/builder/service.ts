@@ -2,30 +2,37 @@ import type { BuilderSourceFile, BuilderSourcePort, BuilderSourceTree } from './
 import type { CodingWorkerRuntime } from './runtime.js'
 import type { CandidateVerificationRuntime } from './verification-runtime.js'
 import type { BuilderStore, ChangeProjection, ClaimedChange, ClaimedVerification } from './store.js'
-import { compileVerifiedApplication } from './application-build.js'
-import type { ApplicationBuildRequest } from './application-build.js'
-import type { ApplicationCompilerRuntime, CompiledApplication } from './application-artifact-runtime.js'
+import { prepareVerifiedApplication } from './application-build.js'
+import type { ApplicationArtifactMetadata, ApplicationArtifactReadRequest, ApplicationArtifactReadResult, ApplicationBuildRequest, BuilderApplicationArtifacts } from './application-build.js'
+import type { ApplicationCompilerRuntime } from './application-artifact-runtime.js'
+import { createPreviewPreparationCoordinator } from './preview-preparation.js'
+import type { PreviewPreparation, PreviewPreparationRequest } from './preview-preparation.js'
 
 export type BuilderService = Readonly<{
   createChange(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; intent: string }>): Promise<ChangeProjection>
   listSourceTree(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<BuilderSourceTree>
   getSourceFile(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
-  compileApplication(input: ApplicationBuildRequest): Promise<CompiledApplication>
+  prepareApplication(input: ApplicationBuildRequest): Promise<ApplicationArtifactMetadata>
+  readApplicationFile(input: ApplicationArtifactReadRequest): Promise<ApplicationArtifactReadResult | null>
+  startPreviewPreparation(input: PreviewPreparationRequest): Promise<PreviewPreparation>
+  readPreviewPreparation(input: PreviewPreparationRequest): Promise<PreviewPreparation | null>
   recover(): Promise<void>
   close(): Promise<void>
 }>
 
-export const createBuilderService = ({ store, source, runtime, verifier, compiler }: Readonly<{
+export const createBuilderService = ({ store, source, runtime, verifier, compiler, applicationArtifacts }: Readonly<{
   store: BuilderStore
   source: BuilderSourcePort
   runtime: CodingWorkerRuntime
   verifier: CandidateVerificationRuntime
   compiler: ApplicationCompilerRuntime
+  applicationArtifacts: BuilderApplicationArtifacts
 }>): BuilderService => {
   if (runtime.kind !== 'REMOTE_E2B' || verifier.kind !== 'REMOTE_E2B') throw new Error('BUILDER_LOCAL_RUNTIME_REFUSED')
   const active = new Map<string, Promise<void>>()
-  const applicationBuilds = new Set<Promise<CompiledApplication>>()
+  const applicationBuilds = new Set<Promise<ApplicationArtifactMetadata>>()
   const applicationShutdown = new AbortController()
+  let serviceClosing: Promise<void> | null = null
   const verificationFailureCode = (error: unknown): string => {
     const code = error instanceof Error ? error.message : ''
     return /^[A-Z0-9_]{1,120}$/.test(code) ? code : 'BUILDER_VERIFIER_RUNTIME_FAILURE'
@@ -115,6 +122,34 @@ export const createBuilderService = ({ store, source, runtime, verifier, compile
     })().catch(() => undefined).finally(() => { active.delete(changeId) })
     active.set(changeId, work)
   }
+  const prepareApplication = async (input: ApplicationBuildRequest): Promise<ApplicationArtifactMetadata> => {
+    if (applicationShutdown.signal.aborted) throw new Error('BUILDER_APPLICATION_CLOSED')
+    const signal = input.signal
+      ? AbortSignal.any([input.signal, applicationShutdown.signal])
+      : applicationShutdown.signal
+    const work = prepareVerifiedApplication({ store, source, compiler, applicationArtifacts }, { ...input, signal })
+    applicationBuilds.add(work)
+    try { return await work } finally { applicationBuilds.delete(work) }
+  }
+  const readApplicationFile = (input: ApplicationArtifactReadRequest): Promise<ApplicationArtifactReadResult | null> => {
+    if (applicationShutdown.signal.aborted) return Promise.reject(new Error('BUILDER_APPLICATION_CLOSED'))
+    return applicationArtifacts.readApplicationFile(input)
+  }
+  const previewPreparation = createPreviewPreparationCoordinator({
+    readPreviewSubject: (input) => store.readPreviewSubject(input),
+    prepareApplication,
+  })
+  const close = async (): Promise<void> => {
+    if (serviceClosing !== null) return serviceClosing
+    serviceClosing = (async () => {
+      applicationShutdown.abort()
+      await previewPreparation.close()
+      await Promise.allSettled(applicationBuilds)
+      await Promise.all(active.values())
+      await store.close()
+    })()
+    return serviceClosing
+  }
   return Object.freeze({
     createChange: async (input) => {
       const change = await store.createChange(input)
@@ -131,21 +166,11 @@ export const createBuilderService = ({ store, source, runtime, verifier, compile
         projectId: input.projectId, sourceRevision: input.sourceRevision, path: input.path,
       })
     },
-    compileApplication: async (input) => {
-      if (applicationShutdown.signal.aborted) throw new Error('BUILDER_APPLICATION_CLOSED')
-      const signal = input.signal
-        ? AbortSignal.any([input.signal, applicationShutdown.signal])
-        : applicationShutdown.signal
-      const work = compileVerifiedApplication({ store, source, compiler }, { ...input, signal })
-      applicationBuilds.add(work)
-      try { return await work } finally { applicationBuilds.delete(work) }
-    },
+    prepareApplication,
+    readApplicationFile,
+    startPreviewPreparation: previewPreparation.start,
+    readPreviewPreparation: previewPreparation.read,
     recover: async () => { for (const changeId of await store.recoverAndListQueued()) dispatch(changeId) },
-    close: async () => {
-      applicationShutdown.abort()
-      await Promise.allSettled(applicationBuilds)
-      await Promise.all(active.values())
-      await store.close()
-    },
+    close,
   })
 }

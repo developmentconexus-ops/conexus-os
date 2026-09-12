@@ -49,6 +49,7 @@ const currentNames = [
   '021_rb_builder_bounded_correction.sql',
   '022_rb_builder_source_inspection.sql',
   '023_rb_builder_preview_subject.sql',
+  '026_builder_application_registry.sql',
 ]
 const heldNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
 const names = (migrations) => migrations.map((migration) => migration.name)

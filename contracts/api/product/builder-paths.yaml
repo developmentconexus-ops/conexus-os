@@ -255,6 +255,81 @@ paths:
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
+  /api/control/projects/{projectId}/preview-preparations:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      summary: PrepareBuildPreview
+      operationId: PrepareBuildPreview
+      x-conexus-4a-id: BLD-21
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: EXPLICIT_CURRENT_SUBJECT
+      x-conexus-contract-state: SCHEMA_CLOSED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [changeId, subjectDigest]
+              properties:
+                changeId:
+                  type: string
+                  format: uuid
+                  description: Exact untrusted Change candidate reference; Project containment, current authority and verification are revalidated server-side.
+                subjectDigest:
+                  type: string
+                  minLength: 40
+                  maxLength: 128
+                  pattern: '^[0-9a-f]+$'
+                  description: Exact verified Change candidate source digest; caller selection never replaces server subject resolution.
+      responses:
+        '202':
+          description: Preparation accepted or already coalesced for the exact verified Change candidate. The projection contains no account, session, source-file or launch credential data.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreviewPreparation' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '503': { $ref: './openapi.yaml#/components/responses/Problem503' }
+
+  /api/control/projects/{projectId}/preview-launches:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      summary: LaunchBuildPreview
+      operationId: LaunchBuildPreview
+      x-conexus-4a-id: BLD-22
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: EXPLICIT_CURRENT_SUBJECT
+      x-conexus-contract-state: SCHEMA_CLOSED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [changeId, subjectDigest, attemptId, artifactRevisionId, artifactDigest]
+              properties:
+                changeId: { type: string, format: uuid }
+                subjectDigest: { type: string, minLength: 40, maxLength: 128, pattern: '^[0-9a-f]+$' }
+                attemptId: { type: string, format: uuid }
+                artifactRevisionId: { type: string, format: uuid }
+                artifactDigest: { type: string, minLength: 64, maxLength: 128, pattern: '^[0-9a-f]+$' }
+      responses:
+        '201':
+          description: One authenticated, exact-candidate Preview launch with a single-use entry grant and no Hub session credential.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreviewLaunch' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '503': { $ref: './openapi.yaml#/components/responses/Problem503' }
+
   /api/control/projects/{projectId}/changes/{changeId}/findings:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
@@ -695,6 +770,74 @@ components:
         ready: { type: boolean }
         verified: { type: boolean }
         live: { type: boolean, const: false }
+        preparation: { $ref: '#/components/schemas/PreviewPreparation' }
+    PreviewPreparation:
+      discriminator:
+        propertyName: state
+        mapping:
+          PREPARING: '#/components/schemas/PreviewPreparationPreparing'
+          PREPARED: '#/components/schemas/PreviewPreparationPrepared'
+          FAILED: '#/components/schemas/PreviewPreparationFailed'
+          EXPIRED: '#/components/schemas/PreviewPreparationExpired'
+      oneOf:
+        - $ref: '#/components/schemas/PreviewPreparationPreparing'
+        - $ref: '#/components/schemas/PreviewPreparationPrepared'
+        - $ref: '#/components/schemas/PreviewPreparationFailed'
+        - $ref: '#/components/schemas/PreviewPreparationExpired'
+    PreviewPreparationPreparing:
+      type: object
+      additionalProperties: false
+      required: [changeId, subjectDigest, attemptId, state, expiresAt]
+      properties:
+        changeId: { type: string, format: uuid }
+        subjectDigest: { type: string, minLength: 40, maxLength: 128, pattern: '^[0-9a-f]+$' }
+        attemptId: { type: string, format: uuid }
+        state: { const: PREPARING }
+        expiresAt: { type: string, format: date-time }
+    PreviewPreparationPrepared:
+      type: object
+      additionalProperties: false
+      required: [changeId, subjectDigest, attemptId, state, expiresAt, artifactRevisionId, artifactDigest]
+      properties:
+        changeId: { type: string, format: uuid }
+        subjectDigest: { type: string, minLength: 40, maxLength: 128, pattern: '^[0-9a-f]+$' }
+        attemptId: { type: string, format: uuid }
+        state: { const: PREPARED }
+        expiresAt: { type: string, format: date-time }
+        artifactRevisionId: { type: string, format: uuid }
+        artifactDigest: { type: string, minLength: 64, maxLength: 128, pattern: '^[0-9a-f]+$' }
+    PreviewPreparationFailed:
+      type: object
+      additionalProperties: false
+      required: [changeId, subjectDigest, attemptId, state, expiresAt, code]
+      properties:
+        changeId: { type: string, format: uuid }
+        subjectDigest: { type: string, minLength: 40, maxLength: 128, pattern: '^[0-9a-f]+$' }
+        attemptId: { type: string, format: uuid }
+        state: { const: FAILED }
+        expiresAt: { type: string, format: date-time }
+        code: { const: PREPARATION_FAILED }
+    PreviewPreparationExpired:
+      type: object
+      additionalProperties: false
+      required: [changeId, subjectDigest, attemptId, state, expiresAt]
+      properties:
+        changeId: { type: string, format: uuid }
+        subjectDigest: { type: string, minLength: 40, maxLength: 128, pattern: '^[0-9a-f]+$' }
+        attemptId: { type: string, format: uuid }
+        state: { const: EXPIRED }
+        expiresAt: { type: string, format: date-time }
+    PreviewLaunch:
+      type: object
+      additionalProperties: false
+      required: [entryUrl, previewUrl, entryGrant, artifactRevisionId, artifactDigest, expiresAt]
+      properties:
+        entryUrl: { type: string, format: uri }
+        previewUrl: { type: string, format: uri }
+        entryGrant: { type: string, minLength: 32, maxLength: 128 }
+        artifactRevisionId: { type: string, format: uuid }
+        artifactDigest: { type: string, minLength: 64, maxLength: 128, pattern: '^[0-9a-f]+$' }
+        expiresAt: { type: string, format: date-time }
     Finding:
       type: object
       additionalProperties: false

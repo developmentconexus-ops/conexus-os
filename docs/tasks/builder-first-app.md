@@ -25,6 +25,942 @@ credentials, truthful failures and existing ownership. It does not implement
 arbitrary app servers, autonomous Brain learning, a universal SDK, public
 deployment, business Product Agents or whole-repository consolidation.
 
+## Delivery checkpoints
+
+### GPT Pro review snapshot, 2026-09-12
+
+The operator requested publication of the current implementation for a concise
+review of the simplified MVP direction. This snapshot is not a completed app.
+The fixed starter passed the real E2B compiler and Chromium. Retained-artifact
+access passed real Keycloak, PostgreSQL and browser proof with controlled app
+files. The Build UI's four browser tests passed with controlled API responses.
+Those results do not prove the complete model-created app journey.
+
+The configured-server proof has not passed. Its temporary browser runner failed
+with a garbage-collected evaluation promise after successful Preview GET and
+preparation POST responses. Runner diagnosis is in progress. Restart recovery,
+the generated-app journey, explicit second-human-request continuation, and the
+full current verification graph remain unproved for this snapshot.
+
+A fresh independent review reported two integration risks that still require
+root reproduction and disposition, not automatic acceptance of the findings:
+
+- An issued I&A entry grant can outlive a failed MAR launch, retaining unusable
+  records until expiry. Inspect compensation before accepting the access cycle.
+- The UI checks the pending iframe, then mounts another iframe. Failure of that
+  second navigation could replace the previous app despite the successful HEAD.
+  Prefer keeping the already-loaded frame if reproduction confirms the gap.
+
+The Pro review question is whether any work before the first usable app can be
+removed without losing source continuity, actual app execution or existing
+access boundaries. Do not reopen R/L plans, add a new architecture, or treat
+Brain and Sankhya's existing module proofs as integrated app behavior.
+
+### Checkpoint definitions
+
+The operator approved these checkpoints on 2026-09-12. They split one first-app
+delivery into observable results, not new R/L phases or independent approval
+gates. [Roadmap](../roadmap.md#current-direction-and-tracking) owns delivery state
+and the next action. None of the checkpoints below has an end-to-end result yet.
+
+| Checkpoint | What the operator demonstrates | Existing proof and missing behavior |
+| --- | --- | --- |
+| Create and open | Log in through the real UI, request an app, use its compiled output in iframe and a new tab | [Compiler proof](#observed-compiler-result) exists; app-template wiring, retained output and authorized browser serving remain to be integrated |
+| Continue | Make a second request against that app; use the added behavior while retaining the first feature | [Continuation semantics](#exact-continuation-semantics) are proposed; real second-request source ancestry and browser behavior are not demonstrated |
+| Preserve and recover | Restart Hub and reopen without recompilation; a failed or late build cannot replace the correct version; revoked access cannot retrieve it | Existing local controls do not establish the composed Preview behavior |
+
+Source identity, authorization, retention and failure handling constrain the
+first checkpoint. The last checkpoint exercises recovery across the assembled
+journey; it does not postpone designing those properties. Preserving app files
+does not require persisting a demonstration counter's value. The demonstration
+app remains interchangeable and does not define Conexus.
+
+### Create and open work packet
+
+Reuse the current Mastra coding path, verified-source reader and E2B compiler.
+The intended change connects them to retained compiled output and the existing
+Build UI. Do not rebuild the compiler or add a separate editor/runtime framework.
+
+- [ ] Confirm the fixed `app/` template and Builder instructions produce source
+  accepted by the existing compiler. Read the actual seed consumer before
+  deciding whether the recorded seed mismatch blocks this path.
+- [x] Compare the isolated Registry draft with the current migration runner and
+  [retention proposal](#registry-retention-implementation). Select the reusable
+  persistence pieces and identify missing behavior, without assuming integration.
+  - [x] Probe the unchanged draft over the current 001..023 schema without held
+    MAR migrations. See [dependency probe](#registry-dependency-probe).
+  - [x] Resolve the confirmed permission defect and successor catalog/ledger
+    design, then prove authorized retention and reconnect before acceptance.
+- [x] Close the [browser access proposal](#browser-access-and-presentation)
+  against the actual local hosts, routes and authorization owner. Specify a
+  browser experiment where browser behavior, rather than opinion, decides.
+- [x] Bind source revision, compiled files, retained identity and displayed URL
+  through the existing Builder service. Trace the handoff from verified coding
+  to compilation and retention against its existing state transitions before
+  introducing new build records. Specify failure and late-result behavior
+  before implementation. Preserve the [second-request constraint](#exact-continuation-semantics)
+  without implementing that checkpoint silently.
+- [x] Record exact implementation files, unresolved choices and the bounded
+  real-model/E2B/browser proof request. Then obtain the required execution grant.
+- [ ] Implement and demonstrate Create and open after that grant. Record actual
+  prompts, source/artifact identities, browser result and remaining limits.
+
+Current resolution evidence is the [access consumer proof](#access-consumer-proof--2026-09-12)
+and the Registry/preparation observations below. The autonomous grant is in the
+roadmap. The fixed profile and actual Build UI/generated-app demonstration
+remain open; checked preparation items do not establish those results.
+
+A checked planning item means its question was resolved with a decision or
+evidence pointer. It does not mean the app was delivered. The technical sketches
+below are inputs to this work packet; earlier experiment grants do not carry
+forward. Detail Continue when this checkpoint's interfaces are settled.
+
+### Local Preview consumer implementation
+
+Goal: open an exact verified candidate through the existing Build UI, using
+retained Registry files, isolated local HTTPS and current I&A authorization.
+The operator approved this consumer as a whole. Its units below are not separate
+approval gates. No commit or publication is part of the grant.
+
+The architect comparison evaluates process-local attempts against durable
+database attempts. Candidate sketches live under
+`/tmp/conexus-preview-design-q3OWIG`; they are not alternative task authorities.
+The selected shape uses one local Hub process and durable Registry artifacts.
+The Luna cross-judge preferred candidate A, scoring it 7/10 against B's 7/10
+with the smaller single-Hub shape as the deciding criterion. Root adopts A with
+account-scoped keys, discriminated states, non-refreshing parent-session checks
+and artifact-specific hosts. Reject B's durable attempt migration and relaxed
+historical-candidate Registry reads. Do not let GET turn orphaned retained bytes
+into a successful attempt. The read-only judge also checked the two initial
+decision-log entries without finding unsupported claims. Root supplied proposed
+corrections while judging was in progress, so this is collaborative design
+challenge, not an isolated closure review. All runners used Luna as requested.
+The MAR route trace confirmed that MAR owns route identity and lifecycle, not
+that Preview must adopt a particular SQL table or the held 024/025 migrations.
+The judge also cited L1's stronger restart proposal. L1 is historical, while
+the current task explicitly allows browser grants to expire on Hub restart.
+Keep stable immutable artifact identity and fresh authorization on reopening.
+Before serving code, bind the route's identity, expiry, revocation and replacement
+rules explicitly in the current owner. A bare host-to-file lookup is insufficient.
+Reopen attempt persistence for multiple Hub instances or a
+real requirement to recover attempt history, not merely to reopen retained files.
+
+#### Preparation coordinator
+
+Add `builder/preview-preparation.ts` around the existing `prepareApplication`.
+Use an account-scoped exact-candidate key. A caller supplies only Project,
+Change and expected subject digest; the server resolves source and permission.
+Do not share another account's preparation result or authority.
+
+```ts
+type PreviewPreparationRequest = Readonly<{
+  accountId: string
+  projectId: string
+  changeId: string
+  subjectDigest: string
+}>
+type PreviewPreparationSubject = PreviewPreparationRequest & Readonly<{
+  sourceRevision: string
+}>
+type PreviewPreparation = Readonly<{
+  attemptId: string
+  subject: PreviewPreparationSubject
+  expiresAt: number
+}> & (
+  | Readonly<{ state: 'PREPARING' }>
+  | Readonly<{ state: 'PREPARED'; artifact: ApplicationArtifactMetadata }>
+  | Readonly<{ state: 'FAILED'; code: 'PREPARATION_FAILED' }>
+  | Readonly<{ state: 'EXPIRED' }>
+)
+```
+
+The coordinator exposes `start(request)`, `read(request)` and `close()`.
+Both reads and starts re-resolve the exact authorized verified subject.
+`start` coalesces concurrent calls for the same account and subject; it alone
+may invoke preparation. The existing preparation performs the Registry hit or
+compile-and-retain path. Do not implement a second retention orchestrator.
+`read` never starts or retries work. A missing in-memory attempt returns null.
+After restart, an explicit start may reuse Registry without compilation.
+
+An attempt expires after 180 seconds. Expiry aborts its preparation signal.
+Allow at most eight unsettled preparations in the local coordinator by default.
+An expired attempt still counts until its promise drains. Capacity exhaustion
+returns `PREVIEW_PREPARATION_BUSY` before starting another preparation. Retain
+at most 256 terminal entries and clear their timers when evicting them.
+Only the same non-expired attempt may transition to PREPARED after an exact
+subject and returned-artifact check. Late completion can leave reusable immutable
+bytes, but cannot settle an expired or replacement attempt. An explicit start
+after FAILED or EXPIRED creates a fresh attempt. Never automatically retry a
+failed paid call from GET or polling. `close` refuses new work, aborts active
+attempts and drains their promises before Builder closes its pools.
+PREPARED means retained output, not a ready or authorized browser route.
+
+- [x] Add `tests/implementation/builder-preview-preparation.test.mjs` and observe
+  the missing coordinator fail before implementation. Prove one preparation for
+  concurrent same-subject starts, account isolation, read without preparation,
+  refusal after permission or subject change, expiry with late completion,
+  fresh retry, returned-artifact mismatch, and close draining active work.
+- [x] Implement the coordinator with the existing Builder types and narrow
+  dependency functions. Keep it out of HTTP until the following binding is ready.
+- [x] Run the new tests and existing `builder-application-build.test.mjs`, Hub
+  typecheck and import checks. Add the new test to the existing Builder leaf.
+  Controlled callbacks prove coordinator behavior, not E2B or a browser journey.
+
+#### Authorized launch and serving
+
+The next executable unit binds the coordinator to `builder/service.ts` and
+`builder/module.ts`. The service exposes `startPreviewPreparation(request)` and
+`readPreviewPreparation(request)` with the existing coordinator types. It owns
+one coordinator for its lifetime and uses the same retained preparation function.
+Shutdown refuses new preparation, aborts and drains coordinator work, then closes
+the existing store. No independent pool, compiler or retention path is added.
+Verify through the real service that concurrent starts share one compilation,
+reads do not compile, retained output is reused after service recreation, and
+shutdown during retention cannot close the store early or expose a late success.
+These checks use controlled external ports and do not prove HTTP or live I&A.
+
+This service binding is implemented. Root ran 23 preparation/service tests,
+13 coordinator tests and two BLD-10 projection tests, all passing. Hub TypeScript,
+focused Biome and `git diff --check` also passed. The writer first observed four
+missing-method errors and a double-close assertion of `2 !== 1`. Root strengthened
+the recreation fixture so only a successful retention supplies the next service's
+artifact, and checked that both concurrent close callers wait for blocked retention.
+The proof uses the production service, coordinator and preparation function with
+controlled source, compiler, Registry and store ports. It does not prove database
+durability or a full Hub restart. No live provider call was made in this unit.
+Fresh Luna review found no blocker in this service binding and no scoped comments
+or suppressions to remove. Module composition is checked by inspection and
+TypeScript, not a dedicated configured-module execution. Root also ran all 26
+import-law checks and the 12 required repository checks successfully. The full
+verification graph remains unrun for this partial increment.
+
+The next wire binding keeps BLD-10 as the sole Preview read. Extend its closed
+schema with a narrow optional preparation projection and add the explicit
+preparation command. Return attempt state, expiry and prepared artifact identity,
+not Registry file metadata or the account/session binding. A retained PREPARED
+result alone must not set `ready: true`; readiness still requires MAR serving.
+The read-only Luna trace confirmed the existing handwritten Builder client and
+route census also need updating. Do not add another preparation-status GET.
+The exact command ledger entry and wire schemas remain to be implemented together
+with their routes. This trace is not acceptance of the browser authorization code.
+
+Bind `BLD-21 PrepareBuildPreview` to
+`POST /api/control/projects/{projectId}/preview-preparations`. Its closed request
+contains `changeId` and `subjectDigest` only. Resolve the account from the current
+CSRF-validated session and return HTTP 202 with the narrow preparation projection.
+The projection binds Change and subject digest to attempt identity, state and
+expiry. Only PREPARED carries artifact revision ID and digest. It contains no
+source files, account, session binding or launch credential. BLD-10 may return the
+same optional projection for an exact verified candidate. An absent attempt
+omits the field; reading never starts preparation. Refuse an unknown or changed
+subject without disclosure, and report capacity/closed-service failures as
+unavailable. Keep `ready` false until serving is integrated. Verify the real
+registered routes for explicit start, passive polling, schema refusal, exact
+Origin/CSRF and account derivation, using controlled external ports until the
+assembled I&A/Registry browser proof is ready.
+
+The HTTP binding is implemented. Root ran all 45 preparation/service,
+coordinator, BLD-10 and registered-route tests successfully. The registered-route
+proof reaches the production service and coordinator with controlled external
+ports; it is not a real-session or browser proof. TypeScript, wire bundle,
+Builder schema, operation bijection, carriers, projections, all 26 import-law
+checks, the 12 repository checks and `git diff --check` passed. An initial
+`wire:check` invocation named a nonexistent script; the explicit existing wire
+commands above were then run successfully. No provider call was made.
+
+Bind an explicit CSRF-protected preparation POST to the coordinator. Keep the
+existing BLD-10 GET side-effect free and distinguish its source verification
+from preparation progress. Add the bounded preparation and launch wire schemas
+to `contracts/api/product/builder-paths.yaml` and the owning operation ledger
+before routes consume them. Launch is a separate authenticated POST that requires
+the exact prepared artifact and current admission; GET does not mint credentials.
+
+I&A owns a one-use 30-second entry grant and a 15-minute Preview cookie grant.
+Bind them to the issuing session, account, Project, Change, source, artifact and
+exact Preview host. Add a non-refreshing current-session check in
+`identity-access/store.ts`; asset requests must not prolong Hub session idle
+expiry. Keep any session binding server-side. Recheck session expiry/revocation
+and current Project authority before serving bytes.
+
+MAR owns the form-POST entry and static assets in `mar/preview-routes.ts`.
+Use `preview-<artifactRevisionId>.conexus.localhost`, not one mutable host/cookie
+mapping per Project. Two different app versions must remain independently
+openable. Consume the entry grant once, set only the Preview host-only cookie,
+then redirect to a clean URL. Validate exact Host and Hub Origin, paths, media
+types and Registry revision. No Hub control API is exposed on the Preview host.
+Use the existing browser contract above for expiry, CSP and refusal behavior.
+Wire TLS and host dispatch in `http/app.ts`, `platform/config.ts` and `server.ts`
+with the existing private certificates and loopback-only binding.
+
+The bounded Chromium probe exposed a concrete entry constraint. Applying
+`Referrer-Policy: no-referrer` to the Hub made form POSTs send `Origin: null`.
+All three iframe variants were refused, including an unsandboxed control.
+Changing only the Hub policy to `strict-origin` restored the exact Hub Origin.
+Keep `no-referrer` on Preview responses. The response-CSP variant with
+`sandbox allow-scripts allow-same-origin` ran the counter in iframe and a new
+tab without disabling certificate validation. Restrict app documents with the
+server-owned CSP, including direct new-tab navigation; do not rely only on the
+iframe attribute. Keep the exact-Origin check and refuse `null`.
+
+The rerunnable stand-in probe is
+`/tmp/conexus-preview-design-q3OWIG/browser-sandbox-probe.cjs`. Run once with
+`PROBE_HUB_REFERRER_POLICY=no-referrer` for the three expected refusals and once
+without that variable for the three interactive successes. This proves the
+TLS/form/CSP mechanism only. It uses a fixed synthetic entry value, no I&A,
+Registry or real Hub routes, and cannot prove authorization or full isolation.
+The initial sandbox hypothesis was rejected by the unsandboxed control.
+[MDN's Origin interaction](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Referrer-Policy#effect_on_the_origin_header)
+documents the form/referrer-policy behavior observed in the probe.
+
+Do not add a server-invented last-good ordering or relax Registry admission.
+The UI retains the exact previously prepared candidate while another is built,
+and labels it as the prior version. Current permission and subject admission
+still apply to launch and every asset read. A Baseline change that invalidates
+that candidate must refuse access, not be bypassed to preserve the iframe.
+Serving historical candidates after such a change is outside this consumer.
+
+#### Selected local access implementation
+
+Root compared two completed Luna architect sketches and their collaborative
+cross-judge on 2026-09-12. Select immutable per-launch MAR routes, not mutable
+per-artifact slots. No table, additional pool or Project-wide selected-route
+pointer is required. The sketches and judge are temporary working material at
+`/tmp/conexus-preview-access-design-qZIiQj`; this section owns the selection.
+All runners used Luna, so there was no model diversity.
+
+`BLD-22 LaunchBuildPreview` is an authenticated Origin/CSRF-protected POST at
+`/api/control/projects/{projectId}/preview-launches`. Its closed request contains
+`changeId`, `subjectDigest`, `attemptId`, `artifactRevisionId` and `artifactDigest`.
+These are untrusted selection coordinates, compared to the current account's
+exact PREPARED attempt. HTTP 201 returns `entryUrl`, clean `previewUrl`,
+`entryGrant`, artifact identity and expiry. It returns no Hub/session credential
+or file metadata. Unknown/stale/foreign subjects are refused without disclosure;
+resource/closed-service failures are unavailable. A GET never issues a grant.
+
+I&A keeps digest-keyed entry and cookie records and the private issuing-session
+digest/identity. Add a non-refreshing session read using existing IAM permissions.
+Do not widen `CurrentSession` or pass raw Hub credentials to MAR. Consumption
+removes the entry before its first asynchronous check. Every continuation after
+an await rechecks closure/expiry before issuing authority. Use at most 4,096
+combined grants, expiration-on-operation and one unref'd sweeper. Refuse when
+the live set is full. Clamp cookie expiry to the route's 15-minute expiry.
+
+MAR stores at most 4,096 immutable route bindings with `routeId`, generation,
+attempt, account/Project/Change/source/digest/artifact and exact host. Only an
+exact OPENING record can activate; stale activation/revocation cannot affect
+another record. No replacement API is introduced. The UI conditionally selects
+a ready response using its own expected request/subject generation; this refines
+the historical replacement proposal without a server-global ordering. Separate
+artifact hosts preserve different versions. Reopening the same artifact in one
+browser replaces that host's cookie; per-tab revocation for the same artifact
+is not promised. Routes and grants expire on Hub restart, retained bytes do not.
+
+Expose only Builder's bound Registry-file callback using the existing executor
+pool. Asset reads require I&A cookie resolution, exact active MAR binding,
+safe manifest path/media type and current Registry admission. Recheck session
+and route after the asynchronous read, immediately before returning bytes.
+Drain both HTTP listeners and MAR work before closing Builder/IAM pools.
+
+Project/candidate admission is linearized by the Registry transaction for each
+asset. A revocation committed before admission denies; an already admitted
+in-flight read may finish. Registry's existing admission locks serialize that
+decision, not the entire HTTP response. The post-read I&A and route checks
+remain required. Do not add repeated database reads to imply instantaneous
+revocation of previously admitted or delivered bytes.
+
+Use a separate `mar/module.ts` constructor and `mar/preview-routes.ts`, private
+I&A grant implementation, existing Builder module/routes, HTTP/config/server
+composition and current wire/ledger owners. Add only MAR's module to the
+composition-root import allowlist. TLS is optional for existing test callers;
+enabling local Preview requires HTTPS, the existing certificate/key files,
+distinct loopback ports and a `conexus.localhost` Hub host. Register a bounded
+form parser with exactly one `entryGrant` field, rejecting duplicates and extras.
+Fastify supports registering this parser without another package
+([official API](https://fastify.dev/docs/latest/Reference/ContentTypeParser/)).
+Hub CSP uses the valid `https://*.conexus.localhost:<preview-port>` source, not
+the invalid partial-label `preview-*` wildcard. MAR still admits only exact
+artifact hosts. Preview response CSP applies sandbox, self assets, no workers,
+no forms and no outbound connections; it does not claim universal browser
+egress control. Remove Preview's conflicting X-Frame-Options header.
+
+The UI cannot use iframe `load` as proof of HTTP success. Browsers also fire it
+for failed navigation ([MDN iframe reference](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe)).
+After entry navigation, the Hub page checks the same clean Preview URL with a
+credentialed HEAD request before selecting the candidate. Ignore the initial
+blank-frame load and reject stale request generations. Keep the prior iframe
+mounted on a failed check. HEAD establishes current authorized document
+availability, not correctness of the application's JavaScript or business logic.
+
+Use the existing asset handler and its automatic HEAD route. Permit credentialed
+CORS reads only from the exact configured Hub origin, never a wildcard origin,
+and only for GET/HEAD. Hub `connect-src` includes the Preview host pattern.
+Preview `connect-src` remains `none`; this does not admit app-to-Hub calls or
+another Product operation. The request carries only that Preview host's cookie.
+Prove the browser request and a foreign-origin refusal before UI integration.
+
+Root ran that experiment against real Keycloak, PostgreSQL and Chromium. The
+old Hub policy refused the HEAD request with `Failed to fetch`. After the
+bounded CSP/CORS change, the exact Hub page received 200 and a different
+`conexus.localhost` origin could not read the response. The extended access
+script passed with 18 Registry reads and zero compiler calls. Six registered
+route tests also passed, including HEAD refusal after session revocation and
+absence of CORS permission for a foreign origin. UI failure/selection proof
+and review of the integrated browser consumer remain separate requirements.
+
+First prove actual registered routes and owner modules with controlled ports,
+then real IAM/Registry over disposable PostgreSQL, then normal-trust Chromium.
+The falsifiers are replay/expiry, non-refreshing session timestamps, close and
+revocation during pending reads, wrong-host/foreign-candidate disclosure,
+independent artifact versions and late selection. Template/second-request and
+the real model/login journey remain required after this access unit.
+
+#### Access consumer proof — 2026-09-12
+
+Root ran four registered-route/I&A tests and the Hub TypeScript compilation.
+The first run exposed a valid root-level manifest asset returning 404 and a JSON
+entry body consuming a form-only grant. Both were corrected and all four tests
+passed. Encoded path rejection is also checked without letting the injection
+client normalize the tested path before dispatch.
+
+Root then executed `/tmp/conexus-preview-access-design-qZIiQj/run-access-proof.mjs`
+against disposable PostgreSQL 17.10, the real IAM and Registry runtime roles,
+Keycloak 26.7.2 HTTPS and Chromium with normal certificate validation. The
+registered preparation/launch/MAR routes delivered an interactive counter in
+an iframe and the same URL in a new tab. Same-artifact relaunch and a separate
+second artifact worked. Replay, anonymous access and session revocation during
+a pending asset read were refused. Project-grant revocation refused a subsequent
+Builder Preview read. Asset reads did not update the issuing session timestamp;
+no Hub session/CSRF cookie reached Preview hosts. An extended run also revoked
+Project access after launch and refused the already-issued Preview URL. Its
+first run exposed a 503 classification for Registry admission refusal; mapping
+only the exact PostgreSQL subject-refusal signal to an absent file fixed the
+response without hiding other database failures. A further real run revoked
+Project authority while the asset request awaited its Registry read and also
+returned 403. Extended result: 16 Registry
+reads, zero compiler calls, PASS. Six local access tests additionally prove
+closed-module refusal without I&A reads and draining of a pending entry without
+activating it after closure.
+
+This proof seeds synthetic accepted Changes and retained HTML/JavaScript and
+uses a minimal fixture Hub page. It does not prove the real Build screen,
+model-generated code, second human-request continuity, Hub restart, or current
+full verification graph. The temporary script and services are working proof
+material, not a permanent Product runner.
+
+Two fresh Luna risk reviews completed for the access boundary. Root corrected
+the omitted BLD-22 permission-ledger row and made MAR-before-owner shutdown
+ordering explicit after HTTP drain. Historical F14/F15 tests no longer freeze
+the current Builder operation count; the central 130/22 wire checks retain that
+responsibility. The three historical tests, six Registry adapter/PostgreSQL
+tests, eight HTTP/config tests and 26 import-law tests passed. A proposed
+post-admission revocation blocker was withdrawn after checking the actual
+Registry transaction/lock semantics; its stub modeled a revocation after an
+already authorized read. The reviewer independently reproduced pending-read
+shutdown refusal and drain. No full UI/production-server closure is claimed.
+
+#### Existing UI and deciding proof
+
+Update `features/builder/api.ts` and `components/project-build.tsx` to invoke
+preparation explicitly, poll preparation past VERIFIED, and launch the exact
+artifact into an iframe or new tab. Track the selected candidate and attempt
+when receiving asynchronous results. A stale response cannot change the
+displayed version. Preserve the existing app-first screen contract; do not
+introduce another editor or redesign the whole Build workspace.
+
+Before completion, exercise the actual composed routes and UI in Chromium with
+normal certificate validation. Prove interaction in iframe and a new tab,
+independent versions, anonymous refusal, expired/replayed entry refusal,
+parent-session and Project-access revocation, build failure, late completion,
+and reopening after Hub restart without compilation. Use real disposable
+PostgreSQL for session and Registry assertions. Controlled source or seeded
+subjects remain explicitly narrower than login/model/Git journey proof.
+Run the current full verification graph and two fresh isolated risk reviews
+for the completed trust-boundary implementation. Do not call this delivery
+complete from coordinator tests alone.
+
+### Session record and collaboration
+
+2026-09-12 standalone coordinator candidate implemented in
+`builder/preview-preparation.ts`, with focused tests in
+`builder-preview-preparation.test.mjs`. The existing Builder verification leaf
+now includes those tests. The coordinator has no HTTP, service or UI caller yet.
+The writer reported the initial RED as an absent exported function. Root
+interrupted the writer after its two-file implementation, confirmed interruption,
+and took exclusive ownership. Root ran the 11 coordinator and 18 preparation
+tests successfully, then cleared timers during terminal eviction and strengthened
+the concurrent-close assertion. The final combined rerun passed 36 tests: 11
+coordinator, 18 preparation and seven verification-runner tests. Hub typecheck,
+26 import-law tests and focused Biome also passed. The full 71-step graph was
+not rerun for this partial, unconnected unit.
+
+The fresh Luna reviewer found a mutable-input race in `start` and `read`.
+Root reproduced both failures before correcting the input snapshot: returned
+account `aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa` instead of authorized account
+`11111111-1111-4111-8111-111111111111`. Both methods now copy and freeze the
+request before their first await. Final root verification passed 38 tests:
+13 coordinator, 18 existing preparation and seven runner tests. Focused Biome,
+Hub typecheck and `git diff --check` passed after that correction. The reviewer
+found no other lifecycle blocker and no comments or suppressions in the two
+files. Its artifact/trail review preserved the browser probe's stand-in limits.
+Direct frozen-object and expired-unsettled-cap assertions remain coverage
+improvements for the composed consumer; they do not establish missing runtime
+proof. The active-cap implementation counts all unsettled promises, including
+expired work, and returned snapshots are copied and frozen.
+The complete Preview grant remains active. Next is its route/session/HTTP/UI
+consumer, not a repeat of this standalone coordinator or a new approval round.
+No model, E2B, Sankhya, database or publication action ran in this unit.
+The temporary TLS browser server was stopped after each probe.
+
+2026-09-12 local Preview consumer approved. The operator approved the complete
+consumer, including required bounded contract changes, implementation and browser
+validation. The exact grant is in the roadmap. Root is comparing two isolated
+Luna architect candidates before selecting attempt lifetime and access wiring.
+No additional compiler or storage experiment is a prerequisite.
+
+Grounding found that `builder/preview.ts` always returns `ready: false`, the
+GET Preview route only resolves the source subject, and the Build component
+renders text without an iframe. Candidate polling stops at `VERIFIED`, before
+asynchronous preparation could finish. The new consumer must distinguish code
+verification from executable Preview readiness. Identity access currently
+returns no session identity in `CurrentSession`, and `validateSession` refreshes
+idle expiry. Browser grant checks must bind the issuing session without exposing
+the Hub cookie or silently extending its idle lifetime through asset requests.
+
+The delivery checkpoint is an exact verified candidate opened through the real
+Preview consumer in iframe and a new tab. Exercise failed and late preparations,
+access revocation and reopening retained bytes without recompilation. Label any
+seeded subject, substitute login or controlled source in the proof explicitly.
+These cannot establish the model-generated app journey. Keep source-template
+integration and second-request ancestry visible as remaining first-app work.
+
+Throughput checkpoint: settle the owner and wire shape before Product editing.
+Design candidates write separate temporary files. Root owns synthesis and
+repository integration. Implement coupled backend behavior under one writer;
+UI and independent proof can proceed separately only after the interface is
+frozen. Never run verification against an actively written shared candidate.
+Do not add hosting, reopen historical stages or publish this work implicitly.
+
+2026-09-12 preparation increment completed. Root ran the clean dependency
+installation, Chromium installation and full current `npm run verify` in pinned
+WSL Ubuntu with disposable PostgreSQL. All 71 steps succeeded, exit 0. The
+current graph includes the new service/Registry database proof; paid execution
+remains opt-in and was run separately as recorded below. Two fresh isolated Luna
+reviews found no blocking defects. No commit, push, PR or merge was made.
+Root removed only `conexus-preparation-lcgycv` and its synthetic database after
+verification. The retained test recreates its data; proof logs remain under
+`/tmp/conexus-preparation-LCGYCV`. Existing credentials and local TLS trust were
+not changed.
+The next measurable delivery is the scoped Preview consumer, not another
+compiler or storage experiment. Remaining gaps are invocation/attempt handling,
+authorized serving, UI consumption and the actual generated-app journey.
+
+2026-09-12 preparation proof: root integrated the isolated Luna implementation,
+then passed 18 orchestration tests, the import-law suite and focused Biome.
+The real Builder service, Builder store and Registry adapter also passed against
+disposable PostgreSQL. The initial RED was the absent `prepareApplication` API.
+The service now returns retained metadata, and a recreated service retrieves
+the same revision without extracting source or invoking the compiler.
+
+The named paid proof then ran once with the existing E2B compiler. Sandbox
+`ikzspzi57v9ctlp53v04w` compiled the controlled HTML/JavaScript source. Registry
+retained revision `9c3a49ca-665e-42c9-aa6d-198664984298`; after service recreation,
+its metadata and every file matched. A loopback test-only asset server read
+those bytes through Registry. Chromium observed 0, then 2 after two clicks,
+with no page errors. Provider inspection returned not-found after sandbox
+cleanup. The preparation/browser sequence took 9,486 ms, excluding setup.
+The test and sanitized output are
+`tests/implementation/builder-application-preparation-postgres.test.mjs` and
+`/tmp/conexus-preparation-LCGYCV/live.log`. This proves production modules with
+controlled source and seeded verified subjects, not model generation, Git
+custody, configured Hub startup, login, MAR serving or a whole-Hub restart.
+No new model or Sankhya request ran. Two fresh isolated Luna reviews found no
+blocking defect. Both checked the 18 preparation tests, imports and scoped
+static checks; one also checked the BLD-10 projection and decision trail. No
+added comments or suppressions required action. Model diversity is reduced by
+the operator's Luna-only instruction. Root subsequently completed the full
+verification graph as recorded above.
+
+2026-09-12 Builder preparation implementation checkpoint. The operator approved
+the recorded consumer. Replace `compileVerifiedApplication` and the service's
+`compileApplication` with retained preparation in `builder/application-build.ts`,
+`builder/service.ts` and `builder/module.ts`. Export the existing Registry
+adapter through `registry/module.ts`. The composition root `server.ts` injects
+it into Builder through a structural port; Builder must not import Registry.
+Bind Registry to the same executor pool in module composition.
+Return Registry metadata, never transient bytes or a ready Preview. Keep the
+existing request coordinates, source checks and shutdown tracking.
+
+Prove that a retained hit performs no source extraction or paid compile, while
+an authorized miss compiles and retains the exact verified source. Refuse stale
+subjects and mismatched compiler output. Cancellation during retention may leave
+reusable immutable output but must reject the request; close must drain work
+before closing the pool. Migrate existing callers/tests without a compatibility
+API. A controlled-source real-DB/E2B proof may establish preparation and reuse,
+not model-generated source or the full browser journey. Use one isolated code
+writer for the coupled files; root owns independent DB proof and integration.
+The existing design is sufficient; no new architect/arena round is required.
+
+2026-09-12 Registry unit verification completed. Root ran `npm ci`, installed
+Chromium and ran the complete current `npm run verify` in pinned WSL with the
+disposable PostgreSQL configuration. All 71 graph steps succeeded, exit 0.
+The five migration tests include fresh install, actual 023-to-026 upgrade,
+restart, concurrent installation and removed-permission refusal. The six
+Registry tests include the actual adapter/database proof and runtime refusal
+while schema USAGE is removed. Unit fixtures do not claim a generated app.
+Repository and documentation-index checks also passed. Root removed only the
+named disposable PostgreSQL container and its synthetic data after verification;
+the retained tests can recreate it, and local proof logs remain available.
+No commit or publication was made. Next is the scoped Builder preparation consumer described below;
+HTTP serving, ready Preview and real generated-app continuity remain unbuilt.
+
+2026-09-12 Registry integration checkpoint: the production migration, current
+loader and Registry adapter are now integrated in the working tree. The actual
+adapter passed on disposable PostgreSQL through runtime-role retain, concurrent
+idempotent replay, reconnect and exact HTML/JavaScript recovery. It refused a
+changed payload for the same source, unadmitted account/source, withdrawn
+baseline and access after grant revocation. A concurrent revocation waited for
+the admitted transaction. Existing Brain bootstrap/read behavior also passed.
+The fixtures explicitly seed a verified Builder subject and controlled app files;
+this is a production-module/database proof, not a Builder-generated app journey.
+Two initial test failures were fixture issues: withdrawing approval requires
+clearing its revision, and database teardown must close clients before dropping
+the database. Both were corrected without weakening Product constraints.
+
+The current loader's four existing PostgreSQL tests passed with 026. A separate
+023-to-026 upgrade and permission-removal check were then added; their deciding
+result belongs to the current verification run, not the earlier four-test result.
+Two fresh isolated Luna reviewers found no blocking defect in the structural
+candidate. Root inspected their findings; no Product correction was required.
+Both reports overstated root's progress as a full verification pass. Root
+corrected that wording: only the targeted migration/Registry leaves had passed
+at that point, and the full graph remained running. The reports do not replace
+the deciding command result. This uses reduced model diversity under the
+operator's Luna-only instruction.
+`npm ci` and Chromium installation completed. The full current `npm run verify`
+is running with output at
+`/tmp/conexus-registry-integration-96j5J8/verify.log`; no complete-pass claim yet.
+
+2026-09-12 live Sankhya result: one production OAuth authentication and one
+existing fixed TGFCAB aggregate for company 1 completed in 2,581 ms. The observer
+returned totalRows `136122`, nullKeyRows `0`, duplicateKeyGroups `0`. The query
+uses the existing CODTIPOPER 14/714 mapping; this is not a customer count or a
+claim about all sales. Root inspected the temporary script and sanitized result
+at `/tmp/conexus-sankhya-live-probe-BO3x2W/probe.mjs` and `result.json`.
+Authentication and query used production modules and bounded transport, with
+no retry or business mutation. Credential bytes were materialized in memory;
+no bearer, raw provider response or individual rows were printed. The descriptor
+and subject were fixtures and the credential source was the existing private
+probe file, not the integrated encrypted Hub store. This proves live transport
+and observer behavior only. No paid model/E2B call has run in this unit yet.
+
+2026-09-12 Registry implementation started after explicit operator approval.
+The first real-PostgreSQL test failed because the actual current loader omitted
+026. Added the corrected SQL candidate with the two named conflict targets and
+the narrow builder-schema USAGE. The unique Project/kind constraint is created
+directly rather than attaching a separately created index; both yield the same
+named constraint/index. Its current SHA-256 is
+`a5b051a57a40d7640bce15d248012a772d1b4129eb4f6a75475d23792449f006`.
+Luna workers own isolated loader and adapter candidates; root integrates and
+owns the actual adapter/database proof. The adapter's five focused tests passed
+in the checkout. This does not establish Registry integration or app readiness.
+
+The operator also required paid/live-data proof. The initial customer-count
+suggestion lacked an admitted mapping. Use the existing bounded TGFCAB aggregate
+observer for company 1 instead; no arbitrary SQL or customer-detail extraction.
+An observer call with synthetic descriptor coordinates proves only the live
+production-module path. Paid Builder/E2B execution follows its real consumer,
+not an unrelated paid call added to a storage test.
+
+2026-09-12 manual demo cleanup: the operator requested removal of the temporary
+browser page and return to the next integration step. Stopped only the inspected
+`manual-demo.cjs` process and deleted that disposable script. Port 8443 is no
+longer listening. The page contained only synthetic HTML and an in-memory
+counter; its script was disposable and has no Git recovery copy. Certificate
+keys, installed trust and all deciding browser/storage probe scripts and logs
+remain intact.
+
+The next proposed implementation unit is the existing Registry retention
+integration, not another storage comparison or browser demonstration. Add the
+corrected migration 026 and production adapter, update the current migration
+loader using the [integration envelope](#registry-integration-envelope), and
+exercise the real adapter on disposable PostgreSQL. Its observable result is
+exact compiled bytes recoverable after reconnect, with idempotent repetition
+and refusal behavior preserved. It does not expose HTTP, change Preview
+readiness, call providers or activate held migrations. The existing
+[retention implementation](#registry-retention-implementation) owns the detailed
+contract. Builder preparation/orchestration follows as its consumer. Product
+code still requires the bounded execution grant recorded by the roadmap.
+
+At each session end or meaningful checkpoint, the root updates the roadmap's
+next action and records here what changed, what actually ran, the observed result,
+remaining blockers and the relevant commit or artifact. A short dated entry is
+enough. Link large proof artifacts only when the claim needs them. Do not paste
+whole conversations or create a second tracking system.
+
+GPT Pro's response on `9945329`, relayed by the operator, agrees that compilation
+should be reused and that template wiring, retained serving and real continuation
+remain. It reports no executed tests. Treat it as review input, not new runtime
+evidence. Future briefs identify the exact commit and one unresolved question;
+reconcile the answer against this task before recording a decision.
+
+2026-09-12 tracking update: recorded the approved checkpoints and planning work
+packet. Product implementation and live calls remain paused. Repository checks
+passed for links, current-state rules, preflight parsing and diff whitespace.
+No new app behavior is claimed. This documentation update is not committed.
+
+The first read-only storage check found a stale assumption in the isolated
+draft's `runner.patch`: it extends the old migration sequence through 025.
+The current [runner](../../scripts/run-hub-migrations.mjs) instead selects
+001 through 023 and holds 024/025 separately. Reconcile the draft's real schema
+dependencies with that selection before integrating it. The draft README's
+old 024 checksum blocker is not evidence of a current runner failure. No draft
+SQL or runner patch was applied, and retention after restart remains unproved.
+
+A bounded read-only Luna inspection identified five planning questions covered
+above: source-template materialization, Builder-to-compiler orchestration,
+retention with current migrations, authorized Preview access, and the retained
+source coordinates required for later continuation. This is a gap census, not
+an independent design acceptance or a runtime result.
+
+### Storage comparison and SDK references
+
+On 2026-09-12 the operator requested a bounded storage comparison and supplied
+the joaoluistq npm profile and Factory's droid package. The new reference notes
+are [Mitra SDKs](../research/mitra/npm-sdk-reference.md) and
+[Factory packages](../research/factory-ai/npm-builder-reference.md). They record
+observed versions, sources, useful patterns and unknowns. No packages or provider
+processes were installed or executed.
+
+Architect/arena compared two distinct alternatives with the existing JSONB
+proposal. One Luna proposed PostgreSQL per-file bytea rows. Another proposed
+immutable files on a persistent Hub volume with database metadata. A Luna
+grounding reader then cross-judged both against the baseline. This is
+collaborative design comparison with one model family, not independent closure
+review. Root read both sketches and retained the existing JSONB proposal for
+the next proof, not as an accepted runtime result.
+
+| Shape | Benefit | Cost that decides this increment |
+| --- | --- | --- |
+| Existing complete JSONB revision | One transaction and one backup system, no extra table | Repeated asset reads traverse a large payload; measure before acceptance |
+| PostgreSQL per-file bytea rows | Indexed per-file reads, one backup system | New relation and revised encoding without an observed read bottleneck |
+| Persistent files plus metadata | Direct per-file reads | Durable rename, orphan handling and coordinated database/file backup and restore |
+| Object storage plus metadata | Independent file storage service | Additional credentials, network failures and incomplete-object handling; no current operational need established |
+
+The recommended caller contract remains the draft's `retainApplication`,
+`getApplication` and `readApplicationFile`, with the existing explicit account,
+Project, change and source coordinates. Do not adopt an abstract
+`authorizedBuilder` token or let an app choose storage paths. Registry retains
+immutable bytes; browser serving and session authorization remain separate.
+The alternatives' useful contribution is the explicit per-asset read concern
+and recovery counterexamples, not a new interchangeable-storage framework.
+
+Before accepting JSONB retention, exercise the actual runtime-role SQL path with
+authorized source, repeat and conflicting inputs, rollback, reconnect, and exact
+file bytes. Measure one complete page's asset retrieval, including a bounded
+near-limit revision, without recompiling or returning the whole payload to the
+browser. Record latency, query count and payload sizes. No performance threshold
+or successful result has been established. Reopen per-file storage if this path
+cannot support the agreed browser experience or if observed backup/retention
+cost becomes impractical. Do not infer that a schema USAGE grant alone completes
+this proof.
+
+The sketches and grounding are temporary working material in
+`/tmp/conexus-storage-design-PCKW0e`. This section owns the surviving recommendation.
+Successor permission/catalog integration remains unresolved; template wiring and
+authorized browser access follow. Product implementation remains paused under
+the roadmap grant. This round changed research and planning only.
+
+### Authorized retention experiment scope
+
+The operator requested execution of the storage proof after the comparison.
+The bounded grant is recorded in the roadmap. Run current migrations and the
+draft in a disposable PostgreSQL database, with synthetic application files and
+explicit fixture prerequisites. Exercise the actual Registry SQL and unchanged
+admission functions using the runtime database role. The known missing schema
+USAGE may be corrected only in this disposable candidate, with the original
+failure preserved. No successful result is claimed by this scope entry.
+
+The falsifiers are failure to retain an authorized complete revision, different
+bytes after reconnect, partial retention after a refused write, mutable results
+on a conflicting repeat, and successful reads after access revocation. Record
+asset-read timings only when the real success path works. A connection restart
+is not a Hub restart, and fixture prerequisites do not prove Builder generation
+or user authorization through the login UI.
+
+The former compiler scratch directories named later in this task were absent
+when checked on 2026-09-12. Their historical observations are not a currently
+replayable local artifact. Do not claim this experiment consumes those outputs
+or rerun a paid build without its own grant.
+
+### Persistent database recovery and bounded read cost
+
+On 2026-09-12 root extended the same isolated corrected SQL candidate to a
+named Docker volume with `fsync=on` and `synchronous_commit=on`. The client
+retained 32 synthetic files totaling exactly 12 MiB. Thirty files contain
+random printable data to avoid a trivially compressible stress fixture; the
+other files are HTML and JavaScript. This is a size/recovery experiment, not
+a generated app or browser demonstration.
+
+Retention took 6,495 ms in this local environment. Serialized JSON occupied
+16,783,085 bytes; PostgreSQL reported 16,783,914 bytes for the stored payload.
+The first attempt expired during disk initialization before testing storage.
+The second retained the files, then hit a probe lifecycle race while reusing
+the auto-removed container name. The volume remained intact. Neither failure
+is recorded as a Registry defect or silently counted as a successful run.
+
+Root inspected the surviving named volume and mounted it in a new PostgreSQL
+container. PostgreSQL reported an interrupted shutdown and completed recovery.
+The separate recovery process compared the entire persisted payload's SHA-256
+with the digest recorded before shutdown, then read all 32 files through
+`reg.read_application_file` while logged in as `hub_rb_executor`. It compared
+every returned byte and file hash against that independently anchored payload.
+It did not reapply migrations, reinsert fixtures or recompile source.
+
+Three sequential passes each read 32 files and 12 MiB in 2,005 ms, 2,657 ms
+and 2,868 ms. Per-file medians were 62 ms, 76 ms and 88 ms; maxima were 78 ms,
+133 ms and 146 ms. The admin integrity read preceded these passes, so they
+are not cold-cache benchmarks. A subsequent revoked file read was refused.
+Recovery exited 0. No HTTP, concurrency, UI latency, backup restore, host power
+loss, TypeScript adapter or Hub restart claim follows.
+
+The SQL recovery evidence supports retaining the bounded PostgreSQL choice.
+The read cost is material enough to carry into the browser experiment, not
+evidence that JSONB is optimal at every scale. Do not add a cache or per-file
+table without measuring the actual first-app page. Continue with the integration
+envelope below rather than another general storage research round.
+
+Artifacts are in `/tmp/conexus-retention-restart-29i7jH`: `result-2.log` contains
+the pre-stop digest, `recover.mjs` and `recovery-result.log` contain the deciding
+recovery check, and `recovery-postgres.log` records database recovery. The initial
+`probe.mjs` has a container-removal race and is not a finished reusable harness.
+The original Registry draft and Product source remain unchanged.
+
+The recovery container and its synthetic-data volume were removed after the
+check. Docker listings confirmed both absent; scripts and logs remain local.
+
+### Registry integration envelope
+
+The bounded Luna inspection of the current runner and stale draft patch identified
+the following integration work. Root checked the six SQL function declarations
+and current ledger branch. This is an implementation map, not code acceptance.
+
+- Add 026 to current migration selection and the name-keyed digest map. Keep
+  024/025 held and retain rejection of their applied ledgers. Do not transplant
+  the draft patch's positional checksum logic or repin existing migrations.
+- Teach the 011 catalog assertion the application Project scope while preserving
+  Brain Workspace scope, Workspace/kind uniqueness and bootstrap behavior.
+  Assert the proven Project/kind named unique constraint and immutable revision
+  conflict target rather than the draft's original index-only representation.
+- Propagate the successor disposition through the cumulative 012-015 catalog
+  checks. Extend their exact function and privilege expectations for the new
+  six functions: one each in IAM, Project and Builder, and three in Registry.
+  Keep function ownership, SECURITY DEFINER settings, narrow schema USAGE,
+  Project REFERENCES and denial of direct runtime table access explicit.
+- Add a 026 catalog branch to ledger verification, including startup when the
+  successor was already applied. Update only affected migration fixtures.
+
+The deciding integration proof must run the actual migration loader, migrate a
+fresh database and a current 001..023 database, then rerun the loader without
+manual schema changes. A removed required permission must be detected by both
+catalog inspection and a real runtime call. Preserve Brain behavior. Storage
+proof scripts that load SQL manually cannot satisfy this integration claim.
+
+### Authorized retention result
+
+On 2026-09-12 Luna executed the bounded SQL experiment and root inspected the
+script, corrected its result accounting and strengthened exact-byte checks,
+then reran it. The final root run exited 0 with 15 explicit assertions true.
+It applied the actual current 001..023 migration runner and the isolated
+Registry candidate on PostgreSQL 17.10. It did not run held migrations 024/025.
+
+The unchanged draft plus its missing schema grant failed on the authorized
+path with `42702: column reference "project_id" is ambiguous`. The output
+parameter conflicts with the unqualified `ON CONFLICT` column target.
+The isolated candidate attaches the existing Project/kind unique index as a
+same-named constraint and names it in `ON CONFLICT ON CONSTRAINT`. It also
+names `artifact_revision_artifact_id_source_revision_key` for the analogous
+revision conflict target. The only permission change is USAGE on schema
+`builder` for `registry_owner`. No admission function was replaced, no direct
+runtime table grant was added and the source draft remained unchanged at
+SHA-256 `964b96603ce08a2239796f2ba0e70769b5a2971995c7b8a6764f704dcd8cf563`.
+
+The client logged in as `hub_rb_executor`, retained two synthetic app files,
+retrieved their metadata and exact bytes, disconnected, reconnected and read
+both files again. An identical repeat returned the same revision and digest.
+A conflicting repeat raised `APPLICATION_IDENTITY_CONFLICT`; the original
+HTML remained unchanged and an admin-only inspection found one revision.
+An unauthorized account and a revoked account were refused by both metadata
+and file readers. Direct runtime table access failed with SQLSTATE 42501.
+
+This proves the corrected candidate's SQL path for a 90-byte HTML file and
+41-byte JavaScript file. Fixture setup directly inserted synthetic account,
+Project and pre-verified Builder records; it does not prove those upstream
+workflows. No Builder generation, compiler invocation, TypeScript adapter,
+Hub restart, database restart, browser serving, near-limit performance,
+concurrent retention or Brain coexistence was exercised. The database used
+tmpfs, so reconnect must not be described as durable host-restart proof.
+Initial prepared-statement and readiness failures were probe defects; the
+fourth attempt's summary also miscounted expected refusals. They remain in
+separate logs and are not Product failure claims or deciding successes.
+
+Scripts and all attempts remain in `/tmp/conexus-registry-retention-yzYip0`.
+The deciding local log is `root-rerun.log`; `run-3.log` preserves the original
+authorized SQL failure. Container `conexus-registry-retention-80795` and its
+synthetic tmpfs data were removed, with absence checked. No company data,
+provider execution or Product source was changed. Integrate the two SQL
+corrections with successor catalog/ledger checks before treating this as a
+usable Registry implementation. The complete Create-and-open proof remains open.
+
+### Registry dependency probe
+
+On 2026-09-12 the next planning check ran against a disposable PostgreSQL 17.10
+container using the CI image digest. The actual current migration runner applied
+001..023 successfully. The unmodified draft migration 026 then loaded and exposed
+`reg.retain_application`, `reg.get_application` and `reg.read_application_file`
+without running held MAR migrations 024/025. This establishes DDL compatibility,
+not execution of every lazy PL/pgSQL branch or valid migration-runner integration.
+
+A call to `reg.retain_application` as `hub_rb_executor`, with a nonexistent
+synthetic account/project, failed with `42501: permission denied for schema
+builder`, rather than the expected `APPLICATION_SUBJECT_REFUSED`. The draft
+grants `registry_owner` execution on the Builder admission function but omits
+USAGE on its schema. Catalog inspection confirmed EXECUTE=true and USAGE=false.
+A transaction-only USAGE grant reached the expected business refusal. ROLLBACK
+restored the original permission. No production/draft source was patched.
+
+Tracked Registry defect: schema visibility prevents the intended runtime call.
+Resolve it in the candidate migration with a narrow grant and catalog coverage;
+do not solve it by granting direct table access or using a privileged runtime.
+Success-path retention, reconnect, concurrency and Brain coexistence remain
+unproved. Databases that already physically applied held 024/025 were not part
+of this probe; do not imply upgrade compatibility or change such a database
+without a separate ledger check. The current migration runner correctly refused the manually altered
+schema with `MIGRATION_011_CATALOG_REFUSED`; successor catalog/ledger integration
+remains required. Do not disable that check or activate historical MAR migrations.
+
+The local reproducible scripts, raw failure, permission control and decision
+trail are in `/tmp/conexus-registry-dependency-GFWOrK`. They require the disposable
+probe database and are not a new default verification suite. The draft SQL hash
+was `964b96603ce08a2239796f2ba0e70769b5a2971995c7b8a6764f704dcd8cf563`.
+No model, E2B, Sankhya or company-data call occurred. This result narrows the
+integration work; it does not approve the storage design or deliver Preview.
+
+The Luna source trace found no MAR dependency in the draft and confirmed that
+the old runner patch does not select 026 in the current `currentMigrationNames`
+path. Its old positional digest checks also need replacement with the current
+name-keyed mechanism. The candidate must extend selected names, digest lookup,
+successor catalog checks and ledger verification together, leaving held names
+untouched. Original checksums remain unchanged; no repinning or skipped catalog
+verification is a proposed fix. Luna also checked the local probe trail and
+confirmed the stated limits. This is collaborative inspection, not structural
+acceptance review.
+
+The probe container and its disposable volume were removed after verification.
+Only synthetic local test state was discarded; the scripts and logs remain in
+the temporary directory above. Documentation links, current-state checks,
+five preflight tests and `git diff --check` passed. The full Product verification
+graph was not rerun for this planning probe. No commit or push was made.
+
 ## Directed MVP consolidation
 
 On 2026-09-11, the operator approved recording the assessment and proposed
@@ -82,6 +1018,11 @@ Fresh checks in pinned WSL Node 24.20.0 and npm 12.0.2 produced these results:
   The runner stopped; later leaves were not executed by that run.
 - The separately executed `npm run r1:r1c14:native:check` failed with
   `R1C14_NATIVE_REVIEW_OUTPUT_READ_ONLY` on the recorded review-command comparison.
+
+These failures describe snapshot `21f042f`, not the current default graph. The
+[cleanup result](repository-consolidation.md#execution-results--2026-09-12)
+records their separation from current verification and the later successful run.
+Do not reopen that cleanup or repeat these historical checks as MVP admission.
 
 These are tracked verification failures, not waived checks or proof that the
 runtime works. No pin, review record or implementation was changed to pass them.
@@ -357,6 +1298,65 @@ promotion remains a separate Project/Release consumer.
 
 ### Workspace, compiler and retained output
 
+#### Fixed app starter implementation
+
+Use the existing `REACT_VITE_V1` compiler profile. After exact Git checkout and
+before the Mastra Workspace starts, materialize `app/index.html`,
+`app/src/main.tsx` and `app/src/style.css` only when the source has no `app`
+entry. An existing app is left byte-for-byte unchanged, including a valid app
+that uses a different source filename. Compilation, not a three-filename census,
+decides whether that existing app is executable. Preserve the NEW seed and
+platform/generated files. Never install dependencies or publish a new image.
+
+The starter has a React root, an external stylesheet and an empty application
+view, not invented business data. Builder instructions state the fixed stack,
+ordinary editable app files and separate compilation step. The worker must not
+claim that unavailable React/Vite dependencies were tested inside its coding
+image. The existing compiler owns the actual build.
+
+Implementation is confined to `builder/runtime.ts`, a small starter-data/helper
+module if needed for executable verification, and focused Builder tests.
+Prove first materialization, exact preservation on a later request and refusal
+of unsafe filesystem entries through the same helper/runtime path. Then use the
+real compiler and generated-app journey. Local filesystem proof does not claim
+Mastra/E2B integration. Second-edit ownership and parent admission remain the
+separate continuation binding; no source-ownership rule changes in this unit.
+
+Root verified the delivered helper on 2026-09-12. All three local filesystem
+tests passed. The same helper's three files also passed the production E2B
+compiler and normal Chromium execution, producing three output files and an
+empty React root with zero body margin. This proves starter compilation and
+execution, not model-generated source, Git admission or the real Build UI.
+No dependency installation, replacement provider image or source-ownership
+exception was needed.
+
+Code grounding on 2026-09-12 narrowed the implementation points:
+
+- Add the fixed profile after checkout in `builder/runtime.ts`, before creating
+  the Mastra Workspace. Preserve the historical three-file NEW seed in
+  `git-execution.ts`; add missing profile files exclusively, never overwrite app
+  files on a later request.
+- `builder/source.ts` checks original ownership against the immutable Baseline,
+  not the immediate candidate parent. Root's later reread corrected the earlier
+  claim that every second edit needs a new APP-OWNED map entry. The unchanged
+  real OCI custody test passed creation and correction of `new-app-file.txt`
+  without such an entry, while protected and unowned Baseline-file mutations
+  were refused. Preserve that ownership anchor when adding a human work parent.
+  Do not add a broad `app/` permission exception. This proves same-Change edits,
+  not the still-missing second-human-request ref/ancestry binding.
+- `builder/service.ts` dispatch stops at coding/verification/correction; it does
+  not call compilation. Return the settled verification outcome explicitly and
+  compile only VERIFIED candidates. Resolve the authorized account from durable
+  change identity; the current claimed-change shape lacks the compiler's
+  required account. Do not derive authorization from model output.
+- `builder/preview.ts` still reports `ready: false`. Only successful retention
+  may expose a ready artifact through MAR and the existing Build view. The
+  compiler entry point alone does not deliver this result.
+
+These are proposed integration changes, not implemented or admitted Product
+behavior. Include them in the existing create-and-open slice; no separate
+framework or historical stage is required.
+
 The platform adds the fixed app profile once, with collision refusal. Preserve
 the historical NEW seed and its generated files. The model can inspect app
 files, edit app-owned source and run admitted commands in the isolated project.
@@ -394,7 +1394,101 @@ on Hub restart; no uninterrupted-session claim is needed for this pilot.
 
 ### Browser access and presentation
 
-Use distinct configured Hub and route-specific Preview HTTPS hosts. Keep the
+#### Local browser feasibility result (2026-09-12)
+
+A throwaway HTTPS server and Playwright Chromium 151.0.7922.34 exercised the
+proposed form POST, host-only Secure/HttpOnly/SameSite=Lax cookies, redirect to a
+clean URL and an interactive counter. Both variants used the same server code:
+
+| Host pair | Embedded counter | Same URL in new tab | Hub cookie received by Preview |
+| --- | --- | --- | --- |
+| `hub.localhost` / `preview-one.localhost` | Refused; Preview cookie absent after entry | 403 after that entry | No |
+| `hub.conexus.test` / `preview-one.conexus.test` | Click changed 0 to 1 | 200; counter clickable | No |
+
+For the working variant, a fresh anonymous browser context received 403 and
+reloading after server-side revocation received 403. Choose distinct HTTPS
+origins under the same site for the proposed Lax-cookie flow; distinct hosts
+alone did not suffice in the tested localhost variant. Do not weaken Hub cookies
+to accommodate that variant.
+
+The instrument and complete request observations are local temporary files at
+`/tmp/conexus-preview-browser-k2eNmx/probe.cjs` and `result.log`. Chromium resolver
+rules mapped hosts to loopback, and the context ignored the temporary self-signed
+certificate error. No system DNS, hosts file or certificate trust was changed.
+This proves a browser mechanism using stand-ins, not real Hub/I&A/MAR serving,
+operator certificate setup, CSP, grant replay/expiry, multi-user isolation,
+asset-read latency or second Builder request continuity. Establish the actual
+local HTTPS binding before calling the integrated browser journey usable.
+
+#### Proposed integrated contract
+
+Trusted-certificate follow-up completed on 2026-09-12. The operator reported
+installing the CA in WSL and Windows CurrentUser Root. The Windows SHA-1
+thumbprint `4DB995DB63A19781E56A5F3C40C78B2A8225990E` matches the generated CA;
+OpenSSL now verifies the server certificate and Hub hostname using default
+system trust, without an explicit CA argument.
+
+The initial strict Chromium run failed with `ERR_CERT_AUTHORITY_INVALID`.
+Chromium's Linux NSS database was empty. Following the official
+[Linux certificate instructions](https://chromium.googlesource.com/chromium/src/+/HEAD/docs/linux/cert_management.md),
+imported only the public root with SSL CA trust `C,,` under nickname
+`conexus-local-dev-5c9755d1` in the user's existing
+`/home/leandrotheodoro/.local/share/pki/nssdb`. The Ubuntu package
+`libnss3-tools` version `2:3.120-1ubuntu2.1` was downloaded with apt and extracted
+under `/tmp/conexus-nss-tools-NEtvTA`; no root package installation was needed.
+To undo this added NSS trust, use certutil on that database with
+`-D -n conexus-local-dev-5c9755d1`; do not reset the shared database.
+
+The same browser instrument then passed with normal certificate verification,
+no custom DNS resolver, and no certificate-error bypass. In Chromium
+151.0.7922.34 the embedded counter changed to 1, the new tab returned 200,
+anonymous and revoked requests returned 403, and no Preview request carried
+the Hub cookie. Script `trusted-localhost.cjs`, initial `trusted-result.log`,
+and passing `trusted-nss-result.log` are preserved in
+`/tmp/conexus-preview-browser-k2eNmx`. This closes the WSL browser TLS mechanism,
+not the integrated Hub/Keycloak/Builder journey or an actual Windows-browser
+navigation. The prototype server stopped after the proof.
+
+The operator subsequently authorized local CA installation in Windows/WSL.
+Prepared mkcert v1.4.4 from the official GitHub release, with downloaded binary
+SHA-256 `6d31c65b03972c6dc4a14ab429f2928300518b26503f58723e532d1b0a3bbb52`.
+This is a recorded download digest, not an independently signed verification.
+Files live outside Git in `/home/leandrotheodoro/.local/share/conexus-local-tls`,
+whose directory mode is 0700. `ca/rootCA.pem` is the public root certificate;
+`ca/rootCA-key.pem` must never be copied into the repository or shared.
+`server.pem` and `server-key.pem` cover `*.conexus.localhost` and
+`conexus.localhost`. OpenSSL verified the chain and `hub.conexus.localhost`
+hostname with the explicit CA. This does not prove browser or OS trust.
+
+Root certificate SHA-256 fingerprint:
+`5C:97:55:D1:81:FF:5E:09:8B:24:C1:BD:CE:27:73:5A:23:FB:E7:D7:0E:B7:7B:58:06:AD:BC:34:E8:89:27:7E`.
+Installation is pending: `sudo -n true` requires interactive authentication,
+and `/etc/wsl.conf` explicitly disables Windows interoperability. No trust store
+was changed, no certificate-validation bypass was configured, and no password
+was requested. The operator must install the public CA in the intended trust
+stores before the normal-browser proof. System trust alone is not a claim that
+every Linux Chromium/NSS profile trusts it.
+
+Local follow-up on 2026-09-12 removed the custom Chromium resolver rules and
+compared `hub.localhost` / `preview-one.localhost` with
+`hub.conexus.localhost` / `preview-one.conexus.localhost`. The first still
+refused entry. The nested names resolved without DNS or hosts-file edits;
+the embedded counter changed from 0 to 1, the new tab returned 200, anonymous
+and revoked requests returned 403, and no Preview request carried the Hub
+cookie. Chromium version was unchanged. The isolated script and observations
+are `/tmp/conexus-preview-browser-k2eNmx/nested-localhost.cjs` and
+`nested-result.log`; the original experiment remains untouched.
+
+Select the nested `conexus.localhost` profile for the local pilot. The operator
+approved deferring `conexus.fun`, tunnels and hosting until after the local
+create-and-change journey. This removes local DNS setup from the tested Chromium
+path, not certificate setup. The probe still ignored HTTPS certificate errors.
+Normal-browser certificate trust, Windows browser behavior, Keycloak callbacks
+and the integrated journey remain unproven. Do not present this result as a
+trusted HTTPS installation or change the system trust store implicitly.
+
+Use distinct configured Hub and route-specific Preview HTTPS hosts under the
+same site, following the local browser result above. Keep the
 existing Secure, HttpOnly, host-only Hub session. Ports alone are not cookie
 isolation. The local hostname/certificate binding is a feasibility prerequisite,
 not permission to install a root certificate or change host networking.
@@ -418,9 +1512,9 @@ static serving, not control-plane APIs. Refuse unknown files; fallback to the
 SPA entry only for admitted navigation paths. Use no-store and no-referrer.
 
 The final delivery includes the same app URL in an iframe and a new tab.
-Browser cookie behavior is unproven; opening a top-level window does not prove
-embedded access. Exercise the exact host/cookie profile in Chromium before
-freezing it. Do not solve blocked embedding by sharing Hub cookies, exposing a
+The stand-in proves the same-site cookie mechanism, not the integrated hosts;
+opening a top-level window alone does not prove embedded access. Exercise the
+configured deployment in Chromium. Do not solve blocked embedding by sharing Hub cookies, exposing a
 public route or claiming that the new-tab-only result completes the delivery.
 
 Platform-owned CSP permits the app's required local scripts/styles/assets and
@@ -451,6 +1545,10 @@ The write envelope excludes R3 implementation, old qualification receipts,
 methods, skills, CI policy and wholesale documentation migration.
 
 ## Verified source to compiler implementation
+
+This section preserves the completed adapter work and its original execution
+sequence. Read the observations below for its proof limits. It is not a request
+to implement or run the compiler again.
 
 This first implementation part replaces the disposable caller with a Builder
 service method and a production E2B adapter. It does not yet register artifacts
@@ -672,11 +1770,16 @@ malformed paths and oversized output. Show failed retention leaves no partial
 revision. Recheck Brain bootstrap/read behavior and direct-table denial.
 No model, E2B, Sankhya, host-certificate or production-data effect is needed.
 
-The structural change requires the repository's fresh independent Fable and
-Gemini review before acceptance. Freeze the material diff and exact proof for
-that review. No additional arena is needed for the already selected topology.
+Before accepting the structural change, use the current risk-triggered review
+method and Luna-only delegation. Freeze the material diff and exact proof for
+that review. Do not restore historical Fable/Gemini routing or run another arena
+merely because this retained draft is being resumed.
 
 ### Retention checkpoint and migration blocker
+
+This checkpoint records the draft's earlier stop. Its migration-runner diagnosis
+predates the isolation work below. Use the current Create and open work packet
+to reconcile the retained draft; do not reapply the old runner patch.
 
 The isolated implementation draft is in
 `/tmp/conexus-registry-part-iKOXtK/writer`, a detached worktree at
@@ -750,6 +1853,10 @@ worktree and this checkpoint, not an assumed clean test result, are the resume
 inputs. No new E2B, Product-model or Sankhya call was made in this part.
 
 ## Migration isolation
+
+This section records the earlier selection change and its rationale. Its
+execution instructions are historical; the observations below and the cleanup
+result describe the later checks. Registry integration itself remains unproved.
 
 The operator approved correcting the installation dependency before resuming
 Registry. The observable outcome is a fresh installation of accepted Hub
@@ -903,6 +2010,10 @@ candidate is independent stage-closure evidence and none establishes readiness.
 ## Practical proof before expanding implementation
 
 ### First, test the clean compiler mechanism
+
+This is the original experiment proposal. The observed compiler result below
+records its execution. Repeat it only for a new concrete falsifier, not because
+this historical heading says "First".
 
 After the exact experiment is admitted, build only the fixed app profile and
 the proposed production compiler adapter. Use a real normal-code app from that
@@ -1094,21 +2205,16 @@ successful creator Preview experiment.
 
 ## Implementation sequence and remaining bindings
 
-1. At the requested checkpoint, accept or revise the proposed lineage,
-   compiler placement and Preview access refinement. Bind the first experiment
-   to actual resources and update its exact grant in roadmap. Do not require
-   whole-F1 ratification to settle this bounded consumer.
-2. Implement the fixed profile and clean compiler. Run the first experiment.
-   If it fails, change only the falsified mechanism before expanding code.
-3. Implement explicit predecessor source admission/verification, Registry output
-   and MAR authorization/serving. Add the existing Build UI's app presentation.
-   Each piece gets its named negative checks; do not create another test framework.
-4. Run the real Builder journey and the applicable repository verification.
-   Material owner/trust-boundary acceptance uses the existing review method;
-   the arena does not replace it or create a review for every file.
-5. On a usable first app, detail manual Brain authoring/context and the exact
-   SDK/Sankhya operation it needs. Colleague access is a later real pilot proof,
-   not automatically covered by the creator's Preview authority.
+Follow the [delivery checkpoints](#delivery-checkpoints) and current work packet.
+The fixed compiler and its isolated experiment already exist; do not repeat
+them as an unstarted implementation step. Connect the real first request,
+retention, authorized serving and Build UI before demonstrating that checkpoint.
+Then demonstrate explicit continuation and recovery, with negative checks for
+each changed boundary. No new verification framework is required.
+
+On a usable first app, detail manual Brain authoring/context and the exact
+SDK/Sankhya operation it needs. Colleague access is a later real pilot proof,
+not automatically covered by the creator's Preview authority.
 
 The remaining executable bindings are specific: predecessor and launch wire/
 storage refinements, image/profile resource identity, and browser host/cookie

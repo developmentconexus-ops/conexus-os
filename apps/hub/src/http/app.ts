@@ -21,8 +21,15 @@ const errorStatus = (error: unknown): number => {
 export const createHttpApp = async ({
   registerRoutes,
   staticRoot = null,
-}: Readonly<{ registerRoutes: RouteRegistrar; staticRoot?: string | null }>): Promise<HubHttpApp> => {
-  const app = Fastify({ logger: false, trustProxy: false })
+  https,
+  previewCspSource,
+}: Readonly<{
+  registerRoutes: RouteRegistrar
+  staticRoot?: string | null
+  https?: Readonly<{ cert: Buffer | string; key: Buffer | string }>
+  previewCspSource?: string
+}>): Promise<HubHttpApp> => {
+  const app = Fastify({ logger: false, trustProxy: false, ...(https ? { https } : {}) })
   app.setErrorHandler((error, _request, reply) => {
     const reportedStatus = errorStatus(error)
     const status = reportedStatus >= 400 && reportedStatus < 500 ? reportedStatus : 500
@@ -40,7 +47,15 @@ export const createHttpApp = async ({
   app.setValidatorCompiler(({ schema }) => ajv.compile(schema))
   validatorInstallCount += 1
   await app.register(cookie)
-  await app.register(helmet, { contentSecurityPolicy: { directives: { defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'"] } } })
+  await app.register(helmet, {
+    contentSecurityPolicy: { directives: {
+      defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'"],
+      ...(previewCspSource ? { frameSrc: [previewCspSource] } : {}),
+      ...(previewCspSource ? { connectSrc: ["'self'", previewCspSource] } : {}),
+      ...(previewCspSource ? { formAction: ["'self'", previewCspSource] } : {}),
+    } },
+    referrerPolicy: { policy: 'strict-origin' },
+  })
   const registered = [...await registerRoutes(app)].sort()
 
   if (staticRoot) {

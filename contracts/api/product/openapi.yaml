@@ -128,6 +128,10 @@ paths:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1source~1file'
   /api/control/projects/{projectId}/preview:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1preview'
+  /api/control/projects/{projectId}/preview-preparations:
+    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1preview-preparations'
+  /api/control/projects/{projectId}/preview-launches:
+    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1preview-launches'
   /api/control/projects/{projectId}/changes/{changeId}/findings:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1findings'
   /api/control/projects/{projectId}/changes/{changeId}/findings/{findingId}:

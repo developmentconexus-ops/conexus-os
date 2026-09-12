@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { PostgresPool } from '../platform/postgres.js'
 import { createOidcAdapter } from './oidc.js'
+import { createPreviewAccess } from './preview-access.js'
+import type { PreviewAccess, PreviewRouteBinding } from './preview-access.js'
 import { registerIdentityAccessRoutes } from './routes.js'
 import { createIdentityAccessStore } from './store.js'
 import type { CurrentSession } from './store.js'
@@ -8,6 +10,8 @@ import type { CurrentSession } from './store.js'
 export type IdentityAccessModule = Readonly<{
   registerIdentityAccessRoutes(app: FastifyInstance): Promise<readonly ('IAM-01' | 'IAM-02' | 'IAM-03')[]>
   resolveCurrentSession(request: FastifyRequest, requireCsrf?: boolean): Promise<CurrentSession | null>
+  issuePreviewEntry(request: FastifyRequest, input: Readonly<{ accountId: string; route: PreviewRouteBinding }>): Promise<Readonly<{ entryGrant: string; expiresAt: number }>>
+  previewAccess: PreviewAccess
   close(): Promise<void>
 }>
 
@@ -31,6 +35,9 @@ export const createIdentityAccessModule = async ({
   allowInsecureForTest?: boolean
 }>): Promise<IdentityAccessModule> => {
   const store = createIdentityAccessStore({ pool, ...(workspaceReadPool ? { workspaceReadPool } : {}) })
+  const previewAccess = createPreviewAccess({
+    readSession: ({ sessionDigest }) => store.readSession({ sessionDigest }),
+  })
   const oidc = await createOidcAdapter({
     issuer,
     clientId,
@@ -54,6 +61,15 @@ export const createIdentityAccessModule = async ({
       resolveCurrentSession,
     }),
     resolveCurrentSession,
-    close: () => store.close(),
+    issuePreviewEntry: async (request, input) => {
+      const sessionToken = request.cookies['__Host-conexus_session']
+      if (!sessionToken || input.route.accountId !== input.accountId) throw new Error('PREVIEW_ACCESS_UNAVAILABLE')
+      return previewAccess.issueEntryGrant({ sessionToken, route: input.route })
+    },
+    previewAccess,
+    close: async () => {
+      await previewAccess.close()
+      await store.close()
+    },
   })
 }

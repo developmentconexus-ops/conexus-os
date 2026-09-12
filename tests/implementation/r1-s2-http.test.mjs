@@ -45,6 +45,23 @@ const baseEnvironment = {
   CONEXUS_OIDC_CLIENT_SECRET_FILE: '/secrets/oidc',
 }
 
+test('local Preview config requires complete TLS, exact Hub origin and a separate port', () => {
+  const environment = {
+    ...baseEnvironment, NODE_ENV: 'test', CONEXUS_ORIGIN: 'https://hub.conexus.localhost:8080', CONEXUS_PORT: '8080',
+    CONEXUS_PREVIEW_PORT: '8081', CONEXUS_PREVIEW_CERT_FILE: '/secrets/local-cert', CONEXUS_PREVIEW_KEY_FILE: '/secrets/local-key',
+  }
+  assert.deepEqual(readHubConfig(environment).preview, { port: 8081, certFile: '/secrets/local-cert', keyFile: '/secrets/local-key' })
+  for (const [field, code] of [
+    ['CONEXUS_PREVIEW_PORT', 'MISSING_CONFIG_CONEXUS_PREVIEW_PORT'],
+    ['CONEXUS_PREVIEW_CERT_FILE', 'MISSING_CONFIG_CONEXUS_PREVIEW_CERT_FILE'],
+    ['CONEXUS_PREVIEW_KEY_FILE', 'MISSING_CONFIG_CONEXUS_PREVIEW_KEY_FILE'],
+  ]) assert.throws(() => readHubConfig({ ...environment, [field]: undefined }), { message: code })
+  assert.throws(() => readHubConfig({ ...environment, CONEXUS_PREVIEW_PORT: '8080' }), /INVALID_CONFIG_CONEXUS_PREVIEW_PORT/)
+  for (const origin of ['http://hub.conexus.localhost:8080', 'https://preview.conexus.localhost:8080', 'https://hub.conexus.localhost:9090', 'https://hub.conexus.localhost:8080/path', 'https://user@hub.conexus.localhost:8080']) {
+    assert.throws(() => readHubConfig({ ...environment, CONEXUS_ORIGIN: origin }), /INVALID_CONFIG_CONEXUS_ORIGIN_FOR_PREVIEW/)
+  }
+})
+
 test('S2 database capabilities are mandatory in production and preserve the pinned S1 test boot', () => {
   const s1Test = readHubConfig({ ...baseEnvironment, NODE_ENV: 'test' })
   assert.equal(s1Test.database.workspace, undefined)

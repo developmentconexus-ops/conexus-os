@@ -228,7 +228,7 @@ test('Builder refuses mismatched worker lineage and never settles its narration'
   assert.equal(state.failed, true)
 })
 
-test('BLD-01/02/03/04/06/07/08/09/17 expose owner projections with command authenticity', async () => {
+test('BLD-01/02/03/04/06/07/08/09/10/17/21 expose owner projections with command authenticity', async () => {
   const origin = 'https://control.example.test'
   const csrf = 'csrf'
   const snapshot = {
@@ -262,11 +262,12 @@ test('BLD-01/02/03/04/06/07/08/09/17 expose owner projections with command authe
     createChange: async (input) => { calls.push(['create', input]); return projection },
     listSourceTree: async (input) => { calls.push(['source-tree', input]); return sourceTree },
     getSourceFile: async (input) => { calls.push(['source-file', input]); return sourceFile },
+    readPreviewPreparation: async (input) => { calls.push(['read-preparation', input]); return null },
   }
   const resolveCurrentSession = async (_request, requireCsrf) => { calls.push(['session', requireCsrf]); return { account: { accountId: projectId } } }
   const app = await createHttpApp({ registerRoutes: (server) => registerBuilderRoutes(server, { store, service, resolveCurrentSession, origin }) })
   try {
-    assert.deepEqual(app.routeCensus(), ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-08', 'BLD-09', 'BLD-10', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17'])
+    assert.deepEqual(app.routeCensus(), ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-08', 'BLD-09', 'BLD-10', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17', 'BLD-21', 'BLD-22'])
     const anonymous = await createHttpApp({ registerRoutes: (server) => registerBuilderRoutes(server, {
       store, service, origin, resolveCurrentSession: async () => null,
     }) })
@@ -906,7 +907,7 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).versions, [
     '001', '002', '003', '004', '005', '006', '007', '008', '009', '010',
     '011', '012', '013', '014', '015', '016', '017', '018', '019', '020',
-    '021', '022', '023',
+    '021', '022', '023', '026',
   ])
   assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).appliedNow, [])
   const tables = await query(current, `SELECT tablename FROM pg_tables WHERE schemaname = 'builder' ORDER BY tablename`)

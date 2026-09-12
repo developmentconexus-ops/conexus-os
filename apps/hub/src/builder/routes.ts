@@ -1,6 +1,8 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import { projectBuildPreview } from './preview.js'
+import type { BuildPreviewPreparation } from './preview.js'
+import type { PreviewPreparation, PreviewPreparationRequest } from './preview-preparation.js'
 import type { BuilderService } from './service.js'
 import type { BuilderSnapshot, BuilderStore } from './store.js'
 
@@ -14,8 +16,53 @@ const evidenceParams = { type: 'object', additionalProperties: false, required: 
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 const message = (error: unknown): string => error instanceof Error ? error.message : ''
 
-export type BuilderOperationId = 'BLD-01' | 'BLD-02' | 'BLD-03' | 'BLD-04' | 'BLD-06' | 'BLD-07' | 'BLD-08' | 'BLD-09' | 'BLD-10' | 'BLD-11' | 'BLD-12' | 'BLD-13' | 'BLD-14' | 'BLD-15' | 'BLD-17'
+const projectPreviewPreparation = (preparation: PreviewPreparation): BuildPreviewPreparation => {
+  const base = {
+    changeId: preparation.subject.changeId,
+    subjectDigest: preparation.subject.subjectDigest,
+    attemptId: preparation.attemptId,
+    expiresAt: new Date(preparation.expiresAt).toISOString(),
+  }
+  if (preparation.state === 'PREPARING' || preparation.state === 'EXPIRED') {
+    return Object.freeze({ ...base, state: preparation.state })
+  }
+  if (preparation.state === 'PREPARED') {
+    return Object.freeze({
+      ...base,
+      state: 'PREPARED',
+      artifactRevisionId: preparation.artifact.artifactRevisionId,
+      artifactDigest: preparation.artifact.artifactDigest,
+    })
+  }
+  if (preparation.state === 'FAILED') {
+    return Object.freeze({ ...base, state: 'FAILED', code: 'PREPARATION_FAILED' })
+  }
+  const exhaustive: never = preparation
+  return exhaustive
+}
+
+export type BuilderOperationId = 'BLD-01' | 'BLD-02' | 'BLD-03' | 'BLD-04' | 'BLD-06' | 'BLD-07' | 'BLD-08' | 'BLD-09' | 'BLD-10' | 'BLD-11' | 'BLD-12' | 'BLD-13' | 'BLD-14' | 'BLD-15' | 'BLD-17' | 'BLD-21'
+  | 'BLD-22'
+type PreparePreviewBody = Pick<PreviewPreparationRequest, 'changeId' | 'subjectDigest'>
 type ResolveBuilderSession = (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
+type PreparedPreview = Extract<PreviewPreparation, { state: 'PREPARED' }>
+export type BuilderLaunchPreviewPort = (request: FastifyRequest, input: Readonly<{
+  accountId: string
+  projectId: string
+  changeId: string
+  subjectDigest: string
+  attemptId: string
+  artifactRevisionId: string
+  artifactDigest: string
+  artifact: PreparedPreview['artifact']
+}> ) => Promise<Readonly<{
+  entryUrl: string
+  previewUrl: string
+  entryGrant: string
+  artifactRevisionId: string
+  artifactDigest: string
+  expiresAt: string
+}>>
 
 const current = (snapshot: BuilderSnapshot, operation: BuilderOperationId): unknown => {
   if (operation === 'BLD-02') return snapshot.change
@@ -30,6 +77,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
   service: BuilderService
   resolveCurrentSession: ResolveBuilderSession
   origin: string
+  launchPreview?: BuilderLaunchPreviewPort
 }>): Promise<readonly BuilderOperationId[]> => {
   app.get<{ Params: { projectId: string } }>('/api/control/projects/:projectId/changes', { schema: { params } }, async (request, reply) => {
     const session = await dependencies.resolveCurrentSession(request)
@@ -97,6 +145,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     '/api/control/projects/:projectId/preview', { schema: { params, querystring: previewQuery } }, async (request, reply) => {
       const session = await dependencies.resolveCurrentSession(request)
       if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      reply.header('cache-control', 'no-store')
       if (request.query.changeId && !UUID_PATTERN.test(request.query.changeId)) {
         return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
       }
@@ -105,8 +154,118 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
         const subject = await dependencies.store.readPreviewSubject(request.query.changeId
           ? { ...subjectInput, changeId: request.query.changeId }
           : subjectInput)
-        return subject ? projectBuildPreview(subject) : sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
-      } catch { return sendProblem(reply, 503, 'builder-preview-unavailable', 'Builder Preview unavailable') }
+        if (!subject) return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
+        if (request.query.changeId && subject.subjectKind === 'CHANGE_CANDIDATE' && subject.verified) {
+          const preparation = await dependencies.service.readPreviewPreparation({
+            accountId: session.account.accountId,
+            projectId: request.params.projectId,
+            changeId: request.query.changeId,
+            subjectDigest: subject.subjectDigest,
+          })
+          return projectBuildPreview(subject, { preparation: preparation ? projectPreviewPreparation(preparation) : null })
+        }
+        return projectBuildPreview(subject)
+      } catch (error) {
+        const detail = message(error)
+        if (detail.includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+        if (detail.includes('SUBJECT_REFUSED') || detail.includes('NOT_DISCLOSABLE') || detail.includes('NOT_FOUND')) {
+          return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
+        }
+        return sendProblem(reply, 503, 'builder-preview-unavailable', 'Builder Preview unavailable')
+      }
+    },
+  )
+
+  const preparationBody = { type: 'object', additionalProperties: false, required: ['changeId', 'subjectDigest'], properties: {
+    changeId: uuid,
+    subjectDigest: { type: 'string', minLength: 40, maxLength: 128, pattern: '^[0-9a-f]+$' },
+  } } as const
+  app.post<{ Params: { projectId: string }; Body: PreparePreviewBody }>(
+    '/api/control/projects/:projectId/preview-preparations',
+    { schema: { params, body: preparationBody } },
+    async (request, reply) => {
+      const csrf = header(request.headers['x-conexus-csrf'])
+      if (request.headers.origin !== dependencies.origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
+        return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+      }
+      const session = await dependencies.resolveCurrentSession(request, true)
+      if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      reply.header('cache-control', 'no-store')
+      try {
+        const preparation = await dependencies.service.startPreviewPreparation({
+          accountId: session.account.accountId,
+          projectId: request.params.projectId,
+          changeId: request.body.changeId,
+          subjectDigest: request.body.subjectDigest,
+        })
+        return reply.code(202).send(projectPreviewPreparation(preparation))
+      } catch (error) {
+        const detail = message(error)
+        if (detail.includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+        if (detail.includes('SUBJECT_REFUSED') || detail.includes('NOT_DISCLOSABLE') || detail.includes('NOT_FOUND')) {
+          return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
+        }
+        return sendProblem(reply, 503, 'builder-preview-unavailable', 'Builder Preview unavailable')
+      }
+    },
+  )
+  const launchBody = { type: 'object', additionalProperties: false, required: [
+    'changeId', 'subjectDigest', 'attemptId', 'artifactRevisionId', 'artifactDigest',
+  ], properties: {
+    changeId: uuid,
+    subjectDigest: { type: 'string', minLength: 40, maxLength: 128, pattern: '^[0-9a-f]+$' },
+    attemptId: uuid,
+    artifactRevisionId: uuid,
+    artifactDigest: { type: 'string', minLength: 64, maxLength: 128, pattern: '^[0-9a-f]+$' },
+  } } as const
+  app.post<{ Params: { projectId: string }; Body: Readonly<{
+    changeId: string
+    subjectDigest: string
+    attemptId: string
+    artifactRevisionId: string
+    artifactDigest: string
+  }> }>(
+    '/api/control/projects/:projectId/preview-launches', { schema: { params, body: launchBody } }, async (request, reply) => {
+      const csrf = header(request.headers['x-conexus-csrf'])
+      if (request.headers.origin !== dependencies.origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
+        return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+      }
+      const session = await dependencies.resolveCurrentSession(request, true)
+      if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      if (!dependencies.launchPreview) return sendProblem(reply, 503, 'preview-unavailable', 'Preview unavailable')
+      try {
+        const preparation = await dependencies.service.readPreviewPreparation({
+          accountId: session.account.accountId,
+          projectId: request.params.projectId,
+          changeId: request.body.changeId,
+          subjectDigest: request.body.subjectDigest,
+        })
+        if (preparation?.state !== 'PREPARED' || preparation.attemptId !== request.body.attemptId ||
+          preparation.artifact.artifactRevisionId !== request.body.artifactRevisionId ||
+          preparation.artifact.artifactDigest !== request.body.artifactDigest) {
+          return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
+        }
+        const launched = await dependencies.launchPreview(request, {
+          accountId: session.account.accountId,
+          projectId: request.params.projectId,
+          changeId: request.body.changeId,
+          subjectDigest: request.body.subjectDigest,
+          attemptId: request.body.attemptId,
+          artifactRevisionId: request.body.artifactRevisionId,
+          artifactDigest: request.body.artifactDigest,
+          artifact: preparation.artifact,
+        })
+        reply.header('cache-control', 'no-store')
+        return reply.code(201).send(launched)
+      } catch (error) {
+        const detail = message(error)
+        if (detail.includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+        if (detail.includes('SUBJECT_REFUSED') || detail.includes('NOT_DISCLOSABLE') || detail.includes('NOT_FOUND')) {
+          return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
+        }
+        if (detail.includes('LAUNCH_STALE')) return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
+        return sendProblem(reply, 503, 'preview-unavailable', 'Preview unavailable')
+      }
     },
   )
   const sourceFileQuery = { type: 'object', additionalProperties: false, required: ['sourceRevision', 'path'], properties: {
@@ -224,5 +383,5 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       return value ?? sendProblem(reply, 404, 'evidence-not-found', 'Evidence not found')
     } catch { return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable') }
   })
-  return ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-08', 'BLD-09', 'BLD-10', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17']
+  return ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-08', 'BLD-09', 'BLD-10', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17', 'BLD-21', 'BLD-22']
 }

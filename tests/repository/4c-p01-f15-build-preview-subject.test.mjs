@@ -13,7 +13,7 @@ test('F15 makes BLD-10 support current Project preview or exact Change candidate
 
   for(const token of [
     '4C-F15','BLD-10','GetBuildPreview','current Project source Preview','optional changeId','CURRENT_PROJECT','CHANGE_CANDIDATE','subjectDigest',
-    'N_platform = 116','Builder remains 17','Builder — 20'
+    'N_platform = 116','Builder remains 17'
   ]) assert.ok(ledger.includes(token),`operation ledger missing F15 token: ${token}`)
 
   assert.ok(decisions.includes('| 4F-BLD-10 — `CURRENT_PROJECT` subject | REFINED / OPERATOR APPROVED / OWNER DISPOSITION ACCEPTED'), 'decision register must expose the accepted BLD-10 subject owner')

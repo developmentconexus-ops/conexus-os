@@ -29,7 +29,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'r1-s2-generate',
   'r1-s2-http', 'r1-s2-reads', 'import-law',
   'verification-tool-regressions', 'hub-migration-selection', 'r1-s2-live-syntax', 'biome-union',
-  'rb-first-postgres-migration-selection', 'hub-migration-postgres', 'r2-p1-postgres',
+  'rb-first-postgres-migration-selection', 'hub-migration-postgres', 'application-registry', 'r2-p1-postgres',
   'r2-p2-postgres', 'r2-p3-postgres', 'r1-s4-p2-postgres', 'r2-p0-check',
   'r2-p1-check', 'r2-p2-check', 'r2-p3-check', 'r2-p4-check',
   'r2-p4-authority-postgres', 'r2-p5-check', 'r2-p6-brain-revision',

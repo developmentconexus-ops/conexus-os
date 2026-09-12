@@ -74,6 +74,7 @@ export type IdentityAccessStore = Readonly<{
   provisionBootstrap(input: Readonly<{ bootstrapToken: string; idempotencyKey: string; displayName: string; email?: string; now?: Date }>): Promise<ProvisionResult>
   createSession(input: Readonly<{ accountId: string; now?: Date }>): Promise<SessionTokens>
   validateSession(input: Readonly<{ sessionToken: string; csrfToken?: string; requireCsrf?: boolean; now?: Date }>): Promise<CurrentSession | null>
+  readSession(input: Readonly<{ sessionToken?: string; sessionDigest?: Uint8Array; now?: Date }>): Promise<CurrentSession | null>
   listAccessibleWorkspaces(accountId: string): Promise<readonly AccessibleWorkspace[]>
   endSession(sessionToken: string, now?: Date): Promise<boolean>
   provisionByOperator(input: Readonly<{ operator: CurrentSession; issuer: string; idempotencyKey: string; externalSubject: string; displayName: string; email?: string; now?: Date }>): Promise<ProvisionResult>
@@ -207,6 +208,19 @@ export const createIdentityAccessStore = ({
         await client.query('UPDATE iam.session SET last_seen_at = $2, idle_expires_at = $3 WHERE token_digest = $1', [digest(sessionToken), now, idle])
         return { account: accountSummary(row), issuer: row.issuer, subject: row.external_subject }
       })
+    },
+    async readSession({ sessionToken, sessionDigest, now }) {
+      if ((sessionToken ? 1 : 0) + (sessionDigest ? 1 : 0) !== 1) return null
+      const result = await pool.query<SessionRow>(`
+        SELECT s.account_id, s.csrf_digest, s.idle_expires_at, s.absolute_expires_at, s.revoked_at,
+          a.issuer, a.external_subject, a.display_name, a.email, a.active
+        FROM iam.session s JOIN iam.account a USING (account_id)
+        WHERE s.token_digest = $1
+      `, [sessionDigest ?? digest(sessionToken ?? '')])
+      const row = result.rows[0]
+      const current = now ?? new Date()
+      if (!row || row.revoked_at || !row.active || current >= row.idle_expires_at || current >= row.absolute_expires_at) return null
+      return { account: accountSummary(row), issuer: row.issuer, subject: row.external_subject }
     },
     async listAccessibleWorkspaces(accountId) {
       if (!workspaceReadPool) return []

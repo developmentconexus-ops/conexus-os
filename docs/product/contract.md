@@ -1075,6 +1075,23 @@ building next candidate != currently inspectable last-good Preview
 
 Building a new candidate must not require destroying/replacing the last usable Preview before the next one is ready.
 
+The authorized single-Hub internal pilot uses independent immutable per-launch
+MAR route bindings. A newer candidate does not mutate an older route. Exact
+route/attempt identity guards activation; the Build UI conditionally selects
+the matching ready response and rejects stale selections. This preserves the
+last-good law without a Project-global current-route pointer. Artifact-specific
+hosts keep different versions independently openable. Same-artifact relaunches
+share one browser cookie for that host; per-tab access isolation for the same
+artifact is not promised. I&A grants may expire on Hub restart, while Registry
+artifacts remain reusable after fresh authorization. Current session, Project
+and candidate admission still apply to every asset read. Project/candidate
+authority is decided by the Registry admission transaction for that asset:
+revocation committed before admission denies the read; an already admitted
+in-flight read may finish. Session and MAR route state are checked again after
+the asynchronous Registry read. This does not promise to recall delivered bytes.
+The bounded transport
+and proof are in [the first-app task](../tasks/builder-first-app.md#selected-local-access-implementation).
+
 ## 23.4 Release
 
 ```text

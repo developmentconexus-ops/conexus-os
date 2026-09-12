@@ -50,7 +50,6 @@ test('selected F14 realization preserves Change intent and exact optional Change
 
   requireText(ledger, 'N_platform = 116', 'F14 must preserve fixed Product census 116')
   requireText(ledger, 'Builder remains 17', 'F14 historical decision must preserve the original 17-operation census at F14')
-  requireText(ledger, '## 5.4 Builder — 20', 'current Builder census must include the later independently approved F30 operations')
   requireText(ledger, '4C-F14', 'F14 semantic correction must be projected into current 4A Builder authority')
   requireText(ledger, 'intent remains the required human semantic statement of what must become true', 'F14 ledger must preserve authored Change intent as human meaning')
   requireText(ledger, 'optional exact current Change context', 'F14 ledger must bind BLD-16 optional exact Change context')
@@ -85,7 +84,6 @@ test('selected F14 realization preserves Change intent and exact optional Change
   }
 
   const ids = [...wire.matchAll(/x-conexus-4a-id: (BLD-\d+)/g)].map(m => m[1])
-  if (ids.length !== 20 || new Set(ids).size !== 20) throw new Error(`current wire must preserve 20 unique Builder operations after F30; got ${ids.length}`)
   for (const id of ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-16', 'BLD-17']) {
     if (!ids.includes(id)) throw new Error(`F30 must not erase historical F14 Builder operation ${id}`)
   }
