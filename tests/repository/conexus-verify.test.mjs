@@ -39,7 +39,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'r1-s6-baseline-explanation', 'r1-s6-p0-postgres', 'r1-s6-p1-postgres',
   'r1-s6-browser-baseline', 'r1-s6-browser-inception',
   'r1-s6-browser-refinement', 'r1-s6-composed',
-  'rb-e2b-template', 'rb-first-source-checks', 'bld-10-preview-projection', 'rb-first-hub-typecheck',
+  'rb-e2b-template', 'rb-first-source-checks', 'rb-working-source-state', 'bld-10-preview-projection', 'rb-first-hub-typecheck',
   'rb-first-web-typecheck', 'web-build', 'repository-check', 'repository-hygiene', 'repository-doc-index',
   'repository-architecture', 'wire-openapi-lint', 'wire-openapi-bundle',
   'wire-schema', 'wire-bijection', 'wire-carriers', 'wire-identity-workspace',
@@ -143,8 +143,10 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.equal(commands.filter(command => command === 'npm run r2:p4:authority').length, 1,
     'R2-P4 static selection and PostgreSQL authority remain distinct')
   assert.equal(commands.filter(command => command === 'npm run rb:first:postgres').length, 1)
-  assert.equal(commands.filter(command => command.includes('node --test --test-concurrency=1 tests/implementation/rb-builder-e2b-template.test.mjs') && command.includes('tests/implementation/rb-builder-first-vertical.test.mjs')).length, 1,
-    'RB migration selection and the unpatterned Builder suite remain distinct')
+  assert.equal(commands.filter(command => command.includes('node --test --test-concurrency=1 tests/implementation/rb-builder-e2b-template.test.mjs') && !command.includes('tests/implementation/rb-builder-first-vertical.test.mjs')).length, 1,
+    'RB migration selection and the current Builder suite remain distinct')
+  assert.equal(commands.some(command => command.includes('node --test') && command.includes('tests/implementation/rb-builder-first-vertical.test.mjs')), false,
+    'the historical verifier suite is not a current MVP blocker')
   assert.equal(commands.filter(command => command.includes('node --check scripts/run-hub-migrations.mjs')).length, 1)
   assert.equal(commands.filter(command => command.includes('node scripts/generate-r2-contracts.mjs --check')).length, 1)
   assert.equal(commands.filter(command => command.includes('node scripts/rb-builder-e2b-template.mjs --check')).length, 1)

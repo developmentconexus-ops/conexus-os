@@ -19,7 +19,10 @@ this pilot does not claim to implement all of them.
 The operator approved the revised internal pilot on 2026-09-13. Provide the
 development environment and company knowledge without making every Preview
 depend on an independent model reviewer. Working source, compiled Preview and
-quality review are separate. The [pilot implementation sequence](tasks/builder-first-app.md#internal-pilot-refactoring)
+quality review are separate. The current increment is the session-first Builder
+core: one deterministic Project thread, Mastra-owned messages and session events,
+and Conexus-owned authorization, active Turn, working source and last-good
+Preview. The [pilot implementation sequence](tasks/builder-first-app.md#internal-pilot-refactoring)
 replaces verifier repair as the primary objective. Brain experimentation depends
 on a usable create/open/continue cycle, not completion of every recovery proof.
 
@@ -30,7 +33,7 @@ Keep useful implementation and the original proof limits.
 | Delivery | State | Observable result and evidence | Next action |
 | --- | --- | --- | --- |
 | [Repository cleanup](tasks/repository-consolidation.md) | DELIVERED | Current graph and final changed Builder leaf passed; published in `9945329`; no claim that the app is ready | No further cleanup prerequisite |
-| [First Builder-created app](tasks/builder-first-app.md#internal-pilot-refactoring) | IN PROGRESS | Previous real app and streaming proof retained; revised pilot is not implemented | Reconcile affected semantic owners, then implement working-source continuity and technical Preview without mandatory independent review |
+| [First Builder-created app](tasks/builder-first-app.md#internal-pilot-refactoring) | IN PROGRESS | Session-first persistence, terminal working-source cleanup and runtime wiring are proved locally; real E2B execution and the browser journey remain open | Run the configured E2B path, then add the Session/Turn API and UI |
 | [Manually maintained Brain](tasks/builder-first-app.md#internal-pilot-refactoring) | PLANNED | Existing context code retained; real authored rule consumption remains unproved | Begin the real-rule experiment when create/open/continue works; do not wait for complete first-app closure |
 | [Narrow SDK and Sankhya](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Existing integration proof retained; the app must perform a real authorized operation | Select that operation before defining its SDK details |
 | [Colleague uses the app](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Another authorized person must open the usable app; creator Preview does not establish this | Detail access when the app is usable |
@@ -49,6 +52,11 @@ their consumer needs detail. These labels are not CI gates.
 | Product implementation | IN PROGRESS / INTERNAL PILOT REFACTORING | Real streaming and previous app retained; historical refused candidate remains UNVERIFIED | Working-source continuity, technical Preview eligibility, real Brain consumption and recovery proof |
 
 Continuation readiness = INTERNAL PILOT / APPROVED REFACTORING / OWNER ALIGNMENT
+
+The historical verifier refusal and four generated/hash verification failures
+remain recorded evidence/debt. They are not the next MVP blockers and must not
+delay the session-first core. They remain relevant when a named future claim
+requires the corresponding proof.
 
 ## Current grant
 
@@ -70,6 +78,15 @@ mark an unreviewed candidate VERIFIED. Preserve historical records unchanged.
 Routine reversible implementation and targeted checks are included. Existing
 named local model/E2B proof authority remains; no public deployment, business
 write, commit, push, PR or merge is granted by this continuation.
+
+On 2026-09-13 the operator approved the session-first core increment. Do not
+redesign the UI in this increment. Verify the exact installed Mastra `1.63.2`
+composition without upgrading the framework; prove deterministic Project
+thread persistence across AgentController/store rebind and a different physical
+sandbox; then correct the root cause that can leave `project_working_state` in
+`CODING` after a terminal Turn. Preserve existing Git custody, continuation,
+no-code response, artifact retention and reviewer-free Preview behavior. The
+Session/Turn API and UI follow only after this core proof passes.
 
 On 2026-09-12, after the live streaming result, the operator authorized publishing
 the current implementation and evidence to `analysis/internal-mvp-2026-09-12`
@@ -220,18 +237,19 @@ not the real Builder/Preview journey. The original draft remains unchanged at
 
 Reconcile the existing Builder/Product/wire owners with the
 [approved pilot delta](tasks/builder-first-app.md#internal-pilot-refactoring).
-Then implement and prove the smallest real create/open/continue cycle with
-explicit working source and technical Preview eligibility. Do not merely
-disable the verifier in the service while SQL still requires acceptance.
-Start the real Brain experiment after that cycle works and its own knowledge
-and authorization prerequisites are present. Recovery and full verification
-remain delivery obligations, not a blanket prerequisite for that experiment.
-The historical verifier refusal remains unresolved evidence, not the primary
-queue. Preserve its candidate without relabeling it. The four recorded
-hash/generated-projection failures still prevent a green full verification
-claim. Do not rebuild compiler, storage or authentication without a concrete
-contradiction. Keep 024/025 held. No hosting, publication, production database
-changes or historical-stage restart is authorized.
+The local proof now covers the session-first core without changing the UI. It
+uses the exact Mastra `1.63.2` storage composition, deterministic Project
+thread rebind after controller and store recreation, a different physical
+sandbox, and honest terminal working-source transitions for no-code, compile
+failure and retained last-good Preview. Run the configured E2B path next. Add
+the Session/Turn API and app-first UI only after that live path works. Start the
+real Brain experiment after create/open/continue works and its own knowledge
+and authorization prerequisites are present.
+The historical verifier refusal and four hash/generated-projection failures are
+recorded debt, not this increment's blockers. Do not rebuild compiler, storage
+or authentication without a concrete contradiction. Keep 024/025 held. No
+hosting, publication, production database changes or historical-stage restart
+is authorized.
 
 ## Approved local platform delivery design
 

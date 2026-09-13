@@ -1,4 +1,7 @@
 import { createCodingAgent } from '@mastra/core/coding-agent'
+import { AgentController } from '@mastra/core/agent-controller'
+import type { LibSQLStore } from '@mastra/libsql'
+import type { Memory } from '@mastra/memory'
 import type { MastraLanguageModel } from '@mastra/core/agent'
 import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspace'
 import { Workspace } from '@mastra/core/workspace'
@@ -57,6 +60,8 @@ export type E2BBuilderRuntimeConfig = Readonly<{
   model: MastraLanguageModel
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   validateModelCredential(): void
+  sessionStorage?: LibSQLStore
+  sessionMemory?: Memory
   timeoutMs?: number
 }>
 
@@ -69,6 +74,22 @@ class ConexusGuardedE2BSandbox extends E2BSandbox {
 const oid = /^[0-9a-f]{40}$/
 const safeIdentity = (value: string): boolean => /^[0-9a-f-]{36}$/i.test(value)
 const immutableE2BTemplate = /^[a-z0-9]+:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+
+const messageText = (message: Readonly<{ content?: Readonly<{ parts?: readonly unknown[] }> }>): string => {
+  const parts = Array.isArray(message.content?.parts) ? message.content.parts : []
+  return parts.flatMap((part) => {
+    if (typeof part !== 'object' || part === null || !('type' in part) || part.type !== 'text' || !('text' in part) || typeof part.text !== 'string') return []
+    return [part.text]
+  }).join('')
+}
+
+const sessionToolLabel = (toolName: string): 'READ_FILES' | 'EDIT_FILES' | 'RUN_COMMAND' | 'WORKSPACE' => {
+  const value = toolName.toLowerCase()
+  if (/(read|list|search|find|grep|inspect|stat|cat|tree)/.test(value)) return 'READ_FILES'
+  if (/(write|edit|patch|update|create|delete|remove|replace|modify|rename)/.test(value)) return 'EDIT_FILES'
+  if (/(execute|exec|command|shell|run|test|build|install|git|npm|pnpm|yarn)/.test(value)) return 'RUN_COMMAND'
+  return 'WORKSPACE'
+}
 
 export const classifyCodingResult = (input: Readonly<{ changed: boolean; summary: string }>): Readonly<{ kind: 'CANDIDATE' | 'RESPONSE_ONLY'; summary: string }> => Object.freeze({
   kind: input.changed ? 'CANDIDATE' : 'RESPONSE_ONLY',
@@ -198,31 +219,112 @@ export const createMastraE2BCodingWorkerRuntime = (
         const mapper = createMastraObservationMapper()
         const publish = (event: BuilderObservation) => notifyObservation(input.observe, event)
         let summaryText = ''
+        let controller: AgentController<Record<string, unknown>> | undefined
+        let unsubscribe: (() => void) | undefined
+        let abortListener: (() => void) | undefined
         try {
-          const response = await agent.stream(
-            `Project ${input.projectId}; Change ${input.changeId}; exact work-unit parent ${input.baseSourceRevision}. Human intent: ${input.intent}.${recent}${correction}`,
-            {
-              maxSteps: 24,
-              abortSignal: input.signal,
-              modelSettings: { maxRetries: 0, maxOutputTokens: 4_096, timeout: { totalMs: config.timeoutMs ?? 15 * 60_000, stepMs: 120_000 } },
-            },
-          )
-          for await (const chunk of response.fullStream) {
-            for (const event of mapper.map(chunk)) publish(event)
+          if (config.sessionStorage && config.sessionMemory) {
+            controller = new AgentController<Record<string, unknown>>({
+              id: `builder-controller-${input.actorRunId}`,
+              storage: config.sessionStorage,
+              memory: config.sessionMemory,
+              initialState: { yolo: true },
+              modes: [{ id: 'build', name: 'Build', instructions: 'Implement and report the bounded Project request.' }],
+              defaultModeId: 'build',
+              agent,
+              workspace,
+            })
+            await controller.init()
+            const session = await controller.createSession({
+              resourceId: input.projectId,
+              ownerId: input.projectId,
+              scope: 'builder',
+              threadId: `conexus-builder:${input.projectId}`,
+              workspace,
+            })
+            if (input.signal) {
+              abortListener = () => session.abort()
+              if (input.signal.aborted) abortListener()
+              else input.signal.addEventListener('abort', abortListener, { once: true })
+            }
+            let assistantText = ''
+            const textBlockId = `session-${input.actorRunId}`
+            let textStarted = false
+            let agentEndReason: string | undefined
+            const toolLabels = new Map<string, 'READ_FILES' | 'EDIT_FILES' | 'RUN_COMMAND' | 'WORKSPACE'>()
+            unsubscribe = session.subscribe((event) => {
+              if (event.type === 'agent_end') agentEndReason = event.reason
+              if (event.type === 'message_start' && event.message.role === 'assistant') {
+                assistantText = ''
+                textStarted = true
+                publish({ kind: 'TEXT_START', blockId: textBlockId })
+              } else if (event.type === 'message_update' && event.message.role === 'assistant') {
+                const next = messageText(event.message)
+                if (!textStarted) {
+                  textStarted = true
+                  publish({ kind: 'TEXT_START', blockId: textBlockId })
+                }
+                if (next.startsWith(assistantText)) {
+                  const delta = next.slice(assistantText.length)
+                  if (delta) publish({ kind: 'TEXT_DELTA', blockId: textBlockId, text: delta })
+                }
+                assistantText = next
+              } else if (event.type === 'message_end' && event.message.role === 'assistant') {
+                const next = messageText(event.message)
+                if (!textStarted) publish({ kind: 'TEXT_START', blockId: textBlockId })
+                if (next.startsWith(assistantText)) {
+                  const delta = next.slice(assistantText.length)
+                  if (delta) publish({ kind: 'TEXT_DELTA', blockId: textBlockId, text: delta })
+                }
+                assistantText = next
+                publish({ kind: 'TEXT_END', blockId: textBlockId })
+                textStarted = false
+              } else if (event.type === 'tool_start') {
+                const label = sessionToolLabel(event.toolName)
+                toolLabels.set(event.toolCallId, label)
+                publish({ kind: 'ACTIVITY', activityId: event.toolCallId, label, state: 'started' })
+              } else if (event.type === 'tool_end') {
+                publish({ kind: 'ACTIVITY', activityId: event.toolCallId, label: toolLabels.get(event.toolCallId) ?? 'WORKSPACE', state: event.isError || event.denied ? 'failed' : 'succeeded' })
+                toolLabels.delete(event.toolCallId)
+              }
+            })
+            await session.sendMessage({
+              content: `Project ${input.projectId}; Change ${input.changeId}; exact work-unit parent ${input.baseSourceRevision}. Human intent: ${input.intent}.${recent}${correction}`,
+            })
+            if (input.signal?.aborted) throw new Error('BUILDER_RUN_CANCELLED')
+            if (agentEndReason && agentEndReason !== 'complete') throw new Error(agentEndReason === 'error' ? 'BUILDER_MODEL_STREAM_FAILED' : 'BUILDER_MODEL_INCOMPLETE')
+            summaryText = assistantText
+          } else {
+            const response = await agent.stream(
+              `Project ${input.projectId}; Change ${input.changeId}; exact work-unit parent ${input.baseSourceRevision}. Human intent: ${input.intent}.${recent}${correction}`,
+              {
+                maxSteps: 24,
+                abortSignal: input.signal,
+                modelSettings: { maxRetries: 0, maxOutputTokens: 4_096, timeout: { totalMs: config.timeoutMs ?? 15 * 60_000, stepMs: 120_000 } },
+              },
+            )
+            for await (const chunk of response.fullStream) {
+              for (const event of mapper.map(chunk)) publish(event)
+            }
+            for (const event of mapper.finish()) publish(event)
+            const fullOutput = await response.getFullOutput()
+            if (fullOutput.error) throw fullOutput.error
+            if (fullOutput.tripwire || response.tripwire || response.status === 'tripwire') throw new Error('BUILDER_MODEL_TRIPWIRE')
+            if (response.status === 'failed') throw response.error ?? new Error('BUILDER_MODEL_STREAM_FAILED')
+            if (response.status === 'canceled' || input.signal?.aborted) throw new Error('BUILDER_RUN_CANCELLED')
+            if (response.status !== 'success') throw new Error('BUILDER_MODEL_INCOMPLETE')
+            summaryText = fullOutput.text
           }
-          for (const event of mapper.finish()) publish(event)
-          const fullOutput = await response.getFullOutput()
-          if (fullOutput.error) throw fullOutput.error
-          if (fullOutput.tripwire || response.tripwire || response.status === 'tripwire') throw new Error('BUILDER_MODEL_TRIPWIRE')
-          if (response.status === 'failed') throw response.error ?? new Error('BUILDER_MODEL_STREAM_FAILED')
-          if (response.status === 'canceled' || input.signal?.aborted) throw new Error('BUILDER_RUN_CANCELLED')
-          if (response.status !== 'success') throw new Error('BUILDER_MODEL_INCOMPLETE')
-          // A successful tool-driven maxSteps result remains governed by the
-          // existing candidate finalizer; finishReason alone is not failure.
-          summaryText = fullOutput.text
         } catch (error) {
           for (const event of mapper.finish()) publish(event)
           throw error
+        } finally {
+          if (input.signal && abortListener) input.signal.removeEventListener('abort', abortListener)
+          abortListener = undefined
+          unsubscribe?.()
+          unsubscribe = undefined
+          await controller?.destroy()
+          controller = undefined
         }
         const finalized = await direct('sh', ['-lc', [
           'test -z "$(git -C /workspace/repo remote)"',

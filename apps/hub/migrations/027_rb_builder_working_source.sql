@@ -72,6 +72,14 @@ CREATE TABLE builder.project_working_state (
     AND last_preview_artifact_revision_id IS NOT NULL AND last_preview_artifact_digest IS NOT NULL))
 );
 
+-- Seed existing projects during migration without making project tables part of
+-- the Builder runtime surface. The temporary grants are revoked before commit.
+RESET ROLE;
+SET LOCAL ROLE project_owner;
+GRANT SELECT ON project.project, project.baseline_state, project.baseline_candidate TO builder_owner;
+RESET ROLE;
+SET LOCAL ROLE builder_owner;
+
 INSERT INTO builder.project_working_state(project_id, working_source_revision)
 SELECT stored_project.project_id, baseline.source_revision
 FROM project.project AS stored_project
@@ -81,6 +89,12 @@ JOIN project.baseline_candidate AS baseline
   ON baseline.project_id = baseline_state.project_id
   AND baseline.candidate_digest = baseline_state.approved_candidate_digest
 ON CONFLICT (project_id) DO NOTHING;
+
+RESET ROLE;
+SET LOCAL ROLE project_owner;
+REVOKE SELECT ON project.project, project.baseline_state, project.baseline_candidate FROM builder_owner;
+RESET ROLE;
+SET LOCAL ROLE builder_owner;
 
 CREATE OR REPLACE FUNCTION builder.change_json(row_value builder.change) RETURNS jsonb
 LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, pg_temp AS $$
@@ -288,6 +302,9 @@ BEGIN
     UPDATE builder.plan SET item_state = 'FAILED' WHERE change_id = run_row.change_id;
     UPDATE builder.change SET state = CASE WHEN candidate_source_revision IS NULL THEN 'FAILED' ELSE 'UNVERIFIED' END,
       updated_at = clock_timestamp() WHERE change_id = run_row.change_id AND state = 'RUNNING';
+    UPDATE builder.project_working_state SET current_change_id = NULL, current_account_id = NULL,
+      current_state = 'IDLE', preparation_attempt_id = NULL, updated_at = clock_timestamp()
+    WHERE project_id = stored.project_id AND current_change_id = run_row.change_id AND current_state = 'CODING';
     RETURN false;
   END IF;
   SELECT * INTO STRICT working FROM builder.project_working_state
@@ -301,6 +318,9 @@ BEGIN
     UPDATE builder.plan SET item_state = 'FAILED' WHERE change_id = run_row.change_id;
     UPDATE builder.change SET state = 'FAILED', updated_at = clock_timestamp()
     WHERE change_id = run_row.change_id AND state = 'RUNNING';
+    UPDATE builder.project_working_state SET current_change_id = NULL, current_account_id = NULL,
+      current_state = 'IDLE', preparation_attempt_id = NULL, updated_at = clock_timestamp()
+    WHERE project_id = stored.project_id AND current_change_id = run_row.change_id AND current_state = 'CODING';
     RETURN false;
   END IF;
   UPDATE builder.actor_run SET state = 'COMPLETED', updated_at = clock_timestamp() WHERE actor_run_id = p_actor_run_id;
@@ -311,7 +331,12 @@ BEGIN
     patch = p_patch, result_summary = NULLIF(p_summary, ''), result_kind = 'CANDIDATE', response_text = NULL,
     updated_at = clock_timestamp()
   WHERE change_id = run_row.change_id AND state = 'RUNNING';
-  IF NOT FOUND THEN RETURN false; END IF;
+  IF NOT FOUND THEN
+    UPDATE builder.project_working_state SET current_change_id = NULL, current_account_id = NULL,
+      current_state = 'IDLE', preparation_attempt_id = NULL, updated_at = clock_timestamp()
+    WHERE project_id = stored.project_id AND current_change_id = run_row.change_id AND current_state = 'CODING';
+    RETURN false;
+  END IF;
   UPDATE builder.project_working_state
   SET working_source_revision = p_candidate_source_revision,
     working_change_id = stored.change_id, working_account_id = stored.created_by_account_id,
@@ -511,6 +536,7 @@ BEGIN
   IF NOT FOUND THEN RETURN NULL; END IF;
   SELECT * INTO working FROM builder.project_working_state WHERE project_id = p_project_id;
   IF NOT FOUND THEN
+    IF p_change_id IS NOT NULL THEN RETURN NULL; END IF;
     SELECT * INTO baseline FROM project.get_approved_baseline(p_project_id, ARRAY[p_project_id]);
     IF NOT FOUND THEN RETURN NULL; END IF;
     RETURN jsonb_build_object(
@@ -579,6 +605,10 @@ GRANT EXECUTE ON FUNCTION builder.settle_response(uuid,uuid,text,text),
 
 GRANT USAGE ON SCHEMA reg TO builder_owner;
 GRANT EXECUTE ON FUNCTION reg.get_application(uuid,uuid,uuid,text) TO builder_owner;
+-- Registry definitions are rebound under registry_owner below; that role must
+-- be able to reference the replacement admission function while doing so.
+GRANT USAGE ON SCHEMA builder TO registry_owner;
+GRANT EXECUTE ON FUNCTION builder.admit_application_source(uuid,uuid,uuid,text) TO registry_owner;
 
 SET LOCAL ROLE registry_owner;
 
@@ -604,6 +634,25 @@ GRANT EXECUTE ON FUNCTION builder.admit_application_source(uuid,uuid,uuid,text) 
 
 RESET ROLE;
 GRANT EXECUTE ON FUNCTION builder.settle_result(uuid,uuid,text,text,text,text,text) TO hub_rb_executor;
+
+CREATE OR REPLACE FUNCTION builder.fail_run(p_actor_run_id uuid, p_admission_token uuid)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE run_row builder.actor_run%ROWTYPE;
+BEGIN
+  UPDATE builder.actor_run SET state = 'FAILED', updated_at = clock_timestamp()
+  WHERE actor_run_id = p_actor_run_id AND admission_token = p_admission_token
+    AND state IN ('ADMITTED', 'RUNNING') RETURNING * INTO run_row;
+  IF NOT FOUND THEN RETURN; END IF;
+  UPDATE builder.work_unit SET state = 'FAILED' WHERE work_unit_id = run_row.work_unit_id;
+  UPDATE builder.plan SET item_state = 'FAILED' WHERE change_id = run_row.change_id;
+  UPDATE builder.change SET state = CASE WHEN candidate_source_revision IS NULL THEN 'FAILED' ELSE 'UNVERIFIED' END,
+    updated_at = clock_timestamp() WHERE change_id = run_row.change_id AND state = 'RUNNING';
+  UPDATE builder.project_working_state SET current_change_id = NULL, current_account_id = NULL,
+    current_state = 'IDLE', preparation_attempt_id = NULL, updated_at = clock_timestamp()
+  WHERE current_change_id = run_row.change_id AND current_state = 'CODING';
+END;
+$$;
+GRANT EXECUTE ON FUNCTION builder.fail_run(uuid,uuid) TO hub_rb_executor;
 GRANT EXECUTE ON FUNCTION builder.recover_and_list_queued() TO hub_rb_executor;
 GRANT EXECUTE ON FUNCTION builder.read_preview_subject(uuid,uuid,uuid) TO hub_rb_ingress;
 

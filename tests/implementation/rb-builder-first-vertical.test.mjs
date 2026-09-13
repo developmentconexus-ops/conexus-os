@@ -907,13 +907,13 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).versions, [
     '001', '002', '003', '004', '005', '006', '007', '008', '009', '010',
     '011', '012', '013', '014', '015', '016', '017', '018', '019', '020',
-    '021', '022', '023', '026',
+    '021', '022', '023', '026', '027',
   ])
   assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).appliedNow, [])
   const tables = await query(current, `SELECT tablename FROM pg_tables WHERE schemaname = 'builder' ORDER BY tablename`)
   assert.deepEqual(tables.rows.map((row) => row.tablename), [
     'actor_run', 'change', 'change_acceptance', 'coding_session', 'contract_revision',
-    'finding', 'finding_resolution', 'operation_receipt', 'plan', 'verification_evidence', 'work_unit',
+    'finding', 'finding_resolution', 'operation_receipt', 'plan', 'project_working_state', 'verification_evidence', 'work_unit',
   ])
   const leaked = await query(current, `
     SELECT grantee, table_name FROM information_schema.table_privileges
@@ -956,11 +956,13 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   const currentPreviewSubject = (await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, subjectProjectId, null])).rows[0].value
   assert.deepEqual(currentPreviewSubject, {
     subjectKind: 'CURRENT_PROJECT', subjectDigest: digest, sourceRevision: baseSourceRevision, verified: false,
+    previewEligible: false, workingSourceRevision: baseSourceRevision, activeChangeId: null, lastPreviewChangeId: null,
   })
   const unapprovedProjectHead = 'c'.repeat(40)
   await query(current, 'UPDATE project.project SET source_revision = $1 WHERE project_id = $2', [unapprovedProjectHead, subjectProjectId])
   assert.deepEqual((await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, subjectProjectId, null])).rows[0].value, {
     subjectKind: 'CURRENT_PROJECT', subjectDigest: digest, sourceRevision: baseSourceRevision, verified: false,
+    previewEligible: false, workingSourceRevision: baseSourceRevision, activeChangeId: null, lastPreviewChangeId: null,
   })
   await query(current, 'UPDATE project.project SET source_revision = $1 WHERE project_id = $2', [baseSourceRevision, subjectProjectId])
   assert.equal((await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, subjectProjectId, subjectChangeId])).rows[0].value, null)
@@ -972,8 +974,8 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
     VALUES ($1, $2, true, true)`, [accountId, foreignProjectId])
   await query(current, `INSERT INTO builder.change(
     change_id, project_id, created_by_account_id, intent, baseline_digest, base_source_revision,
-    planning_depth, rigor_profile, state, candidate_source_revision, patch, result_summary)
-    VALUES ($1, $2, $3, 'Foreign preview candidate', $4, $5, 'DIRECT', 'CONTROLLED', 'RESULT_READY', $6, 'diff', 'ready')`,
+    baseline_source_revision, planning_depth, rigor_profile, state, candidate_source_revision, patch, result_summary)
+    VALUES ($1, $2, $3, 'Foreign preview candidate', $4, $5, $5, 'DIRECT', 'CONTROLLED', 'RESULT_READY', $6, 'diff', 'ready')`,
   [foreignChangeId, foreignProjectId, accountId, digest, baseSourceRevision, candidateSourceRevision])
   assert.equal((await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, subjectProjectId, foreignChangeId])).rows[0].value, null)
   await query(current, 'UPDATE iam.project_builder_grant SET can_build = false WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
@@ -983,10 +985,10 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   await query(current, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'rb-reader', 'RB Reader')", [unauthorizedAccount])
   await query(current, 'INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project) VALUES ($1, $2, false)', [unauthorizedAccount, workspaceId])
   await query(current, 'INSERT INTO iam.account_project_grant(account_id, project_id, can_read, can_manage) VALUES ($1, $2, true, true)', [unauthorizedAccount, subjectProjectId])
-  await assert.rejects(query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+  await assert.rejects(query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [
     unauthorizedAccount, subjectProjectId, '3'.repeat(64), '4'.repeat(64), '60000000-0000-4000-8000-000000000031',
     '60000000-0000-4000-8000-000000000032', '60000000-0000-4000-8000-000000000033',
-    '60000000-0000-4000-8000-000000000034', '60000000-0000-4000-8000-000000000035', 'Unauthorized build',
+    '60000000-0000-4000-8000-000000000034', '60000000-0000-4000-8000-000000000035', 'Unauthorized build', baseSourceRevision,
   ]), /BLD03_NOT_AUTHORIZED/)
 
   const noBaselineProject = '60000000-0000-4000-8000-000000000040'
@@ -996,10 +998,10 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   await query(current, `INSERT INTO project.operation_idempotency(operation_id, account_id, workspace_id, key_digest, request_digest,
     reserved_project_id, outcome, response_status, response_digest, response_body, completed_at)
     VALUES ('PRJ-03', $1, $2, $3, $3, $4, 'SUCCEEDED', 201, $3, '{}'::jsonb, clock_timestamp())`, [accountId, workspaceId, '5'.repeat(64), noBaselineProject])
-  await assert.rejects(query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+  await assert.rejects(query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [
     accountId, noBaselineProject, '6'.repeat(64), '7'.repeat(64), '60000000-0000-4000-8000-000000000041',
     '60000000-0000-4000-8000-000000000042', '60000000-0000-4000-8000-000000000043',
-    '60000000-0000-4000-8000-000000000044', '60000000-0000-4000-8000-000000000045', 'Missing baseline',
+    '60000000-0000-4000-8000-000000000044', '60000000-0000-4000-8000-000000000045', 'Missing baseline', baseSourceRevision,
   ]), /BLD03_BASELINE_REQUIRED/)
   await query(current, `INSERT INTO project.baseline_candidate(project_id, candidate_digest, source_revision, source_text, application_runtime_profile)
     VALUES ($1, $2, $3, 'Foreign accepted baseline', 'MANAGED')`, [noBaselineProject, '5'.repeat(64), baseSourceRevision])
@@ -1009,20 +1011,24 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   assert.equal((await query(current, `SELECT count(*)::int AS count FROM iam.project_builder_grant
     WHERE account_id = $1 AND project_id = $2 AND can_review`, [accountId, noBaselineProject])).rows[0].count, 1)
 
-  const created = await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value', [
+  const created = await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) AS value', [
     accountId, subjectProjectId, 'e'.repeat(64), 'f'.repeat(64), subjectChangeId, planRevision, itemId,
-    codingSessionId, subjectWorkUnitId, 'Add a governed page',
+    codingSessionId, subjectWorkUnitId, 'Add a governed page', baseSourceRevision,
   ])
   assert.equal(created.rows[0].value.state, 'QUEUED')
-  const repeatedIntent = await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value', [
+  await assert.rejects(query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [
     accountId, subjectProjectId, '0'.repeat(64), 'f'.repeat(64), '60000000-0000-4000-8000-000000000060',
     '60000000-0000-4000-8000-000000000061', '60000000-0000-4000-8000-000000000062',
-    '60000000-0000-4000-8000-000000000063', '60000000-0000-4000-8000-000000000064', 'Add a governed page',
+    '60000000-0000-4000-8000-000000000063', '60000000-0000-4000-8000-000000000064', 'Add a governed page', baseSourceRevision,
+  ]), /BLD03_PROJECT_BUSY/)
+  await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6)', [
+    subjectChangeId, '60000000-0000-4000-8000-000000000070', '60000000-0000-4000-8000-000000000071',
+    modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
   ])
-  assert.equal(repeatedIntent.rows[0].value.state, 'QUEUED')
-  await assert.rejects(query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+  await query(executor, 'SELECT builder.fail_run($1,$2)', ['60000000-0000-4000-8000-000000000070', '60000000-0000-4000-8000-000000000071'])
+  await assert.rejects(query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [
     accountId, subjectProjectId, 'e'.repeat(64), '9'.repeat(64), subjectChangeId, planRevision, itemId,
-    codingSessionId, subjectWorkUnitId, 'Different payload under the same key',
+    codingSessionId, subjectWorkUnitId, 'Different payload under the same key', baseSourceRevision,
   ]), /BLD03_IDEMPOTENCY_CONFLICT/)
 
   const verifiedChange = '61000000-0000-4000-8000-000000000001'
@@ -1032,10 +1038,10 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   const verifiedRun = '61000000-0000-4000-8000-000000000005'
   const verifiedToken = '61000000-0000-4000-8000-000000000006'
   const verifiedPlan = '61000000-0000-4000-8000-000000000007'
-  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [
     accountId, subjectProjectId, 'a'.repeat(64), 'b'.repeat(64), verifiedChange, verifiedPlan,
     '61000000-0000-4000-8000-000000000008', '61000000-0000-4000-8000-000000000009',
-    verifiedWorkUnit, 'Add a verified health page',
+    verifiedWorkUnit, 'Add a verified health page', baseSourceRevision,
   ])
   await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6)', [
     verifiedChange, verifiedCodingRun, verifiedCodingToken, modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
@@ -1066,13 +1072,15 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   const candidatePreviewSubject = (await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, subjectProjectId, verifiedChange])).rows[0].value
   assert.deepEqual(candidatePreviewSubject, {
     subjectKind: 'CHANGE_CANDIDATE', subjectDigest: candidateSourceRevision,
-    sourceRevision: candidateSourceRevision, verified: true,
+    sourceRevision: candidateSourceRevision, verified: true, previewEligible: true,
+    workingSourceRevision: candidateSourceRevision, activeChangeId: null, lastPreviewChangeId: null,
   })
   assert.equal((await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [unauthorizedAccount, subjectProjectId, null])).rows[0].value, null)
 
   const prepareVerification = async ({ change, plan, item, session, unit, codingRun, codingToken, verifierRun, verifierToken, keyDigest, requestDigest, candidate, intent }) => {
-    await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+    await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [
       accountId, subjectProjectId, keyDigest, requestDigest, change, plan, item, session, unit, intent,
+      baseSourceRevision,
     ])
     await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6)', [
       change, codingRun, codingToken, modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
@@ -1146,10 +1154,10 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   assert.equal((await query(current, 'SELECT count(*)::int AS count FROM builder.change_acceptance WHERE change_id = $1', [inconclusiveChange])).rows[0].count, 0)
 
   const claimRevokedChange = '64300000-0000-4000-8000-000000000001'
-  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [
     accountId, subjectProjectId, '8c'.repeat(32), '9c'.repeat(32), claimRevokedChange,
     '64300000-0000-4000-8000-000000000002', '64300000-0000-4000-8000-000000000003',
-    '64300000-0000-4000-8000-000000000004', '64300000-0000-4000-8000-000000000005', 'Refuse verifier admission after build revocation',
+    '64300000-0000-4000-8000-000000000004', '64300000-0000-4000-8000-000000000005', 'Refuse verifier admission after build revocation', baseSourceRevision,
   ])
   await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6)', [
     claimRevokedChange, '64300000-0000-4000-8000-000000000006', '64300000-0000-4000-8000-000000000007',
@@ -1197,10 +1205,10 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   await query(current, 'UPDATE iam.project_builder_grant SET can_build = true WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
 
   const recoveryChange = '65000000-0000-4000-8000-000000000001'
-  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [
     accountId, subjectProjectId, 'a1'.repeat(32), 'b1'.repeat(32), recoveryChange,
     '65000000-0000-4000-8000-000000000002', '65000000-0000-4000-8000-000000000003',
-    '65000000-0000-4000-8000-000000000004', '65000000-0000-4000-8000-000000000005', 'Preserve a result across recovery',
+    '65000000-0000-4000-8000-000000000004', '65000000-0000-4000-8000-000000000005', 'Preserve a result across recovery', baseSourceRevision,
   ])
   await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6)', [
     recoveryChange, '65000000-0000-4000-8000-000000000006', '65000000-0000-4000-8000-000000000007',
@@ -1254,10 +1262,10 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   const failedCodingToken = '62000000-0000-4000-8000-000000000004'
   const failedVerifierRun = '62000000-0000-4000-8000-000000000005'
   const failedVerifierToken = '62000000-0000-4000-8000-000000000006'
-  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [
     accountId, subjectProjectId, 'c'.repeat(64), 'd'.repeat(64), failedChange, failedPlan,
     '62000000-0000-4000-8000-000000000007', '62000000-0000-4000-8000-000000000008',
-    '62000000-0000-4000-8000-000000000009', 'Require a missing status endpoint',
+    '62000000-0000-4000-8000-000000000009', 'Require a missing status endpoint', baseSourceRevision,
   ])
   await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6)', [failedChange, failedCodingRun, failedCodingToken,
     modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId])
@@ -1428,10 +1436,10 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   const settlementStaleCodingToken = '63000000-0000-4000-8000-000000000004'
   const settlementStaleVerifierRun = '63000000-0000-4000-8000-000000000005'
   const settlementStaleVerifierToken = '63000000-0000-4000-8000-000000000006'
-  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [
     accountId, subjectProjectId, 'ab'.repeat(32), 'cd'.repeat(32), settlementStaleChange, settlementStalePlan,
     '63000000-0000-4000-8000-000000000007', '63000000-0000-4000-8000-000000000008',
-    '63000000-0000-4000-8000-000000000009', 'Refuse stale verification settlement',
+    '63000000-0000-4000-8000-000000000009', 'Refuse stale verification settlement', baseSourceRevision,
   ])
   await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6)', [
     settlementStaleChange, settlementStaleCodingRun, settlementStaleCodingToken,
@@ -1481,6 +1489,32 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   assert.equal(late.rows[0].settled, false)
   assert.equal((await query(current, 'SELECT state FROM builder.actor_run WHERE actor_run_id = $1', [subjectActorRunId])).rows[0].state, 'QUARANTINED')
   assert.equal((await query(current, 'SELECT state FROM builder.change WHERE change_id = $1', [subjectChangeId])).rows[0].state, 'FAILED')
+  assert.deepEqual((await query(current, `SELECT current_state, current_change_id, working_source_revision,
+    last_preview_source_revision FROM builder.project_working_state WHERE project_id = $1`, [subjectProjectId])).rows[0], {
+    current_state: 'IDLE', current_change_id: null, working_source_revision: baseSourceRevision,
+    last_preview_source_revision: candidateSourceRevision,
+  })
+
+  const failedRunChange = '67000000-0000-4000-8000-000000000001'
+  const failedRunPlan = '67000000-0000-4000-8000-000000000002'
+  const failedRunItem = '67000000-0000-4000-8000-000000000003'
+  const failedRunSession = '67000000-0000-4000-8000-000000000004'
+  const failedRunUnit = '67000000-0000-4000-8000-000000000005'
+  const failedRunActor = '67000000-0000-4000-8000-000000000006'
+  const failedRunToken = '67000000-0000-4000-8000-000000000007'
+  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [
+    accountId, subjectProjectId, '67'.repeat(32), '68'.repeat(32), failedRunChange, failedRunPlan,
+    failedRunItem, failedRunSession, failedRunUnit, 'Fail the coding turn', baseSourceRevision,
+  ])
+  await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6)', [
+    failedRunChange, failedRunActor, failedRunToken, modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId,
+  ])
+  assert.equal((await query(current, 'SELECT current_state FROM builder.project_working_state WHERE project_id = $1', [subjectProjectId])).rows[0].current_state, 'CODING')
+  await query(executor, 'SELECT builder.fail_run($1,$2)', [failedRunActor, failedRunToken])
+  assert.deepEqual((await query(current, `SELECT state FROM builder.change WHERE change_id = $1`, [failedRunChange])).rows[0], { state: 'FAILED' })
+  assert.deepEqual((await query(current, `SELECT current_state, current_change_id FROM builder.project_working_state WHERE project_id = $1`, [subjectProjectId])).rows[0], {
+    current_state: 'IDLE', current_change_id: null,
+  })
 
   await query(current, 'UPDATE iam.project_builder_grant SET can_build = false, can_read_source = true WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
   const sourceOnly = await query(ingress, 'SELECT builder.read_snapshot($1,$2,$3,true) AS value', [accountId, subjectProjectId, subjectChangeId])
@@ -1490,10 +1524,10 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   await query(current, 'UPDATE iam.project_builder_grant SET can_build = true WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
 
   const revokedChange = '60000000-0000-4000-8000-000000000020'
-  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [
     accountId, subjectProjectId, '1'.repeat(64), '2'.repeat(64), revokedChange,
     '60000000-0000-4000-8000-000000000021', '60000000-0000-4000-8000-000000000022',
-    '60000000-0000-4000-8000-000000000023', '60000000-0000-4000-8000-000000000024', 'Revoked authority refusal',
+    '60000000-0000-4000-8000-000000000023', '60000000-0000-4000-8000-000000000024', 'Revoked authority refusal', baseSourceRevision,
   ])
   await query(current, 'UPDATE iam.project_builder_grant SET can_build = false WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
   const revoked = await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6) AS value', [
@@ -1505,10 +1539,10 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   await query(current, 'UPDATE iam.project_builder_grant SET can_build = true WHERE account_id = $1 AND project_id = $2', [accountId, subjectProjectId])
 
   const staleChange = '60000000-0000-4000-8000-000000000050'
-  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+  await query(ingress, 'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [
     accountId, subjectProjectId, '8a'.repeat(32), '9a'.repeat(32), staleChange,
     '60000000-0000-4000-8000-000000000051', '60000000-0000-4000-8000-000000000052',
-    '60000000-0000-4000-8000-000000000053', '60000000-0000-4000-8000-000000000054', 'Stale baseline refusal',
+    '60000000-0000-4000-8000-000000000053', '60000000-0000-4000-8000-000000000054', 'Stale baseline refusal', baseSourceRevision,
   ])
   await query(current, 'UPDATE project.baseline_state SET current_candidate_digest = $2, approved_candidate_digest = $2 WHERE project_id = $1', [subjectProjectId, replacementDigest])
   const stale = await query(executor, 'SELECT builder.claim_change($1,$2,$3,$4,$5,$6) AS value', [

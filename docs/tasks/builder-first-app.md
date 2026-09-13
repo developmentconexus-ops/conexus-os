@@ -47,6 +47,13 @@ artifact was produced, not business correctness or independent verification.
 Never fabricate VERIFIED status or rewrite an old refusal as acceptance.
 Publication remains separate from Preview.
 
+The next implementation increment is session-first core, not UI redesign. One
+deterministic thread belongs to each Project. Mastra owns that thread's
+messages, conversational context and session events; Conexus owns the
+authenticated user, Project authorization, active Turn, working source, Git
+custody and last-good Preview. A physical E2B sandbox may be replaced between
+Turns without replacing the Project thread.
+
 The first implementation must reconcile this policy with active Product,
 Builder and wire owners. SQL admission and recovery are part of that change.
 Removing only `executeVerification` is not a valid implementation.
@@ -98,6 +105,35 @@ browser. GET requests do not start paid work. The UI keeps the app primary and
 shows conversation, preparation and truthful failures beside it. The normal
 flow does not require the user to operate verification and preparation stages.
 
+### Session-first core — current execution increment
+
+This increment ends before any Builder UI redesign or Session/Turn public API.
+Its observable result is a proved runtime core that can be safely exposed later.
+
+1. Reproduce the existing terminal failure that can leave
+   `project_working_state` in `CODING`, then fix its owner so every terminal
+   Turn exits honestly.
+2. Run a minimal executable Mastra proof with the exact installed
+   `@mastra/core` `1.63.2`: persist a Project thread/message, destroy and
+   recreate the `AgentController` and storage binding, re-open the same
+   deterministic thread, and bind a different physical sandbox.
+3. Prove separately that a no-code response leaves source and Preview
+   unchanged, while an admitted source whose compilation fails remains the
+   next correction source and leaves the previous last-good Preview selected.
+4. Integrate that boundary into the current `createCodingAgent`/E2B runtime,
+   preserving Git custody, continuation, no-code responses, artifact retention
+   and reviewer-free technical Preview.
+
+Completion requires focused tests and runtime evidence for each item. The
+following UI/API work is a later increment and must not be mixed into this one.
+
+The root-cause reproduction was observed on 2026-09-13: change
+`b24d25a4-...` was already `FAILED`, but its Project row still reported
+`current_state = CODING` and the same `current_change_id`; the next request was
+therefore rejected as busy. The latest working-source migration now makes the
+terminal failure path clear that owner, and the PostgreSQL proof asserts both
+the reset and preservation of the last-good Preview.
+
 ### Execution checklist and throughput checkpoint
 
 The first checkpoint is a real app opened through the Hub and a second request
@@ -108,13 +144,16 @@ it is a coordinated increment, not a one-line verifier fix.
 
 - [x] Read poteto-mode principles and frame the approved outcome.
 - [x] Record the approved policy and the experiment/closure distinction here.
-- [ ] Align the smallest affected semantic owners and concrete state contracts.
-- [ ] Capture the existing failures for continuation, no-edit response and
-  unreviewed technical Preview using the current tests and a disposable database.
-- [ ] Implement working origin and result variants with a forward migration;
-  adapt Git admission, runtime, service, recovery and Registry consumers together.
-- [ ] Compose automatic preparation and the existing UI. Prove create, open
-  and a second edit with actual login, model, E2B and browser.
+- [x] Prove the Mastra `1.63.2` thread/storage composition across controller/store
+  rebind and a different physical sandbox.
+- [x] Reproduce and correct the root cause of a terminal Turn leaving
+  `project_working_state` in `CODING`.
+- [x] Prove no-code response, compile-failed working-source continuation and
+  last-good Preview preservation through the current runtime.
+- [x] Integrate the proved session boundary into `createCodingAgent`/E2B without
+  changing the Builder UI.
+- [ ] Only after this increment, add Session/Turn API and app-first UI. Prove
+  create, open and continuation with actual login, model, E2B and browser there.
 - [ ] Begin the real Brain experiment as soon as that cycle and its own
   prerequisites work. Do not wait for the next checklist item to finish.
 - [ ] Complete failed-build correction, no-edit conversation, stale/replayed
@@ -124,6 +163,48 @@ Use existing targeted suites after each affected unit. Keep source controls
 and credential isolation working throughout. Review structural and authority
 changes with the existing risk-triggered Luna policy; no per-file approval or
 new review subsystem. Commit, PR and deployment steps are excluded from this grant.
+
+### Session-first proof record
+
+The installed packages are `@mastra/core@1.63.2`, `@mastra/libsql@1.22.2`, and
+`@mastra/memory@1.28.1`. `createConfiguredBuilderModule` opens one LibSQL file at
+`<projectSource.storageRoot>/builder-session.db` and shares it with Mastra
+`Memory`. The Project thread ID is `conexus-builder:<projectId>`. The runtime
+binds the same thread to a fresh `AgentController` and a fresh E2B workspace on
+each coding Turn.
+
+The executable Mastra proof writes one message, destroys the first controller,
+workspace, and store binding, then opens a second controller and store binding
+against the same file. The second workspace has a different physical root. The
+message and deterministic thread ID remain present. Run it with:
+
+```sh
+npm test --prefix qualification/4d/mastra-builder-capability
+```
+
+The PostgreSQL proof reproduces an active `CODING` Turn, settles a failed
+compile, and checks that the Turn is `IDLE`, the failed candidate remains the
+working source, and the prior Preview artifact remains selected. It then settles
+a response-only Turn and checks that neither source nor Preview changes. It also
+fails a coding run before result settlement and checks the same `IDLE` cleanup.
+Run it with the disposable test database configuration from `AGENTS.md`:
+
+```sh
+CONEXUS_TEST_DB_HOST=127.0.0.1 \
+CONEXUS_TEST_DB_PORT=55432 \
+CONEXUS_TEST_DB_NAME=conexus_test \
+CONEXUS_TEST_DB_USER=postgres \
+CONEXUS_TEST_DB_PASSWORD=s6-ci-test-only \
+node --test --test-concurrency=1 tests/implementation/builder-working-source-state.test.mjs
+```
+
+The current runtime uses `AgentController.createSession` and `session.sendMessage`
+when the configured module supplies the persistent store and memory. Existing
+callers without those bindings retain the old stream path for qualification
+fixtures. Hub typecheck and the focused Builder suites pass. No E2B credential or
+template is configured in this shell, so a paid live runtime execution remains
+unproved. It is the next external proof, not a reason to add another session
+layer.
 
 ### Early Brain experiment
 
@@ -162,10 +243,12 @@ Before declaring the delivery complete, prove repeated edits with correct Git
 parents, a no-edit reply, correction from retained failed-build source, previous
 app preservation, reconnect without duplicate work and restart without needless
 recompilation. Test fresh database setup and forward migration, access refusal
-and protected paths. Run the complete current verification graph and report all
-attempts. Existing four hash/projection failures are not waived or silently
-fixed by changing old receipts. ERP access is a later real operation with its
-own consumer, not a prerequisite for the knowledge calculator.
+and protected paths. Run the affected focused checks for each increment. Run a
+broader graph only when its named claim is part of the increment. Existing
+verifier/hash/projection failures remain historical evidence until a named
+current claim requires them. Do not change old receipts to manufacture green
+output. ERP access is a later real operation with its own consumer, not a
+prerequisite for the knowledge calculator.
 
 ## Delivery checkpoints
 
@@ -2665,3 +2748,19 @@ the OIDC discovery request, so the Hub could not reach its HTTPS listeners.
 No browser URL is claimed until login, creation, Preview interaction and
 continuation pass against the live composition. The historical catalog and
 credentials were not deleted or rewritten.
+
+## Keycloak recovery finding, 2026-09-13
+
+The configured issuer is `https://localhost:8443/realms/r1f`. The correct
+Keycloak image and certificate bindings are present, but the container has no
+data volume. Its realm database is the container-local H2 store. After restart,
+the discovery endpoint returned `404` because `r1f` was absent. The existing
+bootstrap recreated the realm, client configuration and test user.
+
+The recreated user received a new Keycloak UUID. The Conexus database still
+contains the original external subject and its project links. A trial creation
+with the old UUID was rejected as a duplicate, and an alternate user creation
+showed that the admin API ignores a supplied UUID. The alternate user was
+removed. No account, external subject, project link or application file was
+remapped. Browser proof remains blocked until the original identity is restored
+through a supported Keycloak import or an explicit operator decision.

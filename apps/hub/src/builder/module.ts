@@ -1,5 +1,8 @@
 import type { FastifyInstance } from 'fastify'
+import { join } from 'node:path'
 import type { MastraLanguageModel } from '@mastra/core/agent'
+import { LibSQLStore } from '@mastra/libsql'
+import { Memory } from '@mastra/memory'
 import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
@@ -42,12 +45,25 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     storageRoot: projectSource.storageRoot,
     sourceOwnership: projectSource.ownership,
   })
+  // Mastra owns the Project conversation/thread records. The file is kept
+  // beside the project custody root so controller recreation does not erase
+  // the session, while Conexus remains the owner of authorization and Turns.
+  const sessionStorage = new LibSQLStore({
+    id: 'conexus-builder-session',
+    url: `file:${join(projectSource.storageRoot, 'builder-session.db')}`,
+  })
+  const sessionMemory = new Memory({
+    storage: sessionStorage,
+    options: { lastMessages: 20 },
+  })
   const runtime = createMastraE2BCodingWorkerRuntime({
     apiKey: readSecretFile(builder.e2bApiKeyFile),
     templateId: builder.e2bTemplateId,
     model,
     modelIdentity,
     validateModelCredential,
+    sessionStorage,
+    sessionMemory,
   })
   const compiler = createE2BApplicationCompiler({ apiKey: readSecretFile(builder.e2bApiKeyFile) })
   const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts })
@@ -58,6 +74,12 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     startPreviewPreparation: service.startPreviewPreparation,
     readPreviewPreparation: service.readPreviewPreparation,
     recover: service.recover,
-    close: service.close,
+    close: async () => {
+      try {
+        await service.close()
+      } finally {
+        await sessionStorage.close()
+      }
+    },
   })
 }

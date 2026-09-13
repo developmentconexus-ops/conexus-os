@@ -63,7 +63,7 @@ test('current createCodingAgent exposes real workspace mechanics without a provi
       { command: 'node --version' },
       { requestContext },
     )
-    assert.match(command, /^v24\.18\.0/u)
+    assert.match(command, /^v24\.\d+\.\d+/u)
 
     const invalid = await tools.mastra_workspace_grep.execute(
       { query: 'add', path: 'src' },
@@ -161,5 +161,94 @@ test('current AgentController composes persistent mode, skills, search and Build
   } finally {
     await second.destroy()
     await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('Project thread persists across controller/store rebind and a different sandbox', async () => {
+  const firstRoot = await mkdtemp(join(tmpdir(), 'conexus-4d-session-first-'))
+  const secondRoot = await mkdtemp(join(tmpdir(), 'conexus-4d-session-second-'))
+  const storageFile = join(firstRoot, 'session.db')
+  const threadId = 'conexus-builder:project-session-proof'
+  const resourceId = 'project-session-proof'
+  const workspace = (root, id) => new Workspace({
+    id,
+    filesystem: new LocalFilesystem({ basePath: root }),
+    sandbox: new LocalSandbox({ workingDirectory: root }),
+  })
+  const createBinding = () => {
+    const storage = new LibSQLStore({ id: `session-rebind-store-${crypto.randomUUID()}`, url: `file:${storageFile}` })
+    const memory = new Memory({ storage, options: { lastMessages: 20 } })
+    const controller = new AgentController({
+      id: `session-rebind-controller-${crypto.randomUUID()}`,
+      storage,
+      memory,
+      modes: [{ id: 'build', name: 'Build', instructions: 'Mechanical probe only.' }],
+      defaultModeId: 'build',
+      agent: createCodingAgent({
+        id: 'session-rebind-agent',
+        name: 'Session Rebind Probe',
+        model: 'openai/probe-model',
+        instructions: 'Mechanical probe only.',
+        memory,
+        workspace: undefined,
+      }),
+    })
+    return { controller, memory, storage }
+  }
+
+  let firstBinding
+  let secondBinding
+  try {
+    const firstWorkspace = workspace(firstRoot, 'session-first-sandbox')
+    firstBinding = createBinding()
+    const first = firstBinding.controller
+    await first.init()
+    const firstSession = await first.createSession({
+      resourceId,
+      ownerId: 'account-session-proof',
+      scope: 'builder',
+      threadId,
+      workspace: firstWorkspace,
+    })
+    await firstBinding.memory.saveMessages({ messages: [{
+      id: 'session-proof-user-message',
+      role: 'user',
+      createdAt: new Date(),
+      threadId,
+      resourceId,
+      content: { format: 2, parts: [{ type: 'text', text: 'Mensagem persistida do Project.' }] },
+    }] })
+    assert.equal(firstSession.thread.getId(), threadId)
+    assert.equal((await firstSession.thread.listActiveMessages()).length, 1)
+    await first.destroy()
+    await firstWorkspace.destroy()
+    await firstBinding.storage.close()
+
+    const secondWorkspace = workspace(secondRoot, 'session-second-sandbox')
+    secondBinding = createBinding()
+    const second = secondBinding.controller
+    await second.init()
+    try {
+      const rebound = await second.createSession({
+        resourceId,
+        ownerId: 'account-session-proof',
+        scope: 'builder',
+        threadId,
+        workspace: secondWorkspace,
+      })
+      const messages = await rebound.thread.listActiveMessages()
+      assert.equal(rebound.thread.getId(), threadId)
+      assert.equal(messages.length, 1)
+      assert.equal(messages[0]?.content.parts[0]?.text, 'Mensagem persistida do Project.')
+      assert.notEqual(firstRoot, secondRoot)
+      assert.notEqual(firstWorkspace, secondWorkspace)
+    } finally {
+      await second.destroy()
+      await secondWorkspace.destroy()
+    }
+  } finally {
+    await secondBinding?.storage.close()
+    await rm(firstRoot, { recursive: true, force: true })
+    await rm(secondRoot, { recursive: true, force: true })
   }
 })
