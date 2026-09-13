@@ -8,7 +8,7 @@ const event = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('ACTIVITY'), activityId: id,
     label: z.enum(['READ_FILES', 'EDIT_FILES', 'RUN_COMMAND', 'WORKSPACE']),
     state: z.enum(['started', 'succeeded', 'failed', 'interrupted']) }),
-  z.strictObject({ kind: z.literal('PHASE'), phase: z.enum(['CODING', 'VERIFYING', 'CORRECTING']) }),
+  z.strictObject({ kind: z.literal('PHASE'), phase: z.enum(['CODING', 'PREPARING', 'VERIFYING', 'CORRECTING']) }),
   z.strictObject({ kind: z.literal('OBSERVATION_END') }),
   z.strictObject({ kind: z.literal('OBSERVATION_UNAVAILABLE'), code: z.enum(['RUNTIME_FAILED', 'LIMIT_REACHED']) }),
 ])

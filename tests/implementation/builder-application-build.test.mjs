@@ -14,7 +14,7 @@ const compiled = spawnSync(process.execPath, [resolve(root, 'node_modules/typesc
   '--project', resolve(root, 'apps/hub/tsconfig.json'), '--noEmit', 'false', '--outDir', build,
 ], { cwd: root, encoding: 'utf8' })
 if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
-const { prepareVerifiedApplication } = await import(pathToFileURL(resolve(build, 'builder/application-build.js')).href)
+const { prepareApplicationArtifact } = await import(pathToFileURL(resolve(build, 'builder/application-build.js')).href)
 const { createBuilderService } = await import(pathToFileURL(resolve(build, 'builder/service.js')).href)
 
 const request = {
@@ -99,19 +99,28 @@ test('retained application is reused before source extraction or compilation', a
   const deps = dependencies({ cached: metadata })
   deps.source.listSourceTree = async () => assert.fail('A retained application must not read source')
   deps.compiler.compile = async () => assert.fail('A retained application must not compile')
-  const result = await prepareVerifiedApplication(deps, request)
+  const result = await prepareApplicationArtifact(deps, request)
   assert.deepEqual(result, metadata)
   assert.equal(deps.calls.get, 1)
 })
 
 test('authorized miss retains the exact verified compiler output', async () => {
   const deps = dependencies()
-  const result = await prepareVerifiedApplication(deps, request)
+  const result = await prepareApplicationArtifact(deps, request)
   assert.deepEqual(result, metadata)
   assert.equal(deps.calls.compiled, 1)
   assert.equal(deps.calls.retained.length, 1)
   assert.deepEqual(deps.calls.retained[0], { accountId: request.accountId, compiled: artifact })
   assert.equal(Buffer.from(deps.calls.retained[0].compiled.files[0].bytes).toString('utf8'), html)
+})
+
+test('technically admitted unreviewed source compiles without claiming verification', async () => {
+  const deps = dependencies()
+  deps.store.readPreviewSubject = async () => ({ ...subject, verified: false, previewEligible: true })
+  const result = await prepareApplicationArtifact(deps, request)
+  assert.deepEqual(result, metadata)
+  assert.equal(deps.calls.compiled, 1)
+  assert.equal(deps.calls.retained.length, 1)
 })
 
 for (const denied of [null, { ...subject, verified: false }, { ...subject, subjectKind: 'CURRENT_PROJECT' }]) {
@@ -121,7 +130,7 @@ for (const denied of [null, { ...subject, verified: false }, { ...subject, subje
     deps.applicationArtifacts.getApplication = async () => assert.fail('Denied subject must not query retained artifacts')
     deps.source.listSourceTree = async () => assert.fail('Denied source must not be read')
     deps.compiler.compile = async () => assert.fail('Denied source must not start paid compilation')
-    await assert.rejects(prepareVerifiedApplication(deps, request), /BUILDER_APPLICATION_SUBJECT_REFUSED/)
+    await assert.rejects(prepareApplicationArtifact(deps, request), /BUILDER_APPLICATION_SUBJECT_REFUSED/)
   })
 }
 
@@ -130,7 +139,7 @@ test('permission failure propagates before source disclosure', async () => {
   deps.store.readPreviewSubject = async () => { throw new Error('PROJECT_BUILD_NOT_AUTHORIZED') }
   deps.applicationArtifacts.getApplication = async () => assert.fail('Unauthorized request must not query artifacts')
   deps.source.listSourceTree = async () => assert.fail('Unauthorized source read')
-  await assert.rejects(prepareVerifiedApplication(deps, request), /PROJECT_BUILD_NOT_AUTHORIZED/)
+  await assert.rejects(prepareApplicationArtifact(deps, request), /PROJECT_BUILD_NOT_AUTHORIZED/)
 })
 
 for (const boundary of [2, 3, 4, 5]) {
@@ -141,7 +150,7 @@ for (const boundary of [2, 3, 4, 5]) {
     if (boundary === 2) deps.source.listSourceTree = async () => assert.fail('Changed source must not be read')
     if (boundary <= 3) deps.compiler.compile = async () => assert.fail('Changed source must not compile')
     if (boundary === 4) deps.applicationArtifacts.retainApplication = async () => assert.fail('Changed source must not be retained')
-    await assert.rejects(prepareVerifiedApplication(deps, request), /BUILDER_APPLICATION_SUBJECT_CHANGED/)
+    await assert.rejects(prepareApplicationArtifact(deps, request), /BUILDER_APPLICATION_SUBJECT_CHANGED/)
   })
 }
 
@@ -149,20 +158,20 @@ test('refuses source-port revision drift', async () => {
   const deps = dependencies()
   deps.source.readSourceFile = async () => ({ sourceRevision: 'd'.repeat(40), path: 'app/index.html', content: html })
   deps.compiler.compile = async () => assert.fail('Wrong revision must not compile')
-  await assert.rejects(prepareVerifiedApplication(deps, request), /BUILDER_APPLICATION_SOURCE_REFUSED/)
+  await assert.rejects(prepareApplicationArtifact(deps, request), /BUILDER_APPLICATION_SOURCE_REFUSED/)
 })
 
 test('refuses a compiler result for another Change', async () => {
   const deps = dependencies()
   deps.compiler.compile = async () => ({ ...artifact, changeId: '44444444-4444-4444-8444-444444444444' })
-  await assert.rejects(prepareVerifiedApplication(deps, request), /BUILDER_APPLICATION_RESULT_SCOPE_REFUSED/)
+  await assert.rejects(prepareApplicationArtifact(deps, request), /BUILDER_APPLICATION_RESULT_SCOPE_REFUSED/)
 })
 
 test('refuses a missing app entry before reading files', async () => {
   const deps = dependencies()
   deps.source.listSourceTree = async () => ({ sourceRevision: revision, entries: [{ path: 'README.md', kind: 'FILE' }] })
   deps.source.readSourceFile = async () => assert.fail('No supported app to read')
-  await assert.rejects(prepareVerifiedApplication(deps, request), /BUILDER_APPLICATION_SOURCE_REFUSED/)
+  await assert.rejects(prepareApplicationArtifact(deps, request), /BUILDER_APPLICATION_SOURCE_REFUSED/)
 })
 
 test('refuses too many app files before individual source reads', async () => {
@@ -172,13 +181,13 @@ test('refuses too many app files before individual source reads', async () => {
     ...Array.from({ length: 256 }, (_, index) => ({ path: `app/src/${index}.ts`, kind: 'FILE' })),
   ] })
   deps.source.readSourceFile = async () => assert.fail('Oversized tree must not trigger repeated reads')
-  await assert.rejects(prepareVerifiedApplication(deps, request), /BUILDER_APPLICATION_SOURCE_REFUSED/)
+  await assert.rejects(prepareApplicationArtifact(deps, request), /BUILDER_APPLICATION_SOURCE_REFUSED/)
 })
 
 test('cancelled requests do not disclose source, query artifacts, or start a compiler', async () => {
   const deps = dependencies()
   deps.store.readPreviewSubject = async () => assert.fail('Cancelled request should stop immediately')
-  await assert.rejects(prepareVerifiedApplication(deps, { ...request, signal: AbortSignal.abort() }), /BUILDER_APPLICATION_CANCELLED/)
+  await assert.rejects(prepareApplicationArtifact(deps, { ...request, signal: AbortSignal.abort() }), /BUILDER_APPLICATION_CANCELLED/)
 })
 
 test('cancellation after retention rejects without returning success', async () => {
@@ -193,7 +202,7 @@ test('cancellation after retention rejects without returning success', async () 
     return metadata
   }
   const controller = new AbortController()
-  const preparation = prepareVerifiedApplication(deps, { ...request, signal: controller.signal })
+  const preparation = prepareApplicationArtifact(deps, { ...request, signal: controller.signal })
   await retentionStarted
   controller.abort()
   release()
@@ -265,13 +274,13 @@ test('Builder service coalesces concurrent Preview preparation starts into one r
   await service.close()
 })
 
-test('Builder service Preview reads return absence without starting application preparation', async (t) => {
+test('Builder service Preview reads reuse a retained application without preparing it', async (t) => {
   const deps = dependencies()
   const service = createService(deps)
   t.after(() => service.close())
   assert.equal(await service.readPreviewPreparation({ ...request, subjectDigest: revision }), null)
   assert.equal(deps.calls.compiled, 0)
-  assert.equal(deps.calls.get, 0)
+  assert.equal(deps.calls.get, 1)
   await service.close()
 })
 
@@ -296,10 +305,9 @@ test('Builder service reuses retained Preview output after service recreation wi
 
   const secondService = createService(deps)
   t.after(() => secondService.close())
-  assert.equal(await secondService.readPreviewPreparation({ ...request, subjectDigest: revision }), null)
-  const second = await secondService.startPreviewPreparation({ ...request, subjectDigest: revision })
-  assert.notEqual(second.attemptId, first.attemptId)
-  const prepared = await readPreparationUntil(secondService, 'PREPARED')
+  const second = await secondService.readPreviewPreparation({ ...request, subjectDigest: revision })
+  assert.notEqual(second?.attemptId, first.attemptId)
+  const prepared = second
   assert.deepEqual(prepared.artifact, metadata)
   assert.equal(deps.calls.compiled, 1)
   await secondService.close()

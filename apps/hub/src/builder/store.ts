@@ -11,7 +11,12 @@ export type ChangeProjection = Readonly<{
   baselineDigest: string
   planningDepth: 'DIRECT'
   rigorProfile: 'CONTROLLED'
-  state: 'QUEUED' | 'RUNNING' | 'RESULT_READY' | 'VERIFYING' | 'VERIFIED' | 'VERIFICATION_FAILED' | 'UNVERIFIED' | 'FAILED' | 'INTERRUPTED'
+  baselineSourceRevision: string
+  baseSourceRevision: string
+  sourceChangeId: string | null
+  resultKind: 'CANDIDATE' | 'RESPONSE_ONLY'
+  summary: string | null
+  state: 'QUEUED' | 'RUNNING' | 'RESULT_READY' | 'PREPARING' | 'PREVIEW_READY' | 'BUILD_FAILED' | 'RESPONDED' | 'VERIFYING' | 'VERIFIED' | 'VERIFICATION_FAILED' | 'UNVERIFIED' | 'FAILED' | 'INTERRUPTED'
 }>
 export type PlanProjection = Readonly<{
   planRevision: string
@@ -43,13 +48,17 @@ export type BuilderSnapshot = Readonly<{
   execution: ChangeExecution
 }>
 export type ClaimedChange = Readonly<{
+  accountId: string
   projectId: string
   changeId: string
   workUnitId: string
   actorRunId: string
   admissionToken: string
   intent: string
+  baselineSourceRevision: string
   baseSourceRevision: string
+  sourceChangeId: string | null
+  recentTurns?: readonly Readonly<{ intent: string; summary: string }>[]
   changeBaseSourceRevision?: string
   correctionFindings?: readonly Readonly<{ findingId: string; findingRevision: string; summary: string }>[]
 }>
@@ -85,17 +94,36 @@ export type EvidenceProjection = Readonly<{
   provenance: readonly string[]
 }>
 
+export type BuilderWorkingPreviewSubject = BuilderPreviewSubject & Readonly<{
+  previewEligible: boolean
+  workingSourceRevision: string
+  activeChangeId: string | null
+  lastPreviewChangeId: string | null
+}>
+
+export type PreviewPreparationSettlement = Readonly<{
+  accountId: string
+  projectId: string
+  changeId: string
+  sourceRevision: string
+  outcome:
+    | Readonly<{ kind: 'READY'; artifactRevisionId: string; artifactDigest: string }>
+    | Readonly<{ kind: 'FAILED'; code: string }>
+}>
+
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
 export type BuilderStore = Readonly<{
-  createChange(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; intent: string }>): Promise<ChangeProjection>
+  createChange(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; intent: string; expectedSourceRevision: string }>): Promise<ChangeProjection>
   listChanges(input: Readonly<{ accountId: string; projectId: string }>): Promise<readonly ChangeProjection[]>
-  readPreviewSubject(input: Readonly<{ accountId: string; projectId: string; changeId?: string }>): Promise<BuilderPreviewSubject | null>
+  readPreviewSubject(input: Readonly<{ accountId: string; projectId: string; changeId?: string }>): Promise<BuilderWorkingPreviewSubject | null>
   readSnapshot(input: Readonly<{ accountId: string; projectId: string; changeId: string; requireSource: boolean }>): Promise<BuilderSnapshot | null>
   claimChange(changeId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<ClaimedChange>
   claimCorrection(changeId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<ClaimedChange | null>
   bindSandbox(actorRunId: string, admissionToken: string, sandboxId: string): Promise<void>
   settleResult(input: Readonly<ClaimedChange & { sandboxId: string; candidateSourceRevision: string; patch: string; summary: string }>): Promise<void>
+  settleResponse(input: Readonly<ClaimedChange & { sandboxId: string; summary: string }>): Promise<void>
+  settlePreparation(input: PreviewPreparationSettlement): Promise<void>
   claimVerification(changeId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<ClaimedVerification>
   failVerificationClaim(changeId: string): Promise<void>
   settleVerification(input: Readonly<ClaimedVerification & { sandboxId: string; report: unknown }>): Promise<void>
@@ -120,12 +148,12 @@ export const createBuilderStore = ({
   executorPool: PostgresPool
   mintIdentity?: () => string
 }>): BuilderStore => Object.freeze({
-  createChange: async ({ accountId, projectId, idempotencyKey, intent }) => {
-    const request = { intent }
+  createChange: async ({ accountId, projectId, idempotencyKey, intent, expectedSourceRevision }) => {
+    const request = { intent, expectedSourceRevision }
     const result = await ingressPool.query<JsonRow<ChangeProjection>>(
-      'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value',
+      'SELECT builder.create_change($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) AS value',
       [accountId, projectId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)),
-        mintIdentity(), mintIdentity(), mintIdentity(), mintIdentity(), mintIdentity(), intent],
+        mintIdentity(), mintIdentity(), mintIdentity(), mintIdentity(), mintIdentity(), intent, expectedSourceRevision],
     )
     const value = result.rows[0]?.value
     if (!value) throw new Error('BLD03_CREATE_FAILED')
@@ -138,7 +166,7 @@ export const createBuilderStore = ({
     return result.rows.map((row) => row.value)
   },
   readPreviewSubject: async ({ accountId, projectId, changeId }) => {
-    const result = await ingressPool.query<JsonRow<BuilderPreviewSubject | null>>(
+    const result = await ingressPool.query<JsonRow<BuilderWorkingPreviewSubject | null>>(
       'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, projectId, changeId ?? null],
     )
     return result.rows[0]?.value ?? null
@@ -189,6 +217,24 @@ export const createBuilderStore = ({
       ],
     )
     if (result.rows[0]?.settled !== true) throw new Error('BUILDER_LATE_RESULT_REFUSED')
+  },
+  settleResponse: async (input) => {
+    const result = await executorPool.query<QueryResultRow & Readonly<{ settled: boolean }>>(
+      'SELECT builder.settle_response($1,$2,$3,$4) AS settled', [
+        input.actorRunId, input.admissionToken, input.sandboxId, input.summary,
+      ],
+    )
+    if (result.rows[0]?.settled !== true) throw new Error('BUILDER_LATE_RESPONSE_REFUSED')
+  },
+  settlePreparation: async (input) => {
+    const artifact = input.outcome.kind === 'READY' ? input.outcome : null
+    const failureCode = input.outcome.kind === 'FAILED' ? input.outcome.code : null
+    await executorPool.query(
+      'SELECT builder.settle_preparation($1,$2,$3,$4,$5,$6,$7)', [
+        input.accountId, input.projectId, input.changeId, input.sourceRevision,
+        artifact?.artifactRevisionId ?? null, artifact?.artifactDigest ?? null, failureCode,
+      ],
+    )
   },
   claimVerification: async (changeId, modelIdentity) => {
     const actorRunId = mintIdentity()

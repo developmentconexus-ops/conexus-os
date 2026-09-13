@@ -27,6 +27,7 @@ export type PreviewPreparation = Readonly<{
 export type PreviewPreparationCoordinatorDependencies = Readonly<{
   readPreviewSubject(input: Readonly<{ accountId: string; projectId: string; changeId: string }>): Promise<BuilderPreviewSubject | null>
   prepareApplication(input: ApplicationBuildRequest): Promise<ApplicationArtifactMetadata>
+  readRetainedApplication?(input: ApplicationBuildRequest & Readonly<{ sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null>
   now?: () => number
   timeoutMs?: number
   maxActive?: number
@@ -157,7 +158,7 @@ export const createPreviewPreparationCoordinator = (
       projectId: request.projectId,
       changeId: request.changeId,
     })
-    if (subject === null || subject.subjectKind !== 'CHANGE_CANDIDATE' || !subject.verified ||
+    if (subject === null || subject.subjectKind !== 'CHANGE_CANDIDATE' || !(subject.previewEligible ?? subject.verified) ||
       subject.subjectDigest !== request.subjectDigest || !SOURCE_REVISION.test(subject.sourceRevision)) {
       throw new Error('PREVIEW_PREPARATION_SUBJECT_REFUSED')
     }
@@ -262,8 +263,33 @@ export const createPreviewPreparationCoordinator = (
     const subject = await resolveSubject(request)
     if (closed) throw new Error('PREVIEW_PREPARATION_CLOSED')
     sweep()
-    const attempt = attempts.get(preparationKey(subject))
-    return attempt ? snapshot(attempt) : null
+    const key = preparationKey(subject)
+    const existing = attempts.get(key)
+    if (existing && existing.lifecycle.state !== 'EXPIRED') return snapshot(existing)
+    if (!dependencies.readRetainedApplication) return existing ? snapshot(existing) : null
+    const retained = await dependencies.readRetainedApplication({
+      accountId: request.accountId,
+      projectId: request.projectId,
+      changeId: request.changeId,
+      sourceRevision: subject.sourceRevision,
+    })
+    if (!retained) return existing ? snapshot(existing) : null
+    const current = await resolveSubject(request)
+    if (closed) throw new Error('PREVIEW_PREPARATION_CLOSED')
+    if (current.sourceRevision !== subject.sourceRevision || retained.projectId !== subject.projectId || retained.sourceRevision !== subject.sourceRevision) {
+      throw new Error('PREVIEW_PREPARATION_SUBJECT_REFUSED')
+    }
+    const concurrent = attempts.get(key)
+    if (concurrent && concurrent.lifecycle.state !== 'EXPIRED') return snapshot(concurrent)
+    const restored: Attempt = {
+      attemptId: randomUUID(), key, request, subject,
+      expiresAt: now() + timeoutMs, controller: new AbortController(),
+      lifecycle: { state: 'PREPARED', artifact: immutableArtifact(retained) }, timer: null,
+    }
+    attempts.set(key, restored)
+    scheduleExpiry(restored)
+    retainBoundedTerminalAttempts()
+    return snapshot(restored)
   }
 
   const close = async (): Promise<void> => {

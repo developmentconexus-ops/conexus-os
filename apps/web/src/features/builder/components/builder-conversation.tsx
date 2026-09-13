@@ -3,9 +3,9 @@ import { observeChange, type ObservationPart } from '../observation'
 
 const activities = { READ_FILES: 'Ler arquivos', EDIT_FILES: 'Editar arquivos', RUN_COMMAND: 'Executar comando', WORKSPACE: 'Trabalhar no projeto' }
 const states = { started: 'em andamento', succeeded: 'concluído', failed: 'falhou', interrupted: 'interrompido' }
-const phases = { CODING: 'Construindo o aplicativo…', VERIFYING: 'Verificando o resultado…', CORRECTING: 'Corrigindo o resultado…' }
+const phases = { CODING: 'Construindo o aplicativo…', PREPARING: 'Preparando o aplicativo…', VERIFYING: 'Verificando o resultado…', CORRECTING: 'Corrigindo o resultado…' }
 
-export function BuilderConversation({ projectId, changeId, intent }: { projectId: string; changeId: string; intent: string | undefined }) {
+export function BuilderConversation({ projectId, changeId, intent, summary }: { projectId: string; changeId: string; intent: string | undefined; summary?: string | null | undefined }) {
   const viewport = useRef<HTMLElement>(null)
   const follow = useRef(true)
   const [parts, setParts] = useState<readonly ObservationPart[]>([])
@@ -35,7 +35,8 @@ export function BuilderConversation({ projectId, changeId, intent }: { projectId
       : part.kind === 'activity'
         ? <p key={`activity-${part.id}`} className="builder-activity" data-activity-id={part.id} data-state={part.state}>{activities[part.label]} — {states[part.state]}</p>
         : <p key={part.id} className="builder-phase">{phases[part.phase]}</p>)}
-    {status === 'connecting' && <p role="status">Conectando ao acompanhamento…</p>}
-    {status === 'unavailable' && <p role="status">Acompanhamento ao vivo indisponível. O resultado continua sendo consultado; isso não interrompe o Builder.</p>}
+    {summary && !parts.some((part) => part.kind === 'text') && <p className="builder-message">{summary}</p>}
+    {!summary && status === 'connecting' && <p role="status">Conectando ao acompanhamento…</p>}
+    {!summary && status === 'unavailable' && <p role="status">Acompanhamento ao vivo indisponível. O resultado continua sendo consultado; isso não interrompe o Builder.</p>}
   </section>
 }

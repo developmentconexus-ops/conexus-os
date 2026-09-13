@@ -66,6 +66,44 @@ const { createPreviewPreparationCoordinator } = await import(pathToFileURL(resol
     await coordinator.close()
   })
 
+  test('reopens a retained application after coordinator restart without compiling', async () => {
+    const deps = makeDependencies({ current: { ...subject, verified: false, previewEligible: true } })
+    const reads = []
+    deps.readRetainedApplication = async input => { reads.push(input); return metadata }
+    const first = createPreviewPreparationCoordinator(deps)
+    const before = await first.read(request)
+    await first.close()
+    const restarted = createPreviewPreparationCoordinator(deps)
+    try {
+      const after = await restarted.read(request)
+      assert.equal(after.state, 'PREPARED')
+      assert.deepEqual(after.artifact, metadata)
+      assert.notEqual(after.attemptId, before.attemptId)
+      assert.equal(deps.calls.preparations.length, 0)
+      assert.deepEqual(reads, [0, 1].map(() => ({ accountId: request.accountId, projectId: request.projectId, changeId: request.changeId, sourceRevision: revision })))
+    } finally { await restarted.close() }
+  })
+
+  test('retained lookup rechecks authorization before issuing a preparation', async () => {
+    const deps = makeDependencies()
+    deps.readRetainedApplication = async () => { deps.setSubject(null); return metadata }
+    const coordinator = createPreviewPreparationCoordinator(deps)
+    try {
+      await assert.rejects(coordinator.read(request), /PREVIEW_PREPARATION_SUBJECT_REFUSED/)
+      assert.equal(deps.calls.preparations.length, 0)
+    } finally { await coordinator.close() }
+  })
+
+  test('retained lookup refuses another source revision', async () => {
+    const deps = makeDependencies()
+    deps.readRetainedApplication = async () => ({ ...metadata, sourceRevision: 'b'.repeat(40) })
+    const coordinator = createPreviewPreparationCoordinator(deps)
+    try {
+      await assert.rejects(coordinator.read(request), /PREVIEW_PREPARATION_SUBJECT_REFUSED/)
+      assert.equal(deps.calls.preparations.length, 0)
+    } finally { await coordinator.close() }
+  })
+
   test('coalesces concurrent starts for one account and exact subject', async () => {
     const work = deferred()
     const deps = makeDependencies({ prepare: () => work.promise })

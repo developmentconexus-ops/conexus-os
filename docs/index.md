@@ -18,6 +18,12 @@ unknown, contradiction, dependency, falsifier or proof need.
 
 ## Current work
 
+For the 2026-09-13 pilot direction, start with
+[internal pilot refactoring](tasks/builder-first-app.md#internal-pilot-refactoring).
+It supersedes verifier-first execution and admits the Brain experiment after
+the usable create/open/continue cycle, before complete delivery closure.
+Older table entries below retain their named historical scope.
+
 | Need | Read first | Boundary |
 | --- | --- | --- |
 | Current stage / grant / next action | [`roadmap.md`](roadmap.md) | Do not derive current status from Evidence or Git history |

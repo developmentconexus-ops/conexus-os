@@ -3,6 +3,8 @@ import { clearAuthorityCache } from '../../app/query-client'
 export type Change = Readonly<{
   changeId: string; projectId: string; intent: string; baselineDigest: string
   planningDepth: 'DIRECT'; rigorProfile: 'CONTROLLED'; state: string
+  summary?: string | null
+  failureCode?: string | null
 }>
 export type ChangeSummary = Pick<Change, 'changeId' | 'projectId' | 'intent' | 'state'>
 export type ChangePlan = Readonly<{
@@ -32,6 +34,10 @@ export type BuildPreview = Readonly<{
   subjectDigest: string
   ready: boolean
   verified: boolean
+  previewEligible?: boolean
+  workingSourceRevision?: string
+  activeChangeId?: string | null
+  lastPreviewChangeId?: string | null
   live: false
   preparation?: PreviewPreparation
 }>
@@ -84,9 +90,9 @@ export const listChanges = async (projectId: string): Promise<ChangeSummary[]> =
   if (!response.ok) reject(response)
   return response.json() as Promise<ChangeSummary[]>
 }
-export const createChange = async (projectId: string, intent: string, idempotencyKey: string): Promise<Change> => {
+export const createChange = async (projectId: string, intent: string, idempotencyKey: string, expectedSourceRevision: string): Promise<Change> => {
   const response = await request(base(projectId), {
-    method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey }, body: JSON.stringify({ intent }),
+    method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey }, body: JSON.stringify({ intent, expectedSourceRevision }),
   })
   if (response.status !== 201) reject(response)
   return response.json() as Promise<Change>

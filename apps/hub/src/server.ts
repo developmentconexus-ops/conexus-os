@@ -150,12 +150,6 @@ const builderModel = config.builder && config.project ? resolveProjectModelAdmis
   admissionId: config.builder.modelAdmissionId,
   requiredCapabilities: ['BUILDER_CODING'],
 }) : undefined
-const builderVerifierModel = config.builder && config.project ? resolveProjectModelAdmission({
-  catalogFile: config.project.modelCatalogFile,
-  credentialSlotsFile: config.project.externalFileSlotsFile,
-  admissionId: config.builder.verifierModelAdmissionId,
-  requiredCapabilities: ['BUILDER_VERIFICATION'],
-}) : undefined
 let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
 const mar = config.preview ? createMarModule({
   access: identityAccess.previewAccess,
@@ -206,7 +200,7 @@ const launchPreview = mar ? async (request: import('fastify').FastifyRequest, in
     throw error
   }
 } : undefined
-builder = config.builder && config.project && builderModel && builderVerifierModel ? createConfiguredBuilderModule({
+builder = config.builder && config.project && builderModel ? createConfiguredBuilderModule({
   database: {
     host: config.database.host,
     port: config.database.port,
@@ -227,13 +221,6 @@ builder = config.builder && config.project && builderModel && builderVerifierMod
     modelId: builderModel.modelId,
   },
   validateModelCredential: builderModel.validateCredential,
-  verifierModel: builderVerifierModel.model,
-  verifierModelIdentity: {
-    admissionId: builderVerifierModel.admissionId,
-    providerId: builderVerifierModel.providerId,
-    modelId: builderVerifierModel.modelId,
-  },
-  validateVerifierModelCredential: builderVerifierModel.validateCredential,
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined

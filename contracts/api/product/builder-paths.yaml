@@ -41,8 +41,12 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [intent]
+              required: [intent, expectedSourceRevision]
               properties:
+                expectedSourceRevision:
+                  type: string
+                  pattern: '^[0-9a-f]{40}$'
+                  description: Expected project working source. The server refuses stale origins before starting work.
                 intent:
                   type: string
                   minLength: 1
@@ -277,16 +281,16 @@ paths:
                 changeId:
                   type: string
                   format: uuid
-                  description: Exact untrusted Change candidate reference; Project containment, current authority and verification are revalidated server-side.
+                  description: Exact untrusted Change candidate reference; Project containment, current authority and technical Preview eligibility are revalidated server-side.
                 subjectDigest:
                   type: string
                   minLength: 40
                   maxLength: 128
                   pattern: '^[0-9a-f]+$'
-                  description: Exact verified Change candidate source digest; caller selection never replaces server subject resolution.
+                  description: Exact technically admitted Change candidate source digest; caller selection never replaces server subject resolution or creates verification.
       responses:
         '202':
-          description: Preparation accepted or already coalesced for the exact verified Change candidate. The projection contains no account, session, source-file or launch credential data.
+          description: Preparation accepted or already coalesced for the exact technically admitted Change candidate. The projection contains no account, session, source-file or launch credential data.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PreviewPreparation' }
@@ -668,6 +672,8 @@ components:
         planningDepth: { $ref: '#/components/schemas/PlanningDepth' }
         rigorProfile: { $ref: '#/components/schemas/RigorProfile' }
         state: { type: string, minLength: 1 }
+        summary: { type: [string, 'null'] }
+        failureCode: { type: [string, 'null'] }
     PlanItem:
       type: object
       additionalProperties: false
@@ -769,6 +775,10 @@ components:
           description: Exact server-resolved current Project source digest for CURRENT_PROJECT or exact Change candidate digest for CHANGE_CANDIDATE.
         ready: { type: boolean }
         verified: { type: boolean }
+        previewEligible: { type: boolean }
+        workingSourceRevision: { type: string, pattern: '^[0-9a-f]{40}$' }
+        activeChangeId: { type: [string, 'null'], format: uuid }
+        lastPreviewChangeId: { type: [string, 'null'], format: uuid }
         live: { type: boolean, const: false }
         preparation: { $ref: '#/components/schemas/PreviewPreparation' }
     PreviewPreparation:

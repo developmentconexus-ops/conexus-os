@@ -4,8 +4,8 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { BuilderRequestError, closeChangeFinding, createChange, getBuildPreview, getChange, getChangeDiff, getChangePlan, getChangeProgress, getProjectSourceFile, launchBuildPreview, listChangeEvidence, listChangeFindings, listChanges, listProjectSourceTree, prepareBuildPreview } from '../api'
 import { BuilderConversation } from './builder-conversation'
 
-const terminal = new Set(['VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED', 'FAILED', 'INTERRUPTED'])
-const hasCandidate = new Set(['RESULT_READY', 'VERIFYING', 'VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED'])
+const terminal = new Set(['PREVIEW_READY', 'BUILD_FAILED', 'RESPONDED', 'VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED', 'FAILED', 'INTERRUPTED'])
+const hasCandidate = new Set(['PREPARING', 'PREVIEW_READY', 'BUILD_FAILED', 'RESULT_READY', 'VERIFYING', 'VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED'])
 
 type PreviewIdentity = Readonly<{ projectId: string; changeId: string; subjectDigest: string }>
 type PreviewCommand = PreviewIdentity & Readonly<{ generation: number }>
@@ -17,7 +17,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const iframeName = `preview-frame-${inputId.replaceAll(':', '')}`
   const previewFrameName = (launch: PreviewLaunch) => `${iframeName}-${launch.generation}`
   const queryClient = useQueryClient()
-  const attempt = useRef<Readonly<{ intent: string; key: string }> | undefined>(undefined)
+  const attempt = useRef<Readonly<{ intent: string; key: string; expectedSourceRevision: string }> | undefined>(undefined)
   const [intent, setIntent] = useState('')
   const [selectedId, setSelectedId] = useState<string>()
   const [sourceSelection, setSourceSelection] = useState<Readonly<{ changeId: string; sourceRevision: string; path?: string }>>()
@@ -32,27 +32,31 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const latestSelection = useRef<Readonly<{ projectId: string; changeId: string | undefined }>>({ projectId, changeId: undefined })
   const latestPreview = useRef<PreviewIdentity | undefined>(undefined)
   const entrySubmitted = useRef<string | undefined>(undefined)
+  const automaticLaunch = useRef<string | undefined>(undefined)
   const entryForm = useRef<HTMLFormElement>(null)
   const changes = useQuery({
     queryKey: ['builder-changes', projectId], queryFn: () => listChanges(projectId), refetchInterval: 2_000,
   })
   const currentId = selectedId ?? changes.data?.[0]?.changeId
   latestProject.current = projectId
-  latestSelection.current = { projectId, changeId: currentId }
   const requireCurrentId = () => {
     if (!currentId) throw new Error('No current Change')
     return currentId
   }
   const currentPreview = useQuery({
     queryKey: ['builder-preview', projectId, 'current'], queryFn: () => getBuildPreview(projectId),
+    refetchInterval: 1_500,
   })
   const change = useQuery({
     queryKey: ['builder-change', projectId, currentId], queryFn: () => getChange(projectId, requireCurrentId()),
     enabled: Boolean(currentId), refetchInterval: (query) => terminal.has(query.state.data?.state ?? '') ? false : 1_500,
   })
+  const previewChangeId = change.data?.state === 'PREVIEW_READY' || change.data?.state === 'VERIFIED'
+    ? currentId : currentPreview.data?.lastPreviewChangeId ?? undefined
+  latestSelection.current = { projectId, changeId: previewChangeId }
   const candidatePreview = useQuery({
-    queryKey: ['builder-preview', projectId, currentId, change.data?.state], queryFn: () => getBuildPreview(projectId, requireCurrentId()),
-    enabled: Boolean(currentId) && hasCandidate.has(change.data?.state ?? ''),
+    queryKey: ['builder-preview', projectId, previewChangeId, change.data?.state], queryFn: () => getBuildPreview(projectId, previewChangeId),
+    enabled: Boolean(previewChangeId),
     refetchInterval: (query) => query.state.data?.preparation?.state === 'PREPARING' ? 750 : false,
   })
   const plan = useQuery({ queryKey: ['builder-plan', projectId, currentId], queryFn: () => getChangePlan(projectId, requireCurrentId()), enabled: Boolean(currentId), refetchInterval: (query) => terminal.has(query.state.data?.progress ?? '') ? false : 2_000 })
@@ -78,8 +82,8 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   }, [currentId, diff.data?.candidateSourceRevision, sourceSelection?.changeId])
   const currentResolutionEvidence = evidence.data?.filter((item) => item.subjectDigest === diff.data?.candidateSourceRevision &&
     item.claim === 'Candidate satisfies the accepted Change intent.') ?? []
-  const previewIdentity = currentId && candidatePreview.data?.subjectKind === 'CHANGE_CANDIDATE'
-    ? { projectId, changeId: currentId, subjectDigest: candidatePreview.data.subjectDigest }
+  const previewIdentity = previewChangeId && candidatePreview.data?.subjectKind === 'CHANGE_CANDIDATE'
+    ? { projectId, changeId: previewChangeId, subjectDigest: candidatePreview.data.subjectDigest }
     : undefined
   latestPreview.current = previewIdentity
   const isCurrent = useCallback((command: PreviewCommand): boolean => generation.current === command.generation && latestProject.current === command.projectId && latestSelection.current.changeId === command.changeId && latestPreview.current?.subjectDigest === command.subjectDigest, [])
@@ -127,7 +131,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     },
   })
   const startPreparation = () => {
-    if (!previewIdentity || !candidatePreview.data?.verified) return
+    if (!previewIdentity || !(candidatePreview.data?.previewEligible ?? candidatePreview.data?.verified)) return
     const nextGeneration = invalidateGeneration()
     const command = { ...previewIdentity, generation: nextGeneration }
     setPreviewMessage('Preparando Preview…')
@@ -139,6 +143,16 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     const nextGeneration = invalidateGeneration()
     launch.mutate({ ...previewIdentity, generation: nextGeneration, attemptId: preparation.attemptId, artifactRevisionId: preparation.artifactRevisionId, artifactDigest: preparation.artifactDigest })
   }
+  const automaticLaunchMutation = launch.mutate
+  useEffect(() => {
+    const preparation = candidatePreview.data?.preparation
+    const subjectDigest = candidatePreview.data?.subjectDigest
+    if (preparation?.state !== 'PREPARED' || !previewChangeId || !subjectDigest || launch.isPending || pendingLaunch) return
+    const key = `${projectId}:${previewChangeId}:${preparation.attemptId}`
+    if (automaticLaunch.current === key || (activeLaunch && activeLaunch.changeId === previewChangeId && activeLaunch.subjectDigest === subjectDigest)) return
+    automaticLaunch.current = key
+    automaticLaunchMutation({ projectId, changeId: previewChangeId, subjectDigest, generation: invalidateGeneration(), attemptId: preparation.attemptId, artifactRevisionId: preparation.artifactRevisionId, artifactDigest: preparation.artifactDigest })
+  }, [candidatePreview.data?.preparation, candidatePreview.data?.subjectDigest, previewChangeId, projectId, launch.isPending, pendingLaunch, activeLaunch, automaticLaunchMutation, invalidateGeneration])
   useEffect(() => {
     if (!pendingLaunch || entrySubmitted.current === `${pendingLaunch.generation}:${pendingLaunch.previewUrl}`) return
     const key = `${pendingLaunch.generation}:${pendingLaunch.previewUrl}`
@@ -180,7 +194,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     setPreviewMessage('Preview carregando no endereço autorizado.')
   }
   const mutation = useMutation({
-    mutationFn: (value: Readonly<{ intent: string; key: string }>) => createChange(projectId, value.intent, value.key),
+    mutationFn: (value: Readonly<{ intent: string; key: string; expectedSourceRevision: string }>) => createChange(projectId, value.intent, value.key, value.expectedSourceRevision),
     onSuccess: async (created) => {
       attempt.current = undefined
       setSelectedId(created.changeId)
@@ -191,7 +205,11 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     onError: (error) => {
       if (error instanceof BuilderRequestError && error.status === 403) setMessage('Sua autoridade atual não permite construir neste Project.')
       else if (error instanceof BuilderRequestError && error.status === 404) setMessage('Este Project ainda não possui um Baseline aprovado para construir.')
-      else if (error instanceof BuilderRequestError && error.status === 409) setMessage('O resultado desta tentativa ainda não foi confirmado. Reenvie sem alterar o pedido.')
+      else if (error instanceof BuilderRequestError && error.status === 409) {
+        attempt.current = undefined
+        void queryClient.invalidateQueries({ queryKey: ['builder-preview', projectId] })
+        setMessage('O projeto recebeu outra alteração ou ainda está trabalhando. Aguarde a atualização e envie novamente.')
+      }
       else setMessage('O Change não foi confirmado. Tente novamente sem alterar o pedido.')
     },
   })
@@ -215,7 +233,9 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     event.preventDefault()
     const value = intent.trim()
     if (!value) { setMessage('Diga ao Conexus o que deve mudar.'); return }
-    if (attempt.current?.intent !== value) attempt.current = { intent: value, key: crypto.randomUUID() }
+    const expectedSourceRevision = currentPreview.data?.workingSourceRevision
+    if (!expectedSourceRevision) { setMessage('A origem do projeto ainda está sendo carregada.'); return }
+    if (attempt.current?.intent !== value) attempt.current = { intent: value, key: crypto.randomUUID(), expectedSourceRevision }
     setMessage('Criando o Change…')
     mutation.mutate(attempt.current)
   }
@@ -236,7 +256,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
             <p>{currentPreview.data.ready ? 'Preview pronto para servir.' : 'Preview ainda não está pronto: não há artefato de aplicação admitido.'}</p>
             <small>Verificado: {currentPreview.data.verified ? 'sim' : 'não'} · live: {currentPreview.data.live ? 'sim' : 'não'}</small>
           </div>}
-          {candidatePreview.data?.verified && !candidatePreview.data.preparation && <button type="button" disabled={prepare.isPending} onClick={startPreparation}>
+          {(candidatePreview.data?.previewEligible ?? candidatePreview.data?.verified) && !candidatePreview.data?.preparation && <button type="button" disabled={prepare.isPending} onClick={startPreparation}>
             {prepare.isPending ? 'Preparando Preview…' : 'Preparar Preview'}
           </button>}
           {candidatePreview.data?.preparation?.state === 'PREPARING' && <p>Preparando Preview…</p>}
@@ -260,12 +280,12 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
         <aside className="conexus-panel" aria-labelledby="conexus-panel-title">
           <p className="eyebrow">Conexus</p>
           <h2 id="conexus-panel-title">O que deve mudar?</h2>
-          {currentId && <BuilderConversation key={`${projectId}:${currentId}`} projectId={projectId} changeId={currentId} intent={change.data?.intent} />}
+          {currentId && <BuilderConversation key={`${projectId}:${currentId}`} projectId={projectId} changeId={currentId} intent={change.data?.intent} summary={change.data?.summary} />}
           <form onSubmit={submit}>
             <label htmlFor={inputId}>O que deve mudar neste Project?</label>
             <textarea id={inputId} rows={5} required value={intent} onChange={(event) => setIntent(event.target.value)} />
-            <p>O Conexus trabalhará sobre o Baseline aceito e mostrará o resultado antes de qualquer aceitação.</p>
-            <button className="primary" type="submit" disabled={mutation.isPending || Boolean(currentId && (!change.data || !terminal.has(change.data.state)))}>{mutation.isPending ? 'Criando Change…' : 'Pedir mudança'}</button>
+            <p>O Conexus continuará os arquivos do aplicativo. A versão anterior permanece disponível enquanto a alteração é preparada.</p>
+            <button className="primary" type="submit" disabled={mutation.isPending || !currentPreview.data?.workingSourceRevision || Boolean(currentPreview.data.activeChangeId) || Boolean(currentId && (!change.data || !terminal.has(change.data.state)))}>{mutation.isPending ? 'Enviando…' : 'Pedir mudança'}</button>
             <p role="status" aria-live="polite">{message}</p>
           </form>
         </aside>
@@ -305,6 +325,10 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
               {change.data?.state === 'FAILED' && <p role="alert">O trabalho foi interrompido sem produzir um resultado aceito.</p>}
               {change.data?.state === 'VERIFYING' && <p>O Conexus está verificando o candidato em uma execução independente.</p>}
               {change.data?.state === 'RUNNING' && <p>O Conexus está produzindo ou corrigindo o candidato em uma execução controlada.</p>}
+              {change.data?.state === 'PREPARING' && <p>Preparando a aplicação. A versão anterior continua disponível.</p>}
+              {change.data?.state === 'PREVIEW_READY' && <p>Aplicação disponível para experimentar. Isso não representa revisão independente.</p>}
+              {change.data?.state === 'BUILD_FAILED' && <p role="alert">A compilação falhou. Seus arquivos foram preservados para a próxima correção.</p>}
+              {change.data?.summary && <p>{change.data.summary}</p>}
               {change.data?.state === 'VERIFIED' && <p><strong>Resultado verificado.</strong> O Hub confirmou a Evidence contra o candidato e o Baseline exatos.</p>}
               {change.data?.state === 'VERIFICATION_FAILED' && <p role="alert"><strong>Verificação reprovada.</strong> O candidato não foi aceito; confira os pontos encontrados.</p>}
               {change.data?.state === 'UNVERIFIED' && (currentResolutionEvidence.length > 0

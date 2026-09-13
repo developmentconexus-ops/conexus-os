@@ -53,7 +53,6 @@ export type HubConfig = Readonly<{
     e2bApiKeyFile: string
     e2bTemplateId: string
     modelAdmissionId: string
-    verifierModelAdmissionId: string
   }> | undefined
   oidc: Readonly<{ issuer: string; clientId: string; clientSecretFile: string; allowInsecureForTest: boolean }>
 }>
@@ -205,7 +204,6 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
     e2bApiKeyFile: environment.CONEXUS_BUILDER_E2B_API_KEY_FILE,
     e2bTemplateId: environment.CONEXUS_BUILDER_E2B_TEMPLATE_ID,
     modelAdmissionId: environment.CONEXUS_BUILDER_MODEL_ADMISSION_ID,
-    verifierModelAdmissionId: environment.CONEXUS_BUILDER_VERIFIER_MODEL_ADMISSION_ID,
   }
   if (Object.values(values).every(Boolean)) return values as NonNullable<HubConfig['builder']>
   if (Object.values(values).some(Boolean)) {
@@ -215,7 +213,6 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
       CONEXUS_BUILDER_E2B_API_KEY_FILE: values.e2bApiKeyFile,
       CONEXUS_BUILDER_E2B_TEMPLATE_ID: values.e2bTemplateId,
       CONEXUS_BUILDER_MODEL_ADMISSION_ID: values.modelAdmissionId,
-      CONEXUS_BUILDER_VERIFIER_MODEL_ADMISSION_ID: values.verifierModelAdmissionId,
     })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
   }
   return undefined

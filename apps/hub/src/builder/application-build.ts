@@ -63,7 +63,7 @@ export type UnboundBuilderApplicationArtifacts = Readonly<{
   readApplicationFile(client: ApplicationArtifactClient, input: ApplicationArtifactReadRequest): Promise<ApplicationArtifactReadResult | null>
 }>
 
-export const prepareVerifiedApplication = async (
+export const prepareApplicationArtifact = async (
   dependencies: Readonly<{
     store: Pick<BuilderStore, 'readPreviewSubject'>
     source: Pick<BuilderSourcePort, 'listSourceTree' | 'readSourceFile'>
@@ -82,11 +82,11 @@ export const prepareVerifiedApplication = async (
   if (dependencies.compiler.kind !== 'REMOTE_E2B') throw new Error('BUILDER_LOCAL_RUNTIME_REFUSED')
   const subject = await dependencies.store.readPreviewSubject(request)
   cancelled()
-  if (subject?.subjectKind !== 'CHANGE_CANDIDATE' || !subject.verified ||
+  if (subject?.subjectKind !== 'CHANGE_CANDIDATE' || !(subject.previewEligible ?? subject.verified) ||
     !/^[0-9a-f]{40}$/.test(subject.sourceRevision)) throw new Error('BUILDER_APPLICATION_SUBJECT_REFUSED')
   const sameSubject = (current: BuilderPreviewSubject | null): boolean => current !== null &&
     current.subjectKind === subject.subjectKind && current.subjectDigest === subject.subjectDigest &&
-    current.sourceRevision === subject.sourceRevision && current.verified
+    current.sourceRevision === subject.sourceRevision && (current.previewEligible ?? current.verified)
   const recheck = async (): Promise<void> => {
     cancelled()
     if (!sameSubject(await dependencies.store.readPreviewSubject(request))) throw new Error('BUILDER_APPLICATION_SUBJECT_CHANGED')

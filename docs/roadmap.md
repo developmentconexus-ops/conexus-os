@@ -16,6 +16,13 @@ Business Product Agents, automatic Brain learning, generic app backends and
 broad automation are deferred. The broader Product contracts remain discoverable;
 this pilot does not claim to implement all of them.
 
+The operator approved the revised internal pilot on 2026-09-13. Provide the
+development environment and company knowledge without making every Preview
+depend on an independent model reviewer. Working source, compiled Preview and
+quality review are separate. The [pilot implementation sequence](tasks/builder-first-app.md#internal-pilot-refactoring)
+replaces verifier repair as the primary objective. Brain experimentation depends
+on a usable create/open/continue cycle, not completion of every recovery proof.
+
 R1–R7 and L1–L6 are historical plans, not the current execution queue.
 Their names in code, migrations and receipts do not require stage readmission.
 Keep useful implementation and the original proof limits.
@@ -23,8 +30,8 @@ Keep useful implementation and the original proof limits.
 | Delivery | State | Observable result and evidence | Next action |
 | --- | --- | --- | --- |
 | [Repository cleanup](tasks/repository-consolidation.md) | DELIVERED | Current graph and final changed Builder leaf passed; published in `9945329`; no claim that the app is ready | No further cleanup prerequisite |
-| [First Builder-created app](tasks/builder-first-app.md#delivery-checkpoints) | IN PROGRESS | Real streaming/reload proved with model/E2B; new candidate refused by verifier; previous real app remains usable | Diagnose the retained verifier refusal without bypassing it; continuation and complete generated-app recovery remain pending |
-| [Manually maintained Brain](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Existing context code retained; Builder must demonstrably consume selected store knowledge | Detail with the first app's consumer; no automatic learning |
+| [First Builder-created app](tasks/builder-first-app.md#internal-pilot-refactoring) | IN PROGRESS | Previous real app and streaming proof retained; revised pilot is not implemented | Reconcile affected semantic owners, then implement working-source continuity and technical Preview without mandatory independent review |
+| [Manually maintained Brain](tasks/builder-first-app.md#internal-pilot-refactoring) | PLANNED | Existing context code retained; real authored rule consumption remains unproved | Begin the real-rule experiment when create/open/continue works; do not wait for complete first-app closure |
 | [Narrow SDK and Sankhya](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Existing integration proof retained; the app must perform a real authorized operation | Select that operation before defining its SDK details |
 | [Colleague uses the app](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Another authorized person must open the usable app; creator Preview does not establish this | Detail access when the app is usable |
 
@@ -39,11 +46,30 @@ their consumer needs detail. These labels are not CI gates.
 
 | Work | Status | Preserved result | Reopen trigger |
 | --- | --- | --- | --- |
-| Product implementation | IN PROGRESS / STREAMING PROVED / VERIFIER REFUSAL | Real incremental text/tool UI and reload without duplicate coding proved; new candidate remains UNVERIFIED; prior app still works | Verifier report refusal, explicit continuation and generated-app recovery |
+| Product implementation | IN PROGRESS / INTERNAL PILOT REFACTORING | Real streaming and previous app retained; historical refused candidate remains UNVERIFIED | Working-source continuity, technical Preview eligibility, real Brain consumption and recovery proof |
 
-Continuation readiness = INTERNAL PILOT / STREAMING PROVED / VERIFIER REFUSAL
+Continuation readiness = INTERNAL PILOT / APPROVED REFACTORING / OWNER ALIGNMENT
 
 ## Current grant
+
+On 2026-09-13 the operator requested autonomous execution until the approved
+pilot is usable for their own browser test. Continue implementation and real
+local validation without per-step approval. Stop only for a genuine missing
+operator decision, external authority or material contradiction requiring Pro
+input. Leave the owned local pilot running and provide its tested address when
+ready. This does not authorize publication, production writes or merge.
+
+On 2026-09-13 the operator approved proceeding with the reviewed pilot proposal
+and the Pro clarification that Brain experimentation may precede first-app
+closure. Update existing owners and implement the bounded pilot described in
+the current task. This supersedes the earlier verifier-first priority and the
+universal independent-review requirement for the proposed technical Preview
+path, not authorization or source isolation. Reconcile affected Product and
+wire owners before their implementation; do not implement a bypass flag or
+mark an unreviewed candidate VERIFIED. Preserve historical records unchanged.
+Routine reversible implementation and targeted checks are included. Existing
+named local model/E2B proof authority remains; no public deployment, business
+write, commit, push, PR or merge is granted by this continuation.
 
 On 2026-09-12, after the live streaming result, the operator authorized publishing
 the current implementation and evidence to `analysis/internal-mvp-2026-09-12`
@@ -192,19 +218,20 @@ not the real Builder/Preview journey. The original draft remains unchanged at
 
 ## Exact next action
 
-Diagnose `BUILDER_VERIFIER_REPORT_REFUSED` from the
-[real streaming run](tasks/builder-first-app.md#real-streaming-result-and-current-blocker),
-Change `f5aff913-67af-4644-8d45-08cef13fe23c`, without bypassing verification or
-manually accepting its candidate. Streaming/reload and prior-app preservation
-were proved with the actual model/E2B/browser. The new candidate was not opened.
-Recover a safe reason for the verifier's inconsistent report before changing
-its behavior. Preserve both candidates and the previous app. Then resume
-explicit second-request continuation and generated-app restart recovery.
-The full verification graph also has four recorded pre-existing hash/generated
-projection failures; do not claim a green graph until they are resolved.
-Do not repeat the Mastra study or rebuild compiler, storage or authentication
-without a concrete contradiction. Keep 024/025 held. No hosting, publication,
-production database changes or historical-stage restart is authorized.
+Reconcile the existing Builder/Product/wire owners with the
+[approved pilot delta](tasks/builder-first-app.md#internal-pilot-refactoring).
+Then implement and prove the smallest real create/open/continue cycle with
+explicit working source and technical Preview eligibility. Do not merely
+disable the verifier in the service while SQL still requires acceptance.
+Start the real Brain experiment after that cycle works and its own knowledge
+and authorization prerequisites are present. Recovery and full verification
+remain delivery obligations, not a blanket prerequisite for that experiment.
+The historical verifier refusal remains unresolved evidence, not the primary
+queue. Preserve its candidate without relabeling it. The four recorded
+hash/generated-projection failures still prevent a green full verification
+claim. Do not rebuild compiler, storage or authentication without a concrete
+contradiction. Keep 024/025 held. No hosting, publication, production database
+changes or historical-stage restart is authorized.
 
 ## Approved local platform delivery design
 

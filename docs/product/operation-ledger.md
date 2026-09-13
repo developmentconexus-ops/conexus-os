@@ -675,10 +675,23 @@ new durable records = 0
 | `BLD-18` | `GetChangeProductAgentDraft` | Builder | exact Change + current server-owned typed Product Agent draft | read |
 | `BLD-19` | `CreateChangeProductAgentDraft` | Builder | exact Change + explicit NEW or current authored origin + typed `agent/v1`; idempotent candidate establishment | command |
 | `BLD-20` | `ReviseChangeProductAgentDraft` | Builder | exact Change/draft + expected current draft revision + typed `agent/v1` | command/current-state |
-| `BLD-21` | `PrepareBuildPreview` | Builder | exact Project + verified Change candidate subject digest; retained preparation status remains distinct from MAR serving/readiness | command/current-state |
+| `BLD-21` | `PrepareBuildPreview` | Builder | exact Project + technically admitted Change candidate subject digest; retained preparation status remains distinct from independent verification and MAR serving/readiness | command/current-state |
 | `BLD-22` | `LaunchBuildPreview` | Builder | exact PREPARED attempt and immutable artifact coordinates; I&A session-bound grant and MAR route are created without compilation | command/current-state |
 
 A generic `AcceptChange` is rejected. `bld.change_acceptance` remains an owner current-proof fact produced by exact checkpoints/verifier/Builder settlement. Direct `CreateWorkUnit`, plan-JSON patch, `SetWorkItemStatus`, `CreateActorRun`, `ResumeSandbox` and `MarkVerified` are owner/runtime mechanics.
+
+Internal pilot refinement, approved 2026-09-13: BLD-03 resolves and pins the
+expected project working source, while the approved Baseline still supplies
+project meaning and limits. Successive edits continue retained source across
+Changes. A coding turn may end with a persisted response-only result; it does
+not create a parallel assistant owner or use BLD-16 to mutate Change state.
+BLD-21 admits technically retained source without independent model acceptance
+for this limited Preview path. The verified-candidate restriction in historical
+receipts does not apply to that path. This never manufactures change_acceptance
+or VERIFIED status. BLD-22 retains exact prepared artifact and launch authority.
+The working source, last successful compiled artifact and independent review
+remain separate facts. Current schemas and generated consumers must encode this
+refinement together before the pilot is handed to an operator.
 
 ### 5.4.1 `4C-F14` — human-recognizable Change + exact optional assistant context
 

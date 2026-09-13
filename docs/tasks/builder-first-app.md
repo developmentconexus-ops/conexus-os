@@ -25,7 +25,153 @@ credentials, truthful failures and existing ownership. It does not implement
 arbitrary app servers, autonomous Brain learning, a universal SDK, public
 deployment, business Product Agents or whole-repository consolidation.
 
+## Internal pilot refactoring
+
+The operator approved this direction on 2026-09-13 after reviewing
+`Conexus_plano_refatoracao_piloto_v2.md`, based on commit `6f697bd`, and the
+subsequent Pro clarification. This section absorbs the actionable plan into
+the existing task. The external document is not a second execution queue.
+Current grant and delivery status remain in the roadmap.
+
+### Outcome and policy delta
+
+A person creates and evolves an ordinary-code app without choosing its stack,
+configuring infrastructure or repeating company rules. Keep Mastra, E2B,
+streaming, the fixed compiler, Git retention, Registry, login and Preview
+isolation. Do not replace the runtime or perfect a universal review workflow.
+
+The limited internal Preview path does not require an independent model
+reviewer for every edit. Technical admission still checks source identity,
+allowed files and authorization. Compilation success means an executable
+artifact was produced, not business correctness or independent verification.
+Never fabricate VERIFIED status or rewrite an old refusal as acceptance.
+Publication remains separate from Preview.
+
+The first implementation must reconcile this policy with active Product,
+Builder and wire owners. SQL admission and recovery are part of that change.
+Removing only `executeVerification` is not a valid implementation.
+
+Owner reconciliation is bounded to these existing consumers:
+
+- `docs/product/operation-ledger.md` section 5.4 and
+  `contracts/api/product/builder-paths.yaml`: BLD-03 working origin and
+  response-only result, BLD-21 technical preparation, and affected read projections.
+  Keep BLD-22's exact artifact and launch authority; do not add another operation.
+- `docs/reference/builder-and-harness.md` sections 9.2, 9.4, 9.7 and 38.3:
+  distinguish cross-request continuity from correction and keep independent
+  verification for claims that actually assert material verification.
+- `docs/product/contract.md` RunPreview, Journey C and Preview sections:
+  distinguish executable inspection from VERIFIED and preserve the last-good app.
+
+The read-only owner map found an additional integration question: a no-edit
+response from a coding turn must remain a Builder result. Do not silently
+reuse BLD-16's read-only assistant interaction to mutate Change state or create
+a parallel conversation owner. Resolve the result variant in the existing
+BLD-03 and read contracts before changing the runtime finalizer.
+
+### State and responsibilities
+
+Builder owns one working-state record per project. Its proposed fields are
+`workingSourceRevision`, `workingChangeId`, the last retained Preview artifact
+and its source, the active turn, a concurrency revision and the selected Brain
+revision when configured. Resolve exact names against existing contracts.
+Git owns immutable app source; Registry owns compiled bytes. Neither a cookie
+nor a live route is the persistent identity of the last Preview.
+
+- The first edit uses the initial admitted source. Later edits use the working
+  revision, not the original Baseline or the version merely being viewed.
+- One edit/preparation runs per project. Idempotency binds intention and
+  expected origin. Stale origins and competing edits fail before paid work.
+- Retain the immutable candidate before conditionally associating it with the
+  still-current turn and origin. Do not add a distributed Git/database transaction.
+- A retained candidate becomes the next correction source even when its build
+  fails. The last successful artifact stays available and is labeled as older.
+- A response without edits persists text without requiring an empty commit or
+  another compilation. Compose bounded recent context from existing intentions
+  and final responses, not a parallel conversation engine.
+- Late results do not replace newer state. Restart preserves committed source
+  and artifacts but does not promise automatic resumption of an interrupted
+  paid run. Reopening issues fresh authorization.
+
+The existing service prepares retained edits without depending on a connected
+browser. GET requests do not start paid work. The UI keeps the app primary and
+shows conversation, preparation and truthful failures beside it. The normal
+flow does not require the user to operate verification and preparation stages.
+
+### Execution checklist and throughput checkpoint
+
+The first checkpoint is a real app opened through the Hub and a second request
+that preserves its first behavior. Documentation removes contradictory
+instructions but is not Product delivery. The work spans existing Builder
+SQL/store, source custody, runtime/service, Registry admission and UI contracts;
+it is a coordinated increment, not a one-line verifier fix.
+
+- [x] Read poteto-mode principles and frame the approved outcome.
+- [x] Record the approved policy and the experiment/closure distinction here.
+- [ ] Align the smallest affected semantic owners and concrete state contracts.
+- [ ] Capture the existing failures for continuation, no-edit response and
+  unreviewed technical Preview using the current tests and a disposable database.
+- [ ] Implement working origin and result variants with a forward migration;
+  adapt Git admission, runtime, service, recovery and Registry consumers together.
+- [ ] Compose automatic preparation and the existing UI. Prove create, open
+  and a second edit with actual login, model, E2B and browser.
+- [ ] Begin the real Brain experiment as soon as that cycle and its own
+  prerequisites work. Do not wait for the next checklist item to finish.
+- [ ] Complete failed-build correction, no-edit conversation, stale/replayed
+  requests, late-result protection, restart/reopen and full candidate verification.
+
+Use existing targeted suites after each affected unit. Keep source controls
+and credential isolation working throughout. Review structural and authority
+changes with the existing risk-triggered Luna policy; no per-file approval or
+new review subsystem. Commit, PR and deployment steps are excluded from this grant.
+
+### Early Brain experiment
+
+The dependency is the usable create/open/continue cycle, not closure of every
+first-app proof. A confirmed business rule, its exceptions and independently
+expected results are also required. Commission is an example, not a supplied
+formula or a requirement that Conexus become a calculator product.
+
+Select authored `mnobre_brain` content at an identified revision. A small
+deterministic export feeds the existing Brain format and Registry. Preserve
+item IDs, full relevant text, exceptions and source references. Add real authored
+admission instead of labeling real knowledge SYNTHETIC. Textual KNOWLEDGE must
+not require a fabricated ERP health result or DATASET assertions.
+
+Give the agent a short index and a server-side authorized item-reading tool.
+The server fixes workspace and revision from trusted project context; the model
+does not supply credentials, an account identity or an arbitrary URL. Record
+the returned item and revision without exposing secrets. Reading knowledge
+does not grant ERP access or Brain editing. Rule updates are explicit.
+
+Ask for a calculator without including its formula in the prompt. Observe the
+real item read, use the generated app against expected values, then request an
+explanation or visual change while preserving the rule. Missing or ambiguous
+knowledge must produce a question or explicit gap, not an invented formula.
+Authorization defects or file-loss defects block the affected experiment.
+Incomplete unrelated recovery proofs do not block learning from this flow.
+
+### Local operation and completion limits
+
+Reuse existing startup commands where possible. If absent, provide bounded
+pilot up/status/down commands that identify their own resources, report the
+real HTTPS address and preserve data. Persistent pilot data cannot depend on
+`/tmp`; certificates and secrets stay outside Git. Do not create a generic supervisor.
+
+Before declaring the delivery complete, prove repeated edits with correct Git
+parents, a no-edit reply, correction from retained failed-build source, previous
+app preservation, reconnect without duplicate work and restart without needless
+recompilation. Test fresh database setup and forward migration, access refusal
+and protected paths. Run the complete current verification graph and report all
+attempts. Existing four hash/projection failures are not waived or silently
+fixed by changing old receipts. ERP access is a later real operation with its
+own consumer, not a prerequisite for the knowledge calculator.
+
 ## Delivery checkpoints
+
+The dated checkpoints below retain proof of the previous policy. Their
+verifier-first next actions and research-only restrictions do not override
+the current roadmap or the internal pilot refactoring above.
 
 ### Interactive browser result and streaming follow-up
 
@@ -2502,3 +2648,20 @@ receipt was changed. These results do not validate the proposed runtime.
 No app, real coding model, E2B, Sankhya or proposed experiment executed. Full
 `npm run verify` was not run because this is a documentation/design checkpoint,
 not Product-code acceptance or publication. No commit or publication was made.
+
+## Autonomous pilot checkpoint, 2026-09-13
+
+The approved pilot implementation now carries an explicit working source across
+Changes, keeps the last retained Preview independent from a failed preparation,
+allows response-only Builder turns, and removes the mandatory reviewer from the
+technical Preview path. The affected Hub and Web typechecks pass. Forty-four
+focused implementation tests pass, including retained Preview reopening and a
+second Change sourced from an exact prior Change ref.
+
+The real browser handoff is still open. The disposable PostgreSQL database
+accepted migration 027 manually because its historical migration catalog fails
+the older 002 catalog assertion. The local Keycloak container stopped answering
+the OIDC discovery request, so the Hub could not reach its HTTPS listeners.
+No browser URL is claimed until login, creation, Preview interaction and
+continuation pass against the live composition. The historical catalog and
+credentials were not deleted or rewritten.

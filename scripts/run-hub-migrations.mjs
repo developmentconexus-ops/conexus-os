@@ -20,7 +20,7 @@ const r1MigrationNames = [
   '010_project_inception_refinement.sql',
 ]
 const r2MigrationNames = ['011_r2_brain_connections.sql', '012_r2_project_binding_recovery.sql', '013_r2_binding_source_concordance.sql', '014_r2_brain_binding_settlement.sql', '015_r2_project_brain_read_envelopes.sql', '016_r2_brain_binding_removal.sql', '017_r2_key_conformance_subject.sql', '018_r2_brain_revision_selection.sql']
-const currentMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql', '021_rb_builder_bounded_correction.sql', '022_rb_builder_source_inspection.sql', '023_rb_builder_preview_subject.sql', '026_builder_application_registry.sql']
+const currentMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql', '021_rb_builder_bounded_correction.sql', '022_rb_builder_source_inspection.sql', '023_rb_builder_preview_subject.sql', '026_builder_application_registry.sql', '027_rb_builder_working_source.sql']
 const heldMigrationNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
 const expectedMigrationNames = [...currentMigrationNames, ...heldMigrationNames]
 const migration001Digest = 'd27e76b972145bc3a6bf669d4fd32734fc06153d07cddaf1072c6b29845b112f'
@@ -49,6 +49,7 @@ const migration023Digest = '849357f4daf7254ca7c7a2d487989cde75b45a130eb75ab72b84
 const migration024Digest = '8afb8add42959c19bc5f5edc3dad73a4d511195597656dbcb9505b6e75cae735'
 const migration025Digest = '707852bfe0b820ea5df21aa40076dbbb62733f9ce38e8911f9a9553a8b1bc36b'
 const migration026Digest = 'a5b051a57a40d7640bce15d248012a772d1b4129eb4f6a75475d23792449f006'
+const migration027Digest = '7d6464ffe6cbb4953199859ce4d9569cc8bf89a8f6fb55493c6572b0795bed6e'
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }
@@ -79,6 +80,7 @@ const migrationDigests = new Map([
   ['024_mar_pg_boss_projection.sql', migration024Digest],
   ['025_mar_admission_function.sql', migration025Digest],
   ['026_builder_application_registry.sql', migration026Digest],
+  ['027_rb_builder_working_source.sql', migration027Digest],
 ])
 const recognizedMigrationNames = new Set(expectedMigrationNames)
 
@@ -3251,7 +3253,7 @@ const assert018Catalog = async (client, migration018) => {
   `, [])
 }
 
-const assert019Catalog = async (client, { after020 = false, after021 = false, after022 = false, after023 = false, after026 = false } = {}) => {
+const assert019Catalog = async (client, { after020 = false, after021 = false, after022 = false, after023 = false, after026 = false, after027 = false } = {}) => {
   await assertSignatures(client, 'MIGRATION_019_SCHEMA_OWNER_REFUSED', `
     SELECT nspname || ':' || pg_get_userbyid(nspowner) AS signature
     FROM pg_namespace WHERE nspname = 'builder'
@@ -3260,7 +3262,7 @@ const assert019Catalog = async (client, { after020 = false, after021 = false, af
     SELECT relname || ':' || pg_get_userbyid(relowner) AS signature
     FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace
     WHERE n.nspname = 'builder' AND c.relkind = 'r'
-      ${after020 ? `AND c.relname NOT IN ('change_acceptance','contract_revision','finding','verification_evidence'${after021 ? ",'finding_resolution'" : ''})` : ''}
+      ${after020 ? `AND c.relname NOT IN ('change_acceptance','contract_revision','finding','verification_evidence'${after021 ? ",'finding_resolution'" : ''}${after027 ? ",'project_working_state'" : ''})` : ''}
     ORDER BY relname
   `, [
     'actor_run:builder_owner', 'change:builder_owner', 'coding_session:builder_owner',
@@ -3275,7 +3277,7 @@ const assert019Catalog = async (client, { after020 = false, after021 = false, af
     SELECT p.proname || ':' || pg_get_userbyid(p.proowner) || ':' || p.prosecdef || ':' ||
       coalesce(array_to_string(p.proconfig, ','), '') AS signature
     FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
-    WHERE (n.nspname = 'builder' ${after020 ? `AND p.proname NOT IN ('claim_verification','fail_verification','fail_verification_claim','get_evidence','get_finding','list_evidence','list_findings','settle_verification'${after021 ? ",'claim_correction','close_finding'" : ''}${after022 ? ",'admit_source_revision'" : ''}${after023 ? ",'read_preview_subject'" : ''}${after026 ? ",'admit_verified_application_source'" : ''})` : ''})
+    WHERE (n.nspname = 'builder' ${after020 ? `AND p.proname NOT IN ('claim_verification','fail_verification','fail_verification_claim','get_evidence','get_finding','list_evidence','list_findings','settle_verification'${after021 ? ",'claim_correction','close_finding'" : ''}${after022 ? ",'admit_source_revision'" : ''}${after023 ? ",'read_preview_subject'" : ''}${after026 ? ",'admit_verified_application_source'" : ''}${after027 ? ",'settle_response','settle_preparation','admit_application_source'" : ''})` : ''})
       OR (n.nspname = 'iam' AND p.proname IN ('admit_project_build','admit_project_source_read','ensure_project_builder_grant'))
     ORDER BY n.nspname, p.proname
   `, [
@@ -3376,6 +3378,51 @@ const assert023Catalog = async (client) => {
     FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
     WHERE n.nspname = 'builder' AND p.proname = 'read_preview_subject'
   `, ['read_preview_subject:builder_owner:true:search_path=pg_catalog, pg_temp'])
+}
+
+const assert027Catalog = async (client) => {
+  await assertSignatures(client, 'MIGRATION_027_TABLE_OWNER_REFUSED', `
+    SELECT relname || ':' || pg_get_userbyid(c.relowner) AS signature
+    FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'builder' AND c.relname = 'project_working_state'
+  `, ['project_working_state:builder_owner'])
+  await assertSignatures(client, 'MIGRATION_027_FUNCTION_SECURITY_REFUSED', `
+    SELECT n.nspname || '.' || p.proname || '(' || oidvectortypes(p.proargtypes) || '):' ||
+      pg_get_userbyid(p.proowner) || ':' || p.prosecdef || ':' ||
+      coalesce(array_to_string(p.proconfig, ','), '') AS signature
+    FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
+    WHERE (n.nspname, p.proname) IN (
+      ('builder', 'create_change'), ('builder', 'settle_response'),
+      ('builder', 'settle_preparation'), ('builder', 'admit_application_source')
+    ) ORDER BY n.nspname, p.proname, oidvectortypes(p.proargtypes)
+  `, [
+    'builder.admit_application_source(uuid, uuid, uuid, text):builder_owner:true:search_path=pg_catalog, pg_temp',
+    'builder.create_change(uuid, uuid, text, text, uuid, uuid, uuid, uuid, uuid, text, text):builder_owner:true:search_path=pg_catalog, pg_temp',
+    'builder.settle_preparation(uuid, uuid, uuid, text, uuid, text, text):builder_owner:true:search_path=pg_catalog, pg_temp',
+    'builder.settle_response(uuid, uuid, text, text):builder_owner:true:search_path=pg_catalog, pg_temp',
+  ])
+  await assertSignatures(client, 'MIGRATION_027_PREVIEW_PRIVILEGE_REFUSED', `
+    WITH functions(name) AS (VALUES
+      ('builder.admit_application_source(uuid, uuid, uuid, text)'),
+      ('builder.settle_preparation(uuid, uuid, uuid, text, uuid, text, text)'),
+      ('builder.settle_response(uuid, uuid, text, text)'))
+    SELECT role_name || ':' || functions.name AS signature
+    FROM (VALUES ('registry_owner'), ('hub_rb_executor'), ('hub_rb_ingress'), ('public')) AS roles(role_name)
+    CROSS JOIN functions
+    WHERE has_function_privilege(roles.role_name, functions.name, 'EXECUTE')
+    ORDER BY role_name, functions.name
+  `, [
+    'hub_rb_executor:builder.settle_preparation(uuid, uuid, uuid, text, uuid, text, text)',
+    'hub_rb_executor:builder.settle_response(uuid, uuid, text, text)',
+    'registry_owner:builder.admit_application_source(uuid, uuid, uuid, text)',
+  ])
+  await assertSignatures(client, 'MIGRATION_027_RUNTIME_TABLE_PRIVILEGE_REFUSED', `
+    SELECT grantee || ':' || table_name || ':' || privilege_type AS signature
+    FROM information_schema.table_privileges
+    WHERE table_schema = 'builder' AND grantee IN ('hub_rb_ingress','hub_rb_executor','registry_owner','public')
+      AND table_name = 'project_working_state'
+    ORDER BY grantee, table_name, privilege_type
+  `, [])
 }
 
 const assert024Catalog = async (client) => {
@@ -3508,6 +3555,7 @@ const verifyLedger = async (client, migrations) => {
       after022: true,
       after023: applied.has('023'),
       after026: applied.has('026'),
+      after027: applied.has('027'),
     })
     await assert020Catalog(client)
     await assert021Catalog(client)
@@ -3515,7 +3563,8 @@ const verifyLedger = async (client, migrations) => {
     if (applied.has('023')) await assert023Catalog(client)
     if (applied.has('024')) await assert024Catalog(client)
     if (applied.has('025')) await assert025Catalog(client)
-    if (applied.has('026')) await assert026Catalog(client, files.get('026'))
+    if (applied.has('026') && !applied.has('027')) await assert026Catalog(client, files.get('026'))
+    if (applied.has('027')) await assert027Catalog(client)
   } else if (applied.has('021')) {
     await assert015Catalog(
       client, files.get('003'), files.get('005'), files.get('006'), files.get('011'),

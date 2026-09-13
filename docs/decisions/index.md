@@ -2,6 +2,19 @@
 
 This is the single current decision register. Historical proposals and review rounds remain in Git history. A status weaker than qualified must never be promoted by wording.
 
+## Internal pilot owner reconciliation
+
+On 2026-09-13 the operator approved the
+[internal pilot refactoring](../tasks/builder-first-app.md#internal-pilot-refactoring).
+Disposition is `REOPEN` for working-source and technical Preview eligibility
+semantics only. Risk-triggered material engineering review remains current.
+The target permits limited technical Preview
+without independent model review, while keeping authorization, source isolation
+and historical verification facts. This is not a blanket waiver of C-017 or
+material engineering review. Reconcile the affected Builder reference, Product
+operations and wire contracts before implementing their changed behavior.
+The [roadmap](../roadmap.md#exact-next-action) owns execution order.
+
 Controlled disposition vocabulary:
 
 | Disposition | Meaning |

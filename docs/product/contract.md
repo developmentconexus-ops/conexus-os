@@ -439,6 +439,12 @@ Its platform knowledge is published/versioned/provenance-preserving according to
 
 Controlled candidate/result serving for inspection before production.
 
+The internal pilot admits technically retained app source to Preview without
+requiring independent model review. Authorization, allowed source paths and
+exact artifact identity still apply. This does not produce VERIFIED status or
+authorize publication. A failed build preserves the working source for the
+next correction and leaves the last successful Preview available.
+
 ```text
 Preview ready
 != VERIFIED
@@ -639,6 +645,12 @@ pointer switched     != SERVED_VERIFIED
 ```
 
 Material Project-level discovery returns to Baseline/decision before coding silently crosses the boundary.
+
+For the internal development pilot, executable Preview may precede independent
+material verification. The next human request edits the retained working source,
+not necessarily the original Baseline or the displayed last-good artifact.
+A response-only turn preserves its answer without a commit or compilation.
+Release and publication still require their own accepted authority.
 
 ---
 

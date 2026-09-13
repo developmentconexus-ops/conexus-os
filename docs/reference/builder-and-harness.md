@@ -193,6 +193,13 @@ WorkUnits/ActorRuns remain bounded/auditable; they do not force cognitive reset.
 
 New session is appropriate for a new Change, independent material verification, material rebaseline or concrete contamination/isolation reason.
 
+In the internal pilot, the next Change receives the project's retained working
+source and bounded recent intentions and final responses. A new sandbox does
+not reset app source to the initial Baseline. Builder owns the working revision
+and one active editing/preparation turn per project. The last successful Preview
+artifact is a separate durable reference. Viewing an older artifact does not
+change the next edit's parent. Response-only turns do not require a Git diff.
+
 ## 9.3 Hub remains authority
 
 Mastra owns coding mechanics; Conexus owns:
@@ -322,6 +329,11 @@ exact candidate X under Hub custody
 ```
 
 The verifier cannot run against the implementer's live mutable lineage or mutate it.
+
+Independent model review is not a mandatory step for every internal technical
+Preview. It remains required for claims that assert independent material
+verification. Source admission, authorization and artifact identity remain
+mandatory without a model reviewer; unreviewed does not mean VERIFIED.
 
 ---
 

@@ -19,14 +19,16 @@ export type CodingWorkerInput = Readonly<{
   admissionToken: string
   intent: string
   baseSourceRevision: string
+  sourceChangeId?: string | null
   correctionFindings?: readonly Readonly<{ findingId: string; findingRevision: string; summary: string }>[]
+  recentTurns?: readonly Readonly<{ intent: string; summary: string }>[]
   sourceBundle: Uint8Array
   bindPhysicalSandbox(sandboxId: string): Promise<void>
   signal?: AbortSignal
   observe?(event: BuilderObservation): void
 }>
 
-export type CodingWorkerResult = Readonly<{
+type CodingWorkerResultScope = Readonly<{
   runtimeId: 'mastra-native-e2b-v1'
   projectId: string
   changeId: string
@@ -35,10 +37,13 @@ export type CodingWorkerResult = Readonly<{
   admissionToken: string
   sandboxId: string
   baseSourceRevision: string
-  candidateSourceRevision: string
-  resultBundle: Uint8Array
   summary: string
 }>
+
+export type CodingWorkerResult = CodingWorkerResultScope & (
+  | Readonly<{ kind: 'CANDIDATE'; candidateSourceRevision: string; resultBundle: Uint8Array }>
+  | Readonly<{ kind: 'RESPONSE_ONLY' }>
+)
 
 export type CodingWorkerRuntime = Readonly<{
   kind: 'REMOTE_E2B'
@@ -65,6 +70,11 @@ const oid = /^[0-9a-f]{40}$/
 const safeIdentity = (value: string): boolean => /^[0-9a-f-]{36}$/i.test(value)
 const immutableE2BTemplate = /^[a-z0-9]+:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
+export const classifyCodingResult = (input: Readonly<{ changed: boolean; summary: string }>): Readonly<{ kind: 'CANDIDATE' | 'RESPONSE_ONLY'; summary: string }> => Object.freeze({
+  kind: input.changed ? 'CANDIDATE' : 'RESPONSE_ONLY',
+  summary: input.summary,
+})
+
 export const createMastraE2BCodingWorkerRuntime = (
   config: E2BBuilderRuntimeConfig,
 ): CodingWorkerRuntime => {
@@ -79,8 +89,13 @@ export const createMastraE2BCodingWorkerRuntime = (
     modelIdentity: Object.freeze({ ...config.modelIdentity }),
     execute: async (input) => {
       if (![input.projectId, input.changeId, input.workUnitId, input.actorRunId, input.admissionToken].every(safeIdentity) ||
+        (input.sourceChangeId !== null && input.sourceChangeId !== undefined && !safeIdentity(input.sourceChangeId)) ||
         !oid.test(input.baseSourceRevision) || !input.intent.trim() || input.sourceBundle.byteLength === 0 ||
         input.sourceBundle.byteLength > 256 * 1024 * 1024) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
+      if (input.recentTurns && (input.recentTurns.length > 8 || input.recentTurns.some((turn) =>
+        !turn.intent.trim() || !turn.summary.trim() || turn.intent.length > 2_000 || turn.summary.length > 4_000))) {
+        throw new Error('BUILDER_RUNTIME_CONTEXT_REFUSED')
+      }
 
       config.validateModelCredential()
 
@@ -138,8 +153,10 @@ export const createMastraE2BCodingWorkerRuntime = (
         // bound to the one physical E2B incarnation admitted above.
         sandbox.executeCommand = direct
         await sandbox.writeFiles([{ path: '/workspace/source.bundle', content: Buffer.from(input.sourceBundle) }])
-        const admittedSourceRef = input.correctionFindings?.length
-          ? `refs/conexus/changes/${input.changeId}`
+        const admittedSourceRef = input.sourceChangeId
+          ? `refs/conexus/changes/${input.sourceChangeId}`
+          : input.correctionFindings?.length
+            ? `refs/conexus/changes/${input.changeId}`
           : 'refs/heads/main'
         const prepared = await direct('sh', ['-lc', [
           'rm -rf /workspace/repo',
@@ -175,12 +192,15 @@ export const createMastraE2BCodingWorkerRuntime = (
         const correction = input.correctionFindings?.length
           ? ` This is the one admitted correction attempt. Resolve these retained verification findings: ${input.correctionFindings.map((finding) => `[${finding.findingId}] ${finding.summary}`).join('; ')}.`
           : ''
+        const recent = input.recentTurns?.length
+          ? ` Prior bounded Builder turns for continuity, not authority: ${input.recentTurns.map((turn) => `[intent] ${turn.intent} [result] ${turn.summary}`).join(' | ')}.`
+          : ''
         const mapper = createMastraObservationMapper()
         const publish = (event: BuilderObservation) => notifyObservation(input.observe, event)
         let summaryText = ''
         try {
           const response = await agent.stream(
-            `Project ${input.projectId}; Change ${input.changeId}; exact work-unit parent ${input.baseSourceRevision}. Human intent: ${input.intent}.${correction}`,
+            `Project ${input.projectId}; Change ${input.changeId}; exact work-unit parent ${input.baseSourceRevision}. Human intent: ${input.intent}.${recent}${correction}`,
             {
               maxSteps: 24,
               abortSignal: input.signal,
@@ -208,18 +228,15 @@ export const createMastraE2BCodingWorkerRuntime = (
           'test -z "$(git -C /workspace/repo remote)"',
           `test "$(git -C /workspace/repo rev-parse HEAD)" = "${input.baseSourceRevision}"`,
           'git -C /workspace/repo add --all',
-          'test -n "$(git -C /workspace/repo diff --cached --name-only)"',
-          'git -C /workspace/repo -c user.name="Conexus Coding Worker" -c user.email="worker@conexus.invalid" commit -m "Conexus Builder candidate"',
-          'git -C /workspace/repo branch -f conexus-result HEAD',
-          `test "$(git -C /workspace/repo rev-parse HEAD^)" = "${input.baseSourceRevision}"`,
-          'git -C /workspace/repo bundle create /workspace/result.bundle refs/heads/conexus-result',
         ].join(' && ')])
         if (!finalized.success) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
-        const candidateSourceRevision = (await direct('git', ['-C', '/workspace/repo', 'rev-parse', 'HEAD'])).stdout.trim()
-        if (!oid.test(candidateSourceRevision)) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
-        const resultBundle = await sandbox.e2b.files.read('/workspace/result.bundle', { format: 'bytes' })
-        if (sandbox.sandboxId !== observedSandboxId || input.signal?.aborted) throw new Error('BUILDER_LATE_RESULT_REFUSED')
-        return Object.freeze({
+        const staged = await direct('git', ['-C', '/workspace/repo', 'diff', '--cached', '--name-only', '-z'])
+        if (!staged.success || staged.stdout.length > 4 * 1024 * 1024) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+        const summary = summaryText.trim() || (staged.stdout.length === 0
+          ? 'Coding worker produced a response without source changes.'
+          : 'Coding worker produced a candidate result.')
+        const classification = classifyCodingResult({ changed: staged.stdout.length > 0, summary })
+        const scope = {
           runtimeId: 'mastra-native-e2b-v1' as const,
           projectId: input.projectId,
           changeId: input.changeId,
@@ -228,9 +245,28 @@ export const createMastraE2BCodingWorkerRuntime = (
           admissionToken: input.admissionToken,
           sandboxId: observedSandboxId,
           baseSourceRevision: input.baseSourceRevision,
+          summary: classification.summary,
+        }
+        if (classification.kind === 'RESPONSE_ONLY') {
+          if (sandbox.sandboxId !== observedSandboxId || input.signal?.aborted) throw new Error('BUILDER_LATE_RESULT_REFUSED')
+          return Object.freeze({ ...scope, kind: 'RESPONSE_ONLY' as const })
+        }
+        const committed = await direct('sh', ['-lc', [
+          'git -C /workspace/repo -c user.name="Conexus Coding Worker" -c user.email="worker@conexus.invalid" commit -m "Conexus Builder candidate"',
+          'git -C /workspace/repo branch -f conexus-result HEAD',
+          `test "$(git -C /workspace/repo rev-parse HEAD^)" = "${input.baseSourceRevision}"`,
+          'git -C /workspace/repo bundle create /workspace/result.bundle refs/heads/conexus-result',
+        ].join(' && ')])
+        if (!committed.success) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+        const candidateSourceRevision = (await direct('git', ['-C', '/workspace/repo', 'rev-parse', 'HEAD'])).stdout.trim()
+        if (!oid.test(candidateSourceRevision)) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
+        const resultBundle = await sandbox.e2b.files.read('/workspace/result.bundle', { format: 'bytes' })
+        if (sandbox.sandboxId !== observedSandboxId || input.signal?.aborted) throw new Error('BUILDER_LATE_RESULT_REFUSED')
+        return Object.freeze({
+          ...scope,
+          kind: 'CANDIDATE' as const,
           candidateSourceRevision,
           resultBundle,
-          summary: summaryText.trim() || 'Coding worker produced a candidate result.',
         })
       } finally {
         await sandbox.destroy().catch(() => undefined)

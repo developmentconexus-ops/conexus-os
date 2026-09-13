@@ -1,8 +1,7 @@
 import type { BuilderSourceFile, BuilderSourcePort, BuilderSourceTree } from './source.js'
 import type { CodingWorkerRuntime } from './runtime.js'
-import type { CandidateVerificationRuntime } from './verification-runtime.js'
-import type { BuilderStore, ChangeProjection, ClaimedChange, ClaimedVerification } from './store.js'
-import { prepareVerifiedApplication } from './application-build.js'
+import type { BuilderStore, ChangeProjection, ClaimedChange } from './store.js'
+import { prepareApplicationArtifact } from './application-build.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadRequest, ApplicationArtifactReadResult, ApplicationBuildRequest, BuilderApplicationArtifacts } from './application-build.js'
 import type { ApplicationCompilerRuntime } from './application-artifact-runtime.js'
 import { createPreviewPreparationCoordinator } from './preview-preparation.js'
@@ -12,7 +11,7 @@ import { parseObservationEvent, type BuilderObservation } from '../../../../pack
 import { createObservationFeed } from './observation-feed.js'
 
 export type BuilderService = Readonly<{
-  createChange(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; intent: string }>): Promise<ChangeProjection>
+  createChange(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; intent: string; expectedSourceRevision: string }>): Promise<ChangeProjection>
   listSourceTree(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<BuilderSourceTree>
   getSourceFile(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
   prepareApplication(input: ApplicationBuildRequest): Promise<ApplicationArtifactMetadata>
@@ -24,15 +23,14 @@ export type BuilderService = Readonly<{
   close(): Promise<void>
 }>
 
-export const createBuilderService = ({ store, source, runtime, verifier, compiler, applicationArtifacts }: Readonly<{
+export const createBuilderService = ({ store, source, runtime, compiler, applicationArtifacts }: Readonly<{
   store: BuilderStore
   source: BuilderSourcePort
   runtime: CodingWorkerRuntime
-  verifier: CandidateVerificationRuntime
   compiler: ApplicationCompilerRuntime
   applicationArtifacts: BuilderApplicationArtifacts
 }>): BuilderService => {
-  if (runtime.kind !== 'REMOTE_E2B' || verifier.kind !== 'REMOTE_E2B') throw new Error('BUILDER_LOCAL_RUNTIME_REFUSED')
+  if (runtime.kind !== 'REMOTE_E2B') throw new Error('BUILDER_LOCAL_RUNTIME_REFUSED')
   const active = new Map<string, Promise<void>>()
   const observations = new Map<string, Readonly<{
     projectId: string
@@ -81,20 +79,16 @@ export const createBuilderService = ({ store, source, runtime, verifier, compile
   const applicationBuilds = new Set<Promise<ApplicationArtifactMetadata>>()
   const applicationShutdown = new AbortController()
   let serviceClosing: Promise<void> | null = null
-  const verificationFailureCode = (error: unknown): string => {
+  const failureCode = (error: unknown): string => {
     const code = error instanceof Error ? error.message : ''
-    return /^[A-Z0-9_]{1,120}$/.test(code) ? code : 'BUILDER_VERIFIER_RUNTIME_FAILURE'
+    return /^[A-Z0-9_]{1,120}$/.test(code) ? code : 'BUILDER_PREPARATION_FAILED'
   }
-  const executeCoding = async (claim: ClaimedChange, observe: (event: BuilderObservation) => void): Promise<void> => {
+  const executeCoding = async (claim: ClaimedChange, observe: (event: BuilderObservation) => void): Promise<string | null> => {
     try {
-      const sourceBundle = claim.changeBaseSourceRevision
-        ? (await source.prepareCandidate({
-            projectId: claim.projectId, changeId: claim.changeId, actorRunId: claim.actorRunId,
-            baseSourceRevision: claim.changeBaseSourceRevision, candidateSourceRevision: claim.baseSourceRevision,
-          })).bundle
-        : await source.prepareSource({
-            projectId: claim.projectId, actorRunId: claim.actorRunId, sourceRevision: claim.baseSourceRevision,
-          })
+      const sourceBundle = await source.prepareSource({
+        projectId: claim.projectId, actorRunId: claim.actorRunId, sourceRevision: claim.baseSourceRevision,
+        sourceChangeId: claim.sourceChangeId, initialSourceRevision: claim.baselineSourceRevision,
+      })
       const result = await runtime.execute({
         ...claim, sourceBundle, observe,
         bindPhysicalSandbox: (sandboxId) => store.bindSandbox(claim.actorRunId, claim.admissionToken, sandboxId),
@@ -104,54 +98,24 @@ export const createBuilderService = ({ store, source, runtime, verifier, compile
         result.admissionToken !== claim.admissionToken || result.baseSourceRevision !== claim.baseSourceRevision) {
         throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
       }
+      if (result.kind === 'RESPONSE_ONLY') {
+        await store.settleResponse({ ...claim, sandboxId: result.sandboxId, summary: result.summary })
+        return null
+      }
       const candidate = await source.admitCandidate({
         projectId: claim.projectId, changeId: claim.changeId, actorRunId: claim.actorRunId,
         baseSourceRevision: claim.baseSourceRevision,
         changeBaseSourceRevision: claim.changeBaseSourceRevision ?? claim.baseSourceRevision,
+        baselineSourceRevision: claim.baselineSourceRevision, sourceChangeId: claim.sourceChangeId,
         claimedCandidateSourceRevision: result.candidateSourceRevision, resultBundle: result.resultBundle,
       })
       await store.settleResult({
         ...claim, sandboxId: result.sandboxId, ...candidate,
         baseSourceRevision: claim.baseSourceRevision, summary: result.summary,
       })
+      return result.candidateSourceRevision
     } catch (error) {
       await store.failRun(claim.actorRunId, claim.admissionToken).catch(() => undefined)
-      throw error
-    }
-  }
-  const executeVerification = async (changeId: string): Promise<void> => {
-    let verification: ClaimedVerification
-    try {
-      verification = await store.claimVerification(changeId, verifier.modelIdentity)
-    } catch (error) {
-      await store.failVerificationClaim(changeId).catch(() => undefined)
-      throw error
-    }
-    try {
-      const candidateMaterial = await source.prepareCandidate({
-        projectId: verification.projectId, changeId: verification.changeId,
-        actorRunId: verification.actorRunId, baseSourceRevision: verification.baseSourceRevision,
-        candidateSourceRevision: verification.candidateSourceRevision,
-      })
-      const result = await verifier.verify({
-        ...verification, candidateBundle: candidateMaterial.bundle, changedFiles: candidateMaterial.changedFiles,
-        bindPhysicalSandbox: (sandboxId) => store.bindSandbox(
-          verification.actorRunId, verification.admissionToken, sandboxId,
-        ),
-      })
-      if (result.projectId !== verification.projectId || result.changeId !== verification.changeId ||
-        result.workUnitId !== verification.workUnitId || result.actorRunId !== verification.actorRunId ||
-        result.admissionToken !== verification.admissionToken || result.assertionRef !== verification.assertionRef ||
-        result.contractRevision !== verification.contractRevision || result.planRevision !== verification.planRevision ||
-        result.baselineDigest !== verification.baselineDigest || result.baseSourceRevision !== verification.baseSourceRevision ||
-        result.candidateSourceRevision !== verification.candidateSourceRevision) {
-        throw new Error('BUILDER_VERIFIER_RESULT_SCOPE_REFUSED')
-      }
-      await store.settleVerification({ ...verification, sandboxId: result.sandboxId, report: result.report })
-    } catch (error) {
-      await store.failVerification(
-        verification.actorRunId, verification.admissionToken, verificationFailureCode(error),
-      ).catch(() => undefined)
       throw error
     }
   }
@@ -159,29 +123,28 @@ export const createBuilderService = ({ store, source, runtime, verifier, compile
     if (active.has(changeId)) return
     let observation = projectId ? beginObservation(projectId, changeId) : undefined
     const work = (async () => {
-      let claim = await store.claimChange(changeId, runtime.modelIdentity)
+      const claim = await store.claimChange(changeId, runtime.modelIdentity)
       observation ??= beginObservation(claim.projectId, changeId)
-      for (let attempt = 1; attempt <= 2; attempt += 1) {
-        observation.publish({ kind: 'PHASE', phase: attempt === 1 ? 'CODING' : 'CORRECTING' })
-        let observing = true
-        const attemptId = attempt
-        const sink = observation
-        try {
-          await executeCoding(claim, (event) => {
-            if (!observing) return
-            if (event.kind === 'TEXT_START' || event.kind === 'TEXT_DELTA' || event.kind === 'TEXT_END') {
-              sink.publish({ ...event, blockId: `${attemptId}-${event.blockId}` })
-            } else if (event.kind === 'ACTIVITY') {
-              sink.publish({ ...event, activityId: `${attemptId}-${event.activityId}` })
-            }
-          })
-        } finally { observing = false }
-        observation.publish({ kind: 'PHASE', phase: 'VERIFYING' })
-        await executeVerification(changeId)
-        if (attempt === 2) return
-        const correction = await store.claimCorrection(changeId, runtime.modelIdentity)
-        if (!correction) return
-        claim = correction
+      observation.publish({ kind: 'PHASE', phase: 'CODING' })
+      let observing = true
+      const sink = observation
+      let sourceRevision: string | null
+      try {
+        sourceRevision = await executeCoding(claim, (event) => {
+          if (observing) sink.publish(event)
+        })
+      } finally { observing = false }
+      if (sourceRevision === null) return
+      observation.publish({ kind: 'PHASE', phase: 'PREPARING' })
+      const input = { accountId: claim.accountId, projectId: claim.projectId, changeId, sourceRevision }
+      try {
+        const artifact = await prepareApplication(input)
+        await store.settlePreparation({ ...input, outcome: {
+          kind: 'READY', artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest,
+        } })
+      } catch (error) {
+        await store.settlePreparation({ ...input, outcome: { kind: 'FAILED', code: failureCode(error) } })
+        throw error
       }
     })().catch(() => { observation?.publish({ kind: 'OBSERVATION_UNAVAILABLE', code: 'RUNTIME_FAILED' }) }).finally(() => { active.delete(changeId); observation?.finish() })
     active.set(changeId, work)
@@ -191,7 +154,7 @@ export const createBuilderService = ({ store, source, runtime, verifier, compile
     const signal = input.signal
       ? AbortSignal.any([input.signal, applicationShutdown.signal])
       : applicationShutdown.signal
-    const work = prepareVerifiedApplication({ store, source, compiler, applicationArtifacts }, { ...input, signal })
+    const work = prepareApplicationArtifact({ store, source, compiler, applicationArtifacts }, { ...input, signal })
     applicationBuilds.add(work)
     try { return await work } finally { applicationBuilds.delete(work) }
   }
@@ -202,6 +165,7 @@ export const createBuilderService = ({ store, source, runtime, verifier, compile
   const previewPreparation = createPreviewPreparationCoordinator({
     readPreviewSubject: (input) => store.readPreviewSubject(input),
     prepareApplication,
+    readRetainedApplication: (input) => applicationArtifacts.getApplication(input),
   })
   const close = async (): Promise<void> => {
     if (serviceClosing !== null) return serviceClosing

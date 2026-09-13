@@ -125,10 +125,10 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     }
   })
 
-  app.post<{ Params: { projectId: string }; Body: { intent: string } }>('/api/control/projects/:projectId/changes', {
+  app.post<{ Params: { projectId: string }; Body: { intent: string; expectedSourceRevision: string } }>('/api/control/projects/:projectId/changes', {
     schema: {
       params,
-      body: { type: 'object', additionalProperties: false, required: ['intent'], properties: { intent: { type: 'string', minLength: 1, maxLength: 20_000, pattern: '.*\\S.*' } } },
+      body: { type: 'object', additionalProperties: false, required: ['intent', 'expectedSourceRevision'], properties: { intent: { type: 'string', minLength: 1, maxLength: 20_000, pattern: '.*\\S.*' }, expectedSourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' } } },
     },
   }, async (request, reply) => {
     const csrf = header(request.headers['x-conexus-csrf'])
@@ -142,13 +142,14 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     try {
       const value = await dependencies.service.createChange({
         accountId: session.account.accountId, projectId: request.params.projectId, idempotencyKey, intent: request.body.intent,
+        expectedSourceRevision: request.body.expectedSourceRevision,
       })
       return reply.code(201).send(value)
     } catch (error) {
       const detail = message(error)
       if (detail.includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
       if (detail.includes('BASELINE_REQUIRED') || detail.includes('22P02')) return sendProblem(reply, 404, 'builder-subject-not-found', 'Builder subject not found')
-      if (detail.includes('IDEMPOTENCY_CONFLICT') || detail.includes('OUTCOME_UNKNOWN')) return sendProblem(reply, 409, 'change-conflict', 'Change conflict')
+      if (detail.includes('IDEMPOTENCY_CONFLICT') || detail.includes('OUTCOME_UNKNOWN') || detail.includes('SOURCE_STALE') || detail.includes('PROJECT_BUSY')) return sendProblem(reply, 409, 'change-conflict', 'Change conflict')
       if (detail.includes('INTENT_REFUSED')) return sendProblem(reply, 422, 'change-intent-refused', 'Change intent refused')
       return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')
     }
@@ -193,7 +194,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
           ? { ...subjectInput, changeId: request.query.changeId }
           : subjectInput)
         if (!subject) return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
-        if (request.query.changeId && subject.subjectKind === 'CHANGE_CANDIDATE' && subject.verified) {
+        if (request.query.changeId && subject.subjectKind === 'CHANGE_CANDIDATE' && (subject.previewEligible ?? subject.verified)) {
           const preparation = await dependencies.service.readPreviewPreparation({
             accountId: session.account.accountId,
             projectId: request.params.projectId,

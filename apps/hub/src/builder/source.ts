@@ -39,7 +39,13 @@ export type BuilderSourceFile = Readonly<{
 }>
 
 export type BuilderSourcePort = Readonly<{
-  prepareSource(input: Readonly<{ projectId: string; actorRunId: string; sourceRevision: string }>): Promise<Uint8Array>
+  prepareSource(input: Readonly<{
+    projectId: string
+    actorRunId: string
+    sourceRevision: string
+    sourceChangeId?: string | null
+    initialSourceRevision?: string
+  }>): Promise<Uint8Array>
   prepareCandidate(input: Readonly<{
     projectId: string
     changeId: string
@@ -53,6 +59,8 @@ export type BuilderSourcePort = Readonly<{
     actorRunId: string
     baseSourceRevision: string
     changeBaseSourceRevision: string
+    baselineSourceRevision?: string
+    sourceChangeId?: string | null
     claimedCandidateSourceRevision: string
     resultBundle: Uint8Array
   }>): Promise<BuilderCandidate>
@@ -82,6 +90,29 @@ const run = (executable: string, args: readonly string[], maxBytes = 64 * 1024, 
   })
 })
 
+const SOURCE_BUNDLE_PROGRAM = `
+const { spawnSync } = require('node:child_process')
+const { readFileSync } = require('node:fs')
+const request = JSON.parse(readFileSync('/run/conexus/request.json', 'utf8'))
+const oid = /^[0-9a-f]{40}$/
+const identity = /^[0-9a-f-]{36}$/i
+const env = { GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HOME: '/tmp', GIT_TERMINAL_PROMPT: '0', GIT_NO_REPLACE_OBJECTS: '1' }
+const git = (args) => spawnSync('/usr/local/bin/git', ['--git-dir=/repository.git', '-c', 'core.hooksPath=/dev/null', ...args], { env, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 })
+const ok = value => !value.error && value.status === 0 && value.signal === null && (!value.stderr || value.stderr.length === 0)
+const text = value => typeof value.stdout === 'string' ? value.stdout : value.stdout.toString('utf8')
+const finish = value => { process.stdout.write(JSON.stringify(value) + '\\n'); process.exit(0) }
+if (!oid.test(request.sourceRevision) || !oid.test(request.initialSourceRevision) ||
+  (request.sourceChangeId !== null && !identity.test(request.sourceChangeId))) finish({ status: 'REFUSED', code: 'IDENTITY_REFUSED' })
+let value = git(['rev-parse', '--verify', 'refs/heads/main'])
+if (!ok(value) || text(value).trim() !== request.initialSourceRevision) finish({ status: 'REFUSED', code: 'BASE_STALE' })
+const sourceRef = request.sourceChangeId ? 'refs/conexus/changes/' + request.sourceChangeId : 'refs/heads/main'
+value = git(['rev-parse', '--verify', sourceRef])
+if (!ok(value) || text(value).trim() !== request.sourceRevision) finish({ status: 'REFUSED', code: 'SOURCE_REF_MISMATCH' })
+value = git(['bundle', 'create', '/out/source.bundle', sourceRef])
+if (!ok(value)) finish({ status: 'REFUSED', code: 'BUNDLE_REFUSED' })
+finish({ status: 'BUNDLED', sourceRevision: request.sourceRevision })
+`
+
 const CANDIDATE_PROGRAM = `
 const { spawnSync } = require('node:child_process')
 const { readFileSync, writeFileSync } = require('node:fs')
@@ -97,13 +128,16 @@ const git = (dir, args, raw = false) => spawnSync('/usr/local/bin/git', ['--git-
 const ok = value => !value.error && value.status === 0 && value.signal === null && (!value.stderr || value.stderr.length === 0)
 const text = value => typeof value.stdout === 'string' ? value.stdout : value.stdout.toString('utf8')
 const finish = value => { process.stdout.write(JSON.stringify(value) + '\\n'); process.exit(0) }
-if (!oid.test(request.baseSourceRevision) || !oid.test(request.changeBaseSourceRevision) || !oid.test(request.claimedCandidateSourceRevision) || !/^[0-9a-f-]{36}$/i.test(request.changeId)) finish({ status: 'REFUSED', code: 'IDENTITY_REFUSED' })
+if (!oid.test(request.baseSourceRevision) || !oid.test(request.baselineSourceRevision) || !oid.test(request.claimedCandidateSourceRevision) ||
+  !/^[0-9a-f-]{36}$/i.test(request.changeId) || (request.sourceChangeId !== null && !/^[0-9a-f-]{36}$/i.test(request.sourceChangeId))) finish({ status: 'REFUSED', code: 'IDENTITY_REFUSED' })
 let value = git('/repository.git', ['rev-parse', '--verify', 'refs/heads/main'])
-if (!ok(value) || text(value).trim() !== request.changeBaseSourceRevision) finish({ status: 'REFUSED', code: 'BASE_STALE' })
+if (!ok(value) || text(value).trim() !== request.baselineSourceRevision) finish({ status: 'REFUSED', code: 'BASE_STALE' })
+const sourceRef = request.sourceChangeId ? 'refs/conexus/changes/' + request.sourceChangeId : 'refs/heads/main'
+value = git('/repository.git', ['rev-parse', '--verify', sourceRef])
+if (!ok(value) || text(value).trim() !== request.baseSourceRevision) finish({ status: 'REFUSED', code: 'SOURCE_REF_MISMATCH' })
 value = git('/repository.git', ['rev-parse', '--verify', ref])
 if (value.status === 0 && text(value).trim() !== request.baseSourceRevision) finish({ status: 'REFUSED', code: 'CURRENT_CANDIDATE_STALE' })
 if (value.status !== 0 && value.status !== 128) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
-if (value.status === 128 && request.baseSourceRevision !== request.changeBaseSourceRevision) finish({ status: 'REFUSED', code: 'CURRENT_CANDIDATE_MISSING' })
 const expectedRefOld = value.status === 0 ? request.baseSourceRevision : '0000000000000000000000000000000000000000'
 value = spawnSync('/usr/local/bin/git', ['init', '--quiet', '--bare', '--initial-branch=main', '/tmp/inspect.git'], { env, encoding: 'utf8' })
 if (!ok(value)) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
@@ -123,7 +157,7 @@ if (!ok(changed)) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
 const paths = text(changed).split('\\0').filter(Boolean)
 if (paths.length === 0 || paths.length > 1000) finish({ status: 'REFUSED', code: 'CHANGESET_REFUSED' })
 for (const path of paths) {
-  const originalEntry = git('/tmp/inspect.git', ['--literal-pathspecs', 'ls-tree', request.changeBaseSourceRevision, '--', path])
+  const originalEntry = git('/tmp/inspect.git', ['--literal-pathspecs', 'ls-tree', request.baselineSourceRevision, '--', path])
   if (!ok(originalEntry)) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
   if (path.startsWith('/') || path.includes('\\\\') || path.split('/').some(part => !part || part === '.' || part === '..') || path.startsWith('.conexus/') ||
     (text(originalEntry) ? ownership[path] !== 'APP-OWNED' : (ownership[path] && ownership[path] !== 'APP-OWNED'))) finish({ status: 'REFUSED', code: 'PROTECTED_PATH' })
@@ -131,7 +165,7 @@ for (const path of paths) {
   if (!ok(entry)) finish({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
   if (text(entry) && !/^(100644|100755) blob [0-9a-f]{40}\t/.test(text(entry))) finish({ status: 'REFUSED', code: 'UNSAFE_ENTRY' })
 }
-const patch = git('/tmp/inspect.git', ['diff', '--no-ext-diff', '--binary', request.changeBaseSourceRevision, 'refs/heads/result'], true)
+const patch = git('/tmp/inspect.git', ['diff', '--no-ext-diff', '--binary', request.baseSourceRevision, 'refs/heads/result'], true)
 if (!ok(patch) || patch.stdout.length > 8 * 1024 * 1024) finish({ status: 'REFUSED', code: 'PATCH_REFUSED' })
 const importRef = 'refs/conexus/imports/' + request.actorRunId
 value = git('/repository.git', ['fetch', '--quiet', '--no-tags', '/run/conexus/result.bundle', 'refs/heads/conexus-result:' + importRef])
@@ -141,7 +175,7 @@ git('/repository.git', ['update-ref', '-d', importRef])
 if (!ok(value)) finish({ status: 'REFUSED', code: 'CURRENT_CANDIDATE_STALE' })
 const mainAfter = git('/repository.git', ['rev-parse', '--verify', 'refs/heads/main'])
 const stored = git('/repository.git', ['rev-parse', '--verify', ref])
-if (!ok(mainAfter) || text(mainAfter).trim() !== request.changeBaseSourceRevision || !ok(stored) || text(stored).trim() !== request.claimedCandidateSourceRevision) finish({ status: 'REFUSED', code: 'CUSTODY_REFUSED' })
+if (!ok(mainAfter) || text(mainAfter).trim() !== request.baselineSourceRevision || !ok(stored) || text(stored).trim() !== request.claimedCandidateSourceRevision) finish({ status: 'REFUSED', code: 'CUSTODY_REFUSED' })
 writeFileSync('/out/patch', patch.stdout)
 finish({ status: 'ADMITTED', candidateSourceRevision: request.claimedCandidateSourceRevision })
 `
@@ -158,14 +192,10 @@ const ok = value => !value.error && value.status === 0 && value.signal === null 
 const text = value => typeof value.stdout === 'string' ? value.stdout : value.stdout.toString('utf8')
 const finish = value => { process.stdout.write(JSON.stringify(value) + '\\n'); process.exit(0) }
 if (!oid.test(request.baseSourceRevision) || !oid.test(request.candidateSourceRevision) || !/^[0-9a-f-]{36}$/i.test(request.changeId)) finish({ status: 'REFUSED', code: 'IDENTITY_REFUSED' })
-let value = git(['rev-parse', '--verify', 'refs/heads/main'])
-if (!ok(value) || text(value).trim() !== request.baseSourceRevision) finish({ status: 'REFUSED', code: 'BASE_STALE' })
-value = git(['rev-parse', '--verify', ref])
+let value = git(['rev-parse', '--verify', ref])
 if (!ok(value) || text(value).trim() !== request.candidateSourceRevision) finish({ status: 'REFUSED', code: 'CANDIDATE_MISMATCH' })
 value = git(['merge-base', '--is-ancestor', request.baseSourceRevision, ref])
 if (!ok(value)) finish({ status: 'REFUSED', code: 'NON_DESCENDANT_CANDIDATE' })
-value = git(['rev-list', '--count', request.baseSourceRevision + '..' + ref])
-if (!ok(value) || !['1', '2'].includes(text(value).trim())) finish({ status: 'REFUSED', code: 'CANDIDATE_DEPTH_REFUSED' })
 const changed = git(['diff', '--no-renames', '--name-only', '-z', request.baseSourceRevision, ref], true)
 if (!ok(changed)) finish({ status: 'REFUSED', code: 'CHANGED_PATHS_REFUSED' })
 const changedPaths = text(changed).split('\\0').filter(Boolean)
@@ -307,9 +337,57 @@ export const createBuilderSourcePort = ({
       await rm(temporary, { recursive: true, force: true })
     }
   }
+  const prepareSourceFromChange = async (input: Readonly<{
+    projectId: string
+    actorRunId: string
+    sourceRevision: string
+    sourceChangeId: string
+    initialSourceRevision: string
+  }>): Promise<Uint8Array> => {
+    if (![input.projectId, input.actorRunId, input.sourceChangeId].every(isIdentity) ||
+      !/^[0-9a-f]{40}$/.test(input.sourceRevision) || !/^[0-9a-f]{40}$/.test(input.initialSourceRevision)) {
+      throw new Error('BUILDER_SOURCE_INPUT_REFUSED')
+    }
+    if ((await git.verifyAdmittedImage()).status !== 'VERIFIED') throw new Error('BUILDER_GIT_IMAGE_REFUSED')
+    const repository = resolve(root, 'projects', input.projectId)
+    if (!repository.startsWith(`${root}${sep}`)) throw new Error('BUILDER_SOURCE_CONFIG_REFUSED')
+    const temporary = await mkdtemp(resolve(root, '.conexus-builder-source-'))
+    try {
+      const requestPath = resolve(temporary, 'request.json')
+      const outputRoot = resolve(temporary, 'out')
+      await writeFile(requestPath, `${JSON.stringify(input)}\n`, { flag: 'wx', mode: 0o400 })
+      await (await import('node:fs/promises')).mkdir(outputRoot, { mode: 0o700 })
+      const user = process.getuid && process.getgid ? `${process.getuid()}:${process.getgid()}` : null
+      if (!user) throw new Error('BUILDER_GIT_POSIX_OWNER_REQUIRED')
+      const result = await run('docker', [
+        'run', '--rm', '--pull', 'never', '--network', 'none', '--cap-drop', 'ALL',
+        '--security-opt', 'no-new-privileges', '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=32m',
+        '--user', user,
+        '--mount', `type=bind,src=${repository},dst=/repository.git,readonly`,
+        '--mount', `type=bind,src=${requestPath},dst=/run/conexus/request.json,readonly`,
+        '--mount', `type=bind,src=${outputRoot},dst=/out`,
+        '--entrypoint', '/usr/local/bin/node', R1C14_GIT_IDENTITY.ociIndexDigest,
+        '-e', SOURCE_BUNDLE_PROGRAM,
+      ], 4 * 1024 * 1024, 60_000)
+      if (result.exitCode !== 0 || result.signal !== null || result.overflow || result.stderr !== '') throw new Error('BUILDER_SOURCE_BUNDLE_REFUSED')
+      const parsed = JSON.parse(result.stdout) as Record<string, unknown>
+      if (parsed.status !== 'BUNDLED' || parsed.sourceRevision !== input.sourceRevision) {
+        throw new Error(`BUILDER_SOURCE_BUNDLE_${typeof parsed.code === 'string' ? parsed.code : 'REFUSED'}`)
+      }
+      const path = resolve(outputRoot, 'source.bundle')
+      if (!await exactFile(path)) throw new Error('BUILDER_SOURCE_BUNDLE_REFUSED')
+      const bytes = await readFile(path)
+      if (bytes.byteLength === 0 || bytes.byteLength > 256 * 1024 * 1024) throw new Error('BUILDER_SOURCE_BUNDLE_REFUSED')
+      return bytes
+    } finally {
+      await rm(temporary, { recursive: true, force: true })
+    }
+  }
   return Object.freeze({
-    prepareSource: async ({ projectId, actorRunId, sourceRevision }) => {
+    prepareSource: async ({ projectId, actorRunId, sourceRevision, sourceChangeId = null, initialSourceRevision = sourceRevision }) => {
       if (!isIdentity(projectId) || !isIdentity(actorRunId) || !/^[0-9a-f]{40}$/.test(sourceRevision)) throw new Error('BUILDER_SOURCE_INPUT_REFUSED')
+      if (sourceChangeId !== null) return prepareSourceFromChange({ projectId, actorRunId, sourceRevision, sourceChangeId, initialSourceRevision })
+      if (!/^[0-9a-f]{40}$/.test(initialSourceRevision) || sourceRevision !== initialSourceRevision) throw new Error('BUILDER_SOURCE_INPUT_REFUSED')
       const result = await git.createProjectSourceBundle({ projectId, attemptId: actorRunId, sourceRevision })
       if (result.status !== 'BUNDLED') throw new Error('BUILDER_SOURCE_BUNDLE_REFUSED')
       const path = resolve(root, 'bundles', projectId, `${sourceRevision}.bundle`)
@@ -372,8 +450,11 @@ export const createBuilderSourcePort = ({
       }
     },
     admitCandidate: async (input) => {
+      const baselineSourceRevision = input.baselineSourceRevision ?? input.changeBaseSourceRevision
+      const sourceChangeId = input.sourceChangeId ?? null
       if (![input.projectId, input.changeId, input.actorRunId].every(isIdentity) ||
-        !/^[0-9a-f]{40}$/.test(input.baseSourceRevision) || !/^[0-9a-f]{40}$/.test(input.changeBaseSourceRevision) || !/^[0-9a-f]{40}$/.test(input.claimedCandidateSourceRevision) ||
+        (sourceChangeId !== null && !isIdentity(sourceChangeId)) ||
+        !/^[0-9a-f]{40}$/.test(input.baseSourceRevision) || !/^[0-9a-f]{40}$/.test(baselineSourceRevision) || !/^[0-9a-f]{40}$/.test(input.claimedCandidateSourceRevision) ||
         input.resultBundle.byteLength === 0 || input.resultBundle.byteLength > 256 * 1024 * 1024) throw new Error('BUILDER_CANDIDATE_INPUT_REFUSED')
       if ((await git.verifyAdmittedImage()).status !== 'VERIFIED') throw new Error('BUILDER_GIT_IMAGE_REFUSED')
       const repository = resolve(root, 'projects', input.projectId)
@@ -391,6 +472,8 @@ export const createBuilderSourcePort = ({
           actorRunId: input.actorRunId,
           baseSourceRevision: input.baseSourceRevision,
           changeBaseSourceRevision: input.changeBaseSourceRevision,
+          baselineSourceRevision,
+          sourceChangeId,
           claimedCandidateSourceRevision: input.claimedCandidateSourceRevision,
         })}\n`, { flag: 'wx', mode: 0o400 })
         await writeFile(ownershipPath, `${JSON.stringify(sourceOwnership)}\n`, { flag: 'wx', mode: 0o400 })
@@ -416,7 +499,7 @@ export const createBuilderSourcePort = ({
         }
         const patch = await readFile(resolve(outputRoot, 'patch'), 'utf8')
         return Object.freeze({
-          baseSourceRevision: input.changeBaseSourceRevision,
+          baseSourceRevision: input.baseSourceRevision,
           candidateSourceRevision: input.claimedCandidateSourceRevision,
           patch,
         })
