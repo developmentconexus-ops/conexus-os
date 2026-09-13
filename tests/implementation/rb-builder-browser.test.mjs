@@ -58,6 +58,19 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
       ...(candidate ? {} : { workingSourceRevision: 'b'.repeat(40) }),
     }) })
   })
+  await page.route(`**/api/control/projects/${projectId}/session`, (route) => {
+    if (route.request().method() === 'POST') {
+      attempts.push({ body: route.request().postDataJSON(), key: route.request().headers()['idempotency-key'] })
+      state = 'RUNNING'
+      return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ threadId: `conexus-builder:${projectId}`, turn: change() }) })
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, threadId: `conexus-builder:${projectId}`, messages: [], activeTurn: attempts.length ? change() : null, workingSourceRevision: 'b'.repeat(40), lastPreviewChangeId: null }) })
+  })
+  await page.route(`**/api/control/projects/${projectId}/session/turns`, (route) => {
+    attempts.push({ body: route.request().postDataJSON(), key: route.request().headers()['idempotency-key'] })
+    state = 'RUNNING'
+    return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ threadId: `conexus-builder:${projectId}`, turn: change() }) })
+  })
   await page.route(`**/api/control/projects/${projectId}/changes`, (route) => {
     if (route.request().method() === 'POST') {
       attempts.push({ body: route.request().postDataJSON(), key: route.request().headers()['idempotency-key'] })

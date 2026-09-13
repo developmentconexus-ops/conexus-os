@@ -47,7 +47,8 @@ artifact was produced, not business correctness or independent verification.
 Never fabricate VERIFIED status or rewrite an old refusal as acceptance.
 Publication remains separate from Preview.
 
-The next implementation increment is session-first core, not UI redesign. One
+The approved implementation increment was session-first core, not a UI
+redesign. One
 deterministic thread belongs to each Project. Mastra owns that thread's
 messages, conversational context and session events; Conexus owns the
 authenticated user, Project authorization, active Turn, working source, Git
@@ -107,8 +108,10 @@ flow does not require the user to operate verification and preparation stages.
 
 ### Session-first core — current execution increment
 
-This increment ends before any Builder UI redesign or Session/Turn public API.
-Its observable result is a proved runtime core that can be safely exposed later.
+This increment started with the proved runtime core and now exposes the
+smallest Session/Turn API through the existing Build surface. It does not add
+another conversation owner or redesign the wire; the application-first UI
+continues to reuse the existing read projections and Preview controls.
 
 1. Reproduce the existing terminal failure that can leave
    `project_working_state` in `CODING`, then fix its owner so every terminal
@@ -153,8 +156,8 @@ it is a coordinated increment, not a one-line verifier fix.
 - [x] Integrate the proved session boundary into `createCodingAgent`/E2B without
   changing the Builder UI.
 - [x] Align the existing Build surface with the approved P-01 app-first
-  composition without adding a second session owner or new endpoints.
-- [ ] Add the Session/Turn API and prove create, open and continuation with
+  composition without adding a second session owner.
+- [x] Add the Session/Turn API and prove create, open and continuation with
   actual login, model, E2B and browser there.
 - [ ] Begin the real Brain experiment as soon as that cycle and its own
   prerequisites work. Do not wait for the next checklist item to finish.
@@ -203,10 +206,39 @@ node --test --test-concurrency=1 tests/implementation/builder-working-source-sta
 The current runtime uses `AgentController.createSession` and `session.sendMessage`
 when the configured module supplies the persistent store and memory. Existing
 callers without those bindings retain the old stream path for qualification
-fixtures. Hub typecheck and the focused Builder suites pass. No E2B credential or
-template is configured in this shell, so a paid live runtime execution remains
-unproved. It is the next external proof, not a reason to add another session
-layer.
+fixtures. Hub typecheck and the focused Builder suites pass. The live E2B proof
+for the configured pilot is recorded below; it does not justify another
+session layer.
+
+### Session/Turn API and live browser proof
+
+The existing Hub now exposes the smallest session boundary without a mapping
+table: `GET /api/control/projects/:projectId/session`,
+`GET /api/control/projects/:projectId/session/turns/:turnId`, and
+`POST /api/control/projects/:projectId/session/turns`. The POST delegates to
+the existing Builder service, so Conexus still owns authorization, Turn and
+working source while Mastra owns the Project thread and messages. The Build
+composer uses that POST; existing Change reads remain projections for the
+inspector and stream.
+
+The configured local pilot proved on 2026-09-13, with real Keycloak login and
+the admitted model/E2B path:
+
+- Session GET returned 200 with deterministic thread
+  `conexus-builder:3e72b95f-c629-4063-a442-8eb1d703c539`.
+- The browser POST returned 201 for Turn
+  `50ccf5b6-01f8-4abf-b862-e79424515de0`; the coding work completed and the
+  retained Preview was prepared without a second architecture.
+- The resulting iframe and new tab both rendered `Contador`, `Equipe`,
+  `Adicionar` and `Zerar`; clicking Adicionar changed the visible value from 0
+  to 1. A Hub restart reopened the same retained application without a new
+  Change or recompilation.
+- Mastra content in its installed `{format: 2, parts: [...]}` shape is read as
+  text in the Session projection; the re-opened thread returned the persisted
+  system and assistant messages instead of blank placeholders.
+
+This proves the create/open/continue pilot path. It does not yet close failed
+build correction, no-edit response, late-result and full verification proofs.
 
 ### App-first Builder UI follow-on
 
@@ -232,8 +264,10 @@ candidate failure, retained Preview launch and new-tab access. The fixture now
 supplies the required `workingSourceRevision` for BLD-03 and rejects a failed
 candidate as a Preview subject.
 
-The real Session/Turn API, authenticated model and E2B run remain open. This
-slice proves the current UI composition and state projection only.
+The Session/Turn API, authenticated model and E2B run are now proven for the
+local pilot above. The remaining UI work is limited to later product polish;
+the next product experiment is the approved authored Brain rule, not another
+Builder architecture.
 
 ### Early Brain experiment
 

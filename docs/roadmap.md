@@ -33,7 +33,7 @@ Keep useful implementation and the original proof limits.
 | Delivery | State | Observable result and evidence | Next action |
 | --- | --- | --- | --- |
 | [Repository cleanup](tasks/repository-consolidation.md) | DELIVERED | Current graph and final changed Builder leaf passed; published in `9945329`; no claim that the app is ready | No further cleanup prerequisite |
-| [First Builder-created app](tasks/builder-first-app.md#internal-pilot-refactoring) | IN PROGRESS | Session-first persistence, terminal working-source cleanup and runtime wiring are proved locally; real E2B execution and the browser journey remain open | Run the configured E2B path, then add the Session/Turn API and UI |
+| [First Builder-created app](tasks/builder-first-app.md#internal-pilot-refactoring) | IN PROGRESS | Session-first persistence, terminal working-source cleanup, Session/Turn API, real E2B execution and the authenticated two-change browser journey are proved locally | Begin the approved authored Brain-rule experiment; keep the remaining recovery and verification proofs explicit |
 | [Manually maintained Brain](tasks/builder-first-app.md#internal-pilot-refactoring) | PLANNED | Existing context code retained; real authored rule consumption remains unproved | Begin the real-rule experiment when create/open/continue works; do not wait for complete first-app closure |
 | [Narrow SDK and Sankhya](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Existing integration proof retained; the app must perform a real authorized operation | Select that operation before defining its SDK details |
 | [Colleague uses the app](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Another authorized person must open the usable app; creator Preview does not establish this | Detail access when the app is usable |
@@ -80,13 +80,16 @@ named local model/E2B proof authority remains; no public deployment, business
 write, commit, push, PR or merge is granted by this continuation.
 
 On 2026-09-13 the operator approved the session-first core increment. Do not
-redesign the UI in this increment. Verify the exact installed Mastra `1.63.2`
-composition without upgrading the framework; prove deterministic Project
-thread persistence across AgentController/store rebind and a different physical
-sandbox; then correct the root cause that can leave `project_working_state` in
-`CODING` after a terminal Turn. Preserve existing Git custody, continuation,
-no-code response, artifact retention and reviewer-free Preview behavior. The
-Session/Turn API and UI follow only after this core proof passes.
+redesign the UI or add another session owner. Verify the exact installed Mastra
+`1.63.2` composition without upgrading the framework; prove deterministic
+Project thread persistence across AgentController/store rebind and a different
+physical sandbox; correct the root cause that can leave
+`project_working_state` in `CODING` after a terminal Turn; then expose the
+smallest Session/Turn API through the existing app-first Builder UI. Preserve
+existing Git custody, continuation, no-code response, artifact retention and
+reviewer-free Preview behavior. This increment and its real local browser proof
+are recorded in the task owner; remaining recovery and verification proofs are
+not silently declared complete.
 
 On 2026-09-12, after the live streaming result, the operator authorized publishing
 the current implementation and evidence to `analysis/internal-mvp-2026-09-12`

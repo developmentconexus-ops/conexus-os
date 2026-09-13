@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent, SyntheticEvent } from 'react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { BuilderRequestError, closeChangeFinding, createChange, getBuildPreview, getChange, getChangeDiff, getChangePlan, getChangeProgress, getProjectSourceFile, launchBuildPreview, listChangeEvidence, listChangeFindings, listChanges, listProjectSourceTree, prepareBuildPreview } from '../api'
+import { BuilderRequestError, closeChangeFinding, createBuilderSessionTurn, getBuildPreview, getBuilderSession, getChange, getChangeDiff, getChangePlan, getChangeProgress, getProjectSourceFile, launchBuildPreview, listChangeEvidence, listChangeFindings, listChanges, listProjectSourceTree, prepareBuildPreview } from '../api'
 import { BuilderConversation } from './builder-conversation'
 
 const terminal = new Set(['PREVIEW_READY', 'BUILD_FAILED', 'RESPONDED', 'VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED', 'FAILED', 'INTERRUPTED'])
@@ -40,7 +40,10 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const changes = useQuery({
     queryKey: ['builder-changes', projectId], queryFn: () => listChanges(projectId), refetchInterval: 2_000,
   })
-  const currentId = selectedId ?? changes.data?.[0]?.changeId
+  const session = useQuery({
+    queryKey: ['builder-session', projectId], queryFn: () => getBuilderSession(projectId), refetchInterval: 1_500,
+  })
+  const currentId = selectedId ?? session.data?.activeTurn?.changeId ?? changes.data?.[0]?.changeId
   latestProject.current = projectId
   const requireCurrentId = () => {
     if (!currentId) throw new Error('No current Change')
@@ -208,15 +211,16 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     setPreviewMessage('Preview carregando no endereço autorizado.')
   }
   const mutation = useMutation({
-    mutationFn: (value: Readonly<{ intent: string; key: string; expectedSourceRevision: string }>) => createChange(projectId, value.intent, value.key, value.expectedSourceRevision),
+    mutationFn: (value: Readonly<{ intent: string; key: string; expectedSourceRevision: string }>) => createBuilderSessionTurn(projectId, value.intent, value.key, value.expectedSourceRevision),
     onSuccess: async (created) => {
       attempt.current = undefined
-      setSelectedId(created.changeId)
+      setSelectedId(created.turn.changeId)
       setIntent('')
       setMessage('Change criado. O Conexus iniciou o trabalho governado.')
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['builder-changes', projectId] }),
         queryClient.invalidateQueries({ queryKey: ['builder-preview', projectId, 'current'] }),
+        queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] }),
       ])
     },
     onError: (error) => {
@@ -250,7 +254,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     event.preventDefault()
     const value = intent.trim()
     if (!value) { setMessage('Diga ao Conexus o que deve mudar.'); return }
-    const expectedSourceRevision = currentPreview.data?.workingSourceRevision
+    const expectedSourceRevision = session.data?.workingSourceRevision ?? currentPreview.data?.workingSourceRevision
     if (!expectedSourceRevision) { setMessage('A origem do projeto ainda está sendo carregada.'); return }
     if (attempt.current?.intent !== value) attempt.current = { intent: value, key: crypto.randomUUID(), expectedSourceRevision }
     setMessage('Criando o Change…')

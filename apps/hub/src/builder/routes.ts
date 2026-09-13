@@ -47,6 +47,22 @@ export type BuilderOperationId = 'BLD-01' | 'BLD-02' | 'BLD-03' | 'BLD-04' | 'BL
 type PreparePreviewBody = Pick<PreviewPreparationRequest, 'changeId' | 'subjectDigest'>
 type ResolveBuilderSession = (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
 type PreparedPreview = Extract<PreviewPreparation, { state: 'PREPARED' }>
+export type BuilderSessionSnapshot = Readonly<{
+  projectId: string
+  threadId: string
+  messages: readonly Readonly<{
+    id: string
+    role: 'user' | 'assistant' | 'system'
+    text: string
+    createdAt: string
+  }>[]
+  activeTurn: BuilderSnapshot['change'] | null
+  workingSourceRevision: string | null
+  lastPreviewChangeId: string | null
+}>
+export type BuilderSessionPort = Readonly<{
+  read(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderSessionSnapshot>
+}>
 export type BuilderLaunchPreviewPort = (request: FastifyRequest, input: Readonly<{
   accountId: string
   projectId: string
@@ -76,10 +92,78 @@ const current = (snapshot: BuilderSnapshot, operation: BuilderOperationId): unkn
 export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: Readonly<{
   store: BuilderStore
   service: BuilderService
+  session?: BuilderSessionPort
   resolveCurrentSession: ResolveBuilderSession
   origin: string
   launchPreview?: BuilderLaunchPreviewPort
 }>): Promise<readonly BuilderOperationId[]> => {
+  app.get<{ Params: { projectId: string } }>('/api/control/projects/:projectId/session', { schema: { params } }, async (request, reply) => {
+    const session = await dependencies.resolveCurrentSession(request)
+    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    if (!dependencies.session) return sendProblem(reply, 503, 'builder-session-unavailable', 'Builder Session unavailable')
+    try {
+      return await dependencies.session.read({ accountId: session.account.accountId, projectId: request.params.projectId })
+    } catch (error) {
+      if (message(error).includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+      return sendProblem(reply, 503, 'builder-session-unavailable', 'Builder Session unavailable')
+    }
+  })
+
+  app.get<{ Params: { projectId: string; turnId: string } }>('/api/control/projects/:projectId/session/turns/:turnId', {
+    schema: { params: changeParams },
+  }, async (request, reply) => {
+    const session = await dependencies.resolveCurrentSession(request)
+    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    if (!dependencies.session) return sendProblem(reply, 503, 'builder-session-unavailable', 'Builder Session unavailable')
+    try {
+      const snapshot = await dependencies.session.read({ accountId: session.account.accountId, projectId: request.params.projectId })
+      const turn = snapshot.activeTurn?.changeId === request.params.turnId
+        ? snapshot.activeTurn
+        : (await dependencies.store.readSnapshot({
+          accountId: session.account.accountId, projectId: request.params.projectId,
+          changeId: request.params.turnId, requireSource: false,
+        }))?.change ?? null
+      if (!turn) return sendProblem(reply, 404, 'builder-turn-not-found', 'Builder Turn not found')
+      return { ...snapshot, activeTurn: turn }
+    } catch (error) {
+      if (message(error).includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+      return sendProblem(reply, 503, 'builder-session-unavailable', 'Builder Session unavailable')
+    }
+  })
+
+  app.post<{ Params: { projectId: string }; Body: { intent: string; expectedSourceRevision: string } }>('/api/control/projects/:projectId/session/turns', {
+    schema: {
+      params,
+      body: { type: 'object', additionalProperties: false, required: ['intent', 'expectedSourceRevision'], properties: { intent: { type: 'string', minLength: 1, maxLength: 20_000, pattern: '.*\\S.*' }, expectedSourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' } } },
+    },
+  }, async (request, reply) => {
+    const csrf = header(request.headers['x-conexus-csrf'])
+    if (request.headers.origin !== dependencies.origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
+      return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+    }
+    const session = await dependencies.resolveCurrentSession(request, true)
+    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    const idempotencyKey = header(request.headers['idempotency-key'])
+    if (!idempotencyKey) return sendProblem(reply, 400, 'idempotency-key-required', 'Idempotency key required')
+    try {
+      const turn = await dependencies.service.createChange({
+        accountId: session.account.accountId, projectId: request.params.projectId, idempotencyKey,
+        intent: request.body.intent, expectedSourceRevision: request.body.expectedSourceRevision,
+      })
+      return reply.code(201).send({
+        threadId: `conexus-builder:${request.params.projectId}`,
+        turn,
+      })
+    } catch (error) {
+      const detail = message(error)
+      if (detail.includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+      if (detail.includes('BASELINE_REQUIRED') || detail.includes('22P02')) return sendProblem(reply, 404, 'builder-subject-not-found', 'Builder subject not found')
+      if (detail.includes('IDEMPOTENCY_CONFLICT') || detail.includes('OUTCOME_UNKNOWN') || detail.includes('SOURCE_STALE') || detail.includes('PROJECT_BUSY')) return sendProblem(reply, 409, 'change-conflict', 'Change conflict')
+      if (detail.includes('INTENT_REFUSED')) return sendProblem(reply, 422, 'change-intent-refused', 'Change intent refused')
+      return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')
+    }
+  })
+
   app.get<{ Params: { projectId: string; changeId: string } }>('/protocol/projects/:projectId/builder-changes/:changeId/stream', {
     schema: { params: changeParams, querystring: { type: 'object', additionalProperties: false, properties: {} } },
   }, async (request, reply) => {

@@ -6,7 +6,7 @@ import { Memory } from '@mastra/memory'
 import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
-import type { BuilderLaunchPreviewPort } from './routes.js'
+import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot } from './routes.js'
 import { createMastraE2BCodingWorkerRuntime } from './runtime.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationArtifactReadRequest, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
@@ -14,6 +14,25 @@ import { createBuilderSourcePort } from './source.js'
 import type { BuilderGitSourceCapability } from './source.js'
 import { createBuilderStore } from './store.js'
 import { createE2BApplicationCompiler } from './application-artifact-runtime.js'
+
+const BUILDER_THREAD_PREFIX = 'conexus-builder:'
+const terminalChangeStates = new Set(['PREVIEW_READY', 'RESPONDED', 'VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED', 'FAILED', 'INTERRUPTED'])
+const threadIdForProject = (projectId: string): string => `${BUILDER_THREAD_PREFIX}${projectId}`
+const messageText = (content: unknown): string => {
+  if (typeof content === 'string') return content
+  if (Array.isArray(content)) return content.flatMap((part) => {
+    if (typeof part !== 'object' || part === null || !('type' in part) || part.type !== 'text' || !('text' in part) || typeof part.text !== 'string') return []
+    return [part.text]
+  }).join('')
+  if (typeof content === 'object' && content !== null && 'parts' in content) {
+    return messageText(content.parts)
+  }
+  return ''
+}
+const messageDate = (value: unknown): string => {
+  const date = value instanceof Date ? value : new Date(String(value))
+  return Number.isNaN(date.valueOf()) ? new Date(0).toISOString() : date.toISOString()
+}
 
 export const createConfiguredBuilderModule = ({ database, builder, projectSource, applicationArtifacts, launchPreview, model, modelIdentity, validateModelCredential, origin, resolveCurrentSession }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
@@ -56,6 +75,11 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     storage: sessionStorage,
     options: { lastMessages: 20 },
   })
+  let sessionStorageInit: Promise<void> | undefined
+  const ensureSessionStorage = async (): Promise<void> => {
+    sessionStorageInit ??= sessionStorage.init()
+    await sessionStorageInit
+  }
   const runtime = createMastraE2BCodingWorkerRuntime({
     apiKey: readSecretFile(builder.e2bApiKeyFile),
     templateId: builder.e2bTemplateId,
@@ -67,8 +91,36 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   })
   const compiler = createE2BApplicationCompiler({ apiKey: readSecretFile(builder.e2bApiKeyFile) })
   const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts })
+  const session: BuilderSessionPort = Object.freeze({
+    read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
+      const preview = await store.readPreviewSubject({ accountId, projectId })
+      if (!preview) throw new Error('NOT_AUTHORIZED')
+      await ensureSessionStorage()
+      const threadId = threadIdForProject(projectId)
+      const thread = await sessionMemory.getThreadById({ threadId })
+      const history = thread
+        ? await sessionMemory.recall({ threadId, resourceId: projectId, page: 0, perPage: 50 })
+        : { messages: [] }
+      const messages = history.messages.map((message) => Object.freeze({
+        id: message.id,
+        role: message.role === 'user' || message.role === 'assistant' || message.role === 'system' ? message.role : 'system' as const,
+        text: messageText(message.content),
+        createdAt: messageDate(message.createdAt),
+      }))
+      const changes = await store.listChanges({ accountId, projectId })
+      const activeTurn = changes.find((change) => !terminalChangeStates.has(change.state)) ?? null
+      return Object.freeze({
+        projectId,
+        threadId,
+        messages: Object.freeze(messages),
+        activeTurn,
+        workingSourceRevision: preview.workingSourceRevision,
+        lastPreviewChangeId: preview.lastPreviewChangeId,
+      })
+    },
+  })
   return Object.freeze({
-    registerBuilderRoutes: (app: FastifyInstance) => registerBuilderRoutes(app, { store, service, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) }),
+    registerBuilderRoutes: (app: FastifyInstance) => registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) }),
     prepareApplication: service.prepareApplication,
     readApplicationFile: service.readApplicationFile,
     startPreviewPreparation: service.startPreviewPreparation,

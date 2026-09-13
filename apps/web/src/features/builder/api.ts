@@ -62,6 +62,21 @@ export type PreviewLaunch = Readonly<{
   artifactDigest: string
   expiresAt: string
 }>
+export type BuilderSessionMessage = Readonly<{
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  text: string
+  createdAt: string
+}>
+export type BuilderSession = Readonly<{
+  projectId: string
+  threadId: string
+  messages: readonly BuilderSessionMessage[]
+  activeTurn: Change | null
+  workingSourceRevision: string | null
+  lastPreviewChangeId: string | null
+}>
+export type BuilderSessionTurn = Readonly<{ threadId: string; turn: Change }>
 
 export class BuilderRequestError extends Error {
   constructor(readonly status: number | null) { super(status === null ? 'Builder request did not complete' : `Builder request failed with ${status}`) }
@@ -84,6 +99,28 @@ const reject = (response: Response): never => {
 const base = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/changes`
 const sourceBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/source`
 const previewBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/preview`
+const sessionBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/session`
+
+export const getBuilderSession = async (projectId: string): Promise<BuilderSession> => {
+  const response = await request(sessionBase(projectId))
+  if (!response.ok) reject(response)
+  return response.json() as Promise<BuilderSession>
+}
+export const createBuilderSessionTurn = async (
+  projectId: string, intent: string, idempotencyKey: string, expectedSourceRevision: string,
+): Promise<BuilderSessionTurn> => {
+  const response = await request(`${sessionBase(projectId)}/turns`, {
+    method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
+    body: JSON.stringify({ intent, expectedSourceRevision }),
+  })
+  if (response.status !== 201) reject(response)
+  return response.json() as Promise<BuilderSessionTurn>
+}
+export const getBuilderSessionTurn = async (projectId: string, turnId: string): Promise<BuilderSession> => {
+  const response = await request(`${sessionBase(projectId)}/turns/${encodeURIComponent(turnId)}`)
+  if (!response.ok) reject(response)
+  return response.json() as Promise<BuilderSession>
+}
 
 export const listChanges = async (projectId: string): Promise<ChangeSummary[]> => {
   const response = await request(base(projectId))
