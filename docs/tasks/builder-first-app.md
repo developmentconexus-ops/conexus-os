@@ -152,8 +152,10 @@ it is a coordinated increment, not a one-line verifier fix.
   last-good Preview preservation through the current runtime.
 - [x] Integrate the proved session boundary into `createCodingAgent`/E2B without
   changing the Builder UI.
-- [ ] Only after this increment, add Session/Turn API and app-first UI. Prove
-  create, open and continuation with actual login, model, E2B and browser there.
+- [x] Align the existing Build surface with the approved P-01 app-first
+  composition without adding a second session owner or new endpoints.
+- [ ] Add the Session/Turn API and prove create, open and continuation with
+  actual login, model, E2B and browser there.
 - [ ] Begin the real Brain experiment as soon as that cycle and its own
   prerequisites work. Do not wait for the next checklist item to finish.
 - [ ] Complete failed-build correction, no-edit conversation, stale/replayed
@@ -205,6 +207,33 @@ fixtures. Hub typecheck and the focused Builder suites pass. No E2B credential o
 template is configured in this shell, so a paid live runtime execution remains
 unproved. It is the next external proof, not a reason to add another session
 layer.
+
+### App-first Builder UI follow-on
+
+The frontend follows the locked P-01 contract in
+`docs/evidence/4c/p01-build-workspace-screen-contract.md` and its canonical P8
+wireframe. The application Preview remains the dominant left pane. The
+contextual Conexus conversation remains in the right pane. Preview, Code and
+Diff are explicit read-only lenses. Technical Change, Plan, Findings and
+Evidence information remains available below the main workspace. The first
+request shows an honest empty conversation state instead of hiding the panel
+until a Change exists.
+
+This slice reuses BLD-03, BLD-10, BLD-21 and BLD-22. It does not create the
+Session/Turn API, move ownership from Change, or make an unready Baseline look
+like a running application. The frontend stops polling a stable Preview and
+guards automatic and manual Preview launches with the same attempt identity.
+The previous Preview remains available when a new launch fails.
+
+The browser proof is `tests/implementation/rb-builder-browser.test.mjs`. It
+covers the empty current Preview, the right-side conversation, streaming
+observations, the read-only Code and Diff inspectors, exact source selection,
+candidate failure, retained Preview launch and new-tab access. The fixture now
+supplies the required `workingSourceRevision` for BLD-03 and rejects a failed
+candidate as a Preview subject.
+
+The real Session/Turn API, authenticated model and E2B run remain open. This
+slice proves the current UI composition and state projection only.
 
 ### Early Brain experiment
 

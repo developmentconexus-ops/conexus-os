@@ -9,8 +9,11 @@ const hasCandidate = new Set(['PREPARING', 'PREVIEW_READY', 'BUILD_FAILED', 'RES
 
 type PreviewIdentity = Readonly<{ projectId: string; changeId: string; subjectDigest: string }>
 type PreviewCommand = PreviewIdentity & Readonly<{ generation: number }>
-type PreviewLaunch = PreviewIdentity & Readonly<{ generation: number; entryUrl: string; previewUrl: string; entryGrant: string }>
+type PreviewLaunchCommand = PreviewCommand & Readonly<{ attemptId: string; artifactRevisionId: string; artifactDigest: string }>
+type PreviewLaunch = PreviewLaunchCommand & Readonly<{ entryUrl: string; previewUrl: string; entryGrant: string }>
 type PreviewSurfaceState = 'IDLE' | 'OPENING' | 'OPEN'
+
+const previewLaunchKey = (command: Readonly<{ projectId: string; changeId: string; attemptId: string }>) => `${command.projectId}:${command.changeId}:${command.attemptId}`
 
 export function ProjectBuild({ projectId }: { projectId: string }) {
   const inputId = useId()
@@ -32,7 +35,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const latestSelection = useRef<Readonly<{ projectId: string; changeId: string | undefined }>>({ projectId, changeId: undefined })
   const latestPreview = useRef<PreviewIdentity | undefined>(undefined)
   const entrySubmitted = useRef<string | undefined>(undefined)
-  const automaticLaunch = useRef<string | undefined>(undefined)
+  const launchInFlight = useRef<string | undefined>(undefined)
   const entryForm = useRef<HTMLFormElement>(null)
   const changes = useQuery({
     queryKey: ['builder-changes', projectId], queryFn: () => listChanges(projectId), refetchInterval: 2_000,
@@ -45,7 +48,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   }
   const currentPreview = useQuery({
     queryKey: ['builder-preview', projectId, 'current'], queryFn: () => getBuildPreview(projectId),
-    refetchInterval: 1_500,
+    refetchInterval: (query) => query.state.data?.activeChangeId ? 1_500 : false,
   })
   const change = useQuery({
     queryKey: ['builder-change', projectId, currentId], queryFn: () => getChange(projectId, requireCurrentId()),
@@ -82,6 +85,8 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   }, [currentId, diff.data?.candidateSourceRevision, sourceSelection?.changeId])
   const currentResolutionEvidence = evidence.data?.filter((item) => item.subjectDigest === diff.data?.candidateSourceRevision &&
     item.claim === 'Candidate satisfies the accepted Change intent.') ?? []
+  const activeChange = Boolean(currentPreview.data?.activeChangeId &&
+    (!change.data || !terminal.has(change.data.state)))
   const previewIdentity = previewChangeId && candidatePreview.data?.subjectKind === 'CHANGE_CANDIDATE'
     ? { projectId, changeId: previewChangeId, subjectDigest: candidatePreview.data.subjectDigest }
     : undefined
@@ -102,6 +107,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     setPendingLaunch(undefined)
     setPreviewSurfaceState('IDLE')
     setPreviewMessage('')
+    launchInFlight.current = undefined
   }, [projectId, invalidateGeneration])
   const prepare = useMutation({
     mutationFn: (command: PreviewCommand) => prepareBuildPreview(command.projectId, { changeId: command.changeId, subjectDigest: command.subjectDigest }),
@@ -115,7 +121,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     },
   })
   const launch = useMutation({
-    mutationFn: (command: PreviewCommand & Readonly<{ attemptId: string; artifactRevisionId: string; artifactDigest: string }>) => launchBuildPreview(command.projectId, {
+    mutationFn: (command: PreviewLaunchCommand) => launchBuildPreview(command.projectId, {
       changeId: command.changeId, subjectDigest: command.subjectDigest, attemptId: command.attemptId,
       artifactRevisionId: command.artifactRevisionId, artifactDigest: command.artifactDigest,
     }),
@@ -127,6 +133,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       setPreviewMessage('Abrindo Preview…')
     },
     onError: (_error, command) => {
+      if (launchInFlight.current === previewLaunchKey(command)) launchInFlight.current = undefined
       if (isCurrent(command)) setPreviewMessage(activeLaunch ? 'Não foi possível abrir este Preview. A versão anterior continua disponível.' : 'Não foi possível abrir este Preview.')
     },
   })
@@ -139,20 +146,24 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   }
   const launchPrepared = () => {
     const preparation = candidatePreview.data?.preparation
-    if (!previewIdentity || preparation?.state !== 'PREPARED' || launch.isPending) return
+    if (!previewIdentity || preparation?.state !== 'PREPARED' || launch.isPending || pendingLaunch) return
     const nextGeneration = invalidateGeneration()
-    launch.mutate({ ...previewIdentity, generation: nextGeneration, attemptId: preparation.attemptId, artifactRevisionId: preparation.artifactRevisionId, artifactDigest: preparation.artifactDigest })
+    const command = { ...previewIdentity, generation: nextGeneration, attemptId: preparation.attemptId, artifactRevisionId: preparation.artifactRevisionId, artifactDigest: preparation.artifactDigest }
+    const key = previewLaunchKey(command)
+    if (launchInFlight.current === key) return
+    launchInFlight.current = key
+    launch.mutate(command)
   }
-  const automaticLaunchMutation = launch.mutate
   useEffect(() => {
     const preparation = candidatePreview.data?.preparation
     const subjectDigest = candidatePreview.data?.subjectDigest
     if (preparation?.state !== 'PREPARED' || !previewChangeId || !subjectDigest || launch.isPending || pendingLaunch) return
-    const key = `${projectId}:${previewChangeId}:${preparation.attemptId}`
-    if (automaticLaunch.current === key || (activeLaunch && activeLaunch.changeId === previewChangeId && activeLaunch.subjectDigest === subjectDigest)) return
-    automaticLaunch.current = key
-    automaticLaunchMutation({ projectId, changeId: previewChangeId, subjectDigest, generation: invalidateGeneration(), attemptId: preparation.attemptId, artifactRevisionId: preparation.artifactRevisionId, artifactDigest: preparation.artifactDigest })
-  }, [candidatePreview.data?.preparation, candidatePreview.data?.subjectDigest, previewChangeId, projectId, launch.isPending, pendingLaunch, activeLaunch, automaticLaunchMutation, invalidateGeneration])
+    const command = { projectId, changeId: previewChangeId, subjectDigest, generation: invalidateGeneration(), attemptId: preparation.attemptId, artifactRevisionId: preparation.artifactRevisionId, artifactDigest: preparation.artifactDigest }
+    const key = previewLaunchKey(command)
+    if (launchInFlight.current === key || (activeLaunch && activeLaunch.changeId === previewChangeId && activeLaunch.subjectDigest === subjectDigest)) return
+    launchInFlight.current = key
+    launch.mutate(command)
+  }, [candidatePreview.data?.preparation, candidatePreview.data?.subjectDigest, previewChangeId, projectId, launch.isPending, pendingLaunch, activeLaunch, launch, invalidateGeneration])
   useEffect(() => {
     if (!pendingLaunch || entrySubmitted.current === `${pendingLaunch.generation}:${pendingLaunch.previewUrl}`) return
     const key = `${pendingLaunch.generation}:${pendingLaunch.previewUrl}`
@@ -173,6 +184,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       const response = await fetch(pendingLaunch.previewUrl, { method: 'HEAD', credentials: 'include', cache: 'no-store' })
       if (!response.ok || !isCurrent(pendingLaunch)) {
         if (isCurrent(pendingLaunch)) {
+          if (launchInFlight.current === previewLaunchKey(pendingLaunch)) launchInFlight.current = undefined
           setPendingLaunch(undefined)
           setPreviewSurfaceState(activeLaunch ? 'OPEN' : 'IDLE')
           setPreviewMessage(activeLaunch ? 'O Preview não confirmou uma entrada autorizada. A versão anterior continua disponível.' : 'O Preview não confirmou uma entrada autorizada.')
@@ -181,6 +193,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       }
     } catch {
       if (isCurrent(pendingLaunch)) {
+        if (launchInFlight.current === previewLaunchKey(pendingLaunch)) launchInFlight.current = undefined
         setPendingLaunch(undefined)
         setPreviewSurfaceState(activeLaunch ? 'OPEN' : 'IDLE')
         setPreviewMessage(activeLaunch ? 'Não foi possível confirmar a entrada do Preview. A versão anterior continua disponível.' : 'Não foi possível confirmar a entrada do Preview.')
@@ -189,6 +202,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     }
     if (!isCurrent(pendingLaunch)) return
     setActiveLaunch(pendingLaunch)
+    if (launchInFlight.current === previewLaunchKey(pendingLaunch)) launchInFlight.current = undefined
     setPendingLaunch(undefined)
     setPreviewSurfaceState('OPEN')
     setPreviewMessage('Preview carregando no endereço autorizado.')
@@ -200,7 +214,10 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       setSelectedId(created.changeId)
       setIntent('')
       setMessage('Change criado. O Conexus iniciou o trabalho governado.')
-      await queryClient.invalidateQueries({ queryKey: ['builder-changes', projectId] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['builder-changes', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['builder-preview', projectId, 'current'] }),
+      ])
     },
     onError: (error) => {
       if (error instanceof BuilderRequestError && error.status === 403) setMessage('Sua autoridade atual não permite construir neste Project.')
@@ -248,6 +265,11 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
             <div><p className="eyebrow">Aplicação</p><h2 id="build-preview-title">Preview</h2></div>
             {activeLaunch && <button type="button" onClick={() => window.open(activeLaunch.previewUrl, '_blank', 'noopener,noreferrer')}>Abrir em nova aba</button>}
           </div>
+          <nav className="build-lenses" aria-label="Lentes do Build">
+            <button type="button" aria-pressed={previewLens === null} onClick={() => setPreviewLens(null)}>Preview</button>
+            <button type="button" aria-pressed={previewLens === 'CODE'} disabled={!diff.data} onClick={() => setPreviewLens('CODE')}>Código</button>
+            <button type="button" aria-pressed={previewLens === 'DIFF'} disabled={!diff.data} onClick={() => setPreviewLens('DIFF')}>Diff</button>
+          </nav>
           {currentPreview.isError && <p role="alert">{currentPreview.error instanceof BuilderRequestError && currentPreview.error.status === 404
             ? 'Não foi possível obter um Preview para este Project.'
             : 'Não foi possível consultar o Preview do Baseline aprovado.'}</p>}
@@ -279,13 +301,15 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
 
         <aside className="conexus-panel" aria-labelledby="conexus-panel-title">
           <p className="eyebrow">Conexus</p>
-          <h2 id="conexus-panel-title">O que deve mudar?</h2>
+          <h2 id="conexus-panel-title">Converse com o Conexus</h2>
+          <p className="panel-intro">Descreva o aplicativo que você quer criar ou a próxima mudança. O Conexus continua a mesma aplicação.</p>
           {currentId && <BuilderConversation key={`${projectId}:${currentId}`} projectId={projectId} changeId={currentId} intent={change.data?.intent} summary={change.data?.summary} />}
+          {!currentId && <p className="builder-conversation-empty">Comece descrevendo o que a aplicação precisa fazer. O resultado aparecerá no Preview quando estiver disponível.</p>}
           <form onSubmit={submit}>
             <label htmlFor={inputId}>O que deve mudar neste Project?</label>
             <textarea id={inputId} rows={5} required value={intent} onChange={(event) => setIntent(event.target.value)} />
             <p>O Conexus continuará os arquivos do aplicativo. A versão anterior permanece disponível enquanto a alteração é preparada.</p>
-            <button className="primary" type="submit" disabled={mutation.isPending || !currentPreview.data?.workingSourceRevision || Boolean(currentPreview.data.activeChangeId) || Boolean(currentId && (!change.data || !terminal.has(change.data.state)))}>{mutation.isPending ? 'Enviando…' : 'Pedir mudança'}</button>
+            <button className="primary" type="submit" disabled={mutation.isPending || activeChange || Boolean(currentId && (!change.data || !terminal.has(change.data.state)))}>{mutation.isPending ? 'Enviando…' : 'Pedir mudança'}</button>
             <p role="status" aria-live="polite">{message}</p>
           </form>
         </aside>
@@ -293,7 +317,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
 
       {changes.isError && <p role="alert">Não foi possível consultar os Changes deste Project.</p>}
       {changes.data && changes.data.length > 0 && (
-        <section aria-labelledby="build-activity-title">
+        <section className="build-inspector-stack" aria-labelledby="build-activity-title">
           <h2 id="build-activity-title">Atividade de Build</h2>
           <div className="build-layout">
             <nav aria-label="Changes">

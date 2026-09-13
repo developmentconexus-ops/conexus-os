@@ -55,6 +55,7 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
       previewId: candidate ? 'preview-candidate' : 'preview-current', subjectKind: candidate ? 'CHANGE_CANDIDATE' : 'CURRENT_PROJECT',
       subjectDigest: candidate ? 'c'.repeat(40) : 'a'.repeat(64), ready: false, verified: candidate && state === 'VERIFIED', live: false,
+      ...(candidate ? {} : { workingSourceRevision: 'b'.repeat(40) }),
     }) })
   })
   await page.route(`**/api/control/projects/${projectId}/changes`, (route) => {
@@ -97,6 +98,10 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   const previewBox = await page.locator('.build-preview-surface').boundingBox()
   const conversationBox = await page.locator('.conexus-panel').boundingBox()
   assert.ok(previewBox.width > conversationBox.width, 'the application remains wider than the conversation on desktop')
+  await page.getByRole('heading', { name: 'Converse com o Conexus' }).waitFor()
+  await page.getByText('Comece descrevendo o que a aplicação precisa fazer.', { exact: false }).waitFor()
+  assert.equal(await page.getByRole('button', { name: 'Código', exact: true }).isDisabled(), true)
+  assert.equal(await page.getByRole('button', { name: 'Diff', exact: true }).isDisabled(), true)
   await page.getByText('Não foi possível obter um Preview para este Project.', { exact: true }).waitFor()
   await new Promise((resolvePromise) => setTimeout(resolvePromise, 2_500))
   assert.deepEqual(previewReads.filter((requestedChangeId) => requestedChangeId === null), [null])
@@ -125,7 +130,7 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   observationResponse.end()
   assert.equal(await page.getByRole('button', { name: 'Pedir mudança' }).isDisabled(), true)
   assert.equal(attempts.length, 1)
-  assert.deepEqual(attempts[0].body, { intent: 'Adicionar uma página de saúde' })
+  assert.deepEqual(attempts[0].body, { intent: 'Adicionar uma página de saúde', expectedSourceRevision: 'b'.repeat(40) })
   assert.match(attempts[0].key, /^[0-9a-f-]{36}$/)
   await page.getByText('Progresso:').waitFor()
   state = 'VERIFYING'
@@ -141,6 +146,11 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   await candidatePreview.getByText('c'.repeat(40), { exact: true }).waitFor()
   await candidatePreview.getByText('verificado: sim', { exact: false }).waitFor()
   await page.getByText('Resultado verificado.', { exact: false }).waitFor()
+  await page.getByRole('button', { name: 'Diff', exact: true }).click()
+  assert.equal(await page.getByRole('button', { name: 'Diff', exact: true }).getAttribute('aria-pressed'), 'true')
+  await page.getByRole('heading', { name: 'Diff do resultado' }).waitFor()
+  await page.getByRole('button', { name: 'Preview', exact: true }).click()
+  assert.equal(await page.getByRole('button', { name: 'Preview', exact: true }).getAttribute('aria-pressed'), 'true')
   await page.getByRole('heading', { name: 'Verificação' }).waitFor()
   await page.getByText('O candidato satisfaz a intenção aceita do Change.', { exact: false }).waitFor()
   assert.equal(evidenceFetchStates.includes('VERIFIED'), true)
@@ -163,7 +173,7 @@ test('Project Build creates one Change and reveals Hub progress and exact diff',
   await page.reload()
   await page.getByText('Verificação reprovada.', { exact: false }).waitFor()
   await new Promise((resolvePromise) => setTimeout(resolvePromise, 2_500))
-  assert.equal(previewReads.filter((requestedChangeId) => requestedChangeId === changeId).length, candidateReadsBeforeFailure + 1)
+  assert.equal(previewReads.filter((requestedChangeId) => requestedChangeId === changeId).length, candidateReadsBeforeFailure)
   await page.setViewportSize({ width: 360, height: 800 })
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true)
 })

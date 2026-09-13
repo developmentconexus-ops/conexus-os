@@ -29,6 +29,32 @@ or a session handoff.
 `conexus:preflight` reports facts. It does not approve a stage, clean a dirty
 tree, or replace the roadmap.
 
+## Frontend and Builder wireframe
+
+Before changing a web, Builder, or Preview surface:
+
+1. Read the current grant in [`docs/roadmap.md`](../../../docs/roadmap.md).
+   The grant selects the slice that is allowed now; it does not reopen older
+   Product work.
+2. Read [`frontend-and-product-surfaces.md`](../../../docs/reference/frontend-and-product-surfaces.md)
+   for the current semantic surface.
+3. Read the locked [P-01 Build workspace screen contract](../../../docs/evidence/4c/p01-build-workspace-screen-contract.md)
+   and operate its [canonical P8 wireframe](../../../docs/evidence/4c/p01-build-workspace-functional-wireframe.html)
+   before changing production UI. This is the approved app-first composition:
+   the current Project application is the dominant Preview, Conexus is the
+   contextual right-side interaction, and Code and Diff are read-only lenses.
+4. Preserve the wireframe's load-bearing behavior: the Build entry shows the
+   current application without requiring a Change, and the last-good Preview
+   stays inspectable while a candidate is built.
+
+The P-01 wireframe is an interaction contract, not a reason to copy its
+low-fidelity styling or implement every surface it contains. The current
+roadmap still controls deferred surfaces such as Agent Studio. P11 assembly
+artifacts and R1–R7 or L1–L6 plans are not current UI authority. If a request
+conflicts with the P-01 contract or the current grant, stop at the smallest
+owning Product Experience document; do not invent a replacement UI in code.
+Verify the allowed path in the real browser before calling the UI complete.
+
 ## Execute an authorized slice
 
 Before editing, bind the slice to exact operations/owners, prerequisites,
