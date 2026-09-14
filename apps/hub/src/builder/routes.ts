@@ -59,6 +59,8 @@ export type BuilderSessionSnapshot = Readonly<{
   activeTurn: BuilderSnapshot['change'] | null
   workingSourceRevision: string | null
   lastPreviewChangeId: string | null
+  lastPreviewArtifactRevisionId: string | null
+  lastPreviewArtifactDigest: string | null
 }>
 export type BuilderSessionPort = Readonly<{
   read(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderSessionSnapshot>
@@ -109,7 +111,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
         threadId: snapshot.threadId,
         messages: snapshot.messages,
         activeBuilderRun: run,
-        preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+        preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodArtifactRevisionId: snapshot.lastPreviewArtifactRevisionId, lastGoodArtifactDigest: snapshot.lastPreviewArtifactDigest },
         mode: 'BUILD' as const,
       }
     } catch (error) {

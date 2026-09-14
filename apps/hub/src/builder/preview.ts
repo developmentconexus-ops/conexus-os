@@ -9,6 +9,8 @@ export type BuilderPreviewSubject = Readonly<{
   workingSourceRevision?: string
   activeChangeId?: string | null
   lastPreviewChangeId?: string | null
+  lastPreviewArtifactRevisionId?: string | null
+  lastPreviewArtifactDigest?: string | null
 }>
 
 export type BuildPreview = Readonly<{
@@ -21,6 +23,8 @@ export type BuildPreview = Readonly<{
   workingSourceRevision?: string
   activeChangeId?: string | null
   lastPreviewChangeId?: string | null
+  lastPreviewArtifactRevisionId?: string | null
+  lastPreviewArtifactDigest?: string | null
   live: false
   preparation?: BuildPreviewPreparation
 }>
@@ -49,6 +53,8 @@ export const projectBuildPreview = (
   ...(subject.workingSourceRevision !== undefined ? { workingSourceRevision: subject.workingSourceRevision } : {}),
   ...(subject.activeChangeId !== undefined ? { activeChangeId: subject.activeChangeId } : {}),
   ...(subject.lastPreviewChangeId !== undefined ? { lastPreviewChangeId: subject.lastPreviewChangeId } : {}),
+  ...(subject.lastPreviewArtifactRevisionId !== undefined ? { lastPreviewArtifactRevisionId: subject.lastPreviewArtifactRevisionId } : {}),
+  ...(subject.lastPreviewArtifactDigest !== undefined ? { lastPreviewArtifactDigest: subject.lastPreviewArtifactDigest } : {}),
   live: false,
   ...(options.preparation ? { preparation: options.preparation } : {}),
 })

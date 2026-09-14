@@ -18,7 +18,6 @@ import { createBuilderStore } from './store.js'
 import { createE2BApplicationCompiler } from './application-artifact-runtime.js'
 
 const BUILDER_THREAD_PREFIX = 'conexus-builder:'
-const terminalChangeStates = new Set(['PREVIEW_READY', 'RESPONDED', 'VERIFIED', 'VERIFICATION_FAILED', 'UNVERIFIED', 'FAILED', 'INTERRUPTED'])
 const threadIdForProject = (projectId: string): string => `${BUILDER_THREAD_PREFIX}${projectId}`
 const messageText = (content: unknown): string => {
   if (typeof content === 'string') return content
@@ -124,15 +123,15 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
         text: messageText(message.content),
         createdAt: messageDate(message.createdAt),
       }))
-      const changes = await store.listChanges({ accountId, projectId })
-      const activeTurn = changes.find((change) => !terminalChangeStates.has(change.state)) ?? null
       return Object.freeze({
         projectId,
         threadId,
         messages: Object.freeze(messages),
-        activeTurn,
+        activeTurn: null,
         workingSourceRevision: preview.workingSourceRevision,
         lastPreviewChangeId: preview.lastPreviewChangeId,
+        lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId ?? null,
+        lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest ?? null,
       })
     },
   })

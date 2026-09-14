@@ -12,6 +12,19 @@ BEGIN
 END;
 $$;
 
+ALTER FUNCTION builder.read_preview_subject(uuid, uuid, uuid) RENAME TO read_preview_subject_legacy;
+CREATE FUNCTION builder.read_preview_subject(
+  p_account_id uuid, p_project_id uuid, p_change_id uuid
+) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp
+AS $$
+  SELECT CASE WHEN legacy.value IS NULL THEN NULL ELSE legacy.value || jsonb_build_object(
+    'lastPreviewArtifactRevisionId', working.last_preview_artifact_revision_id,
+    'lastPreviewArtifactDigest', working.last_preview_artifact_digest
+  ) END
+  FROM (SELECT builder.read_preview_subject_legacy(p_account_id, p_project_id, p_change_id) AS value) AS legacy
+  LEFT JOIN builder.project_working_state AS working ON working.project_id = p_project_id;
+$$;
+
 CREATE FUNCTION builder.advance_builder_run_source(
   p_builder_run_id uuid, p_source_revision text
 ) RETURNS boolean
@@ -103,6 +116,8 @@ REVOKE EXECUTE ON FUNCTION builder.advance_builder_run_source(uuid,text),
 GRANT EXECUTE ON FUNCTION builder.advance_builder_run_source(uuid,text),
   builder.settle_builder_run_build(uuid,text,uuid,text,text),
   builder.admit_verified_application_source(uuid,uuid,uuid,text), builder.recover_builder_runs() TO hub_rb_executor;
+GRANT EXECUTE ON FUNCTION builder.admit_verified_application_source(uuid,uuid,uuid,text) TO registry_owner;
+GRANT EXECUTE ON FUNCTION builder.read_preview_subject(uuid,uuid,uuid) TO hub_rb_ingress;
 
 RESET ROLE;
 COMMIT;
