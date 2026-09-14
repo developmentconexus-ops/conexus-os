@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import type { MastraLanguageModel } from '@mastra/core/agent'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
+import { createCodingAgent } from '@mastra/core/coding-agent'
+import { AgentController } from '@mastra/core/agent-controller'
 import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
@@ -75,6 +77,20 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     storage: sessionStorage,
     options: { lastMessages: 20 },
   })
+  const sharedAgent = createCodingAgent({
+    id: 'conexus-builder-coding-agent', name: 'Conexus Coding Worker', model, workspace: undefined,
+    editor: false, instructions: 'Work only in the Session Workspace. Implement the authorized Project request and report the visible result.', tools: {},
+  })
+  const sharedController = new AgentController<Record<string, unknown>>({
+    id: 'conexus-builder-controller', storage: sessionStorage, memory: sessionMemory,
+    initialState: { yolo: true },
+    modes: [
+      { id: 'build', name: 'Build', instructions: 'Implement and report the bounded Project request.', availableTools: ['mastra_workspace_read_file', 'mastra_workspace_write_file', 'mastra_workspace_edit_file', 'mastra_workspace_list_files', 'mastra_workspace_delete', 'mastra_workspace_file_stat', 'mastra_workspace_grep', 'mastra_workspace_execute_command'] },
+      { id: 'plan', name: 'Plan', instructions: 'Inspect and explain the bounded Project request without changing files.', availableTools: ['mastra_workspace_read_file', 'mastra_workspace_list_files', 'mastra_workspace_file_stat', 'mastra_workspace_grep'] },
+    ],
+    defaultModeId: 'build', agent: sharedAgent, workspace: undefined,
+  })
+  const sharedControllerReady = sharedController.init()
   let sessionStorageInit: Promise<void> | undefined
   const ensureSessionStorage = async (): Promise<void> => {
     sessionStorageInit ??= sessionStorage.init()
@@ -88,6 +104,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     validateModelCredential,
     sessionStorage,
     sessionMemory,
+    sharedHarness: { agent: sharedAgent, controller: sharedController, ready: sharedControllerReady },
   })
   const compiler = createE2BApplicationCompiler({ apiKey: readSecretFile(builder.e2bApiKeyFile) })
   const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts })
@@ -130,6 +147,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
       try {
         await service.close()
       } finally {
+        await sharedController.destroy()
         await sessionStorage.close()
       }
     },

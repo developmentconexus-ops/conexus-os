@@ -1,5 +1,6 @@
 import { createCodingAgent } from '@mastra/core/coding-agent'
 import { AgentController } from '@mastra/core/agent-controller'
+import type { Agent } from '@mastra/core/agent'
 import type { LibSQLStore } from '@mastra/libsql'
 import type { Memory } from '@mastra/memory'
 import type { MastraLanguageModel } from '@mastra/core/agent'
@@ -21,12 +22,14 @@ export type CodingWorkerInput = Readonly<{
   actorRunId: string
   admissionToken: string
   intent: string
+  mode?: 'BUILD' | 'PLAN'
   baseSourceRevision: string
   sourceChangeId?: string | null
   correctionFindings?: readonly Readonly<{ findingId: string; findingRevision: string; summary: string }>[]
   recentTurns?: readonly Readonly<{ intent: string; summary: string }>[]
   sourceBundle: Uint8Array
   bindPhysicalSandbox(sandboxId: string): Promise<void>
+  bindMessage?(messageId: string): Promise<void>
   signal?: AbortSignal
   observe?(event: BuilderObservation): void
 }>
@@ -62,6 +65,11 @@ export type E2BBuilderRuntimeConfig = Readonly<{
   validateModelCredential(): void
   sessionStorage?: LibSQLStore
   sessionMemory?: Memory
+  sharedHarness?: Readonly<{
+    agent: Agent
+    controller: AgentController<Record<string, unknown>>
+    ready: Promise<void>
+  }>
   timeoutMs?: number
 }>
 
@@ -195,7 +203,7 @@ export const createMastraE2BCodingWorkerRuntime = (
         })
 
         const workspace = new Workspace({ sandbox })
-        const agent = createCodingAgent({
+        const agent = config.sharedHarness?.agent ?? createCodingAgent({
           id: `builder-${input.actorRunId}`,
           name: 'Conexus Coding Worker',
           model: config.model,
@@ -218,13 +226,19 @@ export const createMastraE2BCodingWorkerRuntime = (
           : ''
         const mapper = createMastraObservationMapper()
         const publish = (event: BuilderObservation) => notifyObservation(input.observe, event)
+        const prompt = config.sharedHarness
+          ? `Human request: ${input.intent}.`
+          : `Project ${input.projectId}; Change ${input.changeId}; exact work-unit parent ${input.baseSourceRevision}. Human intent: ${input.intent}.${recent}${correction}`
         let summaryText = ''
-        let controller: AgentController<Record<string, unknown>> | undefined
+        let controller: AgentController<Record<string, unknown>> | undefined = config.sharedHarness?.controller
         let unsubscribe: (() => void) | undefined
         let abortListener: (() => void) | undefined
         try {
-          if (config.sessionStorage && config.sessionMemory) {
-            controller = new AgentController<Record<string, unknown>>({
+          if (config.sharedHarness || (config.sessionStorage && config.sessionMemory)) {
+            if (config.sharedHarness) await config.sharedHarness.ready
+            else {
+              if (!config.sessionStorage || !config.sessionMemory) throw new Error('BUILDER_SESSION_CONFIG_REFUSED')
+              controller = new AgentController<Record<string, unknown>>({
               id: `builder-controller-${input.actorRunId}`,
               storage: config.sessionStorage,
               memory: config.sessionMemory,
@@ -233,15 +247,19 @@ export const createMastraE2BCodingWorkerRuntime = (
               defaultModeId: 'build',
               agent,
               workspace,
-            })
-            await controller.init()
-            const session = await controller.createSession({
+              })
+            }
+            const activeController = controller
+            if (!activeController) throw new Error('BUILDER_CONTROLLER_REFUSED')
+            if (!config.sharedHarness) await activeController.init()
+            const session = await activeController.createSession({
               resourceId: input.projectId,
               ownerId: input.projectId,
-              scope: 'builder',
+              scope: config.sharedHarness ? `builder:${input.actorRunId}` : 'builder',
               threadId: `conexus-builder:${input.projectId}`,
               workspace,
             })
+            if (input.mode) await session.mode.switch({ modeId: input.mode.toLowerCase() })
             if (input.signal) {
               abortListener = () => session.abort()
               if (input.signal.aborted) abortListener()
@@ -288,15 +306,19 @@ export const createMastraE2BCodingWorkerRuntime = (
                 toolLabels.delete(event.toolCallId)
               }
             })
-            await session.sendMessage({
-              content: `Project ${input.projectId}; Change ${input.changeId}; exact work-unit parent ${input.baseSourceRevision}. Human intent: ${input.intent}.${recent}${correction}`,
-            })
+            await session.sendMessage({ content: prompt })
+            if (input.bindMessage) {
+              const messages = await session.thread.listActiveMessages()
+              const userMessage = [...messages].reverse().find((message) => message.role === 'signal' && message.type === 'user')
+              if (!userMessage?.id) throw new Error('BUILDER_MESSAGE_ID_UNAVAILABLE')
+              await input.bindMessage(userMessage.id)
+            }
             if (input.signal?.aborted) throw new Error('BUILDER_RUN_CANCELLED')
             if (agentEndReason && agentEndReason !== 'complete') throw new Error(agentEndReason === 'error' ? 'BUILDER_MODEL_STREAM_FAILED' : 'BUILDER_MODEL_INCOMPLETE')
             summaryText = assistantText
           } else {
             const response = await agent.stream(
-              `Project ${input.projectId}; Change ${input.changeId}; exact work-unit parent ${input.baseSourceRevision}. Human intent: ${input.intent}.${recent}${correction}`,
+              prompt,
               {
                 maxSteps: 24,
                 abortSignal: input.signal,
@@ -323,7 +345,7 @@ export const createMastraE2BCodingWorkerRuntime = (
           abortListener = undefined
           unsubscribe?.()
           unsubscribe = undefined
-          await controller?.destroy()
+          if (!config.sharedHarness) await controller?.destroy()
           controller = undefined
         }
         const finalized = await direct('sh', ['-lc', [
