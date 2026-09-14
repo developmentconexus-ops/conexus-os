@@ -15,8 +15,7 @@ security:
 x-conexus-security-semantics:
   keycloak: authentication-provider-only
   productAuthority: server-resolved-current-owner-facts
-  nonHttpIngress:
-    - PAR_TOOL
+  nonHttpIngress: []
 x-conexus-browser-request-authenticity:
   credentialedCrossOriginProductApi: DENY
   fetchMetadata: SAME_ORIGIN_ONLY

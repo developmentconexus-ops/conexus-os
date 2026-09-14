@@ -6,7 +6,7 @@ const allowedContractStates = new Set(['METHOD_PATH_MAPPED', 'SCHEMA_CLOSED']);
 
 const ledger = fs.readFileSync(ledgerPath, 'utf8');
 const sectionStart = ledger.indexOf('# 5. Current fixed Product census');
-const sectionEnd = ledger.indexOf('\n# 5A. Retained / non-current Product operations');
+const sectionEnd = ledger.indexOf('\n# 5A. Broader retained historical/platform ledger');
 if (sectionStart < 0 || sectionEnd < 0) {
   throw new Error('unable to locate fixed-platform census in operation ledger');
 }

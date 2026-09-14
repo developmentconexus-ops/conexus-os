@@ -159,45 +159,45 @@ Attachments/private bytes are carrier properties of exact owning operations, nev
 
 # 5. Current fixed Product census
 
-This is the current Product authority for the supported internal MVP. It is derived from the canonical OAS and the operation-level census in `.audit/slice-6b-a-operation-census.tsv`. Retained operations below are preserved for future surfaces and are not current Product authority.
+This is the current Product authority for the supported internal MVP. It is the durable operation-level census: each row names the current semantic owner and the real consumer/authority root. Retained operations below are preserved for future surfaces and are not current Product authority.
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
-| `IAM-01` | `GetControlPlaneAccessContext` | Current Product surface | current caller / authority | read |
-| `IAM-02` | `EndSession` | Current Product surface | current caller / authority | command |
-| `IAM-03` | `ProvisionAccount` | Current Product surface | current caller / authority | command |
-| `WS-01` | `CreateWorkspace` | Current Product surface | current caller / authority | command |
-| `WS-02` | `GetWorkspace` | Current Product surface | current caller / authority | read |
-| `PRJ-01` | `ListProjects` | Current Product surface | current caller / authority | read |
-| `PRJ-03` | `CreateProject` | Current Product surface | current caller / authority | command |
-| `PRJ-02` | `GetProject` | Current Product surface | current caller / authority | read |
-| `BLD-08` | `ListProjectSourceTree` | Current Product surface | current caller / authority | read |
-| `BLD-09` | `GetProjectSourceFile` | Current Product surface | current caller / authority | read |
-| `BLD-23` | `GetBuilderSession` | Current Product surface | current caller / authority | read |
-| `BLD-24` | `SendBuilderMessage` | Current Product surface | current caller / authority | command |
-| `BRN-01` | `GetWorkspaceBrain` | Current Product surface | current caller / authority | read |
-| `BRN-02` | `ListBrainRevisions` | Current Product surface | current caller / authority | read |
-| `BRN-03` | `GetBrainRevision` | Current Product surface | current caller / authority | read |
-| `BRN-10` | `GetBrainHealth` | Current Product surface | current caller / authority | read |
-| `CON-01` | `ListConnectorDefinitions` | Current Product surface | current caller / authority | read |
-| `CON-02` | `GetConnectorDefinition` | Current Product surface | current caller / authority | read |
-| `CON-03` | `ListConnections` | Current Product surface | current caller / authority | read |
-| `CON-05` | `CreateConnection` | Current Product surface | current caller / authority | command |
-| `CON-04` | `GetConnection` | Current Product surface | current caller / authority | read |
-| `CON-06` | `ReviseConnection` | Current Product surface | current caller / authority | command |
-| `CON-07` | `SetConnectionCredential` | Current Product surface | current caller / authority | command |
-| `CON-08` | `QualifyConnection` | Current Product surface | current caller / authority | command |
-| `CON-09` | `GetConnectionQualification` | Current Product surface | current caller / authority | read |
-| `PRJ-07` | `RunInceptionInvestigation` | Current Product surface | current caller / authority | command |
-| `PRJ-08` | `GetApprovedProjectBaseline` | Current Product surface | current caller / authority | read |
-| `PRJ-09` | `ApproveProjectBaselineRevision` | Current Product surface | current caller / authority | command |
-| `PRJ-23` | `GetProjectBaselineCandidate` | Current Product surface | current caller / authority | read |
-| `PRJ-24` | `AskConexusAboutBaselineCandidate` | Current Product surface | current caller / authority | command |
-| `BRN-14` | `GetProjectBrainContext` | Current Product surface | current caller / authority | read |
+| `IAM-01` | `GetControlPlaneAccessContext` | I&A | Control Plane shell; server-resolved Account + Workspace/Project context | read |
+| `IAM-02` | `EndSession` | I&A | authenticated human through the current Conexus session | command |
+| `IAM-03` | `ProvisionAccount` | I&A | trusted bootstrap or platform operator self-provisioning | command |
+| `WS-01` | `CreateWorkspace` | Workspace | current first-access Workspace creation flow | command |
+| `WS-02` | `GetWorkspace` | Workspace | current Workspace disclosure flow | read |
+| `PRJ-01` | `ListProjects` | Project | current Workspace Projects selection flow | read |
+| `PRJ-03` | `CreateProject` | Project / accepted L7 composition | current Project creation flow; atomically establishes source and initial access | command |
+| `PRJ-02` | `GetProject` | Project | current Project disclosure/open flow | read |
+| `BLD-08` | `ListProjectSourceTree` | Project Git via Builder | authorized Project + exact immutable source revision | read |
+| `BLD-09` | `GetProjectSourceFile` | Project Git via Builder | authorized Project + exact immutable source revision/path | read |
+| `BLD-23` | `GetBuilderSession` | Builder projection + Mastra conversation | authorized Project + persisted Project Thread and latest BuilderRun/Preview projection | read |
+| `BLD-24` | `SendBuilderMessage` | Builder | authorized Project + server-resolved current source and Project Thread | command |
+| `BRN-01` | `GetWorkspaceBrain` | Brain | exact Workspace Brain disclosure under server-resolved access | read |
+| `BRN-02` | `ListBrainRevisions` | Brain / Registry projection | exact Workspace Brain revision disclosure / binding selection | read |
+| `BRN-03` | `GetBrainRevision` | Brain / Registry projection | exact immutable Brain revision review projection | read |
+| `BRN-10` | `GetBrainHealth` | Brain | exact Brain health disclosure | read |
+| `CON-01` | `ListConnectorDefinitions` | Connections | current Connector catalog disclosure | read |
+| `CON-02` | `GetConnectorDefinition` | Connections | exact Connector definition disclosure | read |
+| `CON-03` | `ListConnections` | Connections | exact owner-scope Connection disclosure | read |
+| `CON-05` | `CreateConnection` | Connections | exact owner-scope Connection creation | command |
+| `CON-04` | `GetConnection` | Connections | exact Connection non-secret configuration disclosure | read |
+| `CON-06` | `ReviseConnection` | Connections | exact Connection revision authority | command |
+| `CON-07` | `SetConnectionCredential` | Connections | exact write-only credential replacement | command |
+| `CON-08` | `QualifyConnection` | Connections | exact Connection qualification authority | command |
+| `CON-09` | `GetConnectionQualification` | Connections | exact qualification diagnostic disclosure | read |
+| `PRJ-07` | `RunInceptionInvestigation` | Project | current Project inception flow; server resolves source/context | command |
+| `PRJ-08` | `GetApprovedProjectBaseline` | Project | current exact Project Baseline disclosure | read |
+| `PRJ-09` | `ApproveProjectBaselineRevision` | Project | current exact candidate Baseline approval authority | command |
+| `PRJ-23` | `GetProjectBaselineCandidate` | Project | current exact candidate Baseline refresh/re-entry | read |
+| `PRJ-24` | `AskConexusAboutBaselineCandidate` | Project | current candidate-local contextual question; no new authority | command |
+| `BRN-14` | `GetProjectBrainContext` | Brain + Project composition | exact Project Brain binding; ordinary read or purpose-bound build disclosure | read |
 
-# 5A. Retained / non-current Product operations
+# 5A. Broader retained historical/platform ledger
 
-The tables below are retained non-current platform operations. IDs remain stable so review history does not silently renumber authority.
+The tables below preserve the broader historical/platform ledger for context. They may repeat IDs from section 5 alongside retained operations; those repetitions do not assign current or non-current status. Only section 5 grants CURRENT Product authority.
 
 ## 5.1 Identity & Access — 20
 

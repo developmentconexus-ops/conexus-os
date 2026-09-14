@@ -32,16 +32,16 @@ The single canonical entry document remains:
 contracts/api/product/openapi.yaml
 ```
 
-Real method/path mapping created enough size/maintenance pressure that 4B's previously defined split trigger fired. The OAD is therefore one **multi-file OpenAPI authority**:
+Real method/path mapping created enough size/maintenance pressure that 4B's previously defined split trigger fired. The OAD is therefore one **multi-file OpenAPI authority** for the current 31-operation internal MVP:
 
 ```text
 contracts/api/product/openapi.yaml                  canonical entrypoint / shared wire law
-contracts/api/product/identity-workspace-paths.yaml closed IAM + Workspace Path Items
-contracts/api/product/project-paths.yaml            closed Project Path Items
-contracts/api/product/builder-paths.yaml            closed Builder Path Items
-contracts/api/product/brain-paths.yaml              closed Brain Path Items
-contracts/api/product/connection-paths.yaml         closed Connections Path Items
-contracts/api/product/project-brain-context-paths.yaml closed Project Brain Context Path Items
+contracts/api/product/identity-workspace-paths.yaml current IAM + Workspace Path Items
+contracts/api/product/project-paths.yaml            current Project Path Items
+contracts/api/product/builder-paths.yaml            current Builder Path Items
+contracts/api/product/brain-paths.yaml              current Brain Path Items
+contracts/api/product/connection-paths.yaml         current Connections Path Items
+contracts/api/product/project-brain-context-paths.yaml current Project Brain Context Path Items
 contracts/api/product/release-paths.yaml            retained Release / Promotion / serving Path Items
 contracts/api/product/par-paths.yaml                retained Product Agent Runtime Path Items
 contracts/api/product/gateway-paths.yaml            retained Gateway inspection Path Items
@@ -62,7 +62,7 @@ retained future-surface fragments are not current Product authority
 
 Fragments are never consumed independently as alternative Product APIs. Current fragments are maintenance partitions inside one OAD authority; retained future-surface fragments remain source material until their callers are admitted.
 
-The independent Fable review exposed three historical dead fragments (`fixed-paths.yaml`, `current-state-overrides.yaml`, `fixed-census-overrides.yaml`); they were deleted rather than archived or deprecated. Their deletion does not change the active 111-operation Product wire because none was reachable from `openapi.yaml`.
+The independent Fable review exposed three historical dead fragments (`fixed-paths.yaml`, `current-state-overrides.yaml`, `fixed-census-overrides.yaml`); they were deleted rather than archived or deprecated. The historical 111-operation derivation remains retained evidence and is outside the current Product wire.
 
 Generated bundles under `/tmp` are proof artifacts only and are never committed/editable co-authority.
 
@@ -605,7 +605,7 @@ Current executable proof adds two build-only mechanisms:
 
 ```text
 scripts/generate-wire-projection.mjs
-→ tool-neutral deterministic 111-operation projection manifest
+→ tool-neutral deterministic historical 111-operation projection manifest
 
 scripts/run-kubb-wire-probe.mjs
 → isolated /tmp real-OAS codegen probe
@@ -669,7 +669,7 @@ Verify #355 = FAILURE
 → Product/OAS semantics and Kubb semantic assertions remained unchanged
 
 Verify #356 = SUCCESS
-→ exact real Conexus 111-operation Kubb probe green
+→ exact real Conexus historical 111-operation Kubb probe green
 → deterministic generation + strict compile green
 ```
 
