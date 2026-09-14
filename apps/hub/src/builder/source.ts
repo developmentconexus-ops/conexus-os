@@ -137,8 +137,9 @@ const { readFileSync } = require('node:fs')
 const request = JSON.parse(readFileSync('/run/conexus/request.json', 'utf8'))
 const oid = /^[0-9a-f]{40}$/
 const identity = /^[0-9a-f-]{36}$/i
-const env = { GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HOME: '/tmp', GIT_TERMINAL_PROMPT: '0', GIT_NO_REPLACE_OBJECTS: '1' }
+const env = { GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HOME: '/tmp', GIT_TERMINAL_PROMPT: '0', GIT_ALLOW_PROTOCOL: 'file', GIT_NO_REPLACE_OBJECTS: '1' }
 const git = (args) => spawnSync('/usr/local/bin/git', ['--git-dir=/repository.git', '-c', 'core.hooksPath=/dev/null', ...args], { env, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 })
+const exportGit = (args) => spawnSync('/usr/local/bin/git', ['--git-dir=/tmp/source-export.git', '-c', 'core.hooksPath=/dev/null', ...args], { env, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 })
 const ok = value => !value.error && value.status === 0 && value.signal === null && (!value.stderr || value.stderr.length === 0)
 const missing = value => !value.error && value.status === 128 && value.signal === null
 const text = value => typeof value.stdout === 'string' ? value.stdout : value.stdout.toString('utf8')
@@ -162,8 +163,16 @@ if (retained !== null) {
   if (main !== requested) finish({ status: 'REFUSED', code: 'SOURCE_NOT_FOUND' })
   selectedRef = 'refs/heads/main'
 }
-const value = git(['bundle', 'create', '/out/source.bundle', selectedRef])
+let value = spawnSync('/usr/local/bin/git', ['init', '--quiet', '--bare', '--initial-branch=main', '/tmp/source-export.git'], { env, encoding: 'utf8' })
 if (!ok(value)) finish({ status: 'REFUSED', code: 'BUNDLE_REFUSED' })
+value = exportGit(['fetch', '--quiet', '--no-tags', '/repository.git', selectedRef + ':refs/heads/main'])
+if (!ok(value)) finish({ status: 'REFUSED', code: 'BUNDLE_REFUSED' })
+value = exportGit(['rev-parse', '--verify', 'refs/heads/main'])
+if (!ok(value) || text(value).trim() !== requested) finish({ status: 'REFUSED', code: 'BUNDLE_REFUSED' })
+value = exportGit(['bundle', 'create', '/out/source.bundle', 'refs/heads/main'])
+if (!ok(value)) finish({ status: 'REFUSED', code: 'BUNDLE_REFUSED' })
+value = exportGit(['bundle', 'list-heads', '/out/source.bundle'])
+if (!ok(value) || text(value).trim() !== requested + ' refs/heads/main') finish({ status: 'REFUSED', code: 'BUNDLE_REFUSED' })
 finish({ status: 'BUNDLED', sourceRevision: requested })
 `
 
@@ -597,7 +606,7 @@ export const createBuilderSourcePort = ({
         resultBundleBytes: input.resultBundle.byteLength,
       })}\n`, { flag: 'wx', mode: 0o400 })
       await (await import('node:fs/promises')).mkdir(outputRoot, { mode: 0o700 })
-      const user = process.getuid && process.getgid ? `${process.getuid}:${process.getgid}` : null
+      const user = process.getuid && process.getgid ? `${process.getuid()}:${process.getgid()}` : null
       if (!user) throw new Error('BUILDER_GIT_POSIX_OWNER_REQUIRED')
       const result = await run('docker', [
         'run', '--rm', '--pull', 'never', '--network', 'none', '--cap-drop', 'ALL',

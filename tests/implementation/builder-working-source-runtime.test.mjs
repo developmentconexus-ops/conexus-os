@@ -49,6 +49,12 @@ const fakeDocker = (root) => {
   writeFileSync(executable, `#!/usr/bin/env node
 const { spawnSync } = require('node:child_process')
 const args = process.argv.slice(2)
+const userIndex = args.indexOf('--user')
+const user = userIndex >= 0 ? args[userIndex + 1] || '' : ''
+if (!/^[0-9]+:[0-9]+$/.test(user)) {
+  process.stderr.write('FAKE_DOCKER_INVALID_USER\\n')
+  process.exit(93)
+}
 const mounts = new Map()
 for (let index = 0; index < args.length; index += 1) {
   if (args[index] !== '--mount') continue
@@ -64,6 +70,7 @@ for (const [destination, local] of [...mounts.entries()].sort((left, right) => r
 }
 rewritten = rewritten.split('/usr/local/bin/git').join('git')
 rewritten = rewritten.split('/tmp/inspect.git').join(require('node:fs').mkdtempSync('/tmp/conexus-fake-inspect-'))
+rewritten = rewritten.split('/tmp/source-export.git').join(require('node:fs').mkdtempSync('/tmp/conexus-fake-source-export-'))
 const result = spawnSync(process.execPath, ['-e', rewritten], { encoding: 'utf8' })
 process.stdout.write(result.stdout || '')
 process.stderr.write(result.stderr || '')
@@ -149,7 +156,13 @@ test('C-020 source custody continues exact A to B to C without moving main', asy
       const preparedB = await port.prepareProjectSource({ projectId, executionId: execution2, sourceRevision: resultB.revision })
       const preparedBundle = resolve(fixture.root, 'prepared-b.bundle')
       writeFileSync(preparedBundle, preparedB)
-      assert.match(git(fixture.root, ['bundle', 'list-heads', preparedBundle]), new RegExp(`${resultB.revision}\\s+refs/conexus/sources/${resultB.revision}`))
+      assert.match(git(fixture.root, ['bundle', 'list-heads', preparedBundle]), new RegExp(`${resultB.revision}\\s+refs/heads/main`))
+      const materialized = resolve(fixture.root, 'materialized-b')
+      git(fixture.root, ['init', '--initial-branch=main', materialized])
+      git(fixture.root, ['-C', materialized, 'fetch', '--no-tags', preparedBundle, 'refs/heads/main:refs/heads/conexus-source'])
+      git(fixture.root, ['-C', materialized, 'checkout', '--detach', resultB.revision])
+      assert.equal(git(fixture.root, ['-C', materialized, 'rev-parse', 'HEAD']), resultB.revision)
+      assert.equal(readFileSync(resolve(materialized, 'app/src/main.tsx'), 'utf8'), 'export const count = 0\n')
 
       const readmittedB = await port.admitSourceResult({
         projectId, executionId: execution2, baseSourceRevision: fixture.baseline,
