@@ -77,50 +77,34 @@ source-read authority remains server-owned
 
 ---
 
-## Slice 3 review
+## Slice 3 — PASS / CLOSED
 
-Reviewed implementation:
-
-```text
-9660b097a80c1f4c5ca522a215314e10aa55be70
-```
-
-Accepted implementation pieces:
+Accepted checkpoint:
 
 ```text
-native per-run AgentController.deleteSession
-persistent Project Thread preserved
-ordinary PLAN skips host-side starter materialization
-PLAN native mutation-tool allowlist remains read-only
-shared/fallback coding-agent base instructions share one owner
-Product mapper recognizes Mastra signal/user as Product user
+58d53fa908eb954bc6cb756a706f377eba8fe53b
 ```
 
-### Exact-version blocker / corrected premise
-
-The first bounded-fix handoff incorrectly required:
+Focused proof is green:
 
 ```text
-Memory.recall({ hideSignals: false })
+builder-session-projection: 1/1
+builder-plan-starter: 1/1
+Mastra lifecycle qualification: 7/7
 ```
 
-Exact installed `@mastra/core 1.63.2` / Memory typings do not expose `hideSignals` on this API surface. Codex correctly stopped rather than casting around the installed contract.
+Accepted facts include native per-run `deleteSession`, persistent Project Thread
+continuity, end-to-end PLAN read-only behavior, shared coding instructions, and
+the production-shaped `Memory.recall` path projecting the real
+`signal/user` operator row as Product `user`. No `hideSignals` workaround,
+cast, raw LibSQL query, custom conversation store, or custom Session manager is
+used.
 
-The Product invariant is **not** “use `hideSignals:false`”. The invariant is:
+## Slice 4 — AUTHORIZED / NEXT
 
-```text
-same Memory.recall path used by production
-must return enough persisted conversation data
-for the operator message to project as Product user
-```
-
-Therefore Slice 3 remains `REVIEW / EXACT RECALL PROBE REQUIRED`.
-
-Next proof must call the production-shaped `Memory.recall` with only exact installed options and observe the returned persisted message shape before any production change is made.
-
-If the operator message is present and projects correctly, production needs no recall-code change; only the test was wrong.
-
-If it is absent or transformed incompatibly, stop with exact installed source/types and returned message evidence. Do not cast, monkey-patch, add a conversation store, or invent another Session manager.
+The next authorized implementation slice is Product API and P-01
+Preview/Diff simplification. Slice 5 remains blocked until Slice 4 proves the
+current Product caller migration.
 
 ---
 
@@ -161,7 +145,7 @@ Published migration files remain immutable history. A forward cleanup migration 
 | --- | --- | --- |
 | Repository operating model | DELIVERED | none |
 | C-020 architecture | CURRENT / OPERATOR RATIFIED | reopen only on explicit trigger |
-| C-020 implementation | IN PROGRESS / REVIEW-GATED | close Slice 3, then Slices 4–7 |
+| C-020 implementation | IN PROGRESS / SLICE 4 AUTHORIZED | complete Slice 4, then review |
 | P-01 Builder UI | VALIDATING | Slice 4 + Slice 7 |
 | Legacy Builder architecture | MIGRATING TO DELETE | Slice 4 caller migration → Slice 5 excision |
 | First real Brain rule | DEFERRED / BLOCKED | after Slice 7 acceptance |
@@ -176,9 +160,9 @@ Published migration files remain immutable history. A forward cleanup migration 
 | 0 | Planning / authority reconciliation | COMPLETE | closed |
 | 1 | Source-native A→B→C | PASS | closed |
 | 2 | C-020 source inspection authority | PASS | closed |
-| 3 | Mastra lifecycle / message projection / PLAN read-only | **REVIEW / EXACT RECALL PROBE REQUIRED** | **only explicit Slice-3 recall probe/fix** |
-| 4 | BLD-23/P-01 Product API, automatic Preview, useful Diff | PLANNED | not authorized |
-| 5 | Legacy Builder excision | PLANNED / REQUIRED | not authorized |
+| 3 | Mastra lifecycle / message projection / PLAN read-only | PASS | closed |
+| 4 | BLD-23/P-01 Product API, automatic Preview, useful Diff | AUTHORIZED / NEXT | explicit Slice-4 handoff |
+| 5 | Legacy Builder excision | PLANNED / REQUIRED | blocked until Slice 4 passes |
 | 6 | Remove premature Brain pre-injection + align current verify | PLANNED | not authorized |
 | 7 | Real composed Product proof + operator checkpoint | PLANNED | not authorized |
 | 8 | First real Brain-backed build via Mastra tools | DEFERRED | not authorized before Slice 7 |
@@ -198,18 +182,5 @@ explicit slice handoff
 
 ## Exact next action
 
-Run the explicit **Slice-3 exact Memory.recall probe**.
-
-Required first branch:
-
-```text
-real Session.sendMessage
-→ production-shaped Memory.recall(threadId, resourceId, page, perPage)
-→ inspect exact returned role/type/content
-```
-
-If the real operator message is present and `projectBuilderMessages` maps it to `user`, update the focused test only and close Slice 3.
-
-If not, STOP with exact installed API/source evidence before changing production.
-
-Slice 4 remains blocked.
+Execute the authorized Slice 4 Product API and P-01 Preview/Diff
+simplification. Do not start Slice 5.

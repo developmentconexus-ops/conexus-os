@@ -624,7 +624,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Persisted Mastra Project conversation with the active BuilderRun and last-good Preview summaries.
+          description: Persisted Mastra Project conversation with the latest BuilderRun and last-good Preview summaries.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BuilderSession' }
@@ -667,7 +667,6 @@ paths:
     post:
       summary: OpenBuilderPreview
       operationId: OpenBuilderPreview
-      x-conexus-4a-id: BLD-23
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
@@ -697,7 +696,6 @@ paths:
     get:
       summary: StreamBuilderRun
       operationId: StreamBuilderRun
-      x-conexus-4a-id: BLD-23
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
@@ -800,20 +798,24 @@ components:
     BuilderPreviewSummary:
       type: object
       additionalProperties: false
-      required: [workingSourceRevision, lastGoodArtifactRevisionId]
+      required: [workingSourceRevision, lastGoodSourceRevision, lastGoodArtifactRevisionId, lastGoodArtifactDigest]
       properties:
         workingSourceRevision: { type: [string, 'null'], pattern: '^[0-9a-f]{40}$' }
+        lastGoodSourceRevision: { type: [string, 'null'], pattern: '^[0-9a-f]{40}$' }
         lastGoodArtifactRevisionId: { type: [string, 'null'], format: uuid }
         lastGoodArtifactDigest: { type: [string, 'null'], pattern: '^[0-9a-f]{64}$' }
+    LatestCodeChangingBuilderRun:
+      type: object
+      additionalProperties: false
+      required: [baseSourceRevision, resultSourceRevision, resultKind]
+      properties:
+        baseSourceRevision: { type: string, pattern: '^[0-9a-f]{40}$' }
+        resultSourceRevision: { type: string, pattern: '^[0-9a-f]{40}$' }
+        resultKind: { type: string, enum: [SOURCE_CHANGED, SOURCE_CHANGED_BUILD_FAILED] }
     OpenBuilderPreviewRequest:
       type: object
       additionalProperties: false
-      required: [builderRunId, sourceRevision, artifactRevisionId, artifactDigest]
-      properties:
-        builderRunId: { type: string, format: uuid }
-        sourceRevision: { type: string, pattern: '^[0-9a-f]{40}$' }
-        artifactRevisionId: { type: string, format: uuid }
-        artifactDigest: { type: string, pattern: '^[0-9a-f]{64}$' }
+      required: []
     PreviewLaunch:
       type: object
       additionalProperties: false
@@ -828,15 +830,19 @@ components:
     BuilderSession:
       type: object
       additionalProperties: false
-      required: [projectId, messages, activeBuilderRun, preview]
+      required: [projectId, messages, latestBuilderRun, latestCodeChangingRun, preview]
       properties:
         projectId: { type: string, format: uuid }
         messages:
           type: array
           items: { $ref: '#/components/schemas/BuilderMessage' }
-        activeBuilderRun:
+        latestBuilderRun:
           oneOf:
             - $ref: '#/components/schemas/BuilderRunSummary'
+            - type: 'null'
+        latestCodeChangingRun:
+          oneOf:
+            - $ref: '#/components/schemas/LatestCodeChangingBuilderRun'
             - type: 'null'
         preview: { $ref: '#/components/schemas/BuilderPreviewSummary' }
         mode: { type: string, enum: [BUILD, PLAN] }

@@ -154,6 +154,8 @@ paths:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1product-agent-drafts~1{draftId}~1commands~1revise'
   /api/control/projects/{projectId}/builder-session:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session'
+  /api/control/projects/{projectId}/builder-session/preview:
+    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1preview'
   /api/control/projects/{projectId}/builder-session/messages:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1messages'
   /api/control/workspaces/{workspaceId}/brain:

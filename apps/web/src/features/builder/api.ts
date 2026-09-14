@@ -71,7 +71,8 @@ export type BuilderSessionMessage = Readonly<{
 export type BuilderSession = Readonly<{
   projectId: string
   messages: readonly BuilderSessionMessage[]
-  activeBuilderRun: BuilderRun | null
+  latestBuilderRun: BuilderRun | null
+  latestCodeChangingRun: Readonly<{ baseSourceRevision: string; resultSourceRevision: string; resultKind: 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' }> | null
   preview: Readonly<{ workingSourceRevision: string | null; lastGoodSourceRevision: string | null; lastGoodArtifactRevisionId: string | null; lastGoodArtifactDigest: string | null }>
   mode: 'BUILD' | 'PLAN'
   workingSourceRevision: string | null
@@ -178,11 +179,9 @@ export const getBuildPreview = async (projectId: string, changeId?: string): Pro
   if (!response.ok) reject(response)
   return response.json() as Promise<BuildPreview>
 }
-export const launchBuilderPreview = async (projectId: string, input: Readonly<{
-  builderRunId: string; sourceRevision: string; artifactRevisionId: string; artifactDigest: string
-}>): Promise<PreviewLaunch> => {
+export const launchBuilderPreview = async (projectId: string): Promise<PreviewLaunch> => {
   const response = await request(`${sessionBase(projectId)}/preview`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
   })
   if (response.status !== 201) reject(response)
   return response.json() as Promise<PreviewLaunch>

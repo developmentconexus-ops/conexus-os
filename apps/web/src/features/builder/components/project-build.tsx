@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
-import { BuilderRequestError, getBuilderSession, getBuildPreview, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type SourceTree } from '../api'
+import { BuilderRequestError, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type SourceTree } from '../api'
 import { observeBuilderRun, type ObservationPart } from '../observation'
 import { BuilderMarkdown } from './builder-markdown'
 
@@ -53,11 +53,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const entryForm = useRef<HTMLFormElement>(null)
   const session = useQuery({
     queryKey: ['builder-session', projectId], queryFn: () => getBuilderSession(projectId),
-    refetchInterval: (query) => query.state.data?.activeBuilderRun?.state === 'RUNNING' ? 1_000 : 2_000,
-  })
-  const preview = useQuery({
-    queryKey: ['builder-preview', projectId], queryFn: () => getBuildPreview(projectId),
-    refetchInterval: () => session.data?.activeBuilderRun ? 1_000 : false,
+    refetchInterval: (query) => query.state.data?.latestBuilderRun?.state === 'RUNNING' ? 1_000 : 2_000,
   })
   const send = useMutation({
     mutationFn: (value: Readonly<{ content: string; mode: 'BUILD' | 'PLAN'; key: string }>) =>
@@ -73,14 +69,14 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       else setMessage('Não foi possível enviar a mensagem ao Builder.')
     },
   })
-  const runId = session.data?.activeBuilderRun?.builderRunId
+  const runId = session.data?.latestBuilderRun?.builderRunId
   useEffect(() => {
     if (!runId) return undefined
     const controller = new AbortController()
     void observeBuilderRun(projectId, runId, controller.signal, setActivity).catch(() => undefined)
     return () => controller.abort()
   }, [projectId, runId])
-  const run = session.data?.activeBuilderRun
+  const run = session.data?.latestBuilderRun
   const previewSummary = session.data?.preview
   const workingSourceRevision = previewSummary?.workingSourceRevision ?? null
   const lastGoodSourceRevision = previewSummary?.lastGoodSourceRevision ?? null
@@ -103,26 +99,31 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     queryFn: () => getProjectSourceFile(projectId, workingSourceRevision as string, selectedSourcePath as string),
     enabled: inspection === 'CODE' && Boolean(workingSourceRevision && selectedSourcePath),
   })
+  const diffBasis = session.data?.latestCodeChangingRun
   const sourceDiff = useQuery({
-    queryKey: ['builder-source-diff', projectId, workingSourceRevision, lastGoodSourceRevision],
+    queryKey: ['builder-source-diff', projectId, diffBasis?.baseSourceRevision, diffBasis?.resultSourceRevision],
     queryFn: async () => {
-      if (!workingSourceRevision || !lastGoodSourceRevision) throw new Error('SOURCE_DIFF_NOT_READY')
+      if (!diffBasis) throw new Error('SOURCE_DIFF_NOT_READY')
       const [current, previous] = await Promise.all([
-        readSourceSnapshot(projectId, workingSourceRevision), readSourceSnapshot(projectId, lastGoodSourceRevision),
+        readSourceSnapshot(projectId, diffBasis.resultSourceRevision), readSourceSnapshot(projectId, diffBasis.baseSourceRevision),
       ])
       return diffSourceSnapshots(current, previous)
     },
-    enabled: inspection === 'DIFF' && Boolean(workingSourceRevision && lastGoodSourceRevision && workingSourceRevision !== lastGoodSourceRevision),
+    enabled: inspection === 'DIFF' && Boolean(diffBasis),
   })
-  const previewReady = Boolean(run && previewSummary?.lastGoodSourceRevision && previewSummary.lastGoodArtifactRevisionId && previewSummary.lastGoodArtifactDigest)
+  const previewReady = Boolean(previewSummary?.lastGoodSourceRevision && previewSummary.lastGoodArtifactRevisionId && previewSummary.lastGoodArtifactDigest)
+  const previewKey = previewReady ? `${previewSummary?.lastGoodSourceRevision}:${previewSummary?.lastGoodArtifactRevisionId}:${previewSummary?.lastGoodArtifactDigest}` : null
+  const previewRequestKey = useRef<string | null>(null)
   const openPreview = useMutation({
-    mutationFn: () => {
-      if (!run || !previewSummary?.lastGoodSourceRevision || !previewSummary.lastGoodArtifactRevisionId || !previewSummary.lastGoodArtifactDigest) throw new Error('PREVIEW_NOT_READY')
-      return launchBuilderPreview(projectId, { builderRunId: run.builderRunId, sourceRevision: previewSummary.lastGoodSourceRevision, artifactRevisionId: previewSummary.lastGoodArtifactRevisionId, artifactDigest: previewSummary.lastGoodArtifactDigest })
-    },
+    mutationFn: () => launchBuilderPreview(projectId),
     onSuccess: (result) => setLaunch(result),
-    onError: () => setMessage('Não foi possível abrir o Preview atual.'),
+    onError: () => { previewRequestKey.current = null; setMessage('Não foi possível abrir o Preview atual.') },
   })
+  useEffect(() => {
+    if (!previewKey || previewRequestKey.current === previewKey || openPreview.isPending) return
+    previewRequestKey.current = previewKey
+    openPreview.mutate()
+  }, [openPreview, previewKey])
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const value = content.trim()
@@ -141,13 +142,13 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
           <button type="button" aria-pressed={inspection === 'DIFF'} onClick={() => setInspection('DIFF')}>Diff</button>
           <button type="button" aria-pressed={inspection === 'DETAILS'} onClick={() => setInspection('DETAILS')}>Detalhes</button>
         </nav>
-        {preview.isError && <p role="alert">Não foi possível consultar o estado do Preview.</p>}
+        {session.isError && <p role="alert">Não foi possível consultar o estado do Preview.</p>}
         {previewReady
-          ? <div><p><strong>Último Preview bom disponível.</strong></p><p>Fonte: <code>{previewSummary?.lastGoodSourceRevision}</code></p><p>Artefato: <code>{previewSummary?.lastGoodArtifactRevisionId}</code></p>{!launch && <button type="button" disabled={openPreview.isPending} onClick={() => openPreview.mutate()}>{openPreview.isPending ? 'Abrindo…' : 'Abrir Preview'}</button>}</div>
+          ? <p><strong>Último Preview bom disponível.</strong></p>
           : <p className="preview-empty">O Preview aparecerá depois do primeiro Build bem-sucedido.</p>}
         {run && <p role="status" aria-live="polite">{runStatus(run.state, run.resultKind)}</p>}
         {run?.resultKind === 'SOURCE_CHANGED_BUILD_FAILED' && <p role="alert">A nova fonte foi preservada para a próxima correção.</p>}
-        {launch && <><iframe title="Preview do aplicativo" name={frameName} src="about:blank" /><form ref={entryForm} hidden method="post" action={launch.entryUrl} target={frameName}><input type="hidden" name="entryGrant" value={launch.entryGrant} /></form><p>Preview aberto da fonte <code>{previewSummary?.lastGoodSourceRevision}</code>.</p></>}
+        {launch && <><iframe title="Preview do aplicativo" name={frameName} src="about:blank" /><form ref={entryForm} hidden method="post" action={launch.entryUrl} target={frameName}><input type="hidden" name="entryGrant" value={launch.entryGrant} /></form><p>Preview pronto.</p></>}
         {inspection === 'CODE' && <section className="build-inspection" aria-labelledby="build-code-title">
           <h3 id="build-code-title">Código da fonte em trabalho</h3>
           {!workingSourceRevision && <p>O Project ainda não tem uma fonte disponível para inspeção.</p>}
@@ -167,8 +168,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
         </section>}
         {inspection === 'DIFF' && <section className="build-inspection" aria-labelledby="build-diff-title">
           <h3 id="build-diff-title">Diff da fonte</h3>
-          {!lastGoodSourceRevision && <p>O Diff aparecerá quando houver um Preview bom para comparar.</p>}
-          {lastGoodSourceRevision && workingSourceRevision === lastGoodSourceRevision && <p>A fonte em trabalho coincide com a fonte do último Preview bom.</p>}
+          {!diffBasis && <p>O Diff aparecerá quando houver uma alteração de código.</p>}
           {sourceDiff.isPending && <p>Comparando as fontes…</p>}
           {sourceDiff.isError && <p role="alert">Não foi possível comparar as fontes.</p>}
           {sourceDiff.data?.length === 0 && <p>Não há arquivos diferentes entre a fonte em trabalho e o último Preview bom.</p>}
@@ -181,6 +181,8 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
             <div><dt>Modo atual</dt><dd>{session.data?.mode ?? 'BUILD'}</dd></div>
             <div><dt>Fonte em trabalho</dt><dd><code>{workingSourceRevision ?? 'Ainda não disponível'}</code></dd></div>
             <div><dt>Último Preview bom</dt><dd><code>{lastGoodSourceRevision ?? 'Ainda não disponível'}</code></dd></div>
+            <div><dt>Artefato do Preview</dt><dd><code>{previewSummary?.lastGoodArtifactRevisionId ?? 'Ainda não disponível'}</code></dd></div>
+            <div><dt>Digest do artefato</dt><dd><code>{previewSummary?.lastGoodArtifactDigest ?? 'Ainda não disponível'}</code></dd></div>
             <div><dt>Execução atual</dt><dd><code>{run?.builderRunId ?? 'Nenhuma'}</code> · {runStatus(run?.state, run?.resultKind)}</dd></div>
           </dl>
         </section>}

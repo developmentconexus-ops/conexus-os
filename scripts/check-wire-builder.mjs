@@ -320,7 +320,10 @@ if (builderSession.method !== 'GET' || builderSession.path !== '/api/control/pro
   throw new Error('BLD-23 must remain the exact Builder Session read');
 }
 const sessionResponse = assertClosedObject(successSchema('BLD-23'), 'BLD-23 success');
-required(sessionResponse, 'projectId', 'messages', 'activeBuilderRun', 'preview');
+required(sessionResponse, 'projectId', 'messages', 'latestBuilderRun', 'latestCodeChangingRun', 'preview');
+if (sessionResponse.properties?.activeBuilderRun) throw new Error('BLD-23 must expose latestBuilderRun, not activeBuilderRun');
+const previewSummary = assertClosedObject(property(sessionResponse, 'preview'), 'BLD-23 preview');
+required(previewSummary, 'workingSourceRevision', 'lastGoodSourceRevision', 'lastGoodArtifactRevisionId', 'lastGoodArtifactDigest');
 if (sessionResponse.properties?.threadId) throw new Error('BLD-23 must not expose Mastra threadId');
 const sendMessage = entry('BLD-24');
 if (sendMessage.method !== 'POST' || sendMessage.path !== '/api/control/projects/{projectId}/builder-session/messages') {

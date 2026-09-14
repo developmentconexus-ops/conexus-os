@@ -153,6 +153,16 @@ compatibility debt. Slice 5 removes it after final caller migration.
 
 # Slice 3 — Mastra lifecycle, message projection and true PLAN read-only
 
+**State:** PASS / CLOSED
+
+**Accepted checkpoint:** `58d53fa908eb954bc6cb756a706f377eba8fe53b`
+
+The exact production-shaped `Memory.recall` proof is green. The real
+`Session.sendMessage` operator row is recalled as `role=signal`, `type=user`
+and projects to Product `user`; assistant, internal signal and empty-row
+behavior also pass. Native Session deletion, persistent Thread continuity,
+PLAN read-only behavior and shared instructions remain accepted.
+
 ## Goal
 
 Finish the native Mastra harness correctly without adding Conexus session/chat
@@ -272,11 +282,13 @@ PLAN cannot mutate through tools or host starter
 shared instructions do not drift across ordinary paths
 ```
 
-**Review gate:** STOP. Do not start Slice 4.
+**Review gate:** CLOSED. Slice 4 is the current authorized implementation slice.
 
 ---
 
 # Slice 4 — Product API + P-01 Preview/Diff simplification
+
+**State:** AUTHORIZED / NEXT
 
 ## Goal
 
@@ -616,9 +628,9 @@ preserving revision/digest/provenance and honest missing/ambiguous behavior.
 | 0 | Planning/authority reconciliation | COMPLETE |
 | 1 | Source A→B→C continuity | PASS |
 | 2 | Source inspection authority | PASS |
-| 3 | Mastra lifecycle/message/PLAN | PLANNED / NEXT |
-| 4 | Product API + P-01 Preview/Diff | PLANNED |
-| 5 | Legacy Builder excision | PLANNED / REQUIRED |
+| 3 | Mastra lifecycle/message/PLAN | PASS / CLOSED |
+| 4 | Product API + P-01 Preview/Diff | AUTHORIZED / NEXT |
+| 5 | Legacy Builder excision | PLANNED / REQUIRED / BLOCKED |
 | 6 | Remove premature Brain + verify alignment | PLANNED |
 | 7 | Real composed proof/operator checkpoint | PLANNED |
 | 8 | Real Brain tools/rule | DEFERRED until core acceptance |

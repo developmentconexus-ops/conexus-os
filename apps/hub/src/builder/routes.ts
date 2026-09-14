@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
+import { randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
 import { sendProblem } from '../http/problem.js'
 import { projectBuildPreview } from './preview.js'
@@ -107,11 +108,19 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     if (!dependencies.session) return sendProblem(reply, 503, 'builder-session-unavailable', 'Builder Session unavailable')
     try {
       const snapshot = await dependencies.session.read({ accountId: session.account.accountId, projectId: request.params.projectId })
-      const run = await dependencies.store.readBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId })
+      const [run, latestCodeChangingRun] = await Promise.all([
+        dependencies.store.readBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId }),
+        dependencies.store.readLatestCodeChangingBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId }),
+      ])
       return {
         projectId: snapshot.projectId,
         messages: snapshot.messages,
-        activeBuilderRun: run,
+        latestBuilderRun: run,
+        latestCodeChangingRun: latestCodeChangingRun ? {
+          baseSourceRevision: latestCodeChangingRun.baseSourceRevision,
+          resultSourceRevision: latestCodeChangingRun.resultSourceRevision,
+          resultKind: latestCodeChangingRun.resultKind,
+        } : null,
         preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodSourceRevision: snapshot.lastPreviewSourceRevision, lastGoodArtifactRevisionId: snapshot.lastPreviewArtifactRevisionId, lastGoodArtifactDigest: snapshot.lastPreviewArtifactDigest },
         mode: run?.mode ?? 'BUILD',
       }
@@ -148,13 +157,10 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     }
   })
 
-  app.post<{ Params: { projectId: string }; Body: { builderRunId: string; sourceRevision: string; artifactRevisionId: string; artifactDigest: string } }>('/api/control/projects/:projectId/builder-session/preview', {
+  app.post<{ Params: { projectId: string }; Body: Record<string, never> }>('/api/control/projects/:projectId/builder-session/preview', {
     schema: {
       params,
-      body: { type: 'object', additionalProperties: false, required: ['builderRunId', 'sourceRevision', 'artifactRevisionId', 'artifactDigest'], properties: {
-        builderRunId: uuid, sourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' }, artifactRevisionId: uuid,
-        artifactDigest: { type: 'string', pattern: '^[0-9a-f]{64}$' },
-      } },
+      body: { type: 'object', additionalProperties: false },
     },
   }, async (request, reply) => {
     const csrf = header(request.headers['x-conexus-csrf'])
@@ -163,18 +169,16 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
     if (!dependencies.launchPreview) return sendProblem(reply, 503, 'preview-unavailable', 'Preview unavailable')
     try {
-      const run = await dependencies.store.readBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId })
       const subject = await dependencies.store.readPreviewSubject({ accountId: session.account.accountId, projectId: request.params.projectId })
-      if (!run || run.builderRunId !== request.body.builderRunId || ['QUEUED', 'RUNNING'].includes(run.state) ||
-        !subject || subject.lastPreviewSourceRevision !== request.body.sourceRevision ||
-        subject.lastPreviewArtifactRevisionId !== request.body.artifactRevisionId || subject.lastPreviewArtifactDigest !== request.body.artifactDigest) {
+      if (!subject?.lastPreviewSourceRevision || !subject.lastPreviewArtifactRevisionId || !subject.lastPreviewArtifactDigest) {
         return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
       }
-      const artifact = await dependencies.service.getApplicationBySource({ accountId: session.account.accountId, projectId: request.params.projectId, sourceRevision: request.body.sourceRevision })
-      if (!artifact || artifact.artifactRevisionId !== request.body.artifactRevisionId || artifact.artifactDigest !== request.body.artifactDigest) return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
+      const artifact = await dependencies.service.getApplicationBySource({ accountId: session.account.accountId, projectId: request.params.projectId, sourceRevision: subject.lastPreviewSourceRevision })
+      if (!artifact || artifact.artifactRevisionId !== subject.lastPreviewArtifactRevisionId || artifact.artifactDigest !== subject.lastPreviewArtifactDigest) return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
+      const correlationId = subject.lastPreviewChangeId ?? randomUUID()
       const launched = await dependencies.launchPreview(request, {
-        accountId: session.account.accountId, projectId: request.params.projectId, changeId: run.builderRunId, builderRunId: run.builderRunId,
-        subjectDigest: request.body.sourceRevision, attemptId: run.builderRunId, artifactRevisionId: artifact.artifactRevisionId,
+        accountId: session.account.accountId, projectId: request.params.projectId, changeId: correlationId, builderRunId: correlationId,
+        subjectDigest: subject.lastPreviewSourceRevision, attemptId: correlationId, artifactRevisionId: artifact.artifactRevisionId,
         artifactDigest: artifact.artifactDigest, artifact,
       })
       return reply.code(201).send(launched)
