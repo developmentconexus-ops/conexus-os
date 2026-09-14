@@ -52,10 +52,11 @@ const preview = closed(resolve(session.properties?.preview), 'BLD-23 preview')
 required(preview, 'workingSourceRevision', 'lastGoodSourceRevision', 'lastGoodArtifactRevisionId', 'lastGoodArtifactDigest')
 const message = closed(schema('BLD-24', 'request'), 'BLD-24 request')
 required(message, 'content', 'mode')
-const openPreview = Object.entries(oas.paths ?? {}).find(([path]) => path.endsWith('/builder-session/preview'))?.[1]?.post
-if (!openPreview) throw new Error('current preview operation missing')
-const openPreviewSchema = closed(resolve(openPreview.requestBody?.content?.['application/json']?.schema), 'preview request')
-if ((openPreviewSchema.required ?? []).length !== 0 || Object.keys(openPreviewSchema.properties ?? {}).length !== 0) throw new Error('preview request must be {}')
+for (const path of Object.keys(oas.paths ?? {})) {
+  if (path.endsWith('/builder-session/preview') || (path.includes('/builder-session/runs/') && path.endsWith('/stream'))) {
+    throw new Error(`technical Builder route must not be Product OAS authority: ${path}`)
+  }
+}
 for (const id of ['BLD-08', 'BLD-09']) {
   const operation = operations.get(id).operation
   if (!operation.parameters?.some((parameter) => resolve(parameter)?.name === 'sourceRevision')) throw new Error(`${id} must require sourceRevision`)

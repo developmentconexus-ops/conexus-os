@@ -6,10 +6,10 @@
 
 This ledger is the canonical 4A Product-operation authority. It is intentionally **not** HTTP/OpenAPI, frontend, database, SDK or runtime design and it does not authorize Product implementation.
 
-The ledger closes three different surfaces because Conexus is a software-publishing platform rather than one fixed business application:
+The retained ledger records the broader platform design; the current Product census below is the supported internal MVP surface:
 
 ```text
-fixed Conexus platform operations = 132
+current fixed Product operations = 31
 Project-defined operations        = exact finite Ops(R) admitted by the grammar in §4
 first Budget Analyzer operations  = 2
 ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
@@ -18,22 +18,21 @@ ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
 The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. The accepted bounded findings through F38 remain preserved. The pre-P11 coherence review then admits one transient `TRUSTED_BOOTSTRAP_CONTEXT` principal for first Account self-provisioning and adds one Project-owned model-policy discovery read, `PRJ-29`, while ordinary Permissions remain 25. No new semantic owner or durable record class is added.
 
 Historical F03 and Phase-4 reachability records retain their recorded
-`N_platform = 128` scope. C-020 adds the current BLD-23 and BLD-24 operations
-to the live census without rewriting those historical records.
+platform scope. They are retained evidence and do not expand the current Product OAS.
 
 ---
 
 ## 1. Surface closure
 
-### 1.1 Fixed platform census
+### 1.1 Current fixed Product census
 
 ```text
-N_platform = 130
-platform operations with named owner       = 130
-platform operations with real consumer     = 130
-platform operations with authority mapping = 130
-orphaned platform operations                = 0
-speculative platform operations             = 0
+N_current = 31
+current operations with named owner       = 31
+current operations with real consumer     = 31
+current operations with authority mapping = 31
+orphaned current operations                = 0
+speculative current operations             = 0
 ```
 
 ### 1.2 Project-defined capability grammar
@@ -158,9 +157,47 @@ Attachments/private bytes are carrier properties of exact owning operations, nev
 
 ---
 
-# 5. Fixed Conexus platform census
+# 5. Current fixed Product census
 
-The tables below are the exact 128 current Product operations. IDs deliberately remain stable around subtracted candidates so review history does not silently renumber authority.
+This is the current Product authority for the supported internal MVP. It is derived from the canonical OAS and the operation-level census in `.audit/slice-6b-a-operation-census.tsv`. Retained operations below are preserved for future surfaces and are not current Product authority.
+
+| ID | Operation | Owner | Consumer / authority root | Class |
+| --- | --- | --- | --- | --- |
+| `IAM-01` | `GetControlPlaneAccessContext` | Current Product surface | current caller / authority | read |
+| `IAM-02` | `EndSession` | Current Product surface | current caller / authority | command |
+| `IAM-03` | `ProvisionAccount` | Current Product surface | current caller / authority | command |
+| `WS-01` | `CreateWorkspace` | Current Product surface | current caller / authority | command |
+| `WS-02` | `GetWorkspace` | Current Product surface | current caller / authority | read |
+| `PRJ-01` | `ListProjects` | Current Product surface | current caller / authority | read |
+| `PRJ-03` | `CreateProject` | Current Product surface | current caller / authority | command |
+| `PRJ-02` | `GetProject` | Current Product surface | current caller / authority | read |
+| `BLD-08` | `ListProjectSourceTree` | Current Product surface | current caller / authority | read |
+| `BLD-09` | `GetProjectSourceFile` | Current Product surface | current caller / authority | read |
+| `BLD-23` | `GetBuilderSession` | Current Product surface | current caller / authority | read |
+| `BLD-24` | `SendBuilderMessage` | Current Product surface | current caller / authority | command |
+| `BRN-01` | `GetWorkspaceBrain` | Current Product surface | current caller / authority | read |
+| `BRN-02` | `ListBrainRevisions` | Current Product surface | current caller / authority | read |
+| `BRN-03` | `GetBrainRevision` | Current Product surface | current caller / authority | read |
+| `BRN-10` | `GetBrainHealth` | Current Product surface | current caller / authority | read |
+| `CON-01` | `ListConnectorDefinitions` | Current Product surface | current caller / authority | read |
+| `CON-02` | `GetConnectorDefinition` | Current Product surface | current caller / authority | read |
+| `CON-03` | `ListConnections` | Current Product surface | current caller / authority | read |
+| `CON-05` | `CreateConnection` | Current Product surface | current caller / authority | command |
+| `CON-04` | `GetConnection` | Current Product surface | current caller / authority | read |
+| `CON-06` | `ReviseConnection` | Current Product surface | current caller / authority | command |
+| `CON-07` | `SetConnectionCredential` | Current Product surface | current caller / authority | command |
+| `CON-08` | `QualifyConnection` | Current Product surface | current caller / authority | command |
+| `CON-09` | `GetConnectionQualification` | Current Product surface | current caller / authority | read |
+| `PRJ-07` | `RunInceptionInvestigation` | Current Product surface | current caller / authority | command |
+| `PRJ-08` | `GetApprovedProjectBaseline` | Current Product surface | current caller / authority | read |
+| `PRJ-09` | `ApproveProjectBaselineRevision` | Current Product surface | current caller / authority | command |
+| `PRJ-23` | `GetProjectBaselineCandidate` | Current Product surface | current caller / authority | read |
+| `PRJ-24` | `AskConexusAboutBaselineCandidate` | Current Product surface | current caller / authority | command |
+| `BRN-14` | `GetProjectBrainContext` | Current Product surface | current caller / authority | read |
+
+# 5A. Retained / non-current Product operations
+
+The tables below are retained non-current platform operations. IDs remain stable so review history does not silently renumber authority.
 
 ## 5.1 Identity & Access — 20
 
@@ -2047,4 +2084,4 @@ CURRENT INTERNAL MVP PREVIEW LAUNCH CONSUMER
 → N_platform 129 → 130
 ```
 
-The current ledger is therefore **132 fixed operations with 24 Builder operations**. The 4A/4C historical counts and mappings remain unchanged as historical authority. BLD-23 and BLD-24 are the C-020 Project session surface; BLD-03 remains readable for legacy callers during migration.
+The current Product census is the 31-operation surface at the start of this ledger. The retained tables below are not current Product authority.

@@ -101,52 +101,6 @@ paths:
         '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
         '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
 
-  /api/control/projects/{projectId}/builder-session/preview:
-    parameters:
-      - $ref: '#/components/parameters/ProjectId'
-    post:
-      summary: OpenBuilderPreview
-      operationId: OpenBuilderPreview
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
-      x-conexus-contract-state: SCHEMA_CLOSED
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/OpenBuilderPreviewRequest' }
-      responses:
-        '201':
-          description: Preview route bound to the exact successful BuilderRun artifact.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/PreviewLaunch' }
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-        '503': { $ref: './openapi.yaml#/components/responses/Problem503' }
-
-  /api/control/projects/{projectId}/builder-session/runs/{builderRunId}/stream:
-    parameters:
-      - $ref: '#/components/parameters/ProjectId'
-      - name: builderRunId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-    get:
-      summary: StreamBuilderRun
-      operationId: StreamBuilderRun
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
-      x-conexus-contract-state: SCHEMA_CLOSED
-      responses:
-        '200':
-          description: Ephemeral safe projection of native Mastra Session events.
-          content:
-            text/event-stream: { schema: { type: string } }
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-
 components:
   parameters:
     ProjectId:

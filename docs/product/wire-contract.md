@@ -41,11 +41,12 @@ contracts/api/product/project-paths.yaml            closed Project Path Items
 contracts/api/product/builder-paths.yaml            closed Builder Path Items
 contracts/api/product/brain-paths.yaml              closed Brain Path Items
 contracts/api/product/connection-paths.yaml         closed Connections Path Items
-contracts/api/product/release-paths.yaml            closed Release / Promotion / serving Path Items
-contracts/api/product/par-paths.yaml                closed Product Agent Runtime Path Items
-contracts/api/product/gateway-paths.yaml            closed Gateway inspection Path Items
-contracts/api/product/mar-paths.yaml                closed Managed Application Runtime Path Items
-contracts/api/product/observability-paths.yaml      closed Observability & Audit Path Items
+contracts/api/product/project-brain-context-paths.yaml closed Project Brain Context Path Items
+contracts/api/product/release-paths.yaml            retained Release / Promotion / serving Path Items
+contracts/api/product/par-paths.yaml                retained Product Agent Runtime Path Items
+contracts/api/product/gateway-paths.yaml            retained Gateway inspection Path Items
+contracts/api/product/mar-paths.yaml                retained Managed Application Runtime Path Items
+contracts/api/product/observability-paths.yaml      retained Observability & Audit Path Items
 ```
 
 Rules:
@@ -53,13 +54,13 @@ Rules:
 ```text
 one canonical entrypoint authority
 + deterministic local refs
-+ validator resolves the whole active graph
-+ every Product YAML fragment is reachable from the canonical entrypoint
-+ bundle is generated proof output
-+ active bundle ↔ 4A operation census is mechanically checked
++ validator resolves the active current graph
++ current bundle is generated proof output
++ current bundle ↔ current operation census is mechanically checked
+retained future-surface fragments are not current Product authority
 ```
 
-Fragments are never consumed independently as alternative Product APIs. They are maintenance partitions inside one OAD authority. `wire:whole-4b` rejects a YAML fragment under `contracts/api/product/` that is not reachable from the canonical entrypoint, preventing stale parallel copies from surviving beside the active graph.
+Fragments are never consumed independently as alternative Product APIs. Current fragments are maintenance partitions inside one OAD authority; retained future-surface fragments remain source material until their callers are admitted.
 
 The independent Fable review exposed three historical dead fragments (`fixed-paths.yaml`, `current-state-overrides.yaml`, `fixed-census-overrides.yaml`); they were deleted rather than archived or deprecated. Their deletion does not change the active 111-operation Product wire because none was reachable from `openapi.yaml`.
 
@@ -95,11 +96,11 @@ operationId = exact accepted 4A semantic operation name
 x-conexus-4a-id = exact accepted 4A ledger ID
 ```
 
-The current fixed shape derivation has mechanically closed after operator-approved `4B-F01`:
+The current internal MVP fixed shape is derived from the operation-level census and has mechanically closed:
 
 ```text
-4A fixed operations        = 111
-OAS fixed operations       = 111
+Current Product operations  = 31
+OAS current operations      = 31
 missing                    = 0
 extra                      = 0
 duplicate operationId      = 0
@@ -111,7 +112,7 @@ duplicate method+path      = 0
 
 `npm run wire:bijection` must remain green. The checker also rejects generic Product paths shaped like unrestricted `/execute` or `{operationSlug}` dispatch.
 
-HTTP shape Evidence: [../evidence/4b/http-shape-derivation.md](../evidence/4b/http-shape-derivation.md). Bounded subtraction Evidence: [../evidence/4b/fixed-mutation-semantic-gap.md](../evidence/4b/fixed-mutation-semantic-gap.md).
+HTTP shape Evidence: [../evidence/4b/http-shape-derivation.md](../evidence/4b/http-shape-derivation.md). Historical 4A/4B operations remain retained reference material and are outside the current Product OAS.
 
 Surface roots preserve 4A ingress separation:
 

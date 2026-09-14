@@ -28,60 +28,28 @@ paths:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1session'
   /api/control/accounts:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1accounts'
-  /api/control/workspaces/{workspaceId}/members:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1members'
-  /api/control/workspaces/{workspaceId}/membership-candidates:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1membership-candidates'
-  /api/control/workspaces/{workspaceId}/members/{accountId}:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1members~1{accountId}'
-  /api/control/workspaces/{workspaceId}/members/{accountId}/access:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1members~1{accountId}~1access'
-  /api/control/workspaces/{workspaceId}/areas/{areaId}/members/{accountId}:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1areas~1{areaId}~1members~1{accountId}'
-  /api/control/workspaces/{workspaceId}/areas/{areaId}/access:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1areas~1{areaId}~1access'
-  /api/apps/{projectId}/access-context:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1apps~1{projectId}~1access-context'
   /api/control/workspaces:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces'
   /api/control/workspaces/{workspaceId}:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}'
-  /api/control/workspaces/{workspaceId}/areas:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1areas'
   /api/control/workspaces/{workspaceId}/projects:
     $ref: './project-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1projects'
   /api/control/projects/{projectId}:
     $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}'
-  /api/control/workspaces/{workspaceId}/product-agents:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1product-agents'
   /api/control/projects/{projectId}/source/tree:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1source~1tree'
   /api/control/projects/{projectId}/source/file:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1source~1file'
   /api/control/projects/{projectId}/builder-session:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session'
-  /api/control/projects/{projectId}/builder-session/preview:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1preview'
   /api/control/projects/{projectId}/builder-session/messages:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1messages'
-  /api/control/projects/{projectId}/builder-session/runs/{builderRunId}/stream:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1runs~1{builderRunId}~1stream'
   /api/control/workspaces/{workspaceId}/brain:
     $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain'
   /api/control/workspaces/{workspaceId}/brain/revisions:
     $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1revisions'
   /api/control/workspaces/{workspaceId}/brain/revisions/{brainRevisionId}:
     $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1revisions~1{brainRevisionId}'
-  /api/control/workspaces/{workspaceId}/brain/discoveries:
-    $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1discoveries'
-  /api/control/workspaces/{workspaceId}/brain/proposals:
-    $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1proposals'
-  /api/control/workspaces/{workspaceId}/brain/proposals/{proposalId}:
-    $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1proposals~1{proposalId}'
-  /api/control/workspaces/{workspaceId}/brain/proposals/{proposalId}/decisions:
-    $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1proposals~1{proposalId}~1decisions'
-  /api/control/workspaces/{workspaceId}/brain/publications:
-    $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1publications'
   /api/control/workspaces/{workspaceId}/brain/health:
     $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1health'
   /api/control/connectors:
@@ -100,30 +68,18 @@ paths:
     $ref: './connection-paths.yaml#/paths/~1api~1control~1connections~1{connectionId}~1qualifications'
   /api/control/connections/{connectionId}/qualifications/{qualificationId}:
     $ref: './connection-paths.yaml#/paths/~1api~1control~1connections~1{connectionId}~1qualifications~1{qualificationId}'
-  /api/apps/{projectId}/agents/{agentId}/conversations:
-    $ref: './par-paths.yaml#/paths/~1api~1apps~1{projectId}~1agents~1{agentId}~1conversations'
-  /api/apps/{projectId}/agents/{agentId}/conversations/{conversationId}:
-    $ref: './par-paths.yaml#/paths/~1api~1apps~1{projectId}~1agents~1{agentId}~1conversations~1{conversationId}'
-  /api/apps/{projectId}/agents/{agentId}/conversations/{conversationId}/turns:
-    $ref: './par-paths.yaml#/paths/~1api~1apps~1{projectId}~1agents~1{agentId}~1conversations~1{conversationId}~1turns'
-  /api/headless/projects/{projectId}/agents/{agentId}/runs:
-    $ref: './par-paths.yaml#/paths/~1api~1headless~1projects~1{projectId}~1agents~1{agentId}~1runs'
-  /api/runtime/projects/{projectId}/agent-runs:
-    $ref: './par-paths.yaml#/paths/~1api~1runtime~1projects~1{projectId}~1agent-runs'
-  /api/runtime/projects/{projectId}/agent-runs/{agentRunId}:
-    $ref: './par-paths.yaml#/paths/~1api~1runtime~1projects~1{projectId}~1agent-runs~1{agentRunId}'
-  /api/runtime/projects/{projectId}/approval-requests:
-    $ref: './par-paths.yaml#/paths/~1api~1runtime~1projects~1{projectId}~1approval-requests'
-  /api/runtime/projects/{projectId}/approval-requests/{approvalRequestId}:
-    $ref: './par-paths.yaml#/paths/~1api~1runtime~1projects~1{projectId}~1approval-requests~1{approvalRequestId}'
-  /api/runtime/projects/{projectId}/approval-requests/{approvalRequestId}/decisions:
-    $ref: './par-paths.yaml#/paths/~1api~1runtime~1projects~1{projectId}~1approval-requests~1{approvalRequestId}~1decisions'
-  /api/control/workspaces/{workspaceId}/audit-records:
-    $ref: './observability-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1audit-records'
-  /api/control/workspaces/{workspaceId}/audit-records/{auditRecordId}:
-    $ref: './observability-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1audit-records~1{auditRecordId}'
-  /api/projects/{projectId}/analytic-queries:
-    $ref: './brain-paths.yaml#/paths/~1api~1projects~1{projectId}~1analytic-queries'
+  /api/control/projects/{projectId}/inception-investigations:
+    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1inception-investigations'
+  /api/control/projects/{projectId}/baseline:
+    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1baseline'
+  /api/control/projects/{projectId}/baseline/decisions:
+    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1baseline~1decisions'
+  /api/control/projects/{projectId}/baseline-candidates/{candidateBaselineDigest}:
+    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1baseline-candidates~1{candidateBaselineDigest}'
+  /api/control/projects/{projectId}/baseline-candidates/{candidateBaselineDigest}/assistant/queries:
+    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1baseline-candidates~1{candidateBaselineDigest}~1assistant~1queries'
+  /api/control/projects/{projectId}/brain-context:
+    $ref: './project-brain-context-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1brain-context'
 components:
   securitySchemes:
     ConexusSession:

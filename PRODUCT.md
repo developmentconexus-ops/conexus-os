@@ -10,7 +10,7 @@ Conexus serves trusted Workspace operators, Project administrators and contribut
 
 ## Product Purpose
 
-Conexus is an AI-first enterprise software platform for building, evolving, and operating business applications and Product Agents while preserving explicit business knowledge, governed authority, verifiable engineering, and truthful operational evidence. Success means that people can express business intent and work simply by default, while the exact Plan, Change, Data, Capability, binding, decision subject, Evidence, and runtime truth remain inspectable when trust or investigation requires depth.
+Conexus is an AI-first enterprise software platform for building, evolving, and operating business applications and Product Agents while preserving explicit business knowledge, governed authority, verifiable engineering, and truthful operational evidence. The current internal MVP lets people create or open a Project, continue a Builder conversation, inspect source, and use the last-good Preview while the exact BuilderRun and source truth remain server-owned.
 
 ## Brand Personality
 
