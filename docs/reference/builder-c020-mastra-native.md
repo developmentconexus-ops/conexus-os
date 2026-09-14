@@ -126,6 +126,12 @@ properties against the installed 1.63.2 stack:
 3. the live Session event/message surface exposes the stable persisted user
    message ID needed to correlate a `BuilderRun` with its triggering message.
 
+The exact 1.63.2 result is that the user message is persisted as a `signal`
+message with `type: user` and a stable UUID, recoverable through
+`session.thread.listActiveMessages()`. A Session subscription does not emit a
+user `message_start`; its message events cover the assistant turn. C-020 binds
+the recovered persisted message ID after `sendMessage()`.
+
 If one of these fails, adapt only the smallest implicated seam. Do not reopen the
 whole C-020 architecture.
 

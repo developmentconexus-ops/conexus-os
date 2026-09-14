@@ -11,7 +11,7 @@ import { parseObservationEvent, type BuilderObservation } from '../../../../pack
 import { createObservationFeed } from './observation-feed.js'
 
 export type BuilderService = Readonly<{
-  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; triggerMessageId: string; mode: 'BUILD' | 'PLAN'; expectedSourceRevision: string }>): Promise<BuilderRunSummary>
+  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN' }>): Promise<BuilderRunSummary>
   createChange(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; intent: string; expectedSourceRevision: string }>): Promise<ChangeProjection>
   listSourceTree(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<BuilderSourceTree>
   getSourceFile(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>

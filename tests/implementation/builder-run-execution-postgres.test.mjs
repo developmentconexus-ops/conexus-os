@@ -1,0 +1,98 @@
+import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
+import test from 'node:test'
+import pg from 'pg'
+
+const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD']
+  .every(name => process.env[name])
+
+const connect = async (connection) => {
+  const client = new pg.Client(connection)
+  await client.connect()
+  return client
+}
+
+test('BuilderRun admission and settlement are idempotent, serialized, and CAS-protected', {
+  skip: configured ? false : 'real PostgreSQL configuration not supplied',
+}, async (t) => {
+  const admin = {
+    host: process.env.CONEXUS_TEST_DB_HOST,
+    port: Number(process.env.CONEXUS_TEST_DB_PORT),
+    database: process.env.CONEXUS_TEST_DB_NAME,
+    user: process.env.CONEXUS_TEST_DB_USER,
+    password: process.env.CONEXUS_TEST_DB_PASSWORD,
+  }
+  const ingress = { ...admin, user: 'hub_rb_ingress', password: 'task1-ingress' }
+  const executor = { ...admin, user: 'hub_rb_executor', password: 'task1-executor' }
+  const accountId = randomUUID()
+  const workspaceId = randomUUID()
+  const projectId = randomUUID()
+  const runId = randomUUID()
+  const secondRunId = randomUUID()
+  const concurrentRunA = randomUUID()
+  const concurrentRunB = randomUUID()
+  const source = 'a'.repeat(40)
+  const nextSource = 'b'.repeat(40)
+  const keyDigest = '1'.repeat(64)
+  const requestDigest = '2'.repeat(64)
+
+  const adminClient = await connect(admin)
+  await adminClient.query("ALTER ROLE hub_rb_ingress PASSWORD 'task1-ingress'; ALTER ROLE hub_rb_executor PASSWORD 'task1-executor'")
+  await adminClient.query('BEGIN')
+  try {
+    await adminClient.query('INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, $2, $3, $4)', [accountId, 'https://task1.test', accountId, 'Task 1'])
+    await adminClient.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'Task 1'])
+    await adminClient.query('INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project) VALUES ($1, $2, true)', [accountId, workspaceId])
+    await adminClient.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Task 1', 'NEW', $3, 'task1')", [projectId, workspaceId, source])
+    await adminClient.query('INSERT INTO iam.project_builder_grant(account_id, project_id, can_build, can_read_source) VALUES ($1, $2, true, true)', [accountId, projectId])
+    await adminClient.query('INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1, $2)', [projectId, source])
+    await adminClient.query('COMMIT')
+  } catch (error) {
+    await adminClient.query('ROLLBACK')
+    throw error
+  }
+  t.after(async () => {
+    await adminClient.query('DELETE FROM builder.builder_run WHERE project_id = $1', [projectId])
+    await adminClient.query('DELETE FROM builder.project_working_state WHERE project_id = $1', [projectId])
+    await adminClient.query('DELETE FROM iam.project_builder_grant WHERE project_id = $1', [projectId])
+    await adminClient.query('DELETE FROM project.project WHERE project_id = $1', [projectId])
+    await adminClient.query('DELETE FROM iam.workspace_membership WHERE account_id = $1', [accountId])
+    await adminClient.query('DELETE FROM workspace.workspace WHERE workspace_id = $1', [workspaceId])
+    await adminClient.query('DELETE FROM iam.account WHERE account_id = $1', [accountId])
+    await adminClient.end()
+  })
+
+  const create = async (client, id, key = keyDigest, request = requestDigest) => (await client.query(
+    'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7) AS value',
+    [accountId, projectId, key, request, null, 'BUILD', id],
+  )).rows[0].value
+  const ingressClient = await connect(ingress)
+  t.after(() => ingressClient.end())
+  const first = await create(ingressClient, runId)
+  assert.equal(first.builderRunId, runId)
+  assert.equal(first.baseSourceRevision, source)
+  assert.equal((await adminClient.query('SELECT count(*)::int AS count FROM builder.change WHERE project_id = $1', [projectId])).rows[0].count, 0)
+  assert.deepEqual(await create(ingressClient, runId), first)
+  await assert.rejects(() => create(ingressClient, secondRunId, keyDigest, '3'.repeat(64)), /IDEMPOTENCY_CONFLICT/)
+  await assert.rejects(() => create(ingressClient, secondRunId, '4'.repeat(64)), /PROJECT_BUSY/)
+
+  const executorClient = await connect(executor)
+  assert.equal((await executorClient.query('SELECT builder.claim_builder_run($1,$2,$3,$4) AS value', [runId, randomUUID(), 'provider', 'model'])).rows[0].value.state, 'RUNNING')
+  assert.equal((await executorClient.query('SELECT builder.bind_builder_run_message($1,$2)', [runId, 'mastra-message-1'])).rows[0].bind_builder_run_message, true)
+  assert.equal((await executorClient.query('SELECT builder.bind_builder_run_sandbox($1,$2)', [runId, 'sandbox-1'])).rows[0].bind_builder_run_sandbox, true)
+  assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [runId, nextSource, 'SOURCE_CHANGED', null])).rows[0].settle_builder_run, true)
+  assert.deepEqual((await adminClient.query('SELECT state, trigger_message_id, sandbox_id, model_provider_id, model_id, base_working_version, result_source_revision FROM builder.builder_run WHERE builder_run_id = $1', [runId])).rows[0], {
+    state: 'SUCCEEDED', trigger_message_id: 'mastra-message-1', sandbox_id: 'sandbox-1', model_provider_id: 'provider', model_id: 'model', base_working_version: '0', result_source_revision: nextSource,
+  })
+  await executorClient.end()
+  const second = await create(ingressClient, secondRunId, '4'.repeat(64), '5'.repeat(64))
+  assert.equal(second.baseSourceRevision, nextSource)
+  await adminClient.query('DELETE FROM builder.builder_run WHERE builder_run_id = $1', [secondRunId])
+  const raceA = await connect(ingress)
+  const raceB = await connect(ingress)
+  const race = await Promise.all([create(raceA, concurrentRunA, '6'.repeat(64), '7'.repeat(64)), create(raceB, concurrentRunB, '6'.repeat(64), '7'.repeat(64))])
+  assert.equal(race[0].builderRunId, race[1].builderRunId)
+  assert.equal(race[0].builderRunId, concurrentRunA)
+  await raceA.end()
+  await raceB.end()
+})

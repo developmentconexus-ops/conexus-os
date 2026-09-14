@@ -131,12 +131,9 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     const idempotencyKey = header(request.headers['idempotency-key'])
     if (!idempotencyKey) return sendProblem(reply, 400, 'idempotency-key-required', 'Idempotency key required')
     try {
-      const preview = await dependencies.store.readPreviewSubject({ accountId: session.account.accountId, projectId: request.params.projectId })
-      if (!preview) return sendProblem(reply, 404, 'builder-subject-not-found', 'Builder subject not found')
       const run = await dependencies.service.createBuilderRun({
         accountId: session.account.accountId, projectId: request.params.projectId,
-        idempotencyKey, triggerMessageId: idempotencyKey, mode: request.body.mode,
-        expectedSourceRevision: preview.workingSourceRevision,
+        idempotencyKey, content: request.body.content, mode: request.body.mode,
       })
       return reply.code(201).send({ threadId: `conexus-builder:${request.params.projectId}`, builderRun: run })
     } catch (error) {

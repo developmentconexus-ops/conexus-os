@@ -252,3 +252,219 @@ test('Project thread persists across controller/store rebind and a different san
     await rm(secondRoot, { recursive: true, force: true })
   }
 })
+
+test('one shared AgentController isolates Project threads, modes and workspaces', async () => {
+  const projectARoot = await mkdtemp(join(tmpdir(), 'conexus-4d-project-a-'))
+  const projectBRoot = await mkdtemp(join(tmpdir(), 'conexus-4d-project-b-'))
+  const storage = new LibSQLStore({ id: 'shared-controller-store', url: `file:${join(projectARoot, 'controller.db')}` })
+  const memory = new Memory({ storage, options: { lastMessages: 20 } })
+  const workspace = (root, id) => new Workspace({
+    id,
+    filesystem: new LocalFilesystem({ basePath: root }),
+    sandbox: new LocalSandbox({ workingDirectory: root }),
+  })
+  const projectAWorkspace = workspace(projectARoot, 'project-a-workspace')
+  const projectBWorkspace = workspace(projectBRoot, 'project-b-workspace')
+  const agent = createCodingAgent({
+    id: 'shared-controller-agent',
+    name: 'Shared Controller Probe',
+    model: 'openai/probe-model',
+    instructions: 'Mechanical isolation probe.',
+    memory,
+    workspace: undefined,
+  })
+  const controller = new AgentController({
+    id: 'shared-controller',
+    storage,
+    memory,
+    agent,
+    modes: [
+      { id: 'plan', name: 'Plan', availableTools: ['mastra_workspace_read_file', 'mastra_workspace_list_files', 'mastra_workspace_grep', 'mastra_workspace_file_stat'] },
+      { id: 'build', name: 'Build', availableTools: [
+        'mastra_workspace_read_file', 'mastra_workspace_list_files', 'mastra_workspace_grep', 'mastra_workspace_file_stat',
+        'mastra_workspace_write_file', 'mastra_workspace_edit_file', 'mastra_workspace_delete', 'mastra_workspace_execute_command',
+      ] },
+    ],
+    defaultModeId: 'plan',
+  })
+
+  await controller.init()
+  try {
+    const projectA = await controller.createSession({
+      resourceId: 'project-a', ownerId: 'account-a', scope: 'builder', threadId: 'conexus-builder:project-a', workspace: projectAWorkspace,
+    })
+    const projectB = await controller.createSession({
+      resourceId: 'project-b', ownerId: 'account-b', scope: 'builder', threadId: 'conexus-builder:project-b', workspace: projectBWorkspace,
+    })
+    await projectAWorkspace.filesystem.writeFile('project-a.txt', 'A only')
+    await projectBWorkspace.filesystem.writeFile('project-b.txt', 'B only')
+    await memory.saveMessages({ messages: [{
+      id: 'project-a-message', role: 'user', createdAt: new Date(), threadId: 'conexus-builder:project-a', resourceId: 'project-a',
+      content: { format: 2, parts: [{ type: 'text', text: 'Project A message' }] },
+    }, {
+      id: 'project-b-message', role: 'user', createdAt: new Date(), threadId: 'conexus-builder:project-b', resourceId: 'project-b',
+      content: { format: 2, parts: [{ type: 'text', text: 'Project B message' }] },
+    }] })
+
+    assert.notEqual(projectA.thread.getId(), projectB.thread.getId())
+    assert.equal((await projectA.thread.listActiveMessages()).map(message => message.id).includes('project-a-message'), true)
+    assert.equal((await projectA.thread.listActiveMessages()).map(message => message.id).includes('project-b-message'), false)
+    assert.equal((await projectB.thread.listActiveMessages()).map(message => message.id).includes('project-b-message'), true)
+    assert.equal((await projectB.thread.listActiveMessages()).map(message => message.id).includes('project-a-message'), false)
+    assert.equal((await projectAWorkspace.filesystem.readFile('project-a.txt')).toString(), 'A only')
+    await assert.rejects(projectAWorkspace.filesystem.readFile('project-b.txt'))
+    await assert.rejects(projectBWorkspace.filesystem.readFile('project-a.txt'))
+    assert.equal(projectA.mode.get(), 'plan')
+    assert.equal(projectB.mode.get(), 'plan')
+    await projectA.mode.switch({ modeId: 'build' })
+    assert.equal(projectA.mode.get(), 'build')
+    assert.equal(projectB.mode.get(), 'plan')
+  } finally {
+    await controller.destroy()
+    await projectAWorkspace.destroy()
+    await projectBWorkspace.destroy()
+    await storage.close()
+    await rm(projectARoot, { recursive: true, force: true })
+    await rm(projectBRoot, { recursive: true, force: true })
+  }
+})
+
+test('AgentController PLAN mode applies the exact read-only workspace allowlist', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'conexus-4d-plan-mode-'))
+  const storage = new LibSQLStore({ id: 'plan-mode-store', url: `file:${join(root, 'controller.db')}` })
+  const memory = new Memory({ storage, options: { lastMessages: 20 } })
+  const workspace = new Workspace({
+    id: 'plan-mode-workspace',
+    filesystem: new LocalFilesystem({ basePath: root }),
+    sandbox: new LocalSandbox({ workingDirectory: root }),
+  })
+  const activeTools = []
+  const model = {
+    specificationVersion: 'v2',
+    provider: 'conexus-task-0',
+    modelId: 'plan-mode-probe',
+    supportedUrls: {},
+    async doGenerate() {
+      return { content: [{ type: 'text', text: 'probe response' }], finishReason: 'stop', usage: { inputTokens: 0, outputTokens: 1, totalTokens: 1 }, warnings: [] }
+    },
+    async doStream(options) {
+      activeTools.push({ activeTools: options.activeTools, tools: options.tools?.map(tool => tool.name) ?? [] })
+      return {
+        stream: new ReadableStream({
+          start(stream) {
+            stream.enqueue({ type: 'stream-start', warnings: [] })
+            stream.enqueue({ type: 'text-start', id: 'task-0-text' })
+            stream.enqueue({ type: 'text-delta', id: 'task-0-text', delta: 'probe response' })
+            stream.enqueue({ type: 'text-end', id: 'task-0-text' })
+            stream.enqueue({ type: 'finish', finishReason: 'stop', usage: { inputTokens: 0, outputTokens: 1, totalTokens: 1 } })
+            stream.close()
+          },
+        }),
+      }
+    },
+  }
+  const agent = createCodingAgent({
+    id: 'plan-mode-agent', name: 'Plan Mode Probe', model, instructions: 'Mechanical mode probe.', memory, workspace: undefined,
+  })
+  const readOnlyTools = ['mastra_workspace_read_file', 'mastra_workspace_list_files', 'mastra_workspace_grep', 'mastra_workspace_file_stat']
+  const codingTools = [...readOnlyTools, 'mastra_workspace_write_file', 'mastra_workspace_edit_file', 'mastra_workspace_delete', 'mastra_workspace_execute_command']
+  const controller = new AgentController({
+    id: 'plan-mode-controller', storage, memory, agent, workspace,
+    modes: [
+      { id: 'plan', name: 'Plan', availableTools: readOnlyTools },
+      { id: 'build', name: 'Build', availableTools: codingTools },
+    ],
+    defaultModeId: 'plan',
+  })
+
+  await controller.init()
+  try {
+    const session = await controller.createSession({ resourceId: 'project-plan', scope: 'builder', threadId: 'conexus-builder:project-plan', workspace })
+    await session.sendMessage({ content: 'Planeje uma mudança.' })
+    await session.mode.switch({ modeId: 'build' })
+    await session.sendMessage({ content: 'Implemente a mudança.' })
+    assert.deepEqual(activeTools[0].tools.toSorted(), readOnlyTools.toSorted())
+    assert.deepEqual(activeTools[1].tools.toSorted(), codingTools.toSorted())
+    assert.equal(activeTools[0].tools.includes('mastra_workspace_write_file'), false)
+    assert.equal(activeTools[0].tools.includes('mastra_workspace_edit_file'), false)
+    assert.equal(activeTools[0].tools.includes('mastra_workspace_delete'), false)
+    assert.equal(activeTools[0].tools.includes('mastra_workspace_execute_command'), false)
+  } finally {
+    await controller.destroy()
+    await workspace.destroy()
+    await storage.close()
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('Session sendMessage exposes the persisted user message ID for BuilderRun correlation', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'conexus-4d-message-id-'))
+  const storageFile = join(root, 'controller.db')
+  const workspace = new Workspace({
+    id: 'message-id-workspace',
+    filesystem: new LocalFilesystem({ basePath: root }),
+    sandbox: new LocalSandbox({ workingDirectory: root }),
+  })
+  const model = {
+    specificationVersion: 'v2', provider: 'conexus-task-0', modelId: 'message-id-probe', supportedUrls: {},
+    async doGenerate() {
+      return { content: [{ type: 'text', text: 'persisted response' }], finishReason: 'stop', usage: { inputTokens: 0, outputTokens: 1, totalTokens: 1 }, warnings: [] }
+    },
+    async doStream() {
+      return {
+        stream: new ReadableStream({
+          start(stream) {
+            stream.enqueue({ type: 'stream-start', warnings: [] })
+            stream.enqueue({ type: 'text-start', id: 'message-id-text' })
+            stream.enqueue({ type: 'text-delta', id: 'message-id-text', delta: 'persisted response' })
+            stream.enqueue({ type: 'text-end', id: 'message-id-text' })
+            stream.enqueue({ type: 'finish', finishReason: 'stop', usage: { inputTokens: 0, outputTokens: 1, totalTokens: 1 } })
+            stream.close()
+          },
+        }),
+      }
+    },
+  }
+  const createController = () => {
+    const storage = new LibSQLStore({ id: `message-id-store-${crypto.randomUUID()}`, url: `file:${storageFile}` })
+    const memory = new Memory({ storage, options: { lastMessages: 20 } })
+    const agent = createCodingAgent({
+      id: 'message-id-agent', name: 'Message ID Probe', model, instructions: 'Mechanical message identity probe.', memory, workspace: undefined,
+    })
+    const controller = new AgentController({
+      id: `message-id-controller-${crypto.randomUUID()}`, storage, memory, agent, workspace,
+      modes: [{ id: 'build', name: 'Build', availableTools: [] }], defaultModeId: 'build',
+    })
+    return { controller, storage }
+  }
+
+  const firstBinding = createController()
+  await firstBinding.controller.init()
+  try {
+    const session = await firstBinding.controller.createSession({ resourceId: 'project-message-id', scope: 'builder', threadId: 'conexus-builder:project-message-id', workspace })
+    const events = []
+    const unsubscribe = session.subscribe(event => events.push(event))
+    await session.sendMessage({ content: 'Mensagem real do operador.' })
+    unsubscribe()
+    const persisted = await session.thread.listActiveMessages()
+    const userMessage = persisted.find(message => message.role === 'signal' && message.type === 'user' && message.content.parts?.some(part => part.type === 'text' && part.text === 'Mensagem real do operador.'))
+    assert.ok(userMessage)
+    assert.match(userMessage.id, /^[a-z0-9-]+$/u)
+    assert.equal(events.some(event => event.type === 'message_start' && event.message.type === 'user'), false)
+    await firstBinding.controller.destroy()
+    await firstBinding.storage.close()
+
+    const secondBinding = createController()
+    await secondBinding.controller.init()
+    try {
+      const rebound = await secondBinding.controller.createSession({ resourceId: 'project-message-id', scope: 'builder', threadId: 'conexus-builder:project-message-id', workspace })
+      assert.equal((await rebound.thread.listActiveMessages()).some(message => message.id === userMessage.id), true)
+    } finally {
+      await secondBinding.controller.destroy()
+      await secondBinding.storage.close()
+    }
+  } finally {
+    await workspace.destroy()
+    await rm(root, { recursive: true, force: true })
+  }
+})

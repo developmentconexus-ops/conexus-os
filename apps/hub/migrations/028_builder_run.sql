@@ -69,7 +69,8 @@ BEGIN
   SELECT * INTO working FROM builder.project_working_state
   WHERE project_id = p_project_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'BUILDER_SUBJECT_NOT_FOUND'; END IF;
-  IF working.working_source_revision <> p_expected_source_revision THEN
+  IF working.working_source_revision <> p_expected_source_revision
+    OR working.working_version <> (SELECT COALESCE(max(working_version), 0) FROM builder.project_working_state WHERE project_id = p_project_id) THEN
     RAISE EXCEPTION 'SOURCE_STALE';
   END IF;
   IF EXISTS (SELECT 1 FROM builder.builder_run WHERE project_id = p_project_id AND state IN ('QUEUED', 'RUNNING')) THEN
