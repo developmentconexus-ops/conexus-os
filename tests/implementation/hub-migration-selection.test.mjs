@@ -54,6 +54,7 @@ const currentNames = [
   '028_builder_run.sql',
   '029_builder_run_execution.sql',
   '030_builder_run_invariants.sql',
+  '031_builder_run_application_build.sql',
 ]
 const heldNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
 const names = (migrations) => migrations.map((migration) => migration.name)

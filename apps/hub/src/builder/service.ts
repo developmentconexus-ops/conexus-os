@@ -1,7 +1,7 @@
 import type { BuilderSourceFile, BuilderSourcePort, BuilderSourceTree } from './source.js'
 import type { CodingWorkerRuntime } from './runtime.js'
 import type { BuilderRunSummary, BuilderStore, ChangeProjection, ClaimedChange } from './store.js'
-import { prepareApplicationArtifact } from './application-build.js'
+import { prepareApplicationArtifact, prepareBuilderRunApplicationArtifact } from './application-build.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadRequest, ApplicationArtifactReadResult, ApplicationBuildRequest, BuilderApplicationArtifacts } from './application-build.js'
 import type { ApplicationCompilerRuntime } from './application-artifact-runtime.js'
 import { createPreviewPreparationCoordinator } from './preview-preparation.js'
@@ -146,7 +146,20 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
         resultBundle: result.resultBundle,
       })
       if (admitted.candidateSourceRevision !== result.candidateSourceRevision) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
-      await store.settleBuilderRun({ builderRunId: claimed.builderRunId, resultSourceRevision: admitted.candidateSourceRevision, resultKind: 'SOURCE_CHANGED', failureCode: null })
+      await store.advanceBuilderRunSource(claimed.builderRunId, admitted.candidateSourceRevision)
+      if (claimed.mode === 'PLAN') throw new Error('BUILDER_PLAN_SOURCE_RESULT_REFUSED')
+      try {
+        const artifact = await prepareBuilderRunApplicationArtifact({ source, compiler, applicationArtifacts }, {
+          accountId: input.accountId, projectId: claimed.projectId, builderRunId: claimed.builderRunId,
+          sourceRevision: admitted.candidateSourceRevision,
+        })
+        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.candidateSourceRevision,
+          artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest })
+      } catch (error) {
+        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.candidateSourceRevision,
+          failureCode: failureCode(error) }).catch(() => undefined)
+        throw error
+      }
     })().catch(async (error) => { await store.failBuilderRun(run.builderRunId, failureCode(error)).catch(() => undefined) })
       .finally(() => { builderActive.delete(run.builderRunId) })
     builderActive.set(run.builderRunId, work)
@@ -241,7 +254,10 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
       const observation = observations.get(changeId)
       return observation?.projectId === projectId ? observation.feed.subscribe() : null
     },
-    recover: async () => { for (const changeId of await store.recoverAndListQueued()) dispatch(changeId) },
+    recover: async () => {
+      for (const changeId of await store.recoverAndListQueued()) dispatch(changeId)
+      await store.recoverAndListQueuedBuilderRuns()
+    },
     close,
   })
 }

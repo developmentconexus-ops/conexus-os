@@ -130,6 +130,8 @@ export type BuilderStore = Readonly<{
   bindBuilderRunMessage(builderRunId: string, messageId: string): Promise<void>
   bindBuilderRunSandbox(builderRunId: string, sandboxId: string): Promise<void>
   settleBuilderRun(input: Readonly<{ builderRunId: string; resultSourceRevision: string | null; resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED'; failureCode: string | null }>): Promise<void>
+  advanceBuilderRunSource(builderRunId: string, sourceRevision: string): Promise<void>
+  settleBuilderRunBuild(input: Readonly<{ builderRunId: string; sourceRevision: string; artifactRevisionId?: string; artifactDigest?: string; failureCode?: string }>): Promise<void>
   failBuilderRun(builderRunId: string, failureCode: string): Promise<void>
   createChange(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; intent: string; expectedSourceRevision: string }>): Promise<ChangeProjection>
   listChanges(input: Readonly<{ accountId: string; projectId: string }>): Promise<readonly ChangeProjection[]>
@@ -153,6 +155,7 @@ export type BuilderStore = Readonly<{
   getEvidence(input: Readonly<{ accountId: string; projectId: string; changeId: string; evidenceId: string }>): Promise<EvidenceProjection | null>
   admitSourceRevision(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<boolean>
   recoverAndListQueued(): Promise<readonly string[]>
+  recoverAndListQueuedBuilderRuns(): Promise<readonly string[]>
   close(): Promise<void>
 }>
 
@@ -207,6 +210,19 @@ export const createBuilderStore = ({
       'SELECT builder.settle_builder_run($1,$2,$3,$4) AS value', [builderRunId, resultSourceRevision, resultKind, failureCode],
     )
     if (result.rows[0]?.value !== true) throw new Error('BUILDER_RUN_SETTLEMENT_REFUSED')
+  },
+  advanceBuilderRunSource: async (builderRunId, sourceRevision) => {
+    const result = await executorPool.query<{ value: boolean }>(
+      'SELECT builder.advance_builder_run_source($1,$2) AS value', [builderRunId, sourceRevision],
+    )
+    if (result.rows[0]?.value !== true) throw new Error('BUILDER_RUN_SOURCE_SETTLEMENT_REFUSED')
+  },
+  settleBuilderRunBuild: async ({ builderRunId, sourceRevision, artifactRevisionId, artifactDigest, failureCode }) => {
+    const result = await executorPool.query<{ value: boolean }>(
+      'SELECT builder.settle_builder_run_build($1,$2,$3,$4,$5) AS value',
+      [builderRunId, sourceRevision, artifactRevisionId ?? null, artifactDigest ?? null, failureCode ?? null],
+    )
+    if (result.rows[0]?.value !== true) throw new Error('BUILDER_RUN_BUILD_SETTLEMENT_REFUSED')
   },
   failBuilderRun: async (builderRunId, failureCode) => {
     const result = await executorPool.query<{ value: boolean }>(
@@ -391,6 +407,12 @@ export const createBuilderStore = ({
       'SELECT builder.recover_and_list_queued() AS change_id',
     )
     return result.rows.map((row) => row.change_id)
+  },
+  recoverAndListQueuedBuilderRuns: async () => {
+    const result = await executorPool.query<QueryResultRow & Readonly<{ builder_run_id: string }>>(
+      'SELECT builder.recover_builder_runs() AS builder_run_id',
+    )
+    return result.rows.map((row) => row.builder_run_id)
   },
   close: async () => { await Promise.all([ingressPool.end(), executorPool.end()]) },
 })
