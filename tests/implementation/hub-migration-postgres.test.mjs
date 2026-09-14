@@ -18,7 +18,7 @@ const versions = [
   '001', '002', '003', '004', '005', '006', '007', '008', '009', '010',
   '011', '012', '013', '014', '015', '016', '017', '018', '019', '020',
   '021', '022', '023',
-  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037',
+  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038',
 ]
 const query = async (connection, sql, parameters = []) => {
   const client = new pg.Client(connection)
@@ -53,8 +53,20 @@ test('current Hub installs accepted schemas and restarts without applying held R
     SELECT to_regclass('iam.account')::text AS account,
       to_regclass('reg.artifact')::text AS artifact,
       to_regclass('builder.change')::text AS change,
+      to_regclass('builder.actor_run')::text AS actor_run,
+      to_regclass('builder.work_unit')::text AS work_unit,
+      to_regclass('builder.coding_session')::text AS coding_session,
+      to_regclass('builder.plan')::text AS plan,
+      to_regclass('builder.finding')::text AS finding,
+      to_regclass('builder.verification_evidence')::text AS verification_evidence,
+      to_regclass('builder.operation_receipt')::text AS operation_receipt,
+      to_regprocedure('reg.retain_application(uuid,uuid,uuid,text,jsonb)')::text AS retain_application,
+      to_regprocedure('reg.get_application(uuid,uuid,uuid,text)')::text AS get_application,
+      to_regprocedure('reg.read_application_file(uuid,uuid,uuid,text,uuid,text)')::text AS read_application_file,
       to_regnamespace('mar')::text AS held_schema
-  `)).rows, [{ account: 'iam.account', artifact: 'reg.artifact', change: 'builder.change', held_schema: null }])
+  `)).rows, [{ account: 'iam.account', artifact: 'reg.artifact', change: null, actor_run: null, work_unit: null,
+    coding_session: null, plan: null, finding: null, verification_evidence: null, operation_receipt: null,
+    retain_application: null, get_application: null, read_application_file: null, held_schema: null }])
 
   const accountId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID()
   const sourceRevision = 'd'.repeat(40); const keyDigest = 'e'.repeat(64); const requestDigest = 'f'.repeat(64)
@@ -86,7 +98,7 @@ test('R1 and R2 upgrade to current Hub without rewriting prior ledger or account
   [{ account_id: accountId, display_name: 'Keep this account' }])
 })
 
-test('current Hub upgrades an existing 023 database and refuses removed Registry permissions', async (t) => {
+test('current Hub upgrades an existing 023 database and removes legacy Builder schema', async (t) => {
   const fixture = await databaseFixture(t)
   await runR2HubMigrations(fixture)
   for (const migration of loadCurrentHubMigrationFiles().filter(({ version }) => version >= '019' && version <= '023')) {
@@ -97,10 +109,11 @@ test('current Hub upgrades an existing 023 database and refuses removed Registry
   assert.deepEqual(before.map(({ version }) => version), versions.slice(0, 23))
   assert.deepEqual(await runCurrentHubMigrations(fixture), { verdict: 'PASS', appliedNow: versions.slice(23), versions })
   assert.deepEqual((await ledger(fixture.connection)).slice(0, 23), before)
-  await query(fixture.connection, 'REVOKE USAGE ON SCHEMA builder FROM registry_owner')
-  await assert.rejects(runCurrentHubMigrations(fixture), /MIGRATION_026_SCHEMA_PRIVILEGE_REFUSED/)
-  await query(fixture.connection, 'GRANT USAGE ON SCHEMA builder TO registry_owner')
-  assert.deepEqual(await runCurrentHubMigrations(fixture), { verdict: 'PASS', appliedNow: [], versions })
+  const catalog = (await query(fixture.connection, `SELECT to_regclass('builder.change')::text AS change_table,
+    to_regclass('builder.work_unit')::text AS work_unit_table,
+    to_regprocedure('reg.retain_application(uuid,uuid,uuid,text,jsonb)')::text AS legacy_retain,
+    to_regprocedure('project.lock_application_baseline(uuid)')::text AS legacy_lock`)).rows[0]
+  assert.deepEqual(catalog, { change_table: null, work_unit_table: null, legacy_retain: null, legacy_lock: null })
 })
 
 test('concurrent current Hub installers record each accepted migration once', async (t) => {

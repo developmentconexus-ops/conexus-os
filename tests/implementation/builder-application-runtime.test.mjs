@@ -20,11 +20,11 @@ const { createE2BApplicationCompiler } = await import(built)
 test.after(() => rmSync(buildRoot, { recursive: true, force: true }))
 
 const projectId = '11111111-1111-4111-8111-111111111111'
-const changeId = '22222222-2222-4222-8222-222222222222'
+const executionId = '22222222-2222-4222-8222-222222222222'
 const sourceRevision = 'a'.repeat(40)
 const validInput = {
   projectId,
-  changeId,
+  executionId,
   sourceRevision,
   files: [{ path: 'index.html', content: '<!doctype html><html></html>' }],
 }
@@ -111,7 +111,7 @@ test('application compiler preserves source identity and hashes actual regular o
     const compiler = createE2BApplicationCompiler({ apiKey: 'fixture-key' })
     const result = await compiler.compile(validInput)
     assert.equal(result.projectId, projectId)
-    assert.equal(result.changeId, changeId)
+    assert.equal(result.executionId, executionId)
     assert.equal(result.sourceRevision, sourceRevision)
     assert.equal(result.templateRef, 'xdli9puqp1nepk4ht6lw:8a1e3885-c6d7-4b06-aea6-860632f407e6')
     assert.equal(result.recipeSha256, '32230b4ba0b72625474b7f722e2294a256f9ab2f7c1c9b1eb107f38770edbe97')

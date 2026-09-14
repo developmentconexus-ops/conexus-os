@@ -36,7 +36,7 @@ test('production compiler builds a browser app and rejects unresolved imports in
     writeFileSync(resolve(evidenceRoot, 'resources.json'), JSON.stringify({ sandboxIds }), { mode: 0o600 })
   } })
   const input = {
-    projectId: randomUUID(), changeId: randomUUID(), sourceRevision: 'a'.repeat(40),
+    projectId: randomUUID(), executionId: randomUUID(), sourceRevision: 'a'.repeat(40),
     files: [
       { path: 'index.html', content: '<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><link rel="icon" href="data:,"><title>Compiler adapter</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>' },
       { path: 'src/main.tsx', content: `import * as React from 'react'
@@ -53,7 +53,7 @@ createRoot(document.getElementById('root')!).render(<App />)
   const result = await compiler.compile(input)
   const compileMs = Date.now() - started
   assert.equal(result.projectId, input.projectId)
-  assert.equal(result.changeId, input.changeId)
+  assert.equal(result.executionId, input.executionId)
   assert.equal(result.sourceRevision, input.sourceRevision)
   assert.ok(result.files.some(file => file.path === 'index.html'))
   const files = new Map(result.files.map(file => [`/${file.path}`, file]))
@@ -86,7 +86,7 @@ createRoot(document.getElementById('root')!).render(<App />)
     await new Promise(resolve => server.close(resolve))
   }
   const failedAt = Date.now()
-  await assert.rejects(compiler.compile({ ...input, changeId: randomUUID(), files: [
+  await assert.rejects(compiler.compile({ ...input, executionId: randomUUID(), files: [
     input.files[0], { path: 'src/main.tsx', content: 'import "package-that-is-not-installed-in-conexus"' },
   ] }), /APPLICATION_COMPILATION_FAILED/)
   assert.equal(sandboxIds.length, 2)

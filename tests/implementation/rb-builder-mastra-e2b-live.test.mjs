@@ -73,11 +73,9 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
       timeoutMs: 12 * 60_000,
     })
     const identity = {
+      accountId: randomUUID(),
       projectId: randomUUID(),
-      changeId: randomUUID(),
-      workUnitId: randomUUID(),
-      actorRunId: randomUUID(),
-      admissionToken: randomUUID(),
+      executionId: randomUUID(),
     }
     const result = await runtime.execute({
       ...identity,
@@ -90,13 +88,13 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
     assert.equal(result.runtimeId, 'mastra-native-e2b-v1')
     assert.equal(result.sandboxId, boundSandboxId)
     assert.equal(result.baseSourceRevision, baseSourceRevision)
-    assert.match(result.candidateSourceRevision, /^[0-9a-f]{40}$/)
-    assert.notEqual(result.candidateSourceRevision, baseSourceRevision)
+    assert.match(result.resultSourceRevision, /^[0-9a-f]{40}$/)
+    assert.notEqual(result.resultSourceRevision, baseSourceRevision)
     const resultBundlePath = resolve(proofRoot, 'result.bundle')
     writeFileSync(resultBundlePath, result.resultBundle)
     git(proofRoot, 'clone', '--branch', 'conexus-result', resultBundlePath, resultRoot)
     assert.equal(git(resultRoot, 'rev-parse', 'HEAD^'), baseSourceRevision)
-    assert.equal(git(resultRoot, 'rev-parse', 'HEAD'), result.candidateSourceRevision)
+    assert.equal(git(resultRoot, 'rev-parse', 'HEAD'), result.resultSourceRevision)
     assert.equal(git(resultRoot, 'diff', '--name-only', 'HEAD^', 'HEAD'), 'BUILDER_RESULT.txt')
     assert.equal(readFileSync(resolve(resultRoot, 'BUILDER_RESULT.txt'), 'utf8'), 'governed-by-conexus\n')
 
@@ -106,10 +104,9 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
     git(sourceRoot, 'commit', '-m', 'Exact rejected candidate fixture')
     const failedCandidate = git(sourceRoot, 'rev-parse', 'HEAD')
     const correctionIdentity = {
-      projectId: identity.projectId, changeId: randomUUID(), workUnitId: randomUUID(),
-      actorRunId: randomUUID(), admissionToken: randomUUID(),
+      accountId: identity.accountId, projectId: identity.projectId, executionId: randomUUID(),
     }
-    const correctionSourceRef = `refs/conexus/changes/${correctionIdentity.changeId}`
+    const correctionSourceRef = `refs/conexus/sources/${correctionIdentity.executionId}`
     git(sourceRoot, 'update-ref', correctionSourceRef, failedCandidate)
     const failedBundlePath = resolve(proofRoot, 'failed-candidate.bundle')
     git(sourceRoot, 'bundle', 'create', failedBundlePath, correctionSourceRef)
@@ -118,7 +115,6 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
       ...correctionIdentity,
       intent: 'Make CORRECTION_RESULT.txt contain exactly corrected-by-conexus followed by a newline. Do not modify any other file.',
       baseSourceRevision: failedCandidate,
-      correctionFindings: [{ findingId: randomUUID(), findingRevision: randomUUID(), summary: 'CORRECTION_RESULT.txt contains incomplete instead of the required exact corrected-by-conexus line.' }],
       sourceBundle: readFileSync(failedBundlePath),
       bindPhysicalSandbox: async (sandboxId) => { correctionSandboxId = sandboxId },
     })

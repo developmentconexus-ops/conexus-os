@@ -32,14 +32,12 @@ test('C-020 source inspection admits current subjects and latest code-changing r
   const unauthorized = '81000000-0000-4000-8000-000000000005'
   const source = (letter) => letter.repeat(40)
   const baseline = source('a'); const runOneResult = source('b'); const preview = source('c')
-  const working = source('d'); const legacyBase = source('1'); const legacyCandidate = source('2'); const legacyWorkUnit = source('3')
+  const working = source('d')
   const olderRunOnly = source('e'); const unrelated = source('8'); const otherResult = source('9')
   const runOne = '82000000-0000-4000-8000-000000000001'
   const runTwo = '82000000-0000-4000-8000-000000000002'
   const responseOnly = '82000000-0000-4000-8000-000000000003'
   const otherRun = '82000000-0000-4000-8000-000000000004'
-  const legacyChange = '82000000-0000-4000-8000-000000000005'
-  const legacyUnit = '82000000-0000-4000-8000-000000000006'
   const qWorking = source('f')
   const query = async (statement, values = []) => {
     const client = await connect(current)
@@ -72,21 +70,14 @@ test('C-020 source inspection admits current subjects and latest code-changing r
     builder_run_id, project_id, account_id, trigger_message_id, idempotency_digest, request_digest, mode,
     base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind
   ) VALUES ($1, $2, $3, $4, $5, $5, 'BUILD', $6, 0, 0, 'SUCCEEDED', $7, 'SOURCE_CHANGED')`, [otherRun, otherProject, account, otherRun, otherRun.replaceAll('-', '').padEnd(64, '0'), qWorking, otherResult])
-  await query(`INSERT INTO builder.change(change_id, project_id, created_by_account_id, intent, baseline_digest,
-    baseline_source_revision, base_source_revision, planning_depth, rigor_profile, state, candidate_source_revision,
-    patch, result_kind)
-    VALUES ($1, $2, $3, 'legacy source', $4, $5, $6, 'DIRECT', 'CONTROLLED', 'PREVIEW_READY', $7, 'legacy patch', 'CANDIDATE')`,
-  [legacyChange, project, account, '3'.repeat(64), baseline, legacyBase, legacyCandidate])
-  await query(`INSERT INTO builder.work_unit(work_unit_id, change_id, state, result_commit) VALUES ($1, $2, 'COMPLETED', $3)`, [legacyUnit, legacyChange, legacyWorkUnit])
-
   const ingress = { ...current, user: 'hub_rb_ingress', password: 'source-inspection-ingress' }
   await query("ALTER ROLE hub_rb_ingress PASSWORD 'source-inspection-ingress'")
   const admit = async (revision, subject = project, actor = account) => {
     const client = await connect(ingress)
     try { return (await client.query('SELECT builder.admit_source_revision($1, $2, $3) AS admitted', [actor, subject, revision])).rows[0].admitted } finally { await client.end() }
   }
-  for (const revision of [working, preview, runOneResult, baseline, legacyBase, legacyCandidate, legacyWorkUnit]) assert.equal(await admit(revision), true, revision)
-  for (const revision of [olderRunOnly, unrelated, otherResult]) assert.equal(await admit(revision), false)
+  for (const revision of [working, preview, runOneResult]) assert.equal(await admit(revision), true, revision)
+  for (const revision of [baseline, olderRunOnly, unrelated, otherResult]) assert.equal(await admit(revision), false, revision)
   assert.equal(await admit('not-an-oid'), false)
   assert.equal(await admit(working, project, unauthorized), false)
 
