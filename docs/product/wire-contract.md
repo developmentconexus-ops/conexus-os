@@ -1,15 +1,15 @@
 # Conexus OS — Executable Wire Contract
 
-> **Status:** 4B CLOSED / OPERATOR RATIFIED / AWAITING INTEGRATION
-> **Owner:** 4B — Executable Wire Contract.
-> **Product semantics:** current operator-ratified 4A authority, including bounded corrections through `4C-F36`, remains canonical above this wire.
-> **Implementation:** BLOCKED.
+> **Status:** CURRENT MVP IMPLEMENTED / OPERATOR RATIFIED
+> **Owner:** current Product wire, derived from operation-ledger §5.
+> **Product semantics:** operation-ledger §5 is the current authority; the broader 4B design remains retained historical/platform material.
+> **Implementation:** current MVP OAS implemented with 31 operations.
 
 This document owns the human-readable 4B decisions that govern the canonical machine-readable wire artifacts. The machine-readable Product wire must conform to this contract; neither this prose nor generated code may invent Product meaning beyond accepted 4A.
 
 ## 1. Representation decision
 
-Current 4B adopts:
+The retained 4B representation adopted:
 
 ```text
 HTTP Product wire authority = OpenAPI Specification 3.1.2
@@ -203,20 +203,24 @@ The accepted semantic outcome classes remain:
 
 No later wire may turn a non-disclosable foreign subject into a 403 existence oracle. Owner-specific problem types are admitted only where a concrete consumer needs stable branching beyond the HTTP class.
 
-## 7. Current-state / conditional contract
+## 7. Retained historical current-state / conditional contract
+
+The following carrier rules are retained 4B platform design. They do not add
+authority to the 31-operation current MVP OAS. The current OAS has no
+`If-Match`-only operation set.
 
 IC2 is a **semantic current-subject obligation**, not an automatic `If-Match` instruction.
 
 RFC 9110 `If-Match` is used only when the ETag describes the current representation of the **same HTTP target resource being mutated**.
 
-The current literal semantic `IF_MATCH` set is exactly:
+The retained historical literal semantic `IF_MATCH` set was:
 
 ```text
 PRJ-12 ClearProjectBrainBinding
 PAR-14 ReviseScheduleTrigger
 ```
 
-The bundled HTTP carrier proof is correspondingly exact:
+The historical bundled HTTP carrier proof was:
 
 ```text
 required If-Match        = { PRJ-12, PAR-14 }
@@ -240,9 +244,9 @@ PATCH same trigger target
 → If-Match
 ```
 
-`PRJ-11 SetProjectBrainBinding` remains `CURRENT_OR_ABSENT`: the same exact target maps present-state update through optional `If-Match` and absent-state create through optional `If-None-Match: *`, with the wire requiring exactly one of the two. It is deliberately not counted in the semantic `IF_MATCH`-only set.
+`PRJ-11 SetProjectBrainBinding` remains a retained historical `CURRENT_OR_ABSENT` example. It is outside the current 31-operation OAS.
 
-Do **not** reuse an ETag from one resource as `If-Match` on a different command/collection target. Current explicit-semantic examples include:
+Do **not** reuse an ETag from one resource as `If-Match` on a different command/collection target. Retained historical explicit-semantic examples include:
 
 ```text
 PromoteRelease
@@ -343,13 +347,13 @@ Keycloak role/group/Organization -X-> Conexus app role or grant
 
 `PAR_TOOL`, `MAR_JOB`, owner/system transitions and future DEDICATED service projections are not converted into fake human HTTP cookies or arbitrary caller headers merely because OAS needs a security object.
 
-For `RunAnalyticQuery`, current HTTP ingress is CP/PA; `PAR_TOOL` remains explicitly marked as a **non-HTTP** admitted ingress/projection.
+The current OAS declares `nonHttpIngress: []`. `RunAnalyticQuery` and `PAR_TOOL` remain retained historical ingress examples outside the current 31-operation OAS.
 
 ## 10. Browser request-authenticity contract
 
 Accepted architecture requires browser self-only/session/request-authenticity to be platform controlled and admits no credentialed cross-origin Product API in F1.
 
-Current 4B law:
+Current MVP law:
 
 ```text
 credentialed cross-origin Product API = DENY
@@ -639,22 +643,14 @@ The repository `verify` path proves:
 ```text
 repository hygiene / docs / current-state guards
 + serial-safe repository mutation tests with cleanup
-+ repository tests including 4B-F01 census regression
++ repository tests for the current operation census
 + Product OAS lint + deterministic bundle
 + Product-fragment reachability / zero dead parallel YAML
 + Project declaration schema compilation
 + constrained Project input/output grammar
-+ 4A ↔ fixed Product OAS bijection = 111 / 111
-+ semantic IF_MATCH set = { PRJ-12, PAR-14 }
-+ actual bundled If-Match/If-None-Match parameter sets
-+ all fixed owner schema gates = 111 / 111
-+ Technical Ingress lint + exact 3-operation protocol separation
-+ deterministic generated-projection manifest
-+ real Kubb 5.0.0 / TypeScript 7.0.2 codegen probe
-+ Budget declaration/generation/OAS proof
-+ Budget truth-state positive and negative controls
-+ whole-4B cross-surface executable/negative proof
-+ in-memory adversarial controls must fail for the expected defect class
++ current operation-ledger ↔ Product OAS bijection = 31 / 31
++ current owner wire gates for IAM/Workspace, Project, Builder, Brain and Connections
++ current Product browser proof
 ```
 
 Generated-projection TDD/probe chain:
@@ -731,7 +727,7 @@ Lead adjudication                        = COMPLETE / no 4A reopen
 operator ratification                    = COMPLETE
 ```
 
-Ratification does not authorize merge by itself. Until this candidate is integrated into `main`, 4C remains not started and Product implementation remains blocked.
+Ratification does not authorize merge by itself. The retained 4B candidate was not a current Product implementation grant; the current MVP implementation is owned by operation-ledger §5 and the canonical OAS.
 
 Whole-wire Evidence: [../evidence/4b/whole-wire-adversarial-proof.md](../evidence/4b/whole-wire-adversarial-proof.md).
 
