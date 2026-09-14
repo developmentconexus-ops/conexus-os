@@ -1,164 +1,215 @@
 # Conexus OS roadmap
 
 This file owns current status, allowed work and the exact next action.
-`docs/tasks/builder-first-app.md` owns slice implementation detail.
+`docs/tasks/builder-first-app.md` owns implementation detail.
 `docs/reference/builder-c020-mastra-native.md` owns the current ordinary Builder architecture.
-Historical Evidence and published migration history do not grant execution authority.
+Historical Evidence and old delivery plans do not grant execution authority.
 
 ## Current direction
 
-Build the internal Metal Nobre MVP with one ordinary Builder model:
+Build one simple ordinary Builder:
 
 ```text
 Project
-→ Mastra persistent Thread/Messages
+→ persistent Mastra Thread/Messages
 → BuilderRun
-→ Working Source
+→ working source
 → last-good Preview
 ```
 
-Mastra owns coding-harness mechanics. Conexus owns authorization, durable run/source truth, Git custody, compiler/artifact and Preview authority.
+The final runtime must not permanently carry a second Change-era Builder.
 
-The final implementation must not permanently carry a parallel Change-era Builder.
+Mastra owns coding-harness mechanics. Conexus owns Product/system authority:
+
+```text
+Project authorization
+BuilderRun durability/idempotency/concurrency
+working-source custody/CAS
+Git result admission
+compiler / ArtifactRevision
+last-good Preview
+enterprise capability authorization
+```
+
+C-020 remains `CURRENT / OPERATOR RATIFIED`.
+No architectural reopen is authorized.
 
 ---
 
 ## Accepted checkpoints
 
-| Slice | Result | Accepted implementation |
-| --- | --- | --- |
-| 0 | Planning/authority reconciliation | COMPLETE |
-| 1 | Source-native A→B→C continuity | PASS — `e56dcec3c6125bd1d812a6645ded5a35418118ad` |
-| 2 | C-020 source inspection authority | PASS — `df762d525d27b4aaf85d4de5ba5fa1fe2e806958` |
+### Slice 1 — PASS
 
-Accepted Slice-1 facts:
+Accepted implementation:
 
 ```text
-refs/conexus/sources/<oid> owns retained Builder source reachability
-canonical refs/heads/main does not move with Builder edits
-A→B→C works
-ordinary mutation boundary = app/**
+e56dcec3c6125bd1d812a6645ded5a35418118ad
 ```
 
-Accepted Slice-2 facts:
+Accepted facts:
 
 ```text
-working / last-good Preview / latest code-changing base+result are readable subjects
+A → B → C source-native continuity
+immutable refs/conexus/sources/<oid>
+canonical refs/heads/main does not move with Builder edits
+runtime-compatible transport bundles
+ordinary mutation boundary = app/**
+no fake Change source coordinates in ordinary BuilderRun
+```
+
+### Slice 2 — PASS
+
+Accepted implementation:
+
+```text
+df762d525d27b4aaf85d4de5ba5fa1fe2e806958
+```
+
+Accepted facts:
+
+```text
+forward migration 037
+working / last-good / latest code-changing base+result source inspection
 later RESPONSE_ONLY does not erase useful Diff basis
-arbitrary/stale unrelated OIDs remain refused
-migration 037 is forward-only
+arbitrary/stale unrelated OIDs refused
+source-read authority remains server-owned
 ```
 
 ---
 
 ## Slice 3 review
 
-Implementation reviewed:
+Reviewed implementation:
 
 ```text
 9660b097a80c1f4c5ca522a215314e10aa55be70
 ```
 
-The implementation direction is accepted:
+Accepted implementation pieces:
 
 ```text
 native per-run AgentController.deleteSession
-persistent Project Thread retained
+persistent Project Thread preserved
 ordinary PLAN skips host-side starter materialization
-shared/fallback agent base instructions share one owner
-signal/user Product mapper exists
+PLAN native mutation-tool allowlist remains read-only
+shared/fallback coding-agent base instructions share one owner
+Product mapper recognizes Mastra signal/user as Product user
 ```
 
-One bounded proof gap remains before PASS:
+### Exact-version blocker / corrected premise
+
+The first bounded-fix handoff incorrectly required:
 
 ```text
-production BLD-23 hydration uses sessionMemory.recall(...)
-current focused projection test uses session.thread.listActiveMessages()
+Memory.recall({ hideSignals: false })
 ```
 
-This is the exact seam that originally motivated the message-projection correction.
-The Product path must explicitly recall signals and the focused test must prove:
+Exact installed `@mastra/core 1.63.2` / Memory typings do not expose `hideSignals` on this API surface. Codex correctly stopped rather than casting around the installed contract.
+
+The Product invariant is **not** “use `hideSignals:false`”. The invariant is:
 
 ```text
-Session.sendMessage
-→ Memory.recall
-→ projectBuilderMessages
-→ operator message is Product user
+same Memory.recall path used by production
+must return enough persisted conversation data
+for the operator message to project as Product user
 ```
 
-No architecture reopen is implied.
+Therefore Slice 3 remains `REVIEW / EXACT RECALL PROBE REQUIRED`.
+
+Next proof must call the production-shaped `Memory.recall` with only exact installed options and observe the returned persisted message shape before any production change is made.
+
+If the operator message is present and projects correctly, production needs no recall-code change; only the test was wrong.
+
+If it is absent or transformed incompatibly, stop with exact installed source/types and returned message evidence. Do not cast, monkey-patch, add a conversation store, or invent another Session manager.
 
 ---
 
-## Legacy subtraction decision
+## PSTACK subtraction decision — legacy must leave final runtime
 
-PSTACK/Poteto requires one final Builder architecture, not C-020 plus permanent compatibility code.
-
-After final Product callers migrate in Slice 4:
+Temporary compatibility debt:
 
 ```text
-Slice 5
-→ census remaining legacy callers
-→ delete dead Change/Plan/WorkUnit/ActorRun/CodingSession runtime/API/contracts/tests
-→ forward cleanup migration drops dead current schema/functions/columns
+Change
+Plan
+WorkUnit
+ActorRun
+CodingSession
+Findings / verification Evidence
+legacy Builder snapshots/routes
+legacy Change custody
+legacy verifier/correction pipeline
+legacy PreviewPreparation
+legacy source-read fallback
+legacy working-state Change/preparation coordinates
 ```
 
-Published migration files remain immutable history so old databases can upgrade into the cleaned current schema.
+Execution law:
+
+```text
+migrate accepted callers
+→ prove C-020 owns the Product path
+→ delete dead runtime/API/schema surface
+```
+
+Published migration files remain immutable history. A forward cleanup migration may remove dead current schema after callers migrate.
 
 ---
 
-## Execution board
+## Delivery board
+
+| Delivery | State | Next condition |
+| --- | --- | --- |
+| Repository operating model | DELIVERED | none |
+| C-020 architecture | CURRENT / OPERATOR RATIFIED | reopen only on explicit trigger |
+| C-020 implementation | IN PROGRESS / REVIEW-GATED | close Slice 3, then Slices 4–7 |
+| P-01 Builder UI | VALIDATING | Slice 4 + Slice 7 |
+| Legacy Builder architecture | MIGRATING TO DELETE | Slice 4 caller migration → Slice 5 excision |
+| First real Brain rule | DEFERRED / BLOCKED | after Slice 7 acceptance |
+| Narrow SDK / Sankhya | PLANNED | after first real Brain-backed app |
+
+---
+
+## Slice execution board
 
 | Slice | Purpose | State | Authorization |
 | --- | --- | --- | --- |
-| 0 | Planning / authority reconciliation | COMPLETE | Closed |
-| 1 | Source-native A→B→C | PASS | Closed |
-| 2 | Source inspection authority | PASS | Closed |
-| 3 | Mastra lifecycle / conversation / PLAN | **REVIEW — BOUNDED FIX REQUIRED** | **Only explicit Slice-3 bounded fix authorized** |
-| 4 | BLD-23/P-01 Product API + automatic Preview + useful Diff | PLANNED | Not authorized |
-| 5 | Legacy Builder excision | PLANNED / REQUIRED | Not authorized |
-| 6 | Remove premature Brain pre-injection + align current verify | PLANNED | Not authorized |
-| 7 | Real composed Product proof + operator checkpoint | PLANNED | Not authorized |
-| 8 | First real Brain-backed build via Mastra tools | DEFERRED | Not authorized before Slice 7 acceptance |
+| 0 | Planning / authority reconciliation | COMPLETE | closed |
+| 1 | Source-native A→B→C | PASS | closed |
+| 2 | C-020 source inspection authority | PASS | closed |
+| 3 | Mastra lifecycle / message projection / PLAN read-only | **REVIEW / EXACT RECALL PROBE REQUIRED** | **only explicit Slice-3 recall probe/fix** |
+| 4 | BLD-23/P-01 Product API, automatic Preview, useful Diff | PLANNED | not authorized |
+| 5 | Legacy Builder excision | PLANNED / REQUIRED | not authorized |
+| 6 | Remove premature Brain pre-injection + align current verify | PLANNED | not authorized |
+| 7 | Real composed Product proof + operator checkpoint | PLANNED | not authorized |
+| 8 | First real Brain-backed build via Mastra tools | DEFERRED | not authorized before Slice 7 |
 
 Execution remains:
 
 ```text
-explicit Slice N handoff
-→ implement Slice N only
+explicit slice handoff
+→ implement/probe only that slice
 → focused verification
-→ commit/checkpoint
+→ commit/checkpoint if changed
 → STOP
-→ GPT reviews actual diff/evidence
-→ next slice only after explicit authorization
-```
-
----
-
-## PSTACK / Poteto laws
-
-```text
-fix root cause
-subtract before add
-prefer native Mastra mechanics
-one Product authority per concept
-reuse proven E2B/Git/compiler/Registry/security pieces
-migrate callers then delete dead architecture
-smallest independently reviewable slice
-proof must match the production path being claimed
+→ GPT reviews
 ```
 
 ---
 
 ## Exact next action
 
-Complete the **Slice-3 bounded proof fix only**:
+Run the explicit **Slice-3 exact Memory.recall probe**.
+
+Required first branch:
 
 ```text
-1. make production Memory.recall explicitly retain signals required for Product projection;
-2. change the focused message-projection test to use the same Memory.recall path as production;
-3. prove real persisted signal/user becomes Product user and internal signals remain omitted;
-4. preserve all accepted Session deletion, PLAN and instruction behavior.
+real Session.sendMessage
+→ production-shaped Memory.recall(threadId, resourceId, page, perPage)
+→ inspect exact returned role/type/content
 ```
 
-After the bounded-fix checkpoint Codex must STOP. Slice 4 remains blocked until GPT reviews Slice 3 as PASS.
+If the real operator message is present and `projectBuilderMessages` maps it to `user`, update the focused test only and close Slice 3.
+
+If not, STOP with exact installed API/source evidence before changing production.
+
+Slice 4 remains blocked.
