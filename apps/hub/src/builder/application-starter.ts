@@ -56,6 +56,17 @@ body {
   }),
 ] as const)
 
+export const BUILDER_BASE_AGENT_INSTRUCTIONS = [
+  'Work only in the exact Session Workspace at /workspace/repo.',
+  'For ordinary Builder work, keep application edits under /workspace/repo/app/**.',
+  'Use the fixed REACT_VITE_V1 application shape.',
+  'Do not install or add package dependencies.',
+  'Do not mutate Conexus platform or generated owner files.',
+  'Do not add Git remotes, use network access, or read credentials.',
+  'Inspect before editing and run focused local checks when useful.',
+  'Report visible actions and results briefly; never reveal private chain-of-thought.',
+].join(' ')
+
 export const FIXED_APPLICATION_STARTER_INSTRUCTIONS = [
   'Use the fixed REACT_VITE_V1 React/TypeScript/Vite stack for the app.',
   'Keep platform and generated files unchanged. Edit ordinary app files under /workspace/repo/app.',

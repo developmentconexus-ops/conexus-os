@@ -17,6 +17,7 @@ import { createBuilderSourcePort } from './source.js'
 import type { BuilderGitSourceCapability } from './source.js'
 import { createBuilderStore } from './store.js'
 import { createE2BApplicationCompiler } from './application-artifact-runtime.js'
+import { BUILDER_BASE_AGENT_INSTRUCTIONS } from './application-starter.js'
 
 const BUILDER_THREAD_PREFIX = 'conexus-builder:'
 const threadIdForProject = (projectId: string): string => `${BUILDER_THREAD_PREFIX}${projectId}`
@@ -35,6 +36,25 @@ const messageDate = (value: unknown): string => {
   const date = value instanceof Date ? value : new Date(String(value))
   return Number.isNaN(date.valueOf()) ? new Date(0).toISOString() : date.toISOString()
 }
+type ProjectableBuilderMessage = Readonly<{
+  id: string
+  role: string
+  type?: string
+  content: unknown
+  createdAt: unknown
+}>
+export const projectBuilderMessages = (messages: readonly ProjectableBuilderMessage[]) => Object.freeze(messages
+  .flatMap((message) => {
+    const role: 'user' | 'assistant' | 'system' | null = message.role === 'signal' && message.type === 'user'
+      ? 'user'
+      : message.role === 'user' || message.role === 'assistant' || message.role === 'system'
+        ? message.role
+        : null
+    const text = messageText(message.content)
+    return role && text.trim() ? [{ id: message.id, role, text, createdAt: messageDate(message.createdAt) }] : []
+  })
+  .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
+  .map((message) => Object.freeze(message)))
 
 export const createConfiguredBuilderModule = ({ database, builder, projectSource, applicationArtifacts, launchPreview, model, modelIdentity, validateModelCredential, origin, resolveCurrentSession, brainReader }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
@@ -84,7 +104,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   })
   const sharedAgent = createCodingAgent({
     id: 'conexus-builder-coding-agent', name: 'Conexus Coding Worker', model, workspace: undefined,
-    editor: false, instructions: 'Work only in the Session Workspace. Implement the authorized Project request and report the visible result.', tools: {},
+    editor: false, instructions: BUILDER_BASE_AGENT_INSTRUCTIONS, tools: {},
   })
   const sharedController = new AgentController<Record<string, unknown>>({
     id: 'conexus-builder-controller', storage: sessionStorage, memory: sessionMemory,
@@ -124,12 +144,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
       const history = thread
         ? await sessionMemory.recall({ threadId, resourceId: projectId, page: 0, perPage: 50 })
         : { messages: [] }
-      const messages = history.messages.map((message) => Object.freeze({
-        id: message.id,
-        role: message.role === 'user' || message.role === 'assistant' || message.role === 'system' ? message.role : 'system' as const,
-        text: messageText(message.content),
-        createdAt: messageDate(message.createdAt),
-      }))
+      const messages = projectBuilderMessages(history.messages)
       return Object.freeze({
         projectId,
         threadId,

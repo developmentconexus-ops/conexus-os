@@ -11,6 +11,7 @@ import { Sandbox } from 'e2b'
 import type { BuilderObservation } from '../../../../packages/builder-observation/src/index.mjs'
 import { createMastraObservationMapper, notifyObservation } from './runtime-observation.js'
 import {
+  BUILDER_BASE_AGENT_INSTRUCTIONS,
   FIXED_APPLICATION_STARTER_INSTRUCTIONS,
   materializeFixedApplicationStarter,
 } from './application-starter.js'
@@ -163,6 +164,8 @@ export const classifyCodingResult = (input: Readonly<{ changed: boolean; summary
   summary: input.summary,
 })
 
+export const shouldMaterializeApplicationStarter = (input: Readonly<{ legacy: boolean; mode?: 'BUILD' | 'PLAN' }>): boolean => input.legacy || input.mode === 'BUILD'
+
 export const createMastraE2BCodingWorkerRuntime = (
   config: E2BBuilderRuntimeConfig,
 ): CodingWorkerRuntime => {
@@ -266,11 +269,13 @@ export const createMastraE2BCodingWorkerRuntime = (
         ].join(' && ')])
         if (!prepared.success) throw new Error('BUILDER_SOURCE_MATERIALIZATION_REFUSED')
 
-        await materializeFixedApplicationStarter({
-          repositoryRoot: '/workspace/repo',
-          directCommand: (command, args) => direct(command, [...args]),
-          writeFiles: sandbox.writeFiles.bind(sandbox),
-        })
+        if (shouldMaterializeApplicationStarter({ legacy, ...(input.mode ? { mode: input.mode } : {}) })) {
+          await materializeFixedApplicationStarter({
+            repositoryRoot: '/workspace/repo',
+            directCommand: (command, args) => direct(command, [...args]),
+            writeFiles: sandbox.writeFiles.bind(sandbox),
+          })
+        }
 
         const workspace = new Workspace({ sandbox })
         const agent = config.sharedHarness?.agent ?? createCodingAgent({
@@ -280,9 +285,7 @@ export const createMastraE2BCodingWorkerRuntime = (
           workspace,
           editor: false,
           instructions: [
-            'Work only in /workspace/repo. Implement the human intent with the smallest sustainable change.',
-            'Inspect before editing, run focused checks when available, and do not claim acceptance or mutate any Conexus owner state.',
-            'Never add a Git remote, use network access, read outside /workspace/repo, or expose credentials.',
+            BUILDER_BASE_AGENT_INSTRUCTIONS,
             'Send brief Portuguese progress updates before starting work and before important edits. Report only the action and visible result; never reveal chain-of-thought.',
             FIXED_APPLICATION_STARTER_INSTRUCTIONS,
           ].join(' '),
@@ -303,6 +306,11 @@ export const createMastraE2BCodingWorkerRuntime = (
         let controller: AgentController<Record<string, unknown>> | undefined = config.sharedHarness?.controller
         let unsubscribe: (() => void) | undefined
         let abortListener: (() => void) | undefined
+        let activeSession: Awaited<ReturnType<AgentController<Record<string, unknown>>['createSession']>> | undefined
+        let activeController: AgentController<Record<string, unknown>> | undefined
+        let runError: unknown
+        let cleanupError: unknown
+        const runScope = config.sharedHarness ? `builder:${executionId}` : 'builder'
         try {
           if (config.sharedHarness || (config.sessionStorage && config.sessionMemory)) {
             if (config.sharedHarness) await config.sharedHarness.ready
@@ -319,16 +327,17 @@ export const createMastraE2BCodingWorkerRuntime = (
               workspace,
               })
             }
-            const activeController = controller
+            activeController = controller
             if (!activeController) throw new Error('BUILDER_CONTROLLER_REFUSED')
             if (!config.sharedHarness) await activeController.init()
             const session = await activeController.createSession({
               resourceId: input.projectId,
               ownerId: input.projectId,
-              scope: config.sharedHarness ? `builder:${actorRunId}` : 'builder',
+              scope: runScope,
               threadId: `conexus-builder:${input.projectId}`,
               workspace,
             })
+            activeSession = session
             if (input.mode) await session.mode.switch({ modeId: input.mode.toLowerCase() })
             if (input.signal) {
               abortListener = () => session.abort()
@@ -408,6 +417,7 @@ export const createMastraE2BCodingWorkerRuntime = (
             summaryText = fullOutput.text
           }
         } catch (error) {
+          runError = error
           for (const event of mapper.finish()) publish(event)
           throw error
         } finally {
@@ -415,9 +425,22 @@ export const createMastraE2BCodingWorkerRuntime = (
           abortListener = undefined
           unsubscribe?.()
           unsubscribe = undefined
+          if (activeSession) {
+            try {
+              const deleted = activeController
+                ? await activeController.deleteSession({ resourceId: input.projectId, scope: runScope })
+                : false
+              if (!deleted) cleanupError = new Error('BUILDER_SESSION_DELETE_FAILED')
+            } catch (error) {
+              if (!runError) cleanupError = error
+              else publish({ kind: 'ACTIVITY', activityId: `session-cleanup-${executionId}`, label: 'WORKSPACE', state: 'failed' })
+            }
+            activeSession = undefined
+          }
           if (!config.sharedHarness) await controller?.destroy()
           controller = undefined
         }
+        if (cleanupError) throw cleanupError
         const finalized = await direct('sh', ['-lc', [
           'test -z "$(git -C /workspace/repo remote)"',
           `test "$(git -C /workspace/repo rev-parse HEAD)" = "${input.baseSourceRevision}"`,

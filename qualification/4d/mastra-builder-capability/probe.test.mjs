@@ -468,3 +468,48 @@ test('Session sendMessage exposes the persisted user message ID for BuilderRun c
     await rm(root, { recursive: true, force: true })
   }
 })
+
+test('native deleteSession removes live state while preserving the Project Thread', async () => {
+  const firstRoot = await mkdtemp(join(tmpdir(), 'conexus-4d-delete-session-first-'))
+  const secondRoot = await mkdtemp(join(tmpdir(), 'conexus-4d-delete-session-second-'))
+  const storage = new LibSQLStore({ id: `delete-session-store-${crypto.randomUUID()}`, url: `file:${join(firstRoot, 'controller.db')}` })
+  const memory = new Memory({ storage, options: { lastMessages: 20 } })
+  const model = {
+    specificationVersion: 'v2', provider: 'conexus-delete-session', modelId: 'delete-session-probe', supportedUrls: {},
+    async doGenerate() { return { content: [{ type: 'text', text: 'Resposta de lifecycle.' }], finishReason: 'stop', usage: { inputTokens: 0, outputTokens: 1, totalTokens: 1 }, warnings: [] } },
+    async doStream() { return { stream: new ReadableStream({ start(stream) { stream.enqueue({ type: 'stream-start', warnings: [] }); stream.enqueue({ type: 'text-start', id: 'delete-session-text' }); stream.enqueue({ type: 'text-delta', id: 'delete-session-text', delta: 'Resposta de lifecycle.' }); stream.enqueue({ type: 'text-end', id: 'delete-session-text' }); stream.enqueue({ type: 'finish', finishReason: 'stop', usage: { inputTokens: 0, outputTokens: 1, totalTokens: 1 } }); stream.close() } }) } },
+  }
+  const controller = new AgentController({
+    id: `delete-session-controller-${crypto.randomUUID()}`, storage, memory,
+    agent: createCodingAgent({ id: 'delete-session-agent', name: 'Delete Session Probe', model, instructions: 'Mechanical probe.', memory, workspace: undefined }),
+    modes: [{ id: 'build', name: 'Build', availableTools: [] }], defaultModeId: 'build',
+  })
+  const workspace = (root, id) => new Workspace({ id, filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const threadId = 'conexus-builder:delete-session-project'
+  const resourceId = 'delete-session-project'
+  await controller.init()
+  const firstWorkspace = workspace(firstRoot, 'delete-session-workspace-a')
+  const secondWorkspace = workspace(secondRoot, 'delete-session-workspace-b')
+  try {
+    const first = await controller.createSession({ resourceId, ownerId: resourceId, scope: 'builder:run-1', threadId, workspace: firstWorkspace })
+    await first.sendMessage({ content: 'Mensagem preservada do operador.' })
+    const persisted = await first.thread.listActiveMessages()
+    const userMessage = persisted.find((message) => message.role === 'signal' && message.type === 'user' && message.content.parts?.some((part) => part.type === 'text' && part.text === 'Mensagem preservada do operador.'))
+    assert.ok(userMessage)
+    assert.equal(await controller.deleteSession({ resourceId, scope: 'builder:run-1' }), true)
+    assert.equal(await controller.getSessionByResource(resourceId, 'builder:run-1'), undefined)
+
+    const second = await controller.createSession({ resourceId, ownerId: resourceId, scope: 'builder:run-2', threadId, workspace: secondWorkspace })
+    const messages = await second.thread.listActiveMessages()
+    assert.equal(second.thread.getId(), threadId)
+    assert.equal(messages.some((message) => message.id === userMessage.id && message.content.parts?.some((part) => part.type === 'text' && part.text === 'Mensagem preservada do operador.')), true)
+    assert.notEqual(firstWorkspace, secondWorkspace)
+  } finally {
+    await controller.destroy()
+    await firstWorkspace.destroy()
+    await secondWorkspace.destroy()
+    await storage.close()
+    await rm(firstRoot, { recursive: true, force: true })
+    await rm(secondRoot, { recursive: true, force: true })
+  }
+})
