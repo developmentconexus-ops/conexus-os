@@ -64,6 +64,13 @@ export type BuilderSourcePort = Readonly<{
     claimedCandidateSourceRevision: string
     resultBundle: Uint8Array
   }>): Promise<BuilderCandidate>
+  admitSourceResult(input: Readonly<{
+    projectId: string
+    executionId: string
+    baseSourceRevision: string
+    claimedResultSourceRevision: string
+    resultBundle: Uint8Array
+  }>): Promise<BuilderCandidate>
   listSourceTree(input: Readonly<{ projectId: string; sourceRevision: string }>): Promise<BuilderSourceTree>
   readSourceFile(input: Readonly<{ projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
 }>
@@ -119,7 +126,7 @@ const { readFileSync, writeFileSync } = require('node:fs')
 const request = JSON.parse(readFileSync('/run/conexus/request.json', 'utf8'))
 const ownership = JSON.parse(readFileSync('/run/conexus/ownership.json', 'utf8'))
 const oid = /^[0-9a-f]{40}$/
-const ref = 'refs/conexus/changes/' + request.changeId
+const ref = request.custodyRef || 'refs/conexus/changes/' + request.changeId
 const env = {
   GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HOME: '/tmp',
   GIT_TERMINAL_PROMPT: '0', GIT_ALLOW_PROTOCOL: 'file', GIT_NO_REPLACE_OBJECTS: '1'
@@ -475,6 +482,7 @@ export const createBuilderSourcePort = ({
           baselineSourceRevision,
           sourceChangeId,
           claimedCandidateSourceRevision: input.claimedCandidateSourceRevision,
+          custodyRef: (input as Readonly<{ custodyRef?: string }>).custodyRef,
         })}\n`, { flag: 'wx', mode: 0o400 })
         await writeFile(ownershipPath, `${JSON.stringify(sourceOwnership)}\n`, { flag: 'wx', mode: 0o400 })
         await (await import('node:fs/promises')).mkdir(outputRoot, { mode: 0o700 })
@@ -506,6 +514,26 @@ export const createBuilderSourcePort = ({
       } finally {
         await rm(temporary, { recursive: true, force: true })
       }
+    },
+    admitSourceResult: async (input) => {
+      if (!isIdentity(input.projectId) || !isIdentity(input.executionId) ||
+        !/^[0-9a-f]{40}$/.test(input.baseSourceRevision) || !/^[0-9a-f]{40}$/.test(input.claimedResultSourceRevision) ||
+        input.resultBundle.byteLength === 0 || input.resultBundle.byteLength > 256 * 1024 * 1024) {
+        throw new Error('BUILDER_SOURCE_RESULT_INPUT_REFUSED')
+      }
+      const port = createBuilderSourcePort({ git, storageRoot, sourceOwnership })
+      return port.admitCandidate({
+        projectId: input.projectId,
+        changeId: input.executionId,
+        actorRunId: input.executionId,
+        baseSourceRevision: input.baseSourceRevision,
+        changeBaseSourceRevision: input.baseSourceRevision,
+        baselineSourceRevision: input.baseSourceRevision,
+        sourceChangeId: null,
+        claimedCandidateSourceRevision: input.claimedResultSourceRevision,
+        resultBundle: input.resultBundle,
+        custodyRef: `refs/conexus/sources/${input.claimedResultSourceRevision}`,
+      } as Parameters<BuilderSourcePort['admitCandidate']>[0])
     },
     listSourceTree: async (input) => {
       const value = await inspectSource({ ...input, operation: 'tree' })

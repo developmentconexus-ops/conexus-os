@@ -114,6 +114,26 @@ test('Builder admits a new Change from an exact prior Change source without movi
         storageRoot,
         sourceOwnership: { 'app.txt': 'APP-OWNED' },
       })
+      git(work, ['checkout', '-B', 'source-result', baseline])
+      writeFileSync(resolve(work, 'app.txt'), 'source-oriented\n')
+      git(work, ['add', 'app.txt'])
+      git(work, ['commit', '-m', 'source-oriented result'])
+      const sourceResult = git(work, ['rev-parse', 'HEAD'])
+      const sourceResultBundle = resolve(root, 'source-result.bundle')
+      git(work, ['branch', '-f', 'conexus-result', 'HEAD'])
+      git(work, ['bundle', 'create', sourceResultBundle, 'refs/heads/conexus-result'])
+      const executionId = '66666666-6666-4666-8666-666666666666'
+      const sourceAdmission = await port.admitSourceResult({
+        projectId, executionId, baseSourceRevision: baseline,
+        claimedResultSourceRevision: sourceResult, resultBundle: readFileSync(sourceResultBundle),
+      })
+      assert.equal(sourceAdmission.candidateSourceRevision, sourceResult)
+      assert.equal(git(root, ['--git-dir', repository, 'rev-parse', `refs/conexus/sources/${sourceResult}`]), sourceResult)
+      assert.notEqual(spawnSync('git', ['--git-dir', repository, 'show-ref', `refs/conexus/changes/${executionId}`], { encoding: 'utf8' }).status, 0)
+      await assert.rejects(port.admitSourceResult({
+        projectId, executionId, baseSourceRevision: baseline,
+        claimedResultSourceRevision: sourceResult, resultBundle: readFileSync(sourceResultBundle),
+      }), /CURRENT_CANDIDATE_STALE/)
       assert.equal(git(root, ['--git-dir', repository, 'rev-parse', 'refs/heads/main']), baseline)
       assert.equal(git(root, ['--git-dir', repository, 'rev-parse', `refs/conexus/changes/${parentChangeId}`]), parent)
       const parentBundle = await port.prepareSource({

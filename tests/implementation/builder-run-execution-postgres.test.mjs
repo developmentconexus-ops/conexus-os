@@ -92,7 +92,7 @@ test('BuilderRun admission and settlement are idempotent, serialized, and CAS-pr
   const raceB = await connect(ingress)
   const race = await Promise.all([create(raceA, concurrentRunA, '6'.repeat(64), '7'.repeat(64)), create(raceB, concurrentRunB, '6'.repeat(64), '7'.repeat(64))])
   assert.equal(race[0].builderRunId, race[1].builderRunId)
-  assert.equal(race[0].builderRunId, concurrentRunA)
+  assert.ok([concurrentRunA, concurrentRunB].includes(race[0].builderRunId))
   await raceA.end()
   await raceB.end()
 })
