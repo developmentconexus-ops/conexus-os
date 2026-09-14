@@ -2,290 +2,125 @@
 
 This file owns current status, allowed work and the exact next action.
 [The index](index.md) routes to Product, architecture, contracts and decisions.
-Evidence and old delivery plans do not grant execution.
+Tasks own implementation detail. Evidence and old delivery plans do not grant
+execution.
 
 ## Current direction and tracking
 
-Build an internal Metalnobre MVP, not a platform ready for sale. A person asks
-the Builder to create and change an ordinary-code application without choosing
-its stack or configuring infrastructure. Reuse Mastra and existing Conexus
-implementation. Add manually maintained store knowledge and the narrow SDK and
-Sankhya operations the app needs. No particular test app defines Conexus.
+Build the internal Metal Nobre MVP before widening the platform.
 
-Business Product Agents, automatic Brain learning, generic app backends and
-broad automation are deferred. The broader Product contracts remain discoverable;
-this pilot does not claim to implement all of them.
+The ordinary Builder experience is now defined by C-020 and the
+[Mastra-native Builder reference](reference/builder-c020-mastra-native.md):
 
-The operator approved the revised internal pilot on 2026-09-13. Provide the
-development environment and company knowledge without making every Preview
-depend on an independent model reviewer. Working source, compiled Preview and
-quality review are separate. The current increment is the session-first Builder
-core: one deterministic Project thread, Mastra-owned messages and session events,
-and Conexus-owned authorization, active Turn, working source and last-good
-Preview. The [pilot implementation sequence](tasks/builder-first-app.md#internal-pilot-refactoring)
-replaces verifier repair as the primary objective. Brain experimentation depends
-on a usable create/open/continue cycle, not completion of every recovery proof.
+```text
+open/create Project
+→ Build
+→ persistent Project conversation
+→ coding agent works on current Project source
+→ successful build updates Preview automatically
+→ continue the same conversation and source
+```
 
-R1–R7 and L1–L6 are historical plans, not the current execution queue.
-Their names in code, migrations and receipts do not require stage readmission.
-Keep useful implementation and the original proof limits.
+The user does not administer Change, Plan, WorkUnit, ActorRun, CodingSession,
+manual Preview preparation or infrastructure choices in the ordinary path.
 
-| Delivery | State | Observable result and evidence | Next action |
+Mastra owns the coding-harness mechanics it already provides: shared
+AgentController, createCodingAgent, persistent Thread/messages, live Session,
+Workspace tools, modes, tasks/display state and streaming events. Conexus owns
+only Product/system authority that Mastra must not decide: Project authorization,
+BuilderRun durable execution facts, working-source custody/CAS, Git result
+admission, compiler/ArtifactRevision and last-good Preview.
+
+The current implementation checkpoint is `8ebbc8c` on
+`analysis/internal-mvp-2026-09-12`. Verification/current-projection coupling was
+separated from historical R1 source-pin custody. The new BuilderRun foundation
+exists, but BLD-24 is not yet a usable end-to-end coding path.
+
+| Delivery | State | Observable result | Exact next action |
 | --- | --- | --- | --- |
-| [Repository cleanup](tasks/repository-consolidation.md) | DELIVERED | Current graph and final changed Builder leaf passed; published in `9945329`; no claim that the app is ready | No further cleanup prerequisite |
-| [First Builder-created app](tasks/builder-first-app.md#internal-pilot-refactoring) | IN PROGRESS | Session-first persistence, terminal working-source cleanup, Session/Turn API, real E2B execution and the authenticated two-change browser journey are proved locally | Begin the approved authored Brain-rule experiment; keep the remaining recovery and verification proofs explicit |
-| [Manually maintained Brain](tasks/builder-first-app.md#internal-pilot-refactoring) | PLANNED | Existing context code retained; real authored rule consumption remains unproved | Begin the real-rule experiment when create/open/continue works; do not wait for complete first-app closure |
-| [Narrow SDK and Sankhya](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Existing integration proof retained; the app must perform a real authorized operation | Select that operation before defining its SDK details |
-| [Colleague uses the app](tasks/builder-first-app.md#keep-the-product-outcome) | PLANNED | Another authorized person must open the usable app; creator Preview does not establish this | Detail access when the app is usable |
+| Repository operating-model cleanup | DELIVERED | Current repository method and verification graph are usable without historical-stage choreography | No new cleanup prerequisite |
+| C-020 Mastra-native Builder core | IN PROGRESS | Project Thread persistence and BuilderRun foundation exist; no-Change end-to-end execution is not yet composed | Prove the three exact Mastra assumptions, then implement the shared harness + BuilderRun/source/build/Preview path |
+| P-01 Builder UI | PLANNED | Preview-dominant Builder with chat right, Build/Plan and technical detail on demand | Start only after BLD-23/24 work end-to-end without Change |
+| Project direct-to-Build entry | PLANNED | New Project opens Build with composer ready; no manual Inception prerequisite | Implement after core session API works |
+| First real Brain rule | PLANNED | Builder discovers and uses one real authorized business rule without formula repeated in prompt | Start as soon as create/open/continue is usable; do not wait for all legacy cleanup |
+| Narrow SDK / Sankhya capability | PLANNED | Generated app can invoke one real governed company operation | Select the first operation after the Brain-backed app is usable |
+| Colleague use | PLANNED | Another authorized person can open and use the app | Detail access after the app is usable |
 
-States are PLANNED, IN PROGRESS, VALIDATING, DELIVERED and BLOCKED. BLOCKED
-requires a concrete reason and the action that removes it. DELIVERED requires
-the named observable result, not only written code or passing unit tests.
-This table owns delivery state. Tasks own implementation steps and observations;
-do not maintain duplicate status boards. Future deliveries stay summarized until
-their consumer needs detail. These labels are not CI gates.
+States are `PLANNED`, `IN PROGRESS`, `VALIDATING`, `DELIVERED`, and `BLOCKED`.
+`DELIVERED` requires the observable result, not only code or passing unit tests.
+This table is the only mutable delivery-status board.
 
 ## Program state
 
-| Work | Status | Preserved result | Reopen trigger |
-| --- | --- | --- | --- |
-| Product implementation | IN PROGRESS / INTERNAL PILOT REFACTORING | Real streaming and previous app retained; historical refused candidate remains UNVERIFIED | Working-source continuity, technical Preview eligibility, real Brain consumption and recovery proof |
+| Work | Status | Current truth |
+| --- | --- | --- |
+| Product implementation | IN PROGRESS / INTERNAL PILOT | Builder architecture is ratified; runtime migration from Change to Mastra-native C-020 is active |
+| C-020 architecture | CURRENT / OPERATOR RATIFIED | `Project + Mastra Thread/Messages + BuilderRun + Working Source + last-good Preview` |
+| Change/Plan/WorkUnit/ActorRun/CodingSession | LEGACY / MIGRATING CALLERS | Historical proof remains; no new ordinary Builder work may depend on them after migration |
+| Historical R1 foundation pins | HISTORICAL AUDIT | May remain red against current owners; not a current MVP blocker and must not be rewritten to manufacture green |
 
-Continuation readiness = INTERNAL PILOT / APPROVED REFACTORING / OWNER ALIGNMENT
-
-The historical verifier refusal and four generated/hash verification failures
-remain recorded evidence/debt. They are not the next MVP blockers and must not
-delay the session-first core. They remain relevant when a named future claim
-requires the corresponding proof.
+The historical verifier refusal and old generated/hash failures remain recorded
+Evidence/debt. They are not the next Builder blockers unless a current claim
+explicitly depends on them.
 
 ## Current grant
 
-On 2026-09-13 the operator requested autonomous execution until the approved
-pilot is usable for their own browser test. Continue implementation and real
-local validation without per-step approval. Stop only for a genuine missing
-operator decision, external authority or material contradiction requiring Pro
-input. Leave the owned local pilot running and provide its tested address when
-ready. This does not authorize publication, production writes or merge.
+On 2026-09-13 the operator ratified C-020, then explicitly approved the
+Mastra-native refinement recorded in
+[builder-c020-mastra-native.md](reference/builder-c020-mastra-native.md).
 
-On 2026-09-13 the operator approved proceeding with the reviewed pilot proposal
-and the Pro clarification that Brain experimentation may precede first-app
-closure. Update existing owners and implement the bounded pilot described in
-the current task. This supersedes the earlier verifier-first priority and the
-universal independent-review requirement for the proposed technical Preview
-path, not authorization or source isolation. Reconcile affected Product and
-wire owners before their implementation; do not implement a bypass flag or
-mark an unreviewed candidate VERIFIED. Preserve historical records unchanged.
-Routine reversible implementation and targeted checks are included. Existing
-named local model/E2B proof authority remains; no public deployment, business
-write, commit, push, PR or merge is granted by this continuation.
+Routine reversible implementation and focused local verification are authorized
+inside the current internal pilot. Continue automatically across mechanical
+units; stop only for:
 
-On 2026-09-13 the operator approved the session-first core increment. Do not
-redesign the UI or add another session owner. Verify the exact installed Mastra
-`1.63.2` composition without upgrading the framework; prove deterministic
-Project thread persistence across AgentController/store rebind and a different
-physical sandbox; correct the root cause that can leave
-`project_working_state` in `CODING` after a terminal Turn; then expose the
-smallest Session/Turn API through the existing app-first Builder UI. Preserve
-existing Git custody, continuation, no-code response, artifact retention and
-reviewer-free Preview behavior. This increment and its real local browser proof
-are recorded in the task owner; remaining recovery and verification proofs are
-not silently declared complete.
+- a genuine Product contradiction not answered by C-020;
+- missing external credentials/authority required for the exact live proof;
+- risk of destructive non-disposable data effect.
 
-On 2026-09-12, after the live streaming result, the operator authorized publishing
-the current implementation and evidence to `analysis/internal-mvp-2026-09-12`
-for GPT Pro review. This supersedes the streaming grant's publication restriction
-for this snapshot only. The verifier refusal and four verification failures
-remain open. No merge, deployment or delivery acceptance is authorized.
+This does not authorize production writes, public hosting, merge to `main`, or
+rewriting historical receipts/migrations to manufacture green status.
 
-On 2026-09-12 the operator approved implementing and validating the researched
-Builder streaming increment and requested Arena where useful. This supersedes
-the research-only restriction below for the narrow Builder observation wire,
-runtime event projection, existing React UI and their verification. Compare
-executable bounded-feed candidates with Luna, integrate the smallest sustainable
-result, and use the admitted model/E2B configuration through real login and UI
-to prove live streaming. Routine reversible implementation and checks are
-included. Preserve the generated app and existing candidate/Preview authority.
-No replacement runtime, durable chat owner, business writes, hosting, publication
-or merge is authorized.
-
-On 2026-09-12 the operator requested deep research and a grounded architecture
-proposal for streaming Builder chat, using Mastra, Context7, APIs/SDKs and
-similar platforms including Palantir. Compare the smallest viable integrations
-with the existing UI, background execution and Preview. Keep this a focused
-research/design increment; do not silently implement a new chat contract,
-install dependencies or replace the runtime. Preserve the real generated app.
-The ongoing first-app grant remains, with streaming design addressed before
-further material UI changes. Use Luna high/xhigh researchers.
-
-On 2026-09-12 the operator authorized committing and pushing the current work
-to the existing analysis branch for GPT Pro review. This is an implementation
-snapshot, not acceptance of the first-app delivery or permission to merge,
-deploy, or change production data. Full candidate verification and the complete
-generated-app journey remain outstanding.
-
-On 2026-09-12 the operator requested autonomous continuation until the aligned
-roadmap/task implementation is finished and verified. Continue across mechanical
-unit boundaries without asking for another approval. Keep the full first-app
-outcome and the current semantic owners; a partial service or test result does
-not complete this objective. Existing external-effect and publication limits
-remain. Ask only for a genuinely missing Product decision or new authority.
-
-On 2026-09-12 the operator approved the complete local Preview consumer proposed
-after Builder preparation. This includes the necessary bounded contract changes,
-exact-candidate invocation and late-result settlement, authorized HTTP asset
-serving, iframe and new-tab integration in the existing Build UI, and real
-browser verification of refusal, failure and reopening without compilation.
-Routine reversible implementation and checks are included without per-file
-approval. Use architect where the integration shape needs validation and
-interrogate for a contested decision. Preserve Builder, Registry, MAR and I&A
-ownership. This supersedes the prior exclusion of HTTP serving and ready Preview
-for this consumer only. It does not authorize public ingress, hosting, production
-database changes, business writes, publication or merge. Existing named live-proof
-authority remains. New material Product contradictions still return to their owner.
-
-On 2026-09-12 the operator approved proceeding with the recorded Builder
-preparation consumer. Replace the internal transient compilation API with
-retained preparation, reuse the existing Registry adapter and executor pool,
-migrate current callers, and prove reuse, refusal and cancellation. Routine
-reversible implementation and verification are included. No new HTTP serving,
-Preview readiness, database schema, public ingress or publication is admitted
-by this bounded continuation. Existing named live-proof authority remains.
-
-On 2026-09-12 the operator authorized the proposed Registry implementation and
-required real paid calls and company-data validation rather than treating local
-tests as Product proof. Implement the existing Registry unit, including migration
-026, current-loader/catalog adaptation, typed adapter and real disposable-DB
-checks. Routine reversible integration and verification are included. This grant
-supersedes the older Product-code pause for this unit only.
-
-Live validation of the first-app journey may use the existing admitted model and
-E2B configuration for app creation, compilation and the second-change proof when
-the corresponding integration is ready. Do not run unrelated paid experiments
-or publish replacement provider images implicitly. The operator authorized any
-read-only Sankhya query. Source inspection found no admitted customer mapping,
-so use the existing fixed TGFCAB key-conformance aggregate for company 1,
-with no names, identifiers or contact details in output. Use the real existing
-authentication and observer modules. Synthetic descriptor coordinates in a
-module proof must not be presented as a registered Project or Hub journey.
-Do not mutate business records or export raw customer data. Preserve credentials
-outside logs/Git. A successful query alone is not an app/SDK integration claim.
-No public ingress, production database migration, commit, push, PR or merge is
-authorized by this continuation.
-
-The operator explicitly authorized installing a local development CA in
-Windows/WSL, keeping its private key outside the repository. The CA and server
-certificate are prepared under the user's private `conexus-local-tls` directory.
-The operator reported WSL/Windows trust installation; the Windows certificate
-thumbprint matches. WSL system verification and a strict Chromium iframe/new-tab
-probe passed after the authorized local CA was also imported into user NSS trust.
-No certificate-error bypass was used. Windows browser navigation and the real
-Hub/Keycloak journey remain unproven. Do not change WSL interoperability or
-collect the operator password.
-
-The operator approved proceeding locally and deferring public-domain access,
-tunnels and hosting. Use the tested nested `conexus.localhost` browser profile
-to avoid DNS/hosts-file setup. This direction does not authorize public exposure,
-DNS changes or an implicit system root-certificate installation. Prepare the
-local certificate binding and make any required trust-store effect explicit.
-
-On 2026-09-12 the operator requested the proposed PostgreSQL retention proof.
-Run a bounded local experiment with a disposable database, synthetic app files
-and the existing Registry draft. The grant includes temporary probe scripts,
-current baseline migrations, the identified narrow schema permission correction
-in that disposable database, mechanical SQL name-disambiguation in an isolated
-candidate when the actual call exposes it, and runtime-role retain/read/reconnect and refusal
-checks. The operator's continuation includes a disposable persistent-volume
-database restart and bounded larger-payload reads to close the recorded proof
-limits. It does not include restarting the actual Hub or a company database.
-Record every candidate modification and distinguish fixture setup from
-the actual storage path. Do not replace admission functions to manufacture success.
-This does not authorize integrating Product code, invoking live providers,
-accessing company data, publishing changes or claiming a composed Hub/browser proof.
-
-On 2026-09-12 the operator approved roadmap-plus-task tracking and requested
-root-led orchestration with subagents when useful. Organize the existing records
-and continue bounded planning for **Create and open**. Inspect code and retained
-drafts, resolve observable facts locally, and use external research for named
-unknowns. Ask the operator for material Product choices or new execution effects,
-not permission for each read or documentation edit. Do not restart whole-platform
-planning or rerun successful compiler experiments without a new question.
-
-The cleanup and its publication are complete at `9945329`. Preserve all existing
-Product candidates and original receipts. That publication grant is not an
-ongoing permission to publish later changes. This tracking/planning approval
-does not start Product code, live model/E2B/Sankhya calls, company-data access,
-production activation, commits, pushes, PRs or merges. Keep `main` unchanged.
-
-Use only Luna subagents, with high or xhigh reasoning. Root is the integrator;
-parallel writers use isolated copies and disjoint file scopes. Review follows
-the amended methods and the concrete risk, not the end of a named stage.
+The current branch publication is an analysis/pilot checkpoint, not delivery
+acceptance.
 
 ## Execution board
 
-The completed [repository consolidation](tasks/repository-consolidation.md)
-contains the approved cut and actual proof, including the unresolved seed mismatch
-found by additional S3 checking. Return to [the first-app task](tasks/builder-first-app.md). Do not reopen a
-whole-platform design or require a purge of all historical documents first.
+The active implementation owner is
+[`docs/tasks/builder-first-app.md`](tasks/builder-first-app.md).
 
-The compiler experiment validated one fixed frontend build mechanism and the
-production adapter in isolated runs. It did not prove real Builder generation,
-Registry retention, authorized Preview serving or the complete user journey.
-That result predates the current Registry integration. The corrected SQL,
-current-loader changes and adapter are now in the checkout and passed the
-71-step current verification graph. This proves the bounded Registry unit,
-not the real Builder/Preview journey. The original draft remains unchanged at
-`/home/leandrotheodoro/.cache/conexus-registry-draft-iKOXtK` for provenance.
+Use PSTACK/poteto-mode throughout:
+
+```text
+fix root cause
+subtract before add
+use Mastra natively before creating Conexus machinery
+preserve Product authority outside the framework
+smallest verifiable increment
+browser proof for user-visible claims
+```
+
+Do not open another architecture program or Arena unless one of the explicit
+reopen triggers in the C-020 reference fires.
 
 ## Exact next action
 
-**Reconcile owners to C-020, execute the no-Change BuilderRun path, prove the
-Project create/open/continue journey, then run the P-01 session UI and Brain
-rule slices.**
+1. Run the three exact Mastra 1.63.2 probes defined in
+   `docs/reference/builder-c020-mastra-native.md`:
+   shared-Controller Project isolation, PLAN tool restriction, and persisted
+   user-message ID correlation.
+2. Normalize migration discipline: restore published migration 028 bytes/digest
+   to the first published form and move all subsequent schema evolution to
+   forward migration 029+.
+3. Compose the no-Change Builder path using one shared AgentController/
+   createCodingAgent, per-run Session/Workspace/E2B, minimal BuilderRun,
+   source-identity Git custody, automatic compile and last-good Preview.
+4. Prove BLD-23/BLD-24 end-to-end with zero new Change rows, response-only,
+   successful edit, failed-build repair, late-result refusal and restart/reopen.
+5. Only then migrate the web Builder to the P-01 session API and native live
+   Session events.
+6. Make new Project entry land directly in Build.
+7. Start the first real Brain-rule experiment immediately after
+   create/open/continue is usable.
 
-Reconcile the existing Builder/Product/wire owners with the
-[approved pilot delta](tasks/builder-first-app.md#internal-pilot-refactoring).
-The local proof now covers the session-first core without changing the UI. It
-uses the exact Mastra `1.63.2` storage composition, deterministic Project
-thread rebind after controller and store recreation, a different physical
-sandbox, and honest terminal working-source transitions for no-code, compile
-failure and retained last-good Preview. Run the configured E2B path next. Add
-the Session/Turn API and app-first UI only after that live path works. Start the
-real Brain experiment after create/open/continue works and its own knowledge
-and authorization prerequisites are present.
-The historical verifier refusal and four hash/generated-projection failures are
-recorded debt, not this increment's blockers. Do not rebuild compiler, storage
-or authentication without a concrete contradiction. Keep 024/025 held. No
-hosting, publication, production database changes or historical-stage restart
-is authorized.
-
-## Approved local platform delivery design
-
-This heading remains a route for older L task links. Their ordered delivery
-design is historical. The smaller internal MVP above is current.
-Read [the first-app agreement](tasks/builder-first-app.md#directed-mvp-consolidation)
-for included and deferred behavior. Reopen a semantic owner only when the next
-real consumer exposes a contradiction.
-
-## Task reading and research protocol
-
-Start from the current grant, index and task. Consult the
-[engineering method](development/engineering-method.md) for material decisions,
-[repository method](development/repository-method.md) for repository operations,
-and [realization guide](development/production-realization-guide.md) for a named
-implementation question. Read architecture, Mitra/Factory research or current
-official/Context7 docs only for a concrete uncertainty. No mandatory global
-reading or research round.
-
-## History and routing
-
-The published analysis snapshot is
-[21f042f on the analysis branch](https://github.com/developmentconexus-ops/conexus-os/tree/21f042f551404fcf0af21252796718302b4af208).
-It preserves earlier roadmap grants, phase tables and suspended candidates.
-Publication did not merge or accept them. See
-[snapshot verification limits](tasks/builder-first-app.md#analysis-snapshot-verification).
-
-Current semantic decisions remain in [the decision register](decisions/index.md).
-[The index](index.md) retains paths to R1/R2 proof, the unaccepted R3 candidate,
-L1–L6 proposals and the original qualification receipts. Historical proof remains
-true only for its named subject; no prior waiver or experiment allowance carries
-forward automatically.
+Do not block this sequence on complete legacy deletion or historical R1 pin
+reconciliation.
