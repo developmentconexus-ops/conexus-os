@@ -14,9 +14,8 @@ if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
 const { shouldMaterializeApplicationStarter } = await import(pathToFileURL(resolve(buildRoot, 'runtime.js')).href)
 
 test('starter materialization follows the ordinary mode boundary', () => {
-  assert.equal(shouldMaterializeApplicationStarter({ legacy: false, mode: 'BUILD' }), true)
-  assert.equal(shouldMaterializeApplicationStarter({ legacy: false, mode: 'PLAN' }), false)
-  assert.equal(shouldMaterializeApplicationStarter({ legacy: true, mode: undefined }), true)
+  assert.equal(shouldMaterializeApplicationStarter({ mode: 'BUILD' }), true)
+  assert.equal(shouldMaterializeApplicationStarter({ mode: 'PLAN' }), false)
 })
 
 test.after(async () => { await rm(buildRoot, { recursive: true, force: true }) })

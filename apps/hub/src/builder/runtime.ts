@@ -48,17 +48,6 @@ export type CodingWorkerInput = CodingWorkerCommonInput & Readonly<{
   executionId: string
 }>
 
-type LegacyCodingWorkerInput = CodingWorkerCommonInput & Readonly<{
-  accountId?: string
-  changeId: string
-  workUnitId: string
-  actorRunId: string
-  admissionToken: string
-  sourceChangeId?: string | null
-  correctionFindings?: readonly Readonly<{ findingId: string; findingRevision: string; summary: string }>[]
-  recentTurns?: readonly Readonly<{ intent: string; summary: string }>[]
-}>
-
 type CodingWorkerResultScope = Readonly<{
   runtimeId: 'mastra-native-e2b-v1'
   projectId: string
@@ -68,34 +57,17 @@ type CodingWorkerResultScope = Readonly<{
   summary: string
 }>
 
-type LegacyCodingWorkerResultScope = Readonly<{
-  runtimeId: 'mastra-native-e2b-v1'
-  projectId: string
-  changeId: string
-  workUnitId: string
-  actorRunId: string
-  admissionToken: string
-  sandboxId: string
-  baseSourceRevision: string
-  summary: string
-}>
-
 type CodingWorkerResultVariant<TScope> = TScope & (
-  | Readonly<{ kind: 'CANDIDATE'; resultSourceRevision: string; resultBundle: Uint8Array }>
+  | Readonly<{ kind: 'SOURCE_CHANGED'; resultSourceRevision: string; resultBundle: Uint8Array }>
   | Readonly<{ kind: 'RESPONSE_ONLY' }>
 )
 
-type LegacyCodingWorkerResult = LegacyCodingWorkerResultScope & (
-  | Readonly<{ kind: 'CANDIDATE'; candidateSourceRevision: string; resultBundle: Uint8Array }>
-  | Readonly<{ kind: 'RESPONSE_ONLY' }>
-)
-
-export type CodingWorkerResult = CodingWorkerResultVariant<CodingWorkerResultScope> | LegacyCodingWorkerResult
+export type CodingWorkerResult = CodingWorkerResultVariant<CodingWorkerResultScope>
 
 export type CodingWorkerRuntime = Readonly<{
   kind: 'REMOTE_E2B'
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
-  execute(input: CodingWorkerInput | LegacyCodingWorkerInput): Promise<CodingWorkerResult>
+  execute(input: CodingWorkerInput): Promise<CodingWorkerResult>
 }>
 
 export type E2BBuilderRuntimeConfig = Readonly<{
@@ -159,12 +131,12 @@ const sessionToolLabel = (toolName: string): 'READ_FILES' | 'EDIT_FILES' | 'RUN_
   return 'WORKSPACE'
 }
 
-export const classifyCodingResult = (input: Readonly<{ changed: boolean; summary: string }>): Readonly<{ kind: 'CANDIDATE' | 'RESPONSE_ONLY'; summary: string }> => Object.freeze({
-  kind: input.changed ? 'CANDIDATE' : 'RESPONSE_ONLY',
+export const classifyCodingResult = (input: Readonly<{ changed: boolean; summary: string }>): Readonly<{ kind: 'SOURCE_CHANGED' | 'RESPONSE_ONLY'; summary: string }> => Object.freeze({
+  kind: input.changed ? 'SOURCE_CHANGED' : 'RESPONSE_ONLY',
   summary: input.summary,
 })
 
-export const shouldMaterializeApplicationStarter = (input: Readonly<{ legacy: boolean; mode?: 'BUILD' | 'PLAN' }>): boolean => input.legacy || input.mode === 'BUILD'
+export const shouldMaterializeApplicationStarter = (input: Readonly<{ mode?: 'BUILD' | 'PLAN' }>): boolean => input.mode === 'BUILD'
 
 export const createMastraE2BCodingWorkerRuntime = (
   config: E2BBuilderRuntimeConfig,
@@ -179,35 +151,22 @@ export const createMastraE2BCodingWorkerRuntime = (
     kind: 'REMOTE_E2B' as const,
     modelIdentity: Object.freeze({ ...config.modelIdentity }),
     execute: async (input) => {
-      const legacy = 'changeId' in input
-      const executionId = legacy ? input.changeId : input.executionId
-      const workUnitId = legacy ? input.workUnitId : executionId
-      const actorRunId = legacy ? input.actorRunId : executionId
-      const admissionToken = legacy ? input.admissionToken : executionId
-      const sourceChangeId = legacy ? input.sourceChangeId : undefined
-      const correctionFindings = legacy ? input.correctionFindings : undefined
-      const recentTurns = legacy ? input.recentTurns : undefined
-      if (![input.projectId, executionId, workUnitId, actorRunId, admissionToken].every(safeIdentity) ||
-        (sourceChangeId !== null && sourceChangeId !== undefined && !safeIdentity(sourceChangeId)) ||
+      const executionId = input.executionId
+      if (![input.projectId, executionId].every(safeIdentity) ||
         !oid.test(input.baseSourceRevision) || !input.intent.trim() || input.sourceBundle.byteLength === 0 ||
         input.sourceBundle.byteLength > 256 * 1024 * 1024) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
-      if (recentTurns && (recentTurns.length > 8 || recentTurns.some((turn) =>
-        !turn.intent.trim() || !turn.summary.trim() || turn.intent.length > 2_000 || turn.summary.length > 4_000))) {
-        throw new Error('BUILDER_RUNTIME_CONTEXT_REFUSED')
-      }
 
       const brainContext = config.brainReader && input.accountId
         ? formatBrainContext(await config.brainReader({ accountId: input.accountId, projectId: input.projectId, query: input.intent }))
         : ''
       config.validateModelCredential()
 
-      const logicalSandboxId = `conexus-rb-${actorRunId}`
+      const logicalSandboxId = `conexus-builder-${executionId}`
       const timeoutMs = config.timeoutMs ?? 15 * 60_000
       const metadata = {
         'mastra-sandbox-id': logicalSandboxId,
         'conexus-project-id': input.projectId,
         'conexus-execution-id': executionId,
-        'conexus-actor-run-id': actorRunId,
       }
       const physical = await Sandbox.create(config.templateId, {
         apiKey: config.apiKey,
@@ -255,21 +214,16 @@ export const createMastraE2BCodingWorkerRuntime = (
         // bound to the one physical E2B incarnation admitted above.
         sandbox.executeCommand = direct
         await sandbox.writeFiles([{ path: '/workspace/source.bundle', content: Buffer.from(input.sourceBundle) }])
-        const admittedSourceRef = sourceChangeId
-          ? `refs/conexus/changes/${sourceChangeId}`
-          : correctionFindings?.length
-            ? `refs/conexus/changes/${executionId}`
-          : 'refs/heads/main'
         const prepared = await direct('sh', ['-lc', [
           'rm -rf /workspace/repo',
           'git init --quiet --initial-branch=main /workspace/repo',
-          `git -C /workspace/repo fetch --quiet --no-tags /workspace/source.bundle ${admittedSourceRef}:refs/heads/conexus-source`,
+          'git -C /workspace/repo fetch --quiet --no-tags /workspace/source.bundle refs/heads/main:refs/heads/conexus-source',
           `git -C /workspace/repo checkout --detach ${input.baseSourceRevision}`,
           'test -z "$(git -C /workspace/repo remote)"',
         ].join(' && ')])
         if (!prepared.success) throw new Error('BUILDER_SOURCE_MATERIALIZATION_REFUSED')
 
-        if (shouldMaterializeApplicationStarter({ legacy, ...(input.mode ? { mode: input.mode } : {}) })) {
+        if (shouldMaterializeApplicationStarter(input)) {
           await materializeFixedApplicationStarter({
             repositoryRoot: '/workspace/repo',
             directCommand: (command, args) => direct(command, [...args]),
@@ -279,7 +233,7 @@ export const createMastraE2BCodingWorkerRuntime = (
 
         const workspace = new Workspace({ sandbox })
         const agent = config.sharedHarness?.agent ?? createCodingAgent({
-          id: `builder-${actorRunId}`,
+          id: `builder-${executionId}`,
           name: 'Conexus Coding Worker',
           model: config.model,
           workspace,
@@ -291,17 +245,9 @@ export const createMastraE2BCodingWorkerRuntime = (
           ].join(' '),
           tools: {},
         })
-        const correction = correctionFindings?.length
-          ? ` This is the one admitted correction attempt. Resolve these retained verification findings: ${correctionFindings.map((finding) => `[${finding.findingId}] ${finding.summary}`).join('; ')}.`
-          : ''
-        const recent = recentTurns?.length
-          ? ` Prior bounded Builder turns for continuity, not authority: ${recentTurns.map((turn) => `[intent] ${turn.intent} [result] ${turn.summary}`).join(' | ')}.`
-          : ''
         const mapper = createMastraObservationMapper()
         const publish = (event: BuilderObservation) => notifyObservation(input.observe, event)
-        const prompt = legacy
-          ? `Project ${input.projectId}; Change ${input.changeId}; exact work-unit parent ${input.baseSourceRevision}. Human intent: ${input.intent}.${brainContext}${recent}${correction}`
-          : `Human request: ${input.intent}.${brainContext}`
+        const prompt = `Human request: ${input.intent}.${brainContext}`
         let summaryText = ''
         let controller: AgentController<Record<string, unknown>> | undefined = config.sharedHarness?.controller
         let unsubscribe: (() => void) | undefined
@@ -317,7 +263,7 @@ export const createMastraE2BCodingWorkerRuntime = (
             else {
               if (!config.sessionStorage || !config.sessionMemory) throw new Error('BUILDER_SESSION_CONFIG_REFUSED')
               controller = new AgentController<Record<string, unknown>>({
-              id: `builder-controller-${actorRunId}`,
+              id: `builder-controller-${executionId}`,
               storage: config.sessionStorage,
               memory: config.sessionMemory,
               initialState: { yolo: true },
@@ -345,7 +291,7 @@ export const createMastraE2BCodingWorkerRuntime = (
               else input.signal.addEventListener('abort', abortListener, { once: true })
             }
             let assistantText = ''
-            const textBlockId = `session-${actorRunId}`
+            const textBlockId = `session-${executionId}`
             let textStarted = false
             let agentEndReason: string | undefined
             const toolLabels = new Map<string, 'READ_FILES' | 'EDIT_FILES' | 'RUN_COMMAND' | 'WORKSPACE'>()
@@ -463,12 +409,7 @@ export const createMastraE2BCodingWorkerRuntime = (
         }
         if (classification.kind === 'RESPONSE_ONLY') {
           if (sandbox.sandboxId !== observedSandboxId || input.signal?.aborted) throw new Error('BUILDER_LATE_RESULT_REFUSED')
-          if (!legacy) return Object.freeze({ ...scope, kind: 'RESPONSE_ONLY' as const })
-          return Object.freeze({
-            runtimeId: scope.runtimeId, projectId: scope.projectId, changeId: input.changeId,
-            workUnitId, actorRunId, admissionToken, sandboxId: scope.sandboxId,
-            baseSourceRevision: scope.baseSourceRevision, summary: scope.summary, kind: 'RESPONSE_ONLY' as const,
-          })
+          return Object.freeze({ ...scope, kind: 'RESPONSE_ONLY' as const })
         }
         const committed = await direct('sh', ['-lc', [
           'git -C /workspace/repo -c user.name="Conexus Coding Worker" -c user.email="worker@conexus.invalid" commit -m "Conexus Builder candidate"',
@@ -477,19 +418,11 @@ export const createMastraE2BCodingWorkerRuntime = (
           'git -C /workspace/repo bundle create /workspace/result.bundle refs/heads/conexus-result',
         ].join(' && ')])
         if (!committed.success) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
-        const candidateSourceRevision = (await direct('git', ['-C', '/workspace/repo', 'rev-parse', 'HEAD'])).stdout.trim()
-        if (!oid.test(candidateSourceRevision)) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
+        const resultSourceRevision = (await direct('git', ['-C', '/workspace/repo', 'rev-parse', 'HEAD'])).stdout.trim()
+        if (!oid.test(resultSourceRevision)) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
         const resultBundle = await sandbox.e2b.files.read('/workspace/result.bundle', { format: 'bytes' })
         if (sandbox.sandboxId !== observedSandboxId || input.signal?.aborted) throw new Error('BUILDER_LATE_RESULT_REFUSED')
-        if (!legacy) return Object.freeze({
-          ...scope, kind: 'CANDIDATE' as const, resultSourceRevision: candidateSourceRevision, resultBundle,
-        })
-        return Object.freeze({
-          runtimeId: scope.runtimeId, projectId: scope.projectId, changeId: input.changeId,
-          workUnitId, actorRunId, admissionToken, sandboxId: scope.sandboxId,
-          baseSourceRevision: scope.baseSourceRevision, summary: scope.summary,
-          kind: 'CANDIDATE' as const, candidateSourceRevision, resultBundle,
-        })
+        return Object.freeze({ ...scope, kind: 'SOURCE_CHANGED' as const, resultSourceRevision, resultBundle })
       } finally {
         await sandbox.destroy().catch(() => undefined)
       }

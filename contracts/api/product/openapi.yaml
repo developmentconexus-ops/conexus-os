@@ -36,22 +36,12 @@ paths:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1members~1{accountId}'
   /api/control/workspaces/{workspaceId}/members/{accountId}/access:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1members~1{accountId}~1access'
-  /api/control/projects/{projectId}/account-grants/{accountId}:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1account-grants~1{accountId}'
   /api/control/workspaces/{workspaceId}/areas/{areaId}/members/{accountId}:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1areas~1{areaId}~1members~1{accountId}'
   /api/control/workspaces/{workspaceId}/areas/{areaId}/access:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1areas~1{areaId}~1access'
-  /api/control/projects/{projectId}/area-grants/{areaId}:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1area-grants~1{areaId}'
   /api/apps/{projectId}/access-context:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1apps~1{projectId}~1access-context'
-  /api/control/projects/{projectId}/app-access:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1app-access'
-  /api/control/projects/{projectId}/app-access-candidates:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1app-access-candidates'
-  /api/control/projects/{projectId}/app-access/{accountId}:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1app-access~1{accountId}'
   /api/control/workspaces:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces'
   /api/control/workspaces/{workspaceId}:
@@ -62,102 +52,20 @@ paths:
     $ref: './project-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1projects'
   /api/control/projects/{projectId}:
     $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}'
-  /api/control/projects/{projectId}/commands/archive:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1commands~1archive'
-  /api/control/projects/{projectId}/commands/duplicate:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1commands~1duplicate'
-  /api/control/projects/{projectId}/inception-investigations:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1inception-investigations'
-  /api/control/projects/{projectId}/baseline:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1baseline'
-  /api/control/projects/{projectId}/baseline/decisions:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1baseline~1decisions'
-  /api/control/projects/{projectId}/baseline-candidates/{candidateBaselineDigest}:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1baseline-candidates~1{candidateBaselineDigest}'
-  /api/control/projects/{projectId}/baseline-candidates/{candidateBaselineDigest}/assistant/queries:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1baseline-candidates~1{candidateBaselineDigest}~1assistant~1queries'
-  /api/control/projects/{projectId}/brain-binding:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1brain-binding'
-  /api/control/projects/{projectId}/brain-context:
-    $ref: './project-brain-context-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1brain-context'
-  /api/control/projects/{projectId}/connection-bindings:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1connection-bindings'
-  /api/control/projects/{projectId}/commands/set-connection-binding:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1commands~1set-connection-binding'
-  /api/control/projects/{projectId}/commands/remove-connection-binding:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1commands~1remove-connection-binding'
-  /api/control/projects/{projectId}/capabilities:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1capabilities'
-  /api/control/projects/{projectId}/capabilities/{capabilityId}:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1capabilities~1{capabilityId}'
-  /api/control/projects/{projectId}/model-policies:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1model-policies'
-  /api/control/projects/{projectId}/data-resources:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-resources'
-  /api/control/projects/{projectId}/data-resources/{dataResourceId}:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-resources~1{dataResourceId}'
-  /api/control/projects/{projectId}/data-explorer/sources:
-    $ref: './project-data-explorer-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-explorer~1sources'
-  /api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects:
-    $ref: './project-data-explorer-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-explorer~1sources~1{dataSourceId}~1objects'
-  /api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects/{dataObjectId}:
-    $ref: './project-data-explorer-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-explorer~1sources~1{dataSourceId}~1objects~1{dataObjectId}'
-  /api/control/projects/{projectId}/data-explorer/sources/{dataSourceId}/objects/{dataObjectId}/rows:query:
-    $ref: './project-data-explorer-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1data-explorer~1sources~1{dataSourceId}~1objects~1{dataObjectId}~1rows:query'
-  /api/control/projects/{projectId}/product-agents:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1product-agents'
-  /api/control/projects/{projectId}/product-agents/{agentId}:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1product-agents~1{agentId}'
   /api/control/workspaces/{workspaceId}/product-agents:
     $ref: './project-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1product-agents'
-  /api/control/projects/{projectId}/changes:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes'
-  /api/control/projects/{projectId}/changes/{changeId}:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}'
-  /api/control/projects/{projectId}/changes/{changeId}/plan:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1plan'
-  /api/control/projects/{projectId}/changes/{changeId}/plan/decisions:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1plan~1decisions'
-  /api/control/projects/{projectId}/changes/{changeId}/progress:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1progress'
-  /api/control/projects/{projectId}/changes/{changeId}/diff:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1diff'
   /api/control/projects/{projectId}/source/tree:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1source~1tree'
   /api/control/projects/{projectId}/source/file:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1source~1file'
-  /api/control/projects/{projectId}/preview:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1preview'
-  /api/control/projects/{projectId}/preview-preparations:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1preview-preparations'
-  /api/control/projects/{projectId}/preview-launches:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1preview-launches'
-  /api/control/projects/{projectId}/changes/{changeId}/findings:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1findings'
-  /api/control/projects/{projectId}/changes/{changeId}/findings/{findingId}:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1findings~1{findingId}'
-  /api/control/projects/{projectId}/changes/{changeId}/findings/{findingId}/commands/close:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1findings~1{findingId}~1commands~1close'
-  /api/control/projects/{projectId}/changes/{changeId}/evidence:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1evidence'
-  /api/control/projects/{projectId}/changes/{changeId}/evidence/{evidenceId}:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1evidence~1{evidenceId}'
-  /api/control/projects/{projectId}/assistant/queries:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1assistant~1queries'
-  /api/control/projects/{projectId}/changes/{changeId}/execution-detail:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1execution-detail'
-  /api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1product-agent-drafts'
-  /api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts/{draftId}:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1product-agent-drafts~1{draftId}'
-  /api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts/{draftId}/commands/revise:
-    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1changes~1{changeId}~1product-agent-drafts~1{draftId}~1commands~1revise'
   /api/control/projects/{projectId}/builder-session:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session'
   /api/control/projects/{projectId}/builder-session/preview:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1preview'
   /api/control/projects/{projectId}/builder-session/messages:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1messages'
+  /api/control/projects/{projectId}/builder-session/runs/{builderRunId}/stream:
+    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1runs~1{builderRunId}~1stream'
   /api/control/workspaces/{workspaceId}/brain:
     $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain'
   /api/control/workspaces/{workspaceId}/brain/revisions:
@@ -176,8 +84,6 @@ paths:
     $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1publications'
   /api/control/workspaces/{workspaceId}/brain/health:
     $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1health'
-  /api/control/projects/{projectId}/analytic-query-catalog:
-    $ref: './brain-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1analytic-query-catalog'
   /api/control/connectors:
     $ref: './connection-paths.yaml#/paths/~1api~1control~1connectors'
   /api/control/connectors/{connectorDefinitionId}:
@@ -194,18 +100,6 @@ paths:
     $ref: './connection-paths.yaml#/paths/~1api~1control~1connections~1{connectionId}~1qualifications'
   /api/control/connections/{connectionId}/qualifications/{qualificationId}:
     $ref: './connection-paths.yaml#/paths/~1api~1control~1connections~1{connectionId}~1qualifications~1{qualificationId}'
-  /api/control/projects/{projectId}/releases:
-    $ref: './release-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1releases'
-  /api/control/projects/{projectId}/releases/{releaseId}:
-    $ref: './release-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1releases~1{releaseId}'
-  /api/control/projects/{projectId}/promotions:
-    $ref: './release-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1promotions'
-  /api/control/projects/{projectId}/promotions/{promotionId}:
-    $ref: './release-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1promotions~1{promotionId}'
-  /api/control/projects/{projectId}/serving-state:
-    $ref: './release-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1serving-state'
-  /api/control/projects/{projectId}/environments/{environmentId}/conformance:
-    $ref: './release-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1environments~1{environmentId}~1conformance'
   /api/apps/{projectId}/agents/{agentId}/conversations:
     $ref: './par-paths.yaml#/paths/~1api~1apps~1{projectId}~1agents~1{agentId}~1conversations'
   /api/apps/{projectId}/agents/{agentId}/conversations/{conversationId}:
@@ -224,32 +118,6 @@ paths:
     $ref: './par-paths.yaml#/paths/~1api~1runtime~1projects~1{projectId}~1approval-requests~1{approvalRequestId}'
   /api/runtime/projects/{projectId}/approval-requests/{approvalRequestId}/decisions:
     $ref: './par-paths.yaml#/paths/~1api~1runtime~1projects~1{projectId}~1approval-requests~1{approvalRequestId}~1decisions'
-  /api/control/projects/{projectId}/agents/{agentId}/triggers:
-    $ref: './par-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1agents~1{agentId}~1triggers'
-  /api/control/projects/{projectId}/agents/{agentId}/triggers/{triggerId}:
-    $ref: './par-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1agents~1{agentId}~1triggers~1{triggerId}'
-  /api/control/projects/{projectId}/agents/{agentId}/triggers/{triggerId}/commands/enable:
-    $ref: './par-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1agents~1{agentId}~1triggers~1{triggerId}~1commands~1enable'
-  /api/control/projects/{projectId}/agents/{agentId}/triggers/{triggerId}/commands/disable:
-    $ref: './par-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1agents~1{agentId}~1triggers~1{triggerId}~1commands~1disable'
-  /api/control/projects/{projectId}/effect-attempts:
-    $ref: './gateway-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1effect-attempts'
-  /api/control/projects/{projectId}/effect-attempts/{effectAttemptId}:
-    $ref: './gateway-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1effect-attempts~1{effectAttemptId}'
-  /api/control/projects/{projectId}/managed-jobs:
-    $ref: './mar-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1managed-jobs'
-  /api/control/projects/{projectId}/job-runs:
-    $ref: './mar-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1job-runs'
-  /api/control/projects/{projectId}/job-runs/{jobRunId}:
-    $ref: './mar-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1job-runs~1{jobRunId}'
-  /api/control/projects/{projectId}/jobs/{jobId}/runs:
-    $ref: './mar-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1jobs~1{jobId}~1runs'
-  /api/control/projects/{projectId}/activity:
-    $ref: './observability-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1activity'
-  /api/control/projects/{projectId}/execution-observations/{observationId}:
-    $ref: './observability-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1execution-observations~1{observationId}'
-  /api/control/projects/{projectId}/usage-cost-summary:
-    $ref: './observability-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1usage-cost-summary'
   /api/control/workspaces/{workspaceId}/audit-records:
     $ref: './observability-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1audit-records'
   /api/control/workspaces/{workspaceId}/audit-records/{auditRecordId}:

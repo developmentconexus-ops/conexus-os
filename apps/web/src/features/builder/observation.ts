@@ -77,10 +77,3 @@ export function observeBuilderRun(
 ): Promise<void> {
   return observeUrl(`/api/control/projects/${encodeURIComponent(projectId)}/builder-session/runs/${encodeURIComponent(builderRunId)}/stream`, signal, update, true)
 }
-
-export function observeChange(
-  projectId: string, changeId: string, signal: AbortSignal,
-  update: (parts: readonly ObservationPart[]) => void,
-): Promise<void> {
-  return observeUrl(`/protocol/projects/${encodeURIComponent(projectId)}/builder-changes/${encodeURIComponent(changeId)}/stream`, signal, update, false)
-}

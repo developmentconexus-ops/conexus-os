@@ -23,10 +23,7 @@ type ApplicationCompilerCoordinates = Readonly<{
   signal?: AbortSignal
 }>
 
-export type ApplicationCompilerInput = ApplicationCompilerCoordinates & (
-  | Readonly<{ executionId: string }>
-  | Readonly<{ changeId: string }>
-)
+export type ApplicationCompilerInput = ApplicationCompilerCoordinates & Readonly<{ executionId: string }>
 
 export type CompiledApplicationFile = Readonly<{
   path: string
@@ -41,10 +38,8 @@ export type CompiledApplication = Readonly<{
   templateRef: string
   recipeSha256: string
   files: readonly CompiledApplicationFile[]
-}> & (
-  | Readonly<{ executionId: string }>
-  | Readonly<{ changeId: string }>
-)
+  executionId: string
+}>
 
 export type ApplicationCompilerRuntime = Readonly<{
   kind: 'REMOTE_E2B'
@@ -82,9 +77,7 @@ const isValidUtf8Text = (content: string): boolean => {
 }
 
 const inputFiles = (input: ApplicationCompilerInput): readonly Readonly<{ path: string; content: string; bytes: Buffer }>[] => {
-  const correlation = input && typeof input === 'object' && ('executionId' in input || 'changeId' in input)
-    ? ('executionId' in input ? input.executionId : input.changeId)
-    : ''
+  const correlation = input && typeof input === 'object' ? input.executionId : ''
   if (!input || typeof input !== 'object' || !safeIdentity(input.projectId) || !safeIdentity(correlation) || !sourceRevisionPattern.test(input.sourceRevision) ||
     !Array.isArray(input.files) || input.files.length === 0 || input.files.length > MAX_FILES) {
     throw new Error('APPLICATION_COMPILER_INPUT_REFUSED')
@@ -295,7 +288,7 @@ export const createE2BApplicationCompiler = (
         assertNotAborted(input.signal)
         compiled = Object.freeze({
           projectId: input.projectId,
-          ...('executionId' in input ? { executionId: input.executionId } : { changeId: input.changeId }),
+          executionId: input.executionId,
           sourceRevision: input.sourceRevision,
           templateRef: TEMPLATE_REF,
           recipeSha256: RECIPE_SHA256,

@@ -1,59 +1,10 @@
 import { clearAuthorityCache } from '../../app/query-client'
 
-export type Change = Readonly<{
-  changeId: string; projectId: string; intent: string; baselineDigest: string
-  planningDepth: 'DIRECT'; rigorProfile: 'CONTROLLED'; state: string
-  summary?: string | null
-  failureCode?: string | null
-}>
-export type ChangeSummary = Pick<Change, 'changeId' | 'projectId' | 'intent' | 'state'>
-export type ChangePlan = Readonly<{
-  planRevision: string; planningDepth: 'DIRECT'; rigorProfile: 'CONTROLLED'
-  items: readonly Readonly<{ itemId: string; summary: string; state: string }>[]
-  dependencyEdges: readonly unknown[]; acceptanceLinks: readonly unknown[]
-  blockers: readonly string[]; unknowns: readonly string[]; progress: string
-}>
-export type ChangeProgress = Readonly<{
-  planRevision: string; items: readonly Readonly<{ itemId: string; summary: string; state: string }>[]; overallState: string
-}>
-export type ChangeDiff = Readonly<{ baseSourceRevision: string; candidateSourceRevision: string; patch: string }>
 export type SourceTree = Readonly<{
-  sourceRevision: string; entries: readonly Readonly<{ path: string; kind: 'FILE' | 'DIRECTORY' }>[]
+  sourceRevision: string
+  entries: readonly Readonly<{ path: string; kind: 'FILE' | 'DIRECTORY' }>[]
 }>
 export type SourceFile = Readonly<{ sourceRevision: string; path: string; content: string }>
-export type ChangeFinding = Readonly<{
-  findingId: string; changeId: string; findingRevision: string; state: 'OPEN' | 'CLOSED'; summary: string
-}>
-export type ChangeEvidence = Readonly<{
-  evidenceId: string; changeId: string; claim: string; subjectDigest: string
-  provenance: readonly string[]
-}>
-export type BuildPreview = Readonly<{
-  previewId: string
-  subjectKind: 'CURRENT_PROJECT' | 'CHANGE_CANDIDATE'
-  subjectDigest: string
-  ready: boolean
-  verified: boolean
-  previewEligible?: boolean
-  workingSourceRevision?: string
-  activeChangeId?: string | null
-  lastPreviewChangeId?: string | null
-  live: false
-  preparation?: PreviewPreparation
-}>
-
-type PreviewPreparationBase = Readonly<{
-  changeId: string
-  subjectDigest: string
-  attemptId: string
-  expiresAt: string
-}>
-export type PreviewPreparation = PreviewPreparationBase & (
-  | Readonly<{ state: 'PREPARING' }>
-  | Readonly<{ state: 'PREPARED'; artifactRevisionId: string; artifactDigest: string }>
-  | Readonly<{ state: 'FAILED'; code: 'PREPARATION_FAILED' }>
-  | Readonly<{ state: 'EXPIRED' }>
-)
 export type PreviewLaunch = Readonly<{
   entryUrl: string
   previewUrl: string
@@ -72,19 +23,35 @@ export type BuilderSession = Readonly<{
   projectId: string
   messages: readonly BuilderSessionMessage[]
   latestBuilderRun: BuilderRun | null
-  latestCodeChangingRun: Readonly<{ baseSourceRevision: string; resultSourceRevision: string; resultKind: 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' }> | null
-  preview: Readonly<{ workingSourceRevision: string | null; lastGoodSourceRevision: string | null; lastGoodArtifactRevisionId: string | null; lastGoodArtifactDigest: string | null }>
+  latestCodeChangingRun: Readonly<{
+    baseSourceRevision: string
+    resultSourceRevision: string
+    resultKind: 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED'
+  }> | null
+  preview: Readonly<{
+    workingSourceRevision: string | null
+    lastGoodSourceRevision: string | null
+    lastGoodArtifactRevisionId: string | null
+    lastGoodArtifactDigest: string | null
+  }>
   mode: 'BUILD' | 'PLAN'
 }>
 export type BuilderRun = Readonly<{
-  builderRunId: string; projectId: string; state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
-  mode: 'BUILD' | 'PLAN'; baseSourceRevision: string; resultSourceRevision: string | null
-  resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null; failureCode: string | null
+  builderRunId: string
+  projectId: string
+  state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
+  mode: 'BUILD' | 'PLAN'
+  baseSourceRevision: string
+  resultSourceRevision: string | null
+  resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
+  failureCode: string | null
 }>
 export type BuilderMessageAccepted = Readonly<{ builderRun: BuilderRun }>
 
 export class BuilderRequestError extends Error {
-  constructor(readonly status: number | null) { super(status === null ? 'Builder request did not complete' : `Builder request failed with ${status}`) }
+  constructor(readonly status: number | null) {
+    super(status === null ? 'Builder request did not complete' : `Builder request failed with ${status}`)
+  }
 }
 
 const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')
@@ -92,18 +59,19 @@ const request = async (url: string, init: RequestInit = {}): Promise<Response> =
   try {
     const method = (init.method ?? 'GET').toUpperCase()
     return await fetch(url, {
-      ...init, credentials: 'same-origin',
+      ...init,
+      credentials: 'same-origin',
       headers: { ...(init.headers ?? {}), ...(method === 'POST' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) },
     })
-  } catch { throw new BuilderRequestError(null) }
+  } catch {
+    throw new BuilderRequestError(null)
+  }
 }
 const reject = (response: Response): never => {
   if (response.status === 401) clearAuthorityCache()
   throw new BuilderRequestError(response.status)
 }
-const base = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/changes`
 const sourceBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/source`
-const previewBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/preview`
 const sessionBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/builder-session`
 
 export const getBuilderSession = async (projectId: string): Promise<BuilderSession> => {
@@ -115,49 +83,12 @@ export const sendBuilderMessage = async (
   projectId: string, content: string, mode: 'BUILD' | 'PLAN', idempotencyKey: string,
 ): Promise<BuilderMessageAccepted> => {
   const response = await request(`${sessionBase(projectId)}/messages`, {
-    method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
     body: JSON.stringify({ content, mode }),
   })
   if (response.status !== 201) reject(response)
   return response.json() as Promise<BuilderMessageAccepted>
-}
-export const getBuilderSessionTurn = async (projectId: string, turnId: string): Promise<BuilderSession> => {
-  const response = await request(`${sessionBase(projectId)}/turns/${encodeURIComponent(turnId)}`)
-  if (!response.ok) reject(response)
-  return response.json() as Promise<BuilderSession>
-}
-
-export const listChanges = async (projectId: string): Promise<ChangeSummary[]> => {
-  const response = await request(base(projectId))
-  if (!response.ok) reject(response)
-  return response.json() as Promise<ChangeSummary[]>
-}
-export const createChange = async (projectId: string, intent: string, idempotencyKey: string, expectedSourceRevision: string): Promise<Change> => {
-  const response = await request(base(projectId), {
-    method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey }, body: JSON.stringify({ intent, expectedSourceRevision }),
-  })
-  if (response.status !== 201) reject(response)
-  return response.json() as Promise<Change>
-}
-export const getChange = async (projectId: string, changeId: string): Promise<Change> => {
-  const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}`)
-  if (!response.ok) reject(response)
-  return response.json() as Promise<Change>
-}
-export const getChangePlan = async (projectId: string, changeId: string): Promise<ChangePlan> => {
-  const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}/plan`)
-  if (!response.ok) reject(response)
-  return response.json() as Promise<ChangePlan>
-}
-export const getChangeProgress = async (projectId: string, changeId: string): Promise<ChangeProgress> => {
-  const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}/progress`)
-  if (!response.ok) reject(response)
-  return response.json() as Promise<ChangeProgress>
-}
-export const getChangeDiff = async (projectId: string, changeId: string): Promise<ChangeDiff> => {
-  const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}/diff`)
-  if (!response.ok) reject(response)
-  return response.json() as Promise<ChangeDiff>
 }
 export const listProjectSourceTree = async (projectId: string, sourceRevision: string): Promise<SourceTree> => {
   const query = new URLSearchParams({ sourceRevision })
@@ -171,57 +102,10 @@ export const getProjectSourceFile = async (projectId: string, sourceRevision: st
   if (!response.ok) reject(response)
   return response.json() as Promise<SourceFile>
 }
-export const getBuildPreview = async (projectId: string, changeId?: string): Promise<BuildPreview> => {
-  const query = changeId ? `?${new URLSearchParams({ changeId })}` : ''
-  const response = await request(`${previewBase(projectId)}${query}`)
-  if (!response.ok) reject(response)
-  return response.json() as Promise<BuildPreview>
-}
 export const launchBuilderPreview = async (projectId: string): Promise<PreviewLaunch> => {
   const response = await request(`${sessionBase(projectId)}/preview`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
   })
   if (response.status !== 201) reject(response)
   return response.json() as Promise<PreviewLaunch>
-}
-export const prepareBuildPreview = async (projectId: string, input: Readonly<{ changeId: string; subjectDigest: string }>): Promise<PreviewPreparation> => {
-  const response = await request(`${previewBase(projectId)}-preparations`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
-  })
-  if (response.status !== 202) reject(response)
-  return response.json() as Promise<PreviewPreparation>
-}
-export const launchBuildPreview = async (projectId: string, input: Readonly<{
-  changeId: string
-  subjectDigest: string
-  attemptId: string
-  artifactRevisionId: string
-  artifactDigest: string
-}>): Promise<PreviewLaunch> => {
-  const response = await request(`${previewBase(projectId)}-launches`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
-  })
-  if (response.status !== 201) reject(response)
-  return response.json() as Promise<PreviewLaunch>
-}
-export const listChangeFindings = async (projectId: string, changeId: string): Promise<ChangeFinding[]> => {
-  const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}/findings`)
-  if (!response.ok) reject(response)
-  return response.json() as Promise<ChangeFinding[]>
-}
-export const listChangeEvidence = async (projectId: string, changeId: string): Promise<ChangeEvidence[]> => {
-  const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}/evidence`)
-  if (!response.ok) reject(response)
-  return response.json() as Promise<ChangeEvidence[]>
-}
-export const closeChangeFinding = async (
-  projectId: string, changeId: string, findingId: string,
-  expectedFindingRevision: string, resolutionEvidenceIds: readonly string[],
-): Promise<ChangeFinding> => {
-  const response = await request(`${base(projectId)}/${encodeURIComponent(changeId)}/findings/${encodeURIComponent(findingId)}/commands/close`, {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ expectedFindingRevision, resolutionEvidenceIds }),
-  })
-  if (!response.ok) reject(response)
-  return response.json() as Promise<ChangeFinding>
 }

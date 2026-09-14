@@ -14,14 +14,12 @@ const compiled = spawnSync(resolve(repositoryRoot, 'node_modules/.bin/esbuild'),
 if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
 const built = (path) => pathToFileURL(resolve(buildRoot, path)).href
 const { createBuilderSourcePort } = await import(built('source.js'))
-const { classifyCodingResult, createMastraE2BCodingWorkerRuntime } = await import(built('runtime.js'))
+const { classifyCodingResult } = await import(built('runtime.js'))
 
 test.after(() => rmSync(buildRoot, { recursive: true, force: true }))
 
 const projectId = '11111111-1111-4111-8111-111111111111'
-const currentChangeId = '22222222-2222-4222-8222-222222222222'
-const parentChangeId = '99999999-9999-4999-8999-999999999999'
-const actorRunId = '44444444-4444-4444-8444-444444444444'
+const executionId = '44444444-4444-4444-8444-444444444444'
 
 const git = (cwd, args, env = {}) => {
   const result = spawnSync('git', args, {
@@ -198,9 +196,9 @@ test('C-020 source preparation refuses stale or unreachable source subjects', as
     await withSourcePort(fixture, {}, async (port) => {
       const stale = 'b'.repeat(40)
       git(fixture.root, ['--git-dir', fixture.repository, 'update-ref', `refs/conexus/sources/${stale}`, fixture.baseline])
-      await assert.rejects(port.prepareProjectSource({ projectId, executionId: actorRunId, sourceRevision: stale }), /SOURCE_REF_MISMATCH/)
+      await assert.rejects(port.prepareProjectSource({ projectId, executionId: executionId, sourceRevision: stale }), /SOURCE_REF_MISMATCH/)
       const missing = 'c'.repeat(40)
-      await assert.rejects(port.prepareProjectSource({ projectId, executionId: actorRunId, sourceRevision: missing }), /SOURCE_NOT_FOUND/)
+      await assert.rejects(port.prepareProjectSource({ projectId, executionId: executionId, sourceRevision: missing }), /SOURCE_NOT_FOUND/)
     })
   } finally {
     rmSync(fixture.root, { recursive: true, force: true })
@@ -249,7 +247,7 @@ test('C-020 result admission refuses invalid ancestry and mutation shapes', asyn
       await withSourcePort(fixture, {}, async (port) => {
         const result = scenario.create(fixture)
         await assert.rejects(port.admitSourceResult({
-          projectId, executionId: actorRunId, baseSourceRevision: scenario.base(fixture),
+          projectId, executionId: executionId, baseSourceRevision: scenario.base(fixture),
           claimedResultSourceRevision: result.revision, resultBundle: readFileSync(result.bundlePath),
         }), scenario.error, scenario.name)
       })
@@ -273,14 +271,14 @@ test('C-020 result admission refuses unsafe entries and source-ref collisions', 
       const unsafeBundle = resolve(fixture.root, 'unsafe.bundle')
       git(fixture.work, ['bundle', 'create', unsafeBundle, 'refs/heads/conexus-result'])
       await assert.rejects(port.admitSourceResult({
-        projectId, executionId: actorRunId, baseSourceRevision: fixture.baseline,
+        projectId, executionId: executionId, baseSourceRevision: fixture.baseline,
         claimedResultSourceRevision: unsafe, resultBundle: readFileSync(unsafeBundle),
       }), /UNSAFE_ENTRY/)
 
       const collision = createResultBundle(fixture, { branch: 'result-collision', base: fixture.baseline, files: { 'app/collision.ts': 'collision\n' }, message: 'collision result' })
       git(fixture.root, ['--git-dir', fixture.repository, 'update-ref', `refs/conexus/sources/${collision.revision}`, fixture.baseline])
       await assert.rejects(port.admitSourceResult({
-        projectId, executionId: actorRunId, baseSourceRevision: fixture.baseline,
+        projectId, executionId: executionId, baseSourceRevision: fixture.baseline,
         claimedResultSourceRevision: collision.revision, resultBundle: readFileSync(collision.bundlePath),
       }), /SOURCE_REF_COLLISION/)
       assert.equal(git(fixture.root, ['--git-dir', fixture.repository, 'rev-parse', `refs/conexus/sources/${collision.revision}`]), fixture.baseline)
@@ -290,127 +288,13 @@ test('C-020 result admission refuses unsafe entries and source-ref collisions', 
   }
 })
 
-test('Builder admits a source-oriented BuilderRun result without moving main', async () => {
-  const root = mkdtempSync('/tmp/conexus-working-source-')
-  const storageRoot = resolve(root, 'storage')
-  const work = resolve(root, 'work')
-  const repository = resolve(storageRoot, 'projects', projectId)
-  const resultBundle = resolve(root, 'result.bundle')
-  mkdirSync(resolve(storageRoot, 'projects'), { recursive: true })
-  mkdirSync(work)
-  try {
-    git(work, ['init', '--initial-branch=main'])
-    writeFileSync(resolve(work, 'README.md'), 'base\n')
-    git(work, ['add', '--all'])
-    git(work, ['commit', '-m', 'baseline'])
-    const baseline = git(work, ['rev-parse', 'HEAD'])
-    git(root, ['clone', '--bare', work, repository])
-
-    git(work, ['checkout', '-B', 'parent', baseline])
-    writeFileSync(resolve(work, 'app.txt'), 'parent\n')
-    git(work, ['add', 'app.txt'])
-    git(work, ['commit', '-m', 'parent'])
-    const parent = git(work, ['rev-parse', 'HEAD'])
-    git(root, ['--git-dir', repository, 'fetch', work, parent])
-    git(root, ['--git-dir', repository, 'update-ref', `refs/conexus/changes/${parentChangeId}`, parent])
-
-    git(work, ['checkout', '-B', 'result', parent])
-    writeFileSync(resolve(work, 'app.txt'), 'parent\nchild\n')
-    git(work, ['add', 'app.txt'])
-    git(work, ['commit', '-m', 'child'])
-    const candidate = git(work, ['rev-parse', 'HEAD'])
-    git(work, ['branch', '-f', 'conexus-result', 'HEAD'])
-    git(work, ['bundle', 'create', resultBundle, 'refs/heads/conexus-result'])
-
-    const dockerBin = fakeDocker(root)
-    const oldPath = process.env.PATH
-    process.env.PATH = `${dockerBin}:${oldPath}`
-    try {
-      const port = createBuilderSourcePort({
-        git: { verifyAdmittedImage: async () => ({ status: 'VERIFIED' }), createProjectSourceBundle: async () => ({ status: 'BUNDLED' }) },
-        storageRoot,
-        sourceOwnership: { 'app.txt': 'APP-OWNED' },
-      })
-      git(work, ['checkout', '-B', 'source-result', baseline])
-      mkdirSync(resolve(work, 'app'), { recursive: true })
-      writeFileSync(resolve(work, 'app', 'source.ts'), 'source-oriented\n')
-      git(work, ['add', 'app/source.ts'])
-      git(work, ['commit', '-m', 'source-oriented result'])
-      const sourceResult = git(work, ['rev-parse', 'HEAD'])
-      const sourceResultBundle = resolve(root, 'source-result.bundle')
-      git(work, ['branch', '-f', 'conexus-result', 'HEAD'])
-      git(work, ['bundle', 'create', sourceResultBundle, 'refs/heads/conexus-result'])
-      const executionId = '66666666-6666-4666-8666-666666666666'
-      const sourceAdmission = await port.admitSourceResult({
-        projectId, executionId, baseSourceRevision: baseline,
-        claimedResultSourceRevision: sourceResult, resultBundle: readFileSync(sourceResultBundle),
-      })
-      assert.equal(sourceAdmission.resultSourceRevision, sourceResult)
-      assert.equal(git(root, ['--git-dir', repository, 'rev-parse', `refs/conexus/sources/${sourceResult}`]), sourceResult)
-      assert.notEqual(spawnSync('git', ['--git-dir', repository, 'show-ref', `refs/conexus/changes/${executionId}`], { encoding: 'utf8' }).status, 0)
-      const readmitted = await port.admitSourceResult({
-        projectId, executionId, baseSourceRevision: baseline,
-        claimedResultSourceRevision: sourceResult, resultBundle: readFileSync(sourceResultBundle),
-      })
-      assert.equal(readmitted.resultSourceRevision, sourceResult)
-      assert.equal(git(root, ['--git-dir', repository, 'rev-parse', 'refs/heads/main']), baseline)
-      assert.equal(git(root, ['--git-dir', repository, 'rev-parse', `refs/conexus/changes/${parentChangeId}`]), parent)
-      const parentBundle = await port.prepareSource({
-        projectId, actorRunId, sourceRevision: parent, sourceChangeId: parentChangeId, initialSourceRevision: baseline,
-      })
-      assert.ok(parentBundle.byteLength > 0)
-      const admitted = await port.admitCandidate({
-        projectId, changeId: currentChangeId, actorRunId,
-        sourceChangeId: parentChangeId,
-        baselineSourceRevision: baseline,
-        baseSourceRevision: parent,
-        claimedCandidateSourceRevision: candidate,
-        resultBundle: readFileSync(resultBundle),
-      })
-      assert.equal(admitted.baseSourceRevision, parent)
-      assert.equal(admitted.candidateSourceRevision, candidate)
-      assert.match(admitted.patch, /child/)
-      assert.equal(git(root, ['--git-dir', repository, 'rev-parse', 'refs/heads/main']), baseline)
-      assert.equal(git(root, ['--git-dir', repository, 'rev-parse', `refs/conexus/changes/${currentChangeId}`]), candidate)
-    } finally {
-      process.env.PATH = oldPath
-    }
-  } finally {
-    rmSync(root, { recursive: true, force: true })
-  }
-})
-
 test('Coding result classification preserves a response-only turn without a candidate', () => {
   assert.deepEqual(classifyCodingResult({ changed: false, summary: 'No source change was needed.' }), {
     kind: 'RESPONSE_ONLY',
     summary: 'No source change was needed.',
   })
   assert.deepEqual(classifyCodingResult({ changed: true, summary: 'Updated the app.' }), {
-    kind: 'CANDIDATE',
+    kind: 'SOURCE_CHANGED',
     summary: 'Updated the app.',
   })
-})
-
-test('Coding worker bounds continuity context before provider access', async () => {
-  let credentialValidations = 0
-  const runtime = createMastraE2BCodingWorkerRuntime({
-    apiKey: 'fixture-key',
-    templateId: 'fixture:11111111-1111-4111-8111-111111111111',
-    model: { modelId: 'fixture-model' },
-    modelIdentity: { admissionId: 'fixture-admission', providerId: 'fixture-provider', modelId: 'fixture-model' },
-    validateModelCredential: () => { credentialValidations += 1 },
-  })
-  await assert.rejects(runtime.execute({
-    projectId,
-    changeId: currentChangeId,
-    workUnitId: '33333333-3333-4333-8333-333333333333',
-    actorRunId,
-    admissionToken: '55555555-5555-4555-8555-555555555555',
-    intent: 'Continue the app work.',
-    baseSourceRevision: 'a'.repeat(40),
-    sourceBundle: new Uint8Array([1]),
-    recentTurns: Array.from({ length: 9 }, (_, index) => ({ intent: `intent-${index}`, summary: `summary-${index}` })),
-    bindPhysicalSandbox: async () => {},
-  }), /BUILDER_RUNTIME_CONTEXT_REFUSED/)
-  assert.equal(credentialValidations, 0)
 })

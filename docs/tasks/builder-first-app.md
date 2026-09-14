@@ -288,7 +288,9 @@ shared instructions do not drift across ordinary paths
 
 # Slice 4 — Product API + P-01 Preview/Diff simplification
 
-**State:** AUTHORIZED / NEXT
+**State:** PASS / CLOSED
+
+Accepted checkpoint: `e644958c90c3a76a4d820842034059e145d1fcf3`.
 
 ## Goal
 
@@ -403,11 +405,13 @@ current Product path has no Change-era API dependency
 
 The Playwright test remains UI/contract proof, not live composed proof.
 
-**Review gate:** STOP. Do not start Slice 5.
+**Review gate:** CLOSED. Slice 5 is the current authorized implementation slice.
 
 ---
 
 # Slice 5 — Legacy Builder excision
+
+**State:** AUTHORIZED / CURRENT
 
 ## Goal
 

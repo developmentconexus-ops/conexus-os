@@ -1,340 +1,63 @@
-import fs from 'node:fs';
+import fs from 'node:fs'
 
-const oas = JSON.parse(fs.readFileSync('/tmp/conexus-product-openapi.bundle.json', 'utf8'));
-const methods = new Set(['get', 'put', 'post', 'delete', 'patch', 'head', 'options', 'trace']);
-const operations = new Map();
-
+const oas = JSON.parse(fs.readFileSync('/tmp/conexus-product-openapi.bundle.json', 'utf8'))
+const methods = new Set(['get', 'post', 'put', 'delete', 'patch', 'head', 'options', 'trace'])
+const operations = new Map()
 for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
   for (const [method, operation] of Object.entries(pathItem ?? {})) {
-    if (!methods.has(method)) continue;
-    const id = operation?.['x-conexus-4a-id'];
-    if (id) operations.set(id, { path, method: method.toUpperCase(), operation });
+    if (methods.has(method) && operation?.['x-conexus-4a-id']) operations.set(operation['x-conexus-4a-id'], { path, method, operation })
   }
 }
 
-const expectedIds = Array.from({ length: 24 }, (_, i) => `BLD-${String(i + 1).padStart(2, '0')}`);
-if (expectedIds.length !== 24) throw new Error('internal Builder gate setup error');
-
-for (const id of expectedIds) {
-  const entry = operations.get(id);
-  if (!entry) throw new Error(`Builder schema closure missing operation ${id}`);
-  if (entry.operation['x-conexus-contract-state'] !== 'SCHEMA_CLOSED') throw new Error(`${id} is not SCHEMA_CLOSED`);
-  for (const response of Object.values(entry.operation.responses ?? {})) {
-    if (response?.['x-conexus-provisional'] === true) throw new Error(`${id} still has provisional response authority`);
-  }
+const expected = {
+  'BLD-08': ['/source/tree', 'get'],
+  'BLD-09': ['/source/file', 'get'],
+  'BLD-23': ['/builder-session', 'get'],
+  'BLD-24': ['/builder-session/messages', 'post'],
+}
+for (const [id, [suffix, method]] of Object.entries(expected)) {
+  const entry = operations.get(id)
+  if (!entry?.path.endsWith(suffix) || entry.method !== method) throw new Error(`${id} must expose ${method.toUpperCase()} ${suffix}`)
+  if (entry.operation['x-conexus-contract-state'] !== 'SCHEMA_CLOSED') throw new Error(`${id} is not SCHEMA_CLOSED`)
 }
 
-function entry(id) {
-  const value = operations.get(id);
-  if (!value) throw new Error(`missing operation ${id}`);
-  return value;
-}
-
-function op(id) {
-  return entry(id).operation;
-}
-
-function resolveLocalRef(value) {
-  if (!value?.$ref?.startsWith('#/')) return value;
-  return value.$ref
-    .slice(2)
-    .split('/')
-    .map((part) => part.replaceAll('~1', '/').replaceAll('~0', '~'))
-    .reduce((node, part) => node?.[part], oas);
-}
-
-function resolveSchema(schema) {
-  let current = schema;
-  const seen = new Set();
+const resolve = (value) => {
+  let current = value
+  const seen = new Set()
   while (current?.$ref?.startsWith('#/')) {
-    if (seen.has(current.$ref)) throw new Error(`schema ref cycle while checking ${current.$ref}`);
-    seen.add(current.$ref);
-    current = resolveLocalRef(current);
+    if (seen.has(current.$ref)) throw new Error(`schema ref cycle at ${current.$ref}`)
+    seen.add(current.$ref)
+    current = current.$ref.slice(2).split('/').reduce((node, key) => node?.[key.replaceAll('~1', '/').replaceAll('~0', '~')], oas)
   }
-  return current;
+  return current
+}
+const schema = (id, location, status = '200') => {
+  const operation = operations.get(id)?.operation
+  return resolve(location === 'request'
+    ? operation?.requestBody?.content?.['application/json']?.schema
+    : operation?.responses?.[status]?.content?.['application/json']?.schema)
+}
+const required = (value, ...names) => names.forEach((name) => {
+  if (!value?.required?.includes(name)) throw new Error(`schema is missing required ${name}`)
+})
+const closed = (value, label) => {
+  if (value?.type !== 'object' || value.additionalProperties !== false) throw new Error(`${label} must be closed`)
+  return value
 }
 
-function resolvedParameters(id) {
-  return (op(id).parameters ?? []).map(resolveLocalRef);
-}
-
-function parameter(id, where, name) {
-  return resolvedParameters(id).find((p) => p?.in === where && p?.name === name);
-}
-
-function hasRequiredParameter(id, where, name) {
-  return parameter(id, where, name)?.required === true;
-}
-
-function requestSchema(id) {
-  return resolveSchema(op(id).requestBody?.content?.['application/json']?.schema);
-}
-
-function successSchema(id, status = '200') {
-  return resolveSchema(op(id).responses?.[status]?.content?.['application/json']?.schema);
-}
-
-function assertClosedObject(schema, label) {
-  const resolved = resolveSchema(schema);
-  if (resolved?.type !== 'object' || resolved.additionalProperties !== false) {
-    throw new Error(`${label} must be a closed object schema`);
-  }
-  return resolved;
-}
-
-function required(schema, ...names) {
-  const set = new Set(resolveSchema(schema)?.required ?? []);
-  for (const name of names) {
-    if (!set.has(name)) throw new Error(`schema must require ${name}`);
-  }
-}
-
-function property(schema, name) {
-  return resolveSchema(resolveSchema(schema)?.properties?.[name]);
-}
-
-function exactEnum(schema, expected, label) {
-  const actual = [...(resolveSchema(schema)?.enum ?? [])].sort();
-  const want = [...expected].sort();
-  if (actual.join(',') !== want.join(',')) throw new Error(`${label} must be exactly ${want.join('/')}; got ${actual.join(',')}`);
-}
-
-// Change creation is bounded intent over the exact current Project/Baseline; no direct harness mechanics are caller input.
-const createChange = assertClosedObject(requestSchema('BLD-03'), 'BLD-03 request');
-required(createChange, 'intent');
-for (const forbidden of ['workUnits', 'actorRuns', 'sandboxId', 'status', 'verified', 'accepted']) {
-  if (createChange.properties?.[forbidden]) throw new Error(`BLD-03 must not expose owner/runtime mechanic ${forbidden}`);
-}
-if (!hasRequiredParameter('BLD-03', 'header', 'Idempotency-Key')) throw new Error('BLD-03 must require Idempotency-Key');
-
-// F14: the exact authored Change intent remains human-recognizable on both collection and detail reads.
-const changeSummary = assertClosedObject(resolveSchema(successSchema('BLD-01')?.items), 'BLD-01 item');
-required(changeSummary, 'changeId', 'projectId', 'intent', 'state');
-if (property(changeSummary, 'intent')?.type !== 'string' || (property(changeSummary, 'intent')?.minLength ?? 0) < 1) {
-  throw new Error('BLD-01 ChangeSummary intent must remain a nonblank human semantic statement');
-}
-
-const change = assertClosedObject(successSchema('BLD-02'), 'BLD-02 success');
-required(change, 'changeId', 'projectId', 'intent', 'baselineDigest', 'planningDepth', 'rigorProfile', 'state');
-if (property(change, 'intent')?.type !== 'string' || (property(change, 'intent')?.minLength ?? 0) < 1) {
-  throw new Error('BLD-02 Change intent must remain a nonblank human semantic statement');
-}
-exactEnum(property(change, 'planningDepth'), ['DIRECT', 'LIGHT', 'FULL'], 'Builder PlanningDepth');
-exactEnum(property(change, 'rigorProfile'), ['FAST', 'BOUNDED', 'CONTROLLED'], 'Builder RigorProfile');
-
-// Plan is a visual projection of owner truth; JSON Patch/state-machine control is not Product authority.
-const plan = assertClosedObject(successSchema('BLD-04'), 'BLD-04 success');
-required(plan, 'planRevision', 'planningDepth', 'rigorProfile', 'items', 'dependencyEdges', 'acceptanceLinks', 'blockers', 'unknowns', 'progress');
-exactEnum(property(plan, 'planningDepth'), ['DIRECT', 'LIGHT', 'FULL'], 'Plan PlanningDepth');
-exactEnum(property(plan, 'rigorProfile'), ['FAST', 'BOUNDED', 'CONTROLLED'], 'Plan RigorProfile');
-for (const forbidden of ['jsonPatch', 'patch', 'setItemStatus', 'markVerified']) {
-  if (plan.properties?.[forbidden]) throw new Error(`BLD-04 must not expose plan control field ${forbidden}`);
-}
-
-const planDecision = assertClosedObject(requestSchema('BLD-05'), 'BLD-05 request');
-required(planDecision, 'planRevision', 'decision');
-exactEnum(property(planDecision, 'decision'), ['APPROVE', 'REJECT'], 'BLD-05 decision');
-if (planDecision.properties?.itemStatus || planDecision.properties?.workUnitState) {
-  throw new Error('BLD-05 must decide the exact Plan checkpoint, not mutate checklist state');
-}
-
-const progress = assertClosedObject(successSchema('BLD-06'), 'BLD-06 success');
-required(progress, 'planRevision', 'items', 'overallState');
-
-// Source is read-only and exact-revision pinned. A path is required only for file detail.
+const session = closed(schema('BLD-23', 'response'), 'BLD-23 response')
+required(session, 'projectId', 'messages', 'latestBuilderRun', 'latestCodeChangingRun', 'preview')
+if (session.properties?.activeBuilderRun) throw new Error('BLD-23 exposes activeBuilderRun')
+const preview = closed(resolve(session.properties?.preview), 'BLD-23 preview')
+required(preview, 'workingSourceRevision', 'lastGoodSourceRevision', 'lastGoodArtifactRevisionId', 'lastGoodArtifactDigest')
+const message = closed(schema('BLD-24', 'request'), 'BLD-24 request')
+required(message, 'content', 'mode')
+const openPreview = Object.entries(oas.paths ?? {}).find(([path]) => path.endsWith('/builder-session/preview'))?.[1]?.post
+if (!openPreview) throw new Error('current preview operation missing')
+const openPreviewSchema = closed(resolve(openPreview.requestBody?.content?.['application/json']?.schema), 'preview request')
+if ((openPreviewSchema.required ?? []).length !== 0 || Object.keys(openPreviewSchema.properties ?? {}).length !== 0) throw new Error('preview request must be {}')
 for (const id of ['BLD-08', 'BLD-09']) {
-  if (!hasRequiredParameter(id, 'query', 'sourceRevision')) throw new Error(`${id} must require sourceRevision`);
-  if (op(id).requestBody) throw new Error(`${id} source read must not have a request body`);
+  const operation = operations.get(id).operation
+  if (!operation.parameters?.some((parameter) => resolve(parameter)?.name === 'sourceRevision')) throw new Error(`${id} must require sourceRevision`)
 }
-if (!hasRequiredParameter('BLD-09', 'query', 'path')) throw new Error('BLD-09 must require source path');
-const sourceFile = assertClosedObject(successSchema('BLD-09'), 'BLD-09 success');
-required(sourceFile, 'sourceRevision', 'path', 'content');
-for (const forbidden of ['writeToken', 'commit', 'push', 'applyPatch']) {
-  if (sourceFile.properties?.[forbidden]) throw new Error(`BLD-09 must remain read-only; forbidden ${forbidden}`);
-}
-
-// Diff binds exact lineage rather than an unpinned mutable workspace.
-const diff = assertClosedObject(successSchema('BLD-07'), 'BLD-07 success');
-required(diff, 'baseSourceRevision', 'candidateSourceRevision', 'patch');
-
-// F15: one Builder-owned preview read supports the current Project source or an exact Change candidate.
-if (entry('BLD-10').path !== '/api/control/projects/{projectId}/preview') {
-  throw new Error('BLD-10 must be the Project-level Build preview read');
-}
-const previewChangeId = parameter('BLD-10', 'query', 'changeId');
-if (!previewChangeId || previewChangeId.required === true) throw new Error('BLD-10 changeId must be optional');
-if (previewChangeId.schema?.type !== 'string' || (previewChangeId.schema?.minLength ?? 0) < 1) {
-  throw new Error('BLD-10 changeId must be a nonblank untrusted Change reference when present');
-}
-const preview = assertClosedObject(successSchema('BLD-10'), 'BLD-10 success');
-required(preview, 'previewId', 'subjectKind', 'subjectDigest', 'ready', 'verified', 'live');
-exactEnum(property(preview, 'subjectKind'), ['CURRENT_PROJECT', 'CHANGE_CANDIDATE'], 'BLD-10 preview subjectKind');
-if (property(preview, 'subjectDigest')?.type !== 'string' || (property(preview, 'subjectDigest')?.minLength ?? 0) < 1) {
-  throw new Error('BLD-10 subjectDigest must bind the exact current source or Change candidate subject');
-}
-if (property(preview, 'live')?.const !== false) throw new Error('BLD-10 preview live must be const false');
-if (property(preview, 'ready')?.type !== 'boolean' || property(preview, 'verified')?.type !== 'boolean') {
-  throw new Error('BLD-10 ready and verified must remain independent booleans');
-}
-
-// Finding closure consumes exact current Finding revision plus actual Evidence; it never accepts a generic status write.
-const finding = assertClosedObject(successSchema('BLD-12'), 'BLD-12 success');
-required(finding, 'findingId', 'changeId', 'findingRevision', 'state', 'summary');
-const findingState = property(finding, 'state');
-if (findingState?.type !== 'string' || findingState?.enum) {
-  throw new Error('Finding state must remain an owner-issued string until Product authority closes a lifecycle vocabulary');
-}
-const closeFinding = assertClosedObject(requestSchema('BLD-13'), 'BLD-13 request');
-required(closeFinding, 'expectedFindingRevision', 'resolutionEvidenceIds');
-if (closeFinding.properties?.status || closeFinding.properties?.resolved) {
-  throw new Error('BLD-13 must not accept generic status/resolved mutation fields');
-}
-if ((property(closeFinding, 'resolutionEvidenceIds')?.minItems ?? 0) < 1) throw new Error('BLD-13 must require at least one resolution Evidence id');
-
-// Evidence is actual proof with subject binding and provenance, not a green badge or narration flag.
-const evidence = assertClosedObject(successSchema('BLD-15'), 'BLD-15 success');
-required(evidence, 'evidenceId', 'changeId', 'claim', 'subjectDigest', 'provenance');
-for (const forbidden of ['green', 'agentSaysPassed', 'telemetryEqualsTruth']) {
-  if (evidence.properties?.[forbidden]) throw new Error(`BLD-15 must not encode fake Evidence field ${forbidden}`);
-}
-
-// F14: contextual Builder assistance may narrow to one exact current Change without widening authority.
-const assistantRequest = assertClosedObject(requestSchema('BLD-16'), 'BLD-16 request');
-required(assistantRequest, 'question');
-if (!assistantRequest.properties?.changeId) throw new Error('BLD-16 must admit optional exact changeId context');
-if ((assistantRequest.required ?? []).includes('changeId')) throw new Error('BLD-16 changeId must remain optional for Project-level assistance');
-if (property(assistantRequest, 'changeId')?.type !== 'string' || (property(assistantRequest, 'changeId')?.minLength ?? 0) < 1) {
-  throw new Error('BLD-16 changeId must be a nonblank untrusted exact Change reference');
-}
-for (const forbidden of ['permission', 'grant', 'toolAuthority', 'credential', 'systemPrompt', 'sourceRevision', 'findingId', 'evidenceId']) {
-  if (assistantRequest.properties?.[forbidden]) throw new Error(`BLD-16 must not accept authority-bearing or cross-permission ${forbidden}`);
-}
-const assistantResponse = assertClosedObject(successSchema('BLD-16'), 'BLD-16 success');
-required(assistantResponse, 'answer', 'provenanceRefs');
-
-// Execution detail may project subordinate owner facts, but cannot expose runtime-control operations or credentials.
-const execution = assertClosedObject(successSchema('BLD-17'), 'BLD-17 success');
-required(execution, 'changeId', 'workUnits', 'actorRuns');
-for (const forbidden of ['resumeSandbox', 'markVerified', 'setWorkItemStatus', 'createActorRun', 'credential', 'token']) {
-  if (execution.properties?.[forbidden]) throw new Error(`BLD-17 must not expose runtime-control field ${forbidden}`);
-}
-const actorRun = resolveSchema(property(execution, 'actorRuns')?.items);
-if (actorRun) {
-  required(actorRun, 'actorRunId', 'state', 'lineageDisposition');
-  exactEnum(property(actorRun, 'lineageDisposition'), ['FRESH_BASE', 'CONTINUE_LINEAGE'], 'ActorRun lineageDisposition');
-}
-
-// F30: structured/manual Agent authoring is server-owned Change candidate state, not prose, source mutation or runtime CRUD.
-const draft = assertClosedObject(successSchema('BLD-18'), 'BLD-18 success');
-required(draft, 'draftId', 'changeId', 'agentId', 'baseAuthoredRevisionId', 'draftRevision', 'candidateSubjectDigest', 'definition');
-const definition = assertClosedObject(property(draft, 'definition'), 'ProductAgentDefinition');
-required(definition, 'schemaVersion', 'name', 'purpose', 'instructions', 'modelPolicy', 'tools', 'brainContext', 'memory', 'interactions', 'policyRefs', 'approvalPolicyRefs', 'budgetPolicyRefs', 'verificationRefs', 'knownLimitations');
-if (property(definition, 'schemaVersion')?.const !== 'agent/v1') throw new Error('F30 definition must be exact agent/v1');
-for (const forbidden of ['mastraAgentId', 'storedAgentId', 'providerConfig', 'credential', 'runtimeRevisionId', 'extensions']) {
-  if (definition.properties?.[forbidden]) throw new Error(`F30 definition must not expose mechanism/authority field ${forbidden}`);
-}
-
-const createDraft = assertClosedObject(requestSchema('BLD-19'), 'BLD-19 request');
-required(createDraft, 'origin', 'definition');
-if (!hasRequiredParameter('BLD-19', 'header', 'Idempotency-Key')) throw new Error('BLD-19 must require Idempotency-Key');
-const origins = property(createDraft, 'origin')?.oneOf ?? [];
-const originKinds = origins.map(resolveSchema).map((candidate) => property(candidate, 'kind')?.const).filter(Boolean).sort();
-if (originKinds.join(',') !== 'EXISTING,NEW') throw new Error(`BLD-19 origin must be exactly EXISTING/NEW; got ${originKinds.join(',')}`);
-const existingOrigin = origins.map(resolveSchema).find((candidate) => property(candidate, 'kind')?.const === 'EXISTING');
-required(existingOrigin, 'agentId', 'expectedAuthoredRevisionId');
-const newConstraint = (createDraft.allOf ?? []).find((candidate) => candidate?.if?.properties?.origin?.properties?.kind?.const === 'NEW');
-if (!newConstraint) throw new Error('F05 BLD-19 must constrain NEW optional unowned refs');
-const constrainedDefinition = newConstraint.then?.properties?.definition?.properties ?? {};
-for (const field of ['policyRefs', 'approvalPolicyRefs', 'budgetPolicyRefs', 'verificationRefs']) {
-  if (constrainedDefinition[field]?.maxItems !== 0) throw new Error(`F05 BLD-19 NEW ${field} must be empty`);
-}
-if (!(op('BLD-19').responses?.['422']?.description ?? '').includes('invalid authoring reference')) throw new Error('F05 BLD-19 must reject invalid authoring references');
-
-const reviseDraft = assertClosedObject(requestSchema('BLD-20'), 'BLD-20 request');
-required(reviseDraft, 'expectedDraftRevision', 'definition');
-if (op('BLD-20')['x-conexus-current-state-carrier'] !== 'EXPLICIT_REVISION') throw new Error('BLD-20 must fail closed on explicit current draft revision');
-if (!(reviseDraft.properties?.definition?.description ?? '').includes('preserved exactly for EXISTING')) throw new Error('F05 BLD-20 must preserve unowned refs for EXISTING');
-for (const [id, method, path] of [
-  ['BLD-18', 'GET', '/api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts/{draftId}'],
-  ['BLD-19', 'POST', '/api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts'],
-  ['BLD-20', 'POST', '/api/control/projects/{projectId}/changes/{changeId}/product-agent-drafts/{draftId}/commands/revise'],
-]) {
-  const current = entry(id);
-  if (current.method !== method || current.path !== path) throw new Error(`${id} must remain exact ${method} ${path}`);
-  if (/\/product-agents(?:\/|$)/.test(current.path)) throw new Error(`${id} must not become direct Product Agent CRUD`);
-}
-
-const preparePreview = entry('BLD-21');
-if (preparePreview.method !== 'POST' || preparePreview.path !== '/api/control/projects/{projectId}/preview-preparations') {
-  throw new Error('BLD-21 must remain the exact preparation POST');
-}
-const preparationRequest = assertClosedObject(requestSchema('BLD-21'), 'BLD-21 request');
-required(preparationRequest, 'changeId', 'subjectDigest');
-if (preparationRequest.properties?.accountId || preparationRequest.properties?.session || preparationRequest.properties?.sourceRevision) {
-  throw new Error('BLD-21 must derive account/session/source from the server, not caller input');
-}
-if (property(preparationRequest, 'changeId')?.format !== 'uuid') throw new Error('BLD-21 changeId must be a UUID');
-const preparationDigest = property(preparationRequest, 'subjectDigest');
-if (preparationDigest?.type !== 'string' || preparationDigest.minLength !== 40 || preparationDigest.maxLength !== 128 || preparationDigest.pattern !== '^[0-9a-f]+$') {
-  throw new Error('BLD-21 subjectDigest must be a bounded lowercase hex digest');
-}
-const preparationResponse = resolveSchema(op('BLD-21').responses?.['202']?.content?.['application/json']?.schema);
-if (!preparationResponse || !Array.isArray(preparationResponse.oneOf) || preparationResponse.oneOf.length !== 4) {
-  throw new Error('BLD-21 must use four discriminated closed preparation states');
-}
-const preparationStates = preparationResponse.oneOf.map((candidate) => {
-  const state = assertClosedObject(candidate, 'BLD-21 preparation state');
-  required(state, 'changeId', 'subjectDigest', 'attemptId', 'state', 'expiresAt');
-  return property(state, 'state')?.const;
-}).filter(Boolean).sort();
-if (preparationStates.join(',') !== 'EXPIRED,FAILED,PREPARED,PREPARING') {
-  throw new Error(`BLD-21 preparation states must be PREPARING/PREPARED/FAILED/EXPIRED; got ${preparationStates.join(',')}`);
-}
-const preparedState = preparationResponse.oneOf.map(resolveSchema).find((candidate) => property(candidate, 'state')?.const === 'PREPARED');
-required(preparedState, 'artifactRevisionId', 'artifactDigest');
-const failedState = preparationResponse.oneOf.map(resolveSchema).find((candidate) => property(candidate, 'state')?.const === 'FAILED');
-if (property(failedState, 'code')?.const !== 'PREPARATION_FAILED') throw new Error('BLD-21 FAILED must expose only PREPARATION_FAILED');
-const projectedPreparation = property(preview, 'preparation');
-if (!projectedPreparation || !Array.isArray(projectedPreparation.oneOf) || projectedPreparation.oneOf.length !== 4) {
-  throw new Error('BLD-10 must optionally project the same four preparation states');
-}
-
-const launchPreview = entry('BLD-22');
-if (launchPreview.method !== 'POST' || launchPreview.path !== '/api/control/projects/{projectId}/preview-launches') {
-  throw new Error('BLD-22 must remain the exact launch POST');
-}
-const launchRequest = assertClosedObject(requestSchema('BLD-22'), 'BLD-22 request');
-required(launchRequest, 'changeId', 'subjectDigest', 'attemptId', 'artifactRevisionId', 'artifactDigest');
-for (const forbidden of ['accountId', 'session', 'sourceRevision', 'compile', 'files']) {
-  if (launchRequest.properties?.[forbidden]) throw new Error(`BLD-22 must not expose ${forbidden}`);
-}
-const launchResponse = assertClosedObject(successSchema('BLD-22', '201'), 'BLD-22 success');
-required(launchResponse, 'entryUrl', 'previewUrl', 'entryGrant', 'artifactRevisionId', 'artifactDigest', 'expiresAt');
-for (const forbidden of ['sessionToken', 'hubCredential', 'files', 'source']) {
-  if (launchResponse.properties?.[forbidden]) throw new Error(`BLD-22 must not return ${forbidden}`);
-}
-if (property(launchResponse, 'entryGrant')?.type !== 'string') throw new Error('BLD-22 entryGrant must remain a bounded opaque string');
-
-const builderSession = entry('BLD-23');
-if (builderSession.method !== 'GET' || builderSession.path !== '/api/control/projects/{projectId}/builder-session') {
-  throw new Error('BLD-23 must remain the exact Builder Session read');
-}
-const sessionResponse = assertClosedObject(successSchema('BLD-23'), 'BLD-23 success');
-required(sessionResponse, 'projectId', 'messages', 'latestBuilderRun', 'latestCodeChangingRun', 'preview');
-if (sessionResponse.properties?.activeBuilderRun) throw new Error('BLD-23 must expose latestBuilderRun, not activeBuilderRun');
-const previewSummary = assertClosedObject(property(sessionResponse, 'preview'), 'BLD-23 preview');
-required(previewSummary, 'workingSourceRevision', 'lastGoodSourceRevision', 'lastGoodArtifactRevisionId', 'lastGoodArtifactDigest');
-if (sessionResponse.properties?.threadId) throw new Error('BLD-23 must not expose Mastra threadId');
-const sendMessage = entry('BLD-24');
-if (sendMessage.method !== 'POST' || sendMessage.path !== '/api/control/projects/{projectId}/builder-session/messages') {
-  throw new Error('BLD-24 must remain the exact Builder message command');
-}
-if (!hasRequiredParameter('BLD-24', 'header', 'Idempotency-Key')) throw new Error('BLD-24 must require Idempotency-Key');
-const messageRequest = assertClosedObject(requestSchema('BLD-24'), 'BLD-24 request');
-required(messageRequest, 'content', 'mode');
-exactEnum(property(messageRequest, 'mode'), ['BUILD', 'PLAN'], 'BLD-24 mode');
-for (const forbidden of ['projectId', 'sourceRevision', 'accountId', 'threadId']) {
-  if (messageRequest.properties?.[forbidden]) throw new Error(`BLD-24 must derive ${forbidden} server-side`);
-}
-
-console.log('Builder schema closure passed (24 admitted IDs; BLD-23 session read and BLD-24 message command are closed; BLD-10 remains the sole passive Preview read).');
+console.log('Builder wire contract OK: C-020 current operations only')

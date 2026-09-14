@@ -12,7 +12,7 @@ import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapsh
 import { createMastraE2BCodingWorkerRuntime } from './runtime.js'
 import type { BuilderProjectKnowledgeReader } from './runtime.js'
 import { createBuilderService } from './service.js'
-import type { ApplicationArtifactReadRequest, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
+import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderSourcePort } from './source.js'
 import type { BuilderGitSourceCapability } from './source.js'
 import { createBuilderStore } from './store.js'
@@ -64,7 +64,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   }>
   applicationArtifacts: UnboundBuilderApplicationArtifacts
   launchPreview?: BuilderLaunchPreviewPort
-  projectSource: Readonly<{ storageRoot: string; ownership: Readonly<Record<string, string>>; git: BuilderGitSourceCapability }>
+  projectSource: Readonly<{ storageRoot: string; git: BuilderGitSourceCapability }>
   model: MastraLanguageModel
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   validateModelCredential(): void
@@ -80,16 +80,13 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   const getApplicationBySource = applicationArtifacts.getApplicationBySource
   const readApplicationFileBySource = applicationArtifacts.readApplicationFileBySource
   const boundApplicationArtifacts: BuilderApplicationArtifacts = Object.freeze({
-    getApplication: (input) => applicationArtifacts.getApplication(executorPool, input),
     ...(getApplicationBySource ? { getApplicationBySource: (input: ApplicationSourceCoordinates) => getApplicationBySource(executorPool, input) } : {}),
     retainApplication: (input) => applicationArtifacts.retainApplication(executorPool, input),
-    readApplicationFile: (input: ApplicationArtifactReadRequest) => applicationArtifacts.readApplicationFile(executorPool, input),
     ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(executorPool, input) } : {}),
   })
   const source = createBuilderSourcePort({
     git: projectSource.git,
     storageRoot: projectSource.storageRoot,
-    sourceOwnership: projectSource.ownership,
   })
   // Mastra owns the Project conversation/thread records. The file is kept
   // beside the project custody root so controller recreation does not erase
@@ -149,9 +146,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
         projectId,
         threadId,
         messages: Object.freeze(messages),
-        activeTurn: null,
         workingSourceRevision: preview.workingSourceRevision,
-        lastPreviewChangeId: preview.lastPreviewChangeId,
         lastPreviewSourceRevision: preview.lastPreviewSourceRevision ?? null,
         lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId ?? null,
         lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest ?? null,
@@ -160,12 +155,8 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   })
   return Object.freeze({
     registerBuilderRoutes: (app: FastifyInstance) => registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) }),
-    prepareApplication: service.prepareApplication,
-    readApplicationFile: service.readApplicationFile,
     readApplicationFileBySource: service.readApplicationFileBySource,
     getApplicationBySource: service.getApplicationBySource,
-    startPreviewPreparation: service.startPreviewPreparation,
-    readPreviewPreparation: service.readPreviewPreparation,
     recover: service.recover,
     close: async () => {
       try {
