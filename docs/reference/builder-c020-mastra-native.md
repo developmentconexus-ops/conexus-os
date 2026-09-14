@@ -1,49 +1,60 @@
 # C-020 — Mastra-native Builder coding harness
 
-> **Status:** CURRENT / OPERATOR RATIFIED / 2026-09-13
+> **Status:** CURRENT / OPERATOR RATIFIED / 2026-09-14
 > **Scope:** ordinary internal Builder path for the Metal Nobre MVP
 > **Execution owner:** `docs/tasks/builder-first-app.md`
 > **Status owner:** `docs/roadmap.md`
 > **Decision owner:** C-020 in `docs/decisions/index.md`
 
-This reference records the approved technical realization of C-020 after a
-PSTACK first-principles review of the current checkout, the exact installed
-Mastra stack and the repository's own qualification probes.
+This is the current technical authority for the ordinary internal Builder.
+It supersedes conflicting Change-centric implementation wording in older
+Builder references and locked Product evidence without rewriting historical
+receipts or historical proof.
 
-It is intentionally narrower than the historical Builder architecture. It does
-not rewrite historical Evidence or receipts. For ordinary new Builder work,
-this document is the current technical target. Historical Change/Plan/WorkUnit/
-ActorRun/CodingSession paths remain transitional legacy until callers migrate.
+The operator-approved rule is:
+
+> **Use Mastra natively for coding-harness mechanics. Conexus implements only
+> the authority and durable Product truth that Mastra must not own.**
+
+---
 
 ## 1. Product job
 
-The Builder must behave like a coding harness over one persistent Project:
+The Builder must feel like a normal coding agent over one persistent Project:
 
 ```text
-open Project
-→ see the current/last-good application
+open/create Project
+→ Build
+→ see the current/last-good app
 → send a natural-language request
-→ the agent works on the current Project source
+→ agent works on current Project source
 → successful source changes compile automatically
-→ Preview updates
+→ Preview updates automatically
 → continue the same conversation and source
 ```
 
 The operator does not administer `Change`, `Plan`, `WorkUnit`, `ActorRun`,
-`CodingSession`, candidate states, verification stages or manual Preview
-preparation in the ordinary path.
+`CodingSession`, candidate states, hashes, manual Preview preparation or
+infrastructure choices in the ordinary path.
 
-The app is ordinary code. The sandbox may be replaced between requests. Durable
-conversation, source and Preview survive sandbox replacement.
+The minimum experience we must prove before widening scope is:
 
-## 2. PSTACK laws applied
+```text
+request 1 creates/changes app
+→ request 2 starts from request-1 source
+→ response-only request changes no source
+→ reload/restart preserves conversation + source + last-good Preview
+→ request 3 continues normally
+```
 
-This realization follows:
+---
+
+## 2. PSTACK / Poteto laws
 
 ```text
 Experience First
 Model the Domain
-Subtract Before You Add
+Subtract Before Add
 Attack the Premise
 Redesign From First Principles
 Laziness Protocol
@@ -54,10 +65,17 @@ Sequence Verifiable Units
 Prove It Works
 ```
 
-The key subtraction rule is:
+Consequences:
 
-> Conexus implements only what Mastra does not provide and what must remain
-> Conexus Product/system authority.
+- reuse Mastra primitives before creating Conexus machinery;
+- preserve useful existing Git/E2B/compiler/Registry/security mechanics;
+- do not preserve accidental legacy abstractions merely because code exists;
+- do not add Brain, Sankhya, generic tasks, workflow engines or new platform
+  surfaces before the basic Builder loop is real;
+- current implementation green tests do not substitute for the exact Product
+  journey they claim to prove.
+
+---
 
 ## 3. Final domain model
 
@@ -79,18 +97,24 @@ HUB PROCESS
             ├── Project B persistent Thread
             └── per BuilderRun
                 ├── live Session
-                ├── fresh/replaceable Workspace
-                └── fresh/replaceable E2B sandbox
+                ├── fresh Workspace
+                └── fresh E2B sandbox
 ```
 
-There is no persistent Conexus `Turn` owner.
+There is no persistent Conexus `Turn`.
 
-A human conversational turn is represented by Mastra messages. A physical
-attempt to work on Project source is represented by one Conexus `BuilderRun`.
+```text
+human conversational turn = Mastra messages
+physical coding execution = Conexus BuilderRun
+current code              = ProjectWorkingState.working_source_revision
+usable compiled app       = ProjectWorkingState last-good Preview coordinates
+```
 
-## 4. Exact Mastra baseline
+---
 
-Current installed/qualified composition:
+## 4. Exact Mastra baseline and accepted use
+
+Installed/qualified stack:
 
 ```text
 @mastra/core   1.63.2
@@ -99,41 +123,70 @@ Current installed/qualified composition:
 @mastra/libsql 1.22.2
 ```
 
-Before writing Mastra integration code, use `.agents/skills/mastra/SKILL.md` and
-prefer exact installed docs/source over remote/latest docs.
+Use `.agents/skills/mastra/SKILL.md` and the exact installed package/source
+before remote/latest documentation.
 
-The repository qualification at
-`qualification/4d/mastra-builder-capability/probe.test.mjs` already proves, for
-this stack:
+The current qualification proves:
 
-- `createCodingAgent()` exposes real filesystem/search/edit/command mechanics;
-- `AgentController` owns modes and live Session mechanics;
-- persistent Thread/messages survive controller/storage rebind;
-- the same Project Thread can bind a different physical Workspace/sandbox;
-- Session display state exposes tasks, modified files, active tools, approvals,
-  subagents and token usage;
-- Build/Plan/Review modes exist as harness mechanics.
+- one shared `AgentController` can isolate multiple Projects;
+- each Project can have its own deterministic persistent Thread;
+- different physical Workspaces can bind the same persistent Project Thread;
+- PLAN/BUILD tool exposure is enforceable with `availableTools`;
+- the persisted user message is stored as `role=signal`, `type=user` with a
+  stable ID and can be recovered from the Thread;
+- user `message_start` is not emitted by the live subscription; assistant/tool
+  activity is the relevant live stream;
+- Controller recreation does not erase persisted Thread history.
 
-### 4.1 Three remaining exact probes
+### 4.1 Lifetime
 
-Before the structural refactor depends on them, prove exactly these three
-properties against the installed 1.63.2 stack:
+Target lifecycle:
 
-1. one shared `AgentController` can serve two Projects with distinct Threads and
-   distinct physical Workspaces without cross-Project state bleed;
-2. `availableTools`/mode tool policy can make `PLAN` genuinely read-only while
-   `BUILD` retains write/edit/execute tools;
-3. the live Session event/message surface exposes the stable persisted user
-   message ID needed to correlate a `BuilderRun` with its triggering message.
+```text
+Hub startup
+→ create persistent Memory/storage
+→ create one coding agent
+→ create/init one shared AgentController
 
-The exact 1.63.2 result is that the user message is persisted as a `signal`
-message with `type: user` and a stable UUID, recoverable through
-`session.thread.listActiveMessages()`. A Session subscription does not emit a
-user `message_start`; its message events cover the assistant turn. C-020 binds
-the recovered persisted message ID after `sendMessage()`.
+BuilderRun
+→ fresh E2B
+→ fresh Workspace
+→ create Session(resourceId=Project, scope=builder:<runId>, threadId=Project Thread)
+→ switch BUILD/PLAN mode
+→ subscribe to native live events
+→ send user message
+→ finish
+→ controller.deleteSession(resourceId, scope)
+→ destroy E2B/Workspace
 
-If one of these fails, adapt only the smallest implicated seam. Do not reopen the
-whole C-020 architecture.
+Controller stays alive
+Thread/messages stay persisted
+```
+
+Use native `AgentController.deleteSession()` to release live Session state.
+Do not build a custom Session registry.
+
+### 4.2 Conversation projection
+
+Product conversation must normalize stored Mastra facts as:
+
+```text
+role=signal + type=user → user
+role=assistant          → assistant
+intentional displayable system text → system
+other internal signal/task rows      → not a chat message
+```
+
+Return messages in chronological order.
+Do not create a second Conexus conversation store or `recentTurns` summary layer.
+
+### 4.3 Native tasks
+
+Mastra can provide task signals, but the current MVP does not require a durable
+task UI. Do not add task machinery merely because the framework supports it.
+Reopen only when a real Product interaction needs it.
+
+---
 
 ## 5. Mastra owns mechanics
 
@@ -142,88 +195,35 @@ Mastra owns:
 ```text
 AgentController
 createCodingAgent
-persistent Thread
-Messages / conversation history
+persistent Thread/messages
 live Session
-Workspace mechanics
-filesystem/search/edit/command tools
-tool-call events
-message streaming
-tasks/display state
-mode state and mode tool exposure
+Workspace/filesystem/search/edit/command mechanics
+mode/tool exposure
+assistant/tool live events
 ```
 
-The target host composition is:
+Mastra does **not** own:
 
 ```text
-Hub startup
-→ initialize persistent Mastra storage/memory
-→ construct one shared coding agent
-→ construct/init one shared Builder AgentController
-
-BuilderRun
-→ create fresh E2B sandbox
-→ create Workspace bound to that sandbox
-→ create/bind Session to exact Project Thread + Workspace
-→ session.sendMessage(real user content)
-→ subscribe to native Session events
-→ terminate live Session / destroy Workspace and E2B
-
-Controller + Thread storage remain available for subsequent requests.
-```
-
-The Controller may be recreated after Hub restart. Thread persistence, not a
-process-resident Controller object, is the durable conversation contract.
-
-## 6. Conexus owns authority
-
-Conexus owns only the boundaries Mastra must not decide:
-
-```text
-current authenticated Account
-Project authorization and isolation
-trusted Project → deterministic Thread binding
-BuilderRun durable execution facts
-idempotency and one-writer admission
-working-source compare-and-set
-Git result custody and protected-path policy
-late-result refusal
-model/provider admission identity
-physical sandbox identity where material
-compiler admission
-ArtifactRevision retention
-last-good Preview selection
+Project authorization
+working source authority
+Git result admission
+BuilderRun durability/idempotency
+last-good Preview
+ArtifactRevision identity
 Brain/Data/Capability authorization
 ```
 
-Mastra IDs, model IDs, tool calls, threads, sessions and sandbox IDs are never
-Product principals by themselves.
+The browser never chooses a Mastra Thread, Controller, Session, model or
+Workspace identity.
 
-## 7. Persistent Project Thread
+---
 
-For the MVP there is one deterministic conversation per Project:
+## 6. BuilderRun
 
-```text
-resourceId = projectId
-threadId   = conexus-builder:<projectId>
-```
+`BuilderRun` is the only durable ordinary execution record.
 
-The browser never chooses or needs the `threadId`.
-
-Server code derives it from the authorized Project.
-
-Do not maintain a second Conexus conversation history, `recentTurns`, assistant
-summary ledger or durable observation log.
-
-## 8. BuilderRun
-
-`BuilderRun` is the only new durable execution record for the ordinary path.
-Its responsibility is deliberately narrow:
-
-> record one admitted physical Builder execution against an exact Project source
-> state and settle its durable result.
-
-Target semantic shape:
+Required semantic facts:
 
 ```text
 builder_run_id
@@ -237,48 +237,30 @@ base_working_version
 state                   QUEUED | RUNNING | SUCCEEDED | FAILED | INTERRUPTED
 result_kind             null | RESPONSE_ONLY | SOURCE_CHANGED | SOURCE_CHANGED_BUILD_FAILED
 result_source_revision  nullable
-trigger_message_id      nullable until the real Mastra message ID is observed
+trigger_message_id      nullable until real Mastra user-message ID is bound
 sandbox_id              nullable
-model_admission_id      nullable/required at claim as implementation dictates
-model_provider_id
-model_id
-failure_code             nullable
-created_at
-started_at
-finished_at
+model admission/provider/model coordinates where required
+failure_code            nullable
+created_at / started_at / finished_at
 ```
 
-No Plan, WorkUnit, ActorRun, CodingSession, Finding or Evidence child hierarchy
-is created for ordinary coding chat.
+Laws:
 
-### 8.1 Idempotency
+- same idempotency key + same request returns the same run;
+- same key + different semantic request conflicts;
+- at most one active write-capable BUILD run per Project for the MVP;
+- claim revalidates current authorization and exact source/version;
+- PLAN can only settle as `RESPONSE_ONLY`;
+- terminal state must tell the truth after failure/restart.
 
-Idempotency binds the same logical request, not only the key:
+No ordinary Plan/WorkUnit/ActorRun/CodingSession/Finding/Evidence hierarchy is
+created beneath BuilderRun.
 
-```text
-idempotency_digest = hash(Idempotency-Key)
-request_digest     = canonical hash(mode + user content + any future explicitly
-                     admitted semantic input)
-```
+---
 
-Same key + same request returns the existing run and must not start duplicate
-paid work.
+## 7. ProjectWorkingState
 
-Same key + different request fails with an idempotency conflict.
-
-### 8.2 Concurrency
-
-For the internal MVP:
-
-```text
-at most one active write-capable BUILD run per Project
-```
-
-`PLAN` may remain serialized initially. Do not add a generic scheduling system.
-
-## 9. ProjectWorkingState
-
-Target state is intentionally small:
+Target semantic owner:
 
 ```text
 project_id
@@ -290,127 +272,110 @@ last_preview_artifact_digest
 updated_at
 ```
 
-BuilderRun tells us which execution is active. Source revision tells us which
-code is current. Preview coordinates tell us which compiled app is usable.
+Legacy Change-related columns may remain physically until accepted callers are
+migrated, but the C-020 path must not depend on them.
 
-The new path does not require:
+Working source and Preview are deliberately separate:
 
 ```text
-working_change_id
-working_account_id
-current_change_id
-current_account_id
-current_state
-preparation_attempt_id
-last_preview_change_id
+build success:
+working=B
+last-good Preview=B
+
+build failure after source admission:
+working=B
+last-good Preview=previous good source/artifact
 ```
 
-Legacy columns may remain temporarily for old callers. New C-020 settlement must
-not depend on them.
+The next BUILD request always starts from `working_source_revision`, including a
+failed-build source that needs repair.
 
-## 10. Source and Git custody
+---
 
-Mastra edits a Workspace. Mastra does not decide which result becomes Conexus
-source authority.
+## 8. Source and Git custody
 
-Conexus keeps the current useful protections:
+Mastra edits files; Conexus decides what becomes authoritative Project source.
 
-- exact base source;
-- one canonical result commit;
-- direct-parent/ancestry check;
-- no unauthorized Git remote;
-- protected-path refusal;
-- safe regular-file checks;
-- patch/file/byte limits;
-- immutable result identity;
-- late-result refusal.
+### 8.1 Immutable source identity
 
-### 10.1 Immutable source reachability
-
-The preferred C-020 result ref is source-identity based, not execution-identity
-based:
+C-020 source reachability is source-oriented:
 
 ```text
 refs/conexus/sources/<sourceRevision> → exact commit <sourceRevision>
 ```
 
-Flow:
+The Project's original canonical source may still be reachable by
+`refs/heads/main`. Builder edits do not need to move `main`.
+
+To prepare exact source `S`:
 
 ```text
-working = A / version N
-BuilderRun R edits fresh Workspace
-host materializes one canonical commit B
-Conexus validates B against A
-retain refs/conexus/sources/B → B
-PostgreSQL CAS A,N → B,N+1
+if refs/conexus/sources/S exists and resolves exactly to S
+    bundle that ref
+else if refs/heads/main resolves exactly to S
+    bundle main
+else
+    refuse
 ```
 
-Git retention happens before Project working-state settlement. A stale/late
-result may remain as retained immutable Git data, but a failed CAS means it never
-becomes Project working source.
+### 8.2 Result admission
 
-A single mutable `refs/conexus/working` is not required if PostgreSQL working
-state + immutable source ref gives the complete authority.
-
-## 11. Coding runtime
-
-The current runtime contains valuable mechanics that should be preserved but
-made execution-generic.
-
-Target internal interface conceptually resembles:
+For base `A` and result `B`:
 
 ```text
-executeCodingSession({
-  projectId,
-  executionId,
-  mode,
-  userContent,
-  baseSourceRevision,
-  sourceBundle,
-  workspace,
-  signal,
-  observe
-})
+prove A is exact admitted source
+→ import result bundle into isolated inspection ref
+→ prove claimed B
+→ prove exactly one commit after A
+→ prove B parent == A
+→ validate changed files and bounded patch
+→ retain refs/conexus/sources/B = B
+→ only then PostgreSQL CAS working A/versionN → B/versionN+1
 ```
 
-The model prompt must not contain internal legacy IDs such as Change, WorkUnit,
-ActorRun or admission tokens.
+A stale result may remain immutable Git data, but failed CAS means it never
+becomes working authority.
 
-It receives:
+### 8.3 Current app mutation boundary
+
+For the fixed `REACT_VITE_V1` internal MVP, ordinary Builder source mutation is
+bounded to:
 
 ```text
-system/coding instructions
-+ exact Project Workspace
-+ allowed tools/capabilities
-+ persistent Project Thread history
-+ real current user message
+app/**
 ```
 
-`recentTurns` and manually packed prior summaries are deleted from the ordinary
-path because the persistent Mastra Thread already owns conversation history.
+The agent may edit files created by a previous BuilderRun under `app/**`.
+Do not require those generated-by-Builder app files to have existed in the
+original static ownership manifest.
 
-### 11.1 Canonical result commit
+Continue to refuse platform/generated/protected paths, unsafe entries,
+symlinks/submodules, invalid ancestry, multi-commit results and size ceilings.
+Legacy Change custody may preserve its historical ownership semantics behind a
+legacy adapter.
 
-Even though the coding agent can invoke Git commands, the canonical final commit
-remains host-controlled:
+### 8.4 Source inspection authority
+
+Code/Diff reads may disclose only exact authorized Project source revisions.
+For C-020, current admission includes:
 
 ```text
-agent edits Workspace
-→ host detects staged/uncommitted diff
-→ no diff: RESPONSE_ONLY
-→ diff: host creates one canonical result commit and bundle
-→ Conexus validates/adopts result
+ProjectWorkingState.working_source_revision
+ProjectWorkingState.last_preview_source_revision
+latest relevant BuilderRun.base_source_revision
+latest relevant BuilderRun.result_source_revision
 ```
 
-This prevents the LLM from deciding Conexus source authority.
+Legacy source-read admission may remain as fallback for historical callers.
+Arbitrary reachable Git OIDs are never enough for disclosure authority.
 
-## 12. Build and Plan modes
+---
 
-Both modes use the same Project Thread.
+## 9. BUILD and PLAN
+
+Same Project Thread, different native Mastra mode/tool exposure.
 
 ### BUILD
-
-Allowed harness capabilities include normal coding tools:
 
 ```text
 read/list/search/grep/stat
@@ -418,322 +383,400 @@ write/edit/create/delete
 execute command/process
 ```
 
-### PLAN
+The fixed app starter may be materialized only in BUILD when required.
 
-PLAN is read-only:
+### PLAN
 
 ```text
 read/list/search/grep/stat
 ```
 
-No write/edit/delete/execute capability is available through the coding
-Workspace in PLAN mode.
+PLAN is read-only end-to-end:
 
-Use native AgentController mode/tool policy after the exact 1.63.2 probe proves
-it. Do not build a new `builder.plan` owner for ordinary chat.
+- no write/edit/delete/execute Mastra tools;
+- no host-side starter materialization;
+- no source commit;
+- no compiler invocation;
+- settlement = `RESPONSE_ONLY` only.
 
-## 13. Tasks and live activity
+Do not create a `builder.plan` owner for ordinary chat.
 
-Mastra Session/display state already exposes task/tool/activity facts.
+---
 
-The ordinary UI should project them directly when useful.
+## 10. Coding runtime
 
-Do not create a new durable task/checklist engine for P-01.
+Ordinary runtime input is execution-generic:
 
-Historical Plan/WorkUnit state remains legacy only.
+```text
+projectId
+accountId
+executionId
+mode
+userContent
+baseSourceRevision
+sourceBundle
+signal/live observer
+bind message/sandbox callbacks
+```
 
-## 14. Streaming and reconnect
+The ordinary model prompt must not contain Change/WorkUnit/ActorRun/admission
+identities.
 
-Target split:
+Stable coding instructions are shared by the shared agent and must include:
+
+```text
+work only in the exact Session Workspace
+ordinary app edits live under app/**
+use fixed REACT_VITE_V1 stack
+no dependency/package installation
+no platform/generated mutation
+no credentials/network authority
+```
+
+Host-controlled result creation remains:
+
+```text
+agent edits Workspace
+→ host git add/diff
+→ no diff: RESPONSE_ONLY
+→ diff: host creates one canonical result commit + bundle
+→ Conexus admits exact result
+```
+
+The LLM never decides source authority.
+
+---
+
+## 11. Streaming and reconnect
 
 ```text
 HISTORY = persistent Mastra Thread/messages
 LIVE    = native Mastra Session events
-Hub     = thin authenticated Project-scoped adapter
+Hub     = thin authenticated Project/run adapter
 ```
 
-The C-020 path does not persist a second event stream.
+No second durable event log is created for C-020.
 
-On browser reconnect:
+Reconnect:
 
 ```text
 GET Builder Session
-→ persisted messages from Mastra
-→ active/latest BuilderRun from Conexus
-→ Project working source
+→ persisted Product-normalized messages
+→ latest BuilderRun summary
+→ working source
 → last-good Preview
 
-live stream
-→ only current Session events
+live endpoint
+→ only currently available Session activity
 ```
 
-The existing custom Change observation feed is legacy and should leave the
-ordinary path after caller migration.
+Missed live events do not corrupt durable truth; reload comes from Thread +
+BuilderRun + ProjectWorkingState.
 
-## 15. Product API boundary
+---
 
-Do not expose the broad Mastra Server/Client resource API directly as the Conexus
-Product contract.
+## 12. Product API
 
-Conexus keeps a small security/Product facade:
+Ordinary Product surface is Project-scoped:
 
 ```text
 GET  /api/control/projects/:projectId/builder-session
 POST /api/control/projects/:projectId/builder-session/messages
-GET  /protocol/projects/:projectId/builder-session/stream
+POST /api/control/projects/:projectId/builder-session/preview
+GET  /api/control/projects/:projectId/builder-session/runs/:builderRunId/stream
 ```
 
-The browser knows `projectId`, user content, mode and Idempotency-Key.
+### GET session
 
-The browser does not choose:
+Product-useful response:
 
 ```text
-threadId
-resourceId
-Mastra controller/session ID
-Git revision
-model ID
-sandbox ID
-BuilderRun base source
+projectId
+messages
+latestBuilderRun
+mode
+preview:
+  workingSourceRevision
+  lastGoodSourceRevision
+  lastGoodArtifactRevisionId
+  lastGoodArtifactDigest
 ```
 
-Those are server-derived from current authority.
+Do not expose Thread/controller/session/model/sandbox identities.
 
-## 16. Automatic build and Preview
+### POST message
 
-The ordinary C-020 path does not use `PreviewPreparationCoordinator` or
-`CHANGE_CANDIDATE` admission.
+Browser supplies only:
+
+```text
+content
+mode BUILD | PLAN
+Idempotency-Key
+```
+
+Server resolves Account, Project authority, Thread, working source/version and
+model admission.
+
+### POST Preview
+
+Ordinary Preview launch must be server-resolved from the authorized Project's
+last-good Preview coordinates.
+
+The browser must not select Preview authority by echoing:
+
+```text
+builderRunId
+sourceRevision
+artifactRevisionId
+artifactDigest
+```
+
+These are already server truth.
+
+MAR may temporarily retain legacy internal correlation fields; do not redesign
+MAR merely to rename them during this MVP correction.
+
+---
+
+## 13. Compiler / Registry / Preview
+
+Compiler subject:
+
+```text
+projectId
+executionId      # correlation/provenance only
+sourceRevision   # exact source subject
+files
+```
+
+Registry application identity remains Project + exact source + immutable
+artifact revision/digest.
+
+Ordinary C-020 does not use `PreviewPreparationCoordinator` or require an
+independent verification state before internal Preview.
 
 Flow:
 
 ```text
 SOURCE_CHANGED B
-→ working source CAS to B
+→ admit working source B
 → compile exact B
+→ retain ArtifactRevision(Project,B)
+→ update last-good Preview coordinates
 ```
 
-If compilation succeeds:
+Compile failure keeps B as working source and preserves previous Preview.
+
+### 13.1 P-01 Preview UX
+
+If a last-good Preview exists, opening Build automatically establishes the
+preview route/grant and renders the app.
+
+The primary surface is the app itself, not source/artifact coordinates or an
+`Abrir Preview` prerequisite.
+
+A secondary `Nova aba` action may remain.
+Technical identities live under `Detalhes`.
+
+### 13.2 Diff UX
+
+The primary Diff represents the latest code-changing BuilderRun:
 
 ```text
-retain ArtifactRevision(Project, B)
-→ last-good Preview = artifact(B)
-→ BuilderRun = SUCCEEDED / SOURCE_CHANGED
+BuilderRun.base_source_revision
+→ BuilderRun.result_source_revision
 ```
 
-If compilation fails:
+Do not use working source vs last-good Preview as the primary diff because those
+are intentionally equal after a successful build.
 
-```text
-working source remains B
-last-good Preview remains previous artifact A
-BuilderRun terminal result = SOURCE_CHANGED_BUILD_FAILED
-```
+For `RESPONSE_ONLY`, show that the request produced no source change.
 
-The next BUILD request starts from B and can repair it.
+---
 
-`RESPONSE_ONLY` changes neither source nor Preview and creates no empty commit or
-compiler invocation.
+## 14. Project creation
 
-Compiled means technically executable, not independently verified.
-
-## 17. Compiler
-
-The application compiler must not require Change semantics.
-
-Target correlation:
-
-```text
-projectId
-executionId
-sourceRevision
-files
-```
-
-During migration, legacy Change callers may pass `executionId = changeId` and
-C-020 passes `executionId = builderRunId`.
-
-`executionId` is correlation/provenance only; Project + source revision remains
-the application subject.
-
-## 18. Registry / ArtifactRevision
-
-Application artifact admission for C-020 is source/run based, not
-Change/Plan/Acceptance based.
-
-Required facts:
-
-```text
-current authorized Project build context
-BuilderRun belongs to Project
-run's admitted/result source matches exact compile source
-payload validates against compiler/profile contract
-ArtifactRevision identity is Project + source revision + immutable digest
-```
-
-BuilderRun is provenance, not artifact identity.
-
-Historical Change-verified retention remains available to legacy callers until
-migration completes.
-
-## 19. Project creation
-
-Internal MVP experience:
+Internal MVP:
 
 ```text
 Create Project
-→ Build
+→ deterministic canonical source bootstrap
+→ ProjectWorkingState initialized
+→ Build opens
 → composer ready
 ```
 
-Manual Inception/Baseline review is not an ordinary prerequisite for beginning
-Builder work.
+Manual Inception/Baseline approval is not an ordinary Builder-entry prerequisite.
+Do not delete broader Inception/Baseline capabilities during this correction.
 
-Do not delete the broader Inception/Baseline architecture in this refactor. Use
-the smallest deterministic bootstrap required by current Project contracts.
+---
 
-## 20. Legacy disposition
+## 15. Brain boundary
 
-For ordinary new work:
+Brain is **not** part of the core Builder acceptance gate.
+
+The ordinary coding runtime must not pre-query Brain on every message or append
+custom retrieved business text to every prompt.
+
+The first real Brain-backed build is a later slice, after the core
+create/open/continue journey is accepted.
+
+Target Brain interaction is agent-initiated through narrow Mastra tools such as:
+
+```text
+searchBrain(query)
+readBrainItem(itemId)
+```
+
+Conexus derives Project/Workspace/Brain binding, admitted revision and provenance
+server-side. The model never chooses tenant authority or credentials.
+
+No MCP/RAG/vector database is introduced unless direct authorized tools prove
+insufficient.
+
+---
+
+## 16. Legacy disposition
+
+For ordinary new Builder work:
 
 ```text
 Change                    FROZEN LEGACY
 Plan                      FROZEN LEGACY
 WorkUnit                  FROZEN LEGACY
-ActorRun                  FROZEN after useful execution invariants move to BuilderRun
-CodingSession             DELETE/FREEZE after callers migrate
-recentTurns               DELETE
-custom conversation state DELETE
-custom task/checklist      DELETE from ordinary path
-custom Change observation DELETE from ordinary path
+ActorRun                  FROZEN LEGACY after useful invariants migrate
+CodingSession             FROZEN/DELETE after callers migrate
+recentTurns               DELETE ordinary path
+custom conversation state DELETE ordinary path
+custom durable Change feed DELETE ordinary path
 PreviewPreparation        LEGACY
 CHANGE_CANDIDATE build    LEGACY
-sourceChangeId            DELETE from ordinary path
-workingChangeId           DELETE from ordinary path
-lastPreviewChangeId       DELETE from ordinary path
+sourceChangeId            LEGACY only
+workingChangeId           LEGACY only
+lastPreviewChangeId       LEGACY only
 ```
 
-Deletion order is always:
+Order:
 
 ```text
-new path
-→ migrate callers
-→ prove no new legacy writes
-→ freeze legacy API
+new path works
+→ callers migrate
+→ prove zero new ordinary legacy writes
+→ freeze APIs
 → delete implementation/schema only when no accepted consumer remains
 ```
 
-Historical migrations and Evidence remain unchanged.
+Historical migrations, receipts and Evidence are not rewritten.
 
-## 21. Migration discipline
+Older Change-centric wording in `docs/reference/builder-and-harness.md` and the
+mechanism portions of locked P-01 evidence are historical where they conflict
+with this C-020 owner. Preserve the accepted P-01 human job/layout; do not revive
+Change merely because historical UI evidence mentions it.
 
-Migration `028_builder_run.sql` was first published in commit `371e006` and was
-then modified in `8ebbc8c` while the database was disposable.
+---
 
-Before adding further migrations, normalize discipline:
+## 17. Migration discipline
 
-1. restore `028_builder_run.sql` and its runner digest to the first published
-   `371e006` bytes;
-2. reset only the disposable local test database if necessary;
-3. all further C-020 schema evolution begins in `029_*` forward migrations.
+Published migrations are immutable.
 
-No published migration is edited again after this normalization.
+Current C-020 sequence already includes 028–036. Further schema correction uses
+new forward migrations only. The next planned migration for C-020 source-read
+admission is 037; do not edit 030–036 to make current tests pass.
 
-## 22. Verification strategy
+---
 
-Use proof matching the claim.
+## 18. Verification strategy
 
-### Mastra qualification
+Proof must match the claim.
 
-Prove the three exact remaining assumptions in §4.1.
-
-### Database/store
-
-Prove:
-
-- same Idempotency-Key + same request returns the same BuilderRun;
-- same key + different request conflicts;
-- one active BUILD run per Project;
-- terminal settlement clears active execution honestly;
-- ordinary C-020 work creates zero Change rows;
-- source/Preview state no longer requires Change coordinates;
-- interrupted process state is not falsely reported as success.
-
-### Git custody
-
-Prove:
-
-- exact source bundle from current working source;
-- one-commit result;
-- protected paths fail closed;
-- immutable source ref retained;
-- stale settlement cannot replace newer working source.
-
-### Runtime
-
-Prove:
-
-- real Mastra user message ID correlates with BuilderRun;
-- persistent Project Thread survives controller/process reconstruction;
-- fresh E2B can continue same Project source/thread;
-- RESPONSE_ONLY performs no source/build mutation;
-- SOURCE_CHANGED uses current working source;
-- live Session events are sufficient for P-01 activity.
-
-### Build/Preview
-
-Prove:
-
-- successful source change compiles and advances last-good Preview;
-- compile failure leaves attempted source current and previous Preview usable;
-- next request repairs failed source;
-- retained Preview reopens after restart without needless recompilation.
-
-### Browser acceptance
-
-At minimum:
+Required focused facts before operator UX testing:
 
 ```text
-1. Create/open Project → Build
-2. "Crie um contador com Adicionar e Zerar."
-3. "Adicione o texto Contagem da equipe abaixo do título."
-4. "Como o botão Zerar funciona?" → response-only
-5. Reload/restart → same conversation + last-good Preview
-6. Continue editing same application
+real Git A→B→C continuity with main unchanged
+second run can edit app/** created by first run
+stale result cannot overwrite newer working source
+C-020 source reads admit working/Preview/latest-run source only
+shared Controller + per-run Session deletion preserves Thread
+signal/user Mastra message projects as Product user
+PLAN produces zero source/build mutation
+bodyless server-resolved Preview launch
+automatic Preview rendering
+latest-run Diff base→result
+ordinary Builder creates zero Change rows
 ```
 
-No Change IDs or Change chooser appear in the ordinary experience.
+The mocked Playwright Builder test is a UI/contract test, not a composed live
+Product proof.
 
-## 23. Non-goals
+Do not rebuild the old R1/R2/RB stage choreography as current mandatory gates.
+Historical audits remain explicitly invokable.
+
+Reuse existing live model/E2B and compiler proof harnesses where possible; do not
+invent a second live-testing framework.
+
+Final acceptance requires one real local composed Product journey through the
+actual Hub/Web/PostgreSQL/Mastra/model/E2B/Git/compiler/Registry/Preview stack.
+
+---
+
+## 19. Slice governance
+
+Implementation is now review-gated by slices.
+
+`docs/tasks/builder-first-app.md` owns the slice definitions.
+`docs/roadmap.md` owns which slice is currently authorized.
+
+Rules:
+
+```text
+one explicit slice handoff
+→ Codex implements only that slice
+→ focused tests + diff + commit
+→ STOP
+→ GPT reviews against C-020 and the slice acceptance
+→ operator/GPT explicitly authorize next slice
+```
+
+Do not continue automatically into a later slice because the current one is
+green.
+
+A slice may fix local implementation detail without reopening architecture.
+Architecture reopens only on the triggers below.
+
+---
+
+## 20. Non-goals
 
 Do not add now:
 
 - persistent Conexus Turn;
+- Change in ordinary Builder execution;
+- generic workflow/task engine;
 - multi-session chooser;
-- generic workflow engine;
-- new task/plan subsystem;
-- duplicate conversation database;
-- custom replayable event log;
-- direct broad Mastra API exposure to Product clients;
-- MCP/RAG/vector search before a concrete need;
-- generic app backend platform;
-- public SaaS hosting;
-- automatic Brain learning;
-- mandatory independent model review for ordinary Preview;
-- destructive legacy-table deletion before caller migration.
+- direct broad Mastra API exposure to browser;
+- stack selection UI;
+- moving `refs/heads/main` on every Builder edit;
+- MAR redesign;
+- destructive legacy-schema deletion;
+- Brain RAG/vector/MCP infrastructure;
+- Sankhya capability work before core Builder acceptance;
+- mandatory independent AI review for ordinary internal Preview.
 
-## 24. Reopen triggers
+---
 
-Reopen only the smallest implicated boundary if real evidence proves one of the
-following:
+## 21. Reopen triggers
 
-- installed Mastra cannot isolate Project Sessions/Workspaces under one shared
-  Controller;
-- PLAN cannot be made mechanically read-only with the installed harness;
-- stable persisted user message identity cannot be correlated safely;
-- BuilderRun cannot preserve idempotency/concurrency/restart truth without a
-  stronger durable record;
-- immutable source custody cannot preserve current protected-path/late-result
-  invariants;
-- a real business capability requires a new Product semantic owner.
+Reopen only the smallest implicated boundary if real evidence proves:
 
-Existing code volume, historical Change schemas or migration history are not
+- installed Mastra cannot isolate Projects under the shared Controller;
+- native Session lifecycle cannot be released without losing required Thread
+  continuity;
+- PLAN cannot be made end-to-end read-only;
+- stable persisted user-message identity cannot be correlated safely;
+- BuilderRun cannot preserve required idempotency/concurrency/restart truth;
+- immutable source custody cannot support real A→B→C while preserving protected
+  paths and late-result refusal;
+- a real business capability cannot fit the existing Product authority boundary.
+
+Existing code volume, historical Change schemas and migration history are not
 reopen triggers.
