@@ -1,110 +1,31 @@
 import fs from 'node:fs';
 
-const bundlePath = '/tmp/conexus-product-openapi.bundle.json';
-const oas = JSON.parse(fs.readFileSync(bundlePath, 'utf8'));
+const oas = JSON.parse(fs.readFileSync('/tmp/conexus-product-openapi.bundle.json', 'utf8'));
 const methods = new Set(['get', 'put', 'post', 'delete', 'patch', 'head', 'options', 'trace']);
 const operations = new Map();
-
-function resolveLocalRef(value) {
-  if (!value?.$ref || !value.$ref.startsWith('#/')) return value;
-  return value.$ref
-    .slice(2)
-    .split('/')
-    .map((part) => part.replaceAll('~1', '/').replaceAll('~0', '~'))
-    .reduce((node, part) => node?.[part], oas);
-}
-
-for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
-  for (const [method, operation] of Object.entries(pathItem ?? {})) {
-    if (!methods.has(method)) continue;
-    const id = operation?.['x-conexus-4a-id'];
-    if (!id) continue;
-    if (operations.has(id)) throw new Error(`duplicate 4A id while checking carriers: ${id}`);
-    operations.set(id, { path, method: method.toUpperCase(), pathItem, operation });
+for (const [path, item] of Object.entries(oas.paths ?? {})) {
+  for (const [method, operation] of Object.entries(item ?? {})) {
+    if (!methods.has(method) || !operation?.['x-conexus-4a-id']) continue;
+    const id = operation['x-conexus-4a-id'];
+    if (operations.has(id)) throw new Error(`duplicate current operation ${id}`);
+    operations.set(id, { path, method: method.toUpperCase(), operation });
   }
 }
-
-function parametersFor(entry) {
-  const byKey = new Map();
-  for (const candidate of [...(entry.pathItem?.parameters ?? []), ...(entry.operation?.parameters ?? [])]) {
-    const resolved = resolveLocalRef(candidate);
-    if (!resolved?.in || !resolved?.name) continue;
-    byKey.set(`${resolved.in}\0${resolved.name}`, resolved);
-  }
-  return [...byKey.values()];
-}
-
-const exactIfMatch = new Set(['PRJ-12', 'PAR-14']);
-const actualIfMatch = new Set();
-for (const [id, { operation }] of operations) {
-  const carrier = String(operation['x-conexus-current-state-carrier'] ?? '');
-  if (carrier.includes('IF_MATCH')) actualIfMatch.add(id);
-}
-
-const missingIfMatch = [...exactIfMatch].filter((id) => !actualIfMatch.has(id));
-const extraIfMatch = [...actualIfMatch].filter((id) => !exactIfMatch.has(id));
-if (missingIfMatch.length || extraIfMatch.length) {
-  throw new Error(`IF_MATCH carrier set mismatch; missing=${missingIfMatch.join(',') || '-'} extra=${extraIfMatch.join(',') || '-'}`);
-}
-
-const actualIfMatchParameter = new Set();
-const actualIfNoneMatchParameter = new Set();
-for (const [id, entry] of operations) {
-  for (const parameter of parametersFor(entry)) {
-    if (parameter.in !== 'header') continue;
-    if (parameter.name === 'If-Match') actualIfMatchParameter.add(id);
-    if (parameter.name === 'If-None-Match') actualIfNoneMatchParameter.add(id);
-  }
-}
-const expectedIfMatchParameter = new Set(['PRJ-11', 'PRJ-12', 'PAR-14']);
-const expectedIfNoneMatchParameter = new Set(['PRJ-11']);
-for (const [label, expected, actual] of [
-  ['If-Match HTTP parameter', expectedIfMatchParameter, actualIfMatchParameter],
-  ['If-None-Match HTTP parameter', expectedIfNoneMatchParameter, actualIfNoneMatchParameter],
-]) {
-  const missing = [...expected].filter((id) => !actual.has(id));
-  const extra = [...actual].filter((id) => !expected.has(id));
-  if (missing.length || extra.length) {
-    throw new Error(`${label} set mismatch; missing=${missing.join(',') || '-'} extra=${extra.join(',') || '-'}`);
-  }
-}
-
-for (const id of exactIfMatch) {
-  const parameter = parametersFor(operations.get(id)).find((candidate) => candidate.in === 'header' && candidate.name === 'If-Match');
-  if (!parameter || parameter.required !== true) throw new Error(`${id} must carry required If-Match HTTP parameter`);
-}
-const currentOrAbsent = operations.get('PRJ-11');
-for (const name of ['If-Match', 'If-None-Match']) {
-  const parameter = parametersFor(currentOrAbsent).find((candidate) => candidate.in === 'header' && candidate.name === name);
-  if (!parameter || parameter.required !== false) throw new Error(`PRJ-11 ${name} must remain optional inside exact current-or-absent one-of`);
-}
-if (JSON.stringify(currentOrAbsent.operation['x-conexus-precondition-one-of']) !== JSON.stringify(['If-Match', 'If-None-Match'])) {
-  throw new Error('PRJ-11 must preserve exact If-Match/If-None-Match one-of precondition metadata');
-}
-
-const expectedCarriers = new Map([
-  ['IAM-15', 'CURRENT_OR_ABSENT'],
-  ['IAM-17', 'EXPLICIT_CURRENT_SUBJECT'],
-  ['PRJ-05', 'EXPLICIT_CURRENT_SUBJECT'],
-  ['PRJ-11', 'CURRENT_OR_ABSENT'],
-  ['CON-06', 'EXPLICIT_CURRENT_REVISION'],
-  ['REL-06', 'EXPECTED_POINTER_GENERATION+IDEMPOTENCY_KEY'],
-  ['PAR-10', 'EXPLICIT_SEALED_SUBJECT'],
-  ['PAR-15', 'EXPLICIT_TRIGGER_REVISION'],
+const current = new Set(operations.keys());
+const historical = ['PRJ-11', 'PRJ-12', 'PAR-10', 'PAR-14', 'PAR-15', 'REL-06', 'IAM-15', 'IAM-17'];
+for (const id of historical) if (current.has(id)) throw new Error(`retained carrier ${id} is in the current Product OAS`);
+const carriers = new Map([...operations].filter(([, entry]) => entry.operation['x-conexus-current-state-carrier'] && entry.operation['x-conexus-current-state-carrier'] !== 'NONE').map(([id, entry]) => [id, entry.operation['x-conexus-current-state-carrier']]));
+const expected = new Map([
+  ['IAM-02', 'OWNER_CURRENT'], ['IAM-03', 'IDEMPOTENCY_KEY'], ['WS-01', 'IDEMPOTENCY_KEY'],
+  ['PRJ-03', 'IDEMPOTENCY_KEY'], ['BLD-24', 'IDEMPOTENCY_KEY'], ['CON-05', 'IDEMPOTENCY_KEY'],
+  ['CON-06', 'EXPLICIT_CURRENT_REVISION'], ['CON-07', 'IDEMPOTENCY_KEY'], ['CON-08', 'IDEMPOTENCY_KEY'],
+  ['PRJ-07', 'IDEMPOTENCY_KEY'], ['PRJ-09', 'EXPLICIT_REVISION'],
 ]);
-
-for (const [id, expected] of expectedCarriers) {
-  const entry = operations.get(id);
-  if (!entry) throw new Error(`carrier check missing operation ${id}`);
-  const actual = entry.operation['x-conexus-current-state-carrier'];
-  if (actual !== expected) {
-    throw new Error(`carrier mismatch for ${id}: expected ${expected}, got ${actual}`);
-  }
+if (JSON.stringify([...carriers].sort()) !== JSON.stringify([...expected].sort())) throw new Error(`current carrier set mismatch: ${JSON.stringify([...carriers])}`);
+for (const [id, value] of expected) if (carriers.get(id) !== value) throw new Error(`carrier mismatch for ${id}`);
+for (const [id, entry] of operations) {
+  const params = [...(entry.operation.parameters ?? [])];
+  if (params.some(param => param.in === 'header' && ['If-Match', 'If-None-Match'].includes(param.name))) throw new Error(`${id} carries retained conditional header`);
+  if (entry.operation['x-conexus-current-state-carrier'] === 'IDEMPOTENCY_KEY' && !params.some(param => param.name === 'Idempotency-Key' || (param.$ref ?? '').includes('IdempotencyKey'))) throw new Error(`${id} is missing Idempotency-Key`);
 }
-
-const approval = operations.get('PAR-10')?.operation;
-if (approval?.['x-conexus-effect-fence'] !== 'OWNER_GATEWAY_IC4') {
-  throw new Error('PAR-10 must preserve owner/Gateway IC4 effect fence independently from caller current-subject carrier');
-}
-
-console.log(`wire carrier proof passed (${operations.size} operations; IF_MATCH semantic set=${[...exactIfMatch].join(',')}; HTTP If-Match set=${[...expectedIfMatchParameter].join(',')}; 7 cross-resource false conditionals remain removed).`);
+console.log(`current carrier proof passed (${operations.size} operations; ${carriers.size} current state carriers; no retained conditional carriers)`);

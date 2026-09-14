@@ -176,8 +176,8 @@ Published migration history remains immutable. Historical evidence may still men
 | --- | --- | --- |
 | Repository operating model | DELIVERED | none |
 | C-020 architecture | CURRENT / OPERATOR RATIFIED | reopen only on explicit trigger |
-| C-020 implementation | IN PROGRESS / SLICE 6 AUTHORIZED | remove premature Brain injection and align verification |
-| P-01 Builder UI | VALIDATING | Slice 7 composed proof |
+| C-020 implementation | SLICE 6B PASS / CLOSED | proceed to composed Product proof |
+| P-01 Builder UI | VALIDATING / SLICE 7 NEXT | composed Product proof |
 | Legacy Builder architecture | REMOVED FROM CURRENT RUNTIME | none |
 | First real Brain rule | DEFERRED / BLOCKED | after Slice 7 acceptance |
 | Narrow SDK / Sankhya | PLANNED | after first real Brain-backed app |
@@ -194,8 +194,8 @@ Published migration history remains immutable. Historical evidence may still men
 | 3 | Mastra lifecycle / message projection / PLAN read-only | PASS | closed |
 | 4 | BLD-23/P-01 Product API, automatic Preview, useful Diff | PASS | closed |
 | 5 | Legacy Builder excision | PASS | closed |
-| 6 | Remove premature Brain pre-injection + align current verify | AUTHORIZED / NEXT | explicit Slice-6 handoff |
-| 7 | Real composed Product proof + operator checkpoint | PLANNED | not authorized |
+| 6 | Remove premature Brain pre-injection + align current verify | PASS / CLOSED | current verification graph green |
+| 7 | Real composed Product proof + operator checkpoint | AUTHORIZED / NEXT | explicit Slice-7 handoff |
 | 8 | First real Brain-backed build via Mastra tools | DEFERRED | not authorized before Slice 7 |
 
 Execution remains:
@@ -213,4 +213,4 @@ explicit slice handoff
 
 ## Exact next action
 
-Execute Slice 6: remove the premature Builder Brain pre-query/prompt-injection path, preserve the general Brain subsystem, align current verification with the cleaned C-020 product, commit/checkpoint, and STOP before Slice 7.
+Execute Slice 7: prove the real composed current Product journey and operator checkpoint.

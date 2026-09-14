@@ -638,87 +638,40 @@ Bounded Evidence: [../evidence/4b/generated-projection-no-parallel-dto.md](../ev
 
 ## 17. Current executable proof
 
-The repository `verify` path proves:
+The repository `npm run verify` path proves only the current MVP surface and the
+infrastructure required by its supported Builder journey:
 
 ```text
-repository hygiene / docs / current-state guards
-+ serial-safe repository mutation tests with cleanup
-+ repository tests for the current operation census
+current migrations / PostgreSQL
++ C-020 BuilderRun, source custody and source inspection
++ Mastra lifecycle, message projection and PLAN
++ execution-native Registry / compiler / starter / E2B template
++ Product browser journey
++ Hub/Web typecheck and Web build
++ repository checks and current Biome
 + Product OAS lint + deterministic bundle
-+ Product-fragment reachability / zero dead parallel YAML
-+ Project declaration schema compilation
-+ constrained Project input/output grammar
 + current operation-ledger ↔ Product OAS bijection = 31 / 31
-+ current owner wire gates for IAM/Workspace, Project, Builder, Brain and Connections
-+ current Product browser proof
++ current carrier/security and IAM/Workspace, Project, Builder, Brain, Connections gates
++ current Technical Ingress protocols TI-01/TI-02
 ```
 
-Generated-projection TDD/probe chain:
+Retained Project grammar, Budget, generated historical projections, Release,
+PAR, Gateway, MAR, Observability and whole-4B proofs remain explicit historical
+or subsystem checks. They are not current Product authority and are not part of
+the default verification graph.
+
+Historical owner-slice RED/GREEN Evidence remains in the bounded files under
+`docs/evidence/4b/`; this contract does not duplicate the full worklog.
+
+## 18. Retained historical 4B closure
+
+Operator ratification closes the retained 4B semantic authority on this candidate; this section is historical/platform context and does not grant current Product authority. The ratified result is:
 
 ```text
-Verify #353 = FAILURE
-→ expected RED: Generated wire projection proof is missing
-
-Verify #355 = FAILURE
-→ real Kubb generation reached strict compile
-→ probe tsconfig did not yet admit Kubb's explicit .ts imports
-→ Product/OAS semantics and Kubb semantic assertions remained unchanged
-
-Verify #356 = SUCCESS
-→ exact real Conexus historical 111-operation Kubb probe green
-→ deterministic generation + strict compile green
-```
-
-Whole-wire TDD/falsification chain:
-
-```text
-Verify #361 = FAILURE
-→ expected RED: Whole 4B executable proof is missing
-→ all prior 4B gates green first
-
-Verify #363 = FAILURE
-→ genuine falsifier: generated Project HTTP OAD lost exact caller/authorization projection
-→ root cause isolated to Project OAD projection fidelity
-
-Verify #364 = SUCCESS
-→ minimal generator correction preserves HTTP/non-HTTP caller split, scope and effectClass
-→ cross-surface negatives green
-
-Verify #368 = FAILURE
-→ independent-review M1 reproduced: unbounded true/{} Project payload schema accepted
-
-Verify #369 = SUCCESS
-→ exact-payload grammar tightened without imposing object-only DTOs
-
-Verify #370 = FAILURE
-→ independent-review M2 reproduced: exactly three dead Product YAML fragments detected
-
-Verify #373 = SUCCESS
-→ dead fragments deleted; topology reachability gate green
-
-Verify #375 = SUCCESS
-→ repository mutation tests serialized and temporary work cleanup made repeat-safe
-
-Verify #377 = SUCCESS
-→ actual conditional HTTP carrier sets + expected adversarial failure reasons hardened
-```
-
-Historical owner-slice RED/GREEN Evidence remains in the bounded files under `docs/evidence/4b/`; this contract does not duplicate the full worklog.
-
-Independent review and Lead adjudication:
-
-- [Independent Fable Review](../evidence/4b/fable-independent-review.md)
-- [Lead Adjudication](../evidence/4b/fable-review-adjudication.md)
-
-## 18. Ratified 4B closure
-
-Operator ratification closes the 4B semantic authority on this candidate. The ratified result is:
-
-```text
-fixed Product wire/schema closure       = 111 / 111
+historical fixed Product wire/schema closure = 111 / 111
 Project-defined operation grammar       = CLOSED / unbounded payload gap corrected
 Budget Analyzer proving instance         = GREEN
-Technical Ingress                        = CLOSED / 3 protocol-only operations
+historical Technical Ingress                = CLOSED / 3 protocol-only operations
 Product-count impact of Technical        = 0
 generated projection/no-parallel-DTO     = CLOSED / real Kubb probe green
 whole-4B executable/negative proof       = CLOSED

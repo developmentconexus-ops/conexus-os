@@ -156,7 +156,7 @@
     "wire:budget-truth": "npm run wire:budget-extract && npm run wire:budget-valid && npm run wire:budget-negative",
     "wire:budget-verify": "npm run wire:budget-declarations && npm run wire:budget-generate && npm run wire:budget-lint && npm run wire:budget-truth",
     "wire:whole-4b": "node scripts/check-wire-whole-4b.mjs",
-    "wire:verify": "npm run wire:lint && npm run wire:bundle && npm run wire:schema && npm run wire:bijection && npm run wire:carriers && npm run wire:identity-workspace && npm run wire:project && npm run wire:builder && npm run wire:brain && npm run wire:connections && npm run wire:release && npm run wire:par && npm run wire:gateway && npm run wire:mar && npm run wire:observability && npm run wire:technical-lint && npm run wire:technical-ingress && npm run wire:projections && npm run wire:budget-verify && npm run wire:whole-4b",
+    "wire:verify": "npm run wire:lint && npm run wire:bundle && npm run wire:bijection && npm run wire:carriers && npm run wire:identity-workspace && npm run wire:project && npm run wire:builder && npm run wire:brain && npm run wire:connections && npm run wire:technical-lint && npm run wire:technical-ingress",
     "repository:check:local": "npm run repository:check",
     "verify:local": "npm run verify",
     "verify": "npm run conexus:verify -- --scope candidate"

@@ -504,13 +504,13 @@ published migrations remain byte-identical
 current tests prove C-020, not deleted legacy behavior
 ```
 
-**Review gate:** CLOSED. Slice 6 is the current implementation slice.
+**Review gate:** CLOSED. Slice 6 is PASS / CLOSED; Slice 7 is the current authorized slice.
 
 ---
 
 # Slice 6 — Remove premature Brain path + align current verification
 
-**State:** CURRENT / REVIEW-GATED
+**State:** PASS / CLOSED
 
 ## Goal
 
@@ -555,7 +555,7 @@ Remove Brain core leaf until Brain is truly authorized.
 PASS when ordinary Builder has no premature Brain injection and `npm run verify`
 represents the cleaned C-020 product rather than historical Builder architecture.
 
-**Review gate:** STOP. Do not start Slice 7.
+**Review gate:** CLOSED. Slice 7 is AUTHORIZED / NEXT; do not start Slice 8.
 
 ---
 

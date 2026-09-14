@@ -30,11 +30,9 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'c020-browser', 'c020-e2b-template', 'c020-hub-typecheck', 'c020-web-typecheck', 'c020-web-build',
   'repository-check', 'repository-hygiene', 'repository-doc-index', 'repository-architecture', 'biome-current',
   'wire-openapi-lint', 'wire-openapi-bundle',
-  'wire-schema', 'wire-bijection', 'wire-carriers', 'wire-identity-workspace',
+  'wire-bijection', 'wire-carriers', 'wire-identity-workspace',
   'wire-project', 'wire-builder', 'wire-brain', 'wire-connections',
-  'wire-release', 'wire-par', 'wire-gateway', 'wire-mar', 'wire-observability',
-  'wire-technical-lint', 'wire-technical-ingress', 'wire-projections',
-  'wire-budget', 'wire-whole-4b',
+  'wire-technical-lint', 'wire-technical-ingress',
 ])
 
 test('manifest exposes only the three bounded aliases and exact npm routing', () => {

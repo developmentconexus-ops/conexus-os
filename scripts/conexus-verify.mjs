@@ -61,7 +61,6 @@ export const CANDIDATE_GRAPH = Object.freeze([
 
   candidateStep('wire-openapi-lint', 'npm run wire:lint'),
   candidateStep('wire-openapi-bundle', 'npm run wire:bundle'),
-  candidateStep('wire-schema', 'npm run wire:schema'),
   candidateStep('wire-bijection', 'npm run wire:bijection'),
   candidateStep('wire-carriers', 'npm run wire:carriers'),
   candidateStep('wire-identity-workspace', 'npm run wire:identity-workspace'),
@@ -69,16 +68,8 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('wire-builder', 'npm run wire:builder'),
   candidateStep('wire-brain', 'npm run wire:brain'),
   candidateStep('wire-connections', 'npm run wire:connections'),
-  candidateStep('wire-release', 'npm run wire:release'),
-  candidateStep('wire-par', 'npm run wire:par'),
-  candidateStep('wire-gateway', 'npm run wire:gateway'),
-  candidateStep('wire-mar', 'npm run wire:mar'),
-  candidateStep('wire-observability', 'npm run wire:observability'),
   candidateStep('wire-technical-lint', 'npm run wire:technical-lint'),
   candidateStep('wire-technical-ingress', 'npm run wire:technical-ingress'),
-  candidateStep('wire-projections', 'npm run wire:projections'),
-  candidateStep('wire-budget', 'npm run wire:budget-verify'),
-  candidateStep('wire-whole-4b', 'npm run wire:whole-4b'),
 ])
 
 // Descriptive aliases make the manifest easy to discover for tests and small
