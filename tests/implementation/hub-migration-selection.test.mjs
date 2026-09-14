@@ -60,6 +60,7 @@ const currentNames = [
   '034_builder_project_source_preview.sql',
   '035_builder_c020_state_invariants.sql',
   '036_builder_project_creation_bootstrap.sql',
+  '037_builder_c020_source_inspection.sql',
 ]
 const heldNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
 const names = (migrations) => migrations.map((migration) => migration.name)

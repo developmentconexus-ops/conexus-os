@@ -20,7 +20,7 @@ const r1MigrationNames = [
   '010_project_inception_refinement.sql',
 ]
 const r2MigrationNames = ['011_r2_brain_connections.sql', '012_r2_project_binding_recovery.sql', '013_r2_binding_source_concordance.sql', '014_r2_brain_binding_settlement.sql', '015_r2_project_brain_read_envelopes.sql', '016_r2_brain_binding_removal.sql', '017_r2_key_conformance_subject.sql', '018_r2_brain_revision_selection.sql']
-const currentMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql', '021_rb_builder_bounded_correction.sql', '022_rb_builder_source_inspection.sql', '023_rb_builder_preview_subject.sql', '026_builder_application_registry.sql', '027_rb_builder_working_source.sql', '028_builder_run.sql', '029_builder_run_execution.sql', '030_builder_run_invariants.sql', '031_builder_run_application_build.sql', '032_builder_project_build_grant.sql', '033_builder_execution_artifact_admission.sql', '034_builder_project_source_preview.sql', '035_builder_c020_state_invariants.sql', '036_builder_project_creation_bootstrap.sql']
+const currentMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql', '021_rb_builder_bounded_correction.sql', '022_rb_builder_source_inspection.sql', '023_rb_builder_preview_subject.sql', '026_builder_application_registry.sql', '027_rb_builder_working_source.sql', '028_builder_run.sql', '029_builder_run_execution.sql', '030_builder_run_invariants.sql', '031_builder_run_application_build.sql', '032_builder_project_build_grant.sql', '033_builder_execution_artifact_admission.sql', '034_builder_project_source_preview.sql', '035_builder_c020_state_invariants.sql', '036_builder_project_creation_bootstrap.sql', '037_builder_c020_source_inspection.sql']
 const heldMigrationNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
 const expectedMigrationNames = [...currentMigrationNames, ...heldMigrationNames]
 const migration001Digest = 'd27e76b972145bc3a6bf669d4fd32734fc06153d07cddaf1072c6b29845b112f'
@@ -59,6 +59,7 @@ const migration033Digest = '4f0f83b3c0df6b510c031f2ea1b65548cad4819e6d96f1940274
 const migration034Digest = '24b2657102da0cd492480e650ca42d07ee66f16e1daf3339877fd2795a691ecb'
 const migration035Digest = 'e3000ac16799dede8a585a495e7c8e6a418889bfc23816715604b79afabb02dd'
 const migration036Digest = 'f0fe953e4f202ee8d7c266621a5cfb8c863097b022c7dd9f9e0485bab618d8d2'
+const migration037Digest = '356d01a90237c24464b9e05b5fdc65c716ddb24130187c4cc88e03673c6d3190'
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }
@@ -99,6 +100,7 @@ const migrationDigests = new Map([
   ['034_builder_project_source_preview.sql', migration034Digest],
   ['035_builder_c020_state_invariants.sql', migration035Digest],
   ['036_builder_project_creation_bootstrap.sql', migration036Digest],
+  ['037_builder_c020_source_inspection.sql', migration037Digest],
 ])
 const recognizedMigrationNames = new Set(expectedMigrationNames)
 
@@ -3300,7 +3302,7 @@ const assert018Catalog = async (client, migration018) => {
   `, [])
 }
 
-const assert019Catalog = async (client, { after020 = false, after021 = false, after022 = false, after023 = false, after026 = false, after027 = false, after028 = false, after029 = false, after031 = false } = {}) => {
+const assert019Catalog = async (client, { after020 = false, after021 = false, after022 = false, after023 = false, after026 = false, after027 = false, after028 = false, after029 = false, after031 = false, after037 = false } = {}) => {
   await assertSignatures(client, 'MIGRATION_019_SCHEMA_OWNER_REFUSED', `
     SELECT nspname || ':' || pg_get_userbyid(nspowner) AS signature
     FROM pg_namespace WHERE nspname = 'builder'
@@ -3324,7 +3326,7 @@ const assert019Catalog = async (client, { after020 = false, after021 = false, af
     SELECT p.proname || ':' || pg_get_userbyid(p.proowner) || ':' || p.prosecdef || ':' ||
       coalesce(array_to_string(p.proconfig, ','), '') AS signature
     FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
-      WHERE (n.nspname = 'builder' ${after020 ? `AND p.proname NOT IN ('claim_verification','fail_verification','fail_verification_claim','get_evidence','get_finding','list_evidence','list_findings','settle_verification'${after021 ? ",'claim_correction','close_finding'" : ''}${after022 ? ",'admit_source_revision'" : ''}${after023 ? ",'read_preview_subject'" : ''}${after026 ? ",'admit_verified_application_source'" : ''}${after027 ? ",'settle_response','settle_preparation','admit_application_source'" : ''}${after028 ? ",'create_builder_run','read_builder_run'" : ''}${after029 ? ",'claim_builder_run','bind_builder_run_message','bind_builder_run_sandbox','settle_builder_run','fail_builder_run'" : ''}${after031 ? ",'recover_builder_runs','read_preview_subject_legacy','advance_builder_run_source','settle_builder_run_build','admit_verified_application_source_legacy'" : ''})` : ''})
+      WHERE (n.nspname = 'builder' ${after020 ? `AND p.proname NOT IN ('claim_verification','fail_verification','fail_verification_claim','get_evidence','get_finding','list_evidence','list_findings','settle_verification'${after021 ? ",'claim_correction','close_finding'" : ''}${after022 ? ",'admit_source_revision'" : ''}${after023 ? ",'read_preview_subject'" : ''}${after026 ? ",'admit_verified_application_source'" : ''}${after027 ? ",'settle_response','settle_preparation','admit_application_source'" : ''}${after028 ? ",'create_builder_run','read_builder_run'" : ''}${after029 ? ",'claim_builder_run','bind_builder_run_message','bind_builder_run_sandbox','settle_builder_run','fail_builder_run'" : ''}${after031 ? ",'recover_builder_runs','read_preview_subject_legacy','advance_builder_run_source','settle_builder_run_build','admit_verified_application_source_legacy'" : ''}${after037 ? ",'read_latest_code_changing_builder_run'" : ''})` : ''})
       OR (n.nspname = 'iam' AND p.proname IN ('admit_project_build','admit_project_source_read','ensure_project_builder_grant'))
     ORDER BY n.nspname, p.proname
   `, [
@@ -3472,6 +3474,56 @@ const assert027Catalog = async (client, { after036 = false } = {}) => {
   `, after036 ? ['project_owner:project_working_state:INSERT'] : [])
 }
 
+const expected037FunctionBodies = (migration) => {
+  const definitions = []
+  const pattern = /CREATE (?:OR REPLACE )?FUNCTION (builder\.(?:admit_source_revision|read_latest_code_changing_builder_run))\([\s\S]*?\sAS \$\$([\s\S]*?)\$\$;/g
+  for (const match of migration.bytes.toString('utf8').matchAll(pattern)) definitions.push({ name: match[1], definition: match[2] })
+  definitions.sort((left, right) => left.name.localeCompare(right.name))
+  return definitions
+}
+
+const assert037Catalog = async (client, migration037) => {
+  const functionBodies = (await client.query(`
+    SELECT n.nspname || '.' || p.proname AS name, p.prosrc AS definition
+    FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
+    WHERE (n.nspname, p.proname) IN (
+      ('builder', 'admit_source_revision'), ('builder', 'read_latest_code_changing_builder_run'))
+    ORDER BY name
+  `)).rows
+  if (JSON.stringify(functionBodies) !== JSON.stringify(expected037FunctionBodies(migration037))) fail('MIGRATION_037_FUNCTION_SOURCE_REFUSED')
+  await assertSignatures(client, 'MIGRATION_037_FUNCTION_SECURITY_REFUSED', `
+    SELECT n.nspname || '.' || p.proname || '(' || oidvectortypes(p.proargtypes) || '):' ||
+      pg_get_userbyid(p.proowner) || ':' || p.prosecdef || ':' ||
+      coalesce(array_to_string(p.proconfig, ','), '') || ':' || pg_get_function_result(p.oid) AS signature
+    FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'builder'
+      AND p.proname IN ('admit_source_revision', 'read_latest_code_changing_builder_run')
+    ORDER BY p.proname
+  `, [
+    'builder.admit_source_revision(uuid, uuid, text):builder_owner:true:search_path=pg_catalog, pg_temp:boolean',
+    'builder.read_latest_code_changing_builder_run(uuid, uuid):builder_owner:true:search_path=pg_catalog, pg_temp:jsonb',
+  ])
+  await assertSignatures(client, 'MIGRATION_037_EXECUTE_PRIVILEGE_REFUSED', `
+    WITH functions(name) AS (VALUES
+      ('builder.admit_source_revision(uuid, uuid, text)'),
+      ('builder.read_latest_code_changing_builder_run(uuid, uuid)'))
+    SELECT role_name || ':' || functions.name AS signature
+    FROM (VALUES ('hub_rb_ingress'), ('public')) AS roles(role_name)
+    CROSS JOIN functions
+    WHERE has_function_privilege(roles.role_name, functions.name, 'EXECUTE')
+    ORDER BY role_name, functions.name
+  `, [
+    'hub_rb_ingress:builder.admit_source_revision(uuid, uuid, text)',
+    'hub_rb_ingress:builder.read_latest_code_changing_builder_run(uuid, uuid)',
+  ])
+  await assertSignatures(client, 'MIGRATION_037_TABLE_PRIVILEGE_REFUSED', `
+    SELECT grantee || ':' || table_name || ':' || privilege_type AS signature
+    FROM information_schema.table_privileges
+    WHERE table_schema = 'builder' AND grantee IN ('hub_rb_ingress', 'hub_rb_executor', 'public')
+    ORDER BY grantee, table_name, privilege_type
+  `, [])
+}
+
 const assert024Catalog = async (client) => {
   await assertSignatures(client, 'MIGRATION_024_ROLE_BOUNDARY_REFUSED', `
     SELECT rolname || ':' || rolcanlogin || ':' || rolsuper || ':' || rolinherit || ':' || rolcreaterole || ':' ||
@@ -3606,6 +3658,7 @@ const verifyLedger = async (client, migrations) => {
       after028: applied.has('028'),
       after029: applied.has('029'),
       after031: applied.has('031'),
+      after037: applied.has('037'),
     })
     await assert020Catalog(client)
     await assert021Catalog(client)
@@ -3618,6 +3671,7 @@ const verifyLedger = async (client, migrations) => {
       await assert026SchemaPrivileges(client)
       await assert027Catalog(client, { after036: applied.has('036') })
     }
+    if (applied.has('037')) await assert037Catalog(client, files.get('037'))
   } else if (applied.has('021')) {
     await assert015Catalog(
       client, files.get('003'), files.get('005'), files.get('006'), files.get('011'),

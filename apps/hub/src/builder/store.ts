@@ -57,6 +57,13 @@ export type BuilderRunSummary = Readonly<{
   resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
   failureCode: string | null
 }>
+export type BuilderCodeChangingRun = Readonly<{
+  builderRunId: string
+  projectId: string
+  baseSourceRevision: string
+  resultSourceRevision: string
+  resultKind: 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED'
+}>
 export type ClaimedChange = Readonly<{
   accountId: string
   projectId: string
@@ -127,6 +134,7 @@ type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 export type BuilderStore = Readonly<{
   createBuilderRun(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN' }>): Promise<BuilderRunSummary>
   readBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderRunSummary | null>
+  readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderCodeChangingRun | null>
   claimBuilderRun(builderRunId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<BuilderRunSummary>
   bindBuilderRunMessage(builderRunId: string, messageId: string): Promise<void>
   bindBuilderRunSandbox(builderRunId: string, sandboxId: string): Promise<void>
@@ -182,6 +190,12 @@ export const createBuilderStore = ({
   readBuilderRun: async ({ accountId, projectId }) => {
     const result = await ingressPool.query<JsonRow<BuilderRunSummary | null>>(
       'SELECT builder.read_builder_run($1,$2) AS value', [accountId, projectId],
+    )
+    return result.rows[0]?.value ?? null
+  },
+  readLatestCodeChangingBuilderRun: async ({ accountId, projectId }) => {
+    const result = await ingressPool.query<JsonRow<BuilderCodeChangingRun | null>>(
+      'SELECT builder.read_latest_code_changing_builder_run($1,$2) AS value', [accountId, projectId],
     )
     return result.rows[0]?.value ?? null
   },
