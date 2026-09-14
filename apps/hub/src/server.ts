@@ -214,7 +214,6 @@ builder = config.builder && config.project && builderModel ? createConfiguredBui
   validateModelCredential: builderModel.validateCredential,
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
-  ...(brain ? { brainReader: brain.readProjectKnowledge } : {}),
 }) : undefined
 let keyConformanceSubjectPool: ReturnType<typeof createPostgresPool> | undefined
 if (config.projectBindings?.brain) {

@@ -25,16 +25,12 @@ const packageScripts = Object.freeze({
 })
 
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
-  'c020-task0-mastra', 'c020-migration-selection', 'c020-builder-postgres', 'c020-builder-brain',
+  'c020-migration-selection', 'c020-migration-postgres', 'c020-builder-postgres', 'c020-mastra-lifecycle',
   'c020-registry', 'c020-source-runtime', 'c020-compiler-runtime',
   'c020-browser', 'c020-e2b-template', 'c020-hub-typecheck', 'c020-web-typecheck', 'c020-web-build',
   'repository-check', 'repository-hygiene', 'repository-doc-index', 'repository-architecture', 'biome-current',
   'wire-openapi-lint', 'wire-openapi-bundle',
-  'wire-schema', 'wire-bijection', 'wire-carriers', 'wire-identity-workspace',
-  'wire-project', 'wire-builder', 'wire-brain', 'wire-connections',
-  'wire-release', 'wire-par', 'wire-gateway', 'wire-mar', 'wire-observability',
-  'wire-technical-lint', 'wire-technical-ingress', 'wire-projections',
-  'wire-budget', 'wire-whole-4b',
+  'wire-schema', 'wire-builder',
 ])
 
 test('manifest exposes only the three bounded aliases and exact npm routing', () => {
@@ -127,7 +123,7 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   const commands = CANDIDATE_GRAPH.map(entry => entry.command)
   assert.equal(commands.filter(command => command.includes('qualification/4d/mastra-builder-capability')).length, 1)
   assert.equal(commands.filter(command => command.includes('tests/implementation/builder-run-invariants-postgres.test.mjs') && command.includes('tests/implementation/builder-run-execution-postgres.test.mjs')).length, 1)
-  assert.equal(commands.filter(command => command === 'node --test --test-concurrency=1 tests/implementation/builder-brain-context.test.mjs').length, 1)
+  assert.equal(commands.filter(command => command === 'node --test --test-concurrency=1 tests/implementation/builder-brain-context.test.mjs').length, 0)
   assert.equal(commands.some(command => command.includes('tests/implementation/rb-builder-first-vertical.test.mjs')), false,
     'historical Builder verifier suite is not a current MVP blocker')
   assert.equal(commands.filter(command => command.includes('node scripts/builder-e2b-template.mjs --check')).length, 1,

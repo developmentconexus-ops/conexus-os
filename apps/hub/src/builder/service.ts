@@ -88,7 +88,7 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
         projectId: claimed.projectId, executionId: claimed.builderRunId, sourceRevision: claimed.baseSourceRevision,
       })
       const result = await runtime.execute({
-        accountId: input.accountId, projectId: claimed.projectId, executionId: claimed.builderRunId, intent: input.content,
+        projectId: claimed.projectId, executionId: claimed.builderRunId, intent: input.content,
         mode: claimed.mode, baseSourceRevision: claimed.baseSourceRevision, sourceBundle,
         bindPhysicalSandbox: (sandboxId) => store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId),
         bindMessage: (messageId) => store.bindBuilderRunMessage(claimed.builderRunId, messageId),

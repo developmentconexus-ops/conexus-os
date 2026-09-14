@@ -10,7 +10,6 @@ import { readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot } from './routes.js'
 import { createMastraE2BCodingWorkerRuntime } from './runtime.js'
-import type { BuilderProjectKnowledgeReader } from './runtime.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderSourcePort } from './source.js'
@@ -56,7 +55,7 @@ export const projectBuilderMessages = (messages: readonly ProjectableBuilderMess
   .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
   .map((message) => Object.freeze(message)))
 
-export const createConfiguredBuilderModule = ({ database, builder, projectSource, applicationArtifacts, launchPreview, model, modelIdentity, validateModelCredential, origin, resolveCurrentSession, brainReader }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, projectSource, applicationArtifacts, launchPreview, model, modelIdentity, validateModelCredential, origin, resolveCurrentSession }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
@@ -70,7 +69,6 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   validateModelCredential(): void
   origin: string
   resolveCurrentSession: (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
-  brainReader?: BuilderProjectKnowledgeReader
 }>) => {
   const executorPool = createPostgresPool({ ...database, user: 'hub_rb_executor', password: readSecretFile(builder.executorPasswordFile) })
   const store = createBuilderStore({
@@ -127,7 +125,6 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     sessionStorage,
     sessionMemory,
     sharedHarness: { agent: sharedAgent, controller: sharedController, ready: sharedControllerReady },
-    ...(brainReader ? { brainReader } : {}),
   })
   const compiler = createE2BApplicationCompiler({ apiKey: readSecretFile(builder.e2bApiKeyFile) })
   const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts })

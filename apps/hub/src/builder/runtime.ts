@@ -28,23 +28,7 @@ type CodingWorkerCommonInput = Readonly<{
   observe?(event: BuilderObservation): void
 }>
 
-export type BuilderProjectKnowledgeReader = (input: Readonly<{
-  accountId: string
-  projectId: string
-  query: string
-}>) => Promise<Readonly<
-  | { status: 'FOUND'; value: Readonly<{
-    brainRevisionId: string
-    brainDigest: string
-    matches: readonly Readonly<{ label: string; text: string; provenanceRefs: readonly string[] }>[]
-  }> }
-  | { status: 'NOT_FOUND' }
-  | { status: 'DENIED' }
-  | { status: 'UNAVAILABLE' }
->>
-
 export type CodingWorkerInput = CodingWorkerCommonInput & Readonly<{
-  accountId: string
   executionId: string
 }>
 
@@ -76,7 +60,6 @@ export type E2BBuilderRuntimeConfig = Readonly<{
   model: MastraLanguageModel
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   validateModelCredential(): void
-  brainReader?: BuilderProjectKnowledgeReader
   sessionStorage?: LibSQLStore
   sessionMemory?: Memory
   sharedHarness?: Readonly<{
@@ -86,24 +69,6 @@ export type E2BBuilderRuntimeConfig = Readonly<{
   }>
   timeoutMs?: number
 }>
-
-export const formatBrainContext = (result: Awaited<ReturnType<BuilderProjectKnowledgeReader>>): string => {
-  if (result.status === 'FOUND' && result.value.matches.length === 1) {
-    const match = result.value.matches[0]
-    if (!match) return ' No matching trusted Project knowledge was found. Do not invent business rules; state the gap.'
-    return ` Trusted Project knowledge (Brain revision ${result.value.brainRevisionId}, digest ${result.value.brainDigest}, provenance ${match.provenanceRefs.join(', ') || 'unrecorded'}): ${match.label}. ${match.text} Use this rule and preserve its provenance in the response.`
-  }
-  if (result.status === 'FOUND' && result.value.matches.length > 1) {
-    return ` Trusted Project knowledge returned multiple possible matches in Brain revision ${result.value.brainRevisionId}. Do not choose or invent a rule; state the ambiguity.`
-  }
-  if (result.status === 'NOT_FOUND' || result.status === 'FOUND') {
-    return ' No matching trusted Project knowledge was found. Do not invent business rules; state the gap.'
-  }
-  if (result.status === 'DENIED') {
-    return ' Trusted Project knowledge is unavailable under the current authority. State the gap without inventing a rule.'
-  }
-  return ' Trusted Project knowledge could not be read. State the gap without inventing a rule.'
-}
 
 class ConexusGuardedE2BSandbox extends E2BSandbox {
   override retryOnDead<T>(work: () => Promise<T>): Promise<T> {
@@ -156,9 +121,6 @@ export const createMastraE2BCodingWorkerRuntime = (
         !oid.test(input.baseSourceRevision) || !input.intent.trim() || input.sourceBundle.byteLength === 0 ||
         input.sourceBundle.byteLength > 256 * 1024 * 1024) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
 
-      const brainContext = config.brainReader && input.accountId
-        ? formatBrainContext(await config.brainReader({ accountId: input.accountId, projectId: input.projectId, query: input.intent }))
-        : ''
       config.validateModelCredential()
 
       const logicalSandboxId = `conexus-builder-${executionId}`
@@ -247,7 +209,7 @@ export const createMastraE2BCodingWorkerRuntime = (
         })
         const mapper = createMastraObservationMapper()
         const publish = (event: BuilderObservation) => notifyObservation(input.observe, event)
-        const prompt = `Human request: ${input.intent}.${brainContext}`
+        const prompt = `Human request: ${input.intent}.`
         let summaryText = ''
         let controller: AgentController<Record<string, unknown>> | undefined = config.sharedHarness?.controller
         let unsubscribe: (() => void) | undefined

@@ -70,7 +70,7 @@ Older table entries below retain their named historical scope.
 | Project / data / persistence | [`reference/data-and-persistence.md`](reference/data-and-persistence.md) |
 | Brain / knowledge | [`reference/brain-and-knowledge.md`](reference/brain-and-knowledge.md) |
 | Connections / Gateway | [`reference/integrations-and-gateway.md`](reference/integrations-and-gateway.md) |
-| Builder / Harness | [`reference/builder-and-harness.md`](reference/builder-and-harness.md) |
+| Builder / Harness | [`reference/builder-and-harness.md`](reference/builder-and-harness.md), [`reference/builder-c020-mastra-native.md`](reference/builder-c020-mastra-native.md) |
 | Runtime / Product Agents | [`reference/runtime-and-agents.md`](reference/runtime-and-agents.md) and [`reference/mastra/index.md`](reference/mastra/index.md) |
 | Security / authority | [`reference/security-and-authority.md`](reference/security-and-authority.md) |
 | Release / deployment / recovery | [`reference/release-deployment-and-operations.md`](reference/release-deployment-and-operations.md) |

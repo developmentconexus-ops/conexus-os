@@ -40,10 +40,10 @@ const candidateStep = (scope, command, environmentClass = 'static') => Object.fr
  * property while the candidate remains unadmitted.
  */
 export const CANDIDATE_GRAPH = Object.freeze([
-  candidateStep('c020-task0-mastra', 'npm test --prefix qualification/4d/mastra-builder-capability'),
   candidateStep('c020-migration-selection', 'node --test tests/implementation/hub-migration-selection.test.mjs && npx --no-install biome check tests/implementation/hub-migration-selection.test.mjs tests/implementation/hub-migration-postgres.test.mjs'),
-  candidateStep('c020-builder-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-invariants-postgres.test.mjs tests/implementation/builder-run-execution-postgres.test.mjs', 'postgres'),
-  candidateStep('c020-builder-brain', 'node --test --test-concurrency=1 tests/implementation/builder-brain-context.test.mjs'),
+  candidateStep('c020-migration-postgres', 'node --test --test-concurrency=1 tests/implementation/hub-migration-postgres.test.mjs', 'postgres'),
+  candidateStep('c020-builder-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-invariants-postgres.test.mjs tests/implementation/builder-run-execution-postgres.test.mjs tests/implementation/builder-c020-source-inspection-postgres.test.mjs', 'postgres'),
+  candidateStep('c020-mastra-lifecycle', 'node --test --test-concurrency=1 tests/implementation/builder-session-projection.test.mjs tests/implementation/builder-plan-starter.test.mjs qualification/4d/mastra-builder-capability/probe.test.mjs'),
   candidateStep('c020-registry', 'node --test --test-concurrency=1 tests/implementation/builder-application-registry.test.mjs tests/implementation/builder-application-registry-postgres.test.mjs', 'postgres'),
   candidateStep('c020-source-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-working-source-runtime.test.mjs tests/implementation/builder-working-source-state.test.mjs tests/implementation/builder-run-dispatch.test.mjs'),
   candidateStep('c020-compiler-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-application-runtime.test.mjs tests/implementation/builder-application-starter.test.mjs'),
@@ -62,23 +62,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('wire-openapi-lint', 'npm run wire:lint'),
   candidateStep('wire-openapi-bundle', 'npm run wire:bundle'),
   candidateStep('wire-schema', 'npm run wire:schema'),
-  candidateStep('wire-bijection', 'npm run wire:bijection'),
-  candidateStep('wire-carriers', 'npm run wire:carriers'),
-  candidateStep('wire-identity-workspace', 'npm run wire:identity-workspace'),
-  candidateStep('wire-project', 'npm run wire:project'),
   candidateStep('wire-builder', 'npm run wire:builder'),
-  candidateStep('wire-brain', 'npm run wire:brain'),
-  candidateStep('wire-connections', 'npm run wire:connections'),
-  candidateStep('wire-release', 'npm run wire:release'),
-  candidateStep('wire-par', 'npm run wire:par'),
-  candidateStep('wire-gateway', 'npm run wire:gateway'),
-  candidateStep('wire-mar', 'npm run wire:mar'),
-  candidateStep('wire-observability', 'npm run wire:observability'),
-  candidateStep('wire-technical-lint', 'npm run wire:technical-lint'),
-  candidateStep('wire-technical-ingress', 'npm run wire:technical-ingress'),
-  candidateStep('wire-projections', 'npm run wire:projections'),
-  candidateStep('wire-budget', 'npm run wire:budget-verify'),
-  candidateStep('wire-whole-4b', 'npm run wire:whole-4b'),
 ])
 
 // Descriptive aliases make the manifest easy to discover for tests and small
