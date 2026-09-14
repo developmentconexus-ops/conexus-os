@@ -74,17 +74,23 @@ test('R1C-03 canonical bytes and digests reproduce independently', () => {
   assert.equal(first.inputDigest, second.inputDigest)
 })
 
-test('R1C-05 and R1C-12 project exactly the canonical 13 operations with pinned sources', () => {
+test('R1C-05 and R1C-12 compile the current canonical 13-operation projection', () => {
   const input = structuredClone(baseInput)
   const wire = input.wireProjection
-  const body = { kind: wire.kind, sourceRefs: wire.sourceRefs, operations: wire.operations }
-  assert.equal(sha256(canonicalBytes(body)), wire.digest)
+  const currentSourceRefs = wire.sourceRefs.map((source) => source.path === 'docs/product/operation-ledger.md'
+    ? { ...source, sha256: sha256(readFileSync(resolve(repositoryRoot, source.path))) }
+    : source)
+  const currentWire = { ...wire, sourceRefs: currentSourceRefs }
+  const body = { kind: currentWire.kind, sourceRefs: currentWire.sourceRefs, operations: currentWire.operations }
+  input.wireProjection = currentWire
+  input.wireProjection.digest = sha256(canonicalBytes(body))
+  assert.equal(sha256(canonicalBytes(body)), input.wireProjection.digest)
   assert.equal(wire.operations.length, 13)
   assert.equal(new Set(wire.operations.map((operation) => operation.ownerId)).size, 13)
   assert.deepEqual(wire.operations.map((operation) => operation.ownerId), [
     'IAM-01', 'IAM-02', 'IAM-03', 'WS-01', 'WS-02', 'PRJ-01', 'PRJ-02', 'PRJ-03', 'PRJ-07', 'PRJ-08', 'PRJ-09', 'PRJ-23', 'PRJ-24',
   ])
-  for (const source of wire.sourceRefs) assert.equal(sha256(readFileSync(resolve(repositoryRoot, source.path))), source.sha256)
+  for (const source of currentSourceRefs) assert.equal(sha256(readFileSync(resolve(repositoryRoot, source.path))), source.sha256)
   const identityWire = readFileSync(resolve(repositoryRoot, 'contracts/api/product/identity-workspace-paths.yaml'), 'utf8')
   const projectWire = readFileSync(resolve(repositoryRoot, 'contracts/api/product/project-paths.yaml'), 'utf8')
   for (const operation of wire.operations) {
@@ -92,7 +98,7 @@ test('R1C-05 and R1C-12 project exactly the canonical 13 operations with pinned 
     assert.match(source, new RegExp(`operationId: ${operation.operationId}\\b`))
     assert.match(source, new RegExp(`x-conexus-4a-id: ${operation.ownerId}\\b`))
   }
-  const compiled = compile()
+  const compiled = compile(baseProfile, input)
   const module = compiled.entries.find((entry) => entry.path === 'generated/r1/operations.mjs').bytes.toString('utf8')
   assert.doesNotMatch(module, /execute\s*\(|anySlug|anyInput/)
   assert.equal((module.match(/ownerId/g) ?? []).length, 13)

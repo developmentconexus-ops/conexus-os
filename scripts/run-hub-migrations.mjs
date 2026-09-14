@@ -50,7 +50,7 @@ const migration024Digest = '8afb8add42959c19bc5f5edc3dad73a4d511195597656dbcb950
 const migration025Digest = '707852bfe0b820ea5df21aa40076dbbb62733f9ce38e8911f9a9553a8b1bc36b'
 const migration026Digest = 'a5b051a57a40d7640bce15d248012a772d1b4129eb4f6a75475d23792449f006'
 const migration027Digest = '747ed9fc7e3b66a26e4713f5bb3787208c9aca1fb9bd6ebbbd4d153c2f2c0f83'
-const migration028Digest = '13660b97c452be1a00068ea32d760eef1db5b16ca1eb202b97f835660af6126d'
+const migration028Digest = 'b26eb60588dea8a81dae1d629fb5bd33e5fc4d5728c3c064f003b7a412063c19'
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }
