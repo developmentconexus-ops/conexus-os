@@ -20,8 +20,8 @@ open/create Project
 → continue the same conversation and source
 ```
 
-The user does not administer Change, Plan, WorkUnit, ActorRun, CodingSession,
-manual Preview preparation or infrastructure choices in the ordinary path.
+The final ordinary implementation must have **one Builder model**, not a permanent
+C-020 path beside a Change-era path.
 
 Mastra owns coding-harness mechanics already provided by the framework:
 
@@ -48,44 +48,99 @@ enterprise capability authorization
 ```
 
 C-020 remains `CURRENT / OPERATOR RATIFIED`.
-The final PSTACK audit did **not** reopen the architecture. Remaining implementation
-work is being corrected through review-gated slices.
+No architectural reopen is authorized.
 
-The reviewed implementation baseline is:
+---
+
+## Accepted checkpoints
+
+### Slice 1 — PASS
+
+Accepted implementation:
 
 ```text
-a62a5704a2c5bebb26144fa93dd83f1e7c4574f4
-```
-
-Slice 1 completed through two reviewed checkpoints:
-
-```text
-33c9079c5712f508e0e3165bbefff4db0d128a79
-  source-native C-020 custody + A→B→C proof
-
 e56dcec3c6125bd1d812a6645ded5a35418118ad
-  runtime-compatible retained-source transport + numeric Docker uid:gid
 ```
 
-GPT review result:
+Accepted facts:
 
 ```text
-SLICE 1 = PASS
+A → B → C works through source-native custody
+refs/conexus/sources/<oid> owns retained source reachability
+canonical refs/heads/main does not move with Builder edits
+transport bundles remain runtime-compatible
+ordinary source mutation boundary = app/**
+ordinary BuilderRun does not fabricate Change source coordinates
 ```
 
-The accepted Slice-1 behavior is:
+### Slice 2 — PASS
+
+Accepted implementation:
 
 ```text
-canonical Project main may remain A
-A → B retained at refs/conexus/sources/B
-B → C starts from exact B and is retained at refs/conexus/sources/C
-source bundles normalize an ephemeral refs/heads/main to the exact requested source
-ordinary BuilderRun source custody uses source/execution semantics, not fake Change coordinates
-ordinary mutation boundary = app/**
+df762d525d27b4aaf85d4de5ba5fa1fe2e806958
 ```
 
-This does not authorize arbitrary source disclosure. Source inspection authority is
-owned by Slice 2.
+Accepted facts:
+
+```text
+migration 037 is forward-only
+working source is inspectable
+last-good Preview source is inspectable
+latest code-changing BuilderRun base/result are inspectable
+later RESPONSE_ONLY does not erase useful Diff basis
+arbitrary/stale unrelated OIDs remain refused
+source-read authority remains server-owned
+legacy source fallback remains temporary compatibility only
+```
+
+The Slice-2 implementation added the minimum `read_latest_code_changing_builder_run`
+projection and kept direct Builder table access away from ingress callers.
+
+---
+
+## PSTACK subtraction decision — legacy must leave the final runtime
+
+The operator explicitly prefers the final C-020 implementation to be short and
+clean rather than permanently carrying two Builder architectures.
+
+That matches PSTACK/Poteto:
+
+```text
+migrate accepted callers
+→ prove ordinary Product no longer depends on legacy
+→ delete legacy runtime/API/schema surface
+```
+
+Therefore the following are **temporary compatibility debt**, not permanent
+architecture:
+
+```text
+Change
+Plan
+WorkUnit
+ActorRun
+CodingSession
+Findings / verification Evidence
+legacy Builder snapshots/routes
+legacy Change custody
+legacy verification/correction pipeline
+legacy PreviewPreparation
+legacy source-read fallback
+legacy working-state Change/preparation coordinates
+```
+
+Important migration law:
+
+- published migration files are immutable history and remain in the repository;
+- do not rewrite historical migration bytes or ledger digests;
+- after callers are migrated, a forward cleanup migration may drop current
+  legacy tables/functions/columns;
+- runtime/routes/contracts/tests for dead legacy behavior should be deleted, not
+  merely marked deprecated.
+
+The cleanup is intentionally after Product caller migration (Slice 4), so
+subtraction does not break an accepted caller by accident.
 
 ---
 
@@ -93,45 +148,34 @@ owned by Slice 2.
 
 | Delivery | State | Current truth | Next condition |
 | --- | --- | --- | --- |
-| Repository operating model | DELIVERED | Current method supports objective current verification without historical-stage choreography | No prerequisite work |
-| C-020 architecture | CURRENT / OPERATOR RATIFIED | `Project + Mastra Thread/Messages + BuilderRun + Working Source + last-good Preview` remains the target | Reopen only on explicit C-020 trigger |
-| C-020 implementation | IN PROGRESS / REVIEW-GATED | Slice 1 source continuity is accepted; source inspection still reasons from legacy Baseline/Change authority | Complete Slice 2 and review before Slice 3 |
-| P-01 Builder UI | VALIDATING | Preview/chat shell exists, but automatic Preview and latest-run Diff semantics still need correction | Slice 4 + Slice 6 |
-| Project direct-to-Build | VALIDATING | Routing/bootstrap implementation exists; real composed Product journey not yet accepted | Slice 6 |
-| First real Brain rule | DEFERRED / BLOCKED | Core must be accepted first; exact real rule/authority is still required | Slice 7 after Slice 6 acceptance |
+| Repository operating model | DELIVERED | Review-gated slices and current-objective verification are the operating model | No prerequisite work |
+| C-020 architecture | CURRENT / OPERATOR RATIFIED | Project + Mastra Thread/Messages + BuilderRun + Working Source + last-good Preview | Reopen only on explicit C-020 trigger |
+| C-020 implementation | IN PROGRESS / REVIEW-GATED | Slices 1–2 accepted | Complete Slices 3–7 with GPT review between each |
+| P-01 Builder UI | VALIDATING | Shell exists; Product semantics still need Slice 4 | Slice 4 + Slice 7 |
+| Legacy Builder architecture | MIGRATING TO DELETE | Still present in routes/store/service/source/schema for historical callers | Slice 4 migrates final callers; Slice 5 excises it |
+| First real Brain rule | DEFERRED / BLOCKED | Core first; exact business rule authority still required | Slice 8 after Slice 7 acceptance |
 | Narrow SDK / Sankhya | PLANNED | Not part of current Builder correction | After first real Brain-backed app |
-| Colleague use | PLANNED | No need before core Builder acceptance | After operator accepts the Builder journey |
+| Colleague use | PLANNED | Not needed before operator accepts Builder | After operator acceptance |
 
-`DELIVERED` requires the observable Product result, not only code or green unit tests.
+`DELIVERED` requires observable Product behavior, not only green isolated tests.
 
 ---
 
 ## Slice execution board
 
-Implementation is explicitly review-gated.
-
 | Slice | Purpose | State | Authorization |
 | --- | --- | --- | --- |
-| **Slice 0** | Planning / authority reconciliation | COMPLETE | Completed by GPT; documentation only |
-| **Slice 1** | Source-native A→B→C continuity | **COMPLETE / PASS** | Accepted at `e56dcec3` |
-| **Slice 2** | C-020 source inspection authority + latest code-changing run basis | **AUTHORIZED / IN PROGRESS** | **AUTHORIZED 2026-09-14 — Slice 2 only** |
-| **Slice 3** | Mastra Session lifecycle, message projection, PLAN read-only | PLANNED | Not authorized |
-| **Slice 4** | BLD-23/P-01 Preview/Diff Product simplification | PLANNED | Not authorized |
-| **Slice 5** | Remove premature Brain path + align current verification | PLANNED | Not authorized |
-| **Slice 6** | Real composed Product proof + operator-ready checkpoint | PLANNED | Not authorized |
-| **Slice 7** | First real Brain-backed build through Mastra tools | DEFERRED | Not authorized before Slice 6 acceptance |
+| **Slice 0** | Planning / authority reconciliation | COMPLETE | Complete |
+| **Slice 1** | Source-native A→B→C continuity | **PASS** | Closed |
+| **Slice 2** | C-020 source inspection authority | **PASS** | Closed |
+| **Slice 3** | Mastra Session lifecycle, message projection, PLAN read-only | **PLANNED / NEXT** | Not authorized until explicit Slice-3 handoff |
+| **Slice 4** | BLD-23/P-01 Product API, automatic Preview and useful Diff | PLANNED | Not authorized |
+| **Slice 5** | **Legacy Builder excision** after final caller migration | PLANNED / REQUIRED | Not authorized |
+| **Slice 6** | Remove premature Brain pre-injection + align current verification | PLANNED | Not authorized |
+| **Slice 7** | Real composed Product proof + operator-ready checkpoint | PLANNED | Not authorized |
+| **Slice 8** | First real Brain-backed build through Mastra tools | DEFERRED | Not authorized before Slice 7 acceptance |
 
-The detailed slice contracts live only in
-[`docs/tasks/builder-first-app.md`](tasks/builder-first-app.md).
-
----
-
-## Current grant
-
-The operator ratified C-020 and approved the Mastra-native refinement, then
-changed this correction sequence to a one-slice-at-a-time review loop.
-
-Current rule:
+Execution remains one slice at a time:
 
 ```text
 explicit Slice N handoff
@@ -139,82 +183,80 @@ explicit Slice N handoff
 → focused verification
 → commit/checkpoint
 → STOP
-→ GPT reviews actual Git diff + evidence
-→ only then may Slice N+1 be authorized
+→ GPT reviews actual diff/evidence
+→ next slice only after explicit authorization
 ```
 
-Slice 1 has passed GPT review. The operator has now authorized **Slice 2 only**.
+---
 
-This grant permits the bounded forward migration and store/test changes required
-to make C-020 source inspection exact. It does **not** authorize Product UI or
-Preview changes yet.
+## Legacy excision acceptance target (Slice 5)
 
-This grant does **not** authorize:
+Slice 5 is not a cosmetic cleanup. It must remove dead architecture after Slice
+4 has migrated the final Product callers.
 
-- starting Slice 3 or any later slice;
-- changing Mastra Session lifecycle or PLAN behavior;
-- Product API / Preview UI changes owned by Slice 4;
-- Brain / Sankhya work;
-- production writes;
-- public hosting;
-- merge to `main`;
-- rewriting published migrations 001–036;
-- deleting legacy Builder tables or legacy source-read behavior before caller proof.
+Target current runtime/API code must no longer own or expose ordinary concepts
+such as:
+
+```text
+ChangeProjection / BuilderSnapshot
+createChange / claimChange / correction / verifier pipeline
+/session/turns legacy routes
+Findings/Evidence legacy routes
+legacy prepareSource/prepareCandidate/admitCandidate custody path
+PreviewPreparation as ordinary Builder flow
+activeTurn as Change-derived session state
+```
+
+Target current database after a forward cleanup migration must not retain legacy
+Builder tables/functions/columns that have no accepted caller.
+
+Exact drop scope is determined from a caller census at the beginning of Slice 5;
+no legacy object survives merely because deleting it is inconvenient.
+
+Historical migration files remain unchanged so existing databases can upgrade
+through history into the cleaned current schema.
 
 ---
 
 ## PSTACK / Poteto execution laws
 
-Use throughout:
-
 ```text
 fix root cause
 subtract before add
 prefer native Mastra mechanics
-preserve Conexus Product authority outside Mastra
-reuse current proven E2B/Git/compiler/Registry/security pieces
+one Product authority per concept
+reuse proven E2B/Git/compiler/Registry/security pieces
+migrate callers then delete dead architecture
 smallest independently reviewable slice
 proof matching the claim
 no green-by-mock claim for a live Product journey
 ```
 
-Do not open another Arena or architecture program unless one of the explicit
-reopen triggers in `builder-c020-mastra-native.md` fires.
+Do not open another Arena or architecture program for ordinary implementation defects.
 
 ---
 
 ## Known correction map
 
 ```text
-Slice 1 → real source A→B→C and app/** mutation boundary                         PASS
-Slice 2 → source-read admission for C-020 working/Preview/latest-code-run sources  NOW
-Slice 3 → deleteSession, Mastra signal-user projection, PLAN no starter
-Slice 4 → latestBuilderRun naming, server-owned auto Preview, useful Diff
-Slice 5 → remove pre-query Brain prompt injection, verify current objective leaves
-Slice 6 → real Hub/Web/DB/Mastra/E2B/Git/compiler/Registry/Preview journey
-Slice 7 → real Brain tools/rule only after core acceptance
+Slice 3 → native Mastra Session lifecycle + real message projection + PLAN no mutation
+Slice 4 → server-owned BLD-23/Preview/Diff Product surface and migrate final ordinary callers
+Slice 5 → delete Change-era runtime/routes/contracts/schema after caller proof
+Slice 6 → remove pre-query Brain prompt injection + make current verify prove C-020
+Slice 7 → real Hub/Web/DB/Mastra/E2B/Git/compiler/Registry/Preview journey
+Slice 8 → real Brain tools/rule only after core acceptance
 ```
 
 ---
 
 ## Exact next action
 
-**Execute Slice 2 only: C-020 source inspection authority + latest code-changing run basis.**
+**No implementation beyond Slice 2 is authorized by this roadmap update alone.**
 
-Required outcomes:
+GPT/operator will issue a separate explicit **Slice 3 handoff**.
 
-```text
-1. source inspection admits only exact authorized C-020 revisions:
-   - current working source
-   - last-good Preview source
-   - latest code-changing BuilderRun base/result
-   - legacy accepted source as fallback for legacy callers;
-2. unrelated arbitrary Git/OID values remain refused;
-3. cross-Project and unauthorized-account disclosure remain refused;
-4. a server-owned latest code-changing BuilderRun projection exists for future Diff;
-5. migration 037 is forward-only and migrations 001–036 remain byte-identical;
-6. current migration install/upgrade proof remains green.
-```
+Slice 3 must not perform the full legacy deletion; it may simplify code it
+already touches where the legacy branch is provably dead, but broad excision is
+review-gated to Slice 5 after Product caller migration.
 
-At Slice 2 completion Codex must commit/checkpoint, stop and return the required
-evidence. Do not start Slice 3.
+Do not start Slice 4+, Brain or Sankhya from this roadmap alone.
