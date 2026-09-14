@@ -100,11 +100,36 @@ the production-shaped `Memory.recall` path projecting the real
 cast, raw LibSQL query, custom conversation store, or custom Session manager is
 used.
 
-## Slice 4 — AUTHORIZED / NEXT
+## Slice 4 — PASS / CLOSED
 
-The next authorized implementation slice is Product API and P-01
-Preview/Diff simplification. Slice 5 remains blocked until Slice 4 proves the
-current Product caller migration.
+Accepted checkpoint:
+
+```text
+e644958c90c3a76a4d820842034059e145d1fcf3
+```
+
+Focused proof is green:
+
+```text
+Builder wire check: PASS
+Builder browser: 2/2
+Builder session projection: 1/1
+PLAN starter: 1/1
+Mastra lifecycle qualification: 7/7
+web typecheck / Biome / git diff --check: PASS
+```
+
+Accepted facts:
+
+```text
+BLD-23 exposes latestBuilderRun and latest code-changing Diff basis
+Preview truth is server-owned
+Preview auto-launches before and after reload with no browser-authored source/artifact coordinates
+RESPONSE_ONLY does not erase the previous useful code-change Diff
+current P-01/browser path makes no Change-era /session/turns, Change, or legacy Preview calls
+```
+
+Slice 5 is now the next authorized implementation slice.
 
 ---
 
@@ -145,9 +170,9 @@ Published migration files remain immutable history. A forward cleanup migration 
 | --- | --- | --- |
 | Repository operating model | DELIVERED | none |
 | C-020 architecture | CURRENT / OPERATOR RATIFIED | reopen only on explicit trigger |
-| C-020 implementation | IN PROGRESS / SLICE 4 AUTHORIZED | complete Slice 4, then review |
-| P-01 Builder UI | VALIDATING | Slice 4 + Slice 7 |
-| Legacy Builder architecture | MIGRATING TO DELETE | Slice 4 caller migration → Slice 5 excision |
+| C-020 implementation | IN PROGRESS / SLICE 5 AUTHORIZED | excise proven-dead legacy Builder |
+| P-01 Builder UI | VALIDATING | Slice 7 composed proof |
+| Legacy Builder architecture | DELETION AUTHORIZED | Slice 5 excision |
 | First real Brain rule | DEFERRED / BLOCKED | after Slice 7 acceptance |
 | Narrow SDK / Sankhya | PLANNED | after first real Brain-backed app |
 
@@ -161,8 +186,8 @@ Published migration files remain immutable history. A forward cleanup migration 
 | 1 | Source-native A→B→C | PASS | closed |
 | 2 | C-020 source inspection authority | PASS | closed |
 | 3 | Mastra lifecycle / message projection / PLAN read-only | PASS | closed |
-| 4 | BLD-23/P-01 Product API, automatic Preview, useful Diff | AUTHORIZED / NEXT | explicit Slice-4 handoff |
-| 5 | Legacy Builder excision | PLANNED / REQUIRED | blocked until Slice 4 passes |
+| 4 | BLD-23/P-01 Product API, automatic Preview, useful Diff | PASS | closed |
+| 5 | Legacy Builder excision | AUTHORIZED / NEXT | explicit Slice-5 handoff |
 | 6 | Remove premature Brain pre-injection + align current verify | PLANNED | not authorized |
 | 7 | Real composed Product proof + operator checkpoint | PLANNED | not authorized |
 | 8 | First real Brain-backed build via Mastra tools | DEFERRED | not authorized before Slice 7 |
@@ -182,5 +207,6 @@ explicit slice handoff
 
 ## Exact next action
 
-Execute the authorized Slice 4 Product API and P-01 Preview/Diff
-simplification. Do not start Slice 5.
+Execute Slice 5: perform the caller census, delete the proven-dead Change-era
+Builder runtime/API/current-schema surface, preserve published migration history,
+run focused verification, commit/checkpoint, and STOP before Slice 6.
