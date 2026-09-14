@@ -150,7 +150,7 @@ subtraction does not break an accepted caller by accident.
 | --- | --- | --- | --- |
 | Repository operating model | DELIVERED | Review-gated slices and current-objective verification are the operating model | No prerequisite work |
 | C-020 architecture | CURRENT / OPERATOR RATIFIED | Project + Mastra Thread/Messages + BuilderRun + Working Source + last-good Preview | Reopen only on explicit C-020 trigger |
-| C-020 implementation | IN PROGRESS / REVIEW-GATED | Slices 1–2 accepted | Complete Slices 3–7 with GPT review between each |
+| C-020 implementation | IN PROGRESS / REVIEW-GATED | Slices 1–2 accepted; Slice 3 authorized | Slice 3 review, then continue one slice at a time |
 | P-01 Builder UI | VALIDATING | Shell exists; Product semantics still need Slice 4 | Slice 4 + Slice 7 |
 | Legacy Builder architecture | MIGRATING TO DELETE | Still present in routes/store/service/source/schema for historical callers | Slice 4 migrates final callers; Slice 5 excises it |
 | First real Brain rule | DEFERRED / BLOCKED | Core first; exact business rule authority still required | Slice 8 after Slice 7 acceptance |
@@ -168,7 +168,7 @@ subtraction does not break an accepted caller by accident.
 | **Slice 0** | Planning / authority reconciliation | COMPLETE | Complete |
 | **Slice 1** | Source-native A→B→C continuity | **PASS** | Closed |
 | **Slice 2** | C-020 source inspection authority | **PASS** | Closed |
-| **Slice 3** | Mastra Session lifecycle, message projection, PLAN read-only | **PLANNED / NEXT** | Not authorized until explicit Slice-3 handoff |
+| **Slice 3** | Mastra Session lifecycle, message projection, PLAN read-only | **AUTHORIZED / IN PROGRESS** | **Slice 3 only** |
 | **Slice 4** | BLD-23/P-01 Product API, automatic Preview and useful Diff | PLANNED | Not authorized |
 | **Slice 5** | **Legacy Builder excision** after final caller migration | PLANNED / REQUIRED | Not authorized |
 | **Slice 6** | Remove premature Brain pre-injection + align current verification | PLANNED | Not authorized |
@@ -251,12 +251,20 @@ Slice 8 → real Brain tools/rule only after core acceptance
 
 ## Exact next action
 
-**No implementation beyond Slice 2 is authorized by this roadmap update alone.**
+**Execute Slice 3 only using the explicit Slice-3 handoff.**
 
-GPT/operator will issue a separate explicit **Slice 3 handoff**.
+Required outcomes:
 
-Slice 3 must not perform the full legacy deletion; it may simplify code it
-already touches where the legacy branch is provably dead, but broad excision is
-review-gated to Slice 5 after Product caller migration.
+```text
+native per-run deleteSession with persistent Thread preserved
+real Mastra signal/user projects as Product user
+internal signals do not pollute Product chat
+ordinary PLAN has no mutation tools and no host starter mutation
+shared/fallback coding-agent base instructions have one owner
+```
 
-Do not start Slice 4+, Brain or Sankhya from this roadmap alone.
+At completion Codex must commit/checkpoint, stop, and return the required Slice-3 evidence.
+
+Slice 4 and all later slices remain blocked until GPT reviews Slice 3.
+
+Do not start broad legacy deletion in Slice 3; Slice 5 owns the full excision after Slice 4 migrates final Product callers.
