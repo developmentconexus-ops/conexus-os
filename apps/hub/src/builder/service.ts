@@ -131,8 +131,8 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
     const work = (async () => {
       const claimed = await store.claimBuilderRun(run.builderRunId, runtime.modelIdentity)
       observation.publish({ kind: 'PHASE', phase: 'CODING' })
-      const sourceBundle = await source.prepareSource({
-        projectId: claimed.projectId, actorRunId: claimed.builderRunId, sourceRevision: claimed.baseSourceRevision,
+      const sourceBundle = await source.prepareProjectSource({
+        projectId: claimed.projectId, executionId: claimed.builderRunId, sourceRevision: claimed.baseSourceRevision,
       })
       const result = await runtime.execute({
         accountId: input.accountId, projectId: claimed.projectId, executionId: claimed.builderRunId, intent: input.content,
@@ -151,18 +151,18 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
         baseSourceRevision: claimed.baseSourceRevision, claimedResultSourceRevision: result.resultSourceRevision,
         resultBundle: result.resultBundle,
       })
-      if (admitted.candidateSourceRevision !== result.resultSourceRevision) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
-      await store.advanceBuilderRunSource(claimed.builderRunId, admitted.candidateSourceRevision)
+      if (admitted.resultSourceRevision !== result.resultSourceRevision) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
+      await store.advanceBuilderRunSource(claimed.builderRunId, admitted.resultSourceRevision)
       if (claimed.mode === 'PLAN') throw new Error('BUILDER_PLAN_SOURCE_RESULT_REFUSED')
       try {
         const artifact = await prepareBuilderRunApplicationArtifact({ source, compiler, applicationArtifacts }, {
           accountId: input.accountId, projectId: claimed.projectId, builderRunId: claimed.builderRunId,
-          sourceRevision: admitted.candidateSourceRevision,
+          sourceRevision: admitted.resultSourceRevision,
         })
-        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.candidateSourceRevision,
+        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.resultSourceRevision,
           artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest })
       } catch (error) {
-        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.candidateSourceRevision,
+        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.resultSourceRevision,
           failureCode: failureCode(error) }).catch(() => undefined)
         throw error
       }

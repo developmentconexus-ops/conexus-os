@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
@@ -73,6 +73,210 @@ process.exit(result.status === null ? 92 : result.status)
   return bin
 }
 
+const createSourceFixture = () => {
+  const root = mkdtempSync('/tmp/conexus-source-native-')
+  const storageRoot = resolve(root, 'storage')
+  const work = resolve(root, 'work')
+  const repository = resolve(storageRoot, 'projects', projectId)
+  mkdirSync(resolve(storageRoot, 'projects'), { recursive: true })
+  mkdirSync(work)
+  git(work, ['init', '--initial-branch=main'])
+  writeFileSync(resolve(work, 'README.md'), 'base\n')
+  git(work, ['add', '--all'])
+  git(work, ['commit', '-m', 'baseline'])
+  const baseline = git(work, ['rev-parse', 'HEAD'])
+  git(root, ['clone', '--bare', work, repository])
+  return { root, storageRoot, work, repository, baseline }
+}
+
+const createResultBundle = (fixture, { branch, base, files, message, extraRefs = [] }) => {
+  git(fixture.work, ['checkout', '-B', branch, base])
+  for (const [path, content] of Object.entries(files)) {
+    const absolute = resolve(fixture.work, path)
+    if (content === null) {
+      rmSync(absolute, { force: true })
+      continue
+    }
+    mkdirSync(resolve(absolute, '..'), { recursive: true })
+    writeFileSync(absolute, content)
+  }
+  git(fixture.work, ['add', '--all'])
+  git(fixture.work, ['commit', '-m', message])
+  const revision = git(fixture.work, ['rev-parse', 'HEAD'])
+  git(fixture.work, ['branch', '-f', 'conexus-result', 'HEAD'])
+  const bundlePath = resolve(fixture.root, `${branch}.bundle`)
+  git(fixture.work, ['bundle', 'create', bundlePath, 'refs/heads/conexus-result', ...extraRefs])
+  return { revision, bundlePath }
+}
+
+const withSourcePort = async (fixture, sourceOwnership, callback) => {
+  const dockerBin = fakeDocker(fixture.root)
+  const oldPath = process.env.PATH
+  process.env.PATH = `${dockerBin}:${oldPath}`
+  try {
+    return await callback(createBuilderSourcePort({
+      git: { verifyAdmittedImage: async () => ({ status: 'VERIFIED' }), createProjectSourceBundle: async () => ({ status: 'BUNDLED' }) },
+      storageRoot: fixture.storageRoot,
+      sourceOwnership,
+    }))
+  } finally {
+    process.env.PATH = oldPath
+  }
+}
+
+test('C-020 source custody continues exact A to B to C without moving main', async () => {
+  const fixture = createSourceFixture()
+  const execution1 = '66666666-6666-4666-8666-666666666666'
+  const execution2 = '77777777-7777-4777-8777-777777777777'
+  const execution3 = '88888888-8888-4888-8888-888888888888'
+  try {
+    await withSourcePort(fixture, {}, async (port) => {
+      const resultB = createResultBundle(fixture, {
+        branch: 'result-b',
+        base: fixture.baseline,
+        files: { 'app/index.html': '<div id="root"></div>\n', 'app/src/main.tsx': 'export const count = 0\n' },
+        message: 'create app',
+      })
+      const admittedB = await port.admitSourceResult({
+        projectId, executionId: execution1, baseSourceRevision: fixture.baseline,
+        claimedResultSourceRevision: resultB.revision, resultBundle: readFileSync(resultB.bundlePath),
+      })
+      assert.equal(admittedB.baseSourceRevision, fixture.baseline)
+      assert.equal(admittedB.resultSourceRevision, resultB.revision)
+      assert.equal(git(fixture.root, ['--git-dir', fixture.repository, 'rev-parse', 'refs/heads/main']), fixture.baseline)
+      assert.equal(git(fixture.root, ['--git-dir', fixture.repository, 'rev-parse', `refs/conexus/sources/${resultB.revision}`]), resultB.revision)
+
+      const preparedB = await port.prepareProjectSource({ projectId, executionId: execution2, sourceRevision: resultB.revision })
+      const preparedBundle = resolve(fixture.root, 'prepared-b.bundle')
+      writeFileSync(preparedBundle, preparedB)
+      assert.match(git(fixture.root, ['bundle', 'list-heads', preparedBundle]), new RegExp(`${resultB.revision}\\s+refs/conexus/sources/${resultB.revision}`))
+
+      const readmittedB = await port.admitSourceResult({
+        projectId, executionId: execution2, baseSourceRevision: fixture.baseline,
+        claimedResultSourceRevision: resultB.revision, resultBundle: readFileSync(resultB.bundlePath),
+      })
+      assert.equal(readmittedB.resultSourceRevision, resultB.revision)
+      assert.equal(git(fixture.root, ['--git-dir', fixture.repository, 'rev-parse', `refs/conexus/sources/${resultB.revision}`]), resultB.revision)
+
+      const resultC = createResultBundle(fixture, {
+        branch: 'result-c',
+        base: resultB.revision,
+        files: { 'app/src/main.tsx': 'export const count = 1\n' },
+        message: 'edit app created by Builder',
+      })
+      const admittedC = await port.admitSourceResult({
+        projectId, executionId: execution3, baseSourceRevision: resultB.revision,
+        claimedResultSourceRevision: resultC.revision, resultBundle: readFileSync(resultC.bundlePath),
+      })
+      assert.equal(admittedC.baseSourceRevision, resultB.revision)
+      assert.equal(admittedC.resultSourceRevision, resultC.revision)
+      assert.equal(git(fixture.root, ['--git-dir', fixture.repository, 'rev-parse', 'refs/heads/main']), fixture.baseline)
+      assert.equal(git(fixture.root, ['--git-dir', fixture.repository, 'rev-parse', `refs/conexus/sources/${resultB.revision}`]), resultB.revision)
+      assert.equal(git(fixture.root, ['--git-dir', fixture.repository, 'rev-parse', `refs/conexus/sources/${resultC.revision}`]), resultC.revision)
+    })
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true })
+  }
+})
+
+test('C-020 source preparation refuses stale or unreachable source subjects', async () => {
+  const fixture = createSourceFixture()
+  try {
+    await withSourcePort(fixture, {}, async (port) => {
+      const stale = 'b'.repeat(40)
+      git(fixture.root, ['--git-dir', fixture.repository, 'update-ref', `refs/conexus/sources/${stale}`, fixture.baseline])
+      await assert.rejects(port.prepareProjectSource({ projectId, executionId: actorRunId, sourceRevision: stale }), /SOURCE_REF_MISMATCH/)
+      const missing = 'c'.repeat(40)
+      await assert.rejects(port.prepareProjectSource({ projectId, executionId: actorRunId, sourceRevision: missing }), /SOURCE_NOT_FOUND/)
+    })
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true })
+  }
+})
+
+test('C-020 result admission refuses invalid ancestry and mutation shapes', async () => {
+  const cases = [
+    {
+      name: 'multi-commit result',
+      create: (fixture) => {
+        const intermediate = createResultBundle(fixture, { branch: 'result-x', base: fixture.baseline, files: { 'app/one.ts': 'one\n' }, message: 'intermediate' })
+        return createResultBundle(fixture, { branch: 'result-multi', base: intermediate.revision, files: { 'app/one.ts': 'two\n' }, message: 'second commit' })
+      },
+      error: /MULTI_COMMIT_RESULT/,
+      base: (fixture) => fixture.baseline,
+    },
+    {
+      name: 'wrong parent',
+      create: (fixture) => {
+        git(fixture.work, ['checkout', '--orphan', 'wrong-parent'])
+        git(fixture.work, ['rm', '-rf', '.'])
+        mkdirSync(resolve(fixture.work, 'app'), { recursive: true })
+        writeFileSync(resolve(fixture.work, 'app', 'wrong.ts'), 'wrong\n')
+        git(fixture.work, ['add', '--all'])
+        git(fixture.work, ['commit', '-m', 'wrong parent'])
+        const wrong = git(fixture.work, ['rev-parse', 'HEAD'])
+        git(fixture.work, ['branch', '-f', 'conexus-result', 'HEAD'])
+        const bundlePath = resolve(fixture.root, 'wrong-parent.bundle')
+        git(fixture.work, ['bundle', 'create', bundlePath, 'refs/heads/conexus-result', fixture.baseline])
+        return { revision: wrong, bundlePath }
+      },
+      error: /NON_DESCENDANT/,
+      base: (fixture) => fixture.baseline,
+    },
+    {
+      name: 'non-app mutation',
+      create: (fixture) => createResultBundle(fixture, { branch: 'result-readme', base: fixture.baseline, files: { 'README.md': 'changed\n' }, message: 'change README' }),
+      error: /MUTATION_BOUNDARY_REFUSED/,
+      base: (fixture) => fixture.baseline,
+    },
+  ]
+  for (const scenario of cases) {
+    const fixture = createSourceFixture()
+    try {
+      await withSourcePort(fixture, {}, async (port) => {
+        const result = scenario.create(fixture)
+        await assert.rejects(port.admitSourceResult({
+          projectId, executionId: actorRunId, baseSourceRevision: scenario.base(fixture),
+          claimedResultSourceRevision: result.revision, resultBundle: readFileSync(result.bundlePath),
+        }), scenario.error, scenario.name)
+      })
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true })
+    }
+  }
+})
+
+test('C-020 result admission refuses unsafe entries and source-ref collisions', async () => {
+  const fixture = createSourceFixture()
+  try {
+    await withSourcePort(fixture, {}, async (port) => {
+      git(fixture.work, ['checkout', '-B', 'result-link', fixture.baseline])
+      mkdirSync(resolve(fixture.work, 'app'), { recursive: true })
+      symlinkSync('../README.md', resolve(fixture.work, 'app/link'))
+      git(fixture.work, ['add', '--all'])
+      git(fixture.work, ['commit', '-m', 'unsafe link'])
+      const unsafe = git(fixture.work, ['rev-parse', 'HEAD'])
+      git(fixture.work, ['branch', '-f', 'conexus-result', 'HEAD'])
+      const unsafeBundle = resolve(fixture.root, 'unsafe.bundle')
+      git(fixture.work, ['bundle', 'create', unsafeBundle, 'refs/heads/conexus-result'])
+      await assert.rejects(port.admitSourceResult({
+        projectId, executionId: actorRunId, baseSourceRevision: fixture.baseline,
+        claimedResultSourceRevision: unsafe, resultBundle: readFileSync(unsafeBundle),
+      }), /UNSAFE_ENTRY/)
+
+      const collision = createResultBundle(fixture, { branch: 'result-collision', base: fixture.baseline, files: { 'app/collision.ts': 'collision\n' }, message: 'collision result' })
+      git(fixture.root, ['--git-dir', fixture.repository, 'update-ref', `refs/conexus/sources/${collision.revision}`, fixture.baseline])
+      await assert.rejects(port.admitSourceResult({
+        projectId, executionId: actorRunId, baseSourceRevision: fixture.baseline,
+        claimedResultSourceRevision: collision.revision, resultBundle: readFileSync(collision.bundlePath),
+      }), /SOURCE_REF_COLLISION/)
+      assert.equal(git(fixture.root, ['--git-dir', fixture.repository, 'rev-parse', `refs/conexus/sources/${collision.revision}`]), fixture.baseline)
+    })
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true })
+  }
+})
+
 test('Builder admits a source-oriented BuilderRun result without moving main', async () => {
   const root = mkdtempSync('/tmp/conexus-working-source-')
   const storageRoot = resolve(root, 'storage')
@@ -115,8 +319,9 @@ test('Builder admits a source-oriented BuilderRun result without moving main', a
         sourceOwnership: { 'app.txt': 'APP-OWNED' },
       })
       git(work, ['checkout', '-B', 'source-result', baseline])
-      writeFileSync(resolve(work, 'app.txt'), 'source-oriented\n')
-      git(work, ['add', 'app.txt'])
+      mkdirSync(resolve(work, 'app'), { recursive: true })
+      writeFileSync(resolve(work, 'app', 'source.ts'), 'source-oriented\n')
+      git(work, ['add', 'app/source.ts'])
       git(work, ['commit', '-m', 'source-oriented result'])
       const sourceResult = git(work, ['rev-parse', 'HEAD'])
       const sourceResultBundle = resolve(root, 'source-result.bundle')
@@ -127,13 +332,14 @@ test('Builder admits a source-oriented BuilderRun result without moving main', a
         projectId, executionId, baseSourceRevision: baseline,
         claimedResultSourceRevision: sourceResult, resultBundle: readFileSync(sourceResultBundle),
       })
-      assert.equal(sourceAdmission.candidateSourceRevision, sourceResult)
+      assert.equal(sourceAdmission.resultSourceRevision, sourceResult)
       assert.equal(git(root, ['--git-dir', repository, 'rev-parse', `refs/conexus/sources/${sourceResult}`]), sourceResult)
       assert.notEqual(spawnSync('git', ['--git-dir', repository, 'show-ref', `refs/conexus/changes/${executionId}`], { encoding: 'utf8' }).status, 0)
-      await assert.rejects(port.admitSourceResult({
+      const readmitted = await port.admitSourceResult({
         projectId, executionId, baseSourceRevision: baseline,
         claimedResultSourceRevision: sourceResult, resultBundle: readFileSync(sourceResultBundle),
-      }), /CURRENT_CANDIDATE_STALE/)
+      })
+      assert.equal(readmitted.resultSourceRevision, sourceResult)
       assert.equal(git(root, ['--git-dir', repository, 'rev-parse', 'refs/heads/main']), baseline)
       assert.equal(git(root, ['--git-dir', repository, 'rev-parse', `refs/conexus/changes/${parentChangeId}`]), parent)
       const parentBundle = await port.prepareSource({

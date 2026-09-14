@@ -30,7 +30,9 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
   const service = createBuilderService({
     store,
     source: {
-      prepareSource: async () => { calls.push('source'); return new Uint8Array([1]) },
+      prepareSource: async () => { throw new Error('ordinary C-020 must not use legacy prepareSource') },
+      admitCandidate: async () => { throw new Error('ordinary C-020 must not use legacy admitCandidate') },
+      prepareProjectSource: async input => { calls.push(['prepareProjectSource', input.executionId]); return new Uint8Array([1]) },
       admitSourceResult: async () => { throw new Error('must not admit source for PLAN response') },
     },
     runtime: {
@@ -47,7 +49,7 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
   const result = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', mode: 'PLAN' })
   await service.close()
   assert.equal(result.builderRunId, runId)
-  assert.deepEqual(calls, ['claim', 'source', ['execute', 'PLAN', 'Explique o app'], ['sandbox', 'physical-sandbox'], ['message', 'mastra-message'], ['settle', 'RESPONSE_ONLY']])
+  assert.deepEqual(calls, ['claim', ['prepareProjectSource', runId], ['execute', 'PLAN', 'Explique o app'], ['sandbox', 'physical-sandbox'], ['message', 'mastra-message'], ['settle', 'RESPONSE_ONLY']])
 })
 
 test('BUILD source result is admitted, CASed, compiled and settles Preview', async () => {
@@ -68,8 +70,10 @@ test('BUILD source result is admitted, CASed, compiled and settles Preview', asy
   const service = createBuilderService({
     store,
     source: {
-      prepareSource: async () => new Uint8Array([1]),
-      admitSourceResult: async input => { calls.push(['admit', input.executionId]); return { baseSourceRevision: base, candidateSourceRevision: resultRevision } },
+      prepareSource: async () => { throw new Error('ordinary C-020 must not use legacy prepareSource') },
+      admitCandidate: async () => { throw new Error('ordinary C-020 must not use legacy admitCandidate') },
+      prepareProjectSource: async input => { calls.push(['prepareProjectSource', input.executionId]); return new Uint8Array([1]) },
+      admitSourceResult: async input => { calls.push(['admitSourceResult', input.executionId]); return { baseSourceRevision: base, resultSourceRevision: resultRevision, patch: 'diff' } },
       listSourceTree: async () => ({ sourceRevision: resultRevision, entries: [{ kind: 'FILE', path: 'app/index.html' }] }),
       readSourceFile: async input => ({ ...input, content: '<html></html>' }),
     },
@@ -82,5 +86,5 @@ test('BUILD source result is admitted, CASed, compiled and settles Preview', asy
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
   await service.close()
-  assert.deepEqual(calls, [['admit', runId], ['advance', resultRevision], ['build-settle', '77777777-7777-4777-8777-777777777777', 'd'.repeat(64)]])
+  assert.deepEqual(calls, [['prepareProjectSource', runId], ['admitSourceResult', runId], ['advance', resultRevision], ['build-settle', '77777777-7777-4777-8777-777777777777', 'd'.repeat(64)]])
 })
