@@ -53,14 +53,14 @@ implementation gaps in source continuity, source inspection, Session cleanup,
 message projection, PLAN host-side mutation, Preview/Diff Product semantics and
 a premature Brain integration.
 
-The currently reviewed implementation baseline is:
+The reviewed implementation baseline remains:
 
 ```text
 a62a5704a2c5bebb26144fa93dd83f1e7c4574f4
 ```
 
-Planning/authority reconciliation after that audit is now recorded in the C-020
-reference and slice plan.
+Planning/authority reconciliation was published after that baseline. Codex must
+execute slices from the current branch head, never from the pre-plan baseline.
 
 ---
 
@@ -70,7 +70,7 @@ reference and slice plan.
 | --- | --- | --- | --- |
 | Repository operating model | DELIVERED | Current method supports objective current verification without historical-stage choreography | No prerequisite work |
 | C-020 architecture | CURRENT / OPERATOR RATIFIED | `Project + Mastra Thread/Messages + BuilderRun + Working Source + last-good Preview` remains the target | Reopen only on explicit C-020 trigger |
-| C-020 implementation | IN PROGRESS / REVIEW-GATED | Large portion exists at `a62a5704`, but final audit found source and Product-proof gaps that must be corrected slice-by-slice | Complete Slices 1–6 with GPT review between each |
+| C-020 implementation | IN PROGRESS / REVIEW-GATED | Large portion exists at the implementation baseline, but final audit found source and Product-proof gaps that must be corrected slice-by-slice | Complete Slices 1–6 with GPT review between each |
 | P-01 Builder UI | VALIDATING | Preview/chat shell exists, but automatic Preview and latest-run Diff semantics still need correction | Slice 4 + Slice 6 |
 | Project direct-to-Build | VALIDATING | Routing/bootstrap implementation exists; real composed Product journey not yet accepted | Slice 6 |
 | First real Brain rule | DEFERRED / BLOCKED | Core must be accepted first; exact real rule/authority is still required | Slice 7 after Slice 6 acceptance |
@@ -83,12 +83,12 @@ reference and slice plan.
 
 ## Slice execution board
 
-Implementation is now explicitly review-gated.
+Implementation is explicitly review-gated.
 
 | Slice | Purpose | State | Authorization |
 | --- | --- | --- | --- |
 | **Slice 0** | Planning / authority reconciliation | COMPLETE | Completed by GPT; documentation only |
-| **Slice 1** | Source-native A→B→C continuity | PLANNED / NEXT | **NOT YET AUTHORIZED** until explicit Slice-1 handoff |
+| **Slice 1** | Source-native A→B→C continuity | **AUTHORIZED / IN PROGRESS** | **AUTHORIZED 2026-09-14 — Slice 1 only** |
 | **Slice 2** | C-020 source inspection authority | PLANNED | Not authorized |
 | **Slice 3** | Mastra Session lifecycle, message projection, PLAN read-only | PLANNED | Not authorized |
 | **Slice 4** | BLD-23/P-01 Preview/Diff Product simplification | PLANNED | Not authorized |
@@ -107,36 +107,34 @@ On 2026-09-13 the operator ratified C-020 and later approved the Mastra-native
 refinement. On 2026-09-14 the operator changed the implementation cadence to a
 **one-slice-at-a-time review loop**.
 
-Therefore the previous instruction to “continue automatically across mechanical
-units” is superseded for this Builder correction sequence.
+The orientation checkpoint has now completed. The operator has explicitly
+authorized **Slice 1 only**.
 
 Current rule:
 
 ```text
-orientation handoff
-→ no implementation
-
-explicit Slice N handoff
-→ implement Slice N only
+explicit Slice 1 handoff
+→ implement Slice 1 only
 → focused verification
 → commit/checkpoint
 → STOP
 → GPT reviews actual Git diff + evidence
-→ only then may Slice N+1 be authorized
+→ Slice 2 remains blocked until explicit authorization
 ```
 
-Routine code inside an explicitly authorized slice may proceed automatically;
-Codex does not need to stop per file or per test.
+Routine code inside Slice 1 may proceed automatically; Codex does not need to
+stop per file or per test.
 
 This grant does **not** authorize:
 
-- starting a later slice early;
+- starting Slice 2 or any later slice;
+- Product API / Preview / Brain / Sankhya changes not required by Slice 1;
+- database migrations in Slice 1;
 - production writes;
 - public hosting;
 - merge to `main`;
 - rewriting historical receipts or published migrations;
-- deleting legacy tables before caller proof;
-- starting Brain/Sankhya work before the roadmap reaches those slices.
+- deleting legacy tables before caller proof.
 
 ---
 
@@ -162,8 +160,6 @@ reopen triggers in `builder-c020-mastra-native.md` fires.
 
 ## Known correction map
 
-The current plan deliberately addresses these final-audit findings:
-
 ```text
 Slice 1 → real source A→B→C and app/** mutation boundary
 Slice 2 → source-read admission for C-020 working/Preview/run sources
@@ -178,19 +174,21 @@ Slice 7 → real Brain tools/rule only after core acceptance
 
 ## Exact next action
 
-**No implementation slice is authorized yet.**
+**Execute Slice 1 only: Source-native A→B→C continuity.**
 
-Send Codex the orientation-only handoff. Codex must:
+Codex must use the explicit Slice 1 handoff together with the Slice 1 contract in
+`docs/tasks/builder-first-app.md`.
 
-1. synchronize to the current branch;
-2. cold-start through the canonical owners;
-3. understand C-020 and the slice review protocol;
-4. inspect current checkout only as needed to orient itself;
-5. make **no code or documentation changes**;
-6. return a short readiness acknowledgment with current HEAD and any genuine
-   authority contradiction.
+The Slice 1 acceptance claim is intentionally narrow:
 
-After that acknowledgment, GPT/operator will send a separate **Slice 1 handoff**.
+```text
+main = A
+A → B retained as refs/conexus/sources/B
+B → C starts from exact B and retains refs/conexus/sources/C
+main remains A
+C-020 ordinary path uses source/execution semantics, not fake Change coordinates
+ordinary mutation boundary = app/**
+```
 
-Do not start Brain, Sankhya, Slice 1 or any other implementation from the
-orientation handoff alone.
+At Slice 1 completion Codex must commit/checkpoint, stop, and return the required
+evidence. Do not start Slice 2.
