@@ -1,23 +1,22 @@
 # First Builder-created app — C-020 slice implementation plan
 
 > **Status:** CURRENT EXECUTION PLAN / OPERATOR REVIEW-GATED
-> **Goal:** make the ordinary Builder behave like a simple coding agent over one persistent Project, then prove it with the real composed stack.
+> **Goal:** make the ordinary Builder behave like a simple coding agent over one persistent Project, remove the superseded Change-era Builder, then prove the real composed product.
 > **Architecture:** `docs/reference/builder-c020-mastra-native.md`
 > **Status / grant owner:** `docs/roadmap.md`
-> **Reviewed implementation baseline:** `a62a5704a2c5bebb26144fa93dd83f1e7c4574f4`
+> **Accepted implementation checkpoints:** Slice 1 `e56dcec3c6125bd1d812a6645ded5a35418118ad`; Slice 2 `df762d525d27b4aaf85d4de5ba5fa1fe2e806958`
 
-This plan supersedes the previous Task 0–11 execution queue as the current
-implementation ordering. Prior work and tests remain useful evidence, but no
-previous task number is treated as accepted merely because code exists.
+This plan supersedes the previous Task 0–11 queue and the earlier 0–7 slice ordering.
 
-The operator explicitly changed execution governance on 2026-09-14:
+The operator requires a one-slice-at-a-time review loop:
 
 ```text
-plan all slices now
-→ authorize one slice
+plan all slices
+→ authorize exactly one slice
 → Codex implements only that slice
-→ Codex stops with evidence
-→ GPT reviews against C-020 + slice contract
+→ focused proof + commit/checkpoint
+→ STOP
+→ GPT reviews actual diff/evidence
 → next slice requires explicit authorization
 ```
 
@@ -27,340 +26,128 @@ Codex must not continue automatically across slice boundaries.
 
 ## 1. Product outcome
 
-The Builder is ready for operator UX testing only when this real journey works:
+Core Builder is ready for operator UX testing only when this real journey works:
 
 ```text
 create/open Project
 → Build
-→ ask for an app
-→ actual Preview appears automatically
-→ ask for a second edit
-→ second edit starts from first edit's source
-→ ask a no-code question
+→ persistent Project conversation
+→ ask for app
+→ app appears automatically in Preview
+→ ask for second edit
+→ second edit starts from exact current source
+→ ask no-code question
 → no source/build mutation
 → reload/restart
-→ same conversation + source + last-good Preview
+→ same conversation + working source + last-good Preview
 → continue editing
 ```
 
-The ordinary path must create `BuilderRun`, not `Change`.
-
-The operator must not administer:
+The ordinary path uses:
 
 ```text
-Change
-Plan
-WorkUnit
-ActorRun
-CodingSession
-candidate hashes
-manual Preview preparation
+Project
+Mastra Thread/Messages
+BuilderRun
+ProjectWorkingState
+immutable source refs
+ArtifactRevision / last-good Preview
 ```
+
+The final current runtime must **not** retain a parallel Change-era Builder architecture.
 
 ---
 
 ## 2. Global constraints
 
-Every slice inherits these constraints:
+Every slice inherits:
 
 - exact Mastra stack: `@mastra/core 1.63.2`, `@mastra/e2b 0.11.0`, `@mastra/memory 1.28.1`, `@mastra/libsql 1.22.2`;
-- use `.agents/skills/mastra/SKILL.md` and exact installed source before guessing Mastra behavior;
-- PSTACK/Poteto: subtract before add, fix root cause, reuse native Mastra, preserve Product authority outside framework;
-- `BuilderRun` remains the only new durable ordinary execution record;
-- one persistent deterministic Project Thread; no Conexus Turn;
-- shared `AgentController` + shared `createCodingAgent`;
+- read `.agents/skills/mastra/SKILL.md` and exact installed source before guessing Mastra behavior;
+- PSTACK/Poteto: subtract before add, fix root cause, one authority per concept, prefer native framework mechanics;
+- `BuilderRun` is the only new durable ordinary execution record;
+- one deterministic persistent Mastra Thread per Project; no Conexus Turn;
+- one shared `AgentController` + one shared `createCodingAgent`;
 - fresh Session/Workspace/E2B per BuilderRun;
-- host-controlled canonical result commit;
-- immutable C-020 source refs `refs/conexus/sources/<oid>`;
-- `working source != last-good Preview` is allowed and required after failed build;
-- no new ordinary `builder.change` row;
-- no edit to published migrations 028–036; schema changes are forward-only;
-- no new Brain/Sankhya work before the core composed journey is accepted;
-- historical R1/R2/RB audits remain explicit, not current mandatory stage choreography;
-- do not modify `.audit/` or preserved untracked build directories;
-- do not merge `main` without explicit operator authority.
+- host owns canonical result commit and source admission;
+- immutable source refs: `refs/conexus/sources/<oid>`;
+- working source and last-good Preview may intentionally differ after build failure;
+- ordinary path creates zero new `builder.change` rows;
+- published migration bytes are immutable; schema cleanup is forward-only;
+- no Brain/Sankhya product expansion before the core composed journey is accepted;
+- historical R1/R2/RB evidence is not current stage choreography;
+- preserve `.audit/` and existing untracked build directories;
+- no merge to `main` without operator authority.
 
-### Review protocol
+### Subtraction law
 
-At the end of every authorized slice Codex must stop and return:
+The final codebase must not keep two Builders merely for compatibility.
 
 ```text
-HEAD
-files changed
-exact behavior implemented
-focused tests run + result
-npm/typecheck/wire checks relevant to the slice
-known limitations
-explicit statement that next slice was NOT started
+migrate accepted caller
+→ prove caller moved
+→ delete dead runtime/API/schema surface
 ```
 
-GPT then reviews the actual Git diff before the next slice is authorized.
+Published migrations remain as immutable upgrade history, but dead current tables,
+functions, routes, types and runtime branches are removed by a forward cleanup migration
+and code deletion once the last accepted caller is gone.
 
 ---
 
 # Slice 0 — Planning / authority reconciliation
 
-**State:** COMPLETE by GPT / documentation-only
+**State:** COMPLETE
 
-**Purpose:** remove the previous auto-continue ambiguity and establish one
-current architecture owner, one slice execution owner and one mutable status
-owner.
-
-**Owners:**
-
-```text
-docs/reference/builder-c020-mastra-native.md  architecture/spec
-docs/tasks/builder-first-app.md               slice plan
-docs/roadmap.md                               status/grant/next action
-docs/decisions/index.md                       C-020 decision identity
-```
-
-Historical `builder-and-harness.md` and locked P-01 mechanism wording remain
-historical where they conflict with C-020. Their accepted Product experience
-intent remains valid.
-
-**Exit:** Slice 1 may be planned and sent separately. No code is authorized by
-Slice 0 itself.
+Established canonical owners and the review-gated execution protocol.
 
 ---
 
-# Slice 1 — Source continuity: real A → B → C
+# Slice 1 — Source-native A → B → C continuity
 
-## Goal
+**State:** PASS
 
-Make C-020 source custody genuinely source-native so the second and third
-Builder requests continue from the exact current working source.
+**Accepted implementation:** `e56dcec3c6125bd1d812a6645ded5a35418118ad`
 
-This slice changes **Git/source mechanics only**. It does not change Product API,
-Mastra session UX, Preview UI or Brain.
-
-## Current defect
-
-Current ordinary code retains results under `refs/conexus/sources/<oid>` but
-still reaches legacy Change-oriented helpers underneath. `prepareSource()` can
-fall back to a Project bundle path that requires `refs/heads/main` to equal the
-requested source. After `A → B`, working source is B while main can remain A,
-so the next run can fail to materialize B.
-
-The legacy ownership rule can also reject later edits to an `app/**` file that
-was created by the previous BuilderRun because that file did not exist in the
-original static ownership manifest.
-
-## Files
-
-Primary:
-
-- `apps/hub/src/builder/source.ts`
-- `apps/hub/src/builder/service.ts` only if call signatures need adaptation
-- `tests/implementation/builder-working-source-runtime.test.mjs`
-
-No database migration in this slice.
-
-## Target interface
-
-The ordinary C-020 path must use execution/source vocabulary only, conceptually:
-
-```ts
-prepareProjectSource({
-  projectId,
-  executionId,
-  sourceRevision,
-}): Promise<Uint8Array>
-
-admitProjectResult({
-  projectId,
-  executionId,
-  baseSourceRevision,
-  claimedResultSourceRevision,
-  resultBundle,
-}): Promise<{
-  baseSourceRevision: string
-  resultSourceRevision: string
-  patch: string
-}>
-```
-
-Exact exported names may follow repo convention, but ordinary code must not pass
-fake `changeId`, `sourceChangeId`, `workUnitId` or `actorRunId` merely to reuse a
-legacy function.
-
-## Source preparation law
-
-For exact source S:
-
-```text
-if refs/conexus/sources/S exists and resolves exactly S
-    create bundle from refs/conexus/sources/S
-else if refs/heads/main resolves exactly S
-    create bundle from refs/heads/main
-else
-    refuse
-```
-
-Do not move `refs/heads/main` when Builder working source advances.
-
-## Result admission law
-
-For base A and claimed result B:
-
-```text
-A must be exact admitted source
-B must be exact bundle result
-B must have direct parent A
-A..B commit count must equal 1
-changed entries must be safe regular app files
-patch/bytes/files remain bounded
-retain refs/conexus/sources/B exactly
-only later DB CAS may make B current
-```
-
-### Mutation ownership for the fixed app profile
-
-Ordinary C-020 Builder mutation is exactly:
-
-```text
-app/**
-```
-
-Files under `app/**` created by an earlier BuilderRun remain editable by later
-BuilderRuns.
-
-Anything outside `app/**` is refused in the ordinary C-020 path.
-Legacy Change callers retain their legacy ownership-manifest behavior through a
-separate adapter until they are deleted.
-
-## Required failing tests first
-
-Add/reshape a real bare-Git test, without mocking the source port, that proves:
+Accepted invariants:
 
 ```text
 main=A
-Run1: A→B
-  refs/conexus/sources/B=B
-  main still A
-Run2 prepareSource(B) succeeds
-Run2: B→C, modifying at least one app/** file created in B
-  refs/conexus/sources/C=C
-  main still A
+A→B retained as refs/conexus/sources/B
+B→C starts from exact B
+refs/conexus/sources/C=C
+canonical main remains A
+transport bundle exposes requested source through temporary refs/heads/main
+ordinary mutation boundary = app/**
+legacy Change custody no longer used by ordinary BuilderRun
 ```
 
-Also prove:
-
-- result with two commits is refused;
-- wrong parent is refused;
-- non-`app/**` mutation is refused;
-- unsafe/symlink/submodule behavior remains refused;
-- duplicate/stale custody does not silently replace an existing source ref.
-
-## Verification
-
-Run at minimum:
-
-```sh
-node --test --test-concurrency=1 tests/implementation/builder-working-source-runtime.test.mjs
-node node_modules/typescript/bin/tsc --project apps/hub/tsconfig.json --pretty false
-npx --no-install biome check apps/hub/src/builder/source.ts apps/hub/src/builder/service.ts tests/implementation/builder-working-source-runtime.test.mjs
-git diff --check
-```
-
-## Slice acceptance
-
-PASS only if the real Git fixture proves A→B→C while main remains A and the
-ordinary implementation no longer adapts `executionId` into fake Change
-coordinates.
-
-**Review gate:** STOP. Do not start Slice 2.
+Do not redesign Slice 1 unless real evidence violates these invariants.
 
 ---
 
-# Slice 2 — Source inspection authority + latest-run Diff basis
+# Slice 2 — C-020 source inspection authority
 
-## Goal
+**State:** PASS
 
-Make Code/Diff inspection read exact C-020 source truth instead of legacy
-Baseline/Change lineage, without allowing arbitrary Git OID disclosure.
+**Accepted implementation:** `df762d525d27b4aaf85d4de5ba5fa1fe2e806958`
 
-## Current defect
-
-`builder.admit_source_revision()` still admits only approved Baseline or
-Change/WorkUnit lineage. Valid C-020 working/result source can therefore be
-refused by real Code/Diff endpoints even if mocked browser tests pass.
-
-## Files
-
-- create `apps/hub/migrations/037_builder_c020_source_inspection.sql`
-- modify `scripts/run-hub-migrations.mjs`
-- modify/add focused PostgreSQL tests
-- modify `apps/hub/src/builder/store.ts` only if projection helpers are required
-
-Do not edit 030–036.
-
-## Admission semantics
-
-After current `project.source.read` authority succeeds, C-020 may admit an exact
-source revision only when it equals one of:
+Migration 037 established current source-read authority for:
 
 ```text
-ProjectWorkingState.working_source_revision
-ProjectWorkingState.last_preview_source_revision
-latest relevant BuilderRun.base_source_revision
-latest relevant BuilderRun.result_source_revision
+working source
+last-good Preview source
+latest code-changing BuilderRun base
+latest code-changing BuilderRun result
 ```
 
-Then legacy source-read semantics may be used as fallback for legacy callers.
+and added a minimal latest-code-changing projection so a later `RESPONSE_ONLY`
+request does not erase the useful Diff basis.
 
-Do not admit an arbitrary OID just because Git contains it.
+Arbitrary/stale unrelated OIDs remain refused.
 
-## Latest code-changing run projection
-
-The Product will later need the latest code-changing run for Diff:
-
-```text
-baseSourceRevision
-resultSourceRevision
-resultKind
-```
-
-If the current `read_builder_run` projection is insufficient to distinguish the
-latest code-changing run from a later RESPONSE_ONLY run, add the smallest
-server-owned read projection here or defer only that projection to Slice 4.
-Do not create a new durable record.
-
-## Required tests
-
-Use PostgreSQL current migrations and prove:
-
-```text
-working C admitted
-last-good B admitted
-latest run base B admitted
-latest run result C admitted
-random unrelated OID refused
-other Project's source refused
-unauthorized account refused
-legacy accepted source remains accepted for its legacy caller
-```
-
-Also execute the current migration-install test that proves new Project creation
-initializes `ProjectWorkingState`.
-
-## Verification
-
-At minimum:
-
-```sh
-node --test --test-concurrency=1 tests/implementation/hub-migration-postgres.test.mjs
-# plus the focused source-admission postgres test introduced/extended here
-node node_modules/typescript/bin/tsc --project apps/hub/tsconfig.json --pretty false
-git diff --check
-```
-
-## Slice acceptance
-
-PASS when real backend source inspection can read the C-020 working/Preview/run
-sources and refuses unrelated OIDs.
-
-**Review gate:** STOP. Do not start Slice 3.
+Migration 037 still contains a legacy Baseline/Change fallback only as temporary
+compatibility debt. Slice 5 removes it after final caller migration.
 
 ---
 
@@ -371,77 +158,75 @@ sources and refuses unrelated OIDs.
 Finish the native Mastra harness correctly without adding Conexus session/chat
 machinery.
 
-## Files
+## Primary files
 
-- `apps/hub/src/builder/module.ts`
-- `apps/hub/src/builder/runtime.ts`
-- `apps/hub/src/builder/application-starter.ts`
-- `qualification/4d/mastra-builder-capability/probe.test.mjs`
-- focused runtime/session tests
+```text
+apps/hub/src/builder/module.ts
+apps/hub/src/builder/runtime.ts
+apps/hub/src/builder/application-starter.ts
+qualification/4d/mastra-builder-capability/probe.test.mjs
+focused runtime/session tests
+```
 
 ## 3.1 Session lifecycle
 
 Keep:
 
 ```text
-one shared AgentController
-one shared createCodingAgent
+shared AgentController
+shared createCodingAgent
 scope = builder:<builderRunId>
-one persistent Project Thread
+persistent Project Thread
+fresh Workspace/E2B per run
 ```
 
-At terminal cleanup call native:
+At terminal cleanup use native:
 
 ```ts
-await controller.deleteSession({
-  resourceId: projectId,
-  scope: runScope,
-})
+await controller.deleteSession({ resourceId: projectId, scope: runScope })
 ```
 
-Then destroy E2B/Workspace. Thread/messages remain persisted.
+Then destroy physical sandbox/workspace. Do not delete Thread/messages.
 
-Extend qualification to prove:
+Qualification must prove:
 
 ```text
 sendMessage
 → persisted Thread contains message
 → deleteSession
 → live Session removed
-→ same Thread/message still exists
+→ persisted Thread/message remain
 → new Session with new Workspace binds same Thread
 ```
 
-Do not create a custom live-session registry.
+Do not create a custom durable/live Session registry.
 
-## 3.2 Product message normalization
+## 3.2 Product message projection
 
-Installed Mastra 1.63.2 stores the user message as:
+Exact installed Mastra behavior already proved:
 
 ```text
-role=signal
-type=user
+user message: role=signal, type=user
 ```
 
-BLD-23 projection must map:
+Project conversation projection:
 
 ```text
 signal/user → user
-assistant   → assistant
-intentional displayable system row → system
-other internal signals/tasks/reminders → omit from Product conversation
+assistant → assistant
+intentional Product system row → system
+other internal signals/tasks/reminders → omit
 ```
 
-Sort Product conversation chronologically.
+Sort chronologically.
 
-Add an integration-level test through the real Session/Memory projection, not a
-fabricated JSON fixture.
+The test must use real Session/Memory persistence, not fabricated message JSON.
 
 ## 3.3 PLAN end-to-end read-only
 
-Keep the native Mastra PLAN `availableTools` allowlist.
+Native PLAN `availableTools` remains the mutation control inside Mastra.
 
-Additionally:
+Host bootstrap must also be read-only:
 
 ```ts
 if (mode === 'BUILD') {
@@ -449,57 +234,43 @@ if (mode === 'BUILD') {
 }
 ```
 
-PLAN must never materialize starter files.
-
 Fresh Project PLAN proof:
 
 ```text
-no app directory before request
+no app directory before
 PLAN request
 → RESPONSE_ONLY
-→ same working source
-→ no canonical source commit
+→ working source unchanged
+→ no canonical result commit
 → no compiler call
 ```
 
 ## 3.4 Shared stable instructions
 
-The shared agent and any temporary legacy adapter must derive from one stable
-instruction owner that includes:
+Ordinary shared coding agent instructions must have one owner and include:
 
 ```text
 work only in exact Session Workspace
 ordinary app edits under app/**
 fixed REACT_VITE_V1 stack
-no dependency/package installation
+no package/dependency installation
 no platform/generated mutation
 no network/credential authority
 ```
 
-Remove duplicated/drifting ordinary prompt text where practical.
+Do not build native task UX merely because Mastra supports tasks.
 
-## 3.5 Native tasks
+## Slice 3 acceptance
 
-Do not add TaskSignalProvider or a durable task UI in this slice. P-01 does not
-need it to prove the coding loop.
+PASS when:
 
-## Verification
-
-At minimum:
-
-```sh
-npm test --prefix qualification/4d/mastra-builder-capability
-# focused runtime/session tests added or extended by the slice
-node node_modules/typescript/bin/tsc --project apps/hub/tsconfig.json --pretty false
-npx --no-install biome check apps/hub/src/builder/module.ts apps/hub/src/builder/runtime.ts qualification/4d/mastra-builder-capability/probe.test.mjs
-git diff --check
+```text
+deleteSession preserves persistent Thread continuity
+real Mastra user row projects as Product user
+internal signals do not pollute chat
+PLAN cannot mutate through tools or host starter
+shared instructions do not drift across ordinary paths
 ```
-
-## Slice acceptance
-
-PASS when Session deletion preserves Thread history, the real Mastra user row
-renders as Product `user`, and PLAN cannot mutate source even through host-side
-bootstrap.
 
 **Review gate:** STOP. Do not start Slice 4.
 
@@ -509,35 +280,31 @@ bootstrap.
 
 ## Goal
 
-Make the Product surface match the approved experience: app visible by default,
-chat on the right, server-owned Preview truth and useful latest-change Diff.
+Make the Product surface match the approved experience and migrate the final
+ordinary Product callers off Change-era surfaces.
 
-## Files
-
-- `contracts/api/product/builder-paths.yaml`
-- generated wire/client projections required by the repo method
-- `apps/hub/src/builder/routes.ts`
-- `apps/hub/src/builder/module.ts`
-- `apps/web/src/features/builder/api.ts`
-- `apps/web/src/features/builder/components/project-build.tsx`
-- `tests/implementation/builder-browser.test.mjs`
-- focused Hub route tests where appropriate
-
-## 4.1 Session response terminology
-
-The backend currently returns the latest run, including terminal runs. Name it:
+## Primary files
 
 ```text
-latestBuilderRun
+contracts/api/product/builder-paths.yaml
+generated wire/client projections required by repo method
+apps/hub/src/builder/routes.ts
+apps/hub/src/builder/module.ts
+apps/web/src/features/builder/api.ts
+apps/web/src/features/builder/components/project-build.tsx
+tests/implementation/builder-browser.test.mjs
+focused Hub route tests
 ```
 
-not `activeBuilderRun`.
+## 4.1 Session contract
 
-Run state still tells the UI whether it is active.
+Rename the misleading projection:
 
-## 4.2 Preview summary contract
+```text
+activeBuilderRun → latestBuilderRun
+```
 
-Exact session Preview summary:
+BLD-23 Preview summary is exactly:
 
 ```text
 workingSourceRevision
@@ -546,141 +313,195 @@ lastGoodArtifactRevisionId
 lastGoodArtifactDigest
 ```
 
-All nullable where no good Preview exists.
+Browser never chooses Thread/source/runtime authority.
 
-The OpenAPI and actual response must match exactly.
+## 4.2 Preview launch
 
-## 4.3 Remove ordinary BLD-10 duplication
-
-P-01 already gets current Preview summary from BLD-23.
-
-Remove ordinary `getBuildPreview(projectId)` polling from `ProjectBuild`.
-Keep BLD-10 only for remaining accepted legacy/other callers.
-
-## 4.4 Preview launch is server-resolved
-
-Ordinary endpoint remains conceptually:
+Ordinary endpoint:
 
 ```http
 POST /api/control/projects/:projectId/builder-session/preview
 ```
 
-The client does not send BuilderRun/source/artifact coordinates.
+must not require browser-authored BuilderRun/source/artifact coordinates.
 
 Server resolves:
 
 ```text
 authorized Project
-→ ProjectWorkingState last-good source/artifact
-→ Registry exact artifact
-→ MAR route/grant
+→ ProjectWorkingState last-good coordinates
+→ exact Registry artifact
+→ existing MAR serving/grant mechanism
 ```
 
-Do not redesign MAR; its existing internal compatibility fields may remain.
+Do not redesign MAR.
 
-## 4.5 Preview is automatic and dominant
+## 4.3 Preview dominant UX
 
-When a last-good Preview exists:
+If last-good Preview exists:
 
 ```text
 Build screen loads
-→ launch Preview automatically
-→ iframe renders actual app
+→ server-resolved launch
+→ iframe appears automatically
 ```
 
-No mandatory `Abrir Preview` button.
-Optional secondary `Nova aba` is allowed.
+No mandatory “Abrir Preview”. Optional `Nova aba` may remain.
+Technical source/artifact identifiers belong in Details.
 
-Move source/artifact technical IDs to `Detalhes`.
+## 4.4 Diff
 
-## 4.6 Diff semantics
-
-Primary Diff basis is the latest code-changing BuilderRun:
+Primary Diff is:
 
 ```text
-baseSourceRevision → resultSourceRevision
+latest code-changing BuilderRun.baseSourceRevision
+→ latest code-changing BuilderRun.resultSourceRevision
 ```
 
-Use Slice-2 source-read authority to read both exact revisions.
+Use Slice-2 source-read authority.
 
-States:
+A later response-only request must not erase the previous code-change Diff.
+
+## 4.5 Migrate final ordinary callers
+
+By Slice-4 exit, the current P-01/browser flow must not call or require:
 
 ```text
-latest code-changing run exists → compare base/result
-latest request RESPONSE_ONLY    → state clearly that request changed no source
-no code-changing run yet        → honest empty state
+/session/turns
+Change chooser/snapshot
+Findings/Evidence routes
+legacy PreviewPreparation routes
+legacy BLD-01..21 surfaces for ordinary Builder UX
 ```
 
-Do not use working source vs last-good Preview as the primary Diff.
+Do not delete all those implementations in this slice; prove current Product no
+longer calls them. Slice 5 removes them.
 
-## 4.7 Browser contract test
+## Slice 4 acceptance
 
-Keep Playwright mocking for this test. It is a UI/contract test, not live
-composed proof.
-
-Prove:
+PASS when:
 
 ```text
-Preview iframe appears automatically when last-good exists
-no BuilderRun/internal label in ordinary surface
-chat messages render correct user/assistant roles
-BUILD/PLAN controls work
-Code reads working source
-Diff reads latest run base/result
-Details contain technical IDs
-reload restores UI from session response
+Preview auto-renders
+server owns Preview truth
+Diff shows latest real code change
+reload reconstructs from BLD-23
+current Product path has no Change-era API dependency
 ```
 
-## Verification
-
-At minimum:
-
-```sh
-node --test --test-concurrency=1 tests/implementation/builder-browser.test.mjs
-npm run wire:bundle
-npm run wire:builder
-npm run wire:bijection
-node node_modules/typescript/bin/tsc --project apps/hub/tsconfig.json --pretty false
-node node_modules/typescript/bin/tsc --project apps/web/tsconfig.json --pretty false
-git diff --check
-```
-
-## Slice acceptance
-
-PASS when the Product contract and UI no longer require the browser to echo
-Preview authority, the iframe is automatic, and Diff represents the last actual
-code change.
+The Playwright test remains UI/contract proof, not live composed proof.
 
 **Review gate:** STOP. Do not start Slice 5.
 
 ---
 
-# Slice 5 — Subtract premature Brain path + align current verification
+# Slice 5 — Legacy Builder excision
 
 ## Goal
 
-Remove functionality that entered before its Product proof, and make the current
-verification graph prove the C-020 implementation actually being shipped.
+Delete the superseded Change-era Builder after Slice 4 proves no accepted
+ordinary Product caller remains.
 
-## Files
+This is a mandatory PSTACK subtraction slice, not cosmetic cleanup.
 
-Potentially:
+## 5.1 Start with a caller census
 
-- `apps/hub/src/builder/runtime.ts`
-- `apps/hub/src/builder/module.ts`
-- `apps/hub/src/server.ts`
-- `apps/hub/src/brain/module.ts`
-- `apps/hub/src/brain/store.ts`
-- `tests/implementation/builder-brain-context.test.mjs`
-- `scripts/conexus-verify.mjs`
-- repository verification tests
+Search current runtime, routes, contracts, frontend, tests and server wiring for
+actual callers of legacy Builder concepts.
 
-Touch Brain files only to remove Task-10-only additions. Do not alter accepted
-general Brain behavior.
+Classify each occurrence:
 
-## 5.1 Remove pre-query/prompt injection
+```text
+accepted current caller → migrate/remove caller first inside this slice if bounded
+historical migration/evidence text → keep as immutable history
+runtime/API/schema with no accepted caller → delete
+```
 
-The ordinary Builder must not do:
+Do not preserve code merely because old tests reference it.
+
+## 5.2 Runtime/API deletion target
+
+Expected dead concepts include, subject to exact caller census:
+
+```text
+ChangeProjection / PlanProjection / ChangeProgress / ChangeDiff / ChangeExecution
+BuilderSnapshot Change graph
+createChange / listChanges / readSnapshot
+claimChange / claimCorrection
+bindSandbox / settleResult / settleResponse
+verification/correction/finding/evidence pipeline used only by Change
+/session/turns legacy routes
+legacy Change/findings/evidence endpoints
+legacy PreviewPreparation ordinary path
+activeTurn derived from Change
+legacy source prepareSource/prepareCandidate/admitCandidate path
+refs/conexus/changes custody code with no accepted non-Builder consumer
+```
+
+Remove dead files entirely when they have no remaining owner.
+Do not leave “deprecated” wrappers with zero callers.
+
+## 5.3 Database cleanup
+
+Use the next available **forward migration** at Slice-5 time.
+Never edit historical migration bytes.
+
+After caller proof, drop current legacy Builder tables/functions/columns that no
+accepted runtime depends on, including Change-era lifecycle objects as proven by census.
+
+Candidates include:
+
+```text
+builder.change
+builder.plan
+builder.work_unit
+builder.actor_run
+builder.coding_session
+legacy finding/evidence/acceptance/receipt tables
+legacy Change-only functions
+legacy PreviewPreparation functions
+legacy Change coordinates in project_working_state
+legacy fallback inside current source-read/application admission functions
+```
+
+Exact drop order must honor foreign keys and function dependencies.
+
+Do not drop a shared IAM/Project/Registry primitive merely because it predates C-020.
+
+## 5.4 Contracts/tests cleanup
+
+Remove dead Change-era Product contracts and tests from the **current** product
+surface. Historical evidence files may remain.
+
+Current verification should stop spending runtime on a deleted architecture.
+
+## Slice 5 acceptance
+
+PASS when:
+
+```text
+ordinary runtime/API contains one Builder architecture
+no current Product route exposes Change-era Builder UX
+no current Builder store/service/source method exists solely for Change-era path
+current database schema no longer retains proven-dead Builder lifecycle tables/functions/columns
+published migrations remain byte-identical
+current tests prove C-020, not deleted legacy behavior
+```
+
+**Review gate:** STOP. Do not start Slice 6.
+
+---
+
+# Slice 6 — Remove premature Brain path + align current verification
+
+## Goal
+
+Remove functionality that entered before Product proof and make the current
+verification graph execute the C-020 proofs actually being shipped.
+
+## 6.1 Remove Brain pre-query/prompt injection
+
+Ordinary Builder must not do:
 
 ```text
 every message
@@ -689,165 +510,86 @@ every message
 → append business text to prompt
 ```
 
-Remove:
+Remove Task-10-only reader/retrieval code with no accepted consumer.
+Preserve the general Brain subsystem.
+
+Future Brain integration remains direct Mastra tools after core acceptance.
+
+## 6.2 Verification graph
+
+Current objective verification must execute important current proofs:
 
 ```text
-brainReader from ordinary runtime execution
-formatBrainContext ordinary prompt injection
-server→Builder brainReader wiring
-custom Task-10-only retrieval code if it has no other accepted consumer
+current migration/PostgreSQL install
+Slice-1 A→B→C
+Slice-2 source inspection
+Slice-3 Mastra lifecycle/PLAN
+Slice-4 Product UI/contract
+Slice-5 clean current schema/runtime
+Registry/compiler/wire checks
 ```
 
-If the newly added `BrainProjectKnowledgeReader/readProjectKnowledge` has no
-accepted consumer after this removal, remove it rather than keep dormant code.
+Do not restore R1/R2/RB historical stage choreography as current gates.
+Remove Brain core leaf until Brain is truly authorized.
 
-Brain itself remains intact.
+## Slice 6 acceptance
 
-## 5.2 Verification graph
+PASS when ordinary Builder has no premature Brain injection and `npm run verify`
+represents the cleaned C-020 product rather than historical Builder architecture.
 
-Keep the current C-020 candidate-graph philosophy.
-
-Do not reintroduce historical R1/R2/RB stage graphs as mandatory current gates.
-
-Current objective leaves must execute, not merely lint, the important proofs,
-including:
-
-```text
-hub current migration/PostgreSQL installation
-Slice-1 A→B→C source test
-Slice-2 source admission test
-Slice-3 Mastra lifecycle/PLAN tests
-Slice-4 UI/contract test
-Registry/compiler/current wire checks
-```
-
-Remove `c020-builder-brain` from the current core candidate graph until Task 10
-is actually authorized.
-
-## Verification
-
-Run focused verification while editing, then:
-
-```sh
-CONEXUS_TEST_DB_HOST=127.0.0.1 \
-CONEXUS_TEST_DB_PORT=<current test port> \
-CONEXUS_TEST_DB_NAME=conexus_test \
-CONEXUS_TEST_DB_USER=postgres \
-CONEXUS_TEST_DB_PASSWORD=postgres \
-npm run verify
-```
-
-Use the actual current disposable PostgreSQL coordinates; do not hard-code a
-new port in Product code/docs.
-
-## Slice acceptance
-
-PASS when ordinary Builder has no premature Brain pre-injection and the current
-verification graph executes the objective C-020 proofs required by Slices 1–4.
-
-**Review gate:** STOP. Do not start Slice 6.
+**Review gate:** STOP. Do not start Slice 7.
 
 ---
 
-# Slice 6 — Real composed proof + operator-ready checkpoint
+# Slice 7 — Real composed Product proof
 
 ## Goal
 
-Prove the simple Product end-to-end with the actual current stack. Do not add
-architecture in this slice unless the proof exposes a root-cause defect.
+Prove the simple Product with the actual stack after legacy deletion.
 
-## Reuse existing live harnesses
+Reuse existing live harnesses; do not create another live-testing framework.
 
-Do not create a new live-testing framework.
-
-Adapt/reuse existing opt-in live harnesses where useful, especially:
+Actual journey:
 
 ```text
-tests/implementation/rb-builder-mastra-e2b-live.test.mjs
-existing Builder application/compiler live proof
+1. Create Project.
+2. BUILD: create counter with Adicionar/Zerar.
+3. Preview appears automatically and works.
+4. BUILD: add “Contagem da equipe”; prior behavior remains.
+5. Ask “Como o botão Zerar funciona?”; response only, no source/build mutation.
+6. Reload/restart; same Thread + source + Preview.
+7. Make a third visible edit from current source.
 ```
 
-Adapt the Builder live test to the C-020 input (`executionId`, no Change graph).
-Keep live model/E2B proof opt-in; it is not a normal offline `npm run verify`
-leaf.
-
-## Real Product journey
-
-Run actual local Hub/Web/PostgreSQL/Mastra/model/E2B/Git/compiler/Registry/MAR.
-Use a disposable internal Project.
-
-Exact journey:
+Record:
 
 ```text
-1. Create a new Project.
-2. BUILD: "Crie um contador que comece em 0 com os botões Adicionar e Zerar."
-   → actual app appears automatically in Preview.
-3. BUILD: "Adicione abaixo do título o texto 'Contagem da equipe'."
-   → prior buttons still work and source continuity is A→B→C.
-4. BUILD: "Como o botão Zerar funciona?"
-   → response only; no source commit and no compile.
-5. Reload/restart.
-   → same conversation + working source + last-good Preview.
-6. BUILD one third visible edit.
-   → continues from current source.
-```
-
-For the same Project inspect database/source truth and record:
-
-```text
-working source before/after each request
-last-good Preview source before/after each request
 BuilderRun base/result/kind/state
-ordinary builder.change rows = 0
+working source transitions
+last-good Preview transitions
+zero Change-era current objects/callers as expected after Slice 5
 ```
 
-## Required final checks
-
-- current `npm run verify` green;
-- opt-in live model/E2B worker proof green if credentials/authority exist;
-- actual Preview app is interactive;
-- second and third requests use current source;
-- response-only request creates no source/build mutation;
-- reload/restart preserves Thread + Preview;
-- zero ordinary Change rows.
-
-## Deliverable to operator
-
-Return:
+Required:
 
 ```text
-HEAD
-exact startup command
-exact browser URL
-6-step manual test
-Mastra versions
-working/Preview source transitions
-evidence ordinary Change rows = 0
-known limitations only
+npm run verify green
+opt-in live model/E2B proof green when credentials exist
+real Preview interactive
+A→B→C→... continuity real
+response-only no mutation
+reload persistence real
 ```
 
-## Slice acceptance
+Deliver exact startup command, browser URL and operator test steps.
 
-PASS only after GPT reviews the code/evidence and the operator is given a real
-manual test route.
-
-**Review gate:** STOP. Core C-020 is now ready for operator acceptance, not
-implicitly delivered.
+**Review gate:** STOP. Core is operator-ready, not implicitly delivered.
 
 ---
 
-# Slice 7 — First real Brain-backed build
+# Slice 8 — First real Brain-backed build
 
-## Authorization
-
-This slice is **DEFERRED / NOT AUTHORIZED** until Slice 6 is accepted.
-
-## Goal
-
-Prove one real Metal Nobre business rule without copying its formula into the
-user prompt.
-
-## Target interaction
+**State:** DEFERRED / NOT AUTHORIZED before Slice 7 acceptance
 
 Use narrow Mastra-native tools, conceptually:
 
@@ -856,50 +598,30 @@ searchBrain(query)
 readBrainItem(itemId)
 ```
 
-Conexus derives:
+Conexus owns Account/Project/Brain binding/revision/provenance authority.
 
-```text
-Account
-Workspace/Project authority
-Project Brain binding
-admitted Brain revision
-provenance
-```
+Do not add MCP/RAG/vector DB unless direct authorized tools prove insufficient.
 
-The model never chooses tenant authority or credentials.
-
-Do not add MCP/RAG/vector DB unless these direct authorized tools prove
-insufficient.
-
-## Acceptance
-
-```text
-real accepted rule discovered
-revision/digest/provenance preserved
-app uses rule
-follow-up visual edit preserves rule
-missing/ambiguous rule produces honest gap
-```
-
-This slice receives its own detailed handoff only after core Builder acceptance.
+Acceptance requires one exact approved Metal Nobre rule used by a real app while
+preserving revision/digest/provenance and honest missing/ambiguous behavior.
 
 ---
 
 # Slice status register
 
-The mutable state below is mirrored by `docs/roadmap.md`; roadmap wins on current
-authorization.
+`docs/roadmap.md` wins on current authorization.
 
 | Slice | Meaning | Current state |
 | --- | --- | --- |
 | 0 | Planning/authority reconciliation | COMPLETE |
-| 1 | Source A→B→C continuity | PLANNED / NEXT, NOT YET AUTHORIZED |
-| 2 | Source inspection authority | PLANNED |
-| 3 | Mastra lifecycle/message/PLAN | PLANNED |
+| 1 | Source A→B→C continuity | PASS |
+| 2 | Source inspection authority | PASS |
+| 3 | Mastra lifecycle/message/PLAN | PLANNED / NEXT |
 | 4 | Product API + P-01 Preview/Diff | PLANNED |
-| 5 | Remove premature Brain + verify alignment | PLANNED |
-| 6 | Real composed proof/operator checkpoint | PLANNED |
-| 7 | Real Brain tools/rule | DEFERRED until core acceptance |
+| 5 | Legacy Builder excision | PLANNED / REQUIRED |
+| 6 | Remove premature Brain + verify alignment | PLANNED |
+| 7 | Real composed proof/operator checkpoint | PLANNED |
+| 8 | Real Brain tools/rule | DEFERRED until core acceptance |
 
 ---
 
@@ -913,6 +635,7 @@ Reopen only the smallest implicated C-020 boundary if real evidence proves:
 - PLAN cannot be end-to-end read-only;
 - BuilderRun cannot hold required concurrency/idempotency/restart truth;
 - source-native custody cannot support real A→B→C while preserving protection;
-- a real accepted Product capability cannot fit the existing owner boundary.
+- deleting legacy reveals a genuinely accepted capability with no C-020 owner;
+- a real accepted Product capability cannot fit the current owner boundary.
 
 Everything else is implementation/correction inside this plan.
