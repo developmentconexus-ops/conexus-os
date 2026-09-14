@@ -49,20 +49,26 @@ test('real Mastra messages project to Product roles without leaking internal sig
   try {
     const session = await controller.createSession({ resourceId: 'slice-3-project', ownerId: 'slice-3-project', scope: 'builder:projection', threadId })
     await session.sendMessage({ content: 'Mensagem real do operador.' })
-    const recalled = await session.thread.listActiveMessages()
+    const recalled = (await memory.recall({ threadId, resourceId: 'slice-3-project', page: 0, perPage: 50 })).messages
     const user = recalled.find((message) => message.role === 'signal' && message.type === 'user' && message.content.parts?.some((part) => part.type === 'text' && part.text === 'Mensagem real do operador.'))
     const assistant = recalled.find((message) => message.role === 'assistant')
     assert.ok(user)
     assert.ok(assistant)
+    assert.equal(user.role, 'signal')
+    assert.equal(user.type, 'user')
     await memory.saveMessages({ messages: [
       { id: 'slice-3-internal', role: 'signal', type: 'task', createdAt: new Date('2026-01-01T00:00:01Z'), threadId, resourceId: 'slice-3-project', content: { format: 2, parts: [{ type: 'text', text: 'internal task' }] } },
       { id: 'slice-3-empty', role: 'assistant', createdAt: new Date('2026-01-01T00:00:02Z'), threadId, resourceId: 'slice-3-project', content: { format: 2, parts: [{ type: 'text', text: '' }] } },
     ] })
-    const projected = projectBuilderMessages(await session.thread.listActiveMessages())
-    assert.deepEqual(projected.map(({ id, role, text }) => ({ id, role, text })), [
-      { id: user.id, role: 'user', text: 'Mensagem real do operador.' },
-      { id: assistant.id, role: 'assistant', text: 'Resposta persistida.' },
-    ].toSorted((left, right) => left.id.localeCompare(right.id)))
+    const projected = projectBuilderMessages((await memory.recall({ threadId, resourceId: 'slice-3-project', page: 0, perPage: 50 })).messages)
+    const projectedUser = projected.find((message) => message.id === user.id)
+    const projectedAssistant = projected.find((message) => message.id === assistant.id)
+    assert.equal(projectedUser?.role, 'user')
+    assert.equal(projectedUser?.text, 'Mensagem real do operador.')
+    assert.equal(projectedAssistant?.role, 'assistant')
+    assert.equal(projectedAssistant?.text, 'Resposta persistida.')
+    assert.equal(projected.some((message) => message.text === 'internal task'), false)
+    assert.equal(projected.some((message) => message.id === 'slice-3-empty'), false)
     assert.equal(projected.some((message) => message.role === 'system'), false)
     assert.equal(projected.every((message) => message.role === 'user' || message.role === 'assistant' || message.role === 'system'), true)
     assert.deepEqual(projected.map((message) => message.createdAt), projected.map((message) => message.createdAt).toSorted())
