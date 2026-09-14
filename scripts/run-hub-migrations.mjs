@@ -60,7 +60,7 @@ const migration034Digest = '24b2657102da0cd492480e650ca42d07ee66f16e1daf3339877f
 const migration035Digest = 'e3000ac16799dede8a585a495e7c8e6a418889bfc23816715604b79afabb02dd'
 const migration036Digest = 'f0fe953e4f202ee8d7c266621a5cfb8c863097b022c7dd9f9e0485bab618d8d2'
 const migration037Digest = '356d01a90237c24464b9e05b5fdc65c716ddb24130187c4cc88e03673c6d3190'
-const migration038Digest = '427919bda3f0ec07d7b2d9adb672a41eefa4cac45cfce9f0ac0daa2ffd720f46'
+const migration038Digest = '30d5e9af141a6278c0cbe82a329ef906c7cd2c0efcd6a178f341393e954660a9'
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }
@@ -3557,6 +3557,22 @@ const assert038Catalog = async (client) => {
   if (JSON.stringify(currentFunctions) !== JSON.stringify(['admit_source_revision', 'read_latest_code_changing_builder_run', 'read_preview_subject', 'settle_builder_run_build'])) {
     fail(`MIGRATION_038_CURRENT_FUNCTIONS_REFUSED:${JSON.stringify(currentFunctions)}`)
   }
+  await assertSignatures(client, 'MIGRATION_038_REGISTRY_EXECUTE_ACL_REFUSED', `
+    SELECT p.proname || ':' || coalesce(grantee.rolname, 'public') || ':' || acl.privilege_type AS signature
+    FROM pg_proc AS p
+    JOIN pg_namespace AS n ON n.oid = p.pronamespace
+    CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+    LEFT JOIN pg_roles AS grantee ON grantee.oid = acl.grantee
+    WHERE n.nspname = 'reg'
+      AND p.proname IN ('retain_application_execution', 'get_application_execution', 'read_application_file_execution')
+      AND acl.grantee <> p.proowner
+      AND acl.privilege_type = 'EXECUTE'
+    ORDER BY p.proname, grantee.rolname
+  `, [
+    'get_application_execution:hub_rb_executor:EXECUTE',
+    'read_application_file_execution:hub_rb_executor:EXECUTE',
+    'retain_application_execution:hub_rb_executor:EXECUTE',
+  ])
 }
 
 const assert024Catalog = async (client) => {

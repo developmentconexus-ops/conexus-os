@@ -695,6 +695,13 @@ EXCEPTION WHEN no_data_found THEN
 END;
 $$;
 
+REVOKE EXECUTE ON FUNCTION reg.retain_application_execution(uuid, uuid, uuid, text, jsonb),
+  reg.get_application_execution(uuid, uuid, uuid, text),
+  reg.read_application_file_execution(uuid, uuid, uuid, text, uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION reg.retain_application_execution(uuid, uuid, uuid, text, jsonb),
+  reg.get_application_execution(uuid, uuid, uuid, text),
+  reg.read_application_file_execution(uuid, uuid, uuid, text, uuid, text) TO hub_rb_executor;
+
 SET LOCAL ROLE builder_owner;
 
 GRANT EXECUTE ON FUNCTION builder.create_builder_run(uuid,uuid,text,text,text,text,uuid), builder.read_builder_run(uuid,uuid), builder.read_preview_subject(uuid,uuid), builder.admit_source_revision(uuid,uuid,text), builder.read_latest_code_changing_builder_run(uuid,uuid) TO hub_rb_ingress;
