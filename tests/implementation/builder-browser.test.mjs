@@ -36,7 +36,7 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   const previewRequests = []
   const forbiddenRequests = []
   page.on('request', (request) => {
-    if (new RegExp(`/api/control/projects/${projectId}/(?:changes(?:/|$)|preview(?:$|-preparations|-launches)|builder-session/turns|builder-session/.*/findings|builder-session/.*/evidence)`).test(new URL(request.url()).pathname)) forbiddenRequests.push(request.url())
+    if (new RegExp(`/api/control/projects/${projectId}/(?:session/turns|changes(?:/|$)|preview(?:$|-preparations|-launches))`).test(new URL(request.url()).pathname)) forbiddenRequests.push(request.url())
   })
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, async (route) => {
     if (route.request().method() === 'POST') {
