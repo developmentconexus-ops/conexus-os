@@ -411,7 +411,7 @@ The Playwright test remains UI/contract proof, not live composed proof.
 
 # Slice 5 — Legacy Builder excision
 
-**State:** AUTHORIZED / CURRENT
+**State:** PASS / CLOSED
 
 ## Goal
 
@@ -504,11 +504,13 @@ published migrations remain byte-identical
 current tests prove C-020, not deleted legacy behavior
 ```
 
-**Review gate:** STOP. Do not start Slice 6.
+**Review gate:** CLOSED. Slice 6 is the current implementation slice.
 
 ---
 
 # Slice 6 — Remove premature Brain path + align current verification
+
+**State:** CURRENT / REVIEW-GATED
 
 ## Goal
 
