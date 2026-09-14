@@ -75,8 +75,6 @@ export type BuilderSession = Readonly<{
   latestCodeChangingRun: Readonly<{ baseSourceRevision: string; resultSourceRevision: string; resultKind: 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' }> | null
   preview: Readonly<{ workingSourceRevision: string | null; lastGoodSourceRevision: string | null; lastGoodArtifactRevisionId: string | null; lastGoodArtifactDigest: string | null }>
   mode: 'BUILD' | 'PLAN'
-  workingSourceRevision: string | null
-  lastPreviewChangeId: string | null
 }>
 export type BuilderRun = Readonly<{
   builderRunId: string; projectId: string; state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'

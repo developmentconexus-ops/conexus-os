@@ -16,6 +16,7 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   const artifactDigest = 'c'.repeat(64)
   const origin = 'http://127.0.0.1:41749'
   let run = null
+  let buildCount = 0
   const requests = []
   const server = await createServer({
     configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
@@ -27,22 +28,22 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   const session = () => ({
-    projectId, threadId: `conexus-builder:${projectId}`, messages: run ? [{ id: 'message-1', role: 'user', text: 'Crie um contador', createdAt: new Date().toISOString() }, { id: 'message-2', role: 'assistant', text: '**Build concluído**', createdAt: new Date().toISOString() }] : [],
-    latestBuilderRun: run, latestCodeChangingRun: run?.resultSourceRevision ? { baseSourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: run?.state === 'SUCCEEDED' ? sourceRevision : null, lastGoodArtifactRevisionId: run?.state === 'SUCCEEDED' ? artifactRevisionId : null, lastGoodArtifactDigest: run?.state === 'SUCCEEDED' ? artifactDigest : null }, mode: 'BUILD',
-    workingSourceRevision: sourceRevision, lastPreviewChangeId: null,
+    projectId, messages: run ? [{ id: 'message-1', role: 'user', text: 'Crie um contador', createdAt: new Date().toISOString() }, { id: 'message-2', role: 'assistant', text: '**Build concluído**', createdAt: new Date().toISOString() }] : [],
+    latestBuilderRun: run, latestCodeChangingRun: buildCount > 0 ? { baseSourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: buildCount > 0 ? sourceRevision : null, lastGoodArtifactRevisionId: buildCount > 0 ? artifactRevisionId : null, lastGoodArtifactDigest: buildCount > 0 ? artifactDigest : null }, mode: run?.mode ?? 'BUILD',
   })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Counter', projectRevision: 'revision', archived: false }) }))
   const previewRequests = []
   const forbiddenRequests = []
   page.on('request', (request) => {
-    if (new RegExp(`/api/control/projects/${projectId}/(?:changes(?:/|$)|preview(?:$|-preparations|-launches)|builder-session/turns)`).test(new URL(request.url()).pathname)) forbiddenRequests.push(request.url())
+    if (new RegExp(`/api/control/projects/${projectId}/(?:changes(?:/|$)|preview(?:$|-preparations|-launches)|builder-session/turns|builder-session/.*/findings|builder-session/.*/evidence)`).test(new URL(request.url()).pathname)) forbiddenRequests.push(request.url())
   })
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, async (route) => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON()
       requests.push({ url: route.request().url(), body, key: route.request().headers()['idempotency-key'] })
-      run = { builderRunId: runId, projectId, state: 'SUCCEEDED', mode: body.mode, baseSourceRevision, resultSourceRevision: sourceRevision, resultKind: body.mode === 'PLAN' ? 'RESPONSE_ONLY' : 'SOURCE_CHANGED', failureCode: null }
+      buildCount += body.mode === 'BUILD' ? 1 : 0
+      run = { builderRunId: runId, projectId, state: 'SUCCEEDED', mode: body.mode, baseSourceRevision, resultSourceRevision: body.mode === 'PLAN' ? null : sourceRevision, resultKind: body.mode === 'PLAN' ? 'RESPONSE_ONLY' : 'SOURCE_CHANGED', failureCode: null }
       return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ threadId: `conexus-builder:${projectId}`, builderRun: run }) })
     }
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session()) })
@@ -97,9 +98,19 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   await page.getByRole('heading', { name: 'Detalhes do Build' }).waitFor()
   await page.getByRole('button', { name: 'Diff' }).click()
   await page.getByText('MODIFIED', { exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Plan' }).click()
+  await page.getByLabel('O que o Project precisa fazer?').fill('Explique o contador')
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click()
+  await page.getByText('Mensagem enviada ao Builder.').waitFor()
+  await page.getByText('Resposta somente', { exact: true }).waitFor()
   await page.reload()
   await page.getByText('Crie um contador', { exact: true }).waitFor()
   await page.getByText('Último Preview bom disponível.').waitFor()
+  await page.getByTitle('Preview do aplicativo').waitFor()
+  assert.deepEqual(previewRequests, [{}, {}])
+  assert.deepEqual(forbiddenRequests, [])
+  await page.getByRole('button', { name: 'Diff' }).click()
+  await page.getByText('MODIFIED', { exact: true }).waitFor()
   assert.ok(liveStreamRequests >= 1)
   assert.equal(await page.getByText('BuilderRun', { exact: true }).count(), 0)
 })
@@ -124,7 +135,7 @@ test('new Project lands directly in Build and can send its first Builder message
   const session = () => ({
     projectId, messages: run ? [{ id: 'new-message', role: 'user', text: 'Crie um contador', createdAt: new Date().toISOString() }] : [],
     latestBuilderRun: run, latestCodeChangingRun: null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    mode: 'BUILD', workingSourceRevision: sourceRevision, lastPreviewChangeId: null,
+    mode: 'BUILD',
   })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [{ workspaceId, name: 'New Workspace' }], projects: [] }) }))
   await page.route(`**/api/control/workspaces/${workspaceId}/projects`, async (route) => {

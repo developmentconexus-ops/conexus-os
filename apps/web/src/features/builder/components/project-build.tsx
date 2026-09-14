@@ -171,7 +171,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
           {!diffBasis && <p>O Diff aparecerá quando houver uma alteração de código.</p>}
           {sourceDiff.isPending && <p>Comparando as fontes…</p>}
           {sourceDiff.isError && <p role="alert">Não foi possível comparar as fontes.</p>}
-          {sourceDiff.data?.length === 0 && <p>Não há arquivos diferentes entre a fonte em trabalho e o último Preview bom.</p>}
+          {sourceDiff.data?.length === 0 && <p>Não há arquivos diferentes entre a fonte base e o resultado da última alteração de código.</p>}
           {sourceDiff.data && sourceDiff.data.length > 0 && <ul className="source-diff-list">{sourceDiff.data.map((entry) => <li key={entry.path}><strong>{entry.status}</strong> <code>{entry.path}</code></li>)}</ul>}
         </section>}
         {inspection === 'DETAILS' && <section className="build-inspection" aria-labelledby="build-details-title">
@@ -183,7 +183,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
             <div><dt>Último Preview bom</dt><dd><code>{lastGoodSourceRevision ?? 'Ainda não disponível'}</code></dd></div>
             <div><dt>Artefato do Preview</dt><dd><code>{previewSummary?.lastGoodArtifactRevisionId ?? 'Ainda não disponível'}</code></dd></div>
             <div><dt>Digest do artefato</dt><dd><code>{previewSummary?.lastGoodArtifactDigest ?? 'Ainda não disponível'}</code></dd></div>
-            <div><dt>Execução atual</dt><dd><code>{run?.builderRunId ?? 'Nenhuma'}</code> · {runStatus(run?.state, run?.resultKind)}</dd></div>
+            <div><dt>Última execução</dt><dd><code>{run?.builderRunId ?? 'Nenhuma'}</code> · {runStatus(run?.state, run?.resultKind)}</dd></div>
           </dl>
         </section>}
       </section>
