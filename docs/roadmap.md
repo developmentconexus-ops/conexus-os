@@ -17,8 +17,6 @@ Project
 → last-good Preview
 ```
 
-The final runtime must not permanently carry a second Change-era Builder.
-
 Mastra owns coding-harness mechanics. Conexus owns Product/system authority:
 
 ```text
@@ -75,9 +73,7 @@ arbitrary/stale unrelated OIDs refused
 source-read authority remains server-owned
 ```
 
----
-
-## Slice 3 — PASS / CLOSED
+### Slice 3 — PASS / CLOSED
 
 Accepted checkpoint:
 
@@ -85,7 +81,7 @@ Accepted checkpoint:
 58d53fa908eb954bc6cb756a706f377eba8fe53b
 ```
 
-Focused proof is green:
+Focused proof:
 
 ```text
 builder-session-projection: 1/1
@@ -93,14 +89,9 @@ builder-plan-starter: 1/1
 Mastra lifecycle qualification: 7/7
 ```
 
-Accepted facts include native per-run `deleteSession`, persistent Project Thread
-continuity, end-to-end PLAN read-only behavior, shared coding instructions, and
-the production-shaped `Memory.recall` path projecting the real
-`signal/user` operator row as Product `user`. No `hideSignals` workaround,
-cast, raw LibSQL query, custom conversation store, or custom Session manager is
-used.
+Accepted facts include native per-run `deleteSession`, persistent Project Thread continuity, true PLAN read-only behavior, shared coding instructions and production-shaped Mastra message projection.
 
-## Slice 4 — PASS / CLOSED
+### Slice 4 — PASS / CLOSED
 
 Accepted checkpoint:
 
@@ -108,7 +99,7 @@ Accepted checkpoint:
 e644958c90c3a76a4d820842034059e145d1fcf3
 ```
 
-Focused proof is green:
+Focused proof:
 
 ```text
 Builder wire check: PASS
@@ -124,43 +115,58 @@ Accepted facts:
 ```text
 BLD-23 exposes latestBuilderRun and latest code-changing Diff basis
 Preview truth is server-owned
-Preview auto-launches before and after reload with no browser-authored source/artifact coordinates
-RESPONSE_ONLY does not erase the previous useful code-change Diff
-current P-01/browser path makes no Change-era /session/turns, Change, or legacy Preview calls
+Preview auto-launches before and after reload
+RESPONSE_ONLY preserves the previous useful code-change Diff
+current P-01/browser path has no Change-era Product dependency
 ```
 
-Slice 5 is now the next authorized implementation slice.
+### Slice 5 — PASS / CLOSED
+
+Accepted functional checkpoint:
+
+```text
+999904f12dc185592c1a738920624e1cfc8439f2
+```
+
+The branch may contain later non-functional hygiene commits that do not alter the accepted Slice-5 implementation.
+
+Focused proof:
+
+```text
+Migration PostgreSQL: 5/5
+Registry PostgreSQL: 1/1
+Migration selection/catalog: 6/6
+Hub typecheck: PASS
+Biome: PASS
+git diff --check: PASS
+```
+
+Accepted facts:
+
+```text
+Change/Plan/WorkUnit/ActorRun/CodingSession current Builder lifecycle removed
+legacy Findings/Evidence/verifier/PreviewPreparation surfaces removed
+current Product API exposes one C-020 Builder architecture
+migration 038 removes proven-dead current schema while 001–037 remain immutable
+source admission is C-020-only; legacy Baseline/Change fallback is gone
+Registry application path is execution-native; legacy Change entry points are gone
+execution Registry functions are not executable by PUBLIC and are granted only to hub_rb_executor
+IAM / Project / Registry / MAR shared primitives remain preserved
+```
 
 ---
 
-## PSTACK subtraction decision — legacy must leave final runtime
+## PSTACK subtraction result
 
-Temporary compatibility debt:
-
-```text
-Change
-Plan
-WorkUnit
-ActorRun
-CodingSession
-Findings / verification Evidence
-legacy Builder snapshots/routes
-legacy Change custody
-legacy verifier/correction pipeline
-legacy PreviewPreparation
-legacy source-read fallback
-legacy working-state Change/preparation coordinates
-```
-
-Execution law:
+Slice 5 completed the mandatory Builder subtraction:
 
 ```text
 migrate accepted callers
-→ prove C-020 owns the Product path
+→ prove C-020 owns Product path
 → delete dead runtime/API/schema surface
 ```
 
-Published migration files remain immutable history. A forward cleanup migration may remove dead current schema after callers migrate.
+Published migration history remains immutable. Historical evidence may still mention deleted Change-era concepts but does not grant current runtime authority.
 
 ---
 
@@ -170,9 +176,9 @@ Published migration files remain immutable history. A forward cleanup migration 
 | --- | --- | --- |
 | Repository operating model | DELIVERED | none |
 | C-020 architecture | CURRENT / OPERATOR RATIFIED | reopen only on explicit trigger |
-| C-020 implementation | IN PROGRESS / SLICE 5 AUTHORIZED | excise proven-dead legacy Builder |
+| C-020 implementation | IN PROGRESS / SLICE 6 AUTHORIZED | remove premature Brain injection and align verification |
 | P-01 Builder UI | VALIDATING | Slice 7 composed proof |
-| Legacy Builder architecture | DELETION AUTHORIZED | Slice 5 excision |
+| Legacy Builder architecture | REMOVED FROM CURRENT RUNTIME | none |
 | First real Brain rule | DEFERRED / BLOCKED | after Slice 7 acceptance |
 | Narrow SDK / Sankhya | PLANNED | after first real Brain-backed app |
 
@@ -187,8 +193,8 @@ Published migration files remain immutable history. A forward cleanup migration 
 | 2 | C-020 source inspection authority | PASS | closed |
 | 3 | Mastra lifecycle / message projection / PLAN read-only | PASS | closed |
 | 4 | BLD-23/P-01 Product API, automatic Preview, useful Diff | PASS | closed |
-| 5 | Legacy Builder excision | AUTHORIZED / NEXT | explicit Slice-5 handoff |
-| 6 | Remove premature Brain pre-injection + align current verify | PLANNED | not authorized |
+| 5 | Legacy Builder excision | PASS | closed |
+| 6 | Remove premature Brain pre-injection + align current verify | AUTHORIZED / NEXT | explicit Slice-6 handoff |
 | 7 | Real composed Product proof + operator checkpoint | PLANNED | not authorized |
 | 8 | First real Brain-backed build via Mastra tools | DEFERRED | not authorized before Slice 7 |
 
@@ -207,6 +213,4 @@ explicit slice handoff
 
 ## Exact next action
 
-Execute Slice 5: perform the caller census, delete the proven-dead Change-era
-Builder runtime/API/current-schema surface, preserve published migration history,
-run focused verification, commit/checkpoint, and STOP before Slice 6.
+Execute Slice 6: remove the premature Builder Brain pre-query/prompt-injection path, preserve the general Brain subsystem, align current verification with the cleaned C-020 product, commit/checkpoint, and STOP before Slice 7.
