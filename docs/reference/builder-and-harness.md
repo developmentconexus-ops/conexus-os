@@ -1,5 +1,44 @@
 # Builder and Harness
 
+## Current C-020 owner
+
+The ordinary internal Builder is a coding harness over one persistent Project.
+The current line is:
+
+```text
+Project
+→ persistent Mastra Thread
+→ Message
+→ BuilderRun
+→ fresh or replaceable E2B Workspace
+→ source settlement
+→ compiler
+→ last-good Preview
+```
+
+Mastra owns AgentController, the Project Thread, Messages, Session events,
+Workspace mechanics and coding modes. Conexus owns authorization, the trusted
+Project/thread binding, BuilderRun execution settlement, Git/source custody,
+working-source concurrency, late-result handling, compilation, artifact
+retention and last-good Preview. `Turn` is a UX term and is not a Conexus
+record. A successful compile is not independent verification.
+
+The E2B physical-incarnation guard, server-held privileged credentials,
+protected paths, Hub Git/result custody, late-result refusal and immutable
+source/artifact identities remain mandatory. Independent review applies only
+to claims that assert material independent verification.
+
+BLD-03 currently accepts only human intent. Ordinary C-020 messages use the
+session command owner and do not overload the legacy Change draft contract.
+
+### Legacy Builder graph
+
+`Change`, `Plan`, `WorkUnit`, `ActorRun` and `CodingSession` are historical or
+transitional Builder concepts. They remain readable while accepted callers or
+historical proof require them, but they are not the target ordinary Builder
+owner. New callers migrate to the Project session and BuilderRun path before
+legacy APIs or schema are removed.
+
 Current technical detail extracted without semantic rewriting from the accepted Phase-3 architecture baseline. `docs/architecture/index.md` owns the overview; this file owns the detailed task surface named by its title.
 
 ## 7. Workspace / Project / Baseline architecture

@@ -267,7 +267,7 @@ test('BLD-01/02/03/04/06/07/08/09/10/17/21 expose owner projections with command
   const resolveCurrentSession = async (_request, requireCsrf) => { calls.push(['session', requireCsrf]); return { account: { accountId: projectId } } }
   const app = await createHttpApp({ registerRoutes: (server) => registerBuilderRoutes(server, { store, service, resolveCurrentSession, origin }) })
   try {
-    assert.deepEqual(app.routeCensus(), ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-08', 'BLD-09', 'BLD-10', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17', 'BLD-21', 'BLD-22'])
+    assert.deepEqual(app.routeCensus(), ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-08', 'BLD-09', 'BLD-10', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17', 'BLD-21', 'BLD-22', 'BLD-23', 'BLD-24'])
     const anonymous = await createHttpApp({ registerRoutes: (server) => registerBuilderRoutes(server, {
       store, service, origin, resolveCurrentSession: async () => null,
     }) })

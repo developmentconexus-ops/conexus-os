@@ -20,6 +20,18 @@ Current admission and next action belong to [roadmap](../roadmap.md#current-gran
 This packet is the single design and experiment owner for this increment.
 Architect alternatives are temporary working material, not competing roadmaps.
 
+### C-020 implementation checkpoint
+
+Owner reconciliation is registered in the decision register, Builder reference,
+architecture overview and operation ledger. The current wire adds BLD-23
+`GetBuilderSession` and BLD-24 `SendBuilderMessage`; ordinary messages resolve
+the Project source server-side and do not call BLD-03. Migration `028` adds the
+minimal idempotent `builder.builder_run` record with one active queued/running
+run per Project. Its first database proof applied and recorded the migration in
+the disposable PostgreSQL instance. Runtime settlement, Mastra message append,
+source mutation, automatic compilation and browser proof remain the next
+implementation slices.
+
 The design must preserve source identity, app/Hub isolation, server-held
 credentials, truthful failures and existing ownership. It does not implement
 arbitrary app servers, autonomous Brain learning, a universal SDK, public
@@ -47,13 +59,13 @@ artifact was produced, not business correctness or independent verification.
 Never fabricate VERIFIED status or rewrite an old refusal as acceptance.
 Publication remains separate from Preview.
 
-The approved implementation increment was session-first core, not a UI
-redesign. One
+The approved implementation increment is the C-020 session-first core. One
 deterministic thread belongs to each Project. Mastra owns that thread's
 messages, conversational context and session events; Conexus owns the
-authenticated user, Project authorization, active Turn, working source, Git
+authenticated user, Project authorization, BuilderRun, working source, Git
 custody and last-good Preview. A physical E2B sandbox may be replaced between
-Turns without replacing the Project thread.
+messages without replacing the Project thread. `Turn` remains a UX word and
+is not a Conexus durable record.
 
 The first implementation must reconcile this policy with active Product,
 Builder and wire owners. SQL admission and recovery are part of that change.
@@ -70,6 +82,11 @@ Owner reconciliation is bounded to these existing consumers:
   verification for claims that actually assert material verification.
 - `docs/product/contract.md` RunPreview, Journey C and Preview sections:
   distinguish executable inspection from VERIFIED and preserve the last-good app.
+
+C-020 adds BLD-23 `GetBuilderSession` and BLD-24 `SendBuilderMessage`. BLD-03,
+the existing Change endpoints and the current `/session/turns` routes remain
+legacy-compatible during caller migration; they are not the target composer
+surface.
 
 The read-only owner map found an additional integration question: a no-edit
 response from a coding turn must remain a Builder result. Do not silently

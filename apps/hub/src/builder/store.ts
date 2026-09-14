@@ -47,6 +47,16 @@ export type BuilderSnapshot = Readonly<{
   diff: ChangeDiff | null
   execution: ChangeExecution
 }>
+export type BuilderRunSummary = Readonly<{
+  builderRunId: string
+  projectId: string
+  state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
+  mode: 'BUILD' | 'PLAN'
+  baseSourceRevision: string
+  resultSourceRevision: string | null
+  resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
+  failureCode: string | null
+}>
 export type ClaimedChange = Readonly<{
   accountId: string
   projectId: string
@@ -114,6 +124,8 @@ export type PreviewPreparationSettlement = Readonly<{
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
 export type BuilderStore = Readonly<{
+  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; triggerMessageId: string; mode: 'BUILD' | 'PLAN'; expectedSourceRevision: string }>): Promise<BuilderRunSummary>
+  readBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderRunSummary | null>
   createChange(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; intent: string; expectedSourceRevision: string }>): Promise<ChangeProjection>
   listChanges(input: Readonly<{ accountId: string; projectId: string }>): Promise<readonly ChangeProjection[]>
   readPreviewSubject(input: Readonly<{ accountId: string; projectId: string; changeId?: string }>): Promise<BuilderWorkingPreviewSubject | null>
@@ -148,6 +160,21 @@ export const createBuilderStore = ({
   executorPool: PostgresPool
   mintIdentity?: () => string
 }>): BuilderStore => Object.freeze({
+  createBuilderRun: async ({ accountId, projectId, idempotencyKey, triggerMessageId, mode, expectedSourceRevision }) => {
+    const result = await ingressPool.query<JsonRow<BuilderRunSummary>>(
+      'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7) AS value',
+      [accountId, projectId, sha256(Buffer.from(idempotencyKey, 'utf8')), triggerMessageId, mode, expectedSourceRevision, mintIdentity()],
+    )
+    const value = result.rows[0]?.value
+    if (!value) throw new Error('BUILDER_RUN_CREATE_FAILED')
+    return value
+  },
+  readBuilderRun: async ({ accountId, projectId }) => {
+    const result = await ingressPool.query<JsonRow<BuilderRunSummary | null>>(
+      'SELECT builder.read_builder_run($1,$2) AS value', [accountId, projectId],
+    )
+    return result.rows[0]?.value ?? null
+  },
   createChange: async ({ accountId, projectId, idempotencyKey, intent, expectedSourceRevision }) => {
     const request = { intent, expectedSourceRevision }
     const result = await ingressPool.query<JsonRow<ChangeProjection>>(

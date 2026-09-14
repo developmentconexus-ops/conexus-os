@@ -1,6 +1,6 @@
 import type { BuilderSourceFile, BuilderSourcePort, BuilderSourceTree } from './source.js'
 import type { CodingWorkerRuntime } from './runtime.js'
-import type { BuilderStore, ChangeProjection, ClaimedChange } from './store.js'
+import type { BuilderRunSummary, BuilderStore, ChangeProjection, ClaimedChange } from './store.js'
 import { prepareApplicationArtifact } from './application-build.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadRequest, ApplicationArtifactReadResult, ApplicationBuildRequest, BuilderApplicationArtifacts } from './application-build.js'
 import type { ApplicationCompilerRuntime } from './application-artifact-runtime.js'
@@ -11,6 +11,7 @@ import { parseObservationEvent, type BuilderObservation } from '../../../../pack
 import { createObservationFeed } from './observation-feed.js'
 
 export type BuilderService = Readonly<{
+  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; triggerMessageId: string; mode: 'BUILD' | 'PLAN'; expectedSourceRevision: string }>): Promise<BuilderRunSummary>
   createChange(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; intent: string; expectedSourceRevision: string }>): Promise<ChangeProjection>
   listSourceTree(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<BuilderSourceTree>
   getSourceFile(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
@@ -180,6 +181,7 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
     return serviceClosing
   }
   return Object.freeze({
+    createBuilderRun: async (input) => store.createBuilderRun(input),
     createChange: async (input) => {
       const change = await store.createChange(input)
       if (change.state === 'QUEUED') dispatch(change.changeId, change.projectId)

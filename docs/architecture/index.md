@@ -4,7 +4,7 @@ This is the current structural overview and qualification-outcome summary. [ROAD
 
 ## 1. Architecture in one sentence
 
-Conexus F1 is a **Node/TypeScript modular-monolith Hub with PostgreSQL-backed authoritative control state**, Project-owned Git/business-data/Release lifecycles, a separate Workspace Brain Git authority, Connections-module-owned Workspace- or Project-scoped Connections, a Hub-owned Capability Gateway for governed data/effects/credential last-mile, a **Mastra AgentController + E2B Builder runtime** for Project Changes, a **direct Mastra Agent Production Agent Runtime (PAR)** derived from exact Releases, a bounded Managed Application Runtime for Project apps/jobs, and an agent-first React/TypeScript/Vite/TanStack Product shell; every runtime/provider/storage mechanism remains subordinate to Conexus owner facts, current authorization and exact immutable composition.
+Conexus F1 is a **Node/TypeScript modular-monolith Hub with PostgreSQL-backed authoritative control state**, Project-owned Git/business-data/Release lifecycles, a separate Workspace Brain Git authority, Connections-module-owned Workspace- or Project-scoped Connections, a Hub-owned Capability Gateway for governed data/effects/credential last-mile, a **Mastra coding harness with one persistent Project Thread, replaceable E2B Workspace, Conexus BuilderRun execution settlement, working source and last-good Preview**, a **direct Mastra Agent Production Agent Runtime (PAR)** derived from exact Releases, a bounded Managed Application Runtime for Project apps/jobs, and an agent-first React/TypeScript/Vite/TanStack Product shell; every runtime/provider/storage mechanism remains subordinate to Conexus owner facts, current authorization and exact immutable composition.
 
 ---
 
@@ -16,8 +16,9 @@ mechanism != authority
 current implementation != target authority by existence
 Workspace = sovereign isolation root
 Project = independent software/product lifecycle unit
-Change != WorkUnit != Builder ActorRun
-Builder ActorRun != Product AgentRun != Gateway EffectAttempt != Promotion
+Mastra Thread/Message != BuilderRun
+BuilderRun != Product AgentRun != Gateway EffectAttempt != Promotion
+conversation mechanics != Project/source/artifact authority
 Project Git != Workspace Brain Git != Hub control truth != Project business DB != Registry/CAS serving output
 Workspace owns the canonical Brain; Connections owns one Connection lifecycle with
 ownerScope WORKSPACE | PROJECT; Project use requires explicit exact-revision binding
@@ -83,8 +84,8 @@ Recovery uses the existing owners rather than a sixth cross-cutting lifecycle. R
        ┌────────────────────┐          ┌──────────────────────┐
        │ BuilderMastra      │          │ Published Apps /     │
        │ AgentController    │          │ managed job runtime  │
-       │ CodingSession      │          └──────────────────────┘
-       │ Workspace          │
+       │ Project Thread     │          └──────────────────────┘
+       │ Session / Workspace│
        └─────────┬──────────┘
                  │
                  ▼
@@ -116,7 +117,7 @@ F1 is a modular monolith with explicit semantic owners:
 | **Identity & Access** | Account identity/auth/session, memberships, grants, role assignments, effective surface access context | domain preconditions, external effects, Release eligibility, business-data truth |
 | **Workspace** | Workspace, Area, organizational structure/lifecycle | Account identity, Project internals, Brain semantic content, Connection credentials |
 | **Project** | Project identity/lifecycle, Project Baseline, explicit Brain/Connection binding intent, Project-level composition intent | Workspace resources themselves, runtime implementation, external effect authority |
-| **Builder** | Change, Plan/current plan items, WorkUnit, Builder ActorRun, checkpoints/correctness coordination, Findings/routing, CodingSession relationship | Project business authority, PAR runtime truth, provider/runtime authority |
+| **Builder** | BuilderRun execution settlement, Project working-source coordination, source/result custody coordination, Builder/Preview orchestration | Mastra conversation history/mechanics, Project business meaning, Registry bytes, Release authority, PAR runtime truth |
 | **Artifact Registry** | immutable compiled ArtifactRevision identity/digest/payload/availability | authored Git truth, active serving, business meaning of each artifact kind |
 | **Connections** | one Connection logical lifecycle with `ownerScope = WORKSPACE \| PROJECT`, qualification/current logical credential relationship | plaintext/ciphertext secret-byte ownership, external effect execution, cross-Workspace use |
 | **Capability Gateway** | governed Query/Action/Integration execution, effect admission/replay/idempotency, credential last-mile, execution receipts | Project/Brain meaning, Account identity, Product Agent lifecycle, model-spend authority |

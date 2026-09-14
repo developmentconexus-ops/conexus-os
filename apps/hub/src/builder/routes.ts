@@ -43,7 +43,7 @@ const projectPreviewPreparation = (preparation: PreviewPreparation): BuildPrevie
 }
 
 export type BuilderOperationId = 'BLD-01' | 'BLD-02' | 'BLD-03' | 'BLD-04' | 'BLD-06' | 'BLD-07' | 'BLD-08' | 'BLD-09' | 'BLD-10' | 'BLD-11' | 'BLD-12' | 'BLD-13' | 'BLD-14' | 'BLD-15' | 'BLD-17' | 'BLD-21'
-  | 'BLD-22'
+  | 'BLD-22' | 'BLD-23' | 'BLD-24'
 type PreparePreviewBody = Pick<PreviewPreparationRequest, 'changeId' | 'subjectDigest'>
 type ResolveBuilderSession = (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
 type PreparedPreview = Extract<PreviewPreparation, { state: 'PREPARED' }>
@@ -97,6 +97,57 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
   origin: string
   launchPreview?: BuilderLaunchPreviewPort
 }>): Promise<readonly BuilderOperationId[]> => {
+  app.get<{ Params: { projectId: string } }>('/api/control/projects/:projectId/builder-session', { schema: { params } }, async (request, reply) => {
+    const session = await dependencies.resolveCurrentSession(request)
+    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    if (!dependencies.session) return sendProblem(reply, 503, 'builder-session-unavailable', 'Builder Session unavailable')
+    try {
+      const snapshot = await dependencies.session.read({ accountId: session.account.accountId, projectId: request.params.projectId })
+      const run = await dependencies.store.readBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId })
+      return {
+        projectId: snapshot.projectId,
+        threadId: snapshot.threadId,
+        messages: snapshot.messages,
+        activeBuilderRun: run,
+        preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+        mode: 'BUILD' as const,
+      }
+    } catch (error) {
+      if (message(error).includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+      return sendProblem(reply, 503, 'builder-session-unavailable', 'Builder Session unavailable')
+    }
+  })
+
+  app.post<{ Params: { projectId: string }; Body: { content: string; mode: 'BUILD' | 'PLAN' } }>('/api/control/projects/:projectId/builder-session/messages', {
+    schema: {
+      params,
+      body: { type: 'object', additionalProperties: false, required: ['content', 'mode'], properties: { content: { type: 'string', minLength: 1, maxLength: 20_000, pattern: '.*\\S.*' }, mode: { type: 'string', enum: ['BUILD', 'PLAN'] } } },
+    },
+  }, async (request, reply) => {
+    const csrf = header(request.headers['x-conexus-csrf'])
+    if (request.headers.origin !== dependencies.origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+    const session = await dependencies.resolveCurrentSession(request, true)
+    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    const idempotencyKey = header(request.headers['idempotency-key'])
+    if (!idempotencyKey) return sendProblem(reply, 400, 'idempotency-key-required', 'Idempotency key required')
+    try {
+      const preview = await dependencies.store.readPreviewSubject({ accountId: session.account.accountId, projectId: request.params.projectId })
+      if (!preview) return sendProblem(reply, 404, 'builder-subject-not-found', 'Builder subject not found')
+      const run = await dependencies.service.createBuilderRun({
+        accountId: session.account.accountId, projectId: request.params.projectId,
+        idempotencyKey, triggerMessageId: idempotencyKey, mode: request.body.mode,
+        expectedSourceRevision: preview.workingSourceRevision,
+      })
+      return reply.code(201).send({ threadId: `conexus-builder:${request.params.projectId}`, builderRun: run })
+    } catch (error) {
+      const detail = message(error)
+      if (detail.includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+      if (detail.includes('SOURCE_STALE') || detail.includes('PROJECT_BUSY') || detail.includes('IDEMPOTENCY_CONFLICT')) return sendProblem(reply, 409, 'builder-conflict', 'Builder request conflict')
+      if (detail.includes('INPUT_REFUSED')) return sendProblem(reply, 422, 'builder-message-refused', 'Builder message refused')
+      return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')
+    }
+  })
+
   app.get<{ Params: { projectId: string } }>('/api/control/projects/:projectId/session', { schema: { params } }, async (request, reply) => {
     const session = await dependencies.resolveCurrentSession(request)
     if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
@@ -506,5 +557,5 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       return value ?? sendProblem(reply, 404, 'evidence-not-found', 'Evidence not found')
     } catch { return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable') }
   })
-  return ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-08', 'BLD-09', 'BLD-10', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17', 'BLD-21', 'BLD-22']
+  return ['BLD-01', 'BLD-02', 'BLD-03', 'BLD-04', 'BLD-06', 'BLD-07', 'BLD-08', 'BLD-09', 'BLD-10', 'BLD-11', 'BLD-12', 'BLD-13', 'BLD-14', 'BLD-15', 'BLD-17', 'BLD-21', 'BLD-22', 'BLD-23', 'BLD-24']
 }

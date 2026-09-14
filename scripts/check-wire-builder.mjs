@@ -12,8 +12,8 @@ for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
   }
 }
 
-const expectedIds = Array.from({ length: 22 }, (_, i) => `BLD-${String(i + 1).padStart(2, '0')}`);
-if (expectedIds.length !== 22) throw new Error('internal Builder gate setup error');
+const expectedIds = Array.from({ length: 24 }, (_, i) => `BLD-${String(i + 1).padStart(2, '0')}`);
+if (expectedIds.length !== 24) throw new Error('internal Builder gate setup error');
 
 for (const id of expectedIds) {
   const entry = operations.get(id);
@@ -315,4 +315,22 @@ for (const forbidden of ['sessionToken', 'hubCredential', 'files', 'source']) {
 }
 if (property(launchResponse, 'entryGrant')?.type !== 'string') throw new Error('BLD-22 entryGrant must remain a bounded opaque string');
 
-console.log('Builder schema closure passed (22 operations; BLD-21 preparation and BLD-22 exact launch are closed and BLD-10 remains the sole passive Preview read).');
+const builderSession = entry('BLD-23');
+if (builderSession.method !== 'GET' || builderSession.path !== '/api/control/projects/{projectId}/builder-session') {
+  throw new Error('BLD-23 must remain the exact Builder Session read');
+}
+const sessionResponse = assertClosedObject(successSchema('BLD-23'), 'BLD-23 success');
+required(sessionResponse, 'projectId', 'threadId', 'messages', 'activeBuilderRun', 'preview');
+const sendMessage = entry('BLD-24');
+if (sendMessage.method !== 'POST' || sendMessage.path !== '/api/control/projects/{projectId}/builder-session/messages') {
+  throw new Error('BLD-24 must remain the exact Builder message command');
+}
+if (!hasRequiredParameter('BLD-24', 'header', 'Idempotency-Key')) throw new Error('BLD-24 must require Idempotency-Key');
+const messageRequest = assertClosedObject(requestSchema('BLD-24'), 'BLD-24 request');
+required(messageRequest, 'content', 'mode');
+exactEnum(property(messageRequest, 'mode'), ['BUILD', 'PLAN'], 'BLD-24 mode');
+for (const forbidden of ['projectId', 'sourceRevision', 'accountId', 'threadId']) {
+  if (messageRequest.properties?.[forbidden]) throw new Error(`BLD-24 must derive ${forbidden} server-side`);
+}
+
+console.log('Builder schema closure passed (24 admitted IDs; BLD-23 session read and BLD-24 message command are closed; BLD-10 remains the sole passive Preview read).');

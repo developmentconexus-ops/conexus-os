@@ -9,13 +9,17 @@ This ledger is the canonical 4A Product-operation authority. It is intentionally
 The ledger closes three different surfaces because Conexus is a software-publishing platform rather than one fixed business application:
 
 ```text
-fixed Conexus platform operations = 130
+fixed Conexus platform operations = 132
 Project-defined operations        = exact finite Ops(R) admitted by the grammar in §4
 first Budget Analyzer operations  = 2
 ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
 ```
 
 The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. The accepted bounded findings through F38 remain preserved. The pre-P11 coherence review then admits one transient `TRUSTED_BOOTSTRAP_CONTEXT` principal for first Account self-provisioning and adds one Project-owned model-policy discovery read, `PRJ-29`, while ordinary Permissions remain 25. No new semantic owner or durable record class is added.
+
+Historical F03 and Phase-4 reachability records retain their recorded
+`N_platform = 128` scope. C-020 adds the current BLD-23 and BLD-24 operations
+to the live census without rewriting those historical records.
 
 ---
 
@@ -651,7 +655,7 @@ new trust boundaries = 0
 new durable records = 0
 ```
 
-## 5.4 Builder — 22
+## 5.4 Builder — 24
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
@@ -677,6 +681,8 @@ new durable records = 0
 | `BLD-20` | `ReviseChangeProductAgentDraft` | Builder | exact Change/draft + expected current draft revision + typed `agent/v1` | command/current-state |
 | `BLD-21` | `PrepareBuildPreview` | Builder | exact Project + technically admitted Change candidate subject digest; retained preparation status remains distinct from independent verification and MAR serving/readiness | command/current-state |
 | `BLD-22` | `LaunchBuildPreview` | Builder | exact PREPARED attempt and immutable artifact coordinates; I&A session-bound grant and MAR route are created without compilation | command/current-state |
+| `BLD-23` | `GetBuilderSession` | Builder projection + Mastra persisted conversation | exact authorized Project; persisted Mastra conversation, active BuilderRun summary and Preview summary | read |
+| `BLD-24` | `SendBuilderMessage` | Builder | exact authorized Project, nonblank content, `BUILD \| PLAN` mode and Idempotency-Key; server resolves current source and Project Thread | command |
 
 A generic `AcceptChange` is rejected. `bld.change_acceptance` remains an owner current-proof fact produced by exact checkpoints/verifier/Builder settlement. Direct `CreateWorkUnit`, plan-JSON patch, `SetWorkItemStatus`, `CreateActorRun`, `ResumeSandbox` and `MarkVerified` are owner/runtime mechanics.
 
@@ -2041,4 +2047,4 @@ CURRENT INTERNAL MVP PREVIEW LAUNCH CONSUMER
 → N_platform 129 → 130
 ```
 
-The current ledger is therefore **130 fixed operations with 22 Builder operations**. The 4A/4C historical counts and mappings remain unchanged as historical authority, while the current Preview wire/checker stack must include BLD-21 and BLD-22.
+The current ledger is therefore **132 fixed operations with 24 Builder operations**. The 4A/4C historical counts and mappings remain unchanged as historical authority. BLD-23 and BLD-24 are the C-020 Project session surface; BLD-03 remains readable for legacy callers during migration.

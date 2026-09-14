@@ -238,6 +238,10 @@ not the real Builder/Preview journey. The original draft remains unchanged at
 
 ## Exact next action
 
+**Reconcile owners to C-020, execute the no-Change BuilderRun path, prove the
+Project create/open/continue journey, then run the P-01 session UI and Brain
+rule slices.**
+
 Reconcile the existing Builder/Product/wire owners with the
 [approved pilot delta](tasks/builder-first-app.md#internal-pilot-refactoring).
 The local proof now covers the session-first core without changing the UI. It

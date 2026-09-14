@@ -41,6 +41,9 @@ paths:
             schema:
               type: object
               additionalProperties: false
+              # BLD-03 currently accepts only human intent as its semantic request.
+              # Historical owner wording remains `required: [intent]`; the source
+              # revision is the bounded current-state carrier for legacy callers.
               required: [intent, expectedSourceRevision]
               properties:
                 expectedSourceRevision:
@@ -54,7 +57,7 @@ paths:
                   description: Required human semantic statement of what must become true; not status, authorization, unique identity or separately mutable title authority.
       responses:
         '201':
-          description: Change established with its exact authored human intent and pinned accepted Project Baseline.
+          description: Change established with its exact authored human intent and pinned accepted Project Baseline. BLD-03 currently accepts only human intent; ordinary C-020 messages use BLD-24.
           content:
             application/json:
               schema:
@@ -609,6 +612,55 @@ paths:
           $ref: './openapi.yaml#/components/responses/Problem422'
           description: invalid authoring reference or attempted change to a protected unowned optional reference.
 
+  /api/control/projects/{projectId}/builder-session:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      summary: GetBuilderSession
+      operationId: GetBuilderSession
+      x-conexus-4a-id: BLD-23
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: Persisted Mastra Project conversation with the active BuilderRun and last-good Preview summaries.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BuilderSession' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+
+  /api/control/projects/{projectId}/builder-session/messages:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      summary: SendBuilderMessage
+      operationId: SendBuilderMessage
+      x-conexus-4a-id: BLD-24
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: IDEMPOTENCY_KEY
+      x-conexus-contract-state: SCHEMA_CLOSED
+      parameters:
+        - $ref: './openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SendBuilderMessageRequest' }
+      responses:
+        '201':
+          description: One BuilderRun admitted against the server-resolved current Project source and Mastra Thread.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BuilderMessageAccepted' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
+        '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
+
 components:
   parameters:
     ProjectId:
@@ -674,6 +726,66 @@ components:
         state: { type: string, minLength: 1 }
         summary: { type: [string, 'null'] }
         failureCode: { type: [string, 'null'] }
+    BuilderMessage:
+      type: object
+      additionalProperties: false
+      required: [id, role, text, createdAt]
+      properties:
+        id: { type: string, minLength: 1 }
+        role: { type: string, enum: [user, assistant, system] }
+        text: { type: string }
+        createdAt: { type: string, format: date-time }
+    BuilderRunSummary:
+      type: object
+      additionalProperties: false
+      required: [builderRunId, projectId, state, mode, baseSourceRevision]
+      properties:
+        builderRunId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        state: { type: string, enum: [QUEUED, RUNNING, SUCCEEDED, FAILED, INTERRUPTED] }
+        mode: { type: string, enum: [BUILD, PLAN] }
+        baseSourceRevision: { type: string, pattern: '^[0-9a-f]{40}$' }
+        resultSourceRevision: { type: [string, 'null'], pattern: '^[0-9a-f]{40}$' }
+        resultKind: { type: [string, 'null'], enum: [RESPONSE_ONLY, SOURCE_CHANGED, SOURCE_CHANGED_BUILD_FAILED, null] }
+        failureCode: { type: [string, 'null'] }
+    BuilderPreviewSummary:
+      type: object
+      additionalProperties: false
+      required: [workingSourceRevision, lastGoodArtifactRevisionId]
+      properties:
+        workingSourceRevision: { type: [string, 'null'], pattern: '^[0-9a-f]{40}$' }
+        lastGoodArtifactRevisionId: { type: [string, 'null'], format: uuid }
+        lastGoodArtifactDigest: { type: [string, 'null'], pattern: '^[0-9a-f]{64}$' }
+    BuilderSession:
+      type: object
+      additionalProperties: false
+      required: [projectId, threadId, messages, activeBuilderRun, preview]
+      properties:
+        projectId: { type: string, format: uuid }
+        threadId: { type: string, minLength: 1 }
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/BuilderMessage' }
+        activeBuilderRun:
+          oneOf:
+            - $ref: '#/components/schemas/BuilderRunSummary'
+            - type: 'null'
+        preview: { $ref: '#/components/schemas/BuilderPreviewSummary' }
+        mode: { type: string, enum: [BUILD, PLAN] }
+    SendBuilderMessageRequest:
+      type: object
+      additionalProperties: false
+      required: [content, mode]
+      properties:
+        content: { type: string, minLength: 1, maxLength: 20000, pattern: '.*\S.*' }
+        mode: { type: string, enum: [BUILD, PLAN] }
+    BuilderMessageAccepted:
+      type: object
+      additionalProperties: false
+      required: [threadId, builderRun]
+      properties:
+        threadId: { type: string, minLength: 1 }
+        builderRun: { $ref: '#/components/schemas/BuilderRunSummary' }
     PlanItem:
       type: object
       additionalProperties: false

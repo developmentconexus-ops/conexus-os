@@ -194,6 +194,10 @@ These are later Screen Contract/wireframe obligations, not client-owned lifecycl
 
 ## 7. Concrete operation-to-surface coverage
 
+C-020 session operations are reachable through the current Build surface:
+`BLD-21` (`PrepareBuildPreview`), `BLD-22` (`LaunchBuildPreview`),
+`BLD-23` (`GetBuilderSession`) and `BLD-24` (`SendBuilderMessage`).
+
 The set below must equal the current frontend-reachable concrete operation set. Repeated mappings are allowed only for legitimate multi-ingress contexts.
 
 | Candidate surface(s) | Concrete Product operation IDs |
