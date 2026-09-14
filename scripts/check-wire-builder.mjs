@@ -35,7 +35,7 @@ function op(id) {
 }
 
 function resolveLocalRef(value) {
-  if (!value?.$ref || !value.$ref.startsWith('#/')) return value;
+  if (!value?.$ref?.startsWith('#/')) return value;
   return value.$ref
     .slice(2)
     .split('/')
@@ -76,7 +76,7 @@ function successSchema(id, status = '200') {
 
 function assertClosedObject(schema, label) {
   const resolved = resolveSchema(schema);
-  if (!resolved || resolved.type !== 'object' || resolved.additionalProperties !== false) {
+  if (resolved?.type !== 'object' || resolved.additionalProperties !== false) {
     throw new Error(`${label} must be a closed object schema`);
   }
   return resolved;
@@ -320,7 +320,8 @@ if (builderSession.method !== 'GET' || builderSession.path !== '/api/control/pro
   throw new Error('BLD-23 must remain the exact Builder Session read');
 }
 const sessionResponse = assertClosedObject(successSchema('BLD-23'), 'BLD-23 success');
-required(sessionResponse, 'projectId', 'threadId', 'messages', 'activeBuilderRun', 'preview');
+required(sessionResponse, 'projectId', 'messages', 'activeBuilderRun', 'preview');
+if (sessionResponse.properties?.threadId) throw new Error('BLD-23 must not expose Mastra threadId');
 const sendMessage = entry('BLD-24');
 if (sendMessage.method !== 'POST' || sendMessage.path !== '/api/control/projects/{projectId}/builder-session/messages') {
   throw new Error('BLD-24 must remain the exact Builder message command');

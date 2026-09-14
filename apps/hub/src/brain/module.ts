@@ -7,6 +7,7 @@ import { createProjectBrainContextBasisPort } from './context-store.js'
 import { registerBrainRoutes } from './routes.js'
 import type { ResolveBrainSession } from './routes.js'
 import { createBrainStore } from './store.js'
+import type { BrainProjectKnowledgeReader } from './store.js'
 import type { BrainRegistryPort } from './store.js'
 
 export { createBrainBindingValidator } from './binding-validation.js'
@@ -37,6 +38,7 @@ export type {
 export type BrainModule = Readonly<{
   registerBrainRoutes(app: FastifyInstance): Promise<readonly ('BRN-01' | 'BRN-02' | 'BRN-03' | 'BRN-10' | 'BRN-14')[]>
   close(): Promise<void>
+  readProjectKnowledge: BrainProjectKnowledgeReader
 }>
 
 export const createBrainModule = ({ pool, registry, resolveCurrentSession, projectContext }: Readonly<{
@@ -56,6 +58,7 @@ export const createBrainModule = ({ pool, registry, resolveCurrentSession, proje
       ...(context ? await registerProjectBrainContextRoutes(app, { resolver: context, resolveCurrentSession }) : []),
     ],
     close: () => pool.end(),
+    readProjectKnowledge: store.readProjectKnowledge,
   })
 }
 

@@ -781,10 +781,11 @@ run at least:
 
 ```sh
 npm test --prefix qualification/4d/mastra-builder-capability
-npm run r1:s2:hub:typecheck
-npm run r1:a0:web:typecheck
+node --test --test-concurrency=1 tests/implementation/builder-run-invariants-postgres.test.mjs tests/implementation/builder-run-execution-postgres.test.mjs
+node --test --test-concurrency=1 tests/implementation/builder-brain-context.test.mjs
+node --test --test-concurrency=1 tests/implementation/builder-application-registry.test.mjs tests/implementation/builder-application-registry-postgres.test.mjs
+node --test --test-concurrency=1 tests/implementation/builder-browser.test.mjs
 npm run wire:bundle
-npm run wire:builder
 npm run wire:bijection
 npm run test:repository
 npm run verify
@@ -793,9 +794,9 @@ npm run verify
 Add the focused BuilderRun/source/runtime/Registry/browser test commands created
 by the corresponding tasks.
 
-`r1:history:foundation-pins` is an explicit historical audit and is not a
-current C-020 blocker. Do not rewrite historical receipts/digests to make it
-green against current owners.
+Historical R1/R2/RB commands remain explicit audits only. They are not part of
+the current C-020 gate. Do not rewrite historical receipts/digests to make
+them green against current owners.
 
 ---
 

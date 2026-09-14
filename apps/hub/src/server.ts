@@ -157,7 +157,10 @@ const mar = config.preview ? createMarModule({
   previewPort: config.preview.port,
   registryReader: (input) => {
     if (!builder) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
-    return builder.readApplicationFile(input)
+    return builder.readApplicationFileBySource({
+      accountId: input.accountId, projectId: input.projectId, sourceRevision: input.sourceRevision,
+      artifactRevisionId: input.artifactRevisionId, path: input.path,
+    })
   },
 }) : undefined
 const launchPreview = mar ? async (request: import('fastify').FastifyRequest, input: Parameters<NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>>[1]) => {
@@ -224,6 +227,7 @@ builder = config.builder && config.project && builderModel ? createConfiguredBui
   validateModelCredential: builderModel.validateCredential,
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
+  ...(brain ? { brainReader: brain.readProjectKnowledge } : {}),
 }) : undefined
 let keyConformanceSubjectPool: ReturnType<typeof createPostgresPool> | undefined
 if (config.projectBindings?.brain) {

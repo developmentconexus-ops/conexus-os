@@ -38,6 +38,9 @@ test('030 restores state invariants and closes BuilderRun settlement loopholes',
   await rejectsUpdate('UPDATE builder.project_working_state SET last_preview_source_revision = $1 WHERE project_id = $2', ['bad', projectId])
   await rejectsUpdate('UPDATE builder.project_working_state SET last_preview_artifact_digest = $1 WHERE project_id = $2', ['bad', projectId])
   await adminClient.query("UPDATE builder.project_working_state SET last_preview_source_revision = $1, last_preview_artifact_revision_id = $2, last_preview_artifact_digest = $3, last_preview_change_id = NULL WHERE project_id = $4", [source, randomUUID(), 'c'.repeat(64), projectId])
+  await adminClient.query("UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY', preparation_attempt_id = NULL WHERE project_id = $1", [projectId])
+  await adminClient.query("UPDATE builder.project_working_state SET current_state = 'BUILD_FAILED' WHERE project_id = $1", [projectId])
+  await adminClient.query("UPDATE builder.project_working_state SET current_state = 'IDLE' WHERE project_id = $1", [projectId])
   await adminClient.query('UPDATE builder.project_working_state SET last_preview_source_revision = NULL, last_preview_artifact_revision_id = NULL, last_preview_artifact_digest = NULL WHERE project_id = $1', [projectId])
 
   const ingressClient = await connect(ingress); const executorClient = await connect(executor)

@@ -59,6 +59,7 @@ export type BuilderSessionSnapshot = Readonly<{
   activeTurn: BuilderSnapshot['change'] | null
   workingSourceRevision: string | null
   lastPreviewChangeId: string | null
+  lastPreviewSourceRevision: string | null
   lastPreviewArtifactRevisionId: string | null
   lastPreviewArtifactDigest: string | null
 }>
@@ -111,8 +112,8 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
         projectId: snapshot.projectId,
         messages: snapshot.messages,
         activeBuilderRun: run,
-        preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodArtifactRevisionId: snapshot.lastPreviewArtifactRevisionId, lastGoodArtifactDigest: snapshot.lastPreviewArtifactDigest },
-        mode: 'BUILD' as const,
+        preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodSourceRevision: snapshot.lastPreviewSourceRevision, lastGoodArtifactRevisionId: snapshot.lastPreviewArtifactRevisionId, lastGoodArtifactDigest: snapshot.lastPreviewArtifactDigest },
+        mode: run?.mode ?? 'BUILD',
       }
     } catch (error) {
       if (message(error).includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
@@ -163,10 +164,13 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     if (!dependencies.launchPreview) return sendProblem(reply, 503, 'preview-unavailable', 'Preview unavailable')
     try {
       const run = await dependencies.store.readBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId })
-      if (!run || run.builderRunId !== request.body.builderRunId || run.state !== 'SUCCEEDED' || run.resultKind !== 'SOURCE_CHANGED' || run.resultSourceRevision !== request.body.sourceRevision) {
+      const subject = await dependencies.store.readPreviewSubject({ accountId: session.account.accountId, projectId: request.params.projectId })
+      if (!run || run.builderRunId !== request.body.builderRunId || ['QUEUED', 'RUNNING'].includes(run.state) ||
+        !subject || subject.lastPreviewSourceRevision !== request.body.sourceRevision ||
+        subject.lastPreviewArtifactRevisionId !== request.body.artifactRevisionId || subject.lastPreviewArtifactDigest !== request.body.artifactDigest) {
         return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
       }
-      const artifact = await dependencies.service.getApplication({ accountId: session.account.accountId, projectId: request.params.projectId, builderRunId: run.builderRunId, sourceRevision: request.body.sourceRevision })
+      const artifact = await dependencies.service.getApplicationBySource({ accountId: session.account.accountId, projectId: request.params.projectId, sourceRevision: request.body.sourceRevision })
       if (!artifact || artifact.artifactRevisionId !== request.body.artifactRevisionId || artifact.artifactDigest !== request.body.artifactDigest) return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
       const launched = await dependencies.launchPreview(request, {
         accountId: session.account.accountId, projectId: request.params.projectId, changeId: run.builderRunId, builderRunId: run.builderRunId,

@@ -1016,17 +1016,6 @@ components:
         attemptId: { type: string, format: uuid }
         state: { const: EXPIRED }
         expiresAt: { type: string, format: date-time }
-    PreviewLaunch:
-      type: object
-      additionalProperties: false
-      required: [entryUrl, previewUrl, entryGrant, artifactRevisionId, artifactDigest, expiresAt]
-      properties:
-        entryUrl: { type: string, format: uri }
-        previewUrl: { type: string, format: uri }
-        entryGrant: { type: string, minLength: 32, maxLength: 128 }
-        artifactRevisionId: { type: string, format: uuid }
-        artifactDigest: { type: string, minLength: 64, maxLength: 128, pattern: '^[0-9a-f]+$' }
-        expiresAt: { type: string, format: date-time }
     Finding:
       type: object
       additionalProperties: false

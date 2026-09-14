@@ -10,8 +10,9 @@ import { readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot } from './routes.js'
 import { createMastraE2BCodingWorkerRuntime } from './runtime.js'
+import type { BuilderProjectKnowledgeReader } from './runtime.js'
 import { createBuilderService } from './service.js'
-import type { ApplicationArtifactReadRequest, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
+import type { ApplicationArtifactReadRequest, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderSourcePort } from './source.js'
 import type { BuilderGitSourceCapability } from './source.js'
 import { createBuilderStore } from './store.js'
@@ -35,7 +36,7 @@ const messageDate = (value: unknown): string => {
   return Number.isNaN(date.valueOf()) ? new Date(0).toISOString() : date.toISOString()
 }
 
-export const createConfiguredBuilderModule = ({ database, builder, projectSource, applicationArtifacts, launchPreview, model, modelIdentity, validateModelCredential, origin, resolveCurrentSession }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, projectSource, applicationArtifacts, launchPreview, model, modelIdentity, validateModelCredential, origin, resolveCurrentSession, brainReader }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
@@ -49,16 +50,21 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   validateModelCredential(): void
   origin: string
   resolveCurrentSession: (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
+  brainReader?: BuilderProjectKnowledgeReader
 }>) => {
   const executorPool = createPostgresPool({ ...database, user: 'hub_rb_executor', password: readSecretFile(builder.executorPasswordFile) })
   const store = createBuilderStore({
     ingressPool: createPostgresPool({ ...database, user: 'hub_rb_ingress', password: readSecretFile(builder.ingressPasswordFile) }),
     executorPool,
   })
+  const getApplicationBySource = applicationArtifacts.getApplicationBySource
+  const readApplicationFileBySource = applicationArtifacts.readApplicationFileBySource
   const boundApplicationArtifacts: BuilderApplicationArtifacts = Object.freeze({
     getApplication: (input) => applicationArtifacts.getApplication(executorPool, input),
+    ...(getApplicationBySource ? { getApplicationBySource: (input: ApplicationSourceCoordinates) => getApplicationBySource(executorPool, input) } : {}),
     retainApplication: (input) => applicationArtifacts.retainApplication(executorPool, input),
     readApplicationFile: (input: ApplicationArtifactReadRequest) => applicationArtifacts.readApplicationFile(executorPool, input),
+    ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(executorPool, input) } : {}),
   })
   const source = createBuilderSourcePort({
     git: projectSource.git,
@@ -104,6 +110,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     sessionStorage,
     sessionMemory,
     sharedHarness: { agent: sharedAgent, controller: sharedController, ready: sharedControllerReady },
+    ...(brainReader ? { brainReader } : {}),
   })
   const compiler = createE2BApplicationCompiler({ apiKey: readSecretFile(builder.e2bApiKeyFile) })
   const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts })
@@ -130,6 +137,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
         activeTurn: null,
         workingSourceRevision: preview.workingSourceRevision,
         lastPreviewChangeId: preview.lastPreviewChangeId,
+        lastPreviewSourceRevision: preview.lastPreviewSourceRevision ?? null,
         lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId ?? null,
         lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest ?? null,
       })
@@ -139,6 +147,8 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     registerBuilderRoutes: (app: FastifyInstance) => registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) }),
     prepareApplication: service.prepareApplication,
     readApplicationFile: service.readApplicationFile,
+    readApplicationFileBySource: service.readApplicationFileBySource,
+    getApplicationBySource: service.getApplicationBySource,
     startPreviewPreparation: service.startPreviewPreparation,
     readPreviewPreparation: service.readPreviewPreparation,
     recover: service.recover,

@@ -39,7 +39,7 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
         calls.push(['execute', input.mode, input.intent])
         await input.bindPhysicalSandbox('physical-sandbox')
         await input.bindMessage('mastra-message')
-        return { projectId, changeId: runId, workUnitId: runId, actorRunId: runId, admissionToken: runId, sandboxId: 'physical-sandbox', baseSourceRevision: sourceRevision, summary: 'Resposta', kind: 'RESPONSE_ONLY' }
+        return { projectId, executionId: runId, sandboxId: 'physical-sandbox', baseSourceRevision: sourceRevision, summary: 'Resposta', kind: 'RESPONSE_ONLY' }
       },
     },
     compiler: {}, applicationArtifacts: {},
@@ -75,9 +75,9 @@ test('BUILD source result is admitted, CASed, compiled and settles Preview', asy
     },
     runtime: {
       kind: 'REMOTE_E2B', modelIdentity: { admissionId: 'admission', providerId: 'provider', modelId: 'model' },
-      execute: async _input => ({ projectId, changeId: runId, workUnitId: runId, actorRunId: runId, admissionToken: runId, sandboxId: 'sandbox', baseSourceRevision: base, summary: 'alterado', kind: 'SOURCE_CHANGED', candidateSourceRevision: resultRevision, resultBundle: new Uint8Array([1]) }),
+      execute: async _input => ({ projectId, executionId: runId, sandboxId: 'sandbox', baseSourceRevision: base, summary: 'alterado', kind: 'CANDIDATE', resultSourceRevision: resultRevision, resultBundle: new Uint8Array([1]) }),
     },
-    compiler: { kind: 'REMOTE_E2B', compile: async _input => ({ projectId, changeId: runId, sourceRevision: resultRevision, templateRef: 'x', recipeSha256: 'y', files: [] }) },
+    compiler: { kind: 'REMOTE_E2B', compile: async _input => ({ projectId, executionId: runId, sourceRevision: resultRevision, templateRef: 'x', recipeSha256: 'y', files: [] }) },
     applicationArtifacts: { retainApplication: async () => ({ artifactRevisionId: '77777777-7777-4777-8777-777777777777', artifactDigest: 'd'.repeat(64) }) },
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })

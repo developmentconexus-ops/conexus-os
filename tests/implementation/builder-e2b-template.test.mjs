@@ -12,9 +12,9 @@ import {
   BUILDER_TEMPLATE_NODE_VERSION,
   buildBuilderTemplate,
   checkBuilderTemplate,
-} from '../../scripts/rb-builder-e2b-template.mjs'
+} from '../../scripts/builder-e2b-template.mjs'
 
-test('RB Builder E2B template is a source-free exact Node recipe with required local mechanics', async () => {
+test('C-020 Builder E2B template is a source-free exact Node recipe with required local mechanics', async () => {
   const checked = await checkBuilderTemplate()
   const parsed = JSON.parse(checked.recipe)
   assert.equal(parsed.fromImage, BUILDER_TEMPLATE_BASE_IMAGE)
@@ -24,11 +24,11 @@ test('RB Builder E2B template is a source-free exact Node recipe with required l
   assert.equal(parsed.steps.some((step) => step.type === 'USER' && step.args[0] === 'root'), true)
   assert.equal(parsed.steps.some((step) => step.type === 'COPY'), false)
   assert.equal(JSON.stringify(parsed).includes('E2B_API_KEY'), false)
-  assert.match(checked.buildName, /^conexus-rb-builder-first:recipe-[0-9a-f]{16}$/)
+  assert.match(checked.buildName, /^conexus-builder-c020:recipe-[0-9a-f]{16}$/)
 })
 
-test('RB Builder E2B template build uses an explicitly keyed client and returns immutable identity', async () => {
-  const temporary = mkdtempSync(resolve(tmpdir(), 'conexus-rb-e2b-template-'))
+test('C-020 Builder E2B template build uses an explicitly keyed client and returns immutable identity', async () => {
+  const temporary = mkdtempSync(resolve(tmpdir(), 'conexus-builder-c020-e2b-template-'))
   try {
     const keyFile = resolve(temporary, 'e2b-api-key')
     writeFileSync(keyFile, 'fixture-e2b-key\n', { mode: 0o600 })

@@ -64,6 +64,25 @@ export type BrainReadResult<T> = Readonly<
   | { status: 'UNAVAILABLE' }
 >
 
+export type ProjectKnowledgeMatch = Readonly<{
+  conceptRef: string
+  label: string
+  text: string
+  provenanceRefs: readonly string[]
+}>
+
+export type ProjectKnowledge = Readonly<{
+  brainRevisionId: string
+  brainDigest: string
+  matches: readonly ProjectKnowledgeMatch[]
+}>
+
+export type BrainProjectKnowledgeReader = (input: Readonly<{
+  accountId: string
+  projectId: string
+  query: string
+}>) => Promise<BrainReadResult<ProjectKnowledge>>
+
 export type BrainStore = Readonly<{
   getWorkspaceBrain(input: Readonly<{ accountId: string; workspaceId: string }>): Promise<BrainReadResult<Readonly<{
     workspaceId: string
@@ -77,6 +96,7 @@ export type BrainStore = Readonly<{
   }>): Promise<BrainReadResult<readonly Omit<BrainRevision, 'knowledgeBrowse'>[]>>
   getBrainRevision(input: Readonly<{ accountId: string; workspaceId: string; brainRevisionId: string }>): Promise<BrainReadResult<BrainRevision>>
   getBrainHealth(input: Readonly<{ accountId: string; workspaceId: string }>): Promise<BrainReadResult<BrainHealth>>
+  readProjectKnowledge: BrainProjectKnowledgeReader
 }>
 
 const parseBrowse = (source: BrainSource): KnowledgeBrowse => ({
@@ -249,5 +269,50 @@ export const createBrainStore = ({ pool, registry }: Readonly<{
         items: health.items,
       } }
     }),
+    readProjectKnowledge: async ({ accountId, projectId, query }) => {
+      if (!query.trim() || query.length > 2_000) return { status: 'NOT_FOUND' }
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN READ ONLY')
+        const result = await client.query('SELECT * FROM brn.get_project_brain_basis($1, $2)', [accountId, projectId])
+        if (result.rows.length === 0) {
+          await client.query('COMMIT')
+          return { status: 'NOT_FOUND' }
+        }
+        if (result.rows.length !== 1) throw new Error('BRAIN_PROJECT_BASIS_INVALID')
+        const row = result.rows[0]
+        const revision = parseRevision({
+          brainRevisionId: String(row.brain_revision_id),
+          brainDigest: String(row.brain_digest),
+          sourceRevision: String(row.revision_source_revision),
+          availability: 'AVAILABLE',
+          payload: row.revision_payload,
+        })
+        if (!revision) {
+          await client.query('COMMIT')
+          return { status: 'UNAVAILABLE' }
+        }
+        const normalize = (value: string): string => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase()
+        const stopWords = new Set(['a', 'as', 'o', 'os', 'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'para', 'por', 'com', 'uma', 'um', 'nossa', 'nosso', 'using', 'the', 'and', 'for'])
+        const normalizedQuery = normalize(query)
+        const words = normalizedQuery.split(/[^a-z0-9]+/).filter((word) => word.length > 2 && !stopWords.has(word))
+        const matches = revision.knowledgeBrowse.domains.flatMap((domain) => domain.concepts.flatMap((concept) => {
+          const text = concept.sections.map((section) => `${section.kind}: ${section.text}`).join('\n')
+          const searchable = normalize(`${domain.label} ${concept.label} ${concept.summary} ${text}`)
+          const matchingWords = words.filter((word) => searchable.includes(word)).length
+          const matched = searchable.includes(normalizedQuery) || (words.length > 0 && matchingWords >= Math.max(1, Math.ceil(words.length * 0.4)))
+          return matched ? [{ conceptRef: concept.conceptRef, label: concept.label, text, provenanceRefs: concept.provenanceRefs }] : []
+        }))
+        await client.query('COMMIT')
+        return { status: 'FOUND', value: { brainRevisionId: revision.brainRevisionId, brainDigest: revision.brainDigest, matches } }
+      } catch (error) {
+        try { await client.query('ROLLBACK') } catch { /* preserve primary failure */ }
+        const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : undefined
+        if (code === 'P0002') return { status: 'NOT_FOUND' }
+        if (code === '42501') return { status: 'DENIED' }
+        if (code === 'P0004') return { status: 'UNAVAILABLE' }
+        throw error
+      } finally { client.release() }
+    },
   })
 }

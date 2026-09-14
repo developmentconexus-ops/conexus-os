@@ -21,6 +21,7 @@ const { createApplicationArtifactStore } = await import(built('registry/applicat
 const ACCOUNT_ID = '11111111-1111-4111-8111-111111111111'
 const PROJECT_ID = '22222222-2222-4222-8222-222222222222'
 const CHANGE_ID = '33333333-3333-4333-8333-333333333333'
+const EXECUTION_ID = '55555555-5555-4555-8555-555555555555'
 const REVISION_ID = '44444444-4444-4444-8444-444444444444'
 const SOURCE_REVISION = 'a'.repeat(40)
 const TEMPLATE_REF = 'xdli9puqp1nepk4ht6lw:8a1e3885-c6d7-4b06-aea6-860632f407e6'
@@ -81,6 +82,53 @@ test('application artifact adapter retains a copied manifest and exposes immutab
   assert.notEqual(calls[0].values[4], undefined)
   fileBytes[0] = 0
   assert.equal(JSON.parse(calls[0].values[4]).files[0].base64, Buffer.from('<!doctype html><title>Proof</title>').toString('base64'))
+})
+
+test('C-020 artifact admission uses execution correlation without Change vocabulary', async () => {
+  const calls = []
+  const client = {
+    async query(statement, values) {
+      calls.push({ statement, values })
+      if (statement.includes('read_application_file_execution') || statement.includes('read_application_file_by_source')) {
+        const bytes = Uint8Array.from(fileBytes)
+        return { rows: [{ artifact_revision_id: REVISION_ID, project_id: PROJECT_ID, source_revision: SOURCE_REVISION,
+          path: 'index.html', media_type: 'text/html; charset=utf-8', bytes,
+          sha256: createHash('sha256').update(bytes).digest('hex') }] }
+      }
+      if (statement.includes('retain_application_execution')) return { rows: [metadataRow(JSON.parse(values[4]))] }
+      return { rows: [metadataRow({ files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', byteLength: fileBytes.byteLength, sha256: fileSha256 }] })] }
+    },
+  }
+  const store = createApplicationArtifactStore()
+  const { changeId: _legacyChangeId, ...canonicalApplication } = compiledApplication
+  await store.retainApplication(client, { accountId: ACCOUNT_ID, compiled: {
+    ...canonicalApplication, executionId: EXECUTION_ID,
+    files: [{ ...canonicalApplication.files[0], bytes: Buffer.from('<!doctype html><title>Proof</title>'), sha256: fileSha256 }],
+  } })
+  assert.match(calls[0].statement, /reg\.retain_application_execution\(/)
+  assert.deepEqual(calls[0].values.slice(0, 4), [ACCOUNT_ID, PROJECT_ID, EXECUTION_ID, SOURCE_REVISION])
+
+  await store.getApplication(client, { accountId: ACCOUNT_ID, projectId: PROJECT_ID, executionId: EXECUTION_ID, sourceRevision: SOURCE_REVISION })
+  assert.match(calls[1].statement, /reg\.get_application_execution\(/)
+  assert.deepEqual(calls[1].values, [ACCOUNT_ID, PROJECT_ID, EXECUTION_ID, SOURCE_REVISION])
+
+  await store.readApplicationFile(client, {
+    accountId: ACCOUNT_ID, projectId: PROJECT_ID, executionId: EXECUTION_ID, sourceRevision: SOURCE_REVISION,
+    artifactRevisionId: REVISION_ID, path: 'index.html',
+  })
+  assert.match(calls[2].statement, /reg\.read_application_file_execution\(/)
+  assert.deepEqual(calls[2].values, [ACCOUNT_ID, PROJECT_ID, EXECUTION_ID, SOURCE_REVISION, REVISION_ID, 'index.html'])
+
+  await store.getApplicationBySource(client, { accountId: ACCOUNT_ID, projectId: PROJECT_ID, sourceRevision: SOURCE_REVISION })
+  assert.match(calls[3].statement, /reg\.get_application_by_source\(/)
+  assert.deepEqual(calls[3].values, [ACCOUNT_ID, PROJECT_ID, SOURCE_REVISION])
+
+  await store.readApplicationFileBySource(client, {
+    accountId: ACCOUNT_ID, projectId: PROJECT_ID, sourceRevision: SOURCE_REVISION,
+    artifactRevisionId: REVISION_ID, path: 'index.html',
+  })
+  assert.match(calls[4].statement, /reg\.read_application_file_by_source\(/)
+  assert.deepEqual(calls[4].values, [ACCOUNT_ID, PROJECT_ID, SOURCE_REVISION, REVISION_ID, 'index.html'])
 })
 
 test('application artifact adapter rejects an unadmitted read with the stable subject refusal', async () => {

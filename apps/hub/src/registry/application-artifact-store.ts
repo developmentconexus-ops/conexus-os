@@ -41,14 +41,24 @@ const compiledFileSchema = z.object({
   bytes: z.instanceof(Uint8Array),
   sha256: sha256Schema,
 }).strict()
-const compiledApplicationSchema = z.object({
-  projectId: uuidSchema,
-  changeId: uuidSchema,
-  sourceRevision: sourceRevisionSchema,
-  templateRef: z.literal(TEMPLATE_REF),
-  recipeSha256: z.literal(RECIPE_SHA256),
-  files: z.array(compiledFileSchema).min(1).max(MAX_FILES),
-}).strict()
+const compiledApplicationSchema = z.union([
+  z.object({
+    projectId: uuidSchema,
+    executionId: uuidSchema,
+    sourceRevision: sourceRevisionSchema,
+    templateRef: z.literal(TEMPLATE_REF),
+    recipeSha256: z.literal(RECIPE_SHA256),
+    files: z.array(compiledFileSchema).min(1).max(MAX_FILES),
+  }).strict(),
+  z.object({
+    projectId: uuidSchema,
+    changeId: uuidSchema,
+    sourceRevision: sourceRevisionSchema,
+    templateRef: z.literal(TEMPLATE_REF),
+    recipeSha256: z.literal(RECIPE_SHA256),
+    files: z.array(compiledFileSchema).min(1).max(MAX_FILES),
+  }).strict(),
+])
 
 const payloadFileSchema = z.object({
   path: z.string(),
@@ -119,16 +129,31 @@ export type ApplicationArtifactStore = Readonly<{
     accountId: string
     compiled: unknown
   }>): Promise<ApplicationMetadata>
-  getApplication(client: RegistryQueryClient, input: Readonly<{
+  getApplication(client: RegistryQueryClient, input: (Readonly<{
     accountId: string
     projectId: string
-    changeId: string
+    sourceRevision: string
+  }> & (Readonly<{ executionId: string }> | Readonly<{ changeId: string }>))): Promise<ApplicationMetadata | null>
+  getApplicationBySource(client: RegistryQueryClient, input: Readonly<{
+    accountId: string
+    projectId: string
     sourceRevision: string
   }>): Promise<ApplicationMetadata | null>
-  readApplicationFile(client: RegistryQueryClient, input: Readonly<{
+  readApplicationFile(client: RegistryQueryClient, input: (Readonly<{
     accountId: string
     projectId: string
-    changeId: string
+    sourceRevision: string
+    artifactRevisionId: string
+    path: string
+  }> & (Readonly<{ executionId: string }> | Readonly<{ changeId: string }>))): Promise<Readonly<{
+    path: string
+    mediaType: string
+    bytes: Uint8Array
+    sha256: string
+  }> | null>
+  readApplicationFileBySource(client: RegistryQueryClient, input: Readonly<{
+    accountId: string
+    projectId: string
     sourceRevision: string
     artifactRevisionId: string
     path: string
@@ -207,10 +232,9 @@ const validateFiles = (files: readonly Readonly<{
 
 const parseCompiled = (value: unknown): Readonly<{
   projectId: string
-  changeId: string
   sourceRevision: string
   payload: ApplicationPayload
-}> => {
+}> & (Readonly<{ executionId: string }> | Readonly<{ changeId: string }>) => {
   const parsed = parseOrRefuse(compiledApplicationSchema, value)
   const files = validateFiles(parsed.files)
   const payload = {
@@ -225,7 +249,7 @@ const parseCompiled = (value: unknown): Readonly<{
   } satisfies ApplicationPayload
   return Object.freeze({
     projectId: parsed.projectId,
-    changeId: parsed.changeId,
+    ...('executionId' in parsed ? { executionId: parsed.executionId } : { changeId: parsed.changeId }),
     sourceRevision: parsed.sourceRevision,
     payload: Object.freeze(payload),
   })
@@ -234,15 +258,19 @@ const parseCompiled = (value: unknown): Readonly<{
 const parseCoordinates = (value: unknown): Readonly<{
   accountId: string
   projectId: string
-  changeId: string
   sourceRevision: string
-}> => {
+}> & (Readonly<{ executionId: string }> | Readonly<{ changeId: string }>) => {
   return parseOrRefuse(z.object({
+    accountId: uuidSchema,
+    projectId: uuidSchema,
+    executionId: uuidSchema,
+    sourceRevision: sourceRevisionSchema,
+  }).strict().or(z.object({
     accountId: uuidSchema,
     projectId: uuidSchema,
     changeId: uuidSchema,
     sourceRevision: sourceRevisionSchema,
-  }).strict(), value)
+  }).strict()), value)
 }
 
 const parseMetadata = (value: unknown, expected: Readonly<{ projectId: string; sourceRevision: string }>): ApplicationMetadata => {
@@ -300,9 +328,10 @@ export const createApplicationArtifactStore = (): ApplicationArtifactStore => Ob
     const parsedInput = parseOrRefuse(z.object({ accountId: uuidSchema, compiled: z.unknown() }).strict(), input)
     const compiled = parseCompiled(parsedInput.compiled)
     const payloadText = JSON.stringify(compiled.payload)
+    const execution = 'executionId' in compiled
     const rows = await queryRows(client,
-      'SELECT * FROM reg.retain_application($1, $2, $3, $4, $5::jsonb)',
-      [parsedInput.accountId, compiled.projectId, compiled.changeId, compiled.sourceRevision, payloadText],
+      `SELECT * FROM reg.${execution ? 'retain_application_execution' : 'retain_application'}($1, $2, $3, $4, $5::jsonb)`,
+      [parsedInput.accountId, compiled.projectId, execution ? compiled.executionId : compiled.changeId, compiled.sourceRevision, payloadText],
     )
     const row = rows[0]
     if (!row) throw new Error('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
@@ -311,9 +340,22 @@ export const createApplicationArtifactStore = (): ApplicationArtifactStore => Ob
 
   async getApplication(client, input) {
     const coordinates = parseCoordinates(input)
+    const execution = 'executionId' in coordinates
     const rows = await queryRows(client,
-      'SELECT * FROM reg.get_application($1, $2, $3, $4)',
-      [coordinates.accountId, coordinates.projectId, coordinates.changeId, coordinates.sourceRevision],
+      `SELECT * FROM reg.${execution ? 'get_application_execution' : 'get_application'}($1, $2, $3, $4)`,
+      [coordinates.accountId, coordinates.projectId, execution ? coordinates.executionId : coordinates.changeId, coordinates.sourceRevision],
+    )
+    const row = rows[0]
+    return row ? parseMetadata(row, coordinates) : null
+  },
+
+  async getApplicationBySource(client, input) {
+    const coordinates = parseOrRefuse(z.object({
+      accountId: uuidSchema, projectId: uuidSchema, sourceRevision: sourceRevisionSchema,
+    }).strict(), input)
+    const rows = await queryRows(client,
+      'SELECT * FROM reg.get_application_by_source($1, $2, $3)',
+      [coordinates.accountId, coordinates.projectId, coordinates.sourceRevision],
     )
     const row = rows[0]
     return row ? parseMetadata(row, coordinates) : null
@@ -323,18 +365,42 @@ export const createApplicationArtifactStore = (): ApplicationArtifactStore => Ob
     const parsed = parseOrRefuse(z.object({
       accountId: uuidSchema,
       projectId: uuidSchema,
+      executionId: uuidSchema,
+      sourceRevision: sourceRevisionSchema,
+      artifactRevisionId: uuidSchema,
+      path: z.string().max(1024).regex(SAFE_APPLICATION_PATH),
+    }).strict().or(z.object({
+      accountId: uuidSchema,
+      projectId: uuidSchema,
       changeId: uuidSchema,
+      sourceRevision: sourceRevisionSchema,
+      artifactRevisionId: uuidSchema,
+      path: z.string().max(1024).regex(SAFE_APPLICATION_PATH),
+    }).strict()), input)
+    const execution = 'executionId' in parsed
+    const rows = await queryRows(client,
+      `SELECT * FROM reg.${execution ? 'read_application_file_execution' : 'read_application_file'}($1, $2, $3, $4, $5, $6)`,
+      [parsed.accountId, parsed.projectId, execution ? parsed.executionId : parsed.changeId, parsed.sourceRevision, parsed.artifactRevisionId, parsed.path],
+    ).catch((error: unknown) => {
+      if (error instanceof Error && 'code' in error && error.code === 'P0001' && error.message === 'APPLICATION_SUBJECT_REFUSED') return []
+      throw error
+    })
+    const row = rows[0]
+    return row ? parseReadFile(row, parsed) : null
+  },
+
+  async readApplicationFileBySource(client, input) {
+    const parsed = parseOrRefuse(z.object({
+      accountId: uuidSchema,
+      projectId: uuidSchema,
       sourceRevision: sourceRevisionSchema,
       artifactRevisionId: uuidSchema,
       path: z.string().max(1024).regex(SAFE_APPLICATION_PATH),
     }).strict(), input)
     const rows = await queryRows(client,
-      'SELECT * FROM reg.read_application_file($1, $2, $3, $4, $5, $6)',
-      [parsed.accountId, parsed.projectId, parsed.changeId, parsed.sourceRevision, parsed.artifactRevisionId, parsed.path],
-    ).catch((error: unknown) => {
-      if (error instanceof Error && 'code' in error && error.code === 'P0001' && error.message === 'APPLICATION_SUBJECT_REFUSED') return []
-      throw error
-    })
+      'SELECT * FROM reg.read_application_file_by_source($1, $2, $3, $4, $5)',
+      [parsed.accountId, parsed.projectId, parsed.sourceRevision, parsed.artifactRevisionId, parsed.path],
+    )
     const row = rows[0]
     return row ? parseReadFile(row, parsed) : null
   },

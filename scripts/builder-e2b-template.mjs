@@ -3,7 +3,7 @@ import { closeSync, constants, fstatSync, openSync, readFileSync } from 'node:fs
 import { pathToFileURL } from 'node:url'
 import { E2B, Template } from 'e2b'
 
-export const BUILDER_TEMPLATE_NAME = 'conexus-rb-builder-first'
+export const BUILDER_TEMPLATE_NAME = 'conexus-builder-c020'
 export const BUILDER_TEMPLATE_NODE_VERSION = '24.20.0'
 export const BUILDER_TEMPLATE_BASE_IMAGE = 'node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e'
 export const BUILDER_TEMPLATE_CPU_COUNT = 2
@@ -94,9 +94,9 @@ export const buildBuilderTemplate = async (environment = process.env, E2BClient 
 const main = async () => {
   const command = process.argv[2] ?? '--check'
   if (!['--check', '--build'].includes(command) || process.argv.length > 3) {
-    throw new Error('USAGE: node scripts/rb-builder-e2b-template.mjs [--check|--build]')
+    throw new Error('USAGE: node scripts/builder-e2b-template.mjs [--check|--build]')
   }
-  if (command === '--build' && process.env.CONEXUS_RB_E2B_TEMPLATE_BUILD !== 'true') {
+  if (command === '--build' && process.env.CONEXUS_BUILDER_E2B_TEMPLATE_BUILD !== 'true') {
     throw new Error('BUILDER_E2B_TEMPLATE_BUILD_AUTHORIZATION_REQUIRED')
   }
   const result = command === '--build' ? await buildBuilderTemplate() : await checkBuilderTemplate()

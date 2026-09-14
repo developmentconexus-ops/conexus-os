@@ -109,6 +109,7 @@ export type BuilderWorkingPreviewSubject = BuilderPreviewSubject & Readonly<{
   workingSourceRevision: string
   activeChangeId: string | null
   lastPreviewChangeId: string | null
+  lastPreviewSourceRevision: string | null
 }>
 
 export type PreviewPreparationSettlement = Readonly<{

@@ -72,7 +72,7 @@ export type BuilderSession = Readonly<{
   projectId: string
   messages: readonly BuilderSessionMessage[]
   activeBuilderRun: BuilderRun | null
-  preview: Readonly<{ workingSourceRevision: string | null; lastGoodArtifactRevisionId: string | null; lastGoodArtifactDigest: string | null }>
+  preview: Readonly<{ workingSourceRevision: string | null; lastGoodSourceRevision: string | null; lastGoodArtifactRevisionId: string | null; lastGoodArtifactDigest: string | null }>
   mode: 'BUILD' | 'PLAN'
   workingSourceRevision: string | null
   lastPreviewChangeId: string | null

@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url'
 import { execFileSync, spawnSync } from 'node:child_process'
 import test from 'node:test'
 
-import { readBuilderE2BApiKey } from '../../scripts/rb-builder-e2b-template.mjs'
+import { readBuilderE2BApiKey } from '../../scripts/builder-e2b-template.mjs'
 
 const live = process.env.CONEXUS_RB_BUILDER_LIVE === 'true'
 const repositoryRoot = resolve(import.meta.dirname, '../..')

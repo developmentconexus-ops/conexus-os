@@ -17,7 +17,12 @@ export type BuilderRunApplicationBuildRequest = Readonly<{
 export type ApplicationArtifactCoordinates = Readonly<{
   accountId: string
   projectId: string
-  changeId: string
+  sourceRevision: string
+}> & (Readonly<{ executionId: string }> | Readonly<{ changeId: string }>)
+
+export type ApplicationSourceCoordinates = Readonly<{
+  accountId: string
+  projectId: string
   sourceRevision: string
 }>
 
@@ -45,11 +50,10 @@ export type ApplicationArtifactMetadata = Readonly<{
 export type ApplicationArtifactReadRequest = Readonly<{
   accountId: string
   projectId: string
-  changeId: string
   sourceRevision: string
   artifactRevisionId: string
   path: string
-}>
+}> & (Readonly<{ executionId: string }> | Readonly<{ changeId: string }>)
 
 export type ApplicationArtifactReadResult = Readonly<{
   path: string
@@ -60,14 +64,18 @@ export type ApplicationArtifactReadResult = Readonly<{
 
 export type BuilderApplicationArtifacts = Readonly<{
   getApplication(input: ApplicationArtifactCoordinates): Promise<ApplicationArtifactMetadata | null>
+  getApplicationBySource?(input: ApplicationSourceCoordinates): Promise<ApplicationArtifactMetadata | null>
   retainApplication(input: Readonly<{ accountId: string; compiled: CompiledApplication }>): Promise<ApplicationArtifactMetadata>
   readApplicationFile(input: ApplicationArtifactReadRequest): Promise<ApplicationArtifactReadResult | null>
+  readApplicationFileBySource?(input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
 }>
 
 export type UnboundBuilderApplicationArtifacts = Readonly<{
   getApplication(client: ApplicationArtifactClient, input: ApplicationArtifactCoordinates): Promise<ApplicationArtifactMetadata | null>
+  getApplicationBySource?(client: ApplicationArtifactClient, input: ApplicationSourceCoordinates): Promise<ApplicationArtifactMetadata | null>
   retainApplication(client: ApplicationArtifactClient, input: Readonly<{ accountId: string; compiled: unknown }>): Promise<ApplicationArtifactMetadata>
   readApplicationFile(client: ApplicationArtifactClient, input: ApplicationArtifactReadRequest): Promise<ApplicationArtifactReadResult | null>
+  readApplicationFileBySource?(client: ApplicationArtifactClient, input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
 }>
 
 export const prepareApplicationArtifact = async (
@@ -138,7 +146,7 @@ export const prepareApplicationArtifact = async (
     ...sourceCoordinates, changeId: request.changeId, files, ...(input.signal ? { signal: input.signal } : {}),
   })
   cancelled()
-  if (result.projectId !== request.projectId || result.changeId !== request.changeId || result.sourceRevision !== subject.sourceRevision) {
+  if (result.projectId !== request.projectId || !('changeId' in result) || result.changeId !== request.changeId || result.sourceRevision !== subject.sourceRevision) {
     throw new Error('BUILDER_APPLICATION_RESULT_SCOPE_REFUSED')
   }
   await recheck()
@@ -183,10 +191,10 @@ export const prepareBuilderRunApplicationArtifact = async (
     files.push({ path: path.slice('app/'.length), content: file.content })
   }
   const result = await dependencies.compiler.compile({
-    ...sourceCoordinates, changeId: input.builderRunId, files, ...(input.signal ? { signal: input.signal } : {}),
+    ...sourceCoordinates, executionId: input.builderRunId, files, ...(input.signal ? { signal: input.signal } : {}),
   })
   cancelled()
-  if (result.projectId !== input.projectId || result.changeId !== input.builderRunId || result.sourceRevision !== input.sourceRevision) {
+  if (result.projectId !== input.projectId || !('executionId' in result) || result.executionId !== input.builderRunId || result.sourceRevision !== input.sourceRevision) {
     throw new Error('BUILDER_APPLICATION_RESULT_SCOPE_REFUSED')
   }
   return dependencies.applicationArtifacts.retainApplication({ accountId: input.accountId, compiled: result })

@@ -71,12 +71,23 @@ button:disabled { opacity: .6; cursor: wait; }
 .builder-conversation { max-height: 26rem; overflow: auto; overflow-wrap: anywhere; }
 .builder-conversation-empty { margin: 1rem 0 0; padding: .9rem; border: 1px dashed #8b9991; border-radius: .5rem; color: #617068; }
 .builder-message { white-space: pre-wrap; line-height: 1.5; }
+.builder-markdown { white-space: normal; }
+.builder-markdown p { margin: .45rem 0; }
+.builder-markdown ul { margin: .45rem 0; padding-left: 1.25rem; }
 .builder-request { padding: .75rem; border-radius: .5rem; background: #e7efe8; white-space: pre-wrap; }
 .builder-activity, .builder-phase { padding: .55rem .7rem; border-radius: .45rem; background: #f0f4f1; font-size: .85rem; }
 .builder-activity[data-state="failed"] { color: #8b2828; background: #fff1ee; }
 .preview-empty { min-height: 18rem; display: grid; place-items: center; padding: 2rem; border: 1px dashed #8b9991; border-radius: .6rem; color: #617068; text-align: center; }
 .preview-frame-stack { display: grid; min-height: 24rem; overflow: hidden; border: 1px solid #ccd5d0; border-radius: .6rem; background: #17231d; }
 .preview-frame-stack iframe { grid-area: 1 / 1; width: 100%; min-height: 24rem; border: 0; background: white; }
+.build-inspection { display: grid; gap: .75rem; padding-top: .5rem; border-top: 1px solid #d9dfda; }
+.build-inspection h3 { margin: 0; }
+.source-diff-list { display: grid; gap: .5rem; margin: 0; padding-left: 1.25rem; }
+.source-diff-list li { overflow-wrap: anywhere; }
+.builder-details { display: grid; gap: .65rem; margin: 0; }
+.builder-details div { display: grid; grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr); gap: .75rem; padding-bottom: .5rem; border-bottom: 1px solid #eef1ef; }
+.builder-details dt { color: #617068; font-weight: 700; }
+.builder-details dd { margin: 0; overflow-wrap: anywhere; }
 .build-disclosure { margin-top: 1rem; padding: .75rem 1rem; border: 1px solid #ccd5d0; border-radius: .6rem; background: white; }
 .build-disclosure summary { cursor: pointer; font-weight: 700; }
 .build-layout { display: grid; grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr); gap: 1rem; }

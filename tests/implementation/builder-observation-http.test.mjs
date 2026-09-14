@@ -21,25 +21,18 @@ const accountId = '33333333-3333-4333-8333-333333333333'
 const path = `/protocol/projects/${projectId}/builder-changes/${changeId}/stream`
 const deferred = () => Promise.withResolvers()
 
-for (const correction of [false, true]) test(`controlled runtime survives browser cancellation and scopes observation across correction=${correction}`, async () => {
+test('legacy observation survives browser cancellation and scopes the frozen Change adapter', async () => {
   const coding = deferred()
   const started = deferred()
   let executes = 0
-  let verified = false
   let input
   let firstInput
-  let corrected = false
   const claim = { projectId, changeId, actorRunId: 'actor', admissionToken: 'private-token', workUnitId: 'unit', baseSourceRevision: 'a'.repeat(40) }
   const service = createBuilderService({
     store: {
       createChange: async () => ({ projectId, changeId, state: 'QUEUED' }),
       claimChange: async () => claim,
       bindSandbox: async () => {}, settleResult: async () => {}, failRun: async () => {},
-      claimVerification: async () => claim, settleVerification: async () => { verified = true }, claimCorrection: async () => {
-        if (!correction || corrected) return null
-        corrected = true
-        return { ...claim, actorRunId: 'correction-actor' }
-      },
       close: async () => {},
     },
     source: { prepareSource: async () => Buffer.from('controlled source'), admitCandidate: async () => ({}), prepareCandidate: async () => ({ bundle: Buffer.from('candidate'), changedFiles: [] }) },
@@ -74,15 +67,13 @@ for (const correction of [false, true]) test(`controlled runtime survives browse
     const reader = service.observeChange({ projectId, changeId }).getReader()
     const frames = []
     for (;;) { const result = await reader.read(); if (result.done) break; frames.push(JSON.parse(result.value.slice(6))) }
-    assert.deepEqual(frames.map(({ sequence }) => sequence), correction ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : [1, 2, 3, 4, 5, 6])
-    const kinds = ['PHASE', 'TEXT_START', 'TEXT_DELTA', 'TEXT_END', 'PHASE']
-    assert.deepEqual(frames.map(({ event }) => event.kind), [...kinds, ...(correction ? kinds : []), 'OBSERVATION_END'])
-    assert.deepEqual(frames.filter(({ event }) => event.kind === 'TEXT_START').map(({ event }) => event.blockId), correction ? ['1-one', '2-one'] : ['1-one'])
+    assert.deepEqual(frames.map(({ sequence }) => sequence), [1, 2, 3, 4, 5, 6, 7])
+    assert.deepEqual(frames.map(({ event }) => event.kind), ['PHASE', 'TEXT_START', 'TEXT_DELTA', 'TEXT_END', 'PHASE', 'OBSERVATION_UNAVAILABLE', 'OBSERVATION_END'])
+    assert.deepEqual(frames.filter(({ event }) => event.kind === 'TEXT_START').map(({ event }) => event.blockId), ['one'])
     assert.equal(frames[2].event.text, 'Primeiro')
-    assert.equal(verified, true)
     assert.equal(JSON.stringify(frames).includes('private-token'), false)
     assert.equal(JSON.stringify(frames).includes('late stale output'), false)
-    assert.equal(executes, correction ? 2 : 1)
+    assert.equal(executes, 1)
   } finally { coding.resolve(); await service.close() }
 })
 

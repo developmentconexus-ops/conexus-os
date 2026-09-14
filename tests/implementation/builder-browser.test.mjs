@@ -1,0 +1,131 @@
+import assert from 'node:assert/strict'
+import { resolve } from 'node:path'
+import test from 'node:test'
+import { chromium } from '@playwright/test'
+import { createServer } from 'vite'
+
+const repositoryRoot = resolve(import.meta.dirname, '../..')
+
+test('Project Build uses the Project session and BuilderRun API', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000001'
+  const projectId = '70000000-0000-4000-8000-000000000002'
+  const runId = '70000000-0000-4000-8000-000000000003'
+  const sourceRevision = 'b'.repeat(40)
+  const artifactRevisionId = '70000000-0000-4000-8000-000000000004'
+  const artifactDigest = 'c'.repeat(64)
+  const origin = 'http://127.0.0.1:41749'
+  let run = null
+  const requests = []
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41749, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const session = () => ({
+    projectId, threadId: `conexus-builder:${projectId}`, messages: run ? [{ id: 'message-1', role: 'user', text: 'Crie um contador', createdAt: new Date().toISOString() }, { id: 'message-2', role: 'assistant', text: '**Build concluído**', createdAt: new Date().toISOString() }] : [],
+    activeBuilderRun: run, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: run?.state === 'SUCCEEDED' ? sourceRevision : null, lastGoodArtifactRevisionId: run?.state === 'SUCCEEDED' ? artifactRevisionId : null, lastGoodArtifactDigest: run?.state === 'SUCCEEDED' ? artifactDigest : null }, mode: 'BUILD',
+    workingSourceRevision: sourceRevision, lastPreviewChangeId: null,
+  })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Counter', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session/**`, async (route) => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON()
+      requests.push({ url: route.request().url(), body, key: route.request().headers()['idempotency-key'] })
+      run = { builderRunId: runId, projectId, state: 'SUCCEEDED', mode: body.mode, baseSourceRevision: sourceRevision, resultSourceRevision: sourceRevision, resultKind: body.mode === 'PLAN' ? 'RESPONSE_ONLY' : 'SOURCE_CHANGED', failureCode: null }
+      return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ threadId: `conexus-builder:${projectId}`, builderRun: run }) })
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session()) })
+  })
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session()) }))
+  await page.route(`**/api/control/projects/${projectId}/preview`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ previewId: 'preview', subjectKind: 'CURRENT_PROJECT', subjectDigest: sourceRevision, ready: Boolean(run), verified: false, workingSourceRevision: sourceRevision, lastPreviewArtifactRevisionId: run ? artifactRevisionId : null, lastPreviewArtifactDigest: run ? artifactDigest : null, live: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/source/tree*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision, entries: [{ path: 'app/index.html', kind: 'FILE' }] }) }))
+  await page.route(`**/api/control/projects/${projectId}/source/file*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision, path: 'app/index.html', content: '<main>Counter</main>' }) }))
+  let liveStreamRequests = 0
+  await page.route(`**/api/control/projects/${projectId}/builder-session/runs/${runId}/stream`, (route) => {
+    liveStreamRequests += 1
+    const generation = 'browser-generation'
+    const events = [
+      { kind: 'PHASE', phase: 'CODING' },
+      { kind: 'TEXT_START', blockId: 'browser-block' },
+      { kind: 'TEXT_DELTA', blockId: 'browser-block', text: 'Build em andamento' },
+      { kind: 'TEXT_END', blockId: 'browser-block' },
+      { kind: 'OBSERVATION_END' },
+    ]
+    return route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8' }, body: events.map((event, index) => `data: ${JSON.stringify({ generation, sequence: index + 1, event })}\n\n`).join('') })
+  })
+
+  await page.goto(`${origin}/projects/${projectId}`)
+  await page.getByRole('link', { name: 'Construir com o Conexus' }).click()
+  await page.getByRole('heading', { name: 'Converse com o Conexus' }).waitFor()
+  await page.getByLabel('O que o Project precisa fazer?').fill('Crie um contador')
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click()
+  await page.getByText('Mensagem enviada ao Builder.').waitFor()
+  assert.equal(requests.length, 1)
+  assert.deepEqual(requests[0].body, { content: 'Crie um contador', mode: 'BUILD' })
+  assert.ok(requests[0].key)
+  await page.getByText('Último Preview bom disponível.').waitFor()
+  await page.getByLabel('Preview').getByText('Build concluído', { exact: true }).waitFor()
+  await page.getByText('Build concluído', { exact: true }).last().waitFor()
+  await page.getByText('Build em andamento', { exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Código' }).click()
+  await page.getByRole('button', { name: 'app/index.html' }).waitFor()
+  await page.getByText('<main>Counter</main>', { exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Detalhes' }).click()
+  await page.getByRole('heading', { name: 'Detalhes do Build' }).waitFor()
+  await page.getByRole('button', { name: 'Diff' }).click()
+  await page.getByText('A fonte em trabalho coincide com a fonte do último Preview bom.', { exact: true }).waitFor()
+  await page.reload()
+  await page.getByText('Crie um contador', { exact: true }).waitFor()
+  await page.getByText('Último Preview bom disponível.').waitFor()
+  assert.ok(liveStreamRequests >= 1)
+  assert.equal(await page.getByText('BuilderRun', { exact: true }).count(), 0)
+})
+
+test('new Project lands directly in Build and can send its first Builder message', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000011'
+  const workspaceId = '70000000-0000-4000-8000-000000000012'
+  const projectId = '70000000-0000-4000-8000-000000000013'
+  const runId = '70000000-0000-4000-8000-000000000014'
+  const sourceRevision = 'd'.repeat(40)
+  const origin = 'http://127.0.0.1:41750'
+  let run = null
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41750, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const session = () => ({
+    projectId, messages: run ? [{ id: 'new-message', role: 'user', text: 'Crie um contador', createdAt: new Date().toISOString() }] : [],
+    activeBuilderRun: run, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    mode: 'BUILD', workingSourceRevision: sourceRevision, lastPreviewChangeId: null,
+  })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [{ workspaceId, name: 'New Workspace' }], projects: [] }) }))
+  await page.route(`**/api/control/workspaces/${workspaceId}/projects`, async (route) => {
+    if (route.request().method() === 'POST') return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId, name: 'New Counter', projectRevision: 'created', archived: false }) })
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  })
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId, name: 'New Counter', projectRevision: 'created', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session()) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, async (route) => {
+    const body = route.request().postDataJSON()
+    run = { builderRunId: runId, projectId, state: 'QUEUED', mode: body.mode, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
+    return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
+  })
+  await page.goto(`${origin}/workspaces/${workspaceId}/projects/new`)
+  await page.getByLabel('Nome do Project').fill('New Counter')
+  await page.getByRole('button', { name: 'Criar Project' }).click()
+  await page.getByRole('heading', { name: 'Converse com o Conexus' }).waitFor()
+  await page.getByLabel('O que o Project precisa fazer?').fill('Crie um contador')
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click()
+  await page.getByText('Mensagem enviada ao Builder.').waitFor()
+  assert.equal((await page.getByLabel('O que o Project precisa fazer?').inputValue()), '')
+})

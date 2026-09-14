@@ -907,12 +907,13 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).versions, [
     '001', '002', '003', '004', '005', '006', '007', '008', '009', '010',
     '011', '012', '013', '014', '015', '016', '017', '018', '019', '020',
-    '021', '022', '023', '026', '027',
+    '021', '022', '023', '026', '027', '028', '029', '030', '031', '032',
+    '033', '034', '035', '036',
   ])
   assert.deepEqual((await runCurrentHubMigrations({ connectionString: url.toString() })).appliedNow, [])
   const tables = await query(current, `SELECT tablename FROM pg_tables WHERE schemaname = 'builder' ORDER BY tablename`)
   assert.deepEqual(tables.rows.map((row) => row.tablename), [
-    'actor_run', 'change', 'change_acceptance', 'coding_session', 'contract_revision',
+    'actor_run', 'builder_run', 'change', 'change_acceptance', 'coding_session', 'contract_revision',
     'finding', 'finding_resolution', 'operation_receipt', 'plan', 'project_working_state', 'verification_evidence', 'work_unit',
   ])
   const leaked = await query(current, `
@@ -957,12 +958,14 @@ test('RB migration applies atomically and exposes functions, never tables, to ru
   assert.deepEqual(currentPreviewSubject, {
     subjectKind: 'CURRENT_PROJECT', subjectDigest: digest, sourceRevision: baseSourceRevision, verified: false,
     previewEligible: false, workingSourceRevision: baseSourceRevision, activeChangeId: null, lastPreviewChangeId: null,
+    lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null,
   })
   const unapprovedProjectHead = 'c'.repeat(40)
   await query(current, 'UPDATE project.project SET source_revision = $1 WHERE project_id = $2', [unapprovedProjectHead, subjectProjectId])
   assert.deepEqual((await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, subjectProjectId, null])).rows[0].value, {
     subjectKind: 'CURRENT_PROJECT', subjectDigest: digest, sourceRevision: baseSourceRevision, verified: false,
     previewEligible: false, workingSourceRevision: baseSourceRevision, activeChangeId: null, lastPreviewChangeId: null,
+    lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null,
   })
   await query(current, 'UPDATE project.project SET source_revision = $1 WHERE project_id = $2', [baseSourceRevision, subjectProjectId])
   assert.equal((await query(ingress, 'SELECT builder.read_preview_subject($1,$2,$3) AS value', [accountId, subjectProjectId, subjectChangeId])).rows[0].value, null)

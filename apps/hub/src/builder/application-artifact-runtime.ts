@@ -16,13 +16,17 @@ const SANDBOX_TIMEOUT_MS = 180_000
 const BUILD_TIMEOUT_MS = 120_000
 const REQUEST_TIMEOUT_MS = 30_000
 
-export type ApplicationCompilerInput = Readonly<{
+type ApplicationCompilerCoordinates = Readonly<{
   projectId: string
-  changeId: string
   sourceRevision: string
   files: readonly Readonly<{ path: string; content: string }>[]
   signal?: AbortSignal
 }>
+
+export type ApplicationCompilerInput = ApplicationCompilerCoordinates & (
+  | Readonly<{ executionId: string }>
+  | Readonly<{ changeId: string }>
+)
 
 export type CompiledApplicationFile = Readonly<{
   path: string
@@ -33,12 +37,14 @@ export type CompiledApplicationFile = Readonly<{
 
 export type CompiledApplication = Readonly<{
   projectId: string
-  changeId: string
   sourceRevision: string
   templateRef: string
   recipeSha256: string
   files: readonly CompiledApplicationFile[]
-}>
+}> & (
+  | Readonly<{ executionId: string }>
+  | Readonly<{ changeId: string }>
+)
 
 export type ApplicationCompilerRuntime = Readonly<{
   kind: 'REMOTE_E2B'
@@ -76,7 +82,10 @@ const isValidUtf8Text = (content: string): boolean => {
 }
 
 const inputFiles = (input: ApplicationCompilerInput): readonly Readonly<{ path: string; content: string; bytes: Buffer }>[] => {
-  if (!input || typeof input !== 'object' || !safeIdentity(input.projectId) || !safeIdentity(input.changeId) || !sourceRevisionPattern.test(input.sourceRevision) ||
+  const correlation = input && typeof input === 'object' && ('executionId' in input || 'changeId' in input)
+    ? ('executionId' in input ? input.executionId : input.changeId)
+    : ''
+  if (!input || typeof input !== 'object' || !safeIdentity(input.projectId) || !safeIdentity(correlation) || !sourceRevisionPattern.test(input.sourceRevision) ||
     !Array.isArray(input.files) || input.files.length === 0 || input.files.length > MAX_FILES) {
     throw new Error('APPLICATION_COMPILER_INPUT_REFUSED')
   }
@@ -286,7 +295,7 @@ export const createE2BApplicationCompiler = (
         assertNotAborted(input.signal)
         compiled = Object.freeze({
           projectId: input.projectId,
-          changeId: input.changeId,
+          ...('executionId' in input ? { executionId: input.executionId } : { changeId: input.changeId }),
           sourceRevision: input.sourceRevision,
           templateRef: TEMPLATE_REF,
           recipeSha256: RECIPE_SHA256,

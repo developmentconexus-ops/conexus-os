@@ -18,6 +18,8 @@ export type BuilderService = Readonly<{
   prepareApplication(input: ApplicationBuildRequest): Promise<ApplicationArtifactMetadata>
   readApplicationFile(input: ApplicationArtifactReadRequest): Promise<ApplicationArtifactReadResult | null>
   getApplication(input: Readonly<{ accountId: string; projectId: string; builderRunId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null>
+  getApplicationBySource(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null>
+  readApplicationFileBySource(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
   startPreviewPreparation(input: PreviewPreparationRequest): Promise<PreviewPreparation>
   readPreviewPreparation(input: PreviewPreparationRequest): Promise<PreviewPreparation | null>
   observeChange(input: Readonly<{ projectId: string; changeId: string }>): ReadableStream<string> | null
@@ -97,7 +99,7 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
         ...claim, sourceBundle, observe,
         bindPhysicalSandbox: (sandboxId) => store.bindSandbox(claim.actorRunId, claim.admissionToken, sandboxId),
       })
-      if (result.projectId !== claim.projectId || result.changeId !== claim.changeId ||
+      if (result.projectId !== claim.projectId || !('changeId' in result) || result.changeId !== claim.changeId ||
         result.workUnitId !== claim.workUnitId || result.actorRunId !== claim.actorRunId ||
         result.admissionToken !== claim.admissionToken || result.baseSourceRevision !== claim.baseSourceRevision) {
         throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
@@ -133,24 +135,23 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
         projectId: claimed.projectId, actorRunId: claimed.builderRunId, sourceRevision: claimed.baseSourceRevision,
       })
       const result = await runtime.execute({
-        projectId: claimed.projectId, changeId: claimed.builderRunId, workUnitId: claimed.builderRunId,
-        actorRunId: claimed.builderRunId, admissionToken: claimed.builderRunId, intent: input.content,
+        accountId: input.accountId, projectId: claimed.projectId, executionId: claimed.builderRunId, intent: input.content,
         mode: claimed.mode, baseSourceRevision: claimed.baseSourceRevision, sourceBundle,
         bindPhysicalSandbox: (sandboxId) => store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId),
         bindMessage: (messageId) => store.bindBuilderRunMessage(claimed.builderRunId, messageId),
         observe: (event) => observation.publish(event),
       })
-      if (result.projectId !== claimed.projectId || result.baseSourceRevision !== claimed.baseSourceRevision) throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
+      if (result.projectId !== claimed.projectId || !('executionId' in result) || result.executionId !== claimed.builderRunId || result.baseSourceRevision !== claimed.baseSourceRevision) throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
       if (result.kind === 'RESPONSE_ONLY') {
         await store.settleBuilderRun({ builderRunId: claimed.builderRunId, resultSourceRevision: null, resultKind: 'RESPONSE_ONLY', failureCode: null })
         return
       }
       const admitted = await source.admitSourceResult({
         projectId: claimed.projectId, executionId: claimed.builderRunId,
-        baseSourceRevision: claimed.baseSourceRevision, claimedResultSourceRevision: result.candidateSourceRevision,
+        baseSourceRevision: claimed.baseSourceRevision, claimedResultSourceRevision: result.resultSourceRevision,
         resultBundle: result.resultBundle,
       })
-      if (admitted.candidateSourceRevision !== result.candidateSourceRevision) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
+      if (admitted.candidateSourceRevision !== result.resultSourceRevision) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
       await store.advanceBuilderRunSource(claimed.builderRunId, admitted.candidateSourceRevision)
       if (claimed.mode === 'PLAN') throw new Error('BUILDER_PLAN_SOURCE_RESULT_REFUSED')
       try {
@@ -212,9 +213,19 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
     if (applicationShutdown.signal.aborted) return Promise.reject(new Error('BUILDER_APPLICATION_CLOSED'))
     return applicationArtifacts.readApplicationFile(input)
   }
+  const getApplicationBySource = (input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null> => {
+    if (applicationShutdown.signal.aborted) return Promise.reject(new Error('BUILDER_APPLICATION_CLOSED'))
+    if (!applicationArtifacts.getApplicationBySource) return Promise.resolve(null)
+    return applicationArtifacts.getApplicationBySource(input)
+  }
+  const readApplicationFileBySource = (input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null> => {
+    if (applicationShutdown.signal.aborted) return Promise.reject(new Error('BUILDER_APPLICATION_CLOSED'))
+    if (!applicationArtifacts.readApplicationFileBySource) return Promise.resolve(null)
+    return applicationArtifacts.readApplicationFileBySource(input)
+  }
   const getApplication = (input: Readonly<{ accountId: string; projectId: string; builderRunId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null> => {
     if (applicationShutdown.signal.aborted) return Promise.reject(new Error('BUILDER_APPLICATION_CLOSED'))
-    return applicationArtifacts.getApplication({ accountId: input.accountId, projectId: input.projectId, changeId: input.builderRunId, sourceRevision: input.sourceRevision })
+    return applicationArtifacts.getApplication({ accountId: input.accountId, projectId: input.projectId, executionId: input.builderRunId, sourceRevision: input.sourceRevision })
   }
   const previewPreparation = createPreviewPreparationCoordinator({
     readPreviewSubject: (input) => store.readPreviewSubject(input),
@@ -258,6 +269,8 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
     prepareApplication,
     readApplicationFile,
     getApplication,
+    getApplicationBySource,
+    readApplicationFileBySource,
     startPreviewPreparation: previewPreparation.start,
     readPreviewPreparation: previewPreparation.read,
     observeChange: ({ projectId, changeId }) => {

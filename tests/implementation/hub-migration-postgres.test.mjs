@@ -18,7 +18,7 @@ const versions = [
   '001', '002', '003', '004', '005', '006', '007', '008', '009', '010',
   '011', '012', '013', '014', '015', '016', '017', '018', '019', '020',
   '021', '022', '023',
-  '026',
+  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036',
 ]
 const query = async (connection, sql, parameters = []) => {
   const client = new pg.Client(connection)
@@ -55,6 +55,19 @@ test('current Hub installs accepted schemas and restarts without applying held R
       to_regclass('builder.change')::text AS change,
       to_regnamespace('mar')::text AS held_schema
   `)).rows, [{ account: 'iam.account', artifact: 'reg.artifact', change: 'builder.change', held_schema: null }])
+
+  const accountId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID()
+  const sourceRevision = 'd'.repeat(40); const keyDigest = 'e'.repeat(64); const requestDigest = 'f'.repeat(64)
+  await query(admin, "ALTER ROLE hub_prj03_command PASSWORD 'migration-bootstrap-test'")
+  await query(fixture.connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://migration-bootstrap.test', $2, 'Bootstrap')", [accountId, accountId])
+  await query(fixture.connection, 'INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'Bootstrap'])
+  await query(fixture.connection, 'INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project) VALUES ($1, $2, true)', [accountId, workspaceId])
+  const command = { ...fixture.connection, user: 'hub_prj03_command', password: 'migration-bootstrap-test' }
+  await query(command, 'SELECT * FROM project.reserve_or_replay_create_project($1, $2, $3, $4, $5)', [accountId, workspaceId, keyDigest, requestDigest, projectId])
+  await query(command, 'SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)', [accountId, workspaceId, keyDigest, requestDigest, projectId, 'Bootstrap', 'NEW', sourceRevision, 'project-revision'])
+  assert.deepEqual((await query(fixture.connection, 'SELECT project_id, working_source_revision, working_version, current_state FROM builder.project_working_state WHERE project_id = $1', [projectId])).rows, [
+    { project_id: projectId, working_source_revision: sourceRevision, working_version: '0', current_state: 'IDLE' },
+  ])
 })
 
 test('R1 and R2 upgrade to current Hub without rewriting prior ledger or account data', async (t) => {
@@ -66,7 +79,7 @@ test('R1 and R2 upgrade to current Hub without rewriting prior ledger or account
   assert.deepEqual((await runR2HubMigrations(fixture)).appliedNow, versions.slice(10, 18))
   const before = await ledger(fixture.connection)
   const upgraded = await runCurrentHubMigrations(fixture)
-  assert.deepEqual(upgraded, { verdict: 'PASS', appliedNow: ['019', '020', '021', '022', '023', '026'], versions })
+  assert.deepEqual(upgraded, { verdict: 'PASS', appliedNow: versions.slice(18), versions })
   assert.deepEqual((await ledger(fixture.connection)).slice(0, 18), before)
   assert.deepEqual((await query(fixture.connection,
     'SELECT account_id, display_name FROM iam.account WHERE account_id = $1', [accountId])).rows,
@@ -82,7 +95,7 @@ test('current Hub upgrades an existing 023 database and refuses removed Registry
   }
   const before = await ledger(fixture.connection)
   assert.deepEqual(before.map(({ version }) => version), versions.slice(0, 23))
-  assert.deepEqual(await runCurrentHubMigrations(fixture), { verdict: 'PASS', appliedNow: ['026'], versions })
+  assert.deepEqual(await runCurrentHubMigrations(fixture), { verdict: 'PASS', appliedNow: versions.slice(23), versions })
   assert.deepEqual((await ledger(fixture.connection)).slice(0, 23), before)
   await query(fixture.connection, 'REVOKE USAGE ON SCHEMA builder FROM registry_owner')
   await assert.rejects(runCurrentHubMigrations(fixture), /MIGRATION_026_SCHEMA_PRIVILEGE_REFUSED/)

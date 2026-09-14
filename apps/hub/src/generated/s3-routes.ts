@@ -1,7 +1,7 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s3-contracts.mjs. Do not edit.
 import type { FastifySchema } from 'fastify'
 
-export const S3_PRODUCT_OAS_DIGEST = "67d141e946e933c8a031d456f9d51ed44389053e5b2c50979b10c927dae07cd3"
+export const S3_PRODUCT_OAS_DIGEST = "9f875868bfe9ae9cd99ba31c12f463f954c0c31f794cc3aac59972dca08a090a"
 export const S3_ROUTE_PROJECTION_DIGEST = "1b568887e36cfa37576905de38eb751d6d190738976ae1b10c4bd8d4048ec9aa"
 export type S3OwnerId = 'PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-07' | 'PRJ-08' | 'PRJ-09' | 'PRJ-23' | 'PRJ-24'
 export type Prj01Params = { "workspaceId": string }

@@ -9,7 +9,7 @@ import { createServer } from 'node:http'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
 import { Sandbox, NotFoundError } from 'e2b'
-import { readBuilderE2BApiKey } from '../../scripts/rb-builder-e2b-template.mjs'
+import { readBuilderE2BApiKey } from '../../scripts/builder-e2b-template.mjs'
 
 const live = process.env.CONEXUS_APPLICATION_COMPILER_LIVE === 'true'
 

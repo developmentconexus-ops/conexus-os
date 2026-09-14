@@ -73,7 +73,7 @@ process.exit(result.status === null ? 92 : result.status)
   return bin
 }
 
-test('Builder admits a new Change from an exact prior Change source without moving main', async () => {
+test('Builder admits a source-oriented BuilderRun result without moving main', async () => {
   const root = mkdtempSync('/tmp/conexus-working-source-')
   const storageRoot = resolve(root, 'storage')
   const work = resolve(root, 'work')

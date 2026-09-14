@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { Sandbox } from 'e2b'
 
-import { readBuilderE2BApiKey } from '../../scripts/rb-builder-e2b-template.mjs'
+import { readBuilderE2BApiKey } from '../../scripts/builder-e2b-template.mjs'
 
 const live = process.env.CONEXUS_RB_E2B_LIVE === 'true'
 const httpsProbe = `node -e "const https=require('node:https');let done=false;const finish=x=>{if(done)return;done=true;console.log(x);process.exit(0)};const r=https.get({host:'1.1.1.1',servername:'one.one.one.one',path:'/',timeout:8000},res=>{res.resume();finish('REACHED_HTTP:'+res.statusCode)});r.on('timeout',()=>{r.destroy();finish('BLOCKED_TIMEOUT')});r.on('error',e=>finish('BLOCKED_ERROR:'+e.code));setTimeout(()=>{r.destroy();finish('BLOCKED_DEADLINE')},10000)"`
