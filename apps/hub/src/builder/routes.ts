@@ -69,6 +69,7 @@ export type BuilderLaunchPreviewPort = (request: FastifyRequest, input: Readonly
   accountId: string
   projectId: string
   changeId: string
+  builderRunId?: string
   subjectDigest: string
   attemptId: string
   artifactRevisionId: string
@@ -108,7 +109,6 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       const run = await dependencies.store.readBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId })
       return {
         projectId: snapshot.projectId,
-        threadId: snapshot.threadId,
         messages: snapshot.messages,
         activeBuilderRun: run,
         preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodArtifactRevisionId: snapshot.lastPreviewArtifactRevisionId, lastGoodArtifactDigest: snapshot.lastPreviewArtifactDigest },
@@ -137,7 +137,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
         accountId: session.account.accountId, projectId: request.params.projectId,
         idempotencyKey, content: request.body.content, mode: request.body.mode,
       })
-      return reply.code(201).send({ threadId: `conexus-builder:${request.params.projectId}`, builderRun: run })
+      return reply.code(201).send({ builderRun: run })
     } catch (error) {
       const detail = message(error)
       if (detail.includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
@@ -145,6 +145,70 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       if (detail.includes('INPUT_REFUSED')) return sendProblem(reply, 422, 'builder-message-refused', 'Builder message refused')
       return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')
     }
+  })
+
+  app.post<{ Params: { projectId: string }; Body: { builderRunId: string; sourceRevision: string; artifactRevisionId: string; artifactDigest: string } }>('/api/control/projects/:projectId/builder-session/preview', {
+    schema: {
+      params,
+      body: { type: 'object', additionalProperties: false, required: ['builderRunId', 'sourceRevision', 'artifactRevisionId', 'artifactDigest'], properties: {
+        builderRunId: uuid, sourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' }, artifactRevisionId: uuid,
+        artifactDigest: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+      } },
+    },
+  }, async (request, reply) => {
+    const csrf = header(request.headers['x-conexus-csrf'])
+    if (request.headers.origin !== dependencies.origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+    const session = await dependencies.resolveCurrentSession(request, true)
+    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    if (!dependencies.launchPreview) return sendProblem(reply, 503, 'preview-unavailable', 'Preview unavailable')
+    try {
+      const run = await dependencies.store.readBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId })
+      if (!run || run.builderRunId !== request.body.builderRunId || run.state !== 'SUCCEEDED' || run.resultKind !== 'SOURCE_CHANGED' || run.resultSourceRevision !== request.body.sourceRevision) {
+        return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
+      }
+      const artifact = await dependencies.service.getApplication({ accountId: session.account.accountId, projectId: request.params.projectId, builderRunId: run.builderRunId, sourceRevision: request.body.sourceRevision })
+      if (!artifact || artifact.artifactRevisionId !== request.body.artifactRevisionId || artifact.artifactDigest !== request.body.artifactDigest) return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
+      const launched = await dependencies.launchPreview(request, {
+        accountId: session.account.accountId, projectId: request.params.projectId, changeId: run.builderRunId, builderRunId: run.builderRunId,
+        subjectDigest: request.body.sourceRevision, attemptId: run.builderRunId, artifactRevisionId: artifact.artifactRevisionId,
+        artifactDigest: artifact.artifactDigest, artifact,
+      })
+      return reply.code(201).send(launched)
+    } catch (error) {
+      const detail = message(error)
+      if (detail.includes('NOT_AUTHORIZED') || detail.includes('SUBJECT_REFUSED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+      return sendProblem(reply, 503, 'preview-unavailable', 'Preview unavailable')
+    }
+  })
+
+  app.get<{ Params: { projectId: string; builderRunId: string } }>('/api/control/projects/:projectId/builder-session/runs/:builderRunId/stream', {
+    schema: { params: { type: 'object', additionalProperties: false, required: ['projectId', 'builderRunId'], properties: { projectId: uuid, builderRunId: uuid } } },
+  }, async (request, reply) => {
+    const session = await dependencies.resolveCurrentSession(request)
+    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    try {
+      const run = await dependencies.store.readBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId })
+      if (!run || run.builderRunId !== request.params.builderRunId) return sendProblem(reply, 404, 'builder-run-not-found', 'BuilderRun not found')
+      const stream = dependencies.service.observeBuilderRun({ projectId: request.params.projectId, builderRunId: request.params.builderRunId })
+      if (!stream) return sendProblem(reply, 410, 'builder-observation-unavailable', 'Live observation unavailable; consult the session')
+      const reader = stream.getReader()
+      const detach = () => { void reader.cancel().catch(() => {}) }
+      reply.raw.once('close', detach)
+      const frames = async function* () {
+        try {
+          for (;;) {
+            const frame = await reader.read()
+            if (frame.done) return
+            yield frame.value
+          }
+        } finally {
+          reply.raw.off('close', detach)
+          await reader.cancel().catch(() => {})
+          reader.releaseLock()
+        }
+      }
+      return reply.header('content-type', 'text/event-stream; charset=utf-8').header('cache-control', 'no-store').header('x-accel-buffering', 'no').send(Readable.from(frames(), { highWaterMark: 1 }))
+    } catch { return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable') }
   })
 
   app.get<{ Params: { projectId: string } }>('/api/control/projects/:projectId/session', { schema: { params } }, async (request, reply) => {

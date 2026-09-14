@@ -17,9 +17,11 @@ export type BuilderService = Readonly<{
   getSourceFile(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
   prepareApplication(input: ApplicationBuildRequest): Promise<ApplicationArtifactMetadata>
   readApplicationFile(input: ApplicationArtifactReadRequest): Promise<ApplicationArtifactReadResult | null>
+  getApplication(input: Readonly<{ accountId: string; projectId: string; builderRunId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null>
   startPreviewPreparation(input: PreviewPreparationRequest): Promise<PreviewPreparation>
   readPreviewPreparation(input: PreviewPreparationRequest): Promise<PreviewPreparation | null>
   observeChange(input: Readonly<{ projectId: string; changeId: string }>): ReadableStream<string> | null
+  observeBuilderRun(input: Readonly<{ projectId: string; builderRunId: string }>): ReadableStream<string> | null
   recover(): Promise<void>
   close(): Promise<void>
 }>
@@ -123,8 +125,10 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
   }
   const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string }>): void => {
     if (builderActive.has(run.builderRunId)) return
+    const observation = beginObservation(run.projectId, run.builderRunId)
     const work = (async () => {
       const claimed = await store.claimBuilderRun(run.builderRunId, runtime.modelIdentity)
+      observation.publish({ kind: 'PHASE', phase: 'CODING' })
       const sourceBundle = await source.prepareSource({
         projectId: claimed.projectId, actorRunId: claimed.builderRunId, sourceRevision: claimed.baseSourceRevision,
       })
@@ -134,6 +138,7 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
         mode: claimed.mode, baseSourceRevision: claimed.baseSourceRevision, sourceBundle,
         bindPhysicalSandbox: (sandboxId) => store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId),
         bindMessage: (messageId) => store.bindBuilderRunMessage(claimed.builderRunId, messageId),
+        observe: (event) => observation.publish(event),
       })
       if (result.projectId !== claimed.projectId || result.baseSourceRevision !== claimed.baseSourceRevision) throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
       if (result.kind === 'RESPONSE_ONLY') {
@@ -161,7 +166,7 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
         throw error
       }
     })().catch(async (error) => { await store.failBuilderRun(run.builderRunId, failureCode(error)).catch(() => undefined) })
-      .finally(() => { builderActive.delete(run.builderRunId) })
+      .finally(() => { builderActive.delete(run.builderRunId); observation.finish() })
     builderActive.set(run.builderRunId, work)
   }
   const dispatch = (changeId: string, projectId?: string): void => {
@@ -207,6 +212,10 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
     if (applicationShutdown.signal.aborted) return Promise.reject(new Error('BUILDER_APPLICATION_CLOSED'))
     return applicationArtifacts.readApplicationFile(input)
   }
+  const getApplication = (input: Readonly<{ accountId: string; projectId: string; builderRunId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null> => {
+    if (applicationShutdown.signal.aborted) return Promise.reject(new Error('BUILDER_APPLICATION_CLOSED'))
+    return applicationArtifacts.getApplication({ accountId: input.accountId, projectId: input.projectId, changeId: input.builderRunId, sourceRevision: input.sourceRevision })
+  }
   const previewPreparation = createPreviewPreparationCoordinator({
     readPreviewSubject: (input) => store.readPreviewSubject(input),
     prepareApplication,
@@ -248,10 +257,15 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
     },
     prepareApplication,
     readApplicationFile,
+    getApplication,
     startPreviewPreparation: previewPreparation.start,
     readPreviewPreparation: previewPreparation.read,
     observeChange: ({ projectId, changeId }) => {
       const observation = observations.get(changeId)
+      return observation?.projectId === projectId ? observation.feed.subscribe() : null
+    },
+    observeBuilderRun: ({ projectId, builderRunId }) => {
+      const observation = observations.get(builderRunId)
       return observation?.projectId === projectId ? observation.feed.subscribe() : null
     },
     recover: async () => {

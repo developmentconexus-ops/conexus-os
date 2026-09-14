@@ -47,7 +47,7 @@ export const projectBuildPreview = (
   previewId: options.previewId ?? randomUUID(),
   subjectKind: subject.subjectKind,
   subjectDigest: subject.subjectDigest,
-  ready: false,
+  ready: Boolean(subject.lastPreviewArtifactRevisionId && subject.lastPreviewArtifactDigest),
   verified: subject.verified,
   ...(subject.previewEligible !== undefined ? { previewEligible: subject.previewEligible } : {}),
   ...(subject.workingSourceRevision !== undefined ? { workingSourceRevision: subject.workingSourceRevision } : {}),

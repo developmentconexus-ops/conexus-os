@@ -33,7 +33,7 @@ function WorkspaceProjectNewRoute() {
         <ProjectCreateForm
           workspaceId={workspaceId}
           onAuthenticationRequired={() => void navigate({ to: '/', search: { workspaceId: undefined } })}
-          onCreated={(project) => void navigate({ to: '/projects/$projectId', params: { projectId: project.projectId } })}
+          onCreated={(project) => void navigate({ to: '/projects/$projectId/build', params: { projectId: project.projectId } })}
         />
         <Link to="/workspaces/$workspaceId/projects" params={{ workspaceId }}>Voltar aos Projects</Link>
       </main>

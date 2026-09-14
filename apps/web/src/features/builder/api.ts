@@ -70,13 +70,19 @@ export type BuilderSessionMessage = Readonly<{
 }>
 export type BuilderSession = Readonly<{
   projectId: string
-  threadId: string
   messages: readonly BuilderSessionMessage[]
-  activeTurn: Change | null
+  activeBuilderRun: BuilderRun | null
+  preview: Readonly<{ workingSourceRevision: string | null; lastGoodArtifactRevisionId: string | null; lastGoodArtifactDigest: string | null }>
+  mode: 'BUILD' | 'PLAN'
   workingSourceRevision: string | null
   lastPreviewChangeId: string | null
 }>
-export type BuilderSessionTurn = Readonly<{ threadId: string; turn: Change }>
+export type BuilderRun = Readonly<{
+  builderRunId: string; projectId: string; state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
+  mode: 'BUILD' | 'PLAN'; baseSourceRevision: string; resultSourceRevision: string | null
+  resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null; failureCode: string | null
+}>
+export type BuilderMessageAccepted = Readonly<{ builderRun: BuilderRun }>
 
 export class BuilderRequestError extends Error {
   constructor(readonly status: number | null) { super(status === null ? 'Builder request did not complete' : `Builder request failed with ${status}`) }
@@ -99,22 +105,22 @@ const reject = (response: Response): never => {
 const base = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/changes`
 const sourceBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/source`
 const previewBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/preview`
-const sessionBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/session`
+const sessionBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/builder-session`
 
 export const getBuilderSession = async (projectId: string): Promise<BuilderSession> => {
   const response = await request(sessionBase(projectId))
   if (!response.ok) reject(response)
   return response.json() as Promise<BuilderSession>
 }
-export const createBuilderSessionTurn = async (
-  projectId: string, intent: string, idempotencyKey: string, expectedSourceRevision: string,
-): Promise<BuilderSessionTurn> => {
-  const response = await request(`${sessionBase(projectId)}/turns`, {
+export const sendBuilderMessage = async (
+  projectId: string, content: string, mode: 'BUILD' | 'PLAN', idempotencyKey: string,
+): Promise<BuilderMessageAccepted> => {
+  const response = await request(`${sessionBase(projectId)}/messages`, {
     method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
-    body: JSON.stringify({ intent, expectedSourceRevision }),
+    body: JSON.stringify({ content, mode }),
   })
   if (response.status !== 201) reject(response)
-  return response.json() as Promise<BuilderSessionTurn>
+  return response.json() as Promise<BuilderMessageAccepted>
 }
 export const getBuilderSessionTurn = async (projectId: string, turnId: string): Promise<BuilderSession> => {
   const response = await request(`${sessionBase(projectId)}/turns/${encodeURIComponent(turnId)}`)
@@ -171,6 +177,15 @@ export const getBuildPreview = async (projectId: string, changeId?: string): Pro
   const response = await request(`${previewBase(projectId)}${query}`)
   if (!response.ok) reject(response)
   return response.json() as Promise<BuildPreview>
+}
+export const launchBuilderPreview = async (projectId: string, input: Readonly<{
+  builderRunId: string; sourceRevision: string; artifactRevisionId: string; artifactDigest: string
+}>): Promise<PreviewLaunch> => {
+  const response = await request(`${sessionBase(projectId)}/preview`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+  })
+  if (response.status !== 201) reject(response)
+  return response.json() as Promise<PreviewLaunch>
 }
 export const prepareBuildPreview = async (projectId: string, input: Readonly<{ changeId: string; subjectDigest: string }>): Promise<PreviewPreparation> => {
   const response = await request(`${previewBase(projectId)}-preparations`, {

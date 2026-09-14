@@ -175,16 +175,17 @@ const launchPreview = mar ? async (request: import('fastify').FastifyRequest, in
   let issued: Awaited<ReturnType<typeof identityAccess.issuePreviewEntry>> | undefined
   try {
     issued = await identityAccess.issuePreviewEntry(request, { accountId: input.accountId, route: opened.route })
-    const current = builder && await builder.readPreviewPreparation({
-      accountId: input.accountId,
-      projectId: input.projectId,
-      changeId: input.changeId,
-      subjectDigest: input.subjectDigest,
-    })
-    if (current?.state !== 'PREPARED' || current.attemptId !== input.attemptId ||
-      current.artifact.artifactRevisionId !== input.artifactRevisionId || current.artifact.artifactDigest !== input.artifactDigest ||
-      !mar.isRouteOpening({ routeId: opened.route.routeId, generation: opened.route.generation, attemptId: opened.route.attemptId })) {
-      throw new Error('PREVIEW_LAUNCH_STALE')
+    if (input.builderRunId) {
+      if (!mar.isRouteOpening({ routeId: opened.route.routeId, generation: opened.route.generation, attemptId: opened.route.attemptId })) throw new Error('PREVIEW_LAUNCH_STALE')
+    } else {
+      const current = builder && await builder.readPreviewPreparation({
+        accountId: input.accountId, projectId: input.projectId, changeId: input.changeId, subjectDigest: input.subjectDigest,
+      })
+      if (current?.state !== 'PREPARED' || current.attemptId !== input.attemptId ||
+        current.artifact.artifactRevisionId !== input.artifactRevisionId || current.artifact.artifactDigest !== input.artifactDigest ||
+        !mar.isRouteOpening({ routeId: opened.route.routeId, generation: opened.route.generation, attemptId: opened.route.attemptId })) {
+        throw new Error('PREVIEW_LAUNCH_STALE')
+      }
     }
     return {
       entryUrl: opened.entryUrl,
