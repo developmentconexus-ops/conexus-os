@@ -78,6 +78,7 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
     return observation
   }
   const applicationBuilds = new Set<Promise<ApplicationArtifactMetadata>>()
+  const builderActive = new Map<string, Promise<void>>()
   const applicationShutdown = new AbortController()
   let serviceClosing: Promise<void> | null = null
   const failureCode = (error: unknown): string => {
@@ -119,6 +120,36 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
       await store.failRun(claim.actorRunId, claim.admissionToken).catch(() => undefined)
       throw error
     }
+  }
+  const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string }>): void => {
+    if (builderActive.has(run.builderRunId)) return
+    const work = (async () => {
+      const claimed = await store.claimBuilderRun(run.builderRunId, runtime.modelIdentity)
+      const sourceBundle = await source.prepareSource({
+        projectId: claimed.projectId, actorRunId: claimed.builderRunId, sourceRevision: claimed.baseSourceRevision,
+      })
+      const result = await runtime.execute({
+        projectId: claimed.projectId, changeId: claimed.builderRunId, workUnitId: claimed.builderRunId,
+        actorRunId: claimed.builderRunId, admissionToken: claimed.builderRunId, intent: input.content,
+        mode: claimed.mode, baseSourceRevision: claimed.baseSourceRevision, sourceBundle,
+        bindPhysicalSandbox: (sandboxId) => store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId),
+        bindMessage: (messageId) => store.bindBuilderRunMessage(claimed.builderRunId, messageId),
+      })
+      if (result.projectId !== claimed.projectId || result.baseSourceRevision !== claimed.baseSourceRevision) throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
+      if (result.kind === 'RESPONSE_ONLY') {
+        await store.settleBuilderRun({ builderRunId: claimed.builderRunId, resultSourceRevision: null, resultKind: 'RESPONSE_ONLY', failureCode: null })
+        return
+      }
+      const admitted = await source.admitSourceResult({
+        projectId: claimed.projectId, executionId: claimed.builderRunId,
+        baseSourceRevision: claimed.baseSourceRevision, claimedResultSourceRevision: result.candidateSourceRevision,
+        resultBundle: result.resultBundle,
+      })
+      if (admitted.candidateSourceRevision !== result.candidateSourceRevision) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
+      await store.settleBuilderRun({ builderRunId: claimed.builderRunId, resultSourceRevision: admitted.candidateSourceRevision, resultKind: 'SOURCE_CHANGED', failureCode: null })
+    })().catch(async (error) => { await store.failBuilderRun(run.builderRunId, failureCode(error)).catch(() => undefined) })
+      .finally(() => { builderActive.delete(run.builderRunId) })
+    builderActive.set(run.builderRunId, work)
   }
   const dispatch = (changeId: string, projectId?: string): void => {
     if (active.has(changeId)) return
@@ -175,13 +206,18 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
       for (const observation of observations.values()) observation.release()
       await previewPreparation.close()
       await Promise.allSettled(applicationBuilds)
+      await Promise.all(builderActive.values())
       await Promise.all(active.values())
       await store.close()
     })()
     return serviceClosing
   }
   return Object.freeze({
-    createBuilderRun: async (input) => store.createBuilderRun(input),
+    createBuilderRun: async (input) => {
+      const run = await store.createBuilderRun(input)
+      if (run.state === 'QUEUED') dispatchBuilderRun(run, input)
+      return run
+    },
     createChange: async (input) => {
       const change = await store.createChange(input)
       if (change.state === 'QUEUED') dispatch(change.changeId, change.projectId)
