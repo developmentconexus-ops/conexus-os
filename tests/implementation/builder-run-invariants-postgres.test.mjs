@@ -1,18 +1,35 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import test from 'node:test'
+import { test } from 'node:test'
 import pg from 'pg'
+import { runCurrentHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every(name => process.env[name])
 const connect = async (connection) => { const client = new pg.Client(connection); await client.connect(); return client }
 
 test('C-020 preserves state invariants and separates response settlement from build settlement', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const admin = { host: process.env.CONEXUS_TEST_DB_HOST, port: Number(process.env.CONEXUS_TEST_DB_PORT), database: process.env.CONEXUS_TEST_DB_NAME, user: process.env.CONEXUS_TEST_DB_USER, password: process.env.CONEXUS_TEST_DB_PASSWORD }
-  const ingress = { ...admin, user: 'hub_rb_ingress', password: 'invariants-ingress' }
-  const executor = { ...admin, user: 'hub_rb_executor', password: 'invariants-executor' }
+  const database = `conexus_run_invariants_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 8)}`
+  const ownerClient = await connect(admin)
+  let adminClient
+  let ingressClient
+  let executorClient
+  await ownerClient.query(`CREATE DATABASE "${database}"`)
+  t.after(async () => {
+    await executorClient?.end(); await ingressClient?.end(); await adminClient?.end()
+    await ownerClient.query(`DROP DATABASE "${database}" WITH (FORCE)`); await ownerClient.end()
+  })
+  const current = { ...admin, database }
+  const connectionString = new URL('postgresql://localhost')
+  connectionString.hostname = current.host; connectionString.port = String(current.port)
+  connectionString.pathname = `/${database}`; connectionString.username = current.user; connectionString.password = current.password
+  await runCurrentHubMigrations({ connectionString: connectionString.toString() })
+
+  const ingress = { ...current, user: 'hub_rb_ingress', password: 'invariants-ingress' }
+  const executor = { ...current, user: 'hub_rb_executor', password: 'invariants-executor' }
   const accountId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID()
   const source = 'a'.repeat(40); const nextSource = 'b'.repeat(40)
-  const adminClient = await connect(admin)
+  adminClient = await connect(current)
   await adminClient.query("ALTER ROLE hub_rb_ingress PASSWORD 'invariants-ingress'; ALTER ROLE hub_rb_executor PASSWORD 'invariants-executor'")
   await adminClient.query('INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, $2, $3, $4)', [accountId, 'https://invariants.test', accountId, '030'])
   await adminClient.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, '030'])
@@ -20,16 +37,6 @@ test('C-020 preserves state invariants and separates response settlement from bu
   await adminClient.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, '030', 'NEW', $3, '030')", [projectId, workspaceId, source])
   await adminClient.query('INSERT INTO iam.project_builder_grant(account_id, project_id, can_build, can_read_source) VALUES ($1, $2, true, true)', [accountId, projectId])
   await adminClient.query('INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1, $2)', [projectId, source])
-  t.after(async () => {
-    await adminClient.query('DELETE FROM builder.builder_run WHERE project_id = $1', [projectId])
-    await adminClient.query('DELETE FROM builder.project_working_state WHERE project_id = $1', [projectId])
-    await adminClient.query('DELETE FROM iam.project_builder_grant WHERE project_id = $1', [projectId])
-    await adminClient.query('DELETE FROM project.project WHERE project_id = $1', [projectId])
-    await adminClient.query('DELETE FROM iam.workspace_membership WHERE account_id = $1', [accountId])
-    await adminClient.query('DELETE FROM workspace.workspace WHERE workspace_id = $1', [workspaceId])
-    await adminClient.query('DELETE FROM iam.account WHERE account_id = $1', [accountId])
-    await adminClient.end()
-  })
 
   const rejectsUpdate = (statement, values) => assert.rejects(() => adminClient.query(statement, values), /violates check constraint/)
   await rejectsUpdate('UPDATE builder.project_working_state SET working_source_revision = $1 WHERE project_id = $2', ['bad', projectId])
@@ -44,8 +51,7 @@ test('C-020 preserves state invariants and separates response settlement from bu
   await adminClient.query("UPDATE builder.project_working_state SET current_state = 'IDLE' WHERE project_id = $1", [projectId])
   await adminClient.query('UPDATE builder.project_working_state SET last_preview_source_revision = NULL, last_preview_artifact_revision_id = NULL, last_preview_artifact_digest = NULL WHERE project_id = $1', [projectId])
 
-  const ingressClient = await connect(ingress); const executorClient = await connect(executor)
-  t.after(() => Promise.all([ingressClient.end(), executorClient.end()]))
+  ingressClient = await connect(ingress); executorClient = await connect(executor)
   const create = async (client, mode, id, key = randomUUID(), request = randomUUID()) => (await client.query('SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7) AS value', [accountId, projectId, key.replaceAll('-', '').padEnd(64, '0'), request.replaceAll('-', '').padEnd(64, '1'), null, mode, id])).rows[0].value
   const claim = async (id) => (await executorClient.query('SELECT builder.claim_builder_run($1,$2,$3,$4) AS value', [id, randomUUID(), 'provider', 'model'])).rows[0].value
 

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import test from 'node:test'
 import pg from 'pg'
+import { runCurrentHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD']
   .every(name => process.env[name])
@@ -22,8 +23,24 @@ test('BuilderRun admission and settlement are idempotent, serialized, and CAS-pr
     user: process.env.CONEXUS_TEST_DB_USER,
     password: process.env.CONEXUS_TEST_DB_PASSWORD,
   }
-  const ingress = { ...admin, user: 'hub_rb_ingress', password: 'task1-ingress' }
-  const executor = { ...admin, user: 'hub_rb_executor', password: 'task1-executor' }
+  const database = `conexus_run_execution_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 8)}`
+  const ownerClient = await connect(admin)
+  let adminClient
+  let ingressClient
+  let executorClient
+  await ownerClient.query(`CREATE DATABASE "${database}"`)
+  t.after(async () => {
+    await executorClient?.end(); await ingressClient?.end(); await adminClient?.end()
+    await ownerClient.query(`DROP DATABASE "${database}" WITH (FORCE)`); await ownerClient.end()
+  })
+  const current = { ...admin, database }
+  const connectionString = new URL('postgresql://localhost')
+  connectionString.hostname = current.host; connectionString.port = String(current.port)
+  connectionString.pathname = `/${database}`; connectionString.username = current.user; connectionString.password = current.password
+  await runCurrentHubMigrations({ connectionString: connectionString.toString() })
+
+  const ingress = { ...current, user: 'hub_rb_ingress', password: 'task1-ingress' }
+  const executor = { ...current, user: 'hub_rb_executor', password: 'task1-executor' }
   const accountId = randomUUID()
   const workspaceId = randomUUID()
   const projectId = randomUUID()
@@ -36,7 +53,7 @@ test('BuilderRun admission and settlement are idempotent, serialized, and CAS-pr
   const keyDigest = '1'.repeat(64)
   const requestDigest = '2'.repeat(64)
 
-  const adminClient = await connect(admin)
+  adminClient = await connect(current)
   await adminClient.query("ALTER ROLE hub_rb_ingress PASSWORD 'task1-ingress'; ALTER ROLE hub_rb_executor PASSWORD 'task1-executor'")
   await adminClient.query('BEGIN')
   try {
@@ -51,23 +68,12 @@ test('BuilderRun admission and settlement are idempotent, serialized, and CAS-pr
     await adminClient.query('ROLLBACK')
     throw error
   }
-  t.after(async () => {
-    await adminClient.query('DELETE FROM builder.builder_run WHERE project_id = $1', [projectId])
-    await adminClient.query('DELETE FROM builder.project_working_state WHERE project_id = $1', [projectId])
-    await adminClient.query('DELETE FROM iam.project_builder_grant WHERE project_id = $1', [projectId])
-    await adminClient.query('DELETE FROM project.project WHERE project_id = $1', [projectId])
-    await adminClient.query('DELETE FROM iam.workspace_membership WHERE account_id = $1', [accountId])
-    await adminClient.query('DELETE FROM workspace.workspace WHERE workspace_id = $1', [workspaceId])
-    await adminClient.query('DELETE FROM iam.account WHERE account_id = $1', [accountId])
-    await adminClient.end()
-  })
 
   const create = async (client, id, key = keyDigest, request = requestDigest) => (await client.query(
     'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7) AS value',
     [accountId, projectId, key, request, null, 'BUILD', id],
   )).rows[0].value
-  const ingressClient = await connect(ingress)
-  t.after(() => ingressClient.end())
+  ingressClient = await connect(ingress)
   const first = await create(ingressClient, runId)
   assert.equal(first.builderRunId, runId)
   assert.equal(first.baseSourceRevision, source)
@@ -75,7 +81,7 @@ test('BuilderRun admission and settlement are idempotent, serialized, and CAS-pr
   await assert.rejects(() => create(ingressClient, secondRunId, keyDigest, '3'.repeat(64)), /IDEMPOTENCY_CONFLICT/)
   await assert.rejects(() => create(ingressClient, secondRunId, '4'.repeat(64)), /PROJECT_BUSY/)
 
-  const executorClient = await connect(executor)
+  executorClient = await connect(executor)
   assert.equal((await executorClient.query('SELECT builder.claim_builder_run($1,$2,$3,$4) AS value', [runId, randomUUID(), 'provider', 'model'])).rows[0].value.state, 'RUNNING')
   assert.equal((await executorClient.query('SELECT builder.bind_builder_run_message($1,$2)', [runId, 'mastra-message-1'])).rows[0].bind_builder_run_message, true)
   assert.equal((await executorClient.query('SELECT builder.bind_builder_run_sandbox($1,$2)', [runId, 'sandbox-1'])).rows[0].bind_builder_run_sandbox, true)
@@ -86,6 +92,7 @@ test('BuilderRun admission and settlement are idempotent, serialized, and CAS-pr
     state: 'FAILED', trigger_message_id: 'mastra-message-1', sandbox_id: 'sandbox-1', model_provider_id: 'provider', model_id: 'model', base_working_version: '0', result_source_revision: nextSource,
   })
   await executorClient.end()
+  executorClient = undefined
   const second = await create(ingressClient, secondRunId, '4'.repeat(64), '5'.repeat(64))
   assert.equal(second.baseSourceRevision, nextSource)
   await adminClient.query('DELETE FROM builder.builder_run WHERE builder_run_id = $1', [secondRunId])
