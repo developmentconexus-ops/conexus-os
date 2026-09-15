@@ -93,17 +93,15 @@ export const sendBuilderSessionMessage = async (
   onEvent: (event: AgentControllerEvent) => void,
   requestContext?: RequestContext,
 ): Promise<AgentEndReason> => {
-  let resolveAgentEnd: ((reason: AgentEndReason) => void) | undefined
-  const agentEnd = new Promise<AgentEndReason>((resolve) => { resolveAgentEnd = resolve })
+  let terminalReason: AgentEndReason | undefined
   const unsubscribe = session.subscribe((event) => {
     onEvent(event)
-    if (event.type === 'agent_end') resolveAgentEnd?.(event.reason)
+    if (event.type === 'agent_end') terminalReason = event.reason
   })
   try {
     await session.sendMessage({ ...message, ...(requestContext ? { requestContext } : {}) })
-    const reason = await agentEnd
-    if (!reason) throw new Error('BUILDER_AGENT_COMPLETION_UNAVAILABLE')
-    return reason
+    if (!terminalReason) throw new Error('BUILDER_AGENT_COMPLETION_UNAVAILABLE')
+    return terminalReason
   } finally {
     unsubscribe()
   }

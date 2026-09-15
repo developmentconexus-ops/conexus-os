@@ -84,6 +84,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   setup = await connect(config)
   assert.deepEqual((await setup.query(`SELECT
     has_schema_privilege('builder_owner', 'reg', 'USAGE') AS builder_reg_usage,
+    has_function_privilege('builder_owner', 'reg.matches_application_artifact(uuid,text,uuid,text)', 'EXECUTE') AS builder_artifact_match,
     has_function_privilege('builder_owner', 'reg.get_application_by_source(uuid,uuid,text)', 'EXECUTE') AS builder_source_get,
     has_function_privilege('builder_owner', 'reg.retain_application_execution(uuid,uuid,uuid,text,jsonb)', 'EXECUTE') AS builder_execution_retain,
     has_function_privilege('builder_owner', 'reg.read_application_file_by_source(uuid,uuid,text,uuid,text)', 'EXECUTE') AS builder_source_read,
@@ -98,7 +99,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
     pg_has_role('builder_owner', 'registry_owner', 'member') AS builder_registry_member,
     to_regprocedure('reg.get_application_execution(uuid,uuid,uuid,text)')::text AS execution_get,
     to_regprocedure('reg.read_application_file_execution(uuid,uuid,uuid,text,uuid,text)')::text AS execution_read`)).rows, [{
-    builder_reg_usage: true, builder_source_get: true, builder_execution_retain: false, builder_source_read: false,
+    builder_reg_usage: true, builder_artifact_match: true, builder_source_get: false, builder_execution_retain: false, builder_source_read: false,
     executor_execution_retain: true, executor_source_get: true, executor_source_read: true,
     public_source_get: false, public_source_read: false, public_execution_retain: false,
     builder_artifact_select: false, builder_revision_select: false, builder_registry_member: false,
@@ -122,6 +123,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   const bytes = Buffer.from('<!doctype html><title>Settlement</title>')
   const application = { projectId, executionId: builderRunId, sourceRevision: sourceB, templateRef: 'xdli9puqp1nepk4ht6lw:8a1e3885-c6d7-4b06-aea6-860632f407e6', recipeSha256: '32230b4ba0b72625474b7f722e2294a256f9ab2f7c1c9b1eb107f38770edbe97', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }
   const retained = await store.retainApplication(runtime, { accountId, compiled: application })
+  await setup.query('UPDATE iam.project_builder_grant SET can_build = false WHERE account_id = $1 AND project_id = $2', [accountId, projectId])
   assert.equal((await runtime.query('SELECT builder.settle_builder_run_build($1,$2,$3,$4,$5) AS settled', [builderRunId, sourceB, retained.artifactRevisionId, retained.artifactDigest, null])).rows[0].settled, true)
   assert.deepEqual((await setup.query(`SELECT state, result_kind, result_source_revision FROM builder.builder_run WHERE builder_run_id = $1`, [builderRunId])).rows, [
     { state: 'SUCCEEDED', result_kind: 'SOURCE_CHANGED', result_source_revision: sourceB },
@@ -129,6 +131,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   assert.deepEqual((await setup.query(`SELECT working_source_revision, current_state, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest FROM builder.project_working_state WHERE project_id = $1`, [projectId])).rows, [
     { working_source_revision: sourceB, current_state: 'PREVIEW_READY', last_preview_source_revision: sourceB, last_preview_artifact_revision_id: retained.artifactRevisionId, last_preview_artifact_digest: retained.artifactDigest },
   ])
+  await setup.query('UPDATE iam.project_builder_grant SET can_build = true WHERE account_id = $1 AND project_id = $2', [accountId, projectId])
   assert.deepEqual((await store.getApplicationBySource(runtime, { accountId, projectId, sourceRevision: sourceB })).artifactRevisionId, retained.artifactRevisionId)
   const file = await store.readApplicationFileBySource(runtime, { accountId, projectId, sourceRevision: sourceB, artifactRevisionId: retained.artifactRevisionId, path: 'index.html' })
   assert.equal(Buffer.from(file.bytes).toString(), bytes.toString())

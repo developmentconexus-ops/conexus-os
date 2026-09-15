@@ -18,6 +18,8 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   let run = null
   let buildCount = 0
   let sessionReads = 0
+  let runFinished = false
+  const persistedMessages = []
   const requests = []
   const server = await createServer({
     configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
@@ -29,8 +31,8 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   const session = () => ({
-    projectId, messages: run && sessionReads > 1 ? [{ id: 'message-1', role: 'user', text: 'Crie um contador até 100 interativo', createdAt: new Date().toISOString() }, { id: 'message-2', role: 'assistant', text: '**Build concluído**', createdAt: new Date().toISOString() }] : [],
-    latestBuilderRun: run && sessionReads > 2 && (run.mode === 'PLAN' || liveStreamRequests > 0)
+    projectId, messages: run && sessionReads > 1 ? persistedMessages.flatMap((item, index) => [item, ...(index < persistedMessages.length - (runFinished ? 0 : 1) ? [{ id: `message-assistant-${index + 1}`, role: 'assistant', text: '**Build concluído**', createdAt: new Date().toISOString() }] : [])]) : [],
+    latestBuilderRun: run && sessionReads > 2 && runFinished
       ? { ...run, state: 'SUCCEEDED', resultSourceRevision: run.mode === 'PLAN' ? null : sourceRevision, resultKind: run.mode === 'PLAN' ? 'RESPONSE_ONLY' : 'SOURCE_CHANGED' }
       : run, latestCodeChangingRun: buildCount > 0 ? { baseSourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: buildCount > 0 ? sourceRevision : null, lastGoodArtifactRevisionId: buildCount > 0 ? artifactRevisionId : null, lastGoodArtifactDigest: buildCount > 0 ? artifactDigest : null }, mode: run?.mode ?? 'BUILD',
   })
@@ -46,6 +48,8 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
       const body = route.request().postDataJSON()
       requests.push({ url: route.request().url(), body, key: route.request().headers()['idempotency-key'] })
       buildCount += body.mode === 'BUILD' ? 1 : 0
+      persistedMessages.push({ id: `message-${persistedMessages.length + 1}`, role: 'user', text: body.content, createdAt: new Date().toISOString() })
+      runFinished = false
       run = { builderRunId: runId, projectId, state: 'RUNNING', mode: body.mode, baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
       return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ threadId: `conexus-builder:${projectId}`, builderRun: run }) })
     }
@@ -83,7 +87,10 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
       { kind: 'TEXT_END', blockId: 'browser-block-2' },
       { kind: 'OBSERVATION_END' },
     ]
-    return route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8' }, body: events.map((event, index) => `data: ${JSON.stringify({ generation, sequence: index + 1, event })}\n\n`).join('') })
+    return (async () => {
+      runFinished = true
+      return route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8' }, body: events.map((event, index) => `data: ${JSON.stringify({ generation, sequence: index + 1, event })}\n\n`).join('') })
+    })()
   })
 
   await page.goto(`${origin}/projects/${projectId}`)
@@ -109,6 +116,15 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   const previewBox = await page.locator('.build-preview-surface').boundingBox()
   const panelBox = await page.locator('.conexus-panel').boundingBox()
   assert.ok(previewBox && panelBox && previewBox.width > panelBox.width)
+  const frameBox = await page.locator('.preview-frame-stack iframe').boundingBox()
+  const frameStackBox = await page.locator('.preview-frame-stack').boundingBox()
+  assert.ok(frameBox && frameStackBox && frameBox.width >= frameStackBox.width * 0.95 && frameBox.height >= 384)
+  await page.getByLabel('O que o Project precisa fazer?').fill('Crie um contador até 100 interativo')
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click()
+  await page.getByText('Mensagem enviada ao Builder.').waitFor()
+  await page.getByText('Inspecionando o app', { exact: true }).waitFor()
+  assert.equal(await page.getByText('Crie um contador até 100 interativo', { exact: true }).count(), 2)
+  await page.getByText('Build concluído', { exact: true }).last().waitFor()
   await page.getByRole('button', { name: 'Código' }).click()
   await page.getByRole('button', { name: 'app/index.html' }).waitFor()
   await page.getByText('<main>Counter v2</main>', { exact: true }).waitFor()
@@ -124,7 +140,7 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   await page.getByText('Mensagem enviada ao Builder.').waitFor()
   await page.getByText('Resposta somente', { exact: true }).waitFor()
   await page.reload()
-  await page.getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
+  await page.getByText('Crie um contador até 100 interativo', { exact: true }).first().waitFor()
   assert.equal(await page.getByText('Human request:', { exact: false }).count(), 0)
   await page.getByText('Último Preview bom disponível.').waitFor()
   await page.getByTitle('Preview do aplicativo').waitFor()

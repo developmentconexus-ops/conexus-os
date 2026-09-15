@@ -62,7 +62,7 @@ const migration036Digest = 'f0fe953e4f202ee8d7c266621a5cfb8c863097b022c7dd9f9e04
 const migration037Digest = '356d01a90237c24464b9e05b5fdc65c716ddb24130187c4cc88e03673c6d3190'
 const migration038Digest = '30d5e9af141a6278c0cbe82a329ef906c7cd2c0efcd6a178f341393e954660a9'
 const migration039Digest = '712955ef10bd196204067835179816a5873b0898786fce89df56f0fa7eb4580a'
-const migration040Digest = '359d1d386b01f40a5b842f56363e82176db56b9b731736f01080597ca762f7f5'
+const migration040Digest = '0b9a404adef843024ab086bdab54409bf5f84618265926744cae75fcaa2be847'
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }
@@ -2606,7 +2606,7 @@ const assert014Catalog = async (
 
 const assert015Catalog = async (
   client, migration003, migration005, migration006, migration011, migration012, migration013, migration014, migration015,
-  { after016 = false, after017 = false, after018 = false, after019 = false, after020 = false, after026 = false, after033 = false, after034 = false, after038 = false, projectCreateMigration } = {},
+  { after016 = false, after017 = false, after018 = false, after019 = false, after020 = false, after026 = false, after033 = false, after034 = false, after038 = false, after040 = false, projectCreateMigration } = {},
 ) => {
   await assert014Catalog(
     client, migration003, migration005, migration006, migration011, migration012, migration013, migration014,
@@ -2669,6 +2669,7 @@ const assert015Catalog = async (
       ${after026 ? "AND NOT ((n.nspname = 'iam' AND p.proname = 'admit_application_build') OR (n.nspname = 'project' AND p.proname = 'lock_application_baseline') OR (n.nspname = 'reg' AND p.proname IN ('retain_application','get_application','read_application_file')))" : ''}
       ${after033 ? "AND NOT (n.nspname = 'reg' AND p.proname IN ('retain_application_execution','get_application_execution','read_application_file_execution'))" : ''}
       ${after034 ? "AND NOT (n.nspname = 'reg' AND p.proname IN ('get_application_by_source','read_application_file_by_source'))" : ''}
+      ${after040 ? "AND NOT (n.nspname = 'reg' AND p.proname = 'matches_application_artifact')" : ''}
     ORDER BY n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)
   `, 'c0686086aaa82af22c1774be61d4a02dfffcceb1a09ec8e7ac41670474023563')
   await assertSignatures(client, 'MIGRATION_015_EXECUTE_PRIVILEGE_REFUSED', `
@@ -3593,9 +3594,11 @@ const assert040Catalog = async (client) => {
     FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
     WHERE n.nspname = 'builder' AND p.proname = 'settle_builder_run_build'
   `)).rows[0]?.source ?? ''
-  if (!source.includes('reg.get_application_by_source') || source.includes('reg.get_application_execution')) fail('MIGRATION_040_SETTLEMENT_SOURCE_REFUSED')
+  if (!source.includes('reg.matches_application_artifact') || source.includes('reg.get_application_by_source') || source.includes('reg.get_application_execution')) fail('MIGRATION_040_SETTLEMENT_SOURCE_REFUSED')
   const boundary = (await client.query(`
     SELECT has_schema_privilege('builder_owner', 'reg', 'USAGE') AS builder_reg_usage,
+      has_function_privilege('builder_owner', 'reg.matches_application_artifact(uuid, text, uuid, text)', 'EXECUTE') AS builder_artifact_match,
+      has_function_privilege('public', 'reg.matches_application_artifact(uuid, text, uuid, text)', 'EXECUTE') AS public_artifact_match,
       has_function_privilege('builder_owner', 'reg.get_application_by_source(uuid, uuid, text)', 'EXECUTE') AS builder_source_get,
       has_function_privilege('builder_owner', 'reg.retain_application_execution(uuid, uuid, uuid, text, jsonb)', 'EXECUTE') AS builder_execution_retain,
       has_function_privilege('builder_owner', 'reg.read_application_file_by_source(uuid, uuid, text, uuid, text)', 'EXECUTE') AS builder_source_read,
@@ -3620,7 +3623,7 @@ const assert040Catalog = async (client) => {
       to_regprocedure('reg.read_application_file_execution(uuid,uuid,uuid,text,uuid,text)')::text AS execution_read
   `)).rows[0]
   if (JSON.stringify(boundary) !== JSON.stringify({
-    builder_reg_usage: true, builder_source_get: true, builder_execution_retain: false, builder_source_read: false,
+    builder_reg_usage: true, builder_artifact_match: true, public_artifact_match: false, builder_source_get: false, builder_execution_retain: false, builder_source_read: false,
     executor_execution_retain: true, executor_source_get: true, executor_source_read: true,
     public_source_get: false, public_source_read: false, public_execution_retain: false,
     builder_no_reg_table_privileges: true, builder_registry_member: false,
@@ -3747,7 +3750,7 @@ const verifyLedger = async (client, migrations) => {
     await assert015Catalog(
       client, files.get('003'), files.get('005'), files.get('006'), files.get('011'),
       files.get('012'), files.get('013'), files.get('014'), files.get('015'),
-      { after016: true, after017: true, after018: true, after019: true, after020: true, after026: applied.has('026'), after033: applied.has('033'), after034: applied.has('034'), after038: applied.has('038'), projectCreateMigration: applied.has('036') ? files.get('036') : undefined },
+      { after016: true, after017: true, after018: true, after019: true, after020: true, after026: applied.has('026'), after033: applied.has('033'), after034: applied.has('034'), after038: applied.has('038'), after040: applied.has('040'), projectCreateMigration: applied.has('036') ? files.get('036') : undefined },
     )
     await assert016Catalog(client, files.get('016'))
     await assert017Catalog(client, files.get('017'))

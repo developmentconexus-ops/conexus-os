@@ -26,7 +26,7 @@ const activityState = (state: Extract<ObservationPart, { kind: 'activity' }>['st
 type Inspection = 'CODE' | 'DIFF' | 'DETAILS'
 type SourceDiffEntry = Readonly<{ path: string; status: 'ADDED' | 'REMOVED' | 'MODIFIED' }>
 type SourceSnapshot = Readonly<{ sourceRevision: string; files: ReadonlyMap<string, string> }>
-type LiveRequest = Readonly<{ runId: string; text: string }>
+type LiveRequest = Readonly<{ runId: string; text: string; messageBoundary: number }>
 
 const readSourceSnapshot = async (projectId: string, sourceRevision: string): Promise<SourceSnapshot> => {
   const tree = await listProjectSourceTree(projectId, sourceRevision)
@@ -68,12 +68,12 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     refetchInterval: (query) => query.state.data?.latestBuilderRun?.state === 'RUNNING' ? 1_000 : 2_000,
   })
   const send = useMutation({
-    mutationFn: (value: Readonly<{ content: string; mode: 'BUILD' | 'PLAN'; key: string }>) =>
+    mutationFn: (value: Readonly<{ content: string; mode: 'BUILD' | 'PLAN'; key: string; messageBoundary: number }>) =>
       sendBuilderMessage(projectId, value.content, value.mode, value.key),
-    onSuccess: async (result) => {
-      setContent('')
+    onSuccess: async (result, variables) => {
+      setContent((current) => current === variables.content ? '' : current)
       setMessage('Mensagem enviada ao Builder.')
-      setLiveRequest({ runId: result.builderRun.builderRunId, text: content.trim() })
+      setLiveRequest({ runId: result.builderRun.builderRunId, text: variables.content, messageBoundary: variables.messageBoundary })
       setLiveParts([])
       await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] })
     },
@@ -103,7 +103,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     })
   }, [run, runActive, runId, session])
   const timelineMessages = session.data?.messages ?? []
-  const hasLiveUser = Boolean(liveRequest && timelineMessages.some((item) => item.id === liveRequest.runId || item.text === liveRequest.text))
+  const hasLiveUser = Boolean(liveRequest && timelineMessages.slice(liveRequest.messageBoundary).some((item) => item.role === 'user' && item.text === liveRequest.text))
   const liveTimeline = runActive ? [
     ...(liveRequest && !hasLiveUser ? [{ kind: 'request' as const, id: liveRequest.runId, text: liveRequest.text }] : []),
     ...liveParts,
@@ -168,7 +168,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     event.preventDefault()
     const value = content.trim()
     if (!value || send.isPending) return
-    send.mutate({ content: value, mode, key: crypto.randomUUID() })
+    send.mutate({ content: value, mode, key: crypto.randomUUID(), messageBoundary: session.data?.messages.length ?? 0 })
   }
   useEffect(() => { if (launch) queueMicrotask(() => entryForm.current?.requestSubmit()) }, [launch])
 
@@ -188,7 +188,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
           : <p className="preview-empty">O Preview aparecerá depois do primeiro Build bem-sucedido.</p>}
         {run && <p role="status" aria-live="polite">{runStatus(run.state, run.resultKind)}</p>}
         {run?.resultKind === 'SOURCE_CHANGED_BUILD_FAILED' && <p role="alert">A nova fonte foi preservada para a próxima correção.</p>}
-        {launch && <><iframe title="Preview do aplicativo" name={frameName} src="about:blank" /><form ref={entryForm} hidden method="post" action={launch.entryUrl} target={frameName}><input type="hidden" name="entryGrant" value={launch.entryGrant} /></form><p>Preview pronto.</p></>}
+        {launch && <><div className="preview-frame-stack"><iframe title="Preview do aplicativo" name={frameName} src="about:blank" /></div><form ref={entryForm} hidden method="post" action={launch.entryUrl} target={frameName}><input type="hidden" name="entryGrant" value={launch.entryGrant} /></form><p>Preview pronto.</p></>}
         {inspection === 'CODE' && <section className="build-inspection" aria-labelledby="build-code-title">
           <h3 id="build-code-title">Código da fonte em trabalho</h3>
           {!workingSourceRevision && <p>O Project ainda não tem uma fonte disponível para inspeção.</p>}

@@ -3,7 +3,32 @@ BEGIN;
 SET LOCAL ROLE registry_owner;
 
 GRANT USAGE ON SCHEMA reg TO builder_owner;
-GRANT EXECUTE ON FUNCTION reg.get_application_by_source(uuid, uuid, text) TO builder_owner;
+
+CREATE FUNCTION reg.matches_application_artifact(
+  p_project_id uuid,
+  p_source_revision text,
+  p_artifact_revision_id uuid,
+  p_artifact_digest text
+) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM reg.artifact AS artifact
+    JOIN reg.artifact_revision AS revision ON revision.artifact_id = artifact.artifact_id
+    WHERE artifact.project_id = p_project_id
+      AND artifact.kind = 'application'
+      AND revision.source_revision = p_source_revision
+      AND revision.artifact_revision_id = p_artifact_revision_id
+      AND revision.digest = p_artifact_digest
+      AND revision.availability = 'AVAILABLE'
+  );
+$$;
+
+REVOKE EXECUTE ON FUNCTION reg.matches_application_artifact(uuid, text, uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION reg.matches_application_artifact(uuid, text, uuid, text) TO builder_owner;
+REVOKE EXECUTE ON FUNCTION reg.get_application_by_source(uuid, uuid, text) FROM builder_owner;
 
 RESET ROLE;
 
@@ -15,7 +40,7 @@ CREATE OR REPLACE FUNCTION builder.settle_builder_run_build(
 ) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp
 AS $$
-DECLARE run_row builder.builder_run%ROWTYPE; working builder.project_working_state%ROWTYPE; registry_artifact record;
+DECLARE run_row builder.builder_run%ROWTYPE; working builder.project_working_state%ROWTYPE;
 BEGIN
   IF p_source_revision IS NULL OR p_source_revision !~ '^[0-9a-f]{40}$'
     OR (p_artifact_revision_id IS NULL) <> (p_artifact_digest IS NULL)
@@ -28,10 +53,9 @@ BEGIN
   SELECT * INTO working FROM builder.project_working_state WHERE project_id = run_row.project_id FOR UPDATE;
   IF NOT FOUND OR working.working_source_revision IS DISTINCT FROM p_source_revision THEN RETURN false; END IF;
   IF p_artifact_revision_id IS NOT NULL THEN
-    SELECT artifact_revision_id, artifact_digest INTO registry_artifact
-    FROM reg.get_application_by_source(run_row.account_id, run_row.project_id, p_source_revision);
-    IF NOT FOUND OR registry_artifact.artifact_revision_id IS DISTINCT FROM p_artifact_revision_id
-      OR registry_artifact.artifact_digest IS DISTINCT FROM p_artifact_digest THEN RETURN false; END IF;
+    IF NOT reg.matches_application_artifact(run_row.project_id, p_source_revision, p_artifact_revision_id, p_artifact_digest) THEN
+      RETURN false;
+    END IF;
     UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY',
       last_preview_source_revision = p_source_revision,
       last_preview_artifact_revision_id = p_artifact_revision_id,
