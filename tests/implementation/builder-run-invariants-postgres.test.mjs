@@ -6,7 +6,7 @@ import pg from 'pg'
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every(name => process.env[name])
 const connect = async (connection) => { const client = new pg.Client(connection); await client.connect(); return client }
 
-test('030 restores state invariants and closes BuilderRun settlement loopholes', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+test('C-020 preserves state invariants and separates response settlement from build settlement', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const admin = { host: process.env.CONEXUS_TEST_DB_HOST, port: Number(process.env.CONEXUS_TEST_DB_PORT), database: process.env.CONEXUS_TEST_DB_NAME, user: process.env.CONEXUS_TEST_DB_USER, password: process.env.CONEXUS_TEST_DB_PASSWORD }
   const ingress = { ...admin, user: 'hub_rb_ingress', password: 'invariants-ingress' }
   const executor = { ...admin, user: 'hub_rb_executor', password: 'invariants-executor' }
@@ -37,8 +37,9 @@ test('030 restores state invariants and closes BuilderRun settlement loopholes',
   await rejectsUpdate("UPDATE builder.project_working_state SET current_state = 'UNKNOWN' WHERE project_id = $1", [projectId])
   await rejectsUpdate('UPDATE builder.project_working_state SET last_preview_source_revision = $1 WHERE project_id = $2', ['bad', projectId])
   await rejectsUpdate('UPDATE builder.project_working_state SET last_preview_artifact_digest = $1 WHERE project_id = $2', ['bad', projectId])
-  await adminClient.query("UPDATE builder.project_working_state SET last_preview_source_revision = $1, last_preview_artifact_revision_id = $2, last_preview_artifact_digest = $3, last_preview_change_id = NULL WHERE project_id = $4", [source, randomUUID(), 'c'.repeat(64), projectId])
-  await adminClient.query("UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY', preparation_attempt_id = NULL WHERE project_id = $1", [projectId])
+  const previousArtifactRevisionId = randomUUID(); const previousArtifactDigest = 'c'.repeat(64)
+  await adminClient.query('UPDATE builder.project_working_state SET last_preview_source_revision = $1, last_preview_artifact_revision_id = $2, last_preview_artifact_digest = $3 WHERE project_id = $4', [source, previousArtifactRevisionId, previousArtifactDigest, projectId])
+  await adminClient.query("UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY' WHERE project_id = $1", [projectId])
   await adminClient.query("UPDATE builder.project_working_state SET current_state = 'BUILD_FAILED' WHERE project_id = $1", [projectId])
   await adminClient.query("UPDATE builder.project_working_state SET current_state = 'IDLE' WHERE project_id = $1", [projectId])
   await adminClient.query('UPDATE builder.project_working_state SET last_preview_source_revision = NULL, last_preview_artifact_revision_id = NULL, last_preview_artifact_digest = NULL WHERE project_id = $1', [projectId])
@@ -49,16 +50,26 @@ test('030 restores state invariants and closes BuilderRun settlement loopholes',
   const claim = async (id) => (await executorClient.query('SELECT builder.claim_builder_run($1,$2,$3,$4) AS value', [id, randomUUID(), 'provider', 'model'])).rows[0].value
 
   const planId = randomUUID(); await create(ingressClient, 'PLAN', planId)
-  assert.equal((await executorClient.query('SELECT builder.claim_builder_run($1,$2,$3,$4) AS value', [planId, randomUUID(), 'provider', 'model'])).rows[0].value.state, 'RUNNING')
+  assert.equal((await claim(planId)).state, 'RUNNING')
+  assert.equal((await adminClient.query('SELECT working_source_revision FROM builder.project_working_state WHERE project_id = $1', [projectId])).rows[0].working_source_revision, source)
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [planId, nextSource, 'SOURCE_CHANGED', null])).rows[0].settle_builder_run, false)
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [planId, null, 'RESPONSE_ONLY', 'FAIL'])).rows[0].settle_builder_run, false)
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [planId, null, 'RESPONSE_ONLY', null])).rows[0].settle_builder_run, true)
 
+  await adminClient.query('UPDATE builder.project_working_state SET last_preview_source_revision = $1, last_preview_artifact_revision_id = $2, last_preview_artifact_digest = $3 WHERE project_id = $4', [source, previousArtifactRevisionId, previousArtifactDigest, projectId])
   const sourceId = randomUUID(); await create(ingressClient, 'BUILD', sourceId)
-  await executorClient.query('SELECT builder.claim_builder_run($1,$2,$3,$4)', [sourceId, randomUUID(), 'provider', 'model'])
-  assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [sourceId, nextSource, 'SOURCE_CHANGED', 'FAIL'])).rows[0].settle_builder_run, false)
-  assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [sourceId, nextSource, 'SOURCE_CHANGED_BUILD_FAILED', null])).rows[0].settle_builder_run, false)
-  assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [sourceId, nextSource, 'SOURCE_CHANGED_BUILD_FAILED', 'COMPILE_FAILED'])).rows[0].settle_builder_run, true)
+  await claim(sourceId)
+  assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [sourceId, nextSource, 'SOURCE_CHANGED', null])).rows[0].settle_builder_run, false)
+  assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [sourceId, nextSource, 'SOURCE_CHANGED_BUILD_FAILED', 'COMPILE_FAILED'])).rows[0].settle_builder_run, false)
+  assert.equal((await executorClient.query('SELECT builder.advance_builder_run_source($1,$2)', [sourceId, nextSource])).rows[0].advance_builder_run_source, true)
+  assert.equal((await executorClient.query('SELECT builder.settle_builder_run_build($1,$2,$3,$4,$5)', [sourceId, nextSource, null, null, 'COMPILE_FAILED'])).rows[0].settle_builder_run_build, true)
+  assert.deepEqual((await adminClient.query('SELECT working_source_revision, working_version, current_state, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest FROM builder.project_working_state WHERE project_id = $1', [projectId])).rows[0], {
+    working_source_revision: nextSource, working_version: '1', current_state: 'BUILD_FAILED',
+    last_preview_source_revision: source, last_preview_artifact_revision_id: previousArtifactRevisionId, last_preview_artifact_digest: previousArtifactDigest,
+  })
+  assert.deepEqual((await adminClient.query('SELECT state, result_source_revision, result_kind, failure_code FROM builder.builder_run WHERE builder_run_id = $1', [sourceId])).rows[0], {
+    state: 'FAILED', result_source_revision: nextSource, result_kind: 'SOURCE_CHANGED_BUILD_FAILED', failure_code: 'COMPILE_FAILED',
+  })
 
   const staleId = randomUUID(); await create(ingressClient, 'BUILD', staleId)
   await adminClient.query('UPDATE iam.project_builder_grant SET can_build = false WHERE project_id = $1', [projectId])

@@ -34,7 +34,7 @@ export type BuilderStore = Readonly<{
   claimBuilderRun(builderRunId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<BuilderRunSummary>
   bindBuilderRunMessage(builderRunId: string, messageId: string): Promise<void>
   bindBuilderRunSandbox(builderRunId: string, sandboxId: string): Promise<void>
-  settleBuilderRun(input: Readonly<{ builderRunId: string; resultSourceRevision: string | null; resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED'; failureCode: string | null }>): Promise<void>
+  settleBuilderRun(input: Readonly<{ builderRunId: string; resultSourceRevision: null; resultKind: 'RESPONSE_ONLY'; failureCode: null }>): Promise<void>
   advanceBuilderRunSource(builderRunId: string, sourceRevision: string): Promise<void>
   settleBuilderRunBuild(input: Readonly<{ builderRunId: string; sourceRevision: string; artifactRevisionId?: string; artifactDigest?: string; failureCode?: string }>): Promise<void>
   failBuilderRun(builderRunId: string, failureCode: string): Promise<void>

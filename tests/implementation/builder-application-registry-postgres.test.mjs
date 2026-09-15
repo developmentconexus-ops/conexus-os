@@ -22,7 +22,7 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
   const config = { ...admin, database }
   const url = new URL('postgresql://localhost'); url.hostname = config.host; url.port = String(config.port); url.pathname = `/${database}`; url.username = config.user; url.password = config.password
   const migrated = await runCurrentHubMigrations({ connectionString: url.toString() })
-  assert.ok(migrated.versions.includes('038'))
+  assert.ok(migrated.versions.includes('039'))
   const root = resolve(import.meta.dirname, '../..')
   const buildRoot = mkdtempSync(resolve(root, 'apps/hub/registry-postgres-build-'))
   t.after(() => rmSync(buildRoot, { recursive: true, force: true }))
@@ -39,10 +39,17 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
   await setup.query('INSERT INTO iam.project_builder_grant(account_id, project_id, can_build, can_read_source) VALUES ($1, $2, true, true)', [accountId, projectId])
   await setup.query(`INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1, $2)`, [projectId, sourceRevision])
   await setup.query(`INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, trigger_message_id, idempotency_digest, request_digest, mode, base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind)
-    VALUES ($1, $2, $3, $4, $5, $5, 'BUILD', $6, 0, 0, 'SUCCEEDED', $6, 'SOURCE_CHANGED')`, [builderRunId, projectId, accountId, builderRunId, digest, sourceRevision])
+    VALUES ($1, $2, $3, $4, $5, $5, 'BUILD', $6, 0, 0, 'RUNNING', $6, NULL)`, [builderRunId, projectId, accountId, builderRunId, digest, sourceRevision])
   await setup.query("ALTER ROLE hub_rb_executor PASSWORD 'registry-c020-test'")
   runtime = await connect({ ...config, user: 'hub_rb_executor', password: 'registry-c020-test' })
   const store = createApplicationArtifactStore()
+  assert.equal((await setup.query('SELECT builder.admit_verified_application_source($1,$2,$3,$4) AS admitted', [accountId, projectId, builderRunId, sourceRevision])).rows[0].admitted, true)
+  await setup.query("UPDATE builder.builder_run SET state = 'SUCCEEDED' WHERE builder_run_id = $1", [builderRunId])
+  assert.equal((await setup.query('SELECT builder.admit_verified_application_source($1,$2,$3,$4) AS admitted', [accountId, projectId, builderRunId, sourceRevision])).rows[0].admitted, false)
+  await setup.query("UPDATE builder.builder_run SET state = 'RUNNING' WHERE builder_run_id = $1", [builderRunId])
+  await setup.query("UPDATE builder.project_working_state SET working_source_revision = $1 WHERE project_id = $2", ['c'.repeat(40), projectId])
+  assert.equal((await setup.query('SELECT builder.admit_verified_application_source($1,$2,$3,$4) AS admitted', [accountId, projectId, builderRunId, sourceRevision])).rows[0].admitted, false)
+  await setup.query('UPDATE builder.project_working_state SET working_source_revision = $1 WHERE project_id = $2', [sourceRevision, projectId])
   const bytes = Buffer.from('<!doctype html><title>C020</title>')
   const application = { projectId, executionId: builderRunId, sourceRevision, templateRef: 'xdli9puqp1nepk4ht6lw:8a1e3885-c6d7-4b06-aea6-860632f407e6', recipeSha256: '32230b4ba0b72625474b7f722e2294a256f9ab2f7c1c9b1eb107f38770edbe97', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }
   const retained = await store.retainApplication(runtime, { accountId, compiled: application })

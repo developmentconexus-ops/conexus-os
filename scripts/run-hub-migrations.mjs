@@ -20,7 +20,7 @@ const r1MigrationNames = [
   '010_project_inception_refinement.sql',
 ]
 const r2MigrationNames = ['011_r2_brain_connections.sql', '012_r2_project_binding_recovery.sql', '013_r2_binding_source_concordance.sql', '014_r2_brain_binding_settlement.sql', '015_r2_project_brain_read_envelopes.sql', '016_r2_brain_binding_removal.sql', '017_r2_key_conformance_subject.sql', '018_r2_brain_revision_selection.sql']
-const currentMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql', '021_rb_builder_bounded_correction.sql', '022_rb_builder_source_inspection.sql', '023_rb_builder_preview_subject.sql', '026_builder_application_registry.sql', '027_rb_builder_working_source.sql', '028_builder_run.sql', '029_builder_run_execution.sql', '030_builder_run_invariants.sql', '031_builder_run_application_build.sql', '032_builder_project_build_grant.sql', '033_builder_execution_artifact_admission.sql', '034_builder_project_source_preview.sql', '035_builder_c020_state_invariants.sql', '036_builder_project_creation_bootstrap.sql', '037_builder_c020_source_inspection.sql', '038_builder_c020_legacy_excision.sql']
+const currentMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql', '021_rb_builder_bounded_correction.sql', '022_rb_builder_source_inspection.sql', '023_rb_builder_preview_subject.sql', '026_builder_application_registry.sql', '027_rb_builder_working_source.sql', '028_builder_run.sql', '029_builder_run_execution.sql', '030_builder_run_invariants.sql', '031_builder_run_application_build.sql', '032_builder_project_build_grant.sql', '033_builder_execution_artifact_admission.sql', '034_builder_project_source_preview.sql', '035_builder_c020_state_invariants.sql', '036_builder_project_creation_bootstrap.sql', '037_builder_c020_source_inspection.sql', '038_builder_c020_legacy_excision.sql', '039_builder_c020_execution_invariants.sql']
 const heldMigrationNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
 const expectedMigrationNames = [...currentMigrationNames, ...heldMigrationNames]
 const migration001Digest = 'd27e76b972145bc3a6bf669d4fd32734fc06153d07cddaf1072c6b29845b112f'
@@ -61,6 +61,7 @@ const migration035Digest = 'e3000ac16799dede8a585a495e7c8e6a418889bfc23816715604
 const migration036Digest = 'f0fe953e4f202ee8d7c266621a5cfb8c863097b022c7dd9f9e0485bab618d8d2'
 const migration037Digest = '356d01a90237c24464b9e05b5fdc65c716ddb24130187c4cc88e03673c6d3190'
 const migration038Digest = '30d5e9af141a6278c0cbe82a329ef906c7cd2c0efcd6a178f341393e954660a9'
+const migration039Digest = '712955ef10bd196204067835179816a5873b0898786fce89df56f0fa7eb4580a'
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }
@@ -103,6 +104,7 @@ const migrationDigests = new Map([
   ['036_builder_project_creation_bootstrap.sql', migration036Digest],
   ['037_builder_c020_source_inspection.sql', migration037Digest],
   ['038_builder_c020_legacy_excision.sql', migration038Digest],
+  ['039_builder_c020_execution_invariants.sql', migration039Digest],
 ])
 const recognizedMigrationNames = new Set(expectedMigrationNames)
 

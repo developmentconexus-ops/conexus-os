@@ -71,7 +71,6 @@ test('BuilderRun admission and settlement are idempotent, serialized, and CAS-pr
   const first = await create(ingressClient, runId)
   assert.equal(first.builderRunId, runId)
   assert.equal(first.baseSourceRevision, source)
-  assert.equal((await adminClient.query('SELECT count(*)::int AS count FROM builder.change WHERE project_id = $1', [projectId])).rows[0].count, 0)
   assert.deepEqual(await create(ingressClient, runId), first)
   await assert.rejects(() => create(ingressClient, secondRunId, keyDigest, '3'.repeat(64)), /IDEMPOTENCY_CONFLICT/)
   await assert.rejects(() => create(ingressClient, secondRunId, '4'.repeat(64)), /PROJECT_BUSY/)
@@ -80,9 +79,11 @@ test('BuilderRun admission and settlement are idempotent, serialized, and CAS-pr
   assert.equal((await executorClient.query('SELECT builder.claim_builder_run($1,$2,$3,$4) AS value', [runId, randomUUID(), 'provider', 'model'])).rows[0].value.state, 'RUNNING')
   assert.equal((await executorClient.query('SELECT builder.bind_builder_run_message($1,$2)', [runId, 'mastra-message-1'])).rows[0].bind_builder_run_message, true)
   assert.equal((await executorClient.query('SELECT builder.bind_builder_run_sandbox($1,$2)', [runId, 'sandbox-1'])).rows[0].bind_builder_run_sandbox, true)
-  assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [runId, nextSource, 'SOURCE_CHANGED', null])).rows[0].settle_builder_run, true)
+  assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [runId, nextSource, 'SOURCE_CHANGED', null])).rows[0].settle_builder_run, false)
+  assert.equal((await executorClient.query('SELECT builder.advance_builder_run_source($1,$2)', [runId, nextSource])).rows[0].advance_builder_run_source, true)
+  assert.equal((await executorClient.query('SELECT builder.settle_builder_run_build($1,$2,$3,$4,$5)', [runId, nextSource, null, null, 'COMPILE_FAILED'])).rows[0].settle_builder_run_build, true)
   assert.deepEqual((await adminClient.query('SELECT state, trigger_message_id, sandbox_id, model_provider_id, model_id, base_working_version, result_source_revision FROM builder.builder_run WHERE builder_run_id = $1', [runId])).rows[0], {
-    state: 'SUCCEEDED', trigger_message_id: 'mastra-message-1', sandbox_id: 'sandbox-1', model_provider_id: 'provider', model_id: 'model', base_working_version: '0', result_source_revision: nextSource,
+    state: 'FAILED', trigger_message_id: 'mastra-message-1', sandbox_id: 'sandbox-1', model_provider_id: 'provider', model_id: 'model', base_working_version: '0', result_source_revision: nextSource,
   })
   await executorClient.end()
   const second = await create(ingressClient, secondRunId, '4'.repeat(64), '5'.repeat(64))

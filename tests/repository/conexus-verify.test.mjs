@@ -154,6 +154,10 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.deepEqual(result.records.every(record => record.status === 'dry-run'), true)
 })
 
+test('candidate graph does not reference the deleted Change-era source-state test', () => {
+  assert.equal(CANDIDATE_GRAPH.some(({ command }) => command.includes('builder-working-source-state.test.mjs')), false)
+})
+
 test('candidate graph labels execution environments and passes shell argv correctly', () => {
   const classes = new Set(CANDIDATE_GRAPH.map(entry => entry.environmentClass))
   assert.deepEqual([...classes].sort(), ['browser', 'postgres', 'static'])
