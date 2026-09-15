@@ -64,15 +64,26 @@ export const BUILDER_BASE_AGENT_INSTRUCTIONS = [
   'Do not mutate Conexus platform or generated owner files.',
   'Do not add Git remotes, use network access, or read credentials.',
   'Inspect before editing and run focused local checks when useful.',
-  'Report visible actions and results briefly; never reveal private chain-of-thought.',
+  'Reply to the operator in português brasileiro unless explicitly asked otherwise.',
+  'Keep progress brief and never reveal chain-of-thought.',
+  'The trusted compiler runs separately; do not claim that unavailable application dependencies were tested in this coding image.',
 ].join(' ')
 
-export const FIXED_APPLICATION_STARTER_INSTRUCTIONS = [
-  'Use the fixed REACT_VITE_V1 React/TypeScript/Vite stack for the app.',
-  'Keep platform and generated files unchanged. Edit ordinary app files under /workspace/repo/app.',
-  'Do not install dependencies or add packages.',
-  'The trusted compiler runs as a separate compilation step; do not claim unavailable React/Vite dependencies were tested in this coding image.',
-].join(' ')
+export const BUILDER_MODE_INSTRUCTIONS = Object.freeze({
+  BUILD: 'No modo BUILD, implemente o pedido do operador. Inspecione o app existente primeiro, depois faça as edições comuns necessárias em /workspace/repo/app. Continue até implementar o pedido ou encontrar um bloqueio real. Relate cada ação importante e seu resultado visível de forma breve.',
+  PLAN: 'No modo PLAN, use somente leitura para explicar o que seria alterado. Não mude arquivos, instale dependências, execute comandos de mutação nem diga que um Build ocorreu.',
+})
+
+export const BUILDER_MODE_DEFINITIONS = Object.freeze([
+  Object.freeze({
+    id: 'build', name: 'Build', instructions: BUILDER_MODE_INSTRUCTIONS.BUILD,
+    availableTools: Object.freeze(['mastra_workspace_read_file', 'mastra_workspace_write_file', 'mastra_workspace_edit_file', 'mastra_workspace_list_files', 'mastra_workspace_delete', 'mastra_workspace_file_stat', 'mastra_workspace_grep', 'mastra_workspace_execute_command']),
+  }),
+  Object.freeze({
+    id: 'plan', name: 'Plan', instructions: BUILDER_MODE_INSTRUCTIONS.PLAN,
+    availableTools: Object.freeze(['mastra_workspace_read_file', 'mastra_workspace_list_files', 'mastra_workspace_file_stat', 'mastra_workspace_grep']),
+  }),
+] as const)
 
 const inspectAppEntry = async (
   directCommand: FixedApplicationStarterWorkspace['directCommand'],

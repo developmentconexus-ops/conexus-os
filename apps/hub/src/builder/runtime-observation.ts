@@ -1,142 +1,116 @@
+import type { AgentControllerEvent } from '@mastra/core/agent-controller'
 import type { BuilderObservation } from '../../../../packages/builder-observation/src/index.mjs'
 
 type ObservationLabel = Extract<BuilderObservation, { kind: 'ACTIVITY' }>['label']
 type ObservationSink = ((event: BuilderObservation) => void) | undefined
+type NativeEvent = AgentControllerEvent
 
-type RecordValue = Record<string, unknown>
-
-const isRecord = (value: unknown): value is RecordValue => typeof value === 'object' && value !== null
-const stringValue = (value: unknown): string | undefined => typeof value === 'string' && value.length > 0 ? value : undefined
-
-const toolLabel = (toolName: string | undefined): ObservationLabel => {
-  const value = toolName?.toLowerCase() ?? ''
+const toolLabel = (toolName: string): ObservationLabel => {
+  const value = toolName.toLowerCase()
   if (/(read|list|search|find|glob|grep|inspect|stat|cat|tree)/.test(value)) return 'READ_FILES'
   if (/(write|edit|patch|update|create|delete|remove|replace|modify|rename)/.test(value)) return 'EDIT_FILES'
   if (/(execute|exec|command|shell|run|test|build|install|git|npm|pnpm|yarn)/.test(value)) return 'RUN_COMMAND'
   return 'WORKSPACE'
 }
 
-const textProviderKey = (payload: RecordValue): string => stringValue(payload.id) ?? '__missing_text_id__'
-const toolProviderKey = (payload: RecordValue): string | undefined => stringValue(payload.toolCallId)
-
-const isToolBoundary = (type: string): boolean => type.startsWith('tool-')
-
-const terminalToolState = (result: unknown, isError: unknown): 'succeeded' | 'failed' => {
-  if (isError === true) return 'failed'
-  return isRecord(result) && result.success === false ? 'failed' : 'succeeded'
+const messageText = (message: Readonly<{ content?: Readonly<{ parts?: readonly unknown[] }> }>): string => {
+  const parts = Array.isArray(message.content?.parts) ? message.content.parts : []
+  return parts.flatMap((part) => {
+    if (typeof part !== 'object' || part === null || !('type' in part) || part.type !== 'text' || !('text' in part) || typeof part.text !== 'string') return []
+    return [part.text]
+  }).join('')
 }
 
-/**
- * Projects Mastra's provider-facing stream chunks into the intentionally small
- * Builder observation union. Provider ids and payloads stay inside this state
- * machine and never cross the observation boundary.
- */
-export const createMastraObservationMapper = () => {
+const safePath = (args: unknown): string | undefined => {
+  if (typeof args !== 'object' || args === null) return undefined
+  const value = 'path' in args && typeof args.path === 'string' ? args.path
+    : 'filePath' in args && typeof args.filePath === 'string' ? args.filePath
+      : 'file_path' in args && typeof args.file_path === 'string' ? args.file_path : undefined
+  if (!value || value.includes('\0') || value.includes('..')) return undefined
+  const normalized = value.replaceAll('\\', '/').replace(/^\/workspace\/repo\//, '')
+  return normalized.startsWith('app/') && normalized.length <= 220 ? normalized : undefined
+}
+
+const appendText = (blockId: string, text: string, events: BuilderObservation[]): void => {
+  for (let offset = 0; offset < text.length; offset += 65_536) {
+    events.push({ kind: 'TEXT_DELTA', blockId, text: text.slice(offset, offset + 65_536) })
+  }
+}
+
+/** Projects the native AgentController event stream once at the Conexus trust boundary. */
+export const createMastraSessionObservationProjector = () => {
   let nextTextId = 0
   let nextActivityId = 0
-  let textBoundary = 0
-  const activeTexts = new Map<string, { blockId: string; boundary: number }>()
-  const activeTools = new Map<string, { activityId: string; label: ObservationLabel }>()
-  const finishedTools = new Set<string>()
+  const texts = new Map<string, { blockId: string; text: string; ended: boolean }>()
+  const tools = new Map<string, { activityId: string; label: ObservationLabel; detail?: string }>()
 
-  const startText = (providerKey: string, events: BuilderObservation[]): { blockId: string; boundary: number } => {
-    const previous = activeTexts.get(providerKey)
-    if (previous) events.push({ kind: 'TEXT_END', blockId: previous.blockId })
-    const current = { blockId: `text-${++nextTextId}`, boundary: textBoundary }
-    activeTexts.set(providerKey, current)
+  const startText = (key: string, events: BuilderObservation[]): { blockId: string; text: string; ended: boolean } => {
+    const current = { blockId: `text-${++nextTextId}`, text: '', ended: false }
+    texts.set(key, current)
     events.push({ kind: 'TEXT_START', blockId: current.blockId })
     return current
   }
 
-  const closeTexts = (events: BuilderObservation[]) => {
-    for (const current of activeTexts.values()) events.push({ kind: 'TEXT_END', blockId: current.blockId })
-    activeTexts.clear()
+  const closeText = (current: { blockId: string; text: string; ended: boolean }, events: BuilderObservation[]): void => {
+    if (current.ended) return
+    current.ended = true
+    events.push({ kind: 'TEXT_END', blockId: current.blockId })
   }
 
-  const appendText = (blockId: string, text: string, events: BuilderObservation[]) => {
-    // The shared wire schema bounds one delta. Splitting here keeps every
-    // emitted observation parseable even if a provider sends a large chunk.
-    for (let offset = 0; offset < text.length; offset += 65_536) {
-      events.push({ kind: 'TEXT_DELTA', blockId, text: text.slice(offset, offset + 65_536) })
-    }
-  }
-
-  const startTool = (providerKey: string, label: ObservationLabel, events: BuilderObservation[]) => {
-    const existing = activeTools.get(providerKey)
-    if (existing) return existing
-    const current = { activityId: `activity-${++nextActivityId}`, label }
-    finishedTools.delete(providerKey)
-    activeTools.set(providerKey, current)
-    events.push({ kind: 'ACTIVITY', activityId: current.activityId, label: current.label, state: 'started' })
-    return current
-  }
-
-  const finishTool = (providerKey: string, state: 'succeeded' | 'failed', label: ObservationLabel, events: BuilderObservation[]) => {
-    const existing = activeTools.get(providerKey)
-    if (!existing) {
-      if (finishedTools.has(providerKey)) return
-      startTool(providerKey, label, events)
-    }
-    const current = activeTools.get(providerKey)
+  const finishTool = (toolCallId: string, state: 'succeeded' | 'failed', events: BuilderObservation[]): void => {
+    const current = tools.get(toolCallId)
     if (!current) return
-    events.push({ kind: 'ACTIVITY', activityId: current.activityId, label: current.label, state })
-    activeTools.delete(providerKey)
-    finishedTools.add(providerKey)
+    events.push({ kind: 'ACTIVITY', activityId: current.activityId, label: current.label, ...(current.detail ? { detail: current.detail } : {}), state })
+    tools.delete(toolCallId)
   }
 
-  const map = (chunk: unknown): BuilderObservation[] => {
-    if (!isRecord(chunk)) return []
-    const type = stringValue(chunk.type)
-    if (!type) return []
-    const payload = isRecord(chunk.payload) ? chunk.payload : {}
+  const map = (event: NativeEvent): BuilderObservation[] => {
     const events: BuilderObservation[] = []
-
-    try {
-      if (isToolBoundary(type)) textBoundary += 1
-      if (type === 'text-start') {
-        startText(textProviderKey(payload), events)
-      } else if (type === 'text-delta') {
-        const text = typeof payload.text === 'string' ? payload.text : undefined
-        if (text === undefined) return events
-        const providerKey = textProviderKey(payload)
-        let current = activeTexts.get(providerKey)
-        if (!current || current.boundary !== textBoundary) current = startText(providerKey, events)
-        appendText(current.blockId, text, events)
-      } else if (type === 'text-end') {
-        const providerKey = textProviderKey(payload)
-        const current = activeTexts.get(providerKey)
-        if (current) {
-          events.push({ kind: 'TEXT_END', blockId: current.blockId })
-          activeTexts.delete(providerKey)
-        }
-      } else if (type === 'tool-call' || type === 'tool-call-input-streaming-start') {
-        const providerKey = toolProviderKey(payload)
-        if (providerKey) startTool(providerKey, toolLabel(stringValue(payload.toolName)), events)
-      } else if (type === 'tool-result') {
-        const providerKey = toolProviderKey(payload)
-        if (providerKey) finishTool(providerKey, terminalToolState(payload.result, payload.isError), toolLabel(stringValue(payload.toolName)), events)
-      } else if (type === 'tool-error') {
-        const providerKey = toolProviderKey(payload)
-        if (providerKey) finishTool(providerKey, 'failed', toolLabel(stringValue(payload.toolName)), events)
-      } else if (type === 'finish' || type === 'error' || type === 'abort' || type === 'tripwire') {
-        closeTexts(events)
+    if (event.type === 'message_start' && event.message.role === 'assistant') {
+      const current = startText(event.message.id, events)
+      const text = messageText(event.message)
+      if (text) { appendText(current.blockId, text, events); current.text = text }
+    } else if (event.type === 'message_update' && event.message.role === 'assistant') {
+      const current = texts.get(event.message.id) ?? startText(event.message.id, events)
+      const text = messageText(event.message)
+      if (text.startsWith(current.text)) appendText(current.blockId, text.slice(current.text.length), events)
+      current.text = text
+    } else if (event.type === 'message_end' && event.message.role === 'assistant') {
+      const current = texts.get(event.message.id) ?? startText(event.message.id, events)
+      const text = messageText(event.message)
+      if (text.startsWith(current.text)) appendText(current.blockId, text.slice(current.text.length), events)
+      current.text = text
+      closeText(current, events)
+      texts.delete(event.message.id)
+    } else if (event.type === 'tool_start') {
+      const label = toolLabel(event.toolName)
+      const detail = safePath(event.args)
+      const current = { activityId: `activity-${++nextActivityId}`, label, ...(detail ? { detail } : {}) }
+      tools.set(event.toolCallId, current)
+      events.push({ kind: 'ACTIVITY', activityId: current.activityId, label, ...(detail ? { detail } : {}), state: 'started' })
+    } else if (event.type === 'tool_end') {
+      finishTool(event.toolCallId, event.isError || event.denied ? 'failed' : 'succeeded', events)
+    } else if (event.type === 'agent_end') {
+      for (const current of texts.values()) closeText(current, events)
+      texts.clear()
+      for (const [toolCallId] of tools) {
+        const current = tools.get(toolCallId)
+        if (current) events.push({ kind: 'ACTIVITY', activityId: current.activityId, label: current.label, ...(current.detail ? { detail: current.detail } : {}), state: 'interrupted' })
       }
-    } catch {
-      // Observation is a best-effort projection. A malformed provider chunk
-      // must not become a worker failure or leak through this boundary.
-      return []
+      tools.clear()
     }
     return events
   }
 
   const finish = (): BuilderObservation[] => {
     const events: BuilderObservation[] = []
-    closeTexts(events)
-    for (const [key, current] of activeTools) {
-      events.push({ kind: 'ACTIVITY', activityId: current.activityId, label: current.label, state: 'interrupted' })
-      finishedTools.add(key)
+    for (const current of texts.values()) closeText(current, events)
+    texts.clear()
+    for (const [toolCallId] of tools) {
+      const current = tools.get(toolCallId)
+      if (current) events.push({ kind: 'ACTIVITY', activityId: current.activityId, label: current.label, ...(current.detail ? { detail: current.detail } : {}), state: 'interrupted' })
+      tools.delete(toolCallId)
     }
-    activeTools.clear()
     return events
   }
 
@@ -147,6 +121,6 @@ export const notifyObservation = (observer: ObservationSink, event: BuilderObser
   try {
     observer?.(event)
   } catch {
-    // UI observation is never allowed to alter the server-owned worker result.
+    // The live display must not change the server-owned run result.
   }
 }

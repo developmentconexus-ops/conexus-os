@@ -15,9 +15,18 @@ const runStatus = (state: string | undefined, kind: string | null | undefined): 
   return 'Pronto para construir'
 }
 
+const activityLabel = (label: Extract<ObservationPart, { kind: 'activity' }>['label']): string => ({
+  READ_FILES: 'Lendo arquivos', EDIT_FILES: 'Editando', RUN_COMMAND: 'Executando comando', WORKSPACE: 'Trabalhando no Workspace',
+}[label])
+
+const activityState = (state: Extract<ObservationPart, { kind: 'activity' }>['state']): string => ({
+  started: 'em andamento', succeeded: 'concluído', failed: 'falhou', interrupted: 'interrompido',
+}[state])
+
 type Inspection = 'CODE' | 'DIFF' | 'DETAILS'
 type SourceDiffEntry = Readonly<{ path: string; status: 'ADDED' | 'REMOVED' | 'MODIFIED' }>
 type SourceSnapshot = Readonly<{ sourceRevision: string; files: ReadonlyMap<string, string> }>
+type LiveRequest = Readonly<{ runId: string; text: string }>
 
 const readSourceSnapshot = async (projectId: string, sourceRevision: string): Promise<SourceSnapshot> => {
   const tree = await listProjectSourceTree(projectId, sourceRevision)
@@ -45,12 +54,15 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const [content, setContent] = useState('')
   const [mode, setMode] = useState<'BUILD' | 'PLAN'>('BUILD')
   const [message, setMessage] = useState('')
-  const [activity, setActivity] = useState<readonly ObservationPart[]>([])
+  const [liveParts, setLiveParts] = useState<readonly ObservationPart[]>([])
+  const [liveRequest, setLiveRequest] = useState<LiveRequest | null>(null)
   const [inspection, setInspection] = useState<Inspection | null>(null)
   const [selectedSourcePath, setSelectedSourcePath] = useState<string | null>(null)
   const [launch, setLaunch] = useState<Readonly<{ previewUrl: string; entryUrl: string; entryGrant: string }>>()
   const frameName = `builder-preview-${inputId.replaceAll(':', '')}`
   const entryForm = useRef<HTMLFormElement>(null)
+  const conversationRef = useRef<HTMLElement>(null)
+  const followTail = useRef(true)
   const session = useQuery({
     queryKey: ['builder-session', projectId], queryFn: () => getBuilderSession(projectId),
     refetchInterval: (query) => query.state.data?.latestBuilderRun?.state === 'RUNNING' ? 1_000 : 2_000,
@@ -58,9 +70,11 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const send = useMutation({
     mutationFn: (value: Readonly<{ content: string; mode: 'BUILD' | 'PLAN'; key: string }>) =>
       sendBuilderMessage(projectId, value.content, value.mode, value.key),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       setContent('')
       setMessage('Mensagem enviada ao Builder.')
+      setLiveRequest({ runId: result.builderRun.builderRunId, text: content.trim() })
+      setLiveParts([])
       await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] })
     },
     onError: (error) => {
@@ -70,13 +84,39 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     },
   })
   const runId = session.data?.latestBuilderRun?.builderRunId
-  useEffect(() => {
-    if (!runId) return undefined
-    const controller = new AbortController()
-    void observeBuilderRun(projectId, runId, controller.signal, setActivity).catch(() => undefined)
-    return () => controller.abort()
-  }, [projectId, runId])
   const run = session.data?.latestBuilderRun
+  const runActive = run?.state === 'QUEUED' || run?.state === 'RUNNING'
+  useEffect(() => {
+    if (!runId || !runActive) return undefined
+    const controller = new AbortController()
+    void observeBuilderRun(projectId, runId, controller.signal, setLiveParts).catch(() => undefined)
+    return () => controller.abort()
+  }, [projectId, runActive, runId])
+  const previousRunState = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    const wasActive = previousRunState.current === 'QUEUED' || previousRunState.current === 'RUNNING'
+    previousRunState.current = run?.state
+    if (!runId || !wasActive || runActive) return
+    void session.refetch().finally(() => {
+      setLiveParts([])
+      setLiveRequest(null)
+    })
+  }, [run, runActive, runId, session])
+  const timelineMessages = session.data?.messages ?? []
+  const hasLiveUser = Boolean(liveRequest && timelineMessages.some((item) => item.id === liveRequest.runId || item.text === liveRequest.text))
+  const liveTimeline = runActive ? [
+    ...(liveRequest && !hasLiveUser ? [{ kind: 'request' as const, id: liveRequest.runId, text: liveRequest.text }] : []),
+    ...liveParts,
+  ] : []
+  const onConversationScroll = () => {
+    const element = conversationRef.current
+    if (!element) return
+    followTail.current = element.scrollHeight - element.scrollTop - element.clientHeight < 56
+  }
+  useEffect(() => {
+    const element = conversationRef.current
+    if (element && followTail.current) element.scrollTop = element.scrollHeight
+  })
   const previewSummary = session.data?.preview
   const workingSourceRevision = previewSummary?.workingSourceRevision ?? null
   const lastGoodSourceRevision = previewSummary?.lastGoodSourceRevision ?? null
@@ -189,18 +229,25 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       </section>
       <aside className="conexus-panel" aria-labelledby="conexus-panel-title">
         <p className="eyebrow">Conexus</p><h2 id="conexus-panel-title">Converse com o Conexus</h2>
-        <section className="builder-conversation" aria-label="Mensagens do Builder">
-          {session.data?.messages.map((item) => <div key={item.id} className={`builder-message builder-message-${item.role}`}><strong>{item.role === 'user' ? 'Você' : 'Conexus'}</strong><BuilderMarkdown text={item.text} /></div>)}
-          {activity.map((part) => part.kind === 'text' ? <div key={part.id} className="builder-message"><BuilderMarkdown text={part.text} /></div> : part.kind === 'phase' ? <p key={part.id} className="builder-phase">{part.phase}</p> : <p key={part.id} className="builder-activity">{part.label} — {part.state}</p>)}
-          {!session.data?.messages.length && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}
+        <section ref={conversationRef} onScroll={onConversationScroll} className="builder-conversation" aria-label="Mensagens do Builder">
+          {timelineMessages.map((item) => <div key={item.id} className={`builder-timeline-item builder-message builder-message-${item.role}`}><strong>{item.role === 'user' ? 'Você' : 'Conexus'}</strong><BuilderMarkdown text={item.text} /></div>)}
+          {liveTimeline.map((part) => part.kind === 'request'
+            ? <div key={part.id} className="builder-timeline-item builder-message builder-message-user"><strong>Você</strong><BuilderMarkdown text={part.text} /></div>
+            : part.kind === 'text'
+              ? <div key={part.id} className="builder-timeline-item builder-message builder-message-assistant"><BuilderMarkdown text={part.text || ' '}/></div>
+              : part.kind === 'activity'
+                ? <div key={part.id} className="builder-timeline-item builder-activity" data-state={part.state}><span className="builder-activity-icon" aria-hidden="true">{part.state === 'failed' ? '!' : part.state === 'succeeded' ? '✓' : '·'}</span><span><strong>{activityLabel(part.label)}</strong>{part.detail && <small>{part.detail}</small>}<span>{activityState(part.state)}</span></span></div>
+                : null)}
+          {runActive && <p className="builder-run-status" role="status" aria-live="polite">Trabalhando…</p>}
+          {!timelineMessages.length && !liveTimeline.length && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}
         </section>
         <form onSubmit={submit}>
           <label htmlFor={inputId}>O que o Project precisa fazer?</label>
           <textarea id={inputId} rows={5} required value={content} onChange={(event) => setContent(event.target.value)} />
           <fieldset className="builder-mode-toggle">
             <legend>Modo do Builder</legend>
-            <button type="button" aria-pressed={mode === 'BUILD'} onClick={() => setMode('BUILD')}>Build</button>
-            <button type="button" aria-pressed={mode === 'PLAN'} onClick={() => setMode('PLAN')}>Plan</button>
+            <button className={mode === 'BUILD' ? 'builder-mode-selected' : undefined} type="button" aria-pressed={mode === 'BUILD'} onClick={() => setMode('BUILD')}>Build</button>
+            <button className={mode === 'PLAN' ? 'builder-mode-selected' : undefined} type="button" aria-pressed={mode === 'PLAN'} onClick={() => setMode('PLAN')}>Plan</button>
           </fieldset>
           <button className="primary" type="submit" disabled={send.isPending || run?.state === 'QUEUED' || run?.state === 'RUNNING'}>{send.isPending ? 'Enviando…' : 'Enviar mensagem'}</button>
           <p role="status" aria-live="polite">{message}</p>

@@ -18,8 +18,10 @@ const compiled = spawnSync(process.execPath, [
 if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
 
 const {
+  BUILDER_BASE_AGENT_INSTRUCTIONS,
+  BUILDER_MODE_DEFINITIONS,
+  BUILDER_MODE_INSTRUCTIONS,
   FIXED_APPLICATION_STARTER_FILES,
-  FIXED_APPLICATION_STARTER_INSTRUCTIONS,
   materializeFixedApplicationStarter,
 } = await import(pathToFileURL(resolve(buildRoot, 'builder/application-starter.js')).href)
 
@@ -67,9 +69,16 @@ test('materializes the fixed empty React starter into an app-less checkout', asy
     assert.match(readFileSync(join(root, 'app/src/main.tsx'), 'utf8'), /\.\/style\.css/)
     assert.doesNotMatch(readFileSync(join(root, 'app/src/main.tsx'), 'utf8'), /counter|business|seed/i)
     assert.match(readFileSync(join(root, 'app/src/style.css'), 'utf8'), /body \{[\s\S]*margin: 0;/)
-    assert.match(FIXED_APPLICATION_STARTER_INSTRUCTIONS, /REACT_VITE_V1/)
-    assert.match(FIXED_APPLICATION_STARTER_INSTRUCTIONS, /do not install/i)
-    assert.match(FIXED_APPLICATION_STARTER_INSTRUCTIONS, /separate compilation/i)
+    assert.match(BUILDER_BASE_AGENT_INSTRUCTIONS, /Session Workspace/)
+    assert.match(BUILDER_BASE_AGENT_INSTRUCTIONS, /app\/\*\*/)
+    assert.match(BUILDER_BASE_AGENT_INSTRUCTIONS, /REACT_VITE_V1/)
+    assert.match(BUILDER_BASE_AGENT_INSTRUCTIONS, /portugu[eê]s brasileiro/i)
+    assert.match(BUILDER_BASE_AGENT_INSTRUCTIONS, /chain-of-thought/i)
+    assert.match(BUILDER_MODE_INSTRUCTIONS.BUILD, /implementar/i)
+    assert.match(BUILDER_MODE_INSTRUCTIONS.PLAN, /somente leitura/i)
+    assert.doesNotMatch(BUILDER_MODE_INSTRUCTIONS.PLAN, /editar|alterar/i)
+    assert.deepEqual(BUILDER_MODE_DEFINITIONS[0].availableTools.includes('mastra_workspace_write_file'), true)
+    assert.deepEqual(BUILDER_MODE_DEFINITIONS[1].availableTools.some((tool) => /write|edit|delete|execute/.test(tool)), false)
 
     const beforeSecondRequest = new Map(FIXED_APPLICATION_STARTER_FILES.map((file) => [file.path, readFileSync(join(root, file.path), 'utf8')]))
     assert.equal(await materializeFixedApplicationStarter({

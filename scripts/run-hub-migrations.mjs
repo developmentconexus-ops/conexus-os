@@ -20,7 +20,7 @@ const r1MigrationNames = [
   '010_project_inception_refinement.sql',
 ]
 const r2MigrationNames = ['011_r2_brain_connections.sql', '012_r2_project_binding_recovery.sql', '013_r2_binding_source_concordance.sql', '014_r2_brain_binding_settlement.sql', '015_r2_project_brain_read_envelopes.sql', '016_r2_brain_binding_removal.sql', '017_r2_key_conformance_subject.sql', '018_r2_brain_revision_selection.sql']
-const currentMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql', '021_rb_builder_bounded_correction.sql', '022_rb_builder_source_inspection.sql', '023_rb_builder_preview_subject.sql', '026_builder_application_registry.sql', '027_rb_builder_working_source.sql', '028_builder_run.sql', '029_builder_run_execution.sql', '030_builder_run_invariants.sql', '031_builder_run_application_build.sql', '032_builder_project_build_grant.sql', '033_builder_execution_artifact_admission.sql', '034_builder_project_source_preview.sql', '035_builder_c020_state_invariants.sql', '036_builder_project_creation_bootstrap.sql', '037_builder_c020_source_inspection.sql', '038_builder_c020_legacy_excision.sql', '039_builder_c020_execution_invariants.sql']
+const currentMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql', '021_rb_builder_bounded_correction.sql', '022_rb_builder_source_inspection.sql', '023_rb_builder_preview_subject.sql', '026_builder_application_registry.sql', '027_rb_builder_working_source.sql', '028_builder_run.sql', '029_builder_run_execution.sql', '030_builder_run_invariants.sql', '031_builder_run_application_build.sql', '032_builder_project_build_grant.sql', '033_builder_execution_artifact_admission.sql', '034_builder_project_source_preview.sql', '035_builder_c020_state_invariants.sql', '036_builder_project_creation_bootstrap.sql', '037_builder_c020_source_inspection.sql', '038_builder_c020_legacy_excision.sql', '039_builder_c020_execution_invariants.sql', '040_builder_registry_settlement_boundary.sql']
 const heldMigrationNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
 const expectedMigrationNames = [...currentMigrationNames, ...heldMigrationNames]
 const migration001Digest = 'd27e76b972145bc3a6bf669d4fd32734fc06153d07cddaf1072c6b29845b112f'
@@ -62,6 +62,7 @@ const migration036Digest = 'f0fe953e4f202ee8d7c266621a5cfb8c863097b022c7dd9f9e04
 const migration037Digest = '356d01a90237c24464b9e05b5fdc65c716ddb24130187c4cc88e03673c6d3190'
 const migration038Digest = '30d5e9af141a6278c0cbe82a329ef906c7cd2c0efcd6a178f341393e954660a9'
 const migration039Digest = '712955ef10bd196204067835179816a5873b0898786fce89df56f0fa7eb4580a'
+const migration040Digest = '359d1d386b01f40a5b842f56363e82176db56b9b731736f01080597ca762f7f5'
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }
@@ -105,6 +106,7 @@ const migrationDigests = new Map([
   ['037_builder_c020_source_inspection.sql', migration037Digest],
   ['038_builder_c020_legacy_excision.sql', migration038Digest],
   ['039_builder_c020_execution_invariants.sql', migration039Digest],
+  ['040_builder_registry_settlement_boundary.sql', migration040Digest],
 ])
 const recognizedMigrationNames = new Set(expectedMigrationNames)
 
@@ -3533,7 +3535,7 @@ const assert037Catalog = async (client, migration037) => {
   `, [])
 }
 
-const assert038Catalog = async (client) => {
+const assert038Catalog = async (client, { after040 = false } = {}) => {
   const legacy = (await client.query(`
     SELECT to_regclass('builder.actor_run')::text AS actor_run,
       to_regclass('builder.change')::text AS change,
@@ -3559,7 +3561,7 @@ const assert038Catalog = async (client) => {
   if (JSON.stringify(currentFunctions) !== JSON.stringify(['admit_source_revision', 'read_latest_code_changing_builder_run', 'read_preview_subject', 'settle_builder_run_build'])) {
     fail(`MIGRATION_038_CURRENT_FUNCTIONS_REFUSED:${JSON.stringify(currentFunctions)}`)
   }
-  await assertSignatures(client, 'MIGRATION_038_REGISTRY_EXECUTE_ACL_REFUSED', `
+  await assertSignatures(client, after040 ? 'MIGRATION_040_REGISTRY_EXECUTE_ACL_REFUSED' : 'MIGRATION_038_REGISTRY_EXECUTE_ACL_REFUSED', `
     SELECT p.proname || ':' || coalesce(grantee.rolname, 'public') || ':' || acl.privilege_type AS signature
     FROM pg_proc AS p
     JOIN pg_namespace AS n ON n.oid = p.pronamespace
@@ -3570,11 +3572,60 @@ const assert038Catalog = async (client) => {
       AND acl.grantee <> p.proowner
       AND acl.privilege_type = 'EXECUTE'
     ORDER BY p.proname, grantee.rolname
-  `, [
+  `, after040 ? ['retain_application_execution:hub_rb_executor:EXECUTE'] : [
     'get_application_execution:hub_rb_executor:EXECUTE',
     'read_application_file_execution:hub_rb_executor:EXECUTE',
     'retain_application_execution:hub_rb_executor:EXECUTE',
   ])
+}
+
+const assert040Catalog = async (client) => {
+  await assert038Catalog(client, { after040: true })
+  await assertSignatures(client, 'MIGRATION_040_SETTLEMENT_FUNCTION_REFUSED', `
+    SELECT n.nspname || '.' || p.proname || '(' || oidvectortypes(p.proargtypes) || '):' ||
+      pg_get_userbyid(p.proowner) || ':' || p.prosecdef || ':' ||
+      coalesce(array_to_string(p.proconfig, ','), '') || ':' || pg_get_function_result(p.oid) AS signature
+    FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'builder' AND p.proname = 'settle_builder_run_build'
+  `, ['builder.settle_builder_run_build(uuid, text, uuid, text, text):builder_owner:true:search_path=pg_catalog, pg_temp:boolean'])
+  const source = (await client.query(`
+    SELECT p.prosrc AS source
+    FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'builder' AND p.proname = 'settle_builder_run_build'
+  `)).rows[0]?.source ?? ''
+  if (!source.includes('reg.get_application_by_source') || source.includes('reg.get_application_execution')) fail('MIGRATION_040_SETTLEMENT_SOURCE_REFUSED')
+  const boundary = (await client.query(`
+    SELECT has_schema_privilege('builder_owner', 'reg', 'USAGE') AS builder_reg_usage,
+      has_function_privilege('builder_owner', 'reg.get_application_by_source(uuid, uuid, text)', 'EXECUTE') AS builder_source_get,
+      has_function_privilege('builder_owner', 'reg.retain_application_execution(uuid, uuid, uuid, text, jsonb)', 'EXECUTE') AS builder_execution_retain,
+      has_function_privilege('builder_owner', 'reg.read_application_file_by_source(uuid, uuid, text, uuid, text)', 'EXECUTE') AS builder_source_read,
+      has_function_privilege('hub_rb_executor', 'reg.retain_application_execution(uuid, uuid, uuid, text, jsonb)', 'EXECUTE') AS executor_execution_retain,
+      has_function_privilege('hub_rb_executor', 'reg.get_application_by_source(uuid, uuid, text)', 'EXECUTE') AS executor_source_get,
+      has_function_privilege('hub_rb_executor', 'reg.read_application_file_by_source(uuid, uuid, text, uuid, text)', 'EXECUTE') AS executor_source_read,
+      has_function_privilege('public', 'reg.get_application_by_source(uuid, uuid, text)', 'EXECUTE') AS public_source_get,
+      has_function_privilege('public', 'reg.read_application_file_by_source(uuid, uuid, text, uuid, text)', 'EXECUTE') AS public_source_read,
+      has_function_privilege('public', 'reg.retain_application_execution(uuid, uuid, uuid, text, jsonb)', 'EXECUTE') AS public_execution_retain,
+      COALESCE((SELECT bool_and(
+        NOT has_table_privilege('builder_owner', c.oid, 'SELECT') AND
+        NOT has_table_privilege('builder_owner', c.oid, 'INSERT') AND
+        NOT has_table_privilege('builder_owner', c.oid, 'UPDATE') AND
+        NOT has_table_privilege('builder_owner', c.oid, 'DELETE') AND
+        NOT has_table_privilege('builder_owner', c.oid, 'TRUNCATE') AND
+        NOT has_table_privilege('builder_owner', c.oid, 'REFERENCES') AND
+        NOT has_table_privilege('builder_owner', c.oid, 'TRIGGER'))
+        FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'reg' AND c.relkind IN ('r', 'p')), true) AS builder_no_reg_table_privileges,
+      pg_has_role('builder_owner', 'registry_owner', 'member') AS builder_registry_member,
+      to_regprocedure('reg.get_application_execution(uuid,uuid,uuid,text)')::text AS execution_get,
+      to_regprocedure('reg.read_application_file_execution(uuid,uuid,uuid,text,uuid,text)')::text AS execution_read
+  `)).rows[0]
+  if (JSON.stringify(boundary) !== JSON.stringify({
+    builder_reg_usage: true, builder_source_get: true, builder_execution_retain: false, builder_source_read: false,
+    executor_execution_retain: true, executor_source_get: true, executor_source_read: true,
+    public_source_get: false, public_source_read: false, public_execution_retain: false,
+    builder_no_reg_table_privileges: true, builder_registry_member: false,
+    execution_get: null, execution_read: null,
+  })) fail('MIGRATION_040_BOUNDARY_REFUSED')
 }
 
 const assert024Catalog = async (client) => {
@@ -3713,7 +3764,8 @@ const verifyLedger = async (client, migrations) => {
       after031: applied.has('031'),
       after037: applied.has('037'), after038: applied.has('038'),
     })
-    if (applied.has('038')) await assert038Catalog(client)
+    if (applied.has('040')) await assert040Catalog(client)
+    else if (applied.has('038')) await assert038Catalog(client)
     else {
       await assert020Catalog(client)
       await assert021Catalog(client)

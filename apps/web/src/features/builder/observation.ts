@@ -3,7 +3,7 @@ import { clearAuthorityCache } from '../../app/query-client'
 
 export type ObservationPart =
   | Readonly<{ kind: 'text'; id: string; text: string; ended: boolean }>
-  | Readonly<{ kind: 'activity'; id: string; label: Extract<BuilderObservation, { kind: 'ACTIVITY' }>['label']; state: Extract<BuilderObservation, { kind: 'ACTIVITY' }>['state'] }>
+  | Readonly<{ kind: 'activity'; id: string; label: Extract<BuilderObservation, { kind: 'ACTIVITY' }>['label']; detail?: string; state: Extract<BuilderObservation, { kind: 'ACTIVITY' }>['state'] }>
   | Readonly<{ kind: 'phase'; id: string; phase: Extract<BuilderObservation, { kind: 'PHASE' }>['phase'] }>
 
 const observeUrl = async (
@@ -50,13 +50,14 @@ const observeUrl = async (
             parts = parts.map((item) => item === part ? { ...part, text: part.text + (event.kind === 'TEXT_DELTA' ? event.text : ''), ended: event.kind === 'TEXT_END' } : item)
           } else {
             const part = parts.find((item) => item.kind === 'activity' && item.id === event.activityId)
+            const detail = 'detail' in event && typeof event.detail === 'string' ? event.detail : undefined
             if (!part) {
               if (event.state !== 'started') throw new Error('Unknown activity')
-              parts = [...parts, { kind: 'activity', id: event.activityId, label: event.label, state: event.state }]
+              parts = [...parts, { kind: 'activity', id: event.activityId, label: event.label, ...(detail ? { detail } : {}), state: event.state }]
             } else if (strict && (part.kind !== 'activity' || part.state !== 'started' || event.state === 'started' || part.label !== event.label)) {
               throw new Error('Invalid activity transition')
             } else {
-              parts = parts.map((item) => item === part ? { ...part, state: event.state } : item)
+              parts = parts.map((item) => item === part ? { ...part, ...(detail ? { detail } : {}), state: event.state } : item)
             }
           }
           if (signal.aborted) return

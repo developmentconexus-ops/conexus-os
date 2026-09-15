@@ -17,6 +17,7 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   const origin = 'http://127.0.0.1:41749'
   let run = null
   let buildCount = 0
+  let sessionReads = 0
   const requests = []
   const server = await createServer({
     configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
@@ -28,8 +29,10 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   const session = () => ({
-    projectId, messages: run ? [{ id: 'message-1', role: 'user', text: 'Crie um contador', createdAt: new Date().toISOString() }, { id: 'message-2', role: 'assistant', text: '**Build concluído**', createdAt: new Date().toISOString() }] : [],
-    latestBuilderRun: run, latestCodeChangingRun: buildCount > 0 ? { baseSourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: buildCount > 0 ? sourceRevision : null, lastGoodArtifactRevisionId: buildCount > 0 ? artifactRevisionId : null, lastGoodArtifactDigest: buildCount > 0 ? artifactDigest : null }, mode: run?.mode ?? 'BUILD',
+    projectId, messages: run && sessionReads > 1 ? [{ id: 'message-1', role: 'user', text: 'Crie um contador até 100 interativo', createdAt: new Date().toISOString() }, { id: 'message-2', role: 'assistant', text: '**Build concluído**', createdAt: new Date().toISOString() }] : [],
+    latestBuilderRun: run && sessionReads > 2 && (run.mode === 'PLAN' || liveStreamRequests > 0)
+      ? { ...run, state: 'SUCCEEDED', resultSourceRevision: run.mode === 'PLAN' ? null : sourceRevision, resultKind: run.mode === 'PLAN' ? 'RESPONSE_ONLY' : 'SOURCE_CHANGED' }
+      : run, latestCodeChangingRun: buildCount > 0 ? { baseSourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: buildCount > 0 ? sourceRevision : null, lastGoodArtifactRevisionId: buildCount > 0 ? artifactRevisionId : null, lastGoodArtifactDigest: buildCount > 0 ? artifactDigest : null }, mode: run?.mode ?? 'BUILD',
   })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Counter', projectRevision: 'revision', archived: false }) }))
@@ -43,12 +46,15 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
       const body = route.request().postDataJSON()
       requests.push({ url: route.request().url(), body, key: route.request().headers()['idempotency-key'] })
       buildCount += body.mode === 'BUILD' ? 1 : 0
-      run = { builderRunId: runId, projectId, state: 'SUCCEEDED', mode: body.mode, baseSourceRevision, resultSourceRevision: body.mode === 'PLAN' ? null : sourceRevision, resultKind: body.mode === 'PLAN' ? 'RESPONSE_ONLY' : 'SOURCE_CHANGED', failureCode: null }
+      run = { builderRunId: runId, projectId, state: 'RUNNING', mode: body.mode, baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
       return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ threadId: `conexus-builder:${projectId}`, builderRun: run }) })
     }
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session()) })
   })
-  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session()) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
+    sessionReads += 1
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session()) })
+  })
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, async (route) => {
     previewRequests.push(route.request().postDataJSON())
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ entryUrl: `${origin}/preview-entry`, previewUrl: `${origin}/preview`, entryGrant: 'grant', artifactRevisionId, artifactDigest, expiresAt: new Date(Date.now() + 60_000).toISOString() }) })
@@ -67,9 +73,14 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
     const generation = 'browser-generation'
     const events = [
       { kind: 'PHASE', phase: 'CODING' },
-      { kind: 'TEXT_START', blockId: 'browser-block' },
-      { kind: 'TEXT_DELTA', blockId: 'browser-block', text: 'Build em andamento' },
-      { kind: 'TEXT_END', blockId: 'browser-block' },
+      { kind: 'TEXT_START', blockId: 'browser-block-1' },
+      { kind: 'TEXT_DELTA', blockId: 'browser-block-1', text: 'Inspecionando o app' },
+      { kind: 'TEXT_END', blockId: 'browser-block-1' },
+      { kind: 'ACTIVITY', activityId: 'browser-tool', label: 'READ_FILES', detail: 'app/src/main.tsx', state: 'started' },
+      { kind: 'ACTIVITY', activityId: 'browser-tool', label: 'READ_FILES', detail: 'app/src/main.tsx', state: 'succeeded' },
+      { kind: 'TEXT_START', blockId: 'browser-block-2' },
+      { kind: 'TEXT_DELTA', blockId: 'browser-block-2', text: 'Aplicando a alteração' },
+      { kind: 'TEXT_END', blockId: 'browser-block-2' },
       { kind: 'OBSERVATION_END' },
     ]
     return route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8' }, body: events.map((event, index) => `data: ${JSON.stringify({ generation, sequence: index + 1, event })}\n\n`).join('') })
@@ -78,19 +89,26 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   await page.goto(`${origin}/projects/${projectId}`)
   await page.getByRole('link', { name: 'Construir com o Conexus' }).click()
   await page.getByRole('heading', { name: 'Converse com o Conexus' }).waitFor()
-  await page.getByLabel('O que o Project precisa fazer?').fill('Crie um contador')
+  await page.getByLabel('O que o Project precisa fazer?').fill('Crie um contador até 100 interativo')
   await page.getByRole('button', { name: 'Enviar mensagem' }).click()
   await page.getByText('Mensagem enviada ao Builder.').waitFor()
   assert.equal(requests.length, 1)
-  assert.deepEqual(requests[0].body, { content: 'Crie um contador', mode: 'BUILD' })
+  assert.deepEqual(requests[0].body, { content: 'Crie um contador até 100 interativo', mode: 'BUILD' })
   assert.ok(requests[0].key)
+  await page.getByText('Lendo arquivos', { exact: true }).waitFor()
+  assert.equal(await page.getByText('Lendo arquivos', { exact: true }).count(), 1)
+  assert.equal(await page.getByText('app/src/main.tsx', { exact: true }).count(), 1)
+  await page.getByText('Aplicando a alteração', { exact: true }).waitFor()
   await page.getByText('Último Preview bom disponível.').waitFor()
   await page.getByTitle('Preview do aplicativo').waitFor()
   assert.deepEqual(previewRequests, [{}])
   assert.deepEqual(forbiddenRequests, [])
   await page.getByLabel('Preview').getByText('Build concluído', { exact: true }).waitFor()
   await page.getByText('Build concluído', { exact: true }).last().waitFor()
-  await page.getByText('Build em andamento', { exact: true }).waitFor()
+  assert.equal(await page.getByText('Human request:', { exact: false }).count(), 0)
+  const previewBox = await page.locator('.build-preview-surface').boundingBox()
+  const panelBox = await page.locator('.conexus-panel').boundingBox()
+  assert.ok(previewBox && panelBox && previewBox.width > panelBox.width)
   await page.getByRole('button', { name: 'Código' }).click()
   await page.getByRole('button', { name: 'app/index.html' }).waitFor()
   await page.getByText('<main>Counter v2</main>', { exact: true }).waitFor()
@@ -99,12 +117,15 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   await page.getByRole('button', { name: 'Diff' }).click()
   await page.getByText('MODIFIED', { exact: true }).waitFor()
   await page.getByRole('button', { name: 'Plan' }).click()
+  await page.getByRole('button', { name: 'Plan' }).evaluate((button) => { if (button.getAttribute('aria-pressed') !== 'true' || !button.classList.contains('builder-mode-selected')) throw new Error('Plan selection is not visible') })
+  await page.getByRole('button', { name: 'Build', exact: true }).evaluate((button) => { if (button.getAttribute('aria-pressed') !== 'false') throw new Error('Build remained selected') })
   await page.getByLabel('O que o Project precisa fazer?').fill('Explique o contador')
   await page.getByRole('button', { name: 'Enviar mensagem' }).click()
   await page.getByText('Mensagem enviada ao Builder.').waitFor()
   await page.getByText('Resposta somente', { exact: true }).waitFor()
   await page.reload()
-  await page.getByText('Crie um contador', { exact: true }).waitFor()
+  await page.getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
+  assert.equal(await page.getByText('Human request:', { exact: false }).count(), 0)
   await page.getByText('Último Preview bom disponível.').waitFor()
   await page.getByTitle('Preview do aplicativo').waitFor()
   assert.deepEqual(previewRequests, [{}, {}])

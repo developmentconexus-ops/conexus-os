@@ -9,14 +9,14 @@ import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot } from './routes.js'
-import { createMastraE2BCodingWorkerRuntime } from './runtime.js'
+import { createMastraE2BCodingWorkerRuntime, resolveBuilderWorkspace } from './runtime.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderSourcePort } from './source.js'
 import type { BuilderGitSourceCapability } from './source.js'
 import { createBuilderStore } from './store.js'
 import { createE2BApplicationCompiler } from './application-artifact-runtime.js'
-import { BUILDER_BASE_AGENT_INSTRUCTIONS } from './application-starter.js'
+import { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } from './application-starter.js'
 
 const BUILDER_THREAD_PREFIX = 'conexus-builder:'
 const threadIdForProject = (projectId: string): string => `${BUILDER_THREAD_PREFIX}${projectId}`
@@ -98,16 +98,13 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     options: { lastMessages: 20 },
   })
   const sharedAgent = createCodingAgent({
-    id: 'conexus-builder-coding-agent', name: 'Conexus Coding Worker', model, workspace: undefined,
+    id: 'conexus-builder-coding-agent', name: 'Conexus Coding Worker', model, workspace: resolveBuilderWorkspace,
     editor: false, instructions: BUILDER_BASE_AGENT_INSTRUCTIONS, tools: {},
   })
   const sharedController = new AgentController<Record<string, unknown>>({
     id: 'conexus-builder-controller', storage: sessionStorage, memory: sessionMemory,
     initialState: { yolo: true },
-    modes: [
-      { id: 'build', name: 'Build', instructions: 'Implement and report the bounded Project request.', availableTools: ['mastra_workspace_read_file', 'mastra_workspace_write_file', 'mastra_workspace_edit_file', 'mastra_workspace_list_files', 'mastra_workspace_delete', 'mastra_workspace_file_stat', 'mastra_workspace_grep', 'mastra_workspace_execute_command'] },
-      { id: 'plan', name: 'Plan', instructions: 'Inspect and explain the bounded Project request without changing files.', availableTools: ['mastra_workspace_read_file', 'mastra_workspace_list_files', 'mastra_workspace_file_stat', 'mastra_workspace_grep'] },
-    ],
+    modes: BUILDER_MODE_DEFINITIONS.map((mode) => ({ ...mode, availableTools: [...mode.availableTools] })),
     defaultModeId: 'build', agent: sharedAgent, workspace: undefined,
   })
   const sharedControllerReady = sharedController.init()
@@ -122,8 +119,6 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     model,
     modelIdentity,
     validateModelCredential,
-    sessionStorage,
-    sessionMemory,
     sharedHarness: { agent: sharedAgent, controller: sharedController, ready: sharedControllerReady },
   })
   const compiler = createE2BApplicationCompiler({ apiKey: readSecretFile(builder.e2bApiKeyFile) })
