@@ -451,11 +451,17 @@ The LLM never decides source authority.
 
 ```text
 HISTORY = persistent Mastra Thread/messages
-LIVE    = native Mastra Session events
-Hub     = thin authenticated Project/run adapter
+LIVE    = native Mastra Session.displayState snapshots
+EVENT   = display_state_changed
+Hub     = thin authenticated Project/run safe projection
 ```
 
-No second durable event log is created for C-020.
+Conexus subscribes to `display_state_changed`, emits one safe snapshot from
+`Session.displayState.get()` after subscribing, and replaces the current live
+view on each subsequent snapshot. The projection does not expose raw tool
+arguments/results, shell output, credentials, provider metadata or unsafe
+paths. No custom event protocol, replay log or live buffer is created for
+C-020.
 
 Reconnect:
 

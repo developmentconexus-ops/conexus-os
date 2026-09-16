@@ -4,9 +4,7 @@ import type { BuilderRunSummary, BuilderStore } from './store.js'
 import { prepareBuilderRunApplicationArtifact } from './application-build.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, BuilderApplicationArtifacts } from './application-build.js'
 import type { ApplicationCompilerRuntime } from './application-artifact-runtime.js'
-import { randomUUID } from 'node:crypto'
-import { parseObservationEvent, type BuilderObservation } from '../../../../packages/builder-observation/src/index.mjs'
-import { createObservationFeed } from './observation-feed.js'
+import { toBuilderLiveView } from './runtime.js'
 
 export type BuilderService = Readonly<{
   createBuilderRun(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN' }>): Promise<BuilderRunSummary>
@@ -14,7 +12,7 @@ export type BuilderService = Readonly<{
   getSourceFile(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
   getApplicationBySource(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null>
   readApplicationFileBySource(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
-  observeBuilderRun(input: Readonly<{ projectId: string; builderRunId: string }>): ReadableStream<string> | null
+  observeBuilderRun(input: Readonly<{ projectId: string; builderRunId: string }>): Promise<ReadableStream<string> | null>
   recover(): Promise<void>
   close(): Promise<void>
 }>
@@ -27,50 +25,6 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
   applicationArtifacts: BuilderApplicationArtifacts
 }>): BuilderService => {
   if (runtime.kind !== 'REMOTE_E2B') throw new Error('BUILDER_LOCAL_RUNTIME_REFUSED')
-  const observations = new Map<string, Readonly<{
-    projectId: string
-    finished: boolean
-    feed: ReturnType<typeof createObservationFeed>
-    publish(event: BuilderObservation): void
-    release(): void
-    finish(): void
-  }>>()
-  const beginObservation = (projectId: string, builderRunId: string) => {
-    const existing = observations.get(builderRunId)
-    if (existing) return existing
-    if (observations.size >= 16) ([...observations.values()].find((item) => item.finished) ?? observations.values().next().value)?.release()
-    const feed = createObservationFeed()
-    const generation = randomUUID()
-    let sequence = 0
-    let expiry: NodeJS.Timeout | undefined
-    let released = false
-    const observation = {
-      projectId, feed, finished: false,
-      publish: (event: BuilderObservation) => {
-        try { feed.publish(`data: ${JSON.stringify(parseObservationEvent({ generation, sequence: ++sequence, event }))}\n\n`) }
-        catch { feed.close() }
-      },
-      release: () => {
-        released = true
-        clearTimeout(expiry)
-        feed.close()
-        if (observations.get(builderRunId) === observation) observations.delete(builderRunId)
-      },
-      finish: () => {
-        if (released || observation.finished) return
-        observation.finished = true
-        observation.publish({ kind: 'OBSERVATION_END' })
-        feed.finish()
-        clearTimeout(expiry)
-        expiry = setTimeout(observation.release, 120_000)
-        expiry.unref()
-      },
-    }
-    expiry = setTimeout(observation.release, 60 * 60_000)
-    expiry.unref()
-    observations.set(builderRunId, observation)
-    return observation
-  }
   const builderActive = new Map<string, Promise<void>>()
   const applicationShutdown = new AbortController()
   let serviceClosing: Promise<void> | null = null
@@ -80,10 +34,8 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
   }
   const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string }>): void => {
     if (builderActive.has(run.builderRunId)) return
-    const observation = beginObservation(run.projectId, run.builderRunId)
     const work = (async () => {
       const claimed = await store.claimBuilderRun(run.builderRunId, runtime.modelIdentity)
-      observation.publish({ kind: 'PHASE', phase: 'CODING' })
       const sourceBundle = await source.prepareProjectSource({
         projectId: claimed.projectId, executionId: claimed.builderRunId, sourceRevision: claimed.baseSourceRevision,
       })
@@ -92,7 +44,6 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
         mode: claimed.mode, baseSourceRevision: claimed.baseSourceRevision, sourceBundle,
         bindPhysicalSandbox: (sandboxId) => store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId),
         bindMessage: (messageId) => store.bindBuilderRunMessage(claimed.builderRunId, messageId),
-        observe: (event) => observation.publish(event),
       })
       if (result.projectId !== claimed.projectId || !('executionId' in result) || result.executionId !== claimed.builderRunId || result.baseSourceRevision !== claimed.baseSourceRevision) throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
       if (result.kind === 'RESPONSE_ONLY') {
@@ -120,7 +71,7 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
         throw error
       }
     })().catch(async (error) => { await store.failBuilderRun(run.builderRunId, failureCode(error)).catch(() => undefined) })
-      .finally(() => { builderActive.delete(run.builderRunId); observation.finish() })
+      .finally(() => { builderActive.delete(run.builderRunId) })
     builderActive.set(run.builderRunId, work)
   }
   const getApplicationBySource = (input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null> => {
@@ -137,7 +88,6 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
     if (serviceClosing !== null) return serviceClosing
     serviceClosing = (async () => {
       applicationShutdown.abort()
-      for (const observation of observations.values()) observation.release()
       await Promise.all(builderActive.values())
       await store.close()
     })()
@@ -161,9 +111,22 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
     },
     getApplicationBySource,
     readApplicationFileBySource,
-    observeBuilderRun: ({ projectId, builderRunId }) => {
-      const observation = observations.get(builderRunId)
-      return observation?.projectId === projectId ? observation.feed.subscribe() : null
+    observeBuilderRun: async ({ projectId, builderRunId }) => {
+      const session = await runtime.getSessionByResource?.(projectId, `builder:${builderRunId}`)
+      if (!session) return null
+      let closed = false
+      let unsubscribe = () => {}
+      return new ReadableStream<string>({
+        start: (controller) => {
+          unsubscribe = session.subscribe((event) => {
+            if (!closed && event.type === 'display_state_changed') {
+              controller.enqueue(`data: ${JSON.stringify(toBuilderLiveView(event.displayState))}\n\n`)
+            }
+          })
+          if (!closed) controller.enqueue(`data: ${JSON.stringify(toBuilderLiveView(session.displayState.get()))}\n\n`)
+        },
+        cancel: () => { closed = true; unsubscribe() },
+      })
     },
     recover: async () => {
       await store.recoverAndListQueuedBuilderRuns()

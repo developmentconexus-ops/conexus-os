@@ -29,9 +29,9 @@ test('the worker uses sendMessage resolution as native run completion', async ()
   const events = []
   const session = {
     subscribe: (callback) => { listener = callback; return () => events.push('unsubscribed') },
-    sendMessage: async () => { events.push('accepted'); listener({ type: 'agent_end', reason: 'complete' }) },
+    sendMessage: async () => { events.push('accepted'); listener({ type: 'agent_end', reason: 'complete' }); events.push('agent_end') },
   }
-  assert.equal(await sendBuilderSessionMessage(session, { content: 'Crie um contador até 100 interativo' }, (event) => events.push(event.type)), 'complete')
+  assert.equal(await sendBuilderSessionMessage(session, { content: 'Crie um contador até 100 interativo' }), 'complete')
   assert.deepEqual(events, ['accepted', 'agent_end', 'unsubscribed'])
 })
 

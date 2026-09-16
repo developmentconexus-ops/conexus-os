@@ -8,8 +8,6 @@ import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspac
 import { Workspace } from '@mastra/core/workspace'
 import { E2BSandbox } from '@mastra/e2b'
 import { Sandbox } from 'e2b'
-import type { BuilderObservation } from '../../../../packages/builder-observation/src/index.mjs'
-import { createMastraSessionObservationProjector, notifyObservation } from './runtime-observation.js'
 import { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS, materializeFixedApplicationStarter } from './application-starter.js'
 
 type CodingWorkerCommonInput = Readonly<{
@@ -21,7 +19,6 @@ type CodingWorkerCommonInput = Readonly<{
   bindPhysicalSandbox(sandboxId: string): Promise<void>
   bindMessage?(messageId: string): Promise<void>
   signal?: AbortSignal
-  observe?(event: BuilderObservation): void
 }>
 
 export type CodingWorkerInput = CodingWorkerCommonInput & Readonly<{
@@ -48,6 +45,7 @@ export type CodingWorkerRuntime = Readonly<{
   kind: 'REMOTE_E2B'
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   execute(input: CodingWorkerInput): Promise<CodingWorkerResult>
+  getSessionByResource?(resourceId: string, scope: string): Promise<BuilderSession | undefined>
 }>
 
 export type E2BBuilderRuntimeConfig = Readonly<{
@@ -79,6 +77,23 @@ export const createBuilderUserMessage = (intent: string): Readonly<{ content: st
 type BuilderSession = Awaited<ReturnType<AgentController<Record<string, unknown>>['createSession']>>
 type AgentEndReason = Extract<AgentControllerEvent, { type: 'agent_end' }>['reason']
 
+export type BuilderLiveView = Readonly<{
+  running: boolean
+  message: Readonly<{ id: string; text: string }> | null
+  activities: readonly Readonly<{
+    id: string
+    label: 'READ_FILES' | 'EDIT_FILES' | 'RUN_COMMAND' | 'WORKSPACE'
+    detail?: string
+    state: 'started' | 'succeeded' | 'failed' | 'interrupted'
+  }>[]
+}>
+
+type BuilderDisplayState = Readonly<{
+  isRunning: boolean
+  currentMessage: Readonly<{ id?: string; role?: string; content?: Readonly<{ parts?: readonly unknown[] }> }> | null
+  activeTools: ReadonlyMap<string, Readonly<{ name?: string; args?: unknown; status?: string }>>
+}>
+
 export const BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY = 'conexus.builder.workspace'
 
 /** Resolve the per-run Workspace through Mastra's native dynamic workspace hook. */
@@ -87,15 +102,56 @@ export const resolveBuilderWorkspace = ({ requestContext }: { requestContext: Re
   return workspace instanceof Workspace ? workspace : undefined
 }
 
+const toolLabel = (toolName: string): BuilderLiveView['activities'][number]['label'] => {
+  const value = toolName.toLowerCase()
+  if (/(read|list|search|find|glob|grep|inspect|stat|cat|tree)/.test(value)) return 'READ_FILES'
+  if (/(write|edit|patch|update|create|delete|remove|replace|modify|rename)/.test(value)) return 'EDIT_FILES'
+  if (/(execute|exec|command|shell|run|test|build|install|git|npm|pnpm|yarn)/.test(value)) return 'RUN_COMMAND'
+  return 'WORKSPACE'
+}
+
+const safePath = (args: unknown): string | undefined => {
+  if (typeof args !== 'object' || args === null) return undefined
+  const value = 'path' in args && typeof args.path === 'string' ? args.path
+    : 'filePath' in args && typeof args.filePath === 'string' ? args.filePath
+      : 'file_path' in args && typeof args.file_path === 'string' ? args.file_path : undefined
+  if (!value || value.includes('\0') || value.includes('..')) return undefined
+  const normalized = value.replaceAll('\\', '/').replace(/^\/workspace\/repo\//, '')
+  return normalized.startsWith('app/') && normalized.length <= 220 ? normalized : undefined
+}
+
+const safeToolState = (status: string | undefined): BuilderLiveView['activities'][number]['state'] => {
+  if (status === 'completed') return 'succeeded'
+  if (status === 'error') return 'failed'
+  return 'started'
+}
+
+/** Projects one native display snapshot at the Conexus disclosure boundary. */
+export const toBuilderLiveView = (displayState: BuilderDisplayState): BuilderLiveView => {
+  const currentMessage = displayState.currentMessage
+  const text = currentMessage ? messageText(currentMessage) : ''
+  const message = currentMessage?.role === 'assistant' && currentMessage.id && text
+    ? { id: currentMessage.id, text }
+    : null
+  const activities = [...displayState.activeTools.values()].map((tool, index) => {
+    const detail = safePath(tool.args)
+    return {
+      id: `activity-${index + 1}`,
+      label: toolLabel(typeof tool.name === 'string' ? tool.name : ''),
+      ...(detail ? { detail } : {}),
+      state: safeToolState(tool.status),
+    }
+  })
+  return { running: displayState.isRunning, message, activities }
+}
+
 export const sendBuilderSessionMessage = async (
   session: BuilderSession,
   message: Readonly<{ content: string }>,
-  onEvent: (event: AgentControllerEvent) => void,
   requestContext?: RequestContext,
 ): Promise<AgentEndReason> => {
   let terminalReason: AgentEndReason | undefined
   const unsubscribe = session.subscribe((event) => {
-    onEvent(event)
     if (event.type === 'agent_end') terminalReason = event.reason
   })
   try {
@@ -131,10 +187,15 @@ export const createMastraE2BCodingWorkerRuntime = (
     typeof config.validateModelCredential !== 'function') {
     throw new Error('BUILDER_RUNTIME_CONFIG_REFUSED')
   }
+  const sharedHarness = config.sharedHarness
+  const getSessionByResource = sharedHarness
+    ? (resourceId: string, scope: string): Promise<BuilderSession | undefined> => sharedHarness.controller.getSessionByResource(resourceId, scope)
+    : undefined
   return Object.freeze({
     kind: 'REMOTE_E2B' as const,
     modelIdentity: Object.freeze({ ...config.modelIdentity }),
-    execute: async (input) => {
+    ...(getSessionByResource ? { getSessionByResource } : {}),
+    execute: async (input: CodingWorkerInput) => {
       const executionId = input.executionId
       if (![input.projectId, executionId].every(safeIdentity) ||
         !oid.test(input.baseSourceRevision) || !input.intent.trim() || input.sourceBundle.byteLength === 0 ||
@@ -231,8 +292,6 @@ export const createMastraE2BCodingWorkerRuntime = (
           workspace: undefined,
         })
         const controllerReady = config.sharedHarness?.ready ?? controller.init()
-        const projector = createMastraSessionObservationProjector()
-        const publish = (event: BuilderObservation) => notifyObservation(input.observe, event)
         const prompt = createBuilderUserMessage(input.intent)
         let summaryText = ''
         let abortListener: (() => void) | undefined
@@ -259,23 +318,18 @@ export const createMastraE2BCodingWorkerRuntime = (
             if (input.signal.aborted) abortListener()
             else input.signal.addEventListener('abort', abortListener, { once: true })
           }
-          let assistantText = ''
-          const agentEndReason: AgentEndReason | undefined = await sendBuilderSessionMessage(session, prompt, (event) => {
-            for (const projected of projector.map(event)) publish(projected)
-            if (event.type === 'message_end' && event.message.role === 'assistant') assistantText += `${messageText(event.message)}\n`
-          }, requestContext)
+          const agentEndReason: AgentEndReason | undefined = await sendBuilderSessionMessage(session, prompt, requestContext)
+          const messages = await session.thread.listActiveMessages()
           if (input.bindMessage) {
-            const messages = await session.thread.listActiveMessages()
             const userMessage = [...messages].reverse().find((message) => message.role === 'signal' && message.type === 'user')
             if (!userMessage?.id) throw new Error('BUILDER_MESSAGE_ID_UNAVAILABLE')
             await input.bindMessage(userMessage.id)
           }
           if (input.signal?.aborted) throw new Error('BUILDER_RUN_CANCELLED')
           if (agentEndReason !== 'complete') throw new Error(agentEndReason === 'error' ? 'BUILDER_MODEL_STREAM_FAILED' : 'BUILDER_MODEL_INCOMPLETE')
-          summaryText = assistantText
+          summaryText = messages.filter((message) => message.role === 'assistant').map(messageText).filter(Boolean).join('\n')
         } catch (error) {
           runError = error
-          for (const event of projector.finish()) publish(event)
           throw error
         } finally {
           if (input.signal && abortListener) input.signal.removeEventListener('abort', abortListener)
@@ -286,7 +340,6 @@ export const createMastraE2BCodingWorkerRuntime = (
               if (!deleted) cleanupError = new Error('BUILDER_SESSION_DELETE_FAILED')
             } catch (error) {
               if (!runError) cleanupError = error
-              else publish({ kind: 'ACTIVITY', activityId: `session-cleanup-${executionId}`, label: 'WORKSPACE', state: 'failed' })
             }
             activeSession = undefined
           }

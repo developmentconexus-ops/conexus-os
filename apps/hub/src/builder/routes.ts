@@ -155,7 +155,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     try {
       const run = await dependencies.store.readBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId })
       if (!run || run.builderRunId !== request.params.builderRunId) return sendProblem(reply, 404, 'builder-run-not-found', 'BuilderRun not found')
-      const stream = dependencies.service.observeBuilderRun({ projectId: request.params.projectId, builderRunId: request.params.builderRunId })
+      const stream = await dependencies.service.observeBuilderRun({ projectId: request.params.projectId, builderRunId: request.params.builderRunId })
       if (!stream) return sendProblem(reply, 410, 'builder-observation-unavailable', 'Live observation unavailable; consult the session')
       const reader = stream.getReader()
       const detach = () => { void reader.cancel().catch(() => {}) }

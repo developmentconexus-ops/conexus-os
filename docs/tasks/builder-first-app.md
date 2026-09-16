@@ -619,6 +619,11 @@ Conexus may retain a disclosure boundary that:
 
 If exact 1.63.2 cannot safely transform a needed payload, use the smallest allowlist/sanitizer over the **native event shape**. Do not recreate `BuilderObservation` under a new name.
 
+The current implementation uses `Session.displayState` and
+`display_state_changed` for live diagnostic snapshots. Thread/messages,
+BuilderRun and Project Working State remain the durable truth. Reconnect gets
+a fresh snapshot and does not replay custom events.
+
 ## 9.7 Falsifiers
 
 Prove at least:

@@ -88,3 +88,58 @@ test('BUILD source result is admitted, CASed, compiled and settles Preview', asy
   await service.close()
   assert.deepEqual(calls, [['prepareProjectSource', runId], ['admitSourceResult', runId], ['advance', resultRevision], ['build-settle', '77777777-7777-4777-8777-777777777777', 'd'.repeat(64)]])
 })
+
+test('native display stream resyncs current isolated Session state without replay', async () => {
+  const projectA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const projectB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  const runA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab'
+  const runB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbc'
+  const sessionState = (text, toolStatus) => ({
+    isRunning: true,
+    currentMessage: { id: `message-${text}`, role: 'assistant', content: { parts: [{ type: 'text', text }] } },
+    activeTools: new Map([['provider-only-id', { name: 'mastra_workspace_read_file', args: { path: '/workspace/repo/app/src/main.tsx', secret: 'no-leak' }, status: toolStatus, result: { private: 'no-leak' } }]]),
+  })
+  let stateA = sessionState('A current', 'running')
+  let listenerA
+  let unsubscribeCount = 0
+  const sessionA = {
+    displayState: { get: () => stateA },
+    subscribe: callback => { listenerA = callback; return () => { unsubscribeCount += 1 } },
+  }
+  const sessionB = {
+    displayState: { get: () => sessionState('B current', 'completed') },
+    subscribe: () => () => {},
+  }
+  const service = createBuilderService({
+    store: { close: async () => {} },
+    source: {}, runtime: {
+      kind: 'REMOTE_E2B', modelIdentity: { admissionId: 'admission', providerId: 'provider', modelId: 'model' },
+      execute: async () => { throw new Error('not used') },
+      getSessionByResource: async (projectId, scope) => projectId === projectA && scope === `builder:${runA}` ? sessionA : projectId === projectB && scope === `builder:${runB}` ? sessionB : undefined,
+    }, compiler: {}, applicationArtifacts: {},
+  })
+
+  const stream = await service.observeBuilderRun({ projectId: projectA, builderRunId: runA })
+  assert.ok(stream)
+  const reader = stream.getReader()
+  const initial = JSON.parse((await reader.read()).value.slice(6))
+  assert.equal(initial.message.text, 'A current')
+  assert.equal(initial.activities[0].state, 'started')
+  assert.equal(JSON.stringify(initial).includes('no-leak'), false)
+
+  stateA = sessionState('A after tool', 'completed')
+  listenerA({ type: 'display_state_changed', displayState: stateA })
+  const updated = JSON.parse((await reader.read()).value.slice(6))
+  assert.equal(updated.message.text, 'A after tool')
+  assert.equal(updated.activities[0].state, 'succeeded')
+  await reader.cancel()
+  assert.equal(unsubscribeCount, 1)
+
+  const reconnect = await service.observeBuilderRun({ projectId: projectA, builderRunId: runA })
+  assert.ok(reconnect)
+  const reconnectReader = reconnect.getReader()
+  assert.equal(JSON.parse((await reconnectReader.read()).value.slice(6)).message.text, 'A after tool')
+  await reconnectReader.cancel()
+  assert.equal(await service.observeBuilderRun({ projectId: projectB, builderRunId: runA }), null)
+  await service.close()
+})

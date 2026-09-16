@@ -74,22 +74,13 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   let liveStreamRequests = 0
   await page.route(`**/api/control/projects/${projectId}/builder-session/runs/${runId}/stream`, (route) => {
     liveStreamRequests += 1
-    const generation = 'browser-generation'
-    const events = [
-      { kind: 'PHASE', phase: 'CODING' },
-      { kind: 'TEXT_START', blockId: 'browser-block-1' },
-      { kind: 'TEXT_DELTA', blockId: 'browser-block-1', text: 'Inspecionando o app' },
-      { kind: 'TEXT_END', blockId: 'browser-block-1' },
-      { kind: 'ACTIVITY', activityId: 'browser-tool', label: 'READ_FILES', detail: 'app/src/main.tsx', state: 'started' },
-      { kind: 'ACTIVITY', activityId: 'browser-tool', label: 'READ_FILES', detail: 'app/src/main.tsx', state: 'succeeded' },
-      { kind: 'TEXT_START', blockId: 'browser-block-2' },
-      { kind: 'TEXT_DELTA', blockId: 'browser-block-2', text: 'Aplicando a alteração' },
-      { kind: 'TEXT_END', blockId: 'browser-block-2' },
-      { kind: 'OBSERVATION_END' },
+    const snapshots = [
+      { running: true, message: { id: 'browser-message-1', text: 'Inspecionando o app' }, activities: [{ id: 'browser-tool', label: 'READ_FILES', detail: 'app/src/main.tsx', state: 'started' }] },
+      { running: true, message: { id: 'browser-message-2', text: 'Aplicando a alteração' }, activities: [{ id: 'browser-tool', label: 'READ_FILES', detail: 'app/src/main.tsx', state: 'succeeded' }] },
     ]
     return (async () => {
-      runFinished = true
-      return route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8' }, body: events.map((event, index) => `data: ${JSON.stringify({ generation, sequence: index + 1, event })}\n\n`).join('') })
+      setTimeout(() => { runFinished = true }, 2_000)
+      return route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8' }, body: snapshots.map((snapshot) => `data: ${JSON.stringify(snapshot)}\n\n`).join('') })
     })()
   })
 
@@ -102,10 +93,9 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   assert.equal(requests.length, 1)
   assert.deepEqual(requests[0].body, { content: 'Crie um contador até 100 interativo', mode: 'BUILD' })
   assert.ok(requests[0].key)
-  await page.getByText('Lendo arquivos', { exact: true }).waitFor()
+  await page.getByText('Aplicando a alteração', { exact: true }).waitFor()
   assert.equal(await page.getByText('Lendo arquivos', { exact: true }).count(), 1)
   assert.equal(await page.getByText('app/src/main.tsx', { exact: true }).count(), 1)
-  await page.getByText('Aplicando a alteração', { exact: true }).waitFor()
   await page.getByText('Último Preview bom disponível.').waitFor()
   await page.getByTitle('Preview do aplicativo').waitFor()
   assert.deepEqual(previewRequests, [{}])
@@ -122,7 +112,7 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   await page.getByLabel('O que o Project precisa fazer?').fill('Crie um contador até 100 interativo')
   await page.getByRole('button', { name: 'Enviar mensagem' }).click()
   await page.getByText('Mensagem enviada ao Builder.').waitFor()
-  await page.getByText('Inspecionando o app', { exact: true }).waitFor()
+  await page.getByText('Aplicando a alteração', { exact: true }).waitFor()
   assert.equal(await page.getByText('Crie um contador até 100 interativo', { exact: true }).count(), 2)
   await page.getByText('Build concluído', { exact: true }).last().waitFor()
   await page.getByRole('button', { name: 'Código' }).click()
@@ -192,6 +182,7 @@ test('new Project lands directly in Build and can send its first Builder message
   await page.getByRole('heading', { name: 'Converse com o Conexus' }).waitFor()
   await page.getByLabel('O que o Project precisa fazer?').fill('Crie um contador')
   await page.getByRole('button', { name: 'Enviar mensagem' }).click()
+  await page.getByLabel('O que o Project precisa fazer?').fill('texto digitado depois')
   await page.getByText('Mensagem enviada ao Builder.').waitFor()
-  assert.equal((await page.getByLabel('O que o Project precisa fazer?').inputValue()), '')
+  assert.equal((await page.getByLabel('O que o Project precisa fazer?').inputValue()), 'texto digitado depois')
 })

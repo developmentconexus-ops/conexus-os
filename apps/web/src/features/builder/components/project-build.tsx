@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { BuilderRequestError, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type SourceTree } from '../api'
-import { observeBuilderRun, type ObservationPart } from '../observation'
+import { observeBuilderRun, type BuilderLiveView } from '../observation'
 import { BuilderMarkdown } from './builder-markdown'
 
 const runStatus = (state: string | undefined, kind: string | null | undefined): string => {
@@ -15,11 +15,11 @@ const runStatus = (state: string | undefined, kind: string | null | undefined): 
   return 'Pronto para construir'
 }
 
-const activityLabel = (label: Extract<ObservationPart, { kind: 'activity' }>['label']): string => ({
+const activityLabel = (label: BuilderLiveView['activities'][number]['label']): string => ({
   READ_FILES: 'Lendo arquivos', EDIT_FILES: 'Editando', RUN_COMMAND: 'Executando comando', WORKSPACE: 'Trabalhando no Workspace',
 }[label])
 
-const activityState = (state: Extract<ObservationPart, { kind: 'activity' }>['state']): string => ({
+const activityState = (state: BuilderLiveView['activities'][number]['state']): string => ({
   started: 'em andamento', succeeded: 'concluído', failed: 'falhou', interrupted: 'interrompido',
 }[state])
 
@@ -54,7 +54,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const [content, setContent] = useState('')
   const [mode, setMode] = useState<'BUILD' | 'PLAN'>('BUILD')
   const [message, setMessage] = useState('')
-  const [liveParts, setLiveParts] = useState<readonly ObservationPart[]>([])
+  const [liveView, setLiveView] = useState<BuilderLiveView | null>(null)
   const [liveRequest, setLiveRequest] = useState<LiveRequest | null>(null)
   const [inspection, setInspection] = useState<Inspection | null>(null)
   const [selectedSourcePath, setSelectedSourcePath] = useState<string | null>(null)
@@ -74,7 +74,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       setContent((current) => current === variables.content ? '' : current)
       setMessage('Mensagem enviada ao Builder.')
       setLiveRequest({ runId: result.builderRun.builderRunId, text: variables.content, messageBoundary: variables.messageBoundary })
-      setLiveParts([])
+      setLiveView(null)
       await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] })
     },
     onError: (error) => {
@@ -89,7 +89,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (!runId || !runActive) return undefined
     const controller = new AbortController()
-    void observeBuilderRun(projectId, runId, controller.signal, setLiveParts).catch(() => undefined)
+    void observeBuilderRun(projectId, runId, controller.signal, setLiveView).catch(() => undefined)
     return () => controller.abort()
   }, [projectId, runActive, runId])
   const previousRunState = useRef<string | undefined>(undefined)
@@ -98,16 +98,13 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     previousRunState.current = run?.state
     if (!runId || !wasActive || runActive) return
     void session.refetch().finally(() => {
-      setLiveParts([])
+      setLiveView(null)
       setLiveRequest(null)
     })
   }, [run, runActive, runId, session])
   const timelineMessages = session.data?.messages ?? []
   const hasLiveUser = Boolean(liveRequest && timelineMessages.slice(liveRequest.messageBoundary).some((item) => item.role === 'user' && item.text === liveRequest.text))
-  const liveTimeline = runActive ? [
-    ...(liveRequest && !hasLiveUser ? [{ kind: 'request' as const, id: liveRequest.runId, text: liveRequest.text }] : []),
-    ...liveParts,
-  ] : []
+  const liveRequestPart = runActive && liveRequest && !hasLiveUser ? liveRequest : null
   const onConversationScroll = () => {
     const element = conversationRef.current
     if (!element) return
@@ -231,15 +228,11 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
         <p className="eyebrow">Conexus</p><h2 id="conexus-panel-title">Converse com o Conexus</h2>
         <section ref={conversationRef} onScroll={onConversationScroll} className="builder-conversation" aria-label="Mensagens do Builder">
           {timelineMessages.map((item) => <div key={item.id} className={`builder-timeline-item builder-message builder-message-${item.role}`}><strong>{item.role === 'user' ? 'Você' : 'Conexus'}</strong><BuilderMarkdown text={item.text} /></div>)}
-          {liveTimeline.map((part) => part.kind === 'request'
-            ? <div key={part.id} className="builder-timeline-item builder-message builder-message-user"><strong>Você</strong><BuilderMarkdown text={part.text} /></div>
-            : part.kind === 'text'
-              ? <div key={part.id} className="builder-timeline-item builder-message builder-message-assistant"><BuilderMarkdown text={part.text || ' '}/></div>
-              : part.kind === 'activity'
-                ? <div key={part.id} className="builder-timeline-item builder-activity" data-state={part.state}><span className="builder-activity-icon" aria-hidden="true">{part.state === 'failed' ? '!' : part.state === 'succeeded' ? '✓' : '·'}</span><span><strong>{activityLabel(part.label)}</strong>{part.detail && <small>{part.detail}</small>}<span>{activityState(part.state)}</span></span></div>
-                : null)}
+          {liveRequestPart && <div key={liveRequestPart.runId} className="builder-timeline-item builder-message builder-message-user"><strong>Você</strong><BuilderMarkdown text={liveRequestPart.text} /></div>}
+          {runActive && liveView?.message && <div key={liveView.message.id} className="builder-timeline-item builder-message builder-message-assistant"><BuilderMarkdown text={liveView.message.text || ' '}/></div>}
+          {runActive && liveView?.activities.map((activity) => <div key={activity.id} className="builder-timeline-item builder-activity" data-state={activity.state}><span className="builder-activity-icon" aria-hidden="true">{activity.state === 'failed' ? '!' : activity.state === 'succeeded' ? '✓' : '·'}</span><span><strong>{activityLabel(activity.label)}</strong>{activity.detail && <small>{activity.detail}</small>}<span>{activityState(activity.state)}</span></span></div>)}
           {runActive && <p className="builder-run-status" role="status" aria-live="polite">Trabalhando…</p>}
-          {!timelineMessages.length && !liveTimeline.length && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}
+          {!timelineMessages.length && !liveRequestPart && !liveView?.message && !liveView?.activities.length && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}
         </section>
         <form onSubmit={submit}>
           <label htmlFor={inputId}>O que o Project precisa fazer?</label>

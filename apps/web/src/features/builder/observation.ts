@@ -1,70 +1,57 @@
-import { parseObservationEvent, type BuilderObservation } from '../../../../../packages/builder-observation/src/index.mjs'
 import { clearAuthorityCache } from '../../app/query-client'
 
-export type ObservationPart =
-  | Readonly<{ kind: 'text'; id: string; text: string; ended: boolean }>
-  | Readonly<{ kind: 'activity'; id: string; label: Extract<BuilderObservation, { kind: 'ACTIVITY' }>['label']; detail?: string; state: Extract<BuilderObservation, { kind: 'ACTIVITY' }>['state'] }>
-  | Readonly<{ kind: 'phase'; id: string; phase: Extract<BuilderObservation, { kind: 'PHASE' }>['phase'] }>
+export type BuilderLiveView = Readonly<{
+  running: boolean
+  message: Readonly<{ id: string; text: string }> | null
+  activities: readonly Readonly<{
+    id: string
+    label: 'READ_FILES' | 'EDIT_FILES' | 'RUN_COMMAND' | 'WORKSPACE'
+    detail?: string
+    state: 'started' | 'succeeded' | 'failed' | 'interrupted'
+  }>[]
+}>
 
-const observeUrl = async (
-  url: string, signal: AbortSignal, update: (parts: readonly ObservationPart[]) => void, strict: boolean,
-): Promise<void> => {
+const labels = new Set<BuilderLiveView['activities'][number]['label']>(['READ_FILES', 'EDIT_FILES', 'RUN_COMMAND', 'WORKSPACE'])
+const states = new Set<BuilderLiveView['activities'][number]['state']>(['started', 'succeeded', 'failed', 'interrupted'])
+
+const parseLiveView = (value: unknown): BuilderLiveView => {
+  if (typeof value !== 'object' || value === null || !('running' in value) || typeof value.running !== 'boolean' || !('activities' in value) || !Array.isArray(value.activities)) throw new Error('Invalid live view')
+  const message = 'message' in value ? value.message : null
+  if (message !== null && (typeof message !== 'object' || message === null || !('id' in message) || typeof message.id !== 'string' || !('text' in message) || typeof message.text !== 'string')) throw new Error('Invalid live message')
+  const activities = value.activities.map((item) => {
+    if (typeof item !== 'object' || item === null || !('id' in item) || typeof item.id !== 'string' || !('label' in item) || typeof item.label !== 'string' || !labels.has(item.label as BuilderLiveView['activities'][number]['label']) || !('state' in item) || typeof item.state !== 'string' || !states.has(item.state as BuilderLiveView['activities'][number]['state'])) throw new Error('Invalid live activity')
+    const detail = 'detail' in item && typeof item.detail === 'string' ? item.detail : undefined
+    return { id: item.id, label: item.label as BuilderLiveView['activities'][number]['label'], ...(detail ? { detail } : {}), state: item.state as BuilderLiveView['activities'][number]['state'] }
+  })
+  return { running: value.running, message: message as BuilderLiveView['message'], activities }
+}
+
+const observeUrl = async (url: string, signal: AbortSignal, update: (view: BuilderLiveView) => void): Promise<void> => {
   const response = await fetch(url, {
     credentials: 'same-origin', headers: { accept: 'text/event-stream' }, cache: 'no-store', signal,
   })
   if (response.status === 401) clearAuthorityCache()
-  if (!response.ok || !response.headers.get('content-type')?.startsWith('text/event-stream') || !response.body) throw new Error('Observation unavailable')
+  if (!response.ok || !response.headers.get('content-type')?.startsWith('text/event-stream') || !response.body) throw new Error('Live view unavailable')
   const reader = response.body.getReader()
   const decoder = new TextDecoder('utf-8', { fatal: true })
   let buffer = ''
   let bytes = 0
-  let sequence = 0
-  let generation: string | undefined
-  let parts: readonly ObservationPart[] = []
   try {
     for (;;) {
       const chunk = await reader.read()
-      if (chunk.done) throw new Error('Observation ended without completion')
+      if (chunk.done) throw new Error('Live view ended without cancellation')
       bytes += chunk.value.byteLength
-      if (bytes > 1024 * 1024) throw new Error('Observation limit exceeded')
+      if (bytes > 1024 * 1024) throw new Error('Live view limit exceeded')
       buffer += decoder.decode(chunk.value, { stream: true })
       let separator = buffer.indexOf('\n\n')
       while (separator !== -1) {
         const frame = buffer.slice(0, separator)
         buffer = buffer.slice(separator + 2)
-        if (frame.startsWith('data: ')) {
-          const envelope = parseObservationEvent(JSON.parse(frame.slice(6)))
-          generation ??= envelope.generation
-          if (envelope.generation !== generation || envelope.sequence !== sequence + 1 || envelope.sequence > 4096) throw new Error('Observation sequence mismatch')
-          sequence = envelope.sequence
-          const event = envelope.event
-          if (event.kind === 'OBSERVATION_END') return
-          if (event.kind === 'OBSERVATION_UNAVAILABLE') throw new Error('Observation unavailable')
-          if (event.kind === 'PHASE') parts = [...parts, { kind: 'phase', id: `phase-${sequence}`, phase: event.phase }]
-          else if (event.kind === 'TEXT_START') {
-            if (strict && parts.some((part) => part.kind === 'text' && part.id === event.blockId)) throw new Error('Duplicate text block')
-            parts = [...parts, { kind: 'text', id: event.blockId, text: '', ended: false }]
-          } else if (event.kind === 'TEXT_DELTA' || event.kind === 'TEXT_END') {
-            const part = parts.find((item) => item.kind === 'text' && item.id === event.blockId)
-            if (part?.kind !== 'text' || (strict && part.ended)) throw new Error('Unknown text block')
-            parts = parts.map((item) => item === part ? { ...part, text: part.text + (event.kind === 'TEXT_DELTA' ? event.text : ''), ended: event.kind === 'TEXT_END' } : item)
-          } else {
-            const part = parts.find((item) => item.kind === 'activity' && item.id === event.activityId)
-            const detail = 'detail' in event && typeof event.detail === 'string' ? event.detail : undefined
-            if (!part) {
-              if (event.state !== 'started') throw new Error('Unknown activity')
-              parts = [...parts, { kind: 'activity', id: event.activityId, label: event.label, ...(detail ? { detail } : {}), state: event.state }]
-            } else if (strict && (part.kind !== 'activity' || part.state !== 'started' || event.state === 'started' || part.label !== event.label)) {
-              throw new Error('Invalid activity transition')
-            } else {
-              parts = parts.map((item) => item === part ? { ...part, ...(detail ? { detail } : {}), state: event.state } : item)
-            }
-          }
-          if (signal.aborted) return
-          update(parts)
-        } else if (!frame.startsWith(':')) throw new Error('Invalid observation frame')
+        if (frame.startsWith('data: ')) update(parseLiveView(JSON.parse(frame.slice(6))))
+        else if (!frame.startsWith(':')) throw new Error('Invalid live view frame')
         separator = buffer.indexOf('\n\n')
       }
+      if (signal.aborted) return
     }
   } finally {
     await reader.cancel().catch(() => {})
@@ -74,7 +61,7 @@ const observeUrl = async (
 
 export function observeBuilderRun(
   projectId: string, builderRunId: string, signal: AbortSignal,
-  update: (parts: readonly ObservationPart[]) => void,
+  update: (view: BuilderLiveView) => void,
 ): Promise<void> {
-  return observeUrl(`/api/control/projects/${encodeURIComponent(projectId)}/builder-session/runs/${encodeURIComponent(builderRunId)}/stream`, signal, update, true)
+  return observeUrl(`/api/control/projects/${encodeURIComponent(projectId)}/builder-session/runs/${encodeURIComponent(builderRunId)}/stream`, signal, update)
 }
