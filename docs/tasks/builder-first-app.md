@@ -136,7 +136,7 @@ plan slice
 | --- | --- | --- |
 | **7R-0** | prove exact Mastra-native lifetime/live-state boundary | closed investigation; durable result absorbed by C-020 technical owner |
 | **7R-1** | converge live UI mechanics on native Mastra state and delete the parallel observation lifecycle | [`builder-7r-1-native-live.md`](builder-7r-1-native-live.md) |
-| **7R-2** | measure complete runtime waterfall before optimization | create dedicated task after 7R-1 acceptance |
+| **7R-2** | measure complete runtime waterfall before optimization | [`builder-7r-2-runtime-waterfall.md`](builder-7r-2-runtime-waterfall.md) |
 | **7R-3** | rebase expensive Git/source micro-operations into logical transactions using 7R-2 measurements | create dedicated task after 7R-2 acceptance |
 | **7R-4** | remove legacy ordinary Preview correlations while preserving security and last-good semantics | create dedicated task after 7R-3 acceptance |
 | **7R-5** | prove the final engine as one composed Product journey | create dedicated task after 7R-4 acceptance |
@@ -149,11 +149,13 @@ These are program questions, not implementation contracts.
 
 ## 7R-2
 
-Measure where time is spent in Project create, BUILD, live activity, Code/Diff, compilation, and Preview. Produce a quantitative bounded waterfall and expensive-boundary census. Do not optimize in the measurement slice.
+Measure where time is spent in Project create, BUILD, live activity, Code/Diff, compilation, and Preview. Produce a quantitative bounded waterfall and expensive-boundary census. Do not optimize in the measurement slice. Exact measurement scope and falsifiers now live in [`builder-7r-2-runtime-waterfall.md`](builder-7r-2-runtime-waterfall.md).
 
 ## 7R-3
 
 Use 7R-2 evidence to reduce source/Git isolation overhead at the logical-operation level. Remove N+1 source reads and avoid one hardened OCI start per tiny Git operation where a single bounded transaction preserves the same custody/security invariants.
+
+The examples above remain hypotheses until 7R-2 measures the actual path. If the baseline points elsewhere, 7R-3 must follow the measurement rather than this historical expectation.
 
 ## 7R-4
 
