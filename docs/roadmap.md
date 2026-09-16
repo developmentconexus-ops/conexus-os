@@ -22,6 +22,7 @@ The current frontend remains a **Diagnostic UI** until the foundation engine is 
 
 - **7R-0:** CLOSED. Exact `@mastra/core@1.63.2` investigation reconciled the Session/Thread/Workspace/display-state boundary into the current C-020 technical owner.
 - **7R-1:** candidate `3276f8fbf3ae8a38f6d0cab43fe540df221ebee9` reviewed. **CORRECTION REQUIRED / NOT ACCEPTED** because the browser live transport does not retry an initially unavailable Session or reconnect after an unexpected stream end while the same BuilderRun remains active.
+- **7R1-LIVE-01 correction:** **AUTHORIZED FOR EXECUTION**. Only the bounded correction owned by the current 7R-1 task may be implemented.
 - **7R-2:** BLOCKED until the 7R-1 correction passes independent review and the next task is planned.
 - No 7R-2 Product implementation, Git optimization, Preview rebase, frontend redesign, Brain/Sankhya expansion, workflow expansion, or Mastra upgrade is authorized now.
 
@@ -30,7 +31,7 @@ The current frontend remains a **Diagnostic UI** until the foundation engine is 
 | Slice | Purpose | State |
 | --- | --- | --- |
 | **7R-0** | exact Mastra-native proof + authority reconciliation | **CLOSED** |
-| **7R-1** | native live-state/streaming convergence and deletion of the parallel observation lifecycle | **CORRECTION REQUIRED — `7R1-LIVE-01`** |
+| **7R-1** | native live-state/streaming convergence and deletion of the parallel observation lifecycle | **CORRECTION AUTHORIZED — `7R1-LIVE-01`** |
 | **7R-2** | runtime waterfall and quantitative measurement baseline | **BLOCKED** |
 | **7R-3** | source/Git logical transaction rebase | **BLOCKED** |
 | **7R-4** | Preview runtime rebase | **BLOCKED** |
@@ -61,9 +62,9 @@ This is a bounded 7R-1 transport correction. It does not reopen C-020 and does n
 
 Planning/review for the correction is closed in [`tasks/builder-7r-1-native-live.md`](tasks/builder-7r-1-native-live.md).
 
-**Product implementation of the correction is not authorized until the operator explicitly approves sending the correction task to the executor.**
+The operator authorized Product implementation of **`7R1-LIVE-01` only**.
 
-When authorized, the executor must:
+The executor must:
 
 ```text
 read AGENTS.md
@@ -122,6 +123,6 @@ The Diagnostic UI may change only when the 7R-1 correction requires it for truth
 
 ## Exact next action
 
-**Wait for operator authorization to send the bounded `7R1-LIVE-01` correction in [`tasks/builder-7r-1-native-live.md`](tasks/builder-7r-1-native-live.md) to the executor.**
+**Execute the bounded `7R1-LIVE-01` correction in [`tasks/builder-7r-1-native-live.md`](tasks/builder-7r-1-native-live.md), verify it, commit + push, and STOP for independent review.**
 
-Do not implement the correction here and do not plan or execute 7R-2 yet.
+Do not plan or execute 7R-2 yet.
