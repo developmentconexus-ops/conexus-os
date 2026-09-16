@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { join } from 'node:path'
 import type { MastraLanguageModel } from '@mastra/core/agent'
+import { Observability, MastraStorageExporter } from '@mastra/observability'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 import { createCodingAgent } from '@mastra/core/coding-agent'
@@ -9,7 +10,11 @@ import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot } from './routes.js'
-import { createMastraE2BCodingWorkerRuntime, resolveBuilderWorkspace } from './runtime.js'
+import {
+  BUILDER_TRACE_REQUEST_CONTEXT_KEYS,
+  createMastraE2BCodingWorkerRuntime,
+  resolveBuilderWorkspace,
+} from './runtime.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderSourcePort } from './source.js'
@@ -20,6 +25,51 @@ import { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } from './app
 
 const BUILDER_THREAD_PREFIX = 'conexus-builder:'
 const threadIdForProject = (projectId: string): string => `${BUILDER_THREAD_PREFIX}${projectId}`
+const BUILDER_OBSERVABILITY_FLUSH_TIMEOUT_MS = 5_000
+
+type BuilderObservabilityLifecycle = Readonly<{
+  flush(): Promise<void>
+  close(): Promise<void>
+}>
+
+const createBuilderObservabilityLifecycle = (observability: Observability): BuilderObservabilityLifecycle => {
+  let queued: Promise<void> = Promise.resolve()
+  let closing = false
+  const reportFailure = (): void => {
+    process.emitWarning('BUILDER_PREPARATION_FAILED', { code: 'BUILDER_PREPARATION_FAILED' })
+  }
+  const enqueue = (operation: () => Promise<void>): Promise<void> => {
+    const result = queued.then(operation, operation)
+    queued = result.catch(() => undefined)
+    return result
+  }
+  const waitBounded = (operation: Promise<void>): Promise<'completed' | 'failed' | 'timed-out'> => new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve('timed-out'), BUILDER_OBSERVABILITY_FLUSH_TIMEOUT_MS)
+    void operation.then(
+      () => { clearTimeout(timeout); resolve('completed') },
+      () => { clearTimeout(timeout); resolve('failed') },
+    )
+  })
+  return Object.freeze({
+    flush: async () => {
+      if (closing) return
+      const current = enqueue(() => observability.flush())
+      const result = await waitBounded(current)
+      if (result !== 'completed') reportFailure()
+    },
+    close: async () => {
+      closing = true
+      const queuedResult = await waitBounded(queued)
+      if (queuedResult !== 'completed') {
+        reportFailure()
+        return
+      }
+      const shutdownResult = await waitBounded(observability.shutdown())
+      if (shutdownResult !== 'completed') reportFailure()
+    },
+  })
+}
+
 const messageText = (content: unknown): string => {
   if (typeof content === 'string') return content
   if (Array.isArray(content)) return content.flatMap((part) => {
@@ -97,6 +147,17 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     storage: sessionStorage,
     options: { lastMessages: 20 },
   })
+  const observability = new Observability({
+    sensitiveDataFilter: true,
+    configs: {
+      default: {
+        serviceName: 'conexus-builder',
+        requestContextKeys: [...BUILDER_TRACE_REQUEST_CONTEXT_KEYS],
+        exporters: [new MastraStorageExporter()],
+      },
+    },
+  })
+  const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
   const sharedAgent = createCodingAgent({
     id: 'conexus-builder-coding-agent', name: 'Conexus Coding Worker', model, workspace: resolveBuilderWorkspace,
     editor: false, instructions: BUILDER_BASE_AGENT_INSTRUCTIONS, tools: {},
@@ -106,6 +167,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     initialState: { yolo: true },
     modes: BUILDER_MODE_DEFINITIONS.map((mode) => ({ ...mode, availableTools: [...mode.availableTools] })),
     defaultModeId: 'build', agent: sharedAgent, workspace: undefined,
+    observability,
   })
   const sharedControllerReady = sharedController.init()
   let sessionStorageInit: Promise<void> | undefined
@@ -119,7 +181,11 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     model,
     modelIdentity,
     validateModelCredential,
-    sharedHarness: { agent: sharedAgent, controller: sharedController, ready: sharedControllerReady },
+    sharedHarness: {
+      controller: sharedController,
+      ready: sharedControllerReady,
+      flushObservability: observabilityLifecycle.flush,
+    },
   })
   const compiler = createE2BApplicationCompiler({ apiKey: readSecretFile(builder.e2bApiKeyFile) })
   const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts })
@@ -155,7 +221,13 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
         await service.close()
       } finally {
         await sharedController.destroy()
-        await sessionStorage.close()
+        try {
+          await observabilityLifecycle.close()
+        } catch {
+          process.emitWarning('BUILDER_PREPARATION_FAILED', { code: 'BUILDER_PREPARATION_FAILED' })
+        } finally {
+          await sessionStorage.close()
+        }
       }
     },
   })

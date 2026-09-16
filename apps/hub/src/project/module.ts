@@ -4,6 +4,7 @@ import { PROVIDER_REGISTRY } from '@mastra/core/llm'
 import { lstatSync, readFileSync } from 'node:fs'
 import { createPostgresPool } from '../platform/postgres.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import type { ProjectRuntimeConfig } from '../platform/config.js'
 import { readSecretFile } from '../platform/secrets.js'
 import {
   createAnthropicOAuthModel,
@@ -162,41 +163,63 @@ export type ProjectModule = Readonly<{
   close(): Promise<void>
 }>
 
+type ProjectPlanningModule = Readonly<{
+  baselineReadPool: PostgresPool
+  baselineCommandPool: PostgresPool
+  inception: ProjectInceptionService
+  cognition: ProjectMastraPort
+}>
+
 export const createProjectModule = ({
   commandPool,
   readPool,
-  baselineReadPool,
-  baselineCommandPool,
   git,
   recovery,
-  inception,
-  cognition,
+  planning,
   origin,
   resolveCurrentSession,
 }: Readonly<{
   commandPool: PostgresPool
   readPool: PostgresPool
-  baselineReadPool: PostgresPool
-  baselineCommandPool: PostgresPool
   git: GitExecutionPort
   recovery: ProjectSourceRecovery
-  inception: ProjectInceptionService
-  cognition: ProjectMastraPort
+  planning?: ProjectPlanningModule
   origin: string
   resolveCurrentSession: ResolveProjectSession
 }>): ProjectModule => {
-  const store = createProjectStore({ commandPool, readPool, baselineReadPool, baselineCommandPool, git, recovery })
-  const explanation = createProjectBaselineExplanationService({
-    store,
-    cognition,
-    admissionId: PROJECT_ANTHROPIC_ADMISSION_ID,
+  const store = createProjectStore({
+    commandPool,
+    readPool,
+    ...(planning ? {
+      baselineReadPool: planning.baselineReadPool,
+      baselineCommandPool: planning.baselineCommandPool,
+    } : {}),
+    git,
+    recovery,
   })
+  const planningDependencies = planning ? {
+    inception: planning.inception,
+    explanation: createProjectBaselineExplanationService({
+      store,
+      cognition: planning.cognition,
+      admissionId: PROJECT_ANTHROPIC_ADMISSION_ID,
+    }),
+  } : undefined
   return Object.freeze({
     registerProjectRoutes: (app: FastifyInstance) => registerProjectRoutes(app, {
-      store, inception, explanation, resolveCurrentSession, origin,
+      store, ...(planningDependencies ? { planning: planningDependencies } : {}), resolveCurrentSession, origin,
     }),
     close: async () => {
-      await Promise.all([commandPool.end(), readPool.end(), baselineReadPool.end(), baselineCommandPool.end(), inception.close(), cognition.close()])
+      await Promise.all([
+        commandPool.end(),
+        readPool.end(),
+        ...(planning ? [
+          planning.baselineReadPool.end(),
+          planning.baselineCommandPool.end(),
+          planning.inception.close(),
+          planning.cognition.close(),
+        ] : []),
+      ])
     },
   })
 }
@@ -419,18 +442,7 @@ export const createConfiguredProjectModule = ({
   reconcileBindingSource,
 }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
-  project: Readonly<{
-    commandPasswordFile: string
-    readPasswordFile: string
-    baselineReadPasswordFile: string
-    baselineCommandPasswordFile: string
-    inceptionCommandPasswordFile: string
-    storageRoot: string
-    gitImportCatalogFile: string
-    externalFileSlotsFile: string
-    modelCatalogFile: string
-    sourceOwnershipManifestFile: string
-  }>
+  project: ProjectRuntimeConfig
   sourceSnapshot?: ProjectSourceSnapshotFactory
   origin: string
   resolveCurrentSession: ResolveProjectSession
@@ -443,36 +455,51 @@ export const createConfiguredProjectModule = ({
   }
   if (!slotInput || typeof slotInput !== 'object' || Array.isArray(slotInput) ||
     Object.values(slotInput).some((value) => typeof value !== 'string')) throw new Error('PROJECT_EXTERNAL_SLOTS_REFUSED')
-  const modelAdmission = resolveProjectCognitionModelAdmission({
-    catalogFile: project.modelCatalogFile,
-    credentialSlotsFile: project.externalFileSlotsFile,
-  })
   const externalSlots = slotInput as Readonly<Record<string, string>>
-  const cognition = createProjectMastra([{
-    admissionId: modelAdmission.admissionId,
-    providerId: modelAdmission.providerId,
-    modelId: modelAdmission.modelId,
-    enabled: true,
-    model: modelAdmission.model,
-  }])
-  const inceptionPool = createPostgresPool({
-    ...database,
-    user: 'hub_s6_inception_command',
-    password: readSecretFile(project.inceptionCommandPasswordFile),
-  })
   const sourceSnapshot = configuredSourceSnapshot ?? createConfiguredProjectSourceSnapshotFactory({
     storageRoot: project.storageRoot,
     sourceOwnershipManifestFile: project.sourceOwnershipManifestFile,
   })
-  const inception = createProjectInceptionService({
-    pool: inceptionPool,
-    cognition,
-    sourceSnapshot,
-    admissionId: PROJECT_ANTHROPIC_ADMISSION_ID,
-    ...(reconcileBindingSource ? { reconcileBindingSource } : {}),
-  })
   const catalog = createGitImportAdmissionCatalog(catalogInput.entries as GitImportAdmissionEntry[])
   if (!catalog) throw new Error('PROJECT_GIT_CATALOG_REFUSED')
+  const planning = project.planning ? (() => {
+    const modelAdmission = resolveProjectCognitionModelAdmission({
+      catalogFile: project.modelCatalogFile,
+      credentialSlotsFile: project.externalFileSlotsFile,
+    })
+    const cognition = createProjectMastra([{
+      admissionId: modelAdmission.admissionId,
+      providerId: modelAdmission.providerId,
+      modelId: modelAdmission.modelId,
+      enabled: true,
+      model: modelAdmission.model,
+    }])
+    const inceptionPool = createPostgresPool({
+      ...database,
+      user: 'hub_s6_inception_command',
+      password: readSecretFile(project.planning.inceptionCommandPasswordFile),
+    })
+    return {
+      baselineReadPool: createPostgresPool({
+        ...database,
+        user: 'hub_s4_baseline_read',
+        password: readSecretFile(project.planning.baselineReadPasswordFile),
+      }),
+      baselineCommandPool: createPostgresPool({
+        ...database,
+        user: 'hub_s4_baseline_command',
+        password: readSecretFile(project.planning.baselineCommandPasswordFile),
+      }),
+      inception: createProjectInceptionService({
+        pool: inceptionPool,
+        cognition,
+        sourceSnapshot,
+        admissionId: PROJECT_ANTHROPIC_ADMISSION_ID,
+        ...(reconcileBindingSource ? { reconcileBindingSource } : {}),
+      }),
+      cognition,
+    }
+  })() : undefined
   return createProjectModule({
     commandPool: createPostgresPool({
       ...database,
@@ -484,24 +511,13 @@ export const createConfiguredProjectModule = ({
       user: 'hub_s3_read',
       password: readSecretFile(project.readPasswordFile),
     }),
-    baselineReadPool: createPostgresPool({
-      ...database,
-      user: 'hub_s4_baseline_read',
-      password: readSecretFile(project.baselineReadPasswordFile),
-    }),
-    baselineCommandPool: createPostgresPool({
-      ...database,
-      user: 'hub_s4_baseline_command',
-      password: readSecretFile(project.baselineCommandPasswordFile),
-    }),
     git: createOciGitExecutionPort({
       projectStorageRoot: project.storageRoot,
       gitImportCatalog: catalog,
       externalFileSlots: externalSlots,
     }),
     recovery: createProjectSourceRecovery(project.storageRoot),
-    inception,
-    cognition,
+    ...(planning ? { planning } : {}),
     origin,
     resolveCurrentSession,
   })

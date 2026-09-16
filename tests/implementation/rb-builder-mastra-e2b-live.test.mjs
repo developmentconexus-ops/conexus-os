@@ -8,6 +8,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { AgentController } from '@mastra/core/agent-controller'
 import { createCodingAgent } from '@mastra/core/coding-agent'
+import { Observability, MastraStorageExporter } from '@mastra/observability'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 
@@ -42,7 +43,7 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
     if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
     const built = (path) => pathToFileURL(resolve(buildRoot, path)).href
     const { resolveProjectModelAdmission } = await import(built('project/module.js'))
-    const { createMastraE2BCodingWorkerRuntime, resolveBuilderWorkspace } = await import(built('builder/runtime.js'))
+    const { BUILDER_TRACE_REQUEST_CONTEXT_KEYS, createMastraE2BCodingWorkerRuntime, resolveBuilderWorkspace } = await import(built('builder/runtime.js'))
     const { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } = await import(built('builder/application-starter.js'))
 
     const admission = resolveProjectModelAdmission({
@@ -66,6 +67,16 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
 
     const storage = new LibSQLStore({ id: `rb-live-${randomUUID()}`, url: `file:${resolve(proofRoot, 'builder-session.db')}` })
     const memory = new Memory({ storage, options: { lastMessages: 20 } })
+    const observability = new Observability({
+      sensitiveDataFilter: true,
+      configs: {
+        default: {
+          serviceName: 'conexus-builder',
+          requestContextKeys: [...BUILDER_TRACE_REQUEST_CONTEXT_KEYS],
+          exporters: [new MastraStorageExporter()],
+        },
+      },
+    })
     const agent = createCodingAgent({
       id: `rb-live-agent-${randomUUID()}`,
       name: 'Conexus Coding Worker',
@@ -84,8 +95,15 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
       defaultModeId: 'build',
       agent,
       workspace: undefined,
+      observability,
     })
     const controllerReady = controller.init()
+    let queuedObservabilityFlush = Promise.resolve()
+    const flushObservability = () => {
+      const next = queuedObservabilityFlush.then(() => observability.flush())
+      queuedObservabilityFlush = next.catch(() => undefined)
+      return next
+    }
     let boundSandboxId
     const runtime = createMastraE2BCodingWorkerRuntime({
       apiKey,
@@ -97,7 +115,7 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
         modelId: admission.modelId,
       },
       validateModelCredential: admission.validateCredential,
-      sharedHarness: { agent, controller, ready: controllerReady },
+      sharedHarness: { controller, ready: controllerReady, flushObservability },
       timeoutMs: 12 * 60_000,
     })
     const identity = {
@@ -179,6 +197,8 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
       await assertPersistedTurn(correctionIntent, correction.summary)
     } finally {
       await controller.destroy()
+      await flushObservability()
+      await observability.shutdown()
       await storage.close()
     }
   } finally {

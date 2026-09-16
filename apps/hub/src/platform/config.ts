@@ -1,3 +1,18 @@
+export type ProjectRuntimeConfig = Readonly<{
+  commandPasswordFile: string
+  readPasswordFile: string
+  storageRoot: string
+  gitImportCatalogFile: string
+  externalFileSlotsFile: string
+  modelCatalogFile: string
+  sourceOwnershipManifestFile: string
+  planning?: Readonly<{
+    baselineReadPasswordFile: string
+    baselineCommandPasswordFile: string
+    inceptionCommandPasswordFile: string
+  }>
+}>
+
 export type HubConfig = Readonly<{
   origin: string
   port: number
@@ -14,18 +29,7 @@ export type HubConfig = Readonly<{
       readPasswordFile: string
     }> | undefined
   }>
-  project: Readonly<{
-    commandPasswordFile: string
-    readPasswordFile: string
-    baselineReadPasswordFile: string
-    baselineCommandPasswordFile: string
-    inceptionCommandPasswordFile: string
-    storageRoot: string
-    gitImportCatalogFile: string
-    externalFileSlotsFile: string
-    modelCatalogFile: string
-    sourceOwnershipManifestFile: string
-  }> | undefined
+  project: ProjectRuntimeConfig | undefined
   brain: Readonly<{
     readPasswordFile: string
   }> | undefined
@@ -81,39 +85,77 @@ const workspaceDatabase = (environment: NodeJS.ProcessEnv): HubConfig['database'
 }
 
 const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] => {
-  const values = {
+  const ordinaryValues = {
     commandPasswordFile: environment.CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE,
     readPasswordFile: environment.CONEXUS_DB_S3_READ_PASSWORD_FILE,
-    baselineReadPasswordFile: environment.CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE,
-    baselineCommandPasswordFile: environment.CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE,
-    inceptionCommandPasswordFile: environment.CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE,
     storageRoot: environment.CONEXUS_PROJECT_STORAGE_ROOT,
     gitImportCatalogFile: environment.CONEXUS_GIT_IMPORT_CATALOG_FILE,
     externalFileSlotsFile: environment.CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE,
     modelCatalogFile: environment.CONEXUS_PROJECT_MODEL_CATALOG_FILE,
     sourceOwnershipManifestFile: environment.CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE,
   }
-  if (Object.values(values).every(Boolean)) return values as HubConfig['project']
+  const planningValues = {
+    baselineReadPasswordFile: environment.CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE,
+    baselineCommandPasswordFile: environment.CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE,
+    inceptionCommandPasswordFile: environment.CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE,
+  }
+  const hasOrdinaryValues = Object.values(ordinaryValues).some(Boolean)
+  const hasPlanningValues = Object.values(planningValues).some(Boolean)
+  const ordinaryComplete = Object.values(ordinaryValues).every(Boolean)
+  const planningComplete = Object.values(planningValues).every(Boolean)
+
   // R2 binding settlement can reuse an existing Project source root without
   // enabling the independently configured R1 creation/cognition capability.
   if (environment.CONEXUS_DB_R2_PROJECT_BINDING_PASSWORD_FILE &&
-    !Object.entries(values).some(([name, value]) =>
+    !hasPlanningValues && !Object.entries(ordinaryValues).some(([name, value]) =>
       !['storageRoot', 'sourceOwnershipManifestFile'].includes(name) && Boolean(value))) return undefined
-  if (Object.values(values).some(Boolean)) {
+
+  if (hasOrdinaryValues && !ordinaryComplete) {
     for (const [name, value] of Object.entries({
-      CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE: values.commandPasswordFile,
-      CONEXUS_DB_S3_READ_PASSWORD_FILE: values.readPasswordFile,
-      CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE: values.baselineReadPasswordFile,
-      CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE: values.baselineCommandPasswordFile,
-      CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE: values.inceptionCommandPasswordFile,
-      CONEXUS_PROJECT_STORAGE_ROOT: values.storageRoot,
-      CONEXUS_GIT_IMPORT_CATALOG_FILE: values.gitImportCatalogFile,
-      CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE: values.externalFileSlotsFile,
-      CONEXUS_PROJECT_MODEL_CATALOG_FILE: values.modelCatalogFile,
-      CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE: values.sourceOwnershipManifestFile,
+      CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE: ordinaryValues.commandPasswordFile,
+      CONEXUS_DB_S3_READ_PASSWORD_FILE: ordinaryValues.readPasswordFile,
+      CONEXUS_PROJECT_STORAGE_ROOT: ordinaryValues.storageRoot,
+      CONEXUS_GIT_IMPORT_CATALOG_FILE: ordinaryValues.gitImportCatalogFile,
+      CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE: ordinaryValues.externalFileSlotsFile,
+      CONEXUS_PROJECT_MODEL_CATALOG_FILE: ordinaryValues.modelCatalogFile,
+      CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE: ordinaryValues.sourceOwnershipManifestFile,
     })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
   }
-  return undefined
+  if (hasPlanningValues && !planningComplete) {
+    for (const [name, value] of Object.entries({
+      CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE: planningValues.baselineReadPasswordFile,
+      CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE: planningValues.baselineCommandPasswordFile,
+      CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE: planningValues.inceptionCommandPasswordFile,
+    })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
+  }
+  if (planningComplete && !ordinaryComplete) {
+    for (const [name, value] of Object.entries({
+      CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE: ordinaryValues.commandPasswordFile,
+      CONEXUS_DB_S3_READ_PASSWORD_FILE: ordinaryValues.readPasswordFile,
+      CONEXUS_PROJECT_STORAGE_ROOT: ordinaryValues.storageRoot,
+      CONEXUS_GIT_IMPORT_CATALOG_FILE: ordinaryValues.gitImportCatalogFile,
+      CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE: ordinaryValues.externalFileSlotsFile,
+      CONEXUS_PROJECT_MODEL_CATALOG_FILE: ordinaryValues.modelCatalogFile,
+      CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE: ordinaryValues.sourceOwnershipManifestFile,
+    })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
+  }
+  if (!ordinaryComplete) return undefined
+  const ordinary: ProjectRuntimeConfig = {
+    commandPasswordFile: required(environment, 'CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE'),
+    readPasswordFile: required(environment, 'CONEXUS_DB_S3_READ_PASSWORD_FILE'),
+    storageRoot: required(environment, 'CONEXUS_PROJECT_STORAGE_ROOT'),
+    gitImportCatalogFile: required(environment, 'CONEXUS_GIT_IMPORT_CATALOG_FILE'),
+    externalFileSlotsFile: required(environment, 'CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE'),
+    modelCatalogFile: required(environment, 'CONEXUS_PROJECT_MODEL_CATALOG_FILE'),
+    sourceOwnershipManifestFile: required(environment, 'CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE'),
+  }
+  if (!planningComplete) return ordinary
+  const planning = {
+    baselineReadPasswordFile: required(environment, 'CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE'),
+    baselineCommandPasswordFile: required(environment, 'CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE'),
+    inceptionCommandPasswordFile: required(environment, 'CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE'),
+  }
+  return { ...ordinary, planning }
 }
 
 const brainRuntime = (environment: NodeJS.ProcessEnv): HubConfig['brain'] => {
@@ -129,7 +171,12 @@ const connectionsRuntime = (environment: NodeJS.ProcessEnv): HubConfig['connecti
     credentialKeyFile: environment.CONEXUS_CONNECTION_CREDENTIAL_KEY_FILE,
     credentialKeyGeneration: environment.CONEXUS_CONNECTION_CREDENTIAL_KEY_GENERATION,
   }
-  if (Object.values(values).every(Boolean)) return values as HubConfig['connections']
+  if (Object.values(values).every(Boolean)) return {
+    passwordFile: required(environment, 'CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE'),
+    credentialRoot: required(environment, 'CONEXUS_CONNECTION_CREDENTIAL_ROOT'),
+    credentialKeyFile: required(environment, 'CONEXUS_CONNECTION_CREDENTIAL_KEY_FILE'),
+    credentialKeyGeneration: required(environment, 'CONEXUS_CONNECTION_CREDENTIAL_KEY_GENERATION'),
+  }
   if (Object.values(values).some(Boolean)) {
     for (const [name, value] of Object.entries({
       CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE: values.passwordFile,
@@ -183,7 +230,12 @@ const projectBindingRuntime = (environment: NodeJS.ProcessEnv): HubConfig['proje
     return {
       passwordFile,
       storageRoot,
-      brain: brainValues as NonNullable<NonNullable<HubConfig['projectBindings']>['brain']>,
+      brain: {
+        attesterPasswordFile: required(environment, 'CONEXUS_DB_R2_BRAIN_ATTESTER_PASSWORD_FILE'),
+        keyConformanceSubjectPasswordFile: required(environment, 'CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE'),
+        sourceOwnershipManifestFile: required(environment, 'CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE'),
+        registrationCatalogFile: required(environment, 'CONEXUS_R2_KEY_CONFORMANCE_REGISTRATION_CATALOG_FILE'),
+      },
     }
   }
   if (Object.values(brainValues).some(Boolean)) {
@@ -205,7 +257,13 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
     e2bTemplateId: environment.CONEXUS_BUILDER_E2B_TEMPLATE_ID,
     modelAdmissionId: environment.CONEXUS_BUILDER_MODEL_ADMISSION_ID,
   }
-  if (Object.values(values).every(Boolean)) return values as NonNullable<HubConfig['builder']>
+  if (Object.values(values).every(Boolean)) return {
+    ingressPasswordFile: required(environment, 'CONEXUS_DB_RB_INGRESS_PASSWORD_FILE'),
+    executorPasswordFile: required(environment, 'CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE'),
+    e2bApiKeyFile: required(environment, 'CONEXUS_BUILDER_E2B_API_KEY_FILE'),
+    e2bTemplateId: required(environment, 'CONEXUS_BUILDER_E2B_TEMPLATE_ID'),
+    modelAdmissionId: required(environment, 'CONEXUS_BUILDER_MODEL_ADMISSION_ID'),
+  }
   if (Object.values(values).some(Boolean)) {
     for (const [name, value] of Object.entries({
       CONEXUS_DB_RB_INGRESS_PASSWORD_FILE: values.ingressPasswordFile,

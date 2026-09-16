@@ -100,7 +100,10 @@ test('S6-P1 refines exact Candidate A into distinct immutable Candidate B and re
   const app = await createHttpApp({ staticRoot: null, registerRoutes: (server) => registerProjectRoutes(server, {
     origin: 'https://conexus.test',
     resolveCurrentSession: async () => ({ account: { accountId: '10000000-0000-4000-8000-000000000201' } }),
-    inception,
+    planning: {
+      inception,
+      explanation: { run: async () => { throw new Error('NOT_USED') } },
+    },
     store: {
       listProjects: async () => [], getProject: async () => null, createProject: async () => { throw new Error('NOT_USED') },
       getBaselineCandidate: async () => null, getApprovedBaseline: async () => null,

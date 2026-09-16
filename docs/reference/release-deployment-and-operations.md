@@ -132,6 +132,43 @@ A production Project DB is isolated from DEV by connection/roles and is provisio
 
 Environment use of external systems is explicit. PROD does not silently use a sandbox Connection and DEV/Preview do not silently use production Connection merely because the provider is the same.
 
+## 13.3 Local first-delivery Hub operation
+
+The operator-only local configuration source for the first operational Builder
+delivery is `.audit/slice7/hub.env`. It is a mode-restricted, Git-ignored file
+with one plain `KEY=value` assignment per setting; it contains references to
+secret files, not secret material in source. The Hub validates the loaded
+values through `readHubConfig`. Node's `--env-file` loads the file for each new
+process, and an explicitly supplied process variable takes precedence over the
+file. No shell `source` from an earlier tool invocation is part of this
+contract.
+
+Build and run the actual local Hub with:
+
+```bash
+npm run hub:local
+```
+
+Run the explicitly gated Builder proof with the same source:
+
+```bash
+npm run rb:builder:live
+```
+
+The composed browser proof uses the same env-file, compiles and starts the
+actual `apps/hub/src/server.ts`, and only then invokes the Playwright journey:
+
+```bash
+npm run rb:builder:composed:live
+```
+
+The live gate remains explicit; loading configuration does not authorize a live
+provider, E2B, browser, or database action by itself. Missing or partial
+configuration is rejected by `readHubConfig` without logging values. Native
+Builder traces remain in the existing local Builder LibSQL store and are read
+through its native observability store after the Builder Session is deleted;
+trace diagnostics expose only owner IDs and trace IDs.
+
 ---
 
 ## 15. Config identity and secret rotation

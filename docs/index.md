@@ -31,6 +31,7 @@ Brain, R3, L1-L6, or every old screen is enabled for the pilot.
 | Realization selection | [Production realization guide](development/production-realization-guide.md) |
 | Review protocol design | [Blueprint harness design](development/blueprint-harness-design.md) |
 | Repository consolidation history | [Repository consolidation](tasks/repository-consolidation.md) |
+| Software Forge reference assessment | [Retained reference assessment](development/softwareforge-reference-assessment.md) |
 
 ## Product and architecture
 

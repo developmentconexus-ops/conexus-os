@@ -158,9 +158,14 @@ test('production Project composition completes the S6 browser journey on Postgre
   const unusedGit = new Proxy({}, { get: () => async () => { throw new Error('COMPOSED_GIT_PATH_NOT_USED') } })
   const project = createProjectModule({
     commandPool: poolFor('hub_prj03_command'), readPool: poolFor('hub_s3_read'),
-    baselineReadPool: poolFor('hub_s4_baseline_read'), baselineCommandPool: poolFor('hub_s4_baseline_command'),
     git: unusedGit, recovery: { cleanupClaimedProjectSource: async () => { throw new Error('COMPOSED_RECOVERY_PATH_NOT_USED') } },
-    inception, cognition, origin: configuredOrigin,
+    planning: {
+      baselineReadPool: poolFor('hub_s4_baseline_read'),
+      baselineCommandPool: poolFor('hub_s4_baseline_command'),
+      inception,
+      cognition,
+    },
+    origin: configuredOrigin,
     resolveCurrentSession: async () => ({ account: { accountId } }),
   })
   const app = await createHttpApp({ staticRoot: webBuild, registerRoutes: async (server) => {

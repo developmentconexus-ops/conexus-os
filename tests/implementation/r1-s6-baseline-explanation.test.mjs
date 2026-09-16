@@ -73,8 +73,10 @@ test('S6-P2 explains one exact candidate and refuses unowned context, provenance
   const app = await createHttpApp({ staticRoot: null, registerRoutes: (server) => registerProjectRoutes(server, {
     origin: 'https://conexus.test',
     resolveCurrentSession: async () => ({ account: { accountId: '10000000-0000-4000-8000-000000000024' } }),
-    inception: { run: async () => { throw new Error('NOT_USED') }, close: async () => {} },
-    explanation,
+    planning: {
+      inception: { run: async () => { throw new Error('NOT_USED') }, close: async () => {} },
+      explanation,
+    },
     store,
   }) })
   t.after(() => app.close())

@@ -182,6 +182,19 @@ Do not introduce a new framework or a new qualification directory.
 
 Do not collect a new S1-S6 baseline or complete every 360 finding in this task.
 
+## Limited operational configuration extension
+
+The live Hub and Builder proof commands load the already-authorized local
+`.audit/slice7/hub.env` explicitly with Node's `--env-file` option. The file is
+ignored, mode-restricted, and never committed. Its plain `KEY=value` format is
+validated before use; the current process environment has precedence over file
+values according to Node's env-file behavior. `readHubConfig` remains the
+configuration validator, and an absent or partial file still fails at that
+boundary without printing values. This limited extension also reconciles
+`rb:first:check` with the current focused test set and restores the durable
+Software Forge assessment route in the documentation index. It does not add a
+runtime loader, secret manager, observability program, or infrastructure task.
+
 ## Deciding proof and falsifiers
 
 | Proof | Required observation |

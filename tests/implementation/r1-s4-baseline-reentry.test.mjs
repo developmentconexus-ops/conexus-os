@@ -71,6 +71,10 @@ test('S4-P1 HTTP registers PRJ-23 with authentication and non-oracular miss', as
   const app = await createHttpApp({ staticRoot: null, registerRoutes: (server) => registerProjectRoutes(server, {
     origin: 'https://conexus.test',
     resolveCurrentSession: async () => authenticated ? { account: { accountId: 'account-81' } } : null,
+    planning: {
+      inception: { run: async () => { throw new Error('NOT_USED') } },
+      explanation: { run: async () => { throw new Error('NOT_USED') } },
+    },
     store: {
       listProjects: async () => [], getProject: async () => null,
       createProject: async () => { throw new Error('NOT_USED') },

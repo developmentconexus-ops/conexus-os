@@ -157,7 +157,10 @@ test('S6-P0 realizes PRJ-07 HTTP through bounded Mastra and Project settlement',
   const app = await createHttpApp({ staticRoot: null, registerRoutes: (server) => registerProjectRoutes(server, {
     origin: 'https://conexus.test',
     resolveCurrentSession: async () => ({ account: { accountId: '10000000-0000-4000-8000-000000000001' } }),
-    inception,
+    planning: {
+      inception,
+      explanation: { run: async () => { throw new Error('NOT_USED') } },
+    },
     store: {
       listProjects: async () => [], getProject: async () => null, createProject: async () => { throw new Error('NOT_USED') },
       getBaselineCandidate: async () => null, getApprovedBaseline: async () => null,

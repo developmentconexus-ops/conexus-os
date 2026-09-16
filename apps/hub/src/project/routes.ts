@@ -50,8 +50,10 @@ export const registerProjectRoutes = async (
   app: FastifyInstance,
   dependencies: Readonly<{
     store: ProjectStore
-    inception: ProjectInceptionService
-    explanation: ProjectBaselineExplanationService
+    planning?: Readonly<{
+      inception: ProjectInceptionService
+      explanation: ProjectBaselineExplanationService
+    }>
     resolveCurrentSession: ResolveProjectSession
     origin: string
   }>,
@@ -92,7 +94,9 @@ export const registerProjectRoutes = async (
     },
   })
 
-  app.route<{ Params: Prj23Params }>({
+  const planning = dependencies.planning
+  if (planning) {
+    app.route<{ Params: Prj23Params }>({
     ...S3_GENERATED_ROUTES['PRJ-23'],
     handler: async (request, reply) => {
       const current = await dependencies.resolveCurrentSession(request)
@@ -114,7 +118,7 @@ export const registerProjectRoutes = async (
     },
   })
 
-  app.route<{ Params: Prj07Params; Body: Prj07Body }>({
+    app.route<{ Params: Prj07Params; Body: Prj07Body }>({
     ...S3_GENERATED_ROUTES['PRJ-07'],
     handler: async (request, reply) => {
       const csrf = header(request.headers['x-conexus-csrf'])
@@ -126,7 +130,7 @@ export const registerProjectRoutes = async (
       const idempotencyKey = header(request.headers['idempotency-key'])
       if (!idempotencyKey) return sendProblem(reply, 400, 'idempotency-key-required', 'Idempotency key required')
       try {
-        return await dependencies.inception.run({
+        return await planning.inception.run({
           accountId: current.account.accountId,
           projectId: request.params.projectId,
           idempotencyKey,
@@ -155,7 +159,7 @@ export const registerProjectRoutes = async (
     },
   })
 
-  app.route<{ Params: Prj24Params; Body: Prj24Body }>({
+    app.route<{ Params: Prj24Params; Body: Prj24Body }>({
     ...S3_GENERATED_ROUTES['PRJ-24'],
     handler: async (request, reply) => {
       const csrf = header(request.headers['x-conexus-csrf'])
@@ -165,7 +169,7 @@ export const registerProjectRoutes = async (
       const current = await dependencies.resolveCurrentSession(request, true)
       if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
       try {
-        return await dependencies.explanation.run({
+        return await planning.explanation.run({
           accountId: current.account.accountId,
           projectId: request.params.projectId,
           candidateBaselineDigest: request.params.candidateBaselineDigest,
@@ -181,7 +185,7 @@ export const registerProjectRoutes = async (
     },
   })
 
-  app.route<{ Params: Prj08Params }>({
+    app.route<{ Params: Prj08Params }>({
     ...S3_GENERATED_ROUTES['PRJ-08'],
     handler: async (request, reply) => {
       const current = await dependencies.resolveCurrentSession(request)
@@ -202,7 +206,7 @@ export const registerProjectRoutes = async (
     },
   })
 
-  app.route<{ Params: Prj09Params; Body: Prj09Body }>({
+    app.route<{ Params: Prj09Params; Body: Prj09Body }>({
     ...S3_GENERATED_ROUTES['PRJ-09'],
     handler: async (request, reply) => {
       const csrf = header(request.headers['x-conexus-csrf'])
@@ -234,7 +238,8 @@ export const registerProjectRoutes = async (
         return sendProblem(reply, 503, 'baseline-approval-unavailable', 'Baseline approval unavailable')
       }
     },
-  })
+    })
+  }
 
   app.route<{ Params: Prj03Params; Body: Prj03Body }>({
     ...S3_GENERATED_ROUTES['PRJ-03'],
@@ -270,7 +275,9 @@ export const registerProjectRoutes = async (
       }
     },
   })
-  return ['PRJ-01', 'PRJ-02', 'PRJ-03', 'PRJ-07', 'PRJ-08', 'PRJ-09', 'PRJ-23', 'PRJ-24']
+  return planning
+    ? ['PRJ-01', 'PRJ-02', 'PRJ-03', 'PRJ-07', 'PRJ-08', 'PRJ-09', 'PRJ-23', 'PRJ-24']
+    : ['PRJ-01', 'PRJ-02', 'PRJ-03']
 }
 
 const projectBindingUnavailable = (reply: FastifyReply): FastifyReply => sendProblem(

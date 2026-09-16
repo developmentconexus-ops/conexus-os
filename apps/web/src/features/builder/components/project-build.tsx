@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
-import { useEffect, useId, useRef, useState } from 'react'
-import { BuilderRequestError, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type SourceTree } from '../api'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { BuilderRequestError, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type PreviewLaunch, type SourceTree } from '../api'
 import { observeBuilderRun, type BuilderLiveView } from '../observation'
 import { BuilderMarkdown } from './builder-markdown'
 
@@ -27,6 +27,51 @@ type Inspection = 'CODE' | 'DIFF' | 'DETAILS'
 type SourceDiffEntry = Readonly<{ path: string; status: 'ADDED' | 'REMOVED' | 'MODIFIED' }>
 type SourceSnapshot = Readonly<{ sourceRevision: string; files: ReadonlyMap<string, string> }>
 type LiveRequest = Readonly<{ runId: string; text: string; messageBoundary: number }>
+type PreviewKey = Readonly<{
+  projectId: string
+  sourceRevision: string
+  artifactRevisionId: string
+  artifactDigest: string
+}>
+type PreviewLease = Readonly<{
+  key: PreviewKey
+  keyId: string
+  launch: PreviewLaunch
+}>
+type PreviewState = Readonly<{
+  kind: 'IDLE'
+  projectId: string
+  lastGood: PreviewLease | null
+} | {
+  kind: 'LAUNCHING'
+  projectId: string
+  key: PreviewKey
+  keyId: string
+  requestToken: number
+  lastGood: PreviewLease | null
+} | {
+  kind: 'ISSUED'
+  projectId: string
+  key: PreviewKey
+  keyId: string
+  requestToken: number
+  lease: PreviewLease
+} | {
+  kind: 'FAILED'
+  projectId: string
+  key: PreviewKey
+  keyId: string
+  requestToken: number
+  lastGood: PreviewLease | null
+}>
+type PreviewRequest = Readonly<{ projectId: string; keyId: string; requestToken: number }>
+
+const getPreviewKeyId = (key: PreviewKey): string => [
+  key.projectId,
+  key.sourceRevision,
+  key.artifactRevisionId,
+  key.artifactDigest,
+].join('\u001f')
 
 const readSourceSnapshot = async (projectId: string, sourceRevision: string): Promise<SourceSnapshot> => {
   const tree = await listProjectSourceTree(projectId, sourceRevision)
@@ -58,7 +103,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const [liveRequest, setLiveRequest] = useState<LiveRequest | null>(null)
   const [inspection, setInspection] = useState<Inspection | null>(null)
   const [selectedSourcePath, setSelectedSourcePath] = useState<string | null>(null)
-  const [launch, setLaunch] = useState<Readonly<{ previewUrl: string; entryUrl: string; entryGrant: string }>>()
+  const [previewState, setPreviewState] = useState<PreviewState>({ kind: 'IDLE', projectId, lastGood: null })
   const frameName = `builder-preview-${inputId.replaceAll(':', '')}`
   const entryForm = useRef<HTMLFormElement>(null)
   const conversationRef = useRef<HTMLElement>(null)
@@ -117,9 +162,13 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const previewSummary = session.data?.preview
   const workingSourceRevision = previewSummary?.workingSourceRevision ?? null
   const lastGoodSourceRevision = previewSummary?.lastGoodSourceRevision ?? null
+  const sourceRevisionForQuery = workingSourceRevision
   const sourceTree = useQuery<SourceTree>({
     queryKey: ['builder-source-tree', projectId, workingSourceRevision],
-    queryFn: () => listProjectSourceTree(projectId, workingSourceRevision as string),
+    queryFn: () => {
+      if (!sourceRevisionForQuery) throw new Error('SOURCE_TREE_NOT_READY')
+      return listProjectSourceTree(projectId, sourceRevisionForQuery)
+    },
     enabled: inspection === 'CODE' && Boolean(workingSourceRevision),
   })
   const sourceFiles = sourceTree.data?.entries.filter((entry) => entry.kind === 'FILE') ?? []
@@ -131,9 +180,13 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     const firstSourceFile = sourceFiles.at(0)
     if (firstSourceFile && (!selectedSourcePath || !sourceFiles.some((entry) => entry.path === selectedSourcePath))) setSelectedSourcePath(firstSourceFile.path)
   }, [selectedSourcePath, sourceFiles])
+  const sourcePathForQuery = selectedSourcePath
   const sourceFile = useQuery({
     queryKey: ['builder-source-file', projectId, workingSourceRevision, selectedSourcePath],
-    queryFn: () => getProjectSourceFile(projectId, workingSourceRevision as string, selectedSourcePath as string),
+    queryFn: () => {
+      if (!sourceRevisionForQuery || !sourcePathForQuery) throw new Error('SOURCE_FILE_NOT_READY')
+      return getProjectSourceFile(projectId, sourceRevisionForQuery, sourcePathForQuery)
+    },
     enabled: inspection === 'CODE' && Boolean(workingSourceRevision && selectedSourcePath),
   })
   const diffBasis = session.data?.latestCodeChangingRun
@@ -148,26 +201,99 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     },
     enabled: inspection === 'DIFF' && Boolean(diffBasis),
   })
-  const previewReady = Boolean(previewSummary?.lastGoodSourceRevision && previewSummary.lastGoodArtifactRevisionId && previewSummary.lastGoodArtifactDigest)
-  const previewKey = previewReady ? `${previewSummary?.lastGoodSourceRevision}:${previewSummary?.lastGoodArtifactRevisionId}:${previewSummary?.lastGoodArtifactDigest}` : null
-  const previewRequestKey = useRef<string | null>(null)
-  const openPreview = useMutation({
-    mutationFn: () => launchBuilderPreview(projectId),
-    onSuccess: (result) => setLaunch(result),
-    onError: () => { previewRequestKey.current = null; setMessage('Não foi possível abrir o Preview atual.') },
-  })
+  const previewSourceRevision = previewSummary?.lastGoodSourceRevision
+  const previewArtifactRevisionId = previewSummary?.lastGoodArtifactRevisionId
+  const previewArtifactDigest = previewSummary?.lastGoodArtifactDigest
+  const previewKey: PreviewKey | null = previewSourceRevision && previewArtifactRevisionId && previewArtifactDigest ? {
+    projectId,
+    sourceRevision: previewSourceRevision,
+    artifactRevisionId: previewArtifactRevisionId,
+    artifactDigest: previewArtifactDigest,
+  } : null
+  const previewReady = previewKey !== null
+  const previewKeyId = previewKey ? getPreviewKeyId(previewKey) : null
+  const attemptedPreviewKeys = useRef(new Set<string>())
+  const previewRequestToken = useRef(0)
+  const currentPreviewRequest = useRef<PreviewRequest | null>(null)
+  const currentPreviewKeyId = useRef<string | null>(previewKeyId)
+  currentPreviewKeyId.current = previewKeyId
+  const mounted = useRef(false)
   useEffect(() => {
-    if (!previewKey || previewRequestKey.current === previewKey || openPreview.isPending) return
-    previewRequestKey.current = previewKey
-    openPreview.mutate()
-  }, [openPreview, previewKey])
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
+  const launchPreviewForKey = useCallback((key: PreviewKey) => {
+    const keyId = getPreviewKeyId(key)
+    const existingRequest = currentPreviewRequest.current
+    if (existingRequest?.projectId === projectId && existingRequest.keyId === keyId) return
+    const requestToken = ++previewRequestToken.current
+    attemptedPreviewKeys.current.add(keyId)
+    currentPreviewRequest.current = { projectId, keyId, requestToken }
+    setPreviewState((current) => ({
+      kind: 'LAUNCHING',
+      projectId,
+      key,
+      keyId,
+      requestToken,
+      lastGood: current.projectId === projectId
+        ? current.kind === 'ISSUED' ? current.lease : current.lastGood
+        : null,
+    }))
+    void launchBuilderPreview(projectId).then((result) => {
+      const activeRequest = currentPreviewRequest.current
+      if (!mounted.current || currentPreviewKeyId.current !== keyId ||
+        activeRequest?.projectId !== projectId || activeRequest.keyId !== keyId ||
+        activeRequest.requestToken !== requestToken) return
+      currentPreviewRequest.current = null
+      if (result.artifactRevisionId !== key.artifactRevisionId || result.artifactDigest !== key.artifactDigest) {
+        setPreviewState((current) => ({
+          kind: 'FAILED', projectId, key, keyId, requestToken,
+          lastGood: current.projectId === projectId
+            ? current.kind === 'ISSUED' ? current.lease : current.lastGood
+            : null,
+        }))
+        return
+      }
+      setPreviewState({ kind: 'ISSUED', projectId, key, keyId, requestToken, lease: { key, keyId, launch: result } })
+    }).catch(() => {
+      const activeRequest = currentPreviewRequest.current
+      if (!mounted.current || currentPreviewKeyId.current !== keyId ||
+        activeRequest?.projectId !== projectId || activeRequest.keyId !== keyId ||
+        activeRequest.requestToken !== requestToken) return
+      currentPreviewRequest.current = null
+      setPreviewState((current) => ({
+        kind: 'FAILED', projectId, key, keyId, requestToken,
+        lastGood: current.projectId === projectId
+          ? current.kind === 'ISSUED' ? current.lease : current.lastGood
+          : null,
+      }))
+    })
+  }, [projectId])
+  useEffect(() => {
+    if (!previewKey || !previewKeyId) {
+      currentPreviewRequest.current = null
+      setPreviewState((current) => ({ kind: 'IDLE', projectId, lastGood: current.projectId === projectId
+        ? current.kind === 'ISSUED' ? current.lease : current.lastGood
+        : null }))
+      return
+    }
+    if (!attemptedPreviewKeys.current.has(previewKeyId)) launchPreviewForKey(previewKey)
+  }, [launchPreviewForKey, previewKey, previewKeyId, projectId])
+  const retryPreview = () => { if (previewKey) launchPreviewForKey(previewKey) }
+  const currentPreviewState = previewState.projectId === projectId
+    ? previewState
+    : { kind: 'IDLE' as const, projectId, lastGood: null }
+  const previewFailed = currentPreviewState.kind === 'FAILED' && currentPreviewState.keyId === previewKeyId
+  const previewLaunch = currentPreviewState.kind === 'ISSUED'
+    ? currentPreviewState.lease.launch
+    : currentPreviewState.lastGood?.launch
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const value = content.trim()
     if (!value || send.isPending) return
     send.mutate({ content: value, mode, key: crypto.randomUUID(), messageBoundary: session.data?.messages.length ?? 0 })
   }
-  useEffect(() => { if (launch) queueMicrotask(() => entryForm.current?.requestSubmit()) }, [launch])
+  useEffect(() => { if (previewLaunch) queueMicrotask(() => entryForm.current?.requestSubmit()) }, [previewLaunch])
 
   return <div className="project-build">
     <div className="build-workspace">
@@ -185,7 +311,8 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
           : <p className="preview-empty">O Preview aparecerá depois do primeiro Build bem-sucedido.</p>}
         {run && <p role="status" aria-live="polite">{runStatus(run.state, run.resultKind)}</p>}
         {run?.resultKind === 'SOURCE_CHANGED_BUILD_FAILED' && <p role="alert">A nova fonte foi preservada para a próxima correção.</p>}
-        {launch && <><div className="preview-frame-stack"><iframe title="Preview do aplicativo" name={frameName} src="about:blank" /></div><form ref={entryForm} hidden method="post" action={launch.entryUrl} target={frameName}><input type="hidden" name="entryGrant" value={launch.entryGrant} /></form><p>Preview pronto.</p></>}
+        {previewLaunch && <><div className="preview-frame-stack"><iframe title="Preview do aplicativo" name={frameName} src="about:blank" /></div><form ref={entryForm} hidden method="post" action={previewLaunch.entryUrl} target={frameName}><input type="hidden" name="entryGrant" value={previewLaunch.entryGrant} /></form>{currentPreviewState.kind === 'ISSUED' && <><p>Preview emitido.</p><button type="button" onClick={() => { if (previewKey) launchPreviewForKey(previewKey) }}>Reabrir Preview</button></>}</>}
+        {previewFailed && <><p role="alert">Não foi possível abrir o Preview atual.</p><button type="button" onClick={retryPreview}>Tentar novamente</button></>}
         {inspection === 'CODE' && <section className="build-inspection" aria-labelledby="build-code-title">
           <h3 id="build-code-title">Código da fonte em trabalho</h3>
           {!workingSourceRevision && <p>O Project ainda não tem uma fonte disponível para inspeção.</p>}

@@ -1,14 +1,11 @@
-import { createCodingAgent } from '@mastra/core/coding-agent'
-import { AgentController } from '@mastra/core/agent-controller'
-import type { AgentControllerEvent } from '@mastra/core/agent-controller'
-import type { Agent } from '@mastra/core/agent'
+import type { AgentController, AgentControllerEvent } from '@mastra/core/agent-controller'
 import type { MastraLanguageModel } from '@mastra/core/agent'
 import { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspace'
 import { Workspace } from '@mastra/core/workspace'
 import { E2BSandbox } from '@mastra/e2b'
 import { Sandbox } from 'e2b'
-import { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS, materializeFixedApplicationStarter } from './application-starter.js'
+import { materializeFixedApplicationStarter } from './application-starter.js'
 
 type CodingWorkerCommonInput = Readonly<{
   projectId: string
@@ -54,10 +51,10 @@ export type E2BBuilderRuntimeConfig = Readonly<{
   model: MastraLanguageModel
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   validateModelCredential(): void
-  sharedHarness?: Readonly<{
-    agent: Agent
+  sharedHarness: Readonly<{
     controller: AgentController<Record<string, unknown>>
     ready: Promise<void>
+    flushObservability(): Promise<void>
   }>
   timeoutMs?: number
 }>
@@ -95,6 +92,28 @@ type BuilderDisplayState = Readonly<{
 }>
 
 export const BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY = 'conexus.builder.workspace'
+export const BUILDER_TRACE_REQUEST_CONTEXT_KEYS = Object.freeze([
+  'conexusBuilderProjectId',
+  'conexusBuilderRunId',
+])
+
+export type BuilderRequestContext = RequestContext
+
+export const createBuilderRequestContext = ({
+  workspace,
+  projectId,
+  runId,
+}: Readonly<{
+  workspace: Workspace
+  projectId: string
+  runId: string
+}>): BuilderRequestContext => {
+  const requestContext = new RequestContext()
+  requestContext.setRaw(BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY, workspace)
+  requestContext.setRaw('conexusBuilderProjectId', projectId)
+  requestContext.setRaw('conexusBuilderRunId', runId)
+  return requestContext
+}
 
 /** Resolve the per-run Workspace through Mastra's native dynamic workspace hook. */
 export const resolveBuilderWorkspace = ({ requestContext }: { requestContext: RequestContext }): Workspace | undefined => {
@@ -188,13 +207,13 @@ export const createMastraE2BCodingWorkerRuntime = (
     throw new Error('BUILDER_RUNTIME_CONFIG_REFUSED')
   }
   const sharedHarness = config.sharedHarness
-  const getSessionByResource = sharedHarness
-    ? (resourceId: string, scope: string): Promise<BuilderSession | undefined> => sharedHarness.controller.getSessionByResource(resourceId, scope)
-    : undefined
+  if (!sharedHarness) throw new Error('BUILDER_RUNTIME_SHARED_COMPOSITION_REQUIRED')
+  const getSessionByResource = (resourceId: string, scope: string): Promise<BuilderSession | undefined> =>
+    sharedHarness.controller.getSessionByResource(resourceId, scope)
   return Object.freeze({
     kind: 'REMOTE_E2B' as const,
     modelIdentity: Object.freeze({ ...config.modelIdentity }),
-    ...(getSessionByResource ? { getSessionByResource } : {}),
+    getSessionByResource,
     execute: async (input: CodingWorkerInput) => {
       const executionId = input.executionId
       if (![input.projectId, executionId].every(safeIdentity) ||
@@ -274,35 +293,22 @@ export const createMastraE2BCodingWorkerRuntime = (
         }
 
         const workspace = new Workspace({ sandbox })
-        const agent = config.sharedHarness?.agent ?? createCodingAgent({
-          id: `builder-${executionId}`,
-          name: 'Conexus Coding Worker',
-          model: config.model,
-          workspace: resolveBuilderWorkspace,
-          editor: false,
-          instructions: BUILDER_BASE_AGENT_INSTRUCTIONS,
-          tools: {},
-        })
-        const controller = config.sharedHarness?.controller ?? new AgentController<Record<string, unknown>>({
-          id: `builder-controller-${executionId}`,
-          initialState: { yolo: true },
-          modes: BUILDER_MODE_DEFINITIONS.map((mode) => ({ ...mode, availableTools: [...mode.availableTools] })),
-          defaultModeId: 'build',
-          agent,
-          workspace: undefined,
-        })
-        const controllerReady = config.sharedHarness?.ready ?? controller.init()
+        const controller = sharedHarness.controller
+        const controllerReady = sharedHarness.ready
         const prompt = createBuilderUserMessage(input.intent)
         let summaryText = ''
         let abortListener: (() => void) | undefined
         let activeSession: Awaited<ReturnType<AgentController<Record<string, unknown>>['createSession']>> | undefined
         let runError: unknown
         let cleanupError: unknown
-        const runScope = config.sharedHarness ? `builder:${executionId}` : 'builder'
+        const runScope = `builder:${executionId}`
         try {
           await controllerReady
-          const requestContext = new RequestContext()
-          requestContext.setRaw(BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY, workspace)
+          const requestContext = createBuilderRequestContext({
+            workspace,
+            projectId: input.projectId,
+            runId: executionId,
+          })
           const session = await controller.createSession({
             resourceId: input.projectId,
             ownerId: input.projectId,
@@ -318,7 +324,11 @@ export const createMastraE2BCodingWorkerRuntime = (
             if (input.signal.aborted) abortListener()
             else input.signal.addEventListener('abort', abortListener, { once: true })
           }
-          const agentEndReason: AgentEndReason | undefined = await sendBuilderSessionMessage(session, prompt, requestContext)
+          const agentEndReason: AgentEndReason | undefined = await sendBuilderSessionMessage(
+            session,
+            prompt,
+            requestContext,
+          )
           const messages = await session.thread.listActiveMessages()
           if (input.bindMessage) {
             const userMessage = [...messages].reverse().find((message) => message.role === 'signal' && message.type === 'user')
@@ -343,7 +353,7 @@ export const createMastraE2BCodingWorkerRuntime = (
             }
             activeSession = undefined
           }
-          if (!config.sharedHarness) await controller.destroy()
+          await sharedHarness.flushObservability()
         }
         if (cleanupError) throw cleanupError
         const finalized = await direct('sh', ['-lc', [
