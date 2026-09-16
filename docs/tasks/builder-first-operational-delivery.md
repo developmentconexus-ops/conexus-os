@@ -195,6 +195,33 @@ boundary without printing values. This limited extension also reconciles
 Software Forge assessment route in the documentation index. It does not add a
 runtime loader, secret manager, observability program, or infrastructure task.
 
+## Correction candidate and actual disposition
+
+The correction candidate keeps the existing production topology. It adds the
+explicit frontend-plus-Hub local build layout, HTTPS readiness against the
+configured Hub origin, the native local OIDC resolver needed by this WSL
+checkout, strict live configuration refusal, exact browser BuilderRun trace
+correlation, native `SpanType` assertions, and behavioral lifecycle coverage.
+The lifecycle timeout applies only to Product settlement; pending native work
+must finish, and native shutdown must complete, before the Builder LibSQL store
+closes. The runtime also verifies that the exact scoped Session is absent after
+deletion.
+
+The local investigation confirmed `.audit/slice7/hub.env` exists with mode
+`600` and readable references. `hub.conexus.localhost` was absent from WSL
+resolution, producing `getaddrinfo EAI_AGAIN` during OIDC discovery. The
+existing `conexus-s7-keycloak` container was present and was started for the
+authorized attempt; no certificate warning or TLS bypass was used. The next
+attempt reached Hub initialization and exposed a separate preserved-state
+failure: the configured `hub_rb_executor` reference is readable, but PostgreSQL
+returns `28P01` for that role. No credential or database role was changed.
+
+Disposition: CORRECTION CANDIDATE, focused proofs passing, composed browser and
+trace journey not accepted because the preserved PostgreSQL credential state
+prevents Hub startup. The candidate must remain under review until that
+environment owner reconciles the existing role credential; this task does not
+invent or rotate it.
+
 ## Deciding proof and falsifiers
 
 | Proof | Required observation |

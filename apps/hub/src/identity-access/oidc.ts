@@ -1,4 +1,7 @@
 import * as oidc from 'openid-client'
+import type { CustomFetch } from 'openid-client'
+import { lookup } from 'node:dns'
+import { Agent, fetch as undiciFetch } from 'undici'
 import { identityAccessError } from './errors.js'
 
 export type OidcIdentity = Readonly<{ issuer: string; subject: string }>
@@ -19,10 +22,31 @@ export const createOidcAdapter = async ({
 }: Readonly<{ issuer: string; clientId: string; clientSecret: string; redirectUri: string; allowInsecureForTest?: boolean }>, {
   discovery = oidc.discovery,
 }: Readonly<{ discovery?: OidcDiscovery }> = {}): Promise<OidcAdapter> => {
+  const issuerUrl = new URL(issuer)
+  const localIssuerHostname = issuerUrl.hostname === 'hub.conexus.localhost' || issuerUrl.hostname === 'conexus.localhost'
+  const localIssuerTransport = new Agent({
+    connect: {
+      // WSL may not publish the operator's .localhost entry in NSS. Keep the
+      // configured URL, SNI, and CA validation while binding this exact local
+      // issuer hostname to its existing loopback listener.
+      lookup: (hostname, options, callback) => {
+        if (localIssuerHostname && hostname === issuerUrl.hostname) {
+          if (options.all) return callback(null, [{ address: '127.0.0.1', family: 4 }])
+          return callback(null, '127.0.0.1', 4)
+        }
+        return lookup(hostname, options, callback)
+      },
+    },
+  })
+  const localIssuerFetch: CustomFetch = (url, init) => undiciFetch(url, {
+    ...init,
+    dispatcher: localIssuerTransport,
+  } as never) as unknown as Promise<Response>
   const options = {
     execute: [oidc.enableNonRepudiationChecks, ...(allowInsecureForTest ? [oidc.allowInsecureRequests] : [])],
+    [oidc.customFetch]: localIssuerFetch,
   }
-  const configuration = await discovery(new URL(issuer), clientId, clientSecret, undefined, options)
+  const configuration = await discovery(issuerUrl, clientId, clientSecret, undefined, options)
   return Object.freeze({
     async begin(): Promise<OidcTransaction> {
       const pkceVerifier = oidc.randomPKCECodeVerifier()

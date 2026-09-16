@@ -149,6 +149,12 @@ Build and run the actual local Hub with:
 npm run hub:local
 ```
 
+That command first builds the Web application into `apps/hub/public`, then
+compiles the Hub below `apps/hub/.conexus-build-local-*`. This keeps the
+compiled `server.js` and its `../public` `staticRoot` aligned. The process
+loads `.audit/slice7/hub.env` itself; a source operation in another shell is
+not required.
+
 Run the explicitly gated Builder proof with the same source:
 
 ```bash
@@ -162,12 +168,19 @@ actual `apps/hub/src/server.ts`, and only then invokes the Playwright journey:
 npm run rb:builder:composed:live
 ```
 
-The live gate remains explicit; loading configuration does not authorize a live
-provider, E2B, browser, or database action by itself. Missing or partial
-configuration is rejected by `readHubConfig` without logging values. Native
-Builder traces remain in the existing local Builder LibSQL store and are read
-through its native observability store after the Builder Session is deleted;
-trace diagnostics expose only owner IDs and trace IDs.
+The runner validates the configured Hub HTTPS origin, certificate chain,
+hostname/SNI, `200` HTML shell response, and a referenced static asset before
+starting the browser. It maps only the configured local OIDC hostname to its
+existing loopback listener when WSL NSS does not publish the `.localhost`
+entry; TLS verification and the configured origin remain unchanged. Playwright
+uses the same local hostname mapping for the dynamic
+`preview-<artifactRevisionId>.conexus.localhost` origin. The live gate remains
+explicit: incomplete composed-proof configuration fails with
+`CONEXUS_RB_COMPOSED_LIVE_CONFIG_REFUSED`, never a skip. Native Builder traces
+remain in the existing local Builder LibSQL store and are read through its
+native observability store after the exact browser-observed BuilderRun and
+Session deletion; trace diagnostics expose only owner IDs, run IDs, trace IDs,
+and native span types.
 
 ---
 

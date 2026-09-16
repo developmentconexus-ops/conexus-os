@@ -126,7 +126,7 @@
     "rb:e2b:template:live": "CONEXUS_RB_E2B_LIVE=true node --test --test-concurrency=1 tests/implementation/rb-builder-e2b-live.test.mjs",
     "r3:mar:check": "node --check scripts/run-hub-migrations.mjs && node --test --test-concurrency=1 tests/implementation/r3-mar-migration.test.mjs",
     "r3:p2p3:check": "node --check scripts/run-project-migrations.mjs && node --check scripts/run-hub-migrations.mjs && node --test --test-concurrency=1 tests/implementation/r3-project-read-model.test.mjs tests/implementation/r3-mar-admission.test.mjs tests/implementation/r3-mar-migration.test.mjs && npm run r1:s2:hub:typecheck",
-    "hub:local": "node --env-file=.audit/slice7/hub.env node_modules/typescript/bin/tsc --project apps/hub/tsconfig.json --pretty false --noEmit false --outDir node_modules/.cache/conexus-hub-local && node --env-file=.audit/slice7/hub.env node_modules/.cache/conexus-hub-local/server.js",
+    "hub:local": "node --env-file=.audit/slice7/hub.env scripts/build-hub-local.mjs",
     "rb:builder:live": "CONEXUS_RB_BUILDER_LIVE=true node --env-file=.audit/slice7/hub.env --test --test-concurrency=1 tests/implementation/rb-builder-mastra-e2b-live.test.mjs",
     "rb:builder:composed:live": "CONEXUS_RB_COMPOSED_LIVE=true node --env-file=.audit/slice7/hub.env tests/implementation/rb-builder-production-composed-live-runner.mjs",
     "verify:extended": "npm run repository:check:extended && npm run test:repository",

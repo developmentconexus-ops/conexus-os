@@ -32,9 +32,13 @@ type BuilderObservabilityLifecycle = Readonly<{
   close(): Promise<void>
 }>
 
-const createBuilderObservabilityLifecycle = (observability: Observability): BuilderObservabilityLifecycle => {
+export const createBuilderObservabilityLifecycle = (
+  observability: Pick<Observability, 'flush' | 'shutdown'>,
+  flushTimeoutMs = BUILDER_OBSERVABILITY_FLUSH_TIMEOUT_MS,
+): BuilderObservabilityLifecycle => {
   let queued: Promise<void> = Promise.resolve()
   let closing = false
+  let closePromise: Promise<void> | undefined
   const reportFailure = (): void => {
     process.emitWarning('BUILDER_PREPARATION_FAILED', { code: 'BUILDER_PREPARATION_FAILED' })
   }
@@ -44,7 +48,7 @@ const createBuilderObservabilityLifecycle = (observability: Observability): Buil
     return result
   }
   const waitBounded = (operation: Promise<void>): Promise<'completed' | 'failed' | 'timed-out'> => new Promise((resolve) => {
-    const timeout = setTimeout(() => resolve('timed-out'), BUILDER_OBSERVABILITY_FLUSH_TIMEOUT_MS)
+    const timeout = setTimeout(() => resolve('timed-out'), flushTimeoutMs)
     void operation.then(
       () => { clearTimeout(timeout); resolve('completed') },
       () => { clearTimeout(timeout); resolve('failed') },
@@ -57,15 +61,21 @@ const createBuilderObservabilityLifecycle = (observability: Observability): Buil
       const result = await waitBounded(current)
       if (result !== 'completed') reportFailure()
     },
-    close: async () => {
-      closing = true
-      const queuedResult = await waitBounded(queued)
-      if (queuedResult !== 'completed') {
-        reportFailure()
-        return
-      }
-      const shutdownResult = await waitBounded(observability.shutdown())
-      if (shutdownResult !== 'completed') reportFailure()
+    close: () => {
+      closePromise ??= (async () => {
+        closing = true
+        try {
+          await queued
+        } catch {
+          reportFailure()
+        }
+        try {
+          await observability.shutdown()
+        } catch {
+          reportFailure()
+        }
+      })()
+      return closePromise
     },
   })
 }

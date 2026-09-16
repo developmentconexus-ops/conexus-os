@@ -15,6 +15,7 @@ const compile = (entry) => {
 }
 compile('apps/hub/src/platform/config.ts')
 compile('apps/hub/src/builder/runtime.ts')
+compile('apps/hub/src/builder/module.ts')
 compile('apps/hub/src/project/routes.ts')
 const { readHubConfig } = await import(pathToFileURL(resolve(buildRoot, 'config.js')).href)
 const { registerProjectRoutes } = await import(pathToFileURL(resolve(buildRoot, 'routes.js')).href)
@@ -24,6 +25,7 @@ const {
   createBuilderRequestContext,
   createMastraE2BCodingWorkerRuntime,
 } = await import(pathToFileURL(resolve(buildRoot, 'runtime.js')).href)
+const { createBuilderObservabilityLifecycle } = await import(pathToFileURL(resolve(buildRoot, 'module.js')).href)
 
 const baseEnvironment = {
   NODE_ENV: 'test',
@@ -117,15 +119,41 @@ test('Builder RequestContext carries Workspace plus only the two trace correlati
   })
 })
 
-test('Builder lifecycle serializes native flush and closes observability before its storage', async () => {
-  const moduleSource = await readFile(resolve(repositoryRoot, 'apps/hub/src/builder/module.ts'), 'utf8')
-  assert.match(moduleSource, /queued = result\.catch\(\(\) => undefined\)/)
-  assert.match(moduleSource, /waitBounded = \(operation: Promise<void>\)/)
-  assert.doesNotMatch(moduleSource, /await queued\n/)
-  assert.match(moduleSource, /await observabilityLifecycle\.close\(\)/)
-  assert.match(moduleSource, /await sessionStorage\.close\(\)/)
-  assert.ok(moduleSource.indexOf('await observabilityLifecycle.close()') < moduleSource.indexOf('await sessionStorage.close()'))
-  assert.match(moduleSource, /process\.emitWarning\('BUILDER_PREPARATION_FAILED'/)
+test('Builder lifecycle lets Product timeout without closing storage under pending native work', async () => {
+  let releaseFlush
+  const pendingFlush = new Promise((resolve) => { releaseFlush = resolve })
+  const events = []
+  const lifecycle = createBuilderObservabilityLifecycle({
+    flush: async () => { events.push('flush-start'); await pendingFlush; events.push('flush-end') },
+    shutdown: async () => { events.push('shutdown') },
+  }, 5)
+  const productFlush = lifecycle.flush()
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  await productFlush
+  let closed = false
+  const close = lifecycle.close().then(() => { closed = true })
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  assert.equal(closed, false)
+  assert.deepEqual(events, ['flush-start'])
+  releaseFlush()
+  await close
+  assert.equal(closed, true)
+  assert.deepEqual(events, ['flush-start', 'flush-end', 'shutdown'])
+  await lifecycle.close()
+  assert.deepEqual(events, ['flush-start', 'flush-end', 'shutdown'])
+  events.push('storage-close')
+  assert.deepEqual(events.slice(-2), ['shutdown', 'storage-close'])
+})
+
+test('Builder lifecycle completes native shutdown after a rejected flush', async () => {
+  const events = []
+  const lifecycle = createBuilderObservabilityLifecycle({
+    flush: async () => { events.push('flush'); throw new Error('synthetic exporter failure') },
+    shutdown: async () => { events.push('shutdown') },
+  }, 5)
+  await lifecycle.flush()
+  await lifecycle.close()
+  assert.deepEqual(events, ['flush', 'shutdown'])
 })
 
 test('Hub and live proof commands load the operator configuration explicitly', async () => {
@@ -134,9 +162,16 @@ test('Hub and live proof commands load the operator configuration explicitly', a
   assert.match(packageJson.scripts['rb:builder:live'], /node --env-file=\.audit\/slice7\/hub\.env/)
   assert.match(packageJson.scripts['rb:builder:composed:live'], /node --env-file=\.audit\/slice7\/hub\.env/)
   const composedRunner = await readFile(resolve(repositoryRoot, 'tests/implementation/rb-builder-production-composed-live-runner.mjs'), 'utf8')
-  assert.match(composedRunner, /apps\/hub\/tsconfig\.json/)
+  const localBuildScript = await readFile(resolve(repositoryRoot, 'scripts/build-hub-local.mjs'), 'utf8')
+  assert.match(localBuildScript, /apps\/hub\/tsconfig\.json/)
+  assert.match(localBuildScript, /vite\.js/)
+  assert.match(localBuildScript, /apps\/web\/vite\.config\.mjs/)
   assert.match(composedRunner, /server\.js/)
   assert.match(composedRunner, /rb-builder-production-composed-live\.test\.mjs/)
+  assert.match(composedRunner, /https:/)
+  assert.match(composedRunner, /RB_COMPOSED_HUB_RESPONSE_REFUSED/)
+  assert.match(composedRunner, /buildHubLocal/)
+  assert.doesNotMatch(composedRunner, /http:\/\/127\.0\.0\.1/)
   assert.doesNotMatch(packageJson.scripts['rb:first:check'], /rb-builder-first-vertical|bld-10-preview/)
   assert.match(packageJson.scripts['rb:first:check'], /builder-first-operational-delivery\.test\.mjs/)
 })

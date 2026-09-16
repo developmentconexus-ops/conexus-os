@@ -347,7 +347,7 @@ export const createMastraE2BCodingWorkerRuntime = (
           if (activeSession) {
             try {
               const deleted = await controller.deleteSession({ resourceId: input.projectId, scope: runScope })
-              if (!deleted) cleanupError = new Error('BUILDER_SESSION_DELETE_FAILED')
+              if (!deleted || await controller.getSessionByResource(input.projectId, runScope)) cleanupError = new Error('BUILDER_SESSION_DELETE_FAILED')
             } catch (error) {
               if (!runError) cleanupError = error
             }
