@@ -1,167 +1,127 @@
 ---
 name: conexus-development
-description: Use when resuming, implementing, verifying, reviewing, or handing off development in the Conexus OS repository.
+description: Use when resuming, planning, implementing, verifying, reviewing, or handing off development in the Conexus OS repository.
 ---
 
 # Conexus Development
 
-Use this skill for Conexus OS development sessions, including a fresh resume,
-an authorized implementation slice, verification, material independent review,
-or a session handoff.
+Use this skill for every material Conexus OS development session.
 
 ## Bootstrap from zero
 
-1. Read the repository `AGENTS.md`; do not trust chat or a handoff as authority.
-2. Read [wsl-environment.md](references/wsl-environment.md), enter WSL Ubuntu,
-   source NVM explicitly and confirm the exact `.nvmrc`/`package.json` Node/npm
-   pins. Windows is a launcher only, never the local deciding environment.
-3. From that WSL shell run `npm run conexus:preflight` (use `-- --no-network`
-   only when network access is intentionally unavailable).
-4. Read `docs/roadmap.md`, then route through `docs/index.md` to the applicable
-   method and smallest current owner.
-5. Compare the requested action with the exact current grant. Stop before any
-   unopened Product slice, provider call, dependency change, production effect,
-   commit, push, PR, or merge unless the repository authority and operator grant
-   permit that exact action.
-6. Preserve every unowned or pre-existing working-tree path. Never reset, clean,
-   stash, force-update, or absorb unrelated state.
+1. Read repository `AGENTS.md`. Do not trust chat or a handoff as authority.
+2. Read `references/wsl-environment.md`, enter the pinned WSL Ubuntu environment, source NVM, and confirm the exact Node/npm pins.
+3. Run `npm run conexus:preflight`. Use `-- --no-network` only when network access is intentionally unavailable.
+4. Read `docs/roadmap.md`, then `docs/index.md` only as needed to locate the smallest current owner.
+5. Read `references/slice-lifecycle.md` for any planned slice, implementation, implementation review, or correction.
+6. Load the applicable engineering/repository/frontend method and the current task owner named by the roadmap.
+7. For Mastra-sensitive work, read `.agents/skills/mastra/SKILL.md` before making version-specific claims.
 
-`conexus:preflight` reports facts. It does not approve a stage, clean a dirty
-tree, or replace the roadmap.
+Preserve every unowned or pre-existing working-tree path. Never reset, clean, stash, force-update, or absorb unrelated state.
+
+## One task per actionable slice
+
+A Product implementation slice does not start from chat or a long handoff. It starts from one dedicated `docs/tasks/*.md` owner.
+
+The task must make implementation mechanical enough that the executor does not need to invent architecture. It names the protected result, relevant evidence and authority, code census, target shape, ordered implementation work, non-goals, falsifiers, proof, owner reconciliation, and stop law.
+
+Do not create placeholder tasks for future slices whose exact contract depends on predecessor evidence. Create the task when that slice becomes the next actionable unit.
+
+The roadmap owns status and grant. The task owns the bounded execution/review contract. Product, architecture, decisions, contracts, and technical references own durable meaning. Never copy the same decision into all three as independent prose.
+
+## Role boundary
+
+Follow `references/slice-lifecycle.md`.
+
+When the operator assigns different roles:
+
+- the planner/verifier investigates, closes decisions, prepares the task, and reviews the result;
+- the executor implements the authorized task, verifies it, commits, pushes, and stops;
+- the reviewer compares the remote candidate to the task and current owners before any next slice or correction is authorized.
+
+Do not silently combine roles because doing so is convenient.
 
 ## Frontend and Builder wireframe
 
 Before changing a web, Builder, or Preview surface:
 
-1. Read the current grant in [`docs/roadmap.md`](../../../docs/roadmap.md).
-   The grant selects the slice that is allowed now; it does not reopen older
-   Product work.
-2. Read [`frontend-and-product-surfaces.md`](../../../docs/reference/frontend-and-product-surfaces.md)
-   for the current semantic surface.
-3. Read the locked [P-01 Build workspace screen contract](../../../docs/evidence/4c/p01-build-workspace-screen-contract.md)
-   and operate its [canonical P8 wireframe](../../../docs/evidence/4c/p01-build-workspace-functional-wireframe.html)
-   before changing production UI. This is the approved app-first composition:
-   the current Project application is the dominant Preview, Conexus is the
-   contextual right-side interaction, and Code and Diff are read-only lenses.
-4. Preserve the wireframe's load-bearing behavior: the Build entry shows the
-   current application without requiring a Change, and the last-good Preview
-   stays inspectable while a candidate is built.
+1. read the current grant in `docs/roadmap.md`;
+2. read `docs/reference/frontend-and-product-surfaces.md`;
+3. read `docs/evidence/4c/p01-build-workspace-screen-contract.md` and operate `docs/evidence/4c/p01-build-workspace-functional-wireframe.html` before production UI changes;
+4. preserve the app-first composition, contextual Conexus interaction, and read-only Code/Diff lenses unless current Product authority explicitly changes them.
 
-The P-01 wireframe is an interaction contract, not a reason to copy its
-low-fidelity styling or implement every surface it contains. The current
-roadmap still controls deferred surfaces such as Agent Studio. P11 assembly
-artifacts and R1–R7 or L1–L6 plans are not current UI authority. If a request
-conflicts with the P-01 contract or the current grant, stop at the smallest
-owning Product Experience document; do not invent a replacement UI in code.
-Verify the allowed path in the real browser before calling the UI complete.
+The P-01 wireframe is an interaction contract, not a styling mandate. The roadmap controls deferred surfaces. If current Product Experience authority conflicts with requested implementation, stop at the smallest owner instead of inventing a replacement UI in code.
 
 ## Execute an authorized slice
 
-Before editing, bind the slice to exact operations/owners, prerequisites,
-dependencies, affected schemas/tables/processes, ownership-class mutations,
-proof/falsifiers, completion conditions, and stop conditions. If an essential
-item is absent, return to the smallest owner; do not invent Product meaning in
-code.
+Before editing Product code, confirm that the task names:
 
-### Delivery and progress law
+- the user- or system-observable result and target invariant;
+- exact owners and preserved decisions;
+- affected modules/files and relevant data/dependency boundaries;
+- KEEP, CHANGE, and DELETE candidates where applicable;
+- failure behavior and forbidden effects;
+- falsifiers, targeted proof, completion conditions, and explicit non-goals;
+- documentation/authority reconciliation required after proof;
+- an explicit STOP condition.
 
-Describe the next observable increment in the current task before Product editing.
-Keep it in the smallest current owner; do not create a separate planning
-artifact without a durable consumer. The packet must name:
+If a material item is missing, return to planning. Do not invent Product meaning in code.
 
-- the user- or system-observable vertical outcome and target invariant;
-- exact owners, operations, files/modules and dependency/data boundaries;
-- intended functions or responsibilities, failure behavior and forbidden
-  effects;
-- RED falsifiers, targeted proof, completion conditions and explicit non-goals;
-- the executed proof subject class: production composition, production module,
-  contract fixture or stand-in. A fixture/mock may prove its local contract but
-  MUST NOT satisfy a production-composition or end-to-end journey claim.
-
-Make the current increment concrete enough to implement and test. Resolve only
-unknowns that affect it. An approved increment includes routine reversible
-implementation and verification steps; do not request approval per file or part.
-R1–R7 and L1–L6 are historical plans, not the MVP queue or admission requirements.
-
-Progress means one of:
-
-- executable stage behavior or a protected repository property advanced;
-- an explicitly qualification-only claim closed with a current consumer;
-- a material blocker reduced to the smallest owner with the exact missing
-  authority or external dependency named.
-
-Activity, additional prose, repeated reviews and a larger Evidence envelope are
-not progress by themselves. A method/review/Evidence finding blocks the current
-stage only when it demonstrates a concrete false-PASS, false-STOP, protected-
-property violation, unauthorized effect, or missing authority required for
-correctness. Route recovery improvements, generic framework hardening and
-non-claim defects through `DEFER SAFELY` with why-safe, revisit trigger and
-later owner; do not silently add them to the gate.
-
-Apply the Engineering Method's periodic-assurance triggers and termination law.
-Conexus's exact lane, model and delegation routing lives only in
-[review-and-delegation.md](references/review-and-delegation.md).
-
-Every work cycle must end with the next measurable delivery checkpoint and its
-remaining blocker census. Before starting a cycle whose intended output is only
-method, review, documentation or Evidence bytes, name the concrete blocker it
-removes; otherwise pause and re-plan the stage code packet. Qualification-only
-stages count their named qualification output, not unbounded improvements to
-the qualification framework.
-
-Keep each implementation task bounded enough that coding is mechanical:
+Keep the implementation bounded:
 
 ```text
 authority + explicit grant
+→ current task
 → exact file/owner envelope
 → failing proof or falsifier where applicable
-→ smallest sustainable vertical implementation
+→ smallest sustainable implementation
 → targeted verification
-→ scope verification
-→ deciding repository verification when required
-→ operator checkpoint or next authorized part
+→ broader verification required by the task
+→ commit + push when authorized
+→ STOP
 ```
 
-Use affected checks during implementation and `npm run verify` for the complete
-current graph. Ordinary working-tree edits are allowed; CI alone checks checkout
-cleanliness. Historical custody commands apply only to their named subjects.
-Do not regenerate old receipts to pass current verification. The
-command result is technical Evidence only; it never declares a
-Product or gate `PASS`. `scope final` must execute in Linux; for local work that
-means the pinned WSL Ubuntu environment.
+Use affected checks during implementation and `npm run verify` when the task requires the complete current graph. Command success is technical Evidence. It does not declare Product acceptance.
+
+## Review a completed slice
+
+Review the remote candidate against the task, not against the implementer's summary.
+
+Check, in order:
+
+1. protected result and stated non-goals;
+2. current semantic/technical owners;
+3. actual remote diff and changed-file census;
+4. required falsifiers and proof output;
+5. accidental compatibility layers, duplicated authority, or new abstractions that did not earn their place;
+6. required owner reconciliation and roadmap transition.
+
+A review is read-only for Product implementation unless the operator explicitly authorizes a correction. Report the smallest failing invariant and route it back to the same slice task. Do not opportunistically fix the code while reviewing it.
 
 ## Delegation and independent review
 
-Read [review-and-delegation.md](references/review-and-delegation.md) before
-delegating implementation or independent review. Do not load it for a simple
-read-only status answer.
-
-Use independent review when a concrete material risk triggers it under the
-locally amended Engineering Method, not merely because a stage closes. Collaborative
-design challenge may compare alternatives; independent closure lanes must
-remain fresh and isolated. Neither mode replaces Lead adjudication or operator
-authority.
+Read `references/review-and-delegation.md` before delegating implementation or independent review. Use independent review when a material risk triggers it under the current Engineering Method. Collaborative design challenge and independent closure are different activities.
 
 ## Evidence and status
 
-Use the slice's existing receipt/finalizer when one exists. Do not introduce a
-generic Evidence authority or write `PASS` from command success alone. Record
-only deciding proof with a current consumer. Mutable stage/status/next-action
-truth remains exclusively in `docs/roadmap.md`.
+Keep durable Evidence only when it has a current or credible future consumer. Do not introduce a generic Evidence authority. Mutable stage/status/next-action truth lives only in `docs/roadmap.md`.
+
+When a slice changes durable Product or architecture meaning, reconcile the smallest semantic/technical owner after proof. Do not leave the accepted decision only in the task, roadmap, review output, or chat.
 
 ## Handoff
 
-At a session boundary, re-run preflight and provide a concise handoff containing:
+A handoff is a pointer, not a second plan.
 
-- repository identity, branch, exact HEAD, `origin/main`, ahead/behind, PR and
-  deciding CI;
-- WSL distribution and exact deciding Node/npm versions;
-- dirty-state warning and explicit preservation obligations;
-- current roadmap stage, exact allowed work and blocked boundaries;
-- completed work and changed paths owned by this session;
-- verification actually run, with failures or unrun required proof stated;
-- exact next action, its smallest authority route, prerequisites and stop law;
-- any pending operator decision or external dependency.
+For an implementation handoff, prefer:
 
-The handoff accelerates orientation. A fresh session must still bootstrap from
-zero.
+```text
+repository + branch + expected HEAD
+current task path
+authority order
+preserve-working-tree warning
+execute only this task
+STOP on its named material conditions
+verify → commit → push → STOP
+```
+
+Add detail only when the repository cannot carry it. A fresh session still bootstraps from zero.

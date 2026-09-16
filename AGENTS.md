@@ -7,13 +7,14 @@ Before relying on chat, handoff, or remembered state:
 1. run the read-only preflight in the pinned WSL environment;
 2. read [`docs/roadmap.md`](docs/roadmap.md) for current stage, grant, and exact next action;
 3. use [`docs/index.md`](docs/index.md) to locate the smallest current owner;
-4. load only the applicable method:
+4. for any Conexus development planning, execution, review, verification, or handoff, read [`.agents/skills/conexus-development/SKILL.md`](.agents/skills/conexus-development/SKILL.md);
+5. load only the applicable method:
    - [`engineering-method.md`](docs/development/engineering-method.md) for material engineering and Global Maximum decisions;
    - [`repository-method.md`](docs/development/repository-method.md) for repository, context, Git, documentation, and CI;
    - [`frontend-product-experience-planning-method.md`](docs/development/frontend-product-experience-planning-method.md) for frontend Product Experience;
-5. load the current task owner(s) and compare the requested action with the grant.
+6. load the current task owner named by the roadmap before Product implementation or implementation review.
 
-Expand into additional Product, architecture, contracts, Evidence, research, Git history, code, runtime, qualification, or external sources only because of a named material question, uncertainty, contradiction, dependency, falsifier, or proof need.
+For Mastra-sensitive work, also load `.agents/skills/mastra/SKILL.md`.
 
 ```bash
 source "$HOME/.nvm/nvm.sh"
@@ -21,29 +22,30 @@ nvm use
 npm run conexus:preflight
 ```
 
-The preflight reports facts; it does not grant work. Chat and handoffs are
-orientation only. **Global coverage does not require global context.**
+The preflight reports facts. It does not grant work. Chat and handoffs are orientation only. **Global coverage does not require global context.**
 
 ## Authority
 
-- [`docs/roadmap.md`](docs/roadmap.md) owns current stage/status/allowed work/next action.
+- [`docs/roadmap.md`](docs/roadmap.md) owns current stage, status, allowed work, and exact next action.
+- The current `docs/tasks/*.md` file owns the bounded execution and review contract for its slice. It does not own Product or architecture meaning.
 - [`docs/decisions/index.md`](docs/decisions/index.md) exposes current decision disposition and reopen routes.
-- Accepted Product, architecture, contract, and decision owners own their stated semantics.
-- Methods govern how work is reasoned about and operated; they do not create Product meaning.
-- Evidence, research, code, tests, runtime, qualification output, Git history, framework documentation, and reviewer output may challenge accepted authority but do not silently replace it.
+- Accepted Product, architecture, contract, and technical-reference owners own their stated semantics.
+- Methods and skills govern how work is reasoned about and operated. They do not create Product meaning.
+- Evidence, research, code, tests, runtime, qualification output, Git history, and reviewer output may challenge accepted authority but do not silently replace it.
 - If downstream Evidence falsifies upstream planning, reopen the smallest owning authority. Do not patch around the contradiction and do not invent missing truth.
+
+A handoff may point to authority. It must not become a second authority surface.
 
 ## Conexus OS rails
 
-- Product implementation begins only when [`docs/roadmap.md`](docs/roadmap.md) explicitly permits it.
+- Product implementation begins only when [`docs/roadmap.md`](docs/roadmap.md) explicitly permits one current task.
+- A Product implementation slice must have a dedicated current task before the first Product edit. If it does not, plan the task first.
+- Follow the role boundary in `.agents/skills/conexus-development/references/slice-lifecycle.md`. When the operator separates planner/reviewer from executor, do not cross that boundary implicitly.
 - Stop on a material Product requirement, semantic-owner, trust-boundary, structural runtime/database/service/module contradiction, unauthorized production effect, or missing authority required for correctness.
-- For Mastra-sensitive work, load `.agents/skills/mastra/SKILL.md`; use current official/Context7 documentation when materially useful, and decide version-specific claims from exact adopted package/source/configuration plus Evidence.
 - Qualification suites prove only their named claims. Live provider/model/E2B/Sankhya execution requires explicit authority for the exact proof task.
 - Preserve unowned state. Never reset, clean, stash, force-update, force-push, or discard work you do not own.
 - Never merge without explicit operator authority.
-- An approved increment includes routine reversible implementation and checks.
-  Do not seek approval for each mechanical step. Review follows material risk,
-  not stage closure. Use only Luna subagents with high or xhigh reasoning.
+- An approved increment includes routine reversible implementation and checks. Do not seek approval for each mechanical step.
 
 ## Verification
 
@@ -56,9 +58,9 @@ npm run verify
 ```
 
 Use the same current graph locally and in `.github/workflows/verify.yml`.
-Ordinary working-tree edits are allowed locally; CI checks checkout cleanliness.
+Ordinary working-tree edits are allowed locally. CI checks checkout cleanliness.
 Provide the disposable PostgreSQL service or complete `CONEXUS_TEST_DB_*`
 configuration described in the workflow. Historical qualification and custody
 commands are explicit audits of their recorded subjects, not the MVP gate.
 
-Run additional targeted or extended proof only when the current claim requires it. A required CI failure should represent a broken objective repository/Product property, not a planning preference, context convention, review ceremony, or historical status projection.
+Run additional targeted or extended proof only when the current claim requires it. A required CI failure should represent a broken objective repository or Product property, not a planning preference, context convention, review ceremony, or historical status projection.
