@@ -21,9 +21,9 @@ The current frontend remains a **Diagnostic UI** until the foundation engine is 
 ## Current state
 
 - **7R-0:** CLOSED. Exact `@mastra/core@1.63.2` investigation reconciled the Session/Thread/Workspace/display-state boundary into the current C-020 technical owner.
-- **7R-1:** candidate `3276f8fbf3ae8a38f6d0cab43fe540df221ebee9` reviewed. **CORRECTION REQUIRED / NOT ACCEPTED** because the browser live transport does not retry an initially unavailable Session or reconnect after an unexpected stream end while the same BuilderRun remains active.
-- **7R1-LIVE-01 correction:** **AUTHORIZED FOR EXECUTION**. Only the bounded correction owned by the current 7R-1 task may be implemented.
-- **7R-2:** BLOCKED until the 7R-1 correction passes independent review and the next task is planned.
+- **7R-1:** **ACCEPTED** after the bounded `7R1-LIVE-01` browser transport correction. Native display-state ownership and the safe Conexus projection remain unchanged.
+- **7R1-LIVE-01 correction:** **CLOSED**. The browser retries transient Session unavailability and resynchronizes after an unexpected stream end while the BuilderRun remains active.
+- **7R-2:** **PLANNING AUTHORIZED / IMPLEMENTATION BLOCKED**. No 7R-2 Product implementation is authorized in this slice.
 - No 7R-2 Product implementation, Git optimization, Preview rebase, frontend redesign, Brain/Sankhya expansion, workflow expansion, or Mastra upgrade is authorized now.
 
 ## Foundation rebaseline board
@@ -31,8 +31,8 @@ The current frontend remains a **Diagnostic UI** until the foundation engine is 
 | Slice | Purpose | State |
 | --- | --- | --- |
 | **7R-0** | exact Mastra-native proof + authority reconciliation | **CLOSED** |
-| **7R-1** | native live-state/streaming convergence and deletion of the parallel observation lifecycle | **CORRECTION AUTHORIZED — `7R1-LIVE-01`** |
-| **7R-2** | runtime waterfall and quantitative measurement baseline | **BLOCKED** |
+| **7R-1** | native live-state/streaming convergence and deletion of the parallel observation lifecycle | **ACCEPTED** |
+| **7R-2** | runtime waterfall and quantitative measurement baseline | **PLANNING AUTHORIZED / IMPLEMENTATION BLOCKED** |
 | **7R-3** | source/Git logical transaction rebase | **BLOCKED** |
 | **7R-4** | Preview runtime rebase | **BLOCKED** |
 | **7R-5** | final engine composed proof | **BLOCKED** |
@@ -52,9 +52,13 @@ Accepted candidate facts:
 - no custom replay/generation/sequence lifecycle is required;
 - frontend state is snapshot replacement rather than custom delta reduction.
 
-Blocking finding `7R1-LIVE-01` is owned by the current 7R-1 task.
+The blocking finding `7R1-LIVE-01` is resolved by a bounded browser transport
+retry loop with backoff and per-frame safety limits.
 
-The browser can attempt the live endpoint before the per-run Mastra Session exists. The endpoint correctly returns `410`, but the current client catches the failure and does not attempt the same active run again. Unexpected stream termination has the same one-shot behavior. The current browser proof always provides an immediately successful stream, so it does not falsify this race.
+The browser can attempt the live endpoint before the per-run Mastra Session
+exists. The endpoint correctly returns `410`; the corrected client retries the
+same active run. Unexpected stream termination also reconnects and receives a
+fresh current snapshot. No replay or retained live history is used.
 
 This is a bounded 7R-1 transport correction. It does not reopen C-020 and does not authorize replay/feed machinery.
 
@@ -62,7 +66,9 @@ This is a bounded 7R-1 transport correction. It does not reopen C-020 and does n
 
 Planning/review for the correction is closed in [`tasks/builder-7r-1-native-live.md`](tasks/builder-7r-1-native-live.md).
 
-The operator authorized Product implementation of **`7R1-LIVE-01` only**.
+The operator authorized Product implementation of **`7R1-LIVE-01` only**. That
+correction is complete. The executor must commit, push, and stop for
+independent review. 7R-2 remains implementation-blocked.
 
 The executor must:
 
@@ -123,6 +129,6 @@ The Diagnostic UI may change only when the 7R-1 correction requires it for truth
 
 ## Exact next action
 
-**Execute the bounded `7R1-LIVE-01` correction in [`tasks/builder-7r-1-native-live.md`](tasks/builder-7r-1-native-live.md), verify it, commit + push, and STOP for independent review.**
+**Independently review the completed `7R1-LIVE-01` correction in [`tasks/builder-7r-1-native-live.md`](tasks/builder-7r-1-native-live.md). Plan 7R-2 only after that review.**
 
 Do not plan or execute 7R-2 yet.

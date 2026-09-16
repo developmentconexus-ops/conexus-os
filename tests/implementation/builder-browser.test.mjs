@@ -72,16 +72,19 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision: revision, path: 'app/index.html', content: revision === baseSourceRevision ? '<main>Counter</main>' : '<main>Counter v2</main>' }) })
   })
   let liveStreamRequests = 0
+  const liveStreamStatuses = []
   await page.route(`**/api/control/projects/${projectId}/builder-session/runs/${runId}/stream`, (route) => {
     liveStreamRequests += 1
-    const snapshots = [
-      { running: true, message: { id: 'browser-message-1', text: 'Inspecionando o app' }, activities: [{ id: 'browser-tool', label: 'READ_FILES', detail: 'app/src/main.tsx', state: 'started' }] },
-      { running: true, message: { id: 'browser-message-2', text: 'Aplicando a alteração' }, activities: [{ id: 'browser-tool', label: 'READ_FILES', detail: 'app/src/main.tsx', state: 'succeeded' }] },
-    ]
-    return (async () => {
-      setTimeout(() => { runFinished = true }, 2_000)
-      return route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8' }, body: snapshots.map((snapshot) => `data: ${JSON.stringify(snapshot)}\n\n`).join('') })
-    })()
+    if (liveStreamRequests === 1) {
+      liveStreamStatuses.push(410)
+      return route.fulfill({ status: 410, contentType: 'application/problem+json', body: '{}' })
+    }
+    liveStreamStatuses.push(200)
+    const snapshot = liveStreamRequests === 2
+      ? { running: true, message: { id: 'browser-message-1', text: 'Inspecionando o app' }, activities: [{ id: 'browser-tool', label: 'READ_FILES', detail: 'app/src/main.tsx', state: 'started' }] }
+      : { running: true, message: { id: 'browser-message-2', text: 'Aplicando a alteração' }, activities: [{ id: 'browser-tool', label: 'READ_FILES', detail: 'app/src/main.tsx', state: 'succeeded' }] }
+    if (liveStreamRequests >= 3) setTimeout(() => { runFinished = true }, 300)
+    return route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8' }, body: `data: ${JSON.stringify(snapshot)}\n\n` })
   })
 
   await page.goto(`${origin}/projects/${projectId}`)
@@ -138,7 +141,8 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   assert.deepEqual(forbiddenRequests, [])
   await page.getByRole('button', { name: 'Diff' }).click()
   await page.getByText('MODIFIED', { exact: true }).waitFor()
-  assert.ok(liveStreamRequests >= 1)
+  assert.ok(liveStreamRequests >= 3)
+  assert.deepEqual(liveStreamStatuses.slice(0, 3), [410, 200, 200])
   assert.equal(await page.getByText('BuilderRun', { exact: true }).count(), 0)
 })
 
