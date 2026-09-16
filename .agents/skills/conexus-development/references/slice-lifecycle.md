@@ -20,6 +20,19 @@ program direction
 
 The task is the execution/review contract. It is not a Product or architecture authority.
 
+## Criticality law
+
+Protect the Product objective and accepted semantic authority, not the current implementation shape.
+
+- Existing code, tests, docs, prior plans, and green runs are Evidence. They are not correct merely because they exist or were previously accepted.
+- Before adding a custom mechanism around an adopted framework, inspect the exact installed primitives/source and relevant first-party examples or surfaces. For Mastra-sensitive work, this includes the exact adopted package first and representative Mastra Code/Studio patterns when they answer the current question.
+- Prefer the framework or platform primitive when it satisfies the invariant. A custom layer must name the real missing primitive, current consumer, and boundary it owns.
+- If several patches preserve the same awkward premise, attack the premise before adding another patch.
+- If new Evidence falsifies the task or an accepted owner, stop and reopen the smallest owning authority. Do not patch around the contradiction.
+- Delete compatibility or abstraction that has no current consumer or invariant.
+
+The objective is the smallest correct and maintainable Product, not fidelity to yesterday's realization.
+
 ## Roles
 
 ### Planner / verifier
