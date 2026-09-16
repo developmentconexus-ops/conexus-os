@@ -1,6 +1,6 @@
 # 7R-2 — Runtime waterfall and measurement baseline
 
-> **Status:** PRE-BASELINE QUALIFICATION AUTHORIZED / S1-S6 TEMPORARILY BLOCKED
+> **Status:** BASELINE CAPTURED / INDEPENDENT REVIEW PENDING
 > **Predecessor:** 7R-1 ACCEPTED / independent review PASS
 > **Program:** [`builder-first-app.md`](builder-first-app.md)
 > **Status/grant owner:** [`../roadmap.md`](../roadmap.md)
@@ -60,7 +60,8 @@ Observed Evidence:
 
 - the exact hardened Git probe exceeded a 10 s probe budget, but the current Product Git/process paths admit materially larger operation budgets; therefore `>10 s` does **not** prove that the Git runtime or environment is unusable;
 - the real compiler E2B path completed three fresh-sandbox samples, approximately 3.1–6.5 s, so E2B is not globally unavailable in the observed environment;
-- the first coding-runtime measurement composition omitted the persistent Project Thread and is invalid evidence; it was correctly discarded;
+- the old P2 test omitted storage and Memory while creating the AgentController; exact Mastra 1.63.2 source and a no-provider reproduction show that the runtime binds an in-memory Thread ID but cannot read it back as an owned persisted Thread;
+- the old P2 `Thread not found` result is therefore a qualification-composition defect and does not establish provider, E2B, direct-runtime or C-020 failure;
 - a corrected manually composed coding harness using the shared `AgentController`/Memory/modes shape remained unresolved for more than five minutes, and no active provider connection was observed at the inspection point;
 - that hang does not yet distinguish a qualification-harness defect from an environment/provider defect or a defect in the exact current C-020 Product composition.
 
@@ -87,6 +88,25 @@ Purpose:
 prove provider + model admission + coding E2B + direct runtime
 without the shared C-020 module composition
 ```
+
+The live test must provide the minimum Mastra-valid persistence composition:
+
+```text
+temporary LibSQLStore + Memory
++ shared createCodingAgent + AgentController
++ exact Project Thread persisted in that store
++ fresh runtime-created Session and E2B Workspace for each execution
+```
+
+Use the current Builder instructions, modes and `resolveBuilderWorkspace`.
+Do not use `createConfiguredBuilderModule` here. Keep P2 independent of P3,
+and let the test own controller/store cleanup.
+
+P2 passes only when live provider/model/E2B execution returns a valid coding
+result, the exact Project Thread remains persisted under the expected
+`resourceId`, and its messages can be read after runtime cleanup. Assert the
+exact user message and non-empty terminal assistant text from that Thread.
+File output alone does not pass P2.
 
 Do not call this the Product-composed baseline. It is only a discriminating control.
 

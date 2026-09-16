@@ -23,7 +23,7 @@ The current frontend remains a **Diagnostic UI** until the foundation engine is 
 - **7R-0:** CLOSED.
 - **7R-1:** **ACCEPTED / INDEPENDENT REVIEW PASS**. Initial implementation `3276f8fbf3ae8a38f6d0cab43fe540df221ebee9`; accepted live-transport correction `fb1b1d4fe77e5a60e1d8bf78adacbf1e11ffad57`.
 - **7R1-LIVE-01:** CLOSED. Browser reconnect/resync uses current native state without replay.
-- **7R-2:** **PRE-BASELINE QUALIFICATION AUTHORIZED / S1-S6 TEMPORARILY BLOCKED**. The first measurement attempt correctly triggered the 7R-2 STOP law before a valid baseline existed. `7R2-PROBE-01` now owns the smallest discriminating gate.
+- **7R-2:** **BASELINE CAPTURED / INDEPENDENT REVIEW PENDING**. P1/P2/P3 passed, and the retained artifact records the current S1-S6 waterfall with explicit partial/inconclusive buckets.
 - 7R-3, 7R-4, 7R-5, 7U and business-capability expansion remain blocked/deferred.
 
 7R-1 acceptance came from independent review and owner reconciliation. Executor-written status never grants acceptance by itself.
@@ -34,7 +34,7 @@ The current frontend remains a **Diagnostic UI** until the foundation engine is 
 | --- | --- | --- |
 | **7R-0** | exact Mastra-native proof + authority reconciliation | **CLOSED** |
 | **7R-1** | native live-state/streaming convergence and deletion of the parallel observation lifecycle | **ACCEPTED** |
-| **7R-2** | runtime waterfall and quantitative measurement baseline | **PRE-BASELINE QUALIFICATION AUTHORIZED** |
+| **7R-2** | runtime waterfall and quantitative measurement baseline | **BASELINE CAPTURED / INDEPENDENT REVIEW PENDING** |
 | **7R-3** | source/Git logical transaction rebase, driven by 7R-2 evidence | **BLOCKED** |
 | **7R-4** | Preview runtime rebase | **BLOCKED** |
 | **7R-5** | final engine composed proof | **BLOCKED** |
@@ -74,7 +74,7 @@ The task measures current boundaries and retains raw samples plus an expensive-b
 
 Historical hypotheses such as repeated hardened Git containers, source-read N+1, fresh coding E2B or fresh compiler E2B remain hypotheses until the baseline quantifies their cost.
 
-### 7R2-PROBE-01 — current pre-baseline gate
+### 7R2-PROBE-01 — completed pre-baseline gate
 
 The stopped execution at `bd66ae48719028d9d01faa4ed58d3859ca431e7c` produced no admissible `baseline.json`.
 
@@ -104,7 +104,7 @@ vs
 exact C-020 Product-composition defect
 ```
 
-Therefore S1–S6 baseline capture is temporarily blocked until the task's P1/P2/P3 controls discriminate the cause.
+The corrected P2 composition and the exact Product P3 composition both passed. The gate is therefore open, and the retained `qualification/7r2/builder-runtime-waterfall/baseline.json` contains the resulting S1–S6 measurements with unresolved buckets called out explicitly.
 
 The intended controls are:
 
@@ -166,6 +166,6 @@ The Diagnostic UI may change only when a foundation slice requires it for truthf
 
 ## Exact next action
 
-**Execute `7R2-PROBE-01` from [`tasks/builder-7r-2-runtime-waterfall.md`](tasks/builder-7r-2-runtime-waterfall.md). Preserve the existing local `qualification/7r2/` lever. If the gate reaches `PRE-BASELINE GATE PASS`, continue directly into S1–S6, verify, commit + push, and STOP for independent review. Otherwise STOP at the exact gate disposition.**
+**Review the retained 7R-2 measurement package from [`tasks/builder-7r-2-runtime-waterfall.md`](tasks/builder-7r-2-runtime-waterfall.md) and `qualification/7r2/builder-runtime-waterfall/`. No optimization is granted; 7R-3 remains blocked pending independent review.**
 
 Do not optimize or start 7R-3.

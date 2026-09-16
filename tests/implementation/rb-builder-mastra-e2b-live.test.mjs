@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { execFileSync, spawnSync } from 'node:child_process'
 import test from 'node:test'
+import { AgentController } from '@mastra/core/agent-controller'
+import { createCodingAgent } from '@mastra/core/coding-agent'
+import { LibSQLStore } from '@mastra/libsql'
+import { Memory } from '@mastra/memory'
 
 import { readBuilderE2BApiKey } from '../../scripts/builder-e2b-template.mjs'
 
@@ -38,7 +42,8 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
     if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
     const built = (path) => pathToFileURL(resolve(buildRoot, path)).href
     const { resolveProjectModelAdmission } = await import(built('project/module.js'))
-    const { createMastraE2BCodingWorkerRuntime } = await import(built('builder/runtime.js'))
+    const { createMastraE2BCodingWorkerRuntime, resolveBuilderWorkspace } = await import(built('builder/runtime.js'))
+    const { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } = await import(built('builder/application-starter.js'))
 
     const admission = resolveProjectModelAdmission({
       catalogFile,
@@ -59,6 +64,28 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
     const sourceBundlePath = resolve(proofRoot, 'source.bundle')
     git(sourceRoot, 'bundle', 'create', sourceBundlePath, 'refs/heads/main')
 
+    const storage = new LibSQLStore({ id: `rb-live-${randomUUID()}`, url: `file:${resolve(proofRoot, 'builder-session.db')}` })
+    const memory = new Memory({ storage, options: { lastMessages: 20 } })
+    const agent = createCodingAgent({
+      id: `rb-live-agent-${randomUUID()}`,
+      name: 'Conexus Coding Worker',
+      model: admission.model,
+      workspace: resolveBuilderWorkspace,
+      editor: false,
+      instructions: BUILDER_BASE_AGENT_INSTRUCTIONS,
+      tools: {},
+    })
+    const controller = new AgentController({
+      id: `rb-live-controller-${randomUUID()}`,
+      storage,
+      memory,
+      initialState: { yolo: true },
+      modes: BUILDER_MODE_DEFINITIONS.map((mode) => ({ ...mode, availableTools: [...mode.availableTools] })),
+      defaultModeId: 'build',
+      agent,
+      workspace: undefined,
+    })
+    const controllerReady = controller.init()
     let boundSandboxId
     const runtime = createMastraE2BCodingWorkerRuntime({
       apiKey,
@@ -70,6 +97,7 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
         modelId: admission.modelId,
       },
       validateModelCredential: admission.validateCredential,
+      sharedHarness: { agent, controller, ready: controllerReady },
       timeoutMs: 12 * 60_000,
     })
     const identity = {
@@ -77,56 +105,82 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
       projectId: randomUUID(),
       executionId: randomUUID(),
     }
-    const result = await runtime.execute({
-      ...identity,
-      intent: 'Create exactly one file named BUILDER_RESULT.txt containing exactly governed-by-conexus followed by a newline. Do not modify any other file.',
-      baseSourceRevision,
-      sourceBundle: readFileSync(sourceBundlePath),
-      bindPhysicalSandbox: async (sandboxId) => { boundSandboxId = sandboxId },
-    })
-
-    assert.equal(result.runtimeId, 'mastra-native-e2b-v1')
-    assert.equal(result.sandboxId, boundSandboxId)
-    assert.equal(result.baseSourceRevision, baseSourceRevision)
-    assert.match(result.resultSourceRevision, /^[0-9a-f]{40}$/)
-    assert.notEqual(result.resultSourceRevision, baseSourceRevision)
-    const resultBundlePath = resolve(proofRoot, 'result.bundle')
-    writeFileSync(resultBundlePath, result.resultBundle)
-    git(proofRoot, 'clone', '--branch', 'conexus-result', resultBundlePath, resultRoot)
-    assert.equal(git(resultRoot, 'rev-parse', 'HEAD^'), baseSourceRevision)
-    assert.equal(git(resultRoot, 'rev-parse', 'HEAD'), result.resultSourceRevision)
-    assert.equal(git(resultRoot, 'diff', '--name-only', 'HEAD^', 'HEAD'), 'BUILDER_RESULT.txt')
-    assert.equal(readFileSync(resolve(resultRoot, 'BUILDER_RESULT.txt'), 'utf8'), 'governed-by-conexus\n')
-
-    git(sourceRoot, 'checkout', '-B', 'failed-candidate', baseSourceRevision)
-    writeFileSync(resolve(sourceRoot, 'CORRECTION_RESULT.txt'), 'incomplete\n')
-    git(sourceRoot, 'add', 'CORRECTION_RESULT.txt')
-    git(sourceRoot, 'commit', '-m', 'Exact rejected candidate fixture')
-    const failedCandidate = git(sourceRoot, 'rev-parse', 'HEAD')
-    const correctionIdentity = {
-      accountId: identity.accountId, projectId: identity.projectId, executionId: randomUUID(),
+    const threadId = `conexus-builder:${identity.projectId}`
+    const assertPersistedTurn = async (expectedUserMessage, expectedSummary) => {
+      const thread = await memory.getThreadById({ threadId })
+      assert.ok(thread, 'the exact Project Thread must remain persisted after runtime cleanup')
+      assert.equal(thread.resourceId, identity.projectId)
+      const messages = (await memory.recall({ threadId, resourceId: identity.projectId, page: 0, perPage: 50 })).messages
+      const user = messages.find((message) => message.role === 'signal' && message.type === 'user' &&
+        message.content.parts?.some((part) => part.type === 'text' && part.text === expectedUserMessage))
+      assert.ok(user, 'the exact user request must be readable from the Project Thread')
+      const assistantText = messages.filter((message) => message.role === 'assistant').flatMap((message) =>
+        message.content.parts?.flatMap((part) => part.type === 'text' && typeof part.text === 'string' ? [part.text] : []) ?? [])
+      assert.ok(assistantText.some((text) => text.trim()), 'terminal assistant text must be readable from the Project Thread')
+      assert.ok(typeof expectedSummary === 'string' && expectedSummary.trim(), 'runtime must return a non-empty terminal summary')
     }
-    const correctionSourceRef = `refs/conexus/sources/${correctionIdentity.executionId}`
-    git(sourceRoot, 'update-ref', correctionSourceRef, failedCandidate)
-    const failedBundlePath = resolve(proofRoot, 'failed-candidate.bundle')
-    git(sourceRoot, 'bundle', 'create', failedBundlePath, correctionSourceRef)
-    let correctionSandboxId
-    const correction = await runtime.execute({
-      ...correctionIdentity,
-      intent: 'Make CORRECTION_RESULT.txt contain exactly corrected-by-conexus followed by a newline. Do not modify any other file.',
-      baseSourceRevision: failedCandidate,
-      sourceBundle: readFileSync(failedBundlePath),
-      bindPhysicalSandbox: async (sandboxId) => { correctionSandboxId = sandboxId },
-    })
-    assert.equal(correction.sandboxId, correctionSandboxId)
-    assert.equal(correction.baseSourceRevision, failedCandidate)
-    const correctionBundlePath = resolve(proofRoot, 'correction-result.bundle')
-    const correctionRoot = resolve(proofRoot, 'correction-result')
-    writeFileSync(correctionBundlePath, correction.resultBundle)
-    git(proofRoot, 'clone', '--branch', 'conexus-result', correctionBundlePath, correctionRoot)
-    assert.equal(git(correctionRoot, 'rev-parse', 'HEAD^'), failedCandidate)
-    assert.equal(git(correctionRoot, 'diff', '--name-only', 'HEAD^', 'HEAD'), 'CORRECTION_RESULT.txt')
-    assert.equal(readFileSync(resolve(correctionRoot, 'CORRECTION_RESULT.txt'), 'utf8'), 'corrected-by-conexus\n')
+
+    try {
+      await controllerReady
+      const firstIntent = 'Create exactly one file named app/BUILDER_RESULT.txt containing exactly governed-by-conexus followed by a newline. Do not modify any other file.'
+      const result = await runtime.execute({
+        ...identity,
+        intent: firstIntent,
+        baseSourceRevision,
+        sourceBundle: readFileSync(sourceBundlePath),
+        bindPhysicalSandbox: async (sandboxId) => { boundSandboxId = sandboxId },
+      })
+
+      assert.equal(result.runtimeId, 'mastra-native-e2b-v1')
+      assert.equal(result.sandboxId, boundSandboxId)
+      assert.equal(result.baseSourceRevision, baseSourceRevision)
+      assert.match(result.resultSourceRevision, /^[0-9a-f]{40}$/)
+      assert.notEqual(result.resultSourceRevision, baseSourceRevision)
+      const resultBundlePath = resolve(proofRoot, 'result.bundle')
+      writeFileSync(resultBundlePath, result.resultBundle)
+      git(proofRoot, 'clone', '--branch', 'conexus-result', resultBundlePath, resultRoot)
+      assert.equal(git(resultRoot, 'rev-parse', 'HEAD^'), baseSourceRevision)
+      assert.equal(git(resultRoot, 'rev-parse', 'HEAD'), result.resultSourceRevision)
+      assert.equal(git(resultRoot, 'diff', '--name-only', 'HEAD^', 'HEAD'), 'app/BUILDER_RESULT.txt')
+      assert.equal(readFileSync(resolve(resultRoot, 'app/BUILDER_RESULT.txt'), 'utf8'), 'governed-by-conexus\n')
+      await assertPersistedTurn(firstIntent, result.summary)
+
+      git(sourceRoot, 'checkout', '-B', 'failed-candidate', baseSourceRevision)
+      mkdirSync(resolve(sourceRoot, 'app'), { recursive: true })
+      writeFileSync(resolve(sourceRoot, 'app', 'CORRECTION_RESULT.txt'), 'incomplete\n')
+      git(sourceRoot, 'add', 'app/CORRECTION_RESULT.txt')
+      git(sourceRoot, 'commit', '-m', 'Exact rejected candidate fixture')
+      const failedCandidate = git(sourceRoot, 'rev-parse', 'HEAD')
+      const correctionIdentity = {
+        projectId: identity.projectId,
+        executionId: randomUUID(),
+      }
+      git(sourceRoot, 'branch', '-f', 'main', failedCandidate)
+      const failedBundlePath = resolve(proofRoot, 'failed-candidate.bundle')
+      git(sourceRoot, 'bundle', 'create', failedBundlePath, 'refs/heads/main')
+      let correctionSandboxId
+      const correctionIntent = 'Make app/CORRECTION_RESULT.txt contain exactly corrected-by-conexus followed by a newline. Do not modify any other file.'
+      const correction = await runtime.execute({
+        ...correctionIdentity,
+        intent: correctionIntent,
+        baseSourceRevision: failedCandidate,
+        sourceBundle: readFileSync(failedBundlePath),
+        bindPhysicalSandbox: async (sandboxId) => { correctionSandboxId = sandboxId },
+      })
+      assert.equal(correction.sandboxId, correctionSandboxId)
+      assert.equal(correction.baseSourceRevision, failedCandidate)
+      const correctionBundlePath = resolve(proofRoot, 'correction-result.bundle')
+      const correctionRoot = resolve(proofRoot, 'correction-result')
+      writeFileSync(correctionBundlePath, correction.resultBundle)
+      git(proofRoot, 'clone', '--branch', 'conexus-result', correctionBundlePath, correctionRoot)
+      assert.equal(git(correctionRoot, 'rev-parse', 'HEAD^'), failedCandidate)
+      assert.equal(git(correctionRoot, 'diff', '--name-only', 'HEAD^', 'HEAD'), 'app/CORRECTION_RESULT.txt')
+      assert.equal(readFileSync(resolve(correctionRoot, 'app', 'CORRECTION_RESULT.txt'), 'utf8'), 'corrected-by-conexus\n')
+      await assertPersistedTurn(correctionIntent, correction.summary)
+    } finally {
+      await controller.destroy()
+      await storage.close()
+    }
   } finally {
     rmSync(proofRoot, { recursive: true, force: true })
     rmSync(buildRoot, { recursive: true, force: true })
