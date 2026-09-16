@@ -1,108 +1,82 @@
 # 7R-1 — Native live-state and streaming convergence
 
-> **Status:** CORRECTION REQUIRED / REVIEWED / NOT ACCEPTED
-> **Candidate commit:** `3276f8fbf3ae8a38f6d0cab43fe540df221ebee9`
-> **Parent:** `9a2b52f7d7061f6a98b4bac19a5ac8a4c7a3370e`
+> **Status:** ACCEPTED / INDEPENDENT REVIEW PASS / 2026-09-16
+> **Initial implementation:** `3276f8fbf3ae8a38f6d0cab43fe540df221ebee9`
+> **Correction:** `fb1b1d4fe77e5a60e1d8bf78adacbf1e11ffad57`
 > **Program:** [`builder-first-app.md`](builder-first-app.md)
 > **Status/grant owner:** [`../roadmap.md`](../roadmap.md)
 > **Technical owner:** [`../reference/builder-c020-mastra-native.md`](../reference/builder-c020-mastra-native.md)
 > **Decision owner:** C-020 in [`../decisions/index.md`](../decisions/index.md)
 
-This task owns the bounded 7R-1 execution and review contract. The candidate got the core Mastra-native convergence right, but the independent review found one browser transport lifecycle defect that blocks acceptance.
+7R-1 is closed. The original candidate correctly removed the parallel Conexus observation lifecycle and converged live Builder display on native Mastra Session state. Independent review found one browser transport race, `7R1-LIVE-01`. The bounded correction closed that race without reopening C-020 or adding another lifecycle owner.
 
 # 1. Protected result
 
-The ordinary Builder must use Mastra's native live display mechanics without Conexus maintaining a second text/tool/activity lifecycle.
+The accepted ordinary live path is:
 
 ```text
-BuilderRun starts
-→ fresh scoped Mastra Session for that run
-→ persistent Project Thread
+BuilderRun
+→ fresh scoped Mastra Session
+→ persistent Project Thread/messages
 → fresh per-run Workspace/E2B
-→ client can attach to current live state
-→ native display state represents message/tool/running state
-→ Conexus projects only safe Product-facing fields
-→ Product settlement remains independent
+→ Session.displayState + display_state_changed
+→ safe stateless Conexus projection
+→ browser replaces current live snapshot
 ```
 
-The target removes custom event reconstruction and replay while preserving Conexus authority.
+Durable Product truth remains separate:
 
-# 2. Established facts from 7R-0
+```text
+BuilderRun
+ProjectWorkingState
+admitted source
+ArtifactRevision
+last-good Preview
+persistent Mastra Thread/messages
+```
 
-Treat these as input authority for this slice unless exact current Evidence falsifies them:
+Live state remains disposable.
 
-- Workspace is resolved when a Mastra Session is created. A fresh per-run Workspace therefore requires a fresh scoped Session per BuilderRun in `@mastra/core@1.63.2`.
-- the persistent Project Thread/messages survive Session recreation and own conversation history;
-- `AgentController.getSessionByResource(resourceId, scope)` already owns the Session registry;
-- `Session.displayState.get()` is the canonical live UI state;
-- `display_state_changed` is the native state-change signal;
-- the adopted Mastra reconnect model does not replay missed server events. The consumer resynchronizes current state;
-- `displayState` contains raw/internal tool data that must not cross the browser disclosure boundary unchanged;
-- `BuilderRun` remains the durable Conexus Product execution record.
+# 2. Accepted ownership
 
-# 3. Preserve
+Mastra owns coding-harness mechanics:
 
-The candidate and correction must preserve:
+- shared `AgentController` and coding Agent;
+- persistent Project Thread/messages;
+- fresh scoped Session per BuilderRun;
+- Workspace/filesystem/tool mechanics;
+- BUILD/PLAN tool exposure;
+- message/tool/running live state through `Session.displayState`.
+
+Conexus owns:
 
 - Account/Workspace/Project authorization;
-- `BuilderRun` idempotency, claim, base source/version, one-active-run rule, settlement, result classification, and failure truth;
-- persistent Project Thread/messages;
-- fresh Workspace/E2B per BuilderRun unless another accepted owner explicitly changes that later;
-- BUILD/PLAN native tool visibility and PLAN read-only semantics;
-- source admission/CAS, compilation, ArtifactRevision retention, and last-good Preview behavior;
-- Diagnostic UI scope only. No final Product Experience redesign;
-- live-display failure must not change BuilderRun/Product settlement.
+- `BuilderRun` idempotency, concurrency, source/version and settlement;
+- ProjectWorkingState;
+- source/Git admission and CAS;
+- compiler/ArtifactRevision/last-good Preview;
+- Project/run HTTP authorization;
+- a small disclosure boundary that removes raw tool args/results, shell output, provider metadata, credentials and unsafe paths.
 
-# 4. Code census
+No custom Session registry, durable live event log or second conversation store is admitted.
 
-## KEEP
+# 3. Deleted duplicate machinery
 
-- shared `AgentController`;
-- shared coding Agent;
-- persistent Project Thread/messages;
-- `BuilderRun` and ProjectWorkingState Product authority;
-- Project/run authentication and authorization;
-- safe disclosure/redaction boundary;
-- existing source/compiler/artifact/Preview owners;
-- the thin frontend SSE parser/validator may remain if it owns only transport and snapshot replacement, not a second live-state lifecycle.
-
-## CHANGE
-
-Relevant areas for the original slice and its correction:
-
-```text
-apps/hub/src/builder/runtime.ts
-apps/hub/src/builder/routes.ts
-apps/hub/src/builder/service.ts
-apps/web/src/features/builder/observation.ts
-apps/web/src/features/builder/components/project-build.tsx
-tests/implementation/builder-runtime-observation.test.mjs
-tests/implementation/builder-run-dispatch.test.mjs
-tests/implementation/builder-browser.test.mjs
-```
-
-The correction should stay at the smallest browser/live-transport boundary that closes the finding below. Do not reopen the accepted backend architecture without evidence.
-
-## DELETE after caller migration
-
-The candidate correctly removed the duplicate lifecycle owners:
+7R-1 removed the previous parallel observation implementation, including:
 
 ```text
 apps/hub/src/builder/runtime-observation.ts
 apps/hub/src/builder/observation-feed.ts
 packages/builder-observation/
 custom TEXT_START / TEXT_DELTA / TEXT_END lifecycle
-custom ACTIVITY lifecycle/state machine
+custom ACTIVITY lifecycle state machine
 dead PHASE lifecycle
 generation / sequence / replay / retained-feed state
-custom subscriber queues whose only purpose was replaying the duplicate protocol
 ```
 
-Do not replace these with `BuilderObservationV2`, a second live-state store, a custom Session registry, or another event protocol.
+`apps/web/src/features/builder/observation.ts` remains only as a thin browser transport/parser boundary. Its existence does not create a second semantic live-state owner.
 
-# 5. Target shape
-
-Runtime identity:
+# 4. Accepted runtime shape
 
 ```text
 resourceId = ProjectId
@@ -116,170 +90,101 @@ Server live path:
 
 ```text
 authenticate
-→ authorize Project
-→ verify BuilderRun belongs to Project
-→ controller.getSessionByResource(projectId, `builder:${builderRunId}`)
-→ subscribe to display_state_changed
-→ synchronously read session.displayState.get()
-→ emit initial safe snapshot
-→ emit subsequent safe snapshots
+→ authorize Project/run
+→ AgentController.getSessionByResource(projectId, scope)
+→ subscribe display_state_changed
+→ synchronously read displayState.get()
+→ emit safe initial snapshot
+→ emit safe replacement snapshots
 ```
 
-Subscribe before the initial snapshot read. Do not insert an `await` between them.
+Subscribe precedes the initial snapshot read. No custom replay is required.
 
-Browser live path:
+# 5. Closed finding — 7R1-LIVE-01
+
+The first implementation made the browser live connection one-shot. A BuilderRun could already be visible while its Mastra Session was still being created, causing an initial `410`. An unexpected stream EOF had the same permanent-loss effect.
+
+Correction `fb1b1d4f...` keeps the fix at the browser transport boundary:
+
+- transient `410`, `5xx`, network failure or EOF retries while the same BuilderRun remains active;
+- retries use bounded backoff rather than a hot loop;
+- every successful reconnect starts from the server's current native snapshot;
+- the React run lifecycle aborts the connection/retry loop when that run is no longer active;
+- safety limits apply to the current SSE frame/buffer rather than cumulative bytes for the entire valid stream;
+- malformed/non-retryable protocol responses fail closed;
+- no replay, generation, sequence cursor, feed, durable live state or new dependency was added.
+
+The adopted repository still does not depend on `@mastra/client-js`; adding that broader client solely for this narrow Project-specific transport did not earn its cost.
+
+# 6. Review proof
+
+Independent review inspected the correction diff against this task and the C-020 owner.
+
+The committed browser proof exercises the Product surface with the required sequence:
 
 ```text
-active BuilderRun
-→ attach to live endpoint
-→ Session not created yet or transport disconnects
-→ retry/resubscribe while the same run is active
-→ each successful connection receives the current snapshot
-→ replace current live view
+first live request  → 410
+second connection   → current snapshot
+stream EOF          → reconnect
+third connection    → newer current snapshot
+UI                  → replacement state, no replay reconstruction
 ```
 
-No generation, sequence, history reconstruction, or event replay is required.
+The test asserts the first three stream statuses are `[410, 200, 200]` and waits for the later snapshot in the rendered Build UI. This directly covers the defect that the previous browser test missed.
 
-# 6. Safe browser projection
-
-The projection remains pure/stateless and exposes only fields the Diagnostic UI needs, such as:
+The correction changes only:
 
 ```text
-running
-message:
-  id
-  text
-activities:
-  id
-  label
-  safe optional detail
-  state
+apps/web/src/features/builder/observation.ts
+tests/implementation/builder-browser.test.mjs
+docs/roadmap.md
 ```
 
-Never disclose raw tool args/results, arbitrary shell output, provider metadata, credentials, private framework state, or unsafe filesystem paths.
+No backend Mastra/Product authority code changed in the correction. Existing projection/redaction, Project/run isolation, response-only and BuilderRun settlement proofs therefore remain the relevant protected checks.
 
-Preserve the existing `app/**` path-safety intent where file detail is exposed.
+The executor reported focused proof, browser `2/2`, Hub/Web typecheck, Biome, `git diff --check`, and `npm run verify` at `28/28` with zero PostgreSQL skips. No GitHub Actions run exists for the correction SHA, so the independent review did not claim a second CI execution.
 
-# 7. Candidate review result
+# 7. Review disposition
 
-## Accepted parts
+**PASS.**
 
-The independent review confirmed that candidate `3276f8f...`:
+Reasons:
 
-- deletes the backend custom observation projector/feed and the `builder-observation` package;
-- uses the shared `AgentController` Session registry;
-- binds production Sessions as `projectId` + `builder:<builderRunId>`;
-- uses `Session.displayState` and `display_state_changed`;
-- subscribes before taking the initial snapshot;
-- projects a stateless redacted browser view;
-- keeps BuilderRun/Product settlement separate from live display;
-- removes generation/sequence/replay state;
-- makes the frontend replace snapshots instead of reducing custom deltas.
+- root cause is fixed rather than hidden;
+- browser reconnect/resync now matches the native current-state model;
+- no custom event history or parallel lifecycle returned;
+- the correction is isolated to the transport boundary;
+- the test observes browser behavior, not an internal retry helper;
+- C-020 remains coherent and does not require amendment.
 
-Keeping `apps/web/src/features/builder/observation.ts` is acceptable because the candidate reduced it to thin SSE parsing/validation. The filename does not create a second semantic owner.
+The executor had prematurely written `ACCEPTED` into the roadmap before independent review. That wording had no authority by itself. Acceptance is established by this review reconciliation and the roadmap status owner.
 
-## Blocking finding — `7R1-LIVE-01`
+# 8. Non-goals preserved
 
-The browser connection is one-shot even though Session availability and transport lifetime are not.
-
-The real sequence can be:
-
-```text
-POST message returns BuilderRun
-→ dispatch claims run
-→ source is prepared
-→ E2B starts and source is materialized
-→ only then Mastra Session is created
-```
-
-During that window the browser can already see the BuilderRun as `QUEUED` or `RUNNING` and request the live endpoint. The server correctly returns `410` while no Session exists. The current frontend catches that failure and does not retry. Its effect depends on `projectId`, `runId`, and the boolean `runActive`; the normal `QUEUED → RUNNING` transition leaves `runActive === true`, so it does not create a second attachment attempt.
-
-The same one-shot behavior applies after an unexpected SSE end/error. The client also counts total bytes for the whole connection and fails after 1 MiB, so a valid long-running snapshot stream can terminate solely because enough snapshots were received.
-
-Result: the backend can support current-state resync, but the real browser can miss the live UI for the entire active run.
-
-This violates the protected result and the reconnect/resync proof requirement. It does not reopen C-020 or justify restoring replay.
-
-# 8. Required correction
-
-Close `7R1-LIVE-01` without adding another lifecycle owner.
-
-Required behavior:
-
-- while the same BuilderRun remains active and the component AbortSignal is not aborted, a transient unavailable Session must lead to a later attach attempt rather than permanent live-state loss;
-- an unexpected live-stream end/error during the active run must reconnect and resynchronize from the next connection's initial current snapshot;
-- retry must be bounded/backed off enough to avoid a hot loop;
-- no event replay, generation/sequence cursor, durable live log, retained feed, or second state store may be introduced;
-- a stream safety limit must bound an individual frame/buffer or another real resource, not impose a small cumulative lifetime byte ceiling that guarantees disconnect for sufficiently long valid runs;
-- terminal BuilderRun state must still stop/cancel live attachment through the existing Product state path.
-
-Exact local retry mechanics are an implementation choice. Do not block the POST on the whole Builder runtime merely to avoid the race.
-
-# 9. Required proof
-
-The correction must add Product-surface proof, not only a service unit proof.
-
-At minimum prove:
-
-1. the first browser stream request can receive `410`, a later request for the same active run receives `200`, and current native snapshot text/tool activity becomes visible;
-2. an established stream can end unexpectedly while the run remains active, the browser reconnects, and the next current snapshot replaces the live view without replay;
-3. assistant text projection remains correct;
-4. running/completed/error tool projection remains correct;
-5. safe path and raw-payload redaction remain intact;
-6. Project/run isolation remains intact;
-7. response-only behavior still causes no source mutation/compile;
-8. BuilderRun settlement remains independent from live-display availability;
-9. affected typecheck/build/tests and the repository verification required by the current graph pass.
-
-The existing service test that manually calls `observeBuilderRun` a second time proves backend resync capability. It does not prove that the browser reconnects. The current Playwright test always returns an immediately successful stream and therefore does not cover `7R1-LIVE-01`.
-
-# 10. Non-goals
-
-Do not include:
+7R-1 did not authorize or perform:
 
 - Git/source performance optimization;
 - Preview domain/correlation rebase;
 - final frontend Product redesign;
-- Brain/Sankhya capability work;
-- workflows/subagents/generic task UX;
+- Brain/Sankhya expansion;
+- workflow/subagent/task expansion;
 - Mastra package upgrade;
 - E2B lifetime optimization.
 
-Those belong to later slices or explicit replanning.
+Those remain later work.
 
-# 11. Correction review procedure
+# 9. Reopen triggers
 
-Review the correction against this same task.
+Reopen the smallest owner only if later evidence shows one of these is false:
 
-Order:
+- native display state cannot represent a real required live Product interaction;
+- the disclosure boundary requires durable/custom live state;
+- a real Product requirement needs live-event history rather than current-state resync;
+- exact adopted Mastra behavior changes materially;
+- another current non-legacy consumer requires the deleted observation lifecycle.
 
-1. confirm repository/branch/HEAD and correction parent;
-2. inspect only the correction diff plus any directly affected tests;
-3. prove `7R1-LIVE-01` at the browser surface;
-4. confirm no replay/feed/state-machine replacement was introduced;
-5. rerun the affected verification graph;
-6. return `PASS`, `CORRECTION REQUIRED`, or `REPLAN`.
+Otherwise do not restore the deleted path.
 
-Do not change Product implementation while performing the independent review.
+# 10. Follow-on
 
-# 12. Owner reconciliation after PASS
-
-If the corrected slice passes:
-
-- keep C-020 as the current decision;
-- reconcile `docs/reference/builder-c020-mastra-native.md` only if the accepted runtime shape differs from its current text;
-- keep `docs/reference/builder-and-harness.md` consistent with C-020 and free of a second current execution line;
-- update `docs/roadmap.md` to mark 7R-1 accepted and authorize only planning of 7R-2;
-- use PSTACK/Poteto to prepare the dedicated 7R-2 task before implementation authorization.
-
-If the correction fails, keep the smallest failing invariant in this task and keep 7R-2 blocked.
-
-# 13. STOP law
-
-Stop and return to owner-level planning if correction evidence shows:
-
-- exact Mastra behavior differs materially from the C-020 assumptions above;
-- disclosure safety needs durable/custom state rather than a pure projection;
-- a real Product requirement needs live-event history/replay;
-- removing a candidate component breaks a current non-legacy consumer not represented here;
-- the correction requires changing Product/architecture authority outside 7R-1.
+7R-2 may now be **planned only**. Create its dedicated task using PSTACK/Poteto and current runtime evidence before any 7R-2 Product implementation authorization.
