@@ -21,8 +21,8 @@ The current frontend remains a **Diagnostic UI** until the foundation engine is 
 ## Current state
 
 - **7R-0:** CLOSED. Exact `@mastra/core@1.63.2` investigation reconciled the Session/Thread/Workspace/display-state boundary into the current C-020 technical owner.
-- **7R-1:** implementation candidate exists at `3276f8fbf3ae8a38f6d0cab43fe540df221ebee9`; **REVIEW PENDING / NOT ACCEPTED**.
-- **7R-2:** BLOCKED until 7R-1 review is adjudicated and the next task is planned.
+- **7R-1:** candidate `3276f8fbf3ae8a38f6d0cab43fe540df221ebee9` reviewed. **CORRECTION REQUIRED / NOT ACCEPTED** because the browser live transport does not retry an initially unavailable Session or reconnect after an unexpected stream end while the same BuilderRun remains active.
+- **7R-2:** BLOCKED until the 7R-1 correction passes independent review and the next task is planned.
 - No 7R-2 Product implementation, Git optimization, Preview rebase, frontend redesign, Brain/Sankhya expansion, workflow expansion, or Mastra upgrade is authorized now.
 
 ## Foundation rebaseline board
@@ -30,7 +30,7 @@ The current frontend remains a **Diagnostic UI** until the foundation engine is 
 | Slice | Purpose | State |
 | --- | --- | --- |
 | **7R-0** | exact Mastra-native proof + authority reconciliation | **CLOSED** |
-| **7R-1** | native live-state/streaming convergence and deletion of the parallel observation lifecycle | **CANDIDATE AT `3276f8f...` / REVIEW PENDING** |
+| **7R-1** | native live-state/streaming convergence and deletion of the parallel observation lifecycle | **CORRECTION REQUIRED — `7R1-LIVE-01`** |
 | **7R-2** | runtime waterfall and quantitative measurement baseline | **BLOCKED** |
 | **7R-3** | source/Git logical transaction rebase | **BLOCKED** |
 | **7R-4** | Preview runtime rebase | **BLOCKED** |
@@ -38,27 +38,49 @@ The current frontend remains a **Diagnostic UI** until the foundation engine is 
 | **7U** | frontend Product rebaseline | **BLOCKED** |
 | **8** | first narrow Brain/Sankhya business capability | **DEFERRED** |
 
+## 7R-1 review disposition
+
+The core architecture of candidate `3276f8f...` is retained.
+
+Accepted candidate facts:
+
+- custom backend observation projector/feed and `builder-observation` package were removed;
+- live state comes from native Mastra Session display state;
+- Session lookup uses the shared AgentController registry;
+- Conexus retains only safe disclosure projection and Product authority;
+- no custom replay/generation/sequence lifecycle is required;
+- frontend state is snapshot replacement rather than custom delta reduction.
+
+Blocking finding `7R1-LIVE-01` is owned by the current 7R-1 task.
+
+The browser can attempt the live endpoint before the per-run Mastra Session exists. The endpoint correctly returns `410`, but the current client catches the failure and does not attempt the same active run again. Unexpected stream termination has the same one-shot behavior. The current browser proof always provides an immediately successful stream, so it does not falsify this race.
+
+This is a bounded 7R-1 transport correction. It does not reopen C-020 and does not authorize replay/feed machinery.
+
 ## Current grant
 
-The next activity is **independent review of the 7R-1 remote candidate only**.
+Planning/review for the correction is closed in [`tasks/builder-7r-1-native-live.md`](tasks/builder-7r-1-native-live.md).
 
-Review authority:
+**Product implementation of the correction is not authorized until the operator explicitly approves sending the correction task to the executor.**
+
+When authorized, the executor must:
 
 ```text
-AGENTS.md
-→ this roadmap
-→ docs/tasks/builder-7r-1-native-live.md
-→ owners named by that task
-→ actual remote candidate + proof
+read AGENTS.md
+→ read this roadmap
+→ read docs/tasks/builder-7r-1-native-live.md
+→ implement only 7R1-LIVE-01
+→ run targeted browser/live proof
+→ run required verification
+→ commit + push
+→ STOP
 ```
 
-The review is read-only for Product implementation. It may update status/owners only after the review conclusion requires that reconciliation.
+No 7R-2 work may be bundled into that correction.
 
-Do not fix Product code during review.
+## Correction disposition
 
-## Review disposition
-
-The 7R-1 review ends in one of three states.
+After the executor returns a correction candidate, independent review ends in one of three states.
 
 ### PASS
 
@@ -70,9 +92,9 @@ The 7R-1 review ends in one of three states.
 
 ### CORRECTION REQUIRED
 
-- record the smallest failing invariant and required correction in the existing 7R-1 task;
+- keep the smallest failing invariant in the existing 7R-1 task;
 - keep 7R-2 blocked;
-- require explicit operator authorization before the executor changes Product code.
+- require explicit operator authorization before another Product correction.
 
 ### REPLAN
 
@@ -96,10 +118,10 @@ advanced observational-memory UX
 MCP/RAG/vector-store capability
 ```
 
-The Diagnostic UI may change only when a foundation slice requires it for truthful proof.
+The Diagnostic UI may change only when the 7R-1 correction requires it for truthful native live-state behavior.
 
 ## Exact next action
 
-**Review 7R-1 candidate `3276f8fbf3ae8a38f6d0cab43fe540df221ebee9` against [`tasks/builder-7r-1-native-live.md`](tasks/builder-7r-1-native-live.md).**
+**Wait for operator authorization to send the bounded `7R1-LIVE-01` correction in [`tasks/builder-7r-1-native-live.md`](tasks/builder-7r-1-native-live.md) to the executor.**
 
-Do not implement a correction and do not plan/execute 7R-2 inside the review.
+Do not implement the correction here and do not plan or execute 7R-2 yet.
