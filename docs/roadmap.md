@@ -23,7 +23,7 @@ The current frontend remains a **Diagnostic UI** until the foundation engine is 
 - **7R-0:** CLOSED.
 - **7R-1:** **ACCEPTED / INDEPENDENT REVIEW PASS**. Initial implementation `3276f8fbf3ae8a38f6d0cab43fe540df221ebee9`; accepted live-transport correction `fb1b1d4fe77e5a60e1d8bf78adacbf1e11ffad57`.
 - **7R1-LIVE-01:** CLOSED. Browser reconnect/resync uses current native state without replay.
-- **7R-2:** **PLANNED / IMPLEMENTATION BLOCKED**. Dedicated task exists and owns the bounded measurement contract.
+- **7R-2:** **EXECUTION AUTHORIZED**. Dedicated task owns the bounded measurement contract. Measure only; do not optimize.
 - 7R-3, 7R-4, 7R-5, 7U and business-capability expansion remain blocked/deferred.
 
 7R-1 acceptance came from independent review and owner reconciliation. Executor-written status never grants acceptance by itself.
@@ -34,7 +34,7 @@ The current frontend remains a **Diagnostic UI** until the foundation engine is 
 | --- | --- | --- |
 | **7R-0** | exact Mastra-native proof + authority reconciliation | **CLOSED** |
 | **7R-1** | native live-state/streaming convergence and deletion of the parallel observation lifecycle | **ACCEPTED** |
-| **7R-2** | runtime waterfall and quantitative measurement baseline | **PLANNED / IMPLEMENTATION BLOCKED** |
+| **7R-2** | runtime waterfall and quantitative measurement baseline | **EXECUTION AUTHORIZED** |
 | **7R-3** | source/Git logical transaction rebase, driven by 7R-2 evidence | **BLOCKED** |
 | **7R-4** | Preview runtime rebase | **BLOCKED** |
 | **7R-5** | final engine composed proof | **BLOCKED** |
@@ -76,16 +76,15 @@ Historical hypotheses such as repeated hardened Git containers, source-read N+1,
 
 ## Current grant
 
-Planning of 7R-2 is complete.
+The operator authorized execution of **7R-2 measurement only**.
 
-**7R-2 implementation is not authorized until the operator explicitly approves execution of the dedicated task.**
-
-When authorized, the executor must:
+The executor must:
 
 ```text
 read AGENTS.md
 → read this roadmap
 → read .agents/skills/conexus-development/SKILL.md
+→ read .agents/skills/conexus-development/references/slice-lifecycle.md
 → read docs/tasks/builder-7r-2-runtime-waterfall.md
 → read owners named by the task
 → measure only; do not optimize
@@ -94,6 +93,8 @@ read AGENTS.md
 → commit + push
 → STOP
 ```
+
+The task header was written during planning; this roadmap is the grant owner and this explicit authorization controls execution status.
 
 No 7R-3 optimization may be bundled into 7R-2.
 
@@ -117,6 +118,6 @@ The Diagnostic UI may change only when a foundation slice requires it for truthf
 
 ## Exact next action
 
-**Wait for operator authorization to execute 7R-2 measurement only, using [`tasks/builder-7r-2-runtime-waterfall.md`](tasks/builder-7r-2-runtime-waterfall.md).**
+**Execute only the 7R-2 measurement task in [`tasks/builder-7r-2-runtime-waterfall.md`](tasks/builder-7r-2-runtime-waterfall.md), verify, commit + push, and STOP for independent review.**
 
 Do not optimize or start 7R-3.
