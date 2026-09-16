@@ -1,117 +1,79 @@
 # Frontend and Product Surfaces
 
-Current technical detail extracted without semantic rewriting from the accepted Phase-3 architecture baseline. `docs/architecture/index.md` owns the overview; this file owns the detailed task surface named by its title.
+This file owns detailed frontend meaning under the architecture overview.
+For the ordinary Builder, [C-020](builder-c020-mastra-native.md) and the
+[current program](../tasks/builder-first-app.md) define the delivery recut.
+The broader surfaces below are not a requirement to implement the entire platform
+before the operator pilot. The roadmap owns which work is authorized.
 
 ## 33. Scaffold and frontend architecture
 
-Current paved road:
-
-```text
-React
-TypeScript strict
-Vite SPA
-TanStack Router/Query family under current scaffold authority
-```
-
-Framework reconsideration is not open absent real failure class.
+The current paved road is React, strict TypeScript, Vite SPA, and TanStack
+Router/Query under the current scaffold authority. Framework reconsideration
+requires a real failure class.
 
 ## 33.1 Versioned deterministic scaffold
 
-The platform scaffold is versioned/byte-controlled and intentionally **infrastructure-rich / Product-feature-poor**.
-
-It carries paved-road mechanics so each generated Project does not ask its coding agent to reinvent auth boundaries, API/client contract patterns, error/loading truth, security headers/CSP rules, test/build gates, telemetry hooks or other accepted platform invariants.
-
-An escape hatch exists for a real Project need; using it does not silently waive platform/security contracts.
+The versioned scaffold is infrastructure-rich and Product-feature-poor.
+It carries platform-controlled auth, client/API, error/loading, security,
+contract, and test/build mechanics. An app need may justify an escape hatch;
+that does not silently waive platform/security contracts.
 
 ## 33.2 Three ownership layers
 
-Generated code is classified conceptually as:
-
-```text
-GENERATED
-→ reproducible from platform source/model; do not hand-own divergent semantics
-
-PLATFORM-CONTRACT
-→ Project-visible seam controlled by platform contract; app can consume but not weaken invariant
-
-APP-OWNED
-→ Project business/product source the Builder may legitimately evolve
-```
-
-This prevents regeneration from overwriting Project-owned work and prevents app code from mutating platform security/authority seams by convenience.
+GENERATED source is reproducible from platform definitions.
+PLATFORM-CONTRACT source exposes controlled seams that apps may consume but not weaken.
+APP-OWNED source is the Project's legitimate editing area.
+Regeneration must not overwrite app-owned work.
 
 ## 33.3 First-build conformance
 
-Scaffold presence is not proof. The first real Product slice must demonstrate the applicable scaffold/codegen/frontend/security contracts actually fire.
-
-Implementation-dependent scaffold probes remain downstream rather than being faked in 3L without Product code.
+Scaffold presence is not proof. The first Product delivery exercises the
+applicable build/frontend/security contracts. Do not manufacture proof before
+an implementation exists or import unrelated historical gates into the pilot.
 
 ## 33.4 Workspace shell
 
-```text
-Workspace
-├── Projects
-├── Agents
-├── Brain
-├── Connections
-├── Members
-└── Settings
-```
+The broader shell contains Projects, Agents, Brain, Connections, Members, and
+Settings. Exact labels and active pilot scope come from current Product/task authority.
 
 ## 33.5 Project shell
 
-```text
-Project
-├── Build
-├── Data
-├── Capabilities
-├── Integrations
-├── Agents
-├── Brain
-├── Versions
-├── Activity
-└── Settings
-```
-
-Exact labels/order/components are realization details; semantic surfaces are current.
+The broader shell contains Build, Data, Capabilities, Integrations, Agents,
+Brain, Versions, Activity, and Settings. These are semantic surfaces, not an
+instruction to implement all of them now.
 
 ## 33.6 Build surface
 
-```text
-Project navigation
-+ Preview dominant/default
-+ contextual Conexus/Platform Consultant panel
-+ Preview | Code | Diff lenses
-+ Plan/checklist/Evidence/cost detail as needed
-```
+The ordinary app-first layout has Project navigation, a dominant/default Preview,
+a contextual Conexus panel on the right, and read-only Code/Diff inspection.
+Technical coordinates and diagnostics are progressive detail, not entry requirements.
+There is no second editor mutation authority.
 
-No second IDE/editor mutation authority.
+Native BUILD/PLAN tool permissions do not require a Plan/checklist/approval
+workflow. That Product strategy is deferred. The current task can realize the
+approved minimal layout before all infrastructure refinements are complete.
+The diagnostic implementation is not a styling baseline.
 
-Load-bearing projection laws:
-
-```text
-working != blocked != waiting-for-user != completed
-building next candidate != currently inspectable last-good Preview
-```
-
-Building the next candidate must not require destroying/replacing the last usable Preview before the new candidate is ready.
+Working, blocked, waiting for the user, and completed remain different states.
+A next candidate does not remove the current last-good Preview.
+An artifact, an issued entry grant, and a functioning application are different
+observations. Do not label an application ready merely from grant issuance.
 
 ## 33.7 Honest client projection
 
-Frontend/cache is projection only. It preserves loading/empty/failure/partial, source/freshness/coverage/provenance, exact approval subject and Release/serving distinctions.
+Frontend/cache is projection only. Preserve loading, empty, failed, partial,
+source/freshness, exact approval subject, and Release/serving distinctions.
+Client-side retry state never creates server authority.
 
 ## 33.8 Contextual inspectability / progressive disclosure
 
-```text
-REAL PRODUCT RESOURCES
-→ directly inspectable: Data, Capabilities, Integrations, Product Agents, Brain binding,
-  Versions, Preview, Code/Diff and Activity/Evidence entry
+Product resources such as Data, Capabilities, Integrations, Product Agents,
+Brain bindings, Versions, Preview, and Activity are inspectable when admitted.
+Framework/runtime IDs and internal coordination belong in technical detail only
+when material. Historical WorkUnit/ActorRun names do not revive those records in C-020.
 
-PLATFORM MACHINERY
-→ progressive detail: WorkUnit/ActorRun internals, Gateway/Registry/CAS mechanics,
-  Mastra/E2B refs, owner rows and technical digests unless material
-```
-
-`Ask Conexus about this` passes selected resource/context to the contextual assistant under current server-derived authorization. It grants no new authority, capability or cross-Project access.
-
----
+Ask Conexus about this passes selected resource context under server-derived
+authorization. It grants no new capability or cross-Project access.
+Native traces are technical diagnosis. A future trace panel must use a safe,
+authorized projection rather than expose raw provider/tool data or execution APIs.

@@ -1,100 +1,72 @@
-# Conexus OS Documentation Map
+# Conexus OS documentation map
 
-This is the task and knowledge router. The current stage, execution board,
-grant and exact next action live only in [`roadmap.md`](roadmap.md).
-
-## Fresh-session route
-
-```text
-AGENTS.md
-→ roadmap.md
-→ this index
-→ applicable method
-→ smallest current owner
-```
-
-Start with the smallest sufficient context. Expand only for a named question,
-unknown, contradiction, dependency, falsifier or proof need.
+This file routes readers to owners. [The roadmap](roadmap.md) alone owns mutable
+status, grant, and the exact next action. Start from `AGENTS.md`, the roadmap,
+the current task, and only the owners needed for the current question.
 
 ## Current work
 
-For the 2026-09-13 pilot direction, start with
-[internal pilot refactoring](tasks/builder-first-app.md#internal-pilot-refactoring).
-It supersedes verifier-first execution and admits the Brain experiment after
-the usable create/open/continue cycle, before complete delivery closure.
-Older table entries below retain their named historical scope.
+| Need | Owner |
+| --- | --- |
+| Status, grant, and next action | [Roadmap](roadmap.md) |
+| Builder outcome and increment sequence | [Operational delivery program](tasks/builder-first-app.md) |
+| Current operational delivery contract | [First operational delivery](tasks/builder-first-operational-delivery.md) |
+| Ordinary Builder architecture | [C-020](reference/builder-c020-mastra-native.md) |
+| Native live-state result | [7R-1 task](tasks/builder-7r-1-native-live.md) |
+| Retained measurement limits | [7R-2 evidence task](tasks/builder-7r-2-runtime-waterfall.md) |
+| Builder UI meaning | [Frontend reference](reference/frontend-and-product-surfaces.md) and [P-01 screen contract](evidence/4c/p01-build-workspace-screen-contract.md) |
+| Exact Mastra lookup | [Mastra reference](reference/mastra/index.md) and the repository Mastra skill |
 
-| Need | Read first | Boundary |
-| --- | --- | --- |
-| Current stage / grant / next action | [`roadmap.md`](roadmap.md) | Do not derive current status from Evidence or Git history |
-| Directed MVP consolidation / decision and proof tracking | [current tracking](roadmap.md#current-direction-and-tracking), [consolidation agreement](tasks/builder-first-app.md#directed-mvp-consolidation) | Start from the smaller MVP and completed repository cleanup; define the next first-app increment without resuming R3/L1 or Product execution automatically |
-| First internal app / Builder design and practical proof | [delivery checkpoints](tasks/builder-first-app.md#delivery-checkpoints), [Create and open work packet](tasks/builder-first-app.md#create-and-open-work-packet) | Current delivery details and session observations; roadmap owns state; real Create and open demonstrated, streaming design and continuation/recovery remain |
-| Current verification and working-rule cleanup | [cleanup task](tasks/repository-consolidation.md) | Completed; current graph and final changed Builder leaf passed; analysis snapshot publication authorized for GPT Pro; no remote CI claim |
-| Suspended local-delivery inputs / L1–L6 | [approved delivery design](roadmap.md#approved-local-platform-delivery-design), [L1 local build/Preview](tasks/l1-local-build-preview.md), [L2 data/SDKs](tasks/l2-app-data-sdk.md), [L3 publication](tasks/l3-local-publication.md), [L4 integrations](tasks/l4-external-integrations.md), [L5 automations](tasks/l5-managed-automations.md), [L6 Brain/Builder knowledge](tasks/l6-brain-builder-knowledge.md) | Retained scope, unfinished decisions and failed-probe limits; these packets are not the current execution/research queue |
-| Historical execution board / R1–R7 map / package and review records | [`roadmap.md`](roadmap.md#execution-board) | Historical package IDs are not the current execution queue; semantic owners and claim-specific proof remain applicable |
-| Legacy R3 package detail | [`tasks/r3.md`](tasks/r3.md), [`third-review stop adjudication`](evidence/4f/4f-r3-third-review-stop-root-cause-adjudication.md) | Preserved unaccepted candidate and unresolved dependencies; inspect only for a named current question, not as a global pilot prerequisite |
-| Operating-model correction | [`execution/result owner`](evidence/4d/4d-development-operating-model-execution-result.md), [`C-019 adjudication`](evidence/4d/4d-development-method-acceleration-adjudication.md) | Product work is paused; deferred CI experiments are not implemented claims |
-| Historical BLD-10 Preview / Change planning material | [`roadmap`](roadmap.md), [`decision register`](decisions/index.md#phase-4-accepted-refinements), [`BLD-10 owner`](product/operation-ledger.md) | Retained historical Evidence; current Preview authority is the C-020 Builder session projection and technical MAR route |
-| 4D-C / R3 selection and bounded implementation | [`roadmap execution board`](roadmap.md#execution-board), [`R3 task packet`](tasks/r3.md), [`third-review stop adjudication`](evidence/4f/4f-r3-third-review-stop-root-cause-adjudication.md), [`P2/P3 decision`](evidence/4f/4f-r3-p2-p3-owner-decision.md), [`P4-A adjudication`](evidence/4f/4f-r3-p4-a-implementation-review-adjudication.md), [`P4-A qualification receipt`](evidence/4f/4f-r3-p4-a-project-qualification-receipt.json), [`root-tuple qualification receipt`](evidence/4f/4f-r3-p2-p3-root-tuple-qualification-receipt.json), [`selection packet`](evidence/4f/4f-r3-4d-c-selection-packet.md), [`owner decision`](evidence/4f/4f-r3-rf05-rf08-owner-decision.md), [`operator waiver`](evidence/4f/4f-r3-rf05-rf08-operator-admission-waiver.md), [`retained Evidence`](evidence/4f/4f-r3-mar-migration-implementation-packet.md) | R3 is HOLD / REPLAN after the third-review stop; the post-v6 candidate is preserved but unaccepted, v7 has no verdict, P1 readiness is withdrawn, aggregate provenance and runtime credential adoption remain open, P4-B is split for owner contract, and no review/qualification may resume until the roadmap replan is admitted |
-| Integrated RB source inspection | [`source-inspection packet`](evidence/4f/4f-rb-source-inspection-stage-code-packet.md), [`Builder owner`](reference/builder-and-harness.md) | Frozen integrated result; not the current execution grant |
-| Prior RB verification and build-loop inputs | [`verification packet`](evidence/4f/4f-rb-verification-acceptance-stage-code-packet.md), [`first-vertical packet`](evidence/4f/4f-rb-first-vertical-stage-code-packet.md) | Historical upstream Evidence; no Preview, R3+, deployment or broad provider grant |
-| Integrated R2 | [`R2 packet`](evidence/4f/4f-r2-stage-code-packet.md), [`P7 receipt`](evidence/4f/4f-r2-p7-live-read-only-receipt.md) | Closed/integrated; do not project P7 as open |
-| Integrated R1 | [`S6 result`](evidence/4f/4f-r1-s6-final-closure-result.md), [`final adjudication`](evidence/4f/4f-r1-complete-implementation-final-review-adjudication.md) | Closed/integrated; successor routing comes from roadmap |
-| Retained R1 foundation / A0 / S2 proof | [`Foundation result`](evidence/4d/4d-r1-foundation-probe-batch-result.md), [`A0 result`](evidence/4d/4d-r1-g0-implementation-result.md), [`S2 result`](evidence/4f/4f-r1-s2-implementation-result.md) | Closed proof owners; reopen only on a named pin, conformance, generation or custody falsifier |
-| Historical R1C-14 / RC-01 proof | [`R1C-14 native result`](evidence/4d/4d-r1-r1c14-native-readmission-result.md), [`native manifest`](evidence/4d/4d-r1-foundation-pin-manifest-r1c14-native-successor.json), [`RC-01 stage packet`](evidence/rc01/rc01-stage-packet.md), [`RC-01 integrated result`](evidence/rc01/rc01-result.md) | Explicit audits of recorded subjects; not current MVP admission or successor Product authority |
-| Frozen RB-C0 history | [`disposition`](evidence/4d/4d-rb-c0-frozen-planning.md) | Retained Evidence only; not a prerequisite chain |
+The current task does not require the whole platform or a historical acceptance
+queue. A scope label in an older task is not a current grant. Do not infer that
+Brain, R3, L1-L6, or every old screen is enabled for the pilot.
 
 ## Methods and operations
 
 | Need | Owner |
 | --- | --- |
-| Material engineering / Global Maximum / proof | [`development/engineering-method.md`](development/engineering-method.md) |
-| Repository / context / Git / documentation / CI | [`development/repository-method.md`](development/repository-method.md) and [`development/engineering-rules.md`](development/engineering-rules.md) |
-| Frontend Product Experience | [`development/frontend-product-experience-planning-method.md`](development/frontend-product-experience-planning-method.md) |
-| Production-realization selection detail | [`development/production-realization-guide.md`](development/production-realization-guide.md) |
-| Review protocol design | [`development/blueprint-harness-design.md`](development/blueprint-harness-design.md) |
-| SoftwareForge-derived repository analysis | [`development/softwareforge-reference-assessment.md`](development/softwareforge-reference-assessment.md) |
+| Engineering decisions and claim-relative proof | [Engineering method](development/engineering-method.md) |
+| Repository, context, Git, documentation, and CI | [Repository method](development/repository-method.md) and [engineering rules](development/engineering-rules.md) |
+| Frontend planning and operator approval | [Frontend method](development/frontend-product-experience-planning-method.md) |
+| Realization selection | [Production realization guide](development/production-realization-guide.md) |
+| Review protocol design | [Blueprint harness design](development/blueprint-harness-design.md) |
+| Repository consolidation history | [Repository consolidation](tasks/repository-consolidation.md) |
 
 ## Product and architecture
 
 | Need | Owner |
 | --- | --- |
-| Product meaning and journeys | [`product/contract.md`](product/contract.md) |
-| Human-context identity and wire contract | [`product/human-context-identity-contract.md`](product/human-context-identity-contract.md), [`product/wire-contract.md`](product/wire-contract.md) |
-| Decision disposition and reopen route | [`decisions/index.md`](decisions/index.md) |
-| Architecture and semantic owners | [`architecture/index.md`](architecture/index.md) |
-| Phase-3 closure owners | [`phases/3a-authority-baseline.md`](phases/3a-authority-baseline.md), [`phases/3m-failure-recovery-architecture.md`](phases/3m-failure-recovery-architecture.md), [`phases/3n-architecture-verification.md`](phases/3n-architecture-verification.md), [`phases/3o-vertical-architecture-proof-contract.md`](phases/3o-vertical-architecture-proof-contract.md) |
-| Final architecture ratification | [`phases/c-018-final-architecture-ratification.md`](phases/c-018-final-architecture-ratification.md) |
-| Phase-4 readiness and realization | [`phases/4-implementation-readiness-program.md`](phases/4-implementation-readiness-program.md), [`phases/4b-executable-wire-contract.md`](phases/4b-executable-wire-contract.md), [`phases/4c-frontend-interaction-and-authority-realization.md`](phases/4c-frontend-interaction-and-authority-realization.md), [`phases/4d-project-paved-road-and-runtime-realization.md`](phases/4d-project-paved-road-and-runtime-realization.md) |
-| Diagrams | [`diagrams/index.md`](diagrams/index.md) |
-| Project / data / persistence | [`reference/data-and-persistence.md`](reference/data-and-persistence.md) |
-| Brain / knowledge | [`reference/brain-and-knowledge.md`](reference/brain-and-knowledge.md) |
-| Connections / Gateway | [`reference/integrations-and-gateway.md`](reference/integrations-and-gateway.md) |
-| Builder / Harness | [`reference/builder-and-harness.md`](reference/builder-and-harness.md), [`reference/builder-c020-mastra-native.md`](reference/builder-c020-mastra-native.md) |
-| Runtime / Product Agents | [`reference/runtime-and-agents.md`](reference/runtime-and-agents.md) and [`reference/mastra/index.md`](reference/mastra/index.md) |
-| Security / authority | [`reference/security-and-authority.md`](reference/security-and-authority.md) |
-| Release / deployment / recovery | [`reference/release-deployment-and-operations.md`](reference/release-deployment-and-operations.md) |
-| Frontend surfaces | [`reference/frontend-and-product-surfaces.md`](reference/frontend-and-product-surfaces.md) |
-| Managed execution | [`reference/managed-execution.md`](reference/managed-execution.md), [`reference/managed-execution-qualification.md`](reference/managed-execution-qualification.md) |
+| Product meaning and journeys | [Product contract](product/contract.md) |
+| Human context and wire contracts | [Human-context identity](product/human-context-identity-contract.md) and [wire contract](product/wire-contract.md) |
+| Decision disposition and reopen route | [Decision register](decisions/index.md) |
+| Architecture overview | [Architecture index](architecture/index.md) |
+| Project, data, and persistence | [Data and persistence](reference/data-and-persistence.md) |
+| Brain | [Brain and knowledge](reference/brain-and-knowledge.md) |
+| Connections and Gateway | [Integrations and Gateway](reference/integrations-and-gateway.md) |
+| Ordinary Builder | [C-020](reference/builder-c020-mastra-native.md) |
+| Historical/broader Builder meaning | [Builder and harness](reference/builder-and-harness.md); C-020 supersedes conflicting ordinary-path mechanics |
+| Runtime and Product Agents | [Runtime and agents](reference/runtime-and-agents.md) and [Mastra map](reference/mastra/index.md) |
+| Security and authority | [Security reference](reference/security-and-authority.md) |
+| Release, deployment, and recovery | [Operations reference](reference/release-deployment-and-operations.md) |
+| Frontend surfaces | [Frontend reference](reference/frontend-and-product-surfaces.md) |
+| Managed execution | [Managed execution](reference/managed-execution.md) and [qualification](reference/managed-execution-qualification.md) |
+| Diagrams | [Diagram index](diagrams/index.md) |
 
-## Research and retained proof
+## Retained historical routes
 
-Use [`research/index.md`](research/index.md) only when a current material
-question needs external comparison. Evidence under `docs/evidence/`, executable
-qualification under `qualification/`, tests, runtime output and Git history are
-claim-relative proof or provenance; they do not silently replace accepted
-authority.
+Use these only for a named dependency, earlier decision, or historical proof.
+Their text does not reinstate their old execution order.
 
-## Authority hierarchy
+| Subject | Retained route |
+| --- | --- |
+| L1-L6 delivery inputs | [Local build/Preview](tasks/l1-local-build-preview.md), [data/SDK](tasks/l2-app-data-sdk.md), [publication](tasks/l3-local-publication.md), [integrations](tasks/l4-external-integrations.md), [automations](tasks/l5-managed-automations.md), [Brain knowledge](tasks/l6-brain-builder-knowledge.md) |
+| Legacy R3 | [R3 task](tasks/r3.md) and [stop adjudication](evidence/4f/4f-r3-third-review-stop-root-cause-adjudication.md) |
+| Accepted phase architecture | [Phase 3 authority](phases/3a-authority-baseline.md), [failure recovery](phases/3m-failure-recovery-architecture.md), [architecture verification](phases/3n-architecture-verification.md), [vertical proof](phases/3o-vertical-architecture-proof-contract.md), [C-018 ratification](phases/c-018-final-architecture-ratification.md) |
+| Phase 4 realization | [Implementation readiness](phases/4-implementation-readiness-program.md), [wire contract](phases/4b-executable-wire-contract.md), [frontend realization](phases/4c-frontend-interaction-and-authority-realization.md), [paved road](phases/4d-project-paved-road-and-runtime-realization.md) |
+| Integrated R1/R2 | [R1 closure](evidence/4f/4f-r1-complete-implementation-final-review-adjudication.md) and [R2 packet](evidence/4f/4f-r2-stage-code-packet.md) |
+| Method amendment | [Operating-model correction](evidence/4d/4d-development-operating-model-execution-result.md) |
+| Research | [Research index](research/index.md) |
 
-```text
-accepted Product / architecture / contract authority
-→ decisions + roadmap
-→ current technical references
-→ accepted qualification conclusions
-→ reproducible Evidence + exact source/version
-→ research + Git history
-```
-
-Mechanism is not authority. Global coverage comes from routing, not from
-preloading the repository.
+Evidence, qualification, tests, and Git establish claim-specific facts. They do
+not silently replace Product authority or the roadmap. Historical qualification
+pins remain tied to their recorded subject, not the currently installed Builder.

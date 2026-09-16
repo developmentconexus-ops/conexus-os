@@ -1,55 +1,41 @@
-# 7R-2 Builder runtime waterfall
+# Retained 7R-2 runtime waterfall package
 
-This is a measurement harness, not Product instrumentation. It measures the
-current Builder boundaries through existing constructors and injected process
-seams. It never changes Builder ordering, authorization, source custody,
-E2B lifetime, or Preview behavior.
+This is partial measurement evidence, not a complete accepted baseline or the
+current Builder delivery gate. The current disposition is owned by
+`docs/roadmap.md`; interpretation limits are in
+`docs/tasks/builder-7r-2-runtime-waterfall.md`.
 
-Run from the pinned WSL environment with Node 24.20.0 and npm 12.0.2:
+## Recorded files and subject
 
-```bash
-# Supply the already-admitted local environment without printing secret values.
-set -a
-source .audit/slice7/hub.env
-export CONEXUS_TEST_DB_HOST="$CONEXUS_DB_HOST"
-export CONEXUS_TEST_DB_PORT="$CONEXUS_DB_PORT"
-export CONEXUS_TEST_DB_NAME="$CONEXUS_DB_NAME"
-# Before running this block, export CONEXUS_TEST_DB_USER and
-# CONEXUS_TEST_DB_PASSWORD from the local disposable-database administrator
-# secret; do not commit or print the password. Do not use the restricted
-# CONEXUS_DB_USER runtime role here because the harness creates a disposable DB.
-set +a
+`baseline.json` and `pre-baseline-probe.json` retain their original subjects.
+The delivered package is commit `ed658c65152db27390dc1c5c88ff6d1b5cfa406e`.
+The JSON also records the measured parent HEAD and working-tree fingerprint.
+Do not edit those identities to make the gate pass on a later commit.
 
-node qualification/7r2/builder-runtime-waterfall/measure.mjs \
-  --live \
-  --output qualification/7r2/builder-runtime-waterfall/baseline.json
-```
+`measure.mjs` is the original measurement lever. It still has the known
+reproduction/gate and partial-observation limitations described by the task.
+Its retained numbers are not new measurements of the current implementation.
 
-The command first requires the retained P2/P3 pre-baseline gate to match the
-current HEAD. It then measures three real P1 Git controls, three NEW Project
-creation samples, three source-changing BUILDs, one PLAN, one Code lens, one
-Diff lens, one Preview-readiness sample, and three direct compiler E2B
-calibration samples. `--live` is required because the Product journeys use
-the explicitly admitted provider/model and coding E2B runtime. A duration above
-10 seconds is measurement data; it is not an availability failure.
+## Reproduction limitation
 
-The Product journey is intentionally measured through the current composition
-rooted at `createConfiguredBuilderModule`. S6 Preview launch/iframe readiness
-is `INCONCLUSIVE` in this harness because it does not replace the real
-IdentityAccess/MAR preview authorities. The artifact retains that unresolved
-bucket instead of claiming a Preview number.
+The old command is not a supported fresh-checkout reproduction procedure.
+It requires a matching retained pre-baseline gate, and the gate predates the
+publication commit. The parser recognizes `--output=path`, not `--output path`.
+Existing output must not be overwritten merely to rerun the command.
 
-The script never prints or stores credentials, prompts containing secrets,
-provider payloads, or raw tool output. It does not instrument or modify Product
-semantics, and it does not optimize any measured boundary.
+A future measurement consumer must state its question, reconcile the exact
+subject and gate, and repair only the needed measurement path before running it.
+The complete original procedure remains in this README's publication history.
+Do not rerun the whole benchmark as a prerequisite for the operational delivery.
 
-The raw artifact is `baseline.json`. Every scenario contains its coverage
-status, sample identity, monotonic spans, input facts, process observations,
-and an explicit unresolved-bucket list. `INCONCLUSIVE` means the current
-composition could not be measured safely from this harness. It is not a
-latency claim.
+## Interpretation
 
-The harness compiles the current Hub sources into a disposable temporary
-directory before importing them. That compile is outside all measured spans.
-The fixture repositories and E2B sandboxes are disposable and are removed by
-the harness.
+The corrected direct P2 and real Product P3 are distinct controls.
+Compiler calibration is not the compiler time of an unrelated composed BUILD.
+Code reads are partial, Diff is inconclusive, and this harness does not prove
+real authorized Preview launch/application readiness. Counts inferred from result
+state must not be reported as observed calls.
+
+Use native Mastra traces for new agent diagnosis and claim-specific Product
+measurements for external work. Never store credentials or raw provider/tool
+payloads in committed evidence.

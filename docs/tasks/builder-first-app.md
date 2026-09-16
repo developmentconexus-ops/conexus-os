@@ -1,176 +1,110 @@
-# Builder Foundation Rebaseline — program plan
+# Builder operational delivery program
 
-> **Status:** CURRENT PROGRAM PLAN / REVIEW-GATED
-> **Status and grant owner:** `docs/roadmap.md`
-> **Current technical owner:** `docs/reference/builder-c020-mastra-native.md`
-> **Current slice detail:** the dedicated task named by the roadmap
-
-This file owns program sequencing and the Product outcome for the Builder Foundation Rebaseline. It does not own mutable status, detailed slice execution, or current architecture by itself.
-
----
+This file owns the delivery sequence and the cross-increment Product outcome.
+[The roadmap](../roadmap.md) owns status and grant.
+[C-020](../reference/builder-c020-mastra-native.md) owns technical meaning.
+Each actionable increment has one dedicated task.
 
 ## Internal pilot refactoring
 
-This is the current internal-pilot direction.
+The operator approved a Builder-wide coherence review on 2026-09-16.
+Delivery now follows the complete user journey instead of completing every
+technical subsystem before the interface can be tested.
 
-The ordinary Builder is being reduced to the smallest reliable coding product before Product Experience redesign or business-capability expansion.
+The protected outcome is a normal coding agent over a persistent Project.
+A user creates an application, sees real agent activity, uses its Preview,
+requests a change, and continues after reload or a failed compilation.
 
-A fresh actor should route:
-
-```text
-AGENTS.md
-→ docs/roadmap.md
-→ this program plan when program context is needed
-→ current slice task named by the roadmap
-→ semantic/technical owners named by the task
-```
+The first delivery uses the current fixed React/Vite application scope.
+It does not claim generated backends, business integrations, production
+publication, or the entire long-term Conexus platform.
 
 ## Directed MVP consolidation
 
-Historical consolidation work produced the smaller ordinary Builder direction now owned by C-020. Do not resume historical R3/L1 queues from this anchor. Current work follows the rebaseline board in `docs/roadmap.md`.
+Keep the adopted Mastra/Conexus responsibility split. Remove accidental
+compatibility and composition dependencies when their consumers are absent.
+Do not revive Change, WorkUnit, ActorRun, a second conversation store, or a
+second Session registry.
+
+Use native Mastra traces to investigate the agent. Use existing Product facts
+and targeted measurements for external operations. A diagnostic tool must observe
+the same execution the user initiated, not a parallel imitation.
 
 ## Delivery checkpoints
 
-Historical delivery checkpoints remain in Git history. Current execution checkpoints are one task per actionable 7R/7U slice. The roadmap owns which one is active.
+| Increment | Observable result | Contract |
+| --- | --- | --- |
+| 1. Create, converse, and use | The ordinary Hub starts without unused Project planning/cognition. A real Builder request produces an interactive application in the real Preview. Native traces explain that execution. | [First operational delivery](builder-first-operational-delivery.md). |
+| 2. Continue and correct | The next request edits the exact working source. Source consumers use appropriate bounded operations. Safe compiler failure information reaches the next correction without a second conversation system. | Plan only after increment 1 evidence. |
+| 3. Continue through failures | Ambiguous HTTP outcomes, interruption, restart, shutdown, and expiring Preview access have truthful, bounded behavior. | Plan only when the preceding evidence identifies the remaining gap. |
+
+These are delivery units, not permission to accumulate unrelated refactors.
+Each unit includes its own tests, documentation, and real browser proof.
+Known safety controls remain enforced in every unit.
 
 ## Create and open work packet
 
-The earlier create/open packet proved useful Product facts but is not the current execution contract. Current create/open/continue expectations are summarized below and owned technically by C-020 plus the active slice task.
+The first unit is an operator pilot. It is not general employee rollout.
+Its concrete contract is the linked task, not the historical create/open packet.
+Use the P-01 app-first composition and contextual Conexus panel as the minimum
+interaction basis. Test that experience early. Full visual redesign is not a
+prerequisite, and historical Change mechanics are not reinstated by the wireframe.
 
----
+BUILD and PLAN currently distinguish native write-capable and read-only tool
+exposure. They are not a required plan/approval/build workflow. Do not redesign
+those modes, remove read-only enforcement, or build strategy UI in increment 1.
 
-# 1. Product outcome
+## Preserved guarantees
 
-Before frontend rebaseline, the engine must support this ordinary journey:
+The program retains Project authorization, one active BuilderRun per Project,
+idempotency, immutable source identity, CAS settlement, durable conversation,
+isolated per-run Workspace, compiler/artifact identity, and last-good Preview.
 
-```text
-create/open Project
-→ Project coding conversation is ready
-→ send a natural-language request
-→ see real coding-agent text/tool activity while it happens
-→ agent works against exact current Project source
-→ source-changing result is admitted mechanically
-→ app compiles automatically
-→ last-good Preview updates automatically
-→ use the app
-→ send a second request
-→ continue the same Project conversation from exact current source
-→ ask a no-code question
-→ RESPONSE_ONLY with no source/build mutation
-→ reload/restart
-→ conversation + working source + last-good Preview remain coherent
-→ continue editing
-```
+A failed compilation preserves the newly admitted working source and the prior
+good Preview. The next correction starts from that failed source.
+A trace or an assistant statement never replaces Product settlement.
 
-The ordinary user does not administer `Change`, `Plan`, `WorkUnit`, `ActorRun`, `CodingSession`, Git refs, artifact IDs, Preview preparation, Mastra runtime IDs, or E2B IDs.
+## Findings carried into delivery
 
-# 2. Foundation scope
+| Finding | Treatment and revisit trigger |
+| --- | --- |
+| Optional Project cognition blocks ordinary bootstrap | Resolve in increment 1 without deleting the enabled capability. |
+| No-storage runtime fallback | Confirm callers, migrate tests, and delete in increment 1. |
+| Native observability not configured | Connect it to the real runtime in increment 1. No new public execution API. |
+| Preview grant response treated as a ready application; automatic retry loop | Correct the client lifecycle in increment 1 and prove actual interaction. |
+| Source snapshot uses serial per-file Docker reads; browser reconstructs Diff | Resolve the shared source boundary in increment 2, preserving isolation. |
+| Compiler diagnostics do not reach the next agent correction | Resolve in increment 2 through the existing native conversation boundary. |
+| Ambiguous retry identity and accepted-request persistence window | Increment 3 deciding tests. No claim of exactly-once delivery across that window before proof. |
+| Shutdown/cancellation and Preview expiry | Increment 3 unless a deciding increment-1 failure makes a bounded correction necessary. No silent widening. |
+| Legacy Preview correlation fields | Remove only with the full binding consumer census. Cosmetic renaming is not an increment-1 prerequisite. |
+| Overlapping source/Registry validation or configuration | Simplify only after locating the boundary and current consumer. Do not delete security checks by line count. |
 
-Current foundation work may be driven by:
+These findings do not establish that every suspected failure has occurred live.
+Source observations, retained measurements, and new reproductions must remain distinct.
 
-```text
-Identity / authentication
-Workspace
-Project
-Builder
-source/Git custody
-compiler
-Registry / ArtifactRevision
-last-good Preview
-```
+## Retained measurement evidence
 
-Preserve but do not expand until the engine is accepted:
+[7R-2](builder-7r-2-runtime-waterfall.md) is no longer a universal prerequisite.
+Preserve its samples and limitations. Correct the measurement tool only when a
+current decision needs it. Never infer a full runtime breakdown from its totals.
 
-```text
-Brain
-Connections
-Project business bindings
-Gateway/Sankhya capability expansion
-managed workflows
-subagents
-generic task UX
-advanced observational-memory UX
-MCP/RAG/vector-store capability
-```
+The old mandatory 7R-3/7R-4/7R-5/7U ordering is superseded. Source simplification,
+Preview correctness, integrated proof, and usable UX survive as work inside the
+journey, not as four independent projects that must finish before use.
 
-The current React surface is Diagnostic UI until 7R-5 passes.
+## Final pilot acceptance and later growth
 
-# 3. Foundation facts already reconciled
+Before expanding beyond the operator pilot, prove creation, second edit,
+read-only response, compilation failure and repair, reload/restart, ambiguous
+request retry, Project isolation, and usable Preview with bounded access recovery.
+Reuse the current verification graph and existing live/browser tests.
 
-The durable technical meaning lives in `docs/reference/builder-c020-mastra-native.md`. The program depends on these current facts:
+After this journey is accepted, add one real business capability at a time.
+Brain/Sankhya, specialized skills, workflows, subagents, and a Product trace UI
+remain deferred. Keep their authority boundaries, not speculative implementations.
 
-- `BuilderRun` remains a Conexus Product transaction for authorization, idempotency, concurrency, exact source/version, result settlement, and failure truth.
-- one persistent Project Mastra Thread/messages owns conversation history;
-- fresh scoped Mastra Session per BuilderRun is required for a fresh per-run Workspace in the adopted Mastra line;
-- the shared `AgentController` registry is keyed by Project/resource and run scope, so Conexus does not own a second Session registry;
-- `Session.displayState` and `display_state_changed` are the canonical live display mechanics;
-- reconnect resynchronizes current state instead of replaying a Conexus event log;
-- Conexus keeps authentication, authorization, disclosure/redaction, source admission, compilation, artifact, and last-good Preview authority;
-- live runtime state is disposable; Thread/messages, BuilderRun, ProjectWorkingState, source, and last-good Preview are durable Product truth.
+## Stop law
 
-If current exact-version evidence later falsifies one of these facts, reopen the smallest technical/decision owner before implementation.
-
-# 4. Slice ownership law
-
-Every implementation slice gets one dedicated task **before the first Product implementation edit**.
-
-The task contains implementation/review detail. This program file keeps only sequencing and cross-slice outcome.
-
-Do not create placeholder tasks far ahead. Exact code census, falsifiers, and target details for a later slice are planned after predecessor evidence is accepted.
-
-Implementation handoffs should point to the task instead of copying it.
-
-```text
-plan slice
-→ create/update dedicated task
-→ roadmap authorizes exactly that task
-→ executor implements + verifies + commit/push + STOP
-→ reviewer compares remote candidate to task/owners
-→ PASS, CORRECTION REQUIRED, or REPLAN
-→ only then plan the next slice
-```
-
-# 5. Rebaseline sequence
-
-| Slice | Program purpose | Task owner |
-| --- | --- | --- |
-| **7R-0** | prove exact Mastra-native lifetime/live-state boundary | closed investigation; durable result absorbed by C-020 technical owner |
-| **7R-1** | converge live UI mechanics on native Mastra state and delete the parallel observation lifecycle | [`builder-7r-1-native-live.md`](builder-7r-1-native-live.md) |
-| **7R-2** | measure complete runtime waterfall before optimization | [`builder-7r-2-runtime-waterfall.md`](builder-7r-2-runtime-waterfall.md) |
-| **7R-3** | rebase expensive Git/source micro-operations into logical transactions using 7R-2 measurements | create dedicated task after 7R-2 acceptance |
-| **7R-4** | remove legacy ordinary Preview correlations while preserving security and last-good semantics | create dedicated task after 7R-3 acceptance |
-| **7R-5** | prove the final engine as one composed Product journey | create dedicated task after 7R-4 acceptance |
-| **7U** | deliberately redesign/rebuild Product Experience over the accepted engine | create dedicated task after 7R-5 acceptance |
-| **8** | add the first narrow real business capability/Brain-Sankhya path | deferred until engine + Product surface acceptance |
-
-# 6. What later slices are expected to answer
-
-These are program questions, not implementation contracts.
-
-## 7R-2
-
-Measure where time is spent in Project create, BUILD, live activity, Code/Diff, compilation, and Preview. Produce a quantitative bounded waterfall and expensive-boundary census. Do not optimize in the measurement slice. Exact measurement scope and falsifiers now live in [`builder-7r-2-runtime-waterfall.md`](builder-7r-2-runtime-waterfall.md).
-
-## 7R-3
-
-Use 7R-2 evidence to reduce source/Git isolation overhead at the logical-operation level. Remove N+1 source reads and avoid one hardened OCI start per tiny Git operation where a single bounded transaction preserves the same custody/security invariants.
-
-The examples above remain hypotheses until 7R-2 measures the actual path. If the baseline points elsewhere, 7R-3 must follow the measurement rather than this historical expectation.
-
-## 7R-4
-
-Make ordinary Preview source/artifact-native. Remove Change-era ordinary correlation coordinates that no longer own Product meaning while preserving exact artifact identity, authorization, CSP/origin/sandbox boundaries, and last-good Preview behavior.
-
-## 7R-5
-
-Prove the final engine across create/build/continue/response-only/failure-repair/restart/concurrency/Code/Diff/Preview/reconnect. A compile failure must leave failed new source as working source while the prior good Preview remains usable and the next BUILD can repair from that failed source.
-
-## 7U
-
-Only after the engine passes, redesign the final Product Experience deliberately. The current diagnostic UI is evidence infrastructure, not a styling baseline.
-
-# 7. Program stop law
-
-Stop and return to the smallest owner when evidence exposes a material Product requirement, trust-boundary, semantic-owner, runtime-lifetime, source/artifact-authority, or exact-framework contradiction that the current slice task does not already resolve.
-
-Do not solve a future slice opportunistically merely because its code is adjacent.
+A material authority, isolation, durable-data, framework-lifetime, or Product
+contradiction returns to the smallest owner. A performance hypothesis or an
+adjacent cleanup does not automatically expand the current task.

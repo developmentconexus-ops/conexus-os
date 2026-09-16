@@ -1,44 +1,56 @@
-# Conexus OS to Mastra Current Mapping
+# Conexus OS to Mastra mapping
 
-## Ownership split
+## Current Builder scope
+
+[The C-020 owner](../builder-c020-mastra-native.md) owns the ordinary Builder's
+current mapping and exact pins. The current task and roadmap own unimplemented
+work and acceptance. Do not use the historical pins below for new Builder code.
+
+Builder native conversation, Session registry, Workspace binding, live display,
+and tracing mechanics are distinct from Product execution/source/Preview authority.
+The approved operational delivery adds native diagnosis to the same real runtime;
+this document does not claim that new integration has already passed.
+
+## Broader ownership split
 
 | Conexus OS owns | Mastra provides |
 | --- | --- |
 | Product authority | Agent runtime mechanics |
 | Workspace and Project | Memory substrate |
 | Release and immutable serving composition | RequestContext runtime/configuration carrier |
-| RuntimeAgentProjection | native `requireApproval` and suspend/resume mechanics |
+| RuntimeAgentProjection | Native requireApproval and suspend/resume mechanics |
 | AgentRun and terminal Product truth | Workflow for real deterministic flow |
 | ApprovalRequest and current approver/revocation truth | Scheduler trigger mechanics |
-| TriggerRevision and narrow scheduled admission | storage adapters |
-| Gateway EffectAttempt and effect authority | observability contracts/exporters |
-| authorization, budgets, current owner truth | framework-local traces, snapshots, and runtime records |
+| TriggerRevision and narrow scheduled admission | Storage adapters |
+| Gateway EffectAttempt and effect authority | Observability contracts/exporters |
+| Authorization, budgets, and current owner truth | Framework-local traces, snapshots, and runtime records |
 
-## Accepted realization
+## Accepted broader realization
 
-- Product Agent: direct Mastra `Agent`; no universal Workflow wrapper.
-- Conversation: Mastra Memory with explicit Conexus-derived `threadId` and `resourceId`; Brain remains separate.
-- RequestContext: runtime/configuration/correlation substrate, not authority. Pinned restart Evidence showed stale omitted keys may survive resume. Governed decisions re-read current owner truth.
-- Risky tool pause: native `requireApproval`; PAR owns `ApprovalRequest`, eligibility, revocation, and continuation admission.
-- Effects: Gateway owns exact authorization, idempotency, execution, and `EffectAttempt` truth. Model/framework output never proves effect completion.
-- Scheduling: native Mastra Scheduler may trigger, but execution crosses narrow PAR admission before AgentRun/model work. Scheduler state is not MAR due-work or recurrence authority.
-- Workflow: use only for a real deterministic multi-step flow; universal wrapping of every Agent is rejected.
-- Builder/PAR isolation: separate BuilderMastra and ParMastra instances; enabled F1 same-process surfaces are qualified conditionally.
-- DurableAgent: deferred safely; activation is a requalification trigger.
+Use direct Mastra Agent for Product Agents, not a universal Workflow wrapper.
+Conversation uses Mastra Memory with server-derived threadId/resourceId; Brain is separate.
+RequestContext carries runtime/configuration/correlation, not authority. Governed
+resumed decisions re-read current owner truth rather than trusting retained keys.
 
-## Tested same-process boundary
+Native requireApproval provides pause mechanics. PAR owns ApprovalRequest,
+eligibility, revocation, and continuation admission. Gateway owns authorization,
+idempotency, execution, and EffectAttempt truth. Model output does not prove effects.
 
-Separate storage/schema, registry, workflow, agent, model fixture, and PubSub identities were exercised for enabled surfaces. A deliberately shared PubSub negative control demonstrated the wiring guard can fire. Disabled scorer/evaluation, Observational Memory, DurableAgent, and other process-global facilities remain unqualified and off.
+Native scheduling may trigger narrow PAR admission; it is not MAR due-work authority.
+Use Workflow only for a real deterministic multi-step flow.
+Builder/PAR instances remain separate for their qualified enabled surfaces.
+DurableAgent activation remains a requalification trigger.
 
-## Exact qualification pins
+## Historical same-process qualification
 
-```text
-@mastra/core 1.56.0
-@mastra/memory 1.25.0
-@mastra/pg 1.19.0
-PostgreSQL 17.10
-Node 24.18.0
-```
+Separate storage/schema, registry, workflow, agent, model fixture, and PubSub
+identities were exercised. A deliberately shared PubSub negative control tested
+the wiring guard. Disabled scorer/evaluation, Observational Memory, DurableAgent,
+and other process-global facilities were not qualified by that experiment.
 
-Current Context7 documentation was checked during consolidation for RequestContext, Memory scoping, approval/suspension, schedules, storage, workflows, and observability. It supports the mechanism/authority distinction but does not supersede the pinned qualification.
+Its exact recorded pins were core 1.56.0, memory 1.25.0, pg adapter 1.19.0,
+PostgreSQL 17.10, and Node 24.18.0. Preserve those historical identities.
+Do not relabel that qualification as a pass for the Builder's later package versions.
 
+Documentation consulted during consolidation supported the mechanism/authority
+split. It does not replace exact package source or a new integration's deciding proof.
