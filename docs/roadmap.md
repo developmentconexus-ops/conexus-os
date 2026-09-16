@@ -23,7 +23,7 @@ The current frontend remains a **Diagnostic UI** until the foundation engine is 
 - **7R-0:** CLOSED.
 - **7R-1:** **ACCEPTED / INDEPENDENT REVIEW PASS**. Initial implementation `3276f8fbf3ae8a38f6d0cab43fe540df221ebee9`; accepted live-transport correction `fb1b1d4fe77e5a60e1d8bf78adacbf1e11ffad57`.
 - **7R1-LIVE-01:** CLOSED. Browser reconnect/resync uses current native state without replay.
-- **7R-2:** **EXECUTION AUTHORIZED**. Dedicated task owns the bounded measurement contract. Measure only; do not optimize.
+- **7R-2:** **PRE-BASELINE QUALIFICATION AUTHORIZED / S1-S6 TEMPORARILY BLOCKED**. The first measurement attempt correctly triggered the 7R-2 STOP law before a valid baseline existed. `7R2-PROBE-01` now owns the smallest discriminating gate.
 - 7R-3, 7R-4, 7R-5, 7U and business-capability expansion remain blocked/deferred.
 
 7R-1 acceptance came from independent review and owner reconciliation. Executor-written status never grants acceptance by itself.
@@ -34,7 +34,7 @@ The current frontend remains a **Diagnostic UI** until the foundation engine is 
 | --- | --- | --- |
 | **7R-0** | exact Mastra-native proof + authority reconciliation | **CLOSED** |
 | **7R-1** | native live-state/streaming convergence and deletion of the parallel observation lifecycle | **ACCEPTED** |
-| **7R-2** | runtime waterfall and quantitative measurement baseline | **EXECUTION AUTHORIZED** |
+| **7R-2** | runtime waterfall and quantitative measurement baseline | **PRE-BASELINE QUALIFICATION AUTHORIZED** |
 | **7R-3** | source/Git logical transaction rebase, driven by 7R-2 evidence | **BLOCKED** |
 | **7R-4** | Preview runtime rebase | **BLOCKED** |
 | **7R-5** | final engine composed proof | **BLOCKED** |
@@ -57,7 +57,7 @@ No Conexus replay log, generation/sequence cursor, observation feed, custom Sess
 
 The task [`tasks/builder-7r-2-runtime-waterfall.md`](tasks/builder-7r-2-runtime-waterfall.md) is the execution/review contract.
 
-Its protected result is a reproducible quantitative baseline for the current engine covering:
+Its protected result remains a reproducible quantitative baseline for the current engine covering:
 
 ```text
 Project create
@@ -74,9 +74,52 @@ The task measures current boundaries and retains raw samples plus an expensive-b
 
 Historical hypotheses such as repeated hardened Git containers, source-read N+1, fresh coding E2B or fresh compiler E2B remain hypotheses until the baseline quantifies their cost.
 
+### 7R2-PROBE-01 — current pre-baseline gate
+
+The stopped execution at `bd66ae48719028d9d01faa4ed58d3859ca431e7c` produced no admissible `baseline.json`.
+
+The deciding Evidence is currently:
+
+```text
+Git probe > 10 s
+≠ proof that Git/runtime environment is invalid
+
+compiler E2B
+= three real fresh-sandbox completions (~3.1–6.5 s)
+
+first coding composition
+= invalid because persistent Project Thread was absent
+
+corrected manually composed coding harness
+= unresolved > 5 min with no active provider connection observed
+```
+
+That last result does not yet distinguish:
+
+```text
+qualification harness defect
+vs
+external environment/provider/direct-runtime defect
+vs
+exact C-020 Product-composition defect
+```
+
+Therefore S1–S6 baseline capture is temporarily blocked until the task's P1/P2/P3 controls discriminate the cause.
+
+The intended controls are:
+
+```text
+P1 real hardened Git path with Product timeout semantics
+P2 existing direct live coding-runtime proof
+P3 exact current C-020 Product composition via createConfiguredBuilderModule/current Product path
+P4 bounded qualification-only phase timing only if still necessary
+```
+
+If P2 and P3 pass, the pre-baseline gate passes and 7R-2 may continue directly into S1–S6 without a new Product-design decision. If P2 fails, or P2 passes while P3 fails, STOP according to the task disposition instead of repairing architecture inside a performance slice.
+
 ## Current grant
 
-The operator authorized execution of **7R-2 measurement only**.
+The operator authorized **7R2-PROBE-01 plus automatic continuation into S1–S6 only if the pre-baseline gate passes**.
 
 The executor must:
 
@@ -87,14 +130,19 @@ read AGENTS.md
 → read .agents/skills/conexus-development/references/slice-lifecycle.md
 → read docs/tasks/builder-7r-2-runtime-waterfall.md
 → read owners named by the task
-→ measure only; do not optimize
-→ produce raw reproducible baseline + census
+→ preserve existing local qualification/7r2 working evidence
+→ do not reset/clean untracked work
+→ execute P1/P2/P3 in order
+→ use P4 only if still required to discriminate the cause
+→ if PRE-BASELINE GATE PASS: continue S1-S6 measurement only
+→ if direct runtime/environment is blocked: STOP with exact evidence
+→ if direct runtime passes but exact C-020 composition fails: STOP and reopen smallest technical owner
+→ never optimize 7R-3 concerns inside 7R-2
+→ produce baseline.json only from valid retained samples
 → run required verification
 → commit + push
-→ STOP
+→ STOP for independent review
 ```
-
-The task header was written during planning; this roadmap is the grant owner and this explicit authorization controls execution status.
 
 No 7R-3 optimization may be bundled into 7R-2.
 
@@ -118,6 +166,6 @@ The Diagnostic UI may change only when a foundation slice requires it for truthf
 
 ## Exact next action
 
-**Execute only the 7R-2 measurement task in [`tasks/builder-7r-2-runtime-waterfall.md`](tasks/builder-7r-2-runtime-waterfall.md), verify, commit + push, and STOP for independent review.**
+**Execute `7R2-PROBE-01` from [`tasks/builder-7r-2-runtime-waterfall.md`](tasks/builder-7r-2-runtime-waterfall.md). Preserve the existing local `qualification/7r2/` lever. If the gate reaches `PRE-BASELINE GATE PASS`, continue directly into S1–S6, verify, commit + push, and STOP for independent review. Otherwise STOP at the exact gate disposition.**
 
 Do not optimize or start 7R-3.

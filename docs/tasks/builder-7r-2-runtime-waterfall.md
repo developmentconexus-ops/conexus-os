@@ -1,6 +1,6 @@
 # 7R-2 — Runtime waterfall and measurement baseline
 
-> **Status:** PLANNED / IMPLEMENTATION BLOCKED
+> **Status:** PRE-BASELINE QUALIFICATION AUTHORIZED / S1-S6 TEMPORARILY BLOCKED
 > **Predecessor:** 7R-1 ACCEPTED / independent review PASS
 > **Program:** [`builder-first-app.md`](builder-first-app.md)
 > **Status/grant owner:** [`../roadmap.md`](../roadmap.md)
@@ -41,6 +41,116 @@ Apply these rules during execution:
 - keep each scenario independently reproducible and verifiable;
 - `INCONCLUSIVE` is a valid result; a fake or wrong-surface number is not;
 - no claim such as “Git is the bottleneck” or “E2B startup dominates” is allowed without the artifact that supports it.
+
+## 2.1 7R2-PROBE-01 — pre-baseline qualification gate
+
+The first authorized 7R-2 execution correctly activated this task's STOP law before a valid baseline existed.
+
+Subject at that STOP:
+
+```text
+repository HEAD = bd66ae48719028d9d01faa4ed58d3859ca431e7c
+baseline.json = not retained
+Product optimization = none
+Product code change = none
+local qualification lever only = qualification/7r2/builder-runtime-waterfall/{README.md,measure.mjs}
+```
+
+Observed Evidence:
+
+- the exact hardened Git probe exceeded a 10 s probe budget, but the current Product Git/process paths admit materially larger operation budgets; therefore `>10 s` does **not** prove that the Git runtime or environment is unusable;
+- the real compiler E2B path completed three fresh-sandbox samples, approximately 3.1–6.5 s, so E2B is not globally unavailable in the observed environment;
+- the first coding-runtime measurement composition omitted the persistent Project Thread and is invalid evidence; it was correctly discarded;
+- a corrected manually composed coding harness using the shared `AgentController`/Memory/modes shape remained unresolved for more than five minutes, and no active provider connection was observed at the inspection point;
+- that hang does not yet distinguish a qualification-harness defect from an environment/provider defect or a defect in the exact current C-020 Product composition.
+
+Therefore the baseline gate is narrowed before S1–S6. Do not infer or retain baseline numbers until the following controls discriminate the cause.
+
+### P1 — real Git control
+
+Exercise the actual hardened Git execution path with the Product's admitted operation timeout semantics, preferably timing the existing `runProcess` seam in `createOciGitExecutionPort`.
+
+Requirements:
+
+- do not impose an arbitrary 10 s pass/fail threshold;
+- record real elapsed time and real Docker/process count;
+- if the current Product operation completes, its duration is measurement Evidence rather than an environment failure;
+- if it fails or reaches the Product timeout, retain the exact failure/timeout as Evidence and stop before attributing cause.
+
+### P2 — direct coding-runtime control
+
+Run the existing admitted live coding-runtime proof for the current branch/configuration, currently `tests/implementation/rb-builder-mastra-e2b-live.test.mjs`, with its explicit live authority/configuration.
+
+Purpose:
+
+```text
+prove provider + model admission + coding E2B + direct runtime
+without the shared C-020 module composition
+```
+
+Do not call this the Product-composed baseline. It is only a discriminating control.
+
+### P3 — exact C-020 composition control
+
+Exercise the **actual current Product composition** that creates the shared `LibSQLStore`/Memory/coding agent/`AgentController` and passes that shared harness to `createMastraE2BCodingWorkerRuntime`.
+
+The current owner entry point is `createConfiguredBuilderModule` in `apps/hub/src/builder/module.ts`.
+
+Requirements:
+
+- do not create a third hand-reconstructed imitation of the shared harness merely to make the probe convenient;
+- prefer the real module/Hub composition and current Product route/service path;
+- preserve the persistent Project Thread, shared controller/memory, run scope and fresh per-run Workspace/E2B semantics owned by C-020;
+- if exact composition cannot be invoked in qualification without a bounded setup adjustment, first prove why; do not change Product architecture to make profiling easier.
+
+If P2 passes and P3 does not, the evidence may identify a real integration defect. At that point STOP and reopen the smallest technical owner before performance work.
+
+### P4 — bounded phase localization, only if needed
+
+If P2/P3 still leave the coding hang unresolved, add temporary qualification-only timing around the smallest useful boundaries:
+
+```text
+Sandbox.create
+→ sandbox start
+→ source materialization
+→ shared controller ready
+→ createSession
+→ sendMessage/provider connection
+→ result finalization
+```
+
+This is not permission to create a telemetry framework, Product schema, durable profiling record or generalized PerformanceService.
+
+### Gate disposition
+
+Use this decision law:
+
+```text
+P1 completes within current Product semantics
+→ record duration; Git environment is not rejected merely for exceeding 10 s
+
+P2 fails
+→ ENVIRONMENT/PROVIDER OR DIRECT-RUNTIME BLOCKED
+→ retain exact evidence
+→ STOP; do not manufacture S2/S3 numbers
+
+P2 passes + P3 fails
+→ C-020 COMPOSITION SUSPECT
+→ STOP
+→ reopen the smallest current technical owner before performance work
+
+P2 passes + P3 passes
+→ PRE-BASELINE GATE PASS
+→ qualification harness/environment is admissible
+→ continue S1-S6 under the existing 7R-2 measurement contract
+
+P1/P2/P3 reveal only a qualification-lever defect
+→ repair only the bounded qualification lever
+→ rerun the controls
+→ continue S1-S6 once the gate passes
+```
+
+The two local qualification files from the stopped attempt are working evidence, not accepted baseline. Preserve them when present; do not reset/clean them merely because the remote planning authority advanced. `baseline.json` must remain absent until all retained samples are valid under this gate.
 
 # 3. Preserve
 
@@ -198,6 +308,8 @@ Measure server/runtime time and user-visible wait separately where they differ.
 # 5. Required scenarios
 
 Use fixed, documented inputs and the same environment for comparable samples.
+
+S1–S6 below remain the required baseline, but are executable only after `7R2-PROBE-01` reaches `PRE-BASELINE GATE PASS`.
 
 ## S1 — Create NEW Project
 
@@ -434,18 +546,23 @@ This is an investigation envelope, not permission to edit every listed file. Pre
 
 # 12. Ordered implementation work
 
-When implementation is separately authorized:
+The current grant is bounded by `7R2-PROBE-01`.
 
 1. revalidate branch/HEAD and current owners;
-2. establish the exact measurement subject and environment;
-3. build the smallest measurement lever before changing Product behavior;
-4. capture S1–S6 baseline samples on the current engine;
-5. deepen only buckets that remain materially ambiguous;
-6. produce `baseline.json` and a concise reproducibility/interpretation README;
-7. reconcile counts/durations against total wall time and mark unexplained remainder;
-8. derive, but do not implement, evidence-supported candidate strategy families for 7R-3/7R-4 planning;
-9. run repository verification required for any tracked instrumentation/harness changes;
-10. commit + push and STOP for independent review.
+2. preserve the existing local `qualification/7r2/` working evidence and reconcile the current remote planning commit without reset/clean;
+3. execute P1 real Git control with Product timeout semantics;
+4. execute P2 direct admitted coding-runtime control;
+5. execute P3 exact C-020 Product-composition control;
+6. use P4 only if the controls still require bounded phase localization;
+7. if the gate disposition is `PRE-BASELINE GATE PASS`, repair only any qualification-lever defect proven by the controls and then capture S1–S6 baseline samples on the current engine;
+8. deepen only buckets that remain materially ambiguous;
+9. produce `baseline.json` only from valid retained samples plus a concise reproducibility/interpretation README;
+10. reconcile counts/durations against total wall time and mark unexplained remainder;
+11. derive, but do not implement, evidence-supported candidate strategy families for 7R-3/7R-4 planning;
+12. run repository verification required for any tracked instrumentation/harness changes;
+13. commit + push and STOP for independent review.
+
+If P2 fails or P2 passes while P3 fails, follow the gate disposition and STOP before S1–S6. Do not turn the performance slice into an architecture repair.
 
 # 13. Completion criteria
 
@@ -495,7 +612,13 @@ Stop and return to planning before inventing a solution if:
 
 # 16. Review disposition
 
-Independent review returns one of:
+The pre-baseline gate returns one of:
+
+- `PRE-BASELINE GATE PASS` — controls admit the environment/current composition; continue S1–S6;
+- `ENVIRONMENT/PROVIDER OR DIRECT-RUNTIME BLOCKED` — direct control cannot execute; STOP with exact evidence;
+- `C-020 COMPOSITION SUSPECT` — direct runtime works but exact Product composition does not; STOP and reopen the smallest technical owner.
+
+After a valid baseline exists, independent review returns one of:
 
 - `PASS` — baseline is reproducible, sufficiently decomposed and optimization-free;
 - `CORRECTION REQUIRED` — smallest measurement/proof gap is named;
