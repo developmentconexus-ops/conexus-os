@@ -6,6 +6,13 @@ import { createServer } from 'vite'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
+const admittedModelChoices = [{ choiceId: 'builder-coding-primary', label: 'Claude Sonnet 5', providerId: 'anthropic', modelId: 'claude-sonnet-5', capabilities: ['BUILDER_CODING'] }]
+
+const routeClaudeConnections = (page, accountId) => page.route('**/api/control/me/claude-connections', (route) => route.fulfill({
+  status: 200, contentType: 'application/json',
+  body: JSON.stringify({ connections: [{ connectionId: '70000000-0000-4000-8000-0000000000c1', label: 'Claude do operador', state: 'ACTIVE', generation: '1', ownerAccountId: accountId, workspaceId: accountId, role: 'OWNER', revokedAt: null }] }),
+}))
+
 test('Project Build uses the Project session and BuilderRun API', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000001'
   const projectId = '70000000-0000-4000-8000-000000000002'
@@ -34,9 +41,10 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
     projectId, messages: run && sessionReads > 1 ? persistedMessages.flatMap((item, index) => [item, ...(index < persistedMessages.length - (runFinished ? 0 : 1) ? [{ id: `message-assistant-${index + 1}`, role: 'assistant', text: '**Build concluído**', createdAt: new Date().toISOString() }] : [])]) : [],
     latestBuilderRun: run && sessionReads > 2 && runFinished
       ? { ...run, state: 'SUCCEEDED', resultSourceRevision: run.mode === 'PLAN' ? null : sourceRevision, resultKind: run.mode === 'PLAN' ? 'RESPONSE_ONLY' : 'SOURCE_CHANGED' }
-      : run, latestCodeChangingRun: buildCount > 0 ? { baseSourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: buildCount > 0 ? sourceRevision : null, lastGoodArtifactRevisionId: buildCount > 0 ? artifactRevisionId : null, lastGoodArtifactDigest: buildCount > 0 ? artifactDigest : null }, mode: run?.mode ?? 'BUILD', modelChoices: [{ choiceId: 'builder-coding-primary', label: 'Claude Sonnet 5', providerId: 'anthropic', modelId: 'claude-sonnet-5', capabilities: ['BUILDER_CODING'] }],
+      : run, latestCodeChangingRun: buildCount > 0 ? { baseSourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: buildCount > 0 ? sourceRevision : null, lastGoodArtifactRevisionId: buildCount > 0 ? artifactRevisionId : null, lastGoodArtifactDigest: buildCount > 0 ? artifactDigest : null }, mode: run?.mode ?? 'BUILD', modelChoices: admittedModelChoices,
   })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeClaudeConnections(page, accountId)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Counter', projectRevision: 'revision', archived: false }) }))
   const previewRequests = []
   const forbiddenRequests = []
@@ -166,9 +174,10 @@ test('new Project lands directly in Build and can send its first Builder message
   const session = () => ({
     projectId, messages: run ? [{ id: 'new-message', role: 'user', text: 'Crie um contador', createdAt: new Date().toISOString() }] : [],
     latestBuilderRun: run, latestCodeChangingRun: null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    mode: 'BUILD',
+    mode: 'BUILD', modelChoices: admittedModelChoices,
   })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [{ workspaceId, name: 'New Workspace' }], projects: [] }) }))
+  await routeClaudeConnections(page, accountId)
   await page.route(`**/api/control/workspaces/${workspaceId}/projects`, async (route) => {
     if (route.request().method() === 'POST') return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId, name: 'New Counter', projectRevision: 'created', archived: false }) })
     return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
@@ -213,11 +222,12 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeClaudeConnections(page, accountId)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview continuity', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
     const useB = phase === 'B'
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-      projectId, messages: [], latestBuilderRun: null, latestCodeChangingRun: null, mode: 'BUILD',
+      projectId, messages: [], latestBuilderRun: null, latestCodeChangingRun: null, mode: 'BUILD', modelChoices: admittedModelChoices,
       preview: {
         workingSourceRevision: useB ? sourceB : sourceA,
         lastGoodSourceRevision: useB ? sourceB : sourceA,
@@ -260,11 +270,11 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
   await page.getByText('Não foi possível abrir o Preview atual.', { exact: true }).waitFor()
   assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/entry-a`)
   await page.getByRole('button', { name: 'Tentar novamente' }).click()
-  await page.getByText('Preview emitido.', { exact: true }).waitFor()
+  await page.getByText('Preview emitido', { exact: false }).waitFor()
   assert.equal(previewRequests, 4)
   assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/entry-b`)
   const reopenRequest = page.waitForRequest((request) => request.url().endsWith('/builder-session/preview') && request.method() === 'POST')
-  await page.getByRole('button', { name: 'Reabrir Preview' }).click()
+  await page.getByRole('button', { name: 'Reabrir' }).click()
   await reopenRequest
   assert.equal(previewRequests, 5)
 })
@@ -300,11 +310,12 @@ test('Preview ignores an older launch completion after the artifact key changes'
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeClaudeConnections(page, accountId)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview race', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
     const useB = phase === 'B'
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-      projectId, messages: [], latestBuilderRun: null, latestCodeChangingRun: null, mode: 'BUILD',
+      projectId, messages: [], latestBuilderRun: null, latestCodeChangingRun: null, mode: 'BUILD', modelChoices: admittedModelChoices,
       preview: {
         workingSourceRevision: useB ? sourceB : sourceA,
         lastGoodSourceRevision: useB ? sourceB : sourceA,
@@ -350,4 +361,62 @@ test('Preview ignores an older launch completion after the artifact key changes'
   launchA.resolve({ entryUrl: `${origin}/entry-a`, previewUrl: `${origin}/preview-a`, entryGrant: 'grant-a', artifactRevisionId: artifactA, artifactDigest: digestA, expiresAt: new Date(Date.now() + 60_000).toISOString() })
   await firstPreviewResponse
   assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/entry-b`)
+})
+
+const openActiveRunObservation = async (t, port, respondToStream) => {
+  const accountId = '70000000-0000-4000-8000-000000000041'
+  const projectId = '70000000-0000-4000-8000-000000000042'
+  const runId = '70000000-0000-4000-8000-000000000043'
+  const sourceRevision = '9'.repeat(40)
+  const origin = `http://127.0.0.1:${port}`
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeClaudeConnections(page, accountId)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Transport truth', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, messages: [], mode: 'BUILD', modelChoices: admittedModelChoices, latestCodeChangingRun: null,
+    latestBuilderRun: { builderRunId: runId, projectId, state: 'RUNNING', mode: 'BUILD', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null },
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+  }) }))
+  let streamRequests = 0
+  await page.route(`**/api/control/projects/${projectId}/builder-session/runs/${runId}/stream`, (route) => respondToStream(route, ++streamRequests))
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  return { page, streams: () => streamRequests }
+}
+
+const liveFrame = (view) => ({ status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8' }, body: `data: ${JSON.stringify(view)}\n\n` })
+
+test('an ended live transport keeps observing a BuilderRun that is still active', async (t) => {
+  const { page } = await openActiveRunObservation(t, 41753, (route, attempt) => route.fulfill(liveFrame({
+    running: true, phase: 'AGENT', message: { id: `live-${attempt}`, text: `Passo ${attempt} da execução` }, activities: [],
+  })))
+  await page.getByText('Passo 1 da execução', { exact: true }).waitFor()
+  await page.getByText('Passo 2 da execução', { exact: true }).waitFor()
+})
+
+test('a live observation authorization failure is explicit', async (t) => {
+  const { page, streams } = await openActiveRunObservation(t, 41754, (route) => route.fulfill({ status: 401, contentType: 'application/problem+json', body: '{}' }))
+  await page.getByText('Sua sessão expirou. Entre novamente para acompanhar esta execução.', { exact: true }).waitFor()
+  assert.equal(streams(), 1)
+})
+
+test('a nonrecoverable live observation protocol failure is explicit', async (t) => {
+  const { page, streams } = await openActiveRunObservation(t, 41755, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"running":true}' }))
+  await page.getByText('Não foi possível acompanhar esta execução ao vivo. Ela continua no servidor.', { exact: true }).waitFor()
+  assert.equal(streams(), 1)
+})
+
+test('a transient live observation loss reconnects and is bounded', async (t) => {
+  const { page, streams } = await openActiveRunObservation(t, 41756, (route) => route.fulfill({ status: 503, contentType: 'application/problem+json', body: '{}' }))
+  await page.getByText('Conexão de acompanhamento perdida. Reconectando à execução…', { exact: true }).waitFor()
+  await page.getByText('Não foi possível acompanhar esta execução ao vivo. Ela continua no servidor.', { exact: true }).waitFor()
+  assert.ok(streams() > 1 && streams() <= 8, `bounded reconnection attempts, saw ${streams()}`)
 })
