@@ -136,6 +136,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const [liveView, setLiveView] = useState<BuilderLiveView | null>(null)
   const [liveRequest, setLiveRequest] = useState<LiveRequest | null>(null)
   const [inspection, setInspection] = useState<Inspection | null>(null)
+  const [requiresClaudeConnection, setRequiresClaudeConnection] = useState(false)
   const [selectedSourcePath, setSelectedSourcePath] = useState<string | null>(null)
   const [previewState, setPreviewState] = useState<PreviewState>({ kind: 'IDLE', projectId, lastGood: null })
   const frameName = `builder-preview-${inputId.replaceAll(':', '')}`
@@ -153,6 +154,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     onSuccess: async (result, variables) => {
       setContent((current) => current === variables.content ? '' : current)
       setMessage('Mensagem enviada ao Builder.')
+      setRequiresClaudeConnection(false)
       setLiveRequest({ runId: result.builderRun.builderRunId, text: variables.content, messageBoundary: variables.messageBoundary })
       setLiveView(null)
       await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] })
@@ -160,7 +162,13 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     onError: (error) => {
       if (error instanceof BuilderRequestError && error.status === 409) setMessage('O Project está ocupado ou recebeu outra alteração. Aguarde e tente novamente.')
       else if (error instanceof BuilderRequestError && error.status === 403) setMessage('Sua autoridade atual não permite construir neste Project.')
-      else setMessage('Não foi possível enviar a mensagem ao Builder.')
+      else if (error instanceof BuilderRequestError && error.status === 422 && error.problemType === 'urn:conexus:problem:claude-connection-required') {
+        setMessage('Conecte uma conta Claude antes de enviar um Build.')
+        setRequiresClaudeConnection(true)
+      } else {
+        setMessage('Não foi possível enviar a mensagem ao Builder.')
+        setRequiresClaudeConnection(false)
+      }
     },
   })
   const runId = session.data?.latestBuilderRun?.builderRunId
@@ -356,6 +364,14 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   }
   useEffect(() => { if (previewLaunch) queueMicrotask(() => entryForm.current?.requestSubmit()) }, [previewLaunch])
 
+  if (session.isError) {
+    const denied = session.error instanceof BuilderRequestError && session.error.status === 403
+    return <section className="builder-unavailable" role="alert">
+      <h2>{denied ? 'Build indisponível neste Project' : 'Não foi possível carregar o Build'}</h2>
+      <p>{denied ? 'Sua conta pode consultar este Project, mas não possui autoridade de Build para ele.' : 'O servidor não conseguiu consultar a sessão real do Builder.'}</p>
+    </section>
+  }
+
   return <div className="project-build">
     <nav className="builder-mobile-switcher" aria-label="Painel do Builder">
       <button type="button" aria-pressed={mobilePane === 'PREVIEW'} onClick={() => setMobilePane('PREVIEW')}>Preview</button>
@@ -370,7 +386,6 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
           <button type="button" aria-pressed={inspection === 'DIFF'} onClick={() => setInspection('DIFF')}>Diff</button>
           <button type="button" aria-pressed={inspection === 'DETAILS'} onClick={() => setInspection('DETAILS')}>Detalhes</button>
         </nav>
-        {session.isError && <p role="alert">Não foi possível consultar o estado do Preview.</p>}
         {previewReady
           ? <p><strong>Último Preview bom disponível.</strong></p>
           : <p className="preview-empty">O Preview aparecerá depois do primeiro Build bem-sucedido.</p>}
@@ -448,7 +463,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
           </fieldset>
           <button className="primary" type="submit" disabled={send.isPending || run?.state === 'QUEUED' || run?.state === 'RUNNING'}>{send.isPending ? 'Enviando…' : 'Enviar mensagem'}</button>
           {runActive && <button type="button" onClick={() => cancel.mutate()} disabled={cancel.isPending}>{cancel.isPending ? 'Parando…' : 'Parar execução'}</button>}
-          <p role="status" aria-live="polite">{message}</p>
+          <p role="status" aria-live="polite">{message}{requiresClaudeConnection && <> <a href="/settings">Abrir configurações</a></>}</p>
           {runActive && <p>O Builder está trabalhando. A troca de modelo vale para a próxima solicitação.</p>}
         </form>
       </aside>}

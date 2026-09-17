@@ -22,6 +22,7 @@ const { readHubConfig } = await import(pathToFileURL(resolve(buildRoot, 'config.
 const { registerProjectRoutes } = await import(pathToFileURL(resolve(buildRoot, 'routes.js')).href)
 const {
   BUILDER_TRACE_REQUEST_CONTEXT_KEYS,
+  BUILDER_MODEL_REQUEST_CONTEXT_KEY,
   BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY,
   createBuilderRequestContext,
   createMastraE2BCodingWorkerRuntime,
@@ -104,16 +105,18 @@ test('coding runtime requires the Hub shared native composition', () => {
   assert.throws(() => createMastraE2BCodingWorkerRuntime(runtimeConfig), /BUILDER_RUNTIME_SHARED_COMPOSITION_REQUIRED/)
 })
 
-test('Builder RequestContext carries Workspace plus only the two trace correlations', () => {
+test('Builder RequestContext carries Workspace, model identity, and the two trace correlations', () => {
   const workspace = { sentinel: 'workspace-instance' }
   const context = createBuilderRequestContext({
     workspace,
     projectId: 'project-correlation',
     runId: 'run-correlation',
+    modelIdentity: { admissionId: 'admission', providerId: 'provider', modelId: 'model' },
   })
-  assert.deepEqual([...context.keys()], [BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY, 'conexusBuilderProjectId', 'conexusBuilderRunId'])
+  assert.deepEqual([...context.keys()], [BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY, 'conexusBuilderProjectId', 'conexusBuilderRunId', BUILDER_MODEL_REQUEST_CONTEXT_KEY])
   assert.equal(context.getRaw('conexusBuilderProjectId'), 'project-correlation')
   assert.equal(context.getRaw('conexusBuilderRunId'), 'run-correlation')
+  assert.deepEqual(context.getRaw(BUILDER_MODEL_REQUEST_CONTEXT_KEY), { admissionId: 'admission', providerId: 'provider', modelId: 'model' })
   assert.deepEqual(BUILDER_TRACE_REQUEST_CONTEXT_KEYS, ['conexusBuilderProjectId', 'conexusBuilderRunId'])
   assert.deepEqual(Object.fromEntries(BUILDER_TRACE_REQUEST_CONTEXT_KEYS.map((key) => [key, context.getRaw(key)])), {
     conexusBuilderProjectId: 'project-correlation',

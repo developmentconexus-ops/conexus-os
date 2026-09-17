@@ -68,6 +68,8 @@ fieldset input { margin: 0; }
 .candidate-assistant form { margin-top: 1rem; }
 .candidate-assistant textarea { width: 100%; resize: vertical; padding: .8rem; border: 1px solid #8b9991; border-radius: .5rem; background: white; color: inherit; }
 .project-build { display: grid; gap: 2rem; }
+.builder-unavailable { padding: 1.5rem; border: 1px solid #d9b8b1; border-radius: .7rem; background: #fff8f6; }
+.builder-unavailable h2 { margin-top: 0; }
 .build-workspace { display: grid; grid-template-columns: minmax(0, var(--builder-preview-ratio, 2fr)) minmax(18rem, 24rem); gap: 1rem; align-items: start; }
 .build-preview-surface, .conexus-panel { min-width: 0; padding: 1.25rem; border: 1px solid #ccd5d0; border-radius: .7rem; background: white; }
 .build-preview-surface { display: grid; gap: .75rem; }

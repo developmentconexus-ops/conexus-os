@@ -67,7 +67,7 @@ export type BuilderTraceSummary = Readonly<{
 }>
 
 export class BuilderRequestError extends Error {
-  constructor(readonly status: number | null) {
+  constructor(readonly status: number | null, readonly problemType: string | null = null) {
     super(status === null ? 'Builder request did not complete' : `Builder request failed with ${status}`)
   }
 }
@@ -85,16 +85,22 @@ const request = async (url: string, init: RequestInit = {}): Promise<Response> =
     throw new BuilderRequestError(null)
   }
 }
-const reject = (response: Response): never => {
+const readProblemType = async (response: Response): Promise<string | null> => {
+  const body: unknown = await response.json().catch(() => null)
+  if (typeof body !== 'object' || body === null || !('type' in body) || typeof body.type !== 'string') return null
+  return body.type
+}
+
+const reject = async (response: Response): Promise<never> => {
   if (response.status === 401) clearAuthorityCache()
-  throw new BuilderRequestError(response.status)
+  throw new BuilderRequestError(response.status, await readProblemType(response))
 }
 const sourceBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/source`
 const sessionBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/builder-session`
 
 export const getBuilderSession = async (projectId: string): Promise<BuilderSession> => {
   const response = await request(sessionBase(projectId))
-  if (!response.ok) reject(response)
+  if (!response.ok) await reject(response)
   return response.json() as Promise<BuilderSession>
 }
 export const sendBuilderMessage = async (
@@ -105,26 +111,26 @@ export const sendBuilderMessage = async (
     headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
     body: JSON.stringify({ content, mode, ...(modelChoiceId ? { modelChoiceId } : {}) }),
   })
-  if (response.status !== 201) reject(response)
+  if (response.status !== 201) await reject(response)
   return response.json() as Promise<BuilderMessageAccepted>
 }
 export const listProjectSourceTree = async (projectId: string, sourceRevision: string): Promise<SourceTree> => {
   const query = new URLSearchParams({ sourceRevision })
   const response = await request(`${sourceBase(projectId)}/tree?${query}`)
-  if (!response.ok) reject(response)
+  if (!response.ok) await reject(response)
   return response.json() as Promise<SourceTree>
 }
 export const getProjectSourceFile = async (projectId: string, sourceRevision: string, path: string): Promise<SourceFile> => {
   const query = new URLSearchParams({ sourceRevision, path })
   const response = await request(`${sourceBase(projectId)}/file?${query}`)
-  if (!response.ok) reject(response)
+  if (!response.ok) await reject(response)
   return response.json() as Promise<SourceFile>
 }
 export const launchBuilderPreview = async (projectId: string): Promise<PreviewLaunch> => {
   const response = await request(`${sessionBase(projectId)}/preview`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
   })
-  if (response.status !== 201) reject(response)
+  if (response.status !== 201) await reject(response)
   return response.json() as Promise<PreviewLaunch>
 }
 
@@ -132,12 +138,12 @@ export const cancelBuilderRun = async (projectId: string, builderRunId: string):
   const response = await request(`${sessionBase(projectId)}/runs/${encodeURIComponent(builderRunId)}/cancel`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
   })
-  if (!response.ok) reject(response)
+  if (!response.ok) await reject(response)
   return response.json() as Promise<BuilderMessageAccepted>
 }
 
 export const getBuilderRunTrace = async (projectId: string, builderRunId: string): Promise<BuilderTraceSummary> => {
   const response = await request(`${sessionBase(projectId)}/runs/${encodeURIComponent(builderRunId)}/trace`)
-  if (!response.ok) reject(response)
+  if (!response.ok) await reject(response)
   return response.json() as Promise<BuilderTraceSummary>
 }
