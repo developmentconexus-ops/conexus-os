@@ -70,6 +70,7 @@ const currentNames = [
   '044_builder_run_cancellation.sql',
   '045_builder_run_history.sql',
   '046_builder_run_admission_cas.sql',
+  '047_reconcile_040_settlement_boundary.sql',
 ]
 const heldNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
 const names = (migrations) => migrations.map((migration) => migration.name)

@@ -23,7 +23,7 @@ const r2MigrationNames = ['011_r2_brain_connections.sql', '012_r2_project_bindin
 const currentMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql', '021_rb_builder_bounded_correction.sql', '022_builder_source_inspection.sql', '023_rb_builder_preview_subject.sql', '026_builder_application_registry.sql', '027_rb_builder_working_source.sql', '028_builder_run.sql', '029_builder_run_execution.sql', '030_builder_run_invariants.sql', '031_builder_run_application_build.sql', '032_builder_project_build_grant.sql', '033_builder_execution_artifact_admission.sql', '034_builder_project_source_preview.sql', '035_builder_c020_state_invariants.sql', '036_builder_project_creation_bootstrap.sql', '037_builder_c020_source_inspection.sql', '038_builder_c020_legacy_excision.sql', '039_builder_c020_execution_invariants.sql', '040_builder_registry_settlement_boundary.sql', '041_builder_claude_connections.sql']
 currentMigrationNames[currentMigrationNames.indexOf('022_builder_source_inspection.sql')] = '022_rb_builder_source_inspection.sql'
 currentMigrationNames[currentMigrationNames.indexOf('027_builder_working_source.sql')] = '027_rb_builder_working_source.sql'
-currentMigrationNames.push('042_builder_claude_connection_safety.sql', '043_builder_model_admission.sql', '044_builder_run_cancellation.sql', '045_builder_run_history.sql', '046_builder_run_admission_cas.sql')
+currentMigrationNames.push('042_builder_claude_connection_safety.sql', '043_builder_model_admission.sql', '044_builder_run_cancellation.sql', '045_builder_run_history.sql', '046_builder_run_admission_cas.sql', '047_reconcile_040_settlement_boundary.sql')
 const heldMigrationNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
 const expectedMigrationNames = [...currentMigrationNames, ...heldMigrationNames]
 const migration001Digest = 'd27e76b972145bc3a6bf669d4fd32734fc06153d07cddaf1072c6b29845b112f'
@@ -72,6 +72,8 @@ const migration043Digest = 'c95a357dedb0c5ebba58774bf6b707430317c85bb1fa94a5cf55
 const migration044Digest = '0b3ba4b45551b2585000e6b58ec98dd89f1765ef423a91eecc9e7b731955e5ee'
 const migration045Digest = 'd652e72dc53e8a5fbece219235002fcb9db7f518112230321e5e37eee5a73eef'
 const migration046Digest = 'd427f4e176dc3671c58a06bda11119b20a05af5e3eda71b9575f23dccee2e2f3'
+const migration047Digest = '74703fb0042a0617f81dd68ae0b2553401050262aa4ad385ea758cec97ba70c3'
+const legacyMigrationDigests = new Map([['040', '359d1d386b01f40a5b842f56363e82176db56b9b731736f01080597ca762f7f5']])
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }
@@ -122,6 +124,7 @@ const migrationDigests = new Map([
   ['044_builder_run_cancellation.sql', migration044Digest],
   ['045_builder_run_history.sql', migration045Digest],
   ['046_builder_run_admission_cas.sql', migration046Digest],
+  ['047_reconcile_040_settlement_boundary.sql', migration047Digest],
 ])
 const recognizedMigrationNames = new Set(expectedMigrationNames)
 
@@ -3766,7 +3769,7 @@ const verifyLedger = async (client, migrations) => {
   for (const row of rows) {
     const migration = files.get(row.version)
     if (!migration) fail('MIGRATION_UNKNOWN_APPLIED', row.version)
-    if (migration.checksum !== row.checksum_sha256) fail('MIGRATION_APPLIED_DIGEST_DRIFT', row.version)
+    if (migration.checksum !== row.checksum_sha256 && legacyMigrationDigests.get(row.version) !== row.checksum_sha256) fail('MIGRATION_APPLIED_DIGEST_DRIFT', row.version)
   }
   const applied = new Map(rows.map((row) => [row.version, row.checksum_sha256]))
   if (applied.has('022')) {
@@ -3790,7 +3793,8 @@ const verifyLedger = async (client, migrations) => {
       after031: applied.has('031'),
       after037: applied.has('037'), after038: applied.has('038'),
     })
-    if (applied.has('040')) await assert040Catalog(client)
+    if (applied.has('047')) await assert040Catalog(client)
+    else if (applied.has('040')) await assert038Catalog(client, { after040: true })
     else if (applied.has('038')) await assert038Catalog(client)
     else {
       await assert020Catalog(client)
