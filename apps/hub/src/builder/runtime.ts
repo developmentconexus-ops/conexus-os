@@ -15,6 +15,7 @@ type CodingWorkerCommonInput = Readonly<{
   sourceBundle: Uint8Array
   bindPhysicalSandbox(sandboxId: string): Promise<void>
   bindMessage?(messageId: string): Promise<void>
+  credentialReference?: Readonly<{ connectionId: string; generation: string }>
   signal?: AbortSignal
 }>
 
@@ -51,6 +52,7 @@ export type E2BBuilderRuntimeConfig = Readonly<{
   model: MastraLanguageModel
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   validateModelCredential(): void
+  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>) => MastraLanguageModel
   sharedHarness: Readonly<{
     controller: AgentController<Record<string, unknown>>
     ready: Promise<void>
@@ -92,6 +94,7 @@ type BuilderDisplayState = Readonly<{
 }>
 
 export const BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY = 'conexus.builder.workspace'
+export const BUILDER_CREDENTIAL_REQUEST_CONTEXT_KEY = 'conexus.builder.credential'
 export const BUILDER_TRACE_REQUEST_CONTEXT_KEYS = Object.freeze([
   'conexusBuilderProjectId',
   'conexusBuilderRunId',
@@ -103,15 +106,18 @@ export const createBuilderRequestContext = ({
   workspace,
   projectId,
   runId,
+  credentialReference,
 }: Readonly<{
   workspace: Workspace
   projectId: string
   runId: string
+  credentialReference?: Readonly<{ connectionId: string; generation: string }>
 }>): BuilderRequestContext => {
   const requestContext = new RequestContext()
   requestContext.setRaw(BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY, workspace)
   requestContext.setRaw('conexusBuilderProjectId', projectId)
   requestContext.setRaw('conexusBuilderRunId', runId)
+  if (credentialReference) requestContext.setRaw(BUILDER_CREDENTIAL_REQUEST_CONTEXT_KEY, credentialReference)
   return requestContext
 }
 
@@ -220,7 +226,7 @@ export const createMastraE2BCodingWorkerRuntime = (
         !oid.test(input.baseSourceRevision) || !input.intent.trim() || input.sourceBundle.byteLength === 0 ||
         input.sourceBundle.byteLength > 256 * 1024 * 1024) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
 
-      config.validateModelCredential()
+      if (!input.credentialReference) config.validateModelCredential()
 
       const logicalSandboxId = `conexus-builder-${executionId}`
       const timeoutMs = config.timeoutMs ?? 15 * 60_000
@@ -308,6 +314,7 @@ export const createMastraE2BCodingWorkerRuntime = (
             workspace,
             projectId: input.projectId,
             runId: executionId,
+            ...(input.credentialReference ? { credentialReference: input.credentialReference } : {}),
           })
           const session = await controller.createSession({
             resourceId: input.projectId,

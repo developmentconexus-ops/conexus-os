@@ -22,6 +22,7 @@ import { createPostgresPool } from './platform/postgres.js'
 import { readSecretFile } from './platform/secrets.js'
 import { createApplicationArtifactStore, createRegistryStore } from './registry/module.js'
 import { createWorkspaceModule } from './workspace/module.js'
+import { createClaudeAccountModule } from './claude-account/module.js'
 
 // Mastra is loaded only after the production entrypoint has disabled its
 // optional telemetry. Keep this before the dynamic Project-module import.
@@ -143,11 +144,18 @@ const connections = config.connections ? createConfiguredConnectionModule({
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
+const claudeAccount = config.connections && credentialBackend ? createClaudeAccountModule({
+  database: { host: config.database.host, port: config.database.port, database: config.database.database },
+  passwordFile: config.connections.passwordFile,
+  credentialBackend,
+  origin: config.origin,
+  resolveCurrentSession: identityAccess.resolveCurrentSession,
+}) : undefined
 const builderModel = config.builder && config.project ? resolveProjectModelAdmission({
   catalogFile: config.project.modelCatalogFile,
-  credentialSlotsFile: config.project.externalFileSlotsFile,
   admissionId: config.builder.modelAdmissionId,
   requiredCapabilities: ['BUILDER_CODING'],
+  credentialRequired: false,
 }) : undefined
 let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
 const mar = config.preview ? createMarModule({
@@ -212,6 +220,7 @@ builder = config.builder && config.project && builderModel ? createConfiguredBui
     modelId: builderModel.modelId,
   },
   validateModelCredential: builderModel.validateCredential,
+  ...(claudeAccount ? { resolveModel: (reference: Readonly<{ connectionId: string; generation: string }>) => claudeAccount.createModel(reference) } : {}),
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
@@ -280,6 +289,7 @@ const app = await createHttpApp({
     ...(project ? await project.registerProjectRoutes(server) : []),
     ...(brain ? await brain.registerBrainRoutes(server) : []),
     ...(connections ? await connections.registerConnectionRoutes(server) : []),
+    ...(claudeAccount ? await claudeAccount.registerRoutes(server) : []),
     ...(builder ? await builder.registerBuilderRoutes(server) : []),
     ...(projectBindings ? await projectBindings.registerProjectConnectionBindingRoutes(server) : []),
     ...(projectBindings && 'registerProjectBrainBindingRoutes' in projectBindings
@@ -312,7 +322,7 @@ const close = async (): Promise<void> => {
   closed = true
   await Promise.all([app.close(), previewApp?.close()])
   await mar?.close()
-  await Promise.all([builder?.close(), projectBindings?.close(), keyConformanceSubjectPool?.end(), connections?.close(), brain?.close(), project?.close(), workspace?.close(), identityAccess.close()])
+  await Promise.all([builder?.close(), claudeAccount?.close(), projectBindings?.close(), keyConformanceSubjectPool?.end(), connections?.close(), brain?.close(), project?.close(), workspace?.close(), identityAccess.close()])
 }
 process.once('SIGINT', close)
 process.once('SIGTERM', close)

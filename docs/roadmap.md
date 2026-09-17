@@ -3,7 +3,7 @@
 This file owns mutable status, allowed work, and the exact next action.
 
 Current program: [Builder operational delivery](tasks/builder-first-app.md).
-Current task: [First operational delivery](tasks/builder-first-operational-delivery.md).
+Current task: [Claude Account connection for Builder](tasks/claude-account-connection.md).
 Technical authority: [C-020](reference/builder-c020-mastra-native.md).
 
 ## Current direction
@@ -29,6 +29,7 @@ rewrite before implementing the minimum coherent user experience.
 | 7R1-LIVE-01 | CLOSED. Accepted correction is `fb1b1d4fe77e5a60e1d8bf78adacbf1e11ffad57`. |
 | 7R-2 | REPLAN. Partial evidence retained at `ed658c65152db27390dc1c5c88ff6d1b5cfa406e`; the complete baseline is not accepted. |
 | First operational delivery | CORRECTION CANDIDATE after the authorized `hub_rb_executor` password reconciliation. The Hub serves its HTTPS shell and `hub_iam_runtime` remains authenticated, but `hub_prj03_command` and `hub_rb_ingress` still reject their existing references with `28P01`; the composed browser/trace proof is not claimed. |
+| Claude Account connection for Builder | APPROVED FOR EXECUTION. The operator approved Account-scoped Anthropic OAuth in the Hub, explicit same-Workspace sharing, safe credential custody, and per-BuilderRun credential snapshots. The provider contract is the existing qualified PKCE/code exchange; no new redirect, provider, or runtime is admitted. |
 | Source, correction feedback, and failure continuity | Subsequent program increments. Not authorized by this task. |
 | Former mandatory 7R-3/7R-4/7R-5/7U sequence | SUPERSEDED as a mandatory ordering. Its surviving guarantees and findings remain in the program. |
 | Brain, Sankhya, managed workflows, and business expansion | DEFERRED until the core journey is accepted. |
@@ -40,7 +41,7 @@ Do not relabel partial measurements as complete proof.
 
 ## Current grant
 
-Execute only [the first operational delivery task](tasks/builder-first-operational-delivery.md).
+Execute only [the Claude Account connection task](tasks/claude-account-connection.md).
 Its grant covers the bounded Product changes, focused tests, native local
 tracing, owner reconciliation, and real local proof named in that task.
 

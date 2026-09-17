@@ -43,6 +43,18 @@ paths:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session'
   /api/control/projects/{projectId}/builder-session/messages:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1messages'
+  /api/control/me/claude-connections:
+    $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections'
+  /api/control/me/claude-connections/authorization:
+    $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1authorization'
+  /api/control/me/claude-connections/authorization/complete:
+    $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1authorization~1complete'
+  /api/control/me/claude-connections/select:
+    $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1select'
+  /api/control/me/claude-connections/share:
+    $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1share'
+  /api/control/me/claude-connections/{connectionId}/revoke:
+    $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1{connectionId}~1revoke'
   /api/control/workspaces/{workspaceId}/brain:
     $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain'
   /api/control/workspaces/{workspaceId}/brain/revisions:

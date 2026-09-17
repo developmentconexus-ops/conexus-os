@@ -139,6 +139,7 @@ export function Shell({
               <summary>Identidade técnica</summary>
               <code>{context.account.accountId}</code>
             </details>
+            <Link to="/settings" onClick={closeAccountMenu}>Configurações</Link>
             <button
               type="button"
               disabled={signOut.isPending}

@@ -1,0 +1,136 @@
+openapi: 3.1.2
+paths:
+  /api/control/me/claude-connections:
+    get:
+      operationId: ListClaudeConnections
+      summary: List Claude connections available to the current Account.
+      responses:
+        '200':
+          description: Safe connection metadata only.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [connections]
+                properties:
+                  connections:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ClaudeConnection'
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+  /api/control/me/claude-connections/authorization:
+    post:
+      operationId: StartClaudeAuthorization
+      summary: Start the configured Anthropic authorization flow.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '201':
+          description: Provider authorization URL and opaque transaction metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [authorizationId, url, state]
+                properties:
+                  authorizationId: { type: string, format: uuid }
+                  url: { type: string, format: uri }
+                  state: { type: string }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+  /api/control/me/claude-connections/authorization/complete:
+    post:
+      operationId: CompleteClaudeAuthorization
+      summary: Complete authorization with the provider code and state result.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [result, label]
+              properties:
+                result: { type: string, minLength: 3, maxLength: 8192 }
+                label: { type: string, minLength: 1, maxLength: 120 }
+      responses:
+        '201':
+          description: Newly connected safe metadata.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClaudeConnection' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
+  /api/control/me/claude-connections/select:
+    post:
+      operationId: SelectClaudeConnection
+      summary: Select a Claude connection for future BuilderRuns.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [connectionId]
+              properties:
+                connectionId: { type: string, format: uuid }
+      responses:
+        '204': { description: Selection updated. }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+  /api/control/me/claude-connections/share:
+    post:
+      operationId: ShareClaudeConnection
+      summary: Share a Claude connection with an Account in the same Workspace.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [connectionId, accountId, workspaceId]
+              properties:
+                connectionId: { type: string, format: uuid }
+                accountId: { type: string, format: uuid }
+                workspaceId: { type: string, format: uuid }
+      responses:
+        '204': { description: Connection shared. }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+  /api/control/me/claude-connections/{connectionId}/revoke:
+    post:
+      operationId: RevokeClaudeConnection
+      summary: Revoke a Claude connection owned by the current Account.
+      parameters:
+        - name: connectionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Connection revoked. }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+components:
+  schemas:
+    ClaudeConnection:
+      type: object
+      additionalProperties: false
+      required: [connectionId, label, state, generation, ownerAccountId, workspaceId, role, revokedAt]
+      properties:
+        connectionId: { type: string, format: uuid }
+        label: { type: string }
+        state: { type: string, enum: [ACTIVE, REVOKED] }
+        generation: { type: string }
+        ownerAccountId: { type: string, format: uuid }
+        workspaceId: { type: string, format: uuid }
+        role: { type: string, enum: [OWNER, USER] }
+        revokedAt: { type: [string, 'null'], format: date-time }

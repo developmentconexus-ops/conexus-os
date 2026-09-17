@@ -12,6 +12,7 @@ import { registerBuilderRoutes } from './routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot } from './routes.js'
 import {
   BUILDER_TRACE_REQUEST_CONTEXT_KEYS,
+  BUILDER_CREDENTIAL_REQUEST_CONTEXT_KEY,
   createMastraE2BCodingWorkerRuntime,
   resolveBuilderWorkspace,
 } from './runtime.js'
@@ -115,7 +116,7 @@ export const projectBuilderMessages = (messages: readonly ProjectableBuilderMess
   .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
   .map((message) => Object.freeze(message)))
 
-export const createConfiguredBuilderModule = ({ database, builder, projectSource, applicationArtifacts, launchPreview, model, modelIdentity, validateModelCredential, origin, resolveCurrentSession }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, projectSource, applicationArtifacts, launchPreview, model, modelIdentity, validateModelCredential, resolveModel, origin, resolveCurrentSession }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
@@ -127,6 +128,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   model: MastraLanguageModel
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   validateModelCredential(): void
+  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>) => MastraLanguageModel
   origin: string
   resolveCurrentSession: (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
 }>) => {
@@ -169,7 +171,14 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   })
   const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
   const sharedAgent = createCodingAgent({
-    id: 'conexus-builder-coding-agent', name: 'Conexus Coding Worker', model, workspace: resolveBuilderWorkspace,
+    id: 'conexus-builder-coding-agent', name: 'Conexus Coding Worker',
+    model: ({ requestContext }) => {
+      const reference = requestContext?.getRaw(BUILDER_CREDENTIAL_REQUEST_CONTEXT_KEY)
+      if (resolveModel && reference && typeof reference === 'object' && 'connectionId' in reference && 'generation' in reference && typeof reference.connectionId === 'string' && typeof reference.generation === 'string') {
+        return resolveModel({ connectionId: reference.connectionId, generation: reference.generation })
+      }
+      return model
+    }, workspace: resolveBuilderWorkspace,
     editor: false, instructions: BUILDER_BASE_AGENT_INSTRUCTIONS, tools: {},
   })
   const sharedController = new AgentController<Record<string, unknown>>({
@@ -191,6 +200,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     model,
     modelIdentity,
     validateModelCredential,
+    ...(resolveModel ? { resolveModel } : {}),
     sharedHarness: {
       controller: sharedController,
       ready: sharedControllerReady,

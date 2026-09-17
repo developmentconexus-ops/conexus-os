@@ -11,6 +11,7 @@ the current task, and only the owners needed for the current question.
 | Status, grant, and next action | [Roadmap](roadmap.md) |
 | Builder outcome and increment sequence | [Operational delivery program](tasks/builder-first-app.md) |
 | Current operational delivery contract | [First operational delivery](tasks/builder-first-operational-delivery.md) |
+| Claude Account and Builder credential connection | [Claude Account connection](tasks/claude-account-connection.md) |
 | Ordinary Builder architecture | [C-020](reference/builder-c020-mastra-native.md) |
 | Native live-state result | [7R-1 task](tasks/builder-7r-1-native-live.md) |
 | Retained measurement limits | [7R-2 evidence task](tasks/builder-7r-2-runtime-waterfall.md) |

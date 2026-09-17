@@ -20,7 +20,7 @@ import type { GitImportAdmissionEntry } from './git-import-admission.js'
 import { createProjectBaselineExplanationService } from './explanation.js'
 import { createProjectInceptionService } from './inception.js'
 import type { ProjectInceptionService, ProjectSourceSnapshotFactory } from './inception.js'
-import { createOAuthTokenStore } from './oauth-token-store.js'
+import { createOAuthTokenStore, createUnavailableOAuthTokenStore } from './oauth-token-store.js'
 import { createProjectMastra } from './project-mastra.js'
 import type { ProjectMastraPort } from './project-mastra.js'
 import { registerProjectBrainBindingRoutes, registerProjectConnectionBindingRoutes, registerProjectRoutes } from './routes.js'
@@ -337,16 +337,18 @@ export const resolveProjectModelAdmission = ({
   credentialSlotsFile,
   admissionId,
   requiredCapabilities,
+  credentialRequired = true,
 }: Readonly<{
   catalogFile: string
-  credentialSlotsFile: string
+  credentialSlotsFile?: string
   admissionId: string
   requiredCapabilities: readonly ProjectModelCapability[]
+  credentialRequired?: boolean
 }>): ResolvedProjectModelAdmission => {
   const catalog = readProjectModelAdmissionCatalog(catalogFile)
-  const slots = readJsonFile(credentialSlotsFile)
-  if (!slots || typeof slots !== 'object' || Array.isArray(slots) ||
-    Object.values(slots).some((value) => typeof value !== 'string') ||
+  const slots = credentialRequired ? (credentialSlotsFile ? readJsonFile(credentialSlotsFile) : null) : null
+  if ((credentialRequired && (!slots || typeof slots !== 'object' || Array.isArray(slots) ||
+    Object.values(slots).some((value) => typeof value !== 'string'))) ||
     requiredCapabilities.length < 1 || new Set(requiredCapabilities).size !== requiredCapabilities.length ||
     requiredCapabilities.some((capability) =>
       !(['PROJECT_INCEPTION', 'BASELINE_EXPLANATION', 'BUILDER_CODING', 'BUILDER_VERIFICATION'] as const).includes(capability))) {
@@ -360,9 +362,13 @@ export const resolveProjectModelAdmission = ({
   if (selected.providerKey !== 'anthropic' || selected.officialHttpsOrigin !== 'https://api.anthropic.com') {
     throw new Error('PROJECT_MODEL_PROVIDER_UNSUPPORTED')
   }
-  const credentialFile = (slots as Record<string, unknown>)[selected.credentialSlot]
-  if (typeof credentialFile !== 'string' || !credentialFile) throw new Error('PROJECT_MODEL_CREDENTIAL_SLOT_REFUSED')
-  const tokenStore = projectOAuthTokenStore(credentialFile)
+  const credentialFile = slots && typeof slots === 'object' && !Array.isArray(slots)
+    ? (slots as Record<string, unknown>)[selected.credentialSlot]
+    : undefined
+  if (credentialRequired && (typeof credentialFile !== 'string' || !credentialFile)) throw new Error('PROJECT_MODEL_CREDENTIAL_SLOT_REFUSED')
+  const tokenStore = credentialRequired
+    ? projectOAuthTokenStore(credentialFile as string)
+    : createUnavailableOAuthTokenStore()
   tokenStore.validate()
   return Object.freeze({
     admissionId: selected.admissionId,

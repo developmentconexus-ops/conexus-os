@@ -8,6 +8,7 @@ import { projectInceptionRoute } from '../routes/project-inception'
 import { projectBaselineCandidateRoute } from '../routes/project-baseline-candidate'
 import { projectBuildRoute } from '../routes/project-build'
 import { setupRoute } from '../routes/setup'
+import { settingsRoute } from '../routes/settings'
 import { workspaceNewRoute } from '../routes/workspace-new'
 import { workspaceBrainRoute } from '../routes/workspace-brain'
 import { workspaceConnectionsRoute } from '../routes/workspace-connections'
@@ -17,6 +18,7 @@ import { workspaceProjectsRoute } from '../routes/workspace-projects'
 const routeTree = rootRoute.addChildren([
   indexRoute,
   setupRoute,
+  settingsRoute,
   workspaceNewRoute,
   workspaceBrainRoute,
   workspaceConnectionsRoute,

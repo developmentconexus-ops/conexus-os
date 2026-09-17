@@ -13,6 +13,8 @@ export type BuilderRunSummary = Readonly<{
   resultSourceRevision: string | null
   resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
   failureCode: string | null
+  claudeConnectionId?: string | null
+  claudeCredentialGeneration?: string | null
 }>
 export type BuilderCodeChangingRun = Readonly<{
   builderRunId: string
