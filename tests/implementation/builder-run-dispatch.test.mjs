@@ -19,8 +19,9 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
   const sourceRevision = 'a'.repeat(40)
   const calls = []
   const store = {
-    createBuilderRun: async () => ({ builderRunId: runId, projectId, state: 'QUEUED', mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }),
-    claimBuilderRun: async () => { calls.push('claim'); return { builderRunId: runId, projectId, state: 'RUNNING', mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null } },
+    createBuilderRun: async () => ({ builderRunId: runId, projectId, state: 'QUEUED', phase: null, mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }),
+    claimBuilderRun: async () => { calls.push('claim'); return { builderRunId: runId, projectId, state: 'RUNNING', phase: 'PREPARING', mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null } },
+    setBuilderRunPhase: async (_id, phase) => calls.push(['phase', phase]),
     bindBuilderRunMessage: async (_id, messageId) => calls.push(['message', messageId]),
     bindBuilderRunSandbox: async (_id, sandboxId) => calls.push(['sandbox', sandboxId]),
     settleBuilderRun: async (input) => calls.push(['settle', input.resultKind]),
@@ -49,7 +50,7 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
   const result = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', mode: 'PLAN' })
   await service.close()
   assert.equal(result.builderRunId, runId)
-  assert.deepEqual(calls, ['claim', ['prepareProjectSource', runId], ['execute', 'PLAN', 'Explique o app'], ['sandbox', 'physical-sandbox'], ['message', 'mastra-message'], ['settle', 'RESPONSE_ONLY']])
+  assert.deepEqual(calls, ['claim', ['phase', 'PREPARING'], ['prepareProjectSource', runId], ['execute', 'PLAN', 'Explique o app'], ['sandbox', 'physical-sandbox'], ['message', 'mastra-message'], ['phase', 'FINALIZING'], ['settle', 'RESPONSE_ONLY']])
 })
 
 test('BuilderRun cancellation records intent, aborts native work, and interrupts once', async () => {
@@ -173,7 +174,7 @@ test('native display stream resyncs current isolated Session state without repla
   assert.equal(updated.message.text, 'A after tool')
   assert.equal(updated.activities[0].state, 'succeeded')
   await reader.cancel()
-  assert.equal(unsubscribeCount, 1)
+  assert.equal(unsubscribeCount, 1, 'a fallback observation owns its native Session subscription')
 
   const reconnect = await service.observeBuilderRun({ projectId: projectA, builderRunId: runA })
   assert.ok(reconnect)
@@ -181,5 +182,60 @@ test('native display stream resyncs current isolated Session state without repla
   assert.equal(JSON.parse((await reconnectReader.read()).value.slice(6)).message.text, 'A after tool')
   await reconnectReader.cancel()
   assert.equal(await service.observeBuilderRun({ projectId: projectB, builderRunId: runA }), null)
+  await service.close()
+})
+
+test('native observation continues with real phases after the Session is released', async () => {
+  const runId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const projectId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  const accountId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+  const sourceRevision = 'e'.repeat(40)
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
+  let resolveAgent
+  const agentReady = new Promise((resolve) => { resolveAgent = resolve })
+  let sessionUnsubscribeCount = 0
+  const session = {
+    displayState: { get: () => ({ isRunning: true, currentMessage: { id: 'agent-message', role: 'assistant', content: { parts: [{ type: 'text', text: 'Lendo o projeto' }] } }, activeTools: new Map([['stable-tool-call', { name: 'mastra_workspace_read_file', args: { path: 'app/App.tsx', secret: 'private' }, status: 'running', result: 'private' }]]) }) },
+    subscribe: () => { return () => { sessionUnsubscribeCount += 1 } },
+  }
+  const store = {
+    createBuilderRun: async () => run,
+    claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {},
+    settleBuilderRun: async () => {}, failBuilderRun: async () => {}, close: async () => {},
+  }
+  const service = createBuilderService({
+    store,
+    source: { prepareProjectSource: async () => new Uint8Array([1]) },
+    runtime: {
+      kind: 'REMOTE_E2B', modelIdentity: { admissionId: 'admission', providerId: 'provider', modelId: 'model' },
+      execute: async (input) => {
+        await input.setPhase?.('AGENT')
+        const detachSession = input.onSession?.(session)
+        await agentReady
+        detachSession?.()
+        return { projectId, executionId: runId, sandboxId: 'sandbox', baseSourceRevision: sourceRevision, summary: 'Resposta', kind: 'RESPONSE_ONLY' }
+      },
+    },
+    compiler: {}, applicationArtifacts: {},
+  })
+
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'phase-key', content: 'Explique', mode: 'PLAN' })
+  const stream = await service.observeBuilderRun({ projectId, builderRunId: runId })
+  assert.ok(stream)
+  const reader = stream.getReader()
+  const first = JSON.parse((await reader.read()).value.slice(6))
+  assert.equal(['PREPARING', 'AGENT'].includes(first.phase), true)
+  resolveAgent()
+  const phases = [first.phase]
+  for (;;) {
+    const next = await reader.read()
+    if (next.done) break
+    phases.push(JSON.parse(next.value.slice(6)).phase)
+  }
+  assert.equal(phases.includes('AGENT'), true)
+  assert.equal(phases.includes('FINALIZING'), true)
+  assert.equal(phases.at(-1), 'SUCCEEDED')
+  assert.equal(sessionUnsubscribeCount, 1, 'native Session subscription ends before the runtime releases the Session')
   await service.close()
 })

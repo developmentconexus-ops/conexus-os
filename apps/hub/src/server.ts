@@ -216,7 +216,7 @@ builder = config.builder && config.project && builderModel ? createConfiguredBui
   ...(launchPreview ? { launchPreview } : {}),
   projectSource: {
     storageRoot: config.project.storageRoot,
-    git: createBuilderProjectGitCapability(config.project.storageRoot),
+    git: project?.sourceGit ?? createBuilderProjectGitCapability(config.project.storageRoot),
   },
   model: builderModel.model,
   modelIdentity: {
@@ -321,6 +321,18 @@ const previewApp = mar && config.preview ? await createHttpApp({
 await builder?.recover()
 await app.listen({ host: '127.0.0.1', port: config.port })
 if (previewApp && config.preview) await previewApp.listen({ host: '127.0.0.1', port: config.preview.port })
+
+if (project) {
+  const startedAt = performance.now()
+  void project.warmGitImage().then((result) => {
+    const durationMs = Math.round(performance.now() - startedAt)
+    const outcome = result.status === 'VERIFIED' ? 'VERIFIED' : `REFUSED:${result.code}`
+    process.stderr.write(`PROJECT_GIT_IMAGE_WARMUP:${outcome}:${durationMs}ms\n`)
+  }, () => {
+    const durationMs = Math.round(performance.now() - startedAt)
+    process.stderr.write(`PROJECT_GIT_IMAGE_WARMUP:FAILED:${durationMs}ms\n`)
+  })
+}
 
 let closed = false
 const close = async (): Promise<void> => {

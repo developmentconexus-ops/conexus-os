@@ -277,6 +277,48 @@ test('S3-P0 uses only the exact inspect and hardened no-network Docker vectors',
   }
 })
 
+test('S3-P0 coalesces concurrent OCI identity probes and caches only verified identity', async () => {
+  const calls = []
+  const responses = [
+    result(`${R1C14_GIT_IDENTITY.ociIndexDigest}\n`),
+    result(`git version ${R1C14_GIT_IDENTITY.gitVersion}\n`),
+    result(`${R1C14_GIT_IDENTITY.gitExecutableSha256}\n`),
+  ]
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  const port = createOciGitExecutionPort({}, async (executable, args) => {
+    calls.push({ executable, args: [...args] })
+    if (calls.length === 1) await gate
+    return responses.shift()
+  })
+
+  const first = port.verifyAdmittedImage()
+  const second = port.verifyAdmittedImage()
+  assert.strictEqual(first, second)
+  release()
+  assert.equal((await Promise.all([first, second]))[0].status, 'VERIFIED')
+  assert.equal(calls.length, 3)
+  await port.verifyAdmittedImage()
+  assert.equal(calls.length, 3)
+})
+
+test('S3-P0 retries identity verification after a refusal instead of caching failure', async () => {
+  const responses = [
+    result('', { exitCode: 1 }),
+    result(`${R1C14_GIT_IDENTITY.ociIndexDigest}\n`),
+    result(`git version ${R1C14_GIT_IDENTITY.gitVersion}\n`),
+    result(`${R1C14_GIT_IDENTITY.gitExecutableSha256}\n`),
+  ]
+  const port = createOciGitExecutionPort({}, async () => responses.shift())
+  assert.deepEqual(await port.verifyAdmittedImage(), { status: 'REFUSED', code: 'IMAGE_INSPECT_FAILED' })
+  assert.deepEqual(await port.verifyAdmittedImage(), {
+    status: 'VERIFIED',
+    ociIndexDigest: R1C14_GIT_IDENTITY.ociIndexDigest,
+    gitVersion: R1C14_GIT_IDENTITY.gitVersion,
+    gitExecutableSha256: R1C14_GIT_IDENTITY.gitExecutableSha256,
+  })
+})
+
 test('S3-P0 fails closed for inspect, process, version and executable-hash falsifiers', async (suite) => {
   const cases = [
     ['inspect failure', [result('', { exitCode: 1 })], 'IMAGE_INSPECT_FAILED'],

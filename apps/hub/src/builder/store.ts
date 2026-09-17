@@ -5,10 +5,14 @@ import type { PostgresPool } from '../platform/postgres.js'
 import type { BuilderPreviewSubject } from './preview.js'
 import type { BuilderModelIdentity } from './model-choice.js'
 
+export type BuilderRunningPhase = 'PREPARING' | 'AGENT' | 'SOURCE_ADMISSION' | 'COMPILING' | 'FINALIZING'
+export type BuilderRunPhase = BuilderRunningPhase | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
+
 export type BuilderRunSummary = Readonly<{
   builderRunId: string
   projectId: string
   state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
+  phase: BuilderRunningPhase | null
   mode: 'BUILD' | 'PLAN'
   baseSourceRevision: string
   resultSourceRevision: string | null
@@ -40,6 +44,7 @@ export type BuilderStore = Readonly<{
   listBuilderRuns(input: Readonly<{ accountId: string; projectId: string; limit?: number }>): Promise<readonly BuilderRunSummary[]>
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderCodeChangingRun | null>
   claimBuilderRun(builderRunId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<BuilderRunSummary>
+  setBuilderRunPhase(builderRunId: string, phase: BuilderRunPhase): Promise<void>
   bindBuilderRunMessage(builderRunId: string, messageId: string): Promise<void>
   bindBuilderRunSandbox(builderRunId: string, sandboxId: string): Promise<void>
   settleBuilderRun(input: Readonly<{ builderRunId: string; resultSourceRevision: null; resultKind: 'RESPONSE_ONLY'; failureCode: null }>): Promise<void>
@@ -104,6 +109,12 @@ export const createBuilderStore = ({
     const value = result.rows[0]?.value
     if (!value || value.builderRunId !== builderRunId || value.state !== 'RUNNING') throw new Error('BUILDER_RUN_CLAIM_REFUSED')
     return value
+  },
+  setBuilderRunPhase: async (builderRunId, phase) => {
+    const result = await executorPool.query<{ value: boolean }>(
+      'SELECT builder.set_builder_run_phase($1,$2) AS value', [builderRunId, phase],
+    )
+    if (result.rows[0]?.value !== true) throw new Error('BUILDER_RUN_PHASE_UPDATE_REFUSED')
   },
   bindBuilderRunMessage: async (builderRunId, messageId) => {
     const result = await executorPool.query<{ value: boolean }>(

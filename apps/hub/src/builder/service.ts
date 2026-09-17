@@ -4,7 +4,7 @@ import type { BuilderRunSummary, BuilderStore } from './store.js'
 import { prepareBuilderRunApplicationArtifact } from './application-build.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, BuilderApplicationArtifacts } from './application-build.js'
 import type { ApplicationCompilerRuntime } from './application-artifact-runtime.js'
-import { toBuilderLiveView } from './runtime.js'
+import { toBuilderLiveView, type BuilderExecutionPhase, type BuilderLiveView, type BuilderSession } from './runtime.js'
 import { resolveBuilderModelChoice, type BuilderModelChoice } from './model-choice.js'
 
 export type BuilderService = Readonly<{
@@ -19,6 +19,88 @@ export type BuilderService = Readonly<{
   close(): Promise<void>
 }>
 
+const terminalPhases = new Set<BuilderExecutionPhase>(['SUCCEEDED', 'FAILED', 'INTERRUPTED'])
+type PersistedBuilderPhase = Exclude<BuilderExecutionPhase, 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'>
+const persistedPhases = new Set<PersistedBuilderPhase>(['PREPARING', 'AGENT', 'SOURCE_ADMISSION', 'COMPILING', 'FINALIZING'])
+const isPersistedPhase = (phase: BuilderExecutionPhase): phase is PersistedBuilderPhase => persistedPhases.has(phase as PersistedBuilderPhase)
+
+type LiveListener = (view: BuilderLiveView) => void
+
+type BuilderRunObservation = Readonly<{
+  setPhase(phase: BuilderExecutionPhase): Promise<void>
+  attachSession(session: BuilderSession): () => void
+  subscribe(listener: LiveListener): () => void
+  stream(disposeSessionOnCancel?: boolean): ReadableStream<string>
+}>
+
+const createBuilderRunObservation = (persistPhase?: (phase: PersistedBuilderPhase) => Promise<void>): BuilderRunObservation => {
+  let phase: BuilderExecutionPhase = 'PREPARING'
+  let view: BuilderLiveView = { phase, running: true, message: null, activities: [] }
+  let detachSession = () => {}
+  const listeners = new Set<LiveListener>()
+  const notify = (): void => {
+    for (const listener of listeners) listener(view)
+  }
+  const publish = (next: BuilderLiveView): void => {
+    view = next
+    notify()
+  }
+  const setPhase = async (nextPhase: BuilderExecutionPhase): Promise<void> => {
+    if (isPersistedPhase(nextPhase)) await persistPhase?.(nextPhase)
+    phase = nextPhase
+    publish({ ...view, phase, running: !terminalPhases.has(phase) })
+  }
+  const attachSession = (session: BuilderSession): (() => void) => {
+    detachSession()
+    phase = 'AGENT'
+    const update = (displayState: Parameters<typeof toBuilderLiveView>[0]): void => {
+      publish(toBuilderLiveView(displayState, phase))
+    }
+    const unsubscribe = session.subscribe((event) => {
+      if (event.type === 'display_state_changed') update(event.displayState)
+    })
+    update(session.displayState.get())
+    let detached = false
+    const detach = (): void => {
+      if (detached) return
+      detached = true
+      unsubscribe()
+      if (detachSession === detach) detachSession = () => {}
+    }
+    detachSession = detach
+    return detach
+  }
+  const subscribe = (listener: LiveListener): (() => void) => {
+    listeners.add(listener)
+    return () => { listeners.delete(listener) }
+  }
+  const stream = (disposeSessionOnCancel = false): ReadableStream<string> => {
+    let closed = false
+    let unsubscribe = () => {}
+    return new ReadableStream<string>({
+      start(controller) {
+        const emit = (next: BuilderLiveView): void => {
+          if (closed) return
+          controller.enqueue(`data: ${JSON.stringify(next)}\n\n`)
+          if (terminalPhases.has(next.phase)) {
+            closed = true
+            unsubscribe()
+            controller.close()
+          }
+        }
+        emit(view)
+        if (!closed) unsubscribe = subscribe(emit)
+      },
+      cancel() {
+        closed = true
+        unsubscribe()
+        if (disposeSessionOnCancel) detachSession()
+      },
+    })
+  }
+  return Object.freeze({ setPhase, attachSession, subscribe, stream })
+}
+
 export const createBuilderService = ({ store, source, runtime, compiler, applicationArtifacts, modelChoices = [], requiresClaudeConnection = false, appendDiagnostic }: Readonly<{
   store: BuilderStore
   source: BuilderSourcePort
@@ -30,7 +112,7 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
   appendDiagnostic?: (input: Readonly<{ projectId: string; builderRunId: string; code: string }>) => Promise<void>
 }>): BuilderService => {
   if (runtime.kind !== 'REMOTE_E2B') throw new Error('BUILDER_LOCAL_RUNTIME_REFUSED')
-  const builderActive = new Map<string, Readonly<{ controller: AbortController; work: Promise<void> }>>()
+  const builderActive = new Map<string, Readonly<{ controller: AbortController; work: Promise<void>; observation: BuilderRunObservation }>>()
   const availableModelChoices = modelChoices.length > 0 ? modelChoices : [
     { choiceId: runtime.modelIdentity.admissionId, label: runtime.modelIdentity.modelId, providerId: runtime.modelIdentity.providerId, modelId: runtime.modelIdentity.modelId, capabilities: ['BUILDER_CODING'] },
   ]
@@ -43,12 +125,17 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
   const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string }>): void => {
     if (builderActive.has(run.builderRunId)) return
     const controller = new AbortController()
+    const persistPhase = typeof store.setBuilderRunPhase === 'function'
+      ? (phase: PersistedBuilderPhase): Promise<void> => store.setBuilderRunPhase(run.builderRunId, phase)
+      : undefined
+    const observation = createBuilderRunObservation(persistPhase)
     const work = (async () => {
       const modelIdentity = run.modelAdmissionId && run.modelProviderId && run.modelId
         ? { admissionId: run.modelAdmissionId, providerId: run.modelProviderId, modelId: run.modelId }
         : runtime.modelIdentity
       const claimed = await store.claimBuilderRun(run.builderRunId, modelIdentity)
       if (requiresClaudeConnection && (!claimed.claudeConnectionId || !claimed.claudeCredentialGeneration)) throw new Error('CLAUDE_CONNECTION_REQUIRED')
+      await observation.setPhase('PREPARING')
       const sourceBundle = await source.prepareProjectSource({
         projectId: claimed.projectId, executionId: claimed.builderRunId, sourceRevision: claimed.baseSourceRevision,
       })
@@ -59,45 +146,65 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
           ? { credentialReference: { connectionId: claimed.claudeConnectionId, generation: claimed.claudeCredentialGeneration } }
           : {}),
         signal: controller.signal,
+        setPhase: observation.setPhase,
+        onSession: observation.attachSession,
         bindPhysicalSandbox: (sandboxId) => store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId),
         bindMessage: (messageId) => store.bindBuilderRunMessage(claimed.builderRunId, messageId),
       })
       if (result.projectId !== claimed.projectId || !('executionId' in result) || result.executionId !== claimed.builderRunId || result.baseSourceRevision !== claimed.baseSourceRevision) throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
       if (result.kind === 'RESPONSE_ONLY') {
+        if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
+        await observation.setPhase('FINALIZING')
         await store.settleBuilderRun({ builderRunId: claimed.builderRunId, resultSourceRevision: null, resultKind: 'RESPONSE_ONLY', failureCode: null })
+        await observation.setPhase('SUCCEEDED')
         return
       }
+      await observation.setPhase('SOURCE_ADMISSION')
+      if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
       const admitted = await source.admitSourceResult({
         projectId: claimed.projectId, executionId: claimed.builderRunId,
         baseSourceRevision: claimed.baseSourceRevision, claimedResultSourceRevision: result.resultSourceRevision,
         resultBundle: result.resultBundle,
       })
       if (admitted.resultSourceRevision !== result.resultSourceRevision) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
+      if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
       await store.advanceBuilderRunSource(claimed.builderRunId, admitted.resultSourceRevision)
       if (claimed.mode === 'PLAN') throw new Error('BUILDER_PLAN_SOURCE_RESULT_REFUSED')
+      await observation.setPhase('COMPILING')
       try {
         const artifact = await prepareBuilderRunApplicationArtifact({ source, compiler, applicationArtifacts }, {
           accountId: input.accountId, projectId: claimed.projectId, builderRunId: claimed.builderRunId,
           sourceRevision: admitted.resultSourceRevision,
+          signal: controller.signal,
         })
+        if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
+        await observation.setPhase('FINALIZING')
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.resultSourceRevision,
           artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest })
+        await observation.setPhase('SUCCEEDED')
       } catch (error) {
         const code = failureCode(error)
+        if (code === 'BUILDER_RUN_CANCELLED' || code === 'APPLICATION_COMPILER_CANCELLED') throw error
+        await observation.setPhase('FINALIZING')
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.resultSourceRevision,
           failureCode: code }).catch(() => undefined)
-        if (code !== 'BUILDER_RUN_CANCELLED' && code !== 'APPLICATION_COMPILER_CANCELLED' && appendDiagnostic) {
+        if (appendDiagnostic) {
           await appendDiagnostic({ projectId: claimed.projectId, builderRunId: claimed.builderRunId, code }).catch(() => undefined)
         }
         throw error
       }
     })().catch(async (error) => {
       const code = failureCode(error)
-      if (code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED') await store.interruptBuilderRun(run.builderRunId, 'USER_CANCELLED').catch(() => undefined)
-      else await store.failBuilderRun(run.builderRunId, code).catch(() => undefined)
+      if (code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED' || code === 'APPLICATION_COMPILER_CANCELLED') {
+        await store.interruptBuilderRun(run.builderRunId, 'USER_CANCELLED').catch(() => undefined)
+        await observation.setPhase('INTERRUPTED')
+      } else {
+        await store.failBuilderRun(run.builderRunId, code).catch(() => undefined)
+        await observation.setPhase('FAILED')
+      }
     })
       .finally(() => { builderActive.delete(run.builderRunId) })
-    builderActive.set(run.builderRunId, { controller, work })
+    builderActive.set(run.builderRunId, { controller, work, observation })
   }
   const getApplicationBySource = (input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null> => {
     if (applicationShutdown.signal.aborted) return Promise.reject(new Error('BUILDER_APPLICATION_CLOSED'))
@@ -143,21 +250,13 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
     getApplicationBySource,
     readApplicationFileBySource,
     observeBuilderRun: async ({ projectId, builderRunId }) => {
+      const active = builderActive.get(builderRunId)
+      if (active) return active.observation.stream()
       const session = await runtime.getSessionByResource?.(projectId, `builder:${builderRunId}`)
       if (!session) return null
-      let closed = false
-      let unsubscribe = () => {}
-      return new ReadableStream<string>({
-        start: (controller) => {
-          unsubscribe = session.subscribe((event) => {
-            if (!closed && event.type === 'display_state_changed') {
-              controller.enqueue(`data: ${JSON.stringify(toBuilderLiveView(event.displayState))}\n\n`)
-            }
-          })
-          if (!closed) controller.enqueue(`data: ${JSON.stringify(toBuilderLiveView(session.displayState.get()))}\n\n`)
-        },
-        cancel: () => { closed = true; unsubscribe() },
-      })
+      const observation = createBuilderRunObservation()
+      observation.attachSession(session)
+      return observation.stream(true)
     },
     recover: async () => {
       await store.recoverAndListQueuedBuilderRuns()

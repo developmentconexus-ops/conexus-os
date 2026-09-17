@@ -38,15 +38,16 @@ test('projects the native display state into a stateless safe live view', () => 
   }
 
   assert.deepEqual(toBuilderLiveView(displayState), {
+    phase: 'AGENT',
     running: true,
     message: { id: 'assistant-message-1', text: 'Vou inspecionar o app.' },
     activities: [
-      { id: 'activity-1', label: 'READ_FILES', detail: 'app/src/main.tsx', state: 'succeeded' },
-      { id: 'activity-2', label: 'RUN_COMMAND', state: 'started' },
+      { id: 'activity-a759f1b8f97aba26111900cf', label: 'READ_FILES', detail: 'app/src/main.tsx', state: 'succeeded' },
+      { id: 'activity-f241609d628458d0e87f047a', label: 'RUN_COMMAND', state: 'started' },
     ],
   })
   const serialized = JSON.stringify(toBuilderLiveView(displayState))
-  for (const forbidden of ['provider-secret-tool-id', 'must-not-leak', 'private tool result', 'private shell output', 'npm test']) {
+  for (const forbidden of ['provider-secret-tool-id', 'provider-command-id', 'must-not-leak', 'private tool result', 'private shell output', 'npm test']) {
     assert.equal(serialized.includes(forbidden), false)
   }
 })
@@ -59,7 +60,8 @@ test('retains completed tool activity and turns native error into a safe failed 
       ['tool-1', { name: 'mastra_workspace_write_file', args: { path: '/workspace/repo/app/App.tsx' }, status: 'error', isError: true }],
     ]),
   })
-  assert.deepEqual(view.activities, [{ id: 'activity-1', label: 'EDIT_FILES', detail: 'app/App.tsx', state: 'failed' }])
+  assert.deepEqual(view.activities, [{ id: 'activity-7998d275087ee3f171d53721', label: 'EDIT_FILES', detail: 'app/App.tsx', state: 'failed' }])
+  assert.equal(view.phase, 'AGENT')
 })
 
 test.after(async () => { await rm(buildRoot, { recursive: true, force: true }) })

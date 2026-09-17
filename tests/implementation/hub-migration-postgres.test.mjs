@@ -18,7 +18,7 @@ const versions = [
   '001', '002', '003', '004', '005', '006', '007', '008', '009', '010',
   '011', '012', '013', '014', '015', '016', '017', '018', '019', '020',
   '021', '022', '023',
-  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '039', '040', '041', '042', '043', '044', '045', '046', '047',
+  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '039', '040', '041', '042', '043', '044', '045', '046', '047', '048', '049', '050',
 ]
 const query = async (connection, sql, parameters = []) => {
   const client = new pg.Client(connection)
@@ -67,6 +67,13 @@ test('current Hub installs accepted schemas and restarts without applying held R
   `)).rows, [{ account: 'iam.account', artifact: 'reg.artifact', change: null, actor_run: null, work_unit: null,
     coding_session: null, plan: null, finding: null, verification_evidence: null, operation_receipt: null,
     retain_application: null, get_application: null, read_application_file: null, held_schema: null }])
+  assert.deepEqual((await query(fixture.connection, `
+    SELECT a.attname AS column_name,
+      EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'builder.builder_run'::regclass AND conname = 'builder_run_phase_check') AS phase_check,
+      EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = 'builder.builder_run'::regclass AND tgname = 'builder_run_phase_boundary') AS phase_trigger
+    FROM pg_attribute AS a
+    WHERE a.attrelid = 'builder.builder_run'::regclass AND a.attname = 'phase' AND NOT a.attisdropped
+  `)).rows, [{ column_name: 'phase', phase_check: true, phase_trigger: true }])
 
   const accountId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID()
   const sourceRevision = 'd'.repeat(40); const keyDigest = 'e'.repeat(64); const requestDigest = 'f'.repeat(64)
@@ -80,6 +87,21 @@ test('current Hub installs accepted schemas and restarts without applying held R
   assert.deepEqual((await query(fixture.connection, 'SELECT project_id, working_source_revision, working_version, current_state FROM builder.project_working_state WHERE project_id = $1', [projectId])).rows, [
     { project_id: projectId, working_source_revision: sourceRevision, working_version: '0', current_state: 'IDLE' },
   ])
+
+  const builderRunId = randomUUID()
+  await query(fixture.connection, `INSERT INTO builder.builder_run(
+    builder_run_id, project_id, account_id, idempotency_digest, request_digest, mode,
+    base_source_revision, expected_working_version, base_working_version
+  ) VALUES ($1, $2, $3, $4, $5, 'BUILD', $6, 0, 0)`, [builderRunId, projectId, accountId, '1'.repeat(64), '2'.repeat(64), sourceRevision])
+  assert.equal((await query(fixture.connection, 'SELECT builder.set_builder_run_phase($1, $2)', [builderRunId, 'AGENT'])).rows[0].set_builder_run_phase, false)
+  await query(fixture.connection, "UPDATE builder.builder_run SET state = 'RUNNING' WHERE builder_run_id = $1", [builderRunId])
+  assert.equal((await query(fixture.connection, 'SELECT builder.set_builder_run_phase($1, $2)', [builderRunId, 'AGENT'])).rows[0].set_builder_run_phase, true)
+  assert.equal((await query(fixture.connection, 'SELECT phase FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows[0].phase, 'AGENT')
+  await query(fixture.connection, 'UPDATE builder.builder_run SET cancellation_requested_at = clock_timestamp() WHERE builder_run_id = $1', [builderRunId])
+  assert.equal((await query(fixture.connection, 'SELECT phase FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows[0].phase, null)
+  assert.equal((await query(fixture.connection, 'SELECT builder.set_builder_run_phase($1, $2)', [builderRunId, 'COMPILING'])).rows[0].set_builder_run_phase, false)
+  await query(fixture.connection, "UPDATE builder.builder_run SET state = 'FAILED' WHERE builder_run_id = $1", [builderRunId])
+  assert.equal((await query(fixture.connection, 'SELECT phase FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows[0].phase, null)
 })
 
 test('R1 and R2 upgrade to current Hub without rewriting prior ledger or account data', async (t) => {

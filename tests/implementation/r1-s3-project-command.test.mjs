@@ -139,6 +139,33 @@ test('S3-P5 store composes recovery, Git custody and one atomic terminal respons
   assert.equal(commits, 3)
 })
 
+test('S3-P0 Project module exposes non-blocking OCI image warmup without changing route composition', async (t) => {
+  const built = compileHub(t)
+  const { createProjectModule } = await import(built('project/module.js'))
+  const image = {
+    status: 'VERIFIED',
+    ociIndexDigest: 'sha256:admitted',
+    gitVersion: '2.47.1',
+    gitExecutableSha256: 'a'.repeat(64),
+  }
+  let imageChecks = 0
+  const git = {
+    verifyAdmittedImage: async () => { imageChecks += 1; return image },
+  }
+  const pool = { end: async () => {} }
+  const project = createProjectModule({
+    commandPool: pool,
+    readPool: pool,
+    git,
+    recovery: { cleanupClaimedProjectSource: async () => { throw new Error('UNEXPECTED_RECOVERY') } },
+    origin: 'https://control.example.test',
+    resolveCurrentSession: async () => null,
+  })
+  t.after(() => project.close())
+  assert.deepEqual(await project.warmGitImage(), image)
+  assert.equal(imageChecks, 1)
+})
+
 test('S3-P5 recovery refusal rolls back the open claim and blocks intake', async (t) => {
   const built = compileHub(t)
   const { createProjectStore } = await import(built('project/store.js'))

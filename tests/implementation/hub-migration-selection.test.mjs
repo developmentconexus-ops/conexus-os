@@ -74,6 +74,7 @@ const currentNames = [
   '047_reconcile_040_settlement_boundary.sql',
   '048_builder_claude_connection_label.sql',
   '049_project_creator_builder_grant.sql',
+  '050_builder_run_phase.sql',
 ]
 const heldNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
 const names = (migrations) => migrations.map((migration) => migration.name)
@@ -96,6 +97,17 @@ test('049 carries builder authority with project creator authority and preserves
   assert.match(source, /INSERT INTO iam\.project_builder_grant \(account_id, project_id, can_build, can_read_source\)/)
   assert.match(source, /receipt\.outcome = 'SUCCEEDED'/)
   assert.match(source, /ON CONFLICT DO NOTHING/)
+})
+
+test('050 carries durable BuilderRun phase semantics without widening the running state', () => {
+  const source = readFileSync(resolve(migrationsRoot, '050_builder_run_phase.sql'), 'utf8')
+  assert.match(source, /ADD COLUMN IF NOT EXISTS phase text/)
+  assert.match(source, /state = 'RUNNING'/)
+  assert.match(source, /cancellation_requested_at IS NULL/)
+  assert.match(source, /PREPARING.*AGENT.*SOURCE_ADMISSION.*COMPILING.*FINALIZING/s)
+  assert.match(source, /CREATE OR REPLACE FUNCTION builder\.set_builder_run_phase/)
+  assert.match(source, /GRANT EXECUTE ON FUNCTION builder\.set_builder_run_phase\(uuid,text\) TO hub_rb_executor/)
+  assert.match(source, /CREATE TRIGGER builder_run_phase_boundary/)
 })
 
 test('each loader accepts a fixture containing only its selected migrations', (t) => {

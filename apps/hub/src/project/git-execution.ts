@@ -987,40 +987,51 @@ export function createOciGitExecutionPort(
   runProcess: ProcessRunner = boundedProcess,
 ): GitExecutionPort {
   let verifiedImageSuccess: VerifiedGitImage | undefined
-  const verifyAdmittedImage = async (): Promise<VerifiedGitImage | GitImageRefusal> => {
-    if (verifiedImageSuccess) return verifiedImageSuccess
-    const inspected = await runProcess(DOCKER_EXECUTABLE, Object.freeze([
-      'image', 'inspect', '--format', '{{.Id}}', R1C14_GIT_IDENTITY.ociIndexDigest,
-    ]))
-    if (!passed(inspected)) return Object.freeze({ status: 'REFUSED', code: 'IMAGE_INSPECT_FAILED' })
-    if (inspected.stdout.trim() !== R1C14_GIT_IDENTITY.ociIndexDigest) {
-      return Object.freeze({ status: 'REFUSED', code: 'IMAGE_IDENTITY_MISMATCH' })
-    }
+  let verifiedImageAttempt: Promise<VerifiedGitImage | GitImageRefusal> | undefined
+  const verifyAdmittedImage = (): Promise<VerifiedGitImage | GitImageRefusal> => {
+    if (verifiedImageSuccess) return Promise.resolve(verifiedImageSuccess)
+    if (verifiedImageAttempt) return verifiedImageAttempt
 
-    const version = await runProcess(DOCKER_EXECUTABLE, Object.freeze([
-      ...HARDENED_RUN, R1C14_GIT_IDENTITY.ociIndexDigest, '--version',
-    ]))
-    if (!passed(version)) return Object.freeze({ status: 'REFUSED', code: 'VERSION_PROBE_FAILED' })
-    if (version.stdout.trim() !== `git version ${R1C14_GIT_IDENTITY.gitVersion}`) {
-      return Object.freeze({ status: 'REFUSED', code: 'VERSION_MISMATCH' })
-    }
+    const attempt = (async (): Promise<VerifiedGitImage | GitImageRefusal> => {
+      const inspected = await runProcess(DOCKER_EXECUTABLE, Object.freeze([
+        'image', 'inspect', '--format', '{{.Id}}', R1C14_GIT_IDENTITY.ociIndexDigest,
+      ]))
+      if (!passed(inspected)) return Object.freeze({ status: 'REFUSED', code: 'IMAGE_INSPECT_FAILED' })
+      if (inspected.stdout.trim() !== R1C14_GIT_IDENTITY.ociIndexDigest) {
+        return Object.freeze({ status: 'REFUSED', code: 'IMAGE_IDENTITY_MISMATCH' })
+      }
 
-    const executableHash = await runProcess(DOCKER_EXECUTABLE, Object.freeze([
-      ...HARDENED_RUN, '--entrypoint', '/usr/local/bin/node', R1C14_GIT_IDENTITY.ociIndexDigest,
-      '-e', HASH_PROGRAM,
-    ]))
-    if (!passed(executableHash)) return Object.freeze({ status: 'REFUSED', code: 'EXECUTABLE_HASH_PROBE_FAILED' })
-    if (executableHash.stdout.trim() !== R1C14_GIT_IDENTITY.gitExecutableSha256) {
-      return Object.freeze({ status: 'REFUSED', code: 'EXECUTABLE_HASH_MISMATCH' })
-    }
+      const version = await runProcess(DOCKER_EXECUTABLE, Object.freeze([
+        ...HARDENED_RUN, R1C14_GIT_IDENTITY.ociIndexDigest, '--version',
+      ]))
+      if (!passed(version)) return Object.freeze({ status: 'REFUSED', code: 'VERSION_PROBE_FAILED' })
+      if (version.stdout.trim() !== `git version ${R1C14_GIT_IDENTITY.gitVersion}`) {
+        return Object.freeze({ status: 'REFUSED', code: 'VERSION_MISMATCH' })
+      }
 
-    verifiedImageSuccess = Object.freeze({
-      status: 'VERIFIED',
-      ociIndexDigest: R1C14_GIT_IDENTITY.ociIndexDigest,
-      gitVersion: R1C14_GIT_IDENTITY.gitVersion,
-      gitExecutableSha256: R1C14_GIT_IDENTITY.gitExecutableSha256,
-    })
-    return verifiedImageSuccess
+      const executableHash = await runProcess(DOCKER_EXECUTABLE, Object.freeze([
+        ...HARDENED_RUN, '--entrypoint', '/usr/local/bin/node', R1C14_GIT_IDENTITY.ociIndexDigest,
+        '-e', HASH_PROGRAM,
+      ]))
+      if (!passed(executableHash)) return Object.freeze({ status: 'REFUSED', code: 'EXECUTABLE_HASH_PROBE_FAILED' })
+      if (executableHash.stdout.trim() !== R1C14_GIT_IDENTITY.gitExecutableSha256) {
+        return Object.freeze({ status: 'REFUSED', code: 'EXECUTABLE_HASH_MISMATCH' })
+      }
+
+      verifiedImageSuccess = Object.freeze({
+        status: 'VERIFIED',
+        ociIndexDigest: R1C14_GIT_IDENTITY.ociIndexDigest,
+        gitVersion: R1C14_GIT_IDENTITY.gitVersion,
+        gitExecutableSha256: R1C14_GIT_IDENTITY.gitExecutableSha256,
+      })
+      return verifiedImageSuccess
+    })()
+    verifiedImageAttempt = attempt
+    const clearFailedAttempt = (): void => {
+      if (verifiedImageAttempt === attempt && !verifiedImageSuccess) verifiedImageAttempt = undefined
+    }
+    void attempt.then(clearFailedAttempt, clearFailedAttempt)
+    return attempt
   }
 
   const custodyInputValid = (input: ProjectSourceCustodyInput): boolean =>

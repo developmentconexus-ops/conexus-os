@@ -160,6 +160,8 @@ export const createConfiguredProjectBindingModule = ({
 
 export type ProjectModule = Readonly<{
   registerProjectRoutes(app: FastifyInstance): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-07' | 'PRJ-08' | 'PRJ-09' | 'PRJ-23' | 'PRJ-24')[]>
+  sourceGit: GitExecutionPort
+  warmGitImage(): ReturnType<GitExecutionPort['verifyAdmittedImage']>
   close(): Promise<void>
 }>
 
@@ -209,6 +211,8 @@ export const createProjectModule = ({
     registerProjectRoutes: (app: FastifyInstance) => registerProjectRoutes(app, {
       store, ...(planningDependencies ? { planning: planningDependencies } : {}), resolveCurrentSession, origin,
     }),
+    sourceGit: git,
+    warmGitImage: () => git.verifyAdmittedImage(),
     close: async () => {
       await Promise.all([
         commandPool.end(),

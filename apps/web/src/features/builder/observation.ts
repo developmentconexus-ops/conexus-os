@@ -3,6 +3,7 @@ import { clearAuthorityCache } from '../../app/query-client'
 export type BuilderLiveView = Readonly<{
   running: boolean
   message: Readonly<{ id: string; text: string }> | null
+  phase: 'PREPARING' | 'AGENT' | 'SOURCE_ADMISSION' | 'COMPILING' | 'FINALIZING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
   activities: readonly Readonly<{
     id: string
     label: 'READ_FILES' | 'EDIT_FILES' | 'RUN_COMMAND' | 'WORKSPACE'
@@ -13,6 +14,7 @@ export type BuilderLiveView = Readonly<{
 
 const labels = new Set<BuilderLiveView['activities'][number]['label']>(['READ_FILES', 'EDIT_FILES', 'RUN_COMMAND', 'WORKSPACE'])
 const states = new Set<BuilderLiveView['activities'][number]['state']>(['started', 'succeeded', 'failed', 'interrupted'])
+const phases = new Set<BuilderLiveView['phase']>(['PREPARING', 'AGENT', 'SOURCE_ADMISSION', 'COMPILING', 'FINALIZING', 'SUCCEEDED', 'FAILED', 'INTERRUPTED'])
 const retryDelays = [100, 200, 400, 800, 1_600, 3_000] as const
 const maxFrameChars = 256 * 1024
 
@@ -27,7 +29,10 @@ const parseLiveView = (value: unknown): BuilderLiveView => {
     const detail = 'detail' in item && typeof item.detail === 'string' ? item.detail : undefined
     return { id: item.id, label: item.label as BuilderLiveView['activities'][number]['label'], ...(detail ? { detail } : {}), state: item.state as BuilderLiveView['activities'][number]['state'] }
   })
-  return { running: value.running, message: message as BuilderLiveView['message'], activities }
+  const phase = 'phase' in value && typeof value.phase === 'string' && phases.has(value.phase as BuilderLiveView['phase'])
+    ? value.phase as BuilderLiveView['phase']
+    : 'AGENT'
+  return { running: value.running, message: message as BuilderLiveView['message'], phase, activities }
 }
 
 const waitForRetry = (delay: number, signal: AbortSignal): Promise<void> => new Promise((resolve) => {
@@ -48,7 +53,7 @@ const waitForRetry = (delay: number, signal: AbortSignal): Promise<void> => new 
   signal.addEventListener('abort', onAbort, { once: true })
 })
 
-const observeUrlOnce = async (url: string, signal: AbortSignal, update: (view: BuilderLiveView) => void): Promise<void> => {
+const observeUrlOnce = async (url: string, signal: AbortSignal, update: (view: BuilderLiveView) => void): Promise<'ended' | 'aborted'> => {
   const response = await fetch(url, {
     credentials: 'same-origin', headers: { accept: 'text/event-stream' }, cache: 'no-store', signal,
   })
@@ -61,7 +66,7 @@ const observeUrlOnce = async (url: string, signal: AbortSignal, update: (view: B
   try {
     for (;;) {
       const chunk = await reader.read()
-      if (chunk.done) throw new Error('Live view ended without cancellation')
+      if (chunk.done) return 'ended'
       buffer += decoder.decode(chunk.value, { stream: true })
       let separator = buffer.indexOf('\n\n')
       while (separator !== -1) {
@@ -75,7 +80,7 @@ const observeUrlOnce = async (url: string, signal: AbortSignal, update: (view: B
         separator = buffer.indexOf('\n\n')
       }
       if (buffer.length > maxFrameChars) throw new LiveViewProtocolError('Live view frame limit exceeded')
-      if (signal.aborted) return
+      if (signal.aborted) return 'aborted'
     }
   } finally {
     await reader.cancel().catch(() => {})
@@ -92,7 +97,8 @@ export function observeBuilderRun(
     let attempt = 0
     while (!signal.aborted) {
       try {
-        await observeUrlOnce(url, signal, update)
+        const result = await observeUrlOnce(url, signal, update)
+        if (result === 'ended') return
         attempt = 0
       } catch (error) {
         if (signal.aborted || error instanceof LiveViewProtocolError) return

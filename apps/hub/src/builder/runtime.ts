@@ -1,5 +1,6 @@
 import type { AgentController, AgentControllerEvent } from '@mastra/core/agent-controller'
 import type { MastraLanguageModel } from '@mastra/core/agent'
+import { createHash } from 'node:crypto'
 import { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspace'
 import { Workspace } from '@mastra/core/workspace'
@@ -17,6 +18,8 @@ type CodingWorkerCommonInput = Readonly<{
   bindMessage?(messageId: string): Promise<void>
   credentialReference?: Readonly<{ connectionId: string; generation: string }>
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
+  setPhase?(phase: BuilderExecutionPhase): Promise<void>
+  onSession?(session: BuilderSession): (() => void) | undefined
   signal?: AbortSignal
 }>
 
@@ -39,6 +42,18 @@ type CodingWorkerResultVariant<TScope> = TScope & (
 )
 
 export type CodingWorkerResult = CodingWorkerResultVariant<CodingWorkerResultScope>
+
+export type BuilderExecutionPhase =
+  | 'PREPARING'
+  | 'AGENT'
+  | 'SOURCE_ADMISSION'
+  | 'COMPILING'
+  | 'FINALIZING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'INTERRUPTED'
+
+export type BuilderSession = Awaited<ReturnType<AgentController<Record<string, unknown>>['createSession']>>
 
 export type CodingWorkerRuntime = Readonly<{
   kind: 'REMOTE_E2B'
@@ -74,10 +89,10 @@ const immutableE2BTemplate = /^[a-z0-9]+:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3
 
 export const createBuilderUserMessage = (intent: string): Readonly<{ content: string }> => ({ content: intent })
 
-type BuilderSession = Awaited<ReturnType<AgentController<Record<string, unknown>>['createSession']>>
 type AgentEndReason = Extract<AgentControllerEvent, { type: 'agent_end' }>['reason']
 
 export type BuilderLiveView = Readonly<{
+  phase: BuilderExecutionPhase
   running: boolean
   message: Readonly<{ id: string; text: string }> | null
   activities: readonly Readonly<{
@@ -156,23 +171,26 @@ const safeToolState = (status: string | undefined): BuilderLiveView['activities'
   return 'started'
 }
 
+const safeActivityId = (toolCallId: string): string =>
+  `activity-${createHash('sha256').update(toolCallId, 'utf8').digest('hex').slice(0, 24)}`
+
 /** Projects one native display snapshot at the Conexus disclosure boundary. */
-export const toBuilderLiveView = (displayState: BuilderDisplayState): BuilderLiveView => {
+export const toBuilderLiveView = (displayState: BuilderDisplayState, phase: BuilderExecutionPhase = 'AGENT'): BuilderLiveView => {
   const currentMessage = displayState.currentMessage
   const text = currentMessage ? messageText(currentMessage) : ''
   const message = currentMessage?.role === 'assistant' && currentMessage.id && text
     ? { id: currentMessage.id, text }
     : null
-  const activities = [...displayState.activeTools.values()].map((tool, index) => {
+  const activities = [...displayState.activeTools.entries()].map(([toolCallId, tool]) => {
     const detail = safePath(tool.args)
     return {
-      id: `activity-${index + 1}`,
+      id: safeActivityId(toolCallId),
       label: toolLabel(typeof tool.name === 'string' ? tool.name : ''),
       ...(detail ? { detail } : {}),
       state: safeToolState(tool.status),
     }
   })
-  return { running: displayState.isRunning, message, activities }
+  return { phase, running: displayState.isRunning, message, activities }
 }
 
 export const sendBuilderSessionMessage = async (
@@ -180,13 +198,29 @@ export const sendBuilderSessionMessage = async (
   message: Readonly<{ content: string }>,
   requestContext?: RequestContext,
 ): Promise<AgentEndReason> => {
+  const isRateLimitError = (error: unknown): boolean => {
+    if (typeof error !== 'object' || error === null) return false
+    const statusCode = 'statusCode' in error && typeof error.statusCode === 'number' ? error.statusCode : undefined
+    const messageText = 'message' in error && typeof error.message === 'string' ? error.message : ''
+    return statusCode === 429 || /rate.?limit|too many requests/i.test(messageText)
+  }
   let terminalReason: AgentEndReason | undefined
+  let agentError: Error | undefined
   const unsubscribe = session.subscribe((event) => {
     if (event.type === 'agent_end') terminalReason = event.reason
+    if (event.type === 'error') agentError = event.error
   })
   try {
-    await session.sendMessage({ ...message, ...(requestContext ? { requestContext } : {}) })
+    try {
+      await session.sendMessage({ ...message, ...(requestContext ? { requestContext } : {}) })
+    } catch (error) {
+      if (isRateLimitError(error)) throw new Error('BUILDER_MODEL_RATE_LIMITED')
+      throw error
+    }
     if (!terminalReason) throw new Error('BUILDER_AGENT_COMPLETION_UNAVAILABLE')
+    if (terminalReason === 'error' && agentError) {
+      if (isRateLimitError(agentError)) throw new Error('BUILDER_MODEL_RATE_LIMITED')
+    }
     return terminalReason
   } finally {
     unsubscribe()
@@ -199,6 +233,18 @@ const messageText = (message: Readonly<{ content?: Readonly<{ parts?: readonly u
     if (typeof part !== 'object' || part === null || !('type' in part) || part.type !== 'text' || !('text' in part) || typeof part.text !== 'string') return []
     return [part.text]
   }).join('')
+}
+
+const isUserAuthoredMessage = (message: Readonly<{ role?: string; content?: unknown }>): boolean => {
+  if (message.role === 'user') return true
+  if (message.role !== 'signal' || typeof message.content !== 'object' || message.content === null) return false
+  const content = message.content as Record<string, unknown>
+  const metadata = content.metadata
+  if (typeof metadata !== 'object' || metadata === null) return false
+  const signal = (metadata as Record<string, unknown>).signal
+  if (typeof signal !== 'object' || signal === null) return false
+  const type = (signal as Record<string, unknown>).type
+  return type === 'user' || type === 'user-message'
 }
 
 export const classifyCodingResult = (input: Readonly<{ changed: boolean; summary: string }>): Readonly<{ kind: 'SOURCE_CHANGED' | 'RESPONSE_ONLY'; summary: string }> => Object.freeze({
@@ -230,6 +276,8 @@ export const createMastraE2BCodingWorkerRuntime = (
       if (![input.projectId, executionId].every(safeIdentity) ||
         !oid.test(input.baseSourceRevision) || !input.intent.trim() || input.sourceBundle.byteLength === 0 ||
         input.sourceBundle.byteLength > 256 * 1024 * 1024) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
+
+      await input.setPhase?.('PREPARING')
 
       if (!input.credentialReference) config.validateModelCredential()
 
@@ -310,6 +358,9 @@ export const createMastraE2BCodingWorkerRuntime = (
         let summaryText = ''
         let abortListener: (() => void) | undefined
         let activeSession: Awaited<ReturnType<AgentController<Record<string, unknown>>['createSession']>> | undefined
+        let detachSession: (() => void) | undefined
+        let submittedUserMessageId: string | undefined
+        let detachMessageCapture: (() => void) | undefined
         let runError: unknown
         let cleanupError: unknown
         const runScope = `builder:${executionId}`
@@ -322,6 +373,7 @@ export const createMastraE2BCodingWorkerRuntime = (
             ...(input.credentialReference ? { credentialReference: input.credentialReference } : {}),
             modelIdentity: input.modelIdentity,
           })
+          await input.setPhase?.('AGENT')
           const session = await controller.createSession({
             resourceId: input.projectId,
             ownerId: input.projectId,
@@ -331,30 +383,41 @@ export const createMastraE2BCodingWorkerRuntime = (
             requestContext,
           })
           activeSession = session
+          detachSession = input.onSession?.(session) ?? undefined
           if (input.mode) await session.mode.switch({ modeId: input.mode.toLowerCase() })
           if (input.signal) {
             abortListener = () => session.abort()
             if (input.signal.aborted) abortListener()
             else input.signal.addEventListener('abort', abortListener, { once: true })
           }
+          detachMessageCapture = session.subscribe((event) => {
+            if (event.type === 'message_end' && isUserAuthoredMessage(event.message)) submittedUserMessageId = event.message.id
+          })
           const agentEndReason: AgentEndReason | undefined = await sendBuilderSessionMessage(
             session,
             prompt,
             requestContext,
           )
+          detachMessageCapture()
+          detachMessageCapture = undefined
           const messages = await session.thread.listActiveMessages()
           if (input.bindMessage) {
-            const userMessage = [...messages].reverse().find((message) => message.role === 'signal' && message.type === 'user')
-            if (!userMessage?.id) throw new Error('BUILDER_MESSAGE_ID_UNAVAILABLE')
-            await input.bindMessage(userMessage.id)
+            const userMessage = [...messages].reverse().find(isUserAuthoredMessage)
+            const messageId = submittedUserMessageId ?? userMessage?.id
+            if (!messageId) throw new Error('BUILDER_MESSAGE_ID_UNAVAILABLE')
+            await input.bindMessage(messageId)
           }
-          if (input.signal?.aborted) throw new Error('BUILDER_RUN_CANCELLED')
+          if (input.signal?.aborted || agentEndReason === 'aborted') throw new Error('BUILDER_RUN_CANCELLED')
           if (agentEndReason !== 'complete') throw new Error(agentEndReason === 'error' ? 'BUILDER_MODEL_STREAM_FAILED' : 'BUILDER_MODEL_INCOMPLETE')
           summaryText = messages.filter((message) => message.role === 'assistant').map(messageText).filter(Boolean).join('\n')
         } catch (error) {
           runError = error
           throw error
         } finally {
+          detachSession?.()
+          detachSession = undefined
+          detachMessageCapture?.()
+          detachMessageCapture = undefined
           if (input.signal && abortListener) input.signal.removeEventListener('abort', abortListener)
           abortListener = undefined
           if (activeSession) {
