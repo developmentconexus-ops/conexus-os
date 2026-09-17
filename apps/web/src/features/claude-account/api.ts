@@ -15,10 +15,12 @@ export type ClaudeAuthorization = Readonly<{ authorizationId: string; url: strin
 
 export class ClaudeAccountRequestError extends Error {
   readonly status: number | null
+  readonly problemType: string | null
 
-  constructor(status: number | null) {
+  constructor(status: number | null, problemType: string | null = null) {
     super(status === null ? 'Claude account request did not complete' : `Claude account request failed with ${status}`)
     this.status = status
+    this.problemType = problemType
   }
 }
 
@@ -30,7 +32,11 @@ async function request(path: string, init: RequestInit = {}) {
     if (init.method && init.method !== 'GET') headers.set('x-conexus-csrf', decodeURIComponent(csrf() ?? ''))
     const response = await fetch(path, { ...init, headers, credentials: 'same-origin' })
     if (response.status === 401) clearAuthorityCache()
-    if (!response.ok) throw new ClaudeAccountRequestError(response.status)
+    if (!response.ok) {
+      const body: unknown = await response.json().catch(() => null)
+      const problemType = typeof body === 'object' && body !== null && 'type' in body && typeof body.type === 'string' ? body.type : null
+      throw new ClaudeAccountRequestError(response.status, problemType)
+    }
     return response
   } catch (error) {
     if (error instanceof ClaudeAccountRequestError) throw error

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import {
+  ClaudeAccountRequestError,
   claudeConnectionsQueryKey,
   completeClaudeAuthorization,
   listClaudeConnections,
@@ -10,9 +11,11 @@ import {
   startClaudeAuthorization,
 } from '../api'
 
-const safeMessage = (error: unknown) => error instanceof Error && error.message.includes('failed with 422')
-  ? 'O resultado de autorização não foi aceito. Confira o formato code#state e tente novamente.'
-  : 'Não foi possível concluir essa operação. Tente novamente.'
+const safeMessage = (error: unknown) => {
+  if (error instanceof ClaudeAccountRequestError && error.problemType === 'urn:conexus:problem:claude-authorization-rejected') return 'O Claude recusou essa autorização. Inicie uma nova conexão e cole um novo code#state.'
+  if (error instanceof ClaudeAccountRequestError && error.status === 422) return 'O resultado de autorização não foi aceito. Confira o formato code#state e inicie uma nova conexão.'
+  return 'Não foi possível concluir essa operação. Tente novamente.'
+}
 
 export function ClaudeAccountSettings() {
   const queryClient = useQueryClient()
