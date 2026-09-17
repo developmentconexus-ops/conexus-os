@@ -23,7 +23,7 @@ const r2MigrationNames = ['011_r2_brain_connections.sql', '012_r2_project_bindin
 const currentMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql', '021_rb_builder_bounded_correction.sql', '022_builder_source_inspection.sql', '023_rb_builder_preview_subject.sql', '026_builder_application_registry.sql', '027_rb_builder_working_source.sql', '028_builder_run.sql', '029_builder_run_execution.sql', '030_builder_run_invariants.sql', '031_builder_run_application_build.sql', '032_builder_project_build_grant.sql', '033_builder_execution_artifact_admission.sql', '034_builder_project_source_preview.sql', '035_builder_c020_state_invariants.sql', '036_builder_project_creation_bootstrap.sql', '037_builder_c020_source_inspection.sql', '038_builder_c020_legacy_excision.sql', '039_builder_c020_execution_invariants.sql', '040_builder_registry_settlement_boundary.sql', '041_builder_claude_connections.sql']
 currentMigrationNames[currentMigrationNames.indexOf('022_builder_source_inspection.sql')] = '022_rb_builder_source_inspection.sql'
 currentMigrationNames[currentMigrationNames.indexOf('027_builder_working_source.sql')] = '027_rb_builder_working_source.sql'
-currentMigrationNames.push('042_builder_claude_connection_safety.sql', '043_builder_model_admission.sql', '044_builder_run_cancellation.sql', '045_builder_run_history.sql', '046_builder_run_admission_cas.sql', '047_reconcile_040_settlement_boundary.sql', '048_builder_claude_connection_label.sql')
+currentMigrationNames.push('042_builder_claude_connection_safety.sql', '043_builder_model_admission.sql', '044_builder_run_cancellation.sql', '045_builder_run_history.sql', '046_builder_run_admission_cas.sql', '047_reconcile_040_settlement_boundary.sql', '048_builder_claude_connection_label.sql', '049_project_creator_builder_grant.sql')
 const heldMigrationNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
 const expectedMigrationNames = [...currentMigrationNames, ...heldMigrationNames]
 const migration001Digest = 'd27e76b972145bc3a6bf669d4fd32734fc06153d07cddaf1072c6b29845b112f'
@@ -74,6 +74,7 @@ const migration045Digest = 'd652e72dc53e8a5fbece219235002fcb9db7f518112230321e5e
 const migration046Digest = 'd427f4e176dc3671c58a06bda11119b20a05af5e3eda71b9575f23dccee2e2f3'
 const migration047Digest = '74703fb0042a0617f81dd68ae0b2553401050262aa4ad385ea758cec97ba70c3'
 const migration048Digest = 'fbf8e55d82edf548b7a78879bff05994ee92ee36e20555c91f4adc0c97571675'
+const migration049Digest = '92ebd66206a7cbdcf9de898ba1b900bef0452047c34aec1e0a87976e01abe0dd'
 const legacyMigrationDigests = new Map([['040', '359d1d386b01f40a5b842f56363e82176db56b9b731736f01080597ca762f7f5']])
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
@@ -127,6 +128,7 @@ const migrationDigests = new Map([
   ['046_builder_run_admission_cas.sql', migration046Digest],
   ['047_reconcile_040_settlement_boundary.sql', migration047Digest],
   ['048_builder_claude_connection_label.sql', migration048Digest],
+  ['049_project_creator_builder_grant.sql', migration049Digest],
 ])
 const recognizedMigrationNames = new Set(expectedMigrationNames)
 
@@ -526,7 +528,7 @@ const s5Functions = [
   'project.claim_abandoned_create_project_attempt(uuid, uuid, text, text, uuid, timestamp with time zone):project_owner:true:search_path=pg_catalog, pg_temp:uuid',
 ]
 
-const expected003FunctionBodies = (migration, replacementMigration, r2Migration, projectCreateMigration) => {
+const expected003FunctionBodies = (migration, replacementMigration, r2Migration, projectCreateMigration, projectCreatorGrantMigration) => {
   const definitions = []
   const pattern = /CREATE OR REPLACE FUNCTION (iam|project)\.([a-z0-9_]+)\([\s\S]*?\nAS \$\$([\s\S]*?)\$\$;/g
   for (const match of migration.bytes.toString('utf8').matchAll(pattern)) {
@@ -572,6 +574,15 @@ const expected003FunctionBodies = (migration, replacementMigration, r2Migration,
     if (!match) fail('MIGRATION_036_FUNCTION_SOURCE_REFUSED')
     const target = definitions.find(({ schema, name }) => schema === 'project' && name === 'create_project_with_source')
     if (!target) fail('MIGRATION_036_FUNCTION_SOURCE_REFUSED')
+    target.definition = match[1]
+  }
+  if (projectCreatorGrantMigration) {
+    const match = /CREATE OR REPLACE FUNCTION iam\.establish_project_creator_grant\([\s\S]*?\nAS \$\$([\s\S]*?)\$\$;/.exec(
+      projectCreatorGrantMigration.bytes.toString('utf8'),
+    )
+    if (!match) fail('MIGRATION_049_FUNCTION_SOURCE_REFUSED')
+    const target = definitions.find(({ schema, name }) => schema === 'iam' && name === 'establish_project_creator_grant')
+    if (!target) fail('MIGRATION_049_FUNCTION_SOURCE_REFUSED')
     target.definition = match[1]
   }
   return definitions
@@ -640,7 +651,7 @@ const assert003Catalog = async (client, migration, replacementMigration, options
     ORDER BY n.nspname, p.proname
   `)).rows
   if (JSON.stringify(functionBodies) !== JSON.stringify(
-    expected003FunctionBodies(migration, replacementMigration, options?.r2Migration, options?.projectCreateMigration),
+    expected003FunctionBodies(migration, replacementMigration, options?.r2Migration, options?.projectCreateMigration, options?.projectCreatorGrantMigration),
   )) {
     fail('MIGRATION_003_FUNCTION_SOURCE_REFUSED')
   }
@@ -941,9 +952,9 @@ const assert009Catalog = async (
   migration003,
   migration005,
   migration006,
-  { with010 = false, withR2Brain = false, r2Migration, projectCreateMigration } = {},
+  { with010 = false, withR2Brain = false, r2Migration, projectCreateMigration, projectCreatorGrantMigration } = {},
 ) => {
-  await assert008Catalog(client, migration003, migration005, migration006, { withR2Brain, r2Migration, projectCreateMigration })
+  await assert008Catalog(client, migration003, migration005, migration006, { withR2Brain, r2Migration, projectCreateMigration, projectCreatorGrantMigration })
   await assertSignatures(client, 'MIGRATION_009_CATALOG_REFUSED', `
     SELECT rolname || ':' || rolcanlogin || ':' || rolsuper || ':' || rolinherit || ':' || rolcreaterole || ':' ||
       rolcreatedb || ':' || rolreplication || ':' || rolbypassrls AS signature
@@ -999,13 +1010,14 @@ const assert010Catalog = async (
   migration003,
   migration005,
   migration006,
-  { withR2Brain = false, r2Migration, projectCreateMigration } = {},
+  { withR2Brain = false, r2Migration, projectCreateMigration, projectCreatorGrantMigration } = {},
 ) => {
   await assert009Catalog(client, migration003, migration005, migration006, {
     with010: true,
     withR2Brain,
     r2Migration,
     projectCreateMigration,
+    projectCreatorGrantMigration,
   })
   await assertSignatures(client, 'MIGRATION_010_CATALOG_REFUSED', `
     SELECT column_name || ':' || udt_name || ':' || is_nullable AS signature
@@ -1026,7 +1038,7 @@ const assert010Catalog = async (
   ])
 }
 
-const expected011FunctionBodies = (migration) => {
+const expected011FunctionBodies = (migration, projectCreatorGrantMigration) => {
   const expectedNames = [
     'brn.bootstrap_brain_health', 'brn.get_brain_health',
     'con.admit_project_binding_revision', 'con.create_or_replay_connection', 'con.get_connection',
@@ -1049,6 +1061,15 @@ const expected011FunctionBodies = (migration) => {
   definitions.sort((left, right) => left.name.localeCompare(right.name))
   if (JSON.stringify(definitions.map(({ name }) => name)) !== JSON.stringify(expectedNames)) {
     fail('MIGRATION_011_FUNCTION_SOURCE_REFUSED')
+  }
+  if (projectCreatorGrantMigration) {
+    const match = /CREATE OR REPLACE FUNCTION iam\.establish_project_creator_grant\([\s\S]*?\nAS \$\$([\s\S]*?)\$\$;/.exec(
+      projectCreatorGrantMigration.bytes.toString('utf8'),
+    )
+    if (!match) fail('MIGRATION_049_FUNCTION_SOURCE_REFUSED')
+    const target = definitions.find(({ name }) => name === 'iam.establish_project_creator_grant')
+    if (!target) fail('MIGRATION_049_FUNCTION_SOURCE_REFUSED')
+    target.definition = match[1]
   }
   return definitions
 }
@@ -1193,12 +1214,13 @@ const assert011Catalog = async (
   migration005,
   migration006,
   migration011,
-  { withR2Recovery = false, withR2Concordance = false, after014 = false, after015 = false, after026 = false, projectCreateMigration } = {},
+  { withR2Recovery = false, withR2Concordance = false, after014 = false, after015 = false, after026 = false, projectCreateMigration, projectCreatorGrantMigration } = {},
 ) => {
   await assert010Catalog(client, migration003, migration005, migration006, {
     withR2Brain: true,
     r2Migration: migration011,
     projectCreateMigration,
+    projectCreatorGrantMigration,
   })
   await assertSignatures(client, 'MIGRATION_011_CATALOG_REFUSED', `
     SELECT rolname || ':' || rolcanlogin || ':' || rolsuper || ':' || rolinherit || ':' || rolcreaterole || ':' ||
@@ -1579,7 +1601,7 @@ const assert011Catalog = async (
     )
     ORDER BY name
   `)).rows
-  if (JSON.stringify(functionBodies) !== JSON.stringify(expected011FunctionBodies(migration011))) {
+  if (JSON.stringify(functionBodies) !== JSON.stringify(expected011FunctionBodies(migration011, projectCreatorGrantMigration))) {
     fail('MIGRATION_011_FUNCTION_SOURCE_REFUSED')
   }
   if (after014) return
@@ -2160,7 +2182,7 @@ const assert012Catalog = async (
   migration006,
   migration011,
   migration012,
-  { withR2Concordance = false, after014 = false, after015 = false, after017 = false, after019 = false, after026 = false, projectCreateMigration } = {},
+  { withR2Concordance = false, after014 = false, after015 = false, after017 = false, after019 = false, after026 = false, projectCreateMigration, projectCreatorGrantMigration } = {},
 ) => {
   await assert011Catalog(client, migration003, migration005, migration006, migration011, {
     withR2Recovery: true,
@@ -2169,6 +2191,7 @@ const assert012Catalog = async (
     after015,
     after026,
     projectCreateMigration,
+    projectCreatorGrantMigration,
   })
   await assertSignatures(client, 'MIGRATION_012_ROLE_CENSUS_REFUSED', `
     SELECT rolname || ':' || rolcanlogin || ':' || rolsuper || ':' || rolinherit || ':' || rolcreaterole || ':' ||
@@ -2296,7 +2319,7 @@ const assert013Catalog = async (
   migration011,
   migration012,
   migration013,
-  { after014 = false, after015 = false, after017 = false, after019 = false, after026 = false, projectCreateMigration } = {},
+  { after014 = false, after015 = false, after017 = false, after019 = false, after026 = false, projectCreateMigration, projectCreatorGrantMigration } = {},
 ) => {
   await assert012Catalog(client, migration003, migration005, migration006, migration011, migration012, {
     withR2Concordance: true,
@@ -2306,6 +2329,7 @@ const assert013Catalog = async (
     after019,
     after026,
     projectCreateMigration,
+    projectCreatorGrantMigration,
   })
   const functionBodies = (await client.query(`
     SELECT n.nspname || '.' || p.proname AS name, p.prosrc AS definition
@@ -2335,14 +2359,14 @@ const assert013Catalog = async (
 
 const assert014Catalog = async (
   client, migration003, migration005, migration006, migration011, migration012, migration013, migration014,
-  { after015 = false, after016 = false, after017 = false, after018 = false, after019 = false, after026 = false, projectCreateMigration } = {},
+  { after015 = false, after016 = false, after017 = false, after018 = false, after019 = false, after026 = false, projectCreateMigration, projectCreatorGrantMigration } = {},
 ) => {
   await assert013Catalog(
     client, migration003, migration005, migration006, migration011, migration012, migration013,
-    { after014: true, after015, after017, after019, after026, projectCreateMigration },
+    { after014: true, after015, after017, after019, after026, projectCreateMigration, projectCreatorGrantMigration },
   )
   const expectedFunctionBodies = [
-    ...expected011FunctionBodies(migration011),
+    ...expected011FunctionBodies(migration011, projectCreatorGrantMigration),
     ...expected012FunctionBodies(migration012).filter(({ name }) =>
       !['project.complete_binding_source_intent', 'project.validate_binding_source_intent'].includes(name)),
     ...expected013FunctionBodies(migration013),
@@ -2626,11 +2650,11 @@ const assert014Catalog = async (
 
 const assert015Catalog = async (
   client, migration003, migration005, migration006, migration011, migration012, migration013, migration014, migration015,
-  { after016 = false, after017 = false, after018 = false, after019 = false, after020 = false, after026 = false, after033 = false, after034 = false, after038 = false, after040 = false, after041 = false, projectCreateMigration } = {},
+  { after016 = false, after017 = false, after018 = false, after019 = false, after020 = false, after026 = false, after033 = false, after034 = false, after038 = false, after040 = false, after041 = false, projectCreateMigration, projectCreatorGrantMigration } = {},
 ) => {
   await assert014Catalog(
     client, migration003, migration005, migration006, migration011, migration012, migration013, migration014,
-    { after015: true, after016, after017, after018, after019, after026, projectCreateMigration },
+    { after015: true, after016, after017, after018, after019, after026, projectCreateMigration, projectCreatorGrantMigration },
   )
   const expectedFunctionBodies = expected015FunctionBodies(migration015).filter(({ name }) =>
     !after016 || !['project.complete_binding_source_intent', 'project.validate_binding_source_intent'].includes(name))
@@ -3778,7 +3802,7 @@ const verifyLedger = async (client, migrations) => {
     await assert015Catalog(
       client, files.get('003'), files.get('005'), files.get('006'), files.get('011'),
       files.get('012'), files.get('013'), files.get('014'), files.get('015'),
-      { after016: true, after017: true, after018: true, after019: true, after020: true, after026: applied.has('026'), after033: applied.has('033'), after034: applied.has('034'), after038: applied.has('038'), after040: applied.has('040'), after041: applied.has('041'), projectCreateMigration: applied.has('036') ? files.get('036') : undefined },
+      { after016: true, after017: true, after018: true, after019: true, after020: true, after026: applied.has('026'), after033: applied.has('033'), after034: applied.has('034'), after038: applied.has('038'), after040: applied.has('040'), after041: applied.has('041'), projectCreateMigration: applied.has('036') ? files.get('036') : undefined, projectCreatorGrantMigration: applied.has('049') ? files.get('049') : undefined },
     )
     await assert016Catalog(client, files.get('016'))
     await assert017Catalog(client, files.get('017'))

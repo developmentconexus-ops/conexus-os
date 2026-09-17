@@ -3,6 +3,7 @@ import {
   copyFileSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   unlinkSync,
@@ -72,6 +73,7 @@ const currentNames = [
   '046_builder_run_admission_cas.sql',
   '047_reconcile_040_settlement_boundary.sql',
   '048_builder_claude_connection_label.sql',
+  '049_project_creator_builder_grant.sql',
 ]
 const heldNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
 const names = (migrations) => migrations.map((migration) => migration.name)
@@ -86,6 +88,14 @@ test('loaders select their admitted migration corpus from the repository', () =>
   assert.deepEqual(names(loadMigrationFiles()), r1Names)
   assert.deepEqual(names(loadR2MigrationFiles()), r2Names)
   assert.deepEqual(names(loadCurrentHubMigrationFiles()), currentNames)
+})
+
+test('049 carries builder authority with project creator authority and preserves existing decisions', () => {
+  const source = readFileSync(resolve(migrationsRoot, '049_project_creator_builder_grant.sql'), 'utf8')
+  assert.match(source, /CREATE OR REPLACE FUNCTION iam\.establish_project_creator_grant/)
+  assert.match(source, /INSERT INTO iam\.project_builder_grant \(account_id, project_id, can_build, can_read_source\)/)
+  assert.match(source, /receipt\.outcome = 'SUCCEEDED'/)
+  assert.match(source, /ON CONFLICT DO NOTHING/)
 })
 
 test('each loader accepts a fixture containing only its selected migrations', (t) => {
