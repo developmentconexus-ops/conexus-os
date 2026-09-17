@@ -229,10 +229,11 @@ The local investigation confirmed `.audit/slice7/hub.env` exists with mode
 `600` and readable references. `hub.conexus.localhost` was absent from WSL
 resolution, producing `getaddrinfo EAI_AGAIN` during OIDC discovery. The
 existing `conexus-s7-keycloak` container was present and was started for the
-authorized attempt; no certificate warning or TLS bypass was used. The next
-attempt reached Hub initialization and exposed a separate preserved-state
-failure: the configured `hub_rb_executor` reference is readable, but PostgreSQL
-returns `28P01` for that role. No credential or database role was changed.
+authorized attempt; no certificate warning or TLS bypass was used. Before the
+authorized reconciliation, the attempt reached Hub initialization and exposed
+a separate preserved-state failure: the configured `hub_rb_executor` reference
+was readable, but PostgreSQL returned `28P01` for that role. No credential or
+database role was changed during that earlier attempt.
 
 The review of `5774d7d4ce6832830d4d9e02220b76832a4d20fa` found the prior
 code corrections addressed. The composed journey remains unproven. The history
@@ -286,6 +287,36 @@ and code changes separately. Keep raw credentials, cookies, and trace payloads
 out of retained evidence. Reconcile only the existing task and operational
 owner for facts actually observed. Return the operator launch command and the
 real journey result, commit and push versionable changes, then STOP for review.
+
+## Reconciliation result and current disposition
+
+The preconditions were satisfied for the authorized target. `hub_rb_executor`
+exists, permits LOGIN, is not expired, and accepted the existing Hub-referenced
+secret after the password-only reconciliation. `hub_iam_runtime` continued to
+authenticate. The secret file and `.audit/slice7/hub.env` remained unchanged,
+and the existing PostgreSQL, Keycloak, and Hub process resources were preserved.
+
+The Hub now builds and serves the expected HTTPS HTML shell at the documented
+origin with its static assets. The same safe connection census found two other
+enabled Hub roles whose existing references still reject authentication:
+`hub_prj03_command` and `hub_rb_ingress`, both with PostgreSQL `28P01`. These
+roles are required by Project creation and Builder ingress respectively. Their
+passwords are outside this authorization, so no further role or credential
+change is permitted in this slice.
+
+The readiness runner now reads the configured local CA and passes its bytes only
+to the local Hub HTTPS request. A fresh `node --env-file` probe returned status
+200 with the expected HTML root and assets while retaining certificate and SNI
+validation. The focused test covers the configured CA and safe refusal of an
+unreadable CA.
+
+The fresh composed runner invocation also refuses before build because the
+operator and denied browser-state references are not supplied to the process.
+No provider, E2B, browser journey, BuilderRun, or native trace was executed in
+this attempt. The task remains a correction candidate pending reconciliation
+of those existing operational role references and provision of the already
+authorized browser-state references. No credential values, cookies, or trace
+payloads were retained.
 
 ## Deciding proof and falsifiers
 

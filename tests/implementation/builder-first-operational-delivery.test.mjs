@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
@@ -179,10 +179,16 @@ test('Hub and live proof commands load the operator configuration explicitly', a
 })
 
 test('composed readiness uses both lookup forms, expected shell response, and a bounded request', async () => {
+  const previousCa = process.env.NODE_EXTRA_CA_CERTS
+  const caPath = resolve(buildRoot, 'readiness-ca.pem')
+  await writeFile(caPath, 'configured local CA')
+  process.env.NODE_EXTRA_CA_CERTS = caPath
   let lookupResult
   let scalarLookupResult
+  let configuredCa
   const requestImplementation = (_origin, options, callback) => {
     const requestHandle = new EventEmitter()
+    configuredCa = options.ca
     requestHandle.end = () => queueMicrotask(() => {
       options.lookup('hub.conexus.localhost', { all: true }, (error, addresses) => { lookupResult = { error, addresses } })
       options.lookup('hub.conexus.localhost', { all: false }, (...result) => { scalarLookupResult = result })
@@ -197,10 +203,16 @@ test('composed readiness uses both lookup forms, expected shell response, and a 
     requestHandle.destroy = () => {}
     return requestHandle
   }
-  const response = await requestHubShell(new URL('https://hub.conexus.localhost:3443/'), { requestImplementation, timeoutMs: 50 })
-  assert.equal(response.status, 200)
-  assert.deepEqual(lookupResult.addresses, [{ address: '127.0.0.1', family: 4 }])
-  assert.deepEqual(scalarLookupResult, [null, '127.0.0.1', 4])
+  try {
+    const response = await requestHubShell(new URL('https://hub.conexus.localhost:3443/'), { requestImplementation, timeoutMs: 50 })
+    assert.equal(response.status, 200)
+    assert.equal(configuredCa.toString(), 'configured local CA')
+    assert.deepEqual(lookupResult.addresses, [{ address: '127.0.0.1', family: 4 }])
+    assert.deepEqual(scalarLookupResult, [null, '127.0.0.1', 4])
+  } finally {
+    if (previousCa === undefined) delete process.env.NODE_EXTRA_CA_CERTS
+    else process.env.NODE_EXTRA_CA_CERTS = previousCa
+  }
 
   await assert.rejects(
     waitForHub(new URL('https://hub.conexus.localhost:3443/'), { exitCode: null }, {
@@ -239,6 +251,22 @@ test('composed readiness uses both lookup forms, expected shell response, and a 
     timeoutMs: 5,
   }), /RB_COMPOSED_HUB_REQUEST_TIMEOUT/)
   assert.equal(destroyed, true)
+})
+
+test('composed readiness refuses an unreadable configured CA before requesting', async () => {
+  const previousCa = process.env.NODE_EXTRA_CA_CERTS
+  process.env.NODE_EXTRA_CA_CERTS = resolve(buildRoot, 'missing-readiness-ca.pem')
+  try {
+    await assert.rejects(
+      requestHubShell(new URL('https://hub.conexus.localhost:3443/'), {
+        requestImplementation: () => { throw new Error('REQUEST_MUST_NOT_START') },
+      }),
+      /RB_COMPOSED_CA_UNREADABLE/,
+    )
+  } finally {
+    if (previousCa === undefined) delete process.env.NODE_EXTRA_CA_CERTS
+    else process.env.NODE_EXTRA_CA_CERTS = previousCa
+  }
 })
 
 test.after(async () => { await rm(buildRoot, { recursive: true, force: true }) })

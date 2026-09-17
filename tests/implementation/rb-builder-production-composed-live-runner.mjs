@@ -1,4 +1,5 @@
 import { access, constants, rm } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { request } from 'node:https'
 import { resolve } from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
@@ -34,7 +35,8 @@ const READINESS_WAIT_TIMEOUT_MS = 60_000
 const READINESS_BODY_LIMIT = 128 * 1024
 const SAFE_READINESS_CODES = new Set([
   'ECONNREFUSED', 'EAI_AGAIN', 'ENOTFOUND', 'ETIMEDOUT',
-  'ERR_TLS_CERT_ALTNAME_INVALID', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'CERT_HAS_EXPIRED',
+  'ERR_TLS_CERT_ALTNAME_INVALID', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'CERT_HAS_EXPIRED', 'SELF_SIGNED_CERT_IN_CHAIN',
+  'RB_COMPOSED_CA_UNREADABLE',
   'RB_COMPOSED_HUB_RESPONSE_REFUSED', 'RB_COMPOSED_HUB_RESPONSE_TOO_LARGE',
   'RB_COMPOSED_HUB_REQUEST_TIMEOUT', 'RB_COMPOSED_HUB_RESPONSE_ABORTED',
 ])
@@ -45,6 +47,12 @@ export const readinessErrorCode = (error) => {
 }
 
 const readinessError = (code) => Object.assign(new Error(code), { code })
+
+const readConfiguredCa = () => {
+  const path = process.env.NODE_EXTRA_CA_CERTS
+  if (!path) return undefined
+  try { return readFileSync(path) } catch { throw readinessError('RB_COMPOSED_CA_UNREADABLE') }
+}
 
 export const requestHubShell = (origin, {
   requestImplementation = request,
@@ -66,6 +74,7 @@ export const requestHubShell = (origin, {
     method: 'GET',
     headers: { accept: 'text/html' },
     servername: origin.hostname,
+    ca: readConfiguredCa(),
     // Keep the configured URL/SNI/certificate validation while resolving the
     // local loopback binding without mutating the host's resolver globally.
     lookup: (_hostname, options, callback) => options?.all
