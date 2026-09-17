@@ -10,12 +10,14 @@ the current task, and only the owners needed for the current question.
 | --- | --- |
 | Status, grant, and next action | [Roadmap](roadmap.md) |
 | Builder outcome and increment sequence | [Operational delivery program](tasks/builder-first-app.md) |
-| Current operational delivery contract | [First operational delivery](tasks/builder-first-operational-delivery.md) |
-| Claude Account and Builder credential connection | [Claude Account connection](tasks/claude-account-connection.md) |
+| Current execution and review contract | [Approved interactive Builder](tasks/builder-interactive-delivery.md) |
+| Approved HTML identity and functional interactions | [Frontend section 33.6](reference/frontend-and-product-surfaces.md#336-build-surface) |
+| First operational delivery predecessor | [Retained first-delivery contract](tasks/builder-first-operational-delivery.md) |
+| Claude Account connection predecessor and findings | [Retained connection review](tasks/claude-account-connection.md) |
 | Ordinary Builder architecture | [C-020](reference/builder-c020-mastra-native.md) |
 | Native live-state result | [7R-1 task](tasks/builder-7r-1-native-live.md) |
 | Retained measurement limits | [7R-2 evidence task](tasks/builder-7r-2-runtime-waterfall.md) |
-| Builder UI meaning | [Frontend reference](reference/frontend-and-product-surfaces.md) and [P-01 screen contract](evidence/4c/p01-build-workspace-screen-contract.md) |
+| Historical P-01 baseline | [P-01 screen contract](evidence/4c/p01-build-workspace-screen-contract.md), with the newer ordinary-Builder delta in the frontend reference |
 | Exact Mastra lookup | [Mastra reference](reference/mastra/index.md) and the repository Mastra skill |
 
 The current task does not require the whole platform or a historical acceptance

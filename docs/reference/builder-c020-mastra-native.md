@@ -1,6 +1,6 @@
 # C-020 - Mastra-native Builder coding harness
 
-> **Status:** CURRENT / OPERATOR RATIFIED. Delivery amendment approved 2026-09-16.
+> **Status:** CURRENT / OPERATOR RATIFIED. Delivery amendment approved 2026-09-16; interactive functional delta approved 2026-09-17.
 > **Scope:** ordinary internal Builder for the Metal Nobre MVP.
 > **Program:** `docs/tasks/builder-first-app.md`.
 > **Status and grant:** `docs/roadmap.md`.
@@ -97,7 +97,8 @@ mode/tool exposure, assistant/tool events, and observability mechanics.
 It does not own Project authorization, current source, result admission,
 BuilderRun idempotency/durability, artifact identity, last-good Preview, or
 Brain/Data/Capability permissions. Browser input cannot choose internal runtime,
-Thread, model, sandbox, or Workspace identity.
+Thread, sandbox, or Workspace identity. The browser may select an authorized
+public model choice; Conexus resolves and admits the actual model as defined below.
 
 ## 6. BuilderRun
 
@@ -152,7 +153,7 @@ No package installation, new remote credentials, or network authority is granted
 ### 8.4 Source inspection authority
 
 Only authorized exact Project revisions are readable: working source, last-good
-Preview source, and base/result of the latest relevant code-changing BuilderRun.
+Preview source, and base/result of an explicitly selected, retained and currently authorized code-changing BuilderRun.
 A reachable Git OID alone never grants disclosure. Code/Diff remain read-only.
 Consumers may change their physical batching only through an approved task while
 preserving these permissions, bounded content, and immutable revision identity.
@@ -167,8 +168,8 @@ execution. Materialize the fixed app starter only in BUILD when needed.
 PLAN exposes read/list/search/grep/stat only. It performs no mutation command,
 starter materialization, source commit, or compiler invocation.
 Its only successful settlement is RESPONSE_ONLY.
-Mode presentation changes need an explicit task; removing read-only enforcement
-is not an implied simplification.
+The approved interactive UI presents Edit and Read-only without removing these
+restrictions or introducing a planning workflow.
 
 ## 10. Coding runtime
 
@@ -208,9 +209,16 @@ GET  /api/control/projects/:projectId/builder-session/runs/:builderRunId/stream
 ```
 
 GET projects messages, latest run/code-changing run, mode, and working/last-good
-coordinates. It does not expose Thread, Controller, Session, model, or sandbox IDs.
-POST message accepts content, BUILD/PLAN mode, and Idempotency-Key.
-Account, Project authority, Thread, source/version, and model admission are server-derived.
+coordinates. It does not expose Thread, Controller, Session, or sandbox identities.
+Public model choice IDs/labels and the admitted model label may be projected.
+POST message accepts content, BUILD/PLAN, an authorized connection choice,
+a server-issued model choice, and Idempotency-Key. Account, Project authority,
+Thread, source/version and resolved model admission remain server-derived.
+
+The interactive delta adds bounded Project-scoped model-choice, run history/detail,
+and cancellation operations through the same Builder API. No public Mastra
+execution or unrestricted trace endpoint is implied. The current task owns exact
+wire realization and generated-contract reconciliation.
 
 Preview launch is bodyless and server-resolved from the authorized Project's
 last-good artifact. The browser does not select it by echoing execution/source/artifact
@@ -274,8 +282,8 @@ Older P-01 mechanism text does not override the current source/artifact model.
 ## 17. Migration discipline
 
 Published migrations are immutable. The current migration list lives in
-`scripts/run-hub-migrations.mjs`; it includes later corrections through 040 at
-the reviewed subject. Further schema change uses forward migrations with its own
+`scripts/run-hub-migrations.mjs`; do not infer the latest migration from this prose.
+Further schema change uses forward migrations with its own
 authority and proof. Do not rewrite old digests or restore removed schemas.
 
 ## 18. Verification strategy
@@ -317,3 +325,46 @@ continuity, unsafe PLAN behavior, uncorrelatable persisted input, broken executi
 idempotency/concurrency/restart truth, invalid source custody, or a real business
 capability that cannot fit the boundary. A changed approved Product requirement
 may also reopen its owning section. Code volume and historical names alone do not.
+
+
+## 22. Approved interactive delivery delta
+
+[Frontend section 33.6](frontend-and-product-surfaces.md#336-build-surface) owns
+the operator-approved functional HTML identity and interactions. Appearance is
+not a gate; observable functionality is. The current task supplies implementation
+order and deciding proof. This section states target meaning, not proof of delivery.
+
+### 22.1 Connection and model identity
+
+An admitted run keeps its logical connection and resolved model coordinates.
+Changing the next-message selection does not mutate the active run or shared
+agent. Native dynamic model resolution uses the run's server-admitted subject.
+The semantic idempotency request includes connection and model selection.
+
+Credential admission generation is historical identity, not a command to use
+an expired token. Renewal can advance secret storage for the same connection.
+A revoked connection denies new credential acquisitions; already-acquired calls
+may finish. No client receives secret coordinates or bytes. The single-Hub pilot
+coordinates refresh by connection in its existing credential module.
+
+### 22.2 Activity and diagnosis
+
+Native message parts and tool-call identities can be safely projected without
+reconstructing a second lifecycle. BuilderRun may retain a bounded execution phase
+for Product work outside Mastra. It is not a separate run hierarchy.
+
+A run-detail read exposes only authorized, redacted native trace facts and Product
+result/timestamps for that run. Missing metrics remain unknown. A trace failure
+never changes settlement. Safe compiler feedback belongs to the run's source and
+may be written once as a displayable native Thread result for a later correction.
+Do not create another message authority or persist unbounded compiler logs.
+
+### 22.3 Cancellation
+
+Cancellation is an authenticated, idempotent command on an existing BuilderRun.
+It records intent before signaling the execution. Existing database arbitration
+settles the race with success/source promotion. A terminal run is not rewritten.
+Accepted pending cancellation prevents later success or Preview promotion.
+Keep already-admitted source and prior last-good Preview. The terminal result
+is INTERRUPTED with the appropriate reason. Browser disconnect is observation
+detachment, not cancellation. No automatic retry or new run is implied.

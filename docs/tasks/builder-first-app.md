@@ -1,110 +1,80 @@
 # Builder operational delivery program
 
-This file owns the delivery sequence and the cross-increment Product outcome.
+This file owns the delivery sequence and cross-increment Product outcome.
 [The roadmap](../roadmap.md) owns status and grant.
 [C-020](../reference/builder-c020-mastra-native.md) owns technical meaning.
-Each actionable increment has one dedicated task.
+Each actionable delivery has one task.
 
-## Internal pilot refactoring
+## Functional target approved on 2026-09-17
 
-The operator approved a Builder-wide coherence review on 2026-09-16.
-Delivery now follows the complete user journey instead of completing every
-technical subsystem before the interface can be tested.
+The operator approved the interactive Builder HTML and explicitly deferred visual
+polish. [Frontend section 33.6](../reference/frontend-and-product-surfaces.md#336-build-surface)
+records the exact artifact and interaction contract. Do not repeat UI discovery.
+The HTML is a behavior reference, not production code or live proof.
 
-The protected outcome is a normal coding agent over a persistent Project.
-A user creates an application, sees real agent activity, uses its Preview,
-requests a change, and continues after reload or a failed compilation.
+A user connects Claude, selects a model in chat, creates an application, sees real
+agent activity, uses Preview, requests another change, and continues after reload
+or failed compilation. Editing, read-only use, interruption, Code/Diff, and safe
+execution details belong to this functional target.
 
-The first delivery uses the current fixed React/Vite application scope.
-It does not claim generated backends, business integrations, production
-publication, or the entire long-term Conexus platform.
+The pilot retains the current React/Vite generated-app scope. The quotation app
+contains fictitious products. It is not a live Metal Nobre pricing tool, generated
+backend, ERP integration, publication feature, or complete business platform.
 
-## Directed MVP consolidation
+## Delivery sequence
 
-Keep the adopted Mastra/Conexus responsibility split. Remove accidental
-compatibility and composition dependencies when their consumers are absent.
-Do not revive Change, WorkUnit, ActorRun, a second conversation store, or a
-second Session registry.
+The [interactive delivery task](builder-interactive-delivery.md) consolidates the
+unfinished [first operational delivery](builder-first-operational-delivery.md)
+and [Claude connection work](claude-account-connection.md). Their valid findings
+remain input; their old order and restrictions do not create parallel tasks.
 
-Use native Mastra traces to investigate the agent. Use existing Product facts
-and targeted measurements for external operations. A diagnostic tool must observe
-the same execution the user initiated, not a parallel imitation.
-
-## Delivery checkpoints
-
-| Increment | Observable result | Contract |
-| --- | --- | --- |
-| 1. Create, converse, and use | The ordinary Hub starts without unused Project planning/cognition. A real Builder request produces an interactive application in the real Preview. Native traces explain that execution. | [First operational delivery](builder-first-operational-delivery.md). |
-| 2. Continue and correct | The next request edits the exact working source. Source consumers use appropriate bounded operations. Safe compiler failure information reaches the next correction without a second conversation system. | Plan only after increment 1 evidence. |
-| 3. Continue through failures | Ambiguous HTTP outcomes, interruption, restart, shutdown, and expiring Preview access have truthful, bounded behavior. | Plan only when the preceding evidence identifies the remaining gap. |
-
-These are delivery units, not permission to accumulate unrelated refactors.
-Each unit includes its own tests, documentation, and real browser proof.
-Known safety controls remain enforced in every unit.
-
-## Create and open work packet
-
-The first unit is an operator pilot. It is not general employee rollout.
-Its concrete contract is the linked task, not the historical create/open packet.
-Use the P-01 app-first composition and contextual Conexus panel as the minimum
-interaction basis. Test that experience early. Full visual redesign is not a
-prerequisite, and historical Change mechanics are not reinstated by the wireframe.
-
-BUILD and PLAN currently distinguish native write-capable and read-only tool
-exposure. They are not a required plan/approval/build workflow. Do not redesign
-those modes, remove read-only enforcement, or build strategy UI in increment 1.
-
-## Preserved guarantees
-
-The program retains Project authorization, one active BuilderRun per Project,
-idempotency, immutable source identity, CAS settlement, durable conversation,
-isolated per-run Workspace, compiler/artifact identity, and last-good Preview.
-
-A failed compilation preserves the newly admitted working source and the prior
-good Preview. The next correction starts from that failed source.
-A trace or an assistant statement never replaces Product settlement.
-
-## Findings carried into delivery
-
-| Finding | Treatment and revisit trigger |
+| Unit in the current task | Observable result |
 | --- | --- |
-| Optional Project cognition blocks ordinary bootstrap | Resolve in increment 1 without deleting the enabled capability. |
-| No-storage runtime fallback | Confirm callers, migrate tests, and delete in increment 1. |
-| Native observability not configured | Connect it to the real runtime in increment 1. No new public execution API. |
-| Preview grant response treated as a ready application; automatic retry loop | Correct the client lifecycle in increment 1 and prove actual interaction. |
-| Source snapshot uses serial per-file Docker reads; browser reconstructs Diff | Resolve the shared source boundary in increment 2, preserving isolation. |
-| Compiler diagnostics do not reach the next agent correction | Resolve in increment 2 through the existing native conversation boundary. |
-| Ambiguous retry identity and accepted-request persistence window | Increment 3 deciding tests. No claim of exactly-once delivery across that window before proof. |
-| Shutdown/cancellation and Preview expiry | Increment 3 unless a deciding increment-1 failure makes a bounded correction necessary. No silent widening. |
-| Legacy Preview correlation fields | Remove only with the full binding consumer census. Cosmetic renaming is not an increment-1 prerequisite. |
-| Overlapping source/Registry validation or configuration | Simplify only after locating the boundary and current consumer. Do not delete security checks by line count. |
+| 1. Connection and admitted model | A connection has coherent authorization/renewal, and each run records the selected model rather than a hidden global default. |
+| 2. Real interactive workspace | App-first Preview and chat operate together, with native activity and model selection in the composer. |
+| 3. Continue and correct | Second edit, failed compile, explicit repair, interruption, and reload preserve the correct source and last-good Preview. |
+| 4. Inspect and prove | Code/Diff, safe run details and native traces correspond to real execution; the complete browser journey and isolation checks pass. |
 
-These findings do not establish that every suspected failure has occurred live.
-Source observations, retained measurements, and new reproductions must remain distinct.
+These units are not approval gates or separate product projects. Implement them
+in order, exercise each result, and deliver one reviewable candidate. A missing
+external credential does not prevent independent implementation/testing, but it
+prevents claiming the affected live proof.
 
-## Retained measurement evidence
+## Preserved boundaries
 
-[7R-2](builder-7r-2-runtime-waterfall.md) is no longer a universal prerequisite.
-Preserve its samples and limitations. Correct the measurement tool only when a
-current decision needs it. Never infer a full runtime breakdown from its totals.
+Mastra owns AgentController, Session registry, Thread/messages, tools, Workspace
+binding, displayState, and agent observability. Conexus owns authorization,
+BuilderRun, idempotency, admitted model and connection, source/version, CAS,
+compiler/artifact identity, and last-good Preview. UI libraries own presentation.
+There is no ordinary Change, WorkUnit, ActorRun, or second conversation system.
 
-The old mandatory 7R-3/7R-4/7R-5/7U ordering is superseded. Source simplification,
-Preview correctness, integrated proof, and usable UX survive as work inside the
-journey, not as four independent projects that must finish before use.
+One active BuilderRun per Project remains enforced. A second request uses current
+working source, including source that failed compilation. Failed or interrupted
+work never substitutes an uncompiled artifact for the last-good Preview.
+The user does not administer hashes, runtime identities, or manual preparation.
 
-## Final pilot acceptance and later growth
+BUILD and PLAN remain write-capable and read-only permissions. Friendly labels
+and model choice do not introduce a Plan/approval workflow. Native traces explain
+execution and never replace Product settlement.
 
-Before expanding beyond the operator pilot, prove creation, second edit,
-read-only response, compilation failure and repair, reload/restart, ambiguous
-request retry, Project isolation, and usable Preview with bounded access recovery.
-Reuse the current verification graph and existing live/browser tests.
+## Scope discipline
 
-After this journey is accepted, add one real business capability at a time.
-Brain/Sankhya, specialized skills, workflows, subagents, and a Product trace UI
-remain deferred. Keep their authority boundaries, not speculative implementations.
+Take source/diff optimizations only when they serve this task's bounded reads.
+Do not require a whole Git rewrite or full performance breakdown. Use native
+Mastra observations before adding instrumented equivalents.
+The [7R-2 samples](builder-7r-2-runtime-waterfall.md) remain partial evidence.
+The old mandatory 7R-3/7R-4/7R-5/7U sequence stays superseded.
 
-## Stop law
+The requested safe run-detail panel is now part of the pilot. A complete Studio,
+unrestricted traces, observability dashboards, workflows, subagent controls,
+attachments, voice, generated backends, and Sankhya remain outside this delivery.
+Color/theme fidelity and motion polish do not block it. Usability, keyboard
+operation, hierarchy, responsive panels, and truthful state do.
 
-A material authority, isolation, durable-data, framework-lifetime, or Product
-contradiction returns to the smallest owner. A performance hypothesis or an
-adjacent cleanup does not automatically expand the current task.
+## After this candidate
+
+Review the real journey before adding more product scope. Address only remaining
+material continuity gaps, then add one useful business capability at a time.
+Broader crash recovery, multiple Hub processes, deployment, advanced model policy,
+Brain/Sankhya and managed workflows receive tasks only when they become actionable.
+No placeholder future tasks or speculative platform frameworks are required.

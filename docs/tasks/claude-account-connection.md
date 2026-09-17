@@ -4,6 +4,13 @@ This task owns the bounded connection work and its correction contract.
 [The roadmap](../roadmap.md) owns status and permission to execute.
 [C-020](../reference/builder-c020-mastra-native.md) owns the Builder runtime.
 
+> Execution supersession, 2026-09-17: the operator approved the interactive Builder
+> and its local account-login experience. The current execution contract is
+> [builder-interactive-delivery.md](builder-interactive-delivery.md). The findings
+> below remain evidence. Its former pauses, proposals, and narrow file envelope
+> are not an independent current grant. Preserve provider-risk disclosures and
+> unresolved proof limits; do not reinterpret them as Product acceptance.
+
 ## Protected result and boundaries
 
 A Conexus Account connects its Claude account through provider sign-in and
