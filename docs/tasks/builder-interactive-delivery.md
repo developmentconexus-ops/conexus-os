@@ -381,8 +381,8 @@ Preserve C-020 unless real composed evidence falsifies one of its required bound
 
 | ID | Area | Status at audit | Current evidence / defect | Target result |
 | --- | --- | --- | --- | --- |
-| B-01 | Web SSE lifecycle | CONFIRMED | `observation.ts` treats a normally ended SSE as completion even when the BuilderRun remains active. | An ended transport reconnects while the run is active and stops only after terminal run truth. |
-| B-02 | Web stream errors | CONFIRMED | Protocol/auth/observation failures can terminate silently; `project-build.tsx` also suppresses rejected observation promises. | Transport/auth/protocol failures become explicit UI state with bounded recovery where applicable. |
+| B-01 | Web SSE lifecycle | CORRECTED in R1 (a703cc4) | `observation.ts` treated a normally ended SSE as completion even when the BuilderRun remained active. | An ended transport reconnects while the run is active and stops only after terminal run truth. |
+| B-02 | Web stream errors | CORRECTED in R1 (a703cc4) | Protocol/auth/observation failures could terminate silently; `project-build.tsx` also suppressed rejected observation promises. | Transport/auth/protocol failures become explicit UI state with bounded recovery where applicable. |
 | B-03 | Claude connection selection | CONFIRMED | The UI labels the first ACTIVE connection as selected while run admission resolves server preference independently. | Displayed connection, admitted connection, and executed connection are the same authorized subject. |
 | B-04 | Mastra conversation projection | CONFIRMED | `projectBuilderMessages()` reduces native Mastra message parts to concatenated text. | Preserve an ordered, safe projection of native public message parts without a second conversation store. |
 | B-05 | Tool/activity continuity | CONFIRMED | Tool activity exists only in live `displayState` rendering and disappears when the run stops. | Reconcile persisted native message/tool parts with live display state so completed activity remains inspectable when safe. |
@@ -426,7 +426,7 @@ Investigate before declaring defective or editing:
 
 ### Ordered correction units
 
-1. **Unit R1 — truthful/recovering chat transport.** Correct B-01/B-02 in `observation.ts`, the Builder UI, and focused browser/transport tests. Do not mix model, OAuth, Preview, or message-shape changes into this unit.
+1. **Unit R1 — truthful/recovering chat transport. DONE, awaiting review (cc0a904, a703cc4).** Corrected B-01/B-02 in `observation.ts`, the Builder UI, and focused browser/transport tests. Did not mix model, OAuth, Preview, or message-shape changes into this unit.
 2. **Unit R2 — native conversation projection.** Correct B-04/B-05 through a safe ordered native Mastra-part projection. No second message store and no reconstructed custom tool lifecycle.
 3. **Unit R3 — exact Claude connection subject.** Correct B-03 so the connection displayed for the next request is the same connection admitted and executed. Preserve credential backend and ownership rules.
 4. **Unit R4 — native model discovery with minimal Conexus policy.** Investigate the exact installed Mastra 1.63.2 APIs first. Then correct B-07 without building another registry. Existing catalog code is deleted or reduced only after callers are migrated and proof exists.
@@ -441,4 +441,22 @@ The final candidate is not accepted until a real operator can open one authorize
 
 ### Immediate next correction
 
-Execute **Unit R1 only** from the current remote HEAD. Reproduce B-01 and B-02 with failing focused tests first, correct the smallest transport/UI boundary, run targeted verification, commit and push, then STOP for review before R2.
+Unit R1 is delivered and stopped for review. `observeBuilderRun()` now reports a
+`BuilderObservation` union (`STREAMING`, `RECONNECTING`, `RUN_SETTLED`,
+`UNAUTHORIZED`, `UNOBSERVABLE`) instead of a bare view, stops only on terminal run
+truth, and bounds transient recovery at six consecutive frameless cycles.
+`tests/implementation/builder-browser.test.mjs` carries four focused transport
+proofs and runs green at nine of nine.
+
+Two findings outside R1 were recorded rather than fixed:
+
+- `e9ef0b3e` added the Claude connection gate, the admitted-model gate and two
+  Preview control renames without updating the browser mocks, which had left the
+  whole suite red. R1 repaired the mocks; the copy it now asserts includes the
+  untruthful Preview text that B-08 still owns.
+- `tests/implementation/hub-migration-postgres.test.mjs` fails on
+  "concurrent current Hub installers record each accepted migration once" with
+  `function "matches_application_artifact" already exists`. It halts
+  `npm run verify` before any web check and is untouched by R1.
+
+Review R1, then execute **Unit R2 only**.
