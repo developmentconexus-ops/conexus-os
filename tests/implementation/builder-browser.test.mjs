@@ -105,9 +105,8 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   assert.deepEqual(requests[0].body, { content: 'Crie um contador até 100 interativo', mode: 'BUILD', modelChoiceId: 'builder-coding-primary' })
   assert.ok(requests[0].key)
   await page.getByText('Aplicando a alteração', { exact: true }).waitFor()
-  assert.equal(await page.getByText('Lendo arquivos', { exact: true }).count(), 1)
+  assert.equal(await page.locator('.builder-activity').getByText('Lendo arquivos', { exact: true }).count(), 1)
   assert.equal(await page.getByText('app/src/main.tsx', { exact: true }).count(), 1)
-  await page.getByText('Último Preview bom disponível.').waitFor()
   await page.getByTitle('Preview do aplicativo').waitFor()
   assert.deepEqual(previewRequests, [{}])
   assert.deepEqual(forbiddenRequests, [])
@@ -143,7 +142,6 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   await page.reload()
   await page.getByText('Crie um contador até 100 interativo', { exact: true }).first().waitFor()
   assert.equal(await page.getByText('Human request:', { exact: false }).count(), 0)
-  await page.getByText('Último Preview bom disponível.').waitFor()
   await page.getByTitle('Preview do aplicativo').waitFor()
   assert.deepEqual(previewRequests, [{}, {}])
   assert.deepEqual(forbiddenRequests, [])
@@ -378,7 +376,10 @@ const openActiveRunObservation = async (t, port, respondToStream) => {
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
-  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  let sessionValid = true
+  await page.route('**/api/control/access-context', (route) => sessionValid
+    ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) })
+    : route.fulfill({ status: 401, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:authentication-required' }) }))
   await routeClaudeConnections(page, accountId)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Transport truth', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
@@ -389,7 +390,7 @@ const openActiveRunObservation = async (t, port, respondToStream) => {
   let streamRequests = 0
   await page.route(`**/api/control/projects/${projectId}/builder-session/runs/${runId}/stream`, (route) => respondToStream(route, ++streamRequests))
   await page.goto(`${origin}/projects/${projectId}/build`)
-  return { page, streams: () => streamRequests }
+  return { page, streams: () => streamRequests, revokeSession: () => { sessionValid = false } }
 }
 
 const liveFrame = (view) => ({ status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8' }, body: `data: ${JSON.stringify(view)}\n\n` })
@@ -403,9 +404,22 @@ test('an ended live transport keeps observing a BuilderRun that is still active'
 })
 
 test('a live observation authorization failure is explicit', async (t) => {
-  const { page, streams } = await openActiveRunObservation(t, 41754, (route) => route.fulfill({ status: 401, contentType: 'application/problem+json', body: '{}' }))
-  await page.getByText('Sua sessão expirou. Entre novamente para acompanhar esta execução.', { exact: true }).waitFor()
+  const { page, streams } = await openActiveRunObservation(t, 41754, (route) => route.fulfill({ status: 403, contentType: 'application/problem+json', body: '{}' }))
+  await page.getByText('Sua autoridade atual não permite acompanhar esta execução.', { exact: true }).waitFor()
   assert.equal(streams(), 1)
+})
+
+test('a live observation session loss returns the operator to sign-in', async (t) => {
+  let revoke = () => {}
+  const observation = await openActiveRunObservation(t, 41757, (route) => {
+    revoke()
+    return route.fulfill({ status: 401, contentType: 'application/problem+json', body: '{}' })
+  })
+  revoke = observation.revokeSession
+  await observation.page.getByRole('heading', { name: 'Entre no Conexus' }).waitFor()
+  const atSignIn = observation.streams()
+  await observation.page.waitForTimeout(1_000)
+  assert.equal(observation.streams(), atSignIn, 'observation stops once the session is gone')
 })
 
 test('a nonrecoverable live observation protocol failure is explicit', async (t) => {

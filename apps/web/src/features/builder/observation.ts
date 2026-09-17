@@ -12,6 +12,14 @@ export type BuilderLiveView = Readonly<{
   }>[]
 }>
 
+export type BuilderObservation = Readonly<
+  | { status: 'STREAMING'; view: BuilderLiveView }
+  | { status: 'RECONNECTING'; view: BuilderLiveView | null }
+  | { status: 'RUN_SETTLED'; view: BuilderLiveView }
+  | { status: 'UNAUTHORIZED'; view: BuilderLiveView | null }
+  | { status: 'UNOBSERVABLE'; view: BuilderLiveView | null }
+>
+
 const labels = new Set<BuilderLiveView['activities'][number]['label']>(['READ_FILES', 'EDIT_FILES', 'RUN_COMMAND', 'WORKSPACE'])
 const states = new Set<BuilderLiveView['activities'][number]['state']>(['started', 'succeeded', 'failed', 'interrupted'])
 const phases = new Set<BuilderLiveView['phase']>(['PREPARING', 'AGENT', 'SOURCE_ADMISSION', 'COMPILING', 'FINALIZING', 'SUCCEEDED', 'FAILED', 'INTERRUPTED'])
@@ -19,6 +27,7 @@ const retryDelays = [100, 200, 400, 800, 1_600, 3_000] as const
 const maxFrameChars = 256 * 1024
 
 class LiveViewProtocolError extends Error {}
+class LiveViewAuthorizationError extends Error {}
 
 const parseLiveView = (value: unknown): BuilderLiveView => {
   if (typeof value !== 'object' || value === null || !('running' in value) || typeof value.running !== 'boolean' || !('activities' in value) || !Array.isArray(value.activities)) throw new LiveViewProtocolError('Invalid live view')
@@ -53,11 +62,14 @@ const waitForRetry = (delay: number, signal: AbortSignal): Promise<void> => new 
   signal.addEventListener('abort', onAbort, { once: true })
 })
 
-const observeUrlOnce = async (url: string, signal: AbortSignal, update: (view: BuilderLiveView) => void): Promise<'ended' | 'aborted'> => {
+const observeUrlOnce = async (url: string, signal: AbortSignal, update: (view: BuilderLiveView) => void): Promise<void> => {
   const response = await fetch(url, {
     credentials: 'same-origin', headers: { accept: 'text/event-stream' }, cache: 'no-store', signal,
   })
-  if (response.status === 401) clearAuthorityCache()
+  if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) clearAuthorityCache()
+    throw new LiveViewAuthorizationError('Live view not authorized')
+  }
   if (response.status === 410 || response.status >= 500) throw new Error('Live view temporarily unavailable')
   if (!response.ok || !response.headers.get('content-type')?.startsWith('text/event-stream') || !response.body) throw new LiveViewProtocolError('Live view unavailable')
   const reader = response.body.getReader()
@@ -66,7 +78,7 @@ const observeUrlOnce = async (url: string, signal: AbortSignal, update: (view: B
   try {
     for (;;) {
       const chunk = await reader.read()
-      if (chunk.done) return 'ended'
+      if (chunk.done) return
       buffer += decoder.decode(chunk.value, { stream: true })
       let separator = buffer.indexOf('\n\n')
       while (separator !== -1) {
@@ -80,7 +92,7 @@ const observeUrlOnce = async (url: string, signal: AbortSignal, update: (view: B
         separator = buffer.indexOf('\n\n')
       }
       if (buffer.length > maxFrameChars) throw new LiveViewProtocolError('Live view frame limit exceeded')
-      if (signal.aborted) return 'aborted'
+      if (signal.aborted) return
     }
   } finally {
     await reader.cancel().catch(() => {})
@@ -90,22 +102,38 @@ const observeUrlOnce = async (url: string, signal: AbortSignal, update: (view: B
 
 export function observeBuilderRun(
   projectId: string, builderRunId: string, signal: AbortSignal,
-  update: (view: BuilderLiveView) => void,
+  report: (observation: BuilderObservation) => void,
 ): Promise<void> {
   const url = `/api/control/projects/${encodeURIComponent(projectId)}/builder-session/runs/${encodeURIComponent(builderRunId)}/stream`
   return (async () => {
-    let attempt = 0
+    let fruitless = 0
+    const observed: { latest: BuilderLiveView | null } = { latest: null }
     while (!signal.aborted) {
+      let received = false
       try {
-        const result = await observeUrlOnce(url, signal, update)
-        if (result === 'ended') return
-        attempt = 0
+        await observeUrlOnce(url, signal, (view) => {
+          received = true
+          observed.latest = view
+          report({ status: 'STREAMING', view })
+        })
+        if (signal.aborted) return
+        const settled = observed.latest
+        if (settled && !settled.running) {
+          report({ status: 'RUN_SETTLED', view: settled })
+          return
+        }
       } catch (error) {
-        if (signal.aborted || error instanceof LiveViewProtocolError) return
-        const delay = retryDelays[Math.min(attempt, retryDelays.length - 1)] ?? 3_000
-        await waitForRetry(delay, signal)
-        attempt = Math.min(attempt + 1, retryDelays.length - 1)
+        if (signal.aborted) return
+        if (error instanceof LiveViewAuthorizationError) return report({ status: 'UNAUTHORIZED', view: observed.latest })
+        if (error instanceof LiveViewProtocolError) return report({ status: 'UNOBSERVABLE', view: observed.latest })
       }
+      if (received) fruitless = 0
+      else {
+        fruitless += 1
+        if (fruitless >= retryDelays.length) return report({ status: 'UNOBSERVABLE', view: observed.latest })
+        report({ status: 'RECONNECTING', view: observed.latest })
+      }
+      await waitForRetry(retryDelays[Math.min(fruitless, retryDelays.length - 1)] ?? 3_000, signal)
     }
   })()
 }

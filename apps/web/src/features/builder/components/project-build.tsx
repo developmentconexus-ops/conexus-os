@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useMutation as useClaudeMutation, useQuery as useClaudeQuery, useQueryClient as useClaudeQueryClient } from '@tanstack/react-query'
 import { claudeConnectionsQueryKey, listClaudeConnections, selectClaudeConnection } from '../../claude-account/api'
 import { BuilderRequestError, cancelBuilderRun, getBuilderRunTrace, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type BuilderSession, type PreviewLaunch, type SourceTree } from '../api'
-import { observeBuilderRun, type BuilderLiveView } from '../observation'
+import { observeBuilderRun, type BuilderLiveView, type BuilderObservation } from '../observation'
 import { BuilderMarkdown } from './builder-markdown'
 
 const runStatus = (state: string | undefined, kind: string | null | undefined, phase?: string | null, failureCode?: string | null): string => {
@@ -27,6 +27,12 @@ const activityLabel = (label: BuilderLiveView['activities'][number]['label']): s
 const activityState = (state: BuilderLiveView['activities'][number]['state']): string => ({
   started: 'em andamento', succeeded: 'concluído', failed: 'falhou', interrupted: 'interrompido',
 }[state])
+
+const observationNotices: Partial<Record<BuilderObservation['status'], string>> = {
+  RECONNECTING: 'Conexão de acompanhamento perdida. Reconectando à execução…',
+  UNAUTHORIZED: 'Sua autoridade atual não permite acompanhar esta execução.',
+  UNOBSERVABLE: 'Não foi possível acompanhar esta execução ao vivo. Ela continua no servidor.',
+}
 
 type Inspection = 'CODE' | 'DIFF' | 'DETAILS'
 type SourceDiffEntry = Readonly<{ path: string; status: 'ADDED' | 'REMOVED' | 'MODIFIED' }>
@@ -189,7 +195,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const [previewRatio, setPreviewRatio] = useState(2)
   const [mobilePane, setMobilePane] = useState<'PREVIEW' | 'CHAT'>('PREVIEW')
   const [chatCollapsed, setChatCollapsed] = useState(false)
-  const [liveView, setLiveView] = useState<BuilderLiveView | null>(null)
+  const [observation, setObservation] = useState<BuilderObservation | null>(null)
   const [liveRequest, setLiveRequest] = useState<LiveRequest | null>(null)
   const [inspection, setInspection] = useState<Inspection | null>(null)
   const [requiresClaudeConnection, setRequiresClaudeConnection] = useState(false)
@@ -213,7 +219,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       setMessage('Mensagem enviada ao Builder.')
       setRequiresClaudeConnection(false)
       setLiveRequest({ runId: result.builderRun.builderRunId, text: variables.content, messageBoundary: variables.messageBoundary })
-      setLiveView(null)
+      setObservation(null)
       await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] })
     },
     onError: (error) => {
@@ -251,7 +257,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (!runId || !runActive) return undefined
     const controller = new AbortController()
-    void observeBuilderRun(projectId, runId, controller.signal, setLiveView).catch(() => undefined)
+    void observeBuilderRun(projectId, runId, controller.signal, setObservation)
     return () => controller.abort()
   }, [projectId, runActive, runId])
   const previousRunState = useRef<string | undefined>(undefined)
@@ -260,7 +266,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     previousRunState.current = run?.state
     if (!runId || !wasActive || runActive) return
     void session.refetch().finally(() => {
-      setLiveView(null)
+      setObservation(null)
       setLiveRequest(null)
     })
   }, [run, runActive, runId, session])
@@ -438,6 +444,8 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     </section>
   }
 
+  const liveView = observation?.view ?? null
+  const observationNotice = observation ? observationNotices[observation.status] ?? null : null
   const visiblePhase = liveView?.phase ?? run?.phase ?? null
   const activeStatus = runStatus(run?.state, run?.resultKind, visiblePhase, run?.failureCode)
   const hasChoices = modelChoices.length > 0
@@ -521,6 +529,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
           {runActive && liveView?.message && <div key={liveView.message.id} className="builder-timeline-item builder-message builder-message-assistant"><BuilderMarkdown text={liveView.message.text || ' '}/></div>}
           {runActive && liveView?.activities.map((activity) => <div key={activity.id} className="builder-timeline-item builder-activity" data-state={activity.state}><span className="builder-activity-icon" aria-hidden="true">{activity.state === 'failed' ? '!' : activity.state === 'succeeded' ? '✓' : '·'}</span><span><strong>{activityLabel(activity.label)}</strong>{activity.detail && <small>{activity.detail}</small>}<span>{activityState(activity.state)}</span></span></div>)}
           {runActive && <div className="builder-live-status" role="status"><span className="builder-live-pulse" aria-hidden="true" /><strong>{latestActivity ? activityLabel(latestActivity.label) : activeStatus}</strong><span>{latestActivity ? 'Atividade recebida do Builder.' : 'Aguardando atividade do servidor…'}</span></div>}
+          {runActive && observationNotice && <p className="builder-observation-notice" data-status={observation?.status} role={observation?.status === 'RECONNECTING' ? 'status' : 'alert'}>{observationNotice}</p>}
           {!timelineMessages.length && !liveRequestPart && !liveView?.message && !liveView?.activities.length && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}
         </section>
         <form onSubmit={submit}>
