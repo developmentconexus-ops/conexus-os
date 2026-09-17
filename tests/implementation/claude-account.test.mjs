@@ -42,7 +42,7 @@ test('Claude OAuth exchange uses the qualified provider protocol and bounds the 
   const response = new Response(JSON.stringify({ access_token: 'access-fixture', refresh_token: 'refresh-fixture', expires_in: 3600 }), {
     status: 200, headers: { 'content-type': 'application/json' },
   })
-  const tokens = await oauth.exchangeAuthorizationCode({ code: 'provider-code', verifier: 'verifier-fixture', fetchImpl: async (input, init) => {
+  const tokens = await oauth.exchangeAuthorizationCode({ code: 'provider-code', state: 'state-fixture', verifier: 'verifier-fixture', fetchImpl: async (input, init) => {
     request = { input: String(input), init }
     return response
   } })
@@ -53,14 +53,14 @@ test('Claude OAuth exchange uses the qualified provider protocol and bounds the 
     grant_type: 'authorization_code',
     client_id: oauth.ANTHROPIC_OAUTH.clientId,
     code: 'provider-code',
-    state: 'verifier-fixture',
+    state: 'state-fixture',
     redirect_uri: oauth.ANTHROPIC_OAUTH.redirectUri,
     code_verifier: 'verifier-fixture',
   })
   assert.equal(tokens.access, 'access-fixture')
   assert.equal(tokens.refresh, 'refresh-fixture')
   await assert.rejects(
-    oauth.exchangeAuthorizationCode({ code: 'provider-code', verifier: 'verifier-fixture', fetchImpl: async () => new Response('x'.repeat(16 * 1024 + 1), { status: 200 }) }),
+    oauth.exchangeAuthorizationCode({ code: 'provider-code', state: 'state-fixture', verifier: 'verifier-fixture', fetchImpl: async () => new Response('x'.repeat(16 * 1024 + 1), { status: 200 }) }),
     /ANTHROPIC_OAUTH_RESPONSE_LIMIT_EXCEEDED|ANTHROPIC_OAUTH_TOKEN_INVALID/,
   )
 })
@@ -87,4 +87,23 @@ test('Claude credential custody reads an admitted generation and rotates only th
   )
   assert.equal(await refreshed.getAccessToken(), 'access-2')
   assert.match(new TextDecoder().decode(entries.get('connection-fixture:2')), /access-2/)
+})
+
+test('Claude credential acquisition rechecks the active generation before using a cached token', async (t) => {
+  const { store } = await compile(t)
+  const entries = new Map([
+    ['connection-fixture:1', Buffer.from(JSON.stringify({ access: 'access-1', refresh: 'refresh-1', expiresAt: Date.now() + 60_000 }))],
+    ['connection-fixture:2', Buffer.from(JSON.stringify({ access: 'access-2', refresh: 'refresh-2', expiresAt: Date.now() + 60_000 }))],
+  ])
+  let generation = '1'
+  const backend = {
+    async publishOrMatch() { return 'PUBLISHED' },
+    async materialize(coordinate) { return Uint8Array.from(entries.get(`${coordinate.connectionId}:${coordinate.generation}`)) },
+  }
+  const tokenStore = store.createBackendOAuthTokenStore(backend, { connectionId: 'connection-fixture', generation }, undefined, {
+    resolveCurrent: async () => ({ connectionId: 'connection-fixture', generation }),
+  })
+  assert.equal(await tokenStore.getAccessToken(), 'access-1')
+  generation = '2'
+  assert.equal(await tokenStore.getAccessToken(), 'access-2')
 })

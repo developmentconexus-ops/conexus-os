@@ -36,6 +36,7 @@ const {
   createProjectBrainRealizationPort,
   createBuilderProjectGitCapability,
   resolveProjectModelAdmission,
+  readProjectModelChoices,
 } = await import('./project/module.js')
 const { createConfiguredBuilderModule } = await import('./builder/module.js')
 type ProjectBindingsRuntime = ReturnType<typeof createConfiguredProjectConnectionBindingModule> |
@@ -157,6 +158,10 @@ const builderModel = config.builder && config.project ? resolveProjectModelAdmis
   requiredCapabilities: ['BUILDER_CODING'],
   credentialRequired: false,
 }) : undefined
+const builderModelChoices = config.builder && config.project ? readProjectModelChoices({
+  catalogFile: config.project.modelCatalogFile,
+  requiredCapabilities: ['BUILDER_CODING'],
+}) : undefined
 let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
 const mar = config.preview ? createMarModule({
   access: identityAccess.previewAccess,
@@ -219,8 +224,9 @@ builder = config.builder && config.project && builderModel ? createConfiguredBui
     providerId: builderModel.providerId,
     modelId: builderModel.modelId,
   },
+  ...(builderModelChoices ? { modelChoices: builderModelChoices } : {}),
   validateModelCredential: builderModel.validateCredential,
-  ...(claudeAccount ? { resolveModel: (reference: Readonly<{ connectionId: string; generation: string }>) => claudeAccount.createModel(reference) } : {}),
+  ...(claudeAccount ? { resolveModel: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => claudeAccount.createModel(reference, modelId) } : {}),
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined

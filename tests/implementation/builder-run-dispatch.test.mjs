@@ -52,6 +52,46 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
   assert.deepEqual(calls, ['claim', ['prepareProjectSource', runId], ['execute', 'PLAN', 'Explique o app'], ['sandbox', 'physical-sandbox'], ['message', 'mastra-message'], ['settle', 'RESPONSE_ONLY']])
 })
 
+test('BuilderRun cancellation records intent, aborts native work, and interrupts once', async () => {
+  const runId = '88888888-8888-4888-8888-888888888888'
+  const projectId = '99999999-9999-4999-8999-999999999999'
+  const accountId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const sourceRevision = 'a'.repeat(40)
+  const calls = []
+  let started
+  const startedPromise = new Promise((resolve) => { started = resolve })
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
+  const store = {
+    createBuilderRun: async () => run,
+    claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
+    requestBuilderRunCancellation: async () => { calls.push('request-cancellation'); return { ...run, state: 'RUNNING', cancellationRequested: true } },
+    interruptBuilderRun: async (_id, reason) => calls.push(['interrupt', reason]),
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, failBuilderRun: async () => calls.push('fail'), close: async () => {},
+  }
+  const service = createBuilderService({
+    store,
+    source: { prepareProjectSource: async () => new Uint8Array([1]), admitSourceResult: async () => { throw new Error('not reached') } },
+    runtime: {
+      kind: 'REMOTE_E2B', modelIdentity: { admissionId: 'admission', providerId: 'provider', modelId: 'model' },
+      execute: async (input) => {
+        started()
+        await new Promise((_resolve, reject) => {
+          if (input.signal?.aborted) return reject(new Error('BUILDER_RUN_CANCELLED'))
+          input.signal?.addEventListener('abort', () => reject(new Error('BUILDER_RUN_CANCELLED')), { once: true })
+        })
+        throw new Error('BUILDER_RUN_CANCELLED')
+      },
+    },
+    compiler: {}, applicationArtifacts: {},
+  })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-key', content: 'pare', mode: 'BUILD' })
+  await startedPromise
+  await service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+  await service.close()
+  assert.equal(calls[0], 'request-cancellation')
+  assert.deepEqual(calls.at(-1), ['interrupt', 'USER_CANCELLED'])
+})
+
 test('BUILD source result is admitted, CASed, compiled and settles Preview', async () => {
   const runId = '44444444-4444-4444-8444-444444444444'
   const projectId = '55555555-5555-4555-8555-555555555555'

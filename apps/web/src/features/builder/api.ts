@@ -35,6 +35,15 @@ export type BuilderSession = Readonly<{
     lastGoodArtifactDigest: string | null
   }>
   mode: 'BUILD' | 'PLAN'
+  modelChoices: readonly BuilderModelChoice[]
+  runHistory?: readonly BuilderRun[]
+}>
+export type BuilderModelChoice = Readonly<{
+  choiceId: string
+  label: string
+  providerId: string
+  modelId: string
+  capabilities: readonly string[]
 }>
 export type BuilderRun = Readonly<{
   builderRunId: string
@@ -45,8 +54,17 @@ export type BuilderRun = Readonly<{
   resultSourceRevision: string | null
   resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
   failureCode: string | null
+  modelAdmissionId?: string | null
+  modelProviderId?: string | null
+  modelId?: string | null
+  cancellationRequested?: boolean
 }>
 export type BuilderMessageAccepted = Readonly<{ builderRun: BuilderRun }>
+export type BuilderTraceSummary = Readonly<{
+  available: boolean
+  traceId: string | null
+  spans: readonly Readonly<{ spanType: string; name: string; startedAt: string; durationMs: number | null; error: boolean }>[]
+}>
 
 export class BuilderRequestError extends Error {
   constructor(readonly status: number | null) {
@@ -80,12 +98,12 @@ export const getBuilderSession = async (projectId: string): Promise<BuilderSessi
   return response.json() as Promise<BuilderSession>
 }
 export const sendBuilderMessage = async (
-  projectId: string, content: string, mode: 'BUILD' | 'PLAN', idempotencyKey: string,
+  projectId: string, content: string, mode: 'BUILD' | 'PLAN', idempotencyKey: string, modelChoiceId?: string,
 ): Promise<BuilderMessageAccepted> => {
   const response = await request(`${sessionBase(projectId)}/messages`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
-    body: JSON.stringify({ content, mode }),
+    body: JSON.stringify({ content, mode, ...(modelChoiceId ? { modelChoiceId } : {}) }),
   })
   if (response.status !== 201) reject(response)
   return response.json() as Promise<BuilderMessageAccepted>
@@ -108,4 +126,18 @@ export const launchBuilderPreview = async (projectId: string): Promise<PreviewLa
   })
   if (response.status !== 201) reject(response)
   return response.json() as Promise<PreviewLaunch>
+}
+
+export const cancelBuilderRun = async (projectId: string, builderRunId: string): Promise<BuilderMessageAccepted> => {
+  const response = await request(`${sessionBase(projectId)}/runs/${encodeURIComponent(builderRunId)}/cancel`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+  })
+  if (!response.ok) reject(response)
+  return response.json() as Promise<BuilderMessageAccepted>
+}
+
+export const getBuilderRunTrace = async (projectId: string, builderRunId: string): Promise<BuilderTraceSummary> => {
+  const response = await request(`${sessionBase(projectId)}/runs/${encodeURIComponent(builderRunId)}/trace`)
+  if (!response.ok) reject(response)
+  return response.json() as Promise<BuilderTraceSummary>
 }

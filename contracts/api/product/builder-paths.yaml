@@ -101,6 +101,61 @@ paths:
         '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
         '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
 
+  /api/control/projects/{projectId}/builder-session/runs/{builderRunId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - name: builderRunId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: CancelBuilderRun
+      operationId: CancelBuilderRun
+      x-conexus-4a-id: BLD-25
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyRequest' }
+      responses:
+        '200':
+          description: Idempotent authorized interruption request and current BuilderRun projection.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BuilderMessageAccepted' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '503': { $ref: './openapi.yaml#/components/responses/Problem503' }
+
+  /api/control/projects/{projectId}/builder-session/runs/{builderRunId}/trace:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - name: builderRunId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: GetBuilderRunTrace
+      operationId: GetBuilderRunTrace
+      x-conexus-4a-id: BLD-26
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: Authorized safe native trace projection for one BuilderRun.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BuilderTraceSummary' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '503': { $ref: './openapi.yaml#/components/responses/Problem503' }
+
 components:
   parameters:
     ProjectId:
@@ -129,7 +184,7 @@ components:
     BuilderRunSummary:
       type: object
       additionalProperties: false
-      required: [builderRunId, projectId, state, mode, baseSourceRevision]
+      required: [builderRunId, projectId, state, mode, baseSourceRevision, modelAdmissionId, modelProviderId, modelId, cancellationRequested]
       properties:
         builderRunId: { type: string, format: uuid }
         projectId: { type: string, format: uuid }
@@ -139,6 +194,10 @@ components:
         resultSourceRevision: { type: [string, 'null'], pattern: '^[0-9a-f]{40}$' }
         resultKind: { type: [string, 'null'], enum: [RESPONSE_ONLY, SOURCE_CHANGED, SOURCE_CHANGED_BUILD_FAILED, null] }
         failureCode: { type: [string, 'null'] }
+        modelAdmissionId: { type: [string, 'null'] }
+        modelProviderId: { type: [string, 'null'] }
+        modelId: { type: [string, 'null'] }
+        cancellationRequested: { type: boolean }
     BuilderPreviewSummary:
       type: object
       additionalProperties: false
@@ -174,7 +233,7 @@ components:
     BuilderSession:
       type: object
       additionalProperties: false
-      required: [projectId, messages, latestBuilderRun, latestCodeChangingRun, preview]
+      required: [projectId, messages, latestBuilderRun, latestCodeChangingRun, preview, modelChoices, runHistory]
       properties:
         projectId: { type: string, format: uuid }
         messages:
@@ -190,6 +249,48 @@ components:
             - type: 'null'
         preview: { $ref: '#/components/schemas/BuilderPreviewSummary' }
         mode: { type: string, enum: [BUILD, PLAN] }
+        modelChoices:
+          type: array
+          items: { $ref: '#/components/schemas/BuilderModelChoice' }
+        runHistory:
+          type: array
+          items: { $ref: '#/components/schemas/BuilderRunSummary' }
+    BuilderModelChoice:
+      type: object
+      additionalProperties: false
+      required: [choiceId, label, providerId, modelId, capabilities]
+      properties:
+        choiceId: { type: string, minLength: 1 }
+        label: { type: string, minLength: 1 }
+        providerId: { type: string, minLength: 1 }
+        modelId: { type: string, minLength: 1 }
+        capabilities:
+          type: array
+          items: { type: string, minLength: 1 }
+    EmptyRequest:
+      type: object
+      additionalProperties: false
+      required: []
+    BuilderTraceSpan:
+      type: object
+      additionalProperties: false
+      required: [spanType, name, startedAt, durationMs, error]
+      properties:
+        spanType: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        startedAt: { type: string, format: date-time }
+        durationMs: { type: [integer, 'null'], minimum: 0 }
+        error: { type: boolean }
+    BuilderTraceSummary:
+      type: object
+      additionalProperties: false
+      required: [available, traceId, spans]
+      properties:
+        available: { type: boolean }
+        traceId: { type: [string, 'null'], minLength: 1 }
+        spans:
+          type: array
+          items: { $ref: '#/components/schemas/BuilderTraceSpan' }
     SendBuilderMessageRequest:
       type: object
       additionalProperties: false

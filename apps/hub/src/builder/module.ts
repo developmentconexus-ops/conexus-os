@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import type { MastraLanguageModel } from '@mastra/core/agent'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
@@ -9,10 +10,11 @@ import { AgentController } from '@mastra/core/agent-controller'
 import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
-import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot } from './routes.js'
+import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
 import {
   BUILDER_TRACE_REQUEST_CONTEXT_KEYS,
   BUILDER_CREDENTIAL_REQUEST_CONTEXT_KEY,
+  BUILDER_MODEL_REQUEST_CONTEXT_KEY,
   createMastraE2BCodingWorkerRuntime,
   resolveBuilderWorkspace,
 } from './runtime.js'
@@ -21,6 +23,7 @@ import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, Unbound
 import { createBuilderSourcePort } from './source.js'
 import type { BuilderGitSourceCapability } from './source.js'
 import { createBuilderStore } from './store.js'
+import type { BuilderModelChoice } from './model-choice.js'
 import { createE2BApplicationCompiler } from './application-artifact-runtime.js'
 import { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } from './application-starter.js'
 
@@ -116,7 +119,7 @@ export const projectBuilderMessages = (messages: readonly ProjectableBuilderMess
   .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
   .map((message) => Object.freeze(message)))
 
-export const createConfiguredBuilderModule = ({ database, builder, projectSource, applicationArtifacts, launchPreview, model, modelIdentity, validateModelCredential, resolveModel, origin, resolveCurrentSession }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, projectSource, applicationArtifacts, launchPreview, model, modelIdentity, modelChoices, validateModelCredential, resolveModel, origin, resolveCurrentSession }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
@@ -127,8 +130,9 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   projectSource: Readonly<{ storageRoot: string; git: BuilderGitSourceCapability }>
   model: MastraLanguageModel
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
+  modelChoices?: readonly BuilderModelChoice[]
   validateModelCredential(): void
-  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>) => MastraLanguageModel
+  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => MastraLanguageModel
   origin: string
   resolveCurrentSession: (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
 }>) => {
@@ -174,8 +178,9 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     id: 'conexus-builder-coding-agent', name: 'Conexus Coding Worker',
     model: ({ requestContext }) => {
       const reference = requestContext?.getRaw(BUILDER_CREDENTIAL_REQUEST_CONTEXT_KEY)
-      if (resolveModel && reference && typeof reference === 'object' && 'connectionId' in reference && 'generation' in reference && typeof reference.connectionId === 'string' && typeof reference.generation === 'string') {
-        return resolveModel({ connectionId: reference.connectionId, generation: reference.generation })
+      const modelIdentity = requestContext?.getRaw(BUILDER_MODEL_REQUEST_CONTEXT_KEY)
+      if (resolveModel && reference && typeof reference === 'object' && 'connectionId' in reference && 'generation' in reference && typeof reference.connectionId === 'string' && typeof reference.generation === 'string' && modelIdentity && typeof modelIdentity === 'object' && 'modelId' in modelIdentity && typeof modelIdentity.modelId === 'string') {
+        return resolveModel({ connectionId: reference.connectionId, generation: reference.generation }, modelIdentity.modelId)
       }
       return model
     }, workspace: resolveBuilderWorkspace,
@@ -208,12 +213,20 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     },
   })
   const compiler = createE2BApplicationCompiler({ apiKey: readSecretFile(builder.e2bApiKeyFile) })
-  const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts })
+  const appendDiagnostic = async ({ projectId, builderRunId, code }: Readonly<{ projectId: string; builderRunId: string; code: string }>): Promise<void> => {
+    await ensureSessionStorage()
+    await sessionMemory.saveMessages({ messages: [{
+      id: randomUUID(), role: 'assistant', createdAt: new Date(), threadId: threadIdForProject(projectId), resourceId: projectId,
+      content: { format: 2, parts: [{ type: 'text', text: `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}. Corrija a solicitação para tentar novamente.` }] },
+    }] })
+  }
+  const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts, ...(modelChoices ? { modelChoices } : {}), requiresClaudeConnection: true, appendDiagnostic })
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
       if (!preview) throw new Error('NOT_AUTHORIZED')
       await ensureSessionStorage()
+      const runHistory = await store.listBuilderRuns({ accountId, projectId })
       const threadId = threadIdForProject(projectId)
       const thread = await sessionMemory.getThreadById({ threadId })
       const history = thread
@@ -228,7 +241,28 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
         lastPreviewSourceRevision: preview.lastPreviewSourceRevision ?? null,
         lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId ?? null,
         lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest ?? null,
+        modelChoices: modelChoices ?? [{ choiceId: modelIdentity.admissionId, label: modelIdentity.modelId, providerId: modelIdentity.providerId, modelId: modelIdentity.modelId, capabilities: ['BUILDER_CODING'] }],
+        runHistory,
       })
+    },
+    readTrace: async ({ accountId, projectId, builderRunId }): Promise<BuilderTraceSummary> => {
+      const preview = await store.readPreviewSubject({ accountId, projectId })
+      if (!preview) throw new Error('NOT_AUTHORIZED')
+      await ensureSessionStorage()
+      const observability = await sessionStorage.getStore('observability')
+      if (!observability) return { available: false, traceId: null, spans: [] }
+      const traces = await observability.listTraces({ filters: { resourceId: projectId, serviceName: 'conexus-builder' }, pagination: { page: 0, perPage: 50 } })
+      const root = traces.spans.find((span) => span.requestContext?.conexusBuilderProjectId === projectId && span.requestContext?.conexusBuilderRunId === builderRunId)
+      if (!root) return { available: false, traceId: null, spans: [] }
+      const trace = await observability.getTrace({ traceId: root.traceId })
+      const spans = (trace?.spans ?? []).map((span) => ({
+        spanType: span.spanType,
+        name: span.name,
+        startedAt: span.startedAt.toISOString(),
+        durationMs: span.endedAt ? Math.max(0, span.endedAt.getTime() - span.startedAt.getTime()) : null,
+        error: Boolean(span.error),
+      }))
+      return { available: true, traceId: root.traceId, spans }
     },
   })
   return Object.freeze({

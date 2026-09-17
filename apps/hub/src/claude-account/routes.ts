@@ -27,7 +27,7 @@ export const registerClaudeAccountRoutes = async (app: FastifyInstance, dependen
   resolveCurrentSession: (request: FastifyRequest, csrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
   createAuthorizationRequest: typeof createAuthorizationRequest
   parseAuthorizationResult: (value: string, state: string) => string
-  exchangeAuthorizationCode: (input: Readonly<{ code: string; verifier: string; fetchImpl?: typeof fetch }>) => Promise<Readonly<{ access: string; refresh: string; expiresAt: number }>>
+  exchangeAuthorizationCode: (input: Readonly<{ code: string; state: string; verifier: string; fetchImpl?: typeof fetch }>) => Promise<Readonly<{ access: string; refresh: string; expiresAt: number }>>
   fetchImpl?: typeof fetch
 }>): Promise<readonly string[]> => {
   app.get('/api/control/me/claude-connections', async (request, reply) => {

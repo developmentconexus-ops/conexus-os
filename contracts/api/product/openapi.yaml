@@ -43,6 +43,10 @@ paths:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session'
   /api/control/projects/{projectId}/builder-session/messages:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1messages'
+  /api/control/projects/{projectId}/builder-session/runs/{builderRunId}/cancel:
+    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1runs~1{builderRunId}~1cancel'
+  /api/control/projects/{projectId}/builder-session/runs/{builderRunId}/trace:
+    $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1runs~1{builderRunId}~1trace'
   /api/control/me/claude-connections:
     $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections'
   /api/control/me/claude-connections/authorization:

@@ -14,6 +14,8 @@ const expected = {
   'BLD-09': ['/source/file', 'get'],
   'BLD-23': ['/builder-session', 'get'],
   'BLD-24': ['/builder-session/messages', 'post'],
+  'BLD-25': ['/builder-session/runs/{builderRunId}/cancel', 'post'],
+  'BLD-26': ['/builder-session/runs/{builderRunId}/trace', 'get'],
 }
 for (const [id, [suffix, method]] of Object.entries(expected)) {
   const entry = operations.get(id)
@@ -46,12 +48,14 @@ const closed = (value, label) => {
 }
 
 const session = closed(schema('BLD-23', 'response'), 'BLD-23 response')
-required(session, 'projectId', 'messages', 'latestBuilderRun', 'latestCodeChangingRun', 'preview')
+required(session, 'projectId', 'messages', 'latestBuilderRun', 'latestCodeChangingRun', 'preview', 'modelChoices', 'runHistory')
 if (session.properties?.activeBuilderRun) throw new Error('BLD-23 exposes activeBuilderRun')
 const preview = closed(resolve(session.properties?.preview), 'BLD-23 preview')
 required(preview, 'workingSourceRevision', 'lastGoodSourceRevision', 'lastGoodArtifactRevisionId', 'lastGoodArtifactDigest')
 const message = closed(schema('BLD-24', 'request'), 'BLD-24 request')
 required(message, 'content', 'mode')
+const cancel = closed(schema('BLD-25', 'request'), 'BLD-25 request')
+if (Object.keys(cancel.properties ?? {}).length !== 0 || (cancel.required ?? []).length !== 0) throw new Error('BLD-25 request must be empty')
 for (const path of Object.keys(oas.paths ?? {})) {
   if (path.endsWith('/builder-session/preview') || (path.includes('/builder-session/runs/') && path.endsWith('/stream'))) {
     throw new Error(`technical Builder route must not be Product OAS authority: ${path}`)

@@ -3,6 +3,7 @@ import type { QueryResultRow } from 'pg'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { BuilderPreviewSubject } from './preview.js'
+import type { BuilderModelIdentity } from './model-choice.js'
 
 export type BuilderRunSummary = Readonly<{
   builderRunId: string
@@ -13,6 +14,10 @@ export type BuilderRunSummary = Readonly<{
   resultSourceRevision: string | null
   resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
   failureCode: string | null
+  modelAdmissionId?: string | null
+  modelProviderId?: string | null
+  modelId?: string | null
+  cancellationRequested?: boolean
   claudeConnectionId?: string | null
   claudeCredentialGeneration?: string | null
 }>
@@ -30,8 +35,9 @@ export type BuilderWorkingPreviewSubject = BuilderPreviewSubject & Readonly<{
 }>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 export type BuilderStore = Readonly<{
-  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN' }>): Promise<BuilderRunSummary>
+  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN'; modelIdentity?: BuilderModelIdentity }>): Promise<BuilderRunSummary>
   readBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderRunSummary | null>
+  listBuilderRuns(input: Readonly<{ accountId: string; projectId: string; limit?: number }>): Promise<readonly BuilderRunSummary[]>
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderCodeChangingRun | null>
   claimBuilderRun(builderRunId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<BuilderRunSummary>
   bindBuilderRunMessage(builderRunId: string, messageId: string): Promise<void>
@@ -40,6 +46,8 @@ export type BuilderStore = Readonly<{
   advanceBuilderRunSource(builderRunId: string, sourceRevision: string): Promise<void>
   settleBuilderRunBuild(input: Readonly<{ builderRunId: string; sourceRevision: string; artifactRevisionId?: string; artifactDigest?: string; failureCode?: string }>): Promise<void>
   failBuilderRun(builderRunId: string, failureCode: string): Promise<void>
+  requestBuilderRunCancellation(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderRunSummary>
+  interruptBuilderRun(builderRunId: string, reason: string): Promise<void>
   readPreviewSubject(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderWorkingPreviewSubject | null>
   admitSourceRevision(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<boolean>
   recoverAndListQueuedBuilderRuns(): Promise<readonly string[]>
@@ -55,12 +63,17 @@ export const createBuilderStore = ({
   executorPool: PostgresPool
   mintIdentity?: () => string
 }>): BuilderStore => Object.freeze({
-  createBuilderRun: async ({ accountId, projectId, idempotencyKey, content, mode }) => {
+  createBuilderRun: async ({ accountId, projectId, idempotencyKey, content, mode, modelIdentity }) => {
     const request = { mode, content }
-    const result = await ingressPool.query<JsonRow<BuilderRunSummary>>(
-      'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7) AS value',
-      [accountId, projectId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), null, mode, mintIdentity()],
-    )
+    const result = modelIdentity
+      ? await ingressPool.query<JsonRow<BuilderRunSummary>>(
+        'SELECT builder.create_builder_run_with_model($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value',
+        [accountId, projectId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), null, mode, mintIdentity(), modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId],
+      )
+      : await ingressPool.query<JsonRow<BuilderRunSummary>>(
+        'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7) AS value',
+        [accountId, projectId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), null, mode, mintIdentity()],
+      )
     const value = result.rows[0]?.value
     if (!value) throw new Error('BUILDER_RUN_CREATE_FAILED')
     return value
@@ -70,6 +83,12 @@ export const createBuilderStore = ({
       'SELECT builder.read_builder_run($1,$2) AS value', [accountId, projectId],
     )
     return result.rows[0]?.value ?? null
+  },
+  listBuilderRuns: async ({ accountId, projectId, limit = 20 }) => {
+    const result = await ingressPool.query<JsonRow<readonly BuilderRunSummary[]>>(
+      'SELECT builder.list_builder_runs($1,$2,$3) AS value', [accountId, projectId, limit],
+    )
+    return result.rows[0]?.value ?? []
   },
   readLatestCodeChangingBuilderRun: async ({ accountId, projectId }) => {
     const result = await ingressPool.query<JsonRow<BuilderCodeChangingRun | null>>(
@@ -122,6 +141,20 @@ export const createBuilderStore = ({
       'SELECT builder.fail_builder_run($1,$2) AS value', [builderRunId, failureCode],
     )
     if (result.rows[0]?.value !== true) throw new Error('BUILDER_RUN_FAILURE_REFUSED')
+  },
+  requestBuilderRunCancellation: async ({ accountId, projectId, builderRunId }) => {
+    const result = await ingressPool.query<JsonRow<BuilderRunSummary>>(
+      'SELECT builder.request_builder_run_cancellation($1,$2,$3) AS value', [accountId, projectId, builderRunId],
+    )
+    const value = result.rows[0]?.value
+    if (!value) throw new Error('BUILDER_RUN_CANCELLATION_REFUSED')
+    return value
+  },
+  interruptBuilderRun: async (builderRunId, reason) => {
+    const result = await executorPool.query<{ value: boolean }>(
+      'SELECT builder.interrupt_builder_run($1,$2) AS value', [builderRunId, reason],
+    )
+    if (result.rows[0]?.value !== true) throw new Error('BUILDER_RUN_INTERRUPTION_REFUSED')
   },
   readPreviewSubject: async ({ accountId, projectId }) => {
     const result = await ingressPool.query<JsonRow<BuilderWorkingPreviewSubject | null>>(

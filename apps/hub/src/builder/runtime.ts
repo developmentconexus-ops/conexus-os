@@ -16,6 +16,7 @@ type CodingWorkerCommonInput = Readonly<{
   bindPhysicalSandbox(sandboxId: string): Promise<void>
   bindMessage?(messageId: string): Promise<void>
   credentialReference?: Readonly<{ connectionId: string; generation: string }>
+  modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   signal?: AbortSignal
 }>
 
@@ -52,7 +53,7 @@ export type E2BBuilderRuntimeConfig = Readonly<{
   model: MastraLanguageModel
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   validateModelCredential(): void
-  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>) => MastraLanguageModel
+  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => MastraLanguageModel
   sharedHarness: Readonly<{
     controller: AgentController<Record<string, unknown>>
     ready: Promise<void>
@@ -95,6 +96,7 @@ type BuilderDisplayState = Readonly<{
 
 export const BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY = 'conexus.builder.workspace'
 export const BUILDER_CREDENTIAL_REQUEST_CONTEXT_KEY = 'conexus.builder.credential'
+export const BUILDER_MODEL_REQUEST_CONTEXT_KEY = 'conexus.builder.model'
 export const BUILDER_TRACE_REQUEST_CONTEXT_KEYS = Object.freeze([
   'conexusBuilderProjectId',
   'conexusBuilderRunId',
@@ -107,17 +109,20 @@ export const createBuilderRequestContext = ({
   projectId,
   runId,
   credentialReference,
+  modelIdentity,
 }: Readonly<{
   workspace: Workspace
   projectId: string
   runId: string
   credentialReference?: Readonly<{ connectionId: string; generation: string }>
+  modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
 }>): BuilderRequestContext => {
   const requestContext = new RequestContext()
   requestContext.setRaw(BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY, workspace)
   requestContext.setRaw('conexusBuilderProjectId', projectId)
   requestContext.setRaw('conexusBuilderRunId', runId)
   if (credentialReference) requestContext.setRaw(BUILDER_CREDENTIAL_REQUEST_CONTEXT_KEY, credentialReference)
+  requestContext.setRaw(BUILDER_MODEL_REQUEST_CONTEXT_KEY, modelIdentity)
   return requestContext
 }
 
@@ -315,6 +320,7 @@ export const createMastraE2BCodingWorkerRuntime = (
             projectId: input.projectId,
             runId: executionId,
             ...(input.credentialReference ? { credentialReference: input.credentialReference } : {}),
+            modelIdentity: input.modelIdentity,
           })
           const session = await controller.createSession({
             resourceId: input.projectId,

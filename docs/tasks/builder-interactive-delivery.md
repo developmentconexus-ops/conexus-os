@@ -231,6 +231,54 @@ of secrets, operational password change, or deletion of historical evidence.
 These are implementation units, not new tasks or repeated approval gates. Record
 progress and focused evidence here. Stop between them only for the named stop law.
 
+### Execution record
+
+2026-09-17 implementation pass:
+
+- [x] Unit 1 imported the approved artifact byte-for-byte, fixed the PKCE state
+  forwarding defect, added active-generation recheck/coalesced refresh coverage,
+  added connection ownership/revoke/share/select forward migrations, and carries
+  the server-owned model admission through the native Mastra dynamic model
+  resolver and BuilderRun record.
+- [x] Unit 2 keeps the existing React/Vite Build route and Mastra Session,
+  Memory, AgentController, Workspace, Observability, and E2B runtime. The route
+  now proves the model choice body, keyboard composer, native activity projection,
+  real Preview launch, code/diff/details panes, pane sizing, fullscreen request,
+  mobile pane switch, and Claude connection selector.
+- [x] Unit 3 propagates one AbortSignal through Mastra session, E2B workspace,
+  and E2B application compiler; records cancellation before abort; preserves the
+  last-good Preview; and appends a safe compiler diagnostic through the installed
+  Mastra Memory API. A focused cancellation test proves the interrupt settlement
+  path.
+- [x] Unit 4 adds bounded run history and lazy safe native trace projection,
+  updates the Product wire contract, reconciles Builder operation ownership, and
+  verifies the approved browser journey plus focused implementation suites.
+- [ ] Live two-model provider proof remains blocked: the preserved external model
+  catalog currently exposes only one enabled `BUILDER_CODING` Claude choice. The
+  implementation refuses unsupported choices and does not promote the separate
+  verification admission into a coding choice.
+- [ ] Candidate wire verification remains blocked by the pre-existing Claude
+  account contract gap: `GET /api/control/me/claude-connections` has an
+  `operationId` but no `x-conexus-4a-id`/fixed-ledger entry. The applicable
+  migration, PostgreSQL, typecheck, build, repository, browser, and focused
+  Builder checks pass. No credentials or containers were changed.
+
+Focused evidence:
+
+- Approved artifact SHA-256:
+  `465ffcabf3974f2f227c825c5288916f9dfbad5d1c8b736c6aaca81f62d62665`.
+- `node --test --test-concurrency=1` focused Builder, Claude, migration,
+  projection, and browser suites: 20 tests passed in the final focused run.
+- `npm run verify` passed migration selection (6), PostgreSQL migrations (5),
+  Builder PostgreSQL execution/invariants/source inspection (3), native Mastra
+  capability/session proofs (14), dispatch/runtime/custody (9), compiler and
+  starter isolation (13), Builder UI (4), E2B template (2), repository checks,
+  typechecks, build, and browser proof. It stops only at the existing Claude
+  operation declaration in `wire:bijection`.
+- `npm run wire:builder`, `npm run wire:carriers`, both Hub/Web typechecks, and
+  scoped Biome checks pass. `npm run wire:verify` is blocked by an existing
+  unrelated Claude operation declaration missing `operationId`/`x-conexus-4a-id`.
+
 ### Unit 1. Connect and select a real execution subject
 
 - [ ] Import the exact approved HTML and inspect it without altering its bytes.

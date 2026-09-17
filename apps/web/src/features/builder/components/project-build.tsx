@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { FormEvent } from 'react'
+import type { CSSProperties, FormEvent, KeyboardEvent } from 'react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { BuilderRequestError, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type PreviewLaunch, type SourceTree } from '../api'
+import { useMutation as useClaudeMutation, useQuery as useClaudeQuery, useQueryClient as useClaudeQueryClient } from '@tanstack/react-query'
+import { claudeConnectionsQueryKey, listClaudeConnections, selectClaudeConnection } from '../../claude-account/api'
+import { BuilderRequestError, cancelBuilderRun, getBuilderRunTrace, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type PreviewLaunch, type SourceTree } from '../api'
 import { observeBuilderRun, type BuilderLiveView } from '../observation'
 import { BuilderMarkdown } from './builder-markdown'
 
@@ -66,6 +68,34 @@ type PreviewState = Readonly<{
 }>
 type PreviewRequest = Readonly<{ projectId: string; keyId: string; requestToken: number }>
 
+function BuilderClaudeConnection() {
+  const [open, setOpen] = useState(false)
+  const claudeQuery = useClaudeQuery({ queryKey: claudeConnectionsQueryKey, queryFn: listClaudeConnections, enabled: open })
+  const claudeQueryClient = useClaudeQueryClient()
+  const select = useClaudeMutation({
+    mutationFn: selectClaudeConnection,
+    onSuccess: async () => { await claudeQueryClient.invalidateQueries({ queryKey: claudeConnectionsQueryKey }); setOpen(false) },
+  })
+  const active = claudeQuery.data?.find((connection) => connection.state === 'ACTIVE')
+  return <div className="builder-connection">
+    <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-controls="builder-claude-connection">
+      Claude: {active ? active.label : 'conexão necessária'}
+    </button>
+    {open && <dialog id="builder-claude-connection" open aria-labelledby="builder-claude-connection-title">
+      <div className="dialog-heading"><div><p className="eyebrow">Credencial do Builder</p><h3 id="builder-claude-connection-title">Conexão Claude</h3></div><button type="button" onClick={() => setOpen(false)} aria-label="Fechar conexão">Fechar</button></div>
+      <p className="panel-intro">A conta selecionada é resolvida no servidor e vale somente para novos BuilderRuns.</p>
+      {claudeQuery.isPending && <p>Carregando conexões…</p>}
+      {claudeQuery.isError && <p role="alert">Não foi possível consultar as conexões Claude.</p>}
+      {claudeQuery.data?.length === 0 && <p>Nenhuma conexão Claude disponível. <a href="/settings">Abrir configurações</a></p>}
+      {claudeQuery.data?.map((connection) => <div className="builder-connection-option" key={connection.connectionId}>
+        <span><strong>{connection.label}</strong><small>{connection.state === 'ACTIVE' ? 'Ativa' : 'Revogada'} · {connection.role === 'OWNER' ? 'Sua conexão' : 'Compartilhada'}</small></span>
+        <button type="button" disabled={connection.state !== 'ACTIVE' || select.isPending} onClick={() => select.mutate(connection.connectionId)}>{connection.connectionId === active?.connectionId ? 'Selecionada' : 'Usar'}</button>
+      </div>)}
+      <a href="/settings">Gerenciar conexões</a>
+    </dialog>}
+  </div>
+}
+
 const getPreviewKeyId = (key: PreviewKey): string => [
   key.projectId,
   key.sourceRevision,
@@ -99,6 +129,10 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const [content, setContent] = useState('')
   const [mode, setMode] = useState<'BUILD' | 'PLAN'>('BUILD')
   const [message, setMessage] = useState('')
+  const [modelChoiceId, setModelChoiceId] = useState('')
+  const [previewRatio, setPreviewRatio] = useState(2)
+  const [mobilePane, setMobilePane] = useState<'PREVIEW' | 'CHAT'>('PREVIEW')
+  const [chatCollapsed, setChatCollapsed] = useState(false)
   const [liveView, setLiveView] = useState<BuilderLiveView | null>(null)
   const [liveRequest, setLiveRequest] = useState<LiveRequest | null>(null)
   const [inspection, setInspection] = useState<Inspection | null>(null)
@@ -106,6 +140,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const [previewState, setPreviewState] = useState<PreviewState>({ kind: 'IDLE', projectId, lastGood: null })
   const frameName = `builder-preview-${inputId.replaceAll(':', '')}`
   const entryForm = useRef<HTMLFormElement>(null)
+  const previewSurfaceRef = useRef<HTMLElement>(null)
   const conversationRef = useRef<HTMLElement>(null)
   const followTail = useRef(true)
   const session = useQuery({
@@ -113,8 +148,8 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     refetchInterval: (query) => query.state.data?.latestBuilderRun?.state === 'RUNNING' ? 1_000 : 2_000,
   })
   const send = useMutation({
-    mutationFn: (value: Readonly<{ content: string; mode: 'BUILD' | 'PLAN'; key: string; messageBoundary: number }>) =>
-      sendBuilderMessage(projectId, value.content, value.mode, value.key),
+    mutationFn: (value: Readonly<{ content: string; mode: 'BUILD' | 'PLAN'; key: string; messageBoundary: number; modelChoiceId?: string }>) =>
+      sendBuilderMessage(projectId, value.content, value.mode, value.key, value.modelChoiceId),
     onSuccess: async (result, variables) => {
       setContent((current) => current === variables.content ? '' : current)
       setMessage('Mensagem enviada ao Builder.')
@@ -131,6 +166,18 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const runId = session.data?.latestBuilderRun?.builderRunId
   const run = session.data?.latestBuilderRun
   const runActive = run?.state === 'QUEUED' || run?.state === 'RUNNING'
+  const cancel = useMutation({
+    mutationFn: () => {
+      if (!runId) throw new Error('BUILDER_RUN_NOT_READY')
+      return cancelBuilderRun(projectId, runId)
+    },
+    onSuccess: async () => { setMessage('Solicitação de interrupção enviada.'); await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] }) },
+    onError: () => setMessage('Não foi possível interromper a execução atual.'),
+  })
+  useEffect(() => {
+    const firstChoice = session.data?.modelChoices?.at(0)
+    if (firstChoice && !modelChoiceId) setModelChoiceId(firstChoice.choiceId)
+  }, [modelChoiceId, session.data?.modelChoices])
   useEffect(() => {
     if (!runId || !runActive) return undefined
     const controller = new AbortController()
@@ -200,6 +247,14 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       return diffSourceSnapshots(current, previous)
     },
     enabled: inspection === 'DIFF' && Boolean(diffBasis),
+  })
+  const trace = useQuery({
+    queryKey: ['builder-run-trace', projectId, runId],
+    queryFn: () => {
+      if (!runId) throw new Error('BUILDER_TRACE_NOT_READY')
+      return getBuilderRunTrace(projectId, runId)
+    },
+    enabled: inspection === 'DETAILS' && Boolean(runId),
   })
   const previewSourceRevision = previewSummary?.lastGoodSourceRevision
   const previewArtifactRevisionId = previewSummary?.lastGoodArtifactRevisionId
@@ -291,14 +346,24 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     event.preventDefault()
     const value = content.trim()
     if (!value || send.isPending) return
-    send.mutate({ content: value, mode, key: crypto.randomUUID(), messageBoundary: session.data?.messages.length ?? 0 })
+    send.mutate({ content: value, mode, key: crypto.randomUUID(), messageBoundary: session.data?.messages.length ?? 0, ...(modelChoiceId ? { modelChoiceId } : {}) })
+  }
+  const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault()
+      event.currentTarget.form?.requestSubmit()
+    }
   }
   useEffect(() => { if (previewLaunch) queueMicrotask(() => entryForm.current?.requestSubmit()) }, [previewLaunch])
 
   return <div className="project-build">
-    <div className="build-workspace">
-      <section className="build-preview-surface" aria-labelledby="build-preview-title">
-        <div className="work-heading"><div><p className="eyebrow">Aplicação</p><h2 id="build-preview-title">Preview</h2></div></div>
+    <nav className="builder-mobile-switcher" aria-label="Painel do Builder">
+      <button type="button" aria-pressed={mobilePane === 'PREVIEW'} onClick={() => setMobilePane('PREVIEW')}>Preview</button>
+      <button type="button" aria-pressed={mobilePane === 'CHAT'} onClick={() => setMobilePane('CHAT')}>Conversa</button>
+    </nav>
+    <div className="build-workspace" style={{ '--builder-preview-ratio': `${previewRatio}fr` } as CSSProperties}>
+      <section ref={previewSurfaceRef} data-mobile-pane={mobilePane} className="build-preview-surface" aria-labelledby="build-preview-title">
+        <div className="work-heading"><div><p className="eyebrow">Aplicação</p><h2 id="build-preview-title">Preview</h2></div><div className="builder-pane-actions"><label>Divisão <input aria-label="Tamanho do Preview" type="range" min="1" max="3" step=".1" value={previewRatio} onChange={(event) => setPreviewRatio(Number(event.target.value))} /></label><button type="button" onClick={() => void previewSurfaceRef.current?.requestFullscreen?.()}>Tela cheia</button></div></div>
         <nav className="build-lenses" aria-label="Inspeção técnica">
           <button type="button" aria-pressed={inspection === null} onClick={() => setInspection(null)}>Preview</button>
           <button type="button" aria-pressed={inspection === 'CODE'} onClick={() => setInspection('CODE')}>Código</button>
@@ -309,8 +374,8 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
         {previewReady
           ? <p><strong>Último Preview bom disponível.</strong></p>
           : <p className="preview-empty">O Preview aparecerá depois do primeiro Build bem-sucedido.</p>}
-        {run && <p role="status" aria-live="polite">{runStatus(run.state, run.resultKind)}</p>}
-        {run?.resultKind === 'SOURCE_CHANGED_BUILD_FAILED' && <p role="alert">A nova fonte foi preservada para a próxima correção.</p>}
+        {run && <p role="status" aria-live="polite">{runStatus(run.state, run.resultKind)}{run.modelId ? ` · ${run.modelId}` : ''}</p>}
+        {run?.resultKind === 'SOURCE_CHANGED_BUILD_FAILED' && <p role="alert">A nova fonte foi preservada para a próxima correção.{run.failureCode ? ` Diagnóstico: ${run.failureCode}.` : ''}</p>}
         {previewLaunch && <><div className="preview-frame-stack"><iframe title="Preview do aplicativo" name={frameName} src="about:blank" /></div><form ref={entryForm} hidden method="post" action={previewLaunch.entryUrl} target={frameName}><input type="hidden" name="entryGrant" value={previewLaunch.entryGrant} /></form>{currentPreviewState.kind === 'ISSUED' && <><p>Preview emitido.</p><button type="button" onClick={() => { if (previewKey) launchPreviewForKey(previewKey) }}>Reabrir Preview</button></>}</>}
         {previewFailed && <><p role="alert">Não foi possível abrir o Preview atual.</p><button type="button" onClick={retryPreview}>Tentar novamente</button></>}
         {inspection === 'CODE' && <section className="build-inspection" aria-labelledby="build-code-title">
@@ -349,10 +414,18 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
             <div><dt>Digest do artefato</dt><dd><code>{previewSummary?.lastGoodArtifactDigest ?? 'Ainda não disponível'}</code></dd></div>
             <div><dt>Última execução</dt><dd><code>{run?.builderRunId ?? 'Nenhuma'}</code> · {runStatus(run?.state, run?.resultKind)}</dd></div>
           </dl>
+          <h3>Histórico recente</h3>
+          {(session.data?.runHistory?.length ?? 0) === 0 && <p>Nenhuma execução persistida.</p>}
+          {session.data?.runHistory && session.data.runHistory.length > 0 && <ol className="builder-run-history">{session.data.runHistory.map((historyRun) => <li key={historyRun.builderRunId}><code>{historyRun.builderRunId}</code><span>{runStatus(historyRun.state, historyRun.resultKind)}</span>{historyRun.modelId && <small>{historyRun.modelId}</small>}</li>)}</ol>}
+          <h3>Trace nativo</h3>
+          {trace.isPending && <p>Consultando trace…</p>}
+          {trace.isError && <p role="alert">Trace indisponível.</p>}
+          {trace.data && !trace.data.available && <p>Trace não disponível para esta execução.</p>}
+          {trace.data?.available && <><p><code>{trace.data.traceId}</code></p><ul className="builder-trace-list">{trace.data.spans.map((span) => <li key={`${span.spanType}-${span.name}-${span.startedAt}`}><strong>{span.spanType}</strong><span>{span.name}</span><small>{span.durationMs === null ? 'duração indisponível' : `${span.durationMs} ms`}{span.error ? ' · erro' : ''}</small></li>)}</ul></>}
         </section>}
       </section>
-      <aside className="conexus-panel" aria-labelledby="conexus-panel-title">
-        <p className="eyebrow">Conexus</p><h2 id="conexus-panel-title">Converse com o Conexus</h2>
+      {!chatCollapsed && <aside data-mobile-pane={mobilePane} className="conexus-panel" aria-labelledby="conexus-panel-title">
+        <div className="builder-panel-heading"><div><p className="eyebrow">Conexus</p><h2 id="conexus-panel-title">Converse com o Conexus</h2></div><BuilderClaudeConnection /></div>
         <section ref={conversationRef} onScroll={onConversationScroll} className="builder-conversation" aria-label="Mensagens do Builder">
           {timelineMessages.map((item) => <div key={item.id} className={`builder-timeline-item builder-message builder-message-${item.role}`}><strong>{item.role === 'user' ? 'Você' : 'Conexus'}</strong><BuilderMarkdown text={item.text} /></div>)}
           {liveRequestPart && <div key={liveRequestPart.runId} className="builder-timeline-item builder-message builder-message-user"><strong>Você</strong><BuilderMarkdown text={liveRequestPart.text} /></div>}
@@ -363,16 +436,23 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
         </section>
         <form onSubmit={submit}>
           <label htmlFor={inputId}>O que o Project precisa fazer?</label>
-          <textarea id={inputId} rows={5} required value={content} onChange={(event) => setContent(event.target.value)} />
+          <textarea id={inputId} rows={5} required value={content} onChange={(event) => setContent(event.target.value)} onKeyDown={onComposerKeyDown} />
+          <label htmlFor={`${inputId}-model`}>Modelo para a próxima solicitação</label>
+          <select id={`${inputId}-model`} value={modelChoiceId} onChange={(event) => setModelChoiceId(event.target.value)} disabled={!session.data?.modelChoices?.length}>
+            {session.data?.modelChoices?.map((choice) => <option key={choice.choiceId} value={choice.choiceId}>{choice.label} · {choice.providerId}</option>)}
+          </select>
           <fieldset className="builder-mode-toggle">
             <legend>Modo do Builder</legend>
             <button className={mode === 'BUILD' ? 'builder-mode-selected' : undefined} type="button" aria-pressed={mode === 'BUILD'} onClick={() => setMode('BUILD')}>Build</button>
             <button className={mode === 'PLAN' ? 'builder-mode-selected' : undefined} type="button" aria-pressed={mode === 'PLAN'} onClick={() => setMode('PLAN')}>Plan</button>
           </fieldset>
           <button className="primary" type="submit" disabled={send.isPending || run?.state === 'QUEUED' || run?.state === 'RUNNING'}>{send.isPending ? 'Enviando…' : 'Enviar mensagem'}</button>
+          {runActive && <button type="button" onClick={() => cancel.mutate()} disabled={cancel.isPending}>{cancel.isPending ? 'Parando…' : 'Parar execução'}</button>}
           <p role="status" aria-live="polite">{message}</p>
+          {runActive && <p>O Builder está trabalhando. A troca de modelo vale para a próxima solicitação.</p>}
         </form>
-      </aside>
+      </aside>}
     </div>
+    <button className="builder-collapse-chat" type="button" onClick={() => setChatCollapsed((current) => !current)}>{chatCollapsed ? 'Mostrar conversa' : 'Ocultar conversa'}</button>
   </div>
 }

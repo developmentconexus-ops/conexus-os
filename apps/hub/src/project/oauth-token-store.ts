@@ -23,7 +23,7 @@ export const createBackendOAuthTokenStore = (
     publishRefresh?: (input: Readonly<{ current: CredentialCoordinate; next: CredentialCoordinate; tokens: OAuthTokenSet }>) => Promise<boolean>
   }> = {},
 ): OAuthTokenStore => {
-  let refreshing: Promise<string> | undefined
+  let acquiring: Promise<string> | undefined
   let currentCoordinate = coordinate
   let current: OAuthTokenSet | undefined
   const read = async (requested: CredentialCoordinate): Promise<OAuthTokenSet> => {
@@ -46,24 +46,34 @@ export const createBackendOAuthTokenStore = (
     const plaintext = Buffer.from(JSON.stringify(tokens), 'utf8')
     try { await backend.publishOrMatch(next, plaintext); return true } finally { plaintext.fill(0) }
   }
+  const acquire = async (): Promise<string> => {
+    const resolved = await options.resolveCurrent?.() ?? currentCoordinate
+    if (resolved.connectionId !== currentCoordinate.connectionId || resolved.generation !== currentCoordinate.generation) {
+      currentCoordinate = resolved
+      current = undefined
+    }
+    current ??= await read(currentCoordinate)
+    if (Date.now() < current.expiresAt) return current.access
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const refreshed = await refresh(current.refresh)
+      if (await rotate(currentCoordinate, refreshed)) {
+        currentCoordinate = nextCoordinate(currentCoordinate)
+        current = refreshed
+        return refreshed.access
+      }
+      const reconciled = await options.resolveCurrent?.()
+      if (!reconciled) throw new Error('CREDENTIAL_REFRESH_RECONCILE_REQUIRED')
+      currentCoordinate = reconciled
+      current = await read(currentCoordinate)
+      if (Date.now() < current.expiresAt) return current.access
+    }
+    throw new Error('CREDENTIAL_REFRESH_RECONCILE_REQUIRED')
+  }
   return Object.freeze({
     validate: () => undefined,
     getAccessToken: async () => {
-      current ??= await read(currentCoordinate)
-      if (Date.now() < current.expiresAt) return current.access
-      refreshing ??= (async () => {
-        for (;;) {
-          currentCoordinate = await options.resolveCurrent?.() ?? currentCoordinate
-          current = await read(currentCoordinate)
-          if (Date.now() < current.expiresAt) return current.access
-          const next = await refresh(current.refresh)
-          if (!await rotate(currentCoordinate, next)) continue
-          currentCoordinate = nextCoordinate(currentCoordinate)
-          current = next
-          return next.access
-        }
-      })().finally(() => { refreshing = undefined })
-      return refreshing
+      acquiring ??= acquire().finally(() => { acquiring = undefined })
+      return acquiring
     },
   })
 }

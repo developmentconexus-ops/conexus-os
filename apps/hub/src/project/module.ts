@@ -277,6 +277,14 @@ type ProjectModelAdmissionCatalogEntry = Readonly<{
   enabled: boolean
 }>
 
+export type ProjectModelChoice = Readonly<{
+  choiceId: string
+  label: string
+  providerId: string
+  modelId: string
+  capabilities: readonly ProjectModelCapability[]
+}>
+
 const projectOAuthTokenStores = new Map<string, ReturnType<typeof createOAuthTokenStore>>()
 
 const projectOAuthTokenStore = (credentialFile: string): ReturnType<typeof createOAuthTokenStore> => {
@@ -331,6 +339,19 @@ const readProjectModelAdmissionCatalog = (catalogFile: string): readonly Project
     }) as ProjectModelAdmissionCatalogEntry
   }))
 }
+
+export const readProjectModelChoices = ({ catalogFile, requiredCapabilities }: Readonly<{
+  catalogFile: string
+  requiredCapabilities: readonly ProjectModelCapability[]
+}>): readonly ProjectModelChoice[] => Object.freeze(readProjectModelAdmissionCatalog(catalogFile)
+  .filter((entry) => entry.enabled && requiredCapabilities.every((capability) => entry.capabilitySet.includes(capability)))
+  .map((entry) => Object.freeze({
+    choiceId: entry.admissionId,
+    label: entry.modelId.replaceAll('-', ' '),
+    providerId: entry.providerKey,
+    modelId: entry.modelId,
+    capabilities: entry.capabilitySet,
+  })))
 
 export const resolveProjectModelAdmission = ({
   catalogFile,

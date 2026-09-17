@@ -41,10 +41,10 @@ export const parseAuthorizationResult = (value: string, expectedState: string): 
   return code
 }
 
-export const exchangeAuthorizationCode = (input: Readonly<{ code: string; verifier: string; fetchImpl?: typeof globalThis.fetch }>): Promise<OAuthTokenSet> =>
+export const exchangeAuthorizationCode = (input: Readonly<{ code: string; state: string; verifier: string; fetchImpl?: typeof globalThis.fetch }>): Promise<OAuthTokenSet> =>
   tokenRequest({
     grant_type: 'authorization_code', client_id: ANTHROPIC_OAUTH.clientId,
-    code: input.code, state: input.verifier, redirect_uri: ANTHROPIC_OAUTH.redirectUri,
+    code: input.code, state: input.state, redirect_uri: ANTHROPIC_OAUTH.redirectUri,
     code_verifier: input.verifier,
   }, input.fetchImpl)
 

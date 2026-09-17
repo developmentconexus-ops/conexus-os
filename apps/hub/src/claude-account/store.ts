@@ -9,7 +9,7 @@ export type ClaudeConnectionProjection = Readonly<{ connectionId: string; label:
 export type ClaudeAuthorization = Readonly<{ authorizationId: string; url: string; state: string }>
 export type ClaudeAccountStore = Readonly<{
   startAuthorization(input: Readonly<{ accountId: string; authorization: Readonly<{ authorizationId: string; state: string; verifier: string; url: string }> }>): Promise<ClaudeAuthorization>
-  completeAuthorization(input: Readonly<{ accountId: string; result: string; label: string; parse: (value: string, state: string) => string; exchange: (input: Readonly<{ code: string; verifier: string; fetchImpl?: typeof fetch }>) => Promise<OAuthTokenSet>; fetchImpl?: typeof fetch }>): Promise<ClaudeConnectionProjection>
+  completeAuthorization(input: Readonly<{ accountId: string; result: string; label: string; parse: (value: string, state: string) => string; exchange: (input: Readonly<{ code: string; state: string; verifier: string; fetchImpl?: typeof fetch }>) => Promise<OAuthTokenSet>; fetchImpl?: typeof fetch }>): Promise<ClaudeConnectionProjection>
   list(accountId: string): Promise<readonly ClaudeConnectionProjection[]>
   select(input: Readonly<{ accountId: string; connectionId: string }>): Promise<void>
   share(input: Readonly<{ accountId: string; connectionId: string; targetAccountId: string; workspaceId: string }>): Promise<void>
@@ -41,7 +41,7 @@ export const createClaudeAccountStore = ({ pool, credentialBackend }: Readonly<{
     if (!pending) throw new Error('ANTHROPIC_OAUTH_STATE_INVALID')
     const code = parse(result, state)
     try {
-      const tokens = await exchange({ code, verifier: pending.pkce_verifier, ...(fetchImpl ? { fetchImpl } : {}) })
+      const tokens = await exchange({ code, state, verifier: pending.pkce_verifier, ...(fetchImpl ? { fetchImpl } : {}) })
       const connectionId = randomUUID()
       const plaintext = Buffer.from(JSON.stringify(tokens), 'utf8')
       try {

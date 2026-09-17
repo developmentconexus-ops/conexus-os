@@ -175,6 +175,8 @@ This is the current Product authority for the supported internal MVP. It is the 
 | `BLD-09` | `GetProjectSourceFile` | Project Git via Builder | authorized Project + exact immutable source revision/path | read |
 | `BLD-23` | `GetBuilderSession` | Builder projection + Mastra conversation | authorized Project + persisted Project Thread and latest BuilderRun/Preview projection | read |
 | `BLD-24` | `SendBuilderMessage` | Builder | authorized Project + server-resolved current source and Project Thread | command |
+| `BLD-25` | `CancelBuilderRun` | Builder | authorized Project + exact BuilderRun; repeated requests remain idempotent | command |
+| `BLD-26` | `GetBuilderRunTrace` | Builder | authorized Project + exact BuilderRun; safe native trace projection only | read |
 | `BRN-01` | `GetWorkspaceBrain` | Brain | exact Workspace Brain disclosure under server-resolved access | read |
 | `BRN-02` | `ListBrainRevisions` | Brain / Registry projection | exact Workspace Brain revision disclosure / binding selection | read |
 | `BRN-03` | `GetBrainRevision` | Brain / Registry projection | exact immutable Brain revision review projection | read |
@@ -720,6 +722,8 @@ new durable records = 0
 | `BLD-22` | `LaunchBuildPreview` | Builder | exact PREPARED attempt and immutable artifact coordinates; I&A session-bound grant and MAR route are created without compilation | command/current-state |
 | `BLD-23` | `GetBuilderSession` | Builder projection + Mastra persisted conversation | exact authorized Project; persisted Mastra conversation, active BuilderRun summary and Preview summary | read |
 | `BLD-24` | `SendBuilderMessage` | Builder | exact authorized Project, nonblank content, `BUILD \| PLAN` mode and Idempotency-Key; server resolves current source and Project Thread | command |
+| `BLD-25` | `CancelBuilderRun` | Builder | exact authorized Project and BuilderRun; server records cancellation intent and settles only the admitted run | command |
+| `BLD-26` | `GetBuilderRunTrace` | Builder | exact authorized Project and BuilderRun; measured Mastra trace spans, redacted to safe labels and timings | read |
 
 A generic `AcceptChange` is rejected. `bld.change_acceptance` remains an owner current-proof fact produced by exact checkpoints/verifier/Builder settlement. Direct `CreateWorkUnit`, plan-JSON patch, `SetWorkItemStatus`, `CreateActorRun`, `ResumeSandbox` and `MarkVerified` are owner/runtime mechanics.
 

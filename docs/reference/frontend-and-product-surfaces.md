@@ -55,8 +55,7 @@ remain. Historical specialized Agent Studio lenses are not reopened.
 - Original attachment: `conexus_builder_interativo.html`, 106309 bytes.
 - SHA-256: `465ffcabf3974f2f227c825c5288916f9dfbad5d1c8b736c6aaca81f62d62665`.
 - Git blob: `731b36f6da30426b5e12cb9d439dd02192911851`.
-- Supplied separately in the planning handoff package; not yet represented as
-  an imported repository HTML by this planning publication.
+- Imported repository evidence: [approved-interactive-builder.html](../evidence/builder/approved-interactive-builder.html).
 - Import destination in the first implementation unit:
   `docs/evidence/builder/approved-interactive-builder.html`.
 

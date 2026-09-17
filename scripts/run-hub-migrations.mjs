@@ -23,6 +23,7 @@ const r2MigrationNames = ['011_r2_brain_connections.sql', '012_r2_project_bindin
 const currentMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql', '021_rb_builder_bounded_correction.sql', '022_builder_source_inspection.sql', '023_rb_builder_preview_subject.sql', '026_builder_application_registry.sql', '027_rb_builder_working_source.sql', '028_builder_run.sql', '029_builder_run_execution.sql', '030_builder_run_invariants.sql', '031_builder_run_application_build.sql', '032_builder_project_build_grant.sql', '033_builder_execution_artifact_admission.sql', '034_builder_project_source_preview.sql', '035_builder_c020_state_invariants.sql', '036_builder_project_creation_bootstrap.sql', '037_builder_c020_source_inspection.sql', '038_builder_c020_legacy_excision.sql', '039_builder_c020_execution_invariants.sql', '040_builder_registry_settlement_boundary.sql', '041_builder_claude_connections.sql']
 currentMigrationNames[currentMigrationNames.indexOf('022_builder_source_inspection.sql')] = '022_rb_builder_source_inspection.sql'
 currentMigrationNames[currentMigrationNames.indexOf('027_builder_working_source.sql')] = '027_rb_builder_working_source.sql'
+currentMigrationNames.push('042_builder_claude_connection_safety.sql', '043_builder_model_admission.sql', '044_builder_run_cancellation.sql', '045_builder_run_history.sql', '046_builder_run_admission_cas.sql')
 const heldMigrationNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
 const expectedMigrationNames = [...currentMigrationNames, ...heldMigrationNames]
 const migration001Digest = 'd27e76b972145bc3a6bf669d4fd32734fc06153d07cddaf1072c6b29845b112f'
@@ -66,6 +67,11 @@ const migration038Digest = '30d5e9af141a6278c0cbe82a329ef906c7cd2c0efcd6a178f341
 const migration039Digest = '712955ef10bd196204067835179816a5873b0898786fce89df56f0fa7eb4580a'
 const migration040Digest = '0b9a404adef843024ab086bdab54409bf5f84618265926744cae75fcaa2be847'
 const migration041Digest = 'b7ec89cffdd0c856302a0a6cdc330b410d0f6ae9b31b79f1a54bd187f164093b'
+const migration042Digest = '924e3c5f002937177b88d0df03b441d6887d75d6eb94934d7ac804afc2b62802'
+const migration043Digest = 'c95a357dedb0c5ebba58774bf6b707430317c85bb1fa94a5cf55f90d906f35f4'
+const migration044Digest = '0b3ba4b45551b2585000e6b58ec98dd89f1765ef423a91eecc9e7b731955e5ee'
+const migration045Digest = 'd652e72dc53e8a5fbece219235002fcb9db7f518112230321e5e37eee5a73eef'
+const migration046Digest = 'd427f4e176dc3671c58a06bda11119b20a05af5e3eda71b9575f23dccee2e2f3'
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }
@@ -111,6 +117,11 @@ const migrationDigests = new Map([
   ['039_builder_c020_execution_invariants.sql', migration039Digest],
   ['040_builder_registry_settlement_boundary.sql', migration040Digest],
   ['041_builder_claude_connections.sql', migration041Digest],
+  ['042_builder_claude_connection_safety.sql', migration042Digest],
+  ['043_builder_model_admission.sql', migration043Digest],
+  ['044_builder_run_cancellation.sql', migration044Digest],
+  ['045_builder_run_history.sql', migration045Digest],
+  ['046_builder_run_admission_cas.sql', migration046Digest],
 ])
 const recognizedMigrationNames = new Set(expectedMigrationNames)
 
@@ -3346,7 +3357,7 @@ const assert019Catalog = async (client, { after020 = false, after021 = false, af
     SELECT p.proname || ':' || pg_get_userbyid(p.proowner) || ':' || p.prosecdef || ':' ||
       coalesce(array_to_string(p.proconfig, ','), '') AS signature
     FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
-      WHERE (n.nspname = 'builder' ${after020 ? `AND p.proname NOT IN ('claim_verification','fail_verification','fail_verification_claim','get_evidence','get_finding','list_evidence','list_findings','settle_verification'${after021 ? ",'claim_correction','close_finding'" : ''}${after022 ? ",'admit_source_revision'" : ''}${after023 ? ",'read_preview_subject'" : ''}${after026 ? ",'admit_verified_application_source'" : ''}${after027 ? ",'settle_response','settle_preparation','admit_application_source'" : ''}${after028 ? ",'create_builder_run','read_builder_run'" : ''}${after029 ? ",'claim_builder_run','bind_builder_run_message','bind_builder_run_sandbox','settle_builder_run','fail_builder_run'" : ''}${after031 ? ",'recover_builder_runs','read_preview_subject_legacy','advance_builder_run_source','settle_builder_run_build','admit_verified_application_source_legacy'" : ''}${after037 ? ",'read_latest_code_changing_builder_run'" : ''}${after038 ? ",'bind_sandbox','change_json','claim_change','create_change','fail_run','list_changes','read_snapshot','recover_and_list_queued','settle_result','create_builder_run','read_builder_run','claim_builder_run','bind_builder_run_message','bind_builder_run_sandbox','settle_builder_run','fail_builder_run','recover_builder_runs','advance_builder_run_source','settle_builder_run_build','read_latest_code_changing_builder_run','read_preview_subject','admit_source_revision','admit_verified_application_source'" : ''})` : ''})
+      WHERE (n.nspname = 'builder' ${after020 ? `AND p.proname NOT IN ('claim_verification','fail_verification','fail_verification_claim','get_evidence','get_finding','list_evidence','list_findings','settle_verification'${after021 ? ",'claim_correction','close_finding'" : ''}${after022 ? ",'admit_source_revision'" : ''}${after023 ? ",'read_preview_subject'" : ''}${after026 ? ",'admit_verified_application_source'" : ''}${after027 ? ",'settle_response','settle_preparation','admit_application_source'" : ''}${after028 ? ",'create_builder_run','read_builder_run'" : ''}${after029 ? ",'claim_builder_run','bind_builder_run_message','bind_builder_run_sandbox','settle_builder_run','fail_builder_run'" : ''}${after031 ? ",'recover_builder_runs','read_preview_subject_legacy','advance_builder_run_source','settle_builder_run_build','admit_verified_application_source_legacy'" : ''}${after037 ? ",'read_latest_code_changing_builder_run'" : ''}${after038 ? ",'bind_sandbox','change_json','claim_change','create_change','fail_run','list_changes','read_snapshot','recover_and_list_queued','settle_result','create_builder_run','read_builder_run','claim_builder_run','bind_builder_run_message','bind_builder_run_sandbox','settle_builder_run','fail_builder_run','recover_builder_runs','advance_builder_run_source','settle_builder_run_build','read_latest_code_changing_builder_run','read_preview_subject','admit_source_revision','admit_verified_application_source','create_builder_run_with_model','list_builder_runs','request_builder_run_cancellation','interrupt_builder_run'" : ''})` : ''})
       OR (n.nspname = 'iam' AND p.proname IN ('admit_project_build','admit_project_source_read','ensure_project_builder_grant'))
     ORDER BY n.nspname, p.proname
   `, after038 ? [
