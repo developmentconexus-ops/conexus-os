@@ -155,6 +155,16 @@ compiled `server.js` and its `../public` `staticRoot` aligned. The process
 loads `.audit/slice7/hub.env` itself; a source operation in another shell is
 not required.
 
+The Hub and candidate verification use separate PostgreSQL destinations. The
+Hub file points to the local `conexus-s7-postgres` container through published
+port `5433` and database `conexus_s7`. When no complete `CONEXUS_TEST_DB_*`
+set is inherited, `scripts/conexus-verify.mjs` supplies the disposable test
+destination on published port `5432` with database `conexus_test`; the current
+local containers are distinct. The PostgreSQL Builder tests create temporary
+databases but alter Builder role passwords at cluster scope, so they must keep
+the verification destination and must never be pointed at the Hub destination.
+Do not load the Hub env file into verification commands.
+
 Run the explicitly gated Builder proof with the same source:
 
 ```bash

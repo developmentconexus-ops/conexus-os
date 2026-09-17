@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
+import { EventEmitter } from 'node:events'
 import test from 'node:test'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -26,6 +27,7 @@ const {
   createMastraE2BCodingWorkerRuntime,
 } = await import(pathToFileURL(resolve(buildRoot, 'runtime.js')).href)
 const { createBuilderObservabilityLifecycle } = await import(pathToFileURL(resolve(buildRoot, 'module.js')).href)
+const { requestHubShell, waitForHub } = await import(pathToFileURL(resolve(repositoryRoot, 'tests/implementation/rb-builder-production-composed-live-runner.mjs')).href)
 
 const baseEnvironment = {
   NODE_ENV: 'test',
@@ -174,6 +176,69 @@ test('Hub and live proof commands load the operator configuration explicitly', a
   assert.doesNotMatch(composedRunner, /http:\/\/127\.0\.0\.1/)
   assert.doesNotMatch(packageJson.scripts['rb:first:check'], /rb-builder-first-vertical|bld-10-preview/)
   assert.match(packageJson.scripts['rb:first:check'], /builder-first-operational-delivery\.test\.mjs/)
+})
+
+test('composed readiness uses both lookup forms, expected shell response, and a bounded request', async () => {
+  let lookupResult
+  let scalarLookupResult
+  const requestImplementation = (_origin, options, callback) => {
+    const requestHandle = new EventEmitter()
+    requestHandle.end = () => queueMicrotask(() => {
+      options.lookup('hub.conexus.localhost', { all: true }, (error, addresses) => { lookupResult = { error, addresses } })
+      options.lookup('hub.conexus.localhost', { all: false }, (...result) => { scalarLookupResult = result })
+      const response = new EventEmitter()
+      response.statusCode = 200
+      response.headers = { 'content-type': 'text/html' }
+      response.setEncoding = () => {}
+      callback(response)
+      response.emit('data', '<div id="root"></div><script src="/assets/app.js"></script>')
+      response.emit('end')
+    })
+    requestHandle.destroy = () => {}
+    return requestHandle
+  }
+  const response = await requestHubShell(new URL('https://hub.conexus.localhost:3443/'), { requestImplementation, timeoutMs: 50 })
+  assert.equal(response.status, 200)
+  assert.deepEqual(lookupResult.addresses, [{ address: '127.0.0.1', family: 4 }])
+  assert.deepEqual(scalarLookupResult, [null, '127.0.0.1', 4])
+
+  await assert.rejects(
+    waitForHub(new URL('https://hub.conexus.localhost:3443/'), { exitCode: null }, {
+      requestImplementation: (_origin, _options, callback) => {
+        const requestHandle = new EventEmitter()
+        requestHandle.end = () => queueMicrotask(() => {
+          const response = new EventEmitter()
+          response.statusCode = 503
+          response.headers = { 'content-type': 'text/plain' }
+          response.setEncoding = () => {}
+          callback(response)
+          response.emit('data', 'not-ready')
+          response.emit('end')
+        })
+        requestHandle.destroy = () => {}
+        return requestHandle
+      },
+      maxAttempts: 1,
+      totalTimeoutMs: 50,
+      sleep: async () => {},
+    }),
+    (error) => {
+      assert.equal(error.message, 'RB_COMPOSED_SERVER_NOT_READY: RB_COMPOSED_HUB_RESPONSE_REFUSED')
+      return true
+    },
+  )
+
+  let destroyed = false
+  await assert.rejects(requestHubShell(new URL('https://hub.conexus.localhost:3443/'), {
+    requestImplementation: (_origin, _options, _callback) => {
+      const requestHandle = new EventEmitter()
+      requestHandle.end = () => {}
+      requestHandle.destroy = () => { destroyed = true }
+      return requestHandle
+    },
+    timeoutMs: 5,
+  }), /RB_COMPOSED_HUB_REQUEST_TIMEOUT/)
+  assert.equal(destroyed, true)
 })
 
 test.after(async () => { await rm(buildRoot, { recursive: true, force: true }) })

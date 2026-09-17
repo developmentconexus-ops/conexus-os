@@ -28,7 +28,7 @@ rewrite before implementing the minimum coherent user experience.
 | 7R-1 | ACCEPTED. Native live-state and reconnect behavior remain protected. |
 | 7R1-LIVE-01 | CLOSED. Accepted correction is `fb1b1d4fe77e5a60e1d8bf78adacbf1e11ffad57`. |
 | 7R-2 | REPLAN. Partial evidence retained at `ed658c65152db27390dc1c5c88ff6d1b5cfa406e`; the complete baseline is not accepted. |
-| First operational delivery | CORRECTION CANDIDATE. Focused implementation proofs pass, but the composed browser/trace journey is pending review because the preserved PostgreSQL `hub_rb_executor` credential rejects the authorized reference with `28P01`. |
+| First operational delivery | CORRECTION CANDIDATE. Focused implementation proofs pass, and verification is physically isolated from the Hub PostgreSQL container. The composed browser/trace journey remains pending because the preserved PostgreSQL `hub_rb_executor` credential rejects the authorized reference with `28P01`. |
 | Source, correction feedback, and failure continuity | Subsequent program increments. Not authorized by this task. |
 | Former mandatory 7R-3/7R-4/7R-5/7U sequence | SUPERSEDED as a mandatory ordering. Its surviving guarantees and findings remain in the program. |
 | Brain, Sankhya, managed workflows, and business expansion | DEFERRED until the core journey is accepted. |

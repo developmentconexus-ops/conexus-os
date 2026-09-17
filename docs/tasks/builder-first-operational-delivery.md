@@ -195,6 +195,17 @@ boundary without printing values. This limited extension also reconciles
 Software Forge assessment route in the documentation index. It does not add a
 runtime loader, secret manager, observability program, or infrastructure task.
 
+The correction also audited the effective PostgreSQL destinations before any
+role-changing test. The Hub uses the existing `conexus-s7-postgres` container
+through `127.0.0.1:5433/conexus_s7`; candidate verification without inherited
+`CONEXUS_TEST_DB_*` uses `conexus-first-operational-delivery-postgres` through
+`127.0.0.1:5432/conexus_test`. The container identities are distinct, so the
+verification tests' cluster-scoped `ALTER ROLE` statements do not reach the
+Hub. No role-changing PostgreSQL test was rerun in this correction. The Hub's
+real `readSecretFile` accepts `hub_iam_runtime` but rejects the authorized
+`hub_rb_executor` reference with PostgreSQL `28P01`. No operational role,
+grant, ownership, authentication setting, or secret was changed.
+
 ## Correction candidate and actual disposition
 
 The correction candidate keeps the existing production topology. It adds the
@@ -202,6 +213,11 @@ explicit frontend-plus-Hub local build layout, HTTPS readiness against the
 configured Hub origin, the native local OIDC resolver needed by this WSL
 checkout, strict live configuration refusal, exact browser BuilderRun trace
 correlation, native `SpanType` assertions, and behavioral lifecycle coverage.
+The readiness request now honors both Node lookup callback shapes, bounds each
+TLS/request/body read, checks the expected frontend shell, and reports only a
+safe last error. The OIDC adapter uses the default transport for non-local
+issuers, admits the exact local issuer only, declares `undici` directly, and
+closes its local agent with IdentityAccess.
 The lifecycle timeout applies only to Product settlement; pending native work
 must finish, and native shutdown must complete, before the Builder LibSQL store
 closes. The runtime also verifies that the exact scoped Session is absent after

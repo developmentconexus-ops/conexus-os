@@ -10,6 +10,7 @@ export type OidcCompletion = Readonly<{ currentUrl: string; pkceVerifier: string
 export type OidcAdapter = Readonly<{
   begin(): Promise<OidcTransaction>
   complete(input: OidcCompletion): Promise<OidcIdentity>
+  close(): Promise<void>
 }>
 type OidcDiscovery = typeof oidc.discovery
 
@@ -23,30 +24,43 @@ export const createOidcAdapter = async ({
   discovery = oidc.discovery,
 }: Readonly<{ discovery?: OidcDiscovery }> = {}): Promise<OidcAdapter> => {
   const issuerUrl = new URL(issuer)
-  const localIssuerHostname = issuerUrl.hostname === 'hub.conexus.localhost' || issuerUrl.hostname === 'conexus.localhost'
-  const localIssuerTransport = new Agent({
+  const localIssuerAdmitted = issuerUrl.protocol === 'https:' &&
+    issuerUrl.hostname === 'hub.conexus.localhost' &&
+    issuerUrl.port === '8443' &&
+    issuerUrl.pathname === '/realms/r1f' &&
+    !issuerUrl.search && !issuerUrl.hash
+  const localIssuerTransport = localIssuerAdmitted ? new Agent({
     connect: {
       // WSL may not publish the operator's .localhost entry in NSS. Keep the
       // configured URL, SNI, and CA validation while binding this exact local
       // issuer hostname to its existing loopback listener.
       lookup: (hostname, options, callback) => {
-        if (localIssuerHostname && hostname === issuerUrl.hostname) {
+        if (hostname === issuerUrl.hostname) {
           if (options.all) return callback(null, [{ address: '127.0.0.1', family: 4 }])
           return callback(null, '127.0.0.1', 4)
         }
         return lookup(hostname, options, callback)
       },
     },
-  })
-  const localIssuerFetch: CustomFetch = (url, init) => undiciFetch(url, {
-    ...init,
-    dispatcher: localIssuerTransport,
-  } as never) as unknown as Promise<Response>
-  const options = {
+  }) : undefined
+  const options: Parameters<OidcDiscovery>[4] = {
     execute: [oidc.enableNonRepudiationChecks, ...(allowInsecureForTest ? [oidc.allowInsecureRequests] : [])],
-    [oidc.customFetch]: localIssuerFetch,
   }
-  const configuration = await discovery(issuerUrl, clientId, clientSecret, undefined, options)
+  if (localIssuerTransport) {
+    const localIssuerFetch: CustomFetch = (url, init) => undiciFetch(url, {
+        ...init,
+        dispatcher: localIssuerTransport,
+      } as never) as unknown as Promise<Response>
+    options[oidc.customFetch] = localIssuerFetch
+  }
+  let configuration: Awaited<ReturnType<OidcDiscovery>>
+  try {
+    configuration = await discovery(issuerUrl, clientId, clientSecret, undefined, options)
+  } catch (error) {
+    await localIssuerTransport?.close()
+    throw error
+  }
+  let closePromise: Promise<void> | undefined
   return Object.freeze({
     async begin(): Promise<OidcTransaction> {
       const pkceVerifier = oidc.randomPKCECodeVerifier()
@@ -73,6 +87,10 @@ export const createOidcAdapter = async ({
       const claims = tokens.claims()
       if (!claims?.iss || !claims.sub) throw identityAccessError('OIDC_IDENTITY_MISSING')
       return { issuer: claims.iss, subject: claims.sub }
+    },
+    close: () => {
+      closePromise ??= localIssuerTransport?.close() ?? Promise.resolve()
+      return closePromise
     },
   })
 }

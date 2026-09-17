@@ -68,8 +68,7 @@ export const createIdentityAccessModule = async ({
     },
     previewAccess,
     close: async () => {
-      await previewAccess.close()
-      await store.close()
+      await Promise.all([previewAccess.close(), oidc.close(), store.close()])
     },
   })
 }

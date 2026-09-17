@@ -29,43 +29,117 @@ const readComposedProofConfig = async () => {
   return Object.freeze({ origin, workspaceId: process.env.CONEXUS_RB_COMPOSED_WORKSPACE_ID, traceStorePath })
 }
 
-const requestHubShell = (origin) => new Promise((resolveRequest, rejectRequest) => {
-  const requestHandle = request(origin, {
+const READINESS_REQUEST_TIMEOUT_MS = 5_000
+const READINESS_WAIT_TIMEOUT_MS = 60_000
+const READINESS_BODY_LIMIT = 128 * 1024
+const SAFE_READINESS_CODES = new Set([
+  'ECONNREFUSED', 'EAI_AGAIN', 'ENOTFOUND', 'ETIMEDOUT',
+  'ERR_TLS_CERT_ALTNAME_INVALID', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'CERT_HAS_EXPIRED',
+  'RB_COMPOSED_HUB_RESPONSE_REFUSED', 'RB_COMPOSED_HUB_RESPONSE_TOO_LARGE',
+  'RB_COMPOSED_HUB_REQUEST_TIMEOUT', 'RB_COMPOSED_HUB_RESPONSE_ABORTED',
+])
+
+export const readinessErrorCode = (error) => {
+  if (typeof error?.code === 'string' && SAFE_READINESS_CODES.has(error.code)) return error.code
+  return 'RB_COMPOSED_HUB_REQUEST_FAILED'
+}
+
+const readinessError = (code) => Object.assign(new Error(code), { code })
+
+export const requestHubShell = (origin, {
+  requestImplementation = request,
+  timeoutMs = READINESS_REQUEST_TIMEOUT_MS,
+  maxBodyBytes = READINESS_BODY_LIMIT,
+} = {}) => new Promise((resolveRequest, rejectRequest) => {
+  let settled = false
+  let timeoutHandle
+  const settle = (settler, value) => {
+    if (settled) return
+    settled = true
+    clearTimeout(timeoutHandle)
+    settler(value)
+  }
+  const fail = (error) => settle(rejectRequest, error)
+  let requestHandle
+  try {
+    requestHandle = requestImplementation(origin, {
     method: 'GET',
     headers: { accept: 'text/html' },
     servername: origin.hostname,
     // Keep the configured URL/SNI/certificate validation while resolving the
     // local loopback binding without mutating the host's resolver globally.
-    lookup: (_hostname, _options, callback) => callback(null, '127.0.0.1', 4),
-  }, (response) => {
-    const chunks = []
-    response.setEncoding('utf8')
-    response.on('data', (chunk) => chunks.push(chunk))
-    response.on('end', () => resolveRequest({ status: response.statusCode, location: response.headers.location, contentType: response.headers['content-type'], body: chunks.join('') }))
-  })
-  requestHandle.on('error', rejectRequest)
+    lookup: (_hostname, options, callback) => options?.all
+      ? callback(null, [{ address: '127.0.0.1', family: 4 }])
+      : callback(null, '127.0.0.1', 4),
+    }, (response) => {
+      const chunks = []
+      let bodyBytes = 0
+      response.setEncoding('utf8')
+      response.on('data', (chunk) => {
+        const text = String(chunk)
+        bodyBytes += Buffer.byteLength(text)
+        if (bodyBytes > maxBodyBytes) {
+          fail(readinessError('RB_COMPOSED_HUB_RESPONSE_TOO_LARGE'))
+          response.destroy?.()
+          requestHandle.destroy?.()
+          return
+        }
+        chunks.push(text)
+      })
+      response.on('aborted', () => fail(readinessError('RB_COMPOSED_HUB_RESPONSE_ABORTED')))
+      response.on('error', fail)
+      response.on('end', () => settle(resolveRequest, {
+        status: response.statusCode,
+        location: response.headers.location,
+        contentType: response.headers['content-type'],
+        body: chunks.join(''),
+      }))
+    })
+  } catch (error) {
+    fail(error)
+    return
+  }
+  requestHandle.on('error', fail)
+  if (settled) return
+  timeoutHandle = setTimeout(() => {
+    const error = readinessError('RB_COMPOSED_HUB_REQUEST_TIMEOUT')
+    fail(error)
+    requestHandle.destroy?.(error)
+  }, timeoutMs)
   requestHandle.end()
 })
 
-const waitForHub = async (origin, server) => {
-  for (let attempt = 0; attempt < 60; attempt += 1) {
+export const waitForHub = async (origin, server, {
+  requestImplementation = request,
+  maxAttempts = 60,
+  requestTimeoutMs = READINESS_REQUEST_TIMEOUT_MS,
+  totalTimeoutMs = READINESS_WAIT_TIMEOUT_MS,
+  sleep = (delayMs) => new Promise((resolveDelay) => setTimeout(resolveDelay, delayMs)),
+} = {}) => {
+  const deadline = Date.now() + totalTimeoutMs
+  let lastError = 'RB_COMPOSED_HUB_REQUEST_FAILED'
+  for (let attempt = 0; attempt < maxAttempts && Date.now() < deadline; attempt += 1) {
     if (server.exitCode !== null) throw new Error('RB_COMPOSED_SERVER_EXITED')
     try {
-      const response = await requestHubShell(origin)
+      const response = await requestHubShell(origin, { requestImplementation, timeoutMs: requestTimeoutMs })
       if (response.status !== 200 || response.location || !response.contentType?.includes('text/html') ||
-        !response.body.includes('id="root"') || !response.body.includes('/assets/')) throw new Error('RB_COMPOSED_HUB_RESPONSE_REFUSED')
+        !response.body.includes('id="root"') || !response.body.includes('/assets/')) {
+        throw readinessError('RB_COMPOSED_HUB_RESPONSE_REFUSED')
+      }
       return
-    } catch {
-      await new Promise((resolveDelay) => setTimeout(resolveDelay, 1000))
+    } catch (error) {
+      lastError = readinessErrorCode(error)
+      const remainingMs = deadline - Date.now()
+      if (remainingMs <= 0) break
+      await sleep(Math.min(1_000, remainingMs))
     }
   }
-  throw new Error('RB_COMPOSED_SERVER_NOT_READY')
+  throw new Error(`RB_COMPOSED_SERVER_NOT_READY: ${lastError}`)
 }
 
-const config = await readComposedProofConfig()
-if (!config) {
-  process.exitCode = 0
-} else {
+const runComposedLive = async () => {
+  const config = await readComposedProofConfig()
+  if (!config) return 0
   let server
   let buildRoot
   const stopServer = () => { if (server && server.exitCode === null) server.kill('SIGTERM') }
@@ -85,5 +159,9 @@ if (!config) {
     if (server && server.exitCode === null) await new Promise((resolveExit) => server.once('exit', resolveExit))
     if (buildRoot) await rm(buildRoot, { recursive: true, force: true })
   }
-  process.exitCode = exitCode
+  return exitCode
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename)) {
+  process.exitCode = await runComposedLive()
 }

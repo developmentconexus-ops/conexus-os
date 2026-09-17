@@ -36,6 +36,23 @@ test('S1 applies only the admitted openid-client execution hooks', async () => {
     [openidClient.enableNonRepudiationChecks],
     [openidClient.enableNonRepudiationChecks, openidClient.allowInsecureRequests],
   ])
+  assert.equal(Object.hasOwn(captured[0], openidClient.customFetch), false)
+  assert.equal(Object.hasOwn(captured[1], openidClient.customFetch), false)
+})
+
+test('local OIDC transport is admitted narrowly and closes with its adapter', async () => {
+  let captured
+  const discovery = async (...args) => {
+    captured = args[4]
+    return {}
+  }
+  const adapter = await createOidcAdapter({
+    issuer: 'https://hub.conexus.localhost:8443/realms/r1f',
+    clientId: 'client', clientSecret: 'secret', redirectUri: `${origin}/protocol/oidc/callback`,
+  }, { discovery })
+  assert.equal(Object.hasOwn(captured, openidClient.customFetch), true)
+  await adapter.close()
+  await adapter.close()
 })
 
 const makeStore = () => {
