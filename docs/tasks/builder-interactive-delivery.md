@@ -367,3 +367,78 @@ A new runtime, secret backend, multi-process topology, unowned data migration,
 unsupported pinned API, or genuinely missing product choice returns to the planner.
 Colors, spacing preferences, historical 7R-2 timing gaps, and unrelated refactors
 do not block this functional delivery. Do not start the next product increment.
+
+
+## Repair ledger — 2026-09-17 pre-correction audit
+
+This ledger records the operator-approved correction backlog discovered against the current integrated Builder candidate. It is subordinate to this task, C-020, and the roadmap. It does not create a second Product or architecture authority. Each item must be revalidated against the current HEAD before implementation. A checked item means the defect was corrected and proved, not merely edited.
+
+### Correction law
+
+Preserve C-020 unless real composed evidence falsifies one of its required boundaries. Prefer native Mastra conversation, Session, model, tool, and live-state mechanics. Conexus continues to own Project authorization, immutable run admission, isolated execution policy, source custody, compilation, artifact identity, and authorized last-good Preview. Fix root causes, subtract before adding, and prove user-visible behavior through the real composed path.
+
+### Ledger
+
+| ID | Area | Status at audit | Current evidence / defect | Target result |
+| --- | --- | --- | --- | --- |
+| B-01 | Web SSE lifecycle | CONFIRMED | `observation.ts` treats a normally ended SSE as completion even when the BuilderRun remains active. | An ended transport reconnects while the run is active and stops only after terminal run truth. |
+| B-02 | Web stream errors | CONFIRMED | Protocol/auth/observation failures can terminate silently; `project-build.tsx` also suppresses rejected observation promises. | Transport/auth/protocol failures become explicit UI state with bounded recovery where applicable. |
+| B-03 | Claude connection selection | CONFIRMED | The UI labels the first ACTIVE connection as selected while run admission resolves server preference independently. | Displayed connection, admitted connection, and executed connection are the same authorized subject. |
+| B-04 | Mastra conversation projection | CONFIRMED | `projectBuilderMessages()` reduces native Mastra message parts to concatenated text. | Preserve an ordered, safe projection of native public message parts without a second conversation store. |
+| B-05 | Tool/activity continuity | CONFIRMED | Tool activity exists only in live `displayState` rendering and disappears when the run stops. | Reconcile persisted native message/tool parts with live display state so completed activity remains inspectable when safe. |
+| B-06 | Accepted request continuity | CONFIRMED BY FLOW; REAL E2E REQUIRED | Sandbox/source preparation occurs before `session.sendMessage()`; a pre-agent failure can leave only the temporary browser request representation. | Once a request is accepted, the operator always retains a durable request/failure representation. |
+| B-07 | Model discovery/admission | CONFIRMED | Builder choices are sourced from the Conexus model-admission catalog, then validated against Mastra's provider registry. | Use native Mastra/provider discovery as the catalog source where supported, with only the minimum Conexus authorization/capability/admission policy required for immutable run execution. |
+| B-08 | Preview load truth | CONFIRMED | UI states that Preview was loaded when an entry grant was issued, before application load is observed. | Distinguish artifact available, grant issued, frame loading, application loaded, and failure. Preserve last-good Preview. |
+| B-09 | Run history inspection | CONFIRMED | Run history is listed but cannot select a historical run; trace/details remain tied to the latest run. | Selecting an authorized run drives its model, trace and applicable base/result inspection. |
+| B-10 | Uncertain submission retry | CONFIRMED | A fresh `crypto.randomUUID()` is generated for every browser submit with no retained uncertain request identity. | An uncertain retry reuses the exact idempotency key and exact body; a genuinely new request gets a new key. |
+| B-11 | Browser proof scope | CONFIRMED | `builder-browser.test.mjs` mocks Builder/session/SSE/source/Preview and therefore proves UI composition, not Claude → Mastra → E2B → source → compile → Preview. | Keep mocked browser coverage as focused UI proof and add a real composed acceptance proof. |
+| B-12 | Compile diagnostic identity | INCOMPLETE | Current diagnostic append is generic and uses a fresh message UUID per append. | Diagnostic is bounded, safe, tied to exact run/source, and idempotently represented once. |
+| B-13 | Public failure taxonomy | INCOMPLETE | Many internal failures collapse to `BUILDER_PREPARATION_FAILED`. | Expose a small safe public taxonomy that distinguishes connection, model, sandbox/preparation, agent, source, compilation, cancellation and transport outcomes without leaking internals. |
+| B-14 | OAuth → model → E2B live path | USER-OBSERVED FAILURE; ROOT CAUSE NOT YET PROVEN | Operator reports connected Claude account but no reliable Project request execution. Read-only code audit found several failure paths but did not reproduce the live composed run. | Prove one real authorized request end to end with the same connection, model, Thread, run, source, artifact and usable Preview. |
+
+### Known file census
+
+Confirmed or likely correction owners:
+
+- `apps/web/src/features/builder/observation.ts`: B-01, B-02.
+- `apps/web/src/features/builder/components/project-build.tsx`: B-02, B-03, B-05, B-06, B-08, B-09, B-10 and later responsibility split after behavior is correct.
+- `apps/web/src/features/builder/api.ts`: B-04 and any public typed contract needed by model/run inspection.
+- `apps/hub/src/builder/module.ts`: B-04 and B-12.
+- `apps/hub/src/builder/runtime.ts`: B-05/B-06 investigation and exact Mastra session completion behavior. Preserve its native Controller/Session/Workspace composition unless evidence falsifies it.
+- `apps/hub/src/builder/service.ts`: B-01/B-02 server-side observation semantics, B-06, B-13, cancellation/run settlement integration.
+- `apps/hub/src/builder/model-choice.ts`: B-07 policy boundary. Do not expand it before model-discovery ownership is settled.
+- `apps/hub/src/project/module.ts`: B-07 current Conexus model catalog and Mastra registry validation.
+- `apps/hub/src/server.ts`: B-07 composition of model choices into Builder.
+- `apps/hub/src/claude-account/module.ts`: B-03/B-07 credential-to-model integration. Preserve encrypted backend and refresh lifecycle unless evidence shows a defect.
+- `tests/implementation/builder-browser.test.mjs`: B-01/B-02 focused transport/UI proof and B-11 proof-scope correction.
+
+Investigate before declaring defective or editing:
+
+- `apps/hub/src/builder/routes.ts`
+- `apps/hub/src/builder/store.ts`
+- `apps/hub/src/project/anthropic-oauth.ts`
+- `apps/hub/src/project/anthropic-oauth-provider.ts`
+- `apps/hub/src/project/oauth-token-store.ts`
+- `apps/hub/src/builder/application-build.ts`
+- `apps/hub/src/builder/application-artifact-runtime.ts`
+- `apps/hub/src/builder/source.ts`
+- `apps/hub/src/mar/**`
+
+### Ordered correction units
+
+1. **Unit R1 — truthful/recovering chat transport.** Correct B-01/B-02 in `observation.ts`, the Builder UI, and focused browser/transport tests. Do not mix model, OAuth, Preview, or message-shape changes into this unit.
+2. **Unit R2 — native conversation projection.** Correct B-04/B-05 through a safe ordered native Mastra-part projection. No second message store and no reconstructed custom tool lifecycle.
+3. **Unit R3 — exact Claude connection subject.** Correct B-03 so the connection displayed for the next request is the same connection admitted and executed. Preserve credential backend and ownership rules.
+4. **Unit R4 — native model discovery with minimal Conexus policy.** Investigate the exact installed Mastra 1.63.2 APIs first. Then correct B-07 without building another registry. Existing catalog code is deleted or reduced only after callers are migrated and proof exists.
+5. **Unit R5 — accepted request and safe failures.** Correct B-06/B-12/B-13. A request never disappears after acceptance and failure categories remain useful without leaking internal payloads.
+6. **Unit R6 — truthful Preview.** Correct B-08 and preserve the current last-good security boundary.
+7. **Unit R7 — historical run inspection.** Correct B-09 and any bounded run-detail projections needed for the selected run.
+8. **Unit R8 — real composed acceptance.** Correct B-10/B-11/B-14 and prove the operator journey against real Claude/Mastra/E2B/source/compiler/MAR/Preview. A mocked browser test, issued grant, generated artifact, or green unit suite alone is insufficient.
+
+### Minimum real acceptance journey
+
+The final candidate is not accepted until a real operator can open one authorized Project, use an authorized Claude connection, see available admitted model choices, choose one, send a build request, see native streamed text and tool activity, obtain changed persistent source, compile it, load the authorized Preview, and interact with the generated application. A second request must continue the same Project Thread and working source. Reload must recover conversation and last-good Preview. Additional proof must cover an interrupted run, a compilation failure with preserved old Preview, stream loss/recovery, model switching when two qualified choices exist, and reconnect-required OAuth behavior.
+
+### Immediate next correction
+
+Execute **Unit R1 only** from the current remote HEAD. Reproduce B-01 and B-02 with failing focused tests first, correct the smallest transport/UI boundary, run targeted verification, commit and push, then STOP for review before R2.
