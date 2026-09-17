@@ -201,8 +201,10 @@ through `127.0.0.1:5433/conexus_s7`; candidate verification without inherited
 `CONEXUS_TEST_DB_*` uses `conexus-first-operational-delivery-postgres` through
 `127.0.0.1:5432/conexus_test`. The container identities are distinct, so the
 verification tests' cluster-scoped `ALTER ROLE` statements do not reach the
-Hub. No role-changing PostgreSQL test was rerun in this correction. The Hub's
-real `readSecretFile` accepts `hub_iam_runtime` but rejects the authorized
+Hub in the investigated execution. The executor reported complete verification
+on the separate test instance. No role-changing PostgreSQL test was run against
+the Hub in that investigation. The Hub's real `readSecretFile` accepts
+`hub_iam_runtime` but rejects the authorized
 `hub_rb_executor` reference with PostgreSQL `28P01`. No operational role,
 grant, ownership, authentication setting, or secret was changed.
 
@@ -232,11 +234,58 @@ attempt reached Hub initialization and exposed a separate preserved-state
 failure: the configured `hub_rb_executor` reference is readable, but PostgreSQL
 returns `28P01` for that role. No credential or database role was changed.
 
-Disposition: CORRECTION CANDIDATE, focused proofs passing, composed browser and
-trace journey not accepted because the preserved PostgreSQL credential state
-prevents Hub startup. The candidate must remain under review until that
-environment owner reconciles the existing role credential; this task does not
-invent or rotate it.
+The review of `5774d7d4ce6832830d4d9e02220b76832a4d20fa` found the prior
+code corrections addressed. The composed journey remains unproven. The history
+of the credential mismatch is unknown; the investigated verification run did
+not share the Hub instance. Current status and grant remain in the roadmap.
+
+## Authorized local credential reconciliation
+
+The operator approved this bounded resumption after the candidate review.
+This authorization does not claim a completed credential repair or live proof.
+Keep the reviewed implementation and continue this task, not a new slice.
+
+The desired state is the existing `hub_rb_executor` role accepting the existing
+secret referenced by the Hub's Builder executor password-file configuration.
+Use `readHubConfig` and `readSecretFile` to resolve that reference. Preserve
+the secret file and `hub.env`, including their contents and permissions.
+Do not generate a new credential or use a test-fixture password.
+
+Before any write, revalidate the actual local Hub instance against
+`conexus-s7-postgres`, published at `127.0.0.1:5433`, database `conexus_s7`.
+Confirm that the role exists, permits LOGIN, and is not expired. Inspect only
+safe metadata and whether a password is set; never print the stored verifier.
+Use the existing authorized administrative access. If the target identity
+is different or the role requires a non-password change, STOP with that fact.
+Check the other enabled Hub role connections without changing them, so another
+credential blocker is reported together rather than discovered through guesswork.
+
+If `hub_rb_executor` already authenticates with its referenced secret, perform
+no credential write and continue to the proof. Otherwise, after confirming a
+password-state mismatch, reconcile only this role's password to that existing
+value. Use a native administrative facility that keeps the secret out of process
+arguments, shell history, statement logs, tool output, and versioned files.
+If no such safe authorized channel is available, STOP before the write.
+
+Do not change another role, LOGIN, expiry, grants, ownership, authentication
+settings, migrations, containers, volumes, or existing Product data. Do not
+recreate the database, weaken TLS, or add a credential-management mechanism.
+A required change outside this password-only scope returns to the operator.
+The unknown historical cause does not authorize broader repair.
+
+After reconciliation, verify a fresh connection as `hub_rb_executor` through
+the real Hub configuration and confirm `hub_iam_runtime` still authenticates.
+Start the Hub using the documented command. Run the deciding application
+journey and its existing reload, denial, and exact BuilderRun trace assertions.
+Reuse the admitted local identity setup; renew expired test sessions only
+through that authorized setup, not by bypassing IdentityAccess.
+
+Run `npm run verify` only on the separate test instance. Confirm fresh Hub
+connections as both roles after verification. Report operational reconciliation
+and code changes separately. Keep raw credentials, cookies, and trace payloads
+out of retained evidence. Reconcile only the existing task and operational
+owner for facts actually observed. Return the operator launch command and the
+real journey result, commit and push versionable changes, then STOP for review.
 
 ## Deciding proof and falsifiers
 
