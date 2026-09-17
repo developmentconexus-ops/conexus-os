@@ -28,7 +28,7 @@ rewrite before implementing the minimum coherent user experience.
 | 7R-1 | ACCEPTED. Native live-state and reconnect behavior remain protected. |
 | 7R1-LIVE-01 | CLOSED. Accepted correction is `fb1b1d4fe77e5a60e1d8bf78adacbf1e11ffad57`. |
 | 7R-2 | REPLAN. Partial evidence retained at `ed658c65152db27390dc1c5c88ff6d1b5cfa406e`; the complete baseline is not accepted. |
-| First operational delivery | CORRECTION CANDIDATE. Focused implementation proofs pass, and verification is physically isolated from the Hub PostgreSQL container. The composed browser/trace journey remains pending because the preserved PostgreSQL `hub_rb_executor` credential rejects the authorized reference with `28P01`. |
+| First operational delivery | CORRECTION AUTHORIZED on candidate `5774d7d4ce6832830d4d9e02220b76832a4d20fa`. Resume the task's bounded local credential reconciliation, then the existing composed browser and trace proof. Neither credential repair nor live acceptance is claimed by this authorization. |
 | Source, correction feedback, and failure continuity | Subsequent program increments. Not authorized by this task. |
 | Former mandatory 7R-3/7R-4/7R-5/7U sequence | SUPERSEDED as a mandatory ordering. Its surviving guarantees and findings remain in the program. |
 | Brain, Sankhya, managed workflows, and business expansion | DEFERRED until the core journey is accepted. |
@@ -43,6 +43,11 @@ Do not relabel partial measurements as complete proof.
 Execute only [the first operational delivery task](tasks/builder-first-operational-delivery.md).
 Its grant covers the bounded Product changes, focused tests, native local
 tracing, owner reconciliation, and real local proof named in that task.
+
+The operator authorized the task's local credential reconciliation after the
+review of `5774d7d4ce6832830d4d9e02220b76832a4d20fa`. Its password-only scope
+is defined in that task. This is not permission to rotate other credentials or
+change database permissions, services, or the Builder architecture.
 
 Use the already-admitted provider/model and E2B configuration for that proof.
 This does not grant new providers, cloud telemetry, production deployment,
@@ -68,6 +73,9 @@ Do not begin the next increment automatically.
 
 ## Exact next action
 
-Read `AGENTS.md`, this roadmap, the current task, and its named owners.
-Run the pinned local preflight. Implement the first operational delivery.
+Read `AGENTS.md`, this roadmap, and the current task. Run the pinned local
+preflight and preserve the reviewed implementation. Execute the task's
+"Authorized local credential reconciliation" section, then continue directly
+to the real application and native trace proof. Do not restart implementation
+or repeat the 360 review without a new material falsifier.
 Do not resume the 7R-2 measurement program or an observability-only project.
