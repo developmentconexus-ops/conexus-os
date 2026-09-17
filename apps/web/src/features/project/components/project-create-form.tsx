@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { CreateProjectInput, CreateProjectResponse } from '../../../generated/project-client'
 import { createProject, ProjectRequestError, projectListQueryKey } from '../api'
 
@@ -26,6 +26,7 @@ export function ProjectCreateForm({
   const locatorInput = useRef<HTMLInputElement>(null)
   const [sourceMode, setSourceMode] = useState<'NEW' | 'EXISTING_GIT'>('NEW')
   const [message, setMessage] = useState('')
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const mutation = useMutation({
     mutationFn: (current: Attempt) => createProject(workspaceId, current.input, current.idempotencyKey),
     onSuccess: async (project) => {
@@ -52,6 +53,18 @@ export function ProjectCreateForm({
       createInFlight.current = false
     },
   })
+
+  useEffect(() => {
+    if (!mutation.isPending) {
+      setElapsedSeconds(0)
+      return undefined
+    }
+    const startedAt = Date.now()
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000))
+    }, 1_000)
+    return () => window.clearInterval(timer)
+  }, [mutation.isPending])
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -103,9 +116,15 @@ export function ProjectCreateForm({
         </>
       )}
       <button className="primary" type="submit" disabled={mutation.isPending}>
-        {mutation.isPending ? 'Criando…' : 'Criar Project'}
+        {mutation.isPending ? elapsedSeconds < 8 ? 'Criando…' : 'Validando…' : 'Criar Project'}
       </button>
-      <p role="status" aria-live="polite">{message}</p>
+      <p role="status" aria-live="polite">{mutation.isPending
+        ? elapsedSeconds < 8
+          ? 'Criando o Project…'
+          : elapsedSeconds < 30
+            ? `Validando a origem com segurança… ${elapsedSeconds}s`
+            : `A validação está demorando mais que o esperado, mas continua ativa… ${elapsedSeconds}s`
+        : message}</p>
     </form>
   )
 }
