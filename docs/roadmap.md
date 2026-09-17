@@ -28,8 +28,8 @@ rewrite before implementing the minimum coherent user experience.
 | 7R-1 | ACCEPTED. Native live-state and reconnect behavior remain protected. |
 | 7R1-LIVE-01 | CLOSED. Accepted correction is `fb1b1d4fe77e5a60e1d8bf78adacbf1e11ffad57`. |
 | 7R-2 | REPLAN. Partial evidence retained at `ed658c65152db27390dc1c5c88ff6d1b5cfa406e`; the complete baseline is not accepted. |
-| First operational delivery | CORRECTION CANDIDATE after the authorized `hub_rb_executor` password reconciliation. The Hub serves its HTTPS shell and `hub_iam_runtime` remains authenticated, but `hub_prj03_command` and `hub_rb_ingress` still reject their existing references with `28P01`; the composed browser/trace proof is not claimed. |
-| Claude Account connection for Builder | APPROVED FOR EXECUTION. The operator approved Account-scoped Anthropic OAuth in the Hub, explicit same-Workspace sharing, safe credential custody, and per-BuilderRun credential snapshots. The provider contract is the existing qualified PKCE/code exchange; no new redirect, provider, or runtime is admitted. |
+| First operational delivery | CORRECTION CANDIDATE. The last recorded environment proof has HTTPS and `hub_iam_runtime` working after the authorized `hub_rb_executor` reconciliation. `hub_prj03_command` and `hub_rb_ingress` still had `28P01` reference failures. This environment state was not reverified by the 2026-09-17 planner review. The composed browser proof is not claimed. |
+| Claude Account connection for Builder | CORRECTION REQUIRED for the local authorization and state-coherence defects in `f9fbb655463aa24da1c3e902c20d555487ce9629`. REPLAN for provider applicability, native reuse, and credential lifecycle. The operator approved continued analysis and resolution here on 2026-09-17. The current task records fixed corrections, proposed decisions, and proof limits separately. |
 | Source, correction feedback, and failure continuity | Subsequent program increments. Not authorized by this task. |
 | Former mandatory 7R-3/7R-4/7R-5/7U sequence | SUPERSEDED as a mandatory ordering. Its surviving guarantees and findings remain in the program. |
 | Brain, Sankhya, managed workflows, and business expansion | DEFERRED until the core journey is accepted. |
@@ -41,41 +41,57 @@ Do not relabel partial measurements as complete proof.
 
 ## Current grant
 
-Execute only [the Claude Account connection task](tasks/claude-account-connection.md).
-Its grant covers the bounded Product changes, focused tests, native local
-tracing, owner reconciliation, and real local proof named in that task.
+Continue only [the Claude Account connection task](tasks/claude-account-connection.md).
+The planner may investigate, run credential-free isolated probes, and reconcile
+this roadmap and the current task. Keep material lifecycle changes as proposals
+until the required design closure and independent challenge are complete.
 
-The operator authorized the task's local credential reconciliation after the
-review of `5774d7d4ce6832830d4d9e02220b76832a4d20fa`. Its password-only scope
-is defined in that task. This is not permission to rotate other credentials or
-change database permissions, services, or the Builder architecture.
+The assigned executor may prepare only the task's fixed-target local corrections
+for whole-operation revocation and authorization state coherence, with focused
+offline tests and disposable PostgreSQL. This does not authorize unresolved
+refresh semantics, native package adoption, or a new runtime.
 
-Use the already-admitted provider/model and E2B configuration for that proof.
-This does not grant new providers, cloud telemetry, production deployment,
+Live Claude connection, sharing, and provider proof remain paused until the
+task's provider applicability and lifecycle questions are closed. Do not use
+real account credentials as an experiment to settle provider permission.
+Preserve the requested account-login experience and the approved sharing goal.
+Do not silently substitute an API key or remove sharing from the Product goal.
+
+The prior password reconciliation is historical, not the next action for this
+task. This continuation does not authorize another password rotation, role-grant
+change, service restart, or credential migration. Keep remaining environment
+blockers separate from the connection correction.
+
+The planner owns architecture and planning-document changes. Codex owns Product
+implementation, local verification, commit, and push. A material contradiction
+returns to the planner with evidence. Mechanical steps within the bounded
+correction do not need repeated approval.
+
+This grant does not include new providers, cloud telemetry, production deployment,
 Sankhya calls, bulk benchmarks, external publication, or merge.
-
-The planner owns architecture. Codex owns implementation, local verification,
-commit, and push. A material contradiction returns to the planner with evidence.
-Local mechanical steps inside the task do not need repeated approval.
-
 Preserve existing local changes and untracked files. Do not reset, clean, stash,
 force-push, or overwrite another actor's work.
 
 ## Acceptance
 
 The current task must demonstrate its application in the real browser through
-Hub, authorization, Mastra, E2B, compiler, Registry, and Preview.
-A registered artifact, a trace, a mock, or a green unit suite alone is not that proof.
+Hub, authorization, Mastra, E2B, compiler, Registry, and Preview after its blocked
+prerequisites are resolved. A registered artifact, a trace, an offline probe,
+or a green unit suite alone is not that proof.
 
 Complete the applicable repository verification and risk-triggered independent
-review. Executor-written completion is not Product acceptance.
-Commit and push the candidate, then STOP for the assigned independent review.
+review. Executor-written completion is not Product acceptance. Neither the
+planner's source review nor its isolated probes replace the pinned WSL proof.
+Commit and push the correction candidate, then STOP for independent review.
 Do not begin the next increment automatically.
 
 ## Exact next action
 
-The authorized `hub_rb_executor` reconciliation is complete. Review the
-candidate with the remaining operational role and browser-state reference
-blockers recorded in the task. Do not change another role, restart
-implementation, or repeat the 360 review without a new material falsifier.
-Do not resume the 7R-2 measurement program or an observability-only project.
+Use the correction contract in the current Claude Account task. Continue the
+planner's bounded native-reuse and lifecycle closure. The fixed local defects
+may be corrected independently without live credentials. Keep unclosed design
+choices out of Product code and report local correction proof separately from
+provider and browser proof.
+
+Do not resume the old password-reconciliation instruction, the 7R-2 measurement
+program, a whole-Builder redesign, or an observability-only project.
