@@ -10,6 +10,7 @@ const uuid = { type: 'string', format: 'uuid' } as const
 const mutationProblem = (reply: import('fastify').FastifyReply, error: unknown) => {
   const code = error instanceof Error ? error.message : ''
   if (code.includes('ANTHROPIC_OAUTH_PROVIDER_REFUSED') || code.includes('ANTHROPIC_OAUTH_TOKEN_INVALID')) return sendProblem(reply, 422, 'claude-authorization-rejected', 'Claude authorization was rejected; start a new authorization')
+  if (code.includes('CLAUDE_CONNECTION_PUBLISH_REFUSED')) return sendProblem(reply, 503, 'claude-connection-publish-failed', 'Claude authorization succeeded but the connection could not be published')
   if (code.includes('DENIED') || code.includes('REFUSED')) return sendProblem(reply, 403, 'claude-connection-denied', 'Claude connection operation denied')
   if (code.includes('STATE') || code.includes('AUTHORIZATION')) return sendProblem(reply, 422, 'claude-authorization-invalid', 'Claude authorization result invalid')
   return sendProblem(reply, 503, 'claude-connection-unavailable', 'Claude connection unavailable')

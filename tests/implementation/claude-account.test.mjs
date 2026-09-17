@@ -46,7 +46,7 @@ test('Claude OAuth exchange uses the qualified provider protocol and bounds the 
     request = { input: String(input), init }
     return response
   } })
-  assert.equal(request.input, 'https://console.anthropic.com/v1/oauth/token')
+  assert.equal(request.input, 'https://platform.claude.com/v1/oauth/token')
   assert.equal(request.init.redirect, 'manual')
   const body = JSON.parse(request.init.body)
   assert.deepEqual(body, {

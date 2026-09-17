@@ -13,6 +13,7 @@ import {
 
 const safeMessage = (error: unknown) => {
   if (error instanceof ClaudeAccountRequestError && error.problemType === 'urn:conexus:problem:claude-authorization-rejected') return 'O Claude recusou essa autorização. Inicie uma nova conexão e cole um novo code#state.'
+  if (error instanceof ClaudeAccountRequestError && error.problemType === 'urn:conexus:problem:claude-connection-publish-failed') return 'A autorização foi aceita, mas o Hub não conseguiu publicar a conexão. Tente novamente.'
   if (error instanceof ClaudeAccountRequestError && error.status === 422) return 'O resultado de autorização não foi aceito. Confira o formato code#state e inicie uma nova conexão.'
   return 'Não foi possível concluir essa operação. Tente novamente.'
 }

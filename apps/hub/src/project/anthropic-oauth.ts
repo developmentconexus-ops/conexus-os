@@ -3,8 +3,8 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 export const ANTHROPIC_OAUTH = Object.freeze({
   clientId: '9d1c250a-e61b-44d9-88ed-5944d1962f5e',
   authorizeUrl: 'https://claude.ai/oauth/authorize',
-  tokenUrl: 'https://console.anthropic.com/v1/oauth/token',
-  redirectUri: 'https://console.anthropic.com/oauth/code/callback',
+  tokenUrl: 'https://platform.claude.com/v1/oauth/token',
+  redirectUri: 'https://platform.claude.com/oauth/code/callback',
   scopes: 'user:profile user:inference',
 })
 const TOKEN_URL = ANTHROPIC_OAUTH.tokenUrl
