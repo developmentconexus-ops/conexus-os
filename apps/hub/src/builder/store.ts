@@ -38,6 +38,19 @@ export type BuilderWorkingPreviewSubject = BuilderPreviewSubject & Readonly<{
   lastPreviewSourceRevision: string | null
 }>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
+
+const claudeCredentialGeneration = (value: unknown): string | null => {
+  if (value === null) return null
+  if (typeof value === 'string' && /^[1-9]\d*$/.test(value)) return value
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return String(value)
+  if (typeof value === 'bigint' && value > 0n) return value.toString()
+  throw new Error('BUILDER_RUN_ROW_INVALID')
+}
+const toBuilderRunSummary = (row: BuilderRunSummary): BuilderRunSummary =>
+  'claudeCredentialGeneration' in row && row.claudeCredentialGeneration !== undefined
+    ? Object.freeze({ ...row, claudeCredentialGeneration: claudeCredentialGeneration(row.claudeCredentialGeneration) })
+    : row
+
 export type BuilderStore = Readonly<{
   createBuilderRun(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN'; modelIdentity?: BuilderModelIdentity }>): Promise<BuilderRunSummary>
   readBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderRunSummary | null>
@@ -81,19 +94,20 @@ export const createBuilderStore = ({
       )
     const value = result.rows[0]?.value
     if (!value) throw new Error('BUILDER_RUN_CREATE_FAILED')
-    return value
+    return toBuilderRunSummary(value)
   },
   readBuilderRun: async ({ accountId, projectId }) => {
     const result = await ingressPool.query<JsonRow<BuilderRunSummary | null>>(
       'SELECT builder.read_builder_run($1,$2) AS value', [accountId, projectId],
     )
-    return result.rows[0]?.value ?? null
+    const value = result.rows[0]?.value
+    return value ? toBuilderRunSummary(value) : null
   },
   listBuilderRuns: async ({ accountId, projectId, limit = 20 }) => {
     const result = await ingressPool.query<JsonRow<readonly BuilderRunSummary[]>>(
       'SELECT builder.list_builder_runs($1,$2,$3) AS value', [accountId, projectId, limit],
     )
-    return result.rows[0]?.value ?? []
+    return (result.rows[0]?.value ?? []).map(toBuilderRunSummary)
   },
   readLatestCodeChangingBuilderRun: async ({ accountId, projectId }) => {
     const result = await ingressPool.query<JsonRow<BuilderCodeChangingRun | null>>(
@@ -108,7 +122,7 @@ export const createBuilderStore = ({
     )
     const value = result.rows[0]?.value
     if (!value || value.builderRunId !== builderRunId || value.state !== 'RUNNING') throw new Error('BUILDER_RUN_CLAIM_REFUSED')
-    return value
+    return toBuilderRunSummary(value)
   },
   setBuilderRunPhase: async (builderRunId, phase) => {
     const result = await executorPool.query<{ value: boolean }>(
@@ -159,7 +173,7 @@ export const createBuilderStore = ({
     )
     const value = result.rows[0]?.value
     if (!value) throw new Error('BUILDER_RUN_CANCELLATION_REFUSED')
-    return value
+    return toBuilderRunSummary(value)
   },
   interruptBuilderRun: async (builderRunId, reason) => {
     const result = await executorPool.query<{ value: boolean }>(

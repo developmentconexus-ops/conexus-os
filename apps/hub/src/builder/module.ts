@@ -119,6 +119,21 @@ export const projectBuilderMessages = (messages: readonly ProjectableBuilderMess
   .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
   .map((message) => Object.freeze(message)))
 
+export const resolveBuilderModel = ({ reference, modelIdentity, resolveModel, fallbackModel }: Readonly<{
+  reference: unknown
+  modelIdentity: unknown
+  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => MastraLanguageModel
+  fallbackModel: MastraLanguageModel
+}>): MastraLanguageModel => {
+  if (reference === undefined) return fallbackModel
+  if (resolveModel && reference && typeof reference === 'object' && 'connectionId' in reference && 'generation' in reference &&
+    typeof reference.connectionId === 'string' && typeof reference.generation === 'string' &&
+    modelIdentity && typeof modelIdentity === 'object' && 'modelId' in modelIdentity && typeof modelIdentity.modelId === 'string') {
+    return resolveModel({ connectionId: reference.connectionId, generation: reference.generation }, modelIdentity.modelId)
+  }
+  throw new Error('BUILDER_MODEL_CREDENTIAL_UNRESOLVABLE')
+}
+
 export const createConfiguredBuilderModule = ({ database, builder, projectSource, applicationArtifacts, launchPreview, model, modelIdentity, modelChoices, validateModelCredential, resolveModel, origin, resolveCurrentSession }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
@@ -176,14 +191,12 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
   const sharedAgent = createCodingAgent({
     id: 'conexus-builder-coding-agent', name: 'Conexus Coding Worker',
-    model: ({ requestContext }) => {
-      const reference = requestContext?.getRaw(BUILDER_CREDENTIAL_REQUEST_CONTEXT_KEY)
-      const modelIdentity = requestContext?.getRaw(BUILDER_MODEL_REQUEST_CONTEXT_KEY)
-      if (resolveModel && reference && typeof reference === 'object' && 'connectionId' in reference && 'generation' in reference && typeof reference.connectionId === 'string' && typeof reference.generation === 'string' && modelIdentity && typeof modelIdentity === 'object' && 'modelId' in modelIdentity && typeof modelIdentity.modelId === 'string') {
-        return resolveModel({ connectionId: reference.connectionId, generation: reference.generation }, modelIdentity.modelId)
-      }
-      return model
-    }, workspace: resolveBuilderWorkspace,
+    model: ({ requestContext }) => resolveBuilderModel({
+      reference: requestContext?.getRaw(BUILDER_CREDENTIAL_REQUEST_CONTEXT_KEY),
+      modelIdentity: requestContext?.getRaw(BUILDER_MODEL_REQUEST_CONTEXT_KEY),
+      ...(resolveModel ? { resolveModel } : {}),
+      fallbackModel: model,
+    }), workspace: resolveBuilderWorkspace,
     editor: false, instructions: BUILDER_BASE_AGENT_INSTRUCTIONS, tools: {},
   })
   const sharedController = new AgentController<Record<string, unknown>>({

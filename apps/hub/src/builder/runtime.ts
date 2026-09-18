@@ -90,6 +90,7 @@ const immutableE2BTemplate = /^[a-z0-9]+:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3
 export const createBuilderUserMessage = (intent: string): Readonly<{ content: string }> => ({ content: intent })
 
 type AgentEndReason = Extract<AgentControllerEvent, { type: 'agent_end' }>['reason']
+type SendableAgentEndReason = Exclude<AgentEndReason, 'error'>
 
 export type BuilderLiveView = Readonly<{
   phase: BuilderExecutionPhase
@@ -193,17 +194,24 @@ export const toBuilderLiveView = (displayState: BuilderDisplayState, phase: Buil
   return { phase, running: displayState.isRunning, message, activities }
 }
 
+const isRateLimitError = (error: unknown): boolean => {
+  if (typeof error !== 'object' || error === null) return false
+  const statusCode = 'statusCode' in error && typeof error.statusCode === 'number' ? error.statusCode : undefined
+  const messageText = 'message' in error && typeof error.message === 'string' ? error.message : ''
+  return statusCode === 429 || /rate.?limit|too many requests/i.test(messageText)
+}
+
+const classifyAgentError = (error: Error): string => {
+  const statusCode = 'statusCode' in error && typeof error.statusCode === 'number' ? error.statusCode : undefined
+  if (statusCode === 401 || statusCode === 403) return 'BUILDER_MODEL_AUTH_FAILED'
+  return 'BUILDER_MODEL_STREAM_FAILED'
+}
+
 export const sendBuilderSessionMessage = async (
   session: BuilderSession,
   message: Readonly<{ content: string }>,
   requestContext?: RequestContext,
-): Promise<AgentEndReason> => {
-  const isRateLimitError = (error: unknown): boolean => {
-    if (typeof error !== 'object' || error === null) return false
-    const statusCode = 'statusCode' in error && typeof error.statusCode === 'number' ? error.statusCode : undefined
-    const messageText = 'message' in error && typeof error.message === 'string' ? error.message : ''
-    return statusCode === 429 || /rate.?limit|too many requests/i.test(messageText)
-  }
+): Promise<SendableAgentEndReason> => {
   let terminalReason: AgentEndReason | undefined
   let agentError: Error | undefined
   const unsubscribe = session.subscribe((event) => {
@@ -218,8 +226,9 @@ export const sendBuilderSessionMessage = async (
       throw error
     }
     if (!terminalReason) throw new Error('BUILDER_AGENT_COMPLETION_UNAVAILABLE')
-    if (terminalReason === 'error' && agentError) {
-      if (isRateLimitError(agentError)) throw new Error('BUILDER_MODEL_RATE_LIMITED')
+    if (terminalReason === 'error') {
+      if (agentError && isRateLimitError(agentError)) throw new Error('BUILDER_MODEL_RATE_LIMITED')
+      throw new Error(agentError ? classifyAgentError(agentError) : 'BUILDER_MODEL_STREAM_FAILED')
     }
     return terminalReason
   } finally {
@@ -393,7 +402,7 @@ export const createMastraE2BCodingWorkerRuntime = (
           detachMessageCapture = session.subscribe((event) => {
             if (event.type === 'message_end' && isUserAuthoredMessage(event.message)) submittedUserMessageId = event.message.id
           })
-          const agentEndReason: AgentEndReason | undefined = await sendBuilderSessionMessage(
+          const agentEndReason = await sendBuilderSessionMessage(
             session,
             prompt,
             requestContext,
@@ -408,7 +417,7 @@ export const createMastraE2BCodingWorkerRuntime = (
             await input.bindMessage(messageId)
           }
           if (input.signal?.aborted || agentEndReason === 'aborted') throw new Error('BUILDER_RUN_CANCELLED')
-          if (agentEndReason !== 'complete') throw new Error(agentEndReason === 'error' ? 'BUILDER_MODEL_STREAM_FAILED' : 'BUILDER_MODEL_INCOMPLETE')
+          if (agentEndReason !== 'complete') throw new Error('BUILDER_MODEL_INCOMPLETE')
           summaryText = messages.filter((message) => message.role === 'assistant').map(messageText).filter(Boolean).join('\n')
         } catch (error) {
           runError = error
