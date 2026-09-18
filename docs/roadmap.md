@@ -84,23 +84,35 @@ The authorized sequence, smallest and least risky first, each step ending verifi
    its capability, its grants, its password-file variable, and the module that connects as
    it. No database change.
 3. Provision the Hub role credentials idempotently from the same `*_PASSWORD_FILE`
-   variables the Hub config already reads, and report a connection census at startup so
-   `28P01` surfaces as a named census rather than mid-journey.
+   variables the Hub config already reads, as a separate installation step rather than a
+   power the Hub holds at startup. The Hub's own startup check stays read-only and reports
+   which connection is invalid, so `28P01` surfaces as a named census rather than
+   mid-journey.
 4. Finish the MAR excision and reconcile the census against itself. Decide delete or
    restore for migrations 024 and 025, `mar-paths.yaml`, `hub_mar_runtime` and
    `check-wire-mar`. Move the retained checkers behind an explicit target or delete them.
    Correct the trailer that claims a 31-operation census while section 5 holds more.
 5. Reduce `scripts/run-hub-migrations.mjs` from a hand-maintained schema oracle to
-   generated catalog snapshots, then consolidate credentials by making the capability
-   roles `NOLOGIN` and having one login role `SET ROLE` per pool. The repository already
-   uses that pattern in `qualification/4f/r3-root-tuple/run.mjs`.
+   generated catalog snapshots, so a role change costs one migration instead of a proof
+   this oracle imposes. Schema and migration tooling only.
 
-Steps 3 and 5 change credentials and role attributes. Both are authorized here.
+Step 3 changes credentials, to the values the existing secret files already hold. It is
+authorized here. No step changes a role's grants or its ability to assume another role.
+
+Credential consolidation is deliberately not authorized. An earlier draft proposed one
+login role that could `SET ROLE` into every capability. That is the opposite of what
+`docs/reference/data-and-persistence.md` requires: its negative property for owner-scoped
+capabilities forbids `SET ROLE into unrelated owner authority`, and selecting a role at
+connect time does not remove the session user's ability to select another. The pattern in
+`qualification/4f/r3-root-tuple/run.mjs` is also the reverse of what that draft claimed:
+it creates one login per capability, each granted only its own role. Reducing the number
+of credentials remains worth doing, and it needs a design that keeps the negative property
+rather than trading it for convenience.
 
 What still stops. Existing Product data is never destroyed; the pilot database holds real
 work and no step may drop, truncate or recreate it. A step that would require destroying
-it returns to the operator instead. Grants themselves keep their current meaning: the
-consolidation moves where a capability is held, never what it permits.
+it returns to the operator instead. Grants keep their current meaning, and no capability
+gains the ability to assume another.
 
 Keep Mastra as the coding runtime and the existing encrypted credential backend.
 The operator authorized local account OAuth after being informed of provider
