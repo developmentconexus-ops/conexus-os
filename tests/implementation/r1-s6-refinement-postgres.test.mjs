@@ -4,6 +4,7 @@ import test from 'node:test'
 import pg from 'pg'
 import { canonicalBytes, sha256 } from '../../packages/canonical-json/src/index.mjs'
 import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const { Client } = pg
 const required = (name) => process.env[name] || (() => { throw new Error(`MISSING_TEST_CONFIG_${name}`) })()
@@ -29,6 +30,7 @@ const query = async (connection, statement, values = []) => {
 }
 
 test('S6-P1 PostgreSQL resolves Candidate A and CAS-settles distinct Candidate B', async (t) => {
+  await refuseProtectedCluster()
   const database = `conexus_s6_p1_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 8)}`
   await query(adminConnection, `CREATE DATABASE ${quote(database)}`)
   const fresh = { ...adminConnection, database }

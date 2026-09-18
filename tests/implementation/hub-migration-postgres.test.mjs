@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
 import { loadCurrentHubMigrationFiles, runCurrentHubMigrations, runHubMigrations, runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const required = (name) => {
   const value = process.env[name]
@@ -26,6 +27,7 @@ const query = async (connection, sql, parameters = []) => {
   try { return await client.query(sql, parameters) } finally { await client.end() }
 }
 const databaseFixture = async (t) => {
+  await refuseProtectedCluster()
   const database = `conexus_migration_${randomUUID().replaceAll('-', '')}`
   await query(admin, `CREATE DATABASE "${database}"`)
   t.after(() => query(admin, `DROP DATABASE "${database}" WITH (FORCE)`))
@@ -42,6 +44,7 @@ const ledger = async (connection) => (await query(connection,
   'SELECT version, checksum_sha256, applied_at FROM iam.schema_migration ORDER BY version')).rows
 
 test('current Hub installs accepted schemas and restarts without applying held R3', async (t) => {
+  await refuseProtectedCluster()
   const fixture = await databaseFixture(t)
   const installed = await runCurrentHubMigrations(fixture)
   assert.deepEqual(installed, { verdict: 'PASS', appliedNow: versions, versions })

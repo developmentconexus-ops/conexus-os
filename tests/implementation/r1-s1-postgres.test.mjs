@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const { Client } = pg
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -29,6 +30,7 @@ const connection = {
 }
 
 test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03/session truth', async (t) => {
+  await refuseProtectedCluster()
   const admin = new Client(connection)
   await admin.connect()
   t.after(() => admin.end())

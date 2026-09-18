@@ -7,12 +7,14 @@ import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import pg from 'pg'
 import { runCurrentHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const required = (name) => process.env[name] || (() => { throw new Error(`MISSING_TEST_CONFIG_${name}`) })()
 const admin = { host: required('CONEXUS_TEST_DB_HOST'), port: Number(required('CONEXUS_TEST_DB_PORT')), database: required('CONEXUS_TEST_DB_NAME'), user: required('CONEXUS_TEST_DB_USER'), password: required('CONEXUS_TEST_DB_PASSWORD') }
 const connect = async (config) => { const client = new pg.Client(config); await client.connect(); return client }
 
 test('C-020 Registry retains execution artifacts and serves authorized source reads', async (t) => {
+  await refuseProtectedCluster()
   const database = `registry_c020_${randomUUID().replaceAll('-', '')}`
   const owner = await connect(admin)
   let setup
@@ -65,6 +67,7 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
 })
 
 test('C-020 source-scoped settlement composes with the executor artifact lifecycle', async (t) => {
+  await refuseProtectedCluster()
   const database = `registry_settlement_${randomUUID().replaceAll('-', '')}`
   const owner = await connect(admin)
   let setup

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import test from 'node:test'
 import pg from 'pg'
 import { runCurrentHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD']
   .every(name => process.env[name])
@@ -16,6 +17,7 @@ const connect = async (connection) => {
 test('BuilderRun admission and settlement are idempotent, serialized, and CAS-protected', {
   skip: configured ? false : 'real PostgreSQL configuration not supplied',
 }, async (t) => {
+  await refuseProtectedCluster()
   const admin = {
     host: process.env.CONEXUS_TEST_DB_HOST,
     port: Number(process.env.CONEXUS_TEST_DB_PORT),

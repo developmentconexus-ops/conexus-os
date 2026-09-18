@@ -7,6 +7,7 @@ import test from 'node:test'
 import pg from 'pg'
 import { canonicalBytes, sha256 } from '../../packages/canonical-json/src/index.mjs'
 import {
+import { refuseProtectedCluster } from './protected-cluster.mjs'
   loadMigrationFiles,
   loadR2MigrationFiles,
   runR2HubMigrations,
@@ -63,6 +64,7 @@ const quoteIdentifier = (value) => {
 }
 
 const databaseHarness = async (t) => {
+  await refuseProtectedCluster()
   const admin = {
     host: process.env.CONEXUS_TEST_DB_HOST,
     port: Number(process.env.CONEXUS_TEST_DB_PORT),
@@ -239,6 +241,7 @@ test('R2-P4 concordance migration guard refuses an active intent before DDL with
 test('R2-P4 real restricted PostgreSQL Inception trigger preserves reservation/replay and refuses pending refinement before receipt insert', {
   skip: databaseConfigured ? false : 'real PostgreSQL configuration not supplied',
 }, async (t) => {
+  await refuseProtectedCluster()
   const { fresh, query, url } = await databaseHarness(t)
   await runR2HubMigrations({ connectionString: url })
 
