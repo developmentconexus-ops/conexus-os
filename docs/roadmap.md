@@ -3,7 +3,9 @@
 This file owns mutable status, allowed work, and the exact next action.
 
 Current program: [Builder operational delivery](tasks/builder-first-app.md).
-Current task: [Approved interactive Builder](tasks/builder-interactive-delivery.md).
+Current task: [Builder repair program](tasks/builder-repair-program.md).
+Predecessor task: [Approved interactive Builder](tasks/builder-interactive-delivery.md),
+whose repair ledger this program closes.
 Technical authority: [C-020](reference/builder-c020-mastra-native.md).
 Interaction authority: [Frontend section 33.6](reference/frontend-and-product-surfaces.md#336-build-surface).
 
@@ -32,6 +34,7 @@ Product features.
 | Claude Account connection | UNACCEPTED predecessor candidate `f9fbb655463aa24da1c3e902c20d555487ce9629`. Its corrections are incorporated in the current task. |
 | Interactive HTML | FUNCTIONAL REFERENCE APPROVED BY OPERATOR. Exact artifact identity is in frontend section 33.6. This is not Product implementation acceptance. |
 | Interactive Builder delivery | APPROVED FOR EXECUTION under the current task. Four ordered units form one integrated candidate. |
+| Builder repair program | APPROVED FOR EXECUTION. Six ordered PRs close the repair ledger. The operator merges each one. |
 | Broader platform and visual polish | DEFERRED. No requirement to finish them before operating the Builder. |
 
 The initial accepted 7R-1 implementation remains
@@ -42,11 +45,20 @@ within this operator-approved functional delivery and the current task's limits.
 
 ## Current grant
 
-Execute only [builder-interactive-delivery.md](tasks/builder-interactive-delivery.md).
-The grant covers its four implementation units, focused tests, bounded local
-provider/model/E2B/browser proof, dependency integration, current contract updates,
-commit, and push. Mechanical steps and unit boundaries do not require another
-approval. Do not reopen the approved layout or create another prototype.
+Execute only [builder-repair-program.md](tasks/builder-repair-program.md).
+On 2026-09-18 the operator granted its six ordered PRs, P-01 through P-06. The
+grant covers those units, their focused tests, bounded local provider/model/E2B/
+browser proof, current contract updates, commit, push, and opening a pull request.
+Mechanical steps and unit boundaries do not require another approval. Do not
+reopen the approved layout or create another prototype.
+
+The verification bar is the program's own. Tests alone are not sufficient. A PR is
+verified only when its unit, live, and perf boxes each carry real evidence. The
+operator merges every PR; each one stops at merge-ready. P-02 through P-06 also
+stop for her review in chat with two screenshots and a 30-to-60-second video.
+
+The predecessor task keeps its meaning. Its four units remain the delivered
+shape, and its repair ledger is the record this program closes and reconciles.
 
 Keep Mastra as the coding runtime and the existing encrypted credential backend.
 The operator authorized local account OAuth after being informed of provider
@@ -90,10 +102,14 @@ Do not mark the Product accepted while a deciding live path remains blocked.
 
 ## Exact next action
 
-Fetch/status, load the current task, import the approved HTML from the supplied
-package, and implement Unit 1. Proceed through Units 2-4 without inventing another
-architecture or repeatedly requesting approval for the same scope.
+Fetch/status, load the current task, and execute P-01. It makes migration 047
+replace `reg.matches_application_artifact` instead of creating it a second time.
+Migration 040 already creates that signature, neither uses `CREATE OR REPLACE`, and
+no migration drops it, so every from-scratch install halts at step 2 of 28. CI runs
+`npm run verify` against an empty database on every pull request, so this defect
+fails any PR opened today, including one that would land the outstanding work.
 
-Use the existing first-delivery environment/runner; no new qualification framework.
-Reconcile the owners, commit/push the candidate, return the actual start command
-and demonstrated Project, then STOP for review. Do not begin the next increment.
+P-01 is the root of a base-branch stack and targets main. P-02 through P-05 branch
+from it. P-06 follows P-03. Use the existing first-delivery environment and runner;
+no new qualification framework. Reconcile the owners, commit and push the
+candidate, then STOP at merge-ready for the operator's review and her merge.
