@@ -295,6 +295,7 @@ test('S3 P1 real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollb
 })
 
 test('S3 P4-B real PostgreSQL proves receipt-locked abandoned-attempt cleanup composition', async (t) => {
+  await refuseProtectedCluster()
   const database = `conexus_s3_p4b_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 10)}`
   const ownerRoot = await mkdtemp(join(tmpdir(), 'conexus-s3-p4b-'))
   const liveClients = []
@@ -581,6 +582,7 @@ test('S3 P4-B real PostgreSQL proves receipt-locked abandoned-attempt cleanup co
 })
 
 test('S3 P6 real PostgreSQL proves current project.read disclosure and revocation', async (t) => {
+  await refuseProtectedCluster()
   const database = `conexus_s3_p6_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 10)}`
   const liveClients = []
   const admin = new Client(adminConnection)

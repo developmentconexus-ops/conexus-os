@@ -241,6 +241,7 @@ test('R2-P4 concordance migration guard refuses an active intent before DDL with
 test('R2-P4 real restricted PostgreSQL Inception trigger preserves reservation/replay and refuses pending refinement before receipt insert', {
   skip: databaseConfigured ? false : 'real PostgreSQL configuration not supplied',
 }, async (t) => {
+  await refuseProtectedCluster()
   const { fresh, query, url } = await databaseHarness(t)
   await runR2HubMigrations({ connectionString: url })
 

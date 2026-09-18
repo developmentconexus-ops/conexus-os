@@ -67,6 +67,7 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
 })
 
 test('C-020 source-scoped settlement composes with the executor artifact lifecycle', async (t) => {
+  await refuseProtectedCluster()
   const database = `registry_settlement_${randomUUID().replaceAll('-', '')}`
   const owner = await connect(admin)
   let setup

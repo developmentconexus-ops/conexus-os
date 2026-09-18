@@ -44,6 +44,7 @@ const ledger = async (connection) => (await query(connection,
   'SELECT version, checksum_sha256, applied_at FROM iam.schema_migration ORDER BY version')).rows
 
 test('current Hub installs accepted schemas and restarts without applying held R3', async (t) => {
+  await refuseProtectedCluster()
   const fixture = await databaseFixture(t)
   const installed = await runCurrentHubMigrations(fixture)
   assert.deepEqual(installed, { verdict: 'PASS', appliedNow: versions, versions })

@@ -200,6 +200,7 @@ const assertRefusedWithoutMutation = async (operation, code, query, fresh, proje
 test('R2-P4 production PostgreSQL Brain settlement proves begin-freeze-validate-complete and source CAS', {
   skip: databaseConfigured ? false : 'real PostgreSQL configuration not supplied',
 }, async (t) => {
+  await refuseProtectedCluster()
   const { fresh, query, url } = await databaseHarness(t)
   await runR2HubMigrations({ connectionString: url })
   const f = await setupFixture(query, fresh, { ownerScopeKind: 'WORKSPACE' })
@@ -274,6 +275,7 @@ test('R2-P4 production PostgreSQL Brain settlement proves begin-freeze-validate-
 test('R2-P4 production PostgreSQL Brain settlement permits a fresh attestation retry after terminal abort', {
   skip: databaseConfigured ? false : 'real PostgreSQL configuration not supplied',
 }, async (t) => {
+  await refuseProtectedCluster()
   const { fresh, query, url } = await databaseHarness(t)
   await runR2HubMigrations({ connectionString: url })
   const f = await setupFixture(query, fresh)
@@ -322,6 +324,7 @@ test('R2-P4 production PostgreSQL Brain settlement permits a fresh attestation r
 test('R2-P4 production PostgreSQL Brain settlement refuses revoked and stale proof bases without mutation', {
   skip: databaseConfigured ? false : 'real PostgreSQL configuration not supplied',
 }, async (t) => {
+  await refuseProtectedCluster()
   const { fresh, query, url } = await databaseHarness(t)
   await runR2HubMigrations({ connectionString: url })
   const runtimePassword = randomUUID().replaceAll('-', '')

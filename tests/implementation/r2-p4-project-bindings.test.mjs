@@ -203,6 +203,7 @@ test('R2-P4 real PostgreSQL proves receipt-scoped backfill, future settlement an
 test('R2-P4 production PostgreSQL binding SQL proves current-state settlement and owner isolation (fixture source OIDs; no Git/provider claim)', {
   skip: databaseConfigured ? false : 'real PostgreSQL configuration not supplied',
 }, async (t) => {
+  await refuseProtectedCluster()
   const harness = await databaseHarness(t)
   const { fresh, query, url } = harness
   await runR2HubMigrations({ connectionString: url })

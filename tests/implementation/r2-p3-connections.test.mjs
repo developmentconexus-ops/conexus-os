@@ -456,6 +456,7 @@ const quoteIdentifier = (value) => {
 test('R2-P3 real PostgreSQL + production backend prove lifecycle, scope grants and orphan recovery', {
   skip: databaseConfigured ? false : 'real PostgreSQL configuration not supplied',
 }, async (t) => {
+  await refuseProtectedCluster()
   const { Client, Pool } = pg
   const adminConfig = {
     host: process.env.CONEXUS_TEST_DB_HOST,

@@ -484,6 +484,7 @@ test('R2-P2 real PostgreSQL proves independent brain.read, immutable bootstrap a
 test('R2-P2 real Git and PostgreSQL bootstrap reaches all four production Brain routes', {
   skip: databaseConfigured && gitLive ? false : 'real PostgreSQL and exact admitted Git image not enabled',
 }, async (t) => {
+  await refuseProtectedCluster()
   const harness = await databaseHarness(t, 'conexus_r2_p2_live')
   await runHubMigrations({ connectionString: harness.url })
   const identities = await seedWorkspaceBeforeR2(harness)

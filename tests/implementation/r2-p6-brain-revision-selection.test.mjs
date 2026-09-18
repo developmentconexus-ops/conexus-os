@@ -147,6 +147,7 @@ test('R2-P6 purpose-bound BRN-02 uses only its exact IAM admission and fails clo
 test('R2-P6 actual brain-read role admits only exact purpose-bound revision selection in READ ONLY', {
   skip: databaseConfigured ? false : 'real PostgreSQL configuration not supplied',
 }, async (t) => {
+  await refuseProtectedCluster()
   const { beforeDrop, fresh, query, url } = await databaseHarness(t)
   await runR2HubMigrations({ connectionString: url.toString() })
 

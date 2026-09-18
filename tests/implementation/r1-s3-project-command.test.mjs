@@ -301,6 +301,7 @@ test('S3-P5 generated HTTP route enforces authenticity/session and returns only 
 test('S3-P5 real NEW and EXISTING_GIT HTTP compose PostgreSQL and exact-image Git through terminal replay', {
   skip: process.env.CONEXUS_S3_P5_LIVE !== 'true' ? 'set CONEXUS_S3_P5_LIVE=true for isolated deciding proof' : false,
 }, async (t) => {
+  await refuseProtectedCluster()
   const required = (name) => {
     const value = process.env[name]
     if (!value) throw new Error(`MISSING_TEST_CONFIG_${name}`)
