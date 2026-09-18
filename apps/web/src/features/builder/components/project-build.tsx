@@ -30,8 +30,7 @@ const activityState = (state: BuilderLiveView['activities'][number]['state']): s
 
 const observationNotices: Partial<Record<BuilderObservation['status'], string>> = {
   RECONNECTING: 'Conexão de acompanhamento perdida. Reconectando à execução…',
-  UNAUTHORIZED: 'Sua autoridade atual não permite acompanhar esta execução.',
-  UNOBSERVABLE: 'Não foi possível acompanhar esta execução ao vivo. Ela continua no servidor.',
+  UNOBSERVABLE: 'Não é possível acompanhar esta execução ao vivo. O estado atual vem da sessão do Project.',
 }
 
 type Inspection = 'CODE' | 'DIFF' | 'DETAILS'

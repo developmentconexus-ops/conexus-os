@@ -213,7 +213,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .builder-live-status > span:last-child { grid-column: 2; color: #748279; }
 .builder-live-pulse { grid-row: span 2; width: .55rem; height: .55rem; border-radius: 50%; background: #d6921e; box-shadow: 0 0 0 .25rem #d6921e1f; }
 .builder-observation-notice { margin: 0; padding: .6rem .7rem; border: 1px solid #e3d3ac; border-radius: .55rem; background: #fdf9ef; color: #6d5a2c; font-size: .74rem; }
-.builder-observation-notice[data-status="UNAUTHORIZED"], .builder-observation-notice[data-status="UNOBSERVABLE"] { border-color: #e6c3bd; background: #fdf4f2; color: #7c4136; }
+.builder-observation-notice[data-status="UNOBSERVABLE"] { border-color: #e6c3bd; background: #fdf4f2; color: #7c4136; }
 .builder-conversation-empty { margin: auto 0; padding: 1rem; border: 1px dashed #b5c3b9; background: #fbfdfb; text-align: center; font-size: .8rem; }
 .conexus-panel form { gap: .55rem; margin-top: 0; }
 .builder-composer-label { color: #40584a; font-size: .75rem; font-weight: 700; }

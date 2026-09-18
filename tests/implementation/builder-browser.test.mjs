@@ -403,10 +403,13 @@ test('an ended live transport keeps observing a BuilderRun that is still active'
   await page.getByText('Passo 2 da execução', { exact: true }).waitFor()
 })
 
-test('a live observation authorization failure is explicit', async (t) => {
-  const { page, streams } = await openActiveRunObservation(t, 41754, (route) => route.fulfill({ status: 403, contentType: 'application/problem+json', body: '{}' }))
-  await page.getByText('Sua autoridade atual não permite acompanhar esta execução.', { exact: true }).waitFor()
-  assert.equal(streams(), 1)
+test('a live observation denial is not claimed as still running', async (t) => {
+  const { page, streams } = await openActiveRunObservation(t, 41754, (route) => route.fulfill({ status: 404, contentType: 'application/problem+json', body: '{}' }))
+  await page.getByText('Não é possível acompanhar esta execução ao vivo. O estado atual vem da sessão do Project.', { exact: true }).waitFor()
+  const atNotice = streams()
+  assert.equal(atNotice, 1)
+  await page.waitForTimeout(1_000)
+  assert.equal(streams(), atNotice, 'a denial does not retry')
 })
 
 test('a live observation session loss returns the operator to sign-in', async (t) => {
@@ -424,13 +427,40 @@ test('a live observation session loss returns the operator to sign-in', async (t
 
 test('a nonrecoverable live observation protocol failure is explicit', async (t) => {
   const { page, streams } = await openActiveRunObservation(t, 41755, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"running":true}' }))
-  await page.getByText('Não foi possível acompanhar esta execução ao vivo. Ela continua no servidor.', { exact: true }).waitFor()
-  assert.equal(streams(), 1)
+  await page.getByText('Não é possível acompanhar esta execução ao vivo. O estado atual vem da sessão do Project.', { exact: true }).waitFor()
+  const atNotice = streams()
+  assert.equal(atNotice, 1)
+  await page.waitForTimeout(1_000)
+  assert.equal(streams(), atNotice, 'a protocol failure does not retry')
 })
 
 test('a transient live observation loss reconnects and is bounded', async (t) => {
   const { page, streams } = await openActiveRunObservation(t, 41756, (route) => route.fulfill({ status: 503, contentType: 'application/problem+json', body: '{}' }))
   await page.getByText('Conexão de acompanhamento perdida. Reconectando à execução…', { exact: true }).waitFor()
-  await page.getByText('Não foi possível acompanhar esta execução ao vivo. Ela continua no servidor.', { exact: true }).waitFor()
-  assert.ok(streams() > 1 && streams() <= 8, `bounded reconnection attempts, saw ${streams()}`)
+  await page.getByText('Não é possível acompanhar esta execução ao vivo. O estado atual vem da sessão do Project.', { exact: true }).waitFor()
+  const atGiveUp = streams()
+  assert.ok(atGiveUp > 1 && atGiveUp <= 8, `bounded reconnection attempts, saw ${atGiveUp}`)
+  await page.waitForTimeout(1_000)
+  assert.equal(streams(), atGiveUp, 'stops retrying once the bound is reached')
+})
+
+test('a live observation that keeps accepting but never progresses is bounded', async (t) => {
+  const staticView = { running: true, phase: 'AGENT', message: { id: 'static-1', text: 'Aguardando' }, activities: [] }
+  const { page, streams } = await openActiveRunObservation(t, 41758, (route) => route.fulfill(liveFrame(staticView)))
+  await page.getByText('Não é possível acompanhar esta execução ao vivo. O estado atual vem da sessão do Project.', { exact: true }).waitFor()
+  const atGiveUp = streams()
+  assert.ok(atGiveUp > 1 && atGiveUp <= 8, `bounded reconnection attempts, saw ${atGiveUp}`)
+  await page.waitForTimeout(1_000)
+  assert.equal(streams(), atGiveUp, 'stops retrying once the bound is reached even though every connection was accepted')
+})
+
+test('a running:false frame ends observation without reconnecting', async (t) => {
+  const { page, streams } = await openActiveRunObservation(t, 41759, (route) => route.fulfill(liveFrame({
+    running: false, phase: 'SUCCEEDED', message: { id: 'settled-1', text: 'Build concluído' }, activities: [],
+  })))
+  await page.getByText('Build concluído', { exact: true }).waitFor()
+  const atSettled = streams()
+  assert.equal(atSettled, 1)
+  await page.waitForTimeout(1_000)
+  assert.equal(streams(), atSettled, 'a settled frame does not reconnect')
 })
