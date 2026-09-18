@@ -264,8 +264,11 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
       await ensureSessionStorage()
       const observability = await sessionStorage.getStore('observability')
       if (!observability) return { available: false, traceId: null, spans: [] }
-      const traces = await observability.listTraces({ filters: { resourceId: projectId, serviceName: 'conexus-builder' }, pagination: { page: 0, perPage: 50 } })
-      const root = traces.spans.find((span) => span.requestContext?.conexusBuilderProjectId === projectId && span.requestContext?.conexusBuilderRunId === builderRunId)
+      const traces = await observability.listTraces({
+        filters: { resourceId: projectId, metadata: { conexusBuilderProjectId: projectId, conexusBuilderRunId: builderRunId } },
+        pagination: { page: 0, perPage: 1 },
+      })
+      const root = traces.spans.at(0)
       if (!root) return { available: false, traceId: null, spans: [] }
       const trace = await observability.getTrace({ traceId: root.traceId })
       const spans = (trace?.spans ?? []).map((span) => ({
