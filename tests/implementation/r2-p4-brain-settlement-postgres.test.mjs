@@ -4,6 +4,7 @@ import test from 'node:test'
 import pg from 'pg'
 import { canonicalBytes, sha256 } from '../../packages/canonical-json/src/index.mjs'
 import { runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const databaseConfigured = [
   'CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME',
@@ -16,6 +17,7 @@ const quoteIdentifier = (value) => {
 }
 
 const databaseHarness = async (t) => {
+  await refuseProtectedCluster()
   const admin = {
     host: process.env.CONEXUS_TEST_DB_HOST,
     port: Number(process.env.CONEXUS_TEST_DB_PORT),

@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
 import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const { Client } = pg
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -58,6 +59,7 @@ const query = async (connection, statement, values = []) => {
 const digest = (character) => character.repeat(64)
 
 test('S3 P1 real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback boundary', async (t) => {
+  await refuseProtectedCluster()
   const database = `conexus_s3_p1_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 10)}`
   const liveClients = []
   const admin = new Client(adminConnection)

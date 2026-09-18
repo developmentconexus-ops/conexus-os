@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import test from 'node:test'
 import pg from 'pg'
 import { runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const databaseConfigured = [
   'CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME',
@@ -70,6 +71,7 @@ const databaseHarness = async () => {
 test('R2-P4 PostgreSQL resolves one fresh Sankhya subject and enforces owner/role boundaries', {
   skip: databaseConfigured ? false : 'real PostgreSQL configuration not supplied',
 }, async (t) => {
+  await refuseProtectedCluster()
   const { administrator, runtimeConfiguration, cleanup } = await databaseHarness()
   let runtime
   t.after(async () => {

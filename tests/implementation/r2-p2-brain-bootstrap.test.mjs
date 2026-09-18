@@ -34,6 +34,7 @@ import {
   verifyLocalBrainRepository,
 } from '../../scripts/bootstrap-r2-brain.mjs'
 import { runHubMigrations, runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const expectedVersions = Array.from({ length: 18 }, (_, index) => String(index + 1).padStart(3, '0'))
@@ -270,6 +271,7 @@ test('R2-P2 bootstrap accepts authority inputs only from owner-only files', asyn
 test('R2-P2 real PostgreSQL proves independent brain.read, immutable bootstrap and false-PASS resistance', {
   skip: databaseConfigured ? false : 'real PostgreSQL configuration not supplied',
 }, async (t) => {
+  await refuseProtectedCluster()
   const harness = await databaseHarness(t, 'conexus_r2_p2_pg')
   assert.deepEqual((await runHubMigrations({ connectionString: harness.url })).versions, expectedVersions.slice(0, 10))
   const identities = await seedWorkspaceBeforeR2(harness)

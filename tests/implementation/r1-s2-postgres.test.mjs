@@ -6,6 +6,7 @@ import { resolve } from 'node:path'
 import { test } from 'node:test'
 import pg from 'pg'
 import { loadMigrationFiles, runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const { Client } = pg
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -54,6 +55,7 @@ const makeMigrationFixture = (mutate = () => {}) => {
 }
 
 test('S2 P1 real PostgreSQL proves migration custody, exact catalog and six-function Workspace foundation', async (t) => {
+  await refuseProtectedCluster()
   const databases = []
   const migrationFixtures = []
   const liveClients = []

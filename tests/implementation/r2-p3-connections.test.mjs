@@ -10,6 +10,7 @@ import test from 'node:test'
 import pg from 'pg'
 import { runHubMigrations, runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { canonicalBytes, sha256 as canonicalSha256 } from '../../packages/canonical-json/src/index.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const buildRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/r2-p3-build-'))
@@ -122,6 +123,7 @@ test('R2-P3 configuration is all-or-nothing and selects the exact runtime capabi
 })
 
 test('R2-P3 credential idempotency uses keyed context and reconciles immutable ciphertext only', async (t) => {
+  await refuseProtectedCluster()
   const fixture = createCredentialFixture()
   t.after(() => rmSync(fixture.fixture, { recursive: true, force: true }))
   const backend = createEncryptedFileCredentialBackend({

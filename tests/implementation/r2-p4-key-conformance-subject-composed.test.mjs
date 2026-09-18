@@ -8,6 +8,7 @@ import test from 'node:test'
 import pg from 'pg'
 import { canonicalBytes, sha256 } from '../../packages/canonical-json/src/index.mjs'
 import { runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const admittedGit = process.env.CONEXUS_R2_P4_GIT_LIVE === 'true'
@@ -66,6 +67,7 @@ test('R2-P4 composed production subject resolves trusted Project/Connections fac
     'requires CONEXUS_R2_P4_GIT_LIVE=true and CONEXUS_TEST_DB_*',
   timeout: 900_000,
 }, async (t) => {
+  await refuseProtectedCluster()
   const admin = {
     host: process.env.CONEXUS_TEST_DB_HOST, port: Number(process.env.CONEXUS_TEST_DB_PORT),
     database: process.env.CONEXUS_TEST_DB_NAME, user: process.env.CONEXUS_TEST_DB_USER,

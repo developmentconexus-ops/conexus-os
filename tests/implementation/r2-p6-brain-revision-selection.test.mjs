@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import pg from 'pg'
 import { runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/r2-p6-brain-selection-build-'))
@@ -34,6 +35,7 @@ const quoteIdentifier = (value) => {
 }
 
 const databaseHarness = async (t) => {
+  await refuseProtectedCluster()
   const admin = {
     host: process.env.CONEXUS_TEST_DB_HOST,
     port: Number(process.env.CONEXUS_TEST_DB_PORT),

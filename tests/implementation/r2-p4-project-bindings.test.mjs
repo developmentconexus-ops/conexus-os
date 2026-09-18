@@ -30,6 +30,7 @@ const quoteIdentifier = (value) => {
 }
 
 const databaseHarness = async (t) => {
+  await refuseProtectedCluster()
   const admin = {
     host: process.env.CONEXUS_TEST_DB_HOST,
     port: Number(process.env.CONEXUS_TEST_DB_PORT),
@@ -575,6 +576,7 @@ const spawnBindingCrashChild = ({ fixture, subject, fault }) => {
   const command = fixture.command(subject)
   const child = spawnSync(process.execPath, ['--input-type=module', '-e', `
 import pg from 'pg'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 const { createProjectConnectionBindingStore } = await import(${JSON.stringify(fixture.built('project/store.js'))})
 const { createOciProjectBindingGitCapability } = await import(${JSON.stringify(fixture.built('project/git-execution.js'))})
 const fault = ${JSON.stringify(fault)}

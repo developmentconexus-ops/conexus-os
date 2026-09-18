@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import pg from 'pg'
 import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const identityPath = resolve(repositoryRoot, 'apps/hub/src/project/identity.ts')
@@ -27,6 +28,7 @@ const compileHub = (t) => {
 }
 
 test('S3-P5 centralizes one Project identity law for UUID versions 1 through 8', async (t) => {
+  await refuseProtectedCluster()
   assert.equal(existsSync(identityPath), true)
   const gitSource = readFileSync(resolve(repositoryRoot, 'apps/hub/src/project/git-execution.ts'), 'utf8')
   const recoverySource = readFileSync(resolve(repositoryRoot, 'apps/hub/src/project/source-recovery.ts'), 'utf8')
