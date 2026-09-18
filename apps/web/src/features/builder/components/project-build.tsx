@@ -3,7 +3,7 @@ import type { CSSProperties, FormEvent, KeyboardEvent } from 'react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useMutation as useClaudeMutation, useQuery as useClaudeQuery, useQueryClient as useClaudeQueryClient } from '@tanstack/react-query'
 import { claudeConnectionsQueryKey, listClaudeConnections, selectClaudeConnection } from '../../claude-account/api'
-import { BuilderRequestError, cancelBuilderRun, getBuilderRunTrace, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type BuilderSession, type PreviewLaunch, type SourceTree } from '../api'
+import { BuilderRequestError, cancelBuilderRun, getBuilderRunTrace, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type BuilderMessagePart, type BuilderSession, type BuilderSessionMessage, type PreviewLaunch, type SourceTree } from '../api'
 import { observeBuilderRun, type BuilderLiveView, type BuilderObservation } from '../observation'
 import { BuilderMarkdown } from './builder-markdown'
 
@@ -27,6 +27,9 @@ const activityLabel = (label: BuilderLiveView['activities'][number]['label']): s
 const activityState = (state: BuilderLiveView['activities'][number]['state']): string => ({
   started: 'em andamento', succeeded: 'concluído', failed: 'falhou', interrupted: 'interrompido',
 }[state])
+
+const messageText = (message: BuilderSessionMessage): string =>
+  message.parts.filter((part): part is Extract<BuilderMessagePart, { kind: 'TEXT' }> => part.kind === 'TEXT').map((part) => part.text).join('')
 
 const observationNotices: Partial<Record<BuilderObservation['status'], string>> = {
   RECONNECTING: 'Conexão de acompanhamento perdida. Reconectando à execução…',
@@ -270,7 +273,8 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     })
   }, [run, runActive, runId, session])
   const timelineMessages = session.data?.messages ?? []
-  const hasLiveUser = Boolean(liveRequest && timelineMessages.slice(liveRequest.messageBoundary).some((item) => item.role === 'user' && item.text === liveRequest.text))
+  const hasLiveUser = Boolean(liveRequest && timelineMessages.slice(liveRequest.messageBoundary).some((item) => item.role === 'user' && messageText(item) === liveRequest.text))
+  const persistedActivityIds = new Set(timelineMessages.flatMap((item) => item.parts.filter((part) => part.kind === 'ACTIVITY').map((part) => part.id)))
   const liveRequestPart = runActive && liveRequest && !hasLiveUser ? liveRequest : null
   const onConversationScroll = () => {
     const element = conversationRef.current
@@ -523,10 +527,18 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       {!chatCollapsed && <aside data-mobile-pane={mobilePane} className="conexus-panel" aria-labelledby="conexus-panel-title">
         <div className="builder-panel-heading"><div><p className="eyebrow">Conexus Builder</p><h2 id="conexus-panel-title">Converse com o Conexus</h2><p className="builder-surface-caption">Peça alterações e acompanhe o que está acontecendo.</p></div><BuilderClaudeConnection initialOpen={requiresClaudeConnection} /></div>
         <section ref={conversationRef} onScroll={onConversationScroll} className="builder-conversation" aria-label="Mensagens do Builder" aria-live="polite">
-          {timelineMessages.map((item) => <div key={item.id} className={`builder-timeline-item builder-message builder-message-${item.role}`}><strong>{item.role === 'user' ? 'Você' : 'Conexus'}</strong><BuilderMarkdown text={item.text} /></div>)}
+          {timelineMessages.flatMap((item) => {
+            const textOccurrences = new Map<string, number>()
+            return item.parts.map((part) => {
+              if (part.kind === 'ACTIVITY') return <div key={part.id} className="builder-timeline-item builder-activity" data-state={part.state}><span className="builder-activity-icon" aria-hidden="true">{part.state === 'failed' ? '!' : part.state === 'succeeded' ? '✓' : '·'}</span><span><strong>{activityLabel(part.label)}</strong>{part.path && <small>{part.path}</small>}<span>{activityState(part.state)}</span></span></div>
+              const occurrence = textOccurrences.get(part.text) ?? 0
+              textOccurrences.set(part.text, occurrence + 1)
+              return <div key={`${item.id}-text-${part.text}-${occurrence}`} className={`builder-timeline-item builder-message builder-message-${item.role}`}><strong>{item.role === 'user' ? 'Você' : 'Conexus'}</strong><BuilderMarkdown text={part.text} /></div>
+            })
+          })}
           {liveRequestPart && <div key={liveRequestPart.runId} className="builder-timeline-item builder-message builder-message-user"><strong>Você</strong><BuilderMarkdown text={liveRequestPart.text} /></div>}
           {runActive && liveView?.message && <div key={liveView.message.id} className="builder-timeline-item builder-message builder-message-assistant"><BuilderMarkdown text={liveView.message.text || ' '}/></div>}
-          {runActive && liveView?.activities.map((activity) => <div key={activity.id} className="builder-timeline-item builder-activity" data-state={activity.state}><span className="builder-activity-icon" aria-hidden="true">{activity.state === 'failed' ? '!' : activity.state === 'succeeded' ? '✓' : '·'}</span><span><strong>{activityLabel(activity.label)}</strong>{activity.detail && <small>{activity.detail}</small>}<span>{activityState(activity.state)}</span></span></div>)}
+          {liveView?.activities.filter((activity) => !persistedActivityIds.has(activity.id)).map((activity) => <div key={activity.id} className="builder-timeline-item builder-activity" data-state={activity.state}><span className="builder-activity-icon" aria-hidden="true">{activity.state === 'failed' ? '!' : activity.state === 'succeeded' ? '✓' : '·'}</span><span><strong>{activityLabel(activity.label)}</strong>{activity.detail && <small>{activity.detail}</small>}<span>{activityState(activity.state)}</span></span></div>)}
           {runActive && <div className="builder-live-status" role="status"><span className="builder-live-pulse" aria-hidden="true" /><strong>{latestActivity ? activityLabel(latestActivity.label) : activeStatus}</strong><span>{latestActivity ? 'Atividade recebida do Builder.' : 'Aguardando atividade do servidor…'}</span></div>}
           {runActive && observationNotice && <p className="builder-observation-notice" data-status={observation?.status} role={observation?.status === 'RECONNECTING' ? 'status' : 'alert'}>{observationNotice}</p>}
           {!timelineMessages.length && !liveRequestPart && !liveView?.message && !liveView?.activities.length && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}

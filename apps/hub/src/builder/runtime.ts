@@ -148,7 +148,7 @@ export const resolveBuilderWorkspace = ({ requestContext }: { requestContext: Re
   return workspace instanceof Workspace ? workspace : undefined
 }
 
-const toolLabel = (toolName: string): BuilderLiveView['activities'][number]['label'] => {
+export const toolLabel = (toolName: string): BuilderLiveView['activities'][number]['label'] => {
   const value = toolName.toLowerCase()
   if (/(read|list|search|find|glob|grep|inspect|stat|cat|tree)/.test(value)) return 'READ_FILES'
   if (/(write|edit|patch|update|create|delete|remove|replace|modify|rename)/.test(value)) return 'EDIT_FILES'
@@ -156,7 +156,7 @@ const toolLabel = (toolName: string): BuilderLiveView['activities'][number]['lab
   return 'WORKSPACE'
 }
 
-const safePath = (args: unknown): string | undefined => {
+export const safePath = (args: unknown): string | undefined => {
   if (typeof args !== 'object' || args === null) return undefined
   const value = 'path' in args && typeof args.path === 'string' ? args.path
     : 'filePath' in args && typeof args.filePath === 'string' ? args.filePath
@@ -172,7 +172,7 @@ const safeToolState = (status: string | undefined): BuilderLiveView['activities'
   return 'started'
 }
 
-const safeActivityId = (toolCallId: string): string =>
+export const safeActivityId = (toolCallId: string): string =>
   `activity-${createHash('sha256').update(toolCallId, 'utf8').digest('hex').slice(0, 24)}`
 
 /** Projects one native display snapshot at the Conexus disclosure boundary. */

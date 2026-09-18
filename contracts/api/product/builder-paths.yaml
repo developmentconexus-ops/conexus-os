@@ -172,15 +172,39 @@ components:
       schema: { type: string, minLength: 1 }
 
   schemas:
+    BuilderMessagePartText:
+      type: object
+      additionalProperties: false
+      required: [kind, text]
+      properties:
+        kind: { type: string, enum: [TEXT] }
+        text: { type: string }
+    BuilderMessagePartActivity:
+      type: object
+      additionalProperties: false
+      required: [kind, id, label, state]
+      properties:
+        kind: { type: string, enum: [ACTIVITY] }
+        id: { type: string, minLength: 1 }
+        label: { type: string, enum: [READ_FILES, EDIT_FILES, RUN_COMMAND, WORKSPACE] }
+        path: { type: string, minLength: 1 }
+        state: { type: string, enum: [succeeded, failed, interrupted] }
+        durationMs: { type: integer, minimum: 0 }
+    BuilderMessagePart:
+      oneOf:
+        - $ref: '#/components/schemas/BuilderMessagePartText'
+        - $ref: '#/components/schemas/BuilderMessagePartActivity'
     BuilderMessage:
       type: object
       additionalProperties: false
-      required: [id, role, text, createdAt]
+      required: [id, role, createdAt, parts]
       properties:
         id: { type: string, minLength: 1 }
         role: { type: string, enum: [user, assistant, system] }
-        text: { type: string }
         createdAt: { type: string, format: date-time }
+        parts:
+          type: array
+          items: { $ref: '#/components/schemas/BuilderMessagePart' }
     BuilderRunSummary:
       type: object
       additionalProperties: false

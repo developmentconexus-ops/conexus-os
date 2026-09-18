@@ -64,16 +64,69 @@ test('real Mastra messages project to Product roles without leaking internal sig
     const projectedUser = projected.find((message) => message.id === user.id)
     const projectedAssistant = projected.find((message) => message.id === assistant.id)
     assert.equal(projectedUser?.role, 'user')
-    assert.equal(projectedUser?.text, 'Mensagem real do operador.')
+    assert.deepEqual(projectedUser?.parts, [{ kind: 'TEXT', text: 'Mensagem real do operador.' }])
     assert.equal(projectedAssistant?.role, 'assistant')
-    assert.equal(projectedAssistant?.text, 'Resposta persistida.')
-    assert.equal(projected.some((message) => message.text === 'internal task'), false)
+    assert.deepEqual(projectedAssistant?.parts, [{ kind: 'TEXT', text: 'Resposta persistida.' }])
+    assert.equal(projected.some((message) => message.parts.some((part) => part.kind === 'TEXT' && part.text === 'internal task')), false)
     assert.equal(projected.some((message) => message.id === 'slice-3-empty'), false)
     assert.equal(projected.some((message) => message.role === 'system'), false)
     assert.equal(projected.every((message) => message.role === 'user' || message.role === 'assistant' || message.role === 'system'), true)
+    assert.equal(projected.every((message) => message.parts.length > 0), true)
     assert.deepEqual(projected.map((message) => message.createdAt), projected.map((message) => message.createdAt).toSorted())
   } finally {
     await controller.destroy()
+    await storage.close()
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('native tool-invocation and sandbox-exit parts project to safe ACTIVITY entries without leaking internals', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'conexus-slice-3-activity-'))
+  const threadId = `conexus-builder:${randomUUID()}`
+  const resourceId = 'slice-3-activity-project'
+  const storage = new LibSQLStore({ id: `slice-3-activity-${randomUUID()}`, url: `file:${join(root, 'session.db')}` })
+  const memory = new Memory({ storage, options: { lastMessages: 20 } })
+  await storage.init()
+  try {
+    await memory.createThread({ threadId, resourceId })
+    const createdAt = new Date('2026-01-01T00:00:00Z')
+    await memory.saveMessages({ messages: [{
+      id: 'assistant-activity-message',
+      role: 'assistant',
+      createdAt,
+      threadId,
+      resourceId,
+      content: {
+        format: 2,
+        parts: [
+          { type: 'reasoning', reasoning: '', details: [{ type: 'text', text: '' }], providerMetadata: { anthropic: { signature: 'sig-native-secret' } } },
+          { type: 'tool-invocation', toolInvocation: { state: 'result', toolCallId: 'call-1', toolName: 'bash_execute', args: { command: 'echo hi' }, result: 'hi\n' }, providerMetadata: { anthropic: {} } },
+          { type: 'data-workspace-metadata', data: { sandboxId: 'sbx-123', provider: 'e2b', workspaceName: 'ws' }, createdAt },
+          { type: 'data-sandbox-exit', data: { exitCode: 0, success: true, executionTimeMs: 842, toolCallId: 'call-1' }, createdAt },
+          { type: 'step-start', createdAt, model: 'claude-sonnet-x' },
+          { type: 'tool-invocation', toolInvocation: { state: 'result', toolCallId: 'call-2', toolName: 'apply_patch', args: { path: 'app/src/App.tsx' }, result: 'TypeError: x is not a function\n    at Object.<anonymous>' }, providerMetadata: {} },
+          { type: 'data-workspace-metadata', data: { sandboxId: 'sbx-123', provider: 'e2b', workspaceName: 'ws' }, createdAt },
+          { type: 'data-sandbox-exit', data: { exitCode: 1, success: false, executionTimeMs: 210, toolCallId: 'call-2' }, createdAt },
+          { type: 'step-start', createdAt, model: 'claude-sonnet-x' },
+          { type: 'text', text: 'Concluí a execução.' },
+        ],
+      },
+    }] })
+    const recalled = (await memory.recall({ threadId, resourceId, page: 0, perPage: 50 })).messages
+    const projected = projectBuilderMessages(recalled)
+    assert.equal(projected.length, 1)
+    assert.deepEqual(projected[0].parts, [
+      { kind: 'ACTIVITY', id: 'activity-5d7963c4f471e142f5a72214', label: 'RUN_COMMAND', state: 'succeeded', durationMs: 842 },
+      { kind: 'ACTIVITY', id: 'activity-3ba8dced2e729b165dfb4e6a', label: 'EDIT_FILES', path: 'app/src/App.tsx', state: 'failed', durationMs: 210 },
+      { kind: 'TEXT', text: 'Concluí a execução.' },
+    ])
+    const failedActivity = projected[0].parts.find((part) => part.id === 'activity-3ba8dced2e729b165dfb4e6a')
+    assert.equal(failedActivity?.state, 'failed')
+    const serialized = JSON.stringify(projected)
+    for (const forbiddenKey of ['"args"', '"command"', '"result"', '"exitCode"', '"model"', '"sandboxId"', '"providerMetadata"', '"toolInvocation"', '"reasoning"', '"data"']) {
+      assert.equal(serialized.includes(forbiddenKey), false, `leaked ${forbiddenKey}`)
+    }
+  } finally {
     await storage.close()
     await rm(root, { recursive: true, force: true })
   }

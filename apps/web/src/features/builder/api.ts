@@ -1,4 +1,11 @@
 import { clearAuthorityCache } from '../../app/query-client'
+import type { BuilderLiveView } from './observation'
+
+export type BuilderActivityLabel = BuilderLiveView['activities'][number]['label']
+export type BuilderActivityState = Exclude<BuilderLiveView['activities'][number]['state'], 'started'>
+export type BuilderMessagePart =
+  | Readonly<{ kind: 'TEXT'; text: string }>
+  | Readonly<{ kind: 'ACTIVITY'; id: string; label: BuilderActivityLabel; path?: string; state: BuilderActivityState; durationMs?: number }>
 
 export type SourceTree = Readonly<{
   sourceRevision: string
@@ -16,8 +23,8 @@ export type PreviewLaunch = Readonly<{
 export type BuilderSessionMessage = Readonly<{
   id: string
   role: 'user' | 'assistant' | 'system'
-  text: string
   createdAt: string
+  parts: readonly BuilderMessagePart[]
 }>
 export type BuilderSession = Readonly<{
   projectId: string

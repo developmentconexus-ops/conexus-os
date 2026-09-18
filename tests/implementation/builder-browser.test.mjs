@@ -38,7 +38,7 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   const session = () => ({
-    projectId, messages: run && sessionReads > 1 ? persistedMessages.flatMap((item, index) => [item, ...(index < persistedMessages.length - (runFinished ? 0 : 1) ? [{ id: `message-assistant-${index + 1}`, role: 'assistant', text: '**Build concluído**', createdAt: new Date().toISOString() }] : [])]) : [],
+    projectId, messages: run && sessionReads > 1 ? persistedMessages.flatMap((item, index) => [item, ...(index < persistedMessages.length - (runFinished ? 0 : 1) ? [{ id: `message-assistant-${index + 1}`, role: 'assistant', parts: [{ kind: 'TEXT', text: '**Build concluído**' }], createdAt: new Date().toISOString() }] : [])]) : [],
     latestBuilderRun: run && sessionReads > 2 && runFinished
       ? { ...run, state: 'SUCCEEDED', resultSourceRevision: run.mode === 'PLAN' ? null : sourceRevision, resultKind: run.mode === 'PLAN' ? 'RESPONSE_ONLY' : 'SOURCE_CHANGED' }
       : run, latestCodeChangingRun: buildCount > 0 ? { baseSourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: buildCount > 0 ? sourceRevision : null, lastGoodArtifactRevisionId: buildCount > 0 ? artifactRevisionId : null, lastGoodArtifactDigest: buildCount > 0 ? artifactDigest : null }, mode: run?.mode ?? 'BUILD', modelChoices: admittedModelChoices,
@@ -56,7 +56,7 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
       const body = route.request().postDataJSON()
       requests.push({ url: route.request().url(), body, key: route.request().headers()['idempotency-key'] })
       buildCount += body.mode === 'BUILD' ? 1 : 0
-      persistedMessages.push({ id: `message-${persistedMessages.length + 1}`, role: 'user', text: body.content, createdAt: new Date().toISOString() })
+      persistedMessages.push({ id: `message-${persistedMessages.length + 1}`, role: 'user', parts: [{ kind: 'TEXT', text: body.content }], createdAt: new Date().toISOString() })
       runFinished = false
       run = { builderRunId: runId, projectId, state: 'RUNNING', mode: body.mode, baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
       return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ threadId: `conexus-builder:${projectId}`, builderRun: run }) })
@@ -170,7 +170,7 @@ test('new Project lands directly in Build and can send its first Builder message
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   const session = () => ({
-    projectId, messages: run ? [{ id: 'new-message', role: 'user', text: 'Crie um contador', createdAt: new Date().toISOString() }] : [],
+    projectId, messages: run ? [{ id: 'new-message', role: 'user', parts: [{ kind: 'TEXT', text: 'Crie um contador' }], createdAt: new Date().toISOString() }] : [],
     latestBuilderRun: run, latestCodeChangingRun: null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
     mode: 'BUILD', modelChoices: admittedModelChoices,
   })
@@ -463,4 +463,67 @@ test('a running:false frame ends observation without reconnecting', async (t) =>
   assert.equal(atSettled, 1)
   await page.waitForTimeout(1_000)
   assert.equal(streams(), atSettled, 'a settled frame does not reconnect')
+})
+
+test('settled ACTIVITY parts render every step once, in server order, failed visibly, and survive past a still-live duplicate', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000061'
+  const projectId = '70000000-0000-4000-8000-000000000062'
+  const runId = '70000000-0000-4000-8000-000000000063'
+  const sourceRevision = '7'.repeat(40)
+  const artifactRevisionId = '70000000-0000-4000-8000-000000000064'
+  const artifactDigest = '8'.repeat(64)
+  const origin = 'http://127.0.0.1:41760'
+  let settled = false
+  const activityParts = [
+    { kind: 'ACTIVITY', id: 'activity-shared', label: 'READ_FILES', path: 'app/src/main.tsx', state: 'succeeded' },
+    { kind: 'ACTIVITY', id: 'activity-edit', label: 'EDIT_FILES', path: 'app/src/main.tsx', state: 'succeeded' },
+    { kind: 'ACTIVITY', id: 'activity-run', label: 'RUN_COMMAND', state: 'failed' },
+    { kind: 'ACTIVITY', id: 'activity-workspace', label: 'WORKSPACE', state: 'succeeded' },
+    { kind: 'ACTIVITY', id: 'activity-final-read', label: 'READ_FILES', path: 'app/src/util.ts', state: 'interrupted' },
+  ]
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41760, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeClaudeConnections(page, accountId)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Activity parts', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, mode: 'BUILD', modelChoices: admittedModelChoices, latestCodeChangingRun: null,
+    messages: settled ? [
+      { id: 'user-1', role: 'user', createdAt: new Date().toISOString(), parts: [{ kind: 'TEXT', text: 'Atualize o app' }] },
+      { id: 'assistant-1', role: 'assistant', createdAt: new Date().toISOString(), parts: [{ kind: 'TEXT', text: 'Trabalhando na alteração' }, ...activityParts, { kind: 'TEXT', text: 'Build concluído' }] },
+    ] : [],
+    latestBuilderRun: settled
+      ? { builderRunId: runId, projectId, state: 'SUCCEEDED', mode: 'BUILD', baseSourceRevision: sourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED', failureCode: null }
+      : { builderRunId: runId, projectId, state: 'RUNNING', mode: 'BUILD', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null },
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: settled ? sourceRevision : null, lastGoodArtifactRevisionId: settled ? artifactRevisionId : null, lastGoodArtifactDigest: settled ? artifactDigest : null },
+  }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ entryUrl: `${origin}/preview-entry`, previewUrl: `${origin}/preview`, entryGrant: 'grant', artifactRevisionId, artifactDigest, expiresAt: new Date(Date.now() + 60_000).toISOString() }) }))
+  let streamRequests = 0
+  await page.route(`**/api/control/projects/${projectId}/builder-session/runs/${runId}/stream`, (route) => {
+    streamRequests += 1
+    const view = { running: true, phase: 'AGENT', message: { id: 'live-1', text: 'Trabalhando na alteração' }, activities: [{ id: 'activity-shared', label: 'READ_FILES', detail: 'app/src/main.tsx', state: 'started' }] }
+    if (streamRequests >= 2) setTimeout(() => { settled = true }, 200)
+    return route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8' }, body: `data: ${JSON.stringify(view)}\n\n` })
+  })
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.locator('.builder-conversation').getByText('Trabalhando na alteração', { exact: true }).first().waitFor()
+  await page.locator('.builder-activity').getByText('Lendo arquivos', { exact: true }).first().waitFor()
+  await page.locator('.builder-conversation').getByText('Build concluído', { exact: true }).waitFor()
+  await page.waitForTimeout(500)
+  assert.equal(await page.locator('.builder-activity').count(), 5, 'five persisted ACTIVITY parts render as five rows, not merged or dropped')
+  const rows = await page.locator('.builder-activity').all()
+  const states = await Promise.all(rows.map((row) => row.getAttribute('data-state')))
+  assert.deepEqual(states, ['succeeded', 'succeeded', 'failed', 'succeeded', 'interrupted'], 'activity rows render in server order with their persisted state')
+  assert.equal(await page.locator('.builder-activity[data-state="failed"]').count(), 1)
+  await page.locator('.builder-activity[data-state="failed"]').getByText('Executando comando', { exact: true }).waitFor()
+  await page.locator('.builder-activity[data-state="failed"]').getByText('falhou', { exact: true }).waitFor()
+  assert.equal(await page.locator('.builder-activity[data-state="failed"] .builder-activity-icon').textContent(), '!')
+  assert.equal(await page.locator('.builder-activity').getByText('app/src/main.tsx', { exact: true }).count(), 2, 'activity-shared (live and persisted, same id) renders once, not twice')
 })

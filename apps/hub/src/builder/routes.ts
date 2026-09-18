@@ -6,6 +6,7 @@ import type { BuilderService } from './service.js'
 import type { BuilderRunSummary, BuilderStore } from './store.js'
 import type { ApplicationArtifactMetadata } from './application-build.js'
 import type { BuilderModelChoice } from './model-choice.js'
+import type { BuilderLiveView } from './runtime.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const uuid = { type: 'string', format: 'uuid' } as const
@@ -17,15 +18,19 @@ const sourceFileQuery = { type: 'object', additionalProperties: false, required:
 
 export type BuilderOperationId = 'BLD-08' | 'BLD-09' | 'BLD-23' | 'BLD-24' | 'BLD-25' | 'BLD-26'
 type ResolveBuilderSession = (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
+export type BuilderMessagePart =
+  | Readonly<{ kind: 'TEXT'; text: string }>
+  | Readonly<{ kind: 'ACTIVITY'; id: string; label: BuilderLiveView['activities'][number]['label']; path?: string; state: 'succeeded' | 'failed' | 'interrupted'; durationMs?: number }>
+export type BuilderSessionMessage = Readonly<{
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  createdAt: string
+  parts: readonly BuilderMessagePart[]
+}>
 export type BuilderSessionSnapshot = Readonly<{
   projectId: string
   threadId: string
-  messages: readonly Readonly<{
-    id: string
-    role: 'user' | 'assistant' | 'system'
-    text: string
-    createdAt: string
-  }>[]
+  messages: readonly BuilderSessionMessage[]
   workingSourceRevision: string | null
   lastPreviewSourceRevision: string | null
   lastPreviewArtifactRevisionId: string | null
