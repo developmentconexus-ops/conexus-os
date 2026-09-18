@@ -17,6 +17,35 @@ material engineering review. Reconcile the affected Builder reference, Product
 operations and wire contracts before implementing their changed behavior.
 The [roadmap](../roadmap.md#exact-next-action) owns execution order.
 
+## C-006 reopen, 2026-09-18
+
+C-006 carries the reopen trigger `New topology or version evidence changes the invariant`.
+Measuring the running pilot database met it. The invariant reads `Physical roles and stores
+enforce owner boundaries`. Physical roles enforce an operation boundary. They do not enforce
+an owner boundary, and no other database mechanism does.
+
+| Measure | Value |
+| --- | --- |
+| Tables | 34 |
+| Tables with row level security enabled | 0 |
+| Row level security policies | 0 |
+| Functions `SECURITY DEFINER` | 147 |
+| Functions `SECURITY INVOKER` | 1 |
+
+Account, Workspace and Project scoping lives inside the definer functions as arguments the
+Hub supplies. A caller passing the wrong `accountId` invokes a permitted operation, so the
+grant system sees nothing wrong and the function returns another owner's rows. Every role
+carries `NOBYPASSRLS` with no policy to bypass.
+
+The distinct-stores half of C-006 is unchallenged. Hub control data and Project business
+data remain apart.
+
+This entry records the trigger and the evidence. It does not change the disposition, which
+is the operator's to set. [Database authority redesign](../tasks/database-authority-redesign.md)
+carries the proposed target shape, its cost and its stop law. C-006's invariant wording
+needs correction whichever way that proposal is decided, because it currently claims an
+enforcement the database does not perform.
+
 Controlled disposition vocabulary:
 
 | Disposition | Meaning |
