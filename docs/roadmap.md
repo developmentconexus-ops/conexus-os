@@ -45,7 +45,8 @@ within this operator-approved functional delivery and the current task's limits.
 
 ## Current grant
 
-Execute only [builder-repair-program.md](tasks/builder-repair-program.md).
+Execute [builder-repair-program.md](tasks/builder-repair-program.md) and the
+credential and role remediation described below. Both are current.
 On 2026-09-18 the operator granted its six ordered PRs, P-01 through P-06. The
 grant covers those units, their focused tests, bounded local provider/model/E2B/
 browser proof, current contract updates, commit, push, and opening a pull request.
@@ -54,11 +55,52 @@ reopen the approved layout or create another prototype.
 
 The verification bar is the program's own. Tests alone are not sufficient. A PR is
 verified only when its unit, live, and perf boxes each carry real evidence. The
-operator merges every PR; each one stops at merge-ready. P-02 through P-06 also
+operator merges every PR by default; each one stops at merge-ready. On 2026-09-18
+she lifted that gate for the remediation work and authorized merging directly.
+P-02 through P-06 also
 stop for her review in chat with two screenshots and a 30-to-60-second video.
 
 The predecessor task keeps its meaning. Its four units remain the delivered
 shape, and its repair ledger is the record this program closes and reconciles.
+
+### Credential and role remediation
+
+On 2026-09-18 the operator authorized this explicitly, including the parts the
+preservation clause below previously refused, and instructed that legacy be removed
+rather than worked around.
+
+The cause of the long-standing `28P01` was found that day and is no longer unknown.
+Twenty Postgres suites run `ALTER ROLE` on cluster-global `hub_*` roles. The throwaway
+database each suite creates does not contain that change, so running them against the
+pilot cluster replaces the live Hub credentials with test fixture values. The roles were
+found holding `invariants-executor` and `invariants-ingress`, the fixtures from
+`builder-run-invariants-postgres.test.mjs`. `builder-first-operational-delivery.md`
+records an earlier reconciliation of the same role and states the cause was never found.
+
+The authorized sequence, smallest and least risky first, each step ending verifiable:
+
+1. Refuse role-altering suites against a cluster that hosts a live Hub. Test tooling only.
+2. Set `application_name` per connection pool and write a role register naming each role,
+   its capability, its grants, its password-file variable, and the module that connects as
+   it. No database change.
+3. Provision the Hub role credentials idempotently from the same `*_PASSWORD_FILE`
+   variables the Hub config already reads, and report a connection census at startup so
+   `28P01` surfaces as a named census rather than mid-journey.
+4. Finish the MAR excision and reconcile the census against itself. Decide delete or
+   restore for migrations 024 and 025, `mar-paths.yaml`, `hub_mar_runtime` and
+   `check-wire-mar`. Move the retained checkers behind an explicit target or delete them.
+   Correct the trailer that claims a 31-operation census while section 5 holds more.
+5. Reduce `scripts/run-hub-migrations.mjs` from a hand-maintained schema oracle to
+   generated catalog snapshots, then consolidate credentials by making the capability
+   roles `NOLOGIN` and having one login role `SET ROLE` per pool. The repository already
+   uses that pattern in `qualification/4f/r3-root-tuple/run.mjs`.
+
+Steps 3 and 5 change credentials and role attributes. Both are authorized here.
+
+What still stops. Existing Product data is never destroyed; the pilot database holds real
+work and no step may drop, truncate or recreate it. A step that would require destroying
+it returns to the operator instead. Grants themselves keep their current meaning: the
+consolidation moves where a capability is held, never what it permits.
 
 Keep Mastra as the coding runtime and the existing encrypted credential backend.
 The operator authorized local account OAuth after being informed of provider
@@ -72,8 +114,10 @@ The planner prepares/reconciles this plan and verifies candidates. Codex execute
 Product changes and their proofs. Do not silently combine those roles.
 
 Preserve unowned working-tree and untracked files, private configuration, secrets,
-containers, and existing data. No reset, clean, stash, force-push, credential
-rotation, role-grant changes, or destructive migration is authorized here.
+containers, and existing data. No reset, clean, stash, force-push, or destructive
+migration is authorized here. Credential rotation and role-attribute changes are
+authorized only inside the credential and role remediation above, and only to the
+values the existing secret files already hold; no new credential is generated.
 
 ## Recorded environment limits
 
