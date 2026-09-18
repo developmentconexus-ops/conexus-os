@@ -394,7 +394,8 @@ Preserve C-020 unless real composed evidence falsifies one of its required bound
 | B-11 | Browser proof scope | CONFIRMED | `builder-browser.test.mjs` mocks Builder/session/SSE/source/Preview and therefore proves UI composition, not Claude → Mastra → E2B → source → compile → Preview. | Keep mocked browser coverage as focused UI proof and add a real composed acceptance proof. |
 | B-12 | Compile diagnostic identity | INCOMPLETE | Current diagnostic append is generic and uses a fresh message UUID per append. | Diagnostic is bounded, safe, tied to exact run/source, and idempotently represented once. |
 | B-13 | Public failure taxonomy | INCOMPLETE | Many internal failures collapse to `BUILDER_PREPARATION_FAILED`. | Expose a small safe public taxonomy that distinguishes connection, model, sandbox/preparation, agent, source, compilation, cancellation and transport outcomes without leaking internals. |
-| B-14 | OAuth → model → E2B live path | USER-OBSERVED FAILURE; ROOT CAUSE NOT YET PROVEN | Operator reports connected Claude account but no reliable Project request execution. Read-only code audit found several failure paths but did not reproduce the live composed run. | Prove one real authorized request end to end with the same connection, model, Thread, run, source, artifact and usable Preview. |
+| B-14 | OAuth → model → E2B live path | ROOT CAUSE PROVEN AND CORRECTED (d27c625) | `claude_credential_generation` is `bigint`, reaches Node as a JSON number through `jsonb_build_object`, and `store.ts` cast it to a type declaring `string`. The model factory guarded on `typeof generation === 'string'`, took the false branch, and silently returned the sentinel model built with `credentialRequired: false`, which can only throw `CLAUDE_CONNECTION_REQUIRED`. The opaque `BUILDER_MODEL_STREAM_FAILED` hid it because the real provider error was captured and discarded. | Prove one real authorized request end to end with the same connection, model, Thread, run, source, artifact and usable Preview. |
+| B-15 | Native trace correlation | CORRECTED (c163b01) | `readTrace` filtered `listTraces` by `serviceName`, a column this Mastra version never persists on spans, so every run reported `available: false`. The two required correlation values were already stamped into span metadata. | The trace endpoint returns the actual BuilderRun's native trace through a metadata filter, satisfying the Native traces falsifier. |
 
 ### Known file census
 
@@ -441,22 +442,63 @@ The final candidate is not accepted until a real operator can open one authorize
 
 ### Immediate next correction
 
-Unit R1 is delivered and stopped for review. `observeBuilderRun()` now reports a
-`BuilderObservation` union (`STREAMING`, `RECONNECTING`, `RUN_SETTLED`,
-`UNAUTHORIZED`, `UNOBSERVABLE`) instead of a bare view, stops only on terminal run
-truth, and bounds transient recovery at six consecutive frameless cycles.
-`tests/implementation/builder-browser.test.mjs` carries four focused transport
-proofs and runs green at nine of nine.
+R1 is delivered, along with two corrections the live proof forced. B-01 and B-02
+are closed. B-14's root cause is proven and corrected. B-15 is new and closed.
+`observeBuilderRun()` reports a `BuilderObservation` union (`STREAMING`,
+`RECONNECTING`, `RUN_SETTLED`, `UNOBSERVABLE`), stops only on terminal run truth,
+and bounds recovery on frames that do not progress. `UNAUTHORIZED` was removed
+because the stream route answers 404 rather than 403, deliberately, so that a
+run id cannot become an existence oracle. The browser suite runs 11 of 11 and the
+credential suite 12 of 12.
 
-Two findings outside R1 were recorded rather than fixed:
+### Composed acceptance observed on 2026-09-17
+
+Against real Claude, E2B, source, compiler and Preview, in project
+`dc311c82-0e32-4b42-85bb-7a3e9bb8e9df`:
+
+- A request executes on the connection it was admitted with and reaches
+  `SOURCE_CHANGED`. The generated counter responds to input in the Preview.
+- A second request continues the same Thread from the first result's source
+  (`9eee02af` → `c2c5ffa5`); messages, run history and last-good Preview advance.
+- Reload recovers the conversation and the Preview.
+- Cancellation settles `INTERRUPTED` with `USER_CANCELLED` in five seconds,
+  leaves working source and last-good Preview untouched, and keeps the request
+  in the conversation.
+- A failing compilation settles `SOURCE_CHANGED_BUILD_FAILED`, advances working
+  source to the failing revision, preserves the previous good Preview and
+  artifact, and appends a run-scoped diagnostic.
+- The run's native trace is reachable through the Product endpoint.
+
+Not yet proven: model switching, which B-07 blocks because the catalog admits a
+single `BUILDER_CODING` model, and OAuth reconnect.
+
+### Measured for R2
+
+The successful run's assistant message carries 22 native parts: one `reasoning`,
+five `tool-invocation` with tool name, call id and the executed command, five
+`data-sandbox-exit` with exit code and duration, five `data-workspace-metadata`,
+five `step-start` naming the model, and one `text`. `projectBuilderMessages()`
+projects all of it to a single string. One command failed mid-run with exit code
+1 and the agent recovered; the operator saw none of it. Live activity rendered as
+one generic "Executando comando" and disappeared when the run ended. B-04 and
+B-05 are therefore server-contract defects, not frontend work; no UI change can
+render data that never leaves the Hub.
+
+### Findings outside the ledger
 
 - `e9ef0b3e` added the Claude connection gate, the admitted-model gate and two
   Preview control renames without updating the browser mocks, which had left the
-  whole suite red. R1 repaired the mocks; the copy it now asserts includes the
-  untruthful Preview text that B-08 still owns.
+  whole suite red. It also introduced B-01 by turning a `throw` into
+  `return 'ended'`.
 - `tests/implementation/hub-migration-postgres.test.mjs` fails on
   "concurrent current Hub installers record each accepted migration once" with
   `function "matches_application_artifact" already exists`. It halts
-  `npm run verify` before any web check and is untouched by R1.
+  `npm run verify` before any web check.
+- Restarting the Hub invalidates the operator session, observed twice within
+  minutes. Any long composed proof will hit this.
+- The first Project creation blocks about a minute on Git image warmup, and
+  creation still takes roughly a minute afterwards.
+- Reloading within seconds of a run settling showed no Preview frame at six
+  seconds; a cold load recovers it in about one. The window was not isolated.
 
-Review R1, then execute **Unit R2 only**.
+Review this, then execute **Unit R2 only**.
