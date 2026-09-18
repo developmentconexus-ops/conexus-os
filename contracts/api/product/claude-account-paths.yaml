@@ -4,6 +4,10 @@ paths:
     get:
       operationId: ListClaudeConnections
       summary: List Claude connections available to the current Account.
+      x-conexus-4a-id: CLA-01
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
           description: Safe connection metadata only.
@@ -22,6 +26,10 @@ paths:
     post:
       operationId: StartClaudeAuthorization
       summary: Start the configured Anthropic authorization flow.
+      x-conexus-4a-id: CLA-02
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
       requestBody:
         required: true
         content:
@@ -47,6 +55,10 @@ paths:
     post:
       operationId: CompleteClaudeAuthorization
       summary: Complete authorization with the provider code and state result.
+      x-conexus-4a-id: CLA-03
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
       requestBody:
         required: true
         content:
@@ -71,6 +83,10 @@ paths:
     post:
       operationId: SelectClaudeConnection
       summary: Select a Claude connection for future BuilderRuns.
+      x-conexus-4a-id: CLA-04
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
       requestBody:
         required: true
         content:
@@ -89,6 +105,10 @@ paths:
     post:
       operationId: ShareClaudeConnection
       summary: Share a Claude connection with an Account in the same Workspace.
+      x-conexus-4a-id: CLA-05
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
       requestBody:
         required: true
         content:
@@ -109,6 +129,10 @@ paths:
     post:
       operationId: RevokeClaudeConnection
       summary: Revoke a Claude connection owned by the current Account.
+      x-conexus-4a-id: CLA-06
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
       parameters:
         - name: connectionId
           in: path

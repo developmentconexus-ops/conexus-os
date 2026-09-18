@@ -31,7 +31,7 @@ Product features.
 | 7R1-LIVE-01 | CLOSED. Accepted correction is `fb1b1d4fe77e5a60e1d8bf78adacbf1e11ffad57`. |
 | 7R-2 | REPLAN. Partial evidence at `ed658c65152db27390dc1c5c88ff6d1b5cfa406e` remains partial; it is not a universal gate. |
 | First operational delivery | UNACCEPTED predecessor evidence. Its remaining guarantees are integrated into the current task, not waived. |
-| Claude Account connection | UNACCEPTED predecessor candidate `f9fbb655463aa24da1c3e902c20d555487ce9629`. Its corrections are incorporated in the current task. |
+| Claude Account connection | Predecessor candidate `f9fbb655463aa24da1c3e902c20d555487ce9629` was never accepted as a delivery, and its corrections are incorporated in the current task. The connection surface itself is CURRENT PRODUCT: the approved journey requires connecting Claude and selecting a model, so its six Control Plane operations are current Product authority and belong in the fixed Product census. |
 | Interactive HTML | FUNCTIONAL REFERENCE APPROVED BY OPERATOR. Exact artifact identity is in frontend section 33.6. This is not Product implementation acceptance. |
 | Interactive Builder delivery | APPROVED FOR EXECUTION under the current task. Four ordered units form one integrated candidate. |
 | Builder repair program | APPROVED FOR EXECUTION. Six ordered PRs close the repair ledger. The operator merges each one. |

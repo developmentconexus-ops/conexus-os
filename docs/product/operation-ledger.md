@@ -190,6 +190,12 @@ This is the current Product authority for the supported internal MVP. It is the 
 | `CON-07` | `SetConnectionCredential` | Connections | exact write-only credential replacement | command |
 | `CON-08` | `QualifyConnection` | Connections | exact Connection qualification authority | command |
 | `CON-09` | `GetConnectionQualification` | Connections | exact qualification diagnostic disclosure | read |
+| `CLA-01` | `ListClaudeConnections` | Claude Account | current Account's Claude connection disclosure; safe metadata only | read |
+| `CLA-02` | `StartClaudeAuthorization` | Claude Account | current authorization start against the server-pinned Anthropic flow | command |
+| `CLA-03` | `CompleteClaudeAuthorization` | Claude Account | exact provider code and state result; server resolves the authorized subject | command |
+| `CLA-04` | `SelectClaudeConnection` | Claude Account | exact connection preference for future BuilderRuns | command |
+| `CLA-05` | `ShareClaudeConnection` | Claude Account | exact same-Workspace Account share authority | command |
+| `CLA-06` | `RevokeClaudeConnection` | Claude Account | exact owner-scope connection revocation | command |
 | `PRJ-07` | `RunInceptionInvestigation` | Project | current Project inception flow; server resolves source/context | command |
 | `PRJ-08` | `GetApprovedProjectBaseline` | Project | current exact Project Baseline disclosure | read |
 | `PRJ-09` | `ApproveProjectBaselineRevision` | Project | current exact candidate Baseline approval authority | command |
