@@ -109,7 +109,15 @@ no migration drops it, so every from-scratch install halts at step 2 of 28. CI r
 `npm run verify` against an empty database on every pull request, so this defect
 fails any PR opened today, including one that would land the outstanding work.
 
-P-01 is the root of a base-branch stack and targets main. P-02 through P-05 branch
-from it. P-06 follows P-03. Use the existing first-delivery environment and runner;
-no new qualification framework. Reconcile the owners, commit and push the
-candidate, then STOP at merge-ready for the operator's review and her merge.
+The stack's trunk is `analysis/internal-mvp-2026-09-12`, not main. Migrations 023
+through 050 exist only on that branch; main still stops at 022, so the file P-01
+edits is not there to edit. P-01 is the root of the stack and targets the analysis
+branch. P-02 through P-05 branch from P-01. P-06 follows P-03.
+
+Consolidating the analysis branch into main is a separate pull request that waits
+for P-01, because it carries both colliding migrations and would fail CI without
+the fix.
+
+Use the existing first-delivery environment and runner; no new qualification
+framework. Reconcile the owners, commit and push the candidate, then STOP at
+merge-ready for the operator's review and her merge.
