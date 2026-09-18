@@ -2,7 +2,7 @@ BEGIN;
 
 SET LOCAL ROLE registry_owner;
 
-CREATE FUNCTION reg.matches_application_artifact(
+CREATE OR REPLACE FUNCTION reg.matches_application_artifact(
   p_project_id uuid,
   p_source_revision text,
   p_artifact_revision_id uuid,

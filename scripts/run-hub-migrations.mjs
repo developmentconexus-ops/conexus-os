@@ -72,11 +72,14 @@ const migration043Digest = 'c95a357dedb0c5ebba58774bf6b707430317c85bb1fa94a5cf55
 const migration044Digest = '0b3ba4b45551b2585000e6b58ec98dd89f1765ef423a91eecc9e7b731955e5ee'
 const migration045Digest = 'd652e72dc53e8a5fbece219235002fcb9db7f518112230321e5e37eee5a73eef'
 const migration046Digest = 'd427f4e176dc3671c58a06bda11119b20a05af5e3eda71b9575f23dccee2e2f3'
-const migration047Digest = '74703fb0042a0617f81dd68ae0b2553401050262aa4ad385ea758cec97ba70c3'
+const migration047Digest = '9356eb5bd548db0541b76523a5947677a140a1c8669ae20130709232ea105ccc'
 const migration048Digest = 'fbf8e55d82edf548b7a78879bff05994ee92ee36e20555c91f4adc0c97571675'
 const migration049Digest = '92ebd66206a7cbdcf9de898ba1b900bef0452047c34aec1e0a87976e01abe0dd'
 const migration050Digest = '7fd9ced94dcf8f897b6a6ce0f0ab28d27696023f83dfaf99b219848484eaf520'
-const legacyMigrationDigests = new Map([['040', '359d1d386b01f40a5b842f56363e82176db56b9b731736f01080597ca762f7f5']])
+const legacyMigrationDigests = new Map([
+  ['040', '359d1d386b01f40a5b842f56363e82176db56b9b731736f01080597ca762f7f5'],
+  ['047', '74703fb0042a0617f81dd68ae0b2553401050262aa4ad385ea758cec97ba70c3'],
+])
 const advisoryLock = 4_349_395_539_450_322_946n
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -8,7 +8,9 @@ import test from 'node:test'
 import { Sandbox } from 'e2b'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
-const buildRoot = mkdtempSync(resolve(repositoryRoot, 'node_modules/.cache/conexus-application-runtime-build-'))
+const cacheRoot = resolve(repositoryRoot, 'node_modules/.cache')
+mkdirSync(cacheRoot, { recursive: true })
+const buildRoot = mkdtempSync(resolve(cacheRoot, 'conexus-application-runtime-build-'))
 const compiled = spawnSync(process.execPath, [
   resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'), '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
   '--noEmit', 'false', '--outDir', buildRoot,
