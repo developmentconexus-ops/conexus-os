@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-18T00:00:00Z",
+  "title": "Design System: Conexus OS",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Conexus Jade",
+        "canonical": "#4FBE8E",
+        "tonalRamp": ["#0A1A13", "#142A20", "#1E4433", "#2E7A5A", "#0E7A51", "#4FBE8E", "#7FD3AC", "#B4E6CD"],
+        "note": "Brand, never status. Permitted in exactly three placements: active navigation item, primary action, authorized subject."
+      },
+      "amber": {
+        "role": "attention",
+        "displayName": "Attention Amber",
+        "canonical": "#E0B266",
+        "tonalRamp": ["#2C2517", "#875E13", "#E0B266", "#F6EEDC"],
+        "note": "Always accompanied by a mark and a word."
+      },
+      "red": {
+        "role": "failure",
+        "displayName": "Failure Clay",
+        "canonical": "#F08C80",
+        "tonalRamp": ["#31201D", "#A63E35", "#F08C80", "#FAECE9"],
+        "note": "Always accompanied by a round mark and a named reason."
+      }
+    },
+    "themes": {
+      "mechanism": "Both themes are first class. The root carries data-theme. With no explicit choice the surface follows prefers-color-scheme; a manual toggle overrides it and the choice persists per viewer.",
+      "dark": { "kind": "warm-neutral with a green cast", "ground": "#0F1311" },
+      "light": { "kind": "warm off-white, never cool blue-grey", "ground": "#F3F2EE" }
+    },
+    "elevation": {
+      "policy": "No elevation system. Separation is a 1px line in {colors.line}. Cards and panels never float.",
+      "overlay-only": "0 18px 40px -24px rgba(0,0,0,.55)",
+      "appliesTo": ["agent rail when it overlays below 920px"]
+    },
+    "motion": {
+      "policy": "One authored moment per surface, not scattered effects.",
+      "authored-moment": "Agent activity rows settle in sequence as each step completes.",
+      "settle": { "duration": "420ms", "easing": "cubic-bezier(.16,1,.3,1)", "stagger": "70ms", "from": "opacity 0, translateY(-3px)" },
+      "control": { "duration": "140ms", "easing": "linear", "properties": ["background", "color", "border-color"] },
+      "disclosure": { "duration": "180ms", "easing": "ease", "properties": ["transform"] },
+      "reducedMotion": "prefers-reduced-motion: reduce removes the settle animation entirely; the rows render in place."
+    },
+    "breakpoints": {
+      "full": ">= 1241px, three columns, left rail 212px, agent rail 392px",
+      "narrow": "1021px - 1240px, agent rail 340px",
+      "compact": "<= 1020px, left rail forced to the 54px icon rail",
+      "overlay": "<= 920px, agent rail overlays the application instead of sitting beside it"
+    },
+    "iconography": {
+      "grid": "20px viewBox",
+      "stroke": "1.6",
+      "caps": "round",
+      "joins": "round",
+      "fill": "none",
+      "rule": "Authored SVG only. No icon font, no emoji, no unicode glyph standing in for a drawn icon."
+    },
+    "browserSurfaces": {
+      "rule": "Surfaces the design did not draw still carry the design.",
+      "selection": "background {colors.accent-bg}, text {colors.fg}",
+      "focusRing": "2px solid {colors.accent}, offset 3px, radius 4px",
+      "scrollbar": "10px, thumb {colors.line} with a 3px ground-coloured border, transparent track",
+      "numerals": "font-variant-numeric: tabular-nums globally"
+    },
+    "typographyRules": {
+      "governing": "Prose in Instrument Sans, facts in JetBrains Mono. A fact is a revision, artifact digest, run id, duration, file path, error code, or model id.",
+      "floor": "Functional text never below 12px. Density comes from spacing, not from shrinking type.",
+      "webfonts": "Instrument Sans 400/500/600 and JetBrains Mono 400/500, self-hosted in production rather than fetched from a third party."
+    },
+    "northStar": "The application is the work. The machine is accountable. Exact truth is always one move away and never in the way.",
+    "rules": [
+      "Colour never carries meaning alone. Every state pairs a mark with a word.",
+      "One accent, three placements: active navigation item, primary action, authorized subject.",
+      "Separation is a hairline, never a shadow.",
+      "A failed run keeps the operator's request visible, verbatim, with the reason named beside it.",
+      "The preview surface holds the application edge to edge, with no chrome between operator and work."
+    ],
+    "donts": [
+      "Violet, or a purple-to-cyan gradient. The category's tell.",
+      "Glass, blur, glow, or a pulsing orb.",
+      "Inter for the product interface. It is what the competitor uses and why the earlier prototype read as generic.",
+      "An address bar, a status strip under the application, or a context chip above the composer. Removed deliberately on 2026-09-18.",
+      "Monospace as a costume. It marks facts and only facts.",
+      "Shadows on cards."
+    ],
+    "declaredDeviations": [
+      { "finding": "cramped-padding on the application frame", "reason": "A preview surface shows the application edge to edge. Insetting it would put chrome between the operator and the work." },
+      { "finding": "overused-font: Instrument Sans", "reason": "Accurate, and the accepted ceiling of a free family. The path past it is licensing a face." },
+      { "finding": "overused-font: Inter", "reason": "Occurs inside the demonstration application rendered in the preview, which is a different product's interface authored by the agent and correctly not bound by this system." }
+    ],
+    "provenance": {
+      "method": "Seven comparable products inspected live on 2026-09-18 by reading computed styles.",
+      "measured": {
+        "palantir.com": { "face": "Alliance No.1 / No.2", "ground": "#FFFFFF" },
+        "blueprintjs.com": { "face": "system stack", "baseSize": "14px", "ground": "light" },
+        "lovable.dev": { "face": "Camera Plain Variable", "ground": "oklch(0.9699 0 107)" },
+        "replit.com": { "face": "Replit Diatype / ABC Diatype Plus", "ground": "rgb(246,245,244)" },
+        "cursor.com": { "face": "CursorGothic", "ground": "rgb(20,18,11)" },
+        "v0.app": { "face": "GeistSans headings, Inter body", "ground": "oklch(0 0 0)" },
+        "linear.app": { "face": "Inter Variable", "ground": "rgb(8,9,10)" },
+        "mitralab.io": { "face": "Inter", "ground": "rgb(249,249,253)" }
+      },
+      "conclusions": [
+        "Every product with a committed identity commissioned or licensed a face; the two that did not use Inter.",
+        "No product in the category uses green, and the pre-existing Conexus CSS was green-grey (#18211d on #f4f6f2)."
+      ]
+    },
+    "comp": {
+      "surface": "Build workspace (P-01)",
+      "status": "Approved by the operator on 2026-09-18. Structure honours docs/evidence/4c/p01-build-workspace-functional-wireframe.html.",
+      "removedDeliberately": ["preview address bar", "status strip beneath the application", "composer context chip", "Plan / Findings / Evidence / Details governance tabs", "last-good versus candidate boundary strip", "dated conversation list in the agent rail"]
+    }
+  }
+}
