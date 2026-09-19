@@ -5,7 +5,8 @@ import { prepareBuilderRunApplicationArtifact } from './application-build.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, BuilderApplicationArtifacts } from './application-build.js'
 import type { ApplicationCompilerRuntime } from './application-artifact-runtime.js'
 import { toBuilderLiveView, type BuilderExecutionPhase, type BuilderLiveView, type BuilderSession } from './runtime.js'
-import { resolveBuilderModelChoice, type BuilderModelChoice } from './model-choice.js'
+import { resolveBuilderModelChoice } from './model-choice.js'
+import type { ModelChoice } from '../model-connection/model-catalog.js'
 
 export type BuilderService = Readonly<{
   createBuilderRun(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN'; modelChoiceId?: string }>): Promise<BuilderRunSummary>
@@ -107,13 +108,13 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
   runtime: CodingWorkerRuntime
   compiler: ApplicationCompilerRuntime
   applicationArtifacts: BuilderApplicationArtifacts
-  modelChoices?: readonly BuilderModelChoice[]
+  modelChoices?: readonly ModelChoice[]
   requiresClaudeConnection?: boolean
   appendDiagnostic?: (input: Readonly<{ projectId: string; builderRunId: string; code: string }>) => Promise<void>
 }>): BuilderService => {
   if (runtime.kind !== 'REMOTE_E2B') throw new Error('BUILDER_LOCAL_RUNTIME_REFUSED')
   const builderActive = new Map<string, Readonly<{ controller: AbortController; work: Promise<void>; observation: BuilderRunObservation }>>()
-  const availableModelChoices = modelChoices.length > 0 ? modelChoices : [
+  const availableModelChoices: readonly ModelChoice[] = modelChoices.length > 0 ? modelChoices : [
     { choiceId: runtime.modelIdentity.admissionId, label: runtime.modelIdentity.modelId, providerId: runtime.modelIdentity.providerId, modelId: runtime.modelIdentity.modelId, capabilities: ['BUILDER_CODING'] },
   ]
   const applicationShutdown = new AbortController()

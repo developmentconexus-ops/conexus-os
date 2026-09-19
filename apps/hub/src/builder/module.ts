@@ -26,7 +26,7 @@ import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, Unbound
 import { createBuilderSourcePort } from './source.js'
 import type { BuilderGitSourceCapability } from './source.js'
 import { createBuilderStore } from './store.js'
-import type { BuilderModelChoice } from './model-choice.js'
+import type { ModelChoice } from '../model-connection/model-catalog.js'
 import { createE2BApplicationCompiler } from './application-artifact-runtime.js'
 import { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } from './application-starter.js'
 
@@ -185,7 +185,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   projectSource: Readonly<{ storageRoot: string; git: BuilderGitSourceCapability }>
   model: MastraLanguageModel
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
-  modelChoices?: readonly BuilderModelChoice[]
+  modelChoices?: readonly ModelChoice[]
   validateModelCredential(): void
   resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => MastraLanguageModel
   origin: string
@@ -294,7 +294,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
         lastPreviewSourceRevision: preview.lastPreviewSourceRevision ?? null,
         lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId ?? null,
         lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest ?? null,
-        modelChoices: modelChoices ?? [{ choiceId: modelIdentity.admissionId, label: modelIdentity.modelId, providerId: modelIdentity.providerId, modelId: modelIdentity.modelId, capabilities: ['BUILDER_CODING'] }],
+        modelChoices: modelChoices ?? [{ choiceId: modelIdentity.admissionId, label: modelIdentity.modelId, providerId: modelIdentity.providerId, modelId: modelIdentity.modelId, capabilities: ['BUILDER_CODING'] as const }],
         runHistory,
       })
     },
