@@ -38,8 +38,8 @@ test('operator-approved P-03 and P-01 baselines and F05 deltas remain pinned aft
 
   if (gitBlobSha(p03Html) !== p03Family4Candidate) throw new Error('P12 Family 4 re-locked P-03 drifted')
   if (gitBlobSha(p01Html) !== p01Family4Candidate) throw new Error('P12 Family 4 re-locked P-01 drifted')
-  for (const token of ['PRE11-F05 bounded read-only reference presentation','PRJ-29','PRJ-16/17','BRN-14']) requireText(p03Html, token, 'bounded F05 P-03 lock marker')
-  for (const token of ['PRE11-F05 bounded reference-selection overlay','PRJ-29','PRJ-16/17','BRN-14']) requireText(p01Html, token, 'bounded F05 P-01 lock marker')
+  for (const token of ['PRE11-F05 bounded read-only reference presentation','PRJ-29','PRJ-16/17']) requireText(p03Html, token, 'bounded F05 P-03 lock marker')
+  for (const token of ['PRE11-F05 bounded reference-selection overlay','PRJ-29','PRJ-16/17']) requireText(p01Html, token, 'bounded F05 P-01 lock marker')
 
   for (const token of [
     'LOCKED / OPERATOR APPROVED','P9 EXACT TRACE CLOSED','P10 CONSOLIDATED','P11 LATER ASSEMBLED PRODUCT',

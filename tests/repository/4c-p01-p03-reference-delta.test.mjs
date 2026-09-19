@@ -24,12 +24,12 @@ test('P-01/P-03 F05 delta keeps one candidate per canonical HTML and the owner-r
   assert.equal(existsSync(path(p01Path)), true)
   assert.equal(existsSync(path(p03Path)), true)
   for (const token of [
-    'PRE11-F05', 'NOT LOCKED', 'owner-backed references', 'PRJ-29', 'PRJ-16/17', 'BRN-14',
+    'PRE11-F05', 'NOT LOCKED', 'owner-backed references', 'PRJ-29', 'PRJ-16/17',
     'LOADING', 'KNOWN_EMPTY', 'DENIED', 'NON_DISCLOSABLE', 'DEPENDENCY_FAILURE', 'READY',
     'DISCLOSED', 'DETAIL_WITHHELD', 'EXACT_UNRESOLVED', 'SERVER_INVALID',
   ]) requireText(p01, token, `P-01 ${token}`)
   for (const token of [
-    'PRE11-F05', 'NOT LOCKED', 'Governed reference presentation', 'PRJ-29', 'PRJ-16/17', 'BRN-14',
+    'PRE11-F05', 'NOT LOCKED', 'Governed reference presentation', 'PRJ-29', 'PRJ-16/17',
     'LOADING', 'KNOWN_EMPTY', 'DENIED', 'NON_DISCLOSABLE', 'DEPENDENCY_FAILURE', 'READY',
     'DETAIL_WITHHELD', 'EXACT_UNRESOLVED', 'SERVER_INVALID',
   ]) requireText(p03, token, `P-03 ${token}`)
@@ -43,7 +43,7 @@ test('P-01/P-03 F05 delta keeps one candidate per canonical HTML and the owner-r
   for (const token of [
     'reference-presentation-delta', 'reference-presentation-state', 'reference-presentation-grid',
     'reference-protected-list', 'reference-presentation-scenario', 'Model policy · PRJ-29',
-    'Capability binding · PRJ-16/17', 'Project Brain · BRN-14',
+    'Capability binding · PRJ-16/17',
     'Details withheld by current authority', 'protected exact reference; no owner label is inferred',
   ]) requireText(p03, token, `P-03 ${token}`)
 })

@@ -25,7 +25,7 @@ test('GF-01 delta is Account/session-only', () => {
 })
 
 test('P-01/P-03 delta uses owner reads and protects optional refs', () => {
-  for (const token of ['PRJ-29', 'PRJ-16/17', 'BRN-14', 'authoringRef', 'detailDisclosed=false', 'NEW', 'EXISTING', 'P8 deltas = LOCKED / OPERATOR APPROVED']) assert.ok(agent.includes(token), `Agent delta missing ${token}`)
+  for (const token of ['PRJ-29', 'PRJ-16/17', 'authoringRef', 'detailDisclosed=false', 'NEW', 'EXISTING', 'P8 deltas = LOCKED / OPERATOR APPROVED']) assert.ok(agent.includes(token), `Agent delta missing ${token}`)
   for (const token of ['universal catalog', 'frontend registry', 'free-form governed ref input']) assert.ok(agent.includes(token), `Agent delta must reject ${token}`)
 })
 

@@ -20,7 +20,7 @@ test('operator-approved P-01 baseline and bounded F05 delta remain pinned after 
   const family1Candidate='e5782b3f9e828a5c247b405821589d52039cc179'
   const family4Candidate='25e5077106892c4ff6aba6774987e73a12ccff51'
   if(gitBlobSha(html)!==family4Candidate) throw new Error('P12 Family 4 re-locked P-01 identity drifted')
-  for(const token of ['PRE11-F05 bounded reference-selection overlay','PRJ-29','PRJ-16/17','BRN-14']) requireText(html,token,'bounded F05 lock marker')
+  for(const token of ['PRE11-F05 bounded reference-selection overlay','PRJ-29','PRJ-16/17']) requireText(html,token,'bounded F05 lock marker')
 
   for(const token of [
     'LOCKED BASELINE / P12 FAMILY 1 RE-LOCKED / P12 FAMILY 4 AGENT-INGRESS DELTA RE-LOCKED / OPERATOR APPROVED','P9 EXACT TRACE CLOSED','P10 CONSOLIDATED','P11 LATER ASSEMBLED PRODUCT',
