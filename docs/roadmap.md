@@ -48,9 +48,6 @@ client id, the token endpoint, the wire format and the terms. If a primary sourc
 cannot be found for the client id or the terms, it stops and reports. API keys
 already cover OpenAI models.
 
-Removal of the one-time baseline-adoption code, on branch `chore/remove-baseline-adoption`.
-The pilot is adopted, so the adoption path has no remaining caller.
-
 ## The Builder sequence
 
 This is the order. Each step is one unit of work that ends in something a person
