@@ -66,6 +66,10 @@ shape, and its repair ledger is the record this program closes and reconciles.
 
 ### Credential and role remediation
 
+Its execution contract is [credential-and-role-remediation.md](tasks/credential-and-role-remediation.md).
+That task owns the ordered pull requests, their file boundaries, and the evidence each one
+carries. This section stays the grant and the authorized sequence.
+
 On 2026-09-18 the operator authorized this explicitly, including the parts the
 preservation clause below previously refused, and instructed that legacy be removed
 rather than worked around.
