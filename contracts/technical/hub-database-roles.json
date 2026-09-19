@@ -1,5 +1,5 @@
 {
-  "$comment": "Every Hub connection authenticates as one capability role. This file is the single register. apps/hub/src/generated/hub-roles.ts is projected from it by scripts/generate-hub-role-register.mjs, and docs/reference/hub-database-roles.md documents the same rows for a reader. Adding a role means adding a row here and regenerating, not editing four places.",
+  "$comment": "Every Hub connection authenticates as one capability role. This file is the single register. apps/hub/src/platform/hub-roles.generated.ts is projected from it by scripts/generate-hub-role-register.mjs, and docs/reference/hub-database-roles.md documents the same rows for a reader. Adding a role means adding a row here and regenerating, not editing four places.",
   "roles": [
     {
       "role": "hub_iam_runtime",

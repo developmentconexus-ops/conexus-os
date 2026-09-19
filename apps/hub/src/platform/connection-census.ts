@@ -1,4 +1,4 @@
-import { HUB_ROLES } from '../generated/hub-roles.js'
+import { HUB_ROLES } from './hub-roles.generated.js'
 import { createPostgresPool } from './postgres.js'
 import { readSecretFile } from './secrets.js'
 
