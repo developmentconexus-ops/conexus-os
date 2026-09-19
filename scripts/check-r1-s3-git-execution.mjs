@@ -4,14 +4,23 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { checkR1S3GitIdentity } from './generate-r1-s3-git-identity.mjs'
-import { checkR1S3NewProjectSeed } from './generate-r1-s3-new-project-seed.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
 const adapterPath = resolve(repositoryRoot, 'apps/hub/src/project/git-execution.ts')
 
+// r1-new-project-seed.ts is ordinary checked-in source (no longer generated from
+// runtime/r1), so this reads its committed values directly instead of rebuilding
+// and comparing them.
+function readR1NewProjectSeed(root) {
+  const text = readFileSync(resolve(root, 'apps/hub/src/generated/r1-new-project-seed.ts'), 'utf8')
+  const match = text.match(/export const R1_NEW_PROJECT_SEED = (\{[\s\S]*\}) as const/)
+  if (!match) throw new Error('S3_NEW_SEED_SOURCE_UNREADABLE')
+  return JSON.parse(match[1])
+}
+
 export function checkR1S3GitExecution(root = repositoryRoot) {
   const identity = checkR1S3GitIdentity(root)
-  const seed = checkR1S3NewProjectSeed(root)
+  const seed = readR1NewProjectSeed(root)
   const sourceText = readFileSync(resolve(root, 'apps/hub/src/project/git-execution.ts'), 'utf8')
   const source = ts.createSourceFile(adapterPath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
   const forbiddenCalls = []

@@ -5,7 +5,6 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { buildR1S3GitIdentity, checkR1S3GitIdentity } from '../../scripts/generate-r1-s3-git-identity.mjs'
-import { buildR1S3NewProjectSeed, checkR1S3NewProjectSeed } from '../../scripts/generate-r1-s3-new-project-seed.mjs'
 import { checkR1S3GitExecution } from '../../scripts/check-r1-s3-git-execution.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -78,9 +77,8 @@ test('Git identity checks ignore report prose but reject operational drift', con
   assert.throws(() => checkR1S3GitIdentity(candidate), /S3_GIT_IDENTITY_FORMAT/)
 })
 
-test('S3-P2 generated NEW seed is exact and has an empty APP-owned set', () => {
-  assert.deepEqual(checkR1S3NewProjectSeed(repositoryRoot), buildR1S3NewProjectSeed(repositoryRoot))
-  const seed = buildR1S3NewProjectSeed(repositoryRoot)
+test('S3-P2 NEW seed source has an empty APP-owned set', () => {
+  const seed = R1_NEW_PROJECT_SEED
   assert.equal(seed.appOwnedPathCount, 0)
   assert.match(seed.expectedTree, /^[0-9a-f]{40}$/)
   assert.match(seed.expectedSourceRevision, /^[0-9a-f]{40}$/)
