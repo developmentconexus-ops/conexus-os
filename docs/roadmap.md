@@ -280,49 +280,22 @@ review's live lanes on the pilot. P-01's live proof and P-02 follow after that.
 
 ## Before the next Hub start on this trunk
 
-Nothing here is optional. The Hub refuses to start if step 3 is skipped, and the
-migration runner aborts if step 2's precondition does not hold.
+Nothing here is optional. The Hub refuses to start if step 1 is skipped.
 
-1. The pilot database is at migration 059. The coordinator applied 051 through 059
-   on 2026-09-19. The next step is not another migration: the sixty-file history was
-   replaced on the same day by a single baseline, `apps/hub/migrations/0001_baseline.sql`,
-   and the pilot is carried across by adoption rather than by replay.
-2. Adoption, with the Hub stopped and after a `pg_dumpall` backup of the cluster:
+The pilot database was carried across to the single baseline,
+`apps/hub/migrations/0001_baseline.sql`, on 2026-09-19: its 57-version 001-059
+ledger was adopted onto the baseline, and the eighteen superseded role names
+were then dropped from the cluster. No database on the replaced history exists
+any more, so the migration runner only ever applies pending migrations from a
+ledger that starts at 0001; there is no adoption path left to run.
 
-   ```bash
-   docker exec conexus-s7-postgres pg_dumpall -U postgres \
-     > ~/conexus-s7-preadopt-$(date +%Y%m%dT%H%M%S).sql
-   node scripts/run-hub-migrations.mjs --adopt-baseline
-   #   {"verdict":"ADOPTED","from":"059","to":"0001"}
-   ```
-
-   The command runs in one transaction. It refuses unless the ledger is exactly the
-   57 versions ending at 059, revokes the grants `brain_owner`, `connections_owner`
-   and `claude_connection_owner` still hold, and then refuses again, naming the
-   differing catalog lines, unless the live catalog already equals the baseline's. A
-   refusal changes nothing. Run a second time it answers `ALREADY_ADOPTED`. No data
-   is read or written; only the ledger rows are replaced. Starting the Hub against an
-   unadopted database is safe: the runner refuses with `MIGRATION_ADOPTION_REQUIRED`
-   and names this command rather than applying the baseline over live data.
-3. The eighteen superseded role names can then be dropped from the cluster, once,
-   after adoption:
-
-   ```bash
-   node scripts/drop-superseded-hub-roles.mjs
-   node scripts/drop-superseded-hub-roles.mjs --apply
-   #   {"verdict":"DROPPED","dropped":[... 18 names ...]}
-   ```
-
-   It pre-checks every database on the cluster and refuses, naming the role and the
-   database, if any of them still owns anything. The fourteen product roles are
-   untouched by construction. `docs/reference/hub-database-roles.md` lists the names.
-4. The Hub config refuses retired variables rather than ignoring them, so delete
+1. The Hub config refuses retired variables rather than ignoring them, so delete
    `CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE`,
    `CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE` and
    `CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE` from the pilot environment
    first. `readHubConfig` throws `RETIRED_CONFIG_<name>` while any of the three is
    set, and the pilot environment file still sets all three.
-5. The database roles are named for what they may do, and their password-file
+2. The database roles are named for what they may do, and their password-file
    variables with them. Run `node scripts/cutover-hub-role-names.mjs <env-file>
    <secrets-directory>` to see what it would do, then again with `--apply`: it
    copies each secret file to its new name at mode 0600, rewrites the variable
@@ -332,10 +305,10 @@ migration runner aborts if step 2's precondition does not hold.
    the Hub; the connection census should report every role `ok`. A stale variable
    is refused at startup with `RETIRED_CONFIG_<old>_USE_<new>` rather than
    surfacing later as a `28P01`.
-6. Once M-01 lands, the model catalog file will need `officialHttpsOrigin` removed
+3. Once M-01 lands, the model catalog file will need `officialHttpsOrigin` removed
    from each entry, because the provider registry answers it. Do not remove it
    before then; the field is still read today.
-7. For multi-account, an invited person must already exist in Keycloak with that
+4. For multi-account, an invited person must already exist in Keycloak with that
    exact email address, marked verified. The Hub reads `email_verified` from the
    validated ID token and accepts only the boolean `true`. Nothing is emailed, and
    an address that is not verified at the provider is refused.

@@ -37,7 +37,7 @@ const packageScripts = Object.freeze({
 })
 
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
-  'hub-baseline', 'hub-baseline-adoption', 'hub-superseded-role-cleanup',
+  'hub-baseline',
   'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-grant-surface-excision',
   'hub-call-site-privileges',
   'c020-builder-postgres', 'c020-mastra-lifecycle',
