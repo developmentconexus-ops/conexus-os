@@ -103,7 +103,7 @@ test('a leaf path retained for a surface the census does not admit fails the gat
     bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'CLA-01' }],
   }))
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /IAM-09 POST \/api\/control\/workspaces\/\{workspaceId\}\/areas \(claude-account-paths\.yaml\)/)
+  assert.match(result.stderr, /IAM-09 POST \/api\/control\/workspaces\/\{workspaceId\}\/areas \(model-connection-paths\.yaml\)/)
   assert.match(result.stderr, /add a \$ref in openapi\.yaml/)
 })
 
@@ -120,7 +120,7 @@ test('a new leaf path whose 4A id the census does not list cannot pass unbundled
     bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'CLA-01' }],
   }))
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /ZZZ-99 POST \/api\/control\/projects\/\{projectId\}\/never-wired \(claude-account-paths\.yaml\)/)
+  assert.match(result.stderr, /ZZZ-99 POST \/api\/control\/projects\/\{projectId\}\/never-wired \(model-connection-paths\.yaml\)/)
 })
 
 test('a bundled operation with no leaf contract source fails the gate', (t) => {
