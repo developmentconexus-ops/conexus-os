@@ -86,6 +86,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('model-connection-credentials', 'node --test tests/implementation/model-connection-credentials.test.mjs'),
   candidateStep('model-connection-dispatch', 'node --test tests/implementation/model-connection-dispatch.test.mjs'),
   candidateStep('model-connection-migration-postgres', 'node --test --test-concurrency=1 tests/implementation/model-connection-migration-postgres.test.mjs', 'postgres'),
+  candidateStep('model-connection-http', 'node --test tests/implementation/model-connection-http.test.mjs && npx --no-install biome check tests/implementation/model-connection-http.test.mjs'),
   candidateStep('model-connection-web-api', 'node --test tests/implementation/model-connection-web-api.test.mjs'),
   candidateStep('protected-cluster-coverage', 'node --test tests/implementation/protected-cluster-coverage.test.mjs'),
 

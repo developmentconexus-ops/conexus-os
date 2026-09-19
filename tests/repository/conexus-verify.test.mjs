@@ -48,7 +48,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'project-git-execution', 'project-command-postgres', 'project-browser', 'shell-browser-boundary',
   'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
   'model-connection-credentials', 'model-connection-dispatch', 'model-connection-migration-postgres',
-  'model-connection-web-api', 'protected-cluster-coverage',
+  'model-connection-http', 'model-connection-web-api', 'protected-cluster-coverage',
   'wire-openapi-lint', 'wire-openapi-bundle',
   'wire-bijection', 'wire-bijection-gate', 'wire-carriers', 'wire-identity-workspace',
   'wire-project', 'wire-builder',

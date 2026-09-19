@@ -207,4 +207,74 @@ describe('056 model connection provider neutrality', { skip: configured ? false 
       `SELECT pg_get_userbyid(nspowner) AS owner FROM pg_namespace WHERE nspname = 'model_connection'`)).rows[0]
     assert.equal(owner.owner, 'claude_connection_owner')
   })
+
+  // A run must spend the credential of the provider it is running on. admit_for_project filters by
+  // provider, so the only way a run can reach its model with a foreign credential is an idempotent
+  // replay under a different provider, which is what create_builder_run_with_model refuses.
+  const digest = (fill) => fill.repeat(64).slice(0, 64)
+  const buildSubject = async () => {
+    const accountId = randomUUID()
+    const workspaceId = randomUUID()
+    const projectId = randomUUID()
+    const revision = 'a'.repeat(40)
+    await client.query(
+      'INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, $2, $3, $4)',
+      [accountId, 'https://m01.test', accountId, 'M-01'])
+    await client.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'M-01'])
+    await client.query(
+      "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')",
+      [accountId, workspaceId])
+    await client.query(
+      "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'M-01', 'NEW', $3, 'M-01')",
+      [projectId, workspaceId, revision])
+    await client.query(
+      'INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1, $2)',
+      [projectId, revision])
+    return { accountId, projectId }
+  }
+  const publishAndSelect = async (accountId, providerId, kind, label) => {
+    const connectionId = randomUUID()
+    await client.query('SELECT model_connection.publish_connection($1,$2,$3,$4,$5,$6)',
+      [accountId, connectionId, providerId, kind, label, 1])
+    await client.query('SELECT model_connection.select_connection($1,$2)', [accountId, connectionId])
+    return connectionId
+  }
+  const withModel = (accountId, projectId, idempotency, providerId, runId) =>
+    client.query('SELECT builder.create_builder_run_with_model($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value',
+      [accountId, projectId, idempotency, digest('b'), null, 'BUILD', runId, 'builder-default', providerId, 'model-1'])
+
+  test('a run on a provider the Account has no connection for is refused, not run uncredentialed', async () => {
+    const { accountId, projectId } = await buildSubject()
+    await publishAndSelect(accountId, 'anthropic', 'OAUTH_TOKEN_SET', 'Anthropic')
+    await assert.rejects(
+      () => withModel(accountId, projectId, digest('c'), 'openai', randomUUID()),
+      /MODEL_CONNECTION_REQUIRED/)
+    assert.deepEqual((await client.query(
+      'SELECT count(*)::int AS runs FROM builder.builder_run WHERE project_id = $1', [projectId])).rows,
+      [{ runs: 0 }])
+  })
+
+  test('a run carries the connection of its own provider, chosen per provider', async () => {
+    const { accountId, projectId } = await buildSubject()
+    await publishAndSelect(accountId, 'anthropic', 'OAUTH_TOKEN_SET', 'Anthropic')
+    const openaiId = await publishAndSelect(accountId, 'openai', 'API_KEY', 'OpenAI')
+    const created = (await withModel(accountId, projectId, digest('d'), 'openai', randomUUID())).rows[0].value
+    assert.equal(created.modelConnectionId, openaiId)
+    assert.equal(created.modelCredentialGeneration, 1)
+  })
+
+  test('replaying a run under a second provider is refused, so one provider never spends another quota', async () => {
+    const { accountId, projectId } = await buildSubject()
+    const anthropicId = await publishAndSelect(accountId, 'anthropic', 'OAUTH_TOKEN_SET', 'Anthropic')
+    await publishAndSelect(accountId, 'openai', 'API_KEY', 'OpenAI')
+    const runId = randomUUID()
+    const created = (await withModel(accountId, projectId, digest('e'), 'anthropic', runId)).rows[0].value
+    assert.equal(created.modelConnectionId, anthropicId)
+    await assert.rejects(
+      () => withModel(accountId, projectId, digest('e'), 'openai', runId),
+      /MODEL_CONNECTION_PROVIDER_MISMATCH/)
+    assert.deepEqual((await client.query(
+      'SELECT model_provider_id FROM builder.builder_run WHERE builder_run_id = $1', [runId])).rows,
+      [{ model_provider_id: 'anthropic' }])
+  })
 })

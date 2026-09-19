@@ -56,7 +56,7 @@
   "054": "32ef02b5467179ff7f053a76313ea664f1d02f18f2f89749d897a34d1d63bf6f",
   "055": "dacd68885d8000e4165fdcee5354588ae0d8c119e88000e1eb4702b6541b6885",
   "056": "e1770693d756b71267d53b1f90a2a541e7ba585b6bc76d6612b0a261ca700d04",
-  "057": "f2faada0341217245258efc7c1b04c524a4207814f6af803b4e7f3105a8368c6"
+  "057": "7e6038cc3a38230a361c5be5f98083ceaa86e5b5a8758265d03857f81b16ce42"
  },
  "catalog": {
   "schema": [
@@ -393,7 +393,7 @@
    "function builder.claim_builder_run(p_builder_run_id uuid, p_admission_id text, p_provider_id text, p_model_id text) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_rb_executor:EXECUTE:false body=1058f6658adeecf8fa050c5e73c85d0c",
    "function builder.clear_builder_run_phase() returns trigger kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false body=fc9424126844c87a9aa52843ccbffde9",
    "function builder.create_builder_run(p_account_id uuid, p_project_id uuid, p_idempotency_digest text, p_request_digest text, p_trigger_message_id text, p_mode text, p_builder_run_id uuid, p_provider_id text) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_rb_ingress:EXECUTE:false body=b81f5ec51263af75f410d54c631b6518",
-   "function builder.create_builder_run_with_model(p_account_id uuid, p_project_id uuid, p_idempotency_digest text, p_request_digest text, p_trigger_message_id text, p_mode text, p_builder_run_id uuid, p_admission_id text, p_provider_id text, p_model_id text) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_rb_ingress:EXECUTE:false body=10c7c2c76f91b3d5344dfe1586f7d1ba",
+   "function builder.create_builder_run_with_model(p_account_id uuid, p_project_id uuid, p_idempotency_digest text, p_request_digest text, p_trigger_message_id text, p_mode text, p_builder_run_id uuid, p_admission_id text, p_provider_id text, p_model_id text) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_rb_ingress:EXECUTE:false body=3cab087b7c4685e7a3084e563008ed3d",
    "function builder.fail_builder_run(p_builder_run_id uuid, p_failure_code text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_rb_executor:EXECUTE:false body=ca5e7d171ef3748e9901cb5286ad7fa9",
    "function builder.interrupt_builder_run(p_builder_run_id uuid, p_reason text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_rb_executor:EXECUTE:false body=65a324405a851b23d903f50aee29440a",
    "function builder.list_builder_runs(p_account_id uuid, p_project_id uuid, p_limit integer) returns jsonb kind=f owner=builder_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_rb_ingress:EXECUTE:false body=227ef02f909928e75d8a85a910a2bc8a",
