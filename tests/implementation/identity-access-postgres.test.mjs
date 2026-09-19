@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
+import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const { Client } = pg
 const repositoryRoot = resolve(import.meta.dirname, '../..')
-const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/r1-s1-postgres-build-'))
+const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/identity-access-postgres-build-'))
 process.once('exit', () => rmSync(hubBuild, { recursive: true, force: true }))
 const compiled = spawnSync(process.execPath, [
   resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
@@ -29,27 +31,37 @@ const connection = {
   database: required('CONEXUS_TEST_DB_NAME'), user: required('CONEXUS_TEST_DB_USER'), password: required('CONEXUS_TEST_DB_PASSWORD'),
 }
 
+// This suite used to apply migration 001 straight into the configured database, so it passed
+// once per fresh cluster and failed with BOOTSTRAP_SEALED on every later run. It now installs
+// through the runner into its own database. Role attributes and table ownership were asserted
+// here too; the catalog snapshot and the role invariants in the runner prove those now.
 test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03/session truth', async (t) => {
   await refuseProtectedCluster()
+  const database = `conexus_s1_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 10)}`
   const admin = new Client(connection)
   await admin.connect()
-  t.after(() => admin.end())
-  await admin.query(readFileSync(resolve(repositoryRoot, 'apps/hub/migrations/001_iam_foundation.sql'), 'utf8'))
+  await admin.query(`CREATE DATABASE "${database}"`)
+  let store
+  // One hook, in this order, because FORCE terminates any pool still connected and the pool then
+  // reports that termination as an unhandled error.
+  t.after(async () => {
+    await store?.close().catch(() => {})
+    await admin.query(`DROP DATABASE "${database}" WITH (FORCE)`)
+    await admin.query('ALTER ROLE hub_iam_runtime PASSWORD NULL')
+    await admin.end()
+  })
+  const installed = { ...connection, database }
+  const url = new URL('postgresql://localhost')
+  url.hostname = installed.host
+  url.port = String(installed.port)
+  url.pathname = `/${database}`
+  url.username = installed.user
+  url.password = installed.password
+  await runHubMigrations({ connectionString: url.toString() })
   await admin.query(`ALTER ROLE hub_iam_runtime PASSWORD 'runtime-test-only'`)
 
-  const role = await admin.query(`
-    SELECT rolname, rolsuper, rolinherit, rolbypassrls FROM pg_roles
-    WHERE rolname IN ('iam_owner', 'hub_iam_runtime') ORDER BY rolname
-  `)
-  assert.deepEqual(role.rows, [
-    { rolname: 'hub_iam_runtime', rolsuper: false, rolinherit: false, rolbypassrls: false },
-    { rolname: 'iam_owner', rolsuper: false, rolinherit: false, rolbypassrls: false },
-  ])
-  const ownership = await admin.query(`SELECT tableowner, count(*)::integer AS count FROM pg_tables WHERE schemaname = 'iam' GROUP BY tableowner`)
-  assert.deepEqual(ownership.rows, [{ tableowner: 'iam_owner', count: 6 }])
-
-  const runtimeConnection = { ...connection, user: 'hub_iam_runtime', password: 'runtime-test-only' }
-  let store = createIdentityAccessStore({ pool: createPostgresPool(runtimeConnection) })
+  const runtimeConnection = { ...installed, user: 'hub_iam_runtime', password: 'runtime-test-only' }
+  store = createIdentityAccessStore({ pool: createPostgresPool(runtimeConnection) })
   const bootstrapToken = await store.createBootstrapContext({ issuer: 'https://issuer.test', subject: 'subject-1', configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1' })
   const first = await store.provisionBootstrap({ bootstrapToken, idempotencyKey: 'same-key', displayName: 'Leandro', email: 'leandro@example.test' })
   const replay = await store.provisionBootstrap({ bootstrapToken, idempotencyKey: 'same-key', displayName: 'Leandro', email: 'leandro@example.test' })
@@ -83,7 +95,6 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   await store.close()
 
   store = createIdentityAccessStore({ pool: createPostgresPool(runtimeConnection) })
-  t.after(() => store.close())
   assert.ok(await store.validateSession({ sessionToken: established.sessionToken }))
   assert.equal(await store.endSession(established.sessionToken), true)
   assert.equal(await store.validateSession({ sessionToken: established.sessionToken }), null)
