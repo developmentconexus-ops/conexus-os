@@ -77,6 +77,7 @@ const currentNames = [
   '050_builder_run_phase.sql',
   '051_builder_orphan_function_excision.sql',
   '052_iam_membership_authority.sql',
+  '053_iam_grant_surface_excision.sql',
 ]
 const names = (migrations) => migrations.map((migration) => migration.name)
 
@@ -124,6 +125,37 @@ test('052 adds the membership authority without switching or dropping a grant su
   assert.equal(/\bDROP (TABLE|COLUMN|FUNCTION)\b/.test(source), false)
   assert.match(source, /can_read_brain,\n\s*can_read_connection, can_manage_connection, can_qualify_connection, role/)
   assert.equal(/CREATE OR REPLACE FUNCTION/.test(source.replace('CREATE OR REPLACE FUNCTION iam.establish_workspace_creator_access', '')), false)
+})
+
+test('053 switches every caller and excises the grant surfaces in one transaction', () => {
+  const source = readFileSync(resolve(migrationsRoot, '053_iam_grant_surface_excision.sql'), 'utf8')
+
+  assert.match(source, /CREATE TABLE claude_connection\.workspace_share/)
+  assert.match(source, /WHERE binding\.role = 'USER' AND binding\.revoked_at IS NULL/)
+
+  assert.match(source, /MIGRATION_053_GRANT_WITHOUT_MEMBERSHIP_REFUSED/)
+  assert.match(source, /MIGRATION_053_BINDING_WITHOUT_SHARE_REFUSED/)
+
+  for (const dropped of [
+    'iam.account_project_grant', 'iam.project_builder_grant', 'claude_connection.binding',
+  ]) assert.match(source, new RegExp(`DROP TABLE ${dropped.replace('.', '\\.')}`))
+  for (const column of [
+    'can_create_project', 'can_read_brain', 'can_read_connection', 'can_manage_connection', 'can_qualify_connection',
+  ]) assert.match(source, new RegExp(`DROP COLUMN ${column}`))
+  assert.match(source, /REVOKE SELECT ON iam\.workspace_membership FROM claude_connection_owner/)
+
+  // No CASCADE anywhere: a blocked DROP must name a function this migration failed to account
+  // for, not silently take its dependents with it.
+  assert.equal(/CASCADE/.test(source), false)
+
+  // The gate lives in each body now. Nothing re-issued here may still name an old surface.
+  for (const legacy of [
+    'admit_project_read', 'admit_project_manage', 'admit_project_build', 'admit_project_source_read',
+    'admit_application_build', 'ensure_project_builder_grant', 'can_create_project\\(',
+  ]) {
+    const uses = source.split('\n').filter((line) => new RegExp(legacy).test(line) && !/^DROP FUNCTION/.test(line.trim()))
+    assert.deepEqual(uses, [], `${legacy} is still referenced outside its DROP`)
+  }
 })
 
 test('each loader accepts a fixture containing only its selected migrations', (t) => {
