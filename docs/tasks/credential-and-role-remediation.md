@@ -330,23 +330,23 @@ Adding one `hub_*` role today costs the new migration plus edits to the migratio
 
 - [x] Root's clean verdict at the exact head SHA.
 - [x] Bugbot triage done.
-- [ ] Merge on the clean verdict. #84 is open and waits behind #82.
+- [x] Merge on the clean verdict. #84 merged as `73fde676` on 2026-09-19. The annotation that used to stand here said #84 waited behind #82; #82 and #83 had in fact already merged minutes before it was written.
 
 ## Found during R-04, not yet a PR
 
 These were uncovered while removing MAR. None is in the candidate graph, which is why CI stays green, and none belongs folded into R-04, so each needs its own unit and decision.
 
-- [ ] Three repository scripts already fail at trunk. `scripts/check-r3-candidate-freeze.mjs` fails with `R3_CANDIDATE_FREEZE_BASE_DRIFT` and also asserts the migrations directory holds exactly 25 files ending in `025_mar_admission_function.sql`, while trunk holds 50. `scripts/record-r1-candidate-custody.mjs` fails with `RC01_UNKNOWN_CLASSIFICATION:.gitignore`. `scripts/check-r1-a0-migration.mjs` fails with `A0_UNCLASSIFIED_PATH`. Each pins a base the repository has left. Decide per script whether to delete it with its npm entries or re-pin it to a current base, and record which.
-- [ ] `apps/hub/src/mar/admission.ts` is imported by nothing under `apps/`. It pins a `pg-boss` tuple for the retired MAR subject against a `mar` schema that no current install creates, and `pg-boss` has no other consumer. Its only readers are `tests/implementation/r3-mar-admission.test.mjs` and the R3 freeze list above. It goes with the R3 freeze decision, together with the `pg-boss` dependency, so the Preview runtime in the same directory is left alone.
+- [x] Three repository scripts already fail at trunk. `scripts/check-r3-candidate-freeze.mjs` fails with `R3_CANDIDATE_FREEZE_BASE_DRIFT` and also asserts the migrations directory holds exactly 25 files ending in `025_mar_admission_function.sql`, while trunk holds 50. `scripts/record-r1-candidate-custody.mjs` fails with `RC01_UNKNOWN_CLASSIFICATION:.gitignore`. `scripts/check-r1-a0-migration.mjs` fails with `A0_UNCLASSIFIED_PATH`. Each pins a base the repository has left. Decided: all three are deleted, not re-pinned. #88 deleted the freeze and A0 scripts with their orphaned consumers, and the live importer under `qualification/4f/r3-root-tuple/` that the first verifier found. #94 deleted the remaining unreachable npm scripts that were red on trunk. `record-r1-candidate-custody.mjs` survived #88, because its `--check` mode passed and three tests exercised it; it went with the whole R1 generation and custody apparatus in #104.
+- [x] `apps/hub/src/mar/admission.ts` is imported by nothing under `apps/`. It pins a `pg-boss` tuple for the retired MAR subject against a `mar` schema that no current install creates, and `pg-boss` has no other consumer. Its only readers are `tests/implementation/r3-mar-admission.test.mjs` and the R3 freeze list above. Deleted in #93, together with the R3 gates, the tests that kept it alive and the `pg-boss` dependency. The Preview runtime in the same directory is untouched and still serves Preview; a verifier's FAIL on the ground that `server.ts` had changed was refuted with the three-dot diff, which is empty for that path.
 - [x] `r1-s1-postgres`, `r1-s2-postgres` and `r1-s3-postgres` were outside the candidate graph and had rotted. Their exact-catalog assertions, now duplicated by the R-05 snapshot, are deleted; `r1-s1` moved onto a throwaway per-run database via `runHubMigrations` instead of applying migration `001` straight into the configured database. The remaining behavior assertions, the IAM-03/session proof, the PRJ-03 receipt and rollback boundary, abandoned-attempt cleanup and `project.read` revocation, stay and are renamed for what they prove: `identity-access-postgres.test.mjs`, `workspace-postgres.test.mjs` and `project-postgres.test.mjs`. They join the candidate graph as the `foundation-postgres` scope so they cannot rot again.
 - [x] Two guarded suites could not run at all since #74, because the guard import landed inside a multi-line import in one file and inside a child-process script string in the other. Fixed in #83, with a coverage case that parses each guarded file and requires the import in its header.
 - [ ] `PRJ-29` is an open Product contradiction. `docs/product/operation-ledger.md` says the pre-P11 review added it, and it is absent from both the section 5 table and the current Product OAS. Its owner decides whether it is owed or the sentence is stale.
 
 ## Close the program
 
-- [ ] Every box above is checked with its evidence.
-- [ ] No `hub_*` role list remains hand-maintained in more than one file.
-- [ ] `docs/roadmap.md` records the remediation as closed and names what remains.
+- [x] Every box above is checked with its evidence, apart from the program-arming boxes, which record how the run was driven rather than what it produced.
+- [x] No `hub_*` role list remains hand-maintained in more than one file. `contracts/technical/hub-database-roles.json` is the register, `scripts/generate-hub-role-register.mjs` projects it, and `npm run db:roles:check` refuses a projection that drifts.
+- [x] `docs/roadmap.md` records the remediation as closed and names what remains.
 - [ ] Reply to the operator with the report `autopilot-stack.md` names.
 
 ## Appendix A. Prototype evidence
@@ -379,7 +379,7 @@ R-04 removes two migrations from the digest map at `scripts/run-hub-migrations.m
 
 R-04 corrects a census count that three places in `docs/product/operation-ledger.md` state wrongly, and the arithmetic does not close from the owners on record. The owner writes only what is provable and reopens the smallest owning authority for the rest.
 
-The pilot secret directory holds no password file for `hub_r2_project_binding`, `hub_r2_brain_read`, `hub_r2_brain_attester` or `hub_r2_key_conformance_subject`. Those config sections are unset in the pilot, so R-03B reports them as unconfigured rather than invalid. The owner watches lane 1 for that distinction.
+The pilot secret directory holds no password file for `hub_r2_project_binding`, `hub_r2_brain_read`, `hub_r2_brain_attester` or `hub_r2_key_conformance_subject`. Those config sections were unset in the pilot, so R-03B reported them as unconfigured rather than invalid. The owner watched lane 1 for that distinction. Since 2026-09-19 the question is moot: #98 removed all four from the register when the pools that opened them went with the Brain and the bindings, and migration 055 revoked every privilege they still held. They are inert cluster objects, not roles the Hub connects as. The register is down to eight roles.
 
 The `Ubuntu` distro tore itself down every 5 to 12 minutes until a detached holder was started, and the holder expires after 24 hours and does not survive a Windows restart. Every lane confirms the holder before reporting an environment failure.
 
