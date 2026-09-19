@@ -154,7 +154,7 @@ const loadSelectedMigrationFiles = (selectedNames, migrationsRoot = defaultMigra
   })
 }
 
-export const loadMigrationFiles = (migrationsRoot = defaultMigrationsRoot) =>
+export const loadR1MigrationFiles = (migrationsRoot = defaultMigrationsRoot) =>
   loadSelectedMigrationFiles(r1MigrationNames, migrationsRoot)
 
 export const loadR2MigrationFiles = (migrationsRoot = defaultMigrationsRoot) =>
@@ -241,10 +241,10 @@ const runMigrations = async ({ connectionString, migrations, recognizedMigration
   }
 }
 
-export const runHubMigrations = ({ connectionString, migrationsRoot = defaultMigrationsRoot }) =>
+export const runR1HubMigrations = ({ connectionString, migrationsRoot = defaultMigrationsRoot }) =>
   runMigrations({
     connectionString,
-    migrations: loadMigrationFiles(migrationsRoot),
+    migrations: loadR1MigrationFiles(migrationsRoot),
     recognizedMigrations: loadR2MigrationFiles(migrationsRoot),
   })
 

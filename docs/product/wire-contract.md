@@ -39,10 +39,6 @@ contracts/api/product/openapi.yaml                  canonical entrypoint / share
 contracts/api/product/identity-workspace-paths.yaml current IAM + Workspace Path Items
 contracts/api/product/project-paths.yaml            current Project Path Items
 contracts/api/product/builder-paths.yaml            current Builder Path Items
-contracts/api/product/release-paths.yaml            retained Release / Promotion / serving Path Items
-contracts/api/product/par-paths.yaml                retained Product Agent Runtime Path Items
-contracts/api/product/gateway-paths.yaml            retained Gateway inspection Path Items
-contracts/api/product/observability-paths.yaml      retained Observability & Audit Path Items
 ```
 
 Rules:

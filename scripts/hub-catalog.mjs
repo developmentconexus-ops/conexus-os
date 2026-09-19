@@ -98,4 +98,28 @@ export const assertRoleInvariants = async (client) => {
     ORDER BY 1
   `)).rows.map(row => row.membership)
   if (memberships.length > 0) fail('MIGRATION_ROLE_MEMBERSHIP_REFUSED', memberships.join(','))
+
+  // Every migration creates a hub_* role LOGIN and every *_owner role NOLOGIN; a role that can
+  // authenticate is not an owner of anything, and an owner role the Hub could log in as would
+  // widen its own grant. Read from pg_roles rather than assert it: this is a property the
+  // migrations already establish, not one this check should force onto a different design.
+  // pg_database_owner and the other pg_* predefined roles also match "%_owner"; they are
+  // PostgreSQL's, not the Hub's, and are excluded from both checks below.
+  const loginViolations = (await client.query(`
+    SELECT rolname FROM pg_roles
+    WHERE rolname NOT LIKE 'pg\\_%'
+      AND ((rolname LIKE 'hub\\_%' AND NOT rolcanlogin) OR (rolname LIKE '%\\_owner' AND rolcanlogin))
+    ORDER BY rolname
+  `)).rows.map(row => row.rolname)
+  if (loginViolations.length > 0) fail('MIGRATION_ROLE_LOGIN_REFUSED', loginViolations.join(','))
+
+  // Every hub_* and *_owner role is also created NOINHERIT: a role's own grants are the ones
+  // it uses, never grants it happens to be a member of.
+  const inheritViolations = (await client.query(`
+    SELECT rolname FROM pg_roles
+    WHERE rolname NOT LIKE 'pg\\_%'
+      AND (rolname LIKE 'hub\\_%' OR rolname LIKE '%\\_owner') AND rolinherit
+    ORDER BY rolname
+  `)).rows.map(row => row.rolname)
+  if (inheritViolations.length > 0) fail('MIGRATION_ROLE_INHERIT_REFUSED', inheritViolations.join(','))
 }

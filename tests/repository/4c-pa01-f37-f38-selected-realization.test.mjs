@@ -9,33 +9,9 @@ const requireText = (text, needle, message = needle) => {
   if (!text.includes(needle)) throw new Error(`PA-01 F37/F38 realization missing ${message}`)
 }
 
-test('F37 enriches existing PAR Conversation truth without adding an operation or runtime authority', () => {
-  const product = read('docs/product/contract.md')
-  const ledger = read('docs/product/operation-ledger.md')
-  const wire = read('contracts/api/product/par-paths.yaml')
-
-  for (const token of [
-    'kind: { type: string, enum: [TEXT, QUESTION] }',
-    'createdAt: { type: string, format: date-time }',
-    'ConversationResponseOption:',
-    'replyToQuestionMessageId:',
-    'selectedOptionId:',
-    'attention: { type: string, enum: [NONE, NEEDS_YOUR_RESPONSE] }',
-    'pendingQuestionMessageId:',
-    'required: [conversationId, projectId, agentId, startedAt, lastActivityAt, lastMessagePreview, attention]',
-    'lastActivityAt DESC',
-    'conversationId DESC',
-  ]) requireText(wire, token)
-
-  requireText(product, 'clarification question completes the current AgentRun')
-  requireText(product, 'reply starts a new exact AgentRun')
-  requireText(ledger, '4C-F37')
-  requireText(ledger, 'PAR remains 16')
-
-  for (const forbidden of ['QuestionRequest', 'ResumeQuestion', 'ApproveQuestion']) {
-    if (new RegExp(`operationId:\\s*${forbidden}\\b`).test(wire)) throw new Error(`F37 must not add ${forbidden}`)
-  }
-})
+// F37 asserted Product Agent Runtime wire that was never built: par-paths.yaml was unreachable
+// from openapi.yaml with no admitted operations (S8 audit G-03) and is deleted. F37 has no
+// surviving subject to assert.
 
 test('F38 keeps one Conexus session owner across Control Plane and Published App', () => {
   const product = read('docs/product/contract.md')

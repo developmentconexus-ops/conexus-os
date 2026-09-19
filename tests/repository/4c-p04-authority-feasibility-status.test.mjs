@@ -10,13 +10,6 @@ const requireText = (text, needle, message = needle) => {
   if (!text.includes(needle)) throw new Error(`P-04 authority preflight missing ${message}`)
 }
 
-const sliceBetween = (text, startNeedle, endNeedle) => {
-  const start = text.indexOf(startNeedle)
-  if (start < 0) return ''
-  const end = text.indexOf(endNeedle, start)
-  return text.slice(start, end < 0 ? undefined : end)
-}
-
 test('operator-approved P-04 closes the revised P8 through exact P9/P10 trace', () => {
   const ownerPath = 'docs/evidence/4c/p04-release-operations-authority-feasibility-and-structural-hypotheses.md'
   if (!existsSync(path(ownerPath))) throw new Error('canonical P-04 authority/feasibility owner must exist')
@@ -47,30 +40,6 @@ test('operator-approved P-04 closes the revised P8 through exact P9/P10 trace', 
 
 // F33 named the MAR runnable-job read. docs/product/wire-contract.md retired MAR, the current
 // Product OAS never referenced mar-paths.yaml, and the file is gone, so F33 has no subject to
-// assert. F31, F32 and F34 are unrelated and keep their assertions.
-test('F31, F32 and F34 close exact Release and OBS human-operability gaps without frontend authority', () => {
-  const release = read('contracts/api/product/release-paths.yaml')
-  const obs = read('contracts/api/product/observability-paths.yaml')
-
-  const releaseSummary = sliceBetween(release, '    ReleaseSummary:\n', '    ReleaseManifestProjection:\n')
-  const composition = sliceBetween(release, '    ReleaseManifestProjection:\n', '    Release:\n')
-  const promotion = sliceBetween(release, '    Promotion:\n', '    ServingVerification:\n')
-  const servingPath = sliceBetween(release, '  /api/control/projects/{projectId}/serving-state:\n', '  /api/control/projects/{projectId}/environments/{environmentId}/conformance:\n')
-  const activity = sliceBetween(obs, '    ProjectActivityEntry:\n', '    ProjectActivityPage:\n')
-
-  for (const field of ['releaseId:', 'releaseLabel:', 'releaseManifestDigest:', 'sourceRevision:', 'createdAt:', 'releaseState:', 'compositionSummary:']) {
-    requireText(releaseSummary, field, `F31 ReleaseSummary ${field}`)
-  }
-  requireText(release, 'ReleasePage:', 'F31 scalable Release page')
-  requireText(composition, 'additionalProperties: false', 'F31 closed safe ReleaseManifestProjection')
-  for (const field of ['components:', 'bindings:', 'configurationDigest:', 'runtimeContractDigest:']) requireText(composition, field, `F31 composition ${field}`)
-
-  for (const field of ['environmentId:', 'environmentLabel:', 'requestedAt:', 'requestedBy:']) requireText(promotion, field, `F32 Promotion ${field}`)
-  requireText(servingPath, '$ref: \'#/components/schemas/ProjectServingState\'', 'F32 target serving matrix')
-  requireText(release, 'environments:', 'F32 server-disclosed environment list')
-  requireText(release, 'enum: [UNSET, SET]', 'F32 explicit pointer state')
-
-  for (const coordinate of ['subject:', 'kind:', 'occurredAt:', 'summary:', 'detailTarget:']) requireText(activity, coordinate, `F34 Activity ${coordinate}`)
-  requireText(obs, 'ActivitySubjectSnapshotRef:', 'F34 Activity-specific human snapshot')
-  requireText(obs, 'ActivityDetailTarget:', 'F34 conditional owner-detail target')
-})
+// assert. F31, F32 and F34 asserted Release and Observability wire (release-paths.yaml,
+// observability-paths.yaml) that were unreachable from openapi.yaml with no admitted operations
+// (S8 audit G-04, G-06) and are deleted. F31/F32/F34 have no surviving subject to assert.

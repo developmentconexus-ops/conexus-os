@@ -26,8 +26,7 @@ the provider and caller details before implementation or external execution.
   [Project operation grammar](../product/operation-ledger.md#4-project-defined-capability-admission-grammar),
   [permissions](../product/permission-contract.md),
   [security](../reference/security-and-authority.md).
-- [Gateway inspection wire](../../contracts/api/product/gateway-paths.yaml),
-  [effect recovery](../reference/release-deployment-and-operations.md).
+- [effect recovery](../reference/release-deployment-and-operations.md).
 - Existing source: `apps/hub/src/connections/{module,routes,store,transport,sankhya-om}.ts`,
   `apps/hub/src/gateway/`, `apps/hub/src/platform/credential-backend.ts`,
   `apps/web/src/features/connections/`.
