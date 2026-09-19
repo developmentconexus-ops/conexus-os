@@ -20,7 +20,7 @@ const versions = [
   '001', '002', '003', '004', '005', '006', '007', '008', '009', '010',
   '011', '012', '013', '014', '015', '016', '017', '018', '019', '020',
   '021', '022', '023',
-  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '039', '040', '041', '042', '043', '044', '045', '046', '047', '048', '049', '050',
+  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '039', '040', '041', '042', '043', '044', '045', '046', '047', '048', '049', '050', '051',
 ]
 const query = async (connection, sql, parameters = []) => {
   const client = new pg.Client(connection)
@@ -189,7 +189,7 @@ test('a fresh install produces exactly the committed catalog snapshot', async (t
     const catalog = await readCatalog(client)
     assert.equal(describeCatalogDrift(catalog, snapshot.catalog), null)
     assert.equal(catalogDigest(catalog), snapshot.digests[snapshot.head])
-    assert.equal(snapshot.head, '050')
+    assert.equal(snapshot.head, '051')
     assert.equal(Object.keys(snapshot.digests).length, versions.length)
   } finally {
     await client.end()
@@ -228,6 +228,67 @@ test('a regenerated snapshot cannot bless a role that could cross the owner boun
   await query(fixture.connection, 'REVOKE hub_rb_executor FROM hub_rb_ingress')
 
   assert.deepEqual(await rerun(), { verdict: 'PASS', appliedNow: [], versions })
+})
+
+test('051 drops exactly the Builder functions orphaned by 038, keeping every one the Hub calls', async (t) => {
+  await refuseProtectedCluster()
+  const fixture = await databaseFixture(t)
+  await runCurrentHubMigrations(fixture)
+  const survivingSignatures = [
+    'builder.admit_source_revision(uuid,uuid,text)',
+    'builder.admit_verified_application_source(uuid,uuid,uuid,text)',
+    'builder.advance_builder_run_source(uuid,text)',
+    'builder.bind_builder_run_message(uuid,text)',
+    'builder.bind_builder_run_sandbox(uuid,text)',
+    'builder.claim_builder_run(uuid,text,text,text)',
+    'builder.clear_builder_run_phase()',
+    'builder.create_builder_run(uuid,uuid,text,text,text,text,uuid)',
+    'builder.create_builder_run_with_model(uuid,uuid,text,text,text,text,uuid,text,text,text)',
+    'builder.fail_builder_run(uuid,text)',
+    'builder.interrupt_builder_run(uuid,text)',
+    'builder.list_builder_runs(uuid,uuid,integer)',
+    'builder.read_builder_run(uuid,uuid)',
+    'builder.read_latest_code_changing_builder_run(uuid,uuid)',
+    'builder.read_preview_subject(uuid,uuid)',
+    'builder.recover_builder_runs()',
+    'builder.request_builder_run_cancellation(uuid,uuid,uuid)',
+    'builder.set_builder_run_phase(uuid,text)',
+    'builder.settle_builder_run(uuid,text,text,text)',
+    'builder.settle_builder_run_build(uuid,text,uuid,text,text)',
+  ]
+  const survivingResult = await query(fixture.connection,
+    `SELECT unnest($1::text[]) AS signature, to_regprocedure(unnest($1::text[]))::text AS resolved`,
+    [survivingSignatures])
+  for (const row of survivingResult.rows) assert.notEqual(row.resolved, null, `${row.signature} should still exist`)
+
+  const droppedSignatures = [
+    'builder.admit_application_source(uuid,uuid,uuid,text)',
+    'builder.bind_sandbox(uuid,uuid,text)',
+    'builder.claim_change(uuid,uuid,uuid,text,text,text)',
+    'builder.claim_correction(uuid,uuid,uuid,uuid,text,text,text)',
+    'builder.claim_verification(uuid,uuid,uuid,text,text,text)',
+    'builder.close_finding(uuid,uuid,uuid,uuid,uuid,uuid[])',
+    'builder.create_change(uuid,uuid,text,text,uuid,uuid,uuid,uuid,uuid,text,text)',
+    'builder.fail_run(uuid,uuid)',
+    'builder.fail_verification(uuid,uuid,text)',
+    'builder.fail_verification_claim(uuid)',
+    'builder.get_evidence(uuid,uuid,uuid,uuid)',
+    'builder.get_finding(uuid,uuid,uuid,uuid)',
+    'builder.list_changes(uuid,uuid)',
+    'builder.list_evidence(uuid,uuid,uuid)',
+    'builder.list_findings(uuid,uuid,uuid)',
+    'builder.read_snapshot(uuid,uuid,uuid,boolean)',
+    'builder.recover_and_list_queued()',
+    'builder.settle_preparation(uuid,uuid,uuid,text,uuid,text,text)',
+    'builder.settle_response(uuid,uuid,text,text)',
+    'builder.settle_result(uuid,uuid,text,text,text,text,text)',
+    'builder.settle_verification(uuid,uuid,text,text,uuid,uuid,text,text,text,uuid,uuid[],uuid[],text,jsonb)',
+    'iam.admit_project_review(uuid,uuid)',
+  ]
+  const droppedResult = await query(fixture.connection,
+    `SELECT unnest($1::text[]) AS signature, to_regprocedure(unnest($1::text[]))::text AS resolved`,
+    [droppedSignatures])
+  for (const row of droppedResult.rows) assert.equal(row.resolved, null, `${row.signature} should no longer resolve`)
 })
 
 test('a schema change outside a migration is refused and named', async (t) => {

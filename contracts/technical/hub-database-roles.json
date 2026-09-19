@@ -1,0 +1,78 @@
+{
+  "$comment": "Every Hub connection authenticates as one capability role. This file is the single register. apps/hub/src/generated/hub-roles.ts is projected from it by scripts/generate-hub-role-register.mjs, and docs/reference/hub-database-roles.md documents the same rows for a reader. Adding a role means adding a row here and regenerating, not editing four places.",
+  "roles": [
+    {
+      "role": "hub_iam_runtime",
+      "capability": "identity-and-access",
+      "passwordFileVariable": "CONEXUS_DB_PASSWORD_FILE",
+      "roleVariable": "CONEXUS_DB_USER",
+      "connectsFrom": ["apps/hub/src/server.ts"]
+    },
+    {
+      "role": "hub_s2_read",
+      "capability": "workspace-read",
+      "passwordFileVariable": "CONEXUS_DB_S2_READ_PASSWORD_FILE",
+      "connectsFrom": ["apps/hub/src/server.ts"]
+    },
+    {
+      "role": "hub_ws01_command",
+      "capability": "workspace-command",
+      "passwordFileVariable": "CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE",
+      "connectsFrom": ["apps/hub/src/server.ts"]
+    },
+    {
+      "role": "hub_s3_read",
+      "capability": "project-read",
+      "passwordFileVariable": "CONEXUS_DB_S3_READ_PASSWORD_FILE",
+      "connectsFrom": ["apps/hub/src/project/module.ts"]
+    },
+    {
+      "role": "hub_prj03_command",
+      "capability": "project-command",
+      "passwordFileVariable": "CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE",
+      "connectsFrom": ["apps/hub/src/project/module.ts"]
+    },
+    {
+      "role": "hub_r2_project_binding",
+      "capability": "project-binding",
+      "passwordFileVariable": "CONEXUS_DB_R2_PROJECT_BINDING_PASSWORD_FILE",
+      "connectsFrom": ["apps/hub/src/project/module.ts"]
+    },
+    {
+      "role": "hub_r2_brain_read",
+      "capability": "brain-read",
+      "passwordFileVariable": "CONEXUS_DB_R2_BRAIN_READ_PASSWORD_FILE",
+      "connectsFrom": ["apps/hub/src/server.ts"]
+    },
+    {
+      "role": "hub_r2_brain_attester",
+      "capability": "brain-attester",
+      "passwordFileVariable": "CONEXUS_DB_R2_BRAIN_ATTESTER_PASSWORD_FILE",
+      "connectsFrom": ["apps/hub/src/project/module.ts"]
+    },
+    {
+      "role": "hub_r2_key_conformance_subject",
+      "capability": "key-conformance-subject",
+      "passwordFileVariable": "CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE",
+      "connectsFrom": ["apps/hub/src/server.ts"]
+    },
+    {
+      "role": "hub_r2_connections",
+      "capability": "connections",
+      "passwordFileVariable": "CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE",
+      "connectsFrom": ["apps/hub/src/connections/module.ts", "apps/hub/src/claude-account/module.ts"]
+    },
+    {
+      "role": "hub_rb_ingress",
+      "capability": "builder-request",
+      "passwordFileVariable": "CONEXUS_DB_RB_INGRESS_PASSWORD_FILE",
+      "connectsFrom": ["apps/hub/src/builder/module.ts"]
+    },
+    {
+      "role": "hub_rb_executor",
+      "capability": "builder-run-execution",
+      "passwordFileVariable": "CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE",
+      "connectsFrom": ["apps/hub/src/builder/module.ts"]
+    }
+  ]
+}
