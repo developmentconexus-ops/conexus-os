@@ -30,7 +30,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'foundation-postgres', 'c020-registry', 'c020-source-runtime', 'c020-compiler-runtime',
   'c020-browser', 'c020-e2b-template', 'c020-hub-typecheck', 'c020-web-typecheck', 'c020-web-build',
   'db-role-register', 'db-role-provision-postgres',
-  'repository-check', 'repository-hygiene', 'repository-doc-index', 'repository-architecture',
+  'repository-check', 'repository-import-law', 'repository-hygiene', 'repository-doc-index', 'repository-architecture',
   'repository-architecture-unit', 'repository-contract-checks', 'biome-current',
   'identity-access-http', 'workspace-http', 'workspace-reads', 'project-disclosure', 'project-source-recovery',
   'project-command-postgres', 'shell-browser-boundary',
