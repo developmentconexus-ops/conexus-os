@@ -72,9 +72,7 @@ export const createHttpApp = async ({
       '/projects/:projectId',
       '/projects/:projectId/brain',
       '/projects/:projectId/integrations',
-      '/projects/:projectId/inception',
       '/projects/:projectId/build',
-      '/projects/:projectId/baseline-candidates/:candidateBaselineDigest',
       '/settings',
     ] as const
     for (const route of spaRoutes) {

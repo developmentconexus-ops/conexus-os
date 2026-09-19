@@ -155,7 +155,6 @@ const builderModel = config.builder && config.project ? resolveModelAdmission({
   catalogFile: config.project.modelCatalogFile,
   admissionId: config.builder.modelAdmissionId,
   requiredCapabilities: ['BUILDER_CODING'],
-  credentialRequired: false,
 }) : undefined
 const builderModelChoices = config.builder && config.project ? readModelChoices({
   catalogFile: config.project.modelCatalogFile,
