@@ -3,7 +3,8 @@ import type { QueryResultRow } from 'pg'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type { Prj07Body, Prj07Response } from '../generated/s3-routes.js'
 import type { PostgresPool } from '../platform/postgres.js'
-import type { ProjectMastraPort, ProjectSourceSnapshot } from './project-mastra.js'
+import type { ProjectMastraPort } from './project-mastra.js'
+import type { ProjectSourceSnapshotFactory } from './source-snapshot.js'
 
 type ReservationRow = QueryResultRow & Readonly<{
   state: 'RESERVED' | 'REPLAY' | 'CONFLICT' | 'IN_PROGRESS'
@@ -14,10 +15,7 @@ type ReservationRow = QueryResultRow & Readonly<{
   prior_application_runtime_profile: 'MANAGED' | 'DEDICATED' | null
 }>
 
-export type ProjectSourceSnapshotFactory = (input: Readonly<{
-  projectId: string
-  sourceRevision: string
-}>) => ProjectSourceSnapshot
+export type { ProjectSourceSnapshotFactory }
 
 export type ProjectInceptionService = Readonly<{
   run(input: Readonly<{

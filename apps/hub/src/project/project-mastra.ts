@@ -6,21 +6,7 @@ import { RequestContext } from '@mastra/core/request-context'
 import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
 
-export type ProjectSourcePath = Readonly<{
-  path: string
-  ownershipClass: string
-  mediaType: string
-  byteLength: number
-  digest: string
-}>
-
-export type ProjectSourceFile = Readonly<{ path: string; digest: string; utf8Bytes: string }>
-
-export type ProjectSourceSnapshot = Readonly<{
-  sourceRevision: string
-  listPaths(): Promise<readonly ProjectSourcePath[]>
-  readBatch(paths: readonly string[]): Promise<readonly ProjectSourceFile[]>
-}>
+import type { ProjectSourceSnapshot } from './source-snapshot.js'
 
 export type ProjectInceptionProposal = Readonly<{
   sourceText: string
