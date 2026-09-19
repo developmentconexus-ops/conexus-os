@@ -17,7 +17,8 @@ const repositoryRoot = resolve(import.meta.dirname, '../..')
 // which a re-rendered dump would not be. This suite is deleted with the adopt path once the last
 // installation has been adopted.
 const historyCommit = '400b38866d9d43ab023ce0f028c2c468e20bb7ce'
-const git = (...args) => execFileSync('git', args, { cwd: repositoryRoot, encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 })
+const git = (...args) =>
+  execFileSync('git', args, { cwd: repositoryRoot, encoding: 'buffer', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000, maxBuffer: 64 * 1024 * 1024 })
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 
 const historyCorpus = (t) => {

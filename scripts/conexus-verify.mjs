@@ -288,13 +288,22 @@ function defaultClock() {
   return Date.now()
 }
 
+// A step that never exits burned a whole CI run on 2026-09-19 and left no evidence of which
+// command it was. Two rules stop that repeating: no step inherits stdin, so nothing can block
+// waiting for input that will never come, and every step is killed after this long and reported
+// as a failure naming the command. The bound is far above the slowest honest step, which is a
+// few minutes.
+export const STEP_TIMEOUT_MS = 10 * 60 * 1000
+
 export function runNpmScript(entry, { root = repositoryRoot, spawn = spawnSync, processEnvironment = process.env } = {}) {
   const args = commandArguments(entry)
   const executable = entry.command ? (process.platform === 'win32' ? 'bash.exe' : 'bash') : (process.platform === 'win32' ? 'npm.cmd' : 'npm')
   return spawn(executable, args, {
     cwd: root,
     windowsHide: true,
-    stdio: 'inherit',
+    stdio: ['ignore', 'inherit', 'inherit'],
+    timeout: STEP_TIMEOUT_MS,
+    killSignal: 'SIGKILL',
     env: executionEnvironment(entry, processEnvironment),
   })
 }
@@ -307,7 +316,12 @@ function normalizeExitCode(result) {
   return 0
 }
 
+export function timedOut(result) {
+  return result?.error?.code === 'ETIMEDOUT' || (result?.signal === 'SIGKILL' && Boolean(result?.error))
+}
+
 function errorMessage(result) {
+  if (timedOut(result)) return `step exceeded ${STEP_TIMEOUT_MS / 1000}s and was killed`
   if (!result?.error) return undefined
   return result.error instanceof Error ? result.error.message : String(result.error)
 }

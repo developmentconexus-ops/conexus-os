@@ -98,9 +98,15 @@ const connectionStringFor = (admin, database) => {
   return url.toString()
 }
 
+// Every spawn here closes stdin and carries a timeout. A pg_dump that decides to ask for a
+// password has nothing to read and dies; without this it waits forever, and a verification step
+// that never exits is the hardest kind of failure to find.
+const run = (binary, args, timeout) =>
+  execFileSync(binary, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout, maxBuffer: 64 * 1024 * 1024 })
+
 const majorOf = (binary) => {
   try {
-    return Number(/\b(\d+)[.\s]/.exec(execFileSync(binary, ['--version'], { encoding: 'utf8' }))?.[1])
+    return Number(/\b(\d+)[.\s]/.exec(run(binary, ['--version'], 30_000))?.[1])
   } catch {
     return null
   }
@@ -130,10 +136,10 @@ export const resolvePgDump = (serverMajor) => {
 export const dumpSchema = (admin, database, serverMajor) => {
   const container = process.env.CONEXUS_TEST_DB_CONTAINER
   const command = container
-    ? ['docker', ['exec', container, 'pg_dump', '-U', admin.user, '--schema-only', '-d', database]]
-    : [resolvePgDump(serverMajor), ['--schema-only', '--dbname', connectionStringFor(admin, database)]]
+    ? ['docker', ['exec', '--interactive=false', container, 'pg_dump', '-U', admin.user, '--schema-only', '-d', database]]
+    : [resolvePgDump(serverMajor), ['--schema-only', '--no-password', '--dbname', connectionStringFor(admin, database)]]
   try {
-    return execFileSync(command[0], command[1], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+    return run(command[0], command[1], 180_000)
   } catch (error) {
     fail('BASELINE_PG_DUMP_FAILED', `${command[0]}: ${String(error.message).split('\n')[0]}`)
   }

@@ -14,6 +14,8 @@ import {
   runVerification,
   runNpmScript,
   repositoryRoot,
+  STEP_TIMEOUT_MS,
+  timedOut,
 } from '../../scripts/conexus-verify.mjs'
 
 test('every test file the candidate graph names exists on disk', () => {
@@ -180,6 +182,38 @@ test('candidate graph does not reference the deleted Change-era source-state tes
   assert.equal(CANDIDATE_GRAPH.some(({ command }) => command.includes('builder-working-source-state.test.mjs')), false)
 })
 
+test('a step that never exits is killed and reported by name', () => {
+  const candidate = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'static')
+  const result = runVerification({
+    scopes: ['test:one'],
+    packageScripts,
+    runCommand: () => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('spawnSync bash ETIMEDOUT'), { code: 'ETIMEDOUT' }) }),
+    clock: () => 0,
+  })
+  assert.equal(result.records[0].status, 'failed')
+  assert.equal(result.records[0].error, 'step exceeded 600s and was killed')
+  assert.equal(result.records[0].command, 'npm run test:one')
+  assert.equal(result.exitCode, 1)
+  assert.equal(result.stopped, true)
+  assert.ok(timedOut({ status: null, signal: 'SIGKILL', error: new Error('x') }))
+  assert.equal(timedOut({ status: 1 }), false)
+  assert.equal(STEP_TIMEOUT_MS, 600000)
+
+  // No step inherits stdin, so a child that waits for input reads end-of-file instead of hanging.
+  let observed
+  runNpmScript(candidate, {
+    root: '/tmp/conexus-verify-test',
+    processEnvironment: { PATH: '/fixture/bin' },
+    spawn: (file, args, options) => {
+      observed = options
+      return { status: 0 }
+    },
+  })
+  assert.deepEqual(observed.stdio, ['ignore', 'inherit', 'inherit'])
+  assert.equal(observed.timeout, STEP_TIMEOUT_MS)
+  assert.equal(observed.killSignal, 'SIGKILL')
+})
+
 test('candidate graph labels execution environments and passes shell argv correctly', () => {
   const classes = new Set(CANDIDATE_GRAPH.map(entry => entry.environmentClass))
   assert.deepEqual([...classes].sort(), ['browser', 'postgres', 'static'])
@@ -202,7 +236,14 @@ test('candidate graph labels execution environments and passes shell argv correc
   assert.deepEqual(observed, {
     file: 'bash',
     args: ['-lc', candidate.command],
-    options: { cwd: '/tmp/conexus-verify-test', windowsHide: true, stdio: 'inherit', env: { PATH: '/fixture/bin' } },
+    options: {
+      cwd: '/tmp/conexus-verify-test',
+      windowsHide: true,
+      stdio: ['ignore', 'inherit', 'inherit'],
+      timeout: STEP_TIMEOUT_MS,
+      killSignal: 'SIGKILL',
+      env: { PATH: '/fixture/bin' },
+    },
   })
 
   const postgresDefaults = executionEnvironment(c020Postgres, { PATH: '/fixture/bin' })

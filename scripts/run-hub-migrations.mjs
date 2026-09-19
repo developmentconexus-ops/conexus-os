@@ -19,6 +19,14 @@ const legacyLedgerSize = 57
 const legacyLedgerHead = '059'
 
 const advisoryLock = 4_349_395_539_450_322_946n
+// A second Hub starting at the same moment waits on the advisory lock, and that wait is normally
+// milliseconds. Bounding it means a lock nobody will ever release fails the run with SQLSTATE
+// 55P03 instead of holding the process open forever.
+const lockTimeoutMs = 60_000
+const takeAdvisoryLock = async (client) => {
+  await client.query(`SET LOCAL lock_timeout = ${lockTimeoutMs}`)
+  await client.query('SELECT pg_advisory_xact_lock($1)', [advisoryLock.toString()])
+}
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const fail = (code, detail = '') => { throw new Error(`${code}${detail ? `:${detail}` : ''}`) }
 
@@ -82,7 +90,7 @@ const runMigrations = async ({ connectionString, migrations, catalogSnapshot = r
     for (const migration of migrations) {
       await client.query('BEGIN')
       try {
-        await client.query('SELECT pg_advisory_xact_lock($1)', [advisoryLock.toString()])
+        await takeAdvisoryLock(client)
         const ledger = await verifyLedger(client, migrations, catalogSnapshot)
         if (ledger.applied.has(migration.version)) {
           await client.query('COMMIT')
@@ -100,7 +108,7 @@ const runMigrations = async ({ connectionString, migrations, catalogSnapshot = r
     }
     await client.query('BEGIN')
     try {
-      await client.query('SELECT pg_advisory_xact_lock($1)', [advisoryLock.toString()])
+      await takeAdvisoryLock(client)
       const ledger = await verifyLedger(client, migrations, catalogSnapshot)
       await client.query('COMMIT')
       return { verdict: 'PASS', appliedNow, versions: [...ledger.applied.keys()] }
@@ -128,7 +136,7 @@ export const adoptHubBaseline = async ({ connectionString, migrationsRoot = defa
   try {
     await client.query('BEGIN')
     try {
-      await client.query('SELECT pg_advisory_xact_lock($1)', [advisoryLock.toString()])
+      await takeAdvisoryLock(client)
       if (!await tableExists(client, 'iam.schema_migration')) fail('BASELINE_ADOPT_NO_LEDGER')
       const rows = await ledgerRows(client)
       if (rows.length === 1 && rows[0].version === baselineVersion && rows[0].checksum_sha256 === baseline.checksum) {
