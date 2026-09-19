@@ -77,7 +77,7 @@ test('S3-P5 store binds recovery claims, fixed cutoff and source-complete settle
   assert.match(source, /lock_create_project_receipt/)
   assert.match(source, /verifyCanonicalProjectSource/)
   assert.match(source, /create_project_with_source/)
-  assert.match(source, /establish_project_creator_grant/)
+  assert.doesNotMatch(source, /iam\./)
   assert.match(source, /complete_create_project_receipt/)
 })
 
@@ -135,7 +135,9 @@ test('S3-P5 store composes recovery, Git custody and one atomic terminal respons
   })
   assert.deepEqual(gitCalls.map(([name]) => name), ['stage', 'promote', 'verify'])
   assert.equal(statements.some(({ statement }) => statement.includes('create_project_with_source')), true)
-  assert.equal(statements.some(({ statement }) => statement.includes('establish_project_creator_grant')), true)
+  // Creating a Project no longer manufactures a grant: membership in the Workspace is the whole
+  // of the creator's access.
+  assert.equal(statements.some(({ statement }) => statement.includes('iam.')), false)
   assert.equal(statements.some(({ statement }) => statement.includes('complete_create_project_receipt')), true)
   const commits = statements.filter(({ statement }) => statement === 'COMMIT').length
   assert.equal(commits, 3)
@@ -367,7 +369,7 @@ test('S3-P5 real NEW and EXISTING_GIT HTTP compose PostgreSQL and exact-image Gi
     }
   })
 
-  assert.deepEqual((await runR1HubMigrations({ connectionString: connectionString(fresh) })).versions, ['001', '002', '003', '004', '005', '006', '007'])
+  await runCurrentHubMigrations({ connectionString: connectionString(fresh) })
   const accountId = '10000000-0000-4000-8000-000000000064'
   const workspaceId = '20000000-0000-4000-8000-000000000064'
   await query(fresh, `
@@ -376,8 +378,8 @@ test('S3-P5 real NEW and EXISTING_GIT HTTP compose PostgreSQL and exact-image Gi
   `, [accountId])
   await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'S3 P5 Workspace')`, [workspaceId])
   await query(fresh, `
-    INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project)
-    VALUES ($1, $2, true)
+    INSERT INTO iam.workspace_membership(account_id, workspace_id, role)
+    VALUES ($1, $2, 'owner')
   `, [accountId, workspaceId])
   const commandPassword = 's3-p5-command-synthetic-only'
   const readPassword = 's3-p6-read-synthetic-only'
@@ -533,10 +535,11 @@ git(['--git-dir=/fixture/repo.git', 'update-server-info'])
   assert.equal(importedReplay.statusCode, 201, importedReplay.body)
   assert.deepEqual(importedReplay.json(), importedBody)
   assert.equal(JSON.stringify([body, importedBody]).includes(secret), false)
+  // Two Projects, still one membership row: creating a Project stores no new authority.
   const durable = await query(fresh, `
     SELECT (SELECT count(*)::integer FROM project.project) AS projects,
-      (SELECT count(*)::integer FROM iam.account_project_grant) AS grants,
+      (SELECT count(*)::integer FROM iam.workspace_membership) AS memberships,
       (SELECT count(*)::integer FROM project.operation_idempotency WHERE outcome = 'SUCCEEDED') AS receipts
   `)
-  assert.deepEqual(durable.rows, [{ projects: 2, grants: 2, receipts: 2 }])
+  assert.deepEqual(durable.rows, [{ projects: 2, memberships: 1, receipts: 2 }])
 })

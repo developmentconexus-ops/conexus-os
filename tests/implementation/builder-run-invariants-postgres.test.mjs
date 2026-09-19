@@ -35,9 +35,8 @@ test('C-020 preserves state invariants and separates response settlement from bu
   await adminClient.query("ALTER ROLE hub_rb_ingress PASSWORD 'invariants-ingress'; ALTER ROLE hub_rb_executor PASSWORD 'invariants-executor'")
   await adminClient.query('INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, $2, $3, $4)', [accountId, 'https://invariants.test', accountId, '030'])
   await adminClient.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, '030'])
-  await adminClient.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project, role) VALUES ($1, $2, true, 'owner')", [accountId, workspaceId])
+  await adminClient.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   await adminClient.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, '030', 'NEW', $3, '030')", [projectId, workspaceId, source])
-  await adminClient.query('INSERT INTO iam.project_builder_grant(account_id, project_id, can_build, can_read_source) VALUES ($1, $2, true, true)', [accountId, projectId])
   await adminClient.query('INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1, $2)', [projectId, source])
 
   const rejectsUpdate = (statement, values) => assert.rejects(() => adminClient.query(statement, values), /violates check constraint/)
@@ -79,10 +78,12 @@ test('C-020 preserves state invariants and separates response settlement from bu
     state: 'FAILED', result_source_revision: nextSource, result_kind: 'SOURCE_CHANGED_BUILD_FAILED', failure_code: 'COMPILE_FAILED',
   })
 
+  // Removing the member is now the whole revocation: the queued run's next claim asks again
+  // under its own author and is refused.
   const staleId = randomUUID(); await create(ingressClient, 'BUILD', staleId)
-  await adminClient.query('UPDATE iam.project_builder_grant SET can_build = false WHERE project_id = $1', [projectId])
-  await assert.rejects(() => claim(staleId), /NOT_AUTHORIZED/)
-  await adminClient.query('UPDATE iam.project_builder_grant SET can_build = true WHERE project_id = $1', [projectId])
+  await adminClient.query('DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [accountId, workspaceId])
+  await assert.rejects(() => claim(staleId), /NOT_ADMITTED/)
+  await adminClient.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   await adminClient.query('UPDATE builder.project_working_state SET working_version = working_version + 1 WHERE project_id = $1', [projectId])
   await assert.rejects(() => claim(staleId), /BUILDER_RUN_BASE_STALE/)
 })
