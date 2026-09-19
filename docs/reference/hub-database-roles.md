@@ -67,28 +67,19 @@ connections. `0001_baseline.sql` names none of them, so a cluster built from it 
 A cluster that ran the old history still carries them, because a role is cluster-global while its
 privileges are per database, so no migration could drop one: `DROP ROLE` answers `2BP01` whenever
 any other database on the cluster still grants to it, which makes the result depend on what else
-the cluster hosts. Removing them is therefore a cluster operation, run once, after every database
-on that cluster has been adopted onto the baseline:
-
-```bash
-node scripts/drop-superseded-hub-roles.mjs            # dry run, reports what it would drop
-node scripts/drop-superseded-hub-roles.mjs --apply
-```
-
-It surveys every database in the cluster first and refuses, naming the role and the database, if
-any of them still owns a relation, schema, function or type, or holds a role membership. With
-`--apply` it runs `DROP OWNED BY` in each database and then `DROP ROLE`. Three of the eighteen
-still hold grants on a database at `059`; `--adopt-baseline` removes those as part of adoption, so
-adoption runs first.
+the cluster hosts. Removing them was therefore a cluster operation, run once on 2026-09-19 after the
+pilot, the only database on the old history, was adopted onto the baseline. No database with the
+old ledger exists any more, so there is no cluster left carrying these eighteen names, and the
+one-time adoption and role-drop scripts that did the work were deleted with it.
 
 An operator upgrading a deployment renames the secret files and the environment variables with
 `scripts/cutover-hub-role-names.mjs`, which is a dry run unless given `--apply`. It copies each
 secret file to its new name at mode 0600, rewrites the variable names in the environment file and
 keeps a timestamped backup, prints names only, and changes nothing on a second run. It never
-generates a password. After it and the adoption, `npm run db:roles:provision` gives the new roles
-the passwords in those files, and the startup census should then report every role `ok`. The Hub
-refuses a stale environment rather than failing to authenticate: each retired variable name is
-rejected at startup with `RETIRED_CONFIG_<old>_USE_<new>`.
+generates a password. After it, `npm run db:roles:provision` gives the new roles the passwords in
+those files, and the startup census should then report every role `ok`. The Hub refuses a stale
+environment rather than failing to authenticate: each retired variable name is rejected at startup
+with `RETIRED_CONFIG_<old>_USE_<new>`.
 
 ## Roles are cluster-global
 

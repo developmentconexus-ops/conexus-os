@@ -72,12 +72,12 @@ That lineage is one baseline file plus the forward migrations added after it.
 the six owner roles, and a fresh installation runs it alone. The runner pins
 each file by SHA-256, records it in `iam.schema_migration`, and refuses any
 database whose catalog is not the one the committed snapshot
-`contracts/technical/hub-catalog-snapshot.json` records. An installation created
-before the baseline carries the older ledger; the runner refuses to migrate it
-and names `node scripts/run-hub-migrations.mjs --adopt-baseline`, which replaces
-that ledger in one transaction only after proving the live catalog already
-equals the baseline's. `docs/development/engineering-rules.md` holds the rule for
-when the baseline itself may be regenerated.
+`contracts/technical/hub-catalog-snapshot.json` records. The one installation
+created before the baseline, the pilot, was adopted onto it on 2026-09-19; no
+database on the older ledger exists any more, so the runner only ever applies
+pending migrations from a ledger that starts at `0001`.
+`docs/development/engineering-rules.md` holds the rule for when the baseline
+itself may be regenerated.
 
 ## 5.4 Project Database
 

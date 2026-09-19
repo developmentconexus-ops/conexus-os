@@ -3,7 +3,7 @@ import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
-import { assertCatalog, assertRoleInvariants, catalogDigest, describeCatalogDrift, readCatalog, readCommittedSnapshot } from './hub-catalog.mjs'
+import { assertCatalog, assertRoleInvariants, readCommittedSnapshot } from './hub-catalog.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
 const defaultMigrationsRoot = resolve(repositoryRoot, 'apps/hub/migrations')
@@ -12,11 +12,6 @@ export const baselineName = '0001_baseline.sql'
 export const baselineVersion = '0001'
 export const baselineDigest = 'f558c1f0bcbc23273b822ec03ce566425c8b518acacfa28a5ba6baf5b52ea0d7'
 const migrationDigests = new Map([[baselineName, baselineDigest]])
-
-// The ledger a Hub installed before the baseline carries: 57 three-digit versions ending at 059.
-// Recognising it needs its shape, not its contents, so no digest of a deleted file survives here.
-const legacyLedgerSize = 57
-const legacyLedgerHead = '059'
 
 const advisoryLock = 4_349_395_539_450_322_946n
 // A second Hub starting at the same moment waits on the advisory lock, and that wait is normally
@@ -60,14 +55,11 @@ const tableExists = async (client, qualified) => (await client.query('SELECT to_
 const schemaExists = async (client, schema) => (await client.query('SELECT to_regnamespace($1) IS NOT NULL AS present', [schema])).rows[0].present
 const ledgerRows = async (client) => (await client.query('SELECT version, checksum_sha256 FROM iam.schema_migration ORDER BY version')).rows
 
-const isLegacyLedger = (rows) => rows.length > 0 && rows.every((row) => /^\d{3}$/.test(row.version))
-
 // The ledger proves which versions ran and that their bytes did not change. The catalog snapshot
 // proves the database is the one a clean application of exactly those versions produces.
 const verifyLedger = async (client, migrations, catalogSnapshot) => {
   if (!await tableExists(client, 'iam.schema_migration')) return { applied: new Map(), maximum: null }
   const rows = await ledgerRows(client)
-  if (isLegacyLedger(rows)) fail('MIGRATION_ADOPTION_REQUIRED', `ledger head ${rows.at(-1).version}; run node scripts/run-hub-migrations.mjs --adopt-baseline`)
   const files = new Map(migrations.map((migration) => [migration.version, migration]))
   for (const row of rows) {
     const migration = files.get(row.version)
@@ -124,45 +116,6 @@ const runMigrations = async ({ connectionString, migrations, catalogSnapshot = r
 export const runHubMigrations = ({ connectionString, migrationsRoot = defaultMigrationsRoot, catalogSnapshot }) =>
   runMigrations({ connectionString, migrations: loadHubMigrationFiles(migrationsRoot), ...(catalogSnapshot === undefined ? {} : { catalogSnapshot }) })
 
-// A Hub installed before the baseline existed carries the 001-059 ledger and a catalog that equals
-// the baseline's once the three superseded owner roles stop holding grants in it. Adoption proves
-// that equality and then replaces the ledger. It never applies the baseline over live data.
-export const adoptHubBaseline = async ({ connectionString, migrationsRoot = defaultMigrationsRoot }) => {
-  const baseline = loadHubMigrationFiles(migrationsRoot).find((migration) => migration.version === baselineVersion)
-  const snapshot = readCommittedSnapshot()
-  const expected = catalogDigest(snapshot.catalog)
-  const client = new pg.Client({ connectionString })
-  await client.connect()
-  try {
-    await client.query('BEGIN')
-    try {
-      await takeAdvisoryLock(client)
-      if (!await tableExists(client, 'iam.schema_migration')) fail('BASELINE_ADOPT_NO_LEDGER')
-      const rows = await ledgerRows(client)
-      if (rows.length === 1 && rows[0].version === baselineVersion && rows[0].checksum_sha256 === baseline.checksum) {
-        await client.query('COMMIT')
-        return { verdict: 'ALREADY_ADOPTED', head: baselineVersion }
-      }
-      if (!isLegacyLedger(rows) || rows.length !== legacyLedgerSize || rows.at(-1).version !== legacyLedgerHead) {
-        fail('BASELINE_ADOPT_HEAD_REFUSED', `${rows.length} rows, head ${rows.at(-1)?.version ?? 'none'}`)
-      }
-      await client.query('DROP OWNED BY brain_owner, connections_owner, claude_connection_owner')
-      const actual = await readCatalog(client)
-      if (catalogDigest(actual) !== expected) fail('BASELINE_ADOPT_CATALOG_REFUSED', describeCatalogDrift(actual, snapshot.catalog))
-      await assertRoleInvariants(client)
-      await client.query('DELETE FROM iam.schema_migration')
-      await client.query('INSERT INTO iam.schema_migration(version, checksum_sha256) VALUES ($1, $2)', [baselineVersion, baseline.checksum])
-      await client.query('COMMIT')
-      return { verdict: 'ADOPTED', from: legacyLedgerHead, to: baselineVersion }
-    } catch (error) {
-      await client.query('ROLLBACK')
-      throw error
-    }
-  } finally {
-    await client.end()
-  }
-}
-
 const readConnectionString = (path) => {
   if (!path || !existsSync(path) || !lstatSync(path).isFile() || lstatSync(path).isSymbolicLink()) fail('MIGRATION_DATABASE_URL_FILE_REFUSED')
   const value = readFileSync(path, 'utf8').trim()
@@ -173,8 +126,6 @@ const readConnectionString = (path) => {
 const isEntrypoint = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 if (isEntrypoint) {
   const connectionString = readConnectionString(process.env.CONEXUS_MIGRATION_DATABASE_URL_FILE)
-  const result = process.argv.includes('--adopt-baseline')
-    ? await adoptHubBaseline({ connectionString })
-    : await runHubMigrations({ connectionString })
+  const result = await runHubMigrations({ connectionString })
   process.stdout.write(`${JSON.stringify(result)}\n`)
 }
