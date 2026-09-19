@@ -29,7 +29,7 @@ paths:
   /api/control/me/model-connections/authorization:
     post:
       operationId: StartModelAuthorization
-      summary: Start the configured Anthropic authorization flow.
+      summary: Start the named provider's authorization flow.
       x-conexus-4a-id: CLA-02
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
@@ -41,6 +41,9 @@ paths:
             schema:
               type: object
               additionalProperties: false
+              required: [providerId]
+              properties:
+                providerId: { type: string, minLength: 1, maxLength: 128 }
       responses:
         '201':
           description: Provider authorization URL and opaque transaction metadata.
@@ -58,7 +61,7 @@ paths:
   /api/control/me/model-connections/authorization/complete:
     post:
       operationId: CompleteModelAuthorization
-      summary: Complete authorization with the provider code and state result.
+      summary: Complete the named provider's authorization with its pasted result.
       x-conexus-4a-id: CLA-03
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
@@ -70,8 +73,9 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [result, label]
+              required: [providerId, result, label]
               properties:
+                providerId: { type: string, minLength: 1, maxLength: 128 }
                 result: { type: string, minLength: 3, maxLength: 8192 }
                 label: { type: string, minLength: 1, maxLength: 120 }
       responses:

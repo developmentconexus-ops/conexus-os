@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify'
 import { createPostgresPool } from '../platform/postgres.js'
 import type { CredentialBackend } from '../platform/credential-backend.js'
 import { createAuthorizationRequest, exchangeAuthorizationCode, extractResultState, parseAuthorizationResult, refreshAuthorizationToken } from '../model-connection/oauth-provider.js'
-import { ANTHROPIC_OAUTH, DEFAULT_OAUTH_PROVIDER_ID, OAUTH_PROVIDERS, OPENAI_CODEX_OAUTH, oauthProvider } from '../model-connection/oauth-provider-registry.js'
+import { ANTHROPIC_OAUTH, OAUTH_PROVIDERS, OPENAI_CODEX_OAUTH, oauthProvider } from '../model-connection/oauth-provider-registry.js'
 import { registerModelConnectionRoutes } from './routes.js'
 import type { OAuthFlow } from './routes.js'
 import { createModelConnectionStore } from './store.js'
@@ -74,7 +74,7 @@ export const createModelConnectionModule = ({ database, passwordFile, credential
     } finally { client.release() }
   }
   return Object.freeze({
-    registerRoutes: (app: FastifyInstance) => registerModelConnectionRoutes(app, { store, origin, enabledProviders, resolveCurrentSession, oauthFlows, defaultOAuthProviderId: DEFAULT_OAUTH_PROVIDER_ID, ...(fetchImpl ? { fetchImpl } : {}) }),
+    registerRoutes: (app: FastifyInstance) => registerModelConnectionRoutes(app, { store, origin, enabledProviders, resolveCurrentSession, oauthFlows, ...(fetchImpl ? { fetchImpl } : {}) }),
     resolveForBuilder: (input) => store.admitForProject(input),
     createModel: async (reference, modelId) => {
       const credential = (await pool.query<{ provider_id: string; credential_kind: string }>(

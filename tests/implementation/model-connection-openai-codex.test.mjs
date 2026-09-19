@@ -309,7 +309,7 @@ test('a model id that floats, and an account id that is missing, are both refuse
 
 test('the registry names both providers and refuses one it does not carry', () => {
   assert.deepEqual(Object.keys(registry.OAUTH_PROVIDERS).sort(), ['anthropic', 'openai-codex'])
-  assert.equal(registry.DEFAULT_OAUTH_PROVIDER_ID, 'anthropic')
+  assert.equal(registry.oauthProvider('anthropic').providerId, 'anthropic')
   assert.equal(registry.oauthProvider('openai-codex').providerId, 'openai-codex')
   assert.throws(() => registry.oauthProvider('openai'), /MODEL_OAUTH_PROVIDER_UNKNOWN/)
   assert.throws(() => registry.oauthProvider('__proto__'), /MODEL_OAUTH_PROVIDER_UNKNOWN/)

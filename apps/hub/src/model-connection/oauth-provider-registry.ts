@@ -50,10 +50,6 @@ export const OAUTH_PROVIDERS: Readonly<Record<string, OAuthProviderDescriptor>> 
   [OPENAI_CODEX_OAUTH.providerId]: OPENAI_CODEX_OAUTH,
 })
 
-// A request that names no provider is an Anthropic request, because that is the only provider the
-// sign-in had before this registry existed and the browser may be an older build.
-export const DEFAULT_OAUTH_PROVIDER_ID = ANTHROPIC_OAUTH.providerId
-
 export const oauthProvider = (providerId: string): OAuthProviderDescriptor => {
   const descriptor = Object.hasOwn(OAUTH_PROVIDERS, providerId) ? OAUTH_PROVIDERS[providerId] : undefined
   if (!descriptor) throw new Error('MODEL_OAUTH_PROVIDER_UNKNOWN')

@@ -42,7 +42,6 @@ export const registerModelConnectionRoutes = async (app: FastifyInstance, depend
   enabledProviders: readonly string[]
   resolveCurrentSession: ResolveCurrentSession
   oauthFlows: Readonly<Record<string, OAuthFlow>>
-  defaultOAuthProviderId: string
   fetchImpl?: typeof fetch
 }>): Promise<readonly string[]> => {
   const oauthFlow = (providerId: string): OAuthFlow => {
@@ -60,17 +59,17 @@ export const registerModelConnectionRoutes = async (app: FastifyInstance, depend
   // authorization row, so this needs no schema change. It is not a trust boundary: naming the
   // wrong provider produces a state digest that matches no PENDING row, and the exchange that
   // would follow is bound to a verifier the caller never saw.
-  app.post<{ Body: { providerId?: string } }>('/api/control/me/model-connections/authorization', { schema: { body: { type: 'object', additionalProperties: false, properties: { providerId: oauthProviderId } } } }, async (request, reply) => {
+  app.post<{ Body: { providerId: string } }>('/api/control/me/model-connections/authorization', { schema: { body: { type: 'object', additionalProperties: false, required: ['providerId'], properties: { providerId: oauthProviderId } } } }, async (request, reply) => {
     const session = await authenticity(request, reply, dependencies.origin, dependencies.resolveCurrentSession); if (!session) return reply
     try {
-      const authorization = await oauthFlow(request.body?.providerId ?? dependencies.defaultOAuthProviderId).createAuthorizationRequest()
+      const authorization = await oauthFlow(request.body.providerId).createAuthorizationRequest()
       return reply.code(201).send(await dependencies.store.startAuthorization({ accountId: session.account.accountId, authorization: { ...authorization, authorizationId: randomUUID() } }))
     } catch (error) { return mutationProblem(reply, error) }
   })
-  app.post<{ Body: { result: string; label: string; providerId?: string } }>('/api/control/me/model-connections/authorization/complete', { schema: { body: { type: 'object', additionalProperties: false, required: ['result', 'label'], properties: { result: { type: 'string', minLength: 3, maxLength: 8192 }, label: { type: 'string', minLength: 1, maxLength: 120 }, providerId: oauthProviderId } } } }, async (request, reply) => {
+  app.post<{ Body: { result: string; label: string; providerId: string } }>('/api/control/me/model-connections/authorization/complete', { schema: { body: { type: 'object', additionalProperties: false, required: ['providerId', 'result', 'label'], properties: { providerId: oauthProviderId, result: { type: 'string', minLength: 3, maxLength: 8192 }, label: { type: 'string', minLength: 1, maxLength: 120 } } } } }, async (request, reply) => {
     const session = await authenticity(request, reply, dependencies.origin, dependencies.resolveCurrentSession); if (!session) return reply
     try {
-      const providerId = request.body.providerId ?? dependencies.defaultOAuthProviderId
+      const providerId = request.body.providerId
       const flow = oauthFlow(providerId)
       return reply.code(201).send(await dependencies.store.completeAuthorization({ accountId: session.account.accountId, providerId, result: request.body.result, label: request.body.label, extractState: flow.extractState, parse: flow.parse, exchange: flow.exchange, ...(dependencies.fetchImpl ? { fetchImpl: dependencies.fetchImpl } : {}) }))
     }

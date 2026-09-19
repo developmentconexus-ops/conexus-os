@@ -209,8 +209,8 @@ This is the current Product authority for the supported internal MVP. It is the 
 | `BLD-25` | `CancelBuilderRun` | Builder | authorized Project + exact BuilderRun; repeated requests remain idempotent | command |
 | `BLD-26` | `GetBuilderRunTrace` | Builder | authorized Project + exact BuilderRun; safe native trace projection only | read |
 | `CLA-01` | `ListModelConnections` | Model Connection | current Account's model connection disclosure; provider, kind, label and state only, never a credential | read |
-| `CLA-02` | `StartModelAuthorization` | Model Connection | current authorization start against the server-pinned Anthropic flow | command |
-| `CLA-03` | `CompleteModelAuthorization` | Model Connection | exact provider code and state result; server resolves the authorized subject | command |
+| `CLA-02` | `StartModelAuthorization` | Model Connection | current authorization start against the exact named provider's server-pinned flow | command |
+| `CLA-03` | `CompleteModelAuthorization` | Model Connection | exact named provider and its pasted authorization result; server resolves the authorized subject | command |
 | `CLA-04` | `SelectModelConnection` | Model Connection | exact connection preference for future BuilderRuns | command |
 | `CLA-05` | `ShareModelConnection` | Model Connection | exact Workspace the sharing Account belongs to; every member may then use it | command |
 | `CLA-07` | `UnshareModelConnection` | Model Connection | exact Workspace share, withdrawn by the connection owner or a Workspace member manager | command |
