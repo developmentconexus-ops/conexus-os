@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import pg from 'pg'
+import { readFileSync } from 'node:fs'
 import { runCurrentHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { censusRoles, provisionRoles, readRegister } from '../../scripts/provision-hub-roles.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
@@ -26,7 +27,8 @@ test('a missing password file is reported without a write', async () => {
 
 test('the register every provisioning run reads is the one the Hub projects', () => {
   const roles = readRegister(repositoryRoot)
-  assert.equal(roles.length, 12)
+  const contract = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8'))
+  assert.equal(roles.length, contract.roles.length)
   assert.ok(roles.every(row => row.role.startsWith('hub_') && row.passwordFileVariable.startsWith('CONEXUS_DB_')))
 })
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
@@ -12,6 +12,7 @@ const build = spawnSync(resolve(repositoryRoot, 'node_modules/.bin/esbuild'), [
 ], { cwd: repositoryRoot, encoding: 'utf8' })
 if (build.status !== 0) throw new Error(build.stdout || build.stderr)
 const { censusConnections, reportConnectionCensus } = await import(pathToFileURL(resolve(buildRoot, 'connection-census.js')).href)
+const registeredRoleCount = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8')).roles.length
 
 const secretRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/connection-census-secret-'))
 const secretFile = resolve(secretRoot, 'db-rb-executor')
@@ -25,7 +26,7 @@ test.after(() => {
 
 test('a role with no password file is unconfigured, not invalid', async () => {
   const rows = await censusConnections({ host: '127.0.0.1', port: 1, database: 'unreachable' }, {})
-  assert.equal(rows.length, 12)
+  assert.equal(rows.length, registeredRoleCount)
   assert.deepEqual([...new Set(rows.map(row => row.state))], ['unconfigured'])
   assert.deepEqual(rows[0], { role: 'hub_iam_runtime', capability: 'identity-and-access', state: 'unconfigured' })
 })
@@ -59,11 +60,11 @@ test('the report names every unhealthy connection and counts the rest', () => {
   reportConnectionCensus([
     { role: 'hub_iam_runtime', capability: 'identity-and-access', state: 'ok' },
     { role: 'hub_rb_ingress', capability: 'builder-request', state: 'invalid', sqlstate: '28P01' },
-    { role: 'hub_r2_brain_read', capability: 'brain-read', state: 'unconfigured' },
+    { role: 'hub_r2_connections', capability: 'connections', state: 'unconfigured' },
   ], line => lines.push(line))
   assert.deepEqual(lines, [
     'HUB_CONNECTION_CENSUS:ok=1:invalid=1:unconfigured=1\n',
     'HUB_CONNECTION_CENSUS:invalid:hub_rb_ingress:builder-request:28P01\n',
-    'HUB_CONNECTION_CENSUS:unconfigured:hub_r2_brain_read:brain-read:\n',
+    'HUB_CONNECTION_CENSUS:unconfigured:hub_r2_connections:connections:\n',
   ])
 })

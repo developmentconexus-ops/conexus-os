@@ -25,26 +25,11 @@ export type HubConfig = Readonly<{
     }> | undefined
   }>
   project: ProjectRuntimeConfig | undefined
-  brain: Readonly<{
-    readPasswordFile: string
-  }> | undefined
   connections: Readonly<{
     passwordFile: string
     credentialRoot: string
     credentialKeyFile: string
     credentialKeyGeneration: string
-  }> | undefined
-  projectBindings: Readonly<{
-    passwordFile: string
-    storageRoot: string
-    /** Manifest-only source ownership remains available for BRN-14 context. */
-    sourceOwnershipManifestFile?: string
-    brain?: Readonly<{
-      attesterPasswordFile: string
-      keyConformanceSubjectPasswordFile: string
-      sourceOwnershipManifestFile: string
-      registrationCatalogFile: string
-    }>
   }> | undefined
   builder: Readonly<{
     ingressPasswordFile: string
@@ -79,13 +64,22 @@ const workspaceDatabase = (environment: NodeJS.ProcessEnv): HubConfig['database'
   return undefined
 }
 
-// Project Inception and Baseline left the product. A deployment still carrying
-// their database credentials is configured for a capability the Hub no longer
-// serves, so it is refused rather than silently ignored.
+// Project Inception, Baseline, Brain, Project Brain context, connection
+// bindings and the Sankhya gateway left the product. A deployment still
+// carrying their database credentials is configured for a capability the Hub
+// no longer serves, so it is refused rather than silently ignored.
 const RETIRED_PLANNING_VARIABLES = [
   'CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE',
   'CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE',
   'CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE',
+] as const
+
+const RETIRED_BRAIN_CONNECTIONS_VARIABLES = [
+  'CONEXUS_DB_R2_BRAIN_READ_PASSWORD_FILE',
+  'CONEXUS_DB_R2_PROJECT_BINDING_PASSWORD_FILE',
+  'CONEXUS_DB_R2_BRAIN_ATTESTER_PASSWORD_FILE',
+  'CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE',
+  'CONEXUS_R2_KEY_CONFORMANCE_REGISTRATION_CATALOG_FILE',
 ] as const
 
 const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] => {
@@ -103,12 +97,6 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
   }
   const hasOrdinaryValues = Object.values(ordinaryValues).some(Boolean)
   const ordinaryComplete = Object.values(ordinaryValues).every(Boolean)
-
-  // R2 binding settlement can reuse an existing Project source root without
-  // enabling the independently configured R1 creation capability.
-  if (environment.CONEXUS_DB_R2_PROJECT_BINDING_PASSWORD_FILE &&
-    !Object.entries(ordinaryValues).some(([name, value]) =>
-      !['storageRoot', 'sourceOwnershipManifestFile'].includes(name) && Boolean(value))) return undefined
 
   if (hasOrdinaryValues && !ordinaryComplete) {
     for (const [name, value] of Object.entries({
@@ -134,12 +122,6 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
   return ordinary
 }
 
-const brainRuntime = (environment: NodeJS.ProcessEnv): HubConfig['brain'] => {
-  const readPasswordFile = environment.CONEXUS_DB_R2_BRAIN_READ_PASSWORD_FILE
-  if (readPasswordFile) return { readPasswordFile }
-  return undefined
-}
-
 const connectionsRuntime = (environment: NodeJS.ProcessEnv): HubConfig['connections'] => {
   const values = {
     passwordFile: environment.CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE,
@@ -162,67 +144,6 @@ const connectionsRuntime = (environment: NodeJS.ProcessEnv): HubConfig['connecti
     })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
   }
   return undefined
-}
-
-const projectBindingRuntime = (environment: NodeJS.ProcessEnv): HubConfig['projectBindings'] => {
-  const passwordFile = environment.CONEXUS_DB_R2_PROJECT_BINDING_PASSWORD_FILE
-  const storageRoot = environment.CONEXUS_PROJECT_STORAGE_ROOT
-  const legacyAttester = environment.CONEXUS_DB_R2_BRAIN_ATTESTER_PASSWORD_FILE
-  const legacySource = environment.CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE
-  const newBrainInputsPresent = Boolean(
-    environment.CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE ||
-    environment.CONEXUS_R2_KEY_CONFORMANCE_REGISTRATION_CATALOG_FILE,
-  )
-  if (!passwordFile) {
-    // Storage and source ownership are also valid R1 Project inputs; only
-    // binding-exclusive inputs can opt into the R2 binding runtime.
-    if (legacyAttester || newBrainInputsPresent) {
-      if (legacyAttester && !environment.CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE) {
-        throw new Error('MISSING_CONFIG_CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE')
-      }
-      throw new Error('MISSING_CONFIG_CONEXUS_DB_R2_PROJECT_BINDING_PASSWORD_FILE')
-    }
-    return undefined
-  }
-  if (!storageRoot) throw new Error('MISSING_CONFIG_CONEXUS_PROJECT_STORAGE_ROOT')
-
-  const brainValues = {
-    attesterPasswordFile: environment.CONEXUS_DB_R2_BRAIN_ATTESTER_PASSWORD_FILE,
-    keyConformanceSubjectPasswordFile: environment.CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE,
-    sourceOwnershipManifestFile: environment.CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE,
-    registrationCatalogFile: environment.CONEXUS_R2_KEY_CONFORMANCE_REGISTRATION_CATALOG_FILE,
-  }
-  if (legacyAttester && !newBrainInputsPresent) {
-    throw new Error('MISSING_CONFIG_CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE')
-  }
-  if (!newBrainInputsPresent && legacySource) {
-    return {
-      passwordFile,
-      storageRoot,
-      sourceOwnershipManifestFile: legacySource,
-    }
-  }
-  if (Object.values(brainValues).every(Boolean)) {
-    return {
-      passwordFile,
-      storageRoot,
-      brain: {
-        attesterPasswordFile: required(environment, 'CONEXUS_DB_R2_BRAIN_ATTESTER_PASSWORD_FILE'),
-        keyConformanceSubjectPasswordFile: required(environment, 'CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE'),
-        sourceOwnershipManifestFile: required(environment, 'CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE'),
-        registrationCatalogFile: required(environment, 'CONEXUS_R2_KEY_CONFORMANCE_REGISTRATION_CATALOG_FILE'),
-      },
-    }
-  }
-  if (Object.values(brainValues).some(Boolean)) {
-    for (const [name, value] of Object.entries({
-      CONEXUS_DB_R2_BRAIN_ATTESTER_PASSWORD_FILE: brainValues.attesterPasswordFile,
-      CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE: brainValues.keyConformanceSubjectPasswordFile,
-      CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE: brainValues.sourceOwnershipManifestFile,
-      CONEXUS_R2_KEY_CONFORMANCE_REGISTRATION_CATALOG_FILE: brainValues.registrationCatalogFile,
-    })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
-  }
-  return { passwordFile, storageRoot }
 }
 
 const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] => {
@@ -271,6 +192,9 @@ const previewRuntime = (environment: NodeJS.ProcessEnv, hubOrigin: string, hubPo
 }
 
 export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): HubConfig => {
+  for (const name of RETIRED_BRAIN_CONNECTIONS_VARIABLES) {
+    if (environment[name]) throw new Error(`RETIRED_CONFIG_${name}`)
+  }
   const hubOrigin = required(environment, 'CONEXUS_ORIGIN')
   const hubPort = port(environment.CONEXUS_PORT ?? '3000', 'CONEXUS_PORT')
   const config: HubConfig = {
@@ -287,9 +211,7 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
       workspace: workspaceDatabase(environment),
     },
     project: projectRuntime(environment),
-    brain: brainRuntime(environment),
     connections: connectionsRuntime(environment),
-    projectBindings: projectBindingRuntime(environment),
     builder: builderRuntime(environment),
     oidc: {
       issuer: required(environment, 'CONEXUS_OIDC_ISSUER'),
@@ -297,9 +219,6 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
       clientSecretFile: required(environment, 'CONEXUS_OIDC_CLIENT_SECRET_FILE'),
       allowInsecureForTest: environment.NODE_ENV === 'test' && environment.CONEXUS_TEST_ALLOW_INSECURE_OIDC === 'true',
     },
-  }
-  if (config.projectBindings?.brain && (!config.brain || !config.connections)) {
-    throw new Error('PROJECT_BINDING_BRAIN_RUNTIME_UNAVAILABLE')
   }
   if (config.builder && !config.project) throw new Error('BUILDER_PROJECT_RUNTIME_REQUIRED')
   return config

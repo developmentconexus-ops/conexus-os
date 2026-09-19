@@ -1,6 +1,6 @@
 // GENERATED from contracts/technical/hub-database-roles.json by scripts/generate-hub-role-register.mjs. Do not edit.
 
-export const HUB_ROLE_REGISTER_DIGEST = "138860732b1cdca524306ca744d8cd9deaca18746edd34c473558a20e11db8e0"
+export const HUB_ROLE_REGISTER_DIGEST = "46dfacfeed1349c5dbb52ff1d5fe75f5296f458343d0ab128f13a041d7d09a6b"
 
 export type HubRoleRow = Readonly<{
   role: string
@@ -16,11 +16,7 @@ export const HUB_ROLES: readonly HubRoleRow[] = Object.freeze([
   Object.freeze({ role: "hub_ws01_command", capability: "workspace-command", passwordFileVariable: "CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE", connectsFrom: ["apps/hub/src/server.ts"] }),
   Object.freeze({ role: "hub_s3_read", capability: "project-read", passwordFileVariable: "CONEXUS_DB_S3_READ_PASSWORD_FILE", connectsFrom: ["apps/hub/src/project/module.ts"] }),
   Object.freeze({ role: "hub_prj03_command", capability: "project-command", passwordFileVariable: "CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE", connectsFrom: ["apps/hub/src/project/module.ts"] }),
-  Object.freeze({ role: "hub_r2_project_binding", capability: "project-binding", passwordFileVariable: "CONEXUS_DB_R2_PROJECT_BINDING_PASSWORD_FILE", connectsFrom: ["apps/hub/src/project/module.ts"] }),
-  Object.freeze({ role: "hub_r2_brain_read", capability: "brain-read", passwordFileVariable: "CONEXUS_DB_R2_BRAIN_READ_PASSWORD_FILE", connectsFrom: ["apps/hub/src/server.ts"] }),
-  Object.freeze({ role: "hub_r2_brain_attester", capability: "brain-attester", passwordFileVariable: "CONEXUS_DB_R2_BRAIN_ATTESTER_PASSWORD_FILE", connectsFrom: ["apps/hub/src/project/module.ts"] }),
-  Object.freeze({ role: "hub_r2_key_conformance_subject", capability: "key-conformance-subject", passwordFileVariable: "CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE", connectsFrom: ["apps/hub/src/server.ts"] }),
-  Object.freeze({ role: "hub_r2_connections", capability: "connections", passwordFileVariable: "CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE", connectsFrom: ["apps/hub/src/connections/module.ts","apps/hub/src/claude-account/module.ts"] }),
+  Object.freeze({ role: "hub_r2_connections", capability: "connections", passwordFileVariable: "CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE", connectsFrom: ["apps/hub/src/claude-account/module.ts"] }),
   Object.freeze({ role: "hub_rb_ingress", capability: "builder-request", passwordFileVariable: "CONEXUS_DB_RB_INGRESS_PASSWORD_FILE", connectsFrom: ["apps/hub/src/builder/module.ts"] }),
   Object.freeze({ role: "hub_rb_executor", capability: "builder-run-execution", passwordFileVariable: "CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE", connectsFrom: ["apps/hub/src/builder/module.ts"] }),
 ])
@@ -31,10 +27,6 @@ export const CAPABILITY_BY_ROLE: Readonly<Record<string, string>> = Object.freez
   hub_ws01_command: "workspace-command",
   hub_s3_read: "project-read",
   hub_prj03_command: "project-command",
-  hub_r2_project_binding: "project-binding",
-  hub_r2_brain_read: "brain-read",
-  hub_r2_brain_attester: "brain-attester",
-  hub_r2_key_conformance_subject: "key-conformance-subject",
   hub_r2_connections: "connections",
   hub_rb_ingress: "builder-request",
   hub_rb_executor: "builder-run-execution",
