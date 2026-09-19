@@ -170,24 +170,25 @@ The lanes capture text rather than a screenshot, because both produce text and a
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `tests/implementation/provision-hub-roles.test.mjs` calls `refuseProtectedCluster()` as its first line, per `tests/implementation/protected-cluster.mjs`, because it runs `ALTER ROLE hub_*`. It asserts against literal expected values that a role with a wrong password is repaired, that a second run repairs nothing, and that a missing password file yields `unconfigured` rather than a write.
-- [ ] `tests/implementation/connection-census.test.mjs` asserts the census returns the SQLSTATE for a role with a wrong password and `ok` for a working one, and that the returned rows contain no password substring.
-- [ ] `tests/implementation/protected-cluster-coverage.test.mjs` still passes, which proves the new altering test is guarded. Run `node --test tests/implementation/protected-cluster-coverage.test.mjs`.
+- [x] `tests/implementation/provision-hub-roles.test.mjs` calls `refuseProtectedCluster()` first in the body that alters roles. It asserts against literal expected values that two roles created by migration `019` with no password report `invalid` with `28P01`, that provisioning repairs both, that a second run returns exactly `{ verdict: 'CURRENT', checked: 2, repaired: [], invalid: [], unconfigured: [], errors: [] }`, that the repaired role then authenticates as itself, that a missing password file yields `unconfigured` rather than a write, and that a password file with loose permissions is refused. The altering case needs a real cluster, so it runs in CI and skips locally.
+- [x] `tests/implementation/connection-census.test.mjs` asserts the census returns the SQLSTATE for a role with a wrong password and `unconfigured` for one with no password file, that no row carries the password it read, that `CONEXUS_DB_USER` overrides the registered name for the main pool, and that the report emits one counted summary line plus one line per unhealthy connection. Five cases pass.
+- [x] `tests/implementation/protected-cluster-coverage.test.mjs` gained `provisionRoles\(` as a trigger. The guard previously matched only the literal `ALTER ROLE hub_`, so a test that alters roles through a helper escaped it, which is exactly what this PR introduces. Run `node --test tests/implementation/protected-cluster-coverage.test.mjs`.
+- [x] `npm run db:roles:check` runs fourteen static cases and `npm run db:roles:postgres` joins the candidate graph as `db-role-provision-postgres` for the altering ones.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Lanes run on the configured `swarm workers` model at the PR head, per the boot recipe, and the lane list follows the live bar above rather than the ten-lane template.
 
-- [ ] Lane 1. Read-only census against the pilot cluster before any write, with `npm run db:roles:census`. Save `r03b-census-before.txt`. Pass when it reports eleven configured roles as `ok` and the four with no password file as `unconfigured`, which is what R-03A's lane 1 observed on 2026-09-18. The `28P01` the roadmap recorded for `hub_prj03_command` and `hub_rb_ingress` is gone, so this lane now confirms a healthy cluster rather than finding a block, and any role it reports as invalid is a regression to investigate before provisioning.
-- [ ] Lane 2. Provision the pilot cluster. Run `npm run db:roles:provision` once, then again. Save `r03b-provision-twice.txt`. Pass when both runs report zero repairs and the same end state, because R-03A's lane 1 already found every configured credential working. A repair here would mean something changed a credential since that census, which is a finding rather than a success. The repair path itself is proven against an isolated cluster in the unit box, not by breaking a live Hub role.
-- [ ] Lane 3. Start the Hub against the pilot database after provisioning. Save `r03b-hub-boot-census.png`. Pass when the census logs every configured role as `ok` and the Hub answers 401 unauthenticated.
-- [ ] Lane 4. Break one scratch role deliberately, never a Hub role, and confirm the census names it at startup. Save `r03b-census-degraded.png`. Pass when the log names the role and the SQLSTATE and the Hub still serves the shell.
-- [ ] Lane 5. Confirm no secret leaks. Grep the captured startup log and both script outputs for the first six characters of one provisioned password. Save `r03b-no-leak.png`. Pass when the grep finds nothing.
+- [x] Lane 1. Read-only census against the pilot cluster before any write, with `npm run db:roles:census`. Save `r03b-census-before.txt`. Pass when it reports eleven configured roles as `ok` and the four with no password file as `unconfigured`. Verdict `HEALTHY`, eleven `ok`, four `unconfigured`, zero invalid. The `28P01` the roadmap recorded for `hub_prj03_command` and `hub_rb_ingress` is gone, so this lane confirms a healthy cluster rather than finding a block.
+- [x] Lane 2. Provision the pilot cluster. Run `npm run db:roles:provision` once, then again. Save `r03b-provision-twice.txt`. Pass when both runs report zero repairs and the same end state. Both returned verdict `CURRENT`, `checked` 15, `repaired` empty, the same four `unconfigured`, and no `ALTER ROLE` was issued, because the run returns before it reaches for the admin credential when nothing is invalid. The repair path itself is proven against an isolated cluster in the unit box, not by breaking a live Hub role.
+- [x] Lane 3. Start the Hub against the pilot database. Save `r03b-hub-boot-census.txt`. Pass when the census logs every configured role as `ok` and the Hub answers 401 unauthenticated. Logged `HUB_CONNECTION_CENSUS:ok=11:invalid=0:unconfigured=4`, served the shell with 200, answered `/api/control/access-context` with 401, and listened on 3443 with Preview on 3444.
+- [x] Lane 4. Point one password file at a wrong value in a copy of the Hub env and boot. Save `r03b-census-degraded.txt`. Pass when the log names the role and the SQLSTATE and the Hub still serves the shell. Logged `HUB_CONNECTION_CENSUS:invalid:hub_s2_read:workspace-read:28P01` with `ok=10`, and the Hub still served 200 on the shell and 401 on the API. This lane never touches the cluster, because only the Hub's copy of the password file changes, which is stronger than breaking a real role.
+- [x] Lane 5. Confirm no secret leaks. Grep every captured lane output for the first six characters and then the full value of each pilot database password. Save `r03b-no-leak.txt`. Pass when the grep finds nothing. Zero matches on either pass across every file under the two lane directories.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Hub startup wall time to first served request, at trunk and at head. Trunk has no census, so the census is the work the diff adds and it carries its own absolute budget.
-- [ ] Probe. Start the Hub three times at trunk and three times at head, interleaved, on the same machine, timing to the first 401. Time the census alone from its own log lines.
-- [ ] Baseline. Record trunk's startup time first.
-- [ ] Rule. Fail if the census alone exceeds 2 seconds for fifteen roles, or if head's median startup exceeds trunk's by more than the measured census time plus 200 milliseconds.
+- [x] Metric. Wall time of the fifteen-role census, which is the whole of the work this diff adds at startup. Trunk has no census, so this is measured absolutely rather than as a ratio. Hub startup itself is not timed, for the same reason R-03A stopped timing it, namely that the Vite build and `tsc` dominate it.
+- [x] Probe. Run `npm run db:roles:census` against the pilot cluster three times. It performs the same fifteen probes over the same code path the startup census uses.
+- [x] Baseline. Trunk has no census to baseline, so the budget is absolute.
+- [x] Rule. Fail if the census exceeds 2 seconds for fifteen roles. It measured 0.12, 0.12 and 0.11 seconds, with eleven of the fifteen opening a real connection.
 
 **Review gate.** R-03B changes no interaction, so no video and no interaction screenshots are owed. It stops for the operator anyway, because it writes credentials to her pilot cluster, and she sees the census output before and after.
 
@@ -205,7 +206,11 @@ The lanes capture text rather than a screenshot, because both produce text and a
 
 **Depends on.** None. It branches from the trunk beside R-03A.
 
-**What MAR is and why it goes.** MAR is the Managed Application Runtime, the occurrence owner for managed job runs. `docs/product/wire-contract.md:658-661` is the current owner and it already retired MAR, recording that the retained MAR checks are not current Product authority and are not part of the default verification graph. `docs/index.md:67` routes `docs/tasks/l5-managed-automations.md` under retained historical routes, and `docs/index.md:24-25` states that a scope label in an older task is not a current grant. This PR removes artifacts a current owner already retired, rather than deciding Product meaning.
+**The name covers two different things, and only one of them goes.** `apps/hub/src/mar/` holds `module.ts`, `admission.ts` and `preview-routes.ts`, and `apps/hub/src/server.ts:166` builds that module whenever `config.preview` is set, then serves `mar.registerPreviewRoutes` as the Preview app at `server.ts:314`. Preview is part of the one real path the roadmap's current direction names, so this code is load-bearing today. Deleting by the name MAR would take Preview down.
+
+So R-04 removes the retired managed-job-runs subject and leaves the Preview runtime alone. If the shared name is worth fixing, that is a rename in its own PR with its own proof, not a deletion folded into this one. Record the split in the trail before the first deletion, and add a live lane that opens a Project with a last-good Preview if any file under `apps/hub/src/mar/` is touched.
+
+**What MAR was as a Product subject.** MAR is the Managed Application Runtime, the occurrence owner for managed job runs. `docs/product/wire-contract.md:658-661` is the current owner and it already retired MAR, recording that the retained MAR checks are not current Product authority and are not part of the default verification graph. `docs/index.md:67` routes `docs/tasks/l5-managed-automations.md` under retained historical routes, and `docs/index.md:24-25` states that a scope label in an older task is not a current grant. This PR removes artifacts a current owner already retired, rather than deciding Product meaning.
 
 **Files.**
 
@@ -230,10 +235,11 @@ The lanes capture text rather than a screenshot, because both produce text and a
 - [ ] Regenerate the two custody manifests with `scripts/record-r1-candidate-custody.mjs` after deleting `mar-paths.yaml`, because `tests/repository/r1-rc01-candidate-custody.test.mjs` runs that script in `--check` mode and fails on a stale inventory. This is a rerun of a recording script, not a hand edit.
 - [ ] Check `profiles/r1/v1/a0-code-architecture-migration.json` and `runtime/r1/.conexus/a0-ownership-manifest.json` against `scripts/check-r1-a0-migration.mjs`, which reads both, and regenerate if that check names a deleted path.
 - [ ] Leave the frozen qualification evidence under `qualification/4d/r1-git-source-custody/evidence/` untouched. Nothing reads those files by path. They are archived output of past runs and rewriting them would falsify history.
+- [ ] Leave `apps/hub/src/mar/` in place. It serves Preview, which is current Product. Removing the retired subject does not touch it.
 
 **You see.**
 
-- [ ] `npm run verify` completes with no step referencing a deleted artifact, and a case-insensitive grep for `mar` over `apps/`, `contracts/`, `scripts/` and `tests/` returns only substring false positives such as `PRIMARY`.
+- [ ] `npm run verify` completes with no step referencing a deleted artifact, and a case-insensitive grep for `mar` over `contracts/`, `scripts/` and `tests/` returns only substring false positives such as `PRIMARY`. `apps/hub/src/mar/` is expected to still match, because it is the Preview runtime.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -273,7 +279,7 @@ Adding one `hub_*` role today costs the new migration plus edits to the migratio
 
 **Files.**
 
-- [x] Create `scripts/generate-catalog-snapshot.mjs`.
+- [x] Create `scripts/generate-hub-catalog-snapshot.mjs`, and `scripts/hub-catalog.mjs` for the catalog reader the runner and the generator share.
 - [x] Create `contracts/technical/hub-catalog-snapshot.json`.
 - [x] Edit `scripts/run-hub-migrations.mjs`.
 - [x] Edit `tests/implementation/hub-migration-postgres.test.mjs`.
@@ -289,7 +295,7 @@ Adding one `hub_*` role today costs the new migration plus edits to the migratio
 - [x] Keep the security-bearing assertions explicit rather than folding them into the snapshot, per **principle-boundary-discipline**. Role attributes, role membership, and any grant that could let one capability assume another stay as named assertions against an allowlist a human must edit, because a regenerated snapshot would otherwise accept a new superuser as readily as a new column. The negative property in `docs/reference/data-and-persistence.md` section 6.2 is exactly what a blanket snapshot diff would stop proving.
 - [x] Keep the selection layer at `:140-172`, the ledger digest guard at `:3803`, the back-insert refusal at `:3946` and the advisory lock at `:3940` exactly as they are. Those are custody and concurrency, not schema oracle, and the lifecycle tests already cover them.
 - [x] Delete the `assertNNNCatalog` functions the snapshot replaces in the same change, per **principle-migrate-callers-then-delete-legacy-apis**.
-- [x] Add `db:catalog:snapshot` to regenerate and `db:catalog:check` to compare, and put `db:catalog:check` in `CANDIDATE_GRAPH`. A schema change then costs one migration plus one regenerated snapshot, which is the step's stated goal.
+- [x] Add `db:catalog:snapshot` to regenerate and `db:catalog:check` to compare. `db:catalog:check` stays out of `CANDIDATE_GRAPH`; the corrections below say why.
 
 **You see.**
 
@@ -316,7 +322,7 @@ Adding one `hub_*` role today costs the new migration plus edits to the migratio
 
 **Evidence, recorded in #84.** Before any design, a catalog from a fresh install at `050` and one from the operator's pilot at `050` differed by 0 lines across 9 schemas, 34 relations, 291 columns, 195 constraints, 53 indexes, 148 functions and 25 roles, although the pilot applied `040` and `047` with legacy bytes. That settled whether one committed snapshot could represent both. The pilot then passed the exact `assertCatalogAt` and `assertRoleInvariants` that `verifyLedger` runs, read-only as `hub_iam_runtime`. All 28 Postgres suites ran at the R-04 head and again at this head on a disposable 17.10 cluster from the pinned image, with no regression, and `r2-p2-brain-bootstrap` refused all 23 of its tamper cases. From-scratch install measured a median of 25155 ms at trunk and 14467 ms at head, and the CI migration step fell from 36913 ms to 10756 ms with three more cases in it.
 
-**Corrections to this section.** Roles are kept out of the per-version digest, not only the security-bearing ones, because they are cluster-global and a shared cluster shows another install's roles at every version. The explicit allowlist became an invariant with no list at all, which is stronger. The snapshot holds a full catalog only at head and digests for earlier versions, because 48 full catalogs would be about seven megabytes. `db:catalog:check` did not join the candidate graph, because any fresh install already checks every committed digest before each apply. The cost of a schema change is a migration, its name and digest in the runner's custody lists, and a regenerated snapshot; the custody lists stay hand-maintained on purpose, since they pin file bytes rather than schema. ACLs compare as effective privileges after the first run showed that a raw array comparison is the wrong property.
+**Corrections to this section.** Roles are kept out of the per-version digest, not only the security-bearing ones, because they are cluster-global and a shared cluster shows another install's roles at every version. The explicit allowlist became an invariant with no list at all, which is stronger. The snapshot holds a full catalog only at head and digests for earlier versions, because 48 full catalogs would be about seven megabytes. `db:catalog:check` did not join the candidate graph, because any fresh install already checks every committed digest before each apply. The cost of a schema change is a migration, its name and digest in the runner's custody lists, and a regenerated snapshot; the custody lists stay hand-maintained on purpose, since they pin file bytes rather than schema. ACLs compare as effective privileges after the first run showed that a raw array comparison is the wrong property. The dependency graph above was not followed either. R-05 branched from R-04 and does not contain R-03A, because the runner it rewrites is the file R-04 edits, and the role invariant it keeps needs no register. R-03A's PR is based on the plan branch, not on trunk.
 
 **Review gate.** None. R-05 is not review-gated. It changes no interaction, so no screenshots and no video are owed.
 
@@ -324,7 +330,7 @@ Adding one `hub_*` role today costs the new migration plus edits to the migratio
 
 - [x] Root's clean verdict at the exact head SHA.
 - [x] Bugbot triage done.
-- [x] Merge on the clean verdict.
+- [ ] Merge on the clean verdict. #84 is open and waits behind #82.
 
 ## Found during R-04, not yet a PR
 

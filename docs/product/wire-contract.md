@@ -45,7 +45,6 @@ contracts/api/product/project-brain-context-paths.yaml current Project Brain Con
 contracts/api/product/release-paths.yaml            retained Release / Promotion / serving Path Items
 contracts/api/product/par-paths.yaml                retained Product Agent Runtime Path Items
 contracts/api/product/gateway-paths.yaml            retained Gateway inspection Path Items
-contracts/api/product/mar-paths.yaml                retained Managed Application Runtime Path Items
 contracts/api/product/observability-paths.yaml      retained Observability & Audit Path Items
 ```
 
@@ -540,7 +539,13 @@ possible external acceptance + ambiguous response
 
 `OUTCOME_UNKNOWN` is not part of the analytical truth vocabulary above; it is Gateway-owned external-effect truth.
 
-MAR adds a parallel mechanism-separation law for managed occurrences:
+MAR's Path Items were deleted on 2026-09-18. This contract had already classified them as
+retained historical rather than current Product authority, the current Product OAS never
+referenced them, and nothing read the file except one repository assertion. The law below is
+kept as the record of the separation MAR required, not as a live surface. The Preview runtime
+under `apps/hub/src/mar/` is unrelated to this subject and is current Product.
+
+MAR added a parallel mechanism-separation law for managed occurrences:
 
 ```text
 ListRunnableManagedJobs
@@ -656,9 +661,10 @@ current migrations / PostgreSQL
 ```
 
 Retained Project grammar, Budget, generated historical projections, Release,
-PAR, Gateway, MAR, Observability and whole-4B proofs remain explicit historical
+PAR, Gateway, Observability and whole-4B proofs remain explicit historical
 or subsystem checks. They are not current Product authority and are not part of
-the default verification graph.
+the default verification graph. MAR was in that list until its Path Items and its
+`wire:mar` checker were deleted on 2026-09-18.
 
 Historical owner-slice RED/GREEN Evidence remains in the bounded files under
 `docs/evidence/4b/`; this contract does not duplicate the full worklog.

@@ -352,7 +352,7 @@ const measureProductJourneys = async (built, modules, root) => {
       recovery: createProjectSourceRecovery(storageRoot),
     })
 
-    const admission = modules.resolveProjectModelAdmission({
+    const admission = modules.resolveModelAdmission({
       catalogFile: process.env.CONEXUS_PROJECT_MODEL_CATALOG_FILE,
       credentialSlotsFile: process.env.CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE,
       admissionId: process.env.CONEXUS_BUILDER_MODEL_ADMISSION_ID,
@@ -816,7 +816,7 @@ const probeProductComposition = async (built, modules, root) => {
     const { createApplicationArtifactStore } = await import(built('registry/application-artifact-store.js'))
     const { createHttpApp } = await import(built('http/app.js'))
     const { FIXED_APPLICATION_STARTER_FILES } = await import(built('builder/application-starter.js'))
-    const admission = modules.resolveProjectModelAdmission({
+    const admission = modules.resolveModelAdmission({
       catalogFile, credentialSlotsFile: slotsFile, admissionId, requiredCapabilities: ['BUILDER_CODING'],
     })
     sample.modelId = admission.modelId
@@ -1045,7 +1045,7 @@ const main = async () => {
     const modules = {
       createOciGitExecutionPort: (await import(built('project/git-execution.js'))).createOciGitExecutionPort,
       createE2BApplicationCompiler: (await import(built('builder/application-artifact-runtime.js'))).createE2BApplicationCompiler,
-      resolveProjectModelAdmission: (await import(built('project/module.js'))).resolveProjectModelAdmission,
+      resolveModelAdmission: (await import(built('model-connection/model-catalog.js'))).resolveModelAdmission,
       createConfiguredBuilderModule: (await import(built('builder/module.js'))).createConfiguredBuilderModule,
       createApplicationArtifactStore: (await import(built('registry/application-artifact-store.js'))).createApplicationArtifactStore,
       createHttpApp: (await import(built('http/app.js'))).createHttpApp,

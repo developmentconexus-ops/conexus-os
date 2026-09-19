@@ -8,16 +8,16 @@ The operator decided the scope on 2026-09-19. Inception and Baseline may be dele
 
 One box is one unit of work and names the evidence that checks it. Check a box only when the evidence exists. The live bar is the one `docs/roadmap.md` set on 2026-09-18: a lane earns its cost only on the operator's pilot database, a running Hub, or a browser holding a real session. CI proves the rest. The boot recipe, PR mechanics and verdict rules are those of `docs/tasks/credential-and-role-remediation.md` and are not repeated here.
 
-Merge stays with the operator. Every PR opens ready and waits.
+The operator authorized the coordinator to merge on 2026-09-19. A PR merges only behind a passing verdict from an agent that did not write it, posted on the PR, at the head that merges. Every PR opens ready.
 
 ## Order
 
 | Id | What | Base | Migration |
 |---|---|---|---|
-| F-00 | Reopen the roadmap grant | `remediation/plan` | none |
+| F-00 | Reopen the roadmap grant | trunk | none |
 | F-01 | Delete dead code | trunk | none |
-| F-02 | Name the r1 suites by what they prove and admit them to CI | R-05 | none |
-| F-03 | Drop the Builder functions migration 038 orphaned | R-05 | 051 |
+| F-02 | Name the r1 suites by what they prove and admit them to CI | trunk | none |
+| F-03 | Drop the Builder functions migration 038 orphaned | trunk | 051 |
 | F-04 | Move shared code out of `project/`; free Builder boot from Inception | F-01 | none |
 | F-05 | Remove Inception and Baseline from the application | F-04 | none |
 | F-06 | Remove Brain, bindings, Sankhya and the gateway from the application | F-05 | none |
@@ -28,6 +28,8 @@ Merge stays with the operator. Every PR opens ready and waits.
 | M-02 | ChatGPT account sign-in | M-01 | none expected |
 
 F-07 waits for A-02 on purpose. Migration 049 writes five R2 capability columns inside `iam.establish_project_creator_grant`, so those columns cannot drop while that function lives. A-02 deletes the function and the tables that hold the columns, which removes the need to rewrite it first.
+
+The remediation stack, R-03A through R-05, merged to trunk on 2026-09-19, so every base that named one of its branches now reads trunk. F-04 merged the same day as #87; its file references below predate the move to `apps/hub/src/model-connection/`.
 
 This table had an F-08 until 2026-09-19. F-08 was a second migration only because nobody knew whether the tables it dropped held rows. The count below proves they hold none, so F-07 is one migration and M-01 moves up to 055.
 

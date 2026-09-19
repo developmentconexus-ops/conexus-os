@@ -18,6 +18,7 @@ import { createHttpApp } from './http/app.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
 import { createMarModule } from './mar/module.js'
 import { readHubConfig } from './platform/config.js'
+import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
 import { createPostgresPool } from './platform/postgres.js'
 import { readSecretFile } from './platform/secrets.js'
 import { createApplicationArtifactStore, createRegistryStore } from './registry/module.js'
@@ -35,9 +36,8 @@ const {
   createProjectKeyConformanceBasisResolver,
   createProjectBrainRealizationPort,
   createBuilderProjectGitCapability,
-  resolveProjectModelAdmission,
-  readProjectModelChoices,
 } = await import('./project/module.js')
+const { resolveModelAdmission, readModelChoices } = await import('./model-connection/model-catalog.js')
 const { createConfiguredBuilderModule } = await import('./builder/module.js')
 type ProjectBindingsRuntime = ReturnType<typeof createConfiguredProjectConnectionBindingModule> |
   ReturnType<typeof createConfiguredProjectBindingModule>
@@ -152,13 +152,13 @@ const claudeAccount = config.connections && credentialBackend ? createClaudeAcco
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
-const builderModel = config.builder && config.project ? resolveProjectModelAdmission({
+const builderModel = config.builder && config.project ? resolveModelAdmission({
   catalogFile: config.project.modelCatalogFile,
   admissionId: config.builder.modelAdmissionId,
   requiredCapabilities: ['BUILDER_CODING'],
   credentialRequired: false,
 }) : undefined
-const builderModelChoices = config.builder && config.project ? readProjectModelChoices({
+const builderModelChoices = config.builder && config.project ? readModelChoices({
   catalogFile: config.project.modelCatalogFile,
   requiredCapabilities: ['BUILDER_CODING'],
 }) : undefined
@@ -319,6 +319,15 @@ const previewApp = mar && config.preview ? await createHttpApp({
   },
 }) : undefined
 await builder?.recover()
+
+// Read-only, and it never stops the Hub. One capability holding a bad credential must not
+// take the others down, and it must be named here rather than surfacing as a 28P01 inside
+// somebody's request.
+reportConnectionCensus(
+  await censusConnections({ host: config.database.host, port: config.database.port, database: config.database.database }),
+  line => process.stderr.write(line),
+)
+
 await app.listen({ host: '127.0.0.1', port: config.port })
 if (previewApp && config.preview) await previewApp.listen({ host: '127.0.0.1', port: config.preview.port })
 

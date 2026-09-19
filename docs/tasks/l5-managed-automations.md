@@ -16,8 +16,11 @@ an explicit prerequisite, not a behavior silently inherited from read-only sync.
 - [MAR](../reference/managed-execution.md),
   [Gateway effect semantics](../reference/integrations-and-gateway.md),
   [job operations](../product/operation-ledger.md),
-  [MAR wire](../../contracts/api/product/mar-paths.yaml),
   [operations/recovery](../reference/release-deployment-and-operations.md).
+- The MAR wire Path Items, migrations `024` and `025`, and the `wire:mar` checker were
+  deleted on 2026-09-18. `docs/product/wire-contract.md` had already retired them and the
+  current Product OAS never referenced them. Git holds their bytes for any future surface
+  that revives this task.
 - [R3 task](r3.md), particularly P4-B; follow its accepted owner and evidence
   routes without reclassifying the candidate as accepted.
 - Existing source: `apps/hub/src/mar/admission.ts`,
@@ -36,7 +39,7 @@ Follow the [shared reading/research protocol](../roadmap.md#task-reading-and-res
 | --- | --- | --- |
 | L5.1 MAR | [managed execution](../reference/managed-execution.md), §§27.2–27.4; [R3](r3.md), P4-B and P1 reconciliation matrix | MAR owns occurrence; queue delivery is not authority. Close current-occurrence/settlement/quiescence, preserving unaccepted candidate status |
 | L5.1 effect recovery | Same §27.4 effect-capable job reopen trigger; [Gateway](../reference/integrations-and-gateway.md), §§19.3–19.4 | Define correlation to unresolved external effects and exact safe continuation; do not generalize read-only freshness-based catch-up to messages or invoices |
-| L5.2–3 technology | [R3](r3.md), “Exact dependency boundary” and P2/P3 decision; [MAR wire](../../contracts/api/product/mar-paths.yaml) | Validate adopted pg-boss configuration and actual transition behavior from source/tests; historical Package-D pins do not replace root pins |
+| L5.2–3 technology | [R3](r3.md), “Exact dependency boundary” and P2/P3 decision; the MAR wire Path Items, deleted on 2026-09-18 and recoverable from Git | Validate adopted pg-boss configuration and actual transition behavior from source/tests; historical Package-D pins do not replace root pins |
 | Comparative scheduling | [Mitra influence](../research/mitra/influence-on-conexus.md), opening §2 cron/job patterns; [Factory influence](../research/factory-ai/influence-on-conexus.md), §9.6 | A task/job can stay bounded. Neither embedded cron nor parallel-worker machinery answers Conexus effect settlement or authorizes a generic scheduler |
 
 Use exact installed pg-boss types/source/configuration and current official

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { ClaudeAccountStore } from './store.js'
-import type { createAuthorizationRequest } from '../project/anthropic-oauth.js'
+import type { createAuthorizationRequest } from '../model-connection/anthropic-oauth.js'
 
 const csrfCookie = '__Host-conexus_csrf'
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value

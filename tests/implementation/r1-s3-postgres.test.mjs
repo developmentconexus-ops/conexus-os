@@ -290,7 +290,7 @@ test('S3 P1 real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollb
   `)
   await assert.rejects(
     runHubMigrations({ connectionString: connectionString(fresh) }),
-    /MIGRATION_003_FUNCTION_SOURCE_REFUSED/,
+    /MIGRATION_CATALOG_DRIFT/,
   )
 })
 
@@ -577,7 +577,7 @@ test('S3 P4-B real PostgreSQL proves receipt-locked abandoned-attempt cleanup co
   `)
   await assert.rejects(
     runHubMigrations({ connectionString: connectionString(fresh) }),
-    /MIGRATION_005_FUNCTION_SOURCE_REFUSED/,
+    /MIGRATION_CATALOG_DRIFT/,
   )
 })
 

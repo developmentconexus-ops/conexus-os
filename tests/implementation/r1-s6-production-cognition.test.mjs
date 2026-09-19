@@ -30,8 +30,8 @@ test('production cognition boundaries fire on the admitted Hub modules', async (
   }, {
     createProjectMastra, ProjectToolBudget,
   }] = await Promise.all([
-    import(built('project/bounded-provider-fetch.js')),
-    import(built('project/anthropic-oauth-provider.js')),
+    import(built('model-connection/bounded-provider-fetch.js')),
+    import(built('model-connection/anthropic-oauth-provider.js')),
     import(built('project/project-mastra.js')),
   ])
 
