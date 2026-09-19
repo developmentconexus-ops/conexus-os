@@ -43,6 +43,15 @@ const memberEntry = {
   since: '2026-09-10T00:00:00.000Z',
 }
 
+const pendingInvitationEntry = {
+  kind: 'invitation',
+  invitationId: '44444444-4444-4444-8444-444444444444',
+  email: 'ana@example.test',
+  role: 'member',
+  invitedAt: '2026-09-19T00:00:00.000Z',
+  expiresAt: '2026-10-03T00:00:00.000Z',
+}
+
 const makeStore = (overrides = {}) => {
   const calls = []
   const record = (name) => async (input) => { calls.push({ name, input }); return undefined }
@@ -50,7 +59,7 @@ const makeStore = (overrides = {}) => {
     calls,
     async roster(input) {
       calls.push({ name: 'roster', input })
-      return { viewerRole: 'owner', entries: [ownerEntry, memberEntry] }
+      return { viewerRole: 'owner', entries: [ownerEntry, memberEntry, pendingInvitationEntry] }
     },
     async invite(input) {
       calls.push({ name: 'invite', input })
@@ -106,7 +115,7 @@ test('the roster carries members, invitations and the caller role', async (t) =>
     cookies: { '__Host-conexus_session': 'session-1' },
   })
   assert.equal(response.statusCode, 200)
-  assert.deepEqual(response.json(), { viewerRole: 'owner', entries: [ownerEntry, memberEntry] })
+  assert.deepEqual(response.json(), { viewerRole: 'owner', entries: [ownerEntry, memberEntry, pendingInvitationEntry] })
   assert.deepEqual(store.calls[0], { name: 'roster', input: { actor: ownerAccountId, workspaceId } })
 })
 
@@ -230,6 +239,7 @@ test('one operation withdraws either kind of roster entry', async (t) => {
   assert.equal(invitation.statusCode, 204)
   assert.deepEqual(store.calls, [
     { name: 'remove', input: { actor: ownerAccountId, workspaceId, member: memberAccountId } },
+    { name: 'roster', input: { actor: ownerAccountId, workspaceId } },
     { name: 'cancelInvitation', input: { actor: ownerAccountId, invitationId: '44444444-4444-4444-8444-444444444444' } },
   ])
 })
@@ -289,6 +299,76 @@ test('every write demands the exact origin, the CSRF pair and a session', async 
   })
   assert.equal(wrongCsrf.statusCode, 403)
   assert.deepEqual(store.calls, [])
+})
+
+test('a malformed path id is refused with 400 before it reaches SQL', async (t) => {
+  const store = makeStore()
+  const app = await createHubApp(store)
+  t.after(() => app.close())
+  const badWorkspace = await app.inject({
+    method: 'GET',
+    url: '/api/control/workspaces/not-a-uuid/members',
+    cookies: { '__Host-conexus_session': 'session-1' },
+  })
+  assert.equal(badWorkspace.statusCode, 400)
+  const badAccount = await app.inject({
+    method: 'PUT',
+    url: `/api/control/workspaces/${workspaceId}/members/not-a-uuid`,
+    ...authentic,
+    payload: { role: 'owner' },
+  })
+  assert.equal(badAccount.statusCode, 400)
+  const badEntry = await app.inject({
+    method: 'DELETE',
+    url: `/api/control/workspaces/${workspaceId}/roster/member/not-a-uuid`,
+    ...authenticDelete,
+  })
+  assert.equal(badEntry.statusCode, 400)
+  const badWorkspaceOnEntry = await app.inject({
+    method: 'DELETE',
+    url: `/api/control/workspaces/not-a-uuid/roster/member/${memberAccountId}`,
+    ...authenticDelete,
+  })
+  assert.equal(badWorkspaceOnEntry.statusCode, 400)
+  assert.deepEqual(store.calls, [])
+})
+
+test('an invitation that belongs to a different Workspace is a 404, not a cross-Workspace cancel', async (t) => {
+  const otherWorkspaceId = '55555555-5555-4555-8555-555555555555'
+  const invitationId = '44444444-4444-4444-8444-444444444444'
+  const store = makeStore({
+    async roster({ workspaceId: queriedWorkspaceId }) {
+      store.calls.push({ name: 'roster', input: { actor: ownerAccountId, workspaceId: queriedWorkspaceId } })
+      if (queriedWorkspaceId === otherWorkspaceId) {
+        return {
+          viewerRole: 'owner',
+          entries: [{ kind: 'invitation', invitationId, email: 'ana@example.test', role: 'member', invitedAt: '2026-09-19T00:00:00.000Z', expiresAt: '2026-10-03T00:00:00.000Z' }],
+        }
+      }
+      return { viewerRole: 'owner', entries: [ownerEntry, memberEntry] }
+    },
+  })
+  const app = await createHubApp(store)
+  t.after(() => app.close())
+  // The invitation actually belongs to otherWorkspaceId; naming workspaceId in the URL must not
+  // let it through, and must never call cancelInvitation.
+  const response = await app.inject({
+    method: 'DELETE',
+    url: `/api/control/workspaces/${workspaceId}/roster/invitation/${invitationId}`,
+    ...authenticDelete,
+  })
+  assert.equal(response.statusCode, 404)
+  assert.equal(response.json().title, 'Roster entry not found')
+  assert.deepEqual(store.calls.map((call) => call.name), ['roster'])
+
+  // Naming the invitation's real Workspace succeeds.
+  const correct = await app.inject({
+    method: 'DELETE',
+    url: `/api/control/workspaces/${otherWorkspaceId}/roster/invitation/${invitationId}`,
+    ...authenticDelete,
+  })
+  assert.equal(correct.statusCode, 204)
+  assert.deepEqual(store.calls.map((call) => call.name), ['roster', 'roster', 'cancelInvitation'])
 })
 
 test('an anonymous caller gets 401 from the roster and from every write', async (t) => {

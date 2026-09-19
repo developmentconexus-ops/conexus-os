@@ -18,6 +18,15 @@ import type { AccountId, EmailAddress, InvitationId, ResolveCurrentSession, Work
 const INVITATION_MS = 14 * 24 * 60 * 60 * 1000
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
+const uuid = { type: 'string', format: 'uuid' } as const
+// The S1 generator emits no `params` schema, so a malformed id used to reach Postgres as a
+// `uuid` parameter and raise SQLSTATE 22P02, which the error handler could only see as a 500.
+// These merge a params schema onto the generated route definition so Ajv refuses first.
+const workspaceParamsSchema = { type: 'object', additionalProperties: false, required: ['workspaceId'], properties: { workspaceId: uuid } } as const
+const memberParamsSchema = { type: 'object', additionalProperties: false, required: ['workspaceId', 'accountId'], properties: { workspaceId: uuid, accountId: uuid } } as const
+// entryKind stays an unconstrained string here: the handler already answers 404 for a value
+// that is neither `member` nor `invitation`, and a schema enum would turn that into a 400.
+const rosterEntryParamsSchema = { type: 'object', additionalProperties: false, required: ['workspaceId', 'entryKind', 'entryId'], properties: { workspaceId: uuid, entryKind: { type: 'string' }, entryId: uuid } } as const
 
 export type WorkspaceRole = 'owner' | 'member'
 
@@ -135,6 +144,7 @@ export const registerMembershipRoutes = async (
 
   app.route<{ Params: WorkspaceParams }>({
     ...S1_GENERATED_ROUTES['IAM-04'],
+    schema: { ...S1_GENERATED_ROUTES['IAM-04'].schema, params: workspaceParamsSchema },
     handler: async (request, reply) => {
       const current = await resolveCurrentSession(request)
       if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
@@ -149,6 +159,7 @@ export const registerMembershipRoutes = async (
 
   app.route<{ Params: WorkspaceParams; Body: Iam05Body }>({
     ...S1_GENERATED_ROUTES['IAM-05'],
+    schema: { ...S1_GENERATED_ROUTES['IAM-05'].schema, params: workspaceParamsSchema },
     handler: async (request, reply) => {
       if (!authentic(request)) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
       const current = await resolveCurrentSession(request, true)
@@ -172,6 +183,7 @@ export const registerMembershipRoutes = async (
 
   app.route<{ Params: MemberParams; Body: Iam10Body }>({
     ...S1_GENERATED_ROUTES['IAM-10'],
+    schema: { ...S1_GENERATED_ROUTES['IAM-10'].schema, params: memberParamsSchema },
     handler: async (request, reply) => {
       if (!authentic(request)) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
       const current = await resolveCurrentSession(request, true)
@@ -196,6 +208,7 @@ export const registerMembershipRoutes = async (
 
   app.route<{ Params: RosterEntryParams }>({
     ...S1_GENERATED_ROUTES['IAM-06'],
+    schema: { ...S1_GENERATED_ROUTES['IAM-06'].schema, params: rosterEntryParamsSchema },
     handler: async (request, reply) => {
       if (!authentic(request)) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
       const current = await resolveCurrentSession(request, true)
@@ -212,6 +225,21 @@ export const registerMembershipRoutes = async (
             member: brandAccountId(entryId),
           })
         } else {
+          // `iam.cancel_workspace_invitation` resolves authority from the invitation's own
+          // Workspace, so it is never wrong about who may cancel it, but it never reads the
+          // `workspaceId` path segment either. Without this check an owner of one Workspace
+          // could cancel an invitation belonging to a different Workspace by naming its own
+          // Workspace in the URL, and a caller naming the invitation's real Workspace correctly
+          // would be refused. Requiring the invitation to actually be a roster entry of the
+          // path Workspace first makes the URL and the effect agree.
+          const pathRoster = await store.roster({
+            actor: current.account.accountId,
+            workspaceId: brandWorkspaceId(request.params.workspaceId),
+          })
+          const belongsToPathWorkspace = pathRoster?.entries.some(
+            (candidate) => candidate.kind === 'invitation' && candidate.invitationId === entryId,
+          ) ?? false
+          if (!belongsToPathWorkspace) return sendProblem(reply, 404, 'roster-entry-not-found', 'Roster entry not found')
           await store.cancelInvitation({
             actor: current.account.accountId,
             invitationId: brandInvitationId(entryId),
