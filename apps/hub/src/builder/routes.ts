@@ -7,6 +7,7 @@ import type { BuilderRunSummary, BuilderStore } from './store.js'
 import type { ApplicationArtifactMetadata } from './application-build.js'
 import type { ModelChoice } from '../model-connection/model-catalog.js'
 import type { BuilderLiveView } from './runtime.js'
+import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const uuid = { type: 'string', format: 'uuid' } as const
@@ -17,7 +18,6 @@ const sourceQuery = { type: 'object', additionalProperties: false, required: ['s
 const sourceFileQuery = { type: 'object', additionalProperties: false, required: ['sourceRevision', 'path'], properties: { sourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' }, path: { type: 'string', minLength: 1, maxLength: 4096 } } } as const
 
 export type BuilderOperationId = 'BLD-08' | 'BLD-09' | 'BLD-23' | 'BLD-24' | 'BLD-25' | 'BLD-26'
-type ResolveBuilderSession = (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
 export type BuilderMessagePart =
   | Readonly<{ kind: 'TEXT'; text: string }>
   | Readonly<{ kind: 'ACTIVITY'; id: string; label: BuilderLiveView['activities'][number]['label']; path?: string; state: 'succeeded' | 'failed' | 'interrupted'; durationMs?: number }>
@@ -70,7 +70,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
   store: BuilderStore
   service: BuilderService
   session?: BuilderSessionPort
-  resolveCurrentSession: ResolveBuilderSession
+  resolveCurrentSession: ResolveCurrentSession
   origin: string
   launchPreview?: BuilderLaunchPreviewPort
 }>): Promise<readonly BuilderOperationId[]> => {

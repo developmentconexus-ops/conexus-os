@@ -7,6 +7,7 @@ import type {
   Prj03Params,
 } from '../generated/s3-routes.js'
 import { sendProblem } from '../http/problem.js'
+import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { projectErrorCode } from './errors.js'
 import type { ProjectStore } from './store.js'
 
@@ -17,14 +18,11 @@ const driverCode = (error: unknown): string | undefined => {
   return typeof error.code === 'string' ? error.code : undefined
 }
 
-export type ProjectSession = Readonly<{ account: Readonly<{ accountId: string }> }>
-export type ResolveProjectSession = (request: FastifyRequest, requireCsrf?: boolean) => Promise<ProjectSession | null>
-
 export const registerProjectRoutes = async (
   app: FastifyInstance,
   dependencies: Readonly<{
     store: ProjectStore
-    resolveCurrentSession: ResolveProjectSession
+    resolveCurrentSession: ResolveCurrentSession
     origin: string
   }>,
 ): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03')[]> => {

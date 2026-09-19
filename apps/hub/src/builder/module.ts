@@ -29,6 +29,7 @@ import { createBuilderStore } from './store.js'
 import type { ModelChoice } from '../model-connection/model-catalog.js'
 import { createE2BApplicationCompiler } from './application-artifact-runtime.js'
 import { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } from './application-starter.js'
+import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 
 const BUILDER_THREAD_PREFIX = 'conexus-builder:'
 const threadIdForProject = (projectId: string): string => `${BUILDER_THREAD_PREFIX}${projectId}`
@@ -189,7 +190,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   validateModelCredential(): void
   resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => MastraLanguageModel
   origin: string
-  resolveCurrentSession: (request: import('fastify').FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
+  resolveCurrentSession: ResolveCurrentSession
 }>) => {
   const executorPool = createPostgresPool({ ...database, user: 'hub_rb_executor', password: readSecretFile(builder.executorPasswordFile) })
   const store = createBuilderStore({

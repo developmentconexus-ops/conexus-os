@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { S2_GENERATED_ROUTES } from '../generated/s2-routes.js'
 import type { S2OwnerId, Ws01Body, Ws02Params } from '../generated/s2-routes.js'
 import { sendProblem } from '../http/problem.js'
@@ -16,20 +17,10 @@ const driverCode = (error: unknown): string | undefined => {
 const internalFailure = (reply: Parameters<typeof sendProblem>[0]) =>
   sendProblem(reply, 500, 'internal-error', 'Internal server error')
 
-export type WorkspaceSession = Readonly<{
-  account: Readonly<{ accountId: string }>
-  issuer: string
-  subject: string
-}>
-export type ResolveWorkspaceSession = (
-  request: FastifyRequest,
-  requireCsrf?: boolean,
-) => Promise<WorkspaceSession | null>
-
 export type WorkspaceRouteDependencies = Readonly<{
   store: WorkspaceStore
-  resolveCurrentSession: ResolveWorkspaceSession
-  config: Readonly<{ origin: string; operatorIssuer: string; operatorSubject: string }>
+  resolveCurrentSession: ResolveCurrentSession
+  config: Readonly<{ origin: string }>
 }>
 
 export const registerWorkspaceRoutes = async (
@@ -45,9 +36,6 @@ export const registerWorkspaceRoutes = async (
       }
       const current = await resolveCurrentSession(request, true)
       if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      if (current.issuer !== config.operatorIssuer || current.subject !== config.operatorSubject) {
-        return sendProblem(reply, 403, 'platform-operator-required', 'Platform operator required')
-      }
       const idempotencyKey = header(request.headers['idempotency-key'])
       if (!idempotencyKey) return sendProblem(reply, 400, 'idempotency-key-required', 'Idempotency key required')
       try {

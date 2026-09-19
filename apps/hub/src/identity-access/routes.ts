@@ -56,13 +56,14 @@ export const registerIdentityAccessRoutes = async (
       const account = await store.resolveIdentity(identity)
       reply.clearCookie(OIDC_STATE_COOKIE, clearCookieOptions)
       if (account) {
+        await store.claimInvitations({ accountId: account.accountId, verifiedEmail: identity.verifiedEmail })
         const established = await store.createSession({ accountId: account.accountId })
         return reply
           .setCookie(SESSION_COOKIE, established.sessionToken, cookieOptions)
           .setCookie(CSRF_COOKIE, established.csrfToken, visibleCookieOptions)
           .redirect('/', 303)
       }
-      const bootstrapToken = await store.createBootstrapContext({
+      const bootstrapToken = await store.createProvisioningContext({
         ...identity,
         configuredIssuer: config.bootstrapIssuer,
         configuredSubject: config.bootstrapSubject,
@@ -118,20 +119,16 @@ export const registerIdentityAccessRoutes = async (
       const idempotencyKey = header(request.headers['idempotency-key'])
       if (!idempotencyKey) return sendProblem(reply, 400, 'idempotency-key-required', 'Idempotency key required')
       try {
-        let result
-        if ('externalSubject' in request.body) {
-          const current = await resolveCurrentSession(request, true)
-          if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-          if (current.issuer !== config.bootstrapIssuer || current.subject !== config.bootstrapSubject) {
-            return sendProblem(reply, 403, 'platform-operator-required', 'Platform operator required')
-          }
-          result = await store.provisionByOperator({ operator: current, issuer: config.bootstrapIssuer, idempotencyKey, ...request.body })
-        } else {
-          const bootstrapToken = request.cookies[BOOTSTRAP_COOKIE]
-          if (!bootstrapToken) return sendProblem(reply, 401, 'bootstrap-required', 'Bootstrap context required')
-          result = await store.provisionBootstrap({ bootstrapToken, idempotencyKey, ...request.body })
-          reply.clearCookie(BOOTSTRAP_COOKIE, clearCookieOptions).clearCookie(CSRF_COOKIE, clearCookieOptions)
-        }
+        const bootstrapToken = request.cookies[BOOTSTRAP_COOKIE]
+        if (!bootstrapToken) return sendProblem(reply, 401, 'bootstrap-required', 'Bootstrap context required')
+        const result = await store.provisionBootstrap({
+          bootstrapToken,
+          idempotencyKey,
+          configuredIssuer: config.bootstrapIssuer,
+          configuredSubject: config.bootstrapSubject,
+          ...request.body,
+        })
+        reply.clearCookie(BOOTSTRAP_COOKIE, clearCookieOptions).clearCookie(CSRF_COOKIE, clearCookieOptions)
         const { replayed: _replayed, ...body } = result
         return reply.code(201).send(body)
       } catch (error) {

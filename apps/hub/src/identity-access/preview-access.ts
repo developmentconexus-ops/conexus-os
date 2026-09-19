@@ -1,15 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto'
+import type { CurrentSession } from './current-session.js'
 
 const ENTRY_MS = 30_000
 const COOKIE_MS = 15 * 60 * 1000
 const MAX_RECORDS = 4_096
 const SWEEP_MS = 30_000
 
-type SessionReader = (input: Readonly<{ sessionDigest: Uint8Array; now: Date }>) => Promise<Readonly<{
-  account: Readonly<{ accountId: string }>
-  issuer: string
-  subject: string
-}> | null>
+type SessionReader = (input: Readonly<{ sessionDigest: Uint8Array; now: Date }>) => Promise<CurrentSession | null>
 
 export type PreviewRouteBinding = Readonly<{
   routeId: string

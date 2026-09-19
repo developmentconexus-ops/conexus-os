@@ -58,8 +58,6 @@ const workspace = config.database.workspace && s2ReadPool ? createWorkspaceModul
   }),
   readPool: s2ReadPool,
   origin: config.origin,
-  operatorIssuer: config.oidc.issuer,
-  operatorSubject: config.bootstrapSubject,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
 const credentialBackend = config.connections ? createEncryptedFileCredentialBackend({

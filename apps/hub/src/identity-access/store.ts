@@ -3,8 +3,12 @@ import type { BinaryLike } from 'node:crypto'
 import type { PoolClient, QueryResultRow } from 'pg'
 import { canonicalBytes } from '../../../../packages/canonical-json/src/index.mjs'
 import type { PostgresPool } from '../platform/postgres.js'
+import { accountId as brandAccountId } from './current-session.js'
+import type { AccountId, AccountSummary, CurrentSession, EmailAddress } from './current-session.js'
 import { identityAccessError, translatePostgresError } from './errors.js'
-import type { OidcIdentity, OidcTransaction } from './oidc.js'
+import type { OidcIdentity, OidcTransaction, VerifiedIdentity } from './oidc.js'
+
+export type { AccountSummary, CurrentSession }
 
 const IDLE_MS = 30 * 60 * 1000
 const ABSOLUTE_MS = 8 * 60 * 60 * 1000
@@ -13,8 +17,6 @@ const OIDC_MS = 10 * 60 * 1000
 const digest = (value: BinaryLike): Buffer => createHash('sha256').update(value).digest()
 const token = (): string => randomBytes(32).toString('base64url')
 
-export type AccountSummary = Readonly<{ accountId: string; displayName: string; email?: string }>
-export type CurrentSession = Readonly<{ account: AccountSummary; issuer: string; subject: string }>
 export type SessionTokens = Readonly<{ sessionToken: string; csrfToken: string }>
 export type ProvisionResult = AccountSummary & Readonly<{ replayed: boolean }>
 export type AccessibleWorkspace = Readonly<{ workspaceId: string; name: string }>
@@ -38,6 +40,7 @@ type OidcTransactionRow = QueryResultRow & {
 type BootstrapRow = QueryResultRow & {
   issuer: string
   external_subject: string
+  verified_email: string | null
   expires_at: Date
   consumed_at: Date | null
 }
@@ -61,7 +64,7 @@ type WorkspaceSummaryRow = QueryResultRow & {
 }
 
 const accountSummary = (row: AccountRow): AccountSummary => ({
-  accountId: row.account_id,
+  accountId: brandAccountId(row.account_id),
   displayName: row.display_name,
   ...(row.email ? { email: row.email } : {}),
 })
@@ -70,14 +73,14 @@ export type IdentityAccessStore = Readonly<{
   createOidcTransaction(input: OidcTransaction & Readonly<{ now?: Date }>): Promise<void>
   consumeOidcTransaction(input: Readonly<{ state: string; now?: Date }>): Promise<Readonly<{ pkceVerifier: string; nonce: string }> | null>
   resolveIdentity(identity: OidcIdentity): Promise<AccountSummary | null>
-  createBootstrapContext(input: OidcIdentity & Readonly<{ configuredIssuer: string; configuredSubject: string; now?: Date }>): Promise<string>
-  provisionBootstrap(input: Readonly<{ bootstrapToken: string; idempotencyKey: string; displayName: string; email?: string; now?: Date }>): Promise<ProvisionResult>
+  createProvisioningContext(input: VerifiedIdentity & Readonly<{ configuredIssuer: string; configuredSubject: string; now?: Date }>): Promise<string>
+  claimInvitations(input: Readonly<{ accountId: AccountId; verifiedEmail: EmailAddress | null }>): Promise<number>
+  provisionBootstrap(input: Readonly<{ bootstrapToken: string; idempotencyKey: string; configuredIssuer: string; configuredSubject: string; displayName: string; email?: string; now?: Date }>): Promise<ProvisionResult>
   createSession(input: Readonly<{ accountId: string; now?: Date }>): Promise<SessionTokens>
   validateSession(input: Readonly<{ sessionToken: string; csrfToken?: string; requireCsrf?: boolean; now?: Date }>): Promise<CurrentSession | null>
   readSession(input: Readonly<{ sessionToken?: string; sessionDigest?: Uint8Array; now?: Date }>): Promise<CurrentSession | null>
   listAccessibleWorkspaces(accountId: string): Promise<readonly AccessibleWorkspace[]>
   endSession(sessionToken: string, now?: Date): Promise<boolean>
-  provisionByOperator(input: Readonly<{ operator: CurrentSession; issuer: string; idempotencyKey: string; externalSubject: string; displayName: string; email?: string; now?: Date }>): Promise<ProvisionResult>
   close(): Promise<void>
 }>
 
@@ -140,27 +143,42 @@ export const createIdentityAccessStore = ({
         client.release()
       }
     },
-    createBootstrapContext({ issuer, subject, configuredIssuer, configuredSubject, now = new Date() }) {
-      if (issuer !== configuredIssuer || subject !== configuredSubject) throw identityAccessError('IDENTITY_NOT_ELIGIBLE')
+    createProvisioningContext({ issuer, subject, verifiedEmail, configuredIssuer, configuredSubject, now = new Date() }) {
       return transaction(async (client) => {
         if (await loadAccountByIdentity(client, issuer, subject, true)) throw identityAccessError('BOOTSTRAP_SEALED')
+        const configured = issuer === configuredIssuer && subject === configuredSubject
+        if (configured) {
+          const existing = await client.query('SELECT 1 FROM iam.account LIMIT 1')
+          if (existing.rowCount !== 0) throw identityAccessError('BOOTSTRAP_SEALED')
+        } else {
+          const invited = await client.query<QueryResultRow & { invited: boolean }>(
+            'SELECT iam.email_has_open_invitation($1) AS invited', [verifiedEmail])
+          if (!invited.rows[0]?.invited) throw identityAccessError('IDENTITY_NOT_ELIGIBLE')
+        }
         const raw = token()
         const inserted = await client.query(`
-          INSERT INTO iam.bootstrap_context(token_digest, issuer, external_subject, expires_at)
-          VALUES ($1, $2, $3, $4)
+          INSERT INTO iam.bootstrap_context(token_digest, issuer, external_subject, verified_email, expires_at)
+          VALUES ($1, $2, $3, $4, $5)
           ON CONFLICT (issuer, external_subject) DO UPDATE
-          SET token_digest = EXCLUDED.token_digest, expires_at = EXCLUDED.expires_at
-          WHERE iam.bootstrap_context.consumed_at IS NULL AND iam.bootstrap_context.expires_at <= $5
+          SET token_digest = EXCLUDED.token_digest, verified_email = EXCLUDED.verified_email, expires_at = EXCLUDED.expires_at
+          WHERE iam.bootstrap_context.consumed_at IS NULL AND iam.bootstrap_context.expires_at <= $6
           RETURNING token_digest
-        `, [digest(raw), issuer, subject, new Date(now.getTime() + BOOTSTRAP_MS), now])
+        `, [digest(raw), issuer, subject, verifiedEmail, new Date(now.getTime() + BOOTSTRAP_MS), now])
         if (inserted.rowCount !== 1) throw identityAccessError('BOOTSTRAP_SEALED')
         return raw
       })
     },
-    provisionBootstrap({ bootstrapToken, idempotencyKey, displayName, email, now = new Date() }) {
+    claimInvitations({ accountId, verifiedEmail }) {
+      return transaction(async (client) => {
+        const claimed = await client.query<QueryResultRow & { claimed: number }>(
+          'SELECT iam.claim_invitations($1, $2) AS claimed', [accountId, verifiedEmail])
+        return claimed.rows[0]?.claimed ?? 0
+      })
+    },
+    provisionBootstrap({ bootstrapToken, idempotencyKey, configuredIssuer, configuredSubject, displayName, email, now = new Date() }) {
       return transaction(async (client) => {
         const context = await client.query<BootstrapRow>(`
-          SELECT issuer, external_subject, expires_at, consumed_at
+          SELECT issuer, external_subject, verified_email, expires_at, consumed_at
           FROM iam.bootstrap_context WHERE token_digest = $1 FOR UPDATE
         `, [digest(bootstrapToken)])
         const row = context.rows[0]
@@ -170,11 +188,23 @@ export const createIdentityAccessStore = ({
         const replay = await reserve(client, authorityScope, idempotencyKey, request)
         if (replay) return { ...replay, replayed: true }
         if (row.consumed_at || now >= row.expires_at) throw identityAccessError('BOOTSTRAP_SEALED')
-        const account: AccountSummary = { accountId: randomUUID(), displayName, ...(email ? { email } : {}) }
+        // An invited Account's address is the claim the provider verified, never the form.
+        const invited = !(row.issuer === configuredIssuer && row.external_subject === configuredSubject)
+        const accountEmail = invited ? row.verified_email : (email ?? null)
+        const account: AccountSummary = {
+          accountId: brandAccountId(randomUUID()),
+          displayName,
+          ...(accountEmail ? { email: accountEmail } : {}),
+        }
         await client.query(`
           INSERT INTO iam.account(account_id, issuer, external_subject, display_name, email)
           VALUES ($1, $2, $3, $4, $5)
-        `, [account.accountId, row.issuer, row.external_subject, displayName, email ?? null])
+        `, [account.accountId, row.issuer, row.external_subject, displayName, accountEmail])
+        const claimed = await client.query<QueryResultRow & { claimed: number }>(
+          'SELECT iam.claim_invitations($1, $2) AS claimed', [account.accountId, row.verified_email])
+        // The invitation could have been cancelled between the callback and this form.
+        // Aborting here is what keeps an invited Account from existing with no membership.
+        if (invited && (claimed.rows[0]?.claimed ?? 0) === 0) throw identityAccessError('IDENTITY_NOT_ELIGIBLE')
         await client.query('UPDATE iam.bootstrap_context SET consumed_at = $2 WHERE token_digest = $1', [digest(bootstrapToken), now])
         await complete(client, authorityScope, idempotencyKey, account, now)
         return { ...account, replayed: false }
@@ -247,21 +277,6 @@ export const createIdentityAccessStore = ({
     async endSession(sessionToken, now = new Date()) {
       const result = await pool.query('UPDATE iam.session SET revoked_at = $2 WHERE token_digest = $1 AND revoked_at IS NULL', [digest(sessionToken), now])
       return result.rowCount === 1
-    },
-    provisionByOperator({ operator, issuer, idempotencyKey, externalSubject, displayName, email, now = new Date() }) {
-      return transaction(async (client) => {
-        const authorityScope = `operator:${operator.account.accountId}`
-        const request = { externalSubject, displayName, ...(email ? { email } : {}) }
-        const replay = await reserve(client, authorityScope, idempotencyKey, request)
-        if (replay) return { ...replay, replayed: true }
-        const account: AccountSummary = { accountId: randomUUID(), displayName, ...(email ? { email } : {}) }
-        await client.query(`
-          INSERT INTO iam.account(account_id, issuer, external_subject, display_name, email)
-          VALUES ($1, $2, $3, $4, $5)
-        `, [account.accountId, issuer, externalSubject, displayName, email ?? null])
-        await complete(client, authorityScope, idempotencyKey, account, now)
-        return { ...account, replayed: false }
-      })
     },
     close: () => pool.end(),
   })

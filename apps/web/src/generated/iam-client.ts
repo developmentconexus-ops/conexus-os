@@ -1,9 +1,9 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s1-contracts.mjs. Do not edit.
 export const S1_PRODUCT_OAS_DIGEST = "76ab8205639cb4fd3c4b8fc314331695f6137a116288f64440640056480d0748"
-export const S1_ROUTE_PROJECTION_DIGEST = "c17afa4ab427ffc9e93a7478818352dd5f78eea9d5bddfd34c1298e33484c1db"
+export const S1_ROUTE_PROJECTION_DIGEST = "97bb91fade56bec2842b803a11811b36a065cc89e2f1c08635c9ac75605192cc"
 export type AccountSummary = { "accountId": string; "displayName": string; "email"?: string }
 export type AccessContext = { "account": { "accountId": string; "displayName": string; "email"?: string }; "workspaces": { "workspaceId": string; "name": string }[]; "projects": { "projectId": string; "workspaceId": string; "name": string; "archived": boolean }[] }
-export type ProvisionAccountInput = { "externalSubject": string; "displayName": string; "email"?: string } | { "displayName": string; "email"?: string }
+export type ProvisionAccountInput = { "displayName": string; "email"?: string }
 export type WorkspaceRoster = { "viewerRole": string; "entries": { "kind": "member"; "accountId": string; "displayName": string; "email"?: string; "role": string; "since": string } | { "kind": "invitation"; "invitationId": string; "email": string; "role": string; "invitedAt": string; "expiresAt": string }[] }
 export type InviteWorkspaceMemberInput = { "email": string; "role": string }
 export type WorkspaceInvitation = { "kind": "invitation"; "invitationId": string; "email": string; "role": string; "invitedAt": string; "expiresAt": string }

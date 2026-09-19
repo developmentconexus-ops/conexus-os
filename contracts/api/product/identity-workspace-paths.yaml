@@ -63,7 +63,7 @@ paths:
       operationId: ProvisionAccount
       x-conexus-4a-id: IAM-03
       x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-authority-routes: [platform_operator, trusted_bootstrap_context]
+      x-conexus-authority-routes: [trusted_provisioning_context]
       x-conexus-current-state-carrier: IDEMPOTENCY_KEY
       x-conexus-contract-state: SCHEMA_CLOSED
       parameters:
@@ -73,9 +73,7 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: '#/components/schemas/ProvisionAccountRequest'
-                - $ref: '#/components/schemas/BootstrapProvisionAccountRequest'
+              $ref: '#/components/schemas/BootstrapProvisionAccountRequest'
       responses:
         '201':
           description: Conexus Account provisioned or the same admitted intake resolved to its already-created Account; Account presentation is returned without exposing provider authorization state.
@@ -615,35 +613,17 @@ components:
             oneOf:
               - $ref: '#/components/schemas/WorkspaceMemberEntry'
               - $ref: '#/components/schemas/WorkspaceInvitationEntry'
-    ProvisionAccountRequest:
-      type: object
-      additionalProperties: false
-      required: [externalSubject, displayName]
-      properties:
-        externalSubject:
-          type: string
-          minLength: 1
-          description: Stable subject from the single server-pinned configured authentication issuer; an ordinary trusted platform operator may identify the exact subject but cannot select issuer/provider authority.
-        displayName:
-          type: string
-          minLength: 1
-          pattern: '.*\S.*'
-          description: Required Conexus-owned human presentation for this Account; never authentication identity or authorization.
-        email:
-          type: string
-          format: email
-          description: Optional human presentation/contact value; never Account identity or authorization.
     BootstrapProvisionAccountRequest:
       type: object
       additionalProperties: false
       required: [displayName]
-      description: One-shot self-provisioning intake. externalSubject is resolved from the exact trusted bootstrap context and is never accepted from browser input.
+      description: One-shot self-provisioning intake. The external subject is resolved from the exact trusted provisioning context and is never accepted from browser input, and an invited Account's email comes from the verified provider claim rather than from this body.
       properties:
         displayName:
           type: string
           minLength: 1
           pattern: '.*\S.*'
-          description: Required Conexus-owned human presentation for the exact bootstrap subject.
+          description: Required Conexus-owned human presentation for the exact provisioning subject.
         email:
           type: string
           format: email

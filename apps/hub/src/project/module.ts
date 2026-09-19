@@ -9,7 +9,7 @@ import type { GitExecutionPort } from './git-execution.js'
 import { createGitImportAdmissionCatalog } from './git-import-admission.js'
 import type { GitImportAdmissionEntry } from './git-import-admission.js'
 import { registerProjectRoutes } from './routes.js'
-import type { ResolveProjectSession } from './routes.js'
+import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { ProjectSourceRecovery } from './source-recovery.js'
 import { createProjectSourceRecovery } from './source-recovery.js'
 import { createProjectStore } from './store.js'
@@ -34,7 +34,7 @@ export const createProjectModule = ({
   git: GitExecutionPort
   recovery: ProjectSourceRecovery
   origin: string
-  resolveCurrentSession: ResolveProjectSession
+  resolveCurrentSession: ResolveCurrentSession
 }>): ProjectModule => {
   const store = createProjectStore({ commandPool, readPool, git, recovery })
   return Object.freeze({
@@ -79,7 +79,7 @@ export const createConfiguredProjectModule = ({
   database: Readonly<{ host: string; port: number; database: string }>
   project: ProjectRuntimeConfig
   origin: string
-  resolveCurrentSession: ResolveProjectSession
+  resolveCurrentSession: ResolveCurrentSession
 }>): ProjectModule => {
   const catalogInput = readJsonFile(project.gitImportCatalogFile)
   const slotInput = readJsonFile(project.externalFileSlotsFile)

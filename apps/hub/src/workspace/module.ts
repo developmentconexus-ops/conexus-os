@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import type { PostgresPool } from '../platform/postgres.js'
+import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { registerWorkspaceRoutes } from './routes.js'
-import type { ResolveWorkspaceSession } from './routes.js'
 import { createWorkspaceStore } from './store.js'
 
 export type WorkspaceModule = Readonly<{
@@ -13,23 +13,19 @@ export const createWorkspaceModule = ({
   commandPool,
   readPool,
   origin,
-  operatorIssuer,
-  operatorSubject,
   resolveCurrentSession,
 }: Readonly<{
   commandPool: PostgresPool
   readPool: PostgresPool
   origin: string
-  operatorIssuer: string
-  operatorSubject: string
-  resolveCurrentSession: ResolveWorkspaceSession
+  resolveCurrentSession: ResolveCurrentSession
 }>): WorkspaceModule => {
   const store = createWorkspaceStore({ commandPool, readPool })
   return Object.freeze({
     registerWorkspaceRoutes: (app: FastifyInstance) => registerWorkspaceRoutes(app, {
       store,
       resolveCurrentSession,
-      config: { origin, operatorIssuer, operatorSubject },
+      config: { origin },
     }),
     close: async () => {
       await Promise.all([commandPool.end(), readPool.end()])
