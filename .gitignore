@@ -1,4 +1,7 @@
 node_modules/
+# Without this line the pattern above matches only a real directory, so a worktree that links its
+# dependencies with a symlink named node_modules gets it committed by `git add -A`.
+node_modules
 apps/hub/public/
 dist/
 coverage/

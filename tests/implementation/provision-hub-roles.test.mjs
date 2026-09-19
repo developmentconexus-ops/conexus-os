@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import { test } from 'node:test'
 import pg from 'pg'
-import { runCurrentHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { censusRoles, provisionRoles, readRegister } from '../../scripts/provision-hub-roles.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
@@ -63,7 +63,7 @@ test('provisioning repairs a role with no password and then writes nothing', { s
   connectionString.pathname = `/${database}`
   connectionString.username = admin.user
   connectionString.password = admin.password
-  await runCurrentHubMigrations({ connectionString: connectionString.toString() })
+  await runHubMigrations({ connectionString: connectionString.toString() })
 
   const executorPassword = `provision-executor-${randomUUID().slice(0, 8)}`
   const ingressPassword = `provision-ingress-${randomUUID().slice(0, 8)}`

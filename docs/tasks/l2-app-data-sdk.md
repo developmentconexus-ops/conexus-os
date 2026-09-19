@@ -156,9 +156,10 @@ any proposed execution limit or isolation property actually fires.
 The current [Preview projection](../../apps/hub/src/builder/preview.ts) returns
 `ready: false`. The MAR source surface inspected was managed-sync admission
 (`apps/hub/src/mar/admission.ts`, deleted 2026-09-19 with the retired R3
-gates), not a general function executor. The existing
-[R2 Registry schema](../../apps/hub/migrations/011_r2_brain_connections.sql)
-restricts its artifact kind to Brain. None proves an application-function
+gates), not a general function executor. The R2 Registry schema that restricted
+its artifact kind to Brain was deleted with the rest of the migration history on
+2026-09-19; the Registry the Hub has today is the `reg` schema of
+[the baseline](../../apps/hub/migrations/0001_baseline.sql). None proves an application-function
 producer, executable artifact admission or managed serving composition.
 
 ### Invariants and smallest authority routes

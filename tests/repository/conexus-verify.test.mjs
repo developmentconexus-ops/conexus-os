@@ -14,6 +14,8 @@ import {
   runVerification,
   runNpmScript,
   repositoryRoot,
+  STEP_TIMEOUT_MS,
+  timedOut,
 } from '../../scripts/conexus-verify.mjs'
 
 test('every test file the candidate graph names exists on disk', () => {
@@ -35,12 +37,13 @@ const packageScripts = Object.freeze({
 })
 
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
+  'hub-baseline', 'hub-baseline-adoption', 'hub-superseded-role-cleanup',
   'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-grant-surface-excision',
   'hub-call-site-privileges',
   'c020-builder-postgres', 'c020-mastra-lifecycle',
   'foundation-postgres', 'c020-registry', 'c020-source-runtime', 'c020-compiler-runtime',
   'c020-browser', 'c020-e2b-template', 'c020-hub-typecheck', 'c020-web-typecheck', 'c020-web-build',
-  'db-role-register', 'db-role-provision-postgres',
+  'db-catalog-snapshot', 'db-baseline-file', 'db-role-register', 'db-role-provision-postgres',
   'repository-check', 'repository-import-law',
   'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project',
   'repository-hygiene', 'repository-doc-index', 'repository-architecture',
@@ -48,7 +51,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'identity-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure', 'project-source-recovery',
   'project-git-execution', 'project-command-postgres', 'project-browser', 'shell-browser-boundary',
   'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
-  'model-connection-credentials', 'model-connection-dispatch', 'model-connection-migration-postgres',
+  'model-connection-credentials', 'model-connection-dispatch',
   'model-connection-http', 'model-connection-web-api', 'protected-cluster-coverage',
   'wire-openapi-lint', 'wire-openapi-bundle',
   'wire-bijection', 'wire-bijection-gate', 'wire-carriers', 'wire-identity-workspace',
@@ -179,6 +182,38 @@ test('candidate graph does not reference the deleted Change-era source-state tes
   assert.equal(CANDIDATE_GRAPH.some(({ command }) => command.includes('builder-working-source-state.test.mjs')), false)
 })
 
+test('a step that never exits is killed and reported by name', () => {
+  const candidate = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'static')
+  const result = runVerification({
+    scopes: ['test:one'],
+    packageScripts,
+    runCommand: () => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('spawnSync bash ETIMEDOUT'), { code: 'ETIMEDOUT' }) }),
+    clock: () => 0,
+  })
+  assert.equal(result.records[0].status, 'failed')
+  assert.equal(result.records[0].error, 'step exceeded 600s and was killed')
+  assert.equal(result.records[0].command, 'npm run test:one')
+  assert.equal(result.exitCode, 1)
+  assert.equal(result.stopped, true)
+  assert.ok(timedOut({ status: null, signal: 'SIGKILL', error: new Error('x') }))
+  assert.equal(timedOut({ status: 1 }), false)
+  assert.equal(STEP_TIMEOUT_MS, 600000)
+
+  // No step inherits stdin, so a child that waits for input reads end-of-file instead of hanging.
+  let observed
+  runNpmScript(candidate, {
+    root: '/tmp/conexus-verify-test',
+    processEnvironment: { PATH: '/fixture/bin' },
+    spawn: (file, args, options) => {
+      observed = options
+      return { status: 0 }
+    },
+  })
+  assert.deepEqual(observed.stdio, ['ignore', 'inherit', 'inherit'])
+  assert.equal(observed.timeout, STEP_TIMEOUT_MS)
+  assert.equal(observed.killSignal, 'SIGKILL')
+})
+
 test('candidate graph labels execution environments and passes shell argv correctly', () => {
   const classes = new Set(CANDIDATE_GRAPH.map(entry => entry.environmentClass))
   assert.deepEqual([...classes].sort(), ['browser', 'postgres', 'static'])
@@ -188,7 +223,7 @@ test('candidate graph labels execution environments and passes shell argv correc
   assert.equal(c020Browser.environmentClass, 'browser')
   assert.equal(c020Postgres.environmentClass, 'postgres')
 
-  const candidate = CANDIDATE_GRAPH[0]
+  const candidate = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'static')
   let observed
   runNpmScript(candidate, {
     root: '/tmp/conexus-verify-test',
@@ -201,7 +236,14 @@ test('candidate graph labels execution environments and passes shell argv correc
   assert.deepEqual(observed, {
     file: 'bash',
     args: ['-lc', candidate.command],
-    options: { cwd: '/tmp/conexus-verify-test', windowsHide: true, stdio: 'inherit', env: { PATH: '/fixture/bin' } },
+    options: {
+      cwd: '/tmp/conexus-verify-test',
+      windowsHide: true,
+      stdio: ['ignore', 'inherit', 'inherit'],
+      timeout: STEP_TIMEOUT_MS,
+      killSignal: 'SIGKILL',
+      env: { PATH: '/fixture/bin' },
+    },
   })
 
   const postgresDefaults = executionEnvironment(c020Postgres, { PATH: '/fixture/bin' })

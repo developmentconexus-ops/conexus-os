@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import pg from 'pg'
-import { loadCurrentHubMigrationFiles, runSelectedHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -98,10 +98,7 @@ const migratedDatabase = async (t) => {
     await Promise.all(pools.map((pool) => pool.end()))
     await query(admin, `DROP DATABASE "${database}" WITH (FORCE)`)
   })
-  await runSelectedHubMigrations({
-    connectionString: connectionStringFor(connection),
-    migrations: loadCurrentHubMigrationFiles(), catalogSnapshot: null,
-  })
+  await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
   return {
     connection,
     poolAs: async (role) => {

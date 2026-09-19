@@ -10,7 +10,7 @@ import { chromium } from '@playwright/test'
 import { createServer } from 'vite'
 import { createServer as createTcpServer } from 'node:net'
 import pg from 'pg'
-import { runCurrentHubMigrations } from '../../../scripts/run-hub-migrations.mjs'
+import { runHubMigrations } from '../../../scripts/run-hub-migrations.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../../..')
 const outputArg = process.argv.find((value) => value.startsWith('--output='))
@@ -312,7 +312,7 @@ const measureProductJourneys = async (built, modules, root) => {
     await owner.query(`CREATE DATABASE "${database}"`)
     const current = { ...admin, database }
     phase = 'apply-current-hub-migrations'
-    const migration = await runCurrentHubMigrations({ connectionString: connectionString(current) })
+    const migration = await runHubMigrations({ connectionString: connectionString(current) })
     phase = 'seed-disposable-account-and-workspace'
     setup = new pg.Client(current)
     await setup.connect()
@@ -807,7 +807,7 @@ const probeProductComposition = async (built, modules, root) => {
     ownerConnected = true
     await owner.query(`CREATE DATABASE "${database}"`)
     const current = { ...admin, database }
-    const migration = await runCurrentHubMigrations({ connectionString: connectionString(current) })
+    const migration = await runHubMigrations({ connectionString: connectionString(current) })
     sample.migrationVersions = migration.versions
     setup = new pg.Client(current)
     await setup.connect()

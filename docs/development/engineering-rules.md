@@ -32,6 +32,27 @@ For Mastra-sensitive work, load `.agents/skills/mastra/SKILL.md`. Use current Co
 
 Qualification suites under `qualification/` prove only their named claims. Live provider/model/E2B/Sankhya execution requires explicit authority for the exact proof task; it is never implied by a green repository gate.
 
+## Database migrations
+
+The Hub's schema is one baseline file, `apps/hub/migrations/0001_baseline.sql`, plus the forward
+migrations added after it. Every migration is four-digit, applied once, pinned by SHA-256 in
+`scripts/run-hub-migrations.mjs`, and recorded in `iam.schema_migration`. A migration that has been
+applied anywhere is never edited: correct it with the next number.
+
+The baseline is regenerated only by an explicit squash decision by the operator, and only when
+every real installation can be carried across it. The decision has to carry two things. The first is
+a digest-equality proof: a database built from the new baseline alone produces the same
+`scripts/hub-catalog.mjs` digest as a database built the old way, with any difference named and
+justified. The second is an adoption path for every installation that is behind the new baseline,
+which replaces its ledger in one transaction and refuses unless its catalog already equals the
+baseline's. Both were done for the 2026-09-19 squash of migrations 001 to 059; the record is in that
+pull request.
+
+`scripts/generate-hub-baseline.mjs` is the only writer of the baseline file. It applies the
+committed file to a throwaway database, reads the schema back with `pg_dump --schema-only` and
+re-renders it, so the committed bytes are a fixed point of their own generator. Run
+`npm run db:baseline:check` after touching it, and never edit the file by hand.
+
 ## Verification
 
 Required verification:

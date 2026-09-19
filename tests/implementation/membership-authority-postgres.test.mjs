@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import { test } from 'node:test'
 import pg from 'pg'
-import { runCurrentHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every(name => process.env[name])
 const connect = async (connection) => { const client = new pg.Client(connection); await client.connect(); return client }
@@ -37,7 +37,7 @@ test('the membership authority derives every right from one role row and revokes
   connectionString.pathname = `/${database}`
   connectionString.username = current.user
   connectionString.password = current.password
-  await runCurrentHubMigrations({ connectionString: connectionString.toString() })
+  await runHubMigrations({ connectionString: connectionString.toString() })
   client = await connect(current)
 
   const account = async (label, { active = true } = {}) => {

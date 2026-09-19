@@ -8,12 +8,8 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
-import { loadR1MigrationFiles, runCurrentHubMigrations, runR1HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
-
-// The R1 corpus is whatever loadR1MigrationFiles admits. A literal list here rotted twice as the
-// corpus grew, and nothing noticed because these suites were outside the candidate graph.
-const r1Versions = loadR1MigrationFiles().map(({ version }) => version)
 
 const { Client } = pg
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -80,17 +76,14 @@ test('real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback bo
     const cleanup = new Client(adminConnection)
     await cleanup.connect()
     try {
-      await cleanup.query('ALTER ROLE hub_prj03_command PASSWORD NULL').catch(() => {})
+      await cleanup.query('ALTER ROLE hub_project_command PASSWORD NULL').catch(() => {})
       await cleanup.query(`DROP DATABASE ${quoteIdentifier(database)} WITH (FORCE)`)
     } finally {
       await cleanup.end()
     }
   })
 
-  const migration = await runR1HubMigrations({ connectionString: connectionString(fresh) })
-  assert.deepEqual(migration.appliedNow, r1Versions)
-  assert.deepEqual(migration.versions, r1Versions)
-  assert.deepEqual((await runR1HubMigrations({ connectionString: connectionString(fresh) })).appliedNow, [])
+  await runHubMigrations({ connectionString: connectionString(fresh) })
 
   const accountId = '10000000-0000-4000-8000-000000000031'
   const workspaceId = '20000000-0000-4000-8000-000000000031'
@@ -102,26 +95,26 @@ test('real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback bo
   `, [accountId])
   await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'S3 Workspace')`, [workspaceId])
   await query(fresh, `
-    INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project)
-    VALUES ($1, $2, true)
+    INSERT INTO iam.workspace_membership(account_id, workspace_id, role)
+    VALUES ($1, $2, 'owner')
   `, [accountId, workspaceId])
 
   const commandPassword = 's3-p1-command-test-only'
-  await query(fresh, `ALTER ROLE hub_prj03_command PASSWORD '${commandPassword}'`)
-  const commandConnection = { ...fresh, user: 'hub_prj03_command', password: commandPassword }
+  await query(fresh, `ALTER ROLE hub_project_command PASSWORD '${commandPassword}'`)
+  const commandConnection = { ...fresh, user: 'hub_project_command', password: commandPassword }
   const command = new Client(commandConnection)
   const contender = new Client(commandConnection)
   await command.connect()
   await contender.connect()
   liveClients.push(command, contender)
 
-  await query(fresh, `UPDATE iam.workspace_membership SET can_create_project = false WHERE account_id = $1 AND workspace_id = $2`, [accountId, workspaceId])
+  await query(fresh, `DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2`, [accountId, workspaceId])
   await assert.rejects(
     command.query('SELECT * FROM project.reserve_or_replay_create_project($1, $2, $3, $4, $5)', [accountId, workspaceId, digest('0'), digest('b'), projectId]),
-    /PRJ03_CREATE_NOT_AUTHORIZED/,
+    /NOT_ADMITTED/,
   )
   assert.deepEqual((await query(fresh, `SELECT count(*)::integer AS count FROM project.operation_idempotency`)).rows, [{ count: 0 }])
-  await query(fresh, `UPDATE iam.workspace_membership SET can_create_project = true WHERE account_id = $1 AND workspace_id = $2`, [accountId, workspaceId])
+  await query(fresh, `INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')`, [accountId, workspaceId])
 
   await assert.rejects(command.query('SELECT * FROM project.project'), /permission denied/)
   await assert.rejects(command.query('INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, $3, $4, $5, $6)', [projectId, workspaceId, 'Denied', 'NEW', 'a', 'b']), /permission denied/)
@@ -139,14 +132,13 @@ test('real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback bo
   const keyDigest = digest('a')
   const requestDigest = digest('b')
   const responseDigest = digest('c')
-  const responseBody = { projectId, workspaceId, name: 'Project One', sourceMode: 'NEW', sourceRevision: 'source-1', projectRevision: 'project-1', archived: false }
+  const responseBody = { projectId, workspaceId, name: 'Project One', sourceMode: 'NEW', sourceRevision: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', projectRevision: 'project-1', archived: false }
   await command.query('BEGIN')
   const reservation = await command.query('SELECT * FROM project.reserve_or_replay_create_project($1, $2, $3, $4, $5)', [accountId, workspaceId, keyDigest, requestDigest, projectId])
   assert.deepEqual(reservation.rows, [{ state: 'RESERVED', project_id: projectId, response_status: null, response_body: null }])
   const locked = await command.query('SELECT * FROM project.lock_create_project_receipt($1, $2, $3, $4, $5)', [accountId, workspaceId, keyDigest, requestDigest, projectId])
   assert.deepEqual(locked.rows, [{ outcome: 'RESERVED', project_id: projectId }])
-  await command.query('SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)', [accountId, workspaceId, keyDigest, requestDigest, projectId, 'Project One', 'NEW', 'source-1', 'project-1'])
-  await command.query('SELECT iam.establish_project_creator_grant($1, $2, $3, $4, $5)', [accountId, workspaceId, keyDigest, requestDigest, projectId])
+  await command.query('SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)', [accountId, workspaceId, keyDigest, requestDigest, projectId, 'Project One', 'NEW', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'project-1'])
   await command.query('SELECT project.complete_create_project_receipt($1, $2, $3, $4, $5, $6, $7, $8)', [accountId, workspaceId, keyDigest, requestDigest, projectId, 201, responseDigest, responseBody])
   const replay = await command.query('SELECT * FROM project.reserve_or_replay_create_project($1, $2, $3, $4, $5)', [accountId, workspaceId, keyDigest, requestDigest, otherProjectId])
   assert.deepEqual(replay.rows, [{ state: 'REPLAY', project_id: projectId, response_status: 201, response_body: responseBody }])
@@ -163,14 +155,10 @@ test('real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback bo
       await command.query('ROLLBACK')
     }
   }
-  await rollbackCase('e', () => command.query('SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)', [accountId, workspaceId, digest('e'), requestDigest, projectId, '', 'NEW', 'source-1', 'project-1']), /check constraint/)
-  await rollbackCase('f', async () => {
-    await command.query('SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)', [accountId, workspaceId, digest('f'), requestDigest, projectId, 'Project One', 'NEW', 'source-1', 'project-1'])
-    return command.query('SELECT project.complete_create_project_receipt($1, $2, $3, $4, $5, $6, $7, $8)', [accountId, workspaceId, digest('f'), requestDigest, projectId, 201, responseDigest, responseBody])
-  }, /PRJ03_SETTLEMENT_INCOMPLETE/)
+  await rollbackCase('e', () => command.query('SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)', [accountId, workspaceId, digest('e'), requestDigest, projectId, '', 'NEW', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'project-1']), /check constraint/)
+  await rollbackCase('f', () => command.query('SELECT project.complete_create_project_receipt($1, $2, $3, $4, $5, $6, $7, $8)', [accountId, workspaceId, digest('f'), requestDigest, projectId, 201, responseDigest, responseBody]), /PRJ03_SETTLEMENT_INCOMPLETE/)
   await rollbackCase('1', async () => {
-    await command.query('SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)', [accountId, workspaceId, digest('1'), requestDigest, projectId, 'Project One', 'NEW', 'source-1', 'project-1'])
-    await command.query('SELECT iam.establish_project_creator_grant($1, $2, $3, $4, $5)', [accountId, workspaceId, digest('1'), requestDigest, projectId])
+    await command.query('SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)', [accountId, workspaceId, digest('1'), requestDigest, projectId, 'Project One', 'NEW', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'project-1'])
     return command.query('SELECT project.complete_create_project_receipt($1, $2, $3, $4, $5, $6, $7, $8)', [accountId, workspaceId, digest('1'), requestDigest, projectId, 201, 'invalid', responseBody])
   }, /check constraint/)
 
@@ -178,12 +166,12 @@ test('real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback bo
   await command.query('BEGIN')
   await command.query('SELECT * FROM project.reserve_or_replay_create_project($1, $2, $3, $4, $5)', [accountId, workspaceId, lockKey, requestDigest, otherProjectId])
   await command.query('COMMIT')
-  await query(fresh, `UPDATE iam.workspace_membership SET can_create_project = false WHERE account_id = $1 AND workspace_id = $2`, [accountId, workspaceId])
+  await query(fresh, `DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2`, [accountId, workspaceId])
   await assert.rejects(
     command.query('SELECT * FROM project.lock_create_project_receipt($1, $2, $3, $4, $5)', [accountId, workspaceId, lockKey, requestDigest, otherProjectId]),
-    /PRJ03_CREATE_NOT_AUTHORIZED/,
+    /NOT_ADMITTED/,
   )
-  await query(fresh, `UPDATE iam.workspace_membership SET can_create_project = true WHERE account_id = $1 AND workspace_id = $2`, [accountId, workspaceId])
+  await query(fresh, `INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')`, [accountId, workspaceId])
   await command.query('BEGIN')
   await command.query('SELECT * FROM project.lock_create_project_receipt($1, $2, $3, $4, $5)', [accountId, workspaceId, lockKey, requestDigest, otherProjectId])
   await contender.query('BEGIN')
@@ -195,10 +183,9 @@ test('real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback bo
 
   const durable = await query(fresh, `
     SELECT (SELECT count(*)::integer FROM project.project) AS project_count,
-      (SELECT count(*)::integer FROM iam.account_project_grant) AS grant_count,
       (SELECT count(*)::integer FROM project.operation_idempotency WHERE outcome = 'SUCCEEDED') AS terminal_receipt_count
   `)
-  assert.deepEqual(durable.rows, [{ project_count: 0, grant_count: 0, terminal_receipt_count: 0 }])
+  assert.deepEqual(durable.rows, [{ project_count: 0, terminal_receipt_count: 0 }])
 
 })
 
@@ -219,17 +206,14 @@ test('real PostgreSQL proves receipt-locked abandoned-attempt cleanup compositio
     const cleanup = new Client(adminConnection)
     await cleanup.connect()
     try {
-      await cleanup.query('ALTER ROLE hub_prj03_command PASSWORD NULL').catch(() => {})
+      await cleanup.query('ALTER ROLE hub_project_command PASSWORD NULL').catch(() => {})
       await cleanup.query(`DROP DATABASE ${quoteIdentifier(database)} WITH (FORCE)`)
     } finally {
       await cleanup.end()
     }
   })
 
-  const migration = await runR1HubMigrations({ connectionString: connectionString(fresh) })
-  assert.deepEqual(migration.appliedNow, r1Versions)
-  assert.deepEqual(migration.versions, r1Versions)
-  assert.deepEqual((await runR1HubMigrations({ connectionString: connectionString(fresh) })).appliedNow, [])
+  await runHubMigrations({ connectionString: connectionString(fresh) })
 
   const accountId = '10000000-0000-4000-8000-000000000041'
   const workspaceId = '20000000-0000-4000-8000-000000000041'
@@ -239,13 +223,13 @@ test('real PostgreSQL proves receipt-locked abandoned-attempt cleanup compositio
   `, [accountId])
   await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'S3 P4-B Workspace')`, [workspaceId])
   await query(fresh, `
-    INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project)
-    VALUES ($1, $2, true)
+    INSERT INTO iam.workspace_membership(account_id, workspace_id, role)
+    VALUES ($1, $2, 'owner')
   `, [accountId, workspaceId])
 
   const commandPassword = 's3-p4b-command-test-only'
-  await query(fresh, `ALTER ROLE hub_prj03_command PASSWORD '${commandPassword}'`)
-  const commandConnection = { ...fresh, user: 'hub_prj03_command', password: commandPassword }
+  await query(fresh, `ALTER ROLE hub_project_command PASSWORD '${commandPassword}'`)
+  const commandConnection = { ...fresh, user: 'hub_project_command', password: commandPassword }
   const command = new Client(commandConnection)
   const contender = new Client(commandConnection)
   await command.connect()
@@ -337,11 +321,7 @@ test('real PostgreSQL proves receipt-locked abandoned-attempt cleanup compositio
   await reserve(command, terminalKey, terminalProjectId)
   await command.query(
     'SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-    [accountId, workspaceId, terminalKey, requestDigest, terminalProjectId, 'Terminal', 'NEW', 'source-terminal', 'project-terminal'],
-  )
-  await command.query(
-    'SELECT iam.establish_project_creator_grant($1, $2, $3, $4, $5)',
-    [accountId, workspaceId, terminalKey, requestDigest, terminalProjectId],
+    [accountId, workspaceId, terminalKey, requestDigest, terminalProjectId, 'Terminal', 'NEW', '2222222222222222222222222222222222222222', 'project-terminal'],
   )
   await command.query(
     'SELECT project.complete_create_project_receipt($1, $2, $3, $4, $5, $6, $7, $8)',
@@ -462,7 +442,7 @@ test('real PostgreSQL proves current project.read disclosure and revocation', as
     }
   })
 
-  await runCurrentHubMigrations({ connectionString: connectionString(fresh) })
+  await runHubMigrations({ connectionString: connectionString(fresh) })
   const accountId = '10000000-0000-4000-8000-000000000081'
   const otherAccountId = '10000000-0000-4000-8000-000000000082'
   const workspaceId = '20000000-0000-4000-8000-000000000081'

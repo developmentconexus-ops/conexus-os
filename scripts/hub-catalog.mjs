@@ -66,28 +66,19 @@ export const describeCatalogDrift = (actual, expected, limit = 6) => {
 export const readCommittedSnapshot = (root = repositoryRoot) =>
   JSON.parse(readFileSync(resolve(root, catalogSnapshotPath), 'utf8'))
 
-// Refuses the catalog when it is not the one a clean replay of the ledger's versions produces.
-// Only the head version carries a full catalog, so earlier versions report by digest alone.
-export const assertCatalogAt = async (client, snapshot, version) => {
-  const expected = snapshot.digests[version]
-  if (!expected) fail('MIGRATION_CATALOG_VERSION_UNKNOWN', version)
+// Refuses the catalog when it is not the one the committed migrations produce. The snapshot always
+// carries the full expected catalog, so drift is always named by line rather than by digest.
+export const assertCatalog = async (client, snapshot) => {
   const actual = await readCatalog(client)
-  if (catalogDigest(actual) === expected) return
-  const detail = version === snapshot.head ? describeCatalogDrift(actual, snapshot.catalog) : `version ${version} digest ${catalogDigest(actual)} expected ${expected}`
-  fail('MIGRATION_CATALOG_DRIFT', detail)
+  if (catalogDigest(actual) === catalogDigest(snapshot.catalog)) return
+  fail('MIGRATION_CATALOG_DRIFT', describeCatalogDrift(actual, snapshot.catalog))
 }
 
 // These are the properties a regenerated snapshot must never be able to bless, so they are
 // asserted directly rather than compared. No Hub role may hold an attribute that bypasses the
 // owner boundary, and no Hub or owner role may be a member of another, which is the SET ROLE path
 // docs/reference/data-and-persistence.md section 6.2 forbids.
-// 053 is the version that first makes "no function in the Hub's schemas is executable by PUBLIC"
-// true, by revoking the two Builder functions that had been PUBLIC since 023 and 034. Replaying
-// history has to stay possible, so the invariant is asserted from that version onward rather than
-// retroactively against every intermediate database.
-export const PUBLIC_EXECUTE_INVARIANT_FROM = '053'
-
-export const assertRoleInvariants = async (client, appliedVersion = null) => {
+export const assertRoleInvariants = async (client) => {
   const elevated = (await client.query(`
     SELECT rolname FROM pg_roles
     WHERE (rolname LIKE 'hub\\_%' OR rolname LIKE '%\\_owner')
@@ -133,21 +124,14 @@ export const assertRoleInvariants = async (client, appliedVersion = null) => {
   // EXECUTE is the second fence after the route. CREATE FUNCTION grants EXECUTE to PUBLIC by
   // default, so a migration that forgets one REVOKE hands that fence to every role with USAGE on
   // the schema, silently and with no drift in the catalog snapshot, because the snapshot records
-  // the wrong ACL as the truth. 053 was written without them and both gates passed. The rule is
-  // absolute: no allowlist, because every function the Hub calls is reached as a named login
-  // role that holds an explicit grant.
-  // The model connection schema is listed under both its names on purpose. It is claude_connection
-  // at versions 053 and 054 and model_connection from 056, and a replay asserts this invariant at
-  // every one of those versions, so dropping the old name would stop covering the schema for the
-  // versions that still carry it.
-  if (appliedVersion !== null && appliedVersion < PUBLIC_EXECUTE_INVARIANT_FROM) return
-
+  // the wrong ACL as the truth. The rule is absolute: no allowlist, because every function the Hub
+  // calls is reached as a named login role that holds an explicit grant.
   const publicExecutable = (await client.query(`
     SELECT n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' AS signature
     FROM pg_proc AS p
     JOIN pg_namespace AS n ON n.oid = p.pronamespace
     CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) AS entry
-    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'claude_connection', 'model_connection')
+    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'model_connection')
       AND entry.grantee = 0
       AND entry.privilege_type = 'EXECUTE'
     ORDER BY 1

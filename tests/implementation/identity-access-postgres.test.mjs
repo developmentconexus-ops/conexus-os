@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
-import { runCurrentHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const { Client } = pg
@@ -57,7 +57,7 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   url.pathname = `/${database}`
   url.username = installed.user
   url.password = installed.password
-  await runCurrentHubMigrations({ connectionString: url.toString() })
+  await runHubMigrations({ connectionString: url.toString() })
   await admin.query(`ALTER ROLE hub_iam_runtime PASSWORD 'runtime-test-only'`)
 
   const runtimeConnection = { ...installed, user: 'hub_iam_runtime', password: 'runtime-test-only' }

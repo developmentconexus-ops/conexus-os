@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 import pg from 'pg'
 import { catalogDigest, catalogSnapshotPath, describeCatalogDrift, readCatalog } from './hub-catalog.mjs'
-import { loadCurrentHubMigrationFiles, runSelectedHubMigrations } from './run-hub-migrations.mjs'
+import { baselineVersion, runHubMigrations } from './run-hub-migrations.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
 
@@ -47,22 +47,15 @@ export const buildSnapshot = async (admin = readAdmin()) => {
   try {
     await refuseProtectedCluster(owner)
     await owner.query(`CREATE DATABASE "${database}"`)
-    const migrations = loadCurrentHubMigrationFiles()
     const connectionString = connectionStringFor(admin, database)
-    const digests = {}
-    let catalog
-    for (let index = 0; index < migrations.length; index += 1) {
-      await runSelectedHubMigrations({ connectionString, migrations: migrations.slice(0, index + 1), recognizedMigrations: migrations, catalogSnapshot: null })
-      const client = new pg.Client({ connectionString })
-      await client.connect()
-      try {
-        catalog = await readCatalog(client)
-      } finally {
-        await client.end()
-      }
-      digests[migrations[index].version] = catalogDigest(catalog)
+    const { versions } = await runHubMigrations({ connectionString, catalogSnapshot: null })
+    const client = new pg.Client({ connectionString })
+    await client.connect()
+    try {
+      return { format: 2, head: versions.at(-1) ?? baselineVersion, catalog: await readCatalog(client) }
+    } finally {
+      await client.end()
     }
-    return { format: 1, head: migrations.at(-1).version, digests, catalog }
   } finally {
     await owner.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`)
     await owner.end()
@@ -77,13 +70,11 @@ if (isEntrypoint) {
   const snapshot = await buildSnapshot()
   if (process.argv.includes('--check')) {
     const committed = JSON.parse(readFileSync(target, 'utf8'))
-    if (committed.head !== snapshot.head) fail('CATALOG_SNAPSHOT_HEAD_DRIFT', `${committed.head} committed, ${snapshot.head} replayed`)
-    for (const [version, digest] of Object.entries(snapshot.digests)) {
-      if (committed.digests[version] !== digest) fail('CATALOG_SNAPSHOT_DIGEST_DRIFT', `version ${version}; ${describeCatalogDrift(snapshot.catalog, committed.catalog) ?? 'head catalog unchanged'}`)
-    }
-    process.stdout.write(`${JSON.stringify({ verdict: 'CURRENT', head: snapshot.head, versions: Object.keys(snapshot.digests).length })}\n`)
+    if (committed.head !== snapshot.head) fail('CATALOG_SNAPSHOT_HEAD_DRIFT', `${committed.head} committed, ${snapshot.head} built`)
+    if (catalogDigest(committed.catalog) !== catalogDigest(snapshot.catalog)) fail('CATALOG_SNAPSHOT_DIGEST_DRIFT', describeCatalogDrift(snapshot.catalog, committed.catalog))
+    process.stdout.write(`${JSON.stringify({ verdict: 'CURRENT', head: snapshot.head, digest: catalogDigest(snapshot.catalog) })}\n`)
   } else {
     writeFileSync(target, renderSnapshot(snapshot))
-    process.stdout.write(`${JSON.stringify({ verdict: 'WRITTEN', head: snapshot.head, versions: Object.keys(snapshot.digests).length })}\n`)
+    process.stdout.write(`${JSON.stringify({ verdict: 'WRITTEN', head: snapshot.head, digest: catalogDigest(snapshot.catalog) })}\n`)
   }
 }

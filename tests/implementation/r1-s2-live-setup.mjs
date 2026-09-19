@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import pg from 'pg'
 import { provisionKeycloak } from '../../qualification/4d/r1-foundation/http-identity-session/keycloak-provision.mjs'
-import { runR1HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 
 const { Client } = pg
 const required = (name) => {
@@ -15,7 +15,7 @@ const writeSecret = (name, value) => writeFileSync(required(name), `${value}\n`,
 const databaseName = 'conexus_s1'
 const adminPassword = required('POSTGRES_ADMIN_PASSWORD')
 const connectionString = `postgresql://postgres:${encodeURIComponent(adminPassword)}@postgres:5432/${databaseName}`
-const migration = await runR1HubMigrations({ connectionString })
+const migration = await runHubMigrations({ connectionString })
 
 const admin = new Client({ host: 'postgres', port: 5432, database: databaseName, user: 'postgres', password: adminPassword })
 await admin.connect()

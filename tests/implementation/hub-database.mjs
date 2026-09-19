@@ -1,0 +1,85 @@
+import { randomUUID } from 'node:crypto'
+import pg from 'pg'
+import { readCatalog } from '../../scripts/hub-catalog.mjs'
+import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
+
+const required = (name) => {
+  const value = process.env[name]
+  if (!value) throw new Error(`MISSING_TEST_CONFIG_${name}`)
+  return value
+}
+
+export const adminConnection = () => ({
+  host: required('CONEXUS_TEST_DB_HOST'),
+  port: Number(required('CONEXUS_TEST_DB_PORT')),
+  database: required('CONEXUS_TEST_DB_NAME'),
+  user: required('CONEXUS_TEST_DB_USER'),
+  password: required('CONEXUS_TEST_DB_PASSWORD'),
+})
+
+export const connectionStringFor = (connection, database) => {
+  const url = new URL('postgresql://localhost')
+  url.hostname = connection.host
+  url.port = String(connection.port)
+  url.pathname = `/${database}`
+  url.username = connection.user
+  url.password = connection.password
+  return url.toString()
+}
+
+// Every suite that needs the Hub's schema gets it the way a new installation does: one empty
+// database, one baseline.
+// Dropping WITH (FORCE) terminates any client still connected, and the pool then reports that
+// termination as an unhandled error, so the caller's own teardown has to finish first. node:test
+// runs after-hooks in registration order and this helper registers before the caller, so callers
+// hand their teardown to onCleanup rather than registering a hook of their own.
+export const createEmptyDatabase = async (t, prefix = 'conexus_hub') => {
+  await refuseProtectedCluster()
+  const connection = adminConnection()
+  const database = `${prefix}_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 10)}`
+  const admin = new pg.Client(connection)
+  await admin.connect()
+  await admin.query(`CREATE DATABASE "${database}"`)
+  const cleanups = []
+  t.after(async () => {
+    for (const cleanup of cleanups.reverse()) await cleanup().catch(() => {})
+    await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`)
+    await admin.end()
+  })
+  return {
+    admin,
+    connection: { ...connection, database },
+    database,
+    connectionString: connectionStringFor(connection, database),
+    onCleanup: (cleanup) => cleanups.push(cleanup),
+  }
+}
+
+export const buildHubDatabase = async (t, prefix = 'conexus_hub') => {
+  const fixture = await createEmptyDatabase(t, prefix)
+  await runHubMigrations({ connectionString: fixture.connectionString })
+  return fixture
+}
+
+export const withClient = async (connectionString, body) => {
+  const client = new pg.Client({ connectionString })
+  await client.connect()
+  try {
+    return await body(client)
+  } finally {
+    await client.end()
+  }
+}
+
+export const catalogOf = (connectionString) => withClient(connectionString, readCatalog)
+
+export const query = async (connection, statement, values = []) => {
+  const client = new pg.Client(typeof connection === 'string' ? { connectionString: connection } : connection)
+  await client.connect()
+  try {
+    return await client.query(statement, values)
+  } finally {
+    await client.end()
+  }
+}

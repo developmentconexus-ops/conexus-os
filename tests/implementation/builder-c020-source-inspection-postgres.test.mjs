@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
-import { runCurrentHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD']
@@ -25,7 +25,7 @@ test('C-020 source inspection admits current subjects and latest code-changing r
   const connectionString = new URL('postgresql://localhost')
   connectionString.hostname = current.host; connectionString.port = String(current.port)
   connectionString.pathname = `/${database}`; connectionString.username = current.user; connectionString.password = current.password
-  await runCurrentHubMigrations({ connectionString: connectionString.toString() })
+  await runHubMigrations({ connectionString: connectionString.toString() })
 
   const account = '81000000-0000-4000-8000-000000000001'
   const workspace = '81000000-0000-4000-8000-000000000002'

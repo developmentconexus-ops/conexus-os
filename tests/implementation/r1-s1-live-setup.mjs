@@ -13,7 +13,7 @@ const required = (name) => {
 
 const admin = new Client({ host: 'postgres', port: 5432, database: 'conexus_s1', user: 'postgres', password: required('POSTGRES_ADMIN_PASSWORD') })
 await admin.connect()
-await admin.query((await import('node:fs')).readFileSync(resolve(repositoryRoot, 'apps/hub/migrations/001_iam_foundation.sql'), 'utf8'))
+await admin.query((await import('node:fs')).readFileSync(resolve(repositoryRoot, 'apps/hub/migrations/0001_baseline.sql'), 'utf8'))
 await admin.query(`ALTER ROLE hub_iam_runtime PASSWORD 'runtime-test-only'`)
 await admin.end()
 

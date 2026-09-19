@@ -34,7 +34,26 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # scripts/generate-hub-baseline.mjs reads the schema back with pg_dump, and pg_dump refuses a
+      # server newer than itself. The runner image ships the 16 client; the service is 17.10.
+      - name: Install the PostgreSQL 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          /usr/lib/postgresql/17/bin/pg_dump --version
+          echo "CONEXUS_PG_DUMP=/usr/lib/postgresql/17/bin/pg_dump" >> "$GITHUB_ENV"
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm run verify
       - run: git diff --check
-      - run: test -z "$(git status --porcelain)"
+      # A guard that fails without naming what it found costs a whole CI cycle to diagnose.
+      - name: The working tree is unchanged by verification
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "verification left the working tree dirty:"
+            git status --porcelain
+            git diff --stat
+            exit 1
+          fi
