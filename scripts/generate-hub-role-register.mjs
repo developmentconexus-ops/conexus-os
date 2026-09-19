@@ -91,6 +91,7 @@ export const describeDrift = (current, rendered) => {
   const currentLines = current.split('\n')
   const renderedLines = rendered.split('\n')
   for (let index = 0; index < Math.max(currentLines.length, renderedLines.length); index += 1) {
+    if ((currentLines[index] ?? '').startsWith('export const HUB_ROLE_REGISTER_DIGEST')) continue
     if (currentLines[index] === renderedLines[index]) continue
     const role = roleOnLine(currentLines[index] ?? '') ?? roleOnLine(renderedLines[index] ?? '')
     return role ? `${targetPath} line ${index + 1}, role ${role}` : `${targetPath} line ${index + 1}`

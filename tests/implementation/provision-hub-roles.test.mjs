@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
+import { spawnSync } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
 import { test } from 'node:test'
 import pg from 'pg'
 import { runCurrentHubMigrations } from '../../scripts/run-hub-migrations.mjs'
@@ -10,6 +12,15 @@ import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every(name => process.env[name])
+
+const buildCensusConnections = () => {
+  const buildRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/connection-census-provision-build-'))
+  const build = spawnSync(resolve(repositoryRoot, 'node_modules/.bin/esbuild'), [
+    resolve(repositoryRoot, 'apps/hub/src/platform/connection-census.ts'), `--outdir=${buildRoot}`, '--bundle', '--platform=node', '--format=esm', '--packages=external', '--log-level=error',
+  ], { cwd: repositoryRoot, encoding: 'utf8' })
+  if (build.status !== 0) throw new Error(build.stdout || build.stderr)
+  return { buildRoot, modulePromise: import(pathToFileURL(resolve(buildRoot, 'connection-census.js')).href) }
+}
 
 const secretFile = (root, name, value) => {
   const path = resolve(root, name)
@@ -26,7 +37,8 @@ test('a missing password file is reported without a write', async () => {
 
 test('the register every provisioning run reads is the one the Hub projects', () => {
   const roles = readRegister(repositoryRoot)
-  assert.equal(roles.length, 12)
+  const registerJson = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8'))
+  assert.equal(roles.length, registerJson.roles.length)
   assert.ok(roles.every(row => row.role.startsWith('hub_') && row.passwordFileVariable.startsWith('CONEXUS_DB_')))
 })
 
@@ -86,6 +98,22 @@ test('provisioning repairs a role with no password and then writes nothing', { s
   const { rows } = await executorClient.query('select current_user')
   assert.equal(rows[0].current_user, 'hub_rb_executor')
   await executorClient.end()
+
+  // A real wrong password against a role that exists and connects fine over the network:
+  // the census must call this invalid, not unreachable, and the connection-census module
+  // is the one Hub boot actually runs.
+  const { buildRoot: censusBuildRoot, modulePromise } = buildCensusConnections()
+  t.after(() => rmSync(censusBuildRoot, { recursive: true, force: true }))
+  const { censusConnections } = await modulePromise
+  const wrongPasswordRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/provision-wrong-password-'))
+  t.after(() => rmSync(wrongPasswordRoot, { recursive: true, force: true }))
+  const wrongPasswordEnvironment = {
+    CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE: secretFile(wrongPasswordRoot, 'db-rb-executor', `${executorPassword}-wrong`),
+  }
+  const censusRows = await censusConnections(target, wrongPasswordEnvironment)
+  const wrongPasswordRow = censusRows.find(row => row.role === 'hub_rb_executor')
+  assert.equal(wrongPasswordRow.state, 'invalid')
+  assert.equal(wrongPasswordRow.sqlstate, '28P01')
 })
 
 test('a password file with loose permissions is refused', async (t) => {

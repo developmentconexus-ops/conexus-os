@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import pg from 'pg'
-import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runR1HubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -367,7 +367,7 @@ test('S3-P5 real NEW and EXISTING_GIT HTTP compose PostgreSQL and exact-image Gi
     }
   })
 
-  assert.deepEqual((await runHubMigrations({ connectionString: connectionString(fresh) })).versions, ['001', '002', '003', '004', '005', '006', '007'])
+  assert.deepEqual((await runR1HubMigrations({ connectionString: connectionString(fresh) })).versions, ['001', '002', '003', '004', '005', '006', '007'])
   const accountId = '10000000-0000-4000-8000-000000000064'
   const workspaceId = '20000000-0000-4000-8000-000000000064'
   await query(fresh, `
