@@ -18,7 +18,7 @@
     "r1:rc01:walkthrough": "node scripts/run-r1-operator-walkthrough.mjs",
     "r1:rc01:walkthrough:verify": "node scripts/run-r1-operator-walkthrough.mjs --verify",
     "db:roles:generate": "node scripts/generate-hub-role-register.mjs",
-    "db:roles:check": "node scripts/generate-hub-role-register.mjs --check && node --test tests/implementation/hub-role-register.test.mjs tests/implementation/connection-census.test.mjs && npx --no-install biome check scripts/generate-hub-role-register.mjs scripts/provision-hub-roles.mjs tests/implementation/hub-role-register.test.mjs tests/implementation/connection-census.test.mjs tests/implementation/provision-hub-roles.test.mjs apps/hub/src/generated/hub-roles.ts apps/hub/src/platform/connection-census.ts",
+    "db:roles:check": "node scripts/generate-hub-role-register.mjs --check && node --test tests/implementation/hub-role-register.test.mjs tests/implementation/connection-census.test.mjs && npx --no-install biome check scripts/generate-hub-role-register.mjs scripts/provision-hub-roles.mjs tests/implementation/hub-role-register.test.mjs tests/implementation/connection-census.test.mjs tests/implementation/provision-hub-roles.test.mjs apps/hub/src/platform/hub-roles.generated.ts apps/hub/src/platform/connection-census.ts",
     "db:roles:census": "node scripts/provision-hub-roles.mjs --check",
     "db:roles:provision": "node scripts/provision-hub-roles.mjs",
     "db:roles:postgres": "node --test --test-concurrency=1 tests/implementation/provision-hub-roles.test.mjs tests/implementation/protected-cluster-coverage.test.mjs",
