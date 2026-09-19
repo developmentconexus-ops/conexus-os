@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { assertRoleInvariants, catalogDigest, describeCatalogDrift, readCommittedSnapshot } from '../../scripts/hub-catalog.mjs'
-import { OWNER_ROLES, SUPERSEDED_ROLES, baselinePath, readLoginRoles, regenerateBaseline } from '../../scripts/generate-hub-baseline.mjs'
+import { OWNER_ROLES, SUPERSEDED_ROLES, baselinePath, readLoginRoles, regenerateBaseline, resolvePgDump } from '../../scripts/generate-hub-baseline.mjs'
 import { adminConnection, buildHubDatabase, catalogOf, withClient } from './hub-database.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -45,4 +45,10 @@ test('a database built from the baseline satisfies the role and PUBLIC-execute i
 // reproduces its bytes. That is what stops it drifting by hand.
 test('the generator reproduces the committed baseline byte for byte', async () => {
   assert.equal(await regenerateBaseline(adminConnection()), baselineSource)
+})
+
+// A machine can hold several pg_dump versions, and PATH order is not the one that can read this
+// server. A client too old is a named refusal that says what it found, never a silent wrong dump.
+test('the generator refuses a pg_dump older than the server', () => {
+  assert.throws(() => resolvePgDump(999), /BASELINE_PG_DUMP_UNAVAILABLE:need pg_dump 999 or newer; found/)
 })

@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { globSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
@@ -98,20 +98,44 @@ const connectionStringFor = (admin, database) => {
   return url.toString()
 }
 
-// pg_dump refuses a server newer than itself, and this repository's server is 17.10 while several
-// Linux images still ship a 16 client. CONEXUS_PG_DUMP names a binary; CONEXUS_TEST_DB_CONTAINER
-// names a docker container to run the server's own pg_dump inside. Neither reachable is a refusal,
-// not a silent skip.
-export const dumpSchema = (admin, database) => {
-  const container = process.env.CONEXUS_TEST_DB_CONTAINER
-  if (container) {
-    return execFileSync('docker', ['exec', container, 'pg_dump', '-U', admin.user, '--schema-only', '-d', database], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
-  }
-  const binary = process.env.CONEXUS_PG_DUMP ?? 'pg_dump'
+const majorOf = (binary) => {
   try {
-    return execFileSync(binary, ['--schema-only', '--dbname', connectionStringFor(admin, database)], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+    return Number(/\b(\d+)[.\s]/.exec(execFileSync(binary, ['--version'], { encoding: 'utf8' }))?.[1])
+  } catch {
+    return null
+  }
+}
+
+// pg_dump refuses a server newer than itself, and a machine can easily hold several clients at
+// once: the ubuntu-24.04 image keeps 16 on PATH even after postgresql-client-17 is installed
+// beside it. So the client is chosen by version rather than by PATH order.
+export const resolvePgDump = (serverMajor) => {
+  const candidates = [
+    process.env.CONEXUS_PG_DUMP,
+    'pg_dump',
+    ...globSync('/usr/lib/postgresql/*/bin/pg_dump').sort().reverse(),
+  ].filter(Boolean)
+  const seen = []
+  for (const candidate of candidates) {
+    const major = majorOf(candidate)
+    if (major === null) continue
+    if (major >= serverMajor) return candidate
+    seen.push(`${candidate} is ${major}`)
+  }
+  fail('BASELINE_PG_DUMP_UNAVAILABLE', `need pg_dump ${serverMajor} or newer; found ${seen.join(', ') || 'none'}`)
+}
+
+// CONEXUS_TEST_DB_CONTAINER names a docker container to run the server's own pg_dump inside, for a
+// machine with no suitable client of its own.
+export const dumpSchema = (admin, database, serverMajor) => {
+  const container = process.env.CONEXUS_TEST_DB_CONTAINER
+  const command = container
+    ? ['docker', ['exec', container, 'pg_dump', '-U', admin.user, '--schema-only', '-d', database]]
+    : [resolvePgDump(serverMajor), ['--schema-only', '--dbname', connectionStringFor(admin, database)]]
+  try {
+    return execFileSync(command[0], command[1], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
   } catch (error) {
-    fail('BASELINE_PG_DUMP_UNAVAILABLE', `${binary}: ${String(error.message).split('\n')[0]}`)
+    fail('BASELINE_PG_DUMP_FAILED', `${command[0]}: ${String(error.message).split('\n')[0]}`)
   }
 }
 
@@ -128,11 +152,12 @@ const withThrowawayDatabase = async (admin, body) => {
   }
 }
 
-const applySql = async (connectionString, sql) => {
+const applyAndReadServerMajor = async (connectionString, sql) => {
   const client = new pg.Client({ connectionString })
   await client.connect()
   try {
     await client.query(sql)
+    return (await client.query(`SELECT current_setting('server_version_num')::int / 10000 AS major`)).rows[0].major
   } finally {
     await client.end()
   }
@@ -143,8 +168,8 @@ const applySql = async (connectionString, sql) => {
 export const regenerateBaseline = async (admin = readAdmin(), root = repositoryRoot) => {
   const committed = readFileSync(resolve(root, baselinePath), 'utf8')
   return withThrowawayDatabase(admin, async (database) => {
-    await applySql(connectionStringFor(admin, database), committed)
-    return renderBaseline(dumpSchema(admin, database), readLoginRoles(root))
+    const serverMajor = await applyAndReadServerMajor(connectionStringFor(admin, database), committed)
+    return renderBaseline(dumpSchema(admin, database, serverMajor), readLoginRoles(root))
   })
 }
 
