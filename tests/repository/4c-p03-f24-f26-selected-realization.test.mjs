@@ -27,33 +27,17 @@ test('P-03 preserves the operator-accepted F24-F26 selected realization', () => 
   ]) requireText(evidence, token, `P-03 accepted decision Evidence missing ${token}`)
 })
 
-test('F24 gives trigger administrators purpose-bound Agent summary discovery without source-detail widening', () => {
-  const ledger = read('docs/product/operation-ledger.md')
-  const permissions = read('docs/product/permission-contract.md')
-  const wire = read('contracts/api/product/project-paths.yaml')
-  const checker = read('scripts/check-wire-project-agent-catalog.mjs')
-
-  const list = sliceBetween(wire, 'summary: ListProjectProductAgents', '\n  /api/control/projects/{projectId}/product-agents/{agentId}:')
-  const detail = sliceBetween(wire, 'summary: GetProjectProductAgent', '\ncomponents:')
-  for (const token of ['agent.trigger.manage', 'purpose-bound', 'summary']) {
-    requireText(list, token, `F24 PRJ-20 alternate discovery route missing ${token}`)
-  }
-  if (detail.includes('agent.trigger.manage')) throw new Error('F24 must not broaden PRJ-21 source-detail disclosure')
-
-  requireText(ledger, '4C-F24', 'F24 must be recorded in Product operation authority')
-  requireText(permissions, 'PRJ-20', 'F24 Permission contract must name the bounded PRJ-20 consumer')
-  requireText(permissions, 'does not grant PRJ-21', 'F24 must explicitly reject authored-detail widening')
-  requireText(checker, 'agent.trigger.manage', 'F24 Project Agent checker must guard the alternate route')
-
-  const ids = [...wire.matchAll(/x-conexus-4a-id: (PRJ-\d+)/g)].map(match => match[1])
-  if (ids.length !== 19 || new Set(ids).size !== 19 || !ids.includes('PRJ-29')) {
-    throw new Error(`F24 must preserve its bounded PRJ-20 route while the current split wire contains 19 Project IDs including PRJ-29; got ${ids.length}`)
-  }
-})
-
-// F25 and F26 asserted Product Agent Runtime wire that was never built: par-paths.yaml and
-// scripts/check-wire-par.mjs were unreachable from openapi.yaml with no admitted operations
-// (S8 audit G-03). Both are deleted; F25/F26 have no surviving subject to assert.
+// F24 asserted a bounded PRJ-20 alternate discovery route (agent.trigger.manage) and a PRJ-21
+// authored-detail read that were never bundled into the Product OAS and had no current census
+// row (operation-ledger.md section 5). An independent verification of PR #103 confirmed both as
+// contract for a surface never built, and a later unit deleted PRJ-16/17/18/19/20/21/22/29 from
+// contracts/api/product/project-paths.yaml along with their now-orphaned component schemas and
+// the wire gate rows that named them live. F24 has no surviving subject to assert, for the same
+// reason F25/F26 were removed above.
+//
+// scripts/check-wire-project-agent-catalog.mjs still reads PRJ-20/21/22 from the bundle and is
+// itself unreachable from any npm script or CANDIDATE_GRAPH entry; it is dead code left for a
+// separate cleanup unit, not deleted here because it sits outside this change's write scope.
 
 test('P-03 preserves the REVISE history and closes the operator-approved lock with F27-F30 handoffs', () => {
   const evidence = read('docs/evidence/4c/p03-authority-feasibility-and-structural-hypotheses.md')
@@ -108,13 +92,11 @@ test('F30 recompiles complete Agent definition and typed Change draft without di
     throw new Error('F30 must not overload BLD-03 prose intent with structured Agent authority')
   }
 
-  const definition = sliceBetween(project, '    ProductAgentDefinition:\n', '    ProjectProductAgentDetail:\n')
-  for (const token of ['const: agent/v1', 'instructions:', 'modelPolicy:', 'tools:', 'brainContext:', 'memory:', 'interactions:', 'approvalPolicyRefs:', 'budgetPolicyRefs:', 'verificationRefs:', 'knownLimitations:']) {
-    requireText(definition, token, `F30 ProductAgentDefinition missing ${token}`)
-  }
-  for (const forbidden of ['mastraAgentId:', 'storedAgentId:', 'credential:', 'extensions:']) {
-    if (definition.includes(forbidden)) throw new Error(`F30 definition exposes forbidden mechanism/authority ${forbidden}`)
-  }
+  // The ProductAgentDefinition schema this test once inspected lived only on PRJ-21
+  // (GetProjectProductAgent), which a later unit deleted from project-paths.yaml along with
+  // PRJ-16/17/18/19/20/22/29: contract for a surface never built and confirmed unbundled by an
+  // independent verification of PR #103. `project` above is still read for the CreateChange
+  // assertion; the deleted schema has no surviving subject to assert here.
 
   for (const token of ['x-conexus-4a-id: BLD-18', 'x-conexus-4a-id: BLD-19', 'x-conexus-4a-id: BLD-20', 'IdempotencyKey', 'EXPLICIT_REVISION', 'candidateSubjectDigest']) {
     requireText(builder, token, `F30 Builder wire missing ${token}`)

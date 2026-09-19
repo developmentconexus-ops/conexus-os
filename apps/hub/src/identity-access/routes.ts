@@ -3,9 +3,10 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import { S1_GENERATED_ROUTES } from '../generated/s1-routes.js'
 import type { Iam03Body, S1OwnerId } from '../generated/s1-routes.js'
+import type { ResolveCurrentSession } from './current-session.js'
 import { identityAccessErrorCode } from './errors.js'
 import type { OidcAdapter } from './oidc.js'
-import type { CurrentSession, IdentityAccessStore } from './store.js'
+import type { IdentityAccessStore } from './store.js'
 
 const SESSION_COOKIE = '__Host-conexus_session'
 const BOOTSTRAP_COOKIE = '__Host-conexus_bootstrap'
@@ -18,7 +19,6 @@ const csrf = (): string => randomBytes(32).toString('base64url')
 const exactOrigin = (request: FastifyRequest, configuredOrigin: string): boolean => request.headers.origin === configuredOrigin
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 
-export type ResolveCurrentSession = (request: FastifyRequest, requireCsrf?: boolean) => Promise<CurrentSession | null>
 export type IdentityAccessRouteDependencies = Readonly<{
   store: IdentityAccessStore
   workspaceReader: Pick<IdentityAccessStore, 'listAccessibleWorkspaces'>

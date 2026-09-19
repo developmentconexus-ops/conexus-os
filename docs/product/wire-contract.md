@@ -311,28 +311,13 @@ Keycloak OIDC
 
 Keycloak bearer tokens, realm roles, groups, organizations and Authorization Services are never accepted as Product authorization substitutes.
 
-`4C-F38` keeps one I&A-owned session meaning across both human surfaces:
+`4C-F38` kept one I&A-owned session meaning across both human surfaces. The Published-App context read (`IAM-13`) and the Published-App access-administration reads/commands (`IAM-14/15/17/21`) it named were contract for a surface never built and were removed; `IAM-02` remains:
 
 ```text
-IAM-13 Published-App context
-→ canonical AccountSummary + exact active Release + exact app role
-
 IAM-02 /api/session
 → CONTROL_PLANE or PUBLISHED_APP
 → end exact opaque Conexus session
 -X-> claim global Keycloak SSO logout
-```
-
-For Published-App access administration, the wire preserves that boundary explicitly:
-
-```text
-IAM-21 candidate source = existing I&A-owned Conexus Accounts only
-IAM-14 grant subject presentation = canonical AccountSummary
-IAM-14 role decision truth = server-composed current active-Release role subsets
-IAM-15 success = canonical AccountSummary + exact current app role
-
-browser Keycloak-directory search -X-> Product candidate discovery
-Keycloak role/group/Organization -X-> Conexus app role or grant
 ```
 
 ### 9.2 Non-HTTP/runtime authority

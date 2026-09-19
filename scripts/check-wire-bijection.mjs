@@ -12,10 +12,12 @@ const httpMethods = new Set(['get', 'put', 'post', 'delete', 'patch', 'head', 'o
 // names. An operation added to a leaf *-paths.yaml alone is invisible to every check that reads
 // the bundle, and this gate used to be one of them.
 //
-// The leaf files also hold operations retained for future surfaces which are deliberately not
-// wired, so "every leaf operation must be bundled" would be false. What must hold is narrower and
-// is the actual risk: an operation the census calls current, defined in a leaf file, that
-// openapi.yaml forgot to $ref. Those are matched by 4A id below.
+// The leaf files used to also hold operations retained for future surfaces that were deliberately
+// left unwired, which forced this gate to match by 4A id against the census rather than demand a
+// full leaf-to-bundle bijection. Those retained-but-unwired paths are gone (contract only for
+// surfaces that were never built or were removed); every remaining leaf path is bundled contract,
+// so the bijection below is unconditional: every leaf path must be bundled, and every bundled
+// operation must be a leaf path, with no id- or census-based exemption for either direction.
 //
 // This scans rather than parses YAML, so it refuses anything it does not positively understand
 // instead of returning an empty set. Silent under-reporting is the defect being fixed here; a
@@ -100,12 +102,21 @@ for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
     if (methods.has(method)) bundledMethodPaths.add(`${method.toUpperCase()} ${path}`);
   }
 }
-const unbundled = leafDefinedOperations()
-  .filter((operation) => operation.fourAId !== null && expectedById.has(operation.fourAId))
+const leafOperations = leafDefinedOperations();
+const leafMethodPaths = new Set(leafOperations.map((operation) => `${operation.method} ${operation.path}`));
+
+// Absolute in both directions: no leaf path may be left unbundled (there is no longer a retained,
+// deliberately-unwired category to exempt), and no path may be bundled without a leaf source.
+const unbundled = leafOperations
   .filter((operation) => !bundledMethodPaths.has(`${operation.method} ${operation.path}`))
-  .map((operation) => `${operation.fourAId} ${operation.method} ${operation.path} (${operation.file})`);
+  .map((operation) => `${operation.fourAId ?? '<no 4A id>'} ${operation.method} ${operation.path} (${operation.file})`);
 if (unbundled.length > 0) {
-  throw new Error(`current 4A operations defined in a leaf contract file but missing from the bundled Product OAS, add a $ref in openapi.yaml: ${unbundled.join(', ')}`);
+  throw new Error(`leaf contract operations missing from the bundled Product OAS, add a $ref in openapi.yaml: ${unbundled.join(', ')}`);
+}
+
+const unsourced = [...bundledMethodPaths].filter((methodPath) => !leafMethodPaths.has(methodPath));
+if (unsourced.length > 0) {
+  throw new Error(`bundled Product OAS operations with no leaf contract source: ${unsourced.join(', ')}`);
 }
 
 const actual = [];

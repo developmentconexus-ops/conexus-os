@@ -17,6 +17,23 @@ export type OidcAdapter = Readonly<{
 }>
 type OidcDiscovery = typeof oidc.discovery
 
+// Refusing an `email_verified` claim that is not the strict boolean `true` is the safe
+// direction: the string `"false"` must never be treated as verified. But a claim shaped as the
+// string `"true"` or `"false"` (some identity providers emit it that way) is refused identically
+// to a genuinely unverified address, and an operator watching a real invited person get refused
+// has no way to tell the two apart. Logging the claim's JavaScript type, and never the email or
+// the claim's value, gives the operator that signal without disclosing anything about the
+// identity being provisioned.
+export const resolveVerifiedEmail = (
+  claims: Record<string, unknown>,
+  log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => console.warn(JSON.stringify(line)),
+): EmailAddress | null => {
+  if ('email_verified' in claims && typeof claims.email_verified !== 'boolean') {
+    log({ event: 'oidc_email_verified_unexpected_type', claimType: typeof claims.email_verified })
+  }
+  return claims.email_verified === true ? parseEmailAddress(claims.email) : null
+}
+
 export const createOidcAdapter = async ({
   issuer,
   clientId,
@@ -91,7 +108,7 @@ export const createOidcAdapter = async ({
       if (!claims?.iss || !claims.sub) throw identityAccessError('OIDC_IDENTITY_MISSING')
       // An unverified address, or a realm that asserts no address at all, is not an error.
       // It only means this identity can claim no invitation.
-      const verifiedEmail = claims.email_verified === true ? parseEmailAddress(claims.email) : null
+      const verifiedEmail = resolveVerifiedEmail(claims)
       return { issuer: claims.iss, subject: claims.sub, verifiedEmail }
     },
     close: () => {

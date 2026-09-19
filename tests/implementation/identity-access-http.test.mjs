@@ -18,7 +18,7 @@ if (compiled.status !== 0) throw new Error(`S1_HUB_COMPILE_FAILED\n${compiled.st
 const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerIdentityAccessRoutes } = await import(built('identity-access/routes.js'))
-const { createOidcAdapter } = await import(built('identity-access/oidc.js'))
+const { createOidcAdapter, resolveVerifiedEmail } = await import(built('identity-access/oidc.js'))
 const { identityAccessError } = await import(built('identity-access/errors.js'))
 
 const origin = 'https://conexus.test'
@@ -205,4 +205,30 @@ test('malformed IAM-03 body fires the generated schema before owner code', async
   t.after(() => app.close())
   const response = await app.inject({ method: 'POST', url: '/api/control/accounts', headers: { origin, 'idempotency-key': 'key-1', 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' }, cookies: { '__Host-conexus_bootstrap': 'bootstrap-token', '__Host-conexus_csrf': 'csrf-1' }, payload: { displayName: '   ', externalSubject: 'x', extra: true } })
   assert.equal(response.statusCode, 400)
+})
+
+test('an email_verified claim that is not the strict boolean true is refused, and only its type is logged', () => {
+  const logged = []
+  const log = (line) => logged.push(line)
+
+  assert.equal(resolveVerifiedEmail({ email_verified: true, email: 'ana@example.test' }, log), 'ana@example.test')
+  assert.deepEqual(logged, [])
+
+  assert.equal(resolveVerifiedEmail({ email_verified: false, email: 'ana@example.test' }, log), null)
+  assert.deepEqual(logged, [])
+
+  assert.equal(resolveVerifiedEmail({ email_verified: 'true', email: 'ana@example.test' }, log), null)
+  assert.equal(resolveVerifiedEmail({ email_verified: 'false', email: 'ana@example.test' }, log), null)
+  assert.deepEqual(logged, [
+    { event: 'oidc_email_verified_unexpected_type', claimType: 'string' },
+    { event: 'oidc_email_verified_unexpected_type', claimType: 'string' },
+  ])
+  for (const line of logged) {
+    assert.equal(JSON.stringify(line).includes('ana@example.test'), false)
+    assert.equal(JSON.stringify(line).includes('true'), false)
+    assert.equal(JSON.stringify(line).includes('false'), false)
+  }
+
+  assert.equal(resolveVerifiedEmail({ email: 'ana@example.test' }, log), null)
+  assert.deepEqual(logged.length, 2)
 })

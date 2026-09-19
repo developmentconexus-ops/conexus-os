@@ -163,12 +163,6 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    Problem412:
-      description: Expected revision, generation, digest, or current representation precondition is stale.
-      content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
     Problem422:
       description: Authorized request violates the operation's admitted semantic or business-input contract.
       content:

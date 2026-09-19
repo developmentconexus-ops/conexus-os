@@ -91,9 +91,9 @@ test('the gate fails when a current operation is defined in a leaf file but neve
   assert.match(result.stderr, /add a \$ref in openapi\.yaml/)
 })
 
-test('an operation retained for a future surface may stay unbundled', (t) => {
-  // The leaf files carry operations no current census row admits. Those are allowed to be
-  // unwired, which is why the check above matches by 4A id rather than by path.
+test('a leaf path retained for a surface the census does not admit fails the gate', (t) => {
+  // The bijection is unconditional: there is no longer a retained-for-later category that may
+  // stay unbundled, so a leaf path outside the census must fail rather than pass silently.
   const result = runGate(buildFixture(t, {
     rows: [censusRow('CLA-01', 'ShareThing')],
     leafOperations: [
@@ -102,7 +102,40 @@ test('an operation retained for a future surface may stay unbundled', (t) => {
     ],
     bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'CLA-01' }],
   }))
-  assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /IAM-09 POST \/api\/control\/workspaces\/\{workspaceId\}\/areas \(claude-account-paths\.yaml\)/)
+  assert.match(result.stderr, /add a \$ref in openapi\.yaml/)
+})
+
+test('a new leaf path whose 4A id the census does not list cannot pass unbundled', (t) => {
+  // The hole the previous gate had: matching by 4A id let a leaf path with an id absent from the
+  // census skip the unbundled check entirely. Planting exactly that (a ZZZ-99 id, no census row)
+  // must now fail because the bijection no longer looks at the id to decide whether to check.
+  const result = runGate(buildFixture(t, {
+    rows: [censusRow('CLA-01', 'ShareThing')],
+    leafOperations: [
+      leafOperation('/api/thing', 'ShareThing', 'CLA-01'),
+      leafOperation('/api/control/projects/{projectId}/never-wired', 'NeverWired', 'ZZZ-99'),
+    ],
+    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'CLA-01' }],
+  }))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /ZZZ-99 POST \/api\/control\/projects\/\{projectId\}\/never-wired \(claude-account-paths\.yaml\)/)
+})
+
+test('a bundled operation with no leaf contract source fails the gate', (t) => {
+  // The reverse direction of the same absolute bijection: openapi.yaml cannot $ref a path that no
+  // leaf *-paths.yaml file defines.
+  const result = runGate(buildFixture(t, {
+    rows: [censusRow('CLA-01', 'ShareThing')],
+    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'CLA-01')],
+    bundledOperations: [
+      { path: '/api/thing', operationId: 'ShareThing', fourAId: 'CLA-01' },
+      { path: '/api/ghost', operationId: 'GhostThing', fourAId: 'CLA-02' },
+    ],
+  }))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /bundled Product OAS operations with no leaf contract source: POST \/api\/ghost/)
 })
 
 test('a census id with a letter suffix is counted, not silently skipped', (t) => {
