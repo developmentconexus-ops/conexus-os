@@ -59,21 +59,6 @@ leaf file for a surface that does not exist.
 
 Generated bundles under `/tmp` are proof artifacts only.
 
-### 2.2 The Project-defined operation grammar
-
-```text
-contracts/api/project-operation.schema.json
-```
-
-is a JSON Schema 2020-12 grammar for operations a Project would declare for itself, and
-`contracts/examples/budget-analyzer` holds two example declarations against it.
-
-Nothing serves them. Their declarations pin an active Release, a Project Brain binding
-and a Project connection binding, and their caller is a published application. All four
-concepts left the product on 2026-09-19. The grammar and its examples are retained as an
-example of shape. They are not current wire authority and nothing in the census depends
-on them.
-
 ## 3. Fixed operation identity / HTTP shape law
 
 For fixed platform operations:
@@ -315,32 +300,6 @@ It is not a Product operation, a Mastra `runId` or `threadId` is never a Product
 identity, and the end of a stream is never the terminal truth of a run. The Hub's
 settlement is.
 
-## 12. Project-operation declaration law
-
-`contracts/api/project-operation.schema.json` closes at least:
-
-```text
-schemaVersion
-operationId
-regime = QUERY | ACTION | INTEGRATION
-exact constraining input schema
-exact constraining output schema
-admitted caller class(es)
-Project/app scope
-required binding/pin classes
-effect/read classification
-truth/outcome profile
-IC profile
-positive proof + negative control identity
-```
-
-The grammar accepts only the bounded 4A caller/Permission vocabulary. It does not accept arbitrary global Permission strings, arbitrary target URLs or caller-selected Connections as effective authority. It also rejects semantically unconstrained boolean/empty payload schemas; exact schema shape remains operation-owned rather than globally forced to an object DTO convention.
-
-An exact declaration is not runtime authority by file existence; it must be admitted into the exact Release. Release membership itself supplies the exact Release context; `requiredPins` is not inflated with duplicate `ACTIVE_RELEASE` metadata merely to restate that structural fact.
-
-The generated HTTP OAD preserves the declaration's HTTP caller objects, scope and effect classification. Admitted non-HTTP callers remain explicitly classified as non-HTTP projection metadata and are never converted into session/header authority. A declaration with no admitted HTTP caller fails closed in the HTTP OAD generator rather than fabricating HTTP carriage; a separate 4D non-HTTP projection may consume that authority if a real realization requires it.
-
-
 ## 13. Pagination / continuation law
 
 There is no global filter/sort/include language.
@@ -368,8 +327,6 @@ page coordinate A
 → each coordinate disclosed truthfully where material
 → B MUST NOT masquerade as the same snapshot as A
 ```
-
-Budget Analyzer F1 specifically has no retained cross-call/page snapshot-pinning promise.
 
 ## 14. Truth/provenance wire law
 
@@ -399,9 +356,7 @@ read-model result != source proof
 empty supported-current result != dependency failure
 ```
 
-The first Budget Analyzer operation schemas are the proving instance for this shared law.
-
-For the same proving instance, `4C-F39/F40` close two presentation-bearing wire laws:
+`4C-F39/F40` close two presentation-bearing wire laws:
 
 ```text
 monetary values present
@@ -545,9 +500,6 @@ wire:carriers         current-state carriers are declared
 wire:identity-workspace, wire:project, wire:builder   per-module wire shape
 wire:technical-lint, wire:technical-ingress           the technical ingress description
 ```
-
-The `wire:budget-*` scripts check the retained Project-defined grammar and its examples.
-They are not in the candidate graph and prove nothing about the current wire.
 
 Never run `npm run verify` locally. Run the checks your change touches, push, and let CI
 be the full run.
