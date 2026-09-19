@@ -40,6 +40,9 @@ const candidateStep = (scope, command, environmentClass = 'static') => Object.fr
  * property while the candidate remains unadmitted.
  */
 export const CANDIDATE_GRAPH = Object.freeze([
+  candidateStep('hub-baseline', 'node --test --test-concurrency=1 tests/implementation/hub-baseline.test.mjs', 'postgres'),
+  candidateStep('hub-baseline-adoption', 'node --test --test-concurrency=1 tests/implementation/hub-baseline-adoption.test.mjs', 'postgres'),
+  candidateStep('hub-superseded-role-cleanup', 'node --test --test-concurrency=1 tests/implementation/drop-superseded-hub-roles.test.mjs', 'postgres'),
   candidateStep('c020-migration-selection', 'node --test tests/implementation/hub-migration-selection.test.mjs && npx --no-install biome check tests/implementation/hub-migration-selection.test.mjs tests/implementation/hub-migration-postgres.test.mjs'),
   candidateStep('c020-migration-postgres', 'node --test --test-concurrency=1 tests/implementation/hub-migration-postgres.test.mjs', 'postgres'),
   candidateStep('iam-membership-authority', 'node --test --test-concurrency=1 tests/implementation/membership-authority-postgres.test.mjs', 'postgres'),
@@ -69,7 +72,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('repository-architecture', 'node scripts/check-architecture-verification.mjs'),
   candidateStep('repository-architecture-unit', 'node --test tests/repository/architecture-history.test.mjs tests/repository/architecture-verification.test.mjs tests/repository/3o-closure-progression.test.mjs'),
   candidateStep('repository-contract-checks', 'node --test tests/repository/repository-contract.test.mjs'),
-  candidateStep('biome-current', 'npx --no-install biome check apps/hub/src apps/web/src packages/canonical-json/src scripts/run-hub-migrations.mjs scripts/hub-catalog.mjs scripts/generate-hub-catalog-snapshot.mjs tests/implementation/builder-*.mjs tests/implementation/project-browser.test.mjs tests/repository/conexus-verify.test.mjs'),
+  candidateStep('biome-current', 'npx --no-install biome check apps/hub/src apps/web/src packages/canonical-json/src scripts/run-hub-migrations.mjs scripts/hub-catalog.mjs scripts/generate-hub-catalog-snapshot.mjs scripts/generate-hub-baseline.mjs scripts/drop-superseded-hub-roles.mjs tests/implementation/hub-database.mjs tests/implementation/hub-baseline.test.mjs tests/implementation/hub-baseline-adoption.test.mjs tests/implementation/drop-superseded-hub-roles.test.mjs tests/implementation/grant-surface-excision-postgres.test.mjs tests/implementation/workspace-postgres.test.mjs tests/implementation/builder-*.mjs tests/implementation/project-browser.test.mjs tests/repository/conexus-verify.test.mjs'),
 
   candidateStep('identity-access-http', 'node --test tests/implementation/identity-access-http.test.mjs'),
   candidateStep('workspace-membership-http', 'node --test tests/implementation/workspace-membership-http.test.mjs && npx --no-install biome check tests/implementation/workspace-membership-http.test.mjs'),
@@ -86,7 +89,6 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('builder-planning-free-boot', 'node --test tests/implementation/builder-planning-free-boot.test.mjs'),
   candidateStep('model-connection-credentials', 'node --test tests/implementation/model-connection-credentials.test.mjs'),
   candidateStep('model-connection-dispatch', 'node --test tests/implementation/model-connection-dispatch.test.mjs'),
-  candidateStep('model-connection-migration-postgres', 'node --test --test-concurrency=1 tests/implementation/model-connection-migration-postgres.test.mjs', 'postgres'),
   candidateStep('model-connection-http', 'node --test tests/implementation/model-connection-http.test.mjs && npx --no-install biome check tests/implementation/model-connection-http.test.mjs'),
   candidateStep('model-connection-web-api', 'node --test tests/implementation/model-connection-web-api.test.mjs'),
   candidateStep('protected-cluster-coverage', 'node --test tests/implementation/protected-cluster-coverage.test.mjs'),

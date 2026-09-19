@@ -67,6 +67,14 @@ None of this was in the plan. Each line is one PR and what it did.
 - The test census deleted dead repository and implementation tests and admitted the survivors to `CANDIDATE_GRAPH`, so they cannot rot outside CI again (#97, `4cf37580`).
 - The R1 apparatus deletion removed the generation and custody machinery, 8934 lines, after proving production never read it from disk (#104, `ca80664a`).
 - The import-law fix moved the Hub role register into the platform layer it serves (#100, `6ac6db76`).
+- B-01 replaced the sixty-file migration history with one baseline. The operator's words on
+  2026-09-19 were to do it, remove all of it, and leave the migration correct. `0001_baseline.sql`
+  builds today's catalog with today's names in one file, no legacy role and no object created only
+  to be dropped; the runner lost everything that existed to police history; the pilot is carried
+  across by `--adopt-baseline` without its data being touched. A fresh database built from the
+  baseline alone and a database migrated 001 to 059 produce the same catalog digest,
+  `6a4b20ec...`, once the eight vestigial grants held by `brain_owner` and `connections_owner` are
+  revoked, which adoption does.
 - The project-browser test fix re-admitted the suite and made it assert that Project create lands on the Builder rather than on the retired detail heading (#99, `ece85db7`).
 
 ## Tests serve the product
@@ -143,7 +151,7 @@ Migration 038 dropped tables and left their functions. Forty-one `builder.*` fun
 - [x] Delete routes, stores, web features and tests for PRJ-07, PRJ-08, PRJ-09, PRJ-23, PRJ-24, and `createOAuthTokenStore`, the local-file variant only that path used. Evidence: #89 (`55c3deb6`), 78 files, 4699 deletions. The whole-tree grep for the five ids returns only this plan and the migrations.
 - [x] Edit the contract and `docs/product/operation-ledger.md` in the same commit, because `wire:bijection` gates on an exact count. Evidence: the first attempt did not, which is why the verifier failed it; the merged head reports 34 fixed operations on both sides.
 - [x] Update `check-wire-carriers.mjs` and `check-qualification-provenance.mjs` pins. Evidence: both green at the merged head.
-- [ ] Live: sign in, create a Project, run the Builder, open Preview. Not done. The pilot is still at migration 050, so no live lane on this trunk has run.
+- [ ] Live: sign in, create a Project, run the Builder, open Preview. Not done. The pilot reached 059 on 2026-09-19 and is now waiting on baseline adoption, so no live lane on this trunk has run yet.
 
 ## F-06. Remove Brain, bindings, Sankhya and the gateway from the application
 

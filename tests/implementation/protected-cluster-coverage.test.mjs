@@ -14,6 +14,10 @@ const IMPLEMENTATION = resolve(import.meta.dirname)
 // and would otherwise escape this check.
 const ALTERS_SHARED_ROLE = /ALTER ROLE hub_|provisionRoles\(/
 const GUARD_CALL = 'refuseProtectedCluster()'
+// A body may reach the guard through hub-database.mjs, which calls it before it creates anything.
+// Delegating beats hand-wiring, so the helpers count, and the test below keeps them honest.
+const GUARDED = /refuseProtectedCluster\(\)|buildHubDatabase\(|createEmptyDatabase\(/
+const DATABASE_HELPER = 'hub-database.mjs'
 
 // Reaches the compose hostname `postgres` and never reads CONEXUS_TEST_DB_*, so it cannot
 // resolve, let alone reach, an operator cluster.
@@ -23,6 +27,11 @@ const bodies = (source) => {
   const starts = [...source.matchAll(/^test\(/gm)].map(match => match.index)
   return starts.map((start, index) => source.slice(start, starts[index + 1] ?? source.length))
 }
+
+test('the shared database helper refuses a protected cluster before it creates anything', () => {
+  const source = readFileSync(resolve(IMPLEMENTATION, DATABASE_HELPER), 'utf8')
+  assert.match(source, /await refuseProtectedCluster\(\)[\s\S]*CREATE DATABASE/)
+})
 
 test('every test body that alters a shared role refuses a protected cluster first', () => {
   const unguarded = []
@@ -37,7 +46,7 @@ test('every test body that alters a shared role refuses a protected cluster firs
 
     for (const body of found) {
       if (!ALTERS_SHARED_ROLE.test(body)) continue
-      if (body.includes(GUARD_CALL)) continue
+      if (GUARDED.test(body)) continue
       const title = body.slice(0, body.indexOf('\n')).trim()
       unguarded.push(`${name}: ${title}`)
     }

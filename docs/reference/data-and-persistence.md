@@ -62,10 +62,22 @@ For C-015 human authentication, the verified external identity key `(issuer, sub
 Exact table/column spellings belong post-C-018 derived Realization Planning. Logical owner schemas/capabilities remain explicit.
 
 The `hub_control` migration lineage and schema-integrity ledger are owned by
-the Project/platform persistence authority: the ordered SQL under
-`apps/hub/migrations` and `scripts/run-hub-migrations.mjs` are the sole runtime
-apply and checksum path. Atlas or another migration CLI may remain historical
-Evidence, but it is not a competing runtime owner.
+the Project/platform persistence authority: the SQL under `apps/hub/migrations`
+and `scripts/run-hub-migrations.mjs` are the sole runtime apply and checksum
+path. Atlas or another migration CLI may remain historical Evidence, but it is
+not a competing runtime owner.
+
+That lineage is one baseline file plus the forward migrations added after it.
+`0001_baseline.sql` creates the whole catalog, the eight capability roles and
+the six owner roles, and a fresh installation runs it alone. The runner pins
+each file by SHA-256, records it in `iam.schema_migration`, and refuses any
+database whose catalog is not the one the committed snapshot
+`contracts/technical/hub-catalog-snapshot.json` records. An installation created
+before the baseline carries the older ledger; the runner refuses to migrate it
+and names `node scripts/run-hub-migrations.mjs --adopt-baseline`, which replaces
+that ledger in one transaction only after proving the live catalog already
+equals the baseline's. `docs/development/engineering-rules.md` holds the rule for
+when the baseline itself may be regenerated.
 
 ## 5.4 Project Database
 

@@ -6,12 +6,11 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import pg from 'pg'
-import { runR1HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const identityPath = resolve(repositoryRoot, 'apps/hub/src/project/identity.ts')
-const migrationPath = resolve(repositoryRoot, 'apps/hub/migrations/006_project_create_authorization.sql')
 const generatedRoutePath = resolve(repositoryRoot, 'apps/hub/src/generated/s3-routes.ts')
 const projectStorePath = resolve(repositoryRoot, 'apps/hub/src/project/store.ts')
 
@@ -44,19 +43,6 @@ test('S3-P5 centralizes one Project identity law for UUID versions 1 through 8',
   }
   assert.equal(isProjectIdentity('30000000-0000-9000-8000-000000000051'), false)
   assert.equal(isProjectIdentity('../project'), false)
-})
-
-test('S3-P5 migration 006 makes project.create authorization internal and current', () => {
-  assert.equal(existsSync(migrationPath), true)
-  const source = readFileSync(migrationPath, 'utf8')
-  assert.match(source, /CREATE FUNCTION iam\.can_create_project\(p_account_id uuid, p_workspace_id uuid\)/)
-  assert.match(source, /membership\.can_create_project/)
-  assert.match(source, /CREATE OR REPLACE FUNCTION project\.reserve_or_replay_create_project/)
-  assert.match(source, /CREATE OR REPLACE FUNCTION project\.lock_create_project_receipt/)
-  assert.equal((source.match(/IF NOT iam\.can_create_project\(/g) ?? []).length, 2)
-  assert.match(source, /GRANT EXECUTE ON FUNCTION iam\.can_create_project\(uuid, uuid\) TO project_owner/)
-  assert.doesNotMatch(source, /GRANT EXECUTE ON FUNCTION iam\.can_create_project\(uuid, uuid\) TO hub_project_command/)
-  assert.match(source, /REVOKE EXECUTE ON FUNCTION iam\.can_create_project\(uuid, uuid\) FROM PUBLIC/)
 })
 
 test('S3-P5 preserves generated PRJ-03 inside the bounded S3 projection', () => {
@@ -371,7 +357,7 @@ test('S3-P5 real NEW and EXISTING_GIT HTTP compose PostgreSQL and exact-image Gi
     }
   })
 
-  await runCurrentHubMigrations({ connectionString: connectionString(fresh) })
+  await runHubMigrations({ connectionString: connectionString(fresh) })
   const accountId = '10000000-0000-4000-8000-000000000064'
   const workspaceId = '20000000-0000-4000-8000-000000000064'
   await query(fresh, `

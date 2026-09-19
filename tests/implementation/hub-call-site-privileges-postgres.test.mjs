@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import pg from 'pg'
-import { loadCurrentHubMigrationFiles, runSelectedHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const required = (name) => {
@@ -198,11 +198,8 @@ test('every declared Hub call site names a registered login role and every decla
 
 test('every function the Hub calls is EXECUTE-granted to the login role that calls it', async (t) => {
   const connection = await freshDatabase(t)
-  const finished = await runSelectedHubMigrations({
-    connectionString: connectionStringFor(connection),
-    migrations: loadCurrentHubMigrationFiles(), catalogSnapshot: null,
-  })
-  assert.equal(finished.versions.at(-1), loadCurrentHubMigrationFiles().at(-1).version)
+  const finished = await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
+  assert.deepEqual(finished.versions, ['0001'])
 
   const denied = []
   const unresolved = []

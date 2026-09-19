@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import pg from 'pg'
-import { runCurrentHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const required = (name) => process.env[name] || (() => { throw new Error(`MISSING_TEST_CONFIG_${name}`) })()
@@ -23,8 +23,8 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
   t.after(async () => { await runtime?.end(); await setup?.end(); await owner.query(`DROP DATABASE "${database}" WITH (FORCE)`); await owner.end() })
   const config = { ...admin, database }
   const url = new URL('postgresql://localhost'); url.hostname = config.host; url.port = String(config.port); url.pathname = `/${database}`; url.username = config.user; url.password = config.password
-  const migrated = await runCurrentHubMigrations({ connectionString: url.toString() })
-  assert.ok(migrated.versions.includes('040'))
+  const migrated = await runHubMigrations({ connectionString: url.toString() })
+  assert.deepEqual(migrated.versions, ['0001'])
   const root = resolve(import.meta.dirname, '../..')
   const buildRoot = mkdtempSync(resolve(root, 'apps/hub/registry-postgres-build-'))
   t.after(() => rmSync(buildRoot, { recursive: true, force: true }))
@@ -75,8 +75,8 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   t.after(async () => { await runtime?.end(); await setup?.end(); await owner.query(`DROP DATABASE "${database}" WITH (FORCE)`); await owner.end() })
   const config = { ...admin, database }
   const url = new URL('postgresql://localhost'); url.hostname = config.host; url.port = String(config.port); url.pathname = `/${database}`; url.username = config.user; url.password = config.password
-  const migrated = await runCurrentHubMigrations({ connectionString: url.toString() })
-  assert.ok(migrated.versions.includes('040'))
+  const migrated = await runHubMigrations({ connectionString: url.toString() })
+  assert.deepEqual(migrated.versions, ['0001'])
   const root = resolve(import.meta.dirname, '../..')
   const buildRoot = mkdtempSync(resolve(root, 'apps/hub/registry-settlement-build-'))
   t.after(() => rmSync(buildRoot, { recursive: true, force: true }))

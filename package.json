@@ -18,6 +18,8 @@
     "db:roles:census": "node scripts/provision-hub-roles.mjs --check",
     "db:roles:provision": "node scripts/provision-hub-roles.mjs",
     "db:roles:postgres": "node --test --test-concurrency=1 tests/implementation/provision-hub-roles.test.mjs tests/implementation/protected-cluster-coverage.test.mjs",
+    "db:baseline:generate": "node scripts/generate-hub-baseline.mjs",
+    "db:baseline:check": "node scripts/generate-hub-baseline.mjs --check",
     "db:catalog:snapshot": "node scripts/generate-hub-catalog-snapshot.mjs",
     "db:catalog:check": "node scripts/generate-hub-catalog-snapshot.mjs --check",
     "repository:check": "node scripts/check-current-state.mjs",

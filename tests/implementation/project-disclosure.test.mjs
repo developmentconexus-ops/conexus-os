@@ -6,7 +6,6 @@ import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
-const migrationPath = resolve(repositoryRoot, 'apps/hub/migrations/007_project_read_disclosure.sql')
 const generatedRoutePath = resolve(repositoryRoot, 'apps/hub/src/generated/s3-routes.ts')
 const generatedClientPath = resolve(repositoryRoot, 'apps/web/src/generated/project-client.ts')
 
@@ -21,22 +20,6 @@ const compileHub = (t) => {
   assert.equal(compiled.status, 0, `${compiled.stdout}\n${compiled.stderr}`)
   return (path) => pathToFileURL(resolve(build, path)).href
 }
-
-test('S3-P6 migration freezes direct project.read admission behind one execute-only role', () => {
-  assert.equal(existsSync(migrationPath), true)
-  const source = readFileSync(migrationPath, 'utf8')
-  // 007 is pinned history and names the role it created, hub_s3_read. 059 moves that role's
-  // privileges to hub_project_read; it does not rewrite the file that created it.
-  assert.match(source, /CREATE ROLE hub_s3_read LOGIN NOINHERIT NOSUPERUSER NOBYPASSRLS/)
-  assert.match(source, /iam\.list_workspace_readable_project_ids/)
-  assert.match(source, /iam\.admit_project_read/)
-  assert.match(source, /project\.list_project_summaries/)
-  assert.match(source, /project\.get_project_representation/)
-  assert.match(source, /membership\.account_id = p_account_id/)
-  assert.match(source, /project_grant\.can_read/)
-  assert.match(source, /REVOKE ALL ON ALL TABLES IN SCHEMA project FROM hub_s3_read/)
-  assert.doesNotMatch(source, /workspace_access_manage|can_manage/)
-})
 
 test('S3-P6 closed routes remain projected', () => {
   assert.equal(existsSync(generatedRoutePath), true)

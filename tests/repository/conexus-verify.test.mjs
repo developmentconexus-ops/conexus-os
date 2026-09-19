@@ -35,6 +35,7 @@ const packageScripts = Object.freeze({
 })
 
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
+  'hub-baseline', 'hub-baseline-adoption', 'hub-superseded-role-cleanup',
   'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-grant-surface-excision',
   'hub-call-site-privileges',
   'c020-builder-postgres', 'c020-mastra-lifecycle',
@@ -48,7 +49,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'identity-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure', 'project-source-recovery',
   'project-git-execution', 'project-command-postgres', 'project-browser', 'shell-browser-boundary',
   'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
-  'model-connection-credentials', 'model-connection-dispatch', 'model-connection-migration-postgres',
+  'model-connection-credentials', 'model-connection-dispatch',
   'model-connection-http', 'model-connection-web-api', 'protected-cluster-coverage',
   'wire-openapi-lint', 'wire-openapi-bundle',
   'wire-bijection', 'wire-bijection-gate', 'wire-carriers', 'wire-identity-workspace',
@@ -188,7 +189,7 @@ test('candidate graph labels execution environments and passes shell argv correc
   assert.equal(c020Browser.environmentClass, 'browser')
   assert.equal(c020Postgres.environmentClass, 'postgres')
 
-  const candidate = CANDIDATE_GRAPH[0]
+  const candidate = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'static')
   let observed
   runNpmScript(candidate, {
     root: '/tmp/conexus-verify-test',
