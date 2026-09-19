@@ -22,9 +22,10 @@ used PostgreSQL 17.10, `pg-boss 12.26.3`, `pg 8.22.0` and Node `24.18.0`.
 The current root uses `pg 8.23.0` and Node `24.20.0`; the qualified proof does
 not transfer automatically. Any owner disposition retaining pg-boss must choose
 between an exact re-pin and a bounded requalification of the changed tuple.
-The exact Package-D lock is recorded in
-[`qualification/3l/managed-execution/package.json`](../../../qualification/3l/managed-execution/package.json)
-and its durable pin is described in the
+The exact Package-D lock was recorded in
+`qualification/3l/managed-execution/package.json` (deleted 2026-09-19 with the
+retired R3 gates and the `pg-boss` dependency) and its durable pin is
+described in the
 [managed-execution qualification](../../reference/managed-execution-qualification.md).
 
 No challenger is promoted from feature breadth. Graphile Worker, BullMQ,

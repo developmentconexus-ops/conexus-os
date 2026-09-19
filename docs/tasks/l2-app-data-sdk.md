@@ -154,9 +154,9 @@ physical-PC inventory. These facts establish an accessible engine, not that
 any proposed execution limit or isolation property actually fires.
 
 The current [Preview projection](../../apps/hub/src/builder/preview.ts) returns
-`ready: false`. The MAR source surface inspected was
-[managed-sync admission](../../apps/hub/src/mar/admission.ts), not a general
-function executor. The existing
+`ready: false`. The MAR source surface inspected was managed-sync admission
+(`apps/hub/src/mar/admission.ts`, deleted 2026-09-19 with the retired R3
+gates), not a general function executor. The existing
 [R2 Registry schema](../../apps/hub/migrations/011_r2_brain_connections.sql)
 restricts its artifact kind to Brain. None proves an application-function
 producer, executable artifact admission or managed serving composition.
