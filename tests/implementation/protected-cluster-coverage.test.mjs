@@ -19,9 +19,7 @@ const GUARD_CALL = 'refuseProtectedCluster()'
 const GUARDED = /refuseProtectedCluster\(\)|buildHubDatabase\(|createEmptyDatabase\(/
 const DATABASE_HELPER = 'hub-database.mjs'
 
-// Reaches the compose hostname `postgres` and never reads CONEXUS_TEST_DB_*, so it cannot
-// resolve, let alone reach, an operator cluster.
-const EXEMPT = new Set(['r1-s1-live-setup.mjs'])
+const EXEMPT = new Set()
 
 const bodies = (source) => {
   const starts = [...source.matchAll(/^test\(/gm)].map(match => match.index)

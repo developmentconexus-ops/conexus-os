@@ -6,7 +6,7 @@
 **Scope:** all DevelopmentConexus repositories; human, agent, or hybrid engineering
 
 The operator ratified the Conexus OS local amendment on 2026-09-12 in
-[repository consolidation](../tasks/repository-consolidation.md). It removes
+repository consolidation. It removes
 stage-based review cadence and universal historical custody from this repository.
 It does not amend other repositories or weaken current Product proof.
 

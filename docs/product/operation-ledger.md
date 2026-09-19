@@ -355,7 +355,7 @@ Project Inception and Baseline left the product on 2026-09-19. The
 investigation and candidate-review operations `4C-F02` and `4C-F03` admitted are
 retired; the source-bootstrap law above is the part of those corrections that
 remains current Product authority. The `4C` records of the retired decisions are
-retained in `docs/evidence/`.
+in Git history.
 
 ### 5.3.3 `4C-F16` — Data human identity
 
@@ -1244,7 +1244,7 @@ RunProjectSqlConsole
 
 # 10. Durable-record / owner closure
 
-The supporting proof in `docs/evidence/4a/operation-coverage.md` classifies all 46 accepted durable record classes as `DIRECT`, `PROJECTION`, `INTERNAL` or `CARRIER` and preserves all 13 semantic owner boundaries.
+The supporting proof classifies all 46 accepted durable record classes as `DIRECT`, `PROJECTION`, `INTERNAL` or `CARRIER` and preserves all 13 semantic owner boundaries. It is in Git history.
 
 ```text
 record classes checked                      = 46/46

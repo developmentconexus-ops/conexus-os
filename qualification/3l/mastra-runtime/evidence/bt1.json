@@ -1,9 +1,0 @@
-{
-  "probe": "BT-1",
-  "lockSha256": "5e8b2b4ea2ef5ae5676652cdbafd8c7c284be68cfc445de92950b2decdc8a4f0",
-  "negativeControlFired": true,
-  "directInstancePath": "PASS",
-  "editorOverrideClosure": "PASS",
-  "providerCalls": 0,
-  "verdict": "PASS"
-}

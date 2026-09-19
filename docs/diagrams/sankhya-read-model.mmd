@@ -1,8 +1,0 @@
-flowchart LR
-  Sankhya[Sankhya source] --> Connection[Qualified Connection]
-  Connection --> Gateway[Capability Gateway]
-  Gateway --> Sync[Read-only sync / ETL]
-  Sync --> ProjectDB[Project read model]
-  ProjectDB --> Query[Registered query / AnalyticQuery]
-  Query --> Budget[Budget Analyzer UI]
-

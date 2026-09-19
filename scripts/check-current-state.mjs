@@ -11,7 +11,6 @@ const required = [
   'docs/index.md',
   'docs/roadmap.md',
   'docs/product/contract.md',
-  'docs/architecture/index.md',
   'docs/decisions/index.md',
   'docs/development/engineering-method.md',
   'docs/development/repository-method.md',

@@ -83,7 +83,6 @@ WS-01 success
 PRJ-03 success
 → exact current-Account direct Project grant
 + project.read
-+ project.manage
 ```
 
 The grant does not imply `project.build`, `project.review`,
@@ -121,10 +120,9 @@ Project-creator settlement with two independently stored and independently
 revocable Project-scoped facts, including a one-time backfill for existing
 exact Project creators. Neither fact implies the other, creator status is not
 consulted at admission time, and neither implies `brain.read`,
-`connection.read`, `connection.manage`, `connection.qualify`,
-`project.manage`, runtime execution, generic read/admin or any cross-scope
-authority. Clear/remove remains narrowing under the already accepted
-`project.manage` route and does not require either specialist fact to remain.
+`connection.read`, `connection.manage`, `connection.qualify`, runtime
+execution, generic read/admin or any cross-scope authority. Clear and remove
+remain narrowing and do not require either specialist fact to remain.
 Transferable or broader grant administration remains with a later exact I&A
 consumer.
 
@@ -162,11 +160,10 @@ access-administration summary disclosure
 | `project.read` | inspect ordinary Project-level Product truth/projections | ordinary `PRJ-01/02`; `PAR-06/07` Control-Plane run inspection; ordinary Release/Promotion/serving/job/activity reads |
 | `project.source.read` | inspect Project source/diff/authored definitions without write authority | `BLD-07..09` |
 | `project.data.read` | inspect admitted semantic Data resources and bounded read-only Project Data Explorer projections without becoming a generic DB console | `PRJ-25..28` |
-| `project.manage` | administer Project lifecycle and independent Published-App access configuration | no current wired consumer; its Published-App access-configuration and archive/duplicate consumers were contract for surfaces never built and were removed |
 | `project.build` | create/evolve accepted Project Product/Agent intent through Change/Builder and inspect only the purpose-bound construction contracts required for that work | `BLD-01..04/06/10/16..20` |
 | `project.review` | participate in exact Plan/Change checkpoint, Finding and Evidence review | `BLD-05/11..15` |
 
-`project.manage` does **not** imply `project.build`, `project.review`, Published-App business use or Release promotion. `4B-F01` removed generic `UpdateProject`; it did not remove the distinct lifecycle/app-access consumers that justify this Permission. Project Inception, Baseline, Brain, connection bindings and the Sankhya gateway left the product on 2026-09-19, so the candidate-review, contextual-explanation and binding consumers that `4C-F02`, `4C-F03`, `4C-F17` and `4C-F18` mapped here no longer exist; the `4C` records of those decisions are retained as history.
+`project.manage` was retired on 2026-09-19. Its Published-App access-configuration, archive and duplicate consumers were contract for surfaces never built. Its candidate-review, contextual-explanation and binding consumers left with Project Inception, the Project Baseline, the Brain and the connection bindings the same day. No wired consumer remained, so the Permission is gone rather than waiting for one to be invented. A future Project-lifecycle or Published-App administration surface introduces its own Permission at its first real consumer.
 
 `4C-F30` creates no `agent.manage`, `agent.definition.write`, `mastra.manage` or source-write Permission. `project.build` admits only the server-owned typed Product Agent draft inside the exact Change; possession of `changeId`, `draftId`, `agentId`, `capabilityId` or policy references is never authority by itself. BLD-19 revalidates explicit NEW/EXISTING origin and BLD-20 fails closed on stale `expectedDraftRevision`; both remain upstream of candidate diff/proof/Release and cannot mutate a live Agent. The PRJ-20/21 Agent-summary and Agent-definition reads and the PRJ-16/17/29 capability/model-policy discovery reads that `4C-PRE11-F05` once purpose-bound here were contract for a surface never built and were removed.
 
@@ -223,7 +220,6 @@ project.create
 project.read
 project.source.read
 project.data.read
-project.manage
 project.build
 project.review
 
@@ -249,11 +245,11 @@ agent.effect.approve
 ```
 
 ```text
-ordinary Permissions = 25
-status = CURRENT / OPERATOR RATIFIED / 4C-F23 BOUNDED CORRECTION ACCEPTED
+ordinary Permissions = 24
+status = CURRENT / OPERATOR RATIFIED / `project.manage` RETIRED 2026-09-19
 ```
 
-The number 25 has no independent value. It survives because the current operation mapping still requires each distinction and no accepted operation requires a 26th ordinary Permission.
+The number 24 has no independent value. It survives because the current operation mapping still requires each distinction and no accepted operation requires a 25th ordinary Permission.
 
 ---
 
@@ -330,11 +326,11 @@ These roles are an independent Product authorization plane.
 
 ```text
 Project admin -X-> app admin
-app admin     -X-> project.manage
+app admin     -X-> project.build
 app member    -X-> project.read
 app role      -X-> agent.effect.approve
 ```
 
 Every exact Project-defined operation in `Ops(R)` declares its admitted app-role subset, PAR/MAR projection or future real DEDICATED service allowlist. Conexus does not create a global Permission per customer business operation.
 
-The `IAM-21` candidate-disclosure and `IAM-14` capability-subset reads that `4C-F35/F36` once made this access-administration authority human-operable through were contract for a surface never built and were removed. Keycloak roles, groups, Organizations, Authorization Services and token claims never satisfy `project.manage`, select an app role or establish a Published-App grant.
+The `IAM-21` candidate-disclosure and `IAM-14` capability-subset reads that `4C-F35/F36` once made this access-administration authority human-operable through were contract for a surface never built and were removed. Keycloak roles, groups, Organizations, Authorization Services and token claims never satisfy a Conexus Permission, select an app role or establish a Published-App grant.

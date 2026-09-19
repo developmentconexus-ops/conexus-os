@@ -72,9 +72,8 @@ Continuation readiness = GREEN / repository-governance blocker = 0
   assert.deepEqual(parseRoadmap(roadmap), parseRoadmap(roadmap.replaceAll('\n', '\r\n')))
 })
 
-test('repository roadmap exposes a parseable Product posture and next action', () => {
+test('repository roadmap exposes a parseable next action', () => {
   const roadmap = parseRoadmap(readFileSync(new URL('../../docs/roadmap.md', import.meta.url), 'utf8'))
-  assert.match(roadmap.productImplementation?.status ?? '', /\S/)
   assert.match(roadmap.exactNextAction ?? '', /\S/)
 })
 
