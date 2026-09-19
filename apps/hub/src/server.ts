@@ -10,7 +10,7 @@ import { createPostgresPool } from './platform/postgres.js'
 import { readSecretFile } from './platform/secrets.js'
 import { createApplicationArtifactStore } from './registry/module.js'
 import { createWorkspaceModule } from './workspace/module.js'
-import { createClaudeAccountModule } from './claude-account/module.js'
+import { createModelConnectionModule } from './model-connection-account/module.js'
 
 // Mastra is loaded only after the production entrypoint has disabled its
 // optional telemetry. Keep this before the dynamic Project-module import.
@@ -75,13 +75,6 @@ const project = config.project ? createConfiguredProjectModule({
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
-const claudeAccount = config.connections && credentialBackend ? createClaudeAccountModule({
-  database: { host: config.database.host, port: config.database.port, database: config.database.database },
-  passwordFile: config.connections.passwordFile,
-  credentialBackend,
-  origin: config.origin,
-  resolveCurrentSession: identityAccess.resolveCurrentSession,
-}) : undefined
 const builderModel = config.builder && config.project ? resolveModelAdmission({
   catalogFile: config.project.modelCatalogFile,
   admissionId: config.builder.modelAdmissionId,
@@ -90,6 +83,17 @@ const builderModel = config.builder && config.project ? resolveModelAdmission({
 const builderModelChoices = config.builder && config.project ? readModelChoices({
   catalogFile: config.project.modelCatalogFile,
   requiredCapabilities: ['BUILDER_CODING'],
+}) : undefined
+// A key may only be filed under a provider this deployment would actually run, which is what
+// the operator's model catalog says and not what the router happens to know.
+const enabledProviders = Object.freeze([...new Set((builderModelChoices ?? []).map((choice) => choice.providerId))].sort())
+const modelConnection = config.connections && credentialBackend ? createModelConnectionModule({
+  database: { host: config.database.host, port: config.database.port, database: config.database.database },
+  passwordFile: config.connections.passwordFile,
+  credentialBackend,
+  enabledProviders,
+  origin: config.origin,
+  resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
 let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
 const mar = config.preview ? createMarModule({
@@ -155,7 +159,7 @@ builder = config.builder && config.project && builderModel ? createConfiguredBui
   },
   ...(builderModelChoices ? { modelChoices: builderModelChoices } : {}),
   validateModelCredential: builderModel.validateCredential,
-  ...(claudeAccount ? { resolveModel: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => claudeAccount.createModel(reference, modelId) } : {}),
+  ...(modelConnection ? { resolveModel: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => modelConnection.createModel(reference, modelId) } : {}),
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
@@ -164,7 +168,7 @@ const app = await createHttpApp({
     ...await identityAccess.registerIdentityAccessRoutes(server),
     ...(workspace ? await workspace.registerWorkspaceRoutes(server) : []),
     ...(project ? await project.registerProjectRoutes(server) : []),
-    ...(claudeAccount ? await claudeAccount.registerRoutes(server) : []),
+    ...(modelConnection ? await modelConnection.registerRoutes(server) : []),
     ...(builder ? await builder.registerBuilderRoutes(server) : []),
   ],
   staticRoot: resolve(import.meta.dirname, '../public'),
@@ -215,7 +219,7 @@ const close = async (): Promise<void> => {
   closed = true
   await Promise.all([app.close(), previewApp?.close()])
   await mar?.close()
-  await Promise.all([builder?.close(), claudeAccount?.close(), project?.close(), workspace?.close(), identityAccess.close()])
+  await Promise.all([builder?.close(), modelConnection?.close(), project?.close(), workspace?.close(), identityAccess.close()])
 }
 process.once('SIGINT', close)
 process.once('SIGTERM', close)

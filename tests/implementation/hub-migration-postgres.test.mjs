@@ -20,7 +20,7 @@ const versions = [
   '001', '002', '003', '004', '005', '006', '007', '008', '009', '010',
   '011', '012', '013', '014', '015', '016', '017', '018', '019', '020',
   '021', '022', '023',
-  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '039', '040', '041', '042', '043', '044', '045', '046', '047', '048', '049', '050', '051', '052', '053', '054', '055',
+  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '039', '040', '041', '042', '043', '044', '045', '046', '047', '048', '049', '050', '051', '052', '053', '054', '055', '056', '057',
 ]
 const query = async (connection, sql, parameters = []) => {
   const client = new pg.Client(connection)
@@ -189,7 +189,7 @@ test('a fresh install produces exactly the committed catalog snapshot', async (t
     const catalog = await readCatalog(client)
     assert.equal(describeCatalogDrift(catalog, snapshot.catalog), null)
     assert.equal(catalogDigest(catalog), snapshot.digests[snapshot.head])
-    assert.equal(snapshot.head, '055')
+    assert.equal(snapshot.head, '057')
     assert.equal(Object.keys(snapshot.digests).length, versions.length)
   } finally {
     await client.end()
@@ -260,7 +260,7 @@ test('051 drops exactly the Builder functions orphaned by 038, keeping every one
     'builder.bind_builder_run_sandbox(uuid,text)',
     'builder.claim_builder_run(uuid,text,text,text)',
     'builder.clear_builder_run_phase()',
-    'builder.create_builder_run(uuid,uuid,text,text,text,text,uuid)',
+    'builder.create_builder_run(uuid,uuid,text,text,text,text,uuid,text)',
     'builder.create_builder_run_with_model(uuid,uuid,text,text,text,text,uuid,text,text,text)',
     'builder.fail_builder_run(uuid,text)',
     'builder.interrupt_builder_run(uuid,text)',
@@ -356,8 +356,8 @@ test('the membership authority is the only admission surface left', async (t) =>
     SELECT to_regclass('iam.account_project_grant')::text AS project_grant,
       to_regclass('iam.project_builder_grant')::text AS builder_grant,
       to_regclass('claude_connection.binding')::text AS binding,
-      to_regclass('claude_connection.workspace_share')::text AS workspace_share
-  `)).rows, [{ project_grant: null, builder_grant: null, binding: null, workspace_share: 'claude_connection.workspace_share' }])
+      to_regclass('model_connection.workspace_share')::text AS workspace_share
+  `)).rows, [{ project_grant: null, builder_grant: null, binding: null, workspace_share: 'model_connection.workspace_share' }])
 
   assert.deepEqual((await query(fixture.connection, `
     SELECT a.attname FROM pg_attribute AS a

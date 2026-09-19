@@ -129,7 +129,8 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       if (detail.includes('SOURCE_STALE') || detail.includes('PROJECT_BUSY') || detail.includes('IDEMPOTENCY_CONFLICT')) return sendProblem(reply, 409, 'builder-conflict', 'Builder request conflict')
       if (detail.includes('INPUT_REFUSED')) return sendProblem(reply, 422, 'builder-message-refused', 'Builder message refused')
       if (detail.includes('MODEL_CHOICE')) return sendProblem(reply, 422, 'builder-model-choice-refused', 'Builder model choice refused')
-      if (detail.includes('CLAUDE_CONNECTION_REQUIRED')) return sendProblem(reply, 422, 'claude-connection-required', 'Connect a Claude account before building')
+      if (detail.includes('MODEL_CONNECTION_PROVIDER_MISMATCH')) return sendProblem(reply, 422, 'model-connection-provider-mismatch', "The selected connection belongs to a different provider than the selected model")
+      if (detail.includes('MODEL_CONNECTION_REQUIRED')) return sendProblem(reply, 422, 'model-connection-required', "Connect a model for the selected model's provider before building")
       return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')
     }
   })

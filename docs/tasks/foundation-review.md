@@ -27,7 +27,7 @@ This table is what happened, not what was proposed. A-02 executed as two units. 
 | A-02a | Switch every caller, then excise the grant surfaces | 053 | #103 | `bc661fdb` |
 | A-02b | A second person can join a Workspace | 054 | #102 | `aca7f108` |
 | F-07 | Drop the Inception and R2 functions, tables and schemas | 055 | #105 | `c767732b` |
-| M-01 | Provider-neutral model connections and API keys | 056 | #106 | open, not merged |
+| M-01 | Provider-neutral model connections and API keys | 056, 057 | #106 | open, not merged |
 | M-02 | ChatGPT account sign-in | none expected | none | not started |
 
 F-07 waited for A-02 on purpose. Migration 049 writes five R2 capability columns inside `iam.establish_project_creator_grant`, so those columns could not drop while that function lived. A-02a deleted the function and the tables that hold the columns.
@@ -189,17 +189,20 @@ One migration, not two. The count of 2026-09-19 removed the reason F-08 existed,
 
 It does not drop the login roles. A role is cluster-global while its privileges are per database, so `DROP ROLE` answers `2BP01` whenever another database on the same cluster still grants to it, which would make the migration's outcome depend on what else the cluster hosts. 055 revokes every privilege they hold instead, leaving eight roles inert. Removing them is a cluster operation, listed under the operator steps in `docs/roadmap.md`.
 
-## M-01. Provider-neutral model connections and API keys (056)
+## M-01. Provider-neutral model connections and API keys (056, 057)
 
 Mastra 1.63.2 already gives everything except custody. `Agent.model` is a function of `requestContext` (`dist/types/dynamic-argument.d.ts:3-6`) and may return `{ id: 'provider/model', apiKey, headers, url }` (`dist/llm/model/shared.types.d.ts:24-35`), which the router excludes from telemetry. A gateway's `resolveAuth` receives no request context, so it cannot be the per-user seam. The seam is the function the Builder already has at `builder/module.ts:234-238`.
 
-M-01 is open as #106 and is not merged. Its migration is 056.
+M-01 is open as #106 and is not merged. Its migrations are 056 and 057. 057 adds the credential-kind
+read that resolution needs before it decrypts anything, and re-issues
+`create_builder_run_with_model` so its provider check asks through that reader: 056 read the
+connection table directly, and that check runs as `builder_owner`, which holds no `SELECT` there.
 
-- [ ] 056: `connection.provider_id` and `credential_kind` (`OAUTH_TOKEN_SET`, `API_KEY`), backfilled to the pilot's live row; `authorization` PKCE columns nullable; `preference` keyed `(account_id, provider_id)`; `builder_run` refuses a credential whose provider differs from the run's `model_provider_id`. The encrypted blob at `(connectionId, generation)` never moves. Evidence, live: the pilot's connection still completes a run after 055.
-- [ ] One dispatch in `resolveBuilderModel`, two return shapes. Anthropic OAuth returns the existing provider instance, because bounded fetch, the beta headers and the identity rewrite cannot ride a config object. An API key returns the native config object. No provider interface, no registry of Conexus providers. Evidence: the diff of that function.
-- [ ] Delete the `!== 'anthropic'` gates (`project/module.ts:387-389,416`) and `officialHttpsOrigin`; the registry already answers both. Delete whichever of `BuilderModelChoice` and `ProjectModelChoice` is the copy. Keep `capabilitySet`, `enabled`, `admissionId` and the `/latest|\*/` pin refusal: that is Product policy, not model logic.
-- [ ] One new operation, paste an API key for a provider from `PROVIDER_REGISTRY`. The key is written to custody and never returned. Evidence: the contract, and a test that no response or log carries it.
-- [ ] Rename the user-visible surface: routes, operation ids, web feature, pt-BR copy. Rename the database schema last and only if the 053 re-issue makes it mechanical. Evidence: `git grep -i claude apps/web/src` matches only the Anthropic provider's own label.
+- [x] 056: `connection.provider_id` and `credential_kind` (`OAUTH_TOKEN_SET`, `API_KEY`), backfilled to the pilot's live row; the `authorization` PKCE columns stay `NOT NULL`, because an API key never creates an authorization row and weakening a constraint for a case that does not use the table buys nothing; `preference` keyed `(account_id, provider_id)`; `builder_run` refuses a credential whose provider differs from the run's `model_provider_id`. The encrypted blob at `(connectionId, generation)` never moves. Evidence: `model-connection-migration-postgres.test.mjs` over a pilot-shaped row. The live run is the operator's lane below.
+- [x] One dispatch in `resolveBuilderModel`, two return shapes. Anthropic OAuth returns the existing provider instance, because bounded fetch, the beta headers and the identity rewrite cannot ride a config object. An API key returns the native config object. No provider interface, no registry of Conexus providers. Evidence: `model-connection-dispatch.test.mjs`, through a fake that records what the Agent's model function returned.
+- [x] Delete the `!== 'anthropic'` gates (`project/module.ts:387-389,416`) and `officialHttpsOrigin`; the registry already answers both. `ProjectModelChoice` was the copy and is deleted. `capabilitySet`, `enabled`, `admissionId` and the `/latest|\*/` pin refusal are kept: that is Product policy, not model logic.
+- [x] One new operation, paste an API key for a provider from `PROVIDER_REGISTRY`. The key is written to custody and never returned. Evidence: the contract, and `model-connection-http.test.mjs`, which plants a sentinel key and finds it in no response body and no problem response.
+- [x] Rename the user-visible surface: routes, operation ids, web feature, pt-BR copy. Evidence: `git grep -i claude apps/hub/src apps/web/src contracts` matches only the Anthropic provider's own wire constants and the cluster-global `claude_connection_owner` role in the generated catalog snapshot.
 - [ ] Live: a run on the Anthropic account, then a run on an API key for a second provider, same Project. Evidence: both runs' activity.
 
 ## M-02. ChatGPT account sign-in

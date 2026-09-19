@@ -11,7 +11,7 @@ import test from 'node:test'
 // because a gate is only worth its runtime if it can be shown to catch what it missed.
 const gate = resolve(import.meta.dirname, '../../scripts/check-wire-bijection.mjs')
 
-const censusRow = (id, operationId) => `| \`${id}\` | \`${operationId}\` | Claude Account | exact authority | command |`
+const censusRow = (id, operationId) => `| \`${id}\` | \`${operationId}\` | Model Connection | exact authority | command |`
 
 const leafOperation = (path, operationId, fourAId) => `  ${path}:
     post:
@@ -41,7 +41,7 @@ ${rows.join('\n')}
 # 5A. Broader retained historical/platform ledger
 `)
 
-  writeFileSync(resolve(root, 'contracts/api/product/claude-account-paths.yaml'), `paths:
+  writeFileSync(resolve(root, 'contracts/api/product/model-connection-paths.yaml'), `paths:
 ${leafOperations.join('')}components:
   schemas: {}
 `)
@@ -87,7 +87,7 @@ test('the gate fails when a current operation is defined in a leaf file but neve
     bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'CLA-01' }],
   }))
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /CLA-07 POST \/api\/thing\/unshare \(claude-account-paths\.yaml\)/)
+  assert.match(result.stderr, /CLA-07 POST \/api\/thing\/unshare \(model-connection-paths\.yaml\)/)
   assert.match(result.stderr, /add a \$ref in openapi\.yaml/)
 })
 
@@ -103,7 +103,7 @@ test('a leaf path retained for a surface the census does not admit fails the gat
     bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'CLA-01' }],
   }))
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /IAM-09 POST \/api\/control\/workspaces\/\{workspaceId\}\/areas \(claude-account-paths\.yaml\)/)
+  assert.match(result.stderr, /IAM-09 POST \/api\/control\/workspaces\/\{workspaceId\}\/areas \(model-connection-paths\.yaml\)/)
   assert.match(result.stderr, /add a \$ref in openapi\.yaml/)
 })
 
@@ -120,7 +120,7 @@ test('a new leaf path whose 4A id the census does not list cannot pass unbundled
     bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'CLA-01' }],
   }))
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /ZZZ-99 POST \/api\/control\/projects\/\{projectId\}\/never-wired \(claude-account-paths\.yaml\)/)
+  assert.match(result.stderr, /ZZZ-99 POST \/api\/control\/projects\/\{projectId\}\/never-wired \(model-connection-paths\.yaml\)/)
 })
 
 test('a bundled operation with no leaf contract source fails the gate', (t) => {
@@ -152,7 +152,7 @@ test('a census id with a letter suffix is counted, not silently skipped', (t) =>
 
 test('a census row the gate cannot parse fails instead of being dropped', (t) => {
   const result = runGate(buildFixture(t, {
-    rows: [censusRow('CLA-01', 'ShareThing'), '| `CLA-X` | `Malformed` | Claude Account | exact | command |'],
+    rows: [censusRow('CLA-01', 'ShareThing'), '| `CLA-X` | `Malformed` | Model Connection | exact | command |'],
     leafOperations: [leafOperation('/api/thing', 'ShareThing', 'CLA-01')],
     bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'CLA-01' }],
   }))
@@ -166,8 +166,8 @@ test('a leaf contract file the scanner cannot read fails instead of reporting no
     leafOperations: [leafOperation('/api/thing', 'ShareThing', 'CLA-01')],
     bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'CLA-01' }],
   })
-  writeFileSync(resolve(fixture.root, 'contracts/api/product/claude-account-paths.yaml'), 'components:\n  schemas: {}\n')
+  writeFileSync(resolve(fixture.root, 'contracts/api/product/model-connection-paths.yaml'), 'components:\n  schemas: {}\n')
   const result = runGate(fixture)
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /leaf contract file has no top-level paths block: claude-account-paths\.yaml/)
+  assert.match(result.stderr, /leaf contract file has no top-level paths block: model-connection-paths\.yaml/)
 })

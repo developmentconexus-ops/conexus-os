@@ -36,7 +36,7 @@
       "role": "hub_r2_connections",
       "capability": "connections",
       "passwordFileVariable": "CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/claude-account/module.ts"]
+      "connectsFrom": ["apps/hub/src/model-connection-account/module.ts"]
     },
     {
       "role": "hub_rb_ingress",

@@ -27,28 +27,28 @@ const projectId = '22222222-2222-4222-8222-222222222222'
 const accountId = '33333333-3333-4333-8333-333333333333'
 const baseSourceRevision = 'a'.repeat(40)
 
-const fakeRunRow = (claudeCredentialGeneration) => ({
+const fakeRunRow = (modelCredentialGeneration) => ({
   builderRunId: runId, projectId, state: 'RUNNING', phase: 'PREPARING', mode: 'BUILD',
   baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null,
-  claudeConnectionId: 'conn-1', claudeCredentialGeneration,
+  modelConnectionId: 'conn-1', modelCredentialGeneration,
 })
 
-test('store normalizes a bigint-as-number claudeCredentialGeneration to a string before it leaves the boundary', async () => {
+test('store normalizes a bigint-as-number modelCredentialGeneration to a string before it leaves the boundary', async () => {
   const pool = { query: async () => ({ rows: [{ value: fakeRunRow(1) }] }), end: async () => {} }
   const store = createBuilderStore({ ingressPool: pool, executorPool: pool })
   const run = await store.readBuilderRun({ accountId, projectId })
-  assert.equal(run.claudeCredentialGeneration, '1')
-  assert.equal(typeof run.claudeCredentialGeneration, 'string')
+  assert.equal(run.modelCredentialGeneration, '1')
+  assert.equal(typeof run.modelCredentialGeneration, 'string')
 })
 
-test('store passes an explicit null claudeCredentialGeneration through unchanged', async () => {
+test('store passes an explicit null modelCredentialGeneration through unchanged', async () => {
   const pool = { query: async () => ({ rows: [{ value: fakeRunRow(null) }] }), end: async () => {} }
   const store = createBuilderStore({ ingressPool: pool, executorPool: pool })
   const run = await store.readBuilderRun({ accountId, projectId })
-  assert.equal(run.claudeCredentialGeneration, null)
+  assert.equal(run.modelCredentialGeneration, null)
 })
 
-test('store refuses a claudeCredentialGeneration it cannot normalize instead of passing it on', async () => {
+test('store refuses a modelCredentialGeneration it cannot normalize instead of passing it on', async () => {
   const pool = { query: async () => ({ rows: [{ value: fakeRunRow('not-a-generation') }] }), end: async () => {} }
   const store = createBuilderStore({ ingressPool: pool, executorPool: pool })
   await assert.rejects(() => store.readBuilderRun({ accountId, projectId }), /BUILDER_RUN_ROW_INVALID/)
@@ -58,7 +58,7 @@ test('claimBuilderRun normalizes the same bigint-as-number generation', async ()
   const pool = { query: async () => ({ rows: [{ value: fakeRunRow(7) }] }), end: async () => {} }
   const store = createBuilderStore({ ingressPool: pool, executorPool: pool })
   const claimed = await store.claimBuilderRun(runId, { admissionId: 'a', providerId: 'p', modelId: 'm' })
-  assert.equal(claimed.claudeCredentialGeneration, '7')
+  assert.equal(claimed.modelCredentialGeneration, '7')
 })
 
 test('a run whose generation arrives from the database as a NUMBER still resolves the connection model, not the sentinel', async () => {
@@ -72,7 +72,7 @@ test('a run whose generation arrives from the database as a NUMBER still resolve
   const resolveModel = (reference, modelId) => { calls.push([reference, modelId]); return resolvedModel }
 
   const result = resolveBuilderModel({
-    reference: { connectionId: claimed.claudeConnectionId, generation: claimed.claudeCredentialGeneration },
+    reference: { connectionId: claimed.modelConnectionId, generation: claimed.modelCredentialGeneration },
     modelIdentity: { modelId: 'claude-3-x' },
     resolveModel,
     fallbackModel: sentinelModel,

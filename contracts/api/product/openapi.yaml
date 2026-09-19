@@ -55,20 +55,22 @@ paths:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1runs~1{builderRunId}~1cancel'
   /api/control/projects/{projectId}/builder-session/runs/{builderRunId}/trace:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1runs~1{builderRunId}~1trace'
-  /api/control/me/claude-connections:
-    $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections'
-  /api/control/me/claude-connections/authorization:
-    $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1authorization'
-  /api/control/me/claude-connections/authorization/complete:
-    $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1authorization~1complete'
-  /api/control/me/claude-connections/select:
-    $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1select'
-  /api/control/me/claude-connections/share:
-    $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1share'
-  /api/control/me/claude-connections/unshare:
-    $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1unshare'
-  /api/control/me/claude-connections/{connectionId}/revoke:
-    $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1{connectionId}~1revoke'
+  /api/control/me/model-connections:
+    $ref: './model-connection-paths.yaml#/paths/~1api~1control~1me~1model-connections'
+  /api/control/me/model-connections/authorization:
+    $ref: './model-connection-paths.yaml#/paths/~1api~1control~1me~1model-connections~1authorization'
+  /api/control/me/model-connections/authorization/complete:
+    $ref: './model-connection-paths.yaml#/paths/~1api~1control~1me~1model-connections~1authorization~1complete'
+  /api/control/me/model-connections/api-key:
+    $ref: './model-connection-paths.yaml#/paths/~1api~1control~1me~1model-connections~1api-key'
+  /api/control/me/model-connections/select:
+    $ref: './model-connection-paths.yaml#/paths/~1api~1control~1me~1model-connections~1select'
+  /api/control/me/model-connections/share:
+    $ref: './model-connection-paths.yaml#/paths/~1api~1control~1me~1model-connections~1share'
+  /api/control/me/model-connections/unshare:
+    $ref: './model-connection-paths.yaml#/paths/~1api~1control~1me~1model-connections~1unshare'
+  /api/control/me/model-connections/{connectionId}/revoke:
+    $ref: './model-connection-paths.yaml#/paths/~1api~1control~1me~1model-connections~1{connectionId}~1revoke'
 components:
   securitySchemes:
     ConexusSession:

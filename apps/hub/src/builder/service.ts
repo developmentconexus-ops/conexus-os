@@ -102,14 +102,14 @@ const createBuilderRunObservation = (persistPhase?: (phase: PersistedBuilderPhas
   return Object.freeze({ setPhase, attachSession, subscribe, stream })
 }
 
-export const createBuilderService = ({ store, source, runtime, compiler, applicationArtifacts, modelChoices = [], requiresClaudeConnection = false, appendDiagnostic }: Readonly<{
+export const createBuilderService = ({ store, source, runtime, compiler, applicationArtifacts, modelChoices = [], requiresModelConnection = false, appendDiagnostic }: Readonly<{
   store: BuilderStore
   source: BuilderSourcePort
   runtime: CodingWorkerRuntime
   compiler: ApplicationCompilerRuntime
   applicationArtifacts: BuilderApplicationArtifacts
   modelChoices?: readonly ModelChoice[]
-  requiresClaudeConnection?: boolean
+  requiresModelConnection?: boolean
   appendDiagnostic?: (input: Readonly<{ projectId: string; builderRunId: string; code: string }>) => Promise<void>
 }>): BuilderService => {
   if (runtime.kind !== 'REMOTE_E2B') throw new Error('BUILDER_LOCAL_RUNTIME_REFUSED')
@@ -135,7 +135,7 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
         ? { admissionId: run.modelAdmissionId, providerId: run.modelProviderId, modelId: run.modelId }
         : runtime.modelIdentity
       const claimed = await store.claimBuilderRun(run.builderRunId, modelIdentity)
-      if (requiresClaudeConnection && (!claimed.claudeConnectionId || !claimed.claudeCredentialGeneration)) throw new Error('CLAUDE_CONNECTION_REQUIRED')
+      if (requiresModelConnection && (!claimed.modelConnectionId || !claimed.modelCredentialGeneration)) throw new Error('MODEL_CONNECTION_REQUIRED')
       await observation.setPhase('PREPARING')
       const sourceBundle = await source.prepareProjectSource({
         projectId: claimed.projectId, executionId: claimed.builderRunId, sourceRevision: claimed.baseSourceRevision,
@@ -143,8 +143,8 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
       const result = await runtime.execute({
         projectId: claimed.projectId, executionId: claimed.builderRunId, intent: input.content,
         mode: claimed.mode, baseSourceRevision: claimed.baseSourceRevision, sourceBundle, modelIdentity,
-        ...(claimed.claudeConnectionId && claimed.claudeCredentialGeneration
-          ? { credentialReference: { connectionId: claimed.claudeConnectionId, generation: claimed.claudeCredentialGeneration } }
+        ...(claimed.modelConnectionId && claimed.modelCredentialGeneration
+          ? { credentialReference: { connectionId: claimed.modelConnectionId, generation: claimed.modelCredentialGeneration } }
           : {}),
         signal: controller.signal,
         setPhase: observation.setPhase,

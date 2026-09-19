@@ -71,8 +71,8 @@ test('BuilderRun admission and settlement are idempotent, serialized, and CAS-pr
   }
 
   const create = async (client, id, key = keyDigest, request = requestDigest) => (await client.query(
-    'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7) AS value',
-    [accountId, projectId, key, request, null, 'BUILD', id],
+    'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8) AS value',
+    [accountId, projectId, key, request, null, 'BUILD', id, null],
   )).rows[0].value
   ingressClient = await connect(ingress)
   const first = await create(ingressClient, runId)

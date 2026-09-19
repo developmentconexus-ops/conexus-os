@@ -26,7 +26,7 @@ import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, Unbound
 import { createBuilderSourcePort } from './source.js'
 import type { BuilderGitSourceCapability } from './source.js'
 import { createBuilderStore } from './store.js'
-import type { ModelChoice } from '../model-connection/model-catalog.js'
+import type { ModelChoice, ResolvedBuilderModel } from '../model-connection/model-catalog.js'
 import { createE2BApplicationCompiler } from './application-artifact-runtime.js'
 import { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } from './application-starter.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
@@ -163,9 +163,9 @@ export const projectBuilderMessages = (messages: readonly ProjectableBuilderMess
 export const resolveBuilderModel = ({ reference, modelIdentity, resolveModel, fallbackModel }: Readonly<{
   reference: unknown
   modelIdentity: unknown
-  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => MastraLanguageModel
+  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => Promise<ResolvedBuilderModel>
   fallbackModel: MastraLanguageModel
-}>): MastraLanguageModel => {
+}>): ResolvedBuilderModel | Promise<ResolvedBuilderModel> => {
   if (reference === undefined) return fallbackModel
   if (resolveModel && reference && typeof reference === 'object' && 'connectionId' in reference && 'generation' in reference &&
     typeof reference.connectionId === 'string' && typeof reference.generation === 'string' &&
@@ -188,7 +188,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   modelChoices?: readonly ModelChoice[]
   validateModelCredential(): void
-  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => MastraLanguageModel
+  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => Promise<ResolvedBuilderModel>
   origin: string
   resolveCurrentSession: ResolveCurrentSession
 }>) => {
@@ -274,7 +274,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
       content: { format: 2, parts: [{ type: 'text', text: `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}. Corrija a solicitação para tentar novamente.` }] },
     }] })
   }
-  const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts, ...(modelChoices ? { modelChoices } : {}), requiresClaudeConnection: true, appendDiagnostic })
+  const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts, ...(modelChoices ? { modelChoices } : {}), requiresModelConnection: true, appendDiagnostic })
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })

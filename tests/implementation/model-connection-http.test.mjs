@@ -1,0 +1,264 @@
+import assert from 'node:assert/strict'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { spawnSync } from 'node:child_process'
+import { test } from 'node:test'
+
+const repositoryRoot = resolve(import.meta.dirname, '../..')
+const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/model-connection-http-build-'))
+process.once('exit', () => rmSync(hubBuild, { recursive: true, force: true }))
+const compiled = spawnSync(process.execPath, [
+  resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
+  '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
+  '--noEmit', 'false', '--outDir', hubBuild,
+], { encoding: 'utf8' })
+if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
+const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
+const { createHttpApp } = await import(built('http/app.js'))
+const { registerModelConnectionRoutes } = await import(built('model-connection-account/routes.js'))
+
+const origin = 'https://conexus.test'
+const accountId = '22222222-2222-4222-8222-222222222222'
+const otherAccountId = '55555555-5555-4555-8555-555555555555'
+const connectionId = '11111111-1111-4111-8111-111111111111'
+const workspaceId = '33333333-3333-4333-8333-333333333333'
+const SENTINEL = 'sk-sentinel-never-echoed-7c41b9e2a0d8'
+
+const projection = {
+  connectionId,
+  label: 'OpenAI key',
+  state: 'ACTIVE',
+  generation: '1',
+  ownerAccountId: accountId,
+  workspaceId: '',
+  role: 'OWNER',
+  revokedAt: null,
+  providerId: 'openai',
+  credentialKind: 'API_KEY',
+}
+
+const makeStore = (overrides = {}) => {
+  const calls = []
+  const record = (name) => async (input) => { calls.push({ name, input }); return undefined }
+  return {
+    calls,
+    async addApiKey(input) { calls.push({ name: 'addApiKey', input }); return projection },
+    async list(input) { calls.push({ name: 'list', input }); return [projection] },
+    select: record('select'),
+    share: record('share'),
+    unshare: record('unshare'),
+    revoke: record('revoke'),
+    admitForProject: record('admitForProject'),
+    ...overrides,
+  }
+}
+
+const createHubApp = (store, { signedIn = true, enabledProviders = ['anthropic', 'openai'] } = {}) => createHttpApp({
+  registerRoutes: (app) => registerModelConnectionRoutes(app, {
+    store,
+    origin,
+    enabledProviders,
+    resolveCurrentSession: async (request, requireCsrf = false) => {
+      if (!signedIn || !request.cookies['__Host-conexus_session']) return null
+      const value = request.headers['x-conexus-csrf']
+      const csrfToken = Array.isArray(value) ? value[0] : value
+      if (requireCsrf && csrfToken !== 'csrf-1') return null
+      return { account: { accountId, displayName: 'Leandro' }, issuer: 'https://issuer.test', subject: 'subject-1' }
+    },
+    createAuthorizationRequest: async () => { throw new Error('NOT_USED_HERE') },
+    parseAuthorizationResult: () => { throw new Error('NOT_USED_HERE') },
+    exchangeAuthorizationCode: async () => { throw new Error('NOT_USED_HERE') },
+  }),
+  staticRoot: null,
+})
+
+const authentic = {
+  headers: { origin, 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' },
+  cookies: { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' },
+}
+
+const addKey = { url: '/api/control/me/model-connections/api-key', method: 'POST' }
+const keyPayload = { providerId: 'openai', label: 'OpenAI key', apiKey: SENTINEL }
+
+test('adding a key carries the same census id the ledger names', async (t) => {
+  const app = await createHubApp(makeStore())
+  t.after(() => app.close())
+  assert.deepEqual(app.routeCensus(), ['CLA-01', 'CLA-02', 'CLA-03', 'CLA-04', 'CLA-05', 'CLA-06', 'CLA-07', 'CLA-08'])
+})
+
+test('a key posted from another origin is refused before the store is reached', async (t) => {
+  const store = makeStore()
+  const app = await createHubApp(store)
+  t.after(() => app.close())
+  const response = await app.inject({
+    ...addKey,
+    headers: { ...authentic.headers, origin: 'https://attacker.test' },
+    cookies: authentic.cookies,
+    payload: keyPayload,
+  })
+  assert.equal(response.statusCode, 403)
+  assert.equal(response.json().title, 'Request authenticity denied')
+  assert.deepEqual(store.calls, [])
+  assert.equal(response.body.includes(SENTINEL), false)
+})
+
+test('a key posted without the double-submitted CSRF token is refused before the store is reached', async (t) => {
+  const store = makeStore()
+  const app = await createHubApp(store)
+  t.after(() => app.close())
+  const missing = await app.inject({
+    ...addKey,
+    headers: { origin, 'content-type': 'application/json' },
+    cookies: authentic.cookies,
+    payload: keyPayload,
+  })
+  const mismatched = await app.inject({
+    ...addKey,
+    headers: { ...authentic.headers, 'x-conexus-csrf': 'csrf-2' },
+    cookies: authentic.cookies,
+    payload: keyPayload,
+  })
+  assert.equal(missing.statusCode, 403)
+  assert.equal(mismatched.statusCode, 403)
+  assert.deepEqual(store.calls, [])
+})
+
+test('a key posted without a session is refused with 401', async (t) => {
+  const store = makeStore()
+  const app = await createHubApp(store, { signedIn: false })
+  t.after(() => app.close())
+  const response = await app.inject({ ...addKey, ...authentic, payload: keyPayload })
+  assert.equal(response.statusCode, 401)
+  assert.equal(response.json().title, 'Authentication required')
+  assert.deepEqual(store.calls, [])
+})
+
+test('the actor is the session account, and the body cannot name another one', async (t) => {
+  const store = makeStore()
+  const app = await createHubApp(store)
+  t.after(() => app.close())
+  const impersonating = await app.inject({ ...addKey, ...authentic, payload: { ...keyPayload, accountId: otherAccountId } })
+  assert.equal(impersonating.statusCode, 400)
+  assert.deepEqual(store.calls, [])
+
+  const accepted = await app.inject({ ...addKey, ...authentic, payload: keyPayload })
+  assert.equal(accepted.statusCode, 201)
+  assert.deepEqual(store.calls, [{
+    name: 'addApiKey',
+    input: { accountId, providerId: 'openai', label: 'OpenAI key', apiKey: SENTINEL },
+  }])
+})
+
+test('the created connection is the stored projection, and the key is not in it', async (t) => {
+  const app = await createHubApp(makeStore())
+  t.after(() => app.close())
+  const response = await app.inject({ ...addKey, ...authentic, payload: keyPayload })
+  assert.equal(response.statusCode, 201)
+  assert.deepEqual(response.json(), projection)
+  assert.equal(response.body.includes(SENTINEL), false)
+})
+
+test('a provider the model router does not know is refused by name, before custody', async (t) => {
+  const store = makeStore()
+  const app = await createHubApp(store)
+  t.after(() => app.close())
+  const response = await app.inject({ ...addKey, ...authentic, payload: { ...keyPayload, providerId: 'not-a-provider' } })
+  assert.equal(response.statusCode, 422)
+  assert.equal(response.json().title, 'That provider is not one the model router knows')
+  assert.deepEqual(store.calls, [])
+})
+
+test('a provider this deployment does not enable is refused by name, before custody', async (t) => {
+  const store = makeStore()
+  const app = await createHubApp(store, { enabledProviders: ['anthropic'] })
+  t.after(() => app.close())
+  const response = await app.inject({ ...addKey, ...authentic, payload: keyPayload })
+  assert.equal(response.statusCode, 422)
+  assert.equal(response.json().title, "That provider is not enabled by this deployment's model catalog")
+  assert.deepEqual(store.calls, [])
+})
+
+test('a custody failure answers a fixed problem that never quotes the key', async (t) => {
+  const app = await createHubApp(makeStore({
+    addApiKey: async () => { throw new Error(`MODEL_CONNECTION_PUBLISH_REFUSED while filing ${SENTINEL}`) },
+  }))
+  t.after(() => app.close())
+  const response = await app.inject({ ...addKey, ...authentic, payload: keyPayload })
+  assert.equal(response.statusCode, 503)
+  assert.equal(response.json().title, 'Authorization succeeded but the connection could not be published')
+  assert.equal(response.body.includes(SENTINEL), false)
+})
+
+test('the list is the account own connections and the providers the picker may offer', async (t) => {
+  const store = makeStore()
+  const app = await createHubApp(store)
+  t.after(() => app.close())
+  const response = await app.inject({
+    method: 'GET',
+    url: '/api/control/me/model-connections',
+    cookies: { '__Host-conexus_session': 'session-1' },
+  })
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(response.json(), { connections: [projection], providers: ['anthropic', 'openai'] })
+  assert.deepEqual(store.calls, [{ name: 'list', input: accountId }])
+})
+
+test('the list refuses a caller with no session', async (t) => {
+  const store = makeStore()
+  const app = await createHubApp(store, { signedIn: false })
+  t.after(() => app.close())
+  const response = await app.inject({ method: 'GET', url: '/api/control/me/model-connections' })
+  assert.equal(response.statusCode, 401)
+  assert.deepEqual(store.calls, [])
+})
+
+test('select, share and unshare bind the actor from the session and carry only the body ids', async (t) => {
+  const store = makeStore()
+  const app = await createHubApp(store)
+  t.after(() => app.close())
+  const select = await app.inject({ method: 'POST', url: '/api/control/me/model-connections/select', ...authentic, payload: { connectionId } })
+  const share = await app.inject({ method: 'POST', url: '/api/control/me/model-connections/share', ...authentic, payload: { connectionId, workspaceId } })
+  const unshare = await app.inject({ method: 'POST', url: '/api/control/me/model-connections/unshare', ...authentic, payload: { connectionId, workspaceId } })
+  assert.deepEqual([select.statusCode, share.statusCode, unshare.statusCode], [204, 204, 204])
+  assert.deepEqual(store.calls, [
+    { name: 'select', input: { accountId, connectionId } },
+    { name: 'share', input: { accountId, connectionId, workspaceId } },
+    { name: 'unshare', input: { accountId, connectionId, workspaceId } },
+  ])
+})
+
+test('select, share and unshare carry the same origin, CSRF and session guards as adding a key', async (t) => {
+  const store = makeStore()
+  const app = await createHubApp(store)
+  t.after(() => app.close())
+  const paths = ['select', 'share', 'unshare']
+  const payloads = { select: { connectionId }, share: { connectionId, workspaceId }, unshare: { connectionId, workspaceId } }
+  for (const path of paths) {
+    const foreign = await app.inject({
+      method: 'POST',
+      url: `/api/control/me/model-connections/${path}`,
+      headers: { ...authentic.headers, origin: 'https://attacker.test' },
+      cookies: authentic.cookies,
+      payload: payloads[path],
+    })
+    assert.equal(foreign.statusCode, 403)
+  }
+  assert.deepEqual(store.calls, [])
+})
+
+test('a share the database refuses is a 403, not a leak of the denial', async (t) => {
+  const app = await createHubApp(makeStore({
+    share: async () => { throw new Error('MODEL_CONNECTION_SHARE_DENIED') },
+  }))
+  t.after(() => app.close())
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/control/me/model-connections/share',
+    ...authentic,
+    payload: { connectionId, workspaceId },
+  })
+  assert.equal(response.statusCode, 403)
+  assert.equal(response.json().title, 'Model connection operation denied')
+  assert.equal(response.body.includes('MODEL_CONNECTION_SHARE_DENIED'), false)
+})

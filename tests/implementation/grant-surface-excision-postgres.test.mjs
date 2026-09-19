@@ -76,9 +76,9 @@ const seedProject = async (connection, workspaceId, label, sourceRevision) => {
   return projectId
 }
 const createRun = (connection, accountId, projectId, runId) =>
-  query(connection, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7) AS value',
+  query(connection, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8) AS value',
     [accountId, projectId, randomUUID().replaceAll('-', '').padEnd(64, '0').slice(0, 64),
-      randomUUID().replaceAll('-', '').padEnd(64, '0').slice(0, 64), null, 'PLAN', runId])
+      randomUUID().replaceAll('-', '').padEnd(64, '0').slice(0, 64), null, 'PLAN', runId, null])
 
 test('a member of the Workspace reads, creates and builds every Project in it', async (t) => {
   const connection = await freshDatabase(t)
@@ -127,7 +127,7 @@ test('a member of the Workspace reads, creates and builds every Project in it', 
   assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3) AS admitted', [stranger, projectId, sourceRevision])).rows[0].admitted, false)
   assert.equal((await query(connection, 'SELECT builder.read_preview_subject($1,$2) AS value', [stranger, projectId])).rows[0].value, null)
   for (const [sql, parameters] of [
-    ['SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7)', [stranger, projectId, 'd'.repeat(64), 'e'.repeat(64), null, 'PLAN', randomUUID()]],
+    ['SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8)', [stranger, projectId, 'd'.repeat(64), 'e'.repeat(64), null, 'PLAN', randomUUID(), null]],
     ['SELECT builder.request_builder_run_cancellation($1,$2,$3)', [stranger, projectId, runId]],
     ['SELECT * FROM project.reserve_or_replay_create_project($1,$2,$3,$4,$5)', [stranger, workspaceId, 'f'.repeat(64), '0'.repeat(64), randomUUID()]],
   ]) {
@@ -198,8 +198,8 @@ test('an inactive account is refused everywhere, including Preview and source re
   assert.equal((await query(connection, 'SELECT builder.read_preview_subject($1,$2) AS value', [dormant, projectId])).rows[0].value, null)
   assert.equal((await query(connection, 'SELECT builder.read_builder_run($1,$2) AS value', [dormant, projectId])).rows[0].value, null)
   assert.deepEqual((await query(connection, 'SELECT project_id FROM project.get_project($1,$2)', [dormant, projectId])).rows, [])
-  assert.deepEqual(await refusal(connection, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7)',
-    [dormant, projectId, '1'.repeat(64), '2'.repeat(64), null, 'PLAN', randomUUID()]), { code: '42501', message: 'NOT_ADMITTED' })
+  assert.deepEqual(await refusal(connection, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8)',
+    [dormant, projectId, '1'.repeat(64), '2'.repeat(64), null, 'PLAN', randomUUID(), null]), { code: '42501', message: 'NOT_ADMITTED' })
 })
 
 test('a connection is the owner\'s everywhere and a member\'s only where it is shared', async (t) => {
@@ -221,49 +221,49 @@ test('a connection is the owner\'s everywhere and a member\'s only where it is s
   const sharedProject = await seedProject(connection, sharedWorkspaceId, 'Shared', 'b'.repeat(40))
 
   const connectionId = randomUUID()
-  assert.equal((await query(connection, 'SELECT claude_connection.publish_connection($1,$2,$3,$4) AS value',
-    [owner, connectionId, 'Owner key', 1])).rows[0].value, true)
-  await query(connection, 'SELECT claude_connection.select_connection($1,$2)', [owner, connectionId])
+  assert.equal((await query(connection, 'SELECT model_connection.publish_connection($1,$2,$3,$4,$5,$6) AS value',
+    [owner, connectionId, 'anthropic', 'OAUTH_TOKEN_SET', 'Owner key', 1])).rows[0].value, true)
+  await query(connection, 'SELECT model_connection.select_connection($1,$2)', [owner, connectionId])
 
   // No row says the owner may use it here, or there. Owner use is implicit in every Workspace
   // they belong to.
   const admits = async (accountId, projectId) =>
-    (await query(connection, 'SELECT connection_id FROM claude_connection.admit_for_project($1,$2)', [accountId, projectId])).rows
+    (await query(connection, 'SELECT connection_id FROM model_connection.admit_for_project($1,$2,NULL)', [accountId, projectId])).rows
   assert.deepEqual(await admits(owner, homeProject), [{ connection_id: connectionId }])
   assert.deepEqual(await admits(owner, sharedProject), [{ connection_id: connectionId }])
 
   // The member has selected it but no share exists yet.
-  assert.equal((await query(connection, 'SELECT claude_connection.select_connection($1,$2) AS value', [member, connectionId])).rows[0].value, false)
+  assert.equal((await query(connection, 'SELECT model_connection.select_connection($1,$2) AS value', [member, connectionId])).rows[0].value, false)
   assert.deepEqual(await admits(member, sharedProject), [])
 
-  assert.equal((await query(connection, 'SELECT claude_connection.share_connection($1,$2,$3) AS value',
+  assert.equal((await query(connection, 'SELECT model_connection.share_connection($1,$2,$3) AS value',
     [owner, connectionId, sharedWorkspaceId])).rows[0].value, true)
-  assert.equal((await query(connection, 'SELECT claude_connection.select_connection($1,$2) AS value', [member, connectionId])).rows[0].value, true)
+  assert.equal((await query(connection, 'SELECT model_connection.select_connection($1,$2) AS value', [member, connectionId])).rows[0].value, true)
   assert.deepEqual(await admits(member, sharedProject), [{ connection_id: connectionId }])
 
   // A share into a Workspace the member belongs to says nothing about the owner's own Workspace:
   // there the member has no build right at all, so the gate refuses before any connection is
   // considered.
   assert.deepEqual(
-    await refusal(connection, 'SELECT * FROM claude_connection.admit_for_project($1,$2)', [member, homeProject]),
+    await refusal(connection, 'SELECT * FROM model_connection.admit_for_project($1,$2,NULL)', [member, homeProject]),
     { code: '42501', message: 'NOT_ADMITTED' })
 
-  assert.equal((await query(connection, 'SELECT claude_connection.unshare_connection($1,$2,$3) AS value',
+  assert.equal((await query(connection, 'SELECT model_connection.unshare_connection($1,$2,$3) AS value',
     [owner, connectionId, sharedWorkspaceId])).rows[0].value, true)
   assert.deepEqual(await admits(member, sharedProject), [])
 
   // Re-share, then remove the sharer. The share row is untouched and the connection still stops
   // resolving, because the sharer's membership is checked at use time and never cascaded.
-  await query(connection, 'SELECT claude_connection.share_connection($1,$2,$3)', [owner, connectionId, sharedWorkspaceId])
+  await query(connection, 'SELECT model_connection.share_connection($1,$2,$3)', [owner, connectionId, sharedWorkspaceId])
   assert.deepEqual(await admits(member, sharedProject), [{ connection_id: connectionId }])
   await query(connection, 'SELECT iam.remove_workspace_member($1,$2,$3)', [member, sharedWorkspaceId, owner])
   assert.deepEqual(await admits(member, sharedProject), [])
   assert.deepEqual((await query(connection,
-    'SELECT count(*)::int AS shares FROM claude_connection.workspace_share WHERE connection_id = $1 AND workspace_id = $2',
+    'SELECT count(*)::int AS shares FROM model_connection.workspace_share WHERE connection_id = $1 AND workspace_id = $2',
     [connectionId, sharedWorkspaceId])).rows, [{ shares: 1 }])
 })
 
-test('a pilot-shaped ledger at 050 runs 051 to 055 in one invocation', async (t) => {
+test('a pilot-shaped ledger at 050 runs 051 to 057 in one invocation', async (t) => {
   const connection = await freshDatabase(t)
   const connectionString = connectionStringFor(connection)
   const staged = await runSelectedHubMigrations({
@@ -315,11 +315,11 @@ test('a pilot-shaped ledger at 050 runs 051 to 055 in one invocation', async (t)
   const finished = await runSelectedHubMigrations({
     connectionString, migrations: migrationsAfter('050'), recognizedMigrations: loadCurrentHubMigrationFiles(), catalogSnapshot: null,
   })
-  assert.deepEqual(finished.appliedNow, ['051', '052', '053', '054', '055'])
+  assert.deepEqual(finished.appliedNow, ['051', '052', '053', '054', '055', '056', '057'])
 
   // The self binding carried nothing the new model stores, so no share was written, and the
   // owner's 22 Projects and 23 runs are still readable through the membership alone.
-  assert.deepEqual((await query(connection, 'SELECT count(*)::int AS shares FROM claude_connection.workspace_share')).rows, [{ shares: 0 }])
+  assert.deepEqual((await query(connection, 'SELECT count(*)::int AS shares FROM model_connection.workspace_share')).rows, [{ shares: 0 }])
   assert.deepEqual((await query(connection, 'SELECT count(*)::int AS visible FROM project.list_project_summaries($1,$2)', [accountId, workspaceId])).rows,
     [{ visible: 22 }])
   assert.deepEqual((await query(connection, 'SELECT count(*)::int AS runs FROM builder.builder_run')).rows, [{ runs: 23 }])
@@ -347,7 +347,7 @@ test('no function in the Hub schemas is executable by PUBLIC', async (t) => {
     FROM pg_proc AS p
     JOIN pg_namespace AS n ON n.oid = p.pronamespace
     CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) AS entry
-    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'claude_connection')
+    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'claude_connection', 'model_connection')
       AND entry.grantee = 0 AND entry.privilege_type = 'EXECUTE'
     ORDER BY 1
   `)).rows, [])
@@ -374,9 +374,9 @@ test('each function 053 creates is reachable only by the login role its predeces
   assert.deepEqual(await reachableBy('project.get_project(uuid,uuid)'), ['hub_s3_read'])
   assert.deepEqual(await reachableBy('workspace.create_workspace(uuid,text,uuid)'), ['hub_ws01_command'])
   assert.deepEqual(await reachableBy('workspace.get_workspace_summary(uuid,uuid)'), ['hub_s2_read'])
-  assert.deepEqual(await reachableBy('claude_connection.share_connection(uuid,uuid,uuid)'),
+  assert.deepEqual(await reachableBy('model_connection.share_connection(uuid,uuid,uuid)'),
     ['hub_r2_connections', 'hub_rb_executor', 'hub_rb_ingress'])
-  assert.deepEqual(await reachableBy('claude_connection.unshare_connection(uuid,uuid,uuid)'),
+  assert.deepEqual(await reachableBy('model_connection.unshare_connection(uuid,uuid,uuid)'),
     ['hub_r2_connections', 'hub_rb_executor', 'hub_rb_ingress'])
   assert.deepEqual(await reachableBy('builder.admit_source_revision(uuid,uuid,text)'), ['hub_rb_ingress'])
   assert.deepEqual(await reachableBy('builder.read_preview_subject(uuid,uuid)'), ['hub_rb_ingress'])
@@ -449,15 +449,15 @@ test('a connection needs no Workspace, but a deactivated account cannot mint one
   // resolves nowhere, since resolution runs through the owner's visible Workspaces.
   const unaffiliated = await seedAccount(connection, { label: 'Unaffiliated' })
   const unaffiliatedConnection = randomUUID()
-  assert.equal((await query(connection, 'SELECT claude_connection.publish_connection($1,$2,$3,$4) AS value',
-    [unaffiliated, unaffiliatedConnection, 'No workspace', 1])).rows[0].value, true)
-  assert.deepEqual((await query(connection, 'SELECT connection_id FROM claude_connection.list_connections($1)', [unaffiliated])).rows, [])
+  assert.equal((await query(connection, 'SELECT model_connection.publish_connection($1,$2,$3,$4,$5,$6) AS value',
+    [unaffiliated, unaffiliatedConnection, 'anthropic', 'OAUTH_TOKEN_SET', 'No workspace', 1])).rows[0].value, true)
+  assert.deepEqual((await query(connection, 'SELECT connection_id FROM model_connection.list_connections($1)', [unaffiliated])).rows, [])
 
   // The account half is kept, so deactivation closes creation too.
   const dormant = await seedAccount(connection, { label: 'Dormant', active: false })
-  assert.equal((await query(connection, 'SELECT claude_connection.publish_connection($1,$2,$3,$4) AS value',
-    [dormant, randomUUID(), 'Dormant key', 1])).rows[0].value, false)
-  assert.deepEqual((await query(connection, 'SELECT count(*)::int AS rows FROM claude_connection.connection WHERE owner_account_id = $1', [dormant])).rows,
+  assert.equal((await query(connection, 'SELECT model_connection.publish_connection($1,$2,$3,$4,$5,$6) AS value',
+    [dormant, randomUUID(), 'anthropic', 'OAUTH_TOKEN_SET', 'Dormant key', 1])).rows[0].value, false)
+  assert.deepEqual((await query(connection, 'SELECT count(*)::int AS rows FROM model_connection.connection WHERE owner_account_id = $1', [dormant])).rows,
     [{ rows: 0 }])
 })
 
