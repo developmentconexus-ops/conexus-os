@@ -35,7 +35,7 @@ Product features.
 | Interactive HTML | FUNCTIONAL REFERENCE APPROVED BY OPERATOR. Exact artifact identity is in frontend section 33.6. This is not Product implementation acceptance. |
 | Interactive Builder delivery | APPROVED FOR EXECUTION under the current task. Four ordered units form one integrated candidate. |
 | Builder repair program | IN EXECUTION. P-01 landed as #72 and #73 with unit proof and a green CI graph; its live lanes 6 and 10 and its perf box are outstanding. P-02 through P-06 have not started. The operator lifted the merge gate on 2026-09-18. |
-| Credential and role remediation | IN EXECUTION beside the repair program. Steps 1 and 2 landed as #74 and #76. Step 3, provisioning, is next. Credential consolidation is deliberately outside the grant. |
+| Credential and role remediation | IN EXECUTION beside the repair program. Steps 1 and 2 landed as #74 and #76. Its execution contract is #79. Step 3 is #80, the role register, and #81, provisioning plus the startup census. Step 4 is #82, the MAR excision and the census count. Step 5 is #84, which replaces the schema oracle with a generated catalog snapshot and is proven read-only against the pilot. #83 repairs two guarded suites #74 left unable to run. All six are verified and wait at merge-ready for the operator. Next is repairing the three R1 Postgres suites that rotted outside the candidate graph. Credential consolidation is deliberately outside the grant. |
 | Broader platform and visual polish | DEFERRED. No requirement to finish them before operating the Builder. |
 
 The initial accepted 7R-1 implementation remains
@@ -65,6 +65,10 @@ The predecessor task keeps its meaning. Its four units remain the delivered
 shape, and its repair ledger is the record this program closes and reconciles.
 
 ### Credential and role remediation
+
+Its execution contract is [credential-and-role-remediation.md](tasks/credential-and-role-remediation.md).
+That task owns the ordered pull requests, their file boundaries, and the evidence each one
+carries. This section stays the grant and the authorized sequence.
 
 On 2026-09-18 the operator authorized this explicitly, including the parts the
 preservation clause below previously refused, and instructed that legacy be removed
@@ -136,10 +140,21 @@ values the existing secret files already hold; no new credential is generated.
 
 The last reported local proof had HTTPS and `hub_iam_runtime` working after the
 previously authorized `hub_rb_executor` reconciliation. `hub_prj03_command` and
-`hub_rb_ingress` still reported `28P01`. These are historical observations and were
-not reverified during this planning. Check the current state read-only as required
-by the task. Report a surviving operational block without declaring the entire
-code path proven, and continue independent implementation/offline tests.
+`hub_rb_ingress` still reported `28P01`.
+
+That `28P01` is gone. On 2026-09-18 a read-only census opened one session per
+configured role against the pilot cluster at `conexus_s7` through the Hub's own
+`createPostgresPool`, and all eleven configured roles authenticated, including
+`hub_prj03_command` and `hub_rb_ingress`. Postgres reported the expected
+`conexus-hub:<capability>` for each one. No role is in a blocked state today.
+
+Four roles have no password file in the pilot and so no pool is created for them
+there. They are `hub_r2_project_binding`, `hub_r2_brain_read`,
+`hub_r2_brain_attester` and `hub_r2_key_conformance_subject`. Unconfigured is not
+the same as invalid, and the remediation's step 3 census reports them apart.
+
+Report a surviving operational block without declaring the entire code path
+proven, and continue independent implementation/offline tests.
 
 The approved HTML bytes are supplied in the handoff package. Import their exact
 hash-verified copy in the first implementation unit. Do not substitute screenshots

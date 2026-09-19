@@ -11,8 +11,8 @@ const compile = async (t) => {
   const buildRoot = await mkdtemp(resolve(repositoryRoot, 'apps/hub/claude-account-build-'))
   t.after(() => rm(buildRoot, { recursive: true, force: true }))
   const result = spawnSync(resolve(repositoryRoot, 'node_modules/.bin/esbuild'), [
-    resolve(repositoryRoot, 'apps/hub/src/project/oauth-token-store.ts'),
-    resolve(repositoryRoot, 'apps/hub/src/project/anthropic-oauth.ts'),
+    resolve(repositoryRoot, 'apps/hub/src/model-connection/oauth-token-store.ts'),
+    resolve(repositoryRoot, 'apps/hub/src/model-connection/anthropic-oauth.ts'),
     `--outdir=${buildRoot}`, '--bundle', '--platform=node', '--format=esm', '--packages=external', '--log-level=error',
   ], { cwd: repositoryRoot, encoding: 'utf8' })
   if (result.status !== 0) throw new Error(result.stdout || result.stderr)
