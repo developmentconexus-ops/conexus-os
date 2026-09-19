@@ -273,54 +273,58 @@ Adding one `hub_*` role today costs the new migration plus edits to the migratio
 
 **Files.**
 
-- [ ] Create `scripts/generate-catalog-snapshot.mjs`.
-- [ ] Create `contracts/technical/hub-catalog-snapshot.json`.
-- [ ] Edit `scripts/run-hub-migrations.mjs`.
-- [ ] Edit `tests/implementation/hub-migration-postgres.test.mjs`.
-- [ ] Edit `package.json` and `scripts/conexus-verify.mjs`.
+- [x] Create `scripts/generate-catalog-snapshot.mjs`.
+- [x] Create `contracts/technical/hub-catalog-snapshot.json`.
+- [x] Edit `scripts/run-hub-migrations.mjs`.
+- [x] Edit `tests/implementation/hub-migration-postgres.test.mjs`.
+- [x] Edit `package.json` and `scripts/conexus-verify.mjs`.
 
 **Build.**
 
-- [ ] Write the snapshot generator. It queries a fixed set of catalog views for relations, columns with type and nullability, constraint definitions including foreign-key targets, index sets, function signatures, the function bodies the oracle currently digests, schema privileges, and table and function privileges per role. It sorts every result deterministically and writes one canonical JSON document.
-- [ ] Cover exactly the classes the census found the oracle alone proves. The lifecycle tests at `tests/implementation/hub-migration-postgres.test.mjs:55-79,137-141,162-164` cover sequential apply, restart idempotency, concurrent install, digest drift, back-insert refusal and about a dozen spot existence checks. Nothing else covers the catalog classes, so each one appears in the snapshot or in a named assertion.
-- [ ] Add extensions to the snapshot even though the oracle never checked them. A grep for `extension` across the file returns nothing, so an installed extension is unproven today. The rewrite closes that gap at no extra cost.
-- [ ] Follow the `information_schema` and `pg_catalog` query shapes already used at `tests/implementation/r1-s2-postgres.test.mjs:274-279` and `:342-367` and the invariant scans at `tests/implementation/r2-p1-foundation.test.mjs:312-358`. Those are the only prior art; the repository has no snapshot or golden-file infrastructure today.
-- [ ] Snapshot per applied version, not only the final state. `verifyLedger` asserts the catalog after each apply, so a mid-sequence upgrade from an older pilot ledger is proven today and must stay proven. One document keyed by version preserves that and replaces the `afterNNN` boolean tree at `:3796-3930` with a lookup.
-- [ ] Keep the security-bearing assertions explicit rather than folding them into the snapshot, per **principle-boundary-discipline**. Role attributes, role membership, and any grant that could let one capability assume another stay as named assertions against an allowlist a human must edit, because a regenerated snapshot would otherwise accept a new superuser as readily as a new column. The negative property in `docs/reference/data-and-persistence.md` section 6.2 is exactly what a blanket snapshot diff would stop proving.
-- [ ] Keep the selection layer at `:140-172`, the ledger digest guard at `:3803`, the back-insert refusal at `:3946` and the advisory lock at `:3940` exactly as they are. Those are custody and concurrency, not schema oracle, and the lifecycle tests already cover them.
-- [ ] Delete the `assertNNNCatalog` functions the snapshot replaces in the same change, per **principle-migrate-callers-then-delete-legacy-apis**.
-- [ ] Add `db:catalog:snapshot` to regenerate and `db:catalog:check` to compare, and put `db:catalog:check` in `CANDIDATE_GRAPH`. A schema change then costs one migration plus one regenerated snapshot, which is the step's stated goal.
+- [x] Write the snapshot generator. It queries a fixed set of catalog views for relations, columns with type and nullability, constraint definitions including foreign-key targets, index sets, function signatures, the function bodies the oracle currently digests, schema privileges, and table and function privileges per role. It sorts every result deterministically and writes one canonical JSON document.
+- [x] Cover exactly the classes the census found the oracle alone proves. The lifecycle tests at `tests/implementation/hub-migration-postgres.test.mjs:55-79,137-141,162-164` cover sequential apply, restart idempotency, concurrent install, digest drift, back-insert refusal and about a dozen spot existence checks. Nothing else covers the catalog classes, so each one appears in the snapshot or in a named assertion.
+- [x] Add extensions to the snapshot even though the oracle never checked them. A grep for `extension` across the file returns nothing, so an installed extension is unproven today. The rewrite closes that gap at no extra cost.
+- [x] Follow the `information_schema` and `pg_catalog` query shapes already used at `tests/implementation/r1-s2-postgres.test.mjs:274-279` and `:342-367` and the invariant scans at `tests/implementation/r2-p1-foundation.test.mjs:312-358`. Those are the only prior art; the repository has no snapshot or golden-file infrastructure today.
+- [x] Snapshot per applied version, not only the final state. `verifyLedger` asserts the catalog after each apply, so a mid-sequence upgrade from an older pilot ledger is proven today and must stay proven. One document keyed by version preserves that and replaces the `afterNNN` boolean tree at `:3796-3930` with a lookup.
+- [x] Keep the security-bearing assertions explicit rather than folding them into the snapshot, per **principle-boundary-discipline**. Role attributes, role membership, and any grant that could let one capability assume another stay as named assertions against an allowlist a human must edit, because a regenerated snapshot would otherwise accept a new superuser as readily as a new column. The negative property in `docs/reference/data-and-persistence.md` section 6.2 is exactly what a blanket snapshot diff would stop proving.
+- [x] Keep the selection layer at `:140-172`, the ledger digest guard at `:3803`, the back-insert refusal at `:3946` and the advisory lock at `:3940` exactly as they are. Those are custody and concurrency, not schema oracle, and the lifecycle tests already cover them.
+- [x] Delete the `assertNNNCatalog` functions the snapshot replaces in the same change, per **principle-migrate-callers-then-delete-legacy-apis**.
+- [x] Add `db:catalog:snapshot` to regenerate and `db:catalog:check` to compare, and put `db:catalog:check` in `CANDIDATE_GRAPH`. A schema change then costs one migration plus one regenerated snapshot, which is the step's stated goal.
 
 **You see.**
 
-- [ ] `scripts/run-hub-migrations.mjs` is materially shorter, and `npm run db:catalog:check` fails with a named diff after one column is added by a scratch migration.
-- [ ] Adding a role touches the register, one migration, and the regenerated snapshot, and nothing else.
+- [x] `scripts/run-hub-migrations.mjs` is materially shorter, and `npm run db:catalog:check` fails with a named diff after one column is added by a scratch migration.
+- [x] Adding a role touches the register, one migration, and the regenerated snapshot, and nothing else.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `tests/implementation/hub-migration-postgres.test.mjs` keeps every case it has, including the concurrent-installer case, and gains a case asserting that the snapshot of a fresh install equals the committed snapshot. Run `node --test --test-concurrency=1 tests/implementation/hub-migration-postgres.test.mjs`.
-- [ ] A case asserts that a role gaining `SUPERUSER` or a new `SET ROLE` path fails the explicit assertion even after the snapshot is regenerated. This is the property the rewrite must not lose.
+- [x] `tests/implementation/hub-migration-postgres.test.mjs` keeps every case it has, including the concurrent-installer case, and gains a case asserting that the snapshot of a fresh install equals the committed snapshot. Run `node --test --test-concurrency=1 tests/implementation/hub-migration-postgres.test.mjs`.
+- [x] A case asserts that a role gaining `SUPERUSER` or a new `SET ROLE` path fails the explicit assertion even after the snapshot is regenerated. This is the property the rewrite must not lose.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Lanes run on the configured `swarm workers` model at the PR head, per the boot recipe, and the lane list follows the live bar above rather than the ten-lane template.
 
-- [ ] Lane 1. Regression lane against trunk. Apply every migration to a fresh database and capture the full catalog at trunk and at head. Save `r05-catalog-both.png`. Pass when the two catalogs are identical, which is the evidence that the rewrite preserves behavior.
-- [ ] Lane 2. Snapshot the operator's pilot database and diff it against the fresh-install snapshot. Save `r05-pilot-diff.png`. Pass when every difference is explained in the trail, since the pilot carries real work and history a fresh install does not.
-- [ ] Lane 3. Add one `hub_*` role in a scratch worktree and count the files a developer must edit. Save `r05-role-change-cost.png`. Pass when the count is the register, one migration and the regenerated snapshot.
+- [x] Lane 1. Regression lane against trunk. Apply every migration to a fresh database and capture the full catalog at trunk and at head. Save `r05-catalog-both.png`. Pass when the two catalogs are identical, which is the evidence that the rewrite preserves behavior.
+- [x] Lane 2. Snapshot the operator's pilot database and diff it against the fresh-install snapshot. Save `r05-pilot-diff.png`. Pass when every difference is explained in the trail, since the pilot carries real work and history a fresh install does not.
+- [x] Lane 3. Add one `hub_*` role in a scratch worktree and count the files a developer must edit. Save `r05-role-change-cost.png`. Pass when the count is the register, one migration and the regenerated snapshot.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Wall time of a from-scratch migration run including its assertions, at trunk and at head.
-- [ ] Probe. Apply every migration to a fresh database three times at trunk and three times at head, interleaved.
-- [ ] Baseline. Record trunk's time first.
-- [ ] Rule. Head must not exceed trunk. Replacing 161 per-migration round trips with one catalog snapshot should be faster, so a slower head means the snapshot queries more than it needs.
+- [x] Metric. Wall time of a from-scratch migration run including its assertions, at trunk and at head.
+- [x] Probe. Apply every migration to a fresh database three times at trunk and three times at head, interleaved.
+- [x] Baseline. Record trunk's time first.
+- [x] Rule. Head must not exceed trunk. Replacing 161 per-migration round trips with one catalog snapshot should be faster, so a slower head means the snapshot queries more than it needs.
+
+**Evidence, recorded in #84.** Before any design, a catalog from a fresh install at `050` and one from the operator's pilot at `050` differed by 0 lines across 9 schemas, 34 relations, 291 columns, 195 constraints, 53 indexes, 148 functions and 25 roles, although the pilot applied `040` and `047` with legacy bytes. That settled whether one committed snapshot could represent both. The pilot then passed the exact `assertCatalogAt` and `assertRoleInvariants` that `verifyLedger` runs, read-only as `hub_iam_runtime`. All 28 Postgres suites ran at the R-04 head and again at this head on a disposable 17.10 cluster from the pinned image, with no regression, and `r2-p2-brain-bootstrap` refused all 23 of its tamper cases. From-scratch install measured a median of 25155 ms at trunk and 14467 ms at head, and the CI migration step fell from 36913 ms to 10756 ms with three more cases in it.
+
+**Corrections to this section.** Roles are kept out of the per-version digest, not only the security-bearing ones, because they are cluster-global and a shared cluster shows another install's roles at every version. The explicit allowlist became an invariant with no list at all, which is stronger. The snapshot holds a full catalog only at head and digests for earlier versions, because 48 full catalogs would be about seven megabytes. `db:catalog:check` did not join the candidate graph, because any fresh install already checks every committed digest before each apply. The cost of a schema change is a migration, its name and digest in the runner's custody lists, and a regenerated snapshot; the custody lists stay hand-maintained on purpose, since they pin file bytes rather than schema. ACLs compare as effective privileges after the first run showed that a raw array comparison is the wrong property.
 
 **Review gate.** None. R-05 is not review-gated. It changes no interaction, so no screenshots and no video are owed.
 
 **Merge.**
 
-- [ ] Root's clean verdict at the exact head SHA.
-- [ ] Bugbot triage done.
-- [ ] Merge on the clean verdict.
+- [x] Root's clean verdict at the exact head SHA.
+- [x] Bugbot triage done.
+- [x] Merge on the clean verdict.
 
 ## Found during R-04, not yet a PR
 
@@ -328,6 +332,8 @@ These were uncovered while removing MAR. None is in the candidate graph, which i
 
 - [ ] Three repository scripts already fail at trunk. `scripts/check-r3-candidate-freeze.mjs` fails with `R3_CANDIDATE_FREEZE_BASE_DRIFT` and also asserts the migrations directory holds exactly 25 files ending in `025_mar_admission_function.sql`, while trunk holds 50. `scripts/record-r1-candidate-custody.mjs` fails with `RC01_UNKNOWN_CLASSIFICATION:.gitignore`. `scripts/check-r1-a0-migration.mjs` fails with `A0_UNCLASSIFIED_PATH`. Each pins a base the repository has left. Decide per script whether to delete it with its npm entries or re-pin it to a current base, and record which.
 - [ ] `apps/hub/src/mar/admission.ts` is imported by nothing under `apps/`. It pins a `pg-boss` tuple for the retired MAR subject against a `mar` schema that no current install creates, and `pg-boss` has no other consumer. Its only readers are `tests/implementation/r3-mar-admission.test.mjs` and the R3 freeze list above. It goes with the R3 freeze decision, together with the `pg-boss` dependency, so the Preview runtime in the same directory is left alone.
+- [ ] `r1-s1-postgres`, `r1-s2-postgres` and `r1-s3-postgres` are outside the candidate graph and have rotted. `r1-s2` and `r1-s3` fail on trunk because they assert the migration ledger stops at an early version. `r1-s1` applies migration `001` straight into the configured database, so it passes once per fresh cluster and fails with `BOOTSTRAP_SEALED` on a second run. Their exact-catalog assertions are now duplicated by the R-05 snapshot and should be deleted. Their behavior assertions, such as the PRJ-03 receipt and rollback boundary, abandoned-attempt cleanup and `project.read` revocation, appear to be the only proof of those SQL paths, so they stay, get repaired, and join the candidate graph so they cannot rot again. Delete a whole file only where another current suite already proves the same behavior.
+- [x] Two guarded suites could not run at all since #74, because the guard import landed inside a multi-line import in one file and inside a child-process script string in the other. Fixed in #83, with a coverage case that parses each guarded file and requires the import in its header.
 - [ ] `PRJ-29` is an open Product contradiction. `docs/product/operation-ledger.md` says the pre-P11 review added it, and it is absent from both the section 5 table and the current Product OAS. Its owner decides whether it is owed or the sentence is stale.
 
 ## Close the program
