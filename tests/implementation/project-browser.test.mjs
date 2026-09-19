@@ -123,7 +123,9 @@ test('S3-P6 real Chromium proves browse, filters, create navigation and narrow r
   await page.getByLabel('Repositório Git existente').check()
   await page.getByLabel('Localizador do repositório').fill('catalog://admitted/project')
   await page.getByRole('button', { name: 'Criar Project' }).click()
-  await page.getByRole('heading', { name: 'Imported Project' }).waitFor()
+  await page.getByRole('heading', { name: 'Construir com o Conexus' }).waitFor()
+  await page.getByText('Imported Project / Build').waitFor()
+  assert.equal(page.url(), `${origin}/projects/${createdId}/build`)
   assert.notEqual(createKey, '')
 
   projects = []
