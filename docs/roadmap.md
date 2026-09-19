@@ -79,9 +79,6 @@ the credential, so a Codex entry is `providerKey: "openai"` with a model id Mast
 registry lists, while the connection stays `provider_id: "openai-codex"` so an account can
 hold a selected subscription and a selected API key at the same time.
 
-Removal of the one-time baseline-adoption code, on branch `chore/remove-baseline-adoption`.
-The pilot is adopted, so the adoption path has no remaining caller.
-
 ## The Builder sequence
 
 This is the order. Each step is one unit of work that ends in something a person

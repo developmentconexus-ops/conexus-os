@@ -7,15 +7,6 @@ import { buildHubDatabase, createEmptyDatabase, query } from './hub-database.mjs
 const ledgerOf = async (connectionString) =>
   (await query(connectionString, 'SELECT version, checksum_sha256 FROM iam.schema_migration ORDER BY version')).rows
 
-const installLegacyLedger = async (connectionString, head = '059', size = 57) => {
-  const versions = Array.from({ length: size }, (_, index) => String(index + 1).padStart(3, '0'))
-  versions[versions.length - 1] = head
-  await query(connectionString, 'DELETE FROM iam.schema_migration')
-  for (const version of versions) {
-    await query(connectionString, 'INSERT INTO iam.schema_migration(version, checksum_sha256) VALUES ($1, $2)', [version, 'a'.repeat(64)])
-  }
-}
-
 test('a fresh database is built by the one baseline and records it', async (t) => {
   const { connectionString } = await createEmptyDatabase(t, 'conexus_mig')
   const installed = await runHubMigrations({ connectionString })
@@ -64,17 +55,6 @@ test('a catalog that drifted from the snapshot is refused by line', async (t) =>
   await assert.rejects(
     runHubMigrations({ connectionString }),
     /MIGRATION_CATALOG_DRIFT:1 differing lines; unexpected column iam\.account\.unauthorized text/,
-  )
-})
-
-// A Hub installed before the baseline must be adopted, never migrated over. The refusal has to say
-// so, because the operator reads it on a live installation.
-test('a database still on the replaced history refuses and names the adopt command', async (t) => {
-  const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
-  await installLegacyLedger(connectionString)
-  await assert.rejects(
-    runHubMigrations({ connectionString }),
-    /MIGRATION_ADOPTION_REQUIRED:ledger head 059; run node scripts\/run-hub-migrations\.mjs --adopt-baseline/,
   )
 })
 

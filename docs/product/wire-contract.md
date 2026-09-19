@@ -1,15 +1,15 @@
-# Conexus OS — Executable Wire Contract
+# Conexus OS wire contract
 
-> **Status:** CURRENT MVP IMPLEMENTED / OPERATOR RATIFIED
-> **Owner:** current Product wire, derived from operation-ledger §5.
-> **Product semantics:** operation-ledger §5 is the current authority; the broader 4B design remains retained historical/platform material.
-> **Implementation:** current MVP OAS implemented with 31 operations.
+This file owns the rules the machine-readable wire artifacts must follow.
+[The operation ledger](operation-ledger.md) owns the census of 26 operations that the
+wire carries, [the product contract](contract.md) owns product meaning, and
+[the roadmap](../roadmap.md) owns status.
 
-This document owns the human-readable 4B decisions that govern the canonical machine-readable wire artifacts. The machine-readable Product wire must conform to this contract; neither this prose nor generated code may invent Product meaning beyond accepted 4A.
+Neither this prose nor generated code may invent meaning the ledger does not admit.
 
 ## 1. Representation decision
 
-The retained 4B representation adopted:
+The wire uses:
 
 ```text
 HTTP Product wire authority = OpenAPI Specification 3.1.2
@@ -31,52 +31,48 @@ The single canonical entry document remains:
 contracts/api/product/openapi.yaml
 ```
 
-Real method/path mapping created enough size/maintenance pressure that 4B's previously defined split trigger fired. The OAD is therefore one **multi-file OpenAPI authority** for the current 31-operation internal MVP:
+Method and path mapping grew large enough to split, so the description is one multi-file
+OpenAPI authority:
 
 ```text
-contracts/api/product/openapi.yaml                  canonical entrypoint / shared wire law
-contracts/api/product/identity-workspace-paths.yaml current IAM + Workspace Path Items
-contracts/api/product/project-paths.yaml            current Project Path Items
-contracts/api/product/builder-paths.yaml            current Builder Path Items
+contracts/api/product/openapi.yaml                  canonical entrypoint and shared wire law
+contracts/api/product/identity-workspace-paths.yaml IAM and Workspace Path Items
+contracts/api/product/project-paths.yaml            Project Path Items
+contracts/api/product/builder-paths.yaml            Builder Path Items
+contracts/api/product/model-connection-paths.yaml   Model Connection Path Items
 ```
 
 Rules:
 
 ```text
-one canonical entrypoint authority
+one canonical entrypoint
 + deterministic local refs
-+ validator resolves the active current graph
-+ current bundle is generated proof output
-+ current bundle ↔ current operation census is mechanically checked
-retained future-surface fragments are not current Product authority
++ the validator resolves the whole graph
++ the bundle is generated proof output, never committed
++ the bundle and the operation census are checked against each other
 ```
 
-Fragments are never consumed independently as alternative Product APIs. Current fragments are maintenance partitions inside one OAD authority; retained future-surface fragments remain source material until their callers are admitted.
+A leaf file is a maintenance partition, never a second API. `scripts/check-wire-bijection.mjs`
+requires the bijection in both directions: every leaf path must be bundled, and every
+bundled operation must come from a leaf path. There is no category of path retained in a
+leaf file for a surface that does not exist.
 
-The independent Fable review exposed three historical dead fragments (`fixed-paths.yaml`, `current-state-overrides.yaml`, `fixed-census-overrides.yaml`); they were deleted rather than archived or deprecated. The historical 111-operation derivation remains retained evidence and is outside the current Product wire.
+Generated bundles under `/tmp` are proof artifacts only.
 
-Generated bundles under `/tmp` are proof artifacts only and are never committed/editable co-authority.
-
-### 2.2 Project-defined operation grammar
+### 2.2 The Project-defined operation grammar
 
 ```text
 contracts/api/project-operation.schema.json
 ```
 
-is the canonical JSON Schema 2020-12 grammar for exact Release-pinned Project operation declarations.
+is a JSON Schema 2020-12 grammar for operations a Project would declare for itself, and
+`contracts/examples/budget-analyzer` holds two example declarations against it.
 
-A concrete Project declaration is authoritative only as part of an exact admitted Project/Release contract. Generated OpenAPI from those declarations is a deterministic projection, not a second editable business-operation contract.
-
-### 2.3 First Budget Analyzer proof instance
-
-The first Budget Analyzer instantiates exactly:
-
-```text
-AnalyzePendingBudgets
-ListPendingBudgets
-```
-
-as `project-operation/v1` declarations and produces an exact generated/conforming application OAD. No third operation is admitted merely for wire convenience.
+Nothing serves them. Their declarations pin an active Release, a Project Brain binding
+and a Project connection binding, and their caller is a published application. All four
+concepts left the product on 2026-09-19. The grammar and its examples are retained as an
+example of shape. They are not current wire authority and nothing in the census depends
+on them.
 
 ## 3. Fixed operation identity / HTTP shape law
 
@@ -87,35 +83,32 @@ operationId = exact accepted 4A semantic operation name
 x-conexus-4a-id = exact accepted 4A ledger ID
 ```
 
-The current internal MVP fixed shape is derived from the operation-level census and has mechanically closed:
+The shape is derived from the census and closes mechanically:
 
 ```text
-Current Product operations  = 31
-OAS current operations      = 31
-missing                    = 0
-extra                      = 0
-duplicate operationId      = 0
-duplicate 4A ID            = 0
-duplicate method+path      = 0
+census operations     = 26
+OAS operations        = 26
+missing               = 0
+extra                 = 0
+duplicate operationId = 0
+duplicate 4A ID       = 0
+duplicate method+path = 0
 ```
 
-`WS-03 UpdateWorkspace`, `WS-06 UpdateArea` and `PRJ-04 UpdateProject` are not current Product wire operations. Their subtraction was a semantic correction, not a route-style choice.
+`npm run wire:bijection` must stay green. The checker also rejects a Product path shaped
+like unrestricted dispatch, so a path containing `{operationSlug}` or a path segment
+`execute` fails the build.
 
-`npm run wire:bijection` must remain green. The checker also rejects generic Product paths shaped like unrestricted `/execute` or `{operationSlug}` dispatch.
-
-Historical 4A/4B operations remain retained reference material and are outside the current Product OAS.
-
-Surface roots preserve 4A ingress separation:
+Every current operation is `CONTROL_PLANE` ingress and lives under one of two roots:
 
 ```text
-/api/control/...   authenticated Control Plane Product interaction
-/api/apps/...      Published Application human interaction
-/api/headless/...  explicit Product-Agent headless interaction
-/api/runtime/...   owner-neutral PAR read/approval HTTP surface
-/api/projects/...  owner-neutral multi-ingress Project/Brain Product capability
+/api/control/...   authenticated Control Plane interaction
+/api/session       the current Conexus session
 ```
 
-One operation may admit multiple ingress classes without creating multiple Product operations. A path namespace never grants authority.
+A path namespace never grants authority. The roots for published applications, headless
+Product Agent invocation and the Product Agent runtime were removed with those surfaces
+on 2026-09-19.
 
 ## 4. Project-defined static-path generation law
 
@@ -194,72 +187,17 @@ The accepted semantic outcome classes remain:
 
 No later wire may turn a non-disclosable foreign subject into a 403 existence oracle. Owner-specific problem types are admitted only where a concrete consumer needs stable branching beyond the HTTP class.
 
-## 7. Retained historical current-state / conditional contract
+## 7. Conditional requests
 
-The following carrier rules are retained 4B platform design. They do not add
-authority to the 31-operation current MVP OAS. The current OAS has no
-`If-Match`-only operation set.
+`If-Match` is used only when the ETag describes the current representation of the same
+HTTP target being mutated. Never reuse an ETag from one resource as `If-Match` on a
+different command or collection target.
 
-IC2 is a **semantic current-subject obligation**, not an automatic `If-Match` instruction.
+The current OAS has no operation that requires `If-Match`. Where a command needs a
+current-state precondition it carries the exact expected revision in its own payload,
+which is what `CancelBuilderRun` and `SetWorkspaceMemberRole` do.
 
-RFC 9110 `If-Match` is used only when the ETag describes the current representation of the **same HTTP target resource being mutated**.
-
-The retained historical literal semantic `IF_MATCH` set was:
-
-```text
-ClearProjectBrainBinding
-PAR-14 ReviseScheduleTrigger
-```
-
-The historical bundled HTTP carrier proof was:
-
-```text
-required If-Match        = { ClearProjectBrainBinding, PAR-14 }
-optional If-Match        = { SetProjectBrainBinding }
-optional If-None-Match   = { SetProjectBrainBinding }
-```
-
-Truthful same-target examples:
-
-```text
-GET /.../brain-binding
-→ strong ETag when present
-
-DELETE same brain-binding target
-→ If-Match when present
-
-GET /.../triggers/{triggerId}
-→ strong ETag
-
-PATCH same trigger target
-→ If-Match
-```
-
-`SetProjectBrainBinding` remains a retained historical `CURRENT_OR_ABSENT` example. It is outside the current 31-operation OAS.
-
-Do **not** reuse an ETag from one resource as `If-Match` on a different command/collection target. Retained historical explicit-semantic examples include:
-
-```text
-PromoteRelease
-→ expected pointer generation explicitly carried
-
-DecideApprovalRequest
-→ exact ApprovalRequest/proposal digest explicitly carried
-→ request-time Agent/action/time presentation supports recognition but never replaces the sealed subject
-
-EnableAgentTrigger
-→ exact TriggerRevision explicitly carried
-
-ArchiveProject command subpath
-→ exact Project current revision/generation explicitly carried
-```
-
-Likewise, when no exact item GET exists (for example a Published-App grant item), 4B exposes an explicit current revision/role/subject carrier rather than pretending the collection's ETag is the item's validator.
-
-`WS-03`, `WS-06` and `PRJ-04` are no longer conditional-carrier cases because `4B-F01` removed those generic Product mutations entirely.
-
-Failed standard representation preconditions remain 412-class Problems.
-
+A failed representation precondition is a 412-class Problem.
 
 ## 8. Idempotency contract
 
@@ -318,11 +256,13 @@ IAM-02 /api/session
 -X-> claim global Keycloak SSO logout
 ```
 
-### 9.2 Non-HTTP/runtime authority
+### 9.2 Non-HTTP authority
 
-`PAR_TOOL`, `MAR_JOB`, owner/system transitions and future DEDICATED service projections are not converted into fake human HTTP cookies or arbitrary caller headers merely because OAS needs a security object.
+An owner-internal transition is not converted into a fake human cookie or an arbitrary
+caller header merely because OAS needs a security object.
 
-The current OAS declares `nonHttpIngress: []`. `RunAnalyticQuery` and `PAR_TOOL` remain retained historical ingress examples outside the current 31-operation OAS.
+The current OAS declares `nonHttpIngress: []`. Every current operation is an
+authenticated Control Plane interaction carrying the Conexus session.
 
 ## 10. Browser request-authenticity contract
 
@@ -361,42 +301,19 @@ Wire namespaces preserve:
 
 ```text
 Control Plane Product API
-!= Published Application business API
-!= Product Agent headless/interactive API
 != exact Project-defined capability wire
 != Technical Ingress / provider protocol
 != internal owner/runtime mechanism
 ```
 
-Technical/protocol routes never inflate `N_platform` merely because they use HTTP.
+A technical or protocol route never inflates the Product census merely because it uses
+HTTP. The technical description in `contracts/api/technical/openapi.yaml` is separate and
+has its own lint and ingress checks.
 
-For Product Agent execution specifically:
-
-```text
-PAR-04 / PAR-05
-→ admit exact Conexus AgentRun owner truth
-→ 202 AgentRun identity / exact Release pin
-
-PAR-01 / PAR-02 / PAR-04
-→ Conversation summaries ordered by lastActivityAt DESC + stable conversationId DESC
-→ safe last-message preview + exact NONE | NEEDS_YOUR_RESPONSE attention
-→ durable TEXT | QUESTION message history
-→ exact open-question reply admits a new AgentRun
--X-> clarification as ApprovalRequest or ordinary-run suspension
-
-PAR-06 / PAR-07
-→ admittedAt + optional settledAt are PAR temporal truth
-→ lists order by admittedAt DESC + stable agentRunId DESC before pagination
-→ optional safe human problem supports investigation without retry/resume authority
-
-live stream / reconnect / runtime observe
-→ Technical Ingress/projection over that exact AgentRun
--X-> seventeenth PAR Product operation
--X-> Mastra runId/toolCallId/threadId as Product identity
--X-> stream end as AgentRun terminal truth
-```
-
-Current framework-leverage Evidence favors Mastra-native stream/HITL mechanics and AI-SDK-compatible projection at realization time, but 4B selects no runtime package or React transport. Bounded Evidence.
+Live observation of a Builder run is a Technical Ingress projection over that exact run.
+It is not a Product operation, a Mastra `runId` or `threadId` is never a Product
+identity, and the end of a stream is never the terminal truth of a run. The Hub's
+settlement is.
 
 ## 12. Project-operation declaration law
 
@@ -616,72 +533,21 @@ Kubb 5.0.0 is therefore an **empirically viable 4D ADOPT candidate**, not a 4B P
 
 ## 17. Current executable proof
 
-The repository `npm run verify` path proves only the current MVP surface and the
-infrastructure required by its supported Builder journey:
+`npm run verify` runs the candidate graph in `scripts/conexus-verify.mjs`. Its wire steps
+are:
 
 ```text
-current migrations / PostgreSQL
-+ C-020 BuilderRun, source custody and source inspection
-+ Mastra lifecycle, message projection and PLAN
-+ execution-native Registry / compiler / starter / E2B template
-+ Product browser journey
-+ Hub/Web typecheck and Web build
-+ repository checks and current Biome
-+ Product OAS lint + deterministic bundle
-+ current operation-ledger ↔ Product OAS bijection = 31 / 31
-+ current carrier/security and IAM/Workspace, Project, Builder, Brain, Connections gates
-+ current Technical Ingress protocols TI-01/TI-02
+wire:lint             the Product OAS passes Redocly recommended
+wire:bundle           the description bundles deterministically
+wire:bijection        the census and the bundle agree, 26 to 26
+wire-bijection-gate   the bijection gate itself is proved against planted faults
+wire:carriers         current-state carriers are declared
+wire:identity-workspace, wire:project, wire:builder   per-module wire shape
+wire:technical-lint, wire:technical-ingress           the technical ingress description
 ```
 
-Retained Project grammar, Budget, generated historical projections, Release,
-PAR, Gateway, Observability and whole-4B proofs remain explicit historical
-or subsystem checks. They are not current Product authority and are not part of
-the default verification graph. MAR was in that list until its Path Items and its
-`wire:mar` checker were deleted on 2026-09-18.
+The `wire:budget-*` scripts check the retained Project-defined grammar and its examples.
+They are not in the candidate graph and prove nothing about the current wire.
 
-Historical owner-slice RED/GREEN Evidence is in Git history; this contract does
-not duplicate the full worklog.
-
-## 18. Retained historical 4B closure
-
-Operator ratification closes the retained 4B semantic authority on this candidate; this section is historical/platform context and does not grant current Product authority. The ratified result is:
-
-```text
-historical fixed Product wire/schema closure = 111 / 111
-Project-defined operation grammar       = CLOSED / unbounded payload gap corrected
-Budget Analyzer proving instance         = GREEN
-historical Technical Ingress                = CLOSED / 3 protocol-only operations
-Product-count impact of Technical        = 0
-generated projection/no-parallel-DTO     = CLOSED / real Kubb probe green
-whole-4B executable/negative proof       = CLOSED
-independent Fable review                 = COMPLETE / 2 bounded materials found and corrected
-Lead adjudication                        = COMPLETE / no 4A reopen
-operator ratification                    = COMPLETE
-```
-
-Ratification does not authorize merge by itself. The retained 4B candidate was not a current Product implementation grant; the current MVP implementation is owned by operation-ledger §5 and the canonical OAS.
-
-
-Do not begin 4C, router/framework selection, persistence design, Paved Road selection, migrations, Sankhya implementation or Product code before 4B is integrated.
-## Pre-P11 F03–F05 bounded wire recompile
-
-The operator-ratified pre-P11 corrections preserve the canonical wire laws while moving the fixed platform census to `128`:
-
-```text
-F03
-→ IAM-03 ordinary platform_operator OR exact trusted_bootstrap_context
-→ bootstrap request derives externalSubject server-side
-→ WS-01 success proves initial creator access
-
-F04
-→ GW-01 optional exact originatingRun deep-object filter
-→ filter before deterministic pagination
-
-F05
-→ PRJ-16/17 purpose-bound project.build discovery
-→ PRJ-29 Project-owned model-policy summaries
-→ BLD-19 NEW optional unowned refs empty
-→ BLD-19/20 EXISTING protected refs preserved
-```
-
-No generic catalog/filter DSL, ordinary Permission, frontend authority, runtime/provider field or screen-shaped owner is admitted.
+Never run `npm run verify` locally. Run the checks your change touches, push, and let CI
+be the full run.
