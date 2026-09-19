@@ -13,7 +13,7 @@ export const R1_NEW_PROJECT_SEED = {
   "kind": "conexus.r1-s3-new-project-seed/v1",
   "appOwnedPathCount": 0,
   "expectedTree": "912c26f3049eec45dbe279be0f21859d75c22fef",
-  "expectedSourceRevision": "973c9a01698fcf6a9e51df258ca020fc43b75c97",
+  "expectedSourceRevision": "238dd5dbfee3d30b97d9a856e0ba83d6e3cb02d3",
   "entries": [
     {
       "class": "GENERATED",
