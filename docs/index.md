@@ -51,6 +51,7 @@ Brain, R3, L1-L6, or every old screen is enabled for the pilot.
 | Historical/broader Builder meaning | [Builder and harness](reference/builder-and-harness.md); C-020 supersedes conflicting ordinary-path mechanics |
 | Runtime and Product Agents | [Runtime and agents](reference/runtime-and-agents.md) and [Mastra map](reference/mastra/index.md) |
 | Security and authority | [Security reference](reference/security-and-authority.md) |
+| Hub database roles and capabilities | [Role register](reference/hub-database-roles.md) |
 | Release, deployment, and recovery | [Operations reference](reference/release-deployment-and-operations.md) |
 | Frontend surfaces | [Frontend reference](reference/frontend-and-product-surfaces.md) |
 | Managed execution | [Managed execution](reference/managed-execution.md) and [qualification](reference/managed-execution-qualification.md) |
