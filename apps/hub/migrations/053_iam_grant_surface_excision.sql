@@ -158,6 +158,23 @@ BEGIN
 END;
 $$;
 
+-- A connection belongs to an account and needs no Workspace to exist, so owning one asks no
+-- question about membership. It does ask whether the account is still an account, and
+-- claude_connection may no longer read iam tables, so it asks through one function that answers
+-- exactly that and nothing else.
+CREATE FUNCTION iam.account_is_active(p_account_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM iam.account AS stored_account
+    WHERE stored_account.account_id = p_account_id AND stored_account.active
+  );
+$$;
+
 RESET ROLE;
 
 -- workspace and reg reach the admission surface for the first time here, and a LANGUAGE sql body
@@ -260,6 +277,9 @@ SET search_path = pg_catalog, pg_temp
 AS $$
 BEGIN
   IF p_generation <= 0 OR p_label !~ '[^[:space:]]' OR length(p_label) > 120 THEN RETURN false; END IF;
+  -- The membership half of the old guard is deliberately gone: owning a connection needs no
+  -- Workspace. The account half is kept, so a deactivated account cannot mint one.
+  IF NOT iam.account_is_active(p_account_id) THEN RETURN false; END IF;
   INSERT INTO claude_connection.connection(connection_id, owner_account_id, label, state, current_generation)
   VALUES (p_connection_id, p_account_id, btrim(p_label), 'ACTIVE', p_generation);
   RETURN true;
@@ -989,12 +1009,39 @@ RESET ROLE;
 
 REVOKE SELECT ON iam.workspace_membership FROM claude_connection_owner;
 
+-- Nothing below the Hub route binds p_account_id: these functions admit the account id they are
+-- handed, so EXECUTE is the second fence and a freshly created function keeping Postgres' PUBLIC
+-- default hands that fence to every login role with USAGE on the schema. Each function created or
+-- recreated here is revoked from PUBLIC and granted to exactly the login roles its predecessor
+-- had.
+REVOKE ALL ON FUNCTION project.list_project_summaries(uuid, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION project.list_project_summaries(uuid, uuid) TO hub_s3_read;
+
+REVOKE ALL ON FUNCTION project.get_project(uuid, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION project.get_project(uuid, uuid) TO hub_s3_read;
+
+REVOKE ALL ON FUNCTION workspace.create_workspace(uuid, text, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION workspace.create_workspace(uuid, text, uuid) TO hub_ws01_command;
+
+REVOKE ALL ON FUNCTION workspace.get_workspace_summary(uuid, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION workspace.get_workspace_summary(uuid, uuid) TO hub_s2_read;
+
+REVOKE ALL ON FUNCTION claude_connection.share_connection(uuid, uuid, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION claude_connection.unshare_connection(uuid, uuid, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION claude_connection.share_connection(uuid, uuid, uuid),
   claude_connection.unshare_connection(uuid, uuid, uuid)
   TO hub_r2_connections, hub_rb_ingress, hub_rb_executor, builder_owner;
+
+REVOKE ALL ON FUNCTION iam.account_is_active(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION iam.account_is_active(uuid) TO claude_connection_owner;
+
+-- These two were already PUBLIC before this migration. The Hub reaches both through the Builder
+-- ingress pool, so revoking PUBLIC costs nothing and lets the invariant below be absolute rather
+-- than carry an allowlist.
+REVOKE ALL ON FUNCTION builder.admit_source_revision(uuid, uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION builder.admit_source_revision(uuid, uuid, text) TO hub_rb_ingress;
+
+REVOKE ALL ON FUNCTION builder.read_preview_subject(uuid, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION builder.read_preview_subject(uuid, uuid) TO hub_rb_ingress;
 
 COMMIT;

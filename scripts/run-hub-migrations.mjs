@@ -75,7 +75,7 @@ const migration049Digest = '92ebd66206a7cbdcf9de898ba1b900bef0452047c34aec1e0a87
 const migration050Digest = '7fd9ced94dcf8f897b6a6ce0f0ab28d27696023f83dfaf99b219848484eaf520'
 const migration051Digest = 'f3d5f9d547d945525228212de586d719d78586f758f50ac5af033e3f947e33dc'
 const migration052Digest = '0e1e233d9254a2ea0e61ba61646cadb2ce2f94896730fe9c1e071f886bb8dc54'
-const migration053Digest = '80a8b069ccf0ceac2ceec5f1e5730d89a4dc0e124bc3fc05db7972bc4345f905'
+const migration053Digest = 'f9c4ca7b16fda38dfdea1191ab755c2573c4f0e25338546efa210fcfb31be944'
 const legacyMigrationDigests = new Map([
   ['040', '359d1d386b01f40a5b842f56363e82176db56b9b731736f01080597ca762f7f5'],
   ['047', '74703fb0042a0617f81dd68ae0b2553401050262aa4ad385ea758cec97ba70c3'],
@@ -191,7 +191,7 @@ const verifyLedger = async (client, migrations, catalogSnapshot) => {
   const maximum = rows.at(-1)?.version ?? null
   if (maximum !== null && catalogSnapshot) {
     await assertCatalogAt(client, catalogSnapshot, maximum)
-    await assertRoleInvariants(client)
+    await assertRoleInvariants(client, maximum)
   }
   return { applied, maximum }
 }

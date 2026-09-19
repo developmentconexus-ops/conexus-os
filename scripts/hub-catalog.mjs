@@ -81,7 +81,13 @@ export const assertCatalogAt = async (client, snapshot, version) => {
 // asserted directly rather than compared. No Hub role may hold an attribute that bypasses the
 // owner boundary, and no Hub or owner role may be a member of another, which is the SET ROLE path
 // docs/reference/data-and-persistence.md section 6.2 forbids.
-export const assertRoleInvariants = async (client) => {
+// 053 is the version that first makes "no function in the Hub's schemas is executable by PUBLIC"
+// true, by revoking the two Builder functions that had been PUBLIC since 023 and 034. Replaying
+// history has to stay possible, so the invariant is asserted from that version onward rather than
+// retroactively against every intermediate database.
+export const PUBLIC_EXECUTE_INVARIANT_FROM = '053'
+
+export const assertRoleInvariants = async (client, appliedVersion = null) => {
   const elevated = (await client.query(`
     SELECT rolname FROM pg_roles
     WHERE (rolname LIKE 'hub\\_%' OR rolname LIKE '%\\_owner')
@@ -122,4 +128,25 @@ export const assertRoleInvariants = async (client) => {
     ORDER BY rolname
   `)).rows.map(row => row.rolname)
   if (inheritViolations.length > 0) fail('MIGRATION_ROLE_INHERIT_REFUSED', inheritViolations.join(','))
+
+  // Nothing below the Hub route binds the account id these SECURITY DEFINER functions admit, so
+  // EXECUTE is the second fence after the route. CREATE FUNCTION grants EXECUTE to PUBLIC by
+  // default, so a migration that forgets one REVOKE hands that fence to every role with USAGE on
+  // the schema, silently and with no drift in the catalog snapshot, because the snapshot records
+  // the wrong ACL as the truth. 053 was written without them and both gates passed. The rule is
+  // absolute: no allowlist, because every function the Hub calls is reached as a named login
+  // role that holds an explicit grant.
+  if (appliedVersion !== null && appliedVersion < PUBLIC_EXECUTE_INVARIANT_FROM) return
+
+  const publicExecutable = (await client.query(`
+    SELECT n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' AS signature
+    FROM pg_proc AS p
+    JOIN pg_namespace AS n ON n.oid = p.pronamespace
+    CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) AS entry
+    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'claude_connection')
+      AND entry.grantee = 0
+      AND entry.privilege_type = 'EXECUTE'
+    ORDER BY 1
+  `)).rows.map(row => row.signature)
+  if (publicExecutable.length > 0) fail('MIGRATION_FUNCTION_PUBLIC_EXECUTE_REFUSED', publicExecutable.join(','))
 }
