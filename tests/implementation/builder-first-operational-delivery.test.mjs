@@ -27,7 +27,7 @@ const {
   createMastraE2BCodingWorkerRuntime,
 } = await import(pathToFileURL(resolve(buildRoot, 'runtime.js')).href)
 const { createBuilderObservabilityLifecycle } = await import(pathToFileURL(resolve(buildRoot, 'module.js')).href)
-const { requestHubShell, waitForHub } = await import(pathToFileURL(resolve(repositoryRoot, 'tests/implementation/rb-builder-production-composed-live-runner.mjs')).href)
+const { requestHubShell, waitForHub } = await import(pathToFileURL(resolve(repositoryRoot, 'tests/implementation/builder-production-composed-live-runner.mjs')).href)
 
 const runtimeConfig = {
   apiKey: 'e2b-api-key',
