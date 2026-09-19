@@ -34,7 +34,8 @@ Product features.
 | Claude Account connection | Predecessor candidate `f9fbb655463aa24da1c3e902c20d555487ce9629` was never accepted as a delivery, and its corrections are incorporated in the current task. The connection surface itself is CURRENT PRODUCT: the approved journey requires connecting Claude and selecting a model, so its six Control Plane operations are current Product authority and belong in the fixed Product census. |
 | Interactive HTML | FUNCTIONAL REFERENCE APPROVED BY OPERATOR. Exact artifact identity is in frontend section 33.6. This is not Product implementation acceptance. |
 | Interactive Builder delivery | APPROVED FOR EXECUTION under the current task. Four ordered units form one integrated candidate. |
-| Builder repair program | APPROVED FOR EXECUTION. Six ordered PRs close the repair ledger. The operator merges each one. |
+| Builder repair program | IN EXECUTION. P-01 landed as #72 and #73 with unit proof and a green CI graph; its live lanes 6 and 10 and its perf box are outstanding. P-02 through P-06 have not started. The operator lifted the merge gate on 2026-09-18. |
+| Credential and role remediation | IN EXECUTION beside the repair program. Steps 1 and 2 landed as #74 and #76. Step 3, provisioning, is next. Credential consolidation is deliberately outside the grant. |
 | Broader platform and visual polish | DEFERRED. No requirement to finish them before operating the Builder. |
 
 The initial accepted 7R-1 implementation remains
@@ -158,22 +159,54 @@ Do not mark the Product accepted while a deciding live path remains blocked.
 
 ## Exact next action
 
-Fetch/status, load the current task, and execute P-01. It makes migration 047
-replace `reg.matches_application_artifact` instead of creating it a second time.
-Migration 040 already creates that signature, neither uses `CREATE OR REPLACE`, and
-no migration drops it, so every from-scratch install halts at step 2 of 28. CI runs
-`npm run verify` against an empty database on every pull request, so this defect
-fails any PR opened today, including one that would land the outstanding work.
+Finish P-01's live proof, then start P-02.
+
+### What P-01 has and has not
+
+The verification floor is restored and CI runs the whole graph. Landed on
+2026-09-18 as `c0328ca3` (#72) and `e2d400b3` (#73), because the floor had three
+holes rather than the one the program assumed:
+
+1. Migrations 040 and 047 both created `reg.matches_application_artifact`, so every
+   from-scratch install halted at step 2 of 28.
+2. `builder-application-runtime.test.mjs` called `mkdtempSync` under a
+   `node_modules/.cache` that does not exist on a clean checkout.
+3. Six Claude connection operations carried no `x-conexus-4a-id` and no census row,
+   so `wire:bijection` failed. That gate had been red since 2026-09-17 at 10:26.
+   The migration defect landed at 14:01 the same day and buried the signal until it
+   was fixed.
+
+Against P-01's own bar, unit is met and live is not. Six of ten live lanes passed
+with evidence. Lanes 6 and 10, the two that need a browser and an operator session,
+never completed. The perf box never ran. `npm run verify` completes 28 of 28 on a
+clean CI runner at the merged SHA, which is stronger evidence than the six lanes it
+repeats.
+
+So P-01's next action is lanes 6 and 10 plus the perf probe, not another attempt at
+the migration.
+
+### Then P-02
+
+P-02 keeps a failed request visible and named. It depends on P-01 and on nothing
+else that is outstanding. P-03, P-04 and P-05 branch from P-01 as before; P-06
+follows P-03.
+
+### Topology
 
 The stack's trunk is `analysis/internal-mvp-2026-09-12`, not main. Migrations 023
-through 050 exist only on that branch; main still stops at 022, so the file P-01
-edits is not there to edit. P-01 is the root of the stack and targets the analysis
-branch. P-02 through P-05 branch from P-01. P-06 follows P-03.
+through 050 exist only on that branch; main still stops at 022. Consolidating the
+analysis branch into main is a separate pull request, and it no longer waits on the
+migration defect, which is fixed.
 
-Consolidating the analysis branch into main is a separate pull request that waits
-for P-01, because it carries both colliding migrations and would fail CI without
-the fix.
+### Running alongside
+
+The credential and role remediation is current work beside the repair program.
+Step 1 landed as `9251e4ec` (#74), step 2 as `1318c2bf` (#76). Step 3, provisioning,
+is next there and is independent of P-02.
+
+### What proof to run
 
 Use the existing first-delivery environment and runner; no new qualification
-framework. Reconcile the owners, commit and push the candidate, then STOP at
-merge-ready for the operator's review and her merge.
+framework. Do not re-run locally what CI already proves at the same commit. The
+lanes that earn their cost are the ones CI cannot reach: the operator's pilot
+database, a running Hub, and a browser holding a real session.
