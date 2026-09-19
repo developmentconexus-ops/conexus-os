@@ -8,12 +8,12 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
-import { loadMigrationFiles, runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { loadR1MigrationFiles, runR1HubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
-// The R1 corpus is whatever loadMigrationFiles admits. A literal list here rotted twice as the
+// The R1 corpus is whatever loadR1MigrationFiles admits. A literal list here rotted twice as the
 // corpus grew, and nothing noticed because these suites were outside the candidate graph.
-const r1Versions = loadMigrationFiles().map(({ version }) => version)
+const r1Versions = loadR1MigrationFiles().map(({ version }) => version)
 
 const { Client } = pg
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -84,10 +84,10 @@ test('real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback bo
     }
   })
 
-  const migration = await runHubMigrations({ connectionString: connectionString(fresh) })
+  const migration = await runR1HubMigrations({ connectionString: connectionString(fresh) })
   assert.deepEqual(migration.appliedNow, r1Versions)
   assert.deepEqual(migration.versions, r1Versions)
-  assert.deepEqual((await runHubMigrations({ connectionString: connectionString(fresh) })).appliedNow, [])
+  assert.deepEqual((await runR1HubMigrations({ connectionString: connectionString(fresh) })).appliedNow, [])
 
   const accountId = '10000000-0000-4000-8000-000000000031'
   const workspaceId = '20000000-0000-4000-8000-000000000031'
@@ -223,10 +223,10 @@ test('real PostgreSQL proves receipt-locked abandoned-attempt cleanup compositio
     }
   })
 
-  const migration = await runHubMigrations({ connectionString: connectionString(fresh) })
+  const migration = await runR1HubMigrations({ connectionString: connectionString(fresh) })
   assert.deepEqual(migration.appliedNow, r1Versions)
   assert.deepEqual(migration.versions, r1Versions)
-  assert.deepEqual((await runHubMigrations({ connectionString: connectionString(fresh) })).appliedNow, [])
+  assert.deepEqual((await runR1HubMigrations({ connectionString: connectionString(fresh) })).appliedNow, [])
 
   const accountId = '10000000-0000-4000-8000-000000000041'
   const workspaceId = '20000000-0000-4000-8000-000000000041'
@@ -459,7 +459,7 @@ test('real PostgreSQL proves current project.read disclosure and revocation', as
     }
   })
 
-  assert.deepEqual((await runHubMigrations({ connectionString: connectionString(fresh) })).versions,
+  assert.deepEqual((await runR1HubMigrations({ connectionString: connectionString(fresh) })).versions,
     r1Versions)
   const accountId = '10000000-0000-4000-8000-000000000081'
   const otherAccountId = '10000000-0000-4000-8000-000000000082'
