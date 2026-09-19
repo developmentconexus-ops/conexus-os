@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { S1OwnerId } from '../generated/s1-routes.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { createOidcAdapter } from './oidc.js'
 import { createPreviewAccess } from './preview-access.js'
@@ -8,7 +9,7 @@ import { createIdentityAccessStore } from './store.js'
 import type { CurrentSession } from './store.js'
 
 export type IdentityAccessModule = Readonly<{
-  registerIdentityAccessRoutes(app: FastifyInstance): Promise<readonly ('IAM-01' | 'IAM-02' | 'IAM-03')[]>
+  registerIdentityAccessRoutes(app: FastifyInstance): Promise<readonly S1OwnerId[]>
   resolveCurrentSession(request: FastifyRequest, requireCsrf?: boolean): Promise<CurrentSession | null>
   issuePreviewEntry(request: FastifyRequest, input: Readonly<{ accountId: string; route: PreviewRouteBinding }>): Promise<Readonly<{ entryGrant: string; expiresAt: number }>>
   previewAccess: PreviewAccess

@@ -138,18 +138,14 @@ The vocabulary is **15** after the current bounded corrections. Brain, connectio
 
 | Permission | Meaning | Material current consumers |
 | --- | --- | --- |
-| `workspace.manage` | administer the admitted Workspace/Area structure | `WS-04`, `WS-05` through ordinary structure-administration route |
-| `workspace.access.manage` | administer Workspace membership, Area membership and Workspace-derived/direct Project access; inspect only the bounded identities/current access needed to perform that administration | `IAM-04..12`, `IAM-18..20`; narrow access-administration summary disclosure through `WS-04` and `PRJ-01` |
+| `workspace.access.manage` | administer Workspace membership and pending invitations; inspect only the bounded identities and current access needed to perform that administration | `IAM-05`, `IAM-06`, `IAM-10`, `IAM-18`, `IAM-19`; narrow access-administration summary disclosure through `PRJ-01` |
 | `project.create` | create a source-complete Project in an exact Workspace or duplicate into an admitted destination Workspace | `PRJ-03` including its creation-time canonical source bootstrap; destination side of `PRJ-06` |
 
-`4B-F01` removed generic Workspace/Area updates rather than inventing rename/settings payloads. `workspace.manage` remains justified by the distinct Area administration consumers above.
+`workspace.access.manage` is held by the Workspace role `owner` and by nobody else. A `member` holds every other Workspace right and cannot administer the roster. `IAM-04` needs no Permission beyond current membership, because every member may see who else is in the Workspace they belong to.
 
 `4C-F11` does **not** make `workspace.access.manage` a generic Workspace or Project read capability. Its alternate disclosure is intentionally summary-only:
 
 ```text
-WS-04 under workspace.access.manage
-→ exact Workspace AreaSummary identities needed to administer access
-
 PRJ-01 under workspace.access.manage
 → exact contained ProjectSummary identities needed to administer access
 
@@ -159,7 +155,7 @@ access-administration summary disclosure
 -X-> arbitrary cross-Workspace enumeration
 ```
 
-`IAM-18..20` remain I&A-owned access-administration reads. They do not create `account.read`, `area.read`, `grant.read` or a generic RBAC/role-management Permission.
+`IAM-18..19` remain I&A-owned access-administration reads. They do not create `account.read`, `grant.read` or a generic RBAC/role-management Permission.
 
 ### 3.2 Project
 
@@ -227,7 +223,6 @@ Interactive Published-App Agent use is authorized by exact Published-App access/
 ## 4. Current census
 
 ```text
-workspace.manage
 workspace.access.manage
 project.create
 
@@ -275,8 +270,6 @@ Rejected unless material current Product Evidence proves a distinct reusable aut
 ```text
 account.read
 account.manage
-area.read
-area.manage
 grant.read
 grant.manage
 role.manage
@@ -322,7 +315,7 @@ DecideApprovalRequest
 
 `CreateProject` source bootstrap does not create a `git.import`, `repository.manage` or network Permission. The caller still needs only `project.create`; repository locator admission is bounded input validation and GitInfra remains mechanism under current server policy. The candidate reads that once carried the same argument against `baseline.read`/`baseline.approve`/`baseline.chat` proliferation were retired with Project Inception and Baseline on 2026-09-19; those Permissions remain uncreated. `BLD-16 AskConexusAboutContext` is governed by `project.build` because it serves Builder context.
 
-F11 likewise does not create Account/Area/grant CRUD Permissions. `workspace.access.manage` already represents the reusable authority distinction required to administer those exact membership/grant facts; the new reads merely make that existing authority safely inspectable.
+F11 likewise does not create Account or grant CRUD Permissions. `workspace.access.manage` already represents the reusable authority distinction required to administer those exact membership facts; the new reads merely make that existing authority safely inspectable.
 
 F22 likewise does not create a database/explorer Permission family. `project.data.read` remains the reusable semantic authority, while each explorer read independently revalidates exact Project containment and current source/object disclosure eligibility; browser-visible filtering, paging and physical coordinates cannot widen that authority. The existing-grant raw-row consequence above is operator-confirmed and accepted for F22; a real semantic-without-raw-row tenant requirement reopens this decision.
 

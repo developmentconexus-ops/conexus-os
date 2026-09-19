@@ -182,8 +182,12 @@ This is the current Product authority for the supported internal MVP. It is the 
 | --- | --- | --- | --- | --- |
 | `IAM-01` | `GetControlPlaneAccessContext` | I&A | Control Plane shell; server-resolved Account + Workspace/Project context | read |
 | `IAM-02` | `EndSession` | I&A | authenticated human through the current Conexus session | command |
-| `IAM-03` | `ProvisionAccount` | I&A | trusted bootstrap or platform operator self-provisioning | command |
-| `WS-01` | `CreateWorkspace` | Workspace | current first-access Workspace creation flow | command |
+| `IAM-03` | `ProvisionAccount` | I&A | first account for the configured bootstrap identity, or an invited verified email | command |
+| `IAM-04` | `ListWorkspaceMembers` | I&A | current Workspace roster: members and pending invitations in one projection | read |
+| `IAM-05` | `InviteWorkspaceMember` | I&A | exact Workspace + verified email the invited person must sign in with; the pair is the natural key | command |
+| `IAM-06` | `RemoveWorkspaceRosterEntry` | I&A | exact Workspace roster entry; narrowing, and removing a member withdraws every derived right | narrowing command |
+| `IAM-10` | `SetWorkspaceMemberRole` | I&A | exact Workspace membership; the last owner cannot be demoted | command/current-authority |
+| `WS-01` | `CreateWorkspace` | Workspace | any authenticated Account; the creator becomes its owner | command |
 | `WS-02` | `GetWorkspace` | Workspace | current Workspace disclosure flow | read |
 | `PRJ-01` | `ListProjects` | Project | current Workspace Projects selection flow | read |
 | `PRJ-03` | `CreateProject` | Project / accepted L7 composition | current Project creation flow; atomically establishes source and initial access | command |
@@ -205,36 +209,30 @@ This is the current Product authority for the supported internal MVP. It is the 
 
 The tables below preserve the broader historical/platform ledger for context. They may repeat IDs from section 5 alongside retained operations; those repetitions do not assign current or non-current status. Only section 5 grants CURRENT Product authority.
 
-## 5.1 Identity & Access — 20
+## 5.1 Identity & Access — 15
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
 | `IAM-01` | `GetControlPlaneAccessContext` | I&A | Control Plane shell; canonical current AccountSummary + disclosable Workspace/Project context | read |
 | `IAM-02` | `EndSession` | I&A | authenticated human through Control Plane or Published App; exact current opaque Conexus session | command |
-| `IAM-03` | `ProvisionAccount` | I&A | trusted platform operator/admin; stable external identity + bounded human presentation | command |
-| `IAM-04` | `ListWorkspaceMembers` | I&A | Workspace access administration; human Account summaries | read |
-| `IAM-05` | `AddWorkspaceMember` | I&A | exact Workspace membership administration | command/current-authority |
-| `IAM-06` | `RemoveWorkspaceMember` | I&A | exact Workspace; narrowing | narrowing command/current-authority |
-| `IAM-07` | `GrantAccountProjectAccess` | I&A | exact Workspace + contained Project | command/current-authority |
-| `IAM-08` | `RevokeAccountProjectAccess` | I&A | exact Project; narrowing | narrowing command/current-authority |
-| `IAM-09` | `AddAreaMember` | I&A | exact Area in Workspace | command |
-| `IAM-10` | `RemoveAreaMember` | I&A | exact Area; narrowing | narrowing command |
-| `IAM-11` | `GrantAreaProjectAccess` | I&A | exact Area + Project in same Workspace | command/current-authority |
-| `IAM-12` | `RevokeAreaProjectAccess` | I&A | exact Area + Project; narrowing | narrowing command/current-authority |
+| `IAM-03` | `ProvisionAccount` | I&A | first account for the configured bootstrap identity, or an invited verified email; bounded human presentation | command |
+| `IAM-04` | `ListWorkspaceMembers` | I&A | current Workspace roster: members and pending invitations in one projection | read |
+| `IAM-05` | `InviteWorkspaceMember` | I&A | exact Workspace + verified email; the pair is the natural key | command |
+| `IAM-06` | `RemoveWorkspaceRosterEntry` | I&A | exact Workspace roster entry; narrowing | narrowing command |
+| `IAM-10` | `SetWorkspaceMemberRole` | I&A | exact Workspace membership; the last owner cannot be demoted | command/current-authority |
 | `IAM-13` | `GetPublishedAppAccessContext` | I&A | exact Published App human; canonical Account presentation + current app access/role/active Release | read |
 | `IAM-14` | `ListPublishedAppAccess` | I&A | Project/app administration; business use not implied | read |
 | `IAM-15` | `SetPublishedAppAccess` | I&A | exact Project/app + Account + `{admin,member}` + expected current grant state, including explicit absent state on create | command/current-authority |
 | `IAM-17` | `RevokePublishedAppAccess` | I&A | exact current app grant; narrowing | narrowing command/current-authority |
 | `IAM-18` | `ListWorkspaceMembershipCandidates` | I&A | exact Workspace access administration; currently disclosable existing Account candidates | read |
-| `IAM-19` | `GetWorkspaceMemberAccess` | I&A | exact Workspace + member Account; current Area memberships, direct grants and I&A-derived effective Project access with exact sources | read/current-authority projection |
-| `IAM-20` | `GetAreaAccess` | I&A | exact Workspace + Area; current members and Area→Project grants with human summaries | read/current-authority projection |
+| `IAM-19` | `GetWorkspaceMemberAccess` | I&A | exact Workspace + member Account; I&A-derived effective Project access from the membership row | read/current-authority projection |
 | `IAM-21` | `ListPublishedAppAccessCandidates` | I&A | exact Project/app access administration; bounded existing Conexus Account candidates not already granted; candidate disclosure grants nothing | read |
 
 `IAM-16 ChangePublishedAppAccessRole` was subtracted into `IAM-15`: grant and role change are one Product meaning over `iam.published_app_access`; wire-level create/update/precondition detail belongs to 4B.
 
 ### 5.1.1 `4C-F11` — human-reviewable access administration
 
-W-03A P7 proved that the accepted membership/grant writes cannot be safely operated from a human frontend while Account and Area presentation is opaque and the I&A owner exposes no exact current effective-access reads.
+W-03A P7 proved that the accepted membership writes cannot be safely operated from a human frontend while Account presentation is opaque and the I&A owner exposes no exact current access reads.
 
 The operator accepted `CURRENT OWNERS CONFIRMED`:
 
@@ -245,28 +243,22 @@ iam.account
 → required nonblank displayName
 → optional email presentation/contact
 
-ws.area
-→ required nonblank Area.name at creation
+IAM-04
+→ exact Workspace roster: current members and pending invitations
+→ the caller's own role, so the browser can hide what the server would refuse
 
 IAM-18
 → human existing Account candidates for exact Workspace membership administration
 
 IAM-19
-→ exact member current access
-→ Area memberships
-→ direct Project grants
-→ effective Project access derived by I&A
-→ exact source set DIRECT and/or AREA + exact Area identity
-
-IAM-20
-→ exact Area current members + Project grants
+→ exact member current access derived from the membership row
 ```
 
 Access composition law:
 
 ```text
-I&A current membership/grant facts
-→ I&A derives effective Project access + source set
+I&A current membership facts
+→ I&A derives effective Project access
 → browser renders that projection
 
 browser-local joins -X-> effective authorization authority
@@ -275,18 +267,14 @@ browser-local joins -X-> effective authorization authority
 Narrow cross-owner summary disclosure is admitted only for the existing access-administration job:
 
 ```text
-WS-04 ListAreas
-→ workspace.manage ordinary route
-OR workspace.access.manage summary-only route
-
 PRJ-01 ListProjects
 → project.read ordinary route
 OR workspace.access.manage exact-Workspace ProjectSummary-only route
 ```
 
-The alternate `PRJ-01` route does not confer Project content/source/data/build authority. Account/Area labels never authorize, email is never Account identity, and Keycloak role/group/organization remains authentication-provider state rather than Conexus authorization.
+The alternate `PRJ-01` route does not confer Project content/source/data/build authority. Account labels never authorize, email is never Account identity, and Keycloak role/group/organization remains authentication-provider state rather than Conexus authorization. An invitation email is the one place a verified provider claim is load-bearing, and it decides only which pending invitation an arriving identity may claim.
 
-No `Person`, `UserProfile`, generic RBAC/custom-role engine, generic grant CRUD family, `UpdateAccountProfile`, `RenameArea`, `WS-06` resurrection, new Permission, new semantic owner, new principal class, new trust boundary or new durable record class is admitted by F11.
+No `Person`, `UserProfile`, generic RBAC/custom-role engine, generic grant CRUD family, `UpdateAccountProfile`, `WS-06` resurrection, new Permission, new semantic owner, new principal class, new trust boundary or new durable record class is admitted by F11.
 
 ```text
 N_platform 113 → 116
@@ -296,18 +284,16 @@ records = 46
 owners = 13
 ```
 
-## 5.2 Workspace — 4
+## 5.2 Workspace — 2
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
-| `WS-01` | `CreateWorkspace` | Workspace | trusted F1 operator/first-access flow | command |
-| `WS-02` | `GetWorkspace` | Workspace | current Workspace member/admin disclosure | read |
-| `WS-04` | `ListAreas` | Workspace | exact Workspace structure administration **or** narrow access-administration AreaSummary disclosure | read |
-| `WS-05` | `CreateArea` | Workspace | exact Workspace administration; explicit human Area name at creation | command |
+| `WS-01` | `CreateWorkspace` | Workspace | any authenticated Account; the creator becomes its owner | command |
+| `WS-02` | `GetWorkspace` | Workspace | current Workspace member disclosure | read |
 
-`WS-03 UpdateWorkspace` and `WS-06 UpdateArea` remain subtracted by operator-approved `4B-F01`. F11 proves creation/read presentation (`Area.name`) and does not admit generic mutation or rename authority.
+`WS-03 UpdateWorkspace` remains subtracted by operator-approved `4B-F01`.
 
-No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default Workspace operation is admitted.
+No `DeleteWorkspace`, generic Organization tree or hidden/default Workspace operation is admitted.
 
 ## 5.3 Project — 17
 
@@ -1016,16 +1002,16 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | --- | --- | --- | --- | --- | --- |
 | `IAM-01` | `HUMAN_ACCOUNT_SESSION / CP` | `authenticated` | exact current Conexus session; returns canonical AccountSummary and only disclosable Workspace/Project context | `READ` | `IC0` |
 | `IAM-02` | `HUMAN_ACCOUNT_SESSION / CP or PA` | `authenticated` | exact current opaque Conexus session subject; ending it does not claim Keycloak SSO logout | `COMMAND` | `IC1` |
-| `IAM-03` | `HUMAN_ACCOUNT_SESSION / CP` **or** `TRUSTED_BOOTSTRAP_CONTEXT / CP` | trusted `platform_operator` or exact one-shot bootstrap self-provision | ordinary route provisions a named exact subject; bootstrap route derives its own exact subject server-side and cannot provision another Account; no public signup | `COMMAND` | `IC3` |
-| `IAM-04..12,IAM-18..20` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.access.manage` | exact Workspace/Area/Project containment; access reads are exact current I&A projections; grant/revoke target and current authority rechecked at commit | read rows `READ`; writes `COMMAND` | reads `IC0`; writes `IC1` |
+| `IAM-03` | `TRUSTED_BOOTSTRAP_CONTEXT / CP` | exact one-shot self-provision from a verified identity that is either the first account or invited | the route derives its own exact subject server-side and cannot provision another Account; an invited Account's email comes from the verified claim and its membership is written in the same transaction; no public signup | `COMMAND` | `IC3` |
+| `IAM-04` | `HUMAN_ACCOUNT_SESSION / CP` | current Workspace membership | exact Workspace roster; a caller who is not a member is told nothing, including whether the Workspace exists | `READ` | `IC0` |
+| `IAM-05,IAM-06,IAM-10` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.access.manage` | exact Workspace containment; the actor is the current session and never a request value; authority is rechecked inside the same statement that writes | `COMMAND` | `IC1` |
+| `IAM-18..19` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.access.manage` | exact Workspace containment; access reads are exact current I&A projections | `READ` | `IC0` |
 | `IAM-13` | `PUBLISHED_APP_HUMAN / PA` | exact app access + role | canonical AccountSummary + exact Published App + active Release; app role never implies Control Plane authority | `READ` | `IC0` |
 | `IAM-14` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app administration; current grants carry Account presentation and exact active-Release `admin|member` capability consequences | `READ` | `IC0` |
 | `IAM-21` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app; existing I&A-owned Conexus Accounts not already granted; search never queries or proves Keycloak-directory existence and candidate inclusion grants nothing | `READ` | `IC0` |
 | `IAM-15,IAM-17` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app/Account subject; current grant state includes explicit absent state for create and exact current role/grant for change/revoke | `COMMAND` | `IC2` |
-| `WS-01` | `HUMAN_ACCOUNT_SESSION / CP` | trusted `platform_operator` | trusted first-access Workspace creation; success establishes exact initial current-Account membership/access plus `project.create` in that exact Workspace so it is immediately disclosable and can create the first Project | `COMMAND` | `IC3` |
+| `WS-01` | `HUMAN_ACCOUNT_SESSION / CP` | `authenticated` | any authenticated Account may create a Workspace; success establishes the creator's `owner` membership in that exact Workspace so it is immediately disclosable and can create the first Project | `COMMAND` | `IC3` |
 | `WS-02` | `HUMAN_ACCOUNT_SESSION / CP` | current Workspace membership | exact Workspace disclosure | `READ` | `IC0` |
-| `WS-04` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.manage` **or** narrow `workspace.access.manage` access-administration summary disclosure | exact Workspace; alternate route reveals AreaSummary identity only for access administration | `READ` | `IC0` |
-| `WS-05` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.manage` | exact Workspace + explicit human Area name + stable create intake; duplicate intake cannot create duplicate Area | `COMMAND` | `IC3` |
 | `PRJ-01` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `project.read` **or** narrow `workspace.access.manage` access-administration summary disclosure | ordinary route applies current Project disclosure; alternate route exposes only contained ProjectSummary identities in exact Workspace | `READ` | `IC0` |
 | `PRJ-02` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` + exact Project grant | exact Project disclosure | `READ` | `IC0` |
 | `PRJ-03` | `HUMAN_ACCOUNT_SESSION / CP` | `project.create` | destination Workspace + atomic Project/initial current-Account direct grant carrying `project.read + project.manage` + one canonical source-bootstrap admission; success implies a source-complete Project | `COMMAND` | `IC3` |
@@ -1192,7 +1178,24 @@ The operator-approved pre-P11 F05 correction then admits one Project-owned human
 = 128 current fixed Conexus platform Product operations
 ```
 
-`PRJ-03`, `OBS-04`, `OBS-05`, `BLD-01`, `BLD-02`, `BLD-03`, `BLD-10`, `BLD-16`, `PRJ-16`, `PRJ-17`, `PRJ-18` and `PRJ-19` gained only bounded missing semantics required by real consumers; they remain the same Product operations. F11 adds exactly three purpose-built reads because three independent access-administration read jobs are proven; F22 adds exactly four reads because source discovery, scalable source-scoped object discovery, exact object structure and structured row browsing are independently bounded human reads and must not collapse into a generic provider/resource tree; PRE11-F05 adds exactly one Project-owned model-policy read because a required model-policy reference otherwise has no human-recognizable construction source.
+The 2026-09-19 membership decision then subtracts the grant and Area families, because one membership row is now the only thing that grants anything:
+
+```text
+128
+- 1 IAM-07 GrantAccountProjectAccess
+- 1 IAM-08 RevokeAccountProjectAccess
+- 1 IAM-09 AddAreaMember
+- 1 IAM-11 GrantAreaProjectAccess
+- 1 IAM-12 RevokeAreaProjectAccess
+- 1 IAM-20 GetAreaAccess
+- 1 WS-04 ListAreas
+- 1 WS-05 CreateArea
+= 120 current fixed Conexus platform Product operations
+```
+
+`IAM-10` is reused for `SetWorkspaceMemberRole`, and `IAM-05` and `IAM-06` keep their ids under the roster meaning that replaced them. Area was the only container between a Workspace and a Project, and nothing now derives access from it.
+
+`PRJ-03`, `OBS-04`, `OBS-05`, `BLD-01`, `BLD-02`, `BLD-03`, `BLD-10`, `BLD-16`, `PRJ-16`, `PRJ-17`, `PRJ-18` and `PRJ-19` gained only bounded missing semantics required by real consumers; they remain the same Product operations. F11 adds two purpose-built reads that survive, because two independent access-administration read jobs remain proven; F22 adds exactly four reads because source discovery, scalable source-scoped object discovery, exact object structure and structured row browsing are independently bounded human reads and must not collapse into a generic provider/resource tree; PRE11-F05 adds exactly one Project-owned model-policy read because a required model-policy reference otherwise has no human-recognizable construction source.
 
 Rejected convenience/mechanism operations include:
 
@@ -1248,13 +1251,10 @@ SearchBrainKnowledge
 ListBrainKnowledgeDomains
 GetBrainKnowledgeConcept
 GetAccessDashboard
-ListAreaMembers
-ListAreaProjectGrants
 ListAccountProjectGrants
 SearchAudit
 CreateRole
 UpdateAccountProfile
-RenameArea
 RunProjectSqlConsole
 ```
 
@@ -1272,7 +1272,7 @@ mutable foreign-owner mirrors required      = 0
 semantic owner boundaries preserved         = 13/13
 ```
 
-F11 reuses existing `iam.account`, membership/grant records and `ws.area`; F12 reuses existing `obs.audit_record`; F14/F15/F16/F20/F21 reuse existing Builder/Project owners/projections. Data logical fields/relationships/rules and Capability input/output inspection are projections of already-admitted Project/Release meaning, not new durable Product records. F22's source/object/structure/row views are current Project-owned disclosure projections over existing Project Database / exact bound source truth and introduce no explorer catalog/row durable record class or new semantic owner.
+F11 reuses existing `iam.account` and `iam.workspace_membership`, joined by `iam.workspace_invitation` as the only durable record the roster adds; F12 reuses existing `obs.audit_record`; F14/F15/F16/F20/F21 reuse existing Builder/Project owners/projections. Data logical fields/relationships/rules and Capability input/output inspection are projections of already-admitted Project/Release meaning, not new durable Product records. F22's source/object/structure/row views are current Project-owned disclosure projections over existing Project Database / exact bound source truth and introduce no explorer catalog/row durable record class or new semantic owner.
 
 Artifact Registry remains semantic projection rather than Universal Artifact CRUD. Attachments/Blob remain owner-bound carriers. Gateway remains last-mile effect authority rather than a second business-command owner. PAR owns runtime, not authored Agent definition. MAR owns serving/job-run mechanics, not a generic scheduler Product domain.
 
@@ -1546,4 +1546,17 @@ CURRENT INTERNAL MVP PREVIEW LAUNCH CONSUMER
 → N_platform 129 → 130
 ```
 
-The current Product census is the 34-operation surface at the start of this ledger. The retained tables below are not current Product authority.
+```text
+MEMBERSHIP IS THE ONLY GRANT, 2026-09-19 OPERATOR ACCEPT
+→ add IAM-04 ListWorkspaceMembers as the Workspace roster, members and pending invitations in one read
+→ add IAM-05 InviteWorkspaceMember keyed by (Workspace, verified email); the same request twice is the same invitation
+→ add IAM-06 RemoveWorkspaceRosterEntry for a member or a pending invitation
+→ add IAM-10 SetWorkspaceMemberRole over the two roles owner and member
+→ subtract IAM-07, IAM-08, IAM-09, IAM-11, IAM-12, IAM-20, WS-04, WS-05 and the Area concept
+→ WS-01 drops its platform-operator condition; any authenticated Account may create a Workspace and becomes its owner
+→ IAM-03 drops its platform-operator branch; an account is minted for the first configured identity or for an invited verified email, with its membership in the same transaction
+→ no new Permission / owner / principal / trust boundary; iam.workspace_invitation is the one added durable record class
+→ N_platform 130 → 126
+```
+
+The current Product census is the 24-operation surface at the start of this ledger. The retained tables below are not current Product authority.

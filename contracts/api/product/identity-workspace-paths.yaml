@@ -104,24 +104,82 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Current disclosable Workspace members with bounded human presentation from I&A; labels never confer authority.
+          description: Current Workspace roster. Members and pending invitations are one server-resolved projection, and the caller's own role is stated so the browser can hide controls the server would refuse anyway.
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: false
-                required: [items]
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AccountSummary'
+                $ref: '#/components/schemas/WorkspaceRoster'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
-        '403':
-          $ref: './openapi.yaml#/components/responses/Problem403'
         '404':
           $ref: './openapi.yaml#/components/responses/Problem404'
+
+  /api/control/workspaces/{workspaceId}/invitations:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      summary: InviteWorkspaceMember
+      operationId: InviteWorkspaceMember
+      x-conexus-4a-id: IAM-05
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: OWNER_CURRENT
+      x-conexus-contract-state: SCHEMA_CLOSED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, role]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  minLength: 3
+                  description: Verified-email address the invited person must sign in with. It is the natural key of the invitation and never Account identity or authorization.
+                role:
+                  $ref: '#/components/schemas/WorkspaceRole'
+      responses:
+        '200':
+          description: Current invitation for this exact Workspace and email. The pair is the natural key, so repeating the same request answers the same invitation rather than creating a second one.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceInvitationEntry'
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
+
+  /api/control/workspaces/{workspaceId}/roster/{entryKind}/{entryId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - name: entryKind
+        in: path
+        required: true
+        description: Which kind of roster entry this request withdraws.
+        schema:
+          type: string
+          enum: [member, invitation]
+      - name: entryId
+        in: path
+        required: true
+        description: Untrusted reference to the exact roster entry; containment and authority are resolved server-side.
+        schema: { type: string, minLength: 1 }
+    delete:
+      summary: RemoveWorkspaceRosterEntry
+      operationId: RemoveWorkspaceRosterEntry
+      x-conexus-4a-id: IAM-06
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: OWNER_CURRENT
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '204': { description: The roster entry is gone. Removing a member withdraws every right that derived from that membership row. }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
 
   /api/control/workspaces/{workspaceId}/membership-candidates:
     parameters:
@@ -164,27 +222,25 @@ paths:
       - $ref: '#/components/parameters/WorkspaceId'
       - $ref: '#/components/parameters/AccountId'
     put:
-      summary: AddWorkspaceMember
-      operationId: AddWorkspaceMember
-      x-conexus-4a-id: IAM-05
+      summary: SetWorkspaceMemberRole
+      operationId: SetWorkspaceMemberRole
+      x-conexus-4a-id: IAM-10
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [role]
+              properties:
+                role:
+                  $ref: '#/components/schemas/WorkspaceRole'
       responses:
-        '204': { description: Workspace membership established. }
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
-    delete:
-      summary: RemoveWorkspaceMember
-      operationId: RemoveWorkspaceMember
-      x-conexus-4a-id: IAM-06
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
-      x-conexus-contract-state: SCHEMA_CLOSED
-      responses:
-        '204': { description: Workspace membership removed. }
+        '204': { description: The member now holds this role. Setting the same role again is the same answer. }
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
@@ -203,7 +259,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact current Workspace-member access projection. I&A derives effective Project access and preserves every contributing DIRECT/AREA source; the caller/browser never computes authorization from local joins.
+          description: Exact current Workspace-member access projection derived by I&A from the membership row; the caller/browser never computes authorization from local joins.
           content:
             application/json:
               schema:
@@ -211,130 +267,6 @@ paths:
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-
-  /api/control/projects/{projectId}/account-grants/{accountId}:
-    parameters:
-      - name: projectId
-        in: path
-        required: true
-        description: Untrusted reference only; current containment and authority are resolved server-side.
-        schema: { type: string, minLength: 1 }
-      - $ref: '#/components/parameters/AccountId'
-    put:
-      summary: GrantAccountProjectAccess
-      operationId: GrantAccountProjectAccess
-      x-conexus-4a-id: IAM-07
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
-      x-conexus-contract-state: SCHEMA_CLOSED
-      responses:
-        '204': { description: Direct Account Project access established. }
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
-    delete:
-      summary: RevokeAccountProjectAccess
-      operationId: RevokeAccountProjectAccess
-      x-conexus-4a-id: IAM-08
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
-      x-conexus-contract-state: SCHEMA_CLOSED
-      responses:
-        '204': { description: Direct Account Project access removed. }
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
-
-  /api/control/workspaces/{workspaceId}/areas/{areaId}/members/{accountId}:
-    parameters:
-      - $ref: '#/components/parameters/WorkspaceId'
-      - $ref: '#/components/parameters/AreaId'
-      - $ref: '#/components/parameters/AccountId'
-    put:
-      summary: AddAreaMember
-      operationId: AddAreaMember
-      x-conexus-4a-id: IAM-09
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
-      x-conexus-contract-state: SCHEMA_CLOSED
-      responses:
-        '204': { description: Area membership established. }
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
-    delete:
-      summary: RemoveAreaMember
-      operationId: RemoveAreaMember
-      x-conexus-4a-id: IAM-10
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
-      x-conexus-contract-state: SCHEMA_CLOSED
-      responses:
-        '204': { description: Area membership removed. }
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
-
-  /api/control/workspaces/{workspaceId}/areas/{areaId}/access:
-    parameters:
-      - $ref: '#/components/parameters/WorkspaceId'
-      - $ref: '#/components/parameters/AreaId'
-    get:
-      summary: GetAreaAccess
-      operationId: GetAreaAccess
-      x-conexus-4a-id: IAM-20
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
-      x-conexus-contract-state: SCHEMA_CLOSED
-      responses:
-        '200':
-          description: Exact current Area access projection containing human member summaries and currently granted Project summaries; it grants no Project content authority.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AreaAccess'
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-
-  /api/control/projects/{projectId}/area-grants/{areaId}:
-    parameters:
-      - name: projectId
-        in: path
-        required: true
-        description: Untrusted reference only; current containment and authority are resolved server-side.
-        schema: { type: string, minLength: 1 }
-      - $ref: '#/components/parameters/AreaId'
-    put:
-      summary: GrantAreaProjectAccess
-      operationId: GrantAreaProjectAccess
-      x-conexus-4a-id: IAM-11
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
-      x-conexus-contract-state: SCHEMA_CLOSED
-      responses:
-        '204': { description: Area-derived Project access established. }
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
-    delete:
-      summary: RevokeAreaProjectAccess
-      operationId: RevokeAreaProjectAccess
-      x-conexus-4a-id: IAM-12
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
-      x-conexus-contract-state: SCHEMA_CLOSED
-      responses:
-        '204': { description: Area-derived Project access removed. }
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
 
   /api/apps/{projectId}/access-context:
     parameters:
@@ -617,70 +549,6 @@ paths:
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
-  /api/control/workspaces/{workspaceId}/areas:
-    parameters:
-      - $ref: '#/components/parameters/WorkspaceId'
-    get:
-      summary: ListAreas
-      operationId: ListAreas
-      x-conexus-4a-id: WS-04
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
-      x-conexus-contract-state: SCHEMA_CLOSED
-      x-conexus-authority-routes: [workspace.manage, workspace.access.manage]
-      responses:
-        '200':
-          description: Current disclosable Area summaries in the exact Workspace. Under workspace.access.manage this is access-administration summary disclosure only and grants no Workspace structure mutation authority.
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                required: [items]
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AreaSummary'
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-    post:
-      summary: CreateArea
-      operationId: CreateArea
-      x-conexus-4a-id: WS-05
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: IDEMPOTENCY_KEY
-      x-conexus-contract-state: SCHEMA_CLOSED
-      parameters:
-        - $ref: './openapi.yaml#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [name]
-              properties:
-                name:
-                  type: string
-                  minLength: 1
-                  pattern: '.*\S.*'
-                  description: Required human-readable Area identity fixed at F1 creation; not a grant, unique key, or rename authority.
-      responses:
-        '201':
-          description: Area created within the exact Workspace with human presentation identity.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AreaSummary'
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
-        '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
-
 components:
   parameters:
     WorkspaceId:
@@ -695,13 +563,58 @@ components:
       required: true
       description: Untrusted Account reference only; current identity, containment, disclosure and authority are resolved server-side.
       schema: { type: string, minLength: 1 }
-    AreaId:
-      name: areaId
-      in: path
-      required: true
-      description: Untrusted Area reference only; current Workspace containment, disclosure and authority are resolved server-side.
-      schema: { type: string, minLength: 1 }
   schemas:
+    WorkspaceRole:
+      type: string
+      enum: [owner, member]
+      description: The whole of what a membership row confers. An owner may also administer the roster; a member may not.
+    WorkspaceInvitationEntry:
+      type: object
+      additionalProperties: false
+      required: [kind, invitationId, email, role, invitedAt, expiresAt]
+      properties:
+        kind: { const: invitation }
+        invitationId: { type: string, minLength: 1 }
+        email:
+          type: string
+          format: email
+          description: Address the invited person must sign in with, verified by the identity provider. It is never Account identity or authorization.
+        role:
+          $ref: '#/components/schemas/WorkspaceRole'
+        invitedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+    WorkspaceMemberEntry:
+      type: object
+      additionalProperties: false
+      required: [kind, accountId, displayName, role, since]
+      properties:
+        kind: { const: member }
+        accountId: { type: string, minLength: 1 }
+        displayName:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: I&A-owned human presentation; never authentication or authorization.
+        email:
+          type: string
+          format: email
+          description: Optional presentation/contact data; never Account identity or authorization.
+        role:
+          $ref: '#/components/schemas/WorkspaceRole'
+        since: { type: string, format: date-time }
+    WorkspaceRoster:
+      type: object
+      additionalProperties: false
+      required: [viewerRole, entries]
+      properties:
+        viewerRole:
+          $ref: '#/components/schemas/WorkspaceRole'
+        entries:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/WorkspaceMemberEntry'
+              - $ref: '#/components/schemas/WorkspaceInvitationEntry'
     ProvisionAccountRequest:
       type: object
       additionalProperties: false
@@ -800,82 +713,17 @@ components:
           items:
             $ref: '#/components/schemas/PublishedAppCapabilitySummary'
           description: Complete exact active-Release capability subset admitted for this app role; empty is truthful.
-    AreaSummary:
-      type: object
-      additionalProperties: false
-      required: [areaId, name]
-      properties:
-        areaId:
-          type: string
-          minLength: 1
-        name:
-          type: string
-          minLength: 1
-          pattern: '.*\S.*'
-          description: Human-readable Area identity; presentation-only and never authorization.
-    DirectAccessSource:
-      type: object
-      additionalProperties: false
-      required: [kind]
-      properties:
-        kind: { const: DIRECT }
-    AreaAccessSource:
-      type: object
-      additionalProperties: false
-      required: [kind, area]
-      properties:
-        kind: { const: AREA }
-        area:
-          $ref: '#/components/schemas/AreaSummary'
-    EffectiveProjectAccess:
-      type: object
-      additionalProperties: false
-      required: [project, sources]
-      properties:
-        project:
-          $ref: './project-paths.yaml#/components/schemas/ProjectSummary'
-        sources:
-          type: array
-          minItems: 1
-          uniqueItems: true
-          items:
-            oneOf:
-              - $ref: '#/components/schemas/DirectAccessSource'
-              - $ref: '#/components/schemas/AreaAccessSource'
-          description: Complete I&A-derived set of current access sources. Multiple sources are preserved rather than collapsed.
     WorkspaceMemberAccess:
       type: object
       additionalProperties: false
-      required: [account, areas, directProjects, effectiveProjects]
+      required: [account, role, projects]
       properties:
         account:
           $ref: '#/components/schemas/AccountSummary'
-        areas:
-          type: array
-          items:
-            $ref: '#/components/schemas/AreaSummary'
-        directProjects:
-          type: array
-          items:
-            $ref: './project-paths.yaml#/components/schemas/ProjectSummary'
-        effectiveProjects:
-          type: array
-          items:
-            $ref: '#/components/schemas/EffectiveProjectAccess'
-          description: Current effective access derived by I&A from current direct and Area grant facts; browser-local recomputation is not authority.
-    AreaAccess:
-      type: object
-      additionalProperties: false
-      required: [area, members, projects]
-      properties:
-        area:
-          $ref: '#/components/schemas/AreaSummary'
-        members:
-          type: array
-          items:
-            $ref: '#/components/schemas/AccountSummary'
+        role:
+          $ref: '#/components/schemas/WorkspaceRole'
         projects:
           type: array
           items:
             $ref: './project-paths.yaml#/components/schemas/ProjectSummary'
-          description: Current Projects granted through this exact Area; summaries grant no Project content authority.
+          description: Current Projects this member reaches, every one of them through the Workspace membership row alone.

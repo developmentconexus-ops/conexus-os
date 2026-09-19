@@ -63,17 +63,17 @@
         },
         "operations": {
           "type": "array",
-          "minItems": 8,
-          "maxItems": 8,
+          "minItems": 12,
+          "maxItems": 12,
           "items": {
             "type": "object",
             "additionalProperties": false,
             "required": ["ownerId", "operationId", "owner", "method", "path", "permission", "currentStateCarrier", "sourceRef"],
             "properties": {
-              "ownerId": { "enum": ["IAM-01", "IAM-02", "IAM-03", "WS-01", "WS-02", "PRJ-01", "PRJ-02", "PRJ-03"] },
+              "ownerId": { "enum": ["IAM-01", "IAM-02", "IAM-03", "IAM-04", "IAM-05", "IAM-06", "IAM-10", "WS-01", "WS-02", "PRJ-01", "PRJ-02", "PRJ-03"] },
               "operationId": { "type": "string", "minLength": 1 },
               "owner": { "enum": ["I&A", "Workspace", "Project"] },
-              "method": { "enum": ["GET", "POST", "DELETE"] },
+              "method": { "enum": ["GET", "POST", "PUT", "DELETE"] },
               "path": { "type": "string", "pattern": "^/api/" },
               "permission": { "type": "string", "minLength": 1 },
               "currentStateCarrier": { "enum": ["NONE", "OWNER_CURRENT", "IDEMPOTENCY_KEY", "EXPLICIT_REVISION"] },
