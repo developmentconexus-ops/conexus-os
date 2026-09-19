@@ -71,7 +71,7 @@ The whole Product model survives attack. The failure remains inside P11 Evidence
 **Known Evidence**
 
 - [`p11-faithful-assembly-contract.md`](p11-faithful-assembly-contract.md) §6 requires loading the assembled HTML, navigating manifest routes, exercising handoffs, verifying URL coordinates, operating representative child interactions, exercising owner-specific recovery, checking inert controls and proving focus/narrow behavior. It explicitly says lexical tests cannot substitute.
-- [`4c-p11-assembled-product-functional-wireframe.test.mjs`](../../../tests/repository/4c-p11-assembled-product-functional-wireframe.test.mjs) pins hashes, searches strings and parses the script with `new Function`; it never loads a browser, clicks a child control or verifies a cross-block URL/state result.
+- `4c-p11-assembled-product-functional-wireframe.test.mjs` (deleted by foundation/s9-test-census: pinned hashes and text of a screen contract for a surface never built) pinned hashes, searched strings and parsed the script with `new Function`; it never loaded a browser, clicked a child control or verified a cross-block URL/state result.
 - The guided operator walkthrough intentionally focuses the 13 child blocks and tells the operator not to use the advanced technical boundary. It does not record an A–O adapter proof.
 
 **Failure mode**
