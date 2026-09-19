@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
-import { loadCurrentHubMigrationFiles, runCurrentHubMigrations, runHubMigrations, runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { catalogDigest, describeCatalogDrift, readCatalog, readCommittedSnapshot } from '../../scripts/hub-catalog.mjs'
+import { loadCurrentHubMigrationFiles, runCurrentHubMigrations, runHubMigrations, runR2HubMigrations, runSelectedHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const required = (name) => {
@@ -175,4 +176,64 @@ test('current Hub refuses incompatible applied ledgers before changing data or s
   const missing = await ledger(fixture.connection)
   await assert.rejects(runCurrentHubMigrations(fixture), /MIGRATION_BACK_INSERT_REFUSED:001/)
   assert.deepEqual(await ledger(fixture.connection), missing)
+})
+
+test('a fresh install produces exactly the committed catalog snapshot', async (t) => {
+  await refuseProtectedCluster()
+  const fixture = await databaseFixture(t)
+  await runCurrentHubMigrations(fixture)
+  const snapshot = readCommittedSnapshot()
+  const client = new pg.Client(fixture.connection)
+  await client.connect()
+  try {
+    const catalog = await readCatalog(client)
+    assert.equal(describeCatalogDrift(catalog, snapshot.catalog), null)
+    assert.equal(catalogDigest(catalog), snapshot.digests[snapshot.head])
+    assert.equal(snapshot.head, '050')
+    assert.equal(Object.keys(snapshot.digests).length, versions.length)
+  } finally {
+    await client.end()
+  }
+})
+
+test('a regenerated snapshot cannot bless a role that could cross the owner boundary', async (t) => {
+  await refuseProtectedCluster()
+  const fixture = await databaseFixture(t)
+  await runCurrentHubMigrations(fixture)
+  const forge = async () => {
+    const client = new pg.Client(fixture.connection)
+    await client.connect()
+    try {
+      const catalog = await readCatalog(client)
+      const committed = readCommittedSnapshot()
+      return { ...committed, digests: { ...committed.digests, [committed.head]: catalogDigest(catalog) }, catalog }
+    } finally {
+      await client.end()
+    }
+  }
+  const rerun = async (catalogSnapshot) => runSelectedHubMigrations({ connectionString: fixture.connectionString, migrations: loadCurrentHubMigrationFiles(), catalogSnapshot })
+
+  // Roles are cluster-global and after-hooks run in registration order, so the fixture database is
+  // already gone when these run. The admin connection reaches the same roles.
+  t.after(() => query(admin, 'ALTER ROLE hub_rb_ingress NOCREATEROLE'))
+  await query(fixture.connection, 'ALTER ROLE hub_rb_ingress CREATEROLE')
+  await assert.rejects(rerun(), /MIGRATION_ROLE_ATTRIBUTE_REFUSED:hub_rb_ingress/)
+  await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_ATTRIBUTE_REFUSED:hub_rb_ingress/)
+  await query(fixture.connection, 'ALTER ROLE hub_rb_ingress NOCREATEROLE')
+
+  t.after(() => query(admin, 'REVOKE hub_rb_executor FROM hub_rb_ingress'))
+  await query(fixture.connection, 'GRANT hub_rb_executor TO hub_rb_ingress')
+  await assert.rejects(rerun(), /MIGRATION_ROLE_MEMBERSHIP_REFUSED:hub_rb_ingress in hub_rb_executor/)
+  await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_MEMBERSHIP_REFUSED:hub_rb_ingress in hub_rb_executor/)
+  await query(fixture.connection, 'REVOKE hub_rb_executor FROM hub_rb_ingress')
+
+  assert.deepEqual(await rerun(), { verdict: 'PASS', appliedNow: [], versions })
+})
+
+test('a schema change outside a migration is refused and named', async (t) => {
+  await refuseProtectedCluster()
+  const fixture = await databaseFixture(t)
+  await runCurrentHubMigrations(fixture)
+  await query(fixture.connection, 'ALTER TABLE iam.account ADD COLUMN r05_shadow text')
+  await assert.rejects(runCurrentHubMigrations(fixture), /MIGRATION_CATALOG_DRIFT:1 differing lines; unexpected column iam\.account\.r05_shadow text/)
 })

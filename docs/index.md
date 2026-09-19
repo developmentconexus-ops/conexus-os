@@ -11,6 +11,7 @@ the current task, and only the owners needed for the current question.
 | Status, grant, and next action | [Roadmap](roadmap.md) |
 | Builder outcome and increment sequence | [Operational delivery program](tasks/builder-first-app.md) |
 | Current execution and review contract | [Approved interactive Builder](tasks/builder-interactive-delivery.md) |
+| Credential and role remediation contract | [Remediation plan](tasks/credential-and-role-remediation.md) |
 | Approved HTML identity and functional interactions | [Frontend section 33.6](reference/frontend-and-product-surfaces.md#336-build-surface) |
 | First operational delivery predecessor | [Retained first-delivery contract](tasks/builder-first-operational-delivery.md) |
 | Claude Account connection predecessor and findings | [Retained connection review](tasks/claude-account-connection.md) |

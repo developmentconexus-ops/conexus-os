@@ -148,7 +148,7 @@ test('S2 P1 real PostgreSQL proves migration custody, exact catalog and six-func
   `, [sha256(migrationBytes('001_iam_foundation.sql')), sha256(migrationBytes('002_workspace_foundation.sql'))])
   await assert.rejects(
     runHubMigrations({ connectionString: connectionString(fresh) }),
-    /MIGRATION_(?:001|002)_CATALOG_REFUSED/,
+    /MIGRATION_CATALOG_DRIFT/,
   )
 
   await resetDatabase(fresh)
@@ -163,7 +163,7 @@ test('S2 P1 real PostgreSQL proves migration custody, exact catalog and six-func
   await query(fresh, 'ALTER TABLE iam.account ADD COLUMN unauthorized text')
   await assert.rejects(
     runHubMigrations({ connectionString: connectionString(fresh) }),
-    /MIGRATION_001_CATALOG_REFUSED/,
+    /MIGRATION_CATALOG_DRIFT/,
   )
 
   await resetDatabase(fresh)
@@ -175,7 +175,7 @@ test('S2 P1 real PostgreSQL proves migration custody, exact catalog and six-func
   `)
   await assert.rejects(
     runHubMigrations({ connectionString: connectionString(fresh) }),
-    /MIGRATION_001_CATALOG_REFUSED/,
+    /MIGRATION_CATALOG_DRIFT/,
   )
 
   await resetDatabase(fresh)
@@ -200,7 +200,7 @@ test('S2 P1 real PostgreSQL proves migration custody, exact catalog and six-func
   `)
   await assert.rejects(
     runHubMigrations({ connectionString: connectionString(fresh) }),
-    /MIGRATION_002_CATALOG_REFUSED/,
+    /MIGRATION_CATALOG_DRIFT/,
   )
   await resetDatabase(fresh)
   await query(fresh, migrationBytes('001_iam_foundation.sql').toString('utf8'))
