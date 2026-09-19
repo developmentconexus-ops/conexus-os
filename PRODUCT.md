@@ -6,11 +6,11 @@ product
 
 ## Users
 
-Conexus serves trusted Workspace operators, Project administrators and contributors, reviewers, Product Agent users, currently eligible approvers, and technical investigators. They use the product while building, governing, operating, or investigating enterprise applications and Product Agents over real systems and data. Their primary task changes by surface, but they must always be able to recognize the exact subject, understand current owner truth, take only admitted actions, and recover without interpreting opaque infrastructure state.
+Conexus serves the people at this company. Inside a Workspace a person is either an owner, who also administers the roster, or a member, who holds every other right. They use the product to create Projects and to build a business application by talking to the Builder. They must always be able to recognize the exact subject, understand current server truth, take only admitted actions, and recover without interpreting opaque infrastructure state.
 
 ## Product Purpose
 
-Conexus is an AI-first enterprise software platform for building, evolving, and operating business applications and Product Agents while preserving explicit business knowledge, governed authority, verifiable engineering, and truthful operational evidence. The current internal MVP lets people create or open a Project, continue a Builder conversation, inspect source, and use the last-good Preview while the exact BuilderRun and source truth remain server-owned.
+Conexus is the platform the people at this company sign in to. They open a Workspace, open a Project, and talk to the Builder, which writes the source of a small business application, compiles it, and serves it back as a Preview they can use. A person creates or opens a Project, continues a Builder conversation, inspects source, and uses the last-good Preview while the run and the source truth stay server owned.
 
 ## Brand Personality
 
@@ -18,7 +18,7 @@ Calm, trustworthy, and exact. The interface should feel like a capable enterpris
 
 ## Anti-references
 
-Conexus must not resemble a generic SaaS dashboard, infrastructure console, IDE-first product, black-box chat, unrestricted database console, generic workflow/BPM or automation product, universal approval center, Agent fleet dashboard, or low-code builder. It must not expose backend modules as navigation, decorate ordinary state as spectacle, or hide machine-centric ambiguity behind polished presentation.
+Conexus must not resemble a generic SaaS dashboard, infrastructure console, IDE-first product, black-box chat, unrestricted database console, generic workflow or automation product, or low-code builder. It must not expose backend modules as navigation, decorate ordinary state as spectacle, or hide machine-centric ambiguity behind polished presentation.
 
 ## Design Principles
 
