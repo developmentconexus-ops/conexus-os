@@ -79,7 +79,9 @@ const currentNames = [
   '052_iam_membership_authority.sql',
   '053_iam_grant_surface_excision.sql',
   '054_iam_invitation_admission.sql',
+  '055_removed_surface_excision.sql',
   '056_model_connection_provider_neutrality.sql',
+  '057_model_connection_credential_kind_read.sql',
 ]
 const names = (migrations) => migrations.map((migration) => migration.name)
 
@@ -158,6 +160,41 @@ test('053 switches every caller and excises the grant surfaces in one transactio
     const uses = source.split('\n').filter((line) => new RegExp(legacy).test(line) && !/^DROP FUNCTION/.test(line.trim()))
     assert.deepEqual(uses, [], `${legacy} is still referenced outside its DROP`)
   }
+})
+
+test('055 drops the removed surfaces without CASCADE and proves each table empty first', () => {
+  const source = readFileSync(resolve(migrationsRoot, '055_removed_surface_excision.sql'), 'utf8')
+
+  // A blocked DROP must name the object this migration failed to account for rather than take its
+  // dependents with it, and IF EXISTS would let a missing object pass as a successful drop.
+  assert.equal(/CASCADE/.test(source), false)
+  assert.equal(/IF EXISTS/.test(source), false)
+
+  assert.match(source, /MIGRATION_055_TABLE_NOT_EMPTY_REFUSED/)
+  for (const dropped of [
+    'brn.binding_validation', 'brn.health', 'con.connection_qualification', 'con.operation_receipt',
+    'project.baseline_approval', 'project.baseline_candidate', 'project.baseline_state',
+    'project.binding_source_intent', 'project.brain_binding', 'project.connection_binding',
+    'project.inception_idempotency',
+  ]) {
+    assert.match(source, new RegExp(`SELECT '${dropped.replace('.', '\\.')}' AS table_name`))
+    assert.match(source, new RegExp(`DROP TABLE ${dropped.replace('.', '\\.')}`))
+  }
+  // These two reference each other, so no order drops them one at a time.
+  assert.match(source, /DROP TABLE con\.connection, con\.connection_revision;/)
+
+  assert.match(source, /DROP SCHEMA brn;/)
+  assert.match(source, /DROP SCHEMA con;/)
+
+  // Roles are cluster-global, so the migration revokes instead of dropping them. Matched as a
+  // statement, because the comment above the revokes says why DROP ROLE is not used.
+  assert.equal(/^DROP ROLE/m.test(source), false)
+  assert.match(source, /REVOKE USAGE ON SCHEMA project FROM/)
+
+  // reg held the Brain and the application registry. Only the Brain half leaves.
+  assert.equal(/DROP TABLE reg\./.test(source), false)
+  for (const kept of ['reg.artifact', 'reg.get_application_by_source', 'project.project', 'project.operation_idempotency'])
+    assert.equal(new RegExp(`DROP (TABLE|FUNCTION) ${kept.replace('.', '\\.')}\\b`).test(source), false, kept)
 })
 
 test('each loader accepts a fixture containing only its selected migrations', (t) => {
