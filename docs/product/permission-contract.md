@@ -138,8 +138,8 @@ The vocabulary is **15** after the current bounded corrections. Brain, connectio
 
 | Permission | Meaning | Material current consumers |
 | --- | --- | --- |
-| `workspace.access.manage` | administer Workspace membership and pending invitations; inspect only the bounded identities and current access needed to perform that administration | `IAM-05`, `IAM-06`, `IAM-10`, `IAM-18`, `IAM-19`; narrow access-administration summary disclosure through `PRJ-01` |
-| `project.create` | create a source-complete Project in an exact Workspace or duplicate into an admitted destination Workspace | `PRJ-03` including its creation-time canonical source bootstrap; destination side of `PRJ-06` |
+| `workspace.access.manage` | administer Workspace membership and pending invitations; inspect only the bounded identities and current access needed to perform that administration | `IAM-05`, `IAM-06`, `IAM-10`; narrow access-administration summary disclosure through `PRJ-01` |
+| `project.create` | create a source-complete Project in an exact Workspace | `PRJ-03` including its creation-time canonical source bootstrap |
 
 `workspace.access.manage` is held by the Workspace role `owner` and by nobody else. A `member` holds every other Workspace right and cannot administer the roster. `IAM-04` needs no Permission beyond current membership, because every member may see who else is in the Workspace they belong to.
 
@@ -155,26 +155,20 @@ access-administration summary disclosure
 -X-> arbitrary cross-Workspace enumeration
 ```
 
-`IAM-18..19` remain I&A-owned access-administration reads. They do not create `account.read`, `grant.read` or a generic RBAC/role-management Permission.
-
 ### 3.2 Project
 
 | Permission | Meaning | Material current consumers |
 | --- | --- | --- |
-| `project.read` | inspect ordinary Project-level Product truth/projections | ordinary `PRJ-01/02/16/17/22/29`; `PAR-06/07` Control-Plane run inspection; ordinary Release/Promotion/serving/job/activity reads |
-| `project.source.read` | inspect Project source/diff/authored definitions without write authority | `BLD-07..09`, `PRJ-20/21`; PRJ-21 includes the safe complete authored `agent/v1` definition after F30 |
-| `project.data.read` | inspect admitted semantic Data resources and bounded read-only Project Data Explorer projections without becoming a generic DB console | `PRJ-18/19`, `PRJ-25..28` |
-| `project.manage` | administer Project lifecycle and independent Published-App access configuration | `PRJ-05/06` where mapped; `IAM-14/15/17/21`; source side of `PRJ-06` |
-| `project.build` | create/evolve accepted Project Product/Agent intent through Change/Builder and inspect only the purpose-bound construction contracts required for that work | `BLD-01..04/06/10/16..20`; purpose-bound `PRJ-16/17/29` capability/model-policy discovery |
+| `project.read` | inspect ordinary Project-level Product truth/projections | ordinary `PRJ-01/02`; `PAR-06/07` Control-Plane run inspection; ordinary Release/Promotion/serving/job/activity reads |
+| `project.source.read` | inspect Project source/diff/authored definitions without write authority | `BLD-07..09` |
+| `project.data.read` | inspect admitted semantic Data resources and bounded read-only Project Data Explorer projections without becoming a generic DB console | `PRJ-25..28` |
+| `project.manage` | administer Project lifecycle and independent Published-App access configuration | no current wired consumer; its Published-App access-configuration and archive/duplicate consumers were contract for surfaces never built and were removed |
+| `project.build` | create/evolve accepted Project Product/Agent intent through Change/Builder and inspect only the purpose-bound construction contracts required for that work | `BLD-01..04/06/10/16..20` |
 | `project.review` | participate in exact Plan/Change checkpoint, Finding and Evidence review | `BLD-05/11..15` |
 
 `project.manage` does **not** imply `project.build`, `project.review`, Published-App business use or Release promotion. `4B-F01` removed generic `UpdateProject`; it did not remove the distinct lifecycle/app-access consumers that justify this Permission. Project Inception, Baseline, Brain, connection bindings and the Sankhya gateway left the product on 2026-09-19, so the candidate-review, contextual-explanation and binding consumers that `4C-F02`, `4C-F03`, `4C-F17` and `4C-F18` mapped here no longer exist; the `4C` records of those decisions are retained as history.
 
-`4C-F30` creates no `agent.manage`, `agent.definition.write`, `mastra.manage` or source-write Permission. `project.source.read` may inspect PRJ-21 definition detail but cannot mutate it. `project.build` admits only the server-owned typed Product Agent draft inside the exact Change; possession of `changeId`, `draftId`, `agentId`, `capabilityId` or policy references is never authority by itself. BLD-19 revalidates explicit NEW/EXISTING origin and BLD-20 fails closed on stale `expectedDraftRevision`; both remain upstream of candidate diff/proof/Release and cannot mutate a live Agent.
-
-`4C-PRE11-F05` does not widen `project.build` into generic Project/data/source/runtime access. It admits only safe purpose-bound reads from the existing owners: `PRJ-16/17` capability contracts and `PRJ-29` Project model-policy summaries. These reads grant no invocation, business data, credentials, provider/model selection or policy mutation.
-
-Project model-policy discovery through `PRJ-29` is ordinary inspection under `project.read` or purpose-bound construction disclosure under `project.build`; it never creates a model/runtime Permission.
+`4C-F30` creates no `agent.manage`, `agent.definition.write`, `mastra.manage` or source-write Permission. `project.build` admits only the server-owned typed Product Agent draft inside the exact Change; possession of `changeId`, `draftId`, `agentId`, `capabilityId` or policy references is never authority by itself. BLD-19 revalidates explicit NEW/EXISTING origin and BLD-20 fails closed on stale `expectedDraftRevision`; both remain upstream of candidate diff/proof/Release and cannot mutate a live Agent. The PRJ-20/21 Agent-summary and Agent-definition reads and the PRJ-16/17/29 capability/model-policy discovery reads that `4C-PRE11-F05` once purpose-bound here were contract for a surface never built and were removed.
 
 The F11 access-administration route to `PRJ-01` is **not** `project.read`; it is a separately admitted narrow disclosure path under `workspace.access.manage` that returns contained Project summaries only for grant administration. It never confers ordinary Project inspection authority.
 
@@ -202,13 +196,13 @@ Release composition is an owner/system transition gated by exact accepted proof;
 
 | Permission | Meaning | Material current consumers |
 | --- | --- | --- |
-| `agent.trigger.manage` | create/revise/enable/disable exact `SCHEDULE` trigger authority for a Project-owned Product Agent; includes purpose-bound `PRJ-20` human Agent summary discovery in the exact Project | `PRJ-20` summary-only alternate route + `PAR-11..16` |
+| `agent.trigger.manage` | create/revise/enable/disable exact `SCHEDULE` trigger authority for a Project-owned Product Agent | `PAR-11..16` |
 | `agent.headless.invoke` | manually invoke an exact active Product Agent through the admitted headless surface | `PAR-05` |
 | `agent.effect.approve` | participate as a human approver for an exact current sealed ApprovalRequest subject when separately eligible | `PAR-08..10` approver routes |
 
 Product Agent authoring is **not** `agent.manage`; it remains ordinary Project evolution through `project.build` and the same Change/Release path.
 
-The `agent.trigger.manage` alternate disclosure on `PRJ-20` exists only so an authorized trigger administrator can recognize the exact Project-owned Agent by its existing human summary and release/revision coordinates. It does not grant PRJ-21, `project.source.read`, source content, Agent mutation or Workspace-wide Agent discovery.
+The purpose-bound `PRJ-20` human Agent summary discovery that `agent.trigger.manage` once additionally disclosed was contract for a surface never built and was removed; the Permission's only current consumer is `PAR-11..16`.
 
 Interactive Published-App Agent use is authorized by exact Published-App access/role + active Agent/Release semantics, not by `agent.headless.invoke`.
 
@@ -343,4 +337,4 @@ app role      -X-> agent.effect.approve
 
 Every exact Project-defined operation in `Ops(R)` declares its admitted app-role subset, PAR/MAR projection or future real DEDICATED service allowlist. Conexus does not create a global Permission per customer business operation.
 
-`4C-F35/F36` make this existing access-administration authority human-operable without widening it. `IAM-21` discloses only bounded existing Conexus Account candidates for one exact Project/app and grants nothing. `IAM-14` composes the exact current active-Release capability subset for both roles so an administrator can understand the decision; that presentation is neither invocation authority nor a custom role editor. Keycloak roles, groups, Organizations, Authorization Services and token claims never satisfy `project.manage`, select an app role or establish a Published-App grant.
+The `IAM-21` candidate-disclosure and `IAM-14` capability-subset reads that `4C-F35/F36` once made this access-administration authority human-operable through were contract for a surface never built and were removed. Keycloak roles, groups, Organizations, Authorization Services and token claims never satisfy `project.manage`, select an app role or establish a Published-App grant.
