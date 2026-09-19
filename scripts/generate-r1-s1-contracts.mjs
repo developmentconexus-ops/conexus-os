@@ -116,7 +116,10 @@ function templateUrl(url) {
 
 function toTypeScript(schema) {
   if (schema.oneOf) return schema.oneOf.map(toTypeScript).join(' | ')
-  if (schema.type === 'array') return `${toTypeScript(schema.items)}[]`
+  if (schema.type === 'array') {
+    const item = toTypeScript(schema.items)
+    return `${item.includes(' | ') ? `(${item})` : item}[]`
+  }
   if (schema.type === 'string') return 'string'
   if (schema.type === 'integer' || schema.type === 'number') return 'number'
   if (schema.type === 'boolean') return 'boolean'
