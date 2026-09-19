@@ -40,7 +40,7 @@ function productionRoots(root) {
   const apps = childSourceRoots(root, 'apps')
   const packages = childSourceRoots(root, 'packages')
   return {
-    roots: [...apps.roots, ...packages.roots, 'runtime/r1'],
+    roots: [...apps.roots, ...packages.roots, 'runtime'],
     missingAppSources: apps.missing,
   }
 }
