@@ -64,7 +64,7 @@ test('S3-P6 store composes read-only current admission before Project disclosure
         name: 'Visible Project',
         archived: false,
       }] }
-      if (statement.includes('get_project_representation')) return { rows: [{
+      if (statement.includes('project.get_project(')) return { rows: [{
         project_id: '30000000-0000-4000-8000-000000000071',
         workspace_id: '20000000-0000-4000-8000-000000000071',
         name: 'Visible Project',
@@ -96,8 +96,15 @@ test('S3-P6 store composes read-only current admission before Project disclosure
   }))?.projectRevision, '50000000-0000-4000-8000-000000000071')
   assert.equal(statements.filter(({ statement }) => statement === 'BEGIN READ ONLY').length, 2)
   assert.equal(statements.filter(({ statement }) => statement === 'COMMIT').length, 2)
-  assert.equal(statements.some(({ statement }) => statement.includes('list_workspace_readable_project_ids')), true)
-  assert.equal(statements.some(({ statement }) => statement.includes('admit_project_read')), true)
+  // The gate moved inside the data function, so the store must no longer compose admission of
+  // its own: both reads are a single call carrying the account id.
+  assert.equal(statements.some(({ statement }) => statement.includes('iam.')), false)
+  assert.deepEqual(
+    statements.filter(({ statement }) => statement.includes('project.')).map(({ values }) => values),
+    [
+      ['10000000-0000-4000-8000-000000000071', '20000000-0000-4000-8000-000000000071'],
+      ['10000000-0000-4000-8000-000000000071', '30000000-0000-4000-8000-000000000071'],
+    ])
 })
 
 test('S3-P6 HTTP reads separate authentication, empty list, exact detail and non-disclosure', async (t) => {

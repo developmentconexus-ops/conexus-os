@@ -116,10 +116,17 @@ export const createBuilderStore = ({
     return result.rows[0]?.value ?? null
   },
   claimBuilderRun: async (builderRunId, modelIdentity) => {
+    // A claim asks for authority the run's author may no longer hold. That is terminal: the outer
+    // dispatch catch fails the run, and no retry can recover an access that was taken away.
     const result = await executorPool.query<JsonRow<BuilderRunSummary>>(
       'SELECT builder.claim_builder_run($1,$2,$3,$4) AS value',
       [builderRunId, modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId],
-    )
+    ).catch((error: unknown) => {
+      if (typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501') {
+        throw new Error('BUILDER_RUN_NOT_ADMITTED')
+      }
+      throw error
+    })
     const value = result.rows[0]?.value
     if (!value || value.builderRunId !== builderRunId || value.state !== 'RUNNING') throw new Error('BUILDER_RUN_CLAIM_REFUSED')
     return toBuilderRunSummary(value)

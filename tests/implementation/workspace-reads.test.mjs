@@ -81,7 +81,7 @@ test('IAM-01 returns the real membership-derived Workspace projection on creator
   })
   assert.deepEqual(readPool.calls.map(({ text }) => text === 'RELEASE' ? text : text.replace(/\s+/g, ' ')), [
     'BEGIN READ ONLY',
-    'SELECT s.workspace_id, s.name FROM workspace.list_workspace_summaries( ARRAY(SELECT m.workspace_id FROM iam.list_workspace_memberships($1) m) ) s ORDER BY s.name, s.workspace_id',
+    'SELECT s.workspace_id, s.name FROM workspace.list_workspace_summaries( ARRAY(SELECT visible.workspace_id FROM iam.visible_workspaces($1) visible) ) s ORDER BY s.name, s.workspace_id',
     'COMMIT',
     'RELEASE',
   ])

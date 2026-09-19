@@ -64,8 +64,12 @@ export async function selectClaudeConnection(connectionId: string) {
   await request('/api/control/me/claude-connections/select', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ connectionId }) })
 }
 
-export async function shareClaudeConnection(input: Readonly<{ connectionId: string; accountId: string; workspaceId: string }>) {
+export async function shareClaudeConnection(input: Readonly<{ connectionId: string; workspaceId: string }>) {
   await request('/api/control/me/claude-connections/share', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) })
+}
+
+export async function unshareClaudeConnection(input: Readonly<{ connectionId: string; workspaceId: string }>) {
+  await request('/api/control/me/claude-connections/unshare', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) })
 }
 
 export async function revokeClaudeConnection(connectionId: string) {

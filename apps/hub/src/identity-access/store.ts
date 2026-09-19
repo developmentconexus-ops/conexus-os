@@ -260,8 +260,8 @@ export const createIdentityAccessStore = ({
         const result = await client.query<WorkspaceSummaryRow>(`
           SELECT s.workspace_id, s.name
           FROM workspace.list_workspace_summaries(
-            ARRAY(SELECT m.workspace_id
-                  FROM iam.list_workspace_memberships($1) m)
+            ARRAY(SELECT visible.workspace_id
+                  FROM iam.visible_workspaces($1) visible)
           ) s
           ORDER BY s.name, s.workspace_id
         `, [accountId])

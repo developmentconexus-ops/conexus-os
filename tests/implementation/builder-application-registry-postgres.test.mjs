@@ -36,9 +36,8 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
   const sourceRevision = 'b'.repeat(40); const digest = 'd'.repeat(64)
   await setup.query("INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://registry.c020', $2, 'C020')", [accountId, accountId])
   await setup.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'C020 Registry'])
-  await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project, role) VALUES ($1, $2, true, 'owner')", [accountId, workspaceId])
+  await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   await setup.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'C020 app', 'NEW', $3, 'revision')", [projectId, workspaceId, sourceRevision])
-  await setup.query('INSERT INTO iam.project_builder_grant(account_id, project_id, can_build, can_read_source) VALUES ($1, $2, true, true)', [accountId, projectId])
   await setup.query(`INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1, $2)`, [projectId, sourceRevision])
   await setup.query(`INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, trigger_message_id, idempotency_digest, request_digest, mode, base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind)
     VALUES ($1, $2, $3, $4, $5, $5, 'BUILD', $6, 0, 0, 'RUNNING', $6, NULL)`, [builderRunId, projectId, accountId, builderRunId, digest, sourceRevision])
@@ -113,9 +112,8 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   const digest = 'e'.repeat(64)
   await setup.query("INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://registry.settlement', $2, 'Settlement')", [accountId, accountId])
   await setup.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'Settlement Registry'])
-  await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project, role) VALUES ($1, $2, true, 'owner')", [accountId, workspaceId])
+  await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   await setup.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Settlement app', 'NEW', $3, 'revision')", [projectId, workspaceId, sourceA])
-  await setup.query('INSERT INTO iam.project_builder_grant(account_id, project_id, can_build, can_read_source) VALUES ($1, $2, true, true)', [accountId, projectId])
   await setup.query('INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1, $2)', [projectId, sourceA])
   await setup.query(`INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, trigger_message_id, idempotency_digest, request_digest, mode, base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind)
     VALUES ($1, $2, $3, $4, $5, $5, 'BUILD', $6, 0, 0, 'RUNNING', $6, NULL)`, [builderRunId, projectId, accountId, builderRunId, digest, sourceA])
@@ -126,7 +124,9 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   const bytes = Buffer.from('<!doctype html><title>Settlement</title>')
   const application = { projectId, executionId: builderRunId, sourceRevision: sourceB, templateRef: 'xdli9puqp1nepk4ht6lw:8a1e3885-c6d7-4b06-aea6-860632f407e6', recipeSha256: '32230b4ba0b72625474b7f722e2294a256f9ab2f7c1c9b1eb107f38770edbe97', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }
   const retained = await store.retainApplication(runtime, { accountId, compiled: application })
-  await setup.query('UPDATE iam.project_builder_grant SET can_build = false WHERE account_id = $1 AND project_id = $2', [accountId, projectId])
+  // Settlement records work the run already performed, so it does not ask for authority. A
+  // refusal here would leave a run that ran and cannot say so.
+  await setup.query('DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [accountId, workspaceId])
   assert.equal((await runtime.query('SELECT builder.settle_builder_run_build($1,$2,$3,$4,$5) AS settled', [builderRunId, sourceB, retained.artifactRevisionId, retained.artifactDigest, null])).rows[0].settled, true)
   assert.deepEqual((await setup.query(`SELECT state, result_kind, result_source_revision FROM builder.builder_run WHERE builder_run_id = $1`, [builderRunId])).rows, [
     { state: 'SUCCEEDED', result_kind: 'SOURCE_CHANGED', result_source_revision: sourceB },
@@ -134,7 +134,10 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   assert.deepEqual((await setup.query(`SELECT working_source_revision, current_state, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest FROM builder.project_working_state WHERE project_id = $1`, [projectId])).rows, [
     { working_source_revision: sourceB, current_state: 'PREVIEW_READY', last_preview_source_revision: sourceB, last_preview_artifact_revision_id: retained.artifactRevisionId, last_preview_artifact_digest: retained.artifactDigest },
   ])
-  await setup.query('UPDATE iam.project_builder_grant SET can_build = true WHERE account_id = $1 AND project_id = $2', [accountId, projectId])
+  // While the membership is gone the artifact reads disclose nothing, and restoring it reopens
+  // them, because both derive from that one row.
+  assert.equal(await store.getApplicationBySource(runtime, { accountId, projectId, sourceRevision: sourceB }), null)
+  await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   assert.deepEqual((await store.getApplicationBySource(runtime, { accountId, projectId, sourceRevision: sourceB })).artifactRevisionId, retained.artifactRevisionId)
   const file = await store.readApplicationFileBySource(runtime, { accountId, projectId, sourceRevision: sourceB, artifactRevisionId: retained.artifactRevisionId, path: 'index.html' })
   assert.equal(Buffer.from(file.bytes).toString(), bytes.toString())

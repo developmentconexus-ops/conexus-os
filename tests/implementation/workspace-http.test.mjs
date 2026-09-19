@@ -254,11 +254,13 @@ test('workspace store composes exact WS-01 functions atomically and short-circui
   const sql = command.calls.map(({ text }) => text)
   assert.equal(sql[0], 'BEGIN')
   assert.match(sql[1], /reserve_or_replay_create_workspace/)
+  // Creating the Workspace and establishing its owner is one call now: the Hub no longer reaches
+  // into iam to finish a workspace it just created.
   assert.match(sql[2], /workspace\.create_workspace/)
-  assert.match(sql[3], /iam\.establish_workspace_creator_access/)
-  assert.match(sql[4], /complete_create_workspace_receipt/)
-  assert.equal(sql[5], 'COMMIT')
-  assert.equal(sql[6], 'RELEASE')
+  assert.equal(sql.some((text) => /iam\./.test(text)), false)
+  assert.match(sql[3], /complete_create_workspace_receipt/)
+  assert.equal(sql[4], 'COMMIT')
+  assert.equal(sql[5], 'RELEASE')
 
   const replayCommand = fakePool((_sql, _values, index) => index === 2
     ? { rows: [{ state: 'REPLAY', workspace_id: result.workspaceId, response_status: 201, response_body: {
@@ -270,11 +272,11 @@ test('workspace store composes exact WS-01 functions atomically and short-circui
     : { rows: [] })
   const replayStore = createWorkspaceStore({ commandPool: replayCommand.pool, readPool: read.pool })
   await replayStore.createWorkspace({ accountId: OPERATOR.account.accountId, idempotencyKey: 'key', name: 'Operations' })
-  assert.equal(replayCommand.calls.filter(({ text }) => /create_workspace|creator_access|complete_create/.test(text)).length, 1)
+  assert.equal(replayCommand.calls.filter(({ text }) => /create_workspace|complete_create/.test(text)).length, 1)
 })
 
 test('workspace store rolls back every failed boundary and WS-02 is one read-only statement', async () => {
-  for (const failingFunction of ['reserve_or_replay_create_workspace', 'workspace.create_workspace', 'iam.establish_workspace_creator_access', 'complete_create_workspace_receipt']) {
+  for (const failingFunction of ['reserve_or_replay_create_workspace', 'workspace.create_workspace', 'complete_create_workspace_receipt']) {
     const command = fakePool((sql, values) => {
       if (sql.includes(failingFunction)) throw new Error('boundary failure')
       if (sql.includes('reserve_or_replay_create_workspace')) return { rows: [{ state: 'RESERVED', workspace_id: values[3] }] }
@@ -288,7 +290,7 @@ test('workspace store rolls back every failed boundary and WS-02 is one read-onl
   }
 
   const command = fakePool(() => ({ rows: [] }))
-  const read = fakePool((sql) => sql.includes('list_workspace_summaries')
+  const read = fakePool((sql) => sql.includes('get_workspace_summary')
     ? { rows: [{ workspace_id: '33333333-3333-4333-8333-333333333333', name: 'Operations' }] }
     : { rows: [] })
   const store = createWorkspaceStore({ commandPool: command.pool, readPool: read.pool })
@@ -298,6 +300,7 @@ test('workspace store rolls back every failed boundary and WS-02 is one read-onl
   const sql = read.calls.map(({ text }) => text)
   assert.deepEqual([sql[0], sql.at(-2), sql.at(-1)], ['BEGIN READ ONLY', 'COMMIT', 'RELEASE'])
   assert.equal(sql.filter((text) => text.startsWith('SELECT')).length, 1)
-  assert.match(sql[1], /iam\.list_workspace_memberships\(\$1\)/)
-  assert.match(sql[1], /WHERE m\.workspace_id = \$2/)
+  assert.match(sql[1], /workspace\.get_workspace_summary\(\$1, \$2\)/)
+  assert.doesNotMatch(sql[1], /iam\./)
+  assert.deepEqual(read.calls[1].values, [OPERATOR.account.accountId, '33333333-3333-4333-8333-333333333333'])
 })

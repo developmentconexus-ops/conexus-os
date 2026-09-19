@@ -53,9 +53,14 @@ export const registerClaudeAccountRoutes = async (app: FastifyInstance, dependen
     try { await dependencies.store.select({ accountId: session.account.accountId, connectionId: request.body.connectionId }); return reply.code(204).send() }
     catch (error) { return mutationProblem(reply, error) }
   })
-  app.post<{ Body: { connectionId: string; accountId: string; workspaceId: string } }>('/api/control/me/claude-connections/share', { schema: { body: { type: 'object', additionalProperties: false, required: ['connectionId', 'accountId', 'workspaceId'], properties: { connectionId: uuid, accountId: uuid, workspaceId: uuid } } } }, async (request, reply) => {
+  app.post<{ Body: { connectionId: string; workspaceId: string } }>('/api/control/me/claude-connections/share', { schema: { body: { type: 'object', additionalProperties: false, required: ['connectionId', 'workspaceId'], properties: { connectionId: uuid, workspaceId: uuid } } } }, async (request, reply) => {
     const session = await authenticity(request, reply, dependencies.origin, dependencies.resolveCurrentSession); if (!session) return reply
-    try { await dependencies.store.share({ accountId: session.account.accountId, connectionId: request.body.connectionId, targetAccountId: request.body.accountId, workspaceId: request.body.workspaceId }); return reply.code(204).send() }
+    try { await dependencies.store.share({ accountId: session.account.accountId, connectionId: request.body.connectionId, workspaceId: request.body.workspaceId }); return reply.code(204).send() }
+    catch (error) { return mutationProblem(reply, error) }
+  })
+  app.post<{ Body: { connectionId: string; workspaceId: string } }>('/api/control/me/claude-connections/unshare', { schema: { body: { type: 'object', additionalProperties: false, required: ['connectionId', 'workspaceId'], properties: { connectionId: uuid, workspaceId: uuid } } } }, async (request, reply) => {
+    const session = await authenticity(request, reply, dependencies.origin, dependencies.resolveCurrentSession); if (!session) return reply
+    try { await dependencies.store.unshare({ accountId: session.account.accountId, connectionId: request.body.connectionId, workspaceId: request.body.workspaceId }); return reply.code(204).send() }
     catch (error) { return mutationProblem(reply, error) }
   })
   app.post<{ Params: { connectionId: string } }>('/api/control/me/claude-connections/:connectionId/revoke', { schema: { params: { type: 'object', additionalProperties: false, required: ['connectionId'], properties: { connectionId: uuid } } } }, async (request, reply) => {
@@ -63,5 +68,5 @@ export const registerClaudeAccountRoutes = async (app: FastifyInstance, dependen
     try { await dependencies.store.revoke({ accountId: session.account.accountId, connectionId: request.params.connectionId }); return reply.code(204).send() }
     catch (error) { return mutationProblem(reply, error) }
   })
-  return ['CLAUDE-01', 'CLAUDE-02', 'CLAUDE-03', 'CLAUDE-04', 'CLAUDE-05', 'CLAUDE-06']
+  return ['CLAUDE-01', 'CLAUDE-02', 'CLAUDE-03', 'CLAUDE-04', 'CLAUDE-05', 'CLAUDE-06', 'CLAUDE-07']
 }

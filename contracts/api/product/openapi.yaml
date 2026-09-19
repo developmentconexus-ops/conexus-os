@@ -65,6 +65,8 @@ paths:
     $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1select'
   /api/control/me/claude-connections/share:
     $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1share'
+  /api/control/me/claude-connections/unshare:
+    $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1unshare'
   /api/control/me/claude-connections/{connectionId}/revoke:
     $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1{connectionId}~1revoke'
 components:

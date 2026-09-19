@@ -51,8 +51,10 @@ export type ProjectStore = Readonly<{
 const digestText = (value: string): string => sha256(Buffer.from(value, 'utf8'))
 const digestBody = (value: unknown): string => sha256(canonicalBytes(value))
 const errorText = (error: unknown): string => error instanceof Error ? error.message : ''
+const isNotAdmitted = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501'
 const mapDatabaseError = (error: unknown): never => {
-  if (errorText(error).includes('PRJ03_CREATE_NOT_AUTHORIZED')) throw projectError('AUTHORIZATION_DENIED')
+  if (isNotAdmitted(error)) throw projectError('AUTHORIZATION_DENIED')
   throw error
 }
 
@@ -97,11 +99,7 @@ export const createProjectStore = ({
       await client.query('BEGIN READ ONLY')
       const result = await client.query<ProjectSummaryRow>(`
         SELECT summary.project_id, summary.workspace_id, summary.name, summary.archived
-        FROM project.list_project_summaries(
-          $2,
-          ARRAY(SELECT admitted.project_id
-                FROM iam.list_workspace_readable_project_ids($1, $2) admitted)
-        ) summary
+        FROM project.list_project_summaries($1, $2) summary
       `, [accountId, workspaceId])
       await client.query('COMMIT')
       return result.rows.map((row) => ({
@@ -128,11 +126,7 @@ export const createProjectStore = ({
       const result = await client.query<ProjectRepresentationRow>(`
         SELECT detail.project_id, detail.workspace_id, detail.name,
           detail.project_revision, detail.archived
-        FROM project.get_project_representation(
-          $2,
-          ARRAY(SELECT admitted.project_id
-                FROM iam.admit_project_read($1, $2) admitted)
-        ) detail
+        FROM project.get_project($1, $2) detail
       `, [accountId, projectId])
       const row = result.rows[0] ?? null
       await client.query('COMMIT')
@@ -272,9 +266,6 @@ export const createProjectStore = ({
       await client.query('SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)', [
         input.accountId, input.workspaceId, keyDigest, requestDigest, projectId,
         input.body.name, input.body.sourceBootstrap.mode, sourceRevision, projectRevision,
-      ])
-      await client.query('SELECT iam.establish_project_creator_grant($1, $2, $3, $4, $5)', [
-        input.accountId, input.workspaceId, keyDigest, requestDigest, projectId,
       ])
       await client.query('SELECT project.complete_create_project_receipt($1, $2, $3, $4, $5, $6, $7, $8)', [
         input.accountId, input.workspaceId, keyDigest, requestDigest, projectId,
