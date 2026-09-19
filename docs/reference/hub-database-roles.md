@@ -73,6 +73,23 @@ cluster, including a live Hub's. This caused two incidents; the second was diagn
 `builder-run-invariants-postgres.test.mjs`. `tests/implementation/protected-cluster.mjs`
 now refuses those suites against a cluster hosting a protected database.
 
-Nothing in the repository provisions these passwords. Migration `019` creates the roles
-with `LOGIN` and no password, so a fresh cluster needs them supplied from outside. Closing
-that gap is step 3 of the remediation in `docs/roadmap.md`.
+## Provisioning and the startup census
+
+Migration `019` creates the roles with `LOGIN` and no password, so a fresh cluster needs them
+supplied from outside. `scripts/provision-hub-roles.mjs` does that as an installation step,
+not as a power the Hub holds. It reads each role's password from the file its register row
+names, and it issues `ALTER ROLE` only for a role whose current password does not already
+authenticate, so a second run writes nothing. It never generates a password, never creates a
+role, and never touches a grant or a role attribute.
+
+- `npm run db:roles:census` is the read-only mode. It reports each role as `ok`, `invalid`
+  with its SQLSTATE, or `unconfigured` when no password file is configured.
+- `npm run db:roles:provision` repairs the invalid ones. It needs `CONEXUS_PROVISION_USER` and
+  `CONEXUS_PROVISION_PASSWORD_FILE` for a credential that may `ALTER ROLE`, and it reaches for
+  them only when there is something to repair. In the pilot that is `db-root`.
+
+`apps/hub/src/platform/connection-census.ts` runs the same read-only probe once at Hub
+startup and logs one `HUB_CONNECTION_CENSUS` line per connection that is not `ok`. It never
+stops the Hub, because one capability holding a bad credential must not take the others down.
+Before it existed the pools connected lazily, so a `28P01` first appeared in the middle of
+somebody's request.

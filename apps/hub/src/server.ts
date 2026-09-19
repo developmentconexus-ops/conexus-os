@@ -18,6 +18,7 @@ import { createHttpApp } from './http/app.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
 import { createMarModule } from './mar/module.js'
 import { readHubConfig } from './platform/config.js'
+import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
 import { createPostgresPool } from './platform/postgres.js'
 import { readSecretFile } from './platform/secrets.js'
 import { createApplicationArtifactStore, createRegistryStore } from './registry/module.js'
@@ -319,6 +320,15 @@ const previewApp = mar && config.preview ? await createHttpApp({
   },
 }) : undefined
 await builder?.recover()
+
+// Read-only, and it never stops the Hub. One capability holding a bad credential must not
+// take the others down, and it must be named here rather than surfacing as a 28P01 inside
+// somebody's request.
+reportConnectionCensus(
+  await censusConnections({ host: config.database.host, port: config.database.port, database: config.database.database }),
+  line => process.stderr.write(line),
+)
+
 await app.listen({ host: '127.0.0.1', port: config.port })
 if (previewApp && config.preview) await previewApp.listen({ host: '127.0.0.1', port: config.preview.port })
 
