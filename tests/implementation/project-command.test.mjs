@@ -153,14 +153,16 @@ test('S3-P0 Project module exposes non-blocking OCI image warmup without changin
     gitExecutableSha256: 'a'.repeat(64),
   }
   let imageChecks = 0
-  const git = {
+  const oci = {
     verifyAdmittedImage: async () => { imageChecks += 1; return image },
+    runGitProgram: async () => { throw new Error('UNEXPECTED_GIT_PROGRAM') },
   }
   const pool = { end: async () => {} }
   const project = createProjectModule({
     commandPool: pool,
     readPool: pool,
-    git,
+    git: { verifyAdmittedImage: oci.verifyAdmittedImage },
+    oci,
     recovery: { cleanupClaimedProjectSource: async () => { throw new Error('UNEXPECTED_RECOVERY') } },
     origin: 'https://control.example.test',
     resolveCurrentSession: async () => null,

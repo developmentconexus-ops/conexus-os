@@ -164,10 +164,9 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
       if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
       const admitted = await source.admitSourceResult({
         projectId: claimed.projectId, executionId: claimed.builderRunId,
-        baseSourceRevision: claimed.baseSourceRevision, claimedResultSourceRevision: result.resultSourceRevision,
+        baseSourceRevision: claimed.baseSourceRevision, claimedResultSourceRevision: result.claimedResultSourceRevision,
         resultBundle: result.resultBundle,
       })
-      if (admitted.resultSourceRevision !== result.resultSourceRevision) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
       if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
       await store.advanceBuilderRunSource(claimed.builderRunId, admitted.resultSourceRevision)
       if (claimed.mode === 'PLAN') throw new Error('BUILDER_PLAN_SOURCE_RESULT_REFUSED')

@@ -37,7 +37,7 @@ type CodingWorkerResultScope = Readonly<{
 }>
 
 type CodingWorkerResultVariant<TScope> = TScope & (
-  | Readonly<{ kind: 'SOURCE_CHANGED'; resultSourceRevision: string; resultBundle: Uint8Array }>
+  | Readonly<{ kind: 'SOURCE_CHANGED'; claimedResultSourceRevision: string; resultBundle: Uint8Array }>
   | Readonly<{ kind: 'RESPONSE_ONLY' }>
 )
 
@@ -472,11 +472,11 @@ export const createMastraE2BCodingWorkerRuntime = (
           'git -C /workspace/repo bundle create /workspace/result.bundle refs/heads/conexus-result',
         ].join(' && ')])
         if (!committed.success) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
-        const resultSourceRevision = (await direct('git', ['-C', '/workspace/repo', 'rev-parse', 'HEAD'])).stdout.trim()
-        if (!oid.test(resultSourceRevision)) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
+        const claimedResultSourceRevision = (await direct('git', ['-C', '/workspace/repo', 'rev-parse', 'HEAD'])).stdout.trim()
+        if (!oid.test(claimedResultSourceRevision)) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
         const resultBundle = await sandbox.e2b.files.read('/workspace/result.bundle', { format: 'bytes' })
         if (sandbox.sandboxId !== observedSandboxId || input.signal?.aborted) throw new Error('BUILDER_LATE_RESULT_REFUSED')
-        return Object.freeze({ ...scope, kind: 'SOURCE_CHANGED' as const, resultSourceRevision, resultBundle })
+        return Object.freeze({ ...scope, kind: 'SOURCE_CHANGED' as const, claimedResultSourceRevision, resultBundle })
       } finally {
         await sandbox.destroy().catch(() => undefined)
       }
