@@ -51,7 +51,6 @@ all: 236 functions are `SECURITY DEFINER` and `REVOKE ALL ON ALL TABLES` is appl
 | --- | --- |
 | `hub_r2_brain_attester` | Named `legacyAttester` in `config.ts`. No pool connects as it. |
 | `hub_r2_brain_bootstrap` | The bootstrap script connects by admin connection string instead. |
-| `hub_mar_runtime` | Created only by held migration `024`, so absent from a current install. |
 
 ## Roles are cluster-global
 

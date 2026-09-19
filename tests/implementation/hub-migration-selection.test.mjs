@@ -76,7 +76,6 @@ const currentNames = [
   '049_project_creator_builder_grant.sql',
   '050_builder_run_phase.sql',
 ]
-const heldNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
 const names = (migrations) => migrations.map((migration) => migration.name)
 
 const makeFixture = (selectedNames) => {
@@ -122,23 +121,10 @@ test('each loader accepts a fixture containing only its selected migrations', (t
   }
 })
 
-test('held migration files are optional and their bytes do not affect admitted selection', (t) => {
-  const root = makeFixture(currentNames)
-  t.after(() => rmSync(root, { recursive: true, force: true }))
-  const absent = loadCurrentHubMigrationFiles(root).map(({ name, checksum }) => ({ name, checksum }))
-
-  for (const name of heldNames) copyFileSync(resolve(migrationsRoot, name), resolve(root, name))
-  assert.deepEqual(
-    loadCurrentHubMigrationFiles(root).map(({ name, checksum }) => ({ name, checksum })),
-    absent,
-  )
-
-  for (const name of heldNames) writeFileSync(resolve(root, name), '\nSELECT held_bytes_are_not_read;\n', { flag: 'a' })
-  assert.deepEqual(
-    loadCurrentHubMigrationFiles(root).map(({ name, checksum }) => ({ name, checksum })),
-    absent,
-  )
-})
+// The held-migration case was deleted with the concept. It asserted that 024 and 025 could sit
+// in the directory without affecting the admitted selection and that their bytes were never
+// read. With no held names left, the recognized set is exactly the current corpus, so an extra
+// file is now refused outright. The next case is what proves that.
 
 test('loaders refuse unknown SQL files', (t) => {
   const root = makeFixture(currentNames)
