@@ -263,7 +263,7 @@ test('a connection is the owner\'s everywhere and a member\'s only where it is s
     [connectionId, sharedWorkspaceId])).rows, [{ shares: 1 }])
 })
 
-test('a pilot-shaped ledger at 050 runs 051 to 057 in one invocation', async (t) => {
+test('a pilot-shaped ledger at 050 runs every later migration in one invocation', async (t) => {
   const connection = await freshDatabase(t)
   const connectionString = connectionStringFor(connection)
   const staged = await runSelectedHubMigrations({
@@ -315,7 +315,9 @@ test('a pilot-shaped ledger at 050 runs 051 to 057 in one invocation', async (t)
   const finished = await runSelectedHubMigrations({
     connectionString, migrations: migrationsAfter('050'), recognizedMigrations: loadCurrentHubMigrationFiles(), catalogSnapshot: null,
   })
-  assert.deepEqual(finished.appliedNow, ['051', '052', '053', '054', '055', '056', '057'])
+  // Derived rather than listed: what this proves is that the pilot's rows survive every migration
+  // after 050 in one invocation, and a literal list went stale the first time head moved.
+  assert.deepEqual(finished.appliedNow, migrationsAfter('050').map(({ version }) => version))
 
   // The self binding carried nothing the new model stores, so no share was written, and the
   // owner's 22 Projects and 23 runs are still readable through the membership alone.

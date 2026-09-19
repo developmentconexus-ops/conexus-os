@@ -259,10 +259,7 @@ export const createIdentityAccessStore = ({
         await client.query('BEGIN READ ONLY')
         const result = await client.query<WorkspaceSummaryRow>(`
           SELECT s.workspace_id, s.name
-          FROM workspace.list_workspace_summaries(
-            ARRAY(SELECT visible.workspace_id
-                  FROM iam.visible_workspaces($1) visible)
-          ) s
+          FROM workspace.list_visible_workspace_summaries($1) s
           ORDER BY s.name, s.workspace_id
         `, [accountId])
         await client.query('COMMIT')
