@@ -1,6 +1,9 @@
 import type { FastifyInstance } from 'fastify'
 import { createPostgresPool } from '../platform/postgres.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import { createOciGitExecution } from '../platform/oci-git.js'
+import type { OciGitExecution } from '../platform/oci-git.js'
+import { R1C14_GIT_IDENTITY } from '../generated/r1c14-git-identity.js'
 import type { ProjectRuntimeConfig } from '../platform/config.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { readJsonFile } from '../model-connection/model-catalog.js'
@@ -16,7 +19,7 @@ import { createProjectStore } from './store.js'
 
 export type ProjectModule = Readonly<{
   registerProjectRoutes(app: FastifyInstance): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03')[]>
-  sourceGit: GitExecutionPort
+  sourceGit: OciGitExecution
   warmGitImage(): ReturnType<GitExecutionPort['verifyAdmittedImage']>
   close(): Promise<void>
 }>
@@ -25,6 +28,7 @@ export const createProjectModule = ({
   commandPool,
   readPool,
   git,
+  oci,
   recovery,
   origin,
   resolveCurrentSession,
@@ -32,6 +36,7 @@ export const createProjectModule = ({
   commandPool: PostgresPool
   readPool: PostgresPool
   git: GitExecutionPort
+  oci: OciGitExecution
   recovery: ProjectSourceRecovery
   origin: string
   resolveCurrentSession: ResolveCurrentSession
@@ -41,8 +46,8 @@ export const createProjectModule = ({
     registerProjectRoutes: (app: FastifyInstance) => registerProjectRoutes(app, {
       store, resolveCurrentSession, origin,
     }),
-    sourceGit: git,
-    warmGitImage: () => git.verifyAdmittedImage(),
+    sourceGit: oci,
+    warmGitImage: () => oci.verifyAdmittedImage(),
     close: async () => {
       await Promise.all([commandPool.end(), readPool.end()])
     },
@@ -67,8 +72,8 @@ export const composeProjectSourceOwnership = (input: unknown): Readonly<Record<s
 export const readProjectSourceOwnership = (path: string): Readonly<Record<string, string>> =>
   composeProjectSourceOwnership(readJsonFile(path))
 
-export const createBuilderProjectGitCapability = (storageRoot: string): GitExecutionPort =>
-  createOciGitExecutionPort({ projectStorageRoot: storageRoot })
+export const createBuilderProjectGitCapability = (_storageRoot: string): OciGitExecution =>
+  createOciGitExecution(R1C14_GIT_IDENTITY)
 
 export const createConfiguredProjectModule = ({
   database,
@@ -91,6 +96,7 @@ export const createConfiguredProjectModule = ({
   const externalSlots = slotInput as Readonly<Record<string, string>>
   const catalog = createGitImportAdmissionCatalog(catalogInput.entries as GitImportAdmissionEntry[])
   if (!catalog) throw new Error('PROJECT_GIT_CATALOG_REFUSED')
+  const oci = createOciGitExecution(R1C14_GIT_IDENTITY)
   return createProjectModule({
     commandPool: createPostgresPool({
       ...database,
@@ -106,7 +112,8 @@ export const createConfiguredProjectModule = ({
       projectStorageRoot: project.storageRoot,
       gitImportCatalog: catalog,
       externalFileSlots: externalSlots,
-    }),
+    }, oci),
+    oci,
     recovery: createProjectSourceRecovery(project.storageRoot),
     origin,
     resolveCurrentSession,
