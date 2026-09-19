@@ -35,7 +35,7 @@ export const createAnthropicOAuthModel = ({
       const headers = new Headers(init.headers)
       headers.delete('authorization')
       headers.delete('x-api-key')
-      headers.set('authorization', `Bearer ${await tokenStore.getAccessToken()}`)
+      headers.set('authorization', `Bearer ${(await tokenStore.getToken()).access}`)
       headers.set('anthropic-version', '2023-06-01')
       const requestBetas = (headers.get('anthropic-beta') ?? '').split(',').map((beta) => beta.trim()).filter(Boolean)
       headers.set('anthropic-beta', [...new Set([...BETAS, ...requestBetas])].join(','))
