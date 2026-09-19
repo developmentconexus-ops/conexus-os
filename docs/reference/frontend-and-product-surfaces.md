@@ -1,10 +1,10 @@
 # Frontend and Product Surfaces
 
-This file owns detailed frontend meaning under the architecture overview.
-For the ordinary Builder, [C-020](builder-c020-mastra-native.md) owns technical
-meaning and the program owns delivery sequence.
-The roadmap owns the current grant. Broader surfaces below are not prerequisites
-for the pilot.
+This file owns detailed frontend meaning. For the Builder,
+[C-020](builder-c020-mastra-native.md) owns technical meaning and the
+[repair program](../tasks/builder-repair-program.md) owns delivery sequence.
+[The roadmap](../roadmap.md) owns status. Section 33.4 lists every surface that
+exists; this file describes those and nothing beyond them.
 
 ## 33. Scaffold and frontend architecture
 
@@ -30,16 +30,26 @@ The Product delivery exercises the applicable build/frontend/security contracts.
 Scaffold or prototype existence is not implementation proof. Do not import
 unrelated historical gates into the pilot.
 
-## 33.4 Workspace shell
+## 33.4 The surfaces that exist
 
-The broader shell contains Projects, Agents, Brain, Connections, Members, and
-Settings. The roadmap and current task determine the active scope and labels.
+These are the routes, and there are no others.
 
-## 33.5 Project shell
+```text
+/                                        the person's Workspaces
+/workspaces/new                          create a Workspace
+/workspaces/$workspaceId/projects        the Workspace's Projects
+/workspaces/$workspaceId/projects/new    create a Project
+/workspaces/$workspaceId/members         the roster: members and pending invitations
+/projects/$projectId                     Project detail
+/projects/$projectId/build               the Build surface
+/settings                                model connections
+/setup                                   first-run Account provisioning
+```
 
-The broader shell contains Build, Data, Capabilities, Integrations, Agents,
-Brain, Versions, Activity, and Settings. Do not implement them all merely
-because the ordinary Build workspace needs a new presentation.
+Model connections live in Settings and in the Build surface, reached through the
+same flow from either. There is no Agents, Brain, Data, Capabilities,
+Integrations, Versions or Activity surface, and none is planned. Do not add
+navigation for one because a shell looks empty without it.
 
 ## 33.6 Build surface
 
@@ -67,7 +77,7 @@ ask for another color review.
 | Composer | Multiline input, Enter to send, Shift+Enter for newline, IME-safe behavior, clear sending/stopping feedback, keyboard/focus operation. |
 | Connection | Connect from chat or Settings through the same flow. Provider sign-in and pasted temporary code; safe status, explicit disconnect/reconnect. No tokens in browser storage. |
 | Model | Search choices supplied by the authorized Hub. Show the choice for the next request and the model actually admitted for each existing run. A choice change never changes an active run. |
-| Permissions | Friendly Edit/Read-only labels map to BUILD/PLAN tool restrictions. They are not a required planning/approval workflow. |
+| Tool restriction | Friendly Edit and Read-only labels map to the BUILD and PLAN tool sets. They are a tool restriction on the run, not an approval workflow. |
 | Conversation | Persistent native Thread messages with ordered safe parts and streaming native activity. Scroll follows only when the user remains at the tail. |
 | Progress | Preparation, agent work, compilation and Preview opening reflect actual facts. Missing facts are not fabricated percentages or timers. |
 | Preview | The actual authorized application remains usable while new work runs. Old launch responses cannot replace newer identity. A grant or iframe load is not proof of a working app. |
@@ -108,6 +118,6 @@ Mastra facts. The pilot does not expose a complete Studio, raw trace API, or
 agent-execution bypass. Technical IDs stay behind useful labels unless an
 explicitly authorized diagnostic requires them.
 
-Broader Data, Capabilities, Product Agents, Versions, Brain and Activity remain
-inspectable only when admitted. Historical WorkUnit/ActorRun names do not revive
-those entities. Context passed to Conexus never grants new Project access.
+What a person may inspect is the Project source at an exact revision, the run
+list, and a run's safe native trace. Nothing else is inspectable because nothing
+else exists.
