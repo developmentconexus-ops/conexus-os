@@ -1,9 +1,0 @@
-flowchart LR
-  Runtime[Runtime mechanics] --> Export[Observability exporter]
-  Export --> OBS[Operational events / traces]
-  Runtime --> Owner[Conexus owner records]
-  Gateway[Gateway receipts] --> Owner
-  OBS -. correlation / evidence .-> Owner
-  Owner --> Terminal[Terminal Product / business truth]
-  OBS -. never owns .-> Terminal
-

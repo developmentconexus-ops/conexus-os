@@ -2,7 +2,7 @@
 
 This file owns detailed frontend meaning under the architecture overview.
 For the ordinary Builder, [C-020](builder-c020-mastra-native.md) owns technical
-meaning and [the program](../tasks/builder-first-app.md) owns delivery sequence.
+meaning and the program owns delivery sequence.
 The roadmap owns the current grant. Broader surfaces below are not prerequisites
 for the pilot.
 
@@ -45,24 +45,19 @@ because the ordinary Build workspace needs a new presentation.
 
 The operator approved `conexus_builder_interativo.html` on 2026-09-17 as the
 functional reference and explicitly excluded colors and visual polish as current
-acceptance gates. This is the newer ordinary-Builder interaction delta to the
-historical [P-01 contract](../evidence/4c/p01-build-workspace-screen-contract.md).
-P-01's app-first composition, contextual right chat, and read-only inspection
-remain. Historical specialized Agent Studio lenses are not reopened.
+acceptance gates. The app-first composition, the contextual right-hand chat and
+read-only inspection remain. Specialized Agent Studio lenses are not reopened.
 
 ### 33.6.1 Approved artifact identity
 
 - Original attachment: `conexus_builder_interativo.html`, 106309 bytes.
 - SHA-256: `465ffcabf3974f2f227c825c5288916f9dfbad5d1c8b736c6aaca81f62d62665`.
 - Git blob: `731b36f6da30426b5e12cb9d439dd02192911851`.
-- Imported repository evidence: [approved-interactive-builder.html](../evidence/builder/approved-interactive-builder.html).
-- Import destination in the first implementation unit:
-  `docs/evidence/builder/approved-interactive-builder.html`.
 
-Keep the exact bytes as evidence. Its JavaScript, scripted events, fake models,
-local state authority, and demo controls are not production implementation.
-The [current delivery task](../tasks/builder-interactive-delivery.md) owns import
-and execution. Do not regenerate a similar mockup or ask for another color review.
+Those bytes are in Git history. Its JavaScript, scripted events, fake models,
+local state authority, and demo controls are not production implementation. The
+functional contract below is what survives. Do not regenerate a similar mockup or
+ask for another color review.
 
 ### 33.6.2 Functional contract
 

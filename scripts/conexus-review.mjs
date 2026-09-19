@@ -322,8 +322,8 @@ export function buildReviewPrompt({
       ? ['Reconstruct repository-current authority yourself before judging anything. Start with']
       : ['Reconstruct only the authority and protected claims needed for this bounded delta/focused review. Start with']),
     'AGENTS.md, docs/roadmap.md, docs/index.md, docs/development/engineering-method.md,',
-    'docs/development/repository-method.md, and docs/development/blueprint-harness-design.md',
-    'sections 10.4–10.6; then read the exact brief and only the routed evidence it names.',
+    'and docs/development/repository-method.md; then read the exact brief and only the',
+    'routed evidence it names.',
     'Treat the brief as orientation and attack framing, not as authority or proof.',
     ...(profile === 'material'
       ? []

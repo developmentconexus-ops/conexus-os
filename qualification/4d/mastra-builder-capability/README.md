@@ -22,5 +22,5 @@ npm ci
 npm test
 ```
 
-See [`4d-c02r-current-mastra-builder-capability-probe.md`](../../../docs/evidence/4d/4d-c02r-current-mastra-builder-capability-probe.md)
+See `4d-c02r-current-mastra-builder-capability-probe.md`
 for interpretation and limitations.

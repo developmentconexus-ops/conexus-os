@@ -1,12 +1,14 @@
 # Builder repair program plan
 
-Six changes that take the Builder from "one journey worked once" to "the acceptance journey is provable and the product stops asserting what it cannot observe". P-01 restores the verification floor, which is red today and blocks every gate. P-02 and P-03 close what an operator notices when something fails. P-04 makes past work inspectable. P-05 settles which authorized subject runs. P-06 makes the compile answer whether the artifact boots. Order is P-01, P-02, P-03, P-04, P-05, P-06.
+Five changes that take the Builder from "one journey worked once" to "the acceptance journey is provable and the product stops asserting what it cannot observe". P-02 and P-03 close what an operator notices when something fails. P-04 makes past work inspectable. P-05 settles which authorized subject runs. P-06 makes the compile answer whether the artifact boots. Order is P-02, P-03, P-04, P-05, P-06.
+
+P-01 restored the verification floor and landed on 2026-09-18 as `c0328ca3` and `e2d400b3`. CI runs the whole graph. Its own live lanes 6 and 10 and its perf box were never completed; the roadmap's first Builder step covers that ground live on the pilot.
 
 ## How to read this
 
 One box is one unit of work. Every box names the evidence that checks it. A nested box is a sub-step of the box above it. Check a box only when its evidence exists, a file, a log line, a screenshot, a test run, or a SHA. The body is a how-to. The appendices explain and record.
 
-The program runs `skills/poteto-mode/playbooks/autopilot-stack.md` from the installed plugin. The operator merges every PR. P-01 through P-06 all stop at merge-ready.
+The program runs `skills/poteto-mode/playbooks/autopilot-stack.md` from the installed plugin. The operator merges every PR. Every unit stops at merge-ready.
 
 Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -15,14 +17,14 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 ### Arm the program
 
 - [ ] State the protocol and this plan to the operator, then stop. Start execution only on her explicit go.
-- [ ] On her go, write this exact text into the standing orders and restate it in your todolist. "Run docs/tasks/builder-repair-program.md. PRs P-01 through P-06 in order. Tests alone are not sufficient verification; a PR is verified only when its unit, live, and perf boxes are all checked. The operator merges every PR. Done when every box carries its evidence and the repair ledger is reconciled."
+- [ ] On her go, write this exact text into the standing orders and restate it in your todolist. "Run docs/tasks/builder-repair-program.md. PRs P-02 through P-06 in order. Tests alone are not sufficient verification; a PR is verified only when its unit, live, and perf boxes are all checked. The operator merges every PR. Done when every box carries its evidence."
 - [ ] Read these from the installed plugin at program start. Re-read them at every tick.
   - [ ] `skills/poteto-mode/playbooks/autopilot-stack.md`
   - [ ] `skills/swarm/SKILL.md`
   - [ ] `skills/verify/SKILL.md`
   - [ ] `skills/poteto-mode/playbooks/opening-a-pr.md`
   - [ ] `skills/mastra/SKILL.md`
-- [ ] Read the repository authority before the first edit. `AGENTS.md`, `docs/roadmap.md`, `docs/reference/builder-c020-mastra-native.md`, `docs/tasks/builder-interactive-delivery.md`.
+- [ ] Read the repository authority before the first edit. `AGENTS.md`, `docs/roadmap.md`, `docs/reference/builder-c020-mastra-native.md`.
 - [ ] Arm the 30-minute audit tick as a real `/loop` in dynamic mode, which schedules its own wake-up rather than blocking on a sleep. Never leave the cadence to memory.
 - [ ] Use this tick prompt, verbatim. "Re-read the execution playbook from the installed plugin and the standing objective. Audit the operation against both and fix drift in this tick. Probe every active lane and judge progress by side effects only. Stand down a stuck lane and dispatch its replacement now. Then send the operator a status message, whether or not anything changed, with the queue table of PR, owner, state, and head SHA, the verdicts since the last tick, what merged, open operator gates, and blockers."
 - [ ] On the operator's hold or stand-down, send every owner a zero-writes order at once.
@@ -31,8 +33,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 - [ ] Spawn one owner per PR with the full lifecycle the execution playbook names.
 - [ ] Follow this dependency graph.
-  - [ ] P-01 is first and alone. Every other PR gates on it because no gate runs until it lands.
-  - [ ] P-02, P-03, P-04 and P-05 are independent of each other. All four branch from P-01.
+  - [ ] P-02, P-03, P-04 and P-05 are independent of each other. All four branch from trunk.
   - [ ] P-06 after P-03, because it consumes the artifact state P-03 introduces.
 - [ ] Hold the file boundaries. P-03 and P-06 both touch Preview. P-03 owns `apps/web/src/features/builder/**` only. P-06 owns `apps/hub/src/builder/application-artifact-runtime.ts` and the compiler template only.
 - [ ] Hold the review gate. P-02, P-03, P-04, P-05 and P-06 change an interaction. They wait for the operator's review in chat with screenshots and a video before merge.
@@ -63,58 +64,9 @@ Each live lane runs in its own worktree at the PR head. Drive through the `verif
 - [ ] Deliver input only through the control skill's commands. Read-only diagnostics are the Hub log, the pilot Postgres, and the Mastra LibSQL store at `~/.local/share/conexus/pilot/slice7/storage/builder-session.db`.
 - [ ] Save every screenshot to `/tmp/swarm-<pr-id>/worker-<n>/<slug>.png` and return the paths with the report.
 
-## Restore the verification floor (P-01)
-
-**Depends on.** None.
-
-**Files.**
-
-- [ ] Edit `apps/hub/migrations/047_reconcile_040_settlement_boundary.sql`.
-
-**Build.**
-
-- [ ] Make migration 047 replace `reg.matches_application_artifact` rather than create it. Migration 040 line 7 and migration 047 line 5 both `CREATE FUNCTION` the same signature, no migration drops it, and neither uses `CREATE OR REPLACE`, so every from-scratch install fails at 047.
-
-**You see.**
-
-- [ ] `npm run verify` reaches past step 2 of 28 and runs the remaining 26 gates to completion.
-
-**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
-
-- [ ] `tests/implementation/hub-migration-postgres.test.mjs` passes every case including "concurrent current Hub installers record each accepted migration once". Run `node --test --test-concurrency=1 tests/implementation/hub-migration-postgres.test.mjs`.
-
-**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` model at the PR head, per the boot recipe.
-
-- [ ] Lane 1. Regression lane against trunk. Run `npm run verify` at trunk and at head. Trunk halts at step 2; head completes 28. Save `p01-verify-both.png`. Pass when head completes and trunk does not.
-- [ ] Lane 2. Fresh install from empty. Apply every migration to a new database. Save `p01-fresh-install.png`. Pass when migration 050 applies with no error.
-- [ ] Lane 3. Re-apply against the operator's existing pilot database. Save `p01-existing-db.png`. Pass when the run is a no-op and no existing object is dropped.
-- [ ] Lane 4. Concurrent installers. Run two installers against one fresh database. Save `p01-concurrent.png`. Pass when each accepted migration is recorded once.
-- [ ] Lane 5. Start the Hub against the pilot database. Save `p01-hub-boot.png`. Pass when it serves the shell and answers 401 unauthenticated.
-- [ ] Lane 6. Sign in and open a Project's Build surface. Save `p01-build-surface.png`. Pass when the composer, the model selector and the connection chip all render.
-- [ ] Lane 7. Run the builder Postgres suites that never ran before this PR. Save `p01-builder-postgres.png`. Pass when all three files pass.
-- [ ] Lane 8. Run the eleven `wire:*` contract gates. Save `p01-wire.png`. Pass when all eleven pass.
-- [ ] Lane 9. Run the repository hygiene, doc-index and architecture checks. Save `p01-repo-checks.png`. Pass when all pass or their failures are pre-existing and recorded.
-- [ ] Lane 10. Confirm the compiled artifact registry still reads. Open a Project with a last-good Preview. Save `p01-registry-read.png`. Pass when the Preview frame renders the previously good application.
-
-**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
-
-- [ ] Metric. Wall time of `npm run verify`. Trunk halts, so record trunk's time-to-halt and head's time-to-completion and do not claim a ratio between them. Also record the absolute head completion time as the budget.
-- [ ] Probe. `time npm run verify` at trunk and at head, interleaved, three runs each on the same machine.
-- [ ] Baseline. Record trunk's time-to-halt first.
-- [ ] Rule. Head must complete. Fail if head exceeds 20 minutes, or if any gate after step 2 fails for a reason this PR introduced.
-
-**Review gate.** None. P-01 is not review-gated.
-
-**Merge.**
-
-- [ ] Root's clean verdict at the exact head SHA.
-- [ ] Bugbot triage done.
-- [ ] Base and verdict are current under the execution playbook and the patch-id rule in `playbooks/shipping.md`.
-- [ ] The root appends P-01 to the base-branch stack and the operator lands it.
-
 ## Keep a failed request visible and named (P-02)
 
-**Depends on.** P-01.
+**Depends on.** Nothing outstanding.
 
 **Files.**
 
@@ -178,7 +130,7 @@ Each live lane runs in its own worktree at the PR head. Drive through the `verif
 
 ## Stop claiming the Preview loaded (P-03)
 
-**Depends on.** P-01.
+**Depends on.** Nothing outstanding.
 
 **Files.**
 
@@ -237,7 +189,7 @@ Each live lane runs in its own worktree at the PR head. Drive through the `verif
 
 ## Make past work inspectable and retries safe (P-04)
 
-**Depends on.** P-01.
+**Depends on.** Nothing outstanding.
 
 **Files.**
 
@@ -296,7 +248,7 @@ Each live lane runs in its own worktree at the PR head. Drive through the `verif
 
 ## Settle which authorized subject runs (P-05)
 
-**Depends on.** P-01.
+**Depends on.** Nothing outstanding.
 
 **Files.**
 
@@ -311,7 +263,7 @@ Each live lane runs in its own worktree at the PR head. Drive through the `verif
 **Build.**
 
 - [ ] Expose the existing connection preference on the list and read it in the UI. The UI shows the first ACTIVE connection ordered by creation, while run admission reads `claude_connection.preference`, so with two ACTIVE connections the chip can name one while the server admits another. Do not add a caller-supplied connection id; the server already resolves the authorized subject correctly.
-- [ ] Delete `BUILDER_VERIFICATION`, which no caller ever requests, and collapse `PROJECT_INCEPTION` and `BASELINE_EXPLANATION`, which only ever occur as a pair and distinguish nothing.
+- [ ] Delete `BUILDER_VERIFICATION`, which no caller ever requests. `PROJECT_INCEPTION` and `BASELINE_EXPLANATION` went with Inception and the Baseline on 2026-09-19; confirm no catalog entry in the operator's environment still carries them.
 - [ ] Delete `PROJECT_ANTHROPIC_MODEL_ID` and `PROJECT_ANTHROPIC_ADMISSION_ID`, which pin a model and an admission id in source and are then validated against the catalog by string equality.
 - [ ] Drop the model-id existence re-validation against the catalog and keep the registry as the authority for it. Keep admission id, credential slot, enabled and origin pinning, which Mastra does not model.
 
@@ -336,7 +288,7 @@ Each live lane runs in its own worktree at the PR head. Drive through the `verif
 - [ ] Lane 7. Open run history after both. Save `p05-history-models.png`. Pass when each run names its own model.
 - [ ] Lane 8. Remove an entry from the catalog and reopen the Project. Save `p05-removed-entry.png`. Pass when the historical run still names the removed model.
 - [ ] Lane 9. Put an unknown model id in the catalog and restart. Save `p05-unknown-model.png`. Pass when the Hub refuses it by name.
-- [ ] Lane 10. Confirm the cognition path still works after the hardcode deletion. Save `p05-cognition.png`. Pass when Project inception still resolves its model from the catalog.
+- [ ] Lane 10. Confirm every surviving catalog consumer still resolves its model after the hardcode deletion. Save `p05-catalog.png`. Pass when each one reads its model from the catalog rather than from source.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -420,7 +372,6 @@ Each live lane runs in its own worktree at the PR head. Drive through the `verif
 ## Close the program
 
 - [ ] Every box above is checked with its evidence.
-- [ ] Reconcile `docs/tasks/builder-interactive-delivery.md` with what each PR proved and correct the two stale records in Appendix B.
 - [ ] Reply to the operator with the report the execution playbook names.
 
 ## Appendix A. Prototype evidence
@@ -441,11 +392,9 @@ A postMessage readiness handshake from the preview document. Conexus serves the 
 
 Ten separate PRs, one per ledger item. The lane discipline exposed the decomposition as too fine. A PR with fewer than ten real scenarios is not a PR, it is a commit inside one. Six PRs each carry ten genuine scenarios.
 
-Two stale records to correct at close. The claim that restarting the Hub invalidates the operator session is false, per Appendix A. The B-07 entry's premise that native discovery can replace the catalog is false for Mastra 1.63.2, which has no per-credential discovery at all.
+Two claims carried by the predecessor delivery contract were false and are recorded here because its file is gone. Restarting the Hub does not invalidate the operator session; the cause is ordinary idle expiry, per Appendix A. Native discovery cannot replace the catalog for Mastra 1.63.2, which has no per-credential discovery at all.
 
 ## Appendix C. Risks
-
-P-01 changes a migration already applied to the operator's pilot database. The operator cleared this on 2026-09-18. The pilot database is development only, with nobody using the application, so the migration may alter it freely to make it correct. Lane 3 still verifies against the live pilot database, not only a fresh one.
 
 P-02 adds a column to `builder.builder_run`. The owner writes the migration additive and nullable so existing rows stay readable.
 
@@ -459,7 +408,7 @@ Live lanes that drive a real build create E2B sandboxes and spend the operator's
 
 ## Appendix D. Links and reading list
 
-Read before editing. `docs/reference/builder-c020-mastra-native.md` sections 4.2, 8.3, 11, 13 and 13.1. `docs/tasks/builder-interactive-delivery.md`, the repair ledger. `AGENTS.md`. `.agents/skills/mastra/SKILL.md` for anything touching Mastra.
+Read before editing. `docs/reference/builder-c020-mastra-native.md` sections 4.2, 8.3, 11, 13 and 13.1. `AGENTS.md`. `.agents/skills/mastra/SKILL.md` for anything touching Mastra.
 
 P-05 and P-06 get `skills/how/SKILL.md` before the first edit, because both cross a boundary whose ownership the ledger has previously described wrongly. P-02 gets `skills/interrogate/SKILL.md` before review, because its failure taxonomy is the kind of contested design a single reviewer approves too easily.
 

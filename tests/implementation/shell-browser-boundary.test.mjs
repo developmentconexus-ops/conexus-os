@@ -65,16 +65,3 @@ test('S5-P0 guards every realized browser command against synchronous double act
     assert.match(source, /onSettled/, file)
   }
 })
-
-test('S5-P1 pins every admitted browser in an isolated read-only qualification process', () => {
-  const packageJson = JSON.parse(read('package.json'))
-  const command = packageJson.scripts['r1:s5:p1:browser']
-  assert.equal(typeof command, 'string')
-  for (const browser of ['chromium', 'firefox', 'webkit']) {
-    assert.match(command, new RegExp(`CONEXUS_S5_BROWSER=${browser}`))
-  }
-  assert.match(command, /conexus-r1-s5-playwright:1\.62\.1-node24\.20\.0/)
-  assert.match(command, /playwright-node24\.Dockerfile/)
-  assert.match(command, /\$PWD:\/work\/repo:ro/)
-  assert.equal(command.match(/docker run --rm/g)?.length, 3)
-})

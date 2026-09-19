@@ -4,8 +4,8 @@ import pg from 'pg'
 // PostgreSQL instance, not to a database, so the throwaway database each suite creates
 // does not contain the change. Running them against a cluster that also hosts a live Hub
 // replaces that Hub's credentials with test fixture values, and the cleanup paths then set
-// some of them to NULL. docs/reference/release-deployment-and-operations.md states the rule
-// in prose. This makes it a check.
+// some of them to NULL. Test tooling never alters a cluster that hosts a live Hub; this
+// makes that rule a check rather than prose.
 
 const PROTECTED_DATABASES = (process.env.CONEXUS_PROTECTED_DATABASES ?? 'conexus_s7')
   .split(',')
