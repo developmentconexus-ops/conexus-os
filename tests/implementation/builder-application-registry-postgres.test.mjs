@@ -24,7 +24,7 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
   const config = { ...admin, database }
   const url = new URL('postgresql://localhost'); url.hostname = config.host; url.port = String(config.port); url.pathname = `/${database}`; url.username = config.user; url.password = config.password
   const migrated = await runHubMigrations({ connectionString: url.toString() })
-  assert.deepEqual(migrated.versions, ['0001'])
+  assert.deepEqual(migrated.versions, ['0001', '0002'])
   const root = resolve(import.meta.dirname, '../..')
   const buildRoot = mkdtempSync(resolve(root, 'apps/hub/registry-postgres-build-'))
   t.after(() => rmSync(buildRoot, { recursive: true, force: true }))
@@ -76,7 +76,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   const config = { ...admin, database }
   const url = new URL('postgresql://localhost'); url.hostname = config.host; url.port = String(config.port); url.pathname = `/${database}`; url.username = config.user; url.password = config.password
   const migrated = await runHubMigrations({ connectionString: url.toString() })
-  assert.deepEqual(migrated.versions, ['0001'])
+  assert.deepEqual(migrated.versions, ['0001', '0002'])
   const root = resolve(import.meta.dirname, '../..')
   const buildRoot = mkdtempSync(resolve(root, 'apps/hub/registry-settlement-build-'))
   t.after(() => rmSync(buildRoot, { recursive: true, force: true }))

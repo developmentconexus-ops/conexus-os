@@ -11,7 +11,11 @@ const migrationPattern = /^(\d{4})_[a-z0-9_]+\.sql$/
 export const baselineName = '0001_baseline.sql'
 export const baselineVersion = '0001'
 export const baselineDigest = 'f558c1f0bcbc23273b822ec03ce566425c8b518acacfa28a5ba6baf5b52ea0d7'
-const migrationDigests = new Map([[baselineName, baselineDigest]])
+const pruneDeadIamActionsDigest = 'a7ec17faae66640cbe2e85efec79f168abe0b3f8dc2bd07d76394909e24e65f4'
+const migrationDigests = new Map([
+  [baselineName, baselineDigest],
+  ['0002_prune_dead_iam_actions.sql', pruneDeadIamActionsDigest],
+])
 
 const advisoryLock = 4_349_395_539_450_322_946n
 // A second Hub starting at the same moment waits on the advisory lock, and that wait is normally
@@ -55,9 +59,10 @@ const tableExists = async (client, qualified) => (await client.query('SELECT to_
 const schemaExists = async (client, schema) => (await client.query('SELECT to_regnamespace($1) IS NOT NULL AS present', [schema])).rows[0].present
 const ledgerRows = async (client) => (await client.query('SELECT version, checksum_sha256 FROM iam.schema_migration ORDER BY version')).rows
 
-// The ledger proves which versions ran and that their bytes did not change. The catalog snapshot
-// proves the database is the one a clean application of exactly those versions produces.
-const verifyLedger = async (client, migrations, catalogSnapshot) => {
+// The ledger proves which versions ran against this database and that their bytes did not change.
+// It says nothing about the catalog: while migrations are still pending, the database is not yet
+// the one any snapshot describes, so only the ledger is checked here.
+const ledgerState = async (client, migrations) => {
   if (!await tableExists(client, 'iam.schema_migration')) return { applied: new Map(), maximum: null }
   const rows = await ledgerRows(client)
   const files = new Map(migrations.map((migration) => [migration.version, migration]))
@@ -67,14 +72,10 @@ const verifyLedger = async (client, migrations, catalogSnapshot) => {
     if (migration.checksum !== row.checksum_sha256) fail('MIGRATION_APPLIED_DIGEST_DRIFT', row.version)
   }
   const applied = new Map(rows.map((row) => [row.version, row.checksum_sha256]))
-  if (catalogSnapshot) {
-    await assertCatalog(client, catalogSnapshot)
-    await assertRoleInvariants(client)
-  }
   return { applied, maximum: rows.at(-1)?.version ?? null }
 }
 
-const runMigrations = async ({ connectionString, migrations, catalogSnapshot = readCommittedSnapshot() }) => {
+export const runMigrations = async ({ connectionString, migrations, catalogSnapshot = readCommittedSnapshot() }) => {
   const client = new pg.Client({ connectionString })
   await client.connect()
   const appliedNow = []
@@ -83,7 +84,7 @@ const runMigrations = async ({ connectionString, migrations, catalogSnapshot = r
       await client.query('BEGIN')
       try {
         await takeAdvisoryLock(client)
-        const ledger = await verifyLedger(client, migrations, catalogSnapshot)
+        const ledger = await ledgerState(client, migrations)
         if (ledger.applied.has(migration.version)) {
           await client.query('COMMIT')
           continue
@@ -98,10 +99,21 @@ const runMigrations = async ({ connectionString, migrations, catalogSnapshot = r
         throw error
       }
     }
+    // Every pending migration has now run, so this is the one point where the database is the one
+    // the snapshot describes. The catalog and role invariants are asserted here, once, rather than
+    // on every loop iteration: checking them earlier would compare a database that still has
+    // migrations left to run against a snapshot of the finished one, which refuses every upgrade
+    // and every fresh install of more than one migration. The cost is that a catalog that drifted
+    // independently of the ledger is now caught after pending migrations run rather than before;
+    // a ledger that is already complete still runs no migration bodies, so that case is unaffected.
     await client.query('BEGIN')
     try {
       await takeAdvisoryLock(client)
-      const ledger = await verifyLedger(client, migrations, catalogSnapshot)
+      const ledger = await ledgerState(client, migrations)
+      if (catalogSnapshot) {
+        await assertCatalog(client, catalogSnapshot)
+        await assertRoleInvariants(client)
+      }
       await client.query('COMMIT')
       return { verdict: 'PASS', appliedNow, versions: [...ledger.applied.keys()] }
     } catch (error) {

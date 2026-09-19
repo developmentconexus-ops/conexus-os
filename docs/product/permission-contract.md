@@ -42,7 +42,7 @@ A Project has no authority of its own. It inherits the Workspace that owns it.
 
 ## 2. The action vocabulary
 
-`iam.action` is the vocabulary. Five of its values gate something.
+`iam.action` is the vocabulary. It holds exactly the five values below.
 
 | Action | Gates | Called from |
 | --- | --- | --- |
@@ -55,9 +55,9 @@ A Project has no authority of its own. It inherits the Workspace that owns it.
 `members.manage` is the only action a member does not hold, so it is the only line
 that makes the two roles different.
 
-Two values, `project.read` and `project.change`, appear in the enum declaration and
-nowhere else. No function passes either one. They are dead entries, recorded here
-rather than described as authority, and removing them costs a migration.
+`project.read` and `project.change` were dead entries in the enum declaration: no
+function ever passed either one. `apps/hub/migrations/0002_prune_dead_iam_actions.sql`
+removed them; the table above lists only the five values that gate something.
 
 ### 2.1 Reads are gated by containment, not by an action
 

@@ -8,7 +8,7 @@ import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every(name => process.env[name])
 const connect = async (connection) => { const client = new pg.Client(connection); await client.connect(); return client }
 
-const ACTIONS = ['workspace.read', 'members.manage', 'project.create', 'project.read', 'project.change', 'project.build', 'connection.share']
+const ACTIONS = ['workspace.read', 'members.manage', 'project.create', 'project.build', 'connection.share']
 
 const refusal = async (run) => {
   try {
@@ -66,7 +66,7 @@ test('the membership authority derives every right from one role row and revokes
     throw new Error(`unexpected refusal ${outcome.code} ${outcome.message}`)
   }
 
-  await t.test('two roles across seven actions decide admission exactly one way', async () => {
+  await t.test('two roles across five actions decide admission exactly one way', async () => {
     const workspaceId = await workspace('matrix')
     const owner = await account('matrix-owner')
     const plain = await account('matrix-member')
@@ -83,15 +83,11 @@ test('the membership authority derives every right from one role row and revokes
       'owner workspace.read true',
       'owner members.manage true',
       'owner project.create true',
-      'owner project.read true',
-      'owner project.change true',
       'owner project.build true',
       'owner connection.share true',
       'member workspace.read true',
       'member members.manage false',
       'member project.create true',
-      'member project.read true',
-      'member project.change true',
       'member project.build true',
       'member connection.share true',
     ])
@@ -103,9 +99,9 @@ test('the membership authority derives every right from one role row and revokes
     await member(dormant, workspaceId, 'owner')
     const projectId = await project(workspaceId, 'inactive-project')
 
-    assert.deepEqual(await refusal(() => client.query('SELECT iam.admit_workspace($1,$2,$3)', [dormant, workspaceId, 'project.read'])),
+    assert.deepEqual(await refusal(() => client.query('SELECT iam.admit_workspace($1,$2,$3)', [dormant, workspaceId, 'project.build'])),
       { code: '42501', message: 'NOT_ADMITTED' })
-    assert.deepEqual(await refusal(() => client.query('SELECT iam.admit_project($1,$2,$3)', [dormant, projectId, 'project.read'])),
+    assert.deepEqual(await refusal(() => client.query('SELECT iam.admit_project($1,$2,$3)', [dormant, projectId, 'project.build'])),
       { code: '42501', message: 'NOT_ADMITTED' })
     assert.deepEqual((await client.query('SELECT * FROM iam.visible_workspaces($1)', [dormant])).rows, [])
     assert.deepEqual((await client.query('SELECT * FROM iam.visible_projects($1)', [dormant])).rows, [])
@@ -305,8 +301,8 @@ test('the membership authority derives every right from one role row and revokes
 
   await t.test('an unknown project and an unknown workspace are refused in the same words', async () => {
     const stranger = await account('stranger')
-    const unknownProject = await refusal(() => client.query('SELECT iam.admit_project($1,$2,$3)', [stranger, randomUUID(), 'project.read']))
-    const unknownWorkspace = await refusal(() => client.query('SELECT iam.admit_workspace($1,$2,$3)', [stranger, randomUUID(), 'project.read']))
+    const unknownProject = await refusal(() => client.query('SELECT iam.admit_project($1,$2,$3)', [stranger, randomUUID(), 'project.build']))
+    const unknownWorkspace = await refusal(() => client.query('SELECT iam.admit_workspace($1,$2,$3)', [stranger, randomUUID(), 'project.build']))
     assert.deepEqual(unknownProject, { code: '42501', message: 'NOT_ADMITTED' })
     assert.deepEqual(unknownWorkspace, unknownProject)
   })
