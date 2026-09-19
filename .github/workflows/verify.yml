@@ -48,4 +48,12 @@ jobs:
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm run verify
       - run: git diff --check
-      - run: test -z "$(git status --porcelain)"
+      # A guard that fails without naming what it found costs a whole CI cycle to diagnose.
+      - name: The working tree is unchanged by verification
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "verification left the working tree dirty:"
+            git status --porcelain
+            git diff --stat
+            exit 1
+          fi

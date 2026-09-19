@@ -60,6 +60,8 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('c020-web-typecheck', 'node node_modules/typescript/bin/tsc --project apps/web/tsconfig.json --pretty false'),
   candidateStep('c020-web-build', 'node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web --outDir ../../node_modules/.cache/conexus-candidate-web-build --emptyOutDir'),
 
+  candidateStep('db-catalog-snapshot', 'npm run db:catalog:check', 'postgres'),
+  candidateStep('db-baseline-file', 'npm run db:baseline:check', 'postgres'),
   candidateStep('db-role-register', 'npm run db:roles:check'),
   candidateStep('db-role-provision-postgres', 'npm run db:roles:postgres', 'postgres'),
   candidateStep('repository-check', 'npm run repository:check'),
