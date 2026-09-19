@@ -20,9 +20,9 @@ import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import pg from 'pg'
 import {
-  loadMigrationFiles,
+  loadR1MigrationFiles,
   loadR2MigrationFiles,
-  runHubMigrations,
+  runR1HubMigrations,
   runR2HubMigrations,
 } from '../../scripts/run-hub-migrations.mjs'
 
@@ -223,7 +223,7 @@ test('R2-P1 credential backend refuses permissive, symlink and co-custodied root
 })
 
 test('R2-P1 migration custody preserves the R1 loader and refuses 011 byte drift', () => {
-  assert.deepEqual(loadMigrationFiles().map(({ version }) => version), expectedVersions.slice(0, 10))
+  assert.deepEqual(loadR1MigrationFiles().map(({ version }) => version), expectedVersions.slice(0, 10))
   assert.deepEqual(loadR2MigrationFiles().map(({ version }) => version), expectedVersions)
   const fixture = mkdtempSync(resolve(tmpdir(), 'conexus-r2-p1-migrations-'))
   try {
@@ -277,7 +277,7 @@ test('R2-P1 real PostgreSQL proves exact record census, Tier-2 boundary and owne
   assert.deepEqual(migration.appliedNow, expectedVersions)
   assert.deepEqual(migration.versions, expectedVersions)
   assert.deepEqual((await runR2HubMigrations({ connectionString: url.toString() })).appliedNow, [])
-  const historicalLoader = await runHubMigrations({ connectionString: url.toString() })
+  const historicalLoader = await runR1HubMigrations({ connectionString: url.toString() })
   assert.deepEqual(historicalLoader.appliedNow, [])
   assert.deepEqual(historicalLoader.versions, expectedVersions)
 

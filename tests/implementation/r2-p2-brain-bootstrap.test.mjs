@@ -33,7 +33,7 @@ import {
   validateBrainSource,
   verifyLocalBrainRepository,
 } from '../../scripts/bootstrap-r2-brain.mjs'
-import { runHubMigrations, runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runR1HubMigrations, runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -273,7 +273,7 @@ test('R2-P2 real PostgreSQL proves independent brain.read, immutable bootstrap a
 }, async (t) => {
   await refuseProtectedCluster()
   const harness = await databaseHarness(t, 'conexus_r2_p2_pg')
-  assert.deepEqual((await runHubMigrations({ connectionString: harness.url })).versions, expectedVersions.slice(0, 10))
+  assert.deepEqual((await runR1HubMigrations({ connectionString: harness.url })).versions, expectedVersions.slice(0, 10))
   const identities = await seedWorkspaceBeforeR2(harness)
   assert.deepEqual((await runR2HubMigrations({ connectionString: harness.url })).versions, expectedVersions)
   assert.deepEqual((await runR2HubMigrations({ connectionString: harness.url })).appliedNow, [])
@@ -476,7 +476,7 @@ test('R2-P2 real PostgreSQL proves independent brain.read, immutable bootstrap a
   await assert.rejects(runR2HubMigrations({ connectionString: harness.url }), /MIGRATION_CATALOG_DRIFT/)
 
   const partial = await databaseHarness(t, 'conexus_r2_p2_partial')
-  await runHubMigrations({ connectionString: partial.url })
+  await runR1HubMigrations({ connectionString: partial.url })
   await partial.query(partial.fresh, 'ALTER TABLE iam.workspace_membership ADD COLUMN can_read_brain boolean NOT NULL DEFAULT false')
   await assert.rejects(runR2HubMigrations({ connectionString: partial.url }), /MIGRATION_CATALOG_DRIFT/)
 })
@@ -486,7 +486,7 @@ test('R2-P2 real Git and PostgreSQL bootstrap reaches all four production Brain 
 }, async (t) => {
   await refuseProtectedCluster()
   const harness = await databaseHarness(t, 'conexus_r2_p2_live')
-  await runHubMigrations({ connectionString: harness.url })
+  await runR1HubMigrations({ connectionString: harness.url })
   const identities = await seedWorkspaceBeforeR2(harness)
   await runR2HubMigrations({ connectionString: harness.url })
   await harness.query(harness.fresh, "ALTER ROLE hub_r2_brain_bootstrap PASSWORD 'r2-p2-live-bootstrap'")

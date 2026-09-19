@@ -89,3 +89,11 @@ startup and logs one `HUB_CONNECTION_CENSUS` line per connection that is not `ok
 stops the Hub, because one capability holding a bad credential must not take the others down.
 Before it existed the pools connected lazily, so a `28P01` first appeared in the middle of
 somebody's request.
+
+Its states are more specific than the provisioning census's, because a startup probe must tell
+an operator whether to fix a credential or fix a network path. A role is `invalid` only on an
+authentication SQLSTATE (`28P01` wrong password, `28000` role does not exist or similar); a
+cluster that refuses the connection outright (`ECONNREFUSED`, a timeout, no SQLSTATE at all) is
+`unreachable`. A role whose password file cannot be read, or reads empty, is `unreadable`; that
+role is skipped and the rest of the census still runs, and the report never repeats the file's
+content or path, only the role.

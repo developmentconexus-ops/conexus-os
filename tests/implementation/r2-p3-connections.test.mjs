@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import pg from 'pg'
-import { runHubMigrations, runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runR1HubMigrations, runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { canonicalBytes, sha256 as canonicalSha256 } from '../../packages/canonical-json/src/index.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
@@ -482,7 +482,7 @@ test('R2-P3 real PostgreSQL + production backend prove lifecycle, scope grants a
     await admin.end()
   })
   const connectionString = `postgresql://${encodeURIComponent(adminConfig.user)}:${encodeURIComponent(adminConfig.password)}@${adminConfig.host}:${adminConfig.port}/${database}`
-  await runHubMigrations({ connectionString })
+  await runR1HubMigrations({ connectionString })
   fresh = new Client({ ...adminConfig, database })
   await fresh.connect()
 

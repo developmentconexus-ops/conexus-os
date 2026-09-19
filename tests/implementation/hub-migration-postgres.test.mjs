@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
 import { catalogDigest, describeCatalogDrift, readCatalog, readCommittedSnapshot } from '../../scripts/hub-catalog.mjs'
-import { loadCurrentHubMigrationFiles, runCurrentHubMigrations, runHubMigrations, runR2HubMigrations, runSelectedHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { loadCurrentHubMigrationFiles, runCurrentHubMigrations, runR1HubMigrations, runR2HubMigrations, runSelectedHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const required = (name) => {
@@ -110,7 +110,7 @@ test('current Hub installs accepted schemas and restarts without applying held R
 
 test('R1 and R2 upgrade to current Hub without rewriting prior ledger or account data', async (t) => {
   const fixture = await databaseFixture(t)
-  assert.deepEqual((await runHubMigrations(fixture)).versions, versions.slice(0, 10))
+  assert.deepEqual((await runR1HubMigrations(fixture)).versions, versions.slice(0, 10))
   const accountId = '71111111-1111-4111-8111-111111111111'
   await query(fixture.connection, `INSERT INTO iam.account(account_id, issuer, external_subject, display_name)
     VALUES ($1, 'https://migration.invalid', 'retained-account', 'Keep this account')`, [accountId])
@@ -226,6 +226,24 @@ test('a regenerated snapshot cannot bless a role that could cross the owner boun
   await assert.rejects(rerun(), /MIGRATION_ROLE_MEMBERSHIP_REFUSED:hub_rb_ingress in hub_rb_executor/)
   await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_MEMBERSHIP_REFUSED:hub_rb_ingress in hub_rb_executor/)
   await query(fixture.connection, 'REVOKE hub_rb_executor FROM hub_rb_ingress')
+
+  t.after(() => query(admin, 'ALTER ROLE hub_rb_ingress LOGIN'))
+  await query(fixture.connection, 'ALTER ROLE hub_rb_ingress NOLOGIN')
+  await assert.rejects(rerun(), /MIGRATION_ROLE_LOGIN_REFUSED:hub_rb_ingress/)
+  await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_LOGIN_REFUSED:hub_rb_ingress/)
+  await query(fixture.connection, 'ALTER ROLE hub_rb_ingress LOGIN')
+
+  t.after(() => query(admin, 'ALTER ROLE builder_owner NOLOGIN'))
+  await query(fixture.connection, 'ALTER ROLE builder_owner LOGIN')
+  await assert.rejects(rerun(), /MIGRATION_ROLE_LOGIN_REFUSED:builder_owner/)
+  await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_LOGIN_REFUSED:builder_owner/)
+  await query(fixture.connection, 'ALTER ROLE builder_owner NOLOGIN')
+
+  t.after(() => query(admin, 'ALTER ROLE hub_rb_ingress NOINHERIT'))
+  await query(fixture.connection, 'ALTER ROLE hub_rb_ingress INHERIT')
+  await assert.rejects(rerun(), /MIGRATION_ROLE_INHERIT_REFUSED:hub_rb_ingress/)
+  await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_INHERIT_REFUSED:hub_rb_ingress/)
+  await query(fixture.connection, 'ALTER ROLE hub_rb_ingress NOINHERIT')
 
   assert.deepEqual(await rerun(), { verdict: 'PASS', appliedNow: [], versions })
 })

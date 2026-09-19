@@ -80,10 +80,42 @@ test('the register refuses a second role claiming one capability', () => {
 test('a drifted projection is reported by the role that drifted', () => {
   const rendered = generateRegister()
   assert.equal(describeDrift(rendered, rendered), null)
-  const editedRow = rendered.replace('capability: "builder-run-execution"', 'capability: "builder-run-exec-DRIFT"')
-  assert.equal(describeDrift(editedRow, rendered), 'apps/hub/src/generated/hub-roles.ts line 25, role hub_rb_executor')
-  const editedLabel = rendered.replace('hub_prj03_command: "project-command"', 'hub_prj03_command: "project-DRIFT"')
-  assert.equal(describeDrift(editedLabel, rendered), 'apps/hub/src/generated/hub-roles.ts line 33, role hub_prj03_command')
+})
+
+test('--check on a register edited after generation names the role that drifted, not the digest line', async () => {
+  const stageRoot = await mkdtemp(resolve(repositoryRoot, 'apps/hub/hub-role-register-check-'))
+  try {
+    const stagedContractDir = resolve(stageRoot, 'contracts/technical')
+    const stagedGeneratedDir = resolve(stageRoot, 'apps/hub/src/generated')
+    const stagedScriptDir = resolve(stageRoot, 'scripts')
+    const { mkdir, writeFile, copyFile } = await import('node:fs/promises')
+    await Promise.all([
+      mkdir(stagedContractDir, { recursive: true }),
+      mkdir(stagedGeneratedDir, { recursive: true }),
+      mkdir(stagedScriptDir, { recursive: true }),
+    ])
+    const registerPath = resolve(stagedContractDir, 'hub-database-roles.json')
+    const generatedPath = resolve(stagedGeneratedDir, 'hub-roles.ts')
+    const stagedScriptPath = resolve(stagedScriptDir, 'generate-hub-role-register.mjs')
+    await copyFile(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), registerPath)
+    await copyFile(resolve(repositoryRoot, 'scripts/generate-hub-role-register.mjs'), stagedScriptPath)
+    await writeFile(generatedPath, generateRegister())
+
+    const staged = JSON.parse(readFileSync(registerPath, 'utf8'))
+    const target = staged.roles.find((row) => row.role === 'hub_rb_executor')
+    target.capability = 'builder-run-exec-DRIFT'
+    await writeFile(registerPath, JSON.stringify(staged, null, 2))
+
+    const checkResult = spawnSync(process.execPath, [stagedScriptPath, '--check'], {
+      cwd: stageRoot,
+      encoding: 'utf8',
+    })
+    assert.notEqual(checkResult.status, 0)
+    assert.match(checkResult.stderr, /hub_rb_executor/)
+    assert.doesNotMatch(checkResult.stderr, /line 3\b/)
+  } finally {
+    await rm(stageRoot, { recursive: true, force: true })
+  }
 })
 
 test('the register refuses a role with no module that connects as it', () => {

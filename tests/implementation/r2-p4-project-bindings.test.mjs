@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import pg from 'pg'
 import { canonicalBytes, sha256 } from '../../packages/canonical-json/src/index.mjs'
-import { runHubMigrations, runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runR1HubMigrations, runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -62,7 +62,7 @@ test('R2-P4 real PostgreSQL proves receipt-scoped backfill, future settlement an
 }, async (t) => {
   const harness = await databaseHarness(t)
   const { query, fresh, url } = harness
-  await runHubMigrations({ connectionString: url })
+  await runR1HubMigrations({ connectionString: url })
 
   const creatorId = randomUUID()
   const genericGrantId = randomUUID()

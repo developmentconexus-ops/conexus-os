@@ -14,7 +14,7 @@ import { resolve } from 'node:path'
 import test from 'node:test'
 import {
   loadCurrentHubMigrationFiles,
-  loadMigrationFiles,
+  loadR1MigrationFiles,
   loadR2MigrationFiles,
 } from '../../scripts/run-hub-migrations.mjs'
 
@@ -87,7 +87,7 @@ const makeFixture = (selectedNames) => {
 }
 
 test('loaders select their admitted migration corpus from the repository', () => {
-  assert.deepEqual(names(loadMigrationFiles()), r1Names)
+  assert.deepEqual(names(loadR1MigrationFiles()), r1Names)
   assert.deepEqual(names(loadR2MigrationFiles()), r2Names)
   assert.deepEqual(names(loadCurrentHubMigrationFiles()), currentNames)
 })
@@ -128,7 +128,7 @@ test('052 adds the membership authority without switching or dropping a grant su
 
 test('each loader accepts a fixture containing only its selected migrations', (t) => {
   for (const [loader, selectedNames] of [
-    [loadMigrationFiles, r1Names],
+    [loadR1MigrationFiles, r1Names],
     [loadR2MigrationFiles, r2Names],
     [loadCurrentHubMigrationFiles, currentNames],
   ]) {
@@ -160,7 +160,7 @@ test('loaders refuse missing and digest-drifted selected migrations', (t) => {
   assert.throws(() => loadCurrentHubMigrationFiles(missingRoot), /MIGRATION_CENSUS_REFUSED/)
 
   writeFileSync(resolve(driftRoot, '001_iam_foundation.sql'), '\nSELECT changed_admitted_bytes;\n', { flag: 'a' })
-  assert.throws(() => loadMigrationFiles(driftRoot), /MIGRATION_001_DIGEST_REFUSED/)
+  assert.throws(() => loadR1MigrationFiles(driftRoot), /MIGRATION_001_DIGEST_REFUSED/)
 })
 
 test('loaders refuse selected migrations that are symlinks or directories', (t) => {

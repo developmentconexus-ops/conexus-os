@@ -7,7 +7,7 @@ import test from 'node:test'
 import pg from 'pg'
 import { canonicalBytes, sha256 } from '../../packages/canonical-json/src/index.mjs'
 import {
-  loadMigrationFiles,
+  loadR1MigrationFiles,
   loadR2MigrationFiles,
   runR2HubMigrations,
 } from '../../scripts/run-hub-migrations.mjs'
@@ -19,7 +19,7 @@ const expectedR1Versions = Array.from({ length: 10 }, (_, index) => String(index
 const expectedR2Versions = [...expectedR1Versions, '011', '012', '013', '014', '015', '016', '017', '018']
 
 test('R2 migration custody admits 016/017/018 and preserves historical pins', () => {
-  assert.deepEqual(loadMigrationFiles().map(({ version }) => version), expectedR1Versions)
+  assert.deepEqual(loadR1MigrationFiles().map(({ version }) => version), expectedR1Versions)
   assert.deepEqual(loadR2MigrationFiles().map(({ version }) => version), expectedR2Versions)
   const fixture = mkdtempSync(resolve(tmpdir(), 'conexus-r2-p4-migrations-'))
   try {

@@ -5,12 +5,12 @@ import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import pg from 'pg'
-import { loadMigrationFiles, runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { loadR1MigrationFiles, runR1HubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
-// The R1 corpus is whatever loadMigrationFiles admits. A literal list here rotted twice as the
+// The R1 corpus is whatever loadR1MigrationFiles admits. A literal list here rotted twice as the
 // corpus grew, and nothing noticed because these suites were outside the candidate graph.
-const r1Versions = loadMigrationFiles().map(({ version }) => version)
+const r1Versions = loadR1MigrationFiles().map(({ version }) => version)
 
 const { Client } = pg
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -105,15 +105,15 @@ test('real PostgreSQL proves migration custody and the six-function Workspace fo
 
   const fresh = await createDatabase('fresh')
   const freshUrl = connectionString(fresh)
-  const firstRun = await runHubMigrations({ connectionString: freshUrl })
+  const firstRun = await runR1HubMigrations({ connectionString: freshUrl })
   assert.deepEqual(firstRun.appliedNow, r1Versions)
   assert.deepEqual(firstRun.versions, r1Versions)
-  const restartRun = await runHubMigrations({ connectionString: freshUrl })
+  const restartRun = await runR1HubMigrations({ connectionString: freshUrl })
   assert.deepEqual(restartRun.appliedNow, [])
   assert.deepEqual(restartRun.versions, r1Versions)
 
   const ledger = await query(fresh, `SELECT version, checksum_sha256 FROM iam.schema_migration ORDER BY version`)
-  assert.deepEqual(ledger.rows, loadMigrationFiles().map(({ version, checksum }) => ({ version, checksum_sha256: checksum })))
+  assert.deepEqual(ledger.rows, loadR1MigrationFiles().map(({ version, checksum }) => ({ version, checksum_sha256: checksum })))
 
   const driftRoot = makeMigrationFixture((root) => {
     const target = resolve(root, '002_workspace_foundation.sql')
@@ -122,15 +122,15 @@ test('real PostgreSQL proves migration custody and the six-function Workspace fo
   migrationFixtures.push(driftRoot)
   // The loader refuses drifted bytes before any connection opens, so this throws synchronously.
   assert.throws(
-    () => runHubMigrations({ connectionString: freshUrl, migrationsRoot: driftRoot }),
+    () => runR1HubMigrations({ connectionString: freshUrl, migrationsRoot: driftRoot }),
     /MIGRATION_002_DIGEST_REFUSED/,
   )
 
   await resetDatabase(fresh)
-  await runHubMigrations({ connectionString: connectionString(fresh) })
+  await runR1HubMigrations({ connectionString: connectionString(fresh) })
   await query(fresh, `DELETE FROM iam.schema_migration WHERE version = '001'`)
   await assert.rejects(
-    runHubMigrations({ connectionString: connectionString(fresh) }),
+    runR1HubMigrations({ connectionString: connectionString(fresh) }),
     /MIGRATION_BACK_INSERT_REFUSED:001/,
   )
 
@@ -147,14 +147,14 @@ test('real PostgreSQL proves migration custody and the six-function Workspace fo
     INSERT INTO iam.schema_migration(version, checksum_sha256) VALUES ('001', $1), ('002', $2)
   `, [sha256(migrationBytes('001_iam_foundation.sql')), sha256(migrationBytes('002_workspace_foundation.sql'))])
   await assert.rejects(
-    runHubMigrations({ connectionString: connectionString(fresh) }),
+    runR1HubMigrations({ connectionString: connectionString(fresh) }),
     /MIGRATION_CATALOG_DRIFT/,
   )
 
   await resetDatabase(fresh)
   await query(fresh, 'CREATE SCHEMA iam')
   await assert.rejects(
-    runHubMigrations({ connectionString: connectionString(fresh) }),
+    runR1HubMigrations({ connectionString: connectionString(fresh) }),
     /MIGRATION_DIRTY_BASELINE_REFUSED/,
   )
 
@@ -162,7 +162,7 @@ test('real PostgreSQL proves migration custody and the six-function Workspace fo
   await query(fresh, migrationBytes('001_iam_foundation.sql').toString('utf8'))
   await query(fresh, 'ALTER TABLE iam.account ADD COLUMN unauthorized text')
   await assert.rejects(
-    runHubMigrations({ connectionString: connectionString(fresh) }),
+    runR1HubMigrations({ connectionString: connectionString(fresh) }),
     /MIGRATION_CATALOG_DRIFT/,
   )
 
@@ -174,19 +174,19 @@ test('real PostgreSQL proves migration custody and the six-function Workspace fo
     ALTER TABLE iam.account ALTER COLUMN active SET DEFAULT false
   `)
   await assert.rejects(
-    runHubMigrations({ connectionString: connectionString(fresh) }),
+    runR1HubMigrations({ connectionString: connectionString(fresh) }),
     /MIGRATION_CATALOG_DRIFT/,
   )
 
   await resetDatabase(fresh)
   await query(fresh, migrationBytes('001_iam_foundation.sql').toString('utf8'))
-  const legacyRun = await runHubMigrations({ connectionString: connectionString(fresh) })
+  const legacyRun = await runR1HubMigrations({ connectionString: connectionString(fresh) })
   assert.deepEqual(legacyRun.appliedNow, r1Versions)
   assert.deepEqual(legacyRun.versions, r1Versions)
 
   await query(fresh, `INSERT INTO iam.schema_migration(version, checksum_sha256) VALUES ('999', $1)`, ['f'.repeat(64)])
   await assert.rejects(
-    runHubMigrations({ connectionString: connectionString(fresh) }),
+    runR1HubMigrations({ connectionString: connectionString(fresh) }),
     /MIGRATION_UNKNOWN_APPLIED:999/,
   )
   await query(fresh, `DELETE FROM iam.schema_migration WHERE version = '999'`)
@@ -199,12 +199,12 @@ test('real PostgreSQL proves migration custody and the six-function Workspace fo
     RESET ROLE
   `)
   await assert.rejects(
-    runHubMigrations({ connectionString: connectionString(fresh) }),
+    runR1HubMigrations({ connectionString: connectionString(fresh) }),
     /MIGRATION_CATALOG_DRIFT/,
   )
   await resetDatabase(fresh)
   await query(fresh, migrationBytes('001_iam_foundation.sql').toString('utf8'))
-  await runHubMigrations({ connectionString: connectionString(fresh) })
+  await runR1HubMigrations({ connectionString: connectionString(fresh) })
 
   const invalidOrderRoot = makeMigrationFixture((root) => {
     const baseline = resolve(root, '001_iam_foundation.sql')
@@ -216,7 +216,7 @@ test('real PostgreSQL proves migration custody and the six-function Workspace fo
   })
   migrationFixtures.push(invalidOrderRoot)
   assert.throws(
-    () => loadMigrationFiles(invalidOrderRoot),
+    () => loadR1MigrationFiles(invalidOrderRoot),
     /MIGRATION_(?:CENSUS|001_DIGEST)_REFUSED/,
   )
   const extraMigrationRoot = makeMigrationFixture((root) => {
@@ -224,7 +224,7 @@ test('real PostgreSQL proves migration custody and the six-function Workspace fo
   })
   migrationFixtures.push(extraMigrationRoot)
   assert.throws(
-    () => loadMigrationFiles(extraMigrationRoot),
+    () => loadR1MigrationFiles(extraMigrationRoot),
     /MIGRATION_CENSUS_REFUSED/,
   )
 
