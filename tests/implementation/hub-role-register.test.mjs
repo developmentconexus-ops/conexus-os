@@ -27,9 +27,6 @@ test('the register holds every role the Hub connects as, with the capability an 
     ['hub_ws01_command', 'workspace-command'],
     ['hub_s3_read', 'project-read'],
     ['hub_prj03_command', 'project-command'],
-    ['hub_s4_baseline_read', 'project-baseline-read'],
-    ['hub_s4_baseline_command', 'project-baseline-command'],
-    ['hub_s6_inception_command', 'project-inception-command'],
     ['hub_r2_project_binding', 'project-binding'],
     ['hub_r2_brain_read', 'brain-read'],
     ['hub_r2_brain_attester', 'brain-attester'],
@@ -84,9 +81,9 @@ test('a drifted projection is reported by the role that drifted', () => {
   const rendered = generateRegister()
   assert.equal(describeDrift(rendered, rendered), null)
   const editedRow = rendered.replace('capability: "builder-run-execution"', 'capability: "builder-run-exec-DRIFT"')
-  assert.equal(describeDrift(editedRow, rendered), 'apps/hub/src/generated/hub-roles.ts line 28, role hub_rb_executor')
+  assert.equal(describeDrift(editedRow, rendered), 'apps/hub/src/generated/hub-roles.ts line 25, role hub_rb_executor')
   const editedLabel = rendered.replace('hub_prj03_command: "project-command"', 'hub_prj03_command: "project-DRIFT"')
-  assert.equal(describeDrift(editedLabel, rendered), 'apps/hub/src/generated/hub-roles.ts line 36, role hub_prj03_command')
+  assert.equal(describeDrift(editedLabel, rendered), 'apps/hub/src/generated/hub-roles.ts line 33, role hub_prj03_command')
 })
 
 test('the register refuses a role with no module that connects as it', () => {

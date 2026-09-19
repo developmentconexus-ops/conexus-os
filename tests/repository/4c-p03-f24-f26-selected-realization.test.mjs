@@ -46,8 +46,8 @@ test('F24 gives trigger administrators purpose-bound Agent summary discovery wit
   requireText(checker, 'agent.trigger.manage', 'F24 Project Agent checker must guard the alternate route')
 
   const ids = [...wire.matchAll(/x-conexus-4a-id: (PRJ-\d+)/g)].map(match => match[1])
-  if (ids.length !== 24 || new Set(ids).size !== 24 || !ids.includes('PRJ-29')) {
-    throw new Error(`F24 must preserve its bounded PRJ-20 route while the current split wire contains 24 Project IDs including PRJ-29; got ${ids.length}`)
+  if (ids.length !== 19 || new Set(ids).size !== 19 || !ids.includes('PRJ-29')) {
+    throw new Error(`F24 must preserve its bounded PRJ-20 route while the current split wire contains 19 Project IDs including PRJ-29; got ${ids.length}`)
   }
 })
 

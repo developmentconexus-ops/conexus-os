@@ -24,7 +24,7 @@
       "properties": {
         "authority": { "const": "4E(R1)-OPERATOR-APPROVED" },
         "tranche": { "const": "R1" },
-        "operationCensus": { "const": 13 }
+        "operationCensus": { "const": 8 }
       }
     },
     "applicationRuntimeProfile": { "const": "MANAGED" },
@@ -63,14 +63,14 @@
         },
         "operations": {
           "type": "array",
-          "minItems": 13,
-          "maxItems": 13,
+          "minItems": 8,
+          "maxItems": 8,
           "items": {
             "type": "object",
             "additionalProperties": false,
             "required": ["ownerId", "operationId", "owner", "method", "path", "permission", "currentStateCarrier", "sourceRef"],
             "properties": {
-              "ownerId": { "enum": ["IAM-01", "IAM-02", "IAM-03", "WS-01", "WS-02", "PRJ-01", "PRJ-02", "PRJ-03", "PRJ-07", "PRJ-08", "PRJ-09", "PRJ-23", "PRJ-24"] },
+              "ownerId": { "enum": ["IAM-01", "IAM-02", "IAM-03", "WS-01", "WS-02", "PRJ-01", "PRJ-02", "PRJ-03"] },
               "operationId": { "type": "string", "minLength": 1 },
               "owner": { "enum": ["I&A", "Workspace", "Project"] },
               "method": { "enum": ["GET", "POST", "DELETE"] },

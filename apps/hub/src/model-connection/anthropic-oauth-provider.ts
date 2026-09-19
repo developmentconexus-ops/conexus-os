@@ -7,8 +7,7 @@ const ORIGIN = 'https://api.anthropic.com/'
 const IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."
 const BETAS = ['oauth-2025-04-20', 'claude-code-20250219', 'interleaved-thinking-2025-05-14', 'fine-grained-tool-streaming-2025-05-14']
 
-export const PROJECT_ANTHROPIC_ADMISSION_ID = 'project-inception-opus-5'
-export const PROJECT_ANTHROPIC_MODEL_ID = 'claude-opus-5'
+export const DEFAULT_ANTHROPIC_MODEL_ID = 'claude-opus-5'
 
 const withIdentity = (body: BodyInit | null | undefined): BodyInit | null | undefined => {
   if (typeof body !== 'string') return body
@@ -25,7 +24,7 @@ const withIdentity = (body: BodyInit | null | undefined): BodyInit | null | unde
 
 export const createAnthropicOAuthModel = ({
   tokenStore,
-  modelId = PROJECT_ANTHROPIC_MODEL_ID,
+  modelId = DEFAULT_ANTHROPIC_MODEL_ID,
   fetchImpl = globalThis.fetch,
 }: Readonly<{ tokenStore: OAuthTokenStore; modelId?: string; fetchImpl?: typeof globalThis.fetch }>): MastraLanguageModel => {
   if (!modelId || /latest|\*/i.test(modelId)) throw new Error('PROJECT_MODEL_ID_REFUSED')

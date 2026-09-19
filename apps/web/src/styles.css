@@ -60,17 +60,6 @@ fieldset input { margin: 0; }
 .project-card a { justify-self: start; }
 .project-detail { padding: clamp(1.5rem, 5vw, 3rem); border: 1px solid #d9dfda; border-radius: 1rem; background: white; }
 .project-detail details { display: grid; gap: .5rem; margin: 1.5rem 0; }
-.baseline-candidate { min-width: 0; padding: clamp(1.5rem, 5vw, 3rem); border: 1px solid #d9dfda; border-radius: 1rem; background: white; }
-.candidate-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
-.candidate-facts div { min-width: 0; padding: 1rem; border: 1px solid #d9dfda; border-radius: .7rem; }
-.candidate-facts dt { color: #617068; font-weight: 700; }
-.candidate-facts dd { margin: .35rem 0 0; overflow-wrap: anywhere; }
-.candidate-source { margin: 1.5rem 0; padding: 1rem; border-left: .3rem solid #416453; background: #f4f6f2; }
-.candidate-source textarea { width: 100%; resize: vertical; padding: .8rem; border: 1px solid #8b9991; border-radius: .5rem; background: white; color: inherit; }
-.approved-baseline { margin: 1.5rem 0; padding: 1rem; border: 1px solid #ccd4cf; border-radius: .7rem; }
-.candidate-assistant { margin: 1.5rem 0; padding: 1rem; border: 1px solid #8b9991; border-radius: .7rem; background: #f8faf8; }
-.candidate-assistant form { margin-top: 1rem; }
-.candidate-assistant textarea { width: 100%; resize: vertical; padding: .8rem; border: 1px solid #8b9991; border-radius: .5rem; background: white; color: inherit; }
 .project-build { display: grid; gap: 2rem; }
 .builder-unavailable { padding: 1.5rem; border: 1px solid #d9b8b1; border-radius: .7rem; background: #fff8f6; }
 .builder-unavailable h2 { margin-top: 0; }

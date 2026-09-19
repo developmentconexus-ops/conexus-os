@@ -4,8 +4,6 @@ import { indexRoute } from '../routes/index'
 import { projectDetailRoute } from '../routes/project-detail'
 import { projectBrainRoute } from '../routes/project-brain'
 import { projectIntegrationsRoute } from '../routes/project-integrations'
-import { projectInceptionRoute } from '../routes/project-inception'
-import { projectBaselineCandidateRoute } from '../routes/project-baseline-candidate'
 import { projectBuildRoute } from '../routes/project-build'
 import { setupRoute } from '../routes/setup'
 import { settingsRoute } from '../routes/settings'
@@ -27,8 +25,6 @@ const routeTree = rootRoute.addChildren([
   projectDetailRoute,
   projectBrainRoute,
   projectIntegrationsRoute,
-  projectInceptionRoute,
-  projectBaselineCandidateRoute,
   projectBuildRoute,
 ])
 

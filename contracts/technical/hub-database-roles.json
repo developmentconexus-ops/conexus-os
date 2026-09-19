@@ -33,24 +33,6 @@
       "connectsFrom": ["apps/hub/src/project/module.ts"]
     },
     {
-      "role": "hub_s4_baseline_read",
-      "capability": "project-baseline-read",
-      "passwordFileVariable": "CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/project/module.ts"]
-    },
-    {
-      "role": "hub_s4_baseline_command",
-      "capability": "project-baseline-command",
-      "passwordFileVariable": "CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/project/module.ts"]
-    },
-    {
-      "role": "hub_s6_inception_command",
-      "capability": "project-inception-command",
-      "passwordFileVariable": "CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/project/module.ts"]
-    },
-    {
       "role": "hub_r2_project_binding",
       "capability": "project-binding",
       "passwordFileVariable": "CONEXUS_DB_R2_PROJECT_BINDING_PASSWORD_FILE",

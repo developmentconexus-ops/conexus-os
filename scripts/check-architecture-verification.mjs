@@ -73,12 +73,11 @@ const expectedL7 = [
   'CreateProject',
   'SetProjectBinding',
   'QualifyConnection',
-  'InceptionInvestigation',
   'BrainHealthProbe',
   'ComposeRelease',
   'PromoteRelease'
 ]
-const l7Match = architecture.match(/contains exactly seven flows:\s*```text\s*([\s\S]*?)```/)
+const l7Match = architecture.match(/contains exactly six flows:\s*```text\s*([\s\S]*?)```/)
 const actualL7 = l7Match
   ? l7Match[1].split('\n').map(line => line.trim()).filter(Boolean)
   : []

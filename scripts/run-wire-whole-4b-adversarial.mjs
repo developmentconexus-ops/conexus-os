@@ -75,12 +75,6 @@ function assertWhole(currentProduct, currentTechnical, currentProject, currentPr
     productAuthorityIds.add(value.operation['x-conexus-4a-id']);
     productPairs.add(pair(value));
   }
-  if (!productOperationIds.has('GetProjectBaselineCandidate') || !productAuthorityIds.has('PRJ-23')) {
-    throw new Error('whole-4B Product wire lost accepted PRJ-23 candidate Baseline read');
-  }
-  if (!productOperationIds.has('AskConexusAboutBaselineCandidate') || !productAuthorityIds.has('PRJ-24')) {
-    throw new Error('whole-4B Product wire lost accepted PRJ-24 candidate Baseline contextual read');
-  }
   for (const [authorityId, operationId] of [
     ['IAM-18', 'ListWorkspaceMembershipCandidates'],
     ['IAM-19', 'GetWorkspaceMemberAccess'],
