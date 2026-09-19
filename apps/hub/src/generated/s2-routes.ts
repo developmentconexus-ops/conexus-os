@@ -1,7 +1,7 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s2-contracts.mjs. Do not edit.
 import type { FastifySchema } from 'fastify'
 
-export const S2_PRODUCT_OAS_DIGEST = "9f875868bfe9ae9cd99ba31c12f463f954c0c31f794cc3aac59972dca08a090a"
+export const S2_PRODUCT_OAS_DIGEST = "982992faefde541d6b14295047e590de0e60b860dbac9539ce94fc6bd8e39b27"
 export const S2_ROUTE_PROJECTION_DIGEST = "0986286b2672b071e5e4309b0d78bed2bb2466a8c0c3324bbea9df90b71c211e"
 export type S2OwnerId = 'WS-01' | 'WS-02'
 export type Ws01Body = { "name": string }

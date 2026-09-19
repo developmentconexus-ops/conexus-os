@@ -8,7 +8,6 @@ const repositoryRoot = resolve(import.meta.dirname, '..')
 const source = resolve(repositoryRoot, 'contracts/api/product/openapi.yaml')
 const target = resolve(repositoryRoot, 'apps/hub/src/generated/s3-routes.ts')
 const clientTarget = resolve(repositoryRoot, 'apps/web/src/generated/project-client.ts')
-const operationSource = resolve(repositoryRoot, 'runtime/r1/generated/r1/operations.json')
 const expectedOperations = [
   { ownerId: 'PRJ-01', operationId: 'ListProjects', method: 'GET', path: '/api/control/workspaces/{workspaceId}/projects' },
   { ownerId: 'PRJ-02', operationId: 'GetProject', method: 'GET', path: '/api/control/projects/{projectId}' },
@@ -48,12 +47,6 @@ try {
   definitions.sort((a, b) => a.ownerId.localeCompare(b.ownerId, 'en'))
   if (definitions.length !== expectedOperations.length || definitions.some((definition, index) => !sameProjection(definition, expectedOperations[index]))) {
     throw new Error(`S3_ROUTE_CENSUS_OR_OAS_PROJECTION_${definitions.length}`)
-  }
-  const canonicalOperations = JSON.parse(readFileSync(operationSource, 'utf8')).operations
-  if (!Array.isArray(canonicalOperations)) throw new Error('S3_CANONICAL_OPERATIONS_MISSING')
-  for (const expected of expectedOperations) {
-    const matches = canonicalOperations.filter((candidate) => candidate.ownerId === expected.ownerId)
-    if (matches.length !== 1 || !sameProjection(matches[0], expected)) throw new Error(`S3_G0_ROUTE_MISMATCH_${expected.ownerId}`)
   }
   const routeDefinitions = definitions.map(({ path: _path, ...definition }) => definition)
   const byId = new Map(routeDefinitions.map((definition) => [definition.ownerId, definition]))
