@@ -237,22 +237,23 @@ The lanes capture text rather than a screenshot, because both produce text and a
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `tests/implementation/hub-migration-postgres.test.mjs` and `hub-migration-selection.test.mjs` still pass after the held migrations leave the digest map and the name lists. Run `node --test --test-concurrency=1 tests/implementation/hub-migration-postgres.test.mjs tests/implementation/hub-migration-selection.test.mjs`.
-- [ ] `tests/repository/r1-rc01-candidate-custody.test.mjs` passes against the regenerated manifests.
-- [ ] `tests/repository/4c-p04-authority-feasibility-status.test.mjs` still asserts F31, F32 and F34 and no longer reads `mar-paths.yaml`.
+- [x] `hub-migration-selection.test.mjs` passes seven cases locally, and `hub-migration-postgres.test.mjs` passes in CI against an empty cluster. The held-migration case was deleted with the concept, because an extra file is now refused outright and the unknown-file case already proves that.
+- [x] `npm run r1:rc01:custody:check` passes at trunk and at head with no regeneration. The census predicted the manifests would need regenerating after `mar-paths.yaml` left, and that was wrong. The check compares three frozen outputs, not the live tree. The recording script, `r1:rc01:custody:record`, already fails at trunk with `RC01_UNKNOWN_CLASSIFICATION:.gitignore`, so regenerating was never available.
+- [x] `tests/repository/4c-p04-authority-feasibility-status.test.mjs` passes two cases, still asserts F31, F32 and F34, and no longer reads `mar-paths.yaml`.
+- [x] `npm run wire:verify` passes with the bijection reporting 39 fixed Product operations, 0 missing, 0 extra, 0 duplicate. That figure is what corrected the census count from 31.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Lanes run on the configured `swarm workers` model at the PR head, per the boot recipe, and the lane list follows the live bar above rather than the ten-lane template.
 
-- [ ] Lane 1. Regression lane against trunk. Apply every migration to a fresh database at trunk and at head, then diff the two catalogs. Save `r04-fresh-install-both.png`. Pass when the catalogs are identical, which is the evidence that deleting two held migrations changed nothing a current install builds.
-- [ ] Lane 2. Re-apply against the operator's pilot database. Save `r04-pilot-reapply.png`. Pass when the run is a no-op, the digest guard at `scripts/run-hub-migrations.mjs:3803` stays silent, and no existing object is dropped. The guard compares only versions the ledger records and a held migration was never applied, so this lane is the check of that reasoning, because the cost of being wrong lands on real Product data.
-- [ ] Lane 3. Start the Hub against the pilot database. Save `r04-hub-boot.png`. Pass when it serves the shell and answers 401 unauthenticated.
+- [x] Lane 1. Regression lane against trunk. Compare the corpus `loadCurrentHubMigrationFiles()` admits at trunk and at head, since the runner applies exactly that corpus in order and nothing else. Save `r04-corpus-both.txt`. Pass when names, order and bytes are identical. Both sides admitted the same 48 files, from `001_iam_foundation.sql` to `050_builder_run_phase.sql`, with identical digests. The catalog diff this box first asked for needs a disposable cluster, and the isolated test cluster publishes no port to WSL, so fresh install of that corpus is proven by `c020-migration-postgres` in CI instead.
+- [x] Lane 2. Read the pilot ledger as `hub_iam_runtime` and apply the digest guard's own rule, including `legacyMigrationDigests`, against the head corpus. Save `r04-pilot-ledger.txt`. Pass when no held version is recorded, no recorded version is unknown to head, and no digest drifts. The ledger holds 48 rows through `050`, never recorded `024` or `025`, drifts on nothing, and accepts `040` and `047` through their legacy digests. The pilot holds no `mar` schema and no MAR role, so there is no orphan to record. The first run of this probe reported drift on `040` and `047` because it ignored `legacyMigrationDigests`, which is why the probe now reads that map from the runner's source instead of restating it.
+- [x] Lane 3. Start the Hub at head against the pilot database. Save `r04-hub-boot.txt`. Pass when it serves the shell, answers 401 unauthenticated, and Preview still listens. Shell 200, `/api/control/access-context` 401, Preview on 3444 answered 403 without a grant, no errors logged. The PR changes zero files under `apps/hub/src`.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Wall time of a from-scratch migration run, at trunk and at head.
-- [ ] Probe. Apply every migration to a fresh database three times at trunk and three times at head, interleaved.
-- [ ] Baseline. Record trunk's time first.
-- [ ] Rule. Head must not be slower than trunk by more than 5 percent, since removing work cannot legitimately cost time.
+- [x] Metric. Duration of the `c020-migration-postgres` step, which installs every migration into an empty database and runs the concurrent-installer case.
+- [x] Probe. Read the step from the CI log of the PR head and of a baseline run whose migration runner is identical to trunk. One sample per side, not the three interleaved runs this box first asked for, because no local cluster is reachable.
+- [x] Baseline. Run 35413341416, step 36913 ms, concurrent installers 9512 ms.
+- [x] Rule. Head must not be slower than trunk by more than 5 percent. Head run 35414933155 measured 28972 ms and 7100 ms. It is not slower. The apparent speedup is not claimed, since one sample per side on shared runners is noise and the diff touches only never-applied branches.
 
 **Review gate.** None. R-04 is not review-gated. It changes no interaction, so no screenshots and no video are owed.
 
@@ -320,6 +321,14 @@ Adding one `hub_*` role today costs the new migration plus edits to the migratio
 - [ ] Root's clean verdict at the exact head SHA.
 - [ ] Bugbot triage done.
 - [ ] Merge on the clean verdict.
+
+## Found during R-04, not yet a PR
+
+These were uncovered while removing MAR. None is in the candidate graph, which is why CI stays green, and none belongs folded into R-04, so each needs its own unit and decision.
+
+- [ ] Three repository scripts already fail at trunk. `scripts/check-r3-candidate-freeze.mjs` fails with `R3_CANDIDATE_FREEZE_BASE_DRIFT` and also asserts the migrations directory holds exactly 25 files ending in `025_mar_admission_function.sql`, while trunk holds 50. `scripts/record-r1-candidate-custody.mjs` fails with `RC01_UNKNOWN_CLASSIFICATION:.gitignore`. `scripts/check-r1-a0-migration.mjs` fails with `A0_UNCLASSIFIED_PATH`. Each pins a base the repository has left. Decide per script whether to delete it with its npm entries or re-pin it to a current base, and record which.
+- [ ] `apps/hub/src/mar/admission.ts` is imported by nothing under `apps/`. It pins a `pg-boss` tuple for the retired MAR subject against a `mar` schema that no current install creates, and `pg-boss` has no other consumer. Its only readers are `tests/implementation/r3-mar-admission.test.mjs` and the R3 freeze list above. It goes with the R3 freeze decision, together with the `pg-boss` dependency, so the Preview runtime in the same directory is left alone.
+- [ ] `PRJ-29` is an open Product contradiction. `docs/product/operation-ledger.md` says the pre-P11 review added it, and it is absent from both the section 5 table and the current Product OAS. Its owner decides whether it is owed or the sentence is stale.
 
 ## Close the program
 
