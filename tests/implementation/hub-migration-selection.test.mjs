@@ -75,6 +75,7 @@ const currentNames = [
   '048_builder_claude_connection_label.sql',
   '049_project_creator_builder_grant.sql',
   '050_builder_run_phase.sql',
+  '051_builder_orphan_function_excision.sql',
 ]
 const names = (migrations) => migrations.map((migration) => migration.name)
 
