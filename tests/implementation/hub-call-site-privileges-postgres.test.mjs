@@ -79,8 +79,7 @@ const ROLE_BY_CALL_SITE = Object.freeze({
   'identity-access/store.ts': Object.freeze({
     'iam.email_has_open_invitation': 'hub_iam_runtime',
     'iam.claim_invitations': 'hub_iam_runtime',
-    'iam.visible_workspaces': 'hub_s2_read',
-    'workspace.list_workspace_summaries': 'hub_s2_read',
+    'workspace.list_visible_workspace_summaries': 'hub_s2_read',
   }),
   'model-connection-account/module.ts': Object.freeze({
     'model_connection.read_connection_credential': 'hub_r2_connections',

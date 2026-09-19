@@ -74,7 +74,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('identity-access-http', 'node --test tests/implementation/identity-access-http.test.mjs'),
   candidateStep('workspace-membership-http', 'node --test tests/implementation/workspace-membership-http.test.mjs && npx --no-install biome check tests/implementation/workspace-membership-http.test.mjs'),
   candidateStep('workspace-http', 'node --test tests/implementation/workspace-http.test.mjs'),
-  candidateStep('workspace-reads', 'node --test tests/implementation/workspace-reads.test.mjs'),
+  candidateStep('workspace-reads', 'node --test --test-concurrency=1 tests/implementation/workspace-reads.test.mjs', 'postgres'),
   candidateStep('project-disclosure', 'node --test tests/implementation/project-disclosure.test.mjs'),
   candidateStep('project-source-recovery', 'node --test tests/implementation/project-source-recovery.test.mjs'),
   candidateStep('project-git-execution', 'node --test --test-concurrency=1 tests/implementation/project-git-execution.test.mjs'),

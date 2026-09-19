@@ -82,6 +82,7 @@ const currentNames = [
   '055_removed_surface_excision.sql',
   '056_model_connection_provider_neutrality.sql',
   '057_model_connection_credential_kind_read.sql',
+  '058_workspace_visible_summary_admission.sql',
 ]
 const names = (migrations) => migrations.map((migration) => migration.name)
 

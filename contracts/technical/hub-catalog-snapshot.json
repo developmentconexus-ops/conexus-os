@@ -1,6 +1,6 @@
 {
  "format": 1,
- "head": "057",
+ "head": "058",
  "digests": {
   "001": "97fc583195e157393415f3c7cc99804b7e01b87f1ecd3d798f7dc27039516966",
   "002": "3de606973fa521c51d2e6dddae7365f0caf5ed9b77bb8989d0a5673d46d765f1",
@@ -56,7 +56,8 @@
   "054": "32ef02b5467179ff7f053a76313ea664f1d02f18f2f89749d897a34d1d63bf6f",
   "055": "dacd68885d8000e4165fdcee5354588ae0d8c119e88000e1eb4702b6541b6885",
   "056": "e1770693d756b71267d53b1f90a2a541e7ba585b6bc76d6612b0a261ca700d04",
-  "057": "7e6038cc3a38230a361c5be5f98083ceaa86e5b5a8758265d03857f81b16ce42"
+  "057": "7e6038cc3a38230a361c5be5f98083ceaa86e5b5a8758265d03857f81b16ce42",
+  "058": "5150dec42298986387c3c60181b2d36397c63574b3ecac3f2dc9c34e5cf35129"
  },
  "catalog": {
   "schema": [
@@ -448,7 +449,7 @@
    "function workspace.complete_create_workspace_receipt(p_account_id uuid, p_key_digest text, p_response_status integer, p_response_digest text, p_response_body jsonb) returns void kind=f owner=workspace_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_ws01_command:EXECUTE:false,workspace_owner:EXECUTE:false body=b5b57452d3e8fd444913b8ec7c06be8f",
    "function workspace.create_workspace(p_workspace_id uuid, p_name text, p_creator_account_id uuid) returns void kind=f owner=workspace_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_ws01_command:EXECUTE:false,workspace_owner:EXECUTE:false body=f50bfe8e6335ef60e906324f0b3bf617",
    "function workspace.get_workspace_summary(p_account_id uuid, p_workspace_id uuid) returns TABLE(workspace_id uuid, name text) kind=f owner=workspace_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_s2_read:EXECUTE:false,workspace_owner:EXECUTE:false body=043322997323d4136c1bcbd2ef2584b6",
-   "function workspace.list_workspace_summaries(p_workspace_ids uuid[]) returns TABLE(workspace_id uuid, name text) kind=f owner=workspace_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_s2_read:EXECUTE:false,workspace_owner:EXECUTE:false body=ebc1af31ce163e2a9cbe2a1fa8aa29e7",
+   "function workspace.list_visible_workspace_summaries(p_account_id uuid) returns TABLE(workspace_id uuid, name text) kind=f owner=workspace_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_s2_read:EXECUTE:false,workspace_owner:EXECUTE:false body=dddf6475f2f57440317595b00ac80225",
    "function workspace.reserve_or_replay_create_workspace(p_account_id uuid, p_key_digest text, p_request_digest text, p_candidate_workspace_id uuid) returns TABLE(state text, workspace_id uuid, response_status integer, response_body jsonb) kind=f owner=workspace_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_ws01_command:EXECUTE:false,workspace_owner:EXECUTE:false body=f11cfee37987a69c1fa196093fe1a6b4"
   ],
   "trigger": [
