@@ -23,20 +23,41 @@ Merge stays with the operator. Every PR opens ready and waits.
 | F-06 | Remove Brain, bindings, Sankhya and the gateway from the application | F-05 | none |
 | A-01 | Membership authority, additive | F-06, F-03 | 052 |
 | A-02 | Switch every caller, then excise the grant surfaces | A-01 | 053 |
-| F-07 | Drop the empty Inception and R2 functions, schemas and roles | A-02 | 054 |
-| F-08 | Drop the data-bearing Inception and R2 objects, on the operator's word | F-07 | 055 |
-| M-01 | Provider-neutral model connections and API keys | A-02 | 056 |
+| F-07 | Drop the Inception and R2 functions, tables, schemas and roles | A-02 | 054 |
+| M-01 | Provider-neutral model connections and API keys | A-02 | 055 |
 | M-02 | ChatGPT account sign-in | M-01 | none expected |
 
 F-07 waits for A-02 on purpose. Migration 049 writes five R2 capability columns inside `iam.establish_project_creator_grant`, so those columns cannot drop while that function lives. A-02 deletes the function and the tables that hold the columns, which removes the need to rewrite it first.
 
+This table had an F-08 until 2026-09-19. F-08 was a second migration only because nobody knew whether the tables it dropped held rows. The count below proves they hold none, so F-07 is one migration and M-01 moves up to 055.
+
+## The pilot count of 2026-09-19
+
+The operator authorized one read-only count against the pilot with the root credential, and it ran that day. It decides two things this plan had left to a later gate. Every table F-07 drops is empty, and every grant table A-02 drops holds exactly one row per Project, which is what a derived creator grant looks like.
+
+| Table | Rows |
+|---|---|
+| `iam.account` | 1 |
+| `workspace.workspace` | 1 |
+| `project.project` | 22 |
+| `iam.account_project_grant` | 22 |
+| `iam.project_builder_grant` | 22 |
+| `builder.builder_run` | 23 |
+| `claude_connection.connection` | 1 |
+| `claude_connection.binding` | 1 |
+
+Zero rows in every `brn.*` table, every `con.*` table, and in `project.baseline_approval`, `project.baseline_candidate`, `project.baseline_state`, `project.binding_source_intent`, `project.brain_binding`, `project.connection_binding` and `project.inception_idempotency`.
+
+On the same day, asked about dropping those objects, the operator said "você roda e deleta o que precisar". That is the operator's word A-02's third box asked for, and it is also what F-07 needed once F-08 merged into it. Neither unit waits on a further approval. Both still assert emptiness in the migration and abort otherwise, because the count is a reading from one day and the migration runs on another.
+
 ## F-00. Reopen the roadmap grant
 
-`docs/roadmap.md:123-128` says no new providers and no API-key fallback. `docs/tasks/builder-interactive-delivery.md:90-96` repeats it. The operator reversed both on 2026-09-19.
+`docs/roadmap.md` said no new providers and no API-key fallback. `docs/tasks/builder-interactive-delivery.md` repeated it. The operator reversed both on 2026-09-19. This unit is documentation only and changes no code.
 
-- [ ] Record the four decisions above in `docs/roadmap.md` with their date, and replace "No new providers" with the grant M-01 and M-02 need. Evidence: the diff.
-- [ ] Keep the honesty rule unchanged: operator consent is not provider endorsement, and a provider refusal is never evaded. Evidence: the sentence survives the diff.
-- [ ] Point the roadmap at this file as the current task after the remediation. Evidence: the installed plugin's `check-plan.mjs` reports only the lane-count deviation.
+- [x] Record the four decisions above in `docs/roadmap.md` with their date, and replace "No new providers" with the grant M-01 and M-02 need. Evidence: the diff.
+- [x] Keep the honesty rule unchanged in meaning. Operator consent is not provider endorsement, and a provider refusal is never evaded. Evidence: both sentences survive the diff, in the roadmap and in the interactive-delivery task.
+- [x] Point the roadmap at this file as the task after the remediation. Evidence: the diff of the header and of `docs/index.md`.
+- [x] Amend this plan with the three facts learned on 2026-09-19. They are the pilot count, the merge of F-08 into F-07, and the decision on `claim_*` and `settle_*`. Evidence: the diff.
 
 ## F-01. Delete dead code
 
@@ -100,25 +121,28 @@ The design is in the appendix. Old gates keep working until A-02.
 
 - [ ] Re-issue every `project.*`, `builder.*` and `claude_connection.*` function so its gate is inside its own body: effects call `admit_*`, reads join `visible_*`. Functions that took an admitted-id array are recreated taking `p_account_id`. Evidence: `git grep "iam\." apps/hub/src` matches only `identity-access/`.
 - [ ] Replace `claude_connection.binding` with `workspace_share(connection_id, workspace_id)`, backfilled from live `USER` bindings. Owner use needs no row.
-- [ ] Drop `iam.account_project_grant`, `iam.project_builder_grant`, `claude_connection.binding`, the membership capability columns, and the eleven old admission functions including `ensure_project_builder_grant`. Revoke `SELECT` on `iam` tables from `project_owner` and `claude_connection_owner`. These tables hold only derived creator grants and self-bindings; A-01's assertion proves it. They still need the operator's word, asked in the PR.
+- [ ] Drop `iam.account_project_grant`, `iam.project_builder_grant`, `claude_connection.binding`, the membership capability columns, and the eleven old admission functions including `ensure_project_builder_grant`. Revoke `SELECT` on `iam` tables from `project_owner` and `claude_connection_owner`. These tables hold only derived creator grants and self-bindings. A-01's assertion proves it, and the count of 2026-09-19 shows 22 rows in each grant table against 22 Projects and one connection binding against one connection. The operator gave the word that day, in the sentence quoted above. Quote it again in the PR and keep the migration's own assertion.
 - [ ] Hub: `identity-access/current-session.ts` exports the one `CurrentSession`; every module-local alias is deleted. `identity-access/membership.ts` holds the store and IAM-04, IAM-05, IAM-06, IAM-10. The OIDC callback claims invitations. IAM-03's operator branch and WS-01's operator check are deleted.
+- [ ] A run whose author lost access mid-run stops at its next claim and keeps what it already did. `claim_*` calls `admit_*` and refuses, because a claim asks for new authority. `settle_*` does not gate on membership, because it records work the run already performed and a refusal there would leave a run that ran and cannot say so. Evidence: a database test that removes the member between a claim and its settle, and asserts the settle row exists and the next claim raises.
 - [ ] The Builder worker treats SQLSTATE `42501` as terminal for the run.
 - [ ] Web: Workspace > Membros, and "Compartilhar com este Workspace" on a connection.
 - [ ] Ledger: add IAM-04, 05, 06, 10; remove IAM-07, 08, 09 and the Area concept; CLA-05 takes a Workspace.
 - [ ] Live, with a second real Keycloak user: invite, sign in, see the Workspace, create a Project, run the Builder on a shared connection, get removed mid-run, see the run refused at its next claim and the Workspace gone. Evidence: screenshots and the run's terminal state.
 - [ ] Perf: median of `create_builder_run` and project list before and after. Evidence: the two medians.
 
-## F-07 and F-08. Drop what the application no longer reaches (054, 055)
+## F-07. Drop what the application no longer reaches (054)
 
-- [ ] 054 drops Inception and R2 functions, empty schemas and login roles, in 038's shape, keeping schema `reg` and `reg.artifact`. Evidence: catalog snapshot regenerated; role register regenerated; provisioning `--check` green on the pilot.
-- [ ] Before 055, count rows in every table it would drop, on the pilot, read-only. This needs a role that can read them; `hub_iam_runtime` cannot. The operator either runs the count script or authorizes `db-root` for that one read. Evidence: the counts in the PR body.
-- [ ] 055 drops the data-bearing tables only after the operator reads the counts and says so. Evidence: her words quoted in the PR.
+One migration, not two. The count of 2026-09-19 removed the reason F-08 existed, and the operator's word removed its gate.
 
-## M-01. Provider-neutral model connections and API keys (056)
+- [ ] 054 drops the Inception and R2 functions, tables, empty schemas and login roles, in 038's shape, keeping schema `reg` and `reg.artifact`. Evidence: catalog snapshot regenerated; role register regenerated; provisioning `--check` green on the pilot.
+- [ ] 054 counts every table it drops and aborts if one holds a row, naming the table and its count. Evidence: the abort reproduced on a scratch cluster with a single row inserted into one of them.
+- [ ] Live: dry-run 054 against a copy of the pilot's schema and data. Evidence: the assertion passes for every table and the drop completes.
+
+## M-01. Provider-neutral model connections and API keys (055)
 
 Mastra 1.63.2 already gives everything except custody. `Agent.model` is a function of `requestContext` (`dist/types/dynamic-argument.d.ts:3-6`) and may return `{ id: 'provider/model', apiKey, headers, url }` (`dist/llm/model/shared.types.d.ts:24-35`), which the router excludes from telemetry. A gateway's `resolveAuth` receives no request context, so it cannot be the per-user seam. The seam is the function the Builder already has at `builder/module.ts:234-238`.
 
-- [ ] 056: `connection.provider_id` and `credential_kind` (`OAUTH_TOKEN_SET`, `API_KEY`), backfilled to the pilot's live row; `authorization` PKCE columns nullable; `preference` keyed `(account_id, provider_id)`; `builder_run` refuses a credential whose provider differs from the run's `model_provider_id`. The encrypted blob at `(connectionId, generation)` never moves. Evidence, live: the pilot's connection still completes a run after 056.
+- [ ] 055: `connection.provider_id` and `credential_kind` (`OAUTH_TOKEN_SET`, `API_KEY`), backfilled to the pilot's live row; `authorization` PKCE columns nullable; `preference` keyed `(account_id, provider_id)`; `builder_run` refuses a credential whose provider differs from the run's `model_provider_id`. The encrypted blob at `(connectionId, generation)` never moves. Evidence, live: the pilot's connection still completes a run after 055.
 - [ ] One dispatch in `resolveBuilderModel`, two return shapes. Anthropic OAuth returns the existing provider instance, because bounded fetch, the beta headers and the identity rewrite cannot ride a config object. An API key returns the native config object. No provider interface, no registry of Conexus providers. Evidence: the diff of that function.
 - [ ] Delete the `!== 'anthropic'` gates (`project/module.ts:387-389,416`) and `officialHttpsOrigin`; the registry already answers both. Delete whichever of `BuilderModelChoice` and `ProjectModelChoice` is the copy. Keep `capabilitySet`, `enabled`, `admissionId` and the `/latest|\*/` pin refusal: that is Product policy, not model logic.
 - [ ] One new operation, paste an API key for a provider from `PROVIDER_REGISTRY`. The key is written to custody and never returned. Evidence: the contract, and a test that no response or log carries it.
@@ -148,4 +172,6 @@ Three runners designed independently (Opus, Fable, Sonnet). All three put rights
 
 **Accepted:** every member sees and builds every Project in the Workspace, and a Project that must stay private belongs in another Workspace. Two roles, `owner` and `member`, differing only in `members.manage`. Any account may create a Workspace, since accounts exist only by invitation. Sharing a connection lets future members spend its owner's quota, undone in one click.
 
-**Open, for the operator:** whether a member, and not only an owner, may share their own connection into a Workspace (designed: yes). Whether `settle_*` should record work already done when its author lost access mid-run (designed: refuse). What to do with accounts minted through IAM-03 that hold no membership (designed: left inert).
+**Decided by the operator on 2026-09-19:** when a run's author loses access mid-run, `claim_*` refuses and `settle_*` still records work already done. This reverses the design's proposal, which refused both. A claim asks for authority the account no longer has. A settle only writes down work the database already paid for, and refusing it would lose the record of a run that ran.
+
+**Open, for the operator:** whether a member, and not only an owner, may share their own connection into a Workspace. This is still open. The design default is yes, and A-02 builds that unless the operator says otherwise. What to do with accounts minted through IAM-03 that hold no membership is also open (designed: left inert).
