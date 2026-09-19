@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { S1OwnerId } from '../generated/s1-routes.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import { createMembershipStore, registerMembershipRoutes } from './membership.js'
 import { createOidcAdapter } from './oidc.js'
 import { createPreviewAccess } from './preview-access.js'
 import type { PreviewAccess, PreviewRouteBinding } from './preview-access.js'
@@ -36,6 +37,7 @@ export const createIdentityAccessModule = async ({
   allowInsecureForTest?: boolean
 }>): Promise<IdentityAccessModule> => {
   const store = createIdentityAccessStore({ pool, ...(workspaceReadPool ? { workspaceReadPool } : {}) })
+  const membership = createMembershipStore({ pool })
   const previewAccess = createPreviewAccess({
     readSession: ({ sessionDigest }) => store.readSession({ sessionDigest }),
   })
@@ -54,13 +56,20 @@ export const createIdentityAccessModule = async ({
     return store.validateSession({ sessionToken, ...(csrfToken ? { csrfToken } : {}), requireCsrf })
   }
   return Object.freeze({
-    registerIdentityAccessRoutes: (app: FastifyInstance) => registerIdentityAccessRoutes(app, {
-      store,
-      workspaceReader: store,
-      oidc,
-      config: { origin, bootstrapIssuer: issuer, bootstrapSubject },
-      resolveCurrentSession,
-    }),
+    registerIdentityAccessRoutes: async (app: FastifyInstance) => [
+      ...await registerIdentityAccessRoutes(app, {
+        store,
+        workspaceReader: store,
+        oidc,
+        config: { origin, bootstrapIssuer: issuer, bootstrapSubject },
+        resolveCurrentSession,
+      }),
+      ...await registerMembershipRoutes(app, {
+        store: membership,
+        resolveCurrentSession,
+        config: { origin },
+      }),
+    ],
     resolveCurrentSession,
     issuePreviewEntry: async (request, input) => {
       const sessionToken = request.cookies['__Host-conexus_session']
