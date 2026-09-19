@@ -12,26 +12,134 @@
     "operationCensus": 8
   },
   "applicationRuntimeProfile": "MANAGED",
-  "admittedConsumerRefs": ["ControlPlaneShell", "I&A", "Project", "Workspace"],
-  "admittedPropertyIds": ["R1C-01", "R1C-02", "R1C-03", "R1C-04", "R1C-05", "R1C-09", "R1C-10", "R1C-11", "R1C-12", "SCF-01", "SCF-02", "SCF-03", "SCF-04", "SCF-05", "SCF-06", "SCF-09", "SCF-10", "SCF-11"],
+  "admittedConsumerRefs": [
+    "ControlPlaneShell",
+    "I&A",
+    "Project",
+    "Workspace"
+  ],
+  "admittedPropertyIds": [
+    "R1C-01",
+    "R1C-02",
+    "R1C-03",
+    "R1C-04",
+    "R1C-05",
+    "R1C-09",
+    "R1C-10",
+    "R1C-11",
+    "R1C-12",
+    "SCF-01",
+    "SCF-02",
+    "SCF-03",
+    "SCF-04",
+    "SCF-05",
+    "SCF-06",
+    "SCF-09",
+    "SCF-10",
+    "SCF-11"
+  ],
   "wireProjection": {
     "kind": "conexus.r1-wire-projection/v1",
-    "digest": "115c2cfc24c61075f3711b5404ed5af0d9b685163c1589e0823a83489f4aa07e",
+    "digest": "319699260b239b4cf07dfb7e80302e3348e62cd697080c53c3306ce7c3611f75",
     "sourceRefs": [
-      { "path": "contracts/api/product/identity-workspace-paths.yaml", "sha256": "d0e31426720c15f8dbec239afe420e22dbfd5aec7cc6b1e998b1cb47ed867d13" },
-      { "path": "contracts/api/product/project-paths.yaml", "sha256": "a2cfc7bca3d16c9359816619d2900b54eb981a6d3de410cc75b18981ff7abeca" },
-      { "path": "docs/evidence/4d/4d-r1-operation-reachability-map.md", "sha256": "35ef5eae8617ac591f3a0e7c57deaaa73ac62526b3d690ad46169fa23a7ecc53" },
-      { "path": "docs/product/operation-ledger.md", "sha256": "99cf6de35a2018b2c41844439257ee0ef752561a0850e1012b4a3a7a158df190" }
+      {
+        "path": "contracts/api/product/identity-workspace-paths.yaml",
+        "sha256": "d0e31426720c15f8dbec239afe420e22dbfd5aec7cc6b1e998b1cb47ed867d13"
+      },
+      {
+        "path": "contracts/api/product/project-paths.yaml",
+        "sha256": "43879d052eab511acd97a2079f5955a7d934053c11b9dced74a060377a884487"
+      },
+      {
+        "path": "docs/evidence/4d/4d-r1-operation-reachability-map.md",
+        "sha256": "35ef5eae8617ac591f3a0e7c57deaaa73ac62526b3d690ad46169fa23a7ecc53"
+      },
+      {
+        "path": "docs/product/operation-ledger.md",
+        "sha256": "d7ef7fac443f1c02fe1eb1987bdec7f01982e55ae4bb3680e8bb427211029adf"
+      }
     ],
     "operations": [
-      { "ownerId": "IAM-01", "operationId": "GetControlPlaneAccessContext", "owner": "I&A", "method": "GET", "path": "/api/control/access-context", "permission": "authenticated-session", "currentStateCarrier": "NONE", "sourceRef": "identity-workspace-paths.yaml#/paths/~1api~1control~1access-context/get" },
-      { "ownerId": "IAM-02", "operationId": "EndSession", "owner": "I&A", "method": "DELETE", "path": "/api/session", "permission": "authenticated-session", "currentStateCarrier": "OWNER_CURRENT", "sourceRef": "identity-workspace-paths.yaml#/paths/~1api~1session/delete" },
-      { "ownerId": "IAM-03", "operationId": "ProvisionAccount", "owner": "I&A", "method": "POST", "path": "/api/control/accounts", "permission": "trusted-bootstrap-or-platform-operator", "currentStateCarrier": "IDEMPOTENCY_KEY", "sourceRef": "identity-workspace-paths.yaml#/paths/~1api~1control~1accounts/post" },
-      { "ownerId": "WS-01", "operationId": "CreateWorkspace", "owner": "Workspace", "method": "POST", "path": "/api/control/workspaces", "permission": "platform_operator", "currentStateCarrier": "IDEMPOTENCY_KEY", "sourceRef": "identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces/post" },
-      { "ownerId": "WS-02", "operationId": "GetWorkspace", "owner": "Workspace", "method": "GET", "path": "/api/control/workspaces/{workspaceId}", "permission": "workspace-membership", "currentStateCarrier": "NONE", "sourceRef": "identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}/get" },
-      { "ownerId": "PRJ-01", "operationId": "ListProjects", "owner": "Project", "method": "GET", "path": "/api/control/workspaces/{workspaceId}/projects", "permission": "project.read", "currentStateCarrier": "NONE", "sourceRef": "project-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1projects/get" },
-      { "ownerId": "PRJ-02", "operationId": "GetProject", "owner": "Project", "method": "GET", "path": "/api/control/projects/{projectId}", "permission": "project.read", "currentStateCarrier": "NONE", "sourceRef": "project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}/get" },
-      { "ownerId": "PRJ-03", "operationId": "CreateProject", "owner": "Project", "method": "POST", "path": "/api/control/workspaces/{workspaceId}/projects", "permission": "project.create", "currentStateCarrier": "IDEMPOTENCY_KEY", "sourceRef": "project-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1projects/post" }
+      {
+        "ownerId": "IAM-01",
+        "operationId": "GetControlPlaneAccessContext",
+        "owner": "I&A",
+        "method": "GET",
+        "path": "/api/control/access-context",
+        "permission": "authenticated-session",
+        "currentStateCarrier": "NONE",
+        "sourceRef": "identity-workspace-paths.yaml#/paths/~1api~1control~1access-context/get"
+      },
+      {
+        "ownerId": "IAM-02",
+        "operationId": "EndSession",
+        "owner": "I&A",
+        "method": "DELETE",
+        "path": "/api/session",
+        "permission": "authenticated-session",
+        "currentStateCarrier": "OWNER_CURRENT",
+        "sourceRef": "identity-workspace-paths.yaml#/paths/~1api~1session/delete"
+      },
+      {
+        "ownerId": "IAM-03",
+        "operationId": "ProvisionAccount",
+        "owner": "I&A",
+        "method": "POST",
+        "path": "/api/control/accounts",
+        "permission": "trusted-bootstrap-or-platform-operator",
+        "currentStateCarrier": "IDEMPOTENCY_KEY",
+        "sourceRef": "identity-workspace-paths.yaml#/paths/~1api~1control~1accounts/post"
+      },
+      {
+        "ownerId": "WS-01",
+        "operationId": "CreateWorkspace",
+        "owner": "Workspace",
+        "method": "POST",
+        "path": "/api/control/workspaces",
+        "permission": "platform_operator",
+        "currentStateCarrier": "IDEMPOTENCY_KEY",
+        "sourceRef": "identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces/post"
+      },
+      {
+        "ownerId": "WS-02",
+        "operationId": "GetWorkspace",
+        "owner": "Workspace",
+        "method": "GET",
+        "path": "/api/control/workspaces/{workspaceId}",
+        "permission": "workspace-membership",
+        "currentStateCarrier": "NONE",
+        "sourceRef": "identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}/get"
+      },
+      {
+        "ownerId": "PRJ-01",
+        "operationId": "ListProjects",
+        "owner": "Project",
+        "method": "GET",
+        "path": "/api/control/workspaces/{workspaceId}/projects",
+        "permission": "project.read",
+        "currentStateCarrier": "NONE",
+        "sourceRef": "project-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1projects/get"
+      },
+      {
+        "ownerId": "PRJ-02",
+        "operationId": "GetProject",
+        "owner": "Project",
+        "method": "GET",
+        "path": "/api/control/projects/{projectId}",
+        "permission": "project.read",
+        "currentStateCarrier": "NONE",
+        "sourceRef": "project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}/get"
+      },
+      {
+        "ownerId": "PRJ-03",
+        "operationId": "CreateProject",
+        "owner": "Project",
+        "method": "POST",
+        "path": "/api/control/workspaces/{workspaceId}/projects",
+        "permission": "project.create",
+        "currentStateCarrier": "IDEMPOTENCY_KEY",
+        "sourceRef": "project-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1projects/post"
+      }
     ]
   },
   "platformContract": {
@@ -40,6 +148,12 @@
     "genericExecutor": false,
     "technicalIngressSeparated": true
   },
-  "decidingConstraintRefs": ["4D-06:R1C-01..05", "4F(R1):G0", "4E(R1):8-of-13"],
-  "appSeed": { "paths": [] }
+  "decidingConstraintRefs": [
+    "4D-06:R1C-01..05",
+    "4F(R1):G0",
+    "4E(R1):8-of-13"
+  ],
+  "appSeed": {
+    "paths": []
+  }
 }

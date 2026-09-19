@@ -110,7 +110,7 @@ the Project creator receives them only for that Project. A one-time backfill
 applies the same consequences to pre-R2 creator memberships/direct creator
 grants. No fact implies another fact, creator status is not consulted at
 admission time, and no cross-scope or generic administration authority is
-created. `CON-01/02` connector-definition discovery requires at least one
+created. Connector-definition discovery requires at least one
 current `connection.read` fact. `connection.use` is deliberately excluded: it
 receives no automatic creator grant and remains for its first exact binding or
 external-source consumer.
@@ -132,7 +132,7 @@ consumer.
 
 ## 3. Ordinary Permission vocabulary
 
-The vocabulary remains exactly **25** after the current bounded corrections. F11 adds three exact I&A reads and narrow access-administration summary disclosure; F12 enriches existing `audit.read` consumers; F17 adds only a purpose-bound alternate disclosure through existing `CON-03`; F18 analogously adds only a purpose-bound immutable revision-selection disclosure through existing `BRN-02`; F19 adds `BRN-13` as another exact compound `brain.read + project.data.read` consumer rather than inventing an analytics-specific Permission; F22 reuses `project.data.read` for four exact Project-owned read-only explorer projections whose source/object disclosure remains separately fail-closed; F23 adds one exact compound `brain.read + project.read` consumer for Project-resolved Brain context rather than inventing a Project-Brain-specific Permission. F31/F32/F34 enrich existing Release/OBS reads; F33 adds `MAR-04` under ordinary `project.read` or the existing purpose-bound `job.run`. None proves a 26th reusable authority class.
+The vocabulary is **15** after the current bounded corrections. Brain, connection bindings and the Sankhya gateway left the product on 2026-09-19, retiring the ten `brain.*` and `connection.*` Permissions along with the operations that were their only consumers; the F17/F18/F19/F23 records that once justified their purpose-bound disclosures are retained as history. F11 adds three exact I&A reads and narrow access-administration summary disclosure; F12 enriches existing `audit.read` consumers; F22 reuses `project.data.read` for four exact Project-owned read-only explorer projections whose source/object disclosure remains separately fail-closed. F31/F32/F34 enrich existing Release/OBS reads; F33 adds `MAR-04` under ordinary `project.read` or the existing purpose-bound `job.run`. None proves a 16th reusable authority class.
 
 ### 3.1 Workspace and access
 
@@ -165,18 +165,18 @@ access-administration summary disclosure
 
 | Permission | Meaning | Material current consumers |
 | --- | --- | --- |
-| `project.read` | inspect ordinary Project-level Product truth/projections; participate in exact Project Brain-context inspection only with Brain read authority | ordinary `PRJ-01/02/16/17/22/29`; `BRN-14` together with `brain.read`; `PAR-06/07` Control-Plane run inspection; ordinary Release/Promotion/serving/job/activity reads |
+| `project.read` | inspect ordinary Project-level Product truth/projections | ordinary `PRJ-01/02/16/17/22/29`; `PAR-06/07` Control-Plane run inspection; ordinary Release/Promotion/serving/job/activity reads |
 | `project.source.read` | inspect Project source/diff/authored definitions without write authority | `BLD-07..09`, `PRJ-20/21`; PRJ-21 includes the safe complete authored `agent/v1` definition after F30 |
-| `project.data.read` | inspect admitted semantic Data resources and bounded read-only Project Data Explorer projections without becoming a generic DB console; participate in the admitted semantic analytical surface only with Brain authority | `PRJ-18/19`, `PRJ-25..28`; Control-Plane `BRN-12` and `BRN-13` together with `brain.read` |
-| `project.manage` | administer Project lifecycle, bindings and independent Published-App access configuration | `PRJ-05/06/10..15` where mapped; `IAM-14/15/17/21`; source side of `PRJ-06`; purpose-bound `CON-03` binding selection only with `connection.use`; purpose-bound `BRN-02` Brain-revision selection only with `brain.bind` |
-| `project.build` | create/evolve accepted Project Product/Agent intent through Change/Builder and inspect only the purpose-bound construction contracts required for that work | `BLD-01..04/06/10/16..20`; purpose-bound `PRJ-16/17/29` capability/model-policy discovery; purpose-bound `BRN-14` Project Brain authoring references |
+| `project.data.read` | inspect admitted semantic Data resources and bounded read-only Project Data Explorer projections without becoming a generic DB console | `PRJ-18/19`, `PRJ-25..28` |
+| `project.manage` | administer Project lifecycle and independent Published-App access configuration | `PRJ-05/06` where mapped; `IAM-14/15/17/21`; source side of `PRJ-06` |
+| `project.build` | create/evolve accepted Project Product/Agent intent through Change/Builder and inspect only the purpose-bound construction contracts required for that work | `BLD-01..04/06/10/16..20`; purpose-bound `PRJ-16/17/29` capability/model-policy discovery |
 | `project.review` | participate in exact Plan/Change checkpoint, Finding and Evidence review | `BLD-05/11..15` |
 
-`project.manage` does **not** imply `project.build`, `project.review`, Published-App business use, Brain publication, Connection use or Release promotion. `4B-F01` removed generic `UpdateProject`; it did not remove the distinct lifecycle/binding/app-access consumers that justify this Permission. Project Inception and Baseline left the product on 2026-09-19, so the candidate review and contextual-explanation consumers that `4C-F02` and `4C-F03` mapped here no longer exist; the `4C` records of those decisions are retained as history.
+`project.manage` does **not** imply `project.build`, `project.review`, Published-App business use or Release promotion. `4B-F01` removed generic `UpdateProject`; it did not remove the distinct lifecycle/app-access consumers that justify this Permission. Project Inception, Baseline, Brain, connection bindings and the Sankhya gateway left the product on 2026-09-19, so the candidate-review, contextual-explanation and binding consumers that `4C-F02`, `4C-F03`, `4C-F17` and `4C-F18` mapped here no longer exist; the `4C` records of those decisions are retained as history.
 
 `4C-F30` creates no `agent.manage`, `agent.definition.write`, `mastra.manage` or source-write Permission. `project.source.read` may inspect PRJ-21 definition detail but cannot mutate it. `project.build` admits only the server-owned typed Product Agent draft inside the exact Change; possession of `changeId`, `draftId`, `agentId`, `capabilityId` or policy references is never authority by itself. BLD-19 revalidates explicit NEW/EXISTING origin and BLD-20 fails closed on stale `expectedDraftRevision`; both remain upstream of candidate diff/proof/Release and cannot mutate a live Agent.
 
-`4C-PRE11-F05` does not widen `project.build` into generic Project/Brain/data/source/runtime access. It admits only safe purpose-bound reads from the existing owners: `PRJ-16/17` capability contracts, `PRJ-29` Project model-policy summaries and `BRN-14` server-issued Project-bound authoring references with detail withholding explicit. These reads grant no invocation, business data, credentials, Workspace Brain publication, binding administration, provider/model selection or policy mutation.
+`4C-PRE11-F05` does not widen `project.build` into generic Project/data/source/runtime access. It admits only safe purpose-bound reads from the existing owners: `PRJ-16/17` capability contracts and `PRJ-29` Project model-policy summaries. These reads grant no invocation, business data, credentials, provider/model selection or policy mutation.
 
 Project model-policy discovery through `PRJ-29` is ordinary inspection under `project.read` or purpose-bound construction disclosure under `project.build`; it never creates a model/runtime Permission.
 
@@ -185,10 +185,6 @@ The F11 access-administration route to `PRJ-01` is **not** `project.read`; it is
 `4C-F22` keeps `project.data.read` as a necessary but insufficient reusable authority distinction. `PRJ-25..28` additionally require the exact current Project grant and server-resolved explorer eligibility for the named source/object; bound Connection existence alone never grants raw-source disclosure, and guessed source/object/page coordinates never authorize. The four reads grant no SQL text/expression, mutation, credentials, foreign Project/Workspace data, `hub_control`, Mastra/Keycloak provider-store disclosure or generic Connection inspection/use authority.
 
 Operator-confirmed F22 consequence: when F22 runtime exists, **already-issued `project.data.read` grants can become eligible for raw-row disclosure** over explorer-eligible sources, still subject to the same exact Project grant and server-resolved source/object eligibility. This is an accepted widening of disclosure reachable through the existing Permission, not a new Permission. If a real tenant requires semantic Data inspection without raw-row disclosure, this Permission decision must reopen rather than inventing client-side masking or silently broadening grants.
-
-`4C-F23` uses `project.read` only as the Project-side half of a compound inspection boundary. `project.read` alone never grants Workspace Brain content. `BRN-14` additionally requires `brain.read`, an exact current Project grant and an exact current Project Brain binding; the server resolves Project applicability/local realization rather than accepting a browser-derived subset.
-
-After `4C-PRE11-F05`, the ordinary BRN-14 route remains `brain.read + project.read`. A separate purpose-bound `project.build` route exposes only `authoringRef`, label/summary/content-class recognition and an explicit `detailDisclosed=false` boundary when sections/provenance are withheld. It never becomes generic `brain.read`.
 
 ### 3.3 Release, managed execution and audit
 
@@ -205,98 +201,6 @@ Release composition is an owner/system transition gated by exact accepted proof;
 `4C-F12` keeps `OBS-04/05` under the same `audit.read` authority while making the admitted immutable audit set server-filterable and human-reviewable. Search/filter shape and immutable presentation snapshots do not create a broader `audit.search` or `event.read` Permission.
 
 `4C-PRE11-F04` likewise keeps `GW-01/02` under `audit.read`. An optional exact server-side `originatingRun` filter makes the already-admitted effect-investigation subject reachable from an AgentRun without granting PAR detail, Project read, retry/replay/reconciliation or effect-execution authority. No new ordinary Permission is admitted.
-
-### 3.4 Brain
-
-| Permission | Meaning | Material current consumers |
-| --- | --- | --- |
-| `brain.read` | inspect current Workspace Brain, immutable revisions and health/conformance projections; inspect an exact Project-resolved Brain context only with separate Project read authority; participate in governed Project analytics only with the separate Project-data grant | `BRN-01..03/10`; `BRN-14` together with `project.read`; Control-Plane `BRN-12` and `BRN-13` together with `project.data.read` |
-| `brain.propose` | submit a provenance-preserving KnowledgeProposal without publication authority | `BRN-07` |
-| `brain.discover` | initiate admitted read-only Brain Discovery against exact governed source scope | `BRN-04`; plus `connection.use` when an external Connection is required |
-| `brain.review` | inspect/review/decide exact KnowledgeProposal subjects | `BRN-05/06/08` |
-| `brain.publish` | publish a reviewed/validated immutable Brain revision | `BRN-09` |
-| `brain.bind` | authorize a Project to adopt an exact Brain revision/binding, distinct from generic Brain inspection | `PRJ-11` together with `project.manage`; purpose-bound `BRN-02` immutable revision selection only together with `project.manage` + exact target Project; removal/narrowing needs no continued bind grant |
-
-For `PRJ-11` adoption that requires physical Connection-backed conformance,
-the operator-approved R2-P4 successor additionally requires current
-`connection.use` for each exact server-resolved Project Connection subject.
-`project.manage + brain.bind` alone cannot authorize that physical read. Check
-the compound authority before executing the registered read and revalidate it
-at settlement; a candidate Brain binding cannot authorize its own proof.
-The read remains bounded to the admitted registered conformance capability,
-current qualified binding, source scope and egress admission. It grants no
-arbitrary query, business-data browsing or credential disclosure. Adoptions
-without a physical-read requirement do not acquire an unconditional
-`connection.use` prerequisite. Removal/narrowing retains its existing authority.
-This permission rule is not operator authorization for a live ERP proof run.
-
-`brain.bind` remains separate from generic Brain read:
-
-```text
-brain.bind -X-> generic brain.read
-
-purpose-bound BRN-02 alternate disclosure
-→ exact target Project + project.manage + brain.bind
-→ existing immutable BrainRevision summary only
-→ server revalidates Workspace/Project containment
-→ no BRN-03 knowledgeBrowse / proposal / review / publication / mutation authority
-```
-
-`BRN-12 RunAnalyticQuery` and `BRN-13 GetProjectAnalyticQueryCatalog` do **not** create `analyticquery.execute` or `analyticquery.read`:
-
-```text
-Control Plane human
-→ brain.read + project.data.read + exact Project grant/current Brain binding/dataset authority
-→ BRN-13 discovers current admitted semantic inputs
-→ BRN-12 executes a deterministic semantic-ID query after revalidation
-
-Published-App human BRN-12
-→ exact Release-declared app role subset + current app access + exact Brain/dataset projection
-
-Product Agent BRN-12
-→ exact PAR ToolProjection + current AgentRun/Release/Brain/dataset projection
-```
-
-BRN-13 is Control-Plane only in F1. It grants neither Published-App use nor Product-Agent invocation.
-
-`BRN-14 GetProjectBrainContext` likewise creates no new Permission and no implicit runtime authority:
-
-```text
-Control Plane human
-→ brain.read + project.read + exact Project grant + exact current Project Brain binding
-→ server-resolved adopted/available Project Brain context
-
-BRN-14
--X-> Workspace Brain authoring/review/proposal/publication
--X-> runtime effectiveBrainSlice / ToolProjection
--X-> memory / RAG / vector authority
--X-> project.manage / brain.bind
-```
-
-Project-context domain/concept coordinates are presentation/navigation coordinates only; they do not become canonical semantic IDs, source identity or authorization.
-
-### 3.5 Connections
-
-| Permission | Meaning | Material current consumers |
-| --- | --- | --- |
-| `connection.read` | inspect exact Connector/Connection/revision/qualification facts in the admitted owner scope | ordinary `CON-01..04/09` |
-| `connection.manage` | create/revise Connection configuration and write credential material through the protected write-only boundary | `CON-05..07` |
-| `connection.qualify` | run exact environment/revision qualification Evidence without granting Project use | `CON-08` |
-| `connection.use` | authorize use/binding of an exact Connection resource by an admitted Project/Brain operation; same Workspace alone is insufficient | `PRJ-14` with `project.manage`; Connection-backed `PRJ-11` conformance with `project.manage + brain.bind`; external-source `BRN-04` with `brain.discover`; purpose-bound `CON-03` binding-selection disclosure only together with `project.manage` + exact target Project |
-
-`connection.use` does not itself grant runtime invocation or generic Connection inspection.
-
-```text
-connection.use -X-> generic connection.read
-
-purpose-bound CON-03 alternate disclosure
-→ exact target Project + project.manage + connection.use
-→ existing lightweight Connection selection summary only
-→ server revalidates owner scope / Workspace containment / Project-private containment
-→ no CON-04 configuration / credentials / manage / qualify / history authority
-```
-
-Runtime use also requires exact ProjectConnectionBinding, Release/capability projection and current owner/Gateway gates.
 
 ### 3.6 Product Agent runtime
 
@@ -405,42 +309,11 @@ These either duplicate an existing semantic capability, mirror CRUD/UI nouns, de
 Material compound mappings remain explicit rather than collapsed:
 
 ```text
-SetProjectConnectionBinding
-→ project.manage + connection.use + exact qualified compatible ConnectionRevision
-
-CON-03 purpose-bound Project binding-selection disclosure
-→ project.manage + connection.use + exact target Project
-→ narrow Connection summary only
-→ connection.use -X-> generic connection.read
-
-SetProjectBrainBinding
-→ project.manage + brain.bind + exact immutable Brain revision + binding conformance
-→ additionally connection.use for each required physical Connection-backed proof
-
-BRN-02 purpose-bound Project Brain revision-selection disclosure
-→ project.manage + brain.bind + exact target Project
-→ immutable BrainRevision summary only
-→ brain.bind -X-> generic brain.read
-→ alternate disclosure -X-> BRN-03 knowledgeBrowse / proposal / publication authority
-
-BRN-13 GetProjectAnalyticQueryCatalog
-→ brain.read + project.data.read + exact Project/current Brain binding
-→ current admitted semantic-input projection only
-→ no new Permission / SQL / physical topology / semantic-search / natural-language planning authority
-
-BRN-14 GetProjectBrainContext
-→ brain.read + project.read + exact Project grant/current Brain binding
-→ server-resolved Project-context adopted/available Brain meaning only
-→ no new Permission / Workspace publication mutation / runtime effective-slice / tool / memory / RAG authority
-
 PRJ-25..28 Project Data Explorer
 → project.data.read + exact Project grant + server-resolved current source/object eligibility
 → Project Database business/application data or exact eligible bound integration source only
 → source/object/page coordinates remain untrusted references
 → no SQL / mutation / credentials / arbitrary Connection selection / foreign Project or Workspace disclosure
-
-StartBrainDiscovery using external source
-→ brain.discover + connection.use + exact source/binding/egress admission
 
 DecideApprovalRequest
 → agent.effect.approve + exact current approver eligibility + exact sealed proposal
@@ -451,15 +324,9 @@ DecideApprovalRequest
 
 F11 likewise does not create Account/Area/grant CRUD Permissions. `workspace.access.manage` already represents the reusable authority distinction required to administer those exact membership/grant facts; the new reads merely make that existing authority safely inspectable.
 
-F17 likewise does not make `connection.use` a read Permission. It admits only the minimum `CON-03` summary disclosure required to choose a Connection for one exact Project binding job, under the same compound Project-management/use authority that governs the write.
-
-F18 likewise does not make `brain.bind` a read Permission. It admits only the minimum immutable `BRN-02` summary disclosure required to choose a Brain revision for one exact Project binding job; detail/knowledge/proposal/publication authority remains separately governed.
-
-F19 likewise does not create an analytics Permission. The exact Control-Plane human already needs both reusable authority distinctions `brain.read + project.data.read`; BRN-13 merely makes the exact current semantic inputs of that already-admitted analytical job discoverable without exposing SQL or physical topology.
-
 F22 likewise does not create a database/explorer Permission family. `project.data.read` remains the reusable semantic authority, while each explorer read independently revalidates exact Project containment and current source/object disclosure eligibility; browser-visible filtering, paging and physical coordinates cannot widen that authority. The existing-grant raw-row consequence above is operator-confirmed and accepted for F22; a real semantic-without-raw-row tenant requirement reopens this decision.
 
-F23 likewise does not create a Project-Brain Permission family. `brain.read` and `project.read` already represent the two reusable inspection distinctions; BRN-14 composes them only for one exact Project/current Brain binding and never turns binding authority, browser visibility or a runtime effective slice into a grant.
+F17, F18, F19 and F23 governed the now-retired Project Connection binding, Project Brain binding and Project Brain Context disclosures; their records are retained as history in the operation ledger.
 
 ---
 

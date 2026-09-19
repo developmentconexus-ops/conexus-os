@@ -79,7 +79,6 @@ function assertWhole(currentProduct, currentTechnical, currentProject, currentPr
     ['IAM-18', 'ListWorkspaceMembershipCandidates'],
     ['IAM-19', 'GetWorkspaceMemberAccess'],
     ['IAM-20', 'GetAreaAccess'],
-    ['BRN-13', 'GetProjectAnalyticQueryCatalog'],
     ['PRJ-25', 'ListProjectDataExplorerSources'],
     ['PRJ-26', 'ListProjectDataExplorerObjects'],
     ['PRJ-27', 'GetProjectDataExplorerObject'],

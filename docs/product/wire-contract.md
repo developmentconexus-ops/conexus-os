@@ -39,9 +39,6 @@ contracts/api/product/openapi.yaml                  canonical entrypoint / share
 contracts/api/product/identity-workspace-paths.yaml current IAM + Workspace Path Items
 contracts/api/product/project-paths.yaml            current Project Path Items
 contracts/api/product/builder-paths.yaml            current Builder Path Items
-contracts/api/product/brain-paths.yaml              current Brain Path Items
-contracts/api/product/connection-paths.yaml         current Connections Path Items
-contracts/api/product/project-brain-context-paths.yaml current Project Brain Context Path Items
 contracts/api/product/release-paths.yaml            retained Release / Promotion / serving Path Items
 contracts/api/product/par-paths.yaml                retained Product Agent Runtime Path Items
 contracts/api/product/gateway-paths.yaml            retained Gateway inspection Path Items
@@ -215,16 +212,16 @@ RFC 9110 `If-Match` is used only when the ETag describes the current representat
 The retained historical literal semantic `IF_MATCH` set was:
 
 ```text
-PRJ-12 ClearProjectBrainBinding
+ClearProjectBrainBinding
 PAR-14 ReviseScheduleTrigger
 ```
 
 The historical bundled HTTP carrier proof was:
 
 ```text
-required If-Match        = { PRJ-12, PAR-14 }
-optional If-Match        = { PRJ-11 }
-optional If-None-Match   = { PRJ-11 }
+required If-Match        = { ClearProjectBrainBinding, PAR-14 }
+optional If-Match        = { SetProjectBrainBinding }
+optional If-None-Match   = { SetProjectBrainBinding }
 ```
 
 Truthful same-target examples:
@@ -243,7 +240,7 @@ PATCH same trigger target
 → If-Match
 ```
 
-`PRJ-11 SetProjectBrainBinding` remains a retained historical `CURRENT_OR_ABSENT` example. It is outside the current 31-operation OAS.
+`SetProjectBrainBinding` remains a retained historical `CURRENT_OR_ABSENT` example. It is outside the current 31-operation OAS.
 
 Do **not** reuse an ETag from one resource as `If-Match` on a different command/collection target. Retained historical explicit-semantic examples include:
 
@@ -707,7 +704,6 @@ F04
 
 F05
 → PRJ-16/17 purpose-bound project.build discovery
-→ BRN-14 authoringRef + explicit detailDisclosed boundary
 → PRJ-29 Project-owned model-policy summaries
 → BLD-19 NEW optional unowned refs empty
 → BLD-19/20 EXISTING protected refs preserved

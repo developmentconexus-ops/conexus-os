@@ -44,10 +44,10 @@ platform scope. They are retained evidence and do not expand the current Product
 ### 1.1 Current fixed Product census
 
 ```text
-N_current = 34
-current operations with named owner       = 34
-current operations with real consumer     = 34
-current operations with authority mapping = 34
+N_current = 20
+current operations with named owner       = 20
+current operations with real consumer     = 20
+current operations with authority mapping = 20
 orphaned current operations                = 0
 speculative current operations             = 0
 ```
@@ -131,7 +131,7 @@ OIDC callback/redirect, provider callback/token refresh, queue delivery/redelive
 | registered `Action` | exact Project-defined consequential/business command | exact owner semantics; current authorization/preconditions; at least current-state protection; `IC3` when consequential intake can repeat; `IC4` whenever an external/ambiguous effect can escape |
 | Integration Operation | exact provider-aware Project capability where provider-specific meaning is honest | exact Connection/binding/revision/environment; Gateway last mile; declared read/effect scope; effectful operations require `IC4` idempotency/reconciliation semantics |
 
-`AnalyticQuery` is not an arbitrary Project slug. It remains the fixed Brain-governed platform read regime `BRN-12`.
+`AnalyticQuery` is not an arbitrary Project slug. Its Brain-governed platform read regime left the product on 2026-09-19 with Brain, connection bindings and the Sankhya gateway.
 
 ### 4.2 Required declaration
 
@@ -194,26 +194,12 @@ This is the current Product authority for the supported internal MVP. It is the 
 | `BLD-24` | `SendBuilderMessage` | Builder | authorized Project + server-resolved current source and Project Thread | command |
 | `BLD-25` | `CancelBuilderRun` | Builder | authorized Project + exact BuilderRun; repeated requests remain idempotent | command |
 | `BLD-26` | `GetBuilderRunTrace` | Builder | authorized Project + exact BuilderRun; safe native trace projection only | read |
-| `BRN-01` | `GetWorkspaceBrain` | Brain | exact Workspace Brain disclosure under server-resolved access | read |
-| `BRN-02` | `ListBrainRevisions` | Brain / Registry projection | exact Workspace Brain revision disclosure / binding selection | read |
-| `BRN-03` | `GetBrainRevision` | Brain / Registry projection | exact immutable Brain revision review projection | read |
-| `BRN-10` | `GetBrainHealth` | Brain | exact Brain health disclosure | read |
-| `CON-01` | `ListConnectorDefinitions` | Connections | current Connector catalog disclosure | read |
-| `CON-02` | `GetConnectorDefinition` | Connections | exact Connector definition disclosure | read |
-| `CON-03` | `ListConnections` | Connections | exact owner-scope Connection disclosure | read |
-| `CON-05` | `CreateConnection` | Connections | exact owner-scope Connection creation | command |
-| `CON-04` | `GetConnection` | Connections | exact Connection non-secret configuration disclosure | read |
-| `CON-06` | `ReviseConnection` | Connections | exact Connection revision authority | command |
-| `CON-07` | `SetConnectionCredential` | Connections | exact write-only credential replacement | command |
-| `CON-08` | `QualifyConnection` | Connections | exact Connection qualification authority | command |
-| `CON-09` | `GetConnectionQualification` | Connections | exact qualification diagnostic disclosure | read |
 | `CLA-01` | `ListClaudeConnections` | Claude Account | current Account's Claude connection disclosure; safe metadata only | read |
 | `CLA-02` | `StartClaudeAuthorization` | Claude Account | current authorization start against the server-pinned Anthropic flow | command |
 | `CLA-03` | `CompleteClaudeAuthorization` | Claude Account | exact provider code and state result; server resolves the authorized subject | command |
 | `CLA-04` | `SelectClaudeConnection` | Claude Account | exact connection preference for future BuilderRuns | command |
 | `CLA-05` | `ShareClaudeConnection` | Claude Account | exact same-Workspace Account share authority | command |
 | `CLA-06` | `RevokeClaudeConnection` | Claude Account | exact owner-scope connection revocation | command |
-| `BRN-14` | `GetProjectBrainContext` | Brain + Project composition | exact Project Brain binding; ordinary read or purpose-bound build disclosure | read |
 
 # 5A. Broader retained historical/platform ledger
 
@@ -323,7 +309,7 @@ owners = 13
 
 No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default Workspace operation is admitted.
 
-## 5.3 Project — 23
+## 5.3 Project — 17
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
@@ -332,12 +318,6 @@ No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default 
 | `PRJ-03` | `CreateProject` | Project + accepted L7 composition | exact Workspace; atomically establishes Project + initial I&A grant + one canonical Project source bootstrap | command/cross-owner atomic |
 | `PRJ-05` | `ArchiveProject` | Project | exact Project archive authority; does not unpublish/stop automations | command/current-state |
 | `PRJ-06` | `DuplicateProject` | Project | source authority + destination Workspace create authority; default NO DATA; no credential/binding copy | command/cross-scope |
-| `PRJ-10` | `GetProjectBrainBinding` | Project | exact pinned binding + validation/update state | read |
-| `PRJ-11` | `SetProjectBrainBinding` | Project + accepted L7 composition | exact immutable Brain revision + conformance + Project authority | command/current-state |
-| `PRJ-12` | `ClearProjectBrainBinding` | Project | exact current binding; narrowing | narrowing command |
-| `PRJ-13` | `ListProjectConnectionBindings` | Project | exact Project disclosure with server-composed human Connection presentation; binding identity remains exact machine coordinates | read |
-| `PRJ-14` | `SetProjectConnectionBinding` | Project + accepted L7 composition | exact qualified compatible ConnectionRevision/environment | command/current-state |
-| `PRJ-15` | `RemoveProjectConnectionBinding` | Project | exact current binding; narrowing | narrowing command |
 | `PRJ-16` | `ListProjectCapabilities` | Project projection | exact authored/Release capabilities with human name/purpose; inspection only, no invocation grant | read |
 | `PRJ-17` | `GetProjectCapability` | Project projection | exact Project/capability identity + human purpose + logical input/output contract; inspection only | read |
 | `PRJ-18` | `ListProjectDataResources` | Project | declared Project Data resources with exact machine identity + server-owned human presentation + semantic resource/source classification | read/provenance |
@@ -416,59 +396,6 @@ No physical database explorer, generic metadata editor, new operation, Permissio
 F16 new operations = 0
 Project remains 23 at F16
 N_platform = 116 at F16
-ordinary Permissions remain 25
-records remain 46
-```
-
-### 5.3.4 `4C-F17` — Project Connection binding recognition and purpose-bound selection disclosure
-
-P-02 authority-feasibility proved two coupled human-operability gaps: an existing `ProjectConnectionBinding` had no guaranteed human Connection presentation, and a caller admitted to perform `PRJ-14` under `project.manage + connection.use` could not obtain a narrow candidate list without also gaining the broader `connection.read` Permission. The operator accepted `CURRENT STRUCTURE CONFIRMED`: Project remains binding owner, Connections remains Connection owner, and existing `PRJ-13/14` plus `CON-03` remain the operation family.
-
-```text
-PRJ-13 / PRJ-14 response
-→ ProjectConnectionBinding gains server-composed connectionName
-→ binding identity remains connectionId + connectionRevisionId + environment
-→ connectionName = presentation only
-
-CON-03 ordinary disclosure
-→ connection.read
-
-CON-03 purpose-bound Project binding-selection disclosure
-→ exact target Project context
-→ project.manage + connection.use
-→ same lightweight Connection[] projection
-→ Workspace-owned candidate remains constrained to the exact target Project/Workspace authority
-→ Project-owned candidate must be owned by that same exact Project
-```
-
-Purpose-bound negative laws:
-
-```text
-connectionName -X-> binding identity / routing / authorization
-connection.use -X-> generic connection.read
-purpose-bound CON-03 -X-> CON-04 configuration
-purpose-bound CON-03 -X-> credentials / connection.manage / connection.qualify
-purpose-bound CON-03 -X-> qualification history / qualification matrix
-purpose-bound CON-03 -X-> cross-Workspace or sibling-private Connection disclosure
-```
-
-The existing current `Connection.connectionTest` is sufficient for the F1 candidate presentation only when all exact coordinates agree:
-
-```text
-connectionTest.state = PASSED
-AND candidate revision = currentRevisionId
-AND selected binding environment = connectionTest.environment
-```
-
-This is a presentation eligibility cue, not write authority. `PRJ-14` always revalidates exact qualified compatible ConnectionRevision/environment and current Project/binding authority at submit time.
-
-No `ListBindableConnections`, generic ResourceBinding framework, qualification-history family, new operation, Permission, owner, principal, trust boundary or durable record class is admitted by `4C-F17`.
-
-```text
-F17 new operations = 0
-Project remains 23 at F17
-Connections remains 9
-N_platform = 116 at F17
 ordinary Permissions remain 25
 records remain 46
 ```
@@ -845,384 +772,6 @@ ordinary Permissions remain 25
 semantic owners/principals/trust boundaries/durable record classes remain unchanged
 ```
 
-## 5.5 Brain — 13
-
-| ID | Operation | Owner | Consumer / authority root | Class |
-| --- | --- | --- | --- | --- |
-| `BRN-01` | `GetWorkspaceBrain` | Brain | exact Workspace Brain disclosure | read |
-| `BRN-02` | `ListBrainRevisions` | Brain/Registry projection | ordinary exact Workspace Brain history under `brain.read`, or purpose-bound immutable revision selection for one exact target Project under `project.manage + brain.bind` | read |
-| `BRN-03` | `GetBrainRevision` | Brain/Registry projection | exact immutable revision + deterministic human-readable review content + deterministic structured source-bound knowledge browse of its exact sourceRevision | read |
-| `BRN-04` | `StartBrainDiscovery` | Brain | exact Workspace/Project + admitted read-only source scope; proposals remain hypotheses | investigation command |
-| `BRN-05` | `ListKnowledgeProposals` | Brain | exact Workspace Brain review visibility | read/review |
-| `BRN-06` | `GetKnowledgeProposal` | Brain | exact proposal + provenance/hypothesis state + deterministic human-readable review projection of its exact candidateSourceRevision | read/review |
-| `BRN-07` | `SubmitKnowledgeProposal` | Brain | source-backed exact candidate+provenance **or** Discovery-backed exact discovery candidate + explicit human resolution; Brain re-resolves provenance/materializes candidate source; never self-publishes | command |
-| `BRN-08` | `DecideKnowledgeProposal` | Brain | exact proposal + current human review authority | decision/current-state |
-| `BRN-09` | `PublishBrainRevision` | Brain | exact reviewed/validated candidate → immutable revision | consequential command/current-proof |
-| `BRN-10` | `GetBrainHealth` | Brain | exact Brain/binding context; preserves `UNVERIFIED/VALID/SUSPECT/INVALID/CHECK_ERROR` | read/provenance |
-| `BRN-12` | `RunAnalyticQuery` | Brain/Gateway governed read regime | exact Project + Brain binding + curated dataset + semantic IDs + admitted caller route | analytic read |
-| `BRN-13` | `GetProjectAnalyticQueryCatalog` | Brain + accepted Project binding/data composition | exact current Project semantic-input disclosure for BRN-12 under current Brain binding + curated analytical admission | read/provenance |
-| `BRN-14` | `GetProjectBrainContext` | Brain + accepted Project binding/local-realization composition | exact current Project-resolved adopted/available Brain knowledge under `brain.read + project.read`; not Workspace publication or runtime effective slice | read/provenance |
-
-`BRN-11 RunBrainHealthProbe` is `SYSTEM_OWNER_TRANSITION`: owner/proof orchestration may produce health Evidence but is not a caller Product command. No generic discovery-session owner, vector/RAG search operation, free-form SQL, memory publication or machine semantic approval is admitted.
-
-### 5.5.1 `4C-F05` — Discovery-backed KnowledgeProposal intake
-
-W-02A proved that accepted Brain Discovery could not reach durable proposal review truthfully when `BRN-07` required a pre-existing source revision for every caller. The operator accepted the Global-Maximum outcome `CURRENT STRUCTURE CONFIRMED`: Brain remains the semantic owner and `BRN-07 SubmitKnowledgeProposal` remains the one proposal-intake operation.
-
-Two mutually exclusive semantic intake forms are admitted:
-
-```text
-source-backed
-→ exact existing candidateSourceRevision + provenance
-→ submit that Brain-owned candidate for review
-
-Discovery-backed
-→ exact discovery candidate
-+ explicit human resolution
-→ Brain owner revalidates exact discovery context/provenance
-→ Brain owner materializes the exact candidateSourceRevision
-→ same durable KnowledgeProposal result
-```
-
-Binding laws:
-
-```text
-BRN-04 Discovery remains read-only hypothesis/provenance work
-Discovery-backed browser input -X-> candidateSourceRevision authority
-Discovery-backed browser input -X-> caller-supplied provenance authority
-human resolution = explicit non-blank semantic confirmation/correction/resolution
-KnowledgeProposal remains durable proposal truth after submission
-BRN-08 remains exact proposal review decision
-BRN-09 remains exact reviewed-candidate publication
-proposal submission -X-> publication
-Project Builder / Project Git -X-> Workspace Brain source ownership
-```
-
-No `ResolveBrainDiscoveryCandidate`, `BrainDraft`, `DiscoverySession`, interview-thread Product domain, new operation, new ordinary Permission, new principal class or new durable record class is admitted by `4C-F05`. If a real durable pre-submission draft/collaboration consumer appears later, reopen only that exact Brain-authoring decision.
-
-### 5.5.2 `4C-F06` — exact source-bound human review content
-
-W-02A P7/data-feasibility proved that the existing exact Brain detail reads carried machine identity, state and provenance but not the human-readable meaning an authorized reviewer must inspect after refresh/re-entry. The operator accepted `CURRENT STRUCTURE CONFIRMED`: Brain remains the semantic/source owner and `BRN-03` / `BRN-06` remain the correct detail reads.
-
-Binding semantic property:
-```text
-exact sourceRevision / candidateSourceRevision
-→ Brain-owned deterministic human-readable read projection
-→ reviewer can inspect the exact meaning represented by that source
-```
-
-The wire spelling selected downstream is `reviewText`, but 4A owns only its semantic property:
-
-```text
-review content = nonblank human-readable deterministic projection
-review content derives from the exact named Brain source revision
-review content is read-only presentation content
-review content -X-> canonical Brain source
-review content -X-> source/revision/digest identity
-review content -X-> proposal decision subject
-review content -X-> publication subject
-```
-
-Decision/current-state authority remains unchanged:
-
-```text
-BRN-08 DecideKnowledgeProposal → exact proposalRevision/current reviewer authority
-BRN-09 PublishBrainRevision     → exact reviewed candidateSourceRevision
-```
-
-No Brain file/tree browser/editor, Project Builder source reuse, generic cross-owner `ReviewProjection` Product domain, new operation, new ordinary Permission, new principal or new durable record class is admitted by `4C-F06`. Rich rendering, projection compilation, generated anchors and shared mechanism remain downstream interaction/4D questions and never become Brain Product authority by presentation convenience.
-
-### 5.5.3 `4C-F07` — exact source-bound structured knowledge browse
-
-W-02A P9 proved that plain human review prose is not enough to implement the operator-approved `Knowledge → Domain → Concept` browse without making the frontend infer semantic hierarchy from `reviewText`, rendered DOM or Brain Git. The operator accepted `CURRENT STRUCTURE CONFIRMED`: Brain remains the semantic/source owner and `BRN-03 GetBrainRevision` remains the exact published-revision detail read.
-
-Binding semantic property:
-
-```text
-exact sourceRevision
-→ Brain-owned deterministic structured source-bound browse/review projection
-→ business-aligned domain/namespace grouping
-→ business concept recognition + human summary/detail
-→ canonical content-class attribution where relevant
-→ explicit disclosable provenance
-```
-
-The structured projection must expose enough server-owned truth for the approved human experience without selecting physical Brain-Git topology. At 4A the required semantic roles are:
-
-```text
-domain coordinate + human label
-concept coordinate + human label + summary
-canonical content-class attribution from SEMANTIC | KNOWLEDGE | EVIDENCE_SPEC
-human review sections sufficient for definition/business meaning/calculation/grain/relationships/rules/caveats/verification when present
-explicit provenance references when disclosable
-```
-
-Projection coordinates are scoped to the exact source revision and support rendering/local navigation only:
-
-```text
-domain/concept projection coordinate -X-> canonical Brain source identity
-domain/concept projection coordinate -X-> semantic-ID authority
-domain/concept projection coordinate -X-> proposal decision subject
-domain/concept projection coordinate -X-> publication subject
-```
-
-Current F1 does not admit a separate Brain catalog/search/pagination Product family merely to implement this browse. Local find/filter may operate only over already-disclosed structured revision truth. Reopen list/detail/search/pagination only when a real locked consumer proves the whole-revision detail read insufficient for response size, latency, independent disclosure or exact concept re-entry.
-
-Decision/current-state authority remains unchanged:
-
-```text
-BRN-08 DecideKnowledgeProposal → exact proposalRevision/current reviewer authority
-BRN-09 PublishBrainRevision     → exact reviewed candidateSourceRevision
-ProjectBrainBinding             → separately pins exact immutable Brain revision
-```
-
-No new Product operation, Permission, semantic owner, principal class, trust boundary or durable record class is admitted by `4C-F07`. Browser Brain-Git access, `reviewText`/DOM parsing as semantic authority, vector/RAG catalog authority and a generic cross-owner ReviewProjection domain remain rejected.
-
-### 5.5.4 `4C-F18` — Project Brain binding revision-selection disclosure
-
-P-02 authority-feasibility proved that a principal may hold the exact `PRJ-11` write authority `project.manage + brain.bind` while lacking generic `brain.read`, leaving no honest human route to choose the immutable Brain revision being adopted. The operator accepted reuse of `BRN-02 ListBrainRevisions` rather than a screen-shaped parallel operation.
-
-```text
-BRN-02 ordinary disclosure
-→ brain.read
-
-BRN-02 purpose-bound Project Brain-binding selection disclosure
-→ exact target Project context
-→ project.manage + brain.bind
-→ same immutable BrainRevision[] summary
-→ server revalidates Workspace/Project containment
-
-brain.bind -X-> generic brain.read
-purpose-bound BRN-02 -X-> BRN-03 knowledgeBrowse
-purpose-bound BRN-02 -X-> proposal / review / publication / Brain mutation authority
-```
-
-`PRJ-11` remains the final binding authority and revalidates the exact immutable revision, Project containment/conformance and current binding subject at submit time. The alternate disclosure provides selection information only; stale summaries never become binding authority.
-
-No `ListBindableBrainRevisions`, BRN-03 widening, new operation, Permission, owner, principal, trust boundary or durable record class is admitted by `4C-F18`.
-
-```text
-F18 new operations = 0
-Brain remains 11 at F18
-Project remains 23 at F18
-N_platform = 116 at F18
-ordinary Permissions remain 25
-records remain 46
-```
-
-### 5.5.5 `4C-F19` — Project AnalyticQuery semantic-input catalog
-
-P-02 authority-feasibility proved that `BRN-12 RunAnalyticQuery` is a deterministic governed analytical executor whose request requires canonical `datasetSemanticId + selectSemanticIds[]`, but no accepted Product read exposes the exact current Project-admitted IDs with human presentation. `BRN-03` browse coordinates are revision-local navigation coordinates and explicitly not canonical semantic identity; `PRJ-18/19` cannot absorb Brain-owned semantic authority under `project.data.read` alone.
-
-The operator accepted exactly one new read:
-
-```text
-BRN-13 GetProjectAnalyticQueryCatalog
-→ exact target Project
-→ current Project Brain binding
-→ brain.read + project.data.read
-→ current server-derived admitted semantic query choices
-→ projectId + brainRevisionId + brainDigest + projectBindingDigest
-→ datasets[]
-   → datasetSemanticId + human label
-   → selectableSemantics[]
-      → semanticId + human label
-```
-
-Authority/freshness law:
-
-```text
-label = presentation only
-canonical semantic IDs = exact BRN-12 request coordinates after server revalidation
-catalog read = current projection, never durable browser authority
-binding/semantic change after read may invalidate a later submit
-BRN-12 always revalidates current Project grant/binding/health/dataset/semantic admission
-```
-
-Explicitly rejected in F1:
-
-```text
-List + Get analytic-dataset operation family
-natural-language analytic planner
-arbitrary SQL / expressions
-physical tables / schemas / joins
-semantic-search API
-metric/dimension framework without a proved consumer
-pagination without evidenced scale need
-conceptRef promoted to canonical semanticId
-frontend-owned semantic catalog
-```
-
-```text
-F19 new operations = 1
-Brain 11 → 12
-N_platform 116 → 117
-ordinary Permissions remain 25
-new owners = 0
-new durable records = 0
-```
-
-### 5.5.6 `4C-F23` — Project Brain Context
-
-The whole-P-02 walkthrough proved a human job distinct from binding administration and Workspace Brain governance: inside an exact Project, an authorized person must be able to understand what enterprise meaning that Project has adopted and has available in its current Brain context. `PRJ-10` exposes only binding/revision/validation/update truth, `BRN-03` exposes the whole Workspace Brain revision, and `BRN-13` exposes only the analytic-input subset. Browser composition of those reads would require the frontend to decide Project applicability and become parallel Brain authority.
-
-The operator accepted exactly one new read:
-
-```text
-BRN-14 GetProjectBrainContext
-→ exact target Project
-→ exact current Project Brain binding
-→ brain.read + project.read + exact Project grant
-→ server resolves admitted Project-local realization/refinement
-→ returns Project-resolved adopted/available Brain knowledge
-→ binding identity/state remains visible
-→ structured domains/concepts/sections/provenance remain Brain-owned presentation truth
-```
-
-Context law:
-
-```text
-Project Brain Context != whole Workspace Brain publication
-Project Brain Context != runtime effectiveBrainSlice
-Project Brain Context != ToolProjection / Agent context
-server resolves Project applicability; browser never filters the Workspace Brain into authority
-Project-context domainRef/conceptRef = rendering/navigation coordinates only
-Project-context coordinates -X-> canonical semanticId / source identity / decision subject / runtime tool coordinate
-brain.bind -X-> brain.read
-```
-
-Explicitly rejected/deferred:
-
-```text
-widen PRJ-10 into a knowledge payload = REJECTED
-browser PRJ-10 + BRN-03 applicability join = REJECTED
-Workspace Brain authoring/review/publication through BRN-14 = REJECTED
-effectiveBrainSliceDigest as Project-wide static truth = REJECTED
-runtime memory/RAG/vector/tool authority = REJECTED
-Data→Brain exact concept links = DEFERRED until a real exact server-owned relation is proven
-Integration→Capability dependency graph = DEFERRED until a real current consumer proves it
-```
-
-BRN-14 is a current read projection over existing Brain revision + Project binding/local realization and creates no eighth L7 orchestration flow, generic Context owner or durable context record.
-
-```text
-F23 new operations = 1
-Brain 12 → 13
-N_platform 121 → 122
-ordinary Permissions remain 25
-new semantic owners = 0
-new principal classes = 0
-new trust boundaries = 0
-new durable records = 0
-```
-
-## 5.6 Connections — 9
-
-| ID | Operation | Owner | Consumer / authority root | Class |
-| --- | --- | --- | --- | --- |
-| `CON-01` | `ListConnectorDefinitions` | Connections/platform-pack projection | admitted Connector definitions | read |
-| `CON-02` | `GetConnectorDefinition` | Connections/platform-pack projection | exact Connector version/definition | read |
-| `CON-03` | `ListConnections` | Connections | ordinary exact Workspace/Project collection under `connection.read`, or purpose-bound exact-Project binding-selection summary under `project.manage + connection.use`; current derived Connection-test applicability remains presentation truth only | read |
-| `CON-04` | `GetConnection` | Connections | exact Connection + ownerScope containment + exact currentRevisionId-bound non-secret configuration + current derived Connection-test applicability | read |
-| `CON-05` | `CreateConnection` | Connections | exact ownerScope/owner + Connector; no sibling reuse | command |
-| `CON-06` | `ReviseConnection` | Connections | exact current logical Connection → immutable/new revision semantics; successful revision makes prior test basis stale | command/current-state |
-| `CON-07` | `SetConnectionCredential` | Connections + CredentialBackend boundary | exact Connection; write-only secret boundary; successful replacement advances server-owned logical credential generation and makes prior test basis stale | consequential write-only command |
-| `CON-08` | `QualifyConnection` | Connections | exact ConnectionRevision/environment + server-resolved current logical credential generation + real source Evidence | proof command |
-| `CON-09` | `GetConnectionQualification` | Connections | exact revision/credential-generation/environment test result + human diagnostic/remediation + Evidence; configured/qualified/bound/healthy remain distinct | read/provenance |
-
-No secret read, arbitrary TestURL, generic credential fetch/executor or cross-Workspace share operation is admitted.
-
-### 5.6.1 `4C-F09` — current non-secret configuration inspectability
-
-W-02B P7 authority/data feasibility proved that accepted create/revise semantics already made provider-specific non-secret configuration durable Connection-revision meaning, but the existing exact Connection detail read did not expose that current meaning after refresh/re-entry. The operator accepted `CURRENT STRUCTURE CONFIRMED`: Connections remains the semantic owner and `CON-04 GetConnection` remains the exact logical Connection detail read.
-
-Binding semantic property:
-
-```text
-exact logical Connection
-+ exact currentRevisionId
-→ Connections-owned provider-specific non-secret configuration for that exact current revision
-→ authorized human can inspect current truth and initialize an intentional CON-06 revision draft
-```
-
-Protected boundaries:
-
-```text
-Connection.name = logical human presentation identity
-configuration = non-secret current revision meaning
-credentialConfigured = non-secret credential-presence fact only
-credential = write-only secret material through CON-07
-qualification = separate exact revision/environment Evidence
-ProjectConnectionBinding = separate Project-owned use/binding truth
-Gateway health/effect admission = separate runtime truth
-
-configuration -X-> credential material
-configuration presence -X-> qualification
-credentialConfigured -X-> qualification
-configured != qualified != bound != healthy != caller-authorized
-```
-
-`CON-03 ListConnections` and `CON-05 CreateConnection` remain lightweight projections and do not carry full provider configuration merely by schema reuse. `CON-07` remains write-only with no plaintext/ciphertext/handle readback. Current F1 does not admit a generic Connection revision-history browser, rollback, `GetConnectionConfiguration`, `GetConnectionRevision`, rename/delete authority, qualification history or synthesized `latestQualification` merely to implement this current-detail consumer.
-
-No new Product operation, ordinary Permission, semantic owner, principal class, trust boundary or durable record class is admitted by `4C-F09`; at its closure `N_platform` remained 113.
-
-### 5.6.2 `4C-F10` — current test applicability and human diagnostics
-
-The W-02B functional P8 walkthrough proved that exact qualification Evidence alone does not close the human job “does this Connection work now, and if not why?” after refresh/re-entry. The operator accepted `CURRENT STRUCTURE CONFIRMED`: Connections remains the owner; `CON-08 QualifyConnection` remains the one real provider/source proof job; `CON-09 GetConnectionQualification` remains the exact result read.
-
-Binding semantic properties:
-
-```text
-CON-08
-→ caller supplies exact connectionRevisionId + environment only
-→ Connections resolves the current logical credential generation server-side
-→ existing ConnectionQualification binds exact revision + credential generation + environment + testedAt
-
-CON-09
-→ exact qualification result preserves owner-specific qualificationState + Evidence
-→ additionally exposes stable human outcome PASSED | FAILED | INDETERMINATE
-→ additionally exposes deterministic human diagnostic title/message and optional remediation
-```
-
-Connections derives a small current test-applicability projection for `CON-03` / `CON-04`:
-
-```text
-NOT_TESTED
-= no prior qualification is available
-
-NEEDS_RETEST
-= prior qualification exists but its exact ConnectionRevision and/or logical credential generation no longer match current Connection truth
-
-PASSED | FAILED | INDETERMINATE
-= the projected qualification basis still matches the current revision + logical credential generation
-```
-
-This is **test applicability**, never a generic Connection lifecycle or runtime-health state. Old qualification Evidence remains durable when configuration or credentials change; only its current applicability changes.
-
-Logical credential generation is a non-secret Connections-owned coordinate:
-
-```text
-logical credential generation -X-> credential bytes
-logical credential generation -X-> crypto key version
-logical credential generation -X-> transient provider access token
-caller -X-> choose credential generation for CON-08
-```
-
-Protected negative laws:
-
-```text
-qualification passed -X-> Connected
-qualification passed -X-> Active / Ready / Healthy
-qualification passed -X-> Project bound
-qualification passed -X-> caller authorized
-frontend evidenceRefs parsing -X-> diagnostic authority
-configuration or credential change -X-> old qualification remains current
-```
-
-The Control Plane may label `CON-08 QualifyConnection` as **Test connection** and `CON-09` as **Test result / View problem** without creating a second Product operation.
-
-No new Product operation, ordinary Permission, semantic owner, principal class, trust boundary or durable record class is admitted by `4C-F10`. At its closure `N_platform` remained 113; F11 later raises the current whole-platform count independently.
-
 ## 5.7 Release / Promotion / serving — 7
 
 | ID | Operation | Owner | Consumer / authority root | Class |
@@ -1482,9 +1031,8 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | `PRJ-03` | `HUMAN_ACCOUNT_SESSION / CP` | `project.create` | destination Workspace + atomic Project/initial current-Account direct grant carrying `project.read + project.manage` + one canonical source-bootstrap admission; success implies a source-complete Project | `COMMAND` | `IC3` |
 | `PRJ-05` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact current Project; archive preserves independent serving/automation laws | `COMMAND` | `IC2` |
 | `PRJ-06` | `HUMAN_ACCOUNT_SESSION / CP` | source `project.manage` + destination `project.create` | source Project + destination Workspace; NO DATA/no credentials/no bindings by default | `COMMAND` | `IC3` |
-| `PRJ-10,PRJ-12,PRJ-13,PRJ-15` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/binding subject; PRJ-13 binding responses may compose Connection presentation but gain no Connection management/read authority; removals are narrowing | reads `READ`; decisions/writes `DECISION/COMMAND` | reads `IC0`; writes `IC2` |
-| `PRJ-11` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage + brain.bind` | exact immutable Brain revision + current conformance + exact Project binding subject | `DECISION` | `IC2` |
-| `PRJ-14` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage + connection.use` | exact qualified compatible ConnectionRevision/environment + current Project binding | `DECISION` | `IC2` |
+| `PRJ-07` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage`; plus `connection.use` only when an already-admitted external source context actually requires it | exact inception Project + non-blank human intent + server-resolved admitted source/context; optional refinement requires exact prior candidate + explicit review feedback; investigation cannot publish authority directly | `PROOF` | `IC3` |
+| `PRJ-08,PRJ-09,PRJ-23,PRJ-24` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/current or candidate Baseline subject; PRJ-24 is exact candidate-bound read-only explanation; removals are narrowing | reads `READ`; decisions/writes `DECISION/COMMAND` | reads `IC0`; writes `IC2` |
 | `PRJ-16,PRJ-17` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `project.read` or purpose-bound `project.build` | exact Project + capability identity; human name/purpose and logical input/output contract are inspection/construction truth only and do not grant invocation, data, source or runtime authority | `READ` | `IC0` |
 | `PRJ-18,PRJ-19` | `HUMAN_ACCOUNT_SESSION / CP` | `project.data.read` | exact declared semantic Data resource + admitted source/read-model scope; human name, resource/source kind and logical fields/relationships/rules are disclosed semantic inspection truth only, never physical explorer identity or authorization | `PROVENANCE_READ` | `IC0` |
 | `PRJ-25..28` | `HUMAN_ACCOUNT_SESSION / CP` | `project.data.read` | exact Project + server-resolved current explorer eligibility; Project Database business/application data or exact eligible currently bound integration source only; source/object/page coordinates remain untrusted, and PRJ-28 filters/sorts only disclosed exact-object columns | `PROVENANCE_READ` | `IC0` |
@@ -1495,20 +1043,6 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | `BLD-01..04,BLD-06,BLD-10,BLD-16..22` | `HUMAN_ACCOUNT_SESSION / CP` | `project.build` | exact Project/Change human intent/Plan/current-or-candidate Preview/context plus typed Product Agent draft and exact verified Change candidate preparation; BLD-18 reads current draft, BLD-19 idempotently establishes NEW/EXISTING draft, BLD-20 revises only the expected current draft revision, BLD-21 starts/coalesces preparation without setting MAR readiness, and BLD-22 launches only the exact currently prepared attempt with a one-use entry grant | reads `READ`; create/revise/prepare/launch `COMMAND` | reads `IC0`; BLD-03/19 `IC3`; BLD-20/21/22 `IC2` |
 | `BLD-05,BLD-11..15` | `HUMAN_ACCOUNT_SESSION / CP` | `project.review` | exact Change/Plan/Finding/Evidence subject + current eligibility | reads `READ`; decisions `DECISION` | reads `IC0`; decisions `IC2` |
 | `BLD-07..09` | `HUMAN_ACCOUNT_SESSION / CP` | `project.source.read` | exact immutable/current source revision/path/lineage | `READ` | `IC0` |
-| `BRN-01,BRN-03,BRN-10` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.read` | exact Workspace Brain/detail/health disclosure; BRN-03 includes exact-source deterministic human-readable review content plus structured source-bound knowledge browse | `PROVENANCE_READ` | `IC0` |
-| `BRN-02` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `brain.read`; purpose-bound alternate `project.manage + brain.bind` | ordinary route exposes exact Workspace immutable revision history; alternate requires exact target Project and returns only immutable BrainRevision summaries for binding selection, never BRN-03 knowledgeBrowse/proposal/publication authority | `READ` | `IC0` |
-| `BRN-04` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.discover`; plus `connection.use` for external source | exact Workspace/Project/source scope; hypotheses only | `PROOF` | `IC3` |
-| `BRN-05,BRN-06,BRN-08` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.review` | exact proposal/review subject + current reviewer authority; BRN-06 includes exact-candidate-source deterministic human-readable review content | reads `READ`; decision `DECISION` | reads `IC0`; decision `IC2` |
-| `BRN-07` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.propose` | exact Workspace Brain; source-backed exact candidate/provenance or Discovery-backed exact candidate + explicit human resolution; Brain re-resolves Discovery provenance/materializes candidate source; cannot self-publish | `COMMAND` | `IC3` |
-| `BRN-09` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.publish` | exact reviewed/validated candidate + current publication authority | `DECISION` | `IC2` |
-| `BRN-12` Control Plane route | `HUMAN_ACCOUNT_SESSION / CP` | `brain.read + project.data.read` | exact Project + Brain binding + curated dataset + semantic IDs + current Project grant | `ANALYTIC` | `IC0` |
-| `BRN-12` Published-App route | `PUBLISHED_APP_HUMAN / PA` | exact Release-declared app role subset | exact active Release + app access + Brain/dataset projection | `ANALYTIC` | `IC0` |
-| `BRN-12` Agent route | `PAR_AGENT_RUN_CONTEXT / PAR_TOOL` | exact ToolProjection | exact active AgentRun/Release/Brain/dataset projection | `ANALYTIC` | `IC0` |
-| `BRN-13` | `HUMAN_ACCOUNT_SESSION / CP` | `brain.read + project.data.read` | exact Project + current Brain binding + curated analytical admission; catalog is a current server projection and does not become durable browser authority | `READ` | `IC0` |
-| `BRN-14` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `brain.read + project.read` or purpose-bound `project.build` | exact current Project Brain binding; ordinary route exposes Project context detail, while build-only route exposes server-issued authoringRef + human recognition and explicitly withholds sections/provenance; never whole-Workspace publication or runtime effective slice | `PROVENANCE_READ` | `IC0` |
-| `CON-01..04,CON-09` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `connection.read`; `CON-03` additionally admits purpose-bound `project.manage + connection.use` | ordinary route uses exact Connector/Connection/revision/environment/ownerScope disclosure; purpose-bound CON-03 requires exact target Project and returns only the existing lightweight summary; CON-04 additionally exposes current non-secret configuration; CON-09 exposes exact test basis + human diagnostic/remediation + Evidence | `CON-09` `PROVENANCE_READ`; others `READ` | `IC0` |
-| `CON-05..07` | `HUMAN_ACCOUNT_SESSION / CP` | `connection.manage` | exact ownerScope/current Connection; credential is write-only; CON-06 revision or CON-07 credential replacement makes an older test basis non-current | `COMMAND`/`CONSEQUENTIAL` | `CON-05` `IC3`; `CON-06` `IC2`; `CON-07` `IC3` |
-| `CON-08` | `HUMAN_ACCOUNT_SESSION / CP` | `connection.qualify` | exact ConnectionRevision/environment + server-resolved current logical credential generation + real provider/source Evidence | `PROOF` | `IC3` |
 | `REL-01,REL-02,REL-04,REL-05,REL-07` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read`; `REL-07` additionally admits purpose-bound `release.promote` target/serving discovery | exact Project/Release/Promotion/server-disclosed target/serving truth | `REL-07` `PROVENANCE_READ`; others `READ` | `IC0` |
 | `REL-06` | `HUMAN_ACCOUNT_SESSION / CP` | `release.promote` | exact Release/environment + current proof/conformance + expected pointer generation; repeatable promotion intake cannot manufacture duplicate Promotion/effect | `CONSEQUENTIAL` | `IC2 AND IC3` |
 | `REL-08` | `HUMAN_ACCOUNT_SESSION / CP` | `release.promote` | exact target-environment conformance subject; read grants no pointer mutation | `PROOF` | `IC0` |
@@ -1547,7 +1081,7 @@ The first candidate had 117 admitted fixed-platform rows. The original ratified 
 117
 - 1 IAM GrantPublishedAppAccess + ChangePublishedAppAccessRole
     → one IAM-15 SetPublishedAppAccess semantic operation
-- 1 BRN-11 RunBrainHealthProbe
+- 1 RunBrainHealthProbe
     → SYSTEM owner/proof orchestration
 - 1 REL-03 ComposeRelease
     → SYSTEM owner transition gated by current accepted proof
@@ -1601,7 +1135,7 @@ W-03B, P-01 and P-02 F16–F18 then enriched existing operations without count c
 
 ```text
 116
-+ 1 BRN-13 GetProjectAnalyticQueryCatalog
++ 1 GetProjectAnalyticQueryCatalog
 = 117 fixed Conexus platform Product operations after F19
 ```
 
@@ -1622,7 +1156,7 @@ P-02 F23 then admits exactly one server-resolved Project Brain Context read prov
 
 ```text
 121
-+ 1 BRN-14 GetProjectBrainContext
++ 1 GetProjectBrainContext
 = 122 current fixed Conexus platform Product operations
 ```
 
@@ -1660,7 +1194,7 @@ The operator-approved pre-P11 F05 correction then admits one Project-owned human
 = 128 current fixed Conexus platform Product operations
 ```
 
-`PRJ-03`, `BRN-02`, `BRN-03`, `BRN-06`, `BRN-07`, `BRN-14`, `CON-03`, `CON-04`, `CON-07`, `CON-08`, `CON-09`, `OBS-04`, `OBS-05`, `BLD-01`, `BLD-02`, `BLD-03`, `BLD-10`, `BLD-16`, `PRJ-13`, `PRJ-14`, `PRJ-16`, `PRJ-17`, `PRJ-18` and `PRJ-19` gained only bounded missing semantics required by real consumers; they remain the same Product operations. F11 adds exactly three purpose-built reads because three independent access-administration read jobs are proven; F19 adds exactly one purpose-built read because BRN-12's human semantic-input discovery is otherwise impossible from Product authority; F22 adds exactly four reads because source discovery, scalable source-scoped object discovery, exact object structure and structured row browsing are independently bounded human reads and must not collapse into a generic provider/resource tree; F23 adds exactly one read because Project Brain context inspection is neither binding administration, whole-Workspace Brain browse nor runtime context composition; PRE11-F05 adds exactly one Project-owned model-policy read because a required model-policy reference otherwise has no human-recognizable construction source.
+`PRJ-03`, `PRJ-07`, `OBS-04`, `OBS-05`, `BLD-01`, `BLD-02`, `BLD-03`, `BLD-10`, `BLD-16`, `PRJ-16`, `PRJ-17`, `PRJ-18` and `PRJ-19` gained only bounded missing semantics required by real consumers; they remain the same Product operations. F11 adds exactly three purpose-built reads because three independent access-administration read jobs are proven; F22 adds exactly four reads because source discovery, scalable source-scoped object discovery, exact object structure and structured row browsing are independently bounded human reads and must not collapse into a generic provider/resource tree; PRE11-F05 adds exactly one Project-owned model-policy read because a required model-policy reference otherwise has no human-recognizable construction source.
 
 Rejected convenience/mechanism operations include:
 
@@ -1740,7 +1274,7 @@ mutable foreign-owner mirrors required      = 0
 semantic owner boundaries preserved         = 13/13
 ```
 
-F11 reuses existing `iam.account`, membership/grant records and `ws.area`; F12 reuses existing `obs.audit_record`; F14/F15/F16/F17/F18/F19/F20/F21 reuse existing Builder/Project/Connections/Brain owners/projections. BRN-13 is a current projection, not a new durable catalog record. Data logical fields/relationships/rules and Capability input/output inspection are projections of already-admitted Project/Release meaning, not new durable Product records. F22's source/object/structure/row views are current Project-owned disclosure projections over existing Project Database / exact bound source truth and introduce no explorer catalog/row durable record class or new semantic owner. F23's Project Brain Context is a current projection over existing immutable Brain revision + Project binding/local realization and introduces no context record, owner or mutable foreign-authority mirror.
+F11 reuses existing `iam.account`, membership/grant records and `ws.area`; F12 reuses existing `obs.audit_record`; F14/F15/F16/F20/F21 reuse existing Builder/Project owners/projections. Data logical fields/relationships/rules and Capability input/output inspection are projections of already-admitted Project/Release meaning, not new durable Product records. F22's source/object/structure/row views are current Project-owned disclosure projections over existing Project Database / exact bound source truth and introduce no explorer catalog/row durable record class or new semantic owner.
 
 Artifact Registry remains semantic projection rather than Universal Artifact CRUD. Attachments/Blob remain owner-bound carriers. Gateway remains last-mile effect authority rather than a second business-command owner. PAR owns runtime, not authored Agent definition. MAR owns serving/job-run mechanics, not a generic scheduler Product domain.
 
@@ -1846,35 +1380,6 @@ The original independent Fable review remains historical Evidence. Later bounded
 → no new operation / Permission / owner / principal / trust boundary / durable record class
 → N_platform remains 116
 
-4C-F17 OPERATOR ACCEPT
-→ preserve Project-owned concrete ProjectConnectionBinding authority
-→ enrich disclosed binding responses with server-composed connectionName presentation
-→ preserve CON-03 as the one Connection collection operation
-→ ordinary CON-03 remains connection.read
-→ purpose-bound CON-03 requires exact target Project + project.manage + connection.use
-→ connection.use -X-> generic connection.read
-→ no ListBindableConnections / qualification-history matrix / new Permission / owner / record
-→ N_platform remains 116
-
-4C-F18 OPERATOR ACCEPT
-→ preserve BRN-02 as the one immutable Brain revision list
-→ ordinary BRN-02 remains brain.read
-→ purpose-bound BRN-02 requires exact target Project + project.manage + brain.bind
-→ summary-only immutable revision disclosure; BRN-03 knowledgeBrowse remains separately governed
-→ brain.bind -X-> generic brain.read
-→ no ListBindableBrainRevisions / new Permission / owner / record
-→ N_platform remains 116
-
-4C-F19 OPERATOR ACCEPT
-→ add exactly BRN-13 GetProjectAnalyticQueryCatalog
-→ exact Project + current Brain binding + curated semantic-input projection
-→ brain.read + project.data.read; no new ordinary Permission
-→ human labels remain presentation; canonical semantic IDs remain BRN-12 request coordinates
-→ no SQL / physical topology / natural-language planner / semantic-search family
-→ no new owner / principal / trust boundary / durable record class
-→ Brain 11 → 12
-→ N_platform 116 → 117
-
 4C-F20 OPERATOR ACCEPT
 → preserve PRJ-18/19 as the complete semantic Project Data-resource read family
 → add semantic resourceKind TABLE|VIEW|DATASET and sourceKind INTERNAL|INTEGRATION|DERIVED
@@ -1905,17 +1410,6 @@ The original independent Fable review remains historical Evidence. Later bounded
 → no new owner / principal / trust boundary / durable record class
 → Project 23 → 27
 → N_platform 117 → 121
-
-4C-F23 OPERATOR ACCEPT
-→ add exactly BRN-14 GetProjectBrainContext
-→ exact Project + current Brain binding + Project-local realization/refinement
-→ brain.read + project.read + exact Project grant; no new ordinary Permission
-→ Project-context knowledge is server-resolved; browser cannot derive applicability from the whole Workspace Brain
-→ Project Brain Context != Workspace publication != runtime effectiveBrainSlice
-→ no ToolProjection / memory / RAG / vector / permission or publication authority
-→ no new L7 flow / owner / principal / trust boundary / durable record class
-→ Brain 12 → 13
-→ N_platform 121 → 122
 
 4C-F24 OPERATOR ACCEPT
 → preserve PRJ-20 as the one Project Agent collection read
@@ -2023,7 +1517,7 @@ The original independent Fable review remains historical Evidence. Later bounded
 → no new operation / ordinary Permission / semantic owner / durable record class
 
 4C-PRE11-F05 OPERATOR ACCEPT
-→ PRJ-16/17 and BRN-14 gain purpose-bound project.build disclosure only
+→ PRJ-16/17 gain purpose-bound project.build disclosure only
 → add PRJ-29 ListProjectModelPolicies under Project owner
 → optional unowned Agent refs empty for NEW and preserved for EXISTING
 → Project 27 → 28

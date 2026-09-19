@@ -162,10 +162,6 @@ PRJ-03 CreateProject
 PRJ-06 DuplicateProject
 → requires destinationWorkspaceId + explicit destination name
 
-CON-05 CreateConnection
-→ requires explicit name
-→ returns canonical Connection including name
-
 IAM-03 ProvisionAccount
 → requires externalSubject + displayName
 → accepts optional email
@@ -202,15 +198,6 @@ PRJ-01 ListProjects
 
 PRJ-02 GetProject
   → ProjectRepresentation including name
-```
-
-Logical Connection:
-
-```text
-CON-03 ListConnections
-CON-04 GetConnection
-CON-05 CreateConnection
-→ canonical Connection includes connectionId + name
 ```
 
 Control Plane current-session recognition:

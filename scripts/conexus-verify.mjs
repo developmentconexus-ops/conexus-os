@@ -70,8 +70,6 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('wire-identity-workspace', 'npm run wire:identity-workspace'),
   candidateStep('wire-project', 'npm run wire:project'),
   candidateStep('wire-builder', 'npm run wire:builder'),
-  candidateStep('wire-brain', 'npm run wire:brain'),
-  candidateStep('wire-connections', 'npm run wire:connections'),
   candidateStep('wire-technical-lint', 'npm run wire:technical-lint'),
   candidateStep('wire-technical-ingress', 'npm run wire:technical-ingress'),
 ])

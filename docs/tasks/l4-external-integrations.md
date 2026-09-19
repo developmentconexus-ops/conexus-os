@@ -1,5 +1,9 @@
 # L4 — External integrations task plan
 
+> Superseded on 2026-09-19. Connections, connection bindings and the Sankhya
+> gateway left the product; the source paths and wire fragment this plan
+> named are deleted. This task document is retained as history only.
+
 ## Goal and design
 
 Applications invoke external reads and writes through Conexus-managed
@@ -22,8 +26,7 @@ the provider and caller details before implementation or external execution.
   [Project operation grammar](../product/operation-ledger.md#4-project-defined-capability-admission-grammar),
   [permissions](../product/permission-contract.md),
   [security](../reference/security-and-authority.md).
-- [Connection wire](../../contracts/api/product/connection-paths.yaml),
-  [Gateway inspection wire](../../contracts/api/product/gateway-paths.yaml),
+- [Gateway inspection wire](../../contracts/api/product/gateway-paths.yaml),
   [effect recovery](../reference/release-deployment-and-operations.md).
 - Existing source: `apps/hub/src/connections/{module,routes,store,transport,sankhya-om}.ts`,
   `apps/hub/src/gateway/`, `apps/hub/src/platform/credential-backend.ts`,
