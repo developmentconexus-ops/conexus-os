@@ -83,7 +83,9 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('builder-credential-generation', 'node --test tests/implementation/builder-credential-generation.test.mjs'),
   candidateStep('builder-first-operational-delivery', 'node --test tests/implementation/builder-first-operational-delivery.test.mjs'),
   candidateStep('builder-planning-free-boot', 'node --test tests/implementation/builder-planning-free-boot.test.mjs'),
-  candidateStep('model-connection', 'node --test tests/implementation/model-connection.test.mjs'),
+  candidateStep('model-connection-credentials', 'node --test tests/implementation/model-connection-credentials.test.mjs'),
+  candidateStep('model-connection-dispatch', 'node --test tests/implementation/model-connection-dispatch.test.mjs'),
+  candidateStep('model-connection-migration-postgres', 'node --test --test-concurrency=1 tests/implementation/model-connection-migration-postgres.test.mjs', 'postgres'),
   candidateStep('model-connection-web-api', 'node --test tests/implementation/model-connection-web-api.test.mjs'),
   candidateStep('protected-cluster-coverage', 'node --test tests/implementation/protected-cluster-coverage.test.mjs'),
 

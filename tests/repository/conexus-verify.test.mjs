@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
 import test from 'node:test'
 import {
   ALLOWED_ALIASES,
@@ -11,7 +13,15 @@ import {
   resolveScope,
   runVerification,
   runNpmScript,
+  repositoryRoot,
 } from '../../scripts/conexus-verify.mjs'
+
+test('every test file the candidate graph names exists on disk', () => {
+  const named = CANDIDATE_GRAPH.flatMap(entry => entry.command.match(/\S+\.test\.mjs/g) ?? [])
+  assert.ok(named.length > 0)
+  const missing = named.filter(path => !existsSync(resolve(repositoryRoot, path)))
+  assert.deepEqual(missing, [])
+})
 
 const packageScripts = Object.freeze({
   'conexus:preflight': 'node scripts/conexus-preflight.mjs',
@@ -37,7 +47,8 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'identity-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure', 'project-source-recovery',
   'project-git-execution', 'project-command-postgres', 'project-browser', 'shell-browser-boundary',
   'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
-  'model-connection', 'model-connection-web-api', 'protected-cluster-coverage',
+  'model-connection-credentials', 'model-connection-dispatch', 'model-connection-migration-postgres',
+  'model-connection-web-api', 'protected-cluster-coverage',
   'wire-openapi-lint', 'wire-openapi-bundle',
   'wire-bijection', 'wire-bijection-gate', 'wire-carriers', 'wire-identity-workspace',
   'wire-project', 'wire-builder',
