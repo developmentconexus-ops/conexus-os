@@ -94,15 +94,12 @@ test('W-01 locked structural baseline is a bounded HTML proof over accepted Jour
   requireText(html, 'data-context-switcher="breadcrumb"', 'W-01 must inherit locked GF-01 breadcrumb shell')
   requireText(html, 'data-shell="single-adaptive-rail"', 'W-01 must inherit the locked single adaptive rail')
 
+  // The locked W-01 evidence above is a frozen record and still depicts the
+  // Baseline review journey. Only the source-bootstrap half of that decision
+  // survives in the current wire; Inception and Baseline left the product.
   for (const sourceLaw of [
     'const: NEW',
     'const: EXISTING_GIT',
     'repositoryLocator:',
-    'required: [intent]',
-    'priorCandidateBaselineDigest:',
-    'reviewFeedback:',
-    'dependentRequired:',
-    'operationId: GetProjectBaselineCandidate',
-    'operationId: AskConexusAboutBaselineCandidate',
   ]) requireText(wire, sourceLaw, `W-01 test precondition lost from current wire: ${sourceLaw}`)
 })

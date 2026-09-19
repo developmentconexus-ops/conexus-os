@@ -41,6 +41,11 @@ Do not weaken guardrails to get a live proof to pass.
 
 ## Design 1. Remove unused bootstrap dependencies
 
+> Superseded on 2026-09-19. Project Inception and Baseline left the product, so
+> the optional planning group this section describes no longer exists and the
+> Hub no longer has a planning composition boundary to make optional. The rest
+> of this task document still applies.
+
 Keep ordinary Project create/read and the Builder model admission in the real Hub.
 Make the existing Project planning/cognition group optional at its composition boundary.
 The group contains Inception, baseline explanation, and their exclusive pools.
@@ -52,8 +57,8 @@ A partially supplied group fails configuration rather than enabling a partial se
 A complete group preserves its current routes, authorization, and behavior.
 
 When disabled, do not construct `createProjectMastra`, resolve the separate
-Project cognition admission, open planning pools, or register planning-only
-PRJ-07/08/09/23/24 handlers. Ordinary PRJ-01/02/03 remain registered.
+Project cognition admission, open planning pools, or register the planning-only
+Inception and Baseline handlers. Ordinary PRJ-01/02/03 remain registered.
 Keep the existing full configuration valid. Preserve Brain/binding composition
 and its independently consumed manifest when enabled.
 

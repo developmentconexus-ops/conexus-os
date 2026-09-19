@@ -24,7 +24,7 @@ test('4C-F01 recompiles creation-time human identity without resurrecting generi
   const createWorkspace = between(identity, '  /api/control/workspaces:', '\n  /api/control/workspaces/{workspaceId}:')
   const getWorkspace = between(identity, '  /api/control/workspaces/{workspaceId}:', '\n  /api/control/workspaces/{workspaceId}/areas:')
   const projectCollection = between(project, '  /api/control/workspaces/{workspaceId}/projects:', '\n  /api/control/projects/{projectId}:')
-  const duplicateProject = between(project, '  /api/control/projects/{projectId}/commands/duplicate:', '\n  /api/control/projects/{projectId}/inception-investigations:')
+  const duplicateProject = between(project, '  /api/control/projects/{projectId}/commands/duplicate:', '\n  /api/control/projects/{projectId}/brain-binding:')
   const projectSchemas = project.slice(project.indexOf('    ProjectSummary:'))
 
   requirePattern(accessContext, /required:\s*\[workspaceId, name\]/, 'IAM-01 Workspace projection must require workspaceId + name')

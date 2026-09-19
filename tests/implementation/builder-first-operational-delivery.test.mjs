@@ -18,7 +18,6 @@ compile('apps/hub/src/platform/config.ts')
 compile('apps/hub/src/builder/runtime.ts')
 compile('apps/hub/src/builder/module.ts')
 compile('apps/hub/src/project/routes.ts')
-const { readHubConfig } = await import(pathToFileURL(resolve(buildRoot, 'config.js')).href)
 const { registerProjectRoutes } = await import(pathToFileURL(resolve(buildRoot, 'routes.js')).href)
 const {
   BUILDER_TRACE_REQUEST_CONTEXT_KEYS,
@@ -30,27 +29,6 @@ const {
 const { createBuilderObservabilityLifecycle } = await import(pathToFileURL(resolve(buildRoot, 'module.js')).href)
 const { requestHubShell, waitForHub } = await import(pathToFileURL(resolve(repositoryRoot, 'tests/implementation/rb-builder-production-composed-live-runner.mjs')).href)
 
-const baseEnvironment = {
-  NODE_ENV: 'test',
-  CONEXUS_ORIGIN: 'https://control.example.test',
-  CONEXUS_BOOTSTRAP_SUBJECT: 'bootstrap-subject',
-  CONEXUS_DB_HOST: '127.0.0.1',
-  CONEXUS_DB_PORT: '5432',
-  CONEXUS_DB_NAME: 'conexus',
-  CONEXUS_DB_USER: 'conexus',
-  CONEXUS_DB_PASSWORD_FILE: '/run/secrets/database',
-  CONEXUS_OIDC_ISSUER: 'https://issuer.example.test',
-  CONEXUS_OIDC_CLIENT_ID: 'conexus-client',
-  CONEXUS_OIDC_CLIENT_SECRET_FILE: '/run/secrets/oidc',
-  CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE: '/run/secrets/project-command',
-  CONEXUS_DB_S3_READ_PASSWORD_FILE: '/run/secrets/project-read',
-  CONEXUS_PROJECT_STORAGE_ROOT: '/var/lib/conexus/projects',
-  CONEXUS_GIT_IMPORT_CATALOG_FILE: '/etc/conexus/imports.json',
-  CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE: '/etc/conexus/slots.json',
-  CONEXUS_PROJECT_MODEL_CATALOG_FILE: '/etc/conexus/models.json',
-  CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE: '/etc/conexus/source.json',
-}
-
 const runtimeConfig = {
   apiKey: 'e2b-api-key',
   templateId: 'template:12345678-1234-4234-8234-123456789012',
@@ -59,37 +37,7 @@ const runtimeConfig = {
   validateModelCredential: () => {},
 }
 
-test('planning bootstrap is absent until all exclusive inputs are present', () => {
-  const ordinary = readHubConfig(baseEnvironment)
-  assert.equal(ordinary.project?.planning, undefined)
-
-  assert.throws(() => readHubConfig({
-    ...baseEnvironment,
-    CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE: '/run/secrets/baseline-read',
-  }), /MISSING_CONFIG_CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE/)
-
-  assert.throws(() => readHubConfig({
-    ...baseEnvironment,
-    CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE: '/run/secrets/baseline-read',
-    CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE: '/run/secrets/baseline-command',
-    CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE: '/run/secrets/inception-command',
-    CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE: undefined,
-  }), /MISSING_CONFIG_CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE/)
-
-  const configured = readHubConfig({
-    ...baseEnvironment,
-    CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE: '/run/secrets/baseline-read',
-    CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE: '/run/secrets/baseline-command',
-    CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE: '/run/secrets/inception-command',
-  })
-  assert.deepEqual(configured.project?.planning, {
-    baselineReadPasswordFile: '/run/secrets/baseline-read',
-    baselineCommandPasswordFile: '/run/secrets/baseline-command',
-    inceptionCommandPasswordFile: '/run/secrets/inception-command',
-  })
-})
-
-test('ordinary Project composition registers only ordinary Project routes without planning', async () => {
+test('Project composition registers exactly the three surviving Project routes', async () => {
   const routes = []
   const registered = await registerProjectRoutes({ route: (definition) => routes.push(definition) }, {
     store: {},
