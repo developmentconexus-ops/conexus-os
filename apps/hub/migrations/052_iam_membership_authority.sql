@@ -15,11 +15,10 @@ CREATE TYPE iam.action AS ENUM (
 );
 
 -- Every membership row that exists today was written by the Workspace creator path, so the
--- backfill value is 'owner'. The standing default drops to 'member' rather than away, because
--- 052 switches no caller: a writer that still omits the column has to fail closed, and taking
--- the default off entirely would refuse writers that 053 has not migrated yet.
+-- backfill value is 'owner'. The default is then removed, so a writer that omits the column
+-- fails loudly instead of being handed an authority nobody chose for it.
 ALTER TABLE iam.workspace_membership ADD COLUMN role iam.workspace_role NOT NULL DEFAULT 'owner';
-ALTER TABLE iam.workspace_membership ALTER COLUMN role SET DEFAULT 'member';
+ALTER TABLE iam.workspace_membership ALTER COLUMN role DROP DEFAULT;
 CREATE INDEX workspace_membership_by_workspace ON iam.workspace_membership (workspace_id, role);
 
 CREATE TABLE iam.workspace_invitation (
@@ -312,8 +311,10 @@ LANGUAGE sql
 SECURITY DEFINER
 SET search_path = pg_catalog, pg_temp
 AS $$
-  INSERT INTO iam.workspace_membership (account_id, workspace_id, can_create_project, role)
-  VALUES (p_account_id, p_workspace_id, true, 'owner');
+  INSERT INTO iam.workspace_membership (
+    account_id, workspace_id, can_create_project, can_read_brain,
+    can_read_connection, can_manage_connection, can_qualify_connection, role
+  ) VALUES (p_account_id, p_workspace_id, true, true, true, true, true, 'owner');
 $$;
 
 DO $$

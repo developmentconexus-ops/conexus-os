@@ -291,6 +291,18 @@ test('the membership authority derives every right from one role row and revokes
     assert.equal((await client.query('SELECT iam.claim_invitations($1,$2) AS claimed', [joiner, null])).rows[0].claimed, 0)
   })
 
+  await t.test('a membership written without a role is refused rather than given one', async () => {
+    const workspaceId = await workspace('no-default')
+    const nameless = await account('no-default-account')
+    const refused = await refusal(() => client.query(
+      'INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project) VALUES ($1,$2,true)',
+      [nameless, workspaceId]))
+    assert.equal(refused.code, '23502')
+    assert.match(refused.message, /null value in column "role" of relation "workspace_membership"/)
+    assert.deepEqual((await client.query('SELECT count(*)::int AS rows FROM iam.workspace_membership WHERE workspace_id = $1', [workspaceId])).rows,
+      [{ rows: 0 }])
+  })
+
   await t.test('an unknown project and an unknown workspace are refused in the same words', async () => {
     const stranger = await account('stranger')
     const unknownProject = await refusal(() => client.query('SELECT iam.admit_project($1,$2,$3)', [stranger, randomUUID(), 'project.read']))

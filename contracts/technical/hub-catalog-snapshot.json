@@ -51,7 +51,7 @@
   "049": "21566f0928565ec9146ebf5e1dc14419890b82d84454440bdd24885db962717d",
   "050": "bf43a6f3b6d0689a776a0501efede5e61591f77cde64837a4cb0751fcaa348b7",
   "051": "b3da4b1ed8453055b4d9e15a5c6923229359091dd5efa3a94124de0fbc43eb69",
-  "052": "26cf75d278ed5e1da118cc826dac30b7115249cf5eca1f9bf44a4e4295d47bc8"
+  "052": "663a29fd0cd1e9edd3d9fc6b7dfa3b62385d659d0fbd47791ae2dc7a0e2a2f91"
  },
  "catalog": {
   "schema": [
@@ -283,7 +283,7 @@
    "column iam.workspace_membership.can_read_brain boolean notnull=true default=false acl=",
    "column iam.workspace_membership.can_read_connection boolean notnull=true default=false acl=",
    "column iam.workspace_membership.created_at timestamp with time zone notnull=true default=clock_timestamp() acl=",
-   "column iam.workspace_membership.role iam.workspace_role notnull=true default='member'::iam.workspace_role acl=",
+   "column iam.workspace_membership.role iam.workspace_role notnull=true default= acl=",
    "column iam.workspace_membership.workspace_id uuid notnull=true default= acl=",
    "column project.baseline_approval.account_id uuid notnull=true default= acl=",
    "column project.baseline_approval.approval_revision uuid notnull=true default= acl=",
@@ -739,7 +739,7 @@
    "function iam.claim_invitations(p_account_id uuid, p_verified_email text) returns integer kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=1548ba1245df80209633aa5040aca4fd",
    "function iam.ensure_project_builder_grant(p_account_id uuid, p_project_id uuid) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,iam_owner:EXECUTE:false body=aa50e759d9d915598456fac81aa66671",
    "function iam.establish_project_creator_grant(p_account_id uuid, p_workspace_id uuid, p_key_digest text, p_request_digest text, p_project_id uuid) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_prj03_command:EXECUTE:false,iam_owner:EXECUTE:false body=a3dd0bb90b208d8f53412b9f2182c80e",
-   "function iam.establish_workspace_creator_access(p_account_id uuid, p_workspace_id uuid) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_ws01_command:EXECUTE:false,iam_owner:EXECUTE:false body=38fd954a8bb7e71a38233358023c880d",
+   "function iam.establish_workspace_creator_access(p_account_id uuid, p_workspace_id uuid) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_ws01_command:EXECUTE:false,iam_owner:EXECUTE:false body=7ee1317cb4971820e60127d7f7f13f5e",
    "function iam.invite_workspace_member(p_actor uuid, p_workspace_id uuid, p_invitation_id uuid, p_email text, p_role iam.workspace_role, p_expires_at timestamp with time zone) returns uuid kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=0550b939968d810a5cf9582ec0f283f9",
    "function iam.list_workspace_memberships(p_account_id uuid) returns TABLE(workspace_id uuid) kind=f owner=iam_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_s2_read:EXECUTE:false,iam_owner:EXECUTE:false body=d48e7cc7e4e331ac2946807e93b83bd5",
    "function iam.list_workspace_readable_project_ids(p_account_id uuid, p_workspace_id uuid) returns TABLE(project_id uuid) kind=f owner=iam_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_s3_read:EXECUTE:false,iam_owner:EXECUTE:false body=bd308736ac029ef1c8ae9df4665bc438",

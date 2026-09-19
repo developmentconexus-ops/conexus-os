@@ -84,7 +84,7 @@ test('current Hub installs accepted schemas and restarts without applying held R
   await query(admin, "ALTER ROLE hub_prj03_command PASSWORD 'migration-bootstrap-test'")
   await query(fixture.connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://migration-bootstrap.test', $2, 'Bootstrap')", [accountId, accountId])
   await query(fixture.connection, 'INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'Bootstrap'])
-  await query(fixture.connection, 'INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project) VALUES ($1, $2, true)', [accountId, workspaceId])
+  await query(fixture.connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project, role) VALUES ($1, $2, true, 'owner')", [accountId, workspaceId])
   const command = { ...fixture.connection, user: 'hub_prj03_command', password: 'migration-bootstrap-test' }
   await query(command, 'SELECT * FROM project.reserve_or_replay_create_project($1, $2, $3, $4, $5)', [accountId, workspaceId, keyDigest, requestDigest, projectId])
   await query(command, 'SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)', [accountId, workspaceId, keyDigest, requestDigest, projectId, 'Bootstrap', 'NEW', sourceRevision, 'project-revision'])
@@ -331,7 +331,7 @@ test('052 adds the membership authority beside the grant surfaces it will replac
   assert.deepEqual((await query(fixture.connection,
     `SELECT column_default, is_nullable FROM information_schema.columns
      WHERE table_schema = 'iam' AND table_name = 'workspace_membership' AND column_name = 'role'`)).rows,
-    [{ column_default: "'member'::iam.workspace_role", is_nullable: 'NO' }])
+    [{ column_default: null, is_nullable: 'NO' }])
 
   assert.deepEqual((await query(fixture.connection,
     `SELECT has_function_privilege($1, 'iam.admit_project(uuid,uuid,iam.action)', 'EXECUTE') AS builder_admits,

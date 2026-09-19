@@ -74,7 +74,7 @@ const migration048Digest = 'fbf8e55d82edf548b7a78879bff05994ee92ee36e20555c91f4a
 const migration049Digest = '92ebd66206a7cbdcf9de898ba1b900bef0452047c34aec1e0a87976e01abe0dd'
 const migration050Digest = '7fd9ced94dcf8f897b6a6ce0f0ab28d27696023f83dfaf99b219848484eaf520'
 const migration051Digest = 'f3d5f9d547d945525228212de586d719d78586f758f50ac5af033e3f947e33dc'
-const migration052Digest = '8c9b6776f8140d043a23cc38642bc8fab04ab7e4b15b773c85c24ca548fe67e4'
+const migration052Digest = '0e1e233d9254a2ea0e61ba61646cadb2ce2f94896730fe9c1e071f886bb8dc54'
 const legacyMigrationDigests = new Map([
   ['040', '359d1d386b01f40a5b842f56363e82176db56b9b731736f01080597ca762f7f5'],
   ['047', '74703fb0042a0617f81dd68ae0b2553401050262aa4ad385ea758cec97ba70c3'],
