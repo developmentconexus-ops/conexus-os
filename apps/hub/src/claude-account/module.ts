@@ -2,14 +2,15 @@ import { readFileSync } from 'node:fs'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { createPostgresPool } from '../platform/postgres.js'
 import type { CredentialBackend } from '../platform/credential-backend.js'
-import { createAuthorizationRequest, exchangeAuthorizationCode, parseAuthorizationResult, refreshAuthorizationToken } from '../project/anthropic-oauth.js'
+import { createAuthorizationRequest, exchangeAuthorizationCode, parseAuthorizationResult, refreshAuthorizationToken } from '../model-connection/anthropic-oauth.js'
 import { registerClaudeAccountRoutes } from './routes.js'
 import { createClaudeAccountStore } from './store.js'
-import { createBackendOAuthTokenStore } from '../project/oauth-token-store.js'
-import { createAnthropicOAuthModel } from '../project/anthropic-oauth-provider.js'
+import type { ClaudeCredentialReference } from './store.js'
+export type { ClaudeCredentialReference } from './store.js'
+import { createBackendOAuthTokenStore } from '../model-connection/oauth-token-store.js'
+import { createAnthropicOAuthModel } from '../model-connection/anthropic-oauth-provider.js'
 import type { MastraLanguageModel } from '@mastra/core/agent'
 
-export type ClaudeCredentialReference = Readonly<{ connectionId: string; generation: string }>
 export type ClaudeAccountModule = Readonly<{
   registerRoutes(app: FastifyInstance): Promise<readonly string[]>
   resolveForBuilder(input: Readonly<{ accountId: string; projectId: string }>): Promise<ClaudeCredentialReference>

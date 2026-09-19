@@ -35,9 +35,8 @@ const {
   createProjectKeyConformanceBasisResolver,
   createProjectBrainRealizationPort,
   createBuilderProjectGitCapability,
-  resolveProjectModelAdmission,
-  readProjectModelChoices,
 } = await import('./project/module.js')
+const { resolveModelAdmission, readModelChoices } = await import('./model-connection/model-catalog.js')
 const { createConfiguredBuilderModule } = await import('./builder/module.js')
 type ProjectBindingsRuntime = ReturnType<typeof createConfiguredProjectConnectionBindingModule> |
   ReturnType<typeof createConfiguredProjectBindingModule>
@@ -152,13 +151,13 @@ const claudeAccount = config.connections && credentialBackend ? createClaudeAcco
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
-const builderModel = config.builder && config.project ? resolveProjectModelAdmission({
+const builderModel = config.builder && config.project ? resolveModelAdmission({
   catalogFile: config.project.modelCatalogFile,
   admissionId: config.builder.modelAdmissionId,
   requiredCapabilities: ['BUILDER_CODING'],
   credentialRequired: false,
 }) : undefined
-const builderModelChoices = config.builder && config.project ? readProjectModelChoices({
+const builderModelChoices = config.builder && config.project ? readModelChoices({
   catalogFile: config.project.modelCatalogFile,
   requiredCapabilities: ['BUILDER_CODING'],
 }) : undefined

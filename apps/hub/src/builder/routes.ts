@@ -5,7 +5,7 @@ import { sendProblem } from '../http/problem.js'
 import type { BuilderService } from './service.js'
 import type { BuilderRunSummary, BuilderStore } from './store.js'
 import type { ApplicationArtifactMetadata } from './application-build.js'
-import type { BuilderModelChoice } from './model-choice.js'
+import type { ModelChoice } from '../model-connection/model-catalog.js'
 import type { BuilderLiveView } from './runtime.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
@@ -35,7 +35,7 @@ export type BuilderSessionSnapshot = Readonly<{
   lastPreviewSourceRevision: string | null
   lastPreviewArtifactRevisionId: string | null
   lastPreviewArtifactDigest: string | null
-  modelChoices: readonly BuilderModelChoice[]
+  modelChoices: readonly ModelChoice[]
   runHistory: readonly BuilderRunSummary[]
 }>
 export type BuilderSessionPort = Readonly<{
