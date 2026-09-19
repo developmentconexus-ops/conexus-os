@@ -17,6 +17,7 @@ for (const id of historical) if (current.has(id)) throw new Error(`retained carr
 const carriers = new Map([...operations].filter(([, entry]) => entry.operation['x-conexus-current-state-carrier'] && entry.operation['x-conexus-current-state-carrier'] !== 'NONE').map(([id, entry]) => [id, entry.operation['x-conexus-current-state-carrier']]));
 const expected = new Map([
   ['IAM-02', 'OWNER_CURRENT'], ['IAM-03', 'IDEMPOTENCY_KEY'], ['WS-01', 'IDEMPOTENCY_KEY'],
+  ['IAM-05', 'OWNER_CURRENT'], ['IAM-06', 'OWNER_CURRENT'], ['IAM-10', 'OWNER_CURRENT'],
   ['PRJ-03', 'IDEMPOTENCY_KEY'], ['BLD-24', 'IDEMPOTENCY_KEY'],
 ]);
 if (JSON.stringify([...carriers].sort()) !== JSON.stringify([...expected].sort())) throw new Error(`current carrier set mismatch: ${JSON.stringify([...carriers])}`);

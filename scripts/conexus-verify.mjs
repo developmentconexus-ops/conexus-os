@@ -71,6 +71,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('biome-current', 'npx --no-install biome check apps/hub/src apps/web/src packages/canonical-json/src scripts/run-hub-migrations.mjs scripts/hub-catalog.mjs scripts/generate-hub-catalog-snapshot.mjs tests/implementation/builder-*.mjs tests/implementation/project-browser.test.mjs tests/repository/conexus-verify.test.mjs'),
 
   candidateStep('identity-access-http', 'node --test tests/implementation/identity-access-http.test.mjs'),
+  candidateStep('workspace-membership-http', 'node --test tests/implementation/workspace-membership-http.test.mjs && npx --no-install biome check tests/implementation/workspace-membership-http.test.mjs'),
   candidateStep('workspace-http', 'node --test tests/implementation/workspace-http.test.mjs'),
   candidateStep('workspace-reads', 'node --test tests/implementation/workspace-reads.test.mjs'),
   candidateStep('project-disclosure', 'node --test tests/implementation/project-disclosure.test.mjs'),

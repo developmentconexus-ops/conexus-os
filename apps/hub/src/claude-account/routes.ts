@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { ClaudeAccountStore } from './store.js'
 import type { createAuthorizationRequest } from '../model-connection/anthropic-oauth.js'
+import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 
 const csrfCookie = '__Host-conexus_csrf'
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
@@ -15,7 +16,7 @@ const mutationProblem = (reply: import('fastify').FastifyReply, error: unknown) 
   if (code.includes('STATE') || code.includes('AUTHORIZATION')) return sendProblem(reply, 422, 'claude-authorization-invalid', 'Claude authorization result invalid')
   return sendProblem(reply, 503, 'claude-connection-unavailable', 'Claude connection unavailable')
 }
-const authenticity = async (request: FastifyRequest, reply: import('fastify').FastifyReply, origin: string, resolve: (request: FastifyRequest, csrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>) => {
+const authenticity = async (request: FastifyRequest, reply: import('fastify').FastifyReply, origin: string, resolve: ResolveCurrentSession) => {
   const csrf = header(request.headers['x-conexus-csrf'])
   if (request.headers.origin !== origin || !csrf || csrf !== request.cookies[csrfCookie]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
   const session = await resolve(request, true)
@@ -26,7 +27,7 @@ const authenticity = async (request: FastifyRequest, reply: import('fastify').Fa
 export const registerClaudeAccountRoutes = async (app: FastifyInstance, dependencies: Readonly<{
   store: ClaudeAccountStore
   origin: string
-  resolveCurrentSession: (request: FastifyRequest, csrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
+  resolveCurrentSession: ResolveCurrentSession
   createAuthorizationRequest: typeof createAuthorizationRequest
   parseAuthorizationResult: (value: string, state: string) => string
   exchangeAuthorizationCode: (input: Readonly<{ code: string; state: string; verifier: string; fetchImpl?: typeof fetch }>) => Promise<Readonly<{ access: string; refresh: string; expiresAt: number }>>

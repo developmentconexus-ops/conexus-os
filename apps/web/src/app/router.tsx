@@ -5,6 +5,7 @@ import { projectDetailRoute } from '../routes/project-detail'
 import { projectBuildRoute } from '../routes/project-build'
 import { setupRoute } from '../routes/setup'
 import { settingsRoute } from '../routes/settings'
+import { workspaceMembersRoute } from '../routes/workspace-members'
 import { workspaceNewRoute } from '../routes/workspace-new'
 import { workspaceProjectNewRoute } from '../routes/workspace-project-new'
 import { workspaceProjectsRoute } from '../routes/workspace-projects'
@@ -16,6 +17,7 @@ const routeTree = rootRoute.addChildren([
   workspaceNewRoute,
   workspaceProjectsRoute,
   workspaceProjectNewRoute,
+  workspaceMembersRoute,
   projectDetailRoute,
   projectBuildRoute,
 ])

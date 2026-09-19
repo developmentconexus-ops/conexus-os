@@ -20,7 +20,7 @@ const versions = [
   '001', '002', '003', '004', '005', '006', '007', '008', '009', '010',
   '011', '012', '013', '014', '015', '016', '017', '018', '019', '020',
   '021', '022', '023',
-  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '039', '040', '041', '042', '043', '044', '045', '046', '047', '048', '049', '050', '051', '052', '053',
+  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '039', '040', '041', '042', '043', '044', '045', '046', '047', '048', '049', '050', '051', '052', '053', '054',
 ]
 const query = async (connection, sql, parameters = []) => {
   const client = new pg.Client(connection)
@@ -189,7 +189,7 @@ test('a fresh install produces exactly the committed catalog snapshot', async (t
     const catalog = await readCatalog(client)
     assert.equal(describeCatalogDrift(catalog, snapshot.catalog), null)
     assert.equal(catalogDigest(catalog), snapshot.digests[snapshot.head])
-    assert.equal(snapshot.head, '053')
+    assert.equal(snapshot.head, '054')
     assert.equal(Object.keys(snapshot.digests).length, versions.length)
   } finally {
     await client.end()
@@ -328,8 +328,10 @@ test('the membership authority is the only admission surface left', async (t) =>
     'iam.claim_invitations(uuid,text)',
   ]
   // 053 excised these. identity-access still reads its own memberships, so
-  // list_workspace_memberships is the one survivor of the old iam read surface.
+  // 054 took the last one with it, once identity-access stopped calling it, so nothing is
+  // left of the old iam read surface.
   const excisedSignatures = [
+    'iam.list_workspace_memberships(uuid)',
     'iam.admit_project_read(uuid,uuid)',
     'iam.admit_project_manage(uuid,uuid)',
     'iam.admit_project_build(uuid,uuid)',
@@ -340,10 +342,9 @@ test('the membership authority is the only admission surface left', async (t) =>
     'iam.can_create_project(uuid,uuid)',
     'iam.list_workspace_readable_project_ids(uuid,uuid)',
   ]
-  const survivingSignatures = ['iam.list_workspace_memberships(uuid)']
   const resolved = await query(fixture.connection,
     'SELECT unnest($1::text[]) AS signature, to_regprocedure(unnest($1::text[]))::text AS resolved',
-    [[...addedSignatures, ...survivingSignatures]])
+    [[...addedSignatures, 'iam.email_has_open_invitation(text)']])
   for (const row of resolved.rows) assert.notEqual(row.resolved, null, `${row.signature} should resolve`)
 
   const excised = await query(fixture.connection,

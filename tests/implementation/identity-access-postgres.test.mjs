@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
-import { runR1HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { runCurrentHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const { Client } = pg
@@ -57,37 +57,50 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   url.pathname = `/${database}`
   url.username = installed.user
   url.password = installed.password
-  await runR1HubMigrations({ connectionString: url.toString() })
+  await runCurrentHubMigrations({ connectionString: url.toString() })
   await admin.query(`ALTER ROLE hub_iam_runtime PASSWORD 'runtime-test-only'`)
 
   const runtimeConnection = { ...installed, user: 'hub_iam_runtime', password: 'runtime-test-only' }
   store = createIdentityAccessStore({ pool: createPostgresPool(runtimeConnection) })
-  const bootstrapToken = await store.createBootstrapContext({ issuer: 'https://issuer.test', subject: 'subject-1', configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1' })
-  const first = await store.provisionBootstrap({ bootstrapToken, idempotencyKey: 'same-key', displayName: 'Leandro', email: 'leandro@example.test' })
-  const replay = await store.provisionBootstrap({ bootstrapToken, idempotencyKey: 'same-key', displayName: 'Leandro', email: 'leandro@example.test' })
-  assert.equal(first.accountId, replay.accountId)
-  assert.equal(replay.replayed, true)
-  await assert.rejects(
-    store.provisionBootstrap({ bootstrapToken, idempotencyKey: 'same-key', displayName: 'Changed' }),
-    (error) => error.code === 'IDEMPOTENCY_CONFLICT',
-  )
-  await assert.rejects(
-    store.createBootstrapContext({ issuer: 'https://issuer.test', subject: 'subject-1', configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1' }),
-    (error) => error.code === 'BOOTSTRAP_SEALED',
-  )
-  const expiredToken = await store.createBootstrapContext({
-    issuer: 'https://issuer.test', subject: 'subject-expired', configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-expired', now: new Date(0),
+  // A provisioning token rotates while it is unclaimed, and the expired one stays dead.
+  // This runs first because the first-account path closes once any account exists.
+  const expiredToken = await store.createProvisioningContext({
+    issuer: 'https://issuer.test', subject: 'subject-expired', verifiedEmail: null, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-expired', now: new Date(0),
   })
-  const replacementToken = await store.createBootstrapContext({
-    issuer: 'https://issuer.test', subject: 'subject-expired', configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-expired', now: new Date(11 * 60 * 1000),
+  const replacementToken = await store.createProvisioningContext({
+    issuer: 'https://issuer.test', subject: 'subject-expired', verifiedEmail: null, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-expired', now: new Date(11 * 60 * 1000),
   })
   assert.notEqual(expiredToken, replacementToken)
   await assert.rejects(
-    store.provisionBootstrap({ bootstrapToken: expiredToken, idempotencyKey: 'expired-key', displayName: 'Expired', now: new Date(12 * 60 * 1000) }),
+    store.provisionBootstrap({ bootstrapToken: expiredToken, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-expired', idempotencyKey: 'expired-key', displayName: 'Expired', now: new Date(12 * 60 * 1000) }),
     (error) => error.code === 'BOOTSTRAP_SEALED',
   )
-  const replacement = await store.provisionBootstrap({ bootstrapToken: replacementToken, idempotencyKey: 'replacement-key', displayName: 'Replacement', now: new Date(12 * 60 * 1000) })
+  const replacement = await store.provisionBootstrap({ bootstrapToken: replacementToken, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-expired', idempotencyKey: 'replacement-key', displayName: 'Replacement', now: new Date(12 * 60 * 1000) })
   assert.ok(replacement.accountId)
+
+  // The first account is minted, so no further unknown identity is admitted without an invitation.
+  const installedAdmin = new Client(installed)
+  await installedAdmin.connect()
+  await installedAdmin.query('DELETE FROM iam.session')
+  await installedAdmin.query('DELETE FROM iam.account')
+  await installedAdmin.end()
+  const bootstrapToken = await store.createProvisioningContext({ issuer: 'https://issuer.test', subject: 'subject-1', verifiedEmail: null, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1' })
+  const first = await store.provisionBootstrap({ bootstrapToken, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1', idempotencyKey: 'same-key', displayName: 'Leandro', email: 'leandro@example.test' })
+  const replay = await store.provisionBootstrap({ bootstrapToken, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1', idempotencyKey: 'same-key', displayName: 'Leandro', email: 'leandro@example.test' })
+  assert.equal(first.accountId, replay.accountId)
+  assert.equal(replay.replayed, true)
+  await assert.rejects(
+    store.provisionBootstrap({ bootstrapToken, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1', idempotencyKey: 'same-key', displayName: 'Changed' }),
+    (error) => error.code === 'IDEMPOTENCY_CONFLICT',
+  )
+  await assert.rejects(
+    store.createProvisioningContext({ issuer: 'https://issuer.test', subject: 'subject-1', verifiedEmail: null, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1' }),
+    (error) => error.code === 'BOOTSTRAP_SEALED',
+  )
+  await assert.rejects(
+    store.createProvisioningContext({ issuer: 'https://issuer.test', subject: 'uninvited', verifiedEmail: 'uninvited@example.test', configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1' }),
+    (error) => error.code === 'IDENTITY_NOT_ELIGIBLE',
+  )
   const established = await store.createSession({ accountId: first.accountId })
   assert.ok(await store.validateSession({ sessionToken: established.sessionToken }))
   assert.equal(await store.validateSession({ sessionToken: established.sessionToken, csrfToken: 'wrong', requireCsrf: true }), null)

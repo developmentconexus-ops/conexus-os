@@ -10,6 +10,7 @@ export type { ClaudeCredentialReference } from './store.js'
 import { createBackendOAuthTokenStore } from '../model-connection/oauth-token-store.js'
 import { createAnthropicOAuthModel } from '../model-connection/anthropic-oauth-provider.js'
 import type { MastraLanguageModel } from '@mastra/core/agent'
+import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 
 export type ClaudeAccountModule = Readonly<{
   registerRoutes(app: FastifyInstance): Promise<readonly string[]>
@@ -23,7 +24,7 @@ export type ClaudeAccountDependencies = Readonly<{
   passwordFile: string
   credentialBackend: CredentialBackend
   origin: string
-  resolveCurrentSession: (request: FastifyRequest, requireCsrf?: boolean) => Promise<Readonly<{ account: Readonly<{ accountId: string }> }> | null>
+  resolveCurrentSession: ResolveCurrentSession
   fetchImpl?: typeof globalThis.fetch
 }>
 

@@ -194,6 +194,9 @@ export function Shell({
                 <Link to="/workspaces/$workspaceId/projects/new" params={{ workspaceId: workspace.workspaceId }}>
                   Criar Project
                 </Link>
+                <Link to="/workspaces/$workspaceId/members" params={{ workspaceId: workspace.workspaceId }}>
+                  Membros
+                </Link>
               </>
             ) : (
               <>

@@ -34,7 +34,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project',
   'repository-hygiene', 'repository-doc-index', 'repository-architecture',
   'repository-architecture-unit', 'repository-contract-checks', 'biome-current',
-  'identity-access-http', 'workspace-http', 'workspace-reads', 'project-disclosure', 'project-source-recovery',
+  'identity-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure', 'project-source-recovery',
   'project-git-execution', 'project-command-postgres', 'project-browser', 'shell-browser-boundary',
   'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
   'claude-account', 'claude-account-web-api', 'protected-cluster-coverage',

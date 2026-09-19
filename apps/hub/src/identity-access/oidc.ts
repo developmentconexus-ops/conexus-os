@@ -2,14 +2,17 @@ import * as oidc from 'openid-client'
 import type { CustomFetch } from 'openid-client'
 import { lookup } from 'node:dns'
 import { Agent, fetch as undiciFetch } from 'undici'
+import { parseEmailAddress } from './current-session.js'
+import type { EmailAddress } from './current-session.js'
 import { identityAccessError } from './errors.js'
 
 export type OidcIdentity = Readonly<{ issuer: string; subject: string }>
+export type VerifiedIdentity = OidcIdentity & Readonly<{ verifiedEmail: EmailAddress | null }>
 export type OidcTransaction = Readonly<{ state: string; nonce: string; pkceVerifier: string; location: string }>
 export type OidcCompletion = Readonly<{ currentUrl: string; pkceVerifier: string; expectedState: string; expectedNonce: string }>
 export type OidcAdapter = Readonly<{
   begin(): Promise<OidcTransaction>
-  complete(input: OidcCompletion): Promise<OidcIdentity>
+  complete(input: OidcCompletion): Promise<VerifiedIdentity>
   close(): Promise<void>
 }>
 type OidcDiscovery = typeof oidc.discovery
@@ -69,7 +72,7 @@ export const createOidcAdapter = async ({
       const nonce = oidc.randomNonce()
       const location = oidc.buildAuthorizationUrl(configuration, {
         redirect_uri: redirectUri,
-        scope: 'openid',
+        scope: 'openid email',
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
         state,
@@ -77,7 +80,7 @@ export const createOidcAdapter = async ({
       })
       return { state, nonce, pkceVerifier, location: location.href }
     },
-    async complete({ currentUrl, pkceVerifier, expectedState, expectedNonce }: OidcCompletion): Promise<OidcIdentity> {
+    async complete({ currentUrl, pkceVerifier, expectedState, expectedNonce }: OidcCompletion): Promise<VerifiedIdentity> {
       const tokens = await oidc.authorizationCodeGrant(configuration, new URL(currentUrl), {
         pkceCodeVerifier: pkceVerifier,
         expectedState,
@@ -86,7 +89,10 @@ export const createOidcAdapter = async ({
       })
       const claims = tokens.claims()
       if (!claims?.iss || !claims.sub) throw identityAccessError('OIDC_IDENTITY_MISSING')
-      return { issuer: claims.iss, subject: claims.sub }
+      // An unverified address, or a realm that asserts no address at all, is not an error.
+      // It only means this identity can claim no invitation.
+      const verifiedEmail = claims.email_verified === true ? parseEmailAddress(claims.email) : null
+      return { issuer: claims.iss, subject: claims.sub, verifiedEmail }
     },
     close: () => {
       closePromise ??= localIssuerTransport?.close() ?? Promise.resolve()

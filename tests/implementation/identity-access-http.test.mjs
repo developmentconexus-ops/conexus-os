@@ -19,6 +19,7 @@ const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerIdentityAccessRoutes } = await import(built('identity-access/routes.js'))
 const { createOidcAdapter } = await import(built('identity-access/oidc.js'))
+const { identityAccessError } = await import(built('identity-access/errors.js'))
 
 const origin = 'https://conexus.test'
 const config = { origin, bootstrapIssuer: 'https://issuer.test/realms/r1', bootstrapSubject: 'bootstrap-subject' }
@@ -55,29 +56,34 @@ test('local OIDC transport is admitted narrowly and closes with its adapter', as
   await adapter.close()
 })
 
-const makeStore = () => {
-  const state = { sessions: new Map(), oidc: new Map(), bootstrap: new Map(), accounts: new Map(), ended: [] }
+const makeStore = ({ eligible = true } = {}) => {
+  const state = { sessions: new Map(), oidc: new Map(), bootstrap: new Map(), accounts: new Map(), ended: [], claimed: [] }
   return {
     state,
     async createOidcTransaction(value) { state.oidc.set(value.state, value) },
     async consumeOidcTransaction({ state: key }) { const value = state.oidc.get(key); state.oidc.delete(key); return value ?? null },
     async resolveIdentity(identity) { return state.accounts.get(`${identity.issuer}|${identity.subject}`) ?? null },
-    async createBootstrapContext(identity) { const value = 'bootstrap-token'; state.bootstrap.set(value, identity); return value },
+    async createProvisioningContext(identity) {
+      if (!eligible) throw identityAccessError('IDENTITY_NOT_ELIGIBLE')
+      const value = 'bootstrap-token'
+      state.bootstrap.set(value, identity)
+      return value
+    },
+    async claimInvitations(input) { state.claimed.push(input); return 1 },
     async provisionBootstrap({ bootstrapToken, displayName, email }) {
-      if (!state.bootstrap.has(bootstrapToken)) throw Object.assign(new Error('sealed'), { code: 'BOOTSTRAP_SEALED' })
+      if (!state.bootstrap.has(bootstrapToken)) throw identityAccessError('BOOTSTRAP_SEALED')
       state.bootstrap.delete(bootstrapToken)
       return { accountId: 'account-1', displayName, ...(email ? { email } : {}), replayed: false }
     },
     async createSession({ accountId }) { const value = { sessionToken: `session-${accountId}`, csrfToken: 'csrf-token' }; state.sessions.set(value.sessionToken, { account: { accountId, displayName: 'Leandro' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, csrfToken: value.csrfToken }); return value },
     async validateSession({ sessionToken, csrfToken, requireCsrf }) { const value = state.sessions.get(sessionToken); return value && (!requireCsrf || csrfToken === value.csrfToken) ? value : null },
     async endSession(value) { state.sessions.delete(value); state.ended.push(value); return true },
-    async provisionByOperator({ externalSubject, displayName, email }) { return { accountId: `account-${externalSubject}`, displayName, ...(email ? { email } : {}), replayed: false } },
   }
 }
 
-const makeOidc = () => ({
+const makeOidc = (identity = {}) => ({
   async begin() { return { state: 'state-1', nonce: 'nonce-1', pkceVerifier: 'pkce-1', location: 'https://issuer.test/authorize?state=state-1' } },
-  async complete() { return { issuer: config.bootstrapIssuer, subject: config.bootstrapSubject } },
+  async complete() { return { issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, verifiedEmail: null, ...identity } },
 })
 
 const createHubApp = ({ store, oidc, config, staticRoot = null }) => createHttpApp({
@@ -108,6 +114,37 @@ test('S1 exposes only generated IAM-01..03 through one sealed validator', async 
   t.after(() => app.close())
   assert.deepEqual(app.routeCensus(), ['IAM-01', 'IAM-02', 'IAM-03'])
   assert.equal(app.validatorInstallCount(), 1)
+})
+
+test('an existing account claims its invitations before its session starts', async (t) => {
+  const store = makeStore()
+  store.state.accounts.set(`${config.bootstrapIssuer}|${config.bootstrapSubject}`, { accountId: 'account-1', displayName: 'Leandro' })
+  const app = await createHubApp({ store, oidc: makeOidc({ verifiedEmail: 'leandro@example.test' }), config })
+  t.after(() => app.close())
+  await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
+  const callback = await app.inject({ method: 'GET', url: '/protocol/oidc/callback?code=code-1&state=state-1', cookies: { '__Host-conexus_oidc_state': 'state-1' } })
+  assert.equal(callback.statusCode, 303)
+  assert.equal(callback.headers.location, '/')
+  assert.deepEqual(store.state.claimed, [{ accountId: 'account-1', verifiedEmail: 'leandro@example.test' }])
+})
+
+test('an unknown identity that is neither first nor invited is refused', async (t) => {
+  const store = makeStore({ eligible: false })
+  const app = await createHubApp({ store, oidc: makeOidc({ subject: 'stranger', verifiedEmail: 'stranger@example.test' }), config })
+  t.after(() => app.close())
+  await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
+  const callback = await app.inject({ method: 'GET', url: '/protocol/oidc/callback?code=code-1&state=state-1', cookies: { '__Host-conexus_oidc_state': 'state-1' } })
+  assert.equal(callback.statusCode, 403)
+})
+
+test('an unverified address reaches provisioning carrying no claimable email', async (t) => {
+  const store = makeStore()
+  const app = await createHubApp({ store, oidc: makeOidc({ subject: 'invited', verifiedEmail: null }), config })
+  t.after(() => app.close())
+  await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
+  const callback = await app.inject({ method: 'GET', url: '/protocol/oidc/callback?code=code-1&state=state-1', cookies: { '__Host-conexus_oidc_state': 'state-1' } })
+  assert.equal(callback.statusCode, 303)
+  assert.equal(store.state.bootstrap.get('bootstrap-token').verifiedEmail, null)
 })
 
 test('technical OIDC ingress binds server state and produces one-shot bootstrap context', async (t) => {
@@ -141,7 +178,7 @@ test('bootstrap IAM-03 derives subject server-side and authenticity failures fir
   assert.equal(created.statusCode, 201)
   assert.deepEqual(created.json(), { accountId: 'account-1', displayName: 'Leandro', email: 'leandro@example.test' })
   const injectedSubject = await app.inject({ method: 'POST', url: '/api/control/accounts', headers: { origin, 'idempotency-key': 'key-2', 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' }, cookies: { '__Host-conexus_bootstrap': 'bootstrap-token', '__Host-conexus_csrf': 'csrf-1' }, payload: { externalSubject: 'attacker', displayName: 'Attacker' } })
-  assert.notEqual(injectedSubject.statusCode, 201)
+  assert.equal(injectedSubject.statusCode, 400)
 })
 
 test('IAM-01 and IAM-02 use current opaque session and never claim provider logout', async (t) => {
