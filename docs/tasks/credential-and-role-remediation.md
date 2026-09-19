@@ -273,7 +273,7 @@ Adding one `hub_*` role today costs the new migration plus edits to the migratio
 
 **Files.**
 
-- [x] Create `scripts/generate-catalog-snapshot.mjs`.
+- [x] Create `scripts/generate-hub-catalog-snapshot.mjs`, and `scripts/hub-catalog.mjs` for the catalog reader the runner and the generator share.
 - [x] Create `contracts/technical/hub-catalog-snapshot.json`.
 - [x] Edit `scripts/run-hub-migrations.mjs`.
 - [x] Edit `tests/implementation/hub-migration-postgres.test.mjs`.
@@ -289,7 +289,7 @@ Adding one `hub_*` role today costs the new migration plus edits to the migratio
 - [x] Keep the security-bearing assertions explicit rather than folding them into the snapshot, per **principle-boundary-discipline**. Role attributes, role membership, and any grant that could let one capability assume another stay as named assertions against an allowlist a human must edit, because a regenerated snapshot would otherwise accept a new superuser as readily as a new column. The negative property in `docs/reference/data-and-persistence.md` section 6.2 is exactly what a blanket snapshot diff would stop proving.
 - [x] Keep the selection layer at `:140-172`, the ledger digest guard at `:3803`, the back-insert refusal at `:3946` and the advisory lock at `:3940` exactly as they are. Those are custody and concurrency, not schema oracle, and the lifecycle tests already cover them.
 - [x] Delete the `assertNNNCatalog` functions the snapshot replaces in the same change, per **principle-migrate-callers-then-delete-legacy-apis**.
-- [x] Add `db:catalog:snapshot` to regenerate and `db:catalog:check` to compare, and put `db:catalog:check` in `CANDIDATE_GRAPH`. A schema change then costs one migration plus one regenerated snapshot, which is the step's stated goal.
+- [x] Add `db:catalog:snapshot` to regenerate and `db:catalog:check` to compare. `db:catalog:check` stays out of `CANDIDATE_GRAPH`; the corrections below say why.
 
 **You see.**
 
@@ -316,7 +316,7 @@ Adding one `hub_*` role today costs the new migration plus edits to the migratio
 
 **Evidence, recorded in #84.** Before any design, a catalog from a fresh install at `050` and one from the operator's pilot at `050` differed by 0 lines across 9 schemas, 34 relations, 291 columns, 195 constraints, 53 indexes, 148 functions and 25 roles, although the pilot applied `040` and `047` with legacy bytes. That settled whether one committed snapshot could represent both. The pilot then passed the exact `assertCatalogAt` and `assertRoleInvariants` that `verifyLedger` runs, read-only as `hub_iam_runtime`. All 28 Postgres suites ran at the R-04 head and again at this head on a disposable 17.10 cluster from the pinned image, with no regression, and `r2-p2-brain-bootstrap` refused all 23 of its tamper cases. From-scratch install measured a median of 25155 ms at trunk and 14467 ms at head, and the CI migration step fell from 36913 ms to 10756 ms with three more cases in it.
 
-**Corrections to this section.** Roles are kept out of the per-version digest, not only the security-bearing ones, because they are cluster-global and a shared cluster shows another install's roles at every version. The explicit allowlist became an invariant with no list at all, which is stronger. The snapshot holds a full catalog only at head and digests for earlier versions, because 48 full catalogs would be about seven megabytes. `db:catalog:check` did not join the candidate graph, because any fresh install already checks every committed digest before each apply. The cost of a schema change is a migration, its name and digest in the runner's custody lists, and a regenerated snapshot; the custody lists stay hand-maintained on purpose, since they pin file bytes rather than schema. ACLs compare as effective privileges after the first run showed that a raw array comparison is the wrong property.
+**Corrections to this section.** Roles are kept out of the per-version digest, not only the security-bearing ones, because they are cluster-global and a shared cluster shows another install's roles at every version. The explicit allowlist became an invariant with no list at all, which is stronger. The snapshot holds a full catalog only at head and digests for earlier versions, because 48 full catalogs would be about seven megabytes. `db:catalog:check` did not join the candidate graph, because any fresh install already checks every committed digest before each apply. The cost of a schema change is a migration, its name and digest in the runner's custody lists, and a regenerated snapshot; the custody lists stay hand-maintained on purpose, since they pin file bytes rather than schema. ACLs compare as effective privileges after the first run showed that a raw array comparison is the wrong property. The dependency graph above was not followed either. R-05 branched from R-04 and does not contain R-03A, because the runner it rewrites is the file R-04 edits, and the role invariant it keeps needs no register. R-03A's PR is based on the plan branch, not on trunk.
 
 **Review gate.** None. R-05 is not review-gated. It changes no interaction, so no screenshots and no video are owed.
 
@@ -324,7 +324,7 @@ Adding one `hub_*` role today costs the new migration plus edits to the migratio
 
 - [x] Root's clean verdict at the exact head SHA.
 - [x] Bugbot triage done.
-- [x] Merge on the clean verdict.
+- [ ] Merge on the clean verdict. #84 is open and waits behind #82.
 
 ## Found during R-04, not yet a PR
 
