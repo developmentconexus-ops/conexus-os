@@ -9,7 +9,10 @@ import test from 'node:test'
 // instead, so a new altering body without a guard fails here rather than in production.
 
 const IMPLEMENTATION = resolve(import.meta.dirname)
-const ALTERS_SHARED_ROLE = /ALTER ROLE hub_/
+// The literal is not the only way to reach ALTER ROLE. provisionRoles issues it on behalf of
+// its caller, so a body that calls it alters cluster-global roles without naming the statement
+// and would otherwise escape this check.
+const ALTERS_SHARED_ROLE = /ALTER ROLE hub_|provisionRoles\(/
 const GUARD_CALL = 'refuseProtectedCluster()'
 
 // Reaches the compose hostname `postgres` and never reads CONEXUS_TEST_DB_*, so it cannot

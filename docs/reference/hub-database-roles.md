@@ -5,11 +5,14 @@ phase that introduced them rather than what they permit, so this register maps e
 its capability, the module that connects as it, and the configuration that supplies its
 password.
 
-The capability labels are not prose. They live in `CAPABILITY_BY_ROLE` in
-`apps/hub/src/platform/postgres.ts`, and `createPostgresPool` writes them into
-`application_name` on every connection, so `pg_stat_activity` and the server log show the
-capability beside the role. A label in this table that disagrees with that map is a defect
-in this table.
+The capability labels are not prose. The register is
+[`contracts/technical/hub-database-roles.json`](../../contracts/technical/hub-database-roles.json),
+and `scripts/generate-hub-role-register.mjs` projects it into
+`apps/hub/src/generated/hub-roles.ts`, from which `createPostgresPool` writes the capability
+into `application_name` on every connection. So `pg_stat_activity` and the server log show
+the capability beside the role. `npm run db:roles:check` refuses a projection that drifts and
+runs inside `npm run verify`, so a label in this table that disagrees with the register is a
+defect in this table. Adding a role means adding a row to the register and regenerating.
 
 ## Roles the Hub connects as
 
@@ -23,12 +26,21 @@ in this table.
 | `hub_s4_baseline_read` | `project-baseline-read` | `project/module.ts` | `CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE` |
 | `hub_s4_baseline_command` | `project-baseline-command` | `project/module.ts` | `CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE` |
 | `hub_s6_inception_command` | `project-inception-command` | `project/module.ts` | `CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE` |
-| `hub_r2_project_binding` | `project-binding` | `project/module.ts` | binding password file |
-| `hub_r2_brain_read` | `brain-read` | `server.ts` | brain read password file |
-| `hub_r2_key_conformance_subject` | `key-conformance-subject` | `server.ts` | key conformance password file |
+| `hub_r2_project_binding` | `project-binding` | `project/module.ts` | `CONEXUS_DB_R2_PROJECT_BINDING_PASSWORD_FILE` |
+| `hub_r2_brain_read` | `brain-read` | `server.ts` | `CONEXUS_DB_R2_BRAIN_READ_PASSWORD_FILE` |
+| `hub_r2_brain_attester` | `brain-attester` | `project/module.ts` | `CONEXUS_DB_R2_BRAIN_ATTESTER_PASSWORD_FILE` |
+| `hub_r2_key_conformance_subject` | `key-conformance-subject` | `server.ts` | `CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE` |
 | `hub_r2_connections` | `connections` | `connections/module.ts`, `claude-account/module.ts` | `CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE` |
-| `hub_rb_ingress` | `builder-request` | `builder/module.ts` | builder ingress password file |
-| `hub_rb_executor` | `builder-run-execution` | `builder/module.ts` | builder executor password file |
+| `hub_rb_ingress` | `builder-request` | `builder/module.ts` | `CONEXUS_DB_RB_INGRESS_PASSWORD_FILE` |
+| `hub_rb_executor` | `builder-run-execution` | `builder/module.ts` | `CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE` |
+
+`hub_r2_brain_attester` moved into this table. An earlier revision listed it as a role no
+pool connects as, which was true of the pilot and false of the code.
+`apps/hub/src/project/module.ts:151` creates a pool as that role whenever
+`config.projectBindings.brain` is set. The pilot's secret directory holds no password file
+for `hub_r2_project_binding`, `hub_r2_brain_read`, `hub_r2_brain_attester` or
+`hub_r2_key_conformance_subject`, so those config sections are unset there and those four
+pools are never created in the pilot. Unconfigured is not the same as unreachable.
 
 ## The Builder split, which is load-bearing
 
@@ -49,7 +61,6 @@ all: 236 functions are `SECURITY DEFINER` and `REVOKE ALL ON ALL TABLES` is appl
 
 | Role | State |
 | --- | --- |
-| `hub_r2_brain_attester` | Named `legacyAttester` in `config.ts`. No pool connects as it. |
 | `hub_r2_brain_bootstrap` | The bootstrap script connects by admin connection string instead. |
 
 ## Roles are cluster-global
@@ -61,6 +72,23 @@ cluster, including a live Hub's. This caused two incidents; the second was diagn
 `builder-run-invariants-postgres.test.mjs`. `tests/implementation/protected-cluster.mjs`
 now refuses those suites against a cluster hosting a protected database.
 
-Nothing in the repository provisions these passwords. Migration `019` creates the roles
-with `LOGIN` and no password, so a fresh cluster needs them supplied from outside. Closing
-that gap is step 3 of the remediation in `docs/roadmap.md`.
+## Provisioning and the startup census
+
+Migration `019` creates the roles with `LOGIN` and no password, so a fresh cluster needs them
+supplied from outside. `scripts/provision-hub-roles.mjs` does that as an installation step,
+not as a power the Hub holds. It reads each role's password from the file its register row
+names, and it issues `ALTER ROLE` only for a role whose current password does not already
+authenticate, so a second run writes nothing. It never generates a password, never creates a
+role, and never touches a grant or a role attribute.
+
+- `npm run db:roles:census` is the read-only mode. It reports each role as `ok`, `invalid`
+  with its SQLSTATE, or `unconfigured` when no password file is configured.
+- `npm run db:roles:provision` repairs the invalid ones. It needs `CONEXUS_PROVISION_USER` and
+  `CONEXUS_PROVISION_PASSWORD_FILE` for a credential that may `ALTER ROLE`, and it reaches for
+  them only when there is something to repair. In the pilot that is `db-root`.
+
+`apps/hub/src/platform/connection-census.ts` runs the same read-only probe once at Hub
+startup and logs one `HUB_CONNECTION_CENSUS` line per connection that is not `ok`. It never
+stops the Hub, because one capability holding a bad credential must not take the others down.
+Before it existed the pools connected lazily, so a `28P01` first appeared in the middle of
+somebody's request.
