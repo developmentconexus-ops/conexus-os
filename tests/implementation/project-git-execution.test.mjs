@@ -5,8 +5,7 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { buildR1S3GitIdentity, checkR1S3GitIdentity } from '../../scripts/generate-r1-s3-git-identity.mjs'
-import { buildR1S3NewProjectSeed, checkR1S3NewProjectSeed } from '../../scripts/generate-r1-s3-new-project-seed.mjs'
-import { checkR1S3GitExecution } from '../../scripts/check-r1-s3-git-execution.mjs'
+import { checkR1S3GitExecution, recomputeR1NewProjectSeed } from '../../scripts/check-r1-s3-git-execution.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/r1-s3-git-build-'))
@@ -84,17 +83,24 @@ test('Git identity checks ignore report prose but reject operational drift', con
   assert.throws(() => checkR1S3GitIdentity(candidate), /S3_GIT_IDENTITY_FORMAT/)
 })
 
-test('S3-P2 generated NEW seed is exact and has an empty APP-owned set', () => {
-  assert.deepEqual(checkR1S3NewProjectSeed(repositoryRoot), buildR1S3NewProjectSeed(repositoryRoot))
-  const seed = buildR1S3NewProjectSeed(repositoryRoot)
+test('S3-P2 NEW seed source has an empty APP-owned set', () => {
+  const seed = R1_NEW_PROJECT_SEED
   assert.equal(seed.appOwnedPathCount, 0)
   assert.match(seed.expectedTree, /^[0-9a-f]{40}$/)
   assert.match(seed.expectedSourceRevision, /^[0-9a-f]{40}$/)
   assert.deepEqual(seed.entries.map(({ class: ownerClass, path }) => ({ class: ownerClass, path })), [
-    { class: 'GENERATED', path: 'generated/r1/operations.json' },
-    { class: 'GENERATED', path: 'generated/r1/operations.mjs' },
-    { class: 'PLATFORM-CONTRACT', path: 'platform/r1/contract.json' },
+    { class: 'GENERATED', path: 'README.md' },
   ])
+})
+
+// Nothing recomputes the pinned tree/commit ids otherwise: a wrong pin is
+// invisible to every consumer, which just reads the same wrong value back.
+// This materializes the seed with real git, using the same sequence and
+// environment NEW_STAGE_PROGRAM runs, and asserts both ids against the pins.
+test('S3-P2 NEW seed pins are what real git produces for this tree', () => {
+  const recomputed = recomputeR1NewProjectSeed(repositoryRoot)
+  assert.equal(recomputed.tree, R1_NEW_PROJECT_SEED.expectedTree)
+  assert.equal(recomputed.sourceRevision, R1_NEW_PROJECT_SEED.expectedSourceRevision)
 })
 
 test('S3-P5 Project-private port exposes only the seven bounded named operations', () => {

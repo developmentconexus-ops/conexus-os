@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -8,10 +8,11 @@ const repositoryRoot = resolve(import.meta.dirname, '..')
 const source = resolve(repositoryRoot, 'contracts/api/product/openapi.yaml')
 const target = resolve(repositoryRoot, 'apps/hub/src/generated/s1-routes.ts')
 const clientTarget = resolve(repositoryRoot, 'apps/web/src/generated/iam-client.ts')
-const operationSource = resolve(repositoryRoot, 'runtime/r1/generated/r1/operations.json')
 const temporary = mkdtempSync(resolve(tmpdir(), 'conexus-s1-wire-'))
 const bundlePath = resolve(temporary, 'openapi.json')
 const ownerIds = new Set(['IAM-01', 'IAM-02', 'IAM-03', 'IAM-04', 'IAM-05', 'IAM-06', 'IAM-10'])
+const stagedTarget = `${target}.tmp-${process.pid}`
+const stagedClientTarget = `${clientTarget}.tmp-${process.pid}`
 
 try {
   const cli = resolve(repositoryRoot, 'node_modules/@redocly/cli/bin/cli.js')
@@ -46,13 +47,6 @@ try {
   }
   definitions.sort((a, b) => a.ownerId.localeCompare(b.ownerId, 'en'))
   if (definitions.length !== ownerIds.size) throw new Error(`S1_ROUTE_CENSUS_${definitions.length}`)
-  const canonicalOperations = JSON.parse(readFileSync(operationSource, 'utf8')).operations
-  for (const definition of definitions) {
-    const operation = canonicalOperations.find((candidate) => candidate.ownerId === definition.ownerId)
-    if (!operation || operation.operationId !== definition.operationId || operation.method !== definition.method || operation.path !== definition.path) {
-      throw new Error(`S1_G0_ROUTE_MISMATCH_${definition.ownerId}`)
-    }
-  }
   const sourceDigest = sha256(readFileSync(source))
   const projectionDigest = sha256(canonicalBytes(definitions))
   const byId = new Map(definitions.map((definition) => [definition.ownerId, definition]))
@@ -77,8 +71,6 @@ try {
     `export const S1_GENERATED_ROUTES = Object.freeze(Object.fromEntries(${JSON.stringify(definitions)}.map((definition) => [definition.ownerId, Object.freeze(definition)])) as Record<S1OwnerId, S1RouteDefinition>)`,
     '',
   ].join('\n')
-  mkdirSync(dirname(target), { recursive: true })
-  writeFileSync(target, output, 'utf8')
   const client = [
     '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s1-contracts.mjs. Do not edit.',
     `export const S1_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
@@ -103,10 +95,18 @@ try {
     '})',
     '',
   ].join('\n')
+  mkdirSync(dirname(target), { recursive: true })
   mkdirSync(dirname(clientTarget), { recursive: true })
-  writeFileSync(clientTarget, client, 'utf8')
+  writeFileSync(stagedTarget, output, 'utf8')
+  writeFileSync(stagedClientTarget, client, 'utf8')
+  if (process.argv.includes('--check')) {
+    if (!existsSync(target) || readFileSync(target, 'utf8') !== output) throw new Error('S1_GENERATED_ROUTE_DRIFT')
+    if (!existsSync(clientTarget) || readFileSync(clientTarget, 'utf8') !== client) throw new Error('S1_GENERATED_CLIENT_DRIFT')
+  } else publishAtomically([{ staged: stagedTarget, target }, { staged: stagedClientTarget, target: clientTarget }])
   process.stdout.write(`${JSON.stringify({ sourceDigest, projectionDigest, routes: definitions.length })}\n`)
 } finally {
+  rmSync(stagedTarget, { force: true })
+  rmSync(stagedClientTarget, { force: true })
   rmSync(temporary, { recursive: true, force: true })
 }
 
@@ -115,6 +115,28 @@ function templateUrl(path) {
 }
 
 function toFastifyUrl(path) { return path.replace(/\{([^}]+)\}/g, ':$1') }
+
+function publishAtomically(publications) {
+  const completed = []
+  try {
+    for (const publication of publications) {
+      publication.backup = `${publication.target}.backup-${process.pid}-${completed.length}`
+      publication.replaced = false
+      publication.installed = false
+      if (existsSync(publication.target)) { renameSync(publication.target, publication.backup); publication.replaced = true }
+      renameSync(publication.staged, publication.target)
+      publication.installed = true
+      completed.push(publication)
+    }
+    for (const publication of completed) if (publication.replaced) rmSync(publication.backup, { force: true })
+  } catch (error) {
+    for (const publication of [...publications].reverse()) {
+      if (publication.installed && existsSync(publication.target)) unlinkSync(publication.target)
+      if (publication.replaced && existsSync(publication.backup)) renameSync(publication.backup, publication.target)
+    }
+    throw error
+  }
+}
 
 function toTypeScript(schema) {
   if (schema.oneOf) return schema.oneOf.map(toTypeScript).join(' | ')

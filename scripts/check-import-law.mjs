@@ -43,7 +43,7 @@ function productionRoots(root) {
   const apps = childSourceRoots(root, 'apps')
   const packages = childSourceRoots(root, 'packages')
   return {
-    roots: [...apps.roots, ...packages.roots, 'runtime/r1'],
+    roots: [...apps.roots, ...packages.roots, 'runtime'],
     missingAppSources: apps.missing,
   }
 }
@@ -146,7 +146,7 @@ function isAllowedRelativeTarget(source, target) {
   if (app) return target.startsWith(`apps/${app}/src/`) || isPublicPackageEntry(target)
   const sourcePackage = packageName(source)
   if (sourcePackage) return target.startsWith(`packages/${sourcePackage}/src/`) || isPublicPackageEntry(target)
-  if (source.startsWith('runtime/r1/')) return target.startsWith('runtime/r1/')
+  if (source.startsWith('runtime/')) return target.startsWith('runtime/')
   return false
 }
 
