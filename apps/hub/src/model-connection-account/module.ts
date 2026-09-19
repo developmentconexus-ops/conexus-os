@@ -42,7 +42,13 @@ const OAUTH_MODELS: Readonly<Record<string, (input: Readonly<{ tokenStore: OAuth
 })
 
 export const createModelConnectionModule = ({ database, passwordFile, credentialBackend, enabledProviders, origin, resolveCurrentSession, fetchImpl }: ModelConnectionDependencies): ModelConnectionModule => {
-  const pool = createPostgresPool({ ...database, user: 'hub_model_connection', password: readFileSync(passwordFile, 'utf8').trim() })
+  const credentials = { ...database, user: 'hub_model_connection', password: readFileSync(passwordFile, 'utf8').trim() }
+  const pool = createPostgresPool(credentials)
+  // A refresh lock is held across a call to the provider, and the work it guards issues its own
+  // queries. Taking both from one pool would let enough simultaneous refreshes hold every client
+  // and leave the writes they are about to make with nothing to run on, so the lock gets a pool of
+  // its own. Exhausting that one only makes refreshes queue, which is what it is for.
+  const lockPool = createPostgresPool(credentials)
   const store = createModelConnectionStore({ pool, credentialBackend })
   const tokenStores = new Map<string, OAuthTokenStore>()
   const oauthFlows: Readonly<Record<string, OAuthFlow>> = Object.freeze(Object.fromEntries(
@@ -61,7 +67,7 @@ export const createModelConnectionModule = ({ database, passwordFile, credential
   // a refresh, which the five-minute expiry skew makes rare.
   const serializeRefresh = (connectionId: string) => async <T>(run: () => Promise<T>): Promise<T> => {
     const key = `conexus:model-connection-refresh:${connectionId}`
-    const client = await pool.connect()
+    const client = await lockPool.connect()
     try {
       await client.query('SELECT pg_advisory_lock(hashtextextended($1, 0))', [key])
       try { return await run() } finally { await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [key]) }
@@ -117,6 +123,6 @@ export const createModelConnectionModule = ({ database, passwordFile, credential
       if (!build) throw new Error('MODEL_OAUTH_PROVIDER_UNKNOWN')
       return build({ tokenStore, ...(modelId ? { modelId } : {}) })
     },
-    close: () => pool.end(),
+    close: async () => { await Promise.all([pool.end(), lockPool.end()]) },
   })
 }
