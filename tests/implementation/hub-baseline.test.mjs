@@ -28,12 +28,12 @@ test('the baseline creates exactly the register roles and the six owners', () =>
   assert.equal(created.length, 14)
 })
 
-test('a database built from the baseline is exactly the committed catalog', async (t) => {
+test('a database built from the baseline and forward migrations is exactly the committed catalog', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_baseline')
   const snapshot = readCommittedSnapshot()
   const catalog = await catalogOf(connectionString)
   assert.equal(describeCatalogDrift(catalog, snapshot.catalog), null)
-  assert.equal(catalogDigest(catalog), '6a4b20eca279e291dd5d7e01796552a10317d3b6a2f1acf21096590f70f347fc')
+  assert.equal(catalogDigest(catalog), 'e76447d815949f18f428441a74ae806ccb8c8c98308972be01f51b415937f886')
 })
 
 test('a database built from the baseline satisfies the role and PUBLIC-execute invariants', async (t) => {

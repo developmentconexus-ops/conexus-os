@@ -199,7 +199,7 @@ test('every declared Hub call site names a registered login role and every decla
 test('every function the Hub calls is EXECUTE-granted to the login role that calls it', async (t) => {
   const connection = await freshDatabase(t)
   const finished = await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
-  assert.deepEqual(finished.versions, ['0001'])
+  assert.deepEqual(finished.versions, ['0001', '0002'])
 
   const denied = []
   const unresolved = []

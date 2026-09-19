@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0001",
+ "head": "0002",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -400,7 +400,7 @@
   "rule": [],
   "policy": [],
   "type": [
-   "type iam.action kind=e owner=iam_owner labels=workspace.read,members.manage,project.create,project.read,project.change,project.build,connection.share",
+   "type iam.action kind=e owner=iam_owner labels=workspace.read,members.manage,project.create,project.build,connection.share",
    "type iam.workspace_role kind=e owner=iam_owner labels=owner,member"
   ],
   "default_acl": [],

@@ -11,7 +11,11 @@ const migrationPattern = /^(\d{4})_[a-z0-9_]+\.sql$/
 export const baselineName = '0001_baseline.sql'
 export const baselineVersion = '0001'
 export const baselineDigest = 'f558c1f0bcbc23273b822ec03ce566425c8b518acacfa28a5ba6baf5b52ea0d7'
-const migrationDigests = new Map([[baselineName, baselineDigest]])
+const pruneDeadIamActionsDigest = 'a7ec17faae66640cbe2e85efec79f168abe0b3f8dc2bd07d76394909e24e65f4'
+const migrationDigests = new Map([
+  [baselineName, baselineDigest],
+  ['0002_prune_dead_iam_actions.sql', pruneDeadIamActionsDigest],
+])
 
 const advisoryLock = 4_349_395_539_450_322_946n
 // A second Hub starting at the same moment waits on the advisory lock, and that wait is normally
