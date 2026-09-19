@@ -113,15 +113,17 @@ Each live lane runs in its own worktree at the PR head. Drive the CLI surfaces t
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Lanes run on the configured `swarm workers` model at the PR head, per the boot recipe, and the lane list follows the live bar above rather than the ten-lane template.
 
-- [ ] Lane 1. Regression lane against trunk. Start the Hub against the operator's pilot database at trunk and at head and capture the distinct `application_name` values in `pg_stat_activity`. Save `r03a-application-name-both.png`. Pass when the two sets are identical, which is the evidence that this change preserves behavior.
-- [ ] Lane 2. Drift detection on the real tree. Change one capability string in the generated module in a scratch worktree and run `npm run db:roles:check`. Save `r03a-drift-refused.png`. Pass when it exits non-zero and names the drifting role.
+- [x] Lane 1. Regression lane against trunk. Open one session per configured role through the tree's own `createPostgresPool` against the operator's pilot database at trunk and at head, and ask Postgres what `application_name` it observed. Save `r03a-application-name-both.txt`. Pass when the two sets are identical, which is the evidence that this change preserves behavior. Ran at trunk `e1a7683d` and head `852a8d14`. Eleven roles observed `ok` with identical labels, four reported `unconfigured` on both sides, verdict identical.
+- [x] Lane 2. Drift detection on the real tree. Change one capability string in the generated module in a scratch worktree and run `npm run db:roles:check`. Save `r03a-drift-refused.txt`. Pass when it exits non-zero and names the drifting role. Refused with `ROLE_REGISTER_PROJECTION_DRIFT: apps/hub/src/generated/hub-roles.ts line 28, role hub_rb_executor`. The first run of this lane named only the file, which is why `describeDrift` exists.
+
+The lanes capture text rather than a screenshot, because both produce text and a picture of text is weaker evidence than the text. The boot recipe allows either.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Hub startup wall time to first served request, and the added wall time of `db:roles:check` inside `npm run verify`.
-- [ ] Probe. Start the Hub three times at trunk and three times at head, interleaved, on the same machine, timing to the first 401 on an unauthenticated request. Time `npm run db:roles:check` three times.
-- [ ] Baseline. Record trunk's startup time first.
-- [ ] Rule. Fail if head's median startup exceeds trunk's by more than 100 milliseconds, since the change only swaps where a frozen map is read. Fail if `db:roles:check` exceeds 5 seconds, the budget for a generated-projection gate.
+- [x] Metric. Module load time of `apps/hub/src/platform/postgres.ts` and construction time of all fifteen pools, at trunk and at head, plus the added wall time of `db:roles:check` inside `npm run verify`. An earlier revision of this box measured Hub startup to first served request. That was replaced because Hub startup is dominated by the Vite build and `tsc`, so six boots would have measured the build and not the diff, and the diff's only runtime cost is a module load and a frozen object read.
+- [x] Probe. Run the module load and fifteen-pool construction three times at trunk and three times at head, interleaved, on the same machine. Time `npm run db:roles:check` three times.
+- [x] Baseline. Record trunk first. Median module load 16.009 ms, median pool construction 0.244 ms, fifteen of fifteen pools labelled.
+- [x] Rule. Fail if head's median module load exceeds trunk's by more than 100 milliseconds. Head measured 17.993 ms against trunk's 16.009 ms, a delta of 1.98 ms, and pool construction was 0.263 ms against 0.244 ms. Fail if `db:roles:check` exceeds 5 seconds, the budget for a generated-projection gate. It measured 0.49, 0.51 and 0.50 seconds.
 
 **Review gate.** None. R-03A is not review-gated. It changes no interaction, so no screenshots and no video are owed.
 
@@ -136,6 +138,8 @@ Each live lane runs in its own worktree at the PR head. Drive the CLI surfaces t
 **Depends on.** R-03A.
 
 **Why this is split from R-03A.** Roadmap step 3 is one step, and this plan refines it into a structural half and a credential-writing half so each ends in its own check. R-03A changes no credential and no database. R-03B writes passwords to the operator's live cluster, so it is the smallest possible diff and it stops for her.
+
+**What it will and will not do on her machine.** R-03A's lane 1 found every configured pilot credential already working, so provisioning against the pilot is expected to be a no-op. The value of this step is a fresh cluster, where migration `019` creates the roles with `LOGIN` and no password and nothing in the repository supplies one, and a `28P01` that reaches a user mid-journey instead of a startup census. Expect zero repairs on the pilot and read that as the idempotency property holding.
 
 **Files.**
 
@@ -172,8 +176,8 @@ Each live lane runs in its own worktree at the PR head. Drive the CLI surfaces t
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Lanes run on the configured `swarm workers` model at the PR head, per the boot recipe, and the lane list follows the live bar above rather than the ten-lane template.
 
-- [ ] Lane 1. Read-only census against the pilot cluster before any write, with `npm run db:roles:census`. Save `r03b-census-before.png`. Pass when it names every role and reports the current state, including whichever of `hub_prj03_command` and `hub_rb_ingress` still holds `28P01`. This lane is also the read-only check the roadmap asks for under recorded environment limits.
-- [ ] Lane 2. Provision the pilot cluster. Run `npm run db:roles:provision` once, then again. Save `r03b-provision-twice.png`. Pass when the first run repairs the invalid roles, the second reports zero repairs, and the reported end state is identical.
+- [ ] Lane 1. Read-only census against the pilot cluster before any write, with `npm run db:roles:census`. Save `r03b-census-before.txt`. Pass when it reports eleven configured roles as `ok` and the four with no password file as `unconfigured`, which is what R-03A's lane 1 observed on 2026-09-18. The `28P01` the roadmap recorded for `hub_prj03_command` and `hub_rb_ingress` is gone, so this lane now confirms a healthy cluster rather than finding a block, and any role it reports as invalid is a regression to investigate before provisioning.
+- [ ] Lane 2. Provision the pilot cluster. Run `npm run db:roles:provision` once, then again. Save `r03b-provision-twice.txt`. Pass when both runs report zero repairs and the same end state, because R-03A's lane 1 already found every configured credential working. A repair here would mean something changed a credential since that census, which is a finding rather than a success. The repair path itself is proven against an isolated cluster in the unit box, not by breaking a live Hub role.
 - [ ] Lane 3. Start the Hub against the pilot database after provisioning. Save `r03b-hub-boot-census.png`. Pass when the census logs every configured role as `ok` and the Hub answers 401 unauthenticated.
 - [ ] Lane 4. Break one scratch role deliberately, never a Hub role, and confirm the census names it at startup. Save `r03b-census-degraded.png`. Pass when the log names the role and the SQLSTATE and the Hub still serves the shell.
 - [ ] Lane 5. Confirm no secret leaks. Grep the captured startup log and both script outputs for the first six characters of one provisioned password. Save `r03b-no-leak.png`. Pass when the grep finds nothing.
