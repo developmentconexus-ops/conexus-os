@@ -327,8 +327,9 @@ test('the membership authority is the only admission surface left', async (t) =>
     'iam.remove_workspace_member(uuid,uuid,uuid)',
     'iam.claim_invitations(uuid,text)',
   ]
-  // 053 excised these. 054 took the last one with it, once identity-access stopped
-  // calling it, so nothing is left of the old iam read surface.
+  // 053 excised these. identity-access still reads its own memberships, so
+  // 054 took the last one with it, once identity-access stopped calling it, so nothing is
+  // left of the old iam read surface.
   const excisedSignatures = [
     'iam.list_workspace_memberships(uuid)',
     'iam.admit_project_read(uuid,uuid)',
