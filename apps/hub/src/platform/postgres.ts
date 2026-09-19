@@ -1,6 +1,6 @@
 import pg from 'pg'
 import type { Pool, PoolConfig } from 'pg'
-import { CAPABILITY_BY_ROLE } from '../generated/hub-roles.js'
+import { CAPABILITY_BY_ROLE } from './hub-roles.generated.js'
 
 export type PostgresPool = Pool
 export type PostgresConnection = PoolConfig

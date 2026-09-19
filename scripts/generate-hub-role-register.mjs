@@ -5,7 +5,7 @@ import { resolve } from 'node:path'
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
 const sourcePath = 'contracts/technical/hub-database-roles.json'
-const targetPath = 'apps/hub/src/generated/hub-roles.ts'
+const targetPath = 'apps/hub/src/platform/hub-roles.generated.ts'
 
 const fail = (code, detail) => {
   throw new Error(detail ? `${code}: ${detail}` : code)

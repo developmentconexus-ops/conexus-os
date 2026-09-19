@@ -48,7 +48,7 @@ test('every pool carries its capability into application_name', async () => {
 })
 
 test('the generated module is the current projection of the register', async () => {
-  const committed = await readFile(resolve(repositoryRoot, 'apps/hub/src/generated/hub-roles.ts'), 'utf8')
+  const committed = await readFile(resolve(repositoryRoot, 'apps/hub/src/platform/hub-roles.generated.ts'), 'utf8')
   assert.equal(committed, generateRegister())
 })
 
@@ -82,7 +82,7 @@ test('--check on a register edited after generation names the role that drifted,
   const stageRoot = await mkdtemp(resolve(repositoryRoot, 'apps/hub/hub-role-register-check-'))
   try {
     const stagedContractDir = resolve(stageRoot, 'contracts/technical')
-    const stagedGeneratedDir = resolve(stageRoot, 'apps/hub/src/generated')
+    const stagedGeneratedDir = resolve(stageRoot, 'apps/hub/src/platform')
     const stagedScriptDir = resolve(stageRoot, 'scripts')
     const { mkdir, writeFile, copyFile } = await import('node:fs/promises')
     await Promise.all([
@@ -91,7 +91,7 @@ test('--check on a register edited after generation names the role that drifted,
       mkdir(stagedScriptDir, { recursive: true }),
     ])
     const registerPath = resolve(stagedContractDir, 'hub-database-roles.json')
-    const generatedPath = resolve(stagedGeneratedDir, 'hub-roles.ts')
+    const generatedPath = resolve(stagedGeneratedDir, 'hub-roles.generated.ts')
     const stagedScriptPath = resolve(stagedScriptDir, 'generate-hub-role-register.mjs')
     await copyFile(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), registerPath)
     await copyFile(resolve(repositoryRoot, 'scripts/generate-hub-role-register.mjs'), stagedScriptPath)

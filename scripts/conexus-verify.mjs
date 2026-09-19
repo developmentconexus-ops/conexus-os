@@ -59,6 +59,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('db-role-register', 'npm run db:roles:check'),
   candidateStep('db-role-provision-postgres', 'npm run db:roles:postgres', 'postgres'),
   candidateStep('repository-check', 'npm run repository:check'),
+  candidateStep('repository-import-law', 'node --test tests/repository/import-law.test.mjs'),
   candidateStep('repository-hygiene', 'node scripts/check-repository-hygiene.mjs'),
   candidateStep('repository-doc-index', 'node scripts/check-doc-index.mjs'),
   candidateStep('repository-architecture', 'node scripts/check-architecture-verification.mjs'),

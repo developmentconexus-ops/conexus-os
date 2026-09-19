@@ -8,7 +8,7 @@ password.
 The capability labels are not prose. The register is
 [`contracts/technical/hub-database-roles.json`](../../contracts/technical/hub-database-roles.json),
 and `scripts/generate-hub-role-register.mjs` projects it into
-`apps/hub/src/generated/hub-roles.ts`, from which `createPostgresPool` writes the capability
+`apps/hub/src/platform/hub-roles.generated.ts`, from which `createPostgresPool` writes the capability
 into `application_name` on every connection. So `pg_stat_activity` and the server log show
 the capability beside the role. `npm run db:roles:check` refuses a projection that drifts and
 runs inside `npm run verify`, so a label in this table that disagrees with the register is a
