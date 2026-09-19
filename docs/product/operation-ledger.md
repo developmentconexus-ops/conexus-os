@@ -9,18 +9,21 @@ This ledger is the canonical 4A Product-operation authority. It is intentionally
 The retained ledger records the broader platform design; the current Product census below is the supported internal MVP surface:
 
 ```text
-current fixed Product operations = 39
+current fixed Product operations = 34
 Project-defined operations        = exact finite Ops(R) admitted by the grammar in §4
 first Budget Analyzer operations  = 2
 ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
 ```
 
-This count was stated as 31 until 2026-09-18, while the §5 table it summarizes held 39 rows.
-The number is derived from that table and nothing else, and `scripts/check-wire-bijection.mjs`
+The number is derived from the §5 table and nothing else, and `scripts/check-wire-bijection.mjs`
 reads the same table and requires the current Product OAS to hold exactly the same set. That
-gate is `wire-bijection` in the candidate graph and it reports 39 fixed Product operations,
-0 missing, 0 extra and 0 duplicate. So 39 is the derived and verified figure, and 31 was
-stale rather than a different definition.
+gate is `wire-bijection` in the candidate graph and it reports 34 fixed Product operations,
+0 missing, 0 extra and 0 duplicate.
+
+The count was 39 until 2026-09-19, when Project Inception and Baseline left the product and
+their five operations were removed from the §5 table and the Product OAS together. It had been
+stated as 31 until 2026-09-18 while that table held 39 rows; that was staleness, not a
+different definition.
 
 The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. The accepted bounded findings through F38 remain preserved. The pre-P11 coherence review then admits one transient `TRUSTED_BOOTSTRAP_CONTEXT` principal for first Account self-provisioning and adds one Project-owned model-policy discovery read, `PRJ-29`, while ordinary Permissions remain 25. No new semantic owner or durable record class is added.
 
@@ -41,10 +44,10 @@ platform scope. They are retained evidence and do not expand the current Product
 ### 1.1 Current fixed Product census
 
 ```text
-N_current = 39
-current operations with named owner       = 39
-current operations with real consumer     = 39
-current operations with authority mapping = 39
+N_current = 34
+current operations with named owner       = 34
+current operations with real consumer     = 34
+current operations with authority mapping = 34
 orphaned current operations                = 0
 speculative current operations             = 0
 ```
@@ -210,11 +213,6 @@ This is the current Product authority for the supported internal MVP. It is the 
 | `CLA-04` | `SelectClaudeConnection` | Claude Account | exact connection preference for future BuilderRuns | command |
 | `CLA-05` | `ShareClaudeConnection` | Claude Account | exact same-Workspace Account share authority | command |
 | `CLA-06` | `RevokeClaudeConnection` | Claude Account | exact owner-scope connection revocation | command |
-| `PRJ-07` | `RunInceptionInvestigation` | Project | current Project inception flow; server resolves source/context | command |
-| `PRJ-08` | `GetApprovedProjectBaseline` | Project | current exact Project Baseline disclosure | read |
-| `PRJ-09` | `ApproveProjectBaselineRevision` | Project | current exact candidate Baseline approval authority | command |
-| `PRJ-23` | `GetProjectBaselineCandidate` | Project | current exact candidate Baseline refresh/re-entry | read |
-| `PRJ-24` | `AskConexusAboutBaselineCandidate` | Project | current candidate-local contextual question; no new authority | command |
 | `BRN-14` | `GetProjectBrainContext` | Brain + Project composition | exact Project Brain binding; ordinary read or purpose-bound build disclosure | read |
 
 # 5A. Broader retained historical/platform ledger
@@ -2108,4 +2106,4 @@ CURRENT INTERNAL MVP PREVIEW LAUNCH CONSUMER
 → N_platform 129 → 130
 ```
 
-The current Product census is the 39-operation surface at the start of this ledger. The retained tables below are not current Product authority.
+The current Product census is the 34-operation surface at the start of this ledger. The retained tables below are not current Product authority.

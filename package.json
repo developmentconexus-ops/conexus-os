@@ -26,8 +26,6 @@
     "r1:rc01:admission": "node scripts/check-r1-candidate-admission.mjs",
     "r1:rc01:custody:record": "node scripts/record-r1-candidate-custody.mjs --index",
     "r1:rc01:custody:check": "node scripts/record-r1-candidate-custody.mjs --check",
-    "r1:rc01:walkthrough": "node scripts/run-r1-operator-walkthrough.mjs",
-    "r1:rc01:walkthrough:verify": "node scripts/run-r1-operator-walkthrough.mjs --verify",
     "r2:p0:generate": "node scripts/generate-r2-contracts.mjs",
     "r2:p0:check": "node scripts/generate-r2-contracts.mjs --check && node --test --test-concurrency=1 tests/implementation/r2-p0-contract-projection.test.mjs",
     "r2:p1:check": "node --check scripts/run-hub-migrations.mjs && node --test --test-concurrency=1 tests/implementation/r2-p1-foundation.test.mjs",

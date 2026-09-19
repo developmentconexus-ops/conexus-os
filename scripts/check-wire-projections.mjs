@@ -75,8 +75,6 @@ for (const operation of manifest.operations) {
 
 for (const requiredId of [
   'GetProject',
-  'GetProjectBaselineCandidate',
-  'AskConexusAboutBaselineCandidate',
   'ListWorkspaceMembershipCandidates',
   'GetWorkspaceMemberAccess',
   'GetAreaAccess',
