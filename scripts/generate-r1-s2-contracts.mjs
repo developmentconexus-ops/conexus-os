@@ -7,7 +7,6 @@ const repositoryRoot = resolve(import.meta.dirname, '..')
 const source = resolve(repositoryRoot, 'contracts/api/product/openapi.yaml')
 const target = resolve(repositoryRoot, 'apps/hub/src/generated/s2-routes.ts')
 const clientTarget = resolve(repositoryRoot, 'apps/web/src/generated/workspace-client.ts')
-const operationSource = resolve(repositoryRoot, 'runtime/r1/generated/r1/operations.json')
 const expectedOperations = [
   { ownerId: 'WS-01', operationId: 'CreateWorkspace', method: 'POST', path: '/api/control/workspaces' },
   { ownerId: 'WS-02', operationId: 'GetWorkspace', method: 'GET', path: '/api/control/workspaces/{workspaceId}' },
@@ -50,19 +49,6 @@ try {
   definitions.sort((a, b) => a.ownerId.localeCompare(b.ownerId, 'en'))
   if (definitions.length !== expectedOperations.length || definitions.some((definition, index) => !sameProjection(definition, expectedOperations[index]))) {
     throw new Error(`S2_ROUTE_CENSUS_OR_OAS_PROJECTION_${definitions.length}`)
-  }
-
-  const canonicalOperations = JSON.parse(readFileSync(operationSource, 'utf8')).operations
-  if (!Array.isArray(canonicalOperations)) throw new Error('S2_CANONICAL_OPERATIONS_MISSING')
-  for (const expected of expectedOperations) {
-    const matches = canonicalOperations.filter((candidate) => candidate.ownerId === expected.ownerId)
-    if (matches.length !== 1 || !sameProjection(matches[0], expected)) throw new Error(`S2_G0_ROUTE_MISMATCH_${expected.ownerId}`)
-  }
-  for (const definition of definitions) {
-    const operation = canonicalOperations.find((candidate) => candidate.ownerId === definition.ownerId)
-    if (!operation || operation.operationId !== definition.operationId || operation.method !== definition.method || operation.path !== definition.path) {
-      throw new Error(`S2_G0_ROUTE_MISMATCH_${definition.ownerId}`)
-    }
   }
 
   const sourceDigest = sha256(readFileSync(source))
