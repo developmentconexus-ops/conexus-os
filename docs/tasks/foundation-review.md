@@ -36,7 +36,7 @@ F-07 waits for A-02 on purpose. Migration 049 writes five R2 capability columns 
 
 - [ ] Record the four decisions above in `docs/roadmap.md` with their date, and replace "No new providers" with the grant M-01 and M-02 need. Evidence: the diff.
 - [ ] Keep the honesty rule unchanged: operator consent is not provider endorsement, and a provider refusal is never evaded. Evidence: the sentence survives the diff.
-- [ ] Point the roadmap at this file as the current task after the remediation. Evidence: `node scripts/check-plan.mjs` reports only the lane-count deviation.
+- [ ] Point the roadmap at this file as the current task after the remediation. Evidence: the installed plugin's `check-plan.mjs` reports only the lane-count deviation.
 
 ## F-01. Delete dead code
 
