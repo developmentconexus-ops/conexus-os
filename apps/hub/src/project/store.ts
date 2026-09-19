@@ -33,7 +33,7 @@ export type ProjectBindingResult<T> = Readonly<
   | { status: 'UNAVAILABLE' }
 >
 
-// Separate from R1 creation/baseline custody: these methods own only the
+// Separate from R1 Project creation: these methods own only the
 // exact PRJ-13..15 Connection binding job, never Connection lifecycle.
 export type ProjectConnectionBindingStore = Readonly<{
   listConnectionBindings(input: Readonly<{

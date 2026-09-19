@@ -157,8 +157,6 @@ if (!allGeneratedText.includes('__Host-conexus_session')) {
   throw new Error('Kubb generated client lost ConexusSession cookie security scheme');
 }
 for (const operationId of [
-  'GetProjectBaselineCandidate',
-  'AskConexusAboutBaselineCandidate',
   'ListWorkspaceMembershipCandidates',
   'GetWorkspaceMemberAccess',
   'GetAreaAccess',

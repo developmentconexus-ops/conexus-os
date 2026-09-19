@@ -37,7 +37,6 @@ test('4D-03 maps every post-scaffold property into a consumer-gated mechanism-ne
     'CLOSED / OPERATOR APPROVED / 4E-R1-F01 BOUNDED OWNER CORRECTION APPROVED / 2026-08-30',
     'Exact dependency/package/topology selection:** `0`',
     'SEVEN OWNER-BOUNDED MECHANICAL CONTRACTS',
-    'R1 `PRJ-24` Project cognition and later `BLD-16` Builder cognition',
     'canonical wire + request authority',
     'browser projection + interaction conformance',
     'owner-isolated persistence + Project data path',

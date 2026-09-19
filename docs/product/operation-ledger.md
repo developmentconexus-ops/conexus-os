@@ -323,7 +323,7 @@ owners = 13
 
 No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default Workspace operation is admitted.
 
-## 5.3 Project — 28
+## 5.3 Project — 23
 
 | ID | Operation | Owner | Consumer / authority root | Class |
 | --- | --- | --- | --- | --- |
@@ -332,9 +332,6 @@ No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default 
 | `PRJ-03` | `CreateProject` | Project + accepted L7 composition | exact Workspace; atomically establishes Project + initial I&A grant + one canonical Project source bootstrap | command/cross-owner atomic |
 | `PRJ-05` | `ArchiveProject` | Project | exact Project archive authority; does not unpublish/stop automations | command/current-state |
 | `PRJ-06` | `DuplicateProject` | Project | source authority + destination Workspace create authority; default NO DATA; no credential/binding copy | command/cross-scope |
-| `PRJ-07` | `RunInceptionInvestigation` | Project | exact greenfield/brownfield Project + caller intent; optional refinement binds explicit human review feedback to one exact immutable prior candidate while source/context remain server-resolved | investigation command |
-| `PRJ-08` | `GetApprovedProjectBaseline` | Project | exact Project/Baseline disclosure | read |
-| `PRJ-09` | `ApproveProjectBaselineRevision` | Project | exact candidate Baseline digest + current approval authority | decision/current-state |
 | `PRJ-10` | `GetProjectBrainBinding` | Project | exact pinned binding + validation/update state | read |
 | `PRJ-11` | `SetProjectBrainBinding` | Project + accepted L7 composition | exact immutable Brain revision + conformance + Project authority | command/current-state |
 | `PRJ-12` | `ClearProjectBrainBinding` | Project | exact current binding; narrowing | narrowing command |
@@ -348,8 +345,6 @@ No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default 
 | `PRJ-20` | `ListProjectProductAgents` | Project projection | authored Agent identities/revisions/Release state; ordinary source-read or purpose-bound trigger-administration summary disclosure | read |
 | `PRJ-21` | `GetProjectProductAgent` | Project projection | exact Agent authoring identity/revisions/Release refs | read |
 | `PRJ-22` | `ListWorkspaceProductAgents` | Project-owned filtered projection | Workspace access-filtered catalog; no Workspace Agent owner | read |
-| `PRJ-23` | `GetProjectBaselineCandidate` | Project | exact candidate Baseline human review/re-entry by Project + candidate digest before approval | read |
-| `PRJ-24` | `AskConexusAboutBaselineCandidate` | Project | exact immutable candidate Baseline contextual explanation for the current Baseline-management reviewer; generated visual-selection context is untrusted and revalidated | read/assistant interaction |
 | `PRJ-25` | `ListProjectDataExplorerSources` | Project | exact Project; current explorer-eligible Project Database and eligible currently bound integration source summaries, with server-resolved disclosure eligibility | read/provenance |
 | `PRJ-26` | `ListProjectDataExplorerObjects` | Project | exact Project + exact disclosed explorer source; paged/searchable TABLE/VIEW/genuinely-tabular DATASET summaries without generic provider-tree authority | read/provenance |
 | `PRJ-27` | `GetProjectDataExplorerObject` | Project | exact Project + disclosed source/object; physical columns/keys/relationships/constraints plus optional semantic coordinates; no SQL/storage-admin authority | read/provenance |
@@ -360,7 +355,7 @@ No `DeleteWorkspace`, `DeleteArea`, generic Organization tree or hidden/default 
 
 `PRJ-18/19` remain declared **semantic** Data-resource projections. F20 permits bounded logical resource structure needed by the Project Data consumer; it still does not turn those operations into physical database/storage authority. F22 adds a distinct read-only physical explorer family `PRJ-25..28`; physical identity and rows therefore do not contaminate semantic `ProjectDataResource` identity.
 
-### 5.3.1 `4C-F02` — Project source/Inception/Baseline correction
+### 5.3.1 `4C-F02` — Project source correction
 
 W-01 proved that accepted Journey B cannot be completed truthfully by the pre-correction Project surface. The operator accepted the smallest correction:
 
@@ -383,18 +378,6 @@ R1 first-creator owner composition
 → WS-01 establishes current creator Workspace membership/access + project.create
 → PRJ-03 establishes exact creator account_project_grant + project.read + project.manage
 → project.build / project.review / project.source.read remain separate and absent until first consumer
-
-PRJ-07 RunInceptionInvestigation
-→ requires one non-blank human intent
-→ intent expresses the current objective/users/constraints in ordinary language
-→ source selection remains server-resolved from already-admitted Project authority
-→ no repository URL/source ID/arbitrary Connection/SQL/target URL input is admitted
-→ produces the exact candidate Baseline representation for immediate review
-
-PRJ-23 GetProjectBaselineCandidate
-→ exact Project + candidateBaselineDigest
-→ durable read of that immutable candidate for refresh/re-entry before decision
-→ returns candidate digest + sourceRevision + sourceText + ApplicationRuntimeProfile
 ```
 
 Binding negative laws:
@@ -405,50 +388,13 @@ post-create source switching/editing = NOT ADMITTED
 multi-repo F1 = NOT ADMITTED
 Repository CRUD/Product owner = NOT ADMITTED
 Git credentials in Product source input = FORBIDDEN
-PRJ-07 source-selection authority = FORBIDDEN
-candidate list/CRUD/workflow domain = NOT ADMITTED
-browser cache/localStorage = NEVER candidate-Baseline authority
 ```
 
-`PRJ-23` is one new read because a real human consumer needs durable exact candidate review after refresh/re-entry. No new ordinary Permission, semantic owner, principal class or durable record class is created. Candidate source remains Project-Git/immutable-byte authority projected by the Project owner.
-
-### 5.3.2 `4C-F03` — Baseline visual review / contextual refinement correction
-
-W-01 visual-review Evidence proved two additional missing Product properties and no broader review domain.
-
-```text
-PRJ-07 RunInceptionInvestigation
-→ ordinary first investigation still requires human intent only
-→ refinement may additionally name exactly one priorCandidateBaselineDigest
-→ refinement requires explicit non-blank reviewFeedback about that exact candidate
-→ priorCandidateBaselineDigest and reviewFeedback are all-or-nothing
-→ server re-resolves exact candidate containment/current Project authority
-→ Candidate A is never mutated; successful refinement produces a new immutable Candidate B
-→ HTML/DOM/annotation/Mastra state is never candidate authority
-
-PRJ-24 AskConexusAboutBaselineCandidate
-→ exact Project + candidateBaselineDigest + non-blank question
-→ optional candidate-local generated review context may identify a projection anchor / selected rendered text
-→ review context is untrusted presentation context and must be revalidated against the exact candidate
-→ response is read-only contextual explanation with candidate identity + provenance
-→ no mutation, approval, grant, Builder authority or hidden Project state transition
-```
-
-Binding negative laws:
-
-```text
-feedback hidden inside free-form intent -X-> exact-candidate lineage
-chat message -X-> Baseline mutation
-HTML/DOM selector -X-> Product identity
-generated review anchor -X-> Product authority
-Mastra RequestContext/thread/memory -X-> Baseline truth
-project.manage -X-> project.build
-BLD-16 -X-> Baseline-management authority by frontend convenience
-BaselineComment/BaselineThread/ReviewSession CRUD = NOT ADMITTED
-candidate list/CRUD/workflow domain = NOT ADMITTED
-```
-
-`PRJ-24` is one new read/assistant interaction because a real Baseline-management reviewer needs to ask about the exact immutable candidate without acquiring the distinct `project.build` authority of Builder `BLD-16`. `4C-F03` creates zero new ordinary Permissions, semantic owner classes, principal classes, trust boundaries or durable record classes. Visual anchors and conversation continuity remain generated/local/cognitive mechanisms; Project owner truth stays candidate-digest bound.
+Project Inception and Baseline left the product on 2026-09-19. The
+investigation and candidate-review operations `4C-F02` and `4C-F03` admitted are
+retired; the source-bootstrap law above is the part of those corrections that
+remains current Product authority. The `4C` records of the retired decisions are
+retained in `docs/evidence/`.
 
 ### 5.3.3 `4C-F16` — Data human identity
 
@@ -1536,8 +1482,7 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | `PRJ-03` | `HUMAN_ACCOUNT_SESSION / CP` | `project.create` | destination Workspace + atomic Project/initial current-Account direct grant carrying `project.read + project.manage` + one canonical source-bootstrap admission; success implies a source-complete Project | `COMMAND` | `IC3` |
 | `PRJ-05` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact current Project; archive preserves independent serving/automation laws | `COMMAND` | `IC2` |
 | `PRJ-06` | `HUMAN_ACCOUNT_SESSION / CP` | source `project.manage` + destination `project.create` | source Project + destination Workspace; NO DATA/no credentials/no bindings by default | `COMMAND` | `IC3` |
-| `PRJ-07` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage`; plus `connection.use` only when an already-admitted external source context actually requires it | exact inception Project + non-blank human intent + server-resolved admitted source/context; optional refinement requires exact prior candidate + explicit review feedback; investigation cannot publish authority directly | `PROOF` | `IC3` |
-| `PRJ-08,PRJ-09,PRJ-10,PRJ-12,PRJ-13,PRJ-15,PRJ-23,PRJ-24` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/current or candidate Baseline/binding subject; PRJ-13 binding responses may compose Connection presentation but gain no Connection management/read authority; PRJ-24 is exact candidate-bound read-only explanation; removals are narrowing | reads `READ`; decisions/writes `DECISION/COMMAND` | reads `IC0`; writes `IC2` |
+| `PRJ-10,PRJ-12,PRJ-13,PRJ-15` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/binding subject; PRJ-13 binding responses may compose Connection presentation but gain no Connection management/read authority; removals are narrowing | reads `READ`; decisions/writes `DECISION/COMMAND` | reads `IC0`; writes `IC2` |
 | `PRJ-11` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage + brain.bind` | exact immutable Brain revision + current conformance + exact Project binding subject | `DECISION` | `IC2` |
 | `PRJ-14` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage + connection.use` | exact qualified compatible ConnectionRevision/environment + current Project binding | `DECISION` | `IC2` |
 | `PRJ-16,PRJ-17` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `project.read` or purpose-bound `project.build` | exact Project + capability identity; human name/purpose and logical input/output contract are inspection/construction truth only and do not grant invocation, data, source or runtime authority | `READ` | `IC0` |
@@ -1623,7 +1568,7 @@ W-01 authority-feasibility then produced operator-approved `4C-F02`:
 
 ```text
 111
-+ 1 PRJ-23 GetProjectBaselineCandidate
++ 1 Project candidate-review read
 = 112 fixed operations after 4C-F02
 ```
 
@@ -1631,9 +1576,14 @@ W-01 visual-review feasibility then produced operator-approved `4C-F03`:
 
 ```text
 112
-+ 1 PRJ-24 AskConexusAboutBaselineCandidate
++ 1 Project candidate-assistant read
 = 113 fixed operations after 4C-F03
 ```
+
+Both reads, and the investigation and Baseline-decision operations beside them,
+were retired on 2026-09-19 when Project Inception and Baseline left the product.
+This derivation records the platform count as it stood at each accepted
+correction; it is not the current Product census, which is in section 5.
 
 W-02A/W-02B bounded findings `4C-F05`, `4C-F06`, `4C-F07`, `4C-F09`, `4C-F10` each added zero operations while enriching existing accepted operations; the count remained 113 through W-02B closure.
 
@@ -1710,7 +1660,7 @@ The operator-approved pre-P11 F05 correction then admits one Project-owned human
 = 128 current fixed Conexus platform Product operations
 ```
 
-`PRJ-03`, `PRJ-07`, `BRN-02`, `BRN-03`, `BRN-06`, `BRN-07`, `BRN-14`, `CON-03`, `CON-04`, `CON-07`, `CON-08`, `CON-09`, `OBS-04`, `OBS-05`, `BLD-01`, `BLD-02`, `BLD-03`, `BLD-10`, `BLD-16`, `PRJ-13`, `PRJ-14`, `PRJ-16`, `PRJ-17`, `PRJ-18` and `PRJ-19` gained only bounded missing semantics required by real consumers; they remain the same Product operations. F11 adds exactly three purpose-built reads because three independent access-administration read jobs are proven; F19 adds exactly one purpose-built read because BRN-12's human semantic-input discovery is otherwise impossible from Product authority; F22 adds exactly four reads because source discovery, scalable source-scoped object discovery, exact object structure and structured row browsing are independently bounded human reads and must not collapse into a generic provider/resource tree; F23 adds exactly one read because Project Brain context inspection is neither binding administration, whole-Workspace Brain browse nor runtime context composition; PRE11-F05 adds exactly one Project-owned model-policy read because a required model-policy reference otherwise has no human-recognizable construction source.
+`PRJ-03`, `BRN-02`, `BRN-03`, `BRN-06`, `BRN-07`, `BRN-14`, `CON-03`, `CON-04`, `CON-07`, `CON-08`, `CON-09`, `OBS-04`, `OBS-05`, `BLD-01`, `BLD-02`, `BLD-03`, `BLD-10`, `BLD-16`, `PRJ-13`, `PRJ-14`, `PRJ-16`, `PRJ-17`, `PRJ-18` and `PRJ-19` gained only bounded missing semantics required by real consumers; they remain the same Product operations. F11 adds exactly three purpose-built reads because three independent access-administration read jobs are proven; F19 adds exactly one purpose-built read because BRN-12's human semantic-input discovery is otherwise impossible from Product authority; F22 adds exactly four reads because source discovery, scalable source-scoped object discovery, exact object structure and structured row browsing are independently bounded human reads and must not collapse into a generic provider/resource tree; F23 adds exactly one read because Project Brain context inspection is neither binding administration, whole-Workspace Brain browse nor runtime context composition; PRE11-F05 adds exactly one Project-owned model-policy read because a required model-policy reference otherwise has no human-recognizable construction source.
 
 Rejected convenience/mechanism operations include:
 
@@ -1842,11 +1792,9 @@ The original independent Fable review remains historical Evidence. Later bounded
 → N_platform 114 → 111 by subtracting unclosed generic Workspace/Area/Project updates
 
 4C-F02 OPERATOR ACCEPT
-→ add PRJ-23 and source-complete Project/Inception semantics
 → N_platform 111 → 112
 
 4C-F03 OPERATOR ACCEPT
-→ add PRJ-24 and exact-candidate refinement semantics
 → N_platform 112 → 113
 
 4C-F05 / F06 / F07 OPERATOR ACCEPT

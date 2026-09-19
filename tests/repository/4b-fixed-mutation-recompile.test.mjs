@@ -28,8 +28,6 @@ test('operator-approved 4B-F01 subtraction remains preserved after later bounded
   }
 
   for (const [id, operationId] of [
-    ['PRJ-23', 'GetProjectBaselineCandidate'],
-    ['PRJ-24', 'AskConexusAboutBaselineCandidate'],
     ['IAM-18', 'ListWorkspaceMembershipCandidates'],
     ['IAM-19', 'GetWorkspaceMemberAccess'],
     ['IAM-20', 'GetAreaAccess'],
