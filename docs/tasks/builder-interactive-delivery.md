@@ -87,13 +87,21 @@ References checked during planning:
 - https://elements.ai-sdk.dev/components/model-selector
 
 Keep the current narrow Anthropic adapter and fix it against its qualified flow.
-Do not add the full Mastra Code SDK only for login, a CLI subprocess, Agent SDK,
-API-key fallback, or another provider. The operator explicitly authorized local
-account OAuth after being informed of provider restrictions. This is acceptance
-of implementation/support risk, not vendor endorsement or permission to evade
-refusal. A provider rejection is reported honestly; no bypass is authorized.
-The user performs sign-in and pastes the code in the application, never in logs
-or the coding-agent conversation.
+Do not add the full Mastra Code SDK only for login, a CLI subprocess, or an Agent
+SDK. The operator explicitly authorized local account OAuth after being informed
+of provider restrictions. This is acceptance of implementation/support risk, not
+vendor endorsement or permission to evade refusal. A provider rejection is
+reported honestly, and no bypass is authorized. The user performs sign-in and
+pastes the code in the application, never in logs or the coding-agent
+conversation.
+
+On 2026-09-19 the operator lifted the refusal of an API-key fallback and of a
+second provider. API keys for any provider Mastra routes, and a later ChatGPT
+account sign-in, are granted to units M-01 and M-02 of the
+[foundation review](foundation-review.md). This task keeps the single-adapter
+shape it delivered, because that work is already done and this file is the
+predecessor contract. The honesty rule above is unchanged. Operator consent is
+not provider endorsement, and a provider refusal is never evaded.
 
 ## Decisions that implementation must preserve
 

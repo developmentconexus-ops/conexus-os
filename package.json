@@ -61,7 +61,6 @@
     "db:catalog:check": "node scripts/generate-hub-catalog-snapshot.mjs --check",
     "repository:check": "node scripts/check-current-state.mjs",
     "repository:candidate-census": "node --test --test-concurrency=1 tests/repository/repository-contract.test.mjs",
-    "repository:r3-candidate-freeze": "node scripts/check-r3-candidate-freeze.mjs && CONEXUS_R3_CANDIDATE_GATE=true node --test --test-concurrency=1 tests/repository/r3-candidate-freeze.test.mjs",
     "repository:check:extended": "node scripts/check-repository-hygiene.mjs && node scripts/check-doc-index.mjs && node scripts/check-architecture-verification.mjs && node scripts/check-qualification-provenance.mjs",
     "r1:g0:generate": "node scripts/generate-r1-g0.mjs",
     "r1:g0:verify": "node --test --test-concurrency=1 tests/implementation/r1-g0-profile-compiler.test.mjs",
