@@ -4,6 +4,7 @@ This file owns mutable status, allowed work, and the exact next action.
 
 Current program: [Builder operational delivery](tasks/builder-first-app.md).
 Current task: [Builder repair program](tasks/builder-repair-program.md).
+Task after the remediation: [Foundation review](tasks/foundation-review.md).
 Predecessor task: [Approved interactive Builder](tasks/builder-interactive-delivery.md),
 whose repair ledger this program closes.
 Technical authority: [C-020](reference/builder-c020-mastra-native.md).
@@ -36,6 +37,7 @@ Product features.
 | Interactive Builder delivery | APPROVED FOR EXECUTION under the current task. Four ordered units form one integrated candidate. |
 | Builder repair program | IN EXECUTION. P-01 landed as #72 and #73 with unit proof and a green CI graph; its live lanes 6 and 10 and its perf box are outstanding. P-02 through P-06 have not started. The operator lifted the merge gate on 2026-09-18. |
 | Credential and role remediation | IN EXECUTION beside the repair program. Steps 1 and 2 landed as #74 and #76. Its execution contract is #79. Step 3 is #80, the role register, and #81, provisioning plus the startup census. Step 4 is #82, the MAR excision and the census count. Step 5 is #84, which replaces the schema oracle with a generated catalog snapshot and is proven read-only against the pilot. #83 repairs two guarded suites #74 left unable to run. All six are verified and wait at merge-ready for the operator. Next is repairing the three R1 Postgres suites that rotted outside the candidate graph. Credential consolidation is deliberately outside the grant. |
+| Foundation review | GRANTED ON 2026-09-19. Its four scope decisions are recorded below under Foundation review. Its execution contract is `docs/tasks/foundation-review.md`. It is the task after the remediation, not beside it. |
 | Broader platform and visual polish | DEFERRED. No requirement to finish them before operating the Builder. |
 
 The initial accepted 7R-1 implementation remains
@@ -121,12 +123,21 @@ gains the ability to assume another.
 
 Keep Mastra as the coding runtime and the existing encrypted credential backend.
 The operator authorized local account OAuth after being informed of provider
-restrictions. Record that risk honestly; do not represent operator consent as
-provider endorsement. Do not evade provider refusal or silently switch to an API
-key/another runtime. Real sign-in is performed by the user in the application.
+restrictions. Record that risk honestly. Do not represent operator consent as
+provider endorsement. Do not evade a provider refusal. An API key is an
+authorized credential kind that the user chooses on purpose, and it is never
+substituted for an account whose provider refused. Real sign-in is performed by
+the user in the application.
 
-The pilot is single-Hub and local. No new providers, secret services, cloud
-telemetry, business integrations, production publication, deployment, or merge.
+The pilot is single-Hub and local. No secret services, cloud telemetry, business
+integrations, production publication, deployment, or merge. Providers are no
+longer closed. On 2026-09-19 the operator reversed the refusal this line used to
+carry, and granted two additions to the foundation review's units M-01 and M-02.
+The first is an API key for any provider Mastra already routes. The second is a
+ChatGPT account sign-in beside the Anthropic one. Model selection stays
+Mastra-native, and Conexus adds only credential custody and sign-in. The grant
+reaches those two units and nothing else.
+
 The planner prepares/reconciles this plan and verifies candidates. Codex executes
 Product changes and their proofs. Do not silently combine those roles.
 
@@ -135,6 +146,33 @@ containers, and existing data. No reset, clean, stash, force-push, or destructiv
 migration is authorized here. Credential rotation and role-attribute changes are
 authorized only inside the credential and role remediation above, and only to the
 values the existing secret files already hold; no new credential is generated.
+
+### Foundation review
+
+Its execution contract is [foundation-review.md](tasks/foundation-review.md). That
+task owns the ordered units, their bases and their migration numbers. This section
+is the grant. The foundation review starts after the credential and role
+remediation closes, and it does not run beside it.
+
+On 2026-09-19 the operator decided its scope in four parts.
+
+1. Project Inception and Baseline may be deleted.
+2. Brain, bindings and Sankhya come out now. They return only as future features on
+   a solid base.
+3. Multi-account lands now, at the minimum that is correct.
+4. Model selection stays Mastra-native. Conexus adds credential custody and sign-in
+   for an Anthropic account, API keys for any provider Mastra routes, and later a
+   ChatGPT account sign-in.
+
+The same day the operator authorized one read-only row count against the pilot with
+the root credential, and then said "você roda e deleta o que precisar". That is the
+operator's word the plan's A-02 waits on before it drops the derived grant tables,
+and the word F-07 waits on before it drops the empty Inception and R2 tables. The
+counts are recorded in the plan.
+
+Destroying real Product data is still refused. The plan's migrations assert that
+each table they drop is empty and abort otherwise, so the count stays a
+precondition rather than a promise.
 
 ## Recorded environment limits
 
