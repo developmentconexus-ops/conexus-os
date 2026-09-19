@@ -1,14 +1,8 @@
 import { TextDecoder } from 'node:util'
 
-const requestTimeoutMilliseconds = 10_000
 const maximumJsonDepth = 16
 const maximumJsonNodes = 4_096
 const utf8 = new TextDecoder('utf-8', { fatal: true })
-
-export type BoundedJsonResponse = Readonly<{
-  response: Response
-  body?: unknown
-}>
 
 const isJsonMediaType = (header: string | null): boolean => {
   if (!header) return false
@@ -69,29 +63,5 @@ export const readBoundedJson = async (response: Response, maximumBytes: number):
   } finally {
     bytes.fill(0)
     for (const chunk of chunks) chunk.fill(0)
-  }
-}
-
-export const requestBoundedJson = async (
-  fetchImpl: typeof fetch,
-  input: string,
-  init: RequestInit,
-  maximumResponseBytes: number,
-): Promise<BoundedJsonResponse> => {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), requestTimeoutMilliseconds)
-  let response: Response | undefined
-  try {
-    response = await fetchImpl(input, { ...init, redirect: 'error', signal: controller.signal })
-    if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined)
-      return { response }
-    }
-    return { response, body: await readBoundedJson(response, maximumResponseBytes) }
-  } catch (error) {
-    await response?.body?.cancel().catch(() => undefined)
-    throw error
-  } finally {
-    clearTimeout(timeout)
   }
 }

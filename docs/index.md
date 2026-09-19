@@ -20,7 +20,6 @@ owns status and the next action. Start there.
 | The fixed operation census | [Operation ledger](product/operation-ledger.md) |
 | Wire shape and its rules | [Wire contract](product/wire-contract.md) |
 | Human context and identity | [Human-context identity](product/human-context-identity-contract.md) |
-| The first vertical's example contract | [Budget Analyzer](product/budget-analyzer-contract.md) |
 | Decisions in force and how to reopen one | [Decision register](decisions/index.md) |
 
 ## Technical reference

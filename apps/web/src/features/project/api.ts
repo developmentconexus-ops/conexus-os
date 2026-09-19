@@ -50,7 +50,3 @@ export async function createProject(
   if (response.status !== 201) reject(response)
   return response.json() as Promise<CreateProjectResponse>
 }
-
-export function isProjectAuthenticationRequired(error: unknown): boolean {
-  return error instanceof ProjectRequestError && error.status === 401
-}
