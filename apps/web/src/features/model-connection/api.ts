@@ -54,12 +54,12 @@ export async function listModelConnections(): Promise<ModelConnectionList> {
   return { connections: body.connections ?? [], providers: body.providers ?? [] }
 }
 
-export async function startModelAuthorization(): Promise<ModelAuthorization> {
-  const response = await request('/api/control/me/model-connections/authorization', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+export async function startModelAuthorization(providerId: string): Promise<ModelAuthorization> {
+  const response = await request('/api/control/me/model-connections/authorization', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ providerId }) })
   return response.json() as Promise<ModelAuthorization>
 }
 
-export async function completeModelAuthorization(input: Readonly<{ result: string; label: string }>) {
+export async function completeModelAuthorization(input: Readonly<{ providerId: string; result: string; label: string }>) {
   const response = await request('/api/control/me/model-connections/authorization/complete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) })
   return response.json() as Promise<ModelConnection>
 }
