@@ -140,10 +140,21 @@ values the existing secret files already hold; no new credential is generated.
 
 The last reported local proof had HTTPS and `hub_iam_runtime` working after the
 previously authorized `hub_rb_executor` reconciliation. `hub_prj03_command` and
-`hub_rb_ingress` still reported `28P01`. These are historical observations and were
-not reverified during this planning. Check the current state read-only as required
-by the task. Report a surviving operational block without declaring the entire
-code path proven, and continue independent implementation/offline tests.
+`hub_rb_ingress` still reported `28P01`.
+
+That `28P01` is gone. On 2026-09-18 a read-only census opened one session per
+configured role against the pilot cluster at `conexus_s7` through the Hub's own
+`createPostgresPool`, and all eleven configured roles authenticated, including
+`hub_prj03_command` and `hub_rb_ingress`. Postgres reported the expected
+`conexus-hub:<capability>` for each one. No role is in a blocked state today.
+
+Four roles have no password file in the pilot and so no pool is created for them
+there. They are `hub_r2_project_binding`, `hub_r2_brain_read`,
+`hub_r2_brain_attester` and `hub_r2_key_conformance_subject`. Unconfigured is not
+the same as invalid, and the remediation's step 3 census reports them apart.
+
+Report a surviving operational block without declaring the entire code path
+proven, and continue independent implementation/offline tests.
 
 The approved HTML bytes are supplied in the handoff package. Import their exact
 hash-verified copy in the first implementation unit. Do not substitute screenshots
