@@ -23,21 +23,13 @@ defect in this table. Adding a role means adding a row to the register and regen
 | `hub_ws01_command` | `workspace-command` | `server.ts` | `CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE` |
 | `hub_s3_read` | `project-read` | `project/module.ts` | `CONEXUS_DB_S3_READ_PASSWORD_FILE` |
 | `hub_prj03_command` | `project-command` | `project/module.ts` | `CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE` |
-| `hub_r2_project_binding` | `project-binding` | `project/module.ts` | `CONEXUS_DB_R2_PROJECT_BINDING_PASSWORD_FILE` |
-| `hub_r2_brain_read` | `brain-read` | `server.ts` | `CONEXUS_DB_R2_BRAIN_READ_PASSWORD_FILE` |
-| `hub_r2_brain_attester` | `brain-attester` | `project/module.ts` | `CONEXUS_DB_R2_BRAIN_ATTESTER_PASSWORD_FILE` |
-| `hub_r2_key_conformance_subject` | `key-conformance-subject` | `server.ts` | `CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE` |
-| `hub_r2_connections` | `connections` | `connections/module.ts`, `claude-account/module.ts` | `CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE` |
+| `hub_r2_connections` | `connections` | `claude-account/module.ts` | `CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE` |
 | `hub_rb_ingress` | `builder-request` | `builder/module.ts` | `CONEXUS_DB_RB_INGRESS_PASSWORD_FILE` |
 | `hub_rb_executor` | `builder-run-execution` | `builder/module.ts` | `CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE` |
 
-`hub_r2_brain_attester` moved into this table. An earlier revision listed it as a role no
-pool connects as, which was true of the pilot and false of the code.
-`apps/hub/src/project/module.ts:151` creates a pool as that role whenever
-`config.projectBindings.brain` is set. The pilot's secret directory holds no password file
-for `hub_r2_project_binding`, `hub_r2_brain_read`, `hub_r2_brain_attester` or
-`hub_r2_key_conformance_subject`, so those config sections are unset there and those four
-pools are never created in the pilot. Unconfigured is not the same as unreachable.
+`hub_r2_project_binding`, `hub_r2_brain_read`, `hub_r2_brain_attester` and
+`hub_r2_key_conformance_subject` used to appear here. The pools that opened them are gone with
+the Brain and the bindings, so they moved to the table below.
 
 ## The Builder split, which is load-bearing
 
@@ -59,6 +51,20 @@ all: 236 functions are `SECURITY DEFINER` and `REVOKE ALL ON ALL TABLES` is appl
 | Role | State |
 | --- | --- |
 | `hub_r2_brain_bootstrap` | The bootstrap script connects by admin connection string instead. |
+| `hub_r2_project_binding` | Held the binding intent surface. `055` revoked every privilege it has. |
+| `hub_r2_brain_read` | Held the Brain read surface. `055` revoked every privilege it has. |
+| `hub_r2_brain_attester` | Held the Brain attestation surface. `055` revoked every privilege it has. |
+| `hub_r2_key_conformance_subject` | Held the key conformance subject. `055` revoked every privilege it has. |
+| `hub_s4_baseline_read` | Held the Baseline read surface. `055` revoked every privilege it has. |
+| `hub_s4_baseline_command` | Held the Baseline command surface. `055` revoked every privilege it has. |
+| `hub_s6_inception_command` | Held the Inception command surface. `055` revoked every privilege it has. |
+
+Migration `055` dropped the Brain, the bindings, Baseline, Inception and the Sankhya connections,
+and revoked every privilege the roles above still held. It did not drop the roles themselves. A
+role is cluster-global while its privileges are per database, so `DROP ROLE` answers `2BP01`
+whenever any other database on the cluster still grants to it. A migration that dropped them would
+succeed or fail depending on what else the cluster hosts, which is not a property a forward-only
+migration may have. Removing them is a cluster operation, listed under follow-ups.
 
 ## Roles are cluster-global
 

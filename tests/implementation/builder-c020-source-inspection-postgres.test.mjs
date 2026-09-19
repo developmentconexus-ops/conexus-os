@@ -53,10 +53,6 @@ test('C-020 source inspection admits current subjects and latest code-changing r
   await query(`INSERT INTO builder.project_working_state(project_id, working_source_revision, last_preview_source_revision,
     last_preview_artifact_revision_id, last_preview_artifact_digest)
     VALUES ($1, $2, $3, $4, $5), ($6, $7, NULL, NULL, NULL)`, [project, working, preview, '83000000-0000-4000-8000-000000000001', '1'.repeat(64), otherProject, qWorking])
-  await query(`INSERT INTO project.baseline_candidate(project_id, candidate_digest, source_revision, source_text, application_runtime_profile)
-    VALUES ($1, $2, $3, 'legacy baseline', 'MANAGED')`, [project, '2'.repeat(64), baseline])
-  await query(`INSERT INTO project.baseline_state(project_id, current_candidate_digest, approved_candidate_digest, approval_revision)
-    VALUES ($1, $2, $2, $3)`, [project, '2'.repeat(64), '83000000-0000-4000-8000-000000000002'])
   const insertRun = async (id, revision, kind, createdAt, base) => query(`INSERT INTO builder.builder_run(
     builder_run_id, project_id, account_id, trigger_message_id, idempotency_digest, request_digest, mode,
     base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind, created_at
