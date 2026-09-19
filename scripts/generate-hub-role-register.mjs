@@ -83,13 +83,28 @@ export const renderRegister = ({ digest, roles }) => {
 
 export const generateRegister = () => renderRegister(readSource())
 
+const roleOnLine = (line) => line.match(/role: "(hub_[a-z0-9_]+)"/)?.[1] ?? line.match(/^ {2}(hub_[a-z0-9_]+):/)?.[1] ?? null
+
+// A drift report that names only the file sends a reader to diff 40 lines by hand.
+export const describeDrift = (current, rendered) => {
+  if (current === rendered) return null
+  const currentLines = current.split('\n')
+  const renderedLines = rendered.split('\n')
+  for (let index = 0; index < Math.max(currentLines.length, renderedLines.length); index += 1) {
+    if (currentLines[index] === renderedLines[index]) continue
+    const role = roleOnLine(currentLines[index] ?? '') ?? roleOnLine(renderedLines[index] ?? '')
+    return role ? `${targetPath} line ${index + 1}, role ${role}` : `${targetPath} line ${index + 1}`
+  }
+  return targetPath
+}
+
 const isEntrypoint = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 if (isEntrypoint) {
   const rendered = generateRegister()
   const target = resolve(repositoryRoot, targetPath)
   if (process.argv.includes('--check')) {
-    const current = readFileSync(target, 'utf8')
-    if (current !== rendered) fail('ROLE_REGISTER_PROJECTION_DRIFT', targetPath)
+    const drift = describeDrift(readFileSync(target, 'utf8'), rendered)
+    if (drift) fail('ROLE_REGISTER_PROJECTION_DRIFT', drift)
     process.stdout.write(`${JSON.stringify({ verdict: 'CURRENT', target: targetPath })}\n`)
   } else {
     writeFileSync(target, rendered)

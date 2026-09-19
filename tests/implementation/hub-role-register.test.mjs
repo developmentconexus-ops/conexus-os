@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 
-import { generateRegister, renderRegister } from '../../scripts/generate-hub-role-register.mjs'
+import { describeDrift, generateRegister, renderRegister } from '../../scripts/generate-hub-role-register.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const register = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8'))
@@ -78,6 +78,15 @@ test('every registered role is the user of a pool in the module the register nam
 test('the register refuses a second role claiming one capability', () => {
   const roles = [...register.roles, { ...register.roles[0], role: 'hub_second_claimant', passwordFileVariable: 'CONEXUS_DB_SECOND_CLAIMANT_PASSWORD_FILE' }]
   assert.throws(() => renderRegister({ digest: 'unused', roles }), /ROLE_REGISTER_DUPLICATE_CAPABILITY/)
+})
+
+test('a drifted projection is reported by the role that drifted', () => {
+  const rendered = generateRegister()
+  assert.equal(describeDrift(rendered, rendered), null)
+  const editedRow = rendered.replace('capability: "builder-run-execution"', 'capability: "builder-run-exec-DRIFT"')
+  assert.equal(describeDrift(editedRow, rendered), 'apps/hub/src/generated/hub-roles.ts line 28, role hub_rb_executor')
+  const editedLabel = rendered.replace('hub_prj03_command: "project-command"', 'hub_prj03_command: "project-DRIFT"')
+  assert.equal(describeDrift(editedLabel, rendered), 'apps/hub/src/generated/hub-roles.ts line 36, role hub_prj03_command')
 })
 
 test('the register refuses a role with no module that connects as it', () => {
