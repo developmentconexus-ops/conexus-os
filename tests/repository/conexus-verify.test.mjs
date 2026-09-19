@@ -38,7 +38,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'claude-account', 'claude-account-web-api', 'protected-cluster-coverage',
   'wire-openapi-lint', 'wire-openapi-bundle',
   'wire-bijection', 'wire-carriers', 'wire-identity-workspace',
-  'wire-project', 'wire-builder', 'wire-brain', 'wire-connections',
+  'wire-project', 'wire-builder',
   'wire-technical-lint', 'wire-technical-ingress',
 ])
 

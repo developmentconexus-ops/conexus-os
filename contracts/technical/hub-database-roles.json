@@ -33,34 +33,10 @@
       "connectsFrom": ["apps/hub/src/project/module.ts"]
     },
     {
-      "role": "hub_r2_project_binding",
-      "capability": "project-binding",
-      "passwordFileVariable": "CONEXUS_DB_R2_PROJECT_BINDING_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/project/module.ts"]
-    },
-    {
-      "role": "hub_r2_brain_read",
-      "capability": "brain-read",
-      "passwordFileVariable": "CONEXUS_DB_R2_BRAIN_READ_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/server.ts"]
-    },
-    {
-      "role": "hub_r2_brain_attester",
-      "capability": "brain-attester",
-      "passwordFileVariable": "CONEXUS_DB_R2_BRAIN_ATTESTER_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/project/module.ts"]
-    },
-    {
-      "role": "hub_r2_key_conformance_subject",
-      "capability": "key-conformance-subject",
-      "passwordFileVariable": "CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/server.ts"]
-    },
-    {
       "role": "hub_r2_connections",
       "capability": "connections",
       "passwordFileVariable": "CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/connections/module.ts", "apps/hub/src/claude-account/module.ts"]
+      "connectsFrom": ["apps/hub/src/claude-account/module.ts"]
     },
     {
       "role": "hub_rb_ingress",

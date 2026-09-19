@@ -47,8 +47,7 @@ Brain, R3, L1-L6, or every old screen is enabled for the pilot.
 | Decision disposition and reopen route | [Decision register](decisions/index.md) |
 | Architecture overview | [Architecture index](architecture/index.md) |
 | Project, data, and persistence | [Data and persistence](reference/data-and-persistence.md) |
-| Brain | [Brain and knowledge](reference/brain-and-knowledge.md) |
-| Connections and Gateway | [Integrations and Gateway](reference/integrations-and-gateway.md) |
+| Connections and Gateway (retired 2026-09-19) | [Integrations and Gateway](reference/integrations-and-gateway.md) |
 | Ordinary Builder | [C-020](reference/builder-c020-mastra-native.md) |
 | Historical/broader Builder meaning | [Builder and harness](reference/builder-and-harness.md); C-020 supersedes conflicting ordinary-path mechanics |
 | Runtime and Product Agents | [Runtime and agents](reference/runtime-and-agents.md) and [Mastra map](reference/mastra/index.md) |
@@ -66,7 +65,7 @@ Their text does not reinstate their old execution order.
 
 | Subject | Retained route |
 | --- | --- |
-| L1-L6 delivery inputs | [Local build/Preview](tasks/l1-local-build-preview.md), [data/SDK](tasks/l2-app-data-sdk.md), [publication](tasks/l3-local-publication.md), [integrations](tasks/l4-external-integrations.md), [automations](tasks/l5-managed-automations.md), [Brain knowledge](tasks/l6-brain-builder-knowledge.md) |
+| L1-L5 delivery inputs | [Local build/Preview](tasks/l1-local-build-preview.md), [data/SDK](tasks/l2-app-data-sdk.md), [publication](tasks/l3-local-publication.md), [integrations](tasks/l4-external-integrations.md), [automations](tasks/l5-managed-automations.md) |
 | Legacy R3 | [R3 task](tasks/r3.md) and [stop adjudication](evidence/4f/4f-r3-third-review-stop-root-cause-adjudication.md) |
 | Accepted phase architecture | [Phase 3 authority](phases/3a-authority-baseline.md), [failure recovery](phases/3m-failure-recovery-architecture.md), [architecture verification](phases/3n-architecture-verification.md), [vertical proof](phases/3o-vertical-architecture-proof-contract.md), [C-018 ratification](phases/c-018-final-architecture-ratification.md) |
 | Phase 4 realization | [Implementation readiness](phases/4-implementation-readiness-program.md), [wire contract](phases/4b-executable-wire-contract.md), [frontend realization](phases/4c-frontend-interaction-and-authority-realization.md), [paved road](phases/4d-project-paved-road-and-runtime-realization.md) |

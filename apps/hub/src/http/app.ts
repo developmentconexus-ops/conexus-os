@@ -67,11 +67,7 @@ export const createHttpApp = async ({
       '/workspaces/new',
       '/workspaces/:workspaceId/projects',
       '/workspaces/:workspaceId/projects/new',
-      '/workspaces/:workspaceId/brain',
-      '/workspaces/:workspaceId/connections',
       '/projects/:projectId',
-      '/projects/:projectId/brain',
-      '/projects/:projectId/integrations',
       '/projects/:projectId/build',
       '/settings',
     ] as const

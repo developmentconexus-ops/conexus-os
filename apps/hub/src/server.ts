@@ -1,19 +1,6 @@
 import { resolve } from 'node:path'
 import { readFileSync } from 'node:fs'
-import { createBrainBindingValidator, createBrainModule } from './brain/module.js'
-import {
-  authenticateSankhya,
-  createConfiguredConnectionModule,
-  resolveSankhyaOrigin,
-  sankhyaProductionResponseAdmission,
-} from './connections/module.js'
 import { createEncryptedFileCredentialBackend } from './platform/credential-backend.js'
-import {
-  createRegisteredKeyConformance,
-  createSankhyaKeyConformanceObserver,
-  createSankhyaKeyConformanceSubjectResolver,
-  readSankhyaKeyConformanceRegistrationCatalog,
-} from './gateway/module.js'
 import { createHttpApp } from './http/app.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
 import { createMarModule } from './mar/module.js'
@@ -21,7 +8,7 @@ import { readHubConfig } from './platform/config.js'
 import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
 import { createPostgresPool } from './platform/postgres.js'
 import { readSecretFile } from './platform/secrets.js'
-import { createApplicationArtifactStore, createRegistryStore } from './registry/module.js'
+import { createApplicationArtifactStore } from './registry/module.js'
 import { createWorkspaceModule } from './workspace/module.js'
 import { createClaudeAccountModule } from './claude-account/module.js'
 
@@ -30,17 +17,10 @@ import { createClaudeAccountModule } from './claude-account/module.js'
 process.env.MASTRA_TELEMETRY_DISABLED = '1'
 const {
   createConfiguredProjectModule,
-  createConfiguredProjectConnectionBindingModule,
-  createConfiguredProjectBindingModule,
-  createConfiguredProjectSourceSnapshotFactory,
-  createProjectKeyConformanceBasisResolver,
-  createProjectBrainRealizationPort,
   createBuilderProjectGitCapability,
 } = await import('./project/module.js')
 const { resolveModelAdmission, readModelChoices } = await import('./model-connection/model-catalog.js')
 const { createConfiguredBuilderModule } = await import('./builder/module.js')
-type ProjectBindingsRuntime = ReturnType<typeof createConfiguredProjectConnectionBindingModule> |
-  ReturnType<typeof createConfiguredProjectBindingModule>
 
 const config = readHubConfig()
 const pool = createPostgresPool({
@@ -82,29 +62,11 @@ const workspace = config.database.workspace && s2ReadPool ? createWorkspaceModul
   operatorSubject: config.bootstrapSubject,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
-if (config.project && config.projectBindings && config.project.storageRoot !== config.projectBindings.storageRoot) {
-  throw new Error('PROJECT_BINDING_STORAGE_ROOT_MISMATCH')
-}
-const sharedSourceSnapshot = config.projectBindings?.brain
-  ? createConfiguredProjectSourceSnapshotFactory({
-    storageRoot: config.projectBindings.storageRoot,
-    sourceOwnershipManifestFile: config.projectBindings.brain.sourceOwnershipManifestFile,
-  })
-  : config.projectBindings?.sourceOwnershipManifestFile
-    ? createConfiguredProjectSourceSnapshotFactory({
-      storageRoot: config.projectBindings.storageRoot,
-      sourceOwnershipManifestFile: config.projectBindings.sourceOwnershipManifestFile,
-    })
-  : undefined
-const projectBrainContext = sharedSourceSnapshot
-  ? createProjectBrainRealizationPort(sharedSourceSnapshot)
-  : undefined
 const credentialBackend = config.connections ? createEncryptedFileCredentialBackend({
   root: config.connections.credentialRoot,
   keyFile: config.connections.credentialKeyFile,
   keyGeneration: config.connections.credentialKeyGeneration,
 }) : undefined
-let projectBindings: ProjectBindingsRuntime | undefined
 const project = config.project ? createConfiguredProjectModule({
   database: {
     host: config.database.host,
@@ -112,36 +74,6 @@ const project = config.project ? createConfiguredProjectModule({
     database: config.database.database,
   },
   project: config.project,
-  ...(sharedSourceSnapshot ? { sourceSnapshot: sharedSourceSnapshot } : {}),
-  ...(config.projectBindings ? {
-    reconcileBindingSource: async (accountId: string, projectId: string) => {
-      if (!projectBindings) throw new Error('PROJECT_BINDING_RECOVERY_UNAVAILABLE')
-      await projectBindings.reconcileBindingSource(accountId, projectId)
-    },
-  } : {}),
-  origin: config.origin,
-  resolveCurrentSession: identityAccess.resolveCurrentSession,
-}) : undefined
-const brain = config.brain ? createBrainModule({
-  pool: createPostgresPool({
-    host: config.database.host,
-    port: config.database.port,
-    database: config.database.database,
-    user: 'hub_r2_brain_read',
-    password: readSecretFile(config.brain.readPasswordFile),
-  }),
-  registry: createRegistryStore(),
-  resolveCurrentSession: identityAccess.resolveCurrentSession,
-  ...(projectBrainContext ? { projectContext: projectBrainContext } : {}),
-}) : undefined
-const connections = config.connections ? createConfiguredConnectionModule({
-  database: {
-    host: config.database.host,
-    port: config.database.port,
-    database: config.database.database,
-  },
-  connections: config.connections,
-  ...(credentialBackend ? { credentialBackend } : {}),
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
@@ -229,76 +161,13 @@ builder = config.builder && config.project && builderModel ? createConfiguredBui
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
-let keyConformanceSubjectPool: ReturnType<typeof createPostgresPool> | undefined
-if (config.projectBindings?.brain) {
-  if (!config.connections || !credentialBackend || !sharedSourceSnapshot) throw new Error('PROJECT_BINDING_BRAIN_RUNTIME_UNAVAILABLE')
-  keyConformanceSubjectPool = createPostgresPool({
-    host: config.database.host,
-    port: config.database.port,
-    database: config.database.database,
-    user: 'hub_r2_key_conformance_subject',
-    password: readSecretFile(config.projectBindings.brain.keyConformanceSubjectPasswordFile),
-  })
-  const catalog = readSankhyaKeyConformanceRegistrationCatalog(config.projectBindings.brain.registrationCatalogFile)
-  const resolveBasis = createProjectKeyConformanceBasisResolver({ pool: keyConformanceSubjectPool, sourceSnapshot: sharedSourceSnapshot })
-  const resolveSubject = createSankhyaKeyConformanceSubjectResolver({ resolveBasis })
-  // Keep observation separate from Connection-owned credential materialization.
-  const registrations = catalog.map(({ descriptor, producer }) => ({
-    ...descriptor,
-    observe: createSankhyaKeyConformanceObserver({
-      origin: resolveSankhyaOrigin(descriptor.environment),
-      environment: descriptor.environment,
-      companyCode: producer.companyCode,
-      authenticate: (coordinate) => authenticateSankhya({
-        configuration: { environment: descriptor.environment, companyCode: producer.companyCode },
-        credentialCoordinate: coordinate,
-        credentialBackend,
-        responseAdmission: sankhyaProductionResponseAdmission,
-      }),
-    }),
-  }))
-  const conformance = createRegisteredKeyConformance({ registrations, resolveSubject })
-  projectBindings = createConfiguredProjectBindingModule({
-    database: {
-      host: config.database.host,
-      port: config.database.port,
-      database: config.database.database,
-    },
-    bindings: {
-      passwordFile: config.projectBindings.passwordFile,
-      attesterPasswordFile: config.projectBindings.brain.attesterPasswordFile,
-      storageRoot: config.projectBindings.storageRoot,
-      sourceOwnershipManifestFile: config.projectBindings.brain.sourceOwnershipManifestFile,
-    },
-    sourceSnapshot: sharedSourceSnapshot,
-    validator: createBrainBindingValidator({ conformance }),
-    origin: config.origin,
-    resolveCurrentSession: identityAccess.resolveCurrentSession,
-  })
-} else if (config.projectBindings) {
-  projectBindings = createConfiguredProjectConnectionBindingModule({
-    database: {
-      host: config.database.host,
-      port: config.database.port,
-      database: config.database.database,
-    },
-    bindings: config.projectBindings,
-    origin: config.origin,
-    resolveCurrentSession: identityAccess.resolveCurrentSession,
-  })
-}
 const app = await createHttpApp({
   registerRoutes: async (server) => [
     ...await identityAccess.registerIdentityAccessRoutes(server),
     ...(workspace ? await workspace.registerWorkspaceRoutes(server) : []),
     ...(project ? await project.registerProjectRoutes(server) : []),
-    ...(brain ? await brain.registerBrainRoutes(server) : []),
-    ...(connections ? await connections.registerConnectionRoutes(server) : []),
     ...(claudeAccount ? await claudeAccount.registerRoutes(server) : []),
     ...(builder ? await builder.registerBuilderRoutes(server) : []),
-    ...(projectBindings ? await projectBindings.registerProjectConnectionBindingRoutes(server) : []),
-    ...(projectBindings && 'registerProjectBrainBindingRoutes' in projectBindings
-      ? await projectBindings.registerProjectBrainBindingRoutes(server) : []),
   ],
   staticRoot: resolve(import.meta.dirname, '../public'),
   ...(config.preview ? {
@@ -348,7 +217,7 @@ const close = async (): Promise<void> => {
   closed = true
   await Promise.all([app.close(), previewApp?.close()])
   await mar?.close()
-  await Promise.all([builder?.close(), claudeAccount?.close(), projectBindings?.close(), keyConformanceSubjectPool?.end(), connections?.close(), brain?.close(), project?.close(), workspace?.close(), identityAccess.close()])
+  await Promise.all([builder?.close(), claudeAccount?.close(), project?.close(), workspace?.close(), identityAccess.close()])
 }
 process.once('SIGINT', close)
 process.once('SIGTERM', close)

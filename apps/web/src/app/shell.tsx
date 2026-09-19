@@ -181,12 +181,6 @@ export function Shell({
                 <Link to="/projects/$projectId" params={{ projectId: project.projectId }} activeOptions={{ exact: true }}>
                   Visão do Project
                 </Link>
-                <Link to="/projects/$projectId/brain" params={{ projectId: project.projectId }}>
-                  Brain
-                </Link>
-                <Link to="/projects/$projectId/integrations" params={{ projectId: project.projectId }}>
-                  Integrations
-                </Link>
                 <Link to="/workspaces/$workspaceId/projects" params={{ workspaceId: workspace.workspaceId }}>
                   Voltar aos Projects
                 </Link>
@@ -196,12 +190,6 @@ export function Shell({
                 <p className="navigation-context">Workspace</p>
                 <Link to="/workspaces/$workspaceId/projects" params={{ workspaceId: workspace.workspaceId }} activeOptions={{ exact: true }}>
                   Projects
-                </Link>
-                <Link to="/workspaces/$workspaceId/brain" params={{ workspaceId: workspace.workspaceId }}>
-                  Brain
-                </Link>
-                <Link to="/workspaces/$workspaceId/connections" params={{ workspaceId: workspace.workspaceId }}>
-                  Connections
                 </Link>
                 <Link to="/workspaces/$workspaceId/projects/new" params={{ workspaceId: workspace.workspaceId }}>
                   Criar Project

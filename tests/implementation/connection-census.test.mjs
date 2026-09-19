@@ -78,15 +78,15 @@ test('the report names every unhealthy connection and counts the rest', () => {
   reportConnectionCensus([
     { role: 'hub_iam_runtime', capability: 'identity-and-access', state: 'ok' },
     { role: 'hub_rb_ingress', capability: 'builder-request', state: 'invalid', sqlstate: '28P01' },
-    { role: 'hub_r2_brain_read', capability: 'brain-read', state: 'unreachable', sqlstate: 'ECONNREFUSED' },
-    { role: 'hub_r2_brain_attester', capability: 'brain-attester', state: 'unreadable' },
+    { role: 'hub_s3_read', capability: 'project-read', state: 'unreachable', sqlstate: 'ECONNREFUSED' },
+    { role: 'hub_prj03_command', capability: 'project-command', state: 'unreadable' },
     { role: 'hub_s2_read', capability: 'workspace-read', state: 'unconfigured' },
   ], line => lines.push(line))
   assert.deepEqual(lines, [
     'HUB_CONNECTION_CENSUS:ok=1:invalid=1:unreachable=1:unreadable=1:unconfigured=1\n',
     'HUB_CONNECTION_CENSUS:invalid:hub_rb_ingress:builder-request:28P01\n',
-    'HUB_CONNECTION_CENSUS:unreachable:hub_r2_brain_read:brain-read:ECONNREFUSED\n',
-    'HUB_CONNECTION_CENSUS:unreadable:hub_r2_brain_attester:brain-attester:\n',
+    'HUB_CONNECTION_CENSUS:unreachable:hub_s3_read:project-read:ECONNREFUSED\n',
+    'HUB_CONNECTION_CENSUS:unreadable:hub_prj03_command:project-command:\n',
     'HUB_CONNECTION_CENSUS:unconfigured:hub_s2_read:workspace-read:\n',
   ])
 })

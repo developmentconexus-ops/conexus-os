@@ -59,32 +59,6 @@ paths:
     $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1share'
   /api/control/me/claude-connections/{connectionId}/revoke:
     $ref: './claude-account-paths.yaml#/paths/~1api~1control~1me~1claude-connections~1{connectionId}~1revoke'
-  /api/control/workspaces/{workspaceId}/brain:
-    $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain'
-  /api/control/workspaces/{workspaceId}/brain/revisions:
-    $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1revisions'
-  /api/control/workspaces/{workspaceId}/brain/revisions/{brainRevisionId}:
-    $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1revisions~1{brainRevisionId}'
-  /api/control/workspaces/{workspaceId}/brain/health:
-    $ref: './brain-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1brain~1health'
-  /api/control/connectors:
-    $ref: './connection-paths.yaml#/paths/~1api~1control~1connectors'
-  /api/control/connectors/{connectorDefinitionId}:
-    $ref: './connection-paths.yaml#/paths/~1api~1control~1connectors~1{connectorDefinitionId}'
-  /api/control/connection-scopes/{ownerScopeKind}/{ownerId}/connections:
-    $ref: './connection-paths.yaml#/paths/~1api~1control~1connection-scopes~1{ownerScopeKind}~1{ownerId}~1connections'
-  /api/control/connections/{connectionId}:
-    $ref: './connection-paths.yaml#/paths/~1api~1control~1connections~1{connectionId}'
-  /api/control/connections/{connectionId}/revisions:
-    $ref: './connection-paths.yaml#/paths/~1api~1control~1connections~1{connectionId}~1revisions'
-  /api/control/connections/{connectionId}/credential:
-    $ref: './connection-paths.yaml#/paths/~1api~1control~1connections~1{connectionId}~1credential'
-  /api/control/connections/{connectionId}/qualifications:
-    $ref: './connection-paths.yaml#/paths/~1api~1control~1connections~1{connectionId}~1qualifications'
-  /api/control/connections/{connectionId}/qualifications/{qualificationId}:
-    $ref: './connection-paths.yaml#/paths/~1api~1control~1connections~1{connectionId}~1qualifications~1{qualificationId}'
-  /api/control/projects/{projectId}/brain-context:
-    $ref: './project-brain-context-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1brain-context'
 components:
   securitySchemes:
     ConexusSession:
