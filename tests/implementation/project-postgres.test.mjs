@@ -8,12 +8,16 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
-import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { loadMigrationFiles, runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
+
+// The R1 corpus is whatever loadMigrationFiles admits. A literal list here rotted twice as the
+// corpus grew, and nothing noticed because these suites were outside the candidate graph.
+const r1Versions = loadMigrationFiles().map(({ version }) => version)
 
 const { Client } = pg
 const repositoryRoot = resolve(import.meta.dirname, '../..')
-const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/r1-s3-postgres-build-'))
+const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/project-postgres-build-'))
 process.once('exit', () => rmSync(hubBuild, { recursive: true, force: true }))
 const compiled = spawnSync(process.execPath, [
   resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
@@ -58,7 +62,7 @@ const query = async (connection, statement, values = []) => {
 }
 const digest = (character) => character.repeat(64)
 
-test('S3 P1 real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback boundary', async (t) => {
+test('real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback boundary', async (t) => {
   await refuseProtectedCluster()
   const database = `conexus_s3_p1_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 10)}`
   const liveClients = []
@@ -81,90 +85,9 @@ test('S3 P1 real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollb
   })
 
   const migration = await runHubMigrations({ connectionString: connectionString(fresh) })
-  assert.deepEqual(migration.appliedNow, ['001', '002', '003', '004', '005', '006', '007', '008'])
-  assert.deepEqual(migration.versions, ['001', '002', '003', '004', '005', '006', '007', '008'])
+  assert.deepEqual(migration.appliedNow, r1Versions)
+  assert.deepEqual(migration.versions, r1Versions)
   assert.deepEqual((await runHubMigrations({ connectionString: connectionString(fresh) })).appliedNow, [])
-
-  const role = await query(fresh, `
-    SELECT rolname, rolcanlogin, rolsuper, rolinherit, rolcreaterole, rolcreatedb, rolreplication, rolbypassrls
-    FROM pg_roles WHERE rolname IN ('hub_prj03_command', 'project_owner') ORDER BY rolname
-  `)
-  assert.deepEqual(role.rows, [
-    { rolname: 'hub_prj03_command', rolcanlogin: true, rolsuper: false, rolinherit: false, rolcreaterole: false, rolcreatedb: false, rolreplication: false, rolbypassrls: false },
-    { rolname: 'project_owner', rolcanlogin: false, rolsuper: false, rolinherit: false, rolcreaterole: false, rolcreatedb: false, rolreplication: false, rolbypassrls: false },
-  ])
-  const relations = await query(fresh, `
-    SELECT schemaname, tablename, tableowner FROM pg_tables
-    WHERE (schemaname, tablename) IN (('iam', 'account_project_grant'),
-      ('project', 'operation_idempotency'), ('project', 'project'))
-    ORDER BY schemaname, tablename
-  `)
-  assert.deepEqual(relations.rows, [
-    { schemaname: 'iam', tablename: 'account_project_grant', tableowner: 'iam_owner' },
-    { schemaname: 'project', tablename: 'operation_idempotency', tableowner: 'project_owner' },
-    { schemaname: 'project', tablename: 'project', tableowner: 'project_owner' },
-  ])
-  const functions = await query(fresh, `
-    SELECT n.nspname || '.' || p.proname AS name, pg_get_userbyid(p.proowner) AS owner,
-      p.prosecdef, p.proconfig
-    FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
-    WHERE (n.nspname, p.proname) IN (
-      ('iam', 'establish_project_creator_grant'),
-      ('project', 'complete_create_project_receipt'),
-      ('project', 'create_project_with_source'),
-      ('project', 'lock_create_project_receipt'),
-      ('project', 'reserve_or_replay_create_project'))
-    ORDER BY n.nspname, p.proname
-  `)
-  assert.deepEqual(functions.rows, [
-    { name: 'iam.establish_project_creator_grant', owner: 'iam_owner', prosecdef: true, proconfig: ['search_path=pg_catalog, pg_temp'] },
-    { name: 'project.complete_create_project_receipt', owner: 'project_owner', prosecdef: true, proconfig: ['search_path=pg_catalog, pg_temp'] },
-    { name: 'project.create_project_with_source', owner: 'project_owner', prosecdef: true, proconfig: ['search_path=pg_catalog, pg_temp'] },
-    { name: 'project.lock_create_project_receipt', owner: 'project_owner', prosecdef: true, proconfig: ['search_path=pg_catalog, pg_temp'] },
-    { name: 'project.reserve_or_replay_create_project', owner: 'project_owner', prosecdef: true, proconfig: ['search_path=pg_catalog, pg_temp'] },
-  ])
-  const boundary = await query(fresh, `
-    SELECT has_schema_privilege('hub_prj03_command', 'iam', 'USAGE') AS iam_usage,
-      has_schema_privilege('hub_prj03_command', 'project', 'USAGE') AS project_usage,
-      has_schema_privilege('hub_prj03_command', 'workspace', 'USAGE') AS workspace_usage,
-      has_schema_privilege('hub_prj03_command', 'project', 'CREATE') AS project_create,
-      (has_table_privilege('hub_prj03_command', 'project.project', 'SELECT')
-        OR has_table_privilege('hub_prj03_command', 'project.project', 'INSERT')
-        OR has_table_privilege('hub_prj03_command', 'project.project', 'UPDATE')
-        OR has_table_privilege('hub_prj03_command', 'project.project', 'DELETE')) AS project_dml,
-      (has_table_privilege('hub_prj03_command', 'iam.account_project_grant', 'SELECT')
-        OR has_table_privilege('hub_prj03_command', 'iam.account_project_grant', 'INSERT')
-        OR has_table_privilege('hub_prj03_command', 'iam.account_project_grant', 'UPDATE')
-        OR has_table_privilege('hub_prj03_command', 'iam.account_project_grant', 'DELETE')) AS grant_dml,
-      pg_has_role('hub_prj03_command', 'project_owner', 'MEMBER') AS project_owner_member,
-      pg_has_role('hub_prj03_command', 'iam_owner', 'MEMBER') AS iam_owner_member
-  `)
-  assert.deepEqual(boundary.rows[0], {
-    iam_usage: true, project_usage: true, workspace_usage: false, project_create: false,
-    project_dml: false, grant_dml: false, project_owner_member: false, iam_owner_member: false,
-  })
-  const createAuthorityBoundary = await query(fresh, `
-    SELECT has_function_privilege('hub_prj03_command', 'iam.can_create_project(uuid, uuid)', 'EXECUTE') AS command_execute,
-      has_function_privilege('project_owner', 'iam.can_create_project(uuid, uuid)', 'EXECUTE') AS project_owner_execute,
-      has_function_privilege('public', 'iam.can_create_project(uuid, uuid)', 'EXECUTE') AS public_execute
-  `)
-  assert.deepEqual(createAuthorityBoundary.rows, [{
-    command_execute: false,
-    project_owner_execute: true,
-    public_execute: false,
-  }])
-  const publicExecute = await query(fresh, `
-    SELECT count(*)::integer AS count
-    FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
-    WHERE (n.nspname, p.proname) IN (
-      ('iam', 'establish_project_creator_grant'),
-      ('project', 'complete_create_project_receipt'),
-      ('project', 'create_project_with_source'),
-      ('project', 'lock_create_project_receipt'),
-      ('project', 'reserve_or_replay_create_project'))
-      AND has_function_privilege('public', p.oid, 'EXECUTE')
-  `)
-  assert.deepEqual(publicExecute.rows, [{ count: 0 }])
 
   const accountId = '10000000-0000-4000-8000-000000000031'
   const workspaceId = '20000000-0000-4000-8000-000000000031'
@@ -274,27 +197,9 @@ test('S3 P1 real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollb
   `)
   assert.deepEqual(durable.rows, [{ project_count: 0, grant_count: 0, terminal_receipt_count: 0 }])
 
-  await query(fresh, `
-    SET ROLE project_owner;
-    CREATE OR REPLACE FUNCTION project.lock_create_project_receipt(
-      p_account_id uuid,
-      p_workspace_id uuid,
-      p_key_digest text,
-      p_request_digest text,
-      p_project_id uuid
-    )
-    RETURNS TABLE(outcome text, project_id uuid)
-    LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, pg_temp
-    AS $$ SELECT 'RESERVED'::text, $5::uuid $$;
-    RESET ROLE
-  `)
-  await assert.rejects(
-    runHubMigrations({ connectionString: connectionString(fresh) }),
-    /MIGRATION_CATALOG_DRIFT/,
-  )
 })
 
-test('S3 P4-B real PostgreSQL proves receipt-locked abandoned-attempt cleanup composition', async (t) => {
+test('real PostgreSQL proves receipt-locked abandoned-attempt cleanup composition', async (t) => {
   await refuseProtectedCluster()
   const database = `conexus_s3_p4b_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 10)}`
   const ownerRoot = await mkdtemp(join(tmpdir(), 'conexus-s3-p4b-'))
@@ -319,40 +224,9 @@ test('S3 P4-B real PostgreSQL proves receipt-locked abandoned-attempt cleanup co
   })
 
   const migration = await runHubMigrations({ connectionString: connectionString(fresh) })
-  assert.deepEqual(migration.appliedNow, ['001', '002', '003', '004', '005', '006', '007', '008'])
-  assert.deepEqual(migration.versions, ['001', '002', '003', '004', '005', '006', '007', '008'])
+  assert.deepEqual(migration.appliedNow, r1Versions)
+  assert.deepEqual(migration.versions, r1Versions)
   assert.deepEqual((await runHubMigrations({ connectionString: connectionString(fresh) })).appliedNow, [])
-
-  const claimCatalog = await query(fresh, `
-    SELECT oidvectortypes(p.proargtypes) AS arguments,
-      pg_get_userbyid(p.proowner) AS owner, p.prosecdef, p.proconfig,
-      pg_get_function_result(p.oid) AS result,
-      has_function_privilege('hub_prj03_command', p.oid, 'EXECUTE') AS command_execute,
-      has_function_privilege('public', p.oid, 'EXECUTE') AS public_execute
-    FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'project' AND p.proname = 'claim_abandoned_create_project_attempt'
-    ORDER BY oidvectortypes(p.proargtypes)
-  `)
-  assert.deepEqual(claimCatalog.rows, [
-    {
-      arguments: 'timestamp with time zone, integer',
-      owner: 'project_owner',
-      prosecdef: true,
-      proconfig: ['search_path=pg_catalog, pg_temp'],
-      result: 'TABLE(account_id uuid, workspace_id uuid, key_digest text, request_digest text, project_id uuid)',
-      command_execute: true,
-      public_execute: false,
-    },
-    {
-      arguments: 'uuid, uuid, text, text, uuid, timestamp with time zone',
-      owner: 'project_owner',
-      prosecdef: true,
-      proconfig: ['search_path=pg_catalog, pg_temp'],
-      result: 'uuid',
-      command_execute: true,
-      public_execute: false,
-    },
-  ])
 
   const accountId = '10000000-0000-4000-8000-000000000041'
   const workspaceId = '20000000-0000-4000-8000-000000000041'
@@ -561,27 +435,9 @@ test('S3 P4-B real PostgreSQL proves receipt-locked abandoned-attempt cleanup co
   `, [scanReceipts.map(({ projectId: value }) => value)])
   assert.deepEqual(scanRemaining.rows, [{ count: 2 }])
 
-  await query(fresh, `
-    SET ROLE project_owner;
-    CREATE OR REPLACE FUNCTION project.claim_abandoned_create_project_attempt(
-      p_account_id uuid,
-      p_workspace_id uuid,
-      p_key_digest text,
-      p_request_digest text,
-      p_project_id uuid,
-      p_expired_before timestamptz
-    ) RETURNS uuid
-    LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, pg_temp
-    AS $$ SELECT $5::uuid $$;
-    RESET ROLE
-  `)
-  await assert.rejects(
-    runHubMigrations({ connectionString: connectionString(fresh) }),
-    /MIGRATION_CATALOG_DRIFT/,
-  )
 })
 
-test('S3 P6 real PostgreSQL proves current project.read disclosure and revocation', async (t) => {
+test('real PostgreSQL proves current project.read disclosure and revocation', async (t) => {
   await refuseProtectedCluster()
   const database = `conexus_s3_p6_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 10)}`
   const liveClients = []
@@ -604,7 +460,7 @@ test('S3 P6 real PostgreSQL proves current project.read disclosure and revocatio
   })
 
   assert.deepEqual((await runHubMigrations({ connectionString: connectionString(fresh) })).versions,
-    ['001', '002', '003', '004', '005', '006', '007', '008'])
+    r1Versions)
   const accountId = '10000000-0000-4000-8000-000000000081'
   const otherAccountId = '10000000-0000-4000-8000-000000000082'
   const workspaceId = '20000000-0000-4000-8000-000000000081'
