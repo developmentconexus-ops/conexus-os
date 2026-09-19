@@ -54,6 +54,17 @@ const makeStore = (overrides = {}) => {
   }
 }
 
+// One flow per provider the sign-in offers, the same shape the account module builds from the
+// descriptor registry. Every call records itself, so a test can tell which row the route picked.
+const flowCalls = []
+const fakeFlow = (providerId) => ({
+  createAuthorizationRequest: async () => { flowCalls.push({ providerId, name: 'start' }); return { verifier: 'v'.repeat(43), state: `state-${providerId}`, url: `https://${providerId}.test/authorize` } },
+  extractState: (value) => { flowCalls.push({ providerId, name: 'extractState' }); return value },
+  parse: () => { flowCalls.push({ providerId, name: 'parse' }); return 'code-fixture' },
+  exchange: async () => { flowCalls.push({ providerId, name: 'exchange' }); return { access: 'a', refresh: 'r', expiresAt: Date.now() + 60_000 } },
+})
+const oauthFlows = Object.freeze({ anthropic: fakeFlow('anthropic'), 'openai-codex': fakeFlow('openai-codex') })
+
 const createHubApp = (store, { signedIn = true, enabledProviders = ['anthropic', 'openai'] } = {}) => createHttpApp({
   registerRoutes: (app) => registerModelConnectionRoutes(app, {
     store,
@@ -66,9 +77,7 @@ const createHubApp = (store, { signedIn = true, enabledProviders = ['anthropic',
       if (requireCsrf && csrfToken !== 'csrf-1') return null
       return { account: { accountId, displayName: 'Leandro' }, issuer: 'https://issuer.test', subject: 'subject-1' }
     },
-    createAuthorizationRequest: async () => { throw new Error('NOT_USED_HERE') },
-    parseAuthorizationResult: () => { throw new Error('NOT_USED_HERE') },
-    exchangeAuthorizationCode: async () => { throw new Error('NOT_USED_HERE') },
+    oauthFlows,
   }),
   staticRoot: null,
 })
@@ -85,6 +94,55 @@ test('adding a key carries the same census id the ledger names', async (t) => {
   const app = await createHubApp(makeStore())
   t.after(() => app.close())
   assert.deepEqual(app.routeCensus(), ['CLA-01', 'CLA-02', 'CLA-03', 'CLA-04', 'CLA-05', 'CLA-06', 'CLA-07', 'CLA-08'])
+})
+
+const startAuthorization = { url: '/api/control/me/model-connections/authorization', method: 'POST' }
+const completeAuthorization = { url: '/api/control/me/model-connections/authorization/complete', method: 'POST' }
+
+test('starting a sign-in names its provider, and the route runs that provider flow', async (t) => {
+  const app = await createHubApp(makeStore({ startAuthorization: async (input) => ({ authorizationId: 'a-1', url: input.authorization.url, state: input.authorization.state }) }))
+  t.after(() => app.close())
+  flowCalls.length = 0
+
+  const response = await app.inject({ ...startAuthorization, ...authentic, payload: { providerId: 'openai-codex' } })
+  assert.equal(response.statusCode, 201)
+  assert.equal(response.json().url, 'https://openai-codex.test/authorize')
+  assert.deepEqual(flowCalls, [{ providerId: 'openai-codex', name: 'start' }])
+})
+
+// There is no default provider. The browser ships with the Hub and always names one, so a body
+// without it is a malformed request rather than a request to be guessed at.
+test('a sign-in that names no provider is refused by the body schema, and an unknown one by name', async (t) => {
+  const store = makeStore()
+  const app = await createHubApp(store)
+  t.after(() => app.close())
+  flowCalls.length = 0
+
+  const missing = await app.inject({ ...startAuthorization, ...authentic, payload: {} })
+  assert.equal(missing.statusCode, 400)
+
+  const unknown = await app.inject({ ...startAuthorization, ...authentic, payload: { providerId: 'openai' } })
+  assert.equal(unknown.statusCode, 422)
+  assert.equal(unknown.json().type, 'urn:conexus:problem:model-connection-provider-unknown')
+
+  const missingOnComplete = await app.inject({ ...completeAuthorization, ...authentic, payload: { result: 'code#state', label: 'Minha conta' } })
+  assert.equal(missingOnComplete.statusCode, 400)
+
+  assert.deepEqual(flowCalls, [])
+  assert.deepEqual(store.calls, [])
+})
+
+test('completing a sign-in carries the named provider into custody', async (t) => {
+  const store = makeStore({ completeAuthorization: async (input) => { store.calls.push({ name: 'completeAuthorization', input }); return projection } })
+  const app = await createHubApp(store)
+  t.after(() => app.close())
+  flowCalls.length = 0
+
+  const response = await app.inject({ ...completeAuthorization, ...authentic, payload: { providerId: 'openai-codex', result: 'http://localhost:1455/auth/callback?code=c&state=s', label: 'Minha conta ChatGPT' } })
+  assert.equal(response.statusCode, 201)
+  assert.equal(store.calls[0].name, 'completeAuthorization')
+  assert.equal(store.calls[0].input.providerId, 'openai-codex')
+  assert.equal(store.calls[0].input.label, 'Minha conta ChatGPT')
 })
 
 test('a key posted from another origin is refused before the store is reached', async (t) => {

@@ -12,19 +12,23 @@ const compile = async (t) => {
   t.after(() => rm(buildRoot, { recursive: true, force: true }))
   const result = spawnSync(resolve(repositoryRoot, 'node_modules/.bin/esbuild'), [
     resolve(repositoryRoot, 'apps/hub/src/model-connection/oauth-token-store.ts'),
-    resolve(repositoryRoot, 'apps/hub/src/model-connection/anthropic-oauth.ts'),
+    resolve(repositoryRoot, 'apps/hub/src/model-connection/oauth-provider.ts'),
+    resolve(repositoryRoot, 'apps/hub/src/model-connection/oauth-provider-registry.ts'),
     `--outdir=${buildRoot}`, '--bundle', '--platform=node', '--format=esm', '--packages=external', '--log-level=error',
   ], { cwd: repositoryRoot, encoding: 'utf8' })
   if (result.status !== 0) throw new Error(result.stdout || result.stderr)
   return {
-    oauth: await import(pathToFileURL(resolve(buildRoot, 'anthropic-oauth.js')).href),
+    oauth: await import(pathToFileURL(resolve(buildRoot, 'oauth-provider.js')).href),
+    registry: await import(pathToFileURL(resolve(buildRoot, 'oauth-provider-registry.js')).href),
     store: await import(pathToFileURL(resolve(buildRoot, 'oauth-token-store.js')).href),
   }
 }
 
+const refuseRefresh = async () => { throw new Error('REFRESH_NOT_EXPECTED') }
+
 test('Anthropic OAuth builds the admitted PKCE request and rejects a mismatched provider state', async (t) => {
-  const { oauth } = await compile(t)
-  const authorization = await oauth.createAuthorizationRequest()
+  const { oauth, registry } = await compile(t)
+  const authorization = await oauth.createAuthorizationRequest(registry.ANTHROPIC_OAUTH)
   const url = new URL(authorization.url)
   assert.equal(url.origin, 'https://claude.ai')
   assert.equal(url.pathname, '/oauth/authorize')
@@ -32,35 +36,37 @@ test('Anthropic OAuth builds the admitted PKCE request and rejects a mismatched 
   assert.equal(url.searchParams.get('code_challenge_method'), 'S256')
   assert.equal(url.searchParams.get('state'), authorization.state)
   assert.equal(url.searchParams.get('scope'), 'user:profile user:inference')
-  assert.equal(oauth.parseAuthorizationResult(`provider-code#${authorization.state}`, authorization.state), 'provider-code')
-  assert.throws(() => oauth.parseAuthorizationResult(`provider-code#wrong`, authorization.state), /ANTHROPIC_OAUTH_STATE_INVALID/)
+  assert.equal(oauth.parseAuthorizationResult(registry.ANTHROPIC_OAUTH, `provider-code#${authorization.state}`, authorization.state), 'provider-code')
+  assert.throws(() => oauth.parseAuthorizationResult(registry.ANTHROPIC_OAUTH, `provider-code#wrong`, authorization.state), /ANTHROPIC_OAUTH_STATE_INVALID/)
 })
 
 test('Anthropic OAuth exchange uses the qualified provider protocol and bounds the response', async (t) => {
-  const { oauth } = await compile(t)
+  const { oauth, registry } = await compile(t)
   let request
   const response = new Response(JSON.stringify({ access_token: 'access-fixture', refresh_token: 'refresh-fixture', expires_in: 3600 }), {
     status: 200, headers: { 'content-type': 'application/json' },
   })
-  const tokens = await oauth.exchangeAuthorizationCode({ code: 'provider-code', state: 'state-fixture', verifier: 'verifier-fixture', fetchImpl: async (input, init) => {
+  const tokens = await oauth.exchangeAuthorizationCode(registry.ANTHROPIC_OAUTH, { code: 'provider-code', state: 'state-fixture', verifier: 'verifier-fixture', fetchImpl: async (input, init) => {
     request = { input: String(input), init }
     return response
   } })
   assert.equal(request.input, 'https://platform.claude.com/v1/oauth/token')
   assert.equal(request.init.redirect, 'manual')
+  assert.equal(request.init.headers['content-type'], 'application/json')
   const body = JSON.parse(request.init.body)
   assert.deepEqual(body, {
     grant_type: 'authorization_code',
-    client_id: oauth.ANTHROPIC_OAUTH.clientId,
+    client_id: registry.ANTHROPIC_OAUTH.clientId,
     code: 'provider-code',
     state: 'state-fixture',
-    redirect_uri: oauth.ANTHROPIC_OAUTH.redirectUri,
+    redirect_uri: registry.ANTHROPIC_OAUTH.redirectUri,
     code_verifier: 'verifier-fixture',
   })
   assert.equal(tokens.access, 'access-fixture')
   assert.equal(tokens.refresh, 'refresh-fixture')
+  assert.equal('accountId' in tokens, false)
   await assert.rejects(
-    oauth.exchangeAuthorizationCode({ code: 'provider-code', state: 'state-fixture', verifier: 'verifier-fixture', fetchImpl: async () => new Response('x'.repeat(16 * 1024 + 1), { status: 200 }) }),
+    oauth.exchangeAuthorizationCode(registry.ANTHROPIC_OAUTH, { code: 'provider-code', state: 'state-fixture', verifier: 'verifier-fixture', fetchImpl: async () => new Response('x'.repeat(16 * 1024 + 1), { status: 200 }) }),
     /ANTHROPIC_OAUTH_RESPONSE_LIMIT_EXCEEDED|ANTHROPIC_OAUTH_TOKEN_INVALID/,
   )
 })
@@ -75,8 +81,8 @@ test('Anthropic credential custody reads an admitted generation and rotates only
     async materialize(coordinate) { const bytes = entries.get(`${coordinate.connectionId}:${coordinate.generation}`); if (!bytes) throw new Error('MISSING_FIXTURE_CREDENTIAL'); return Uint8Array.from(bytes) },
   }
   await backend.write({ connectionId: 'connection-fixture', generation: '1' }, Buffer.from(JSON.stringify({ access: 'access-1', refresh: 'refresh-1', expiresAt: Date.now() + 60_000 })))
-  const tokenStore = store.createBackendOAuthTokenStore(backend, { connectionId: 'connection-fixture', generation: '1' })
-  assert.equal(await tokenStore.getAccessToken(), 'access-1')
+  const tokenStore = store.createBackendOAuthTokenStore(backend, { connectionId: 'connection-fixture', generation: '1' }, refuseRefresh, { codePrefix: 'ANTHROPIC_OAUTH' })
+  assert.deepEqual(await tokenStore.getToken(), { access: 'access-1' })
   assert.doesNotThrow(() => tokenStore.validate())
 
   entries.set('connection-fixture:1', Buffer.from(JSON.stringify({ access: 'expired', refresh: 'refresh-1', expiresAt: 0 })))
@@ -84,8 +90,9 @@ test('Anthropic credential custody reads an admitted generation and rotates only
     backend,
     { connectionId: 'connection-fixture', generation: '1' },
     async (refresh) => { assert.equal(refresh, 'refresh-1'); return { access: 'access-2', refresh: 'refresh-2', expiresAt: Date.now() + 60_000 } },
+    { codePrefix: 'ANTHROPIC_OAUTH' },
   )
-  assert.equal(await refreshed.getAccessToken(), 'access-2')
+  assert.deepEqual(await refreshed.getToken(), { access: 'access-2' })
   assert.match(new TextDecoder().decode(entries.get('connection-fixture:2')), /access-2/)
 })
 
@@ -100,10 +107,11 @@ test('Anthropic credential acquisition rechecks the active generation before usi
     async publishOrMatch() { return 'PUBLISHED' },
     async materialize(coordinate) { return Uint8Array.from(entries.get(`${coordinate.connectionId}:${coordinate.generation}`)) },
   }
-  const tokenStore = store.createBackendOAuthTokenStore(backend, { connectionId: 'connection-fixture', generation }, undefined, {
+  const tokenStore = store.createBackendOAuthTokenStore(backend, { connectionId: 'connection-fixture', generation }, refuseRefresh, {
+    codePrefix: 'ANTHROPIC_OAUTH',
     resolveCurrent: async () => ({ connectionId: 'connection-fixture', generation }),
   })
-  assert.equal(await tokenStore.getAccessToken(), 'access-1')
+  assert.deepEqual(await tokenStore.getToken(), { access: 'access-1' })
   generation = '2'
-  assert.equal(await tokenStore.getAccessToken(), 'access-2')
+  assert.deepEqual(await tokenStore.getToken(), { access: 'access-2' })
 })
