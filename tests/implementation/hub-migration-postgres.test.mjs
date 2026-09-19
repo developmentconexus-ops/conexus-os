@@ -1,11 +1,52 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { test } from 'node:test'
-import { catalogDigest, readCommittedSnapshot } from '../../scripts/hub-catalog.mjs'
-import { baselineDigest, baselineVersion, runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
-import { buildHubDatabase, createEmptyDatabase, query } from './hub-database.mjs'
+import { catalogDigest, readCatalog, readCommittedSnapshot } from '../../scripts/hub-catalog.mjs'
+import { baselineDigest, baselineVersion, runHubMigrations, runMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { buildHubDatabase, createEmptyDatabase, query, withClient } from './hub-database.mjs'
 
 const ledgerOf = async (connectionString) =>
   (await query(connectionString, 'SELECT version, checksum_sha256 FROM iam.schema_migration ORDER BY version')).rows
+
+const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
+
+// Two synthetic migrations, independent of the real catalog, that exercise the exact shape of the
+// runner's post-baseline bug: a snapshot describing the state after both, and a fresh database
+// that starts with neither applied.
+const migrationA = (() => {
+  const bytes = Buffer.from(
+    'BEGIN;\nCREATE SCHEMA iam;\nCREATE TABLE iam.schema_migration (version text PRIMARY KEY, checksum_sha256 text NOT NULL);\nCREATE TABLE iam.widget (id int PRIMARY KEY);\nCOMMIT;\n',
+  )
+  return { version: '0001', name: '0001_a.sql', bytes, checksum: sha256(bytes) }
+})()
+const migrationB = (() => {
+  const bytes = Buffer.from('BEGIN;\nCREATE TABLE iam.gadget (id int PRIMARY KEY);\nCOMMIT;\n')
+  return { version: '0002', name: '0002_b.sql', bytes, checksum: sha256(bytes) }
+})()
+const twoMigrations = [migrationA, migrationB]
+
+// Builds the snapshot the fixed runner must reproduce, by applying both migrations with no
+// catalog assertion at all (the same trick scripts/generate-hub-catalog-snapshot.mjs uses).
+const snapshotAfterBoth = async (t) => {
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_mig_snap')
+  await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot: null })
+  return { catalog: await withClient(connectionString, readCatalog) }
+}
+
+test('a fresh install with two pending migrations applies both instead of refusing the second', async (t) => {
+  const catalogSnapshot = await snapshotAfterBoth(t)
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_mig_two')
+  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot })
+  assert.deepEqual(result, { verdict: 'PASS', appliedNow: ['0001', '0002'], versions: ['0001', '0002'] })
+})
+
+test('a database already at the first migration upgrades to the second', async (t) => {
+  const catalogSnapshot = await snapshotAfterBoth(t)
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_mig_upgrade')
+  await runMigrations({ connectionString, migrations: [migrationA], catalogSnapshot: null })
+  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot })
+  assert.deepEqual(result, { verdict: 'PASS', appliedNow: ['0002'], versions: ['0001', '0002'] })
+})
 
 test('a fresh database is built by the one baseline and records it', async (t) => {
   const { connectionString } = await createEmptyDatabase(t, 'conexus_mig')
