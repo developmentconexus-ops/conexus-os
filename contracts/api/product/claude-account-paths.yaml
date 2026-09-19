@@ -104,7 +104,7 @@ paths:
   /api/control/me/claude-connections/share:
     post:
       operationId: ShareClaudeConnection
-      summary: Share a Claude connection with an Account in the same Workspace.
+      summary: Share a Claude connection into a Workspace the current Account belongs to.
       x-conexus-4a-id: CLA-05
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
@@ -116,13 +116,35 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [connectionId, accountId, workspaceId]
+              required: [connectionId, workspaceId]
               properties:
                 connectionId: { type: string, format: uuid }
-                accountId: { type: string, format: uuid }
                 workspaceId: { type: string, format: uuid }
       responses:
         '204': { description: Connection shared. }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+  /api/control/me/claude-connections/unshare:
+    post:
+      operationId: UnshareClaudeConnection
+      summary: Withdraw a Claude connection share from a Workspace.
+      x-conexus-4a-id: CLA-07
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [connectionId, workspaceId]
+              properties:
+                connectionId: { type: string, format: uuid }
+                workspaceId: { type: string, format: uuid }
+      responses:
+        '204': { description: Connection share withdrawn. }
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
   /api/control/me/claude-connections/{connectionId}/revoke:
