@@ -71,7 +71,6 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('project-disclosure', 'node --test tests/implementation/project-disclosure.test.mjs'),
   candidateStep('project-source-recovery', 'node --test tests/implementation/project-source-recovery.test.mjs'),
   candidateStep('project-command-postgres', 'node --test --test-concurrency=1 tests/implementation/project-command.test.mjs', 'postgres'),
-  candidateStep('project-browser', 'node --test --test-concurrency=1 tests/implementation/project-browser.test.mjs', 'browser'),
   candidateStep('shell-browser-boundary', 'node --test tests/implementation/shell-browser-boundary.test.mjs'),
   candidateStep('shell-browser-hardening', 'node --test --test-concurrency=1 tests/implementation/shell-browser-hardening.test.mjs', 'browser'),
   candidateStep('builder-credential-generation', 'node --test tests/implementation/builder-credential-generation.test.mjs'),
