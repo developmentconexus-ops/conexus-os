@@ -108,15 +108,3 @@ review.
 
 An operation is also not created by a screen, a button, a persona or an internal
 function. Internal dispatch by identifier is mechanism, not authority.
-
-# 5. The Project-defined capability grammar
-
-`contracts/api/project-operation.schema.json` is a declaration grammar for operations a
-Project would define for itself, and `contracts/examples/budget-analyzer` holds two
-example declarations against it.
-
-Nothing serves them. Their declarations pin an active Release, a Project Brain binding
-and a Project connection binding, and their caller is a published application. All four
-concepts left the product on 2026-09-19. The grammar and its examples are retained as an
-example of shape, not as current Product authority, and nothing in the census above
-depends on them.

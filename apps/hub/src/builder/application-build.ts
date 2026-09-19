@@ -37,15 +37,6 @@ export type ApplicationArtifactMetadata = Readonly<{
   }>[]
 }>
 
-export type ApplicationArtifactReadRequest = Readonly<{
-  accountId: string
-  projectId: string
-  sourceRevision: string
-  artifactRevisionId: string
-  path: string
-  executionId?: string
-}>
-
 export type ApplicationArtifactReadResult = Readonly<{
   path: string
   mediaType: string
