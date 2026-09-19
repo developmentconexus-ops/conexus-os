@@ -51,60 +51,9 @@ test('F24 gives trigger administrators purpose-bound Agent summary discovery wit
   }
 })
 
-test('F25 gives eligible humans immutable Agent/action/time context without replacing the sealed subject', () => {
-  const wire = read('contracts/api/product/par-paths.yaml')
-  const checker = read('scripts/check-wire-par.mjs')
-
-  const snapshot = sliceBetween(wire, '    ApprovalAgentSnapshot:\n', '    ApprovalRequest:\n')
-  requireText(snapshot, 'required: [agentId, name, purpose, releaseId]', 'F25 Agent snapshot must be self-contained')
-  for (const field of ['agentId:', 'name:', 'purpose:', 'releaseId:']) {
-    requireText(snapshot, field, `F25 Agent snapshot missing ${field}`)
-  }
-  requireText(snapshot, 'request-time', 'F25 snapshot must be historical context, not current Agent authority')
-
-  for (const schemaName of ['ApprovalRequest', 'ApprovalRequestSummary']) {
-    const end = schemaName === 'ApprovalRequest' ? '    ApprovalRequestSummary:\n' : '    ApprovalRequestList:\n'
-    const schema = sliceBetween(wire, `    ${schemaName}:\n`, end)
-    for (const field of ['agent', 'actionSummary', 'requestedAt']) {
-      requireText(schema, field, `F25 ${schemaName} missing ${field}`)
-    }
-    requireText(schema, 'expiresAt:', `F25 ${schemaName} missing optional expiresAt`)
-  }
-
-  for (const token of ['ApprovalAgentSnapshot', 'actionSummary', 'requestedAt', 'expiresAt']) {
-    requireText(checker, token, `F25 PAR checker missing ${token}`)
-  }
-  for (const preserved of ['proposalDigest', 'SEALED_APPROVAL_PROPOSAL', 'expectedSubjectDigest']) {
-    requireText(wire, preserved, `F25 must preserve sealed-subject law ${preserved}`)
-  }
-  for (const forbidden of ['mastraRunId:', 'toolCallId:', 'requestContext:']) {
-    if (wire.includes(forbidden)) throw new Error(`F25 must not expose runtime mechanics ${forbidden}`)
-  }
-})
-
-test('F26 makes AgentRun history temporally ordered and human-diagnosable without inventing actions', () => {
-  const wire = read('contracts/api/product/par-paths.yaml')
-  const checker = read('scripts/check-wire-par.mjs')
-  const list = sliceBetween(wire, 'summary: ListAgentRuns', '\n  /api/runtime/projects/{projectId}/agent-runs/{agentRunId}:')
-  const run = sliceBetween(wire, '    AgentRun:\n', '    AgentRunList:\n')
-  const problem = sliceBetween(wire, '    AgentRunProblem:\n', '    AgentRun:\n')
-
-  requireText(list, 'admittedAt DESC', 'F26 PAR-06 must define newest-admitted-first ordering')
-  requireText(list, 'agentRunId DESC', 'F26 PAR-06 must define a stable tie-breaker')
-  requireText(run, 'admittedAt', 'F26 AgentRun must expose owner admission time')
-  requireText(run, 'settledAt:', 'F26 AgentRun must expose optional settlement time')
-  requireText(run, "$ref: '#/components/schemas/AgentRunProblem'", 'F26 AgentRun must expose safe human problem context')
-  requireText(problem, 'required: [summary]', 'F26 AgentRunProblem must require a human summary')
-  for (const field of ['summary:', 'detail:', 'remediation:']) {
-    requireText(problem, field, `F26 AgentRunProblem missing ${field}`)
-  }
-  for (const token of ['admittedAt', 'settledAt', 'AgentRunProblem', 'agentRunId DESC']) {
-    requireText(checker, token, `F26 PAR checker missing ${token}`)
-  }
-  for (const forbidden of ['RetryAgentRun', 'ResumeAgentRun', 'MarkAgentRunSucceeded']) {
-    if (wire.includes(forbidden)) throw new Error(`F26 must not invent unsupported action ${forbidden}`)
-  }
-})
+// F25 and F26 asserted Product Agent Runtime wire that was never built: par-paths.yaml and
+// scripts/check-wire-par.mjs were unreachable from openapi.yaml with no admitted operations
+// (S8 audit G-03). Both are deleted; F25/F26 have no surviving subject to assert.
 
 test('P-03 preserves the REVISE history and closes the operator-approved lock with F27-F30 handoffs', () => {
   const evidence = read('docs/evidence/4c/p03-authority-feasibility-and-structural-hypotheses.md')

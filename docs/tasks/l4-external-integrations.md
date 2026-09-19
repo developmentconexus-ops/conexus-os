@@ -23,7 +23,6 @@ the provider and caller details before implementation or external execution.
   [permissions](../product/permission-contract.md),
   [security](../reference/security-and-authority.md).
 - [Connection wire](../../contracts/api/product/connection-paths.yaml),
-  [Gateway inspection wire](../../contracts/api/product/gateway-paths.yaml),
   [effect recovery](../reference/release-deployment-and-operations.md).
 - Existing source: `apps/hub/src/connections/{module,routes,store,transport,sankhya-om}.ts`,
   `apps/hub/src/gateway/`, `apps/hub/src/platform/credential-backend.ts`,

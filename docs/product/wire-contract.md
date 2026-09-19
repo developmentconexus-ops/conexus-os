@@ -42,10 +42,6 @@ contracts/api/product/builder-paths.yaml            current Builder Path Items
 contracts/api/product/brain-paths.yaml              current Brain Path Items
 contracts/api/product/connection-paths.yaml         current Connections Path Items
 contracts/api/product/project-brain-context-paths.yaml current Project Brain Context Path Items
-contracts/api/product/release-paths.yaml            retained Release / Promotion / serving Path Items
-contracts/api/product/par-paths.yaml                retained Product Agent Runtime Path Items
-contracts/api/product/gateway-paths.yaml            retained Gateway inspection Path Items
-contracts/api/product/observability-paths.yaml      retained Observability & Audit Path Items
 ```
 
 Rules:

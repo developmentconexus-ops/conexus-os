@@ -17,7 +17,6 @@ in L3.1 before an implementation increment is admitted.
 - [Release/operations](../reference/release-deployment-and-operations.md),
   [MAR serving](../reference/managed-execution.md),
   [security](../reference/security-and-authority.md),
-  [Release wire](../../contracts/api/product/release-paths.yaml),
   [operations and caller grammar](../product/operation-ledger.md).
 - [L1](l1-local-build-preview.md) artifact and serving seams;
   [L2](l2-app-data-sdk.md) data/runtime declarations.
@@ -32,7 +31,7 @@ Follow the [shared reading/research protocol](../roadmap.md#task-reading-and-res
 
 | Part | Already decided / precise reading | Remaining question and expected output |
 | --- | --- | --- |
-| L3.1–2 release | [C-005](../decisions/index.md); [Release owner](../reference/release-deployment-and-operations.md), §§12.1–12.6; [Release wire](../../contracts/api/product/release-paths.yaml), PromoteRelease/GetProjectServingState | Immutable exact composition and served verification are fixed. Select the concrete producer/target/conditional activation and bind existing operation identities |
+| L3.1–2 release | [C-005](../decisions/index.md); [Release owner](../reference/release-deployment-and-operations.md), §§12.1–12.6; PromoteRelease/GetProjectServingState | Immutable exact composition and served verification are fixed. Select the concrete producer/target/conditional activation and bind existing operation identities |
 | L3.1 access | [security owner](../reference/security-and-authority.md), §§34.1–34.3; [MAR](../reference/managed-execution.md), §27.1 | Close app-session and local-origin realization; do not treat Preview permission as app access |
 | L3.3 evolution | [Release owner](../reference/release-deployment-and-operations.md), §§13.1 and 16.1–16.4 | Determine actual data compatibility for rollback and failed promotion; produce a recovery test bound to those migrations |
 | L3 comparison | [Mitra influence](../research/mitra/influence-on-conexus.md), opening §§5–6 | Preserve useful version/serving visibility. Conexus §13.1 defines environments within one logical Project, so do not copy the historical Mitra production-Project fork pattern |

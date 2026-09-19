@@ -121,36 +121,6 @@ test('selected F11 realization makes access administration human-reviewable at I
   if (ids.length !== 20 || new Set(ids).size !== 20) throw new Error(`current IAM wire topology must contain 20 unique operations after later P-05 IAM-21 admission; got ${ids.length}`)
 })
 
-test('selected F12 realization makes immutable Audit server-searchable and historically human-readable', () => {
-  const ledger = read('docs/product/operation-ledger.md')
-  const wire = read('contracts/api/product/observability-paths.yaml')
-  const checker = read('scripts/check-wire-observability.mjs')
-
-  requireText(ledger, '4C-F12', 'F12 semantic correction must be current 4A authority')
-
-  const listAudit = sliceBetween(wire, 'summary: ListAuditRecords', '\n  /api/control/workspaces/{workspaceId}/audit-records/{auditRecordId}:')
-  for (const filter of ['name: from', 'name: to', 'name: actorQuery', 'name: actionQuery', 'name: projectId', 'name: pageToken']) {
-    requireText(listAudit, filter, `F12 OBS-04 missing server-side filter ${filter}`)
-  }
-  requireText(listAudit, 'before pagination', 'F12 OBS-04 must state filtering occurs before pagination')
-
-  const snapshot = sliceBetween(wire, '    AuditSubjectSnapshotRef:\n', '    AuditRecordSummary:\n')
-  for (const field of ['kind:', 'ref:', 'label:']) requireText(snapshot, field, `F12 immutable audit snapshot missing ${field}`)
-  requireText(snapshot, 'append-time', 'F12 label must be append-time historical presentation Evidence')
-
-  const summary = sliceBetween(wire, '    AuditRecordSummary:\n', '    AuditRecordPage:\n')
-  requireText(summary, "$ref: '#/components/schemas/AuditSubjectSnapshotRef'", 'F12 audit summary actor/subject must use immutable snapshot refs')
-  requireText(summary, 'summary:', 'F12 audit list must carry deterministic human summary')
-
-  const detail = sliceBetween(wire, '    AuditRecord:\n', undefined)
-  requireText(detail, "$ref: '#/components/schemas/AuditSubjectSnapshotRef'", 'F12 audit detail actor/subject must use immutable snapshot refs')
-  requireText(detail, 'summary:', 'F12 audit detail must carry deterministic human summary')
-  requireText(detail, 'evidenceRefs:', 'F12 exact audit detail must retain Evidence')
-
-  for (const token of ['actorQuery', 'actionQuery', 'AuditSubjectSnapshotRef', 'before pagination']) {
-    requireText(checker, token, `F12 OBS checker missing guard ${token}`)
-  }
-
-  const obsIds = [...wire.matchAll(/x-conexus-4a-id: (OBS-\d+)/g)].map(m => m[1])
-  if (obsIds.length !== 5 || new Set(obsIds).size !== 5) throw new Error(`F12 must preserve 5 OBS operations; got ${obsIds.length}`)
-})
+// F12 asserted Observability wire that was never built: observability-paths.yaml and
+// scripts/check-wire-observability.mjs were unreachable from openapi.yaml with no admitted
+// operations (S8 audit G-06). Both are deleted; F12 has no surviving subject to assert.

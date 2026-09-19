@@ -11,7 +11,6 @@ const htmlPath = 'docs/evidence/4c/p02-project-resources-functional-wireframe.ht
 const ledger = read('docs/product/operation-ledger.md')
 const projectOas = read('contracts/api/product/project-paths.yaml')
 const connectionOas = read('contracts/api/product/connection-paths.yaml')
-const explorerOas = read('contracts/api/product/project-data-explorer-paths.yaml')
 const brainContextOas = read('contracts/api/product/project-brain-context-paths.yaml')
 const p7 = read('docs/evidence/4c/p02-structural-hypotheses.md')
 const f23 = read('docs/evidence/4c/p02-f23-project-brain-context-design.md')
@@ -56,8 +55,9 @@ test('P-02 Data opens authorized physical tabular data and keeps semantic meanin
     'applyExplorerSort','toggleExplorerColumn','openRowInspector','nextExplorerPage',
     'openAnalyze','closeAnalyze','renderAnalyticCatalog','runAnalyticQuery','applyDataScenario',
   ]) requireText(html, behavior, behavior)
-  for (const token of ['4C-F22','PRJ-25','PRJ-26','PRJ-27','PRJ-28']) requireText(ledger + explorerOas, token, token)
-  for (const token of ['ProjectDataExplorerSource','ProjectDataExplorerObject','ProjectDataExplorerFilter','ProjectDataExplorerRowPage','INTERNAL','INTEGRATION','TABLE','VIEW','DATASET']) requireText(explorerOas, token, token)
+  // F22's Data Explorer wire (project-data-explorer-paths.yaml) was unreachable from
+  // openapi.yaml with no gate at all (S8 audit G-07) and is deleted; this test keeps only
+  // the wireframe's own HTML assertions above.
   assert.doesNotMatch(html, /<button[^>]*>\s*(Execute Query|Insert|Update|Delete|Create table|Alter table)\s*<\/button>/i, 'Data Explorer P8 must stay read-only')
   assert.doesNotMatch(html, /<textarea[^>]*(sql|query)|id="sql-editor"/i, 'Data Explorer P8 must not add a SQL editor')
 })
