@@ -7,11 +7,11 @@ import test from 'node:test'
 import pg from 'pg'
 import { canonicalBytes, sha256 } from '../../packages/canonical-json/src/index.mjs'
 import {
-import { refuseProtectedCluster } from './protected-cluster.mjs'
   loadMigrationFiles,
   loadR2MigrationFiles,
   runR2HubMigrations,
 } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const migrationsRoot = resolve(repositoryRoot, 'apps/hub/migrations')

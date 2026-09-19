@@ -24,8 +24,7 @@ const currentMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb
 currentMigrationNames[currentMigrationNames.indexOf('022_builder_source_inspection.sql')] = '022_rb_builder_source_inspection.sql'
 currentMigrationNames[currentMigrationNames.indexOf('027_builder_working_source.sql')] = '027_rb_builder_working_source.sql'
 currentMigrationNames.push('042_builder_claude_connection_safety.sql', '043_builder_model_admission.sql', '044_builder_run_cancellation.sql', '045_builder_run_history.sql', '046_builder_run_admission_cas.sql', '047_reconcile_040_settlement_boundary.sql', '048_builder_claude_connection_label.sql', '049_project_creator_builder_grant.sql', '050_builder_run_phase.sql')
-const heldMigrationNames = ['024_mar_pg_boss_projection.sql', '025_mar_admission_function.sql']
-const expectedMigrationNames = [...currentMigrationNames, ...heldMigrationNames]
+const expectedMigrationNames = [...currentMigrationNames]
 const migration001Digest = 'd27e76b972145bc3a6bf669d4fd32734fc06153d07cddaf1072c6b29845b112f'
 const migration002Digest = 'b64a8e041a8e63ac3b85559805ac5573a1d53f6d5d95ba1421ffe3f9803804b5'
 const migration003Digest = '866c6da3d1a4171437b2c0a5beb72ff4994cfce499826cd8b397c2daa60037f2'
@@ -49,8 +48,6 @@ const migration020Digest = '8ed9da5891cef908388d734e16c4de4708bdf88fd9aeb4d2ca14
 const migration021Digest = '81de472647e7ee4fc0555fd9a58cd362c95450b300b3bb4b876899214ac2cb38'
 const migration022Digest = '34a1a21d6545b43832894efbbb7a5f27e9f0456a6e05f5ced3554ff273238787'
 const migration023Digest = '849357f4daf7254ca7c7a2d487989cde75b45a130eb75ab72b84fbd37eabaf4f'
-const migration024Digest = '8afb8add42959c19bc5f5edc3dad73a4d511195597656dbcb9505b6e75cae735'
-const migration025Digest = '707852bfe0b820ea5df21aa40076dbbb62733f9ce38e8911f9a9553a8b1bc36b'
 const migration026Digest = 'a5b051a57a40d7640bce15d248012a772d1b4129eb4f6a75475d23792449f006'
 const migration027Digest = '747ed9fc7e3b66a26e4713f5bb3787208c9aca1fb9bd6ebbbd4d153c2f2c0f83'
 const migration028Digest = '13660b97c452be1a00068ea32d760eef1db5b16ca1eb202b97f835660af6126d'
@@ -107,8 +104,6 @@ const migrationDigests = new Map([
   ['021_rb_builder_bounded_correction.sql', migration021Digest],
   ['022_rb_builder_source_inspection.sql', migration022Digest],
   ['023_rb_builder_preview_subject.sql', migration023Digest],
-  ['024_mar_pg_boss_projection.sql', migration024Digest],
-  ['025_mar_admission_function.sql', migration025Digest],
   ['026_builder_application_registry.sql', migration026Digest],
   ['027_rb_builder_working_source.sql', migration027Digest],
   ['028_builder_run.sql', migration028Digest],
@@ -2205,7 +2200,6 @@ const assert012Catalog = async (
     WHERE (rolname LIKE 'hub\\_%' ESCAPE '\\'
       OR rolname IN ('brain_owner', 'connections_owner', 'iam_owner', 'project_owner', 'registry_owner', 'workspace_owner'
         ${after019 ? ", 'builder_owner'" : ''}))
-      AND rolname <> 'hub_mar_runtime'
       ${after015 ? '' : "AND rolname <> 'hub_r2_brain_attester'"}
       ${after017 ? '' : "AND rolname <> 'hub_r2_key_conformance_subject'"}
       ${after019 ? '' : "AND rolname NOT IN ('builder_owner', 'hub_rb_ingress', 'hub_rb_executor')"}
@@ -3688,111 +3682,6 @@ const assert040Catalog = async (client) => {
   })) fail('MIGRATION_040_BOUNDARY_REFUSED')
 }
 
-const assert024Catalog = async (client) => {
-  await assertSignatures(client, 'MIGRATION_024_ROLE_BOUNDARY_REFUSED', `
-    SELECT rolname || ':' || rolcanlogin || ':' || rolsuper || ':' || rolinherit || ':' || rolcreaterole || ':' ||
-      rolcreatedb || ':' || rolreplication || ':' || rolbypassrls AS signature
-    FROM pg_roles WHERE rolname IN ('hub_mar_runtime', 'mar_owner') ORDER BY rolname
-  `, ['hub_mar_runtime:true:false:false:false:false:false:false', 'mar_owner:false:false:false:false:false:false:false'])
-  await assertSignatures(client, 'MIGRATION_024_SCHEMA_OWNER_REFUSED', `
-    SELECT nspname || ':' || pg_get_userbyid(nspowner) AS signature
-    FROM pg_namespace WHERE nspname = 'mar'
-  `, ['mar:mar_owner'])
-  await assertSignatures(client, 'MIGRATION_024_TYPE_OWNER_REFUSED', `
-    SELECT t.typname || ':' || pg_get_userbyid(t.typowner) AS signature
-    FROM pg_type AS t JOIN pg_namespace AS n ON n.oid = t.typnamespace
-    WHERE n.nspname = 'mar' AND t.typname = 'job_state'
-  `, ['job_state:mar_owner'])
-  await assertSignatures(client, 'MIGRATION_024_TABLE_OWNER_REFUSED', `
-    SELECT c.relname || ':' || c.relkind::text || ':' || pg_get_userbyid(c.relowner) AS signature
-    FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace
-    WHERE n.nspname = 'mar' AND c.relname IN
-      ('bam', 'job', 'job_common', 'job_dependency', 'job_run', 'queue', 'queue_stats', 'schedule', 'subscription', 'version', 'warning')
-    ORDER BY c.relname
-  `, [
-    'bam:r:mar_owner', 'job:p:mar_owner', 'job_common:r:mar_owner', 'job_dependency:r:mar_owner',
-    'job_run:r:mar_owner', 'queue:r:mar_owner', 'queue_stats:p:mar_owner', 'schedule:r:mar_owner',
-    'subscription:r:mar_owner', 'version:r:mar_owner', 'warning:r:mar_owner',
-  ])
-  await assertSignatures(client, 'MIGRATION_024_JOB_RUN_COLUMNS_REFUSED', `
-    SELECT column_name || ':' || udt_name || ':' || is_nullable AS signature
-    FROM information_schema.columns
-    WHERE table_schema = 'mar' AND table_name = 'job_run'
-    ORDER BY ordinal_position
-  `, [
-    'job_run_id:uuid:NO', 'project_id:text:NO', 'release_id:text:NO', 'job_id:text:NO',
-    'logical_occurrence_key:text:NO', 'state:text:NO', 'admitted_at:timestamptz:NO',
-    'started_at:timestamptz:YES', 'completed_at:timestamptz:YES', 'evidence_refs:_text:NO',
-    'updated_at:timestamptz:NO',
-  ])
-  await assertSignatures(client, 'MIGRATION_024_JOB_RUN_KEY_REFUSED', `
-    SELECT contype::text || ':' || pg_get_constraintdef(oid, true) AS signature
-    FROM pg_constraint
-    WHERE conrelid = 'mar.job_run'::regclass AND contype IN ('p', 'u')
-    ORDER BY contype, conname
-  `, ['p:PRIMARY KEY (job_run_id)', 'u:UNIQUE (logical_occurrence_key)'])
-  const jobRunChecks = (await client.query(`
-    SELECT pg_get_constraintdef(oid, true) AS definition
-    FROM pg_constraint
-    WHERE conrelid = 'mar.job_run'::regclass AND contype = 'c'
-  `)).rows.map(({ definition }) => definition)
-  for (const marker of [
-    'project_id ~', 'release_id ~', 'job_id ~', 'logical_occurrence_key ~', 'state ~',
-    'started_at IS NULL OR started_at >= admitted_at',
-    'completed_at IS NULL OR completed_at >= admitted_at',
-    'array_position(evidence_refs',
-  ]) {
-    if (!jobRunChecks.some((definition) => definition.includes(marker))) fail('MIGRATION_024_JOB_RUN_CONSTRAINT_REFUSED')
-  }
-  await assertSignatures(client, 'MIGRATION_024_TABLE_PRIVILEGE_REFUSED', `
-    SELECT table_name || ':' || privilege_type AS signature
-    FROM information_schema.table_privileges
-    WHERE table_schema = 'mar' AND grantee = 'hub_mar_runtime'
-    ORDER BY table_name, privilege_type
-  `, [
-    'job:DELETE', 'job:INSERT', 'job:SELECT', 'job:UPDATE',
-    'job_common:DELETE', 'job_common:INSERT', 'job_common:SELECT', 'job_common:UPDATE',
-    'job_dependency:DELETE', 'job_dependency:INSERT', 'job_dependency:SELECT', 'job_dependency:UPDATE',
-    'queue:DELETE', 'queue:INSERT', 'queue:SELECT', 'queue:UPDATE', 'version:SELECT',
-  ])
-  const boundary = (await client.query(`
-    SELECT has_schema_privilege('hub_mar_runtime', 'mar', 'USAGE') AS runtime_usage,
-      has_schema_privilege('hub_mar_runtime', 'mar', 'CREATE') AS runtime_create,
-      has_schema_privilege('public', 'mar', 'USAGE') AS public_usage,
-      pg_has_role('hub_mar_runtime', 'mar_owner', 'MEMBER') AS owner_member,
-      has_table_privilege('hub_mar_runtime', 'mar.job_run', 'SELECT') AS job_run_select,
-      has_table_privilege('hub_mar_runtime', 'mar.job_run', 'INSERT') AS job_run_insert,
-      has_function_privilege('hub_mar_runtime', 'mar.create_queue(text, jsonb)', 'EXECUTE') AS create_queue_execute
-  `)).rows[0]
-  if (JSON.stringify(boundary) !== JSON.stringify({
-    runtime_usage: true,
-    runtime_create: false,
-    public_usage: false,
-    owner_member: false,
-    job_run_select: false,
-    job_run_insert: false,
-    create_queue_execute: false,
-  })) fail('MIGRATION_024_BOUNDARY_REFUSED')
-}
-
-const assert025Catalog = async (client) => {
-  await assertSignatures(client, 'MIGRATION_025_FUNCTION_SECURITY_REFUSED', `
-    SELECT p.proname || ':' || pg_get_userbyid(p.proowner) || ':' || p.prosecdef || ':' ||
-      coalesce(array_to_string(p.proconfig, ','), '') AS signature
-    FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'mar' AND p.proname = 'admit_job_run'
-  `, ['admit_job_run:mar_owner:true:search_path=pg_catalog, mar, pg_temp'])
-  const boundary = (await client.query(`
-    SELECT has_function_privilege('hub_mar_runtime',
-      'mar.admit_job_run(uuid, text, text, text, text, text[])', 'EXECUTE') AS runtime_execute,
-      has_function_privilege('public',
-      'mar.admit_job_run(uuid, text, text, text, text, text[])', 'EXECUTE') AS public_execute
-  `)).rows[0]
-  if (JSON.stringify(boundary) !== JSON.stringify({ runtime_execute: true, public_execute: false })) {
-    fail('MIGRATION_025_BOUNDARY_REFUSED')
-  }
-}
-
 const verifyLedger = async (client, migrations) => {
   if (!await tableExists(client, 'iam.schema_migration')) return { applied: new Map(), maximum: null }
   const rows = (await client.query('SELECT version, checksum_sha256 FROM iam.schema_migration ORDER BY version')).rows
@@ -3832,8 +3721,6 @@ const verifyLedger = async (client, migrations) => {
       await assert021Catalog(client)
       await assert022Catalog(client)
       if (applied.has('023')) await assert023Catalog(client)
-      if (applied.has('024')) await assert024Catalog(client)
-      if (applied.has('025')) await assert025Catalog(client)
       if (applied.has('026') && !applied.has('027')) await assert026Catalog(client, files.get('026'))
       if (applied.has('027')) {
         await assert026SchemaPrivileges(client)

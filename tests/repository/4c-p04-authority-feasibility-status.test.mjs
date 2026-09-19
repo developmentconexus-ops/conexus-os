@@ -45,9 +45,11 @@ test('operator-approved P-04 closes the revised P8 through exact P9/P10 trace', 
   if (!existsSync(path('docs/evidence/4c/p04-release-operations-screen-contract.md'))) throw new Error('P-04 Screen Contract must exist after explicit P8 lock')
 })
 
-test('F31-F34 close exact Release, MAR and OBS human-operability gaps without frontend authority', () => {
+// F33 named the MAR runnable-job read. docs/product/wire-contract.md retired MAR, the current
+// Product OAS never referenced mar-paths.yaml, and the file is gone, so F33 has no subject to
+// assert. F31, F32 and F34 are unrelated and keep their assertions.
+test('F31, F32 and F34 close exact Release and OBS human-operability gaps without frontend authority', () => {
   const release = read('contracts/api/product/release-paths.yaml')
-  const mar = read('contracts/api/product/mar-paths.yaml')
   const obs = read('contracts/api/product/observability-paths.yaml')
 
   const releaseSummary = sliceBetween(release, '    ReleaseSummary:\n', '    ReleaseManifestProjection:\n')
@@ -67,10 +69,6 @@ test('F31-F34 close exact Release, MAR and OBS human-operability gaps without fr
   requireText(servingPath, '$ref: \'#/components/schemas/ProjectServingState\'', 'F32 target serving matrix')
   requireText(release, 'environments:', 'F32 server-disclosed environment list')
   requireText(release, 'enum: [UNSET, SET]', 'F32 explicit pointer state')
-
-  requireText(mar, 'x-conexus-4a-id: MAR-04', 'F33 distinct runnable-job read')
-  requireText(mar, 'operationId: ListRunnableManagedJobs', 'F33 operation identity')
-  for (const field of ['jobId:', 'name:', 'purpose:']) requireText(mar, field, `F33 runnable job ${field}`)
 
   for (const coordinate of ['subject:', 'kind:', 'occurredAt:', 'summary:', 'detailTarget:']) requireText(activity, coordinate, `F34 Activity ${coordinate}`)
   requireText(obs, 'ActivitySubjectSnapshotRef:', 'F34 Activity-specific human snapshot')
