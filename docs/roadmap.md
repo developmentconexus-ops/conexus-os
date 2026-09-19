@@ -3,8 +3,8 @@
 This file owns mutable status, allowed work, and the exact next action.
 
 Current program: [Builder operational delivery](tasks/builder-first-app.md).
-Current task: [Builder repair program](tasks/builder-repair-program.md).
-Task after the remediation: [Foundation review](tasks/foundation-review.md).
+Current task: [Foundation review](tasks/foundation-review.md).
+Paused behind it: [Builder repair program](tasks/builder-repair-program.md).
 Predecessor task: [Approved interactive Builder](tasks/builder-interactive-delivery.md),
 whose repair ledger this program closes.
 Technical authority: [C-020](reference/builder-c020-mastra-native.md).
@@ -35,9 +35,9 @@ Product features.
 | Claude Account connection | Predecessor candidate `f9fbb655463aa24da1c3e902c20d555487ce9629` was never accepted as a delivery, and its corrections are incorporated in the current task. The connection surface itself is CURRENT PRODUCT: the approved journey requires connecting Claude and selecting a model, so its six Control Plane operations are current Product authority and belong in the fixed Product census. |
 | Interactive HTML | FUNCTIONAL REFERENCE APPROVED BY OPERATOR. Exact artifact identity is in frontend section 33.6. This is not Product implementation acceptance. |
 | Interactive Builder delivery | APPROVED FOR EXECUTION under the current task. Four ordered units form one integrated candidate. |
-| Builder repair program | IN EXECUTION. P-01 landed as #72 and #73 with unit proof and a green CI graph; its live lanes 6 and 10 and its perf box are outstanding. P-02 through P-06 have not started. The operator lifted the merge gate on 2026-09-18. |
-| Credential and role remediation | IN EXECUTION beside the repair program. Steps 1 and 2 landed as #74 and #76. Its execution contract is #79. Step 3 is #80, the role register, and #81, provisioning plus the startup census. Step 4 is #82, the MAR excision and the census count. Step 5 is #84, which replaces the schema oracle with a generated catalog snapshot and is proven read-only against the pilot. #83 repairs two guarded suites #74 left unable to run. All six are verified and wait at merge-ready for the operator. Next is repairing the three R1 Postgres suites that rotted outside the candidate graph. Credential consolidation is deliberately outside the grant. |
-| Foundation review | GRANTED ON 2026-09-19. Its four scope decisions are recorded below under Foundation review. Its execution contract is `docs/tasks/foundation-review.md`. It is the task after the remediation, not beside it. |
+| Builder repair program | PAUSED. P-01 landed as #72 and #73 with unit proof and a green CI graph; its live lanes 6 and 10 and its perf box are outstanding. P-02 through P-06 have not started. The foundation review took the trunk in front of it. |
+| Credential and role remediation | CLOSED ON 2026-09-19. All six PRs merged: #74 and #76 for steps 1 and 2, #79 the execution contract, #80 the role register, #81 provisioning plus the startup census, #82 the MAR excision and the census count, #84 the generated catalog snapshot, and #83 repairing two guarded suites #74 had left unable to run. The three rotted R1 Postgres suites were repaired and admitted to CI as #91. Credential consolidation stays deliberately outside the grant. |
+| Foundation review | IN EXECUTION since 2026-09-19, and nearly closed. Twenty-nine PRs merged to trunk, #79 through #105 and #107. Migrations 051 through 055 are on trunk. The Product census went from 39 fixed operations to 25. Multi-account works end to end in CI: a second person can be invited, sign in and join a Workspace. M-01, provider-neutral model connections, is the one unit still open, as #106. Its execution contract is `docs/tasks/foundation-review.md`, which records what landed, what changed from the plan and what the operator must do before the next Hub start. |
 | Broader platform and visual polish | DEFERRED. No requirement to finish them before operating the Builder. |
 
 The initial accepted 7R-1 implementation remains
@@ -48,8 +48,10 @@ within this operator-approved functional delivery and the current task's limits.
 
 ## Current grant
 
-Execute [builder-repair-program.md](tasks/builder-repair-program.md) and the
-credential and role remediation described below. Both are current.
+Execute [foundation-review.md](tasks/foundation-review.md). The credential and
+role remediation described below is closed, and the Builder repair program is
+paused behind the foundation review rather than cancelled; its grant below still
+describes what it may do when it resumes.
 On 2026-09-18 the operator granted its six ordered PRs, P-01 through P-06. The
 grant covers those units, their focused tests, bounded local provider/model/E2B/
 browser proof, current contract updates, commit, push, and opening a pull request.
@@ -66,11 +68,13 @@ stop for her review in chat with two screenshots and a 30-to-60-second video.
 The predecessor task keeps its meaning. Its four units remain the delivered
 shape, and its repair ledger is the record this program closes and reconciles.
 
-### Credential and role remediation
+### Credential and role remediation, closed
 
 Its execution contract is [credential-and-role-remediation.md](tasks/credential-and-role-remediation.md).
 That task owns the ordered pull requests, their file boundaries, and the evidence each one
-carries. This section stays the grant and the authorized sequence.
+carries. This section stays the grant and the authorized sequence, and the sequence is done.
+All five steps merged on 2026-09-19. What remains of this section is history and the standing
+refusals at its end, which are still in force.
 
 On 2026-09-18 the operator authorized this explicitly, including the parts the
 preservation clause below previously refused, and instructed that legacy be removed
@@ -150,9 +154,9 @@ values the existing secret files already hold; no new credential is generated.
 ### Foundation review
 
 Its execution contract is [foundation-review.md](tasks/foundation-review.md). That
-task owns the ordered units, their bases and their migration numbers. This section
-is the grant. The foundation review starts after the credential and role
-remediation closes, and it does not run beside it.
+task owns the ordered units, their bases and their migration numbers, and it
+records what actually landed against what was planned. This section is the grant.
+The remediation closed on 2026-09-19 and the foundation review is the current task.
 
 On 2026-09-19 the operator decided its scope in four parts.
 
@@ -172,7 +176,60 @@ counts are recorded in the plan.
 
 Destroying real Product data is still refused. The plan's migrations assert that
 each table they drop is empty and abort otherwise, so the count stays a
-precondition rather than a promise.
+precondition rather than a promise. Migration 055 does exactly that, and an
+independent verifier reproduced its refusal by name on three separate tables.
+
+### In flight
+
+M-01, provider-neutral model connections and API keys, is #106 against trunk. It
+renames the schema to `model_connection`, adds `provider_id` and
+`credential_kind`, adds the operation that pastes an API key, and returns a
+Mastra-native config object instead of a Conexus model abstraction. Its migration
+is 056.
+
+### Queued
+
+Role naming by capability. The eight login roles still carry the program phase
+that introduced them rather than what they permit. Renaming them changes pilot
+secret file names and environment variable names, so it needs the operator before
+it starts, not after.
+
+M-02, ChatGPT account sign-in. Blocked on M-01, and gated on primary sources for
+the client id, the token endpoint, the wire format and the terms. If a primary
+source cannot be found for the client id or the terms, it stops and reports. API
+keys from M-01 already cover OpenAI models.
+
+Hardening follow-ups on the OCI Git container. `--pids-limit`, `--memory` and
+`--cpus` are absent and were absent before #101 unified the three
+implementations, so the unified port is the natural place to add them. A
+`tmpfsBytes` value under one mebibyte renders as `size=0m`; no caller passes one
+today. The mount-template assertion lost its pin on the `readonly` suffix, though
+the credential mount is still pinned separately.
+
+A browser test for the Members page. The page is one route, one query and four
+mutations, all already stubbed at the HTTP level. The assertion worth having is
+that the role toggle, remove, cancel and invite controls are absent for a viewer
+whose role is `member`.
+
+### Open Product questions for the operator
+
+These are decisions about shipped behaviour. None of them blocks M-01.
+
+1. What "Baseline" means in [contract.md](product/contract.md) Journey B now that
+   Inception is gone. Journey B is still written as Inception then Baseline then
+   approval, and section 5.5 still defines the Baseline as the pinned material
+   intent the Builder's Change and Release gates read. The code behind both is
+   deleted. Either Journey B is rewritten around what the Builder actually does,
+   or the Baseline returns as a future feature and Journey B says so.
+2. The `project.manage` Permission has no consumer. Its Published-App access and
+   archive and duplicate consumers were contract for surfaces never built and were
+   removed, and the candidate-review, explanation and binding consumers went with
+   Inception, Baseline, Brain and the bindings.
+   [permission-contract.md](product/permission-contract.md) already records this.
+   Either a consumer is owed or the Permission is retired.
+3. Whether a plain member, and not only an owner, may share their own model
+   connection into a Workspace. The design default was yes and A-02 built it, so
+   this is a question about behaviour that ships today, not about a plan.
 
 ## Recorded environment limits
 
@@ -182,14 +239,19 @@ previously authorized `hub_rb_executor` reconciliation. `hub_prj03_command` and
 
 That `28P01` is gone. On 2026-09-18 a read-only census opened one session per
 configured role against the pilot cluster at `conexus_s7` through the Hub's own
-`createPostgresPool`, and all eleven configured roles authenticated, including
+`createPostgresPool`, and every configured role authenticated, including
 `hub_prj03_command` and `hub_rb_ingress`. Postgres reported the expected
 `conexus-hub:<capability>` for each one. No role is in a blocked state today.
 
-Four roles have no password file in the pilot and so no pool is created for them
-there. They are `hub_r2_project_binding`, `hub_r2_brain_read`,
-`hub_r2_brain_attester` and `hub_r2_key_conformance_subject`. Unconfigured is not
-the same as invalid, and the remediation's step 3 census reports them apart.
+The Hub now connects as eight roles, not eleven.
+[hub-database-roles.md](reference/hub-database-roles.md) is the register and
+matches `contracts/technical/hub-database-roles.json`. `hub_r2_project_binding`,
+`hub_r2_brain_read`, `hub_r2_brain_attester` and `hub_r2_key_conformance_subject`
+were removed from it by #98 when the pools that opened them went with the Brain
+and the bindings; they are not live roles and the pilot never had password files
+for them. Four more, `hub_s4_baseline_read`, `hub_s4_baseline_command`,
+`hub_s6_inception_command` and `hub_r2_brain_bootstrap`, are equally inert. All
+eight still exist in the cluster, holding no privilege after 055.
 
 Report a surviving operational block without declaring the entire code path
 proven, and continue independent implementation/offline tests.
@@ -212,7 +274,44 @@ Do not mark the Product accepted while a deciding live path remains blocked.
 
 ## Exact next action
 
-Finish P-01's live proof, then start P-02.
+Land M-01 (#106), then take the operator steps below and run the foundation
+review's live lanes on the pilot. P-01's live proof and P-02 follow after that.
+
+## Before the next Hub start on this trunk
+
+Nothing here is optional. The Hub refuses to start if step 3 is skipped, and the
+migration runner aborts if step 2's precondition does not hold.
+
+1. The pilot database is at migration 050, read read-only on 2026-09-19. The next
+   start applies 051 through the current head in one runner invocation. That is
+   051, 052, 053, 054 and 055 together. Verifiers have staged this exact sequence
+   on pilot-shaped copies, from 050 to head, and it commits.
+2. Migration 055 asserts that every table it drops is empty and aborts with
+   `MIGRATION_055_TABLE_NOT_EMPTY_REFUSED`, naming the table and its count, if one
+   is not. The pilot count of 2026-09-19 read zero rows in all of them, but that
+   was one day's reading and the migration decides on the day it runs. An abort
+   leaves nothing half-applied.
+3. The Hub config refuses retired variables rather than ignoring them, so delete
+   `CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE`,
+   `CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE` and
+   `CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE` from the pilot environment
+   first. `readHubConfig` throws `RETIRED_CONFIG_<name>` while any of the three is
+   set, and the pilot environment file still sets all three.
+4. Once M-01 lands, the model catalog file will need `officialHttpsOrigin` removed
+   from each entry, because the provider registry answers it. Do not remove it
+   before then; the field is still read today.
+5. For multi-account, an invited person must already exist in Keycloak with that
+   exact email address, marked verified. The Hub reads `email_verified` from the
+   validated ID token and accepts only the boolean `true`. Nothing is emailed, and
+   an address that is not verified at the provider is refused.
+6. Eight database login roles are now inert: `hub_r2_brain_attester`,
+   `hub_r2_brain_bootstrap`, `hub_r2_brain_read`, `hub_r2_key_conformance_subject`,
+   `hub_r2_project_binding`, `hub_s4_baseline_command`, `hub_s4_baseline_read` and
+   `hub_s6_inception_command`. Migration 055 revoked every privilege they hold and
+   deliberately did not drop them, because a role is cluster-global and `DROP ROLE`
+   answers `2BP01` while any other database on the cluster still grants to it. They
+   can be dropped from the cluster by hand, and only after every database on that
+   cluster is at 055.
 
 ### What P-01 has and has not
 
@@ -247,15 +346,15 @@ follows P-03.
 ### Topology
 
 The stack's trunk is `analysis/internal-mvp-2026-09-12`, not main. Migrations 023
-through 050 exist only on that branch; main still stops at 022. Consolidating the
+through 055 exist only on that branch; main still stops at 022. Consolidating the
 analysis branch into main is a separate pull request, and it no longer waits on the
 migration defect, which is fixed.
 
 ### Running alongside
 
-The credential and role remediation is current work beside the repair program.
-Step 1 landed as `9251e4ec` (#74), step 2 as `1318c2bf` (#76). Step 3, provisioning,
-is next there and is independent of P-02.
+Nothing runs alongside. The credential and role remediation closed on 2026-09-19
+with all five steps merged, and the foundation review holds the trunk until M-01
+lands. The repair program resumes after that.
 
 ### What proof to run
 
