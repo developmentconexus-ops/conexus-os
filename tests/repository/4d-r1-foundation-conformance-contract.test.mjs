@@ -26,10 +26,10 @@ test('operator-approved 4D-D(R1) binds independent conformance claims without au
   const operationIds = [
     'IAM-01', 'IAM-02', 'IAM-03',
     'WS-01', 'WS-02',
-    'PRJ-01', 'PRJ-02', 'PRJ-03', 'PRJ-07', 'PRJ-08', 'PRJ-09', 'PRJ-23', 'PRJ-24',
+    'PRJ-01', 'PRJ-02', 'PRJ-03',
   ]
   for (const id of operationIds) assert.ok(contract.includes(id), `R1 operation missing ${id}`)
-  assert.equal(operationIds.length, 13)
+  assert.equal(operationIds.length, 8)
 
   const claimRows = contract.match(/^\| `R1C-\d{2} [A-Z_]+` \|/gm) ?? []
   assert.equal(claimRows.length, 14)

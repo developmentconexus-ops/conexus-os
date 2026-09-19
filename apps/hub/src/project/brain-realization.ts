@@ -8,7 +8,7 @@ import {
   type ParsedBrainRealizationManifest,
 } from '../../../../packages/brain-contract/src/index.mjs'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
-import type { ProjectSourceSnapshot, ProjectSourcePath } from './project-mastra.js'
+import type { ProjectSourceSnapshot, ProjectSourcePath } from './source-snapshot.js'
 
 export { BRAIN_REALIZATION_PATH, parseBrainRealization, parseBrainRealizationManifest }
 export type { BrainRealization, ParsedBrainRealization, ParsedBrainRealizationManifest }

@@ -74,7 +74,7 @@ test('R1C-03 canonical bytes and digests reproduce independently', () => {
   assert.equal(first.inputDigest, second.inputDigest)
 })
 
-test('R1C-05 and R1C-12 compile the current canonical 13-operation projection', () => {
+test('R1C-05 and R1C-12 compile the current canonical 8-operation projection', () => {
   const input = structuredClone(baseInput)
   const wire = input.wireProjection
   const currentSourceRefs = wire.sourceRefs.map((source) => source.path === 'docs/product/operation-ledger.md'
@@ -85,10 +85,10 @@ test('R1C-05 and R1C-12 compile the current canonical 13-operation projection', 
   input.wireProjection = currentWire
   input.wireProjection.digest = sha256(canonicalBytes(body))
   assert.equal(sha256(canonicalBytes(body)), input.wireProjection.digest)
-  assert.equal(wire.operations.length, 13)
-  assert.equal(new Set(wire.operations.map((operation) => operation.ownerId)).size, 13)
+  assert.equal(wire.operations.length, 8)
+  assert.equal(new Set(wire.operations.map((operation) => operation.ownerId)).size, 8)
   assert.deepEqual(wire.operations.map((operation) => operation.ownerId), [
-    'IAM-01', 'IAM-02', 'IAM-03', 'WS-01', 'WS-02', 'PRJ-01', 'PRJ-02', 'PRJ-03', 'PRJ-07', 'PRJ-08', 'PRJ-09', 'PRJ-23', 'PRJ-24',
+    'IAM-01', 'IAM-02', 'IAM-03', 'WS-01', 'WS-02', 'PRJ-01', 'PRJ-02', 'PRJ-03',
   ])
   for (const source of currentSourceRefs) assert.equal(sha256(readFileSync(resolve(repositoryRoot, source.path))), source.sha256)
   const identityWire = readFileSync(resolve(repositoryRoot, 'contracts/api/product/identity-workspace-paths.yaml'), 'utf8')
@@ -101,7 +101,7 @@ test('R1C-05 and R1C-12 compile the current canonical 13-operation projection', 
   const compiled = compile(baseProfile, input)
   const module = compiled.entries.find((entry) => entry.path === 'generated/r1/operations.mjs').bytes.toString('utf8')
   assert.doesNotMatch(module, /execute\s*\(|anySlug|anyInput/)
-  assert.equal((module.match(/ownerId/g) ?? []).length, 13)
+  assert.equal((module.match(/ownerId/g) ?? []).length, 8)
 })
 
 test('R1C-04 produces one ownership class per path and refuses path ambiguity', () => {

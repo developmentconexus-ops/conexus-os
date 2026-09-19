@@ -23,9 +23,6 @@ defect in this table. Adding a role means adding a row to the register and regen
 | `hub_ws01_command` | `workspace-command` | `server.ts` | `CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE` |
 | `hub_s3_read` | `project-read` | `project/module.ts` | `CONEXUS_DB_S3_READ_PASSWORD_FILE` |
 | `hub_prj03_command` | `project-command` | `project/module.ts` | `CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE` |
-| `hub_s4_baseline_read` | `project-baseline-read` | `project/module.ts` | `CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE` |
-| `hub_s4_baseline_command` | `project-baseline-command` | `project/module.ts` | `CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE` |
-| `hub_s6_inception_command` | `project-inception-command` | `project/module.ts` | `CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE` |
 | `hub_r2_project_binding` | `project-binding` | `project/module.ts` | `CONEXUS_DB_R2_PROJECT_BINDING_PASSWORD_FILE` |
 | `hub_r2_brain_read` | `brain-read` | `server.ts` | `CONEXUS_DB_R2_BRAIN_READ_PASSWORD_FILE` |
 | `hub_r2_brain_attester` | `brain-attester` | `project/module.ts` | `CONEXUS_DB_R2_BRAIN_ATTESTER_PASSWORD_FILE` |

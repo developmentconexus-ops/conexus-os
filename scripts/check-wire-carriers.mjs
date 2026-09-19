@@ -19,7 +19,6 @@ const expected = new Map([
   ['IAM-02', 'OWNER_CURRENT'], ['IAM-03', 'IDEMPOTENCY_KEY'], ['WS-01', 'IDEMPOTENCY_KEY'],
   ['PRJ-03', 'IDEMPOTENCY_KEY'], ['BLD-24', 'IDEMPOTENCY_KEY'], ['CON-05', 'IDEMPOTENCY_KEY'],
   ['CON-06', 'EXPLICIT_CURRENT_REVISION'], ['CON-07', 'IDEMPOTENCY_KEY'], ['CON-08', 'IDEMPOTENCY_KEY'],
-  ['PRJ-07', 'IDEMPOTENCY_KEY'], ['PRJ-09', 'EXPLICIT_REVISION'],
 ]);
 if (JSON.stringify([...carriers].sort()) !== JSON.stringify([...expected].sort())) throw new Error(`current carrier set mismatch: ${JSON.stringify([...carriers])}`);
 for (const [id, value] of expected) if (carriers.get(id) !== value) throw new Error(`carrier mismatch for ${id}`);

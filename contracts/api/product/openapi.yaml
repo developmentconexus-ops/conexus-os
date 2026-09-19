@@ -83,16 +83,6 @@ paths:
     $ref: './connection-paths.yaml#/paths/~1api~1control~1connections~1{connectionId}~1qualifications'
   /api/control/connections/{connectionId}/qualifications/{qualificationId}:
     $ref: './connection-paths.yaml#/paths/~1api~1control~1connections~1{connectionId}~1qualifications~1{qualificationId}'
-  /api/control/projects/{projectId}/inception-investigations:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1inception-investigations'
-  /api/control/projects/{projectId}/baseline:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1baseline'
-  /api/control/projects/{projectId}/baseline/decisions:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1baseline~1decisions'
-  /api/control/projects/{projectId}/baseline-candidates/{candidateBaselineDigest}:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1baseline-candidates~1{candidateBaselineDigest}'
-  /api/control/projects/{projectId}/baseline-candidates/{candidateBaselineDigest}/assistant/queries:
-    $ref: './project-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1baseline-candidates~1{candidateBaselineDigest}~1assistant~1queries'
   /api/control/projects/{projectId}/brain-context:
     $ref: './project-brain-context-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1brain-context'
 components:

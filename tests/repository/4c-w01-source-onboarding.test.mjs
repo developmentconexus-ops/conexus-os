@@ -12,7 +12,7 @@ function operationSection(text, id, nextId) {
   return text.slice(start, end < 0 ? text.length : end)
 }
 
-test('W-01 can establish truthful greenfield/brownfield Project source authority before inception', () => {
+test('W-01 can establish truthful greenfield/brownfield Project source authority at Project birth', () => {
   const product = read('docs/product/contract.md')
   const wire = read('contracts/api/product/project-paths.yaml')
   const inventory = read('docs/evidence/4c/candidate-screen-surface-inventory.md')
@@ -23,7 +23,6 @@ test('W-01 can establish truthful greenfield/brownfield Project source authority
   if (!ledger.includes('sourceBootstrap.mode = NEW | EXISTING_GIT')) throw new Error('accepted 4C-F02 source-bootstrap semantics missing from Product authority')
 
   const create = operationSection(wire, 'PRJ-03', 'PRJ-05')
-  const inception = operationSection(wire, 'PRJ-07', 'PRJ-08')
 
   if (!/required:\s*\[[^\]]*sourceBootstrap[^\]]*\]/.test(create)) {
     throw new Error('PRJ-03 must require sourceBootstrap at Project birth')
@@ -33,7 +32,7 @@ test('W-01 can establish truthful greenfield/brownfield Project source authority
   }
 
   const sourceSchemaStart = wire.indexOf('    ProjectSourceBootstrap:')
-  const sourceSchemaEnd = wire.indexOf('\n    ApprovedBaseline:', sourceSchemaStart)
+  const sourceSchemaEnd = wire.indexOf('\n    ProjectBrainBinding:', sourceSchemaStart)
   if (sourceSchemaStart < 0 || sourceSchemaEnd < 0) throw new Error('unable to isolate ProjectSourceBootstrap schema')
   const source = wire.slice(sourceSchemaStart, sourceSchemaEnd)
   for (const mode of ['NEW', 'EXISTING_GIT']) {
@@ -46,8 +45,4 @@ test('W-01 can establish truthful greenfield/brownfield Project source authority
     if (propertyNames.has(forbidden)) throw new Error(`ProjectSourceBootstrap must not expose ${forbidden}`)
   }
 
-  for (const forbidden of ['repositoryUrl:', 'repositoryLocator:', 'sourceId:', 'sql:', 'connectionId:']) {
-    if (inception.includes(forbidden)) throw new Error(`PRJ-07 must not regain source-selection authority through ${forbidden}`)
-  }
-  if (!/required:\s*\[intent\]/.test(inception)) throw new Error('PRJ-07 must remain an intent-driven investigation over already-admitted source authority')
 })

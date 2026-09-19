@@ -26,7 +26,7 @@ test('a missing password file is reported without a write', async () => {
 
 test('the register every provisioning run reads is the one the Hub projects', () => {
   const roles = readRegister(repositoryRoot)
-  assert.equal(roles.length, 15)
+  assert.equal(roles.length, 12)
   assert.ok(roles.every(row => row.role.startsWith('hub_') && row.passwordFileVariable.startsWith('CONEXUS_DB_')))
 })
 

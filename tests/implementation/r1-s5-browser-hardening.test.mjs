@@ -84,8 +84,6 @@ const { createHttpApp } = await import(pathToFileURL(resolve(hubBuild, 'http/app
 
 const workspaceId = '20000000-0000-4000-8000-000000000095'
 const projectId = '30000000-0000-4000-8000-000000000095'
-const digest = 'c'.repeat(64)
-const sourceText = 'Exact S5 immutable candidate truth'
 const account = {
   accountId: '10000000-0000-4000-8000-000000000095',
   displayName: 'S5 Operator',
@@ -93,18 +91,6 @@ const account = {
 }
 const workspace = { workspaceId, name: 'S5 Workspace' }
 const project = { projectId, workspaceId, name: 'S5 Project', projectRevision: 'revision-s5', archived: false }
-const candidate = {
-  candidateBaselineDigest: digest,
-  sourceRevision: 'revision-s5',
-  sourceText,
-  applicationRuntimeProfile: 'MANAGED',
-}
-const approvedBaseline = {
-  baselineDigest: digest,
-  sourceRevision: candidate.sourceRevision,
-  sourceText,
-  applicationRuntimeProfile: 'MANAGED',
-}
 
 const selectedBrowser = process.env.CONEXUS_S5_BROWSER
 const browserTypes = [
@@ -120,10 +106,6 @@ test('S5-P1 production browser boundary is exact across Chromium, Firefox and We
   const state = {
     accessStatus: 200,
     projectStatus: 200,
-    candidateStatus: 200,
-    approved: false,
-    decisionCount: 0,
-    releaseDecision: undefined,
   }
   const app = await createHttpApp({
     staticRoot: webBuild,
@@ -147,27 +129,6 @@ test('S5-P1 production browser boundary is exact across Chromium, Firefox and We
           return reply.code(state.projectStatus === 200 ? 404 : state.projectStatus).send({ title: 'not found' })
         }
         return reply.send(project)
-      })
-      server.get('/api/control/projects/:projectId/baseline-candidates/:digest', (request, reply) => {
-        if (
-          state.candidateStatus !== 200 ||
-          request.params.projectId !== projectId ||
-          request.params.digest !== digest
-        ) {
-          return reply.code(state.candidateStatus === 200 ? 404 : state.candidateStatus).send({ title: 'not found' })
-        }
-        return reply.send(candidate)
-      })
-      server.get('/api/control/projects/:projectId/baseline', (_request, reply) =>
-        state.approved ? reply.send(approvedBaseline) : reply.code(404).send({ title: 'not found' }),
-      )
-      server.post('/api/control/projects/:projectId/baseline/decisions', async (_request, reply) => {
-        state.decisionCount += 1
-        await new Promise((resolveDecision) => {
-          state.releaseDecision = resolveDecision
-        })
-        state.approved = true
-        return reply.send(approvedBaseline)
       })
       return []
     },
@@ -217,10 +178,6 @@ test('S5-P1 production browser boundary is exact across Chromium, Firefox and We
     await t.test(browserName, async () => {
       state.accessStatus = 200
       state.projectStatus = 200
-      state.candidateStatus = 200
-      state.approved = false
-      state.decisionCount = 0
-      state.releaseDecision = undefined
       const browser = await browserType.launch({ headless: true })
       let context
       try {
@@ -231,7 +188,7 @@ test('S5-P1 production browser boundary is exact across Chromium, Firefox and We
         })
       await context.addInitScript(() => {
         localStorage.setItem('conexus-project', 'FORGED LOCAL PROJECT')
-        sessionStorage.setItem('conexus-baseline', 'FORGED SESSION BASELINE')
+        sessionStorage.setItem('conexus-workspace', 'FORGED SESSION WORKSPACE')
       })
       const page = await context.newPage()
       const diagnostics = []
@@ -295,14 +252,12 @@ test('S5-P1 production browser boundary is exact across Chromium, Firefox and We
         '/workspaces/new',
         `/workspaces/${workspaceId}/projects/new`,
         `/projects/${projectId}`,
-        `/projects/${projectId}/baseline-candidates/${digest}`,
       ]) {
         const response = await page.goto(`${origin}${route}`)
         assert.equal(response?.status(), 200, `${browserName} ${route}`)
         await page.getByRole('main').waitFor()
       }
-      await page.getByText(sourceText, { exact: true }).waitFor()
-      await page.getByText('Nenhuma Baseline aprovada existe para este Project.').waitFor()
+      await page.getByRole('heading', { name: 'S5 Project', exact: true }).waitFor()
 
       await page.setViewportSize({ width: 360, height: 800 })
       const navigationTrigger = page.getByRole('button', { name: 'Navegação' })
@@ -313,27 +268,13 @@ test('S5-P1 production browser boundary is exact across Chromium, Firefox and We
       assert.equal(await navigationTrigger.evaluate((element) => element === document.activeElement), true)
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true)
 
-      const approve = page.getByRole('button', { name: 'Aprovar este Candidate' })
-      await approve.evaluate((element) => {
-        element.click()
-        element.click()
-      })
-      await page.waitForFunction(() => document.querySelector('button[disabled]') !== null)
-      assert.equal(state.decisionCount, 1, `${browserName} double command`)
-      state.releaseDecision?.()
-      await page.getByText('Baseline aprovada pelo servidor.').waitFor()
-
-      state.candidateStatus = 404
-      await page.reload()
-      await page.getByRole('heading', { name: 'Candidate indisponível' }).waitFor()
       assert.equal(await page.getByText('FORGED LOCAL PROJECT').count(), 0)
-      assert.equal(await page.getByText('FORGED SESSION BASELINE').count(), 0)
+      assert.equal(await page.getByText('FORGED SESSION WORKSPACE').count(), 0)
 
-      state.candidateStatus = 200
       state.accessStatus = 401
       await page.reload()
       await page.getByRole('heading', { name: 'Entre no Conexus' }).waitFor()
-      assert.equal(await page.getByText(sourceText, { exact: true }).count(), 0)
+      assert.equal(await page.getByText('S5 Project', { exact: true }).count(), 0)
 
       state.accessStatus = 200
       state.projectStatus = 404

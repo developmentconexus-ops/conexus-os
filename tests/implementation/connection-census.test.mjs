@@ -25,7 +25,7 @@ test.after(() => {
 
 test('a role with no password file is unconfigured, not invalid', async () => {
   const rows = await censusConnections({ host: '127.0.0.1', port: 1, database: 'unreachable' }, {})
-  assert.equal(rows.length, 15)
+  assert.equal(rows.length, 12)
   assert.deepEqual([...new Set(rows.map(row => row.state))], ['unconfigured'])
   assert.deepEqual(rows[0], { role: 'hub_iam_runtime', capability: 'identity-and-access', state: 'unconfigured' })
 })

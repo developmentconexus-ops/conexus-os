@@ -3,7 +3,27 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, resolve } from 'node:path'
 import { R1C14_GIT_IDENTITY } from '../generated/r1c14-git-identity.js'
-import type { ProjectSourceFile, ProjectSourcePath, ProjectSourceSnapshot } from './project-mastra.js'
+
+export type ProjectSourcePath = Readonly<{
+  path: string
+  ownershipClass: string
+  mediaType: string
+  byteLength: number
+  digest: string
+}>
+
+export type ProjectSourceFile = Readonly<{ path: string; digest: string; utf8Bytes: string }>
+
+export type ProjectSourceSnapshot = Readonly<{
+  sourceRevision: string
+  listPaths(): Promise<readonly ProjectSourcePath[]>
+  readBatch(paths: readonly string[]): Promise<readonly ProjectSourceFile[]>
+}>
+
+export type ProjectSourceSnapshotFactory = (input: Readonly<{
+  projectId: string
+  sourceRevision: string
+}>) => ProjectSourceSnapshot
 
 const MAX_PROCESS_BYTES = 1024 * 1024
 const MAX_BATCH_BYTES = 262_144

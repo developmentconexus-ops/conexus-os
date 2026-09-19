@@ -6,11 +6,6 @@ export type ProjectRuntimeConfig = Readonly<{
   externalFileSlotsFile: string
   modelCatalogFile: string
   sourceOwnershipManifestFile: string
-  planning?: Readonly<{
-    baselineReadPasswordFile: string
-    baselineCommandPasswordFile: string
-    inceptionCommandPasswordFile: string
-  }>
 }>
 
 export type HubConfig = Readonly<{
@@ -84,7 +79,19 @@ const workspaceDatabase = (environment: NodeJS.ProcessEnv): HubConfig['database'
   return undefined
 }
 
+// Project Inception and Baseline left the product. A deployment still carrying
+// their database credentials is configured for a capability the Hub no longer
+// serves, so it is refused rather than silently ignored.
+const RETIRED_PLANNING_VARIABLES = [
+  'CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE',
+  'CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE',
+  'CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE',
+] as const
+
 const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] => {
+  for (const name of RETIRED_PLANNING_VARIABLES) {
+    if (environment[name]) throw new Error(`RETIRED_CONFIG_${name}`)
+  }
   const ordinaryValues = {
     commandPasswordFile: environment.CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE,
     readPasswordFile: environment.CONEXUS_DB_S3_READ_PASSWORD_FILE,
@@ -94,41 +101,16 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
     modelCatalogFile: environment.CONEXUS_PROJECT_MODEL_CATALOG_FILE,
     sourceOwnershipManifestFile: environment.CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE,
   }
-  const planningValues = {
-    baselineReadPasswordFile: environment.CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE,
-    baselineCommandPasswordFile: environment.CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE,
-    inceptionCommandPasswordFile: environment.CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE,
-  }
   const hasOrdinaryValues = Object.values(ordinaryValues).some(Boolean)
-  const hasPlanningValues = Object.values(planningValues).some(Boolean)
   const ordinaryComplete = Object.values(ordinaryValues).every(Boolean)
-  const planningComplete = Object.values(planningValues).every(Boolean)
 
   // R2 binding settlement can reuse an existing Project source root without
-  // enabling the independently configured R1 creation/cognition capability.
+  // enabling the independently configured R1 creation capability.
   if (environment.CONEXUS_DB_R2_PROJECT_BINDING_PASSWORD_FILE &&
-    !hasPlanningValues && !Object.entries(ordinaryValues).some(([name, value]) =>
+    !Object.entries(ordinaryValues).some(([name, value]) =>
       !['storageRoot', 'sourceOwnershipManifestFile'].includes(name) && Boolean(value))) return undefined
 
   if (hasOrdinaryValues && !ordinaryComplete) {
-    for (const [name, value] of Object.entries({
-      CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE: ordinaryValues.commandPasswordFile,
-      CONEXUS_DB_S3_READ_PASSWORD_FILE: ordinaryValues.readPasswordFile,
-      CONEXUS_PROJECT_STORAGE_ROOT: ordinaryValues.storageRoot,
-      CONEXUS_GIT_IMPORT_CATALOG_FILE: ordinaryValues.gitImportCatalogFile,
-      CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE: ordinaryValues.externalFileSlotsFile,
-      CONEXUS_PROJECT_MODEL_CATALOG_FILE: ordinaryValues.modelCatalogFile,
-      CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE: ordinaryValues.sourceOwnershipManifestFile,
-    })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
-  }
-  if (hasPlanningValues && !planningComplete) {
-    for (const [name, value] of Object.entries({
-      CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE: planningValues.baselineReadPasswordFile,
-      CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE: planningValues.baselineCommandPasswordFile,
-      CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE: planningValues.inceptionCommandPasswordFile,
-    })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
-  }
-  if (planningComplete && !ordinaryComplete) {
     for (const [name, value] of Object.entries({
       CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE: ordinaryValues.commandPasswordFile,
       CONEXUS_DB_S3_READ_PASSWORD_FILE: ordinaryValues.readPasswordFile,
@@ -149,13 +131,7 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
     modelCatalogFile: required(environment, 'CONEXUS_PROJECT_MODEL_CATALOG_FILE'),
     sourceOwnershipManifestFile: required(environment, 'CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE'),
   }
-  if (!planningComplete) return ordinary
-  const planning = {
-    baselineReadPasswordFile: required(environment, 'CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE'),
-    baselineCommandPasswordFile: required(environment, 'CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE'),
-    inceptionCommandPasswordFile: required(environment, 'CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE'),
-  }
-  return { ...ordinary, planning }
+  return ordinary
 }
 
 const brainRuntime = (environment: NodeJS.ProcessEnv): HubConfig['brain'] => {

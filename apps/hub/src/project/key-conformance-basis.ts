@@ -2,7 +2,7 @@ import type { QueryResultRow } from 'pg'
 import { sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type { PostgresPool } from '../platform/postgres.js'
 import { readProjectBrainRealizationManifest } from './brain-realization.js'
-import type { ProjectSourceSnapshotFactory } from './inception.js'
+import type { ProjectSourceSnapshotFactory } from './source-snapshot.js'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const SOURCE_REVISION = /^[0-9a-f]{40}$/

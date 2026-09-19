@@ -36,12 +36,12 @@ test('S3-P6 migration freezes direct project.read admission behind one execute-o
   assert.doesNotMatch(source, /workspace_access_manage|can_manage/)
 })
 
-test('S3-P6 closed routes remain projected beside the bounded S4 extensions', () => {
+test('S3-P6 closed routes remain projected', () => {
   assert.equal(existsSync(generatedRoutePath), true)
   assert.equal(existsSync(generatedClientPath), true)
   const routes = readFileSync(generatedRoutePath, 'utf8')
   const client = readFileSync(generatedClientPath, 'utf8')
-  assert.match(routes, /export type S3OwnerId = 'PRJ-01' \| 'PRJ-02' \| 'PRJ-03' \| 'PRJ-07' \| 'PRJ-08' \| 'PRJ-09' \| 'PRJ-23' \| 'PRJ-24'/)
+  assert.match(routes, /export type S3OwnerId = 'PRJ-01' \| 'PRJ-02' \| 'PRJ-03'/)
   assert.match(routes, /ListProjects/)
   assert.match(routes, /GetProject/)
   assert.match(routes, /CreateProject/)

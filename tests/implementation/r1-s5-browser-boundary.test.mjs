@@ -13,19 +13,11 @@ test('S5-P0 serves every realized browser route through the same-origin SPA host
     '/workspaces/:workspaceId/projects',
     '/workspaces/:workspaceId/projects/new',
     '/projects/:projectId',
-    '/projects/:projectId/inception',
-    '/projects/:projectId/baseline-candidates/:candidateBaselineDigest',
+    '/projects/:projectId/build',
   ]) {
     assert.match(source, new RegExp(route.replaceAll('/', '\\/').replaceAll(':', '\\:')))
   }
   assert.match(source, /sendFile\('index\.html'/)
-})
-
-test('S6 Inception survives a direct same-origin cold refresh', () => {
-  const hub = read('apps/hub/src/http/app.ts')
-  const route = read('apps/web/src/routes/project-inception.tsx')
-  assert.match(route, /path: '\/projects\/\$projectId\/inception'/)
-  assert.match(hub, /'\/projects\/:projectId\/inception'/)
 })
 
 test('S5-P0 realizes one adaptive server-oriented shell and recoverable focus', () => {
@@ -51,7 +43,7 @@ test('S5-P0 preserves the four-state/no-client-authority boundary', () => {
     'apps/web/src/routes/setup.tsx',
     'apps/web/src/features/workspace/components/workspace-create-form.tsx',
     'apps/web/src/features/project/components/project-create-form.tsx',
-    'apps/web/src/features/project/components/baseline-candidate.tsx',
+    'apps/web/src/features/project/components/project-detail.tsx',
   ].map(read).join('\n')
   assert.doesNotMatch(sources, /localStorage|sessionStorage|indexedDB/)
   assert.doesNotMatch(sources, /isAuthorized|hasPermission|canApprove|role(s)?\s*===/i)
@@ -65,7 +57,6 @@ test('S5-P0 guards every realized browser command against synchronous double act
     ['apps/web/src/routes/setup.tsx', /provisionInFlight/],
     ['apps/web/src/features/workspace/components/workspace-create-form.tsx', /createInFlight/],
     ['apps/web/src/features/project/components/project-create-form.tsx', /createInFlight/],
-    ['apps/web/src/features/project/components/baseline-candidate.tsx', /approvalInFlight/],
   ]
   for (const [file, guard] of guarded) {
     const source = read(file)

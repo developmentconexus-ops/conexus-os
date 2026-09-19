@@ -134,13 +134,12 @@ No generic `Workflow`, `Tool`, `ResourceBinding`, `Secret`, `Budget`, `Status`, 
 
 The modular-monolith import graph is acyclic. Narrow direct in-process calls are the default; a module or runtime may not call L7, and L7 is not a universal mediator.
 
-The closed F1 L7 control-plane orchestration set contains exactly seven flows:
+The closed F1 L7 control-plane orchestration set contains exactly six flows:
 
 ```text
 CreateProject
 SetProjectBinding
 QualifyConnection
-InceptionInvestigation
 BrainHealthProbe
 ComposeRelease
 PromoteRelease

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type { R2HubPRJ10Contract } from '../generated/r2-routes.js'
 import { readProjectBrainRealization } from './brain-realization.js'
-import type { ProjectSourceSnapshotFactory } from './inception.js'
+import type { ProjectSourceSnapshotFactory } from './source-snapshot.js'
 
 type BrainBindingValidationCandidate = unknown
 type BrainBindingValidationResult = Readonly<

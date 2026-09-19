@@ -6,9 +6,6 @@ import type {
   Prj02Response,
   Prj03Body,
   Prj03Response,
-  Prj08Response,
-  Prj09Response,
-  Prj23Response,
 } from '../generated/s3-routes.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type {
@@ -36,7 +33,7 @@ export type ProjectBindingResult<T> = Readonly<
   | { status: 'UNAVAILABLE' }
 >
 
-// Separate from R1 creation/baseline custody: these methods own only the
+// Separate from R1 Project creation: these methods own only the
 // exact PRJ-13..15 Connection binding job, never Connection lifecycle.
 export type ProjectConnectionBindingStore = Readonly<{
   listConnectionBindings(input: Readonly<{
@@ -80,34 +77,11 @@ type ProjectSummaryRow = QueryResultRow & Readonly<{
   archived: boolean
 }>
 type ProjectRepresentationRow = ProjectSummaryRow & Readonly<{ project_revision: string }>
-type BaselineCandidateRow = QueryResultRow & Readonly<{
-  candidate_baseline_digest: string
-  source_revision: string
-  source_text: string
-  application_runtime_profile: 'MANAGED' | 'DEDICATED'
-}>
-type ApprovedBaselineRow = QueryResultRow & Readonly<{
-  baseline_digest: string
-  source_revision: string
-  source_text: string
-  application_runtime_profile: 'MANAGED' | 'DEDICATED'
-}>
 
 export type ProjectStore = Readonly<{
   createProject(input: CreateProjectInput): Promise<CreateProjectResult>
   listProjects(input: Readonly<{ accountId: string; workspaceId: string }>): Promise<Prj01Response>
   getProject(input: Readonly<{ accountId: string; projectId: string }>): Promise<Prj02Response | null>
-  getBaselineCandidate(input: Readonly<{
-    accountId: string
-    projectId: string
-    candidateBaselineDigest: string
-  }>): Promise<Prj23Response | null>
-  getApprovedBaseline(input: Readonly<{ accountId: string; projectId: string }>): Promise<Prj08Response | null>
-  approveBaseline(input: Readonly<{
-    accountId: string
-    projectId: string
-    candidateBaselineDigest: string
-  }>): Promise<Prj09Response>
 }>
 
 const digestText = (value: string): string => sha256(Buffer.from(value, 'utf8'))
@@ -133,8 +107,6 @@ const validReplay = (
 export const createProjectStore = ({
   commandPool,
   readPool,
-  baselineReadPool,
-  baselineCommandPool,
   git,
   recovery,
   now = () => Date.now(),
@@ -142,8 +114,6 @@ export const createProjectStore = ({
 }: Readonly<{
   commandPool: PostgresPool
   readPool?: PostgresPool
-  baselineReadPool?: PostgresPool
-  baselineCommandPool?: PostgresPool
   git: GitExecutionPort
   recovery: ProjectSourceRecovery
   now?: () => number
@@ -153,20 +123,6 @@ export const createProjectStore = ({
     if (!readPool) throw new Error('PROJECT_READ_POOL_NOT_CONFIGURED')
     return readPool
   }
-  const requireBaselineReadPool = (): PostgresPool => {
-    if (!baselineReadPool) throw new Error('PROJECT_BASELINE_READ_POOL_NOT_CONFIGURED')
-    return baselineReadPool
-  }
-  const requireBaselineCommandPool = (): PostgresPool => {
-    if (!baselineCommandPool) throw new Error('PROJECT_BASELINE_COMMAND_POOL_NOT_CONFIGURED')
-    return baselineCommandPool
-  }
-  const approvedBaseline = (row: ApprovedBaselineRow): Prj08Response => ({
-    baselineDigest: row.baseline_digest,
-    sourceRevision: row.source_revision,
-    sourceText: row.source_text,
-    applicationRuntimeProfile: row.application_runtime_profile,
-  })
 
   const listProjects = async ({ accountId, workspaceId }: Readonly<{
     accountId: string
@@ -223,93 +179,6 @@ export const createProjectStore = ({
         projectRevision: row.project_revision,
         archived: row.archived,
       } : null
-    } catch (error) {
-      await client.query('ROLLBACK')
-      throw error
-    } finally {
-      client.release()
-    }
-  }
-  const getBaselineCandidate = async ({ accountId, projectId, candidateBaselineDigest }: Readonly<{
-    accountId: string
-    projectId: string
-    candidateBaselineDigest: string
-  }>): Promise<Prj23Response | null> => {
-    const client = await requireBaselineReadPool().connect()
-    try {
-      await client.query('BEGIN READ ONLY')
-      const result = await client.query<BaselineCandidateRow>(`
-        SELECT candidate.candidate_baseline_digest, candidate.source_revision,
-          candidate.source_text, candidate.application_runtime_profile
-        FROM project.get_baseline_candidate(
-          $2,
-          $3,
-          ARRAY(SELECT admitted.project_id
-                FROM iam.admit_project_manage($1, $2) admitted)
-        ) candidate
-      `, [accountId, projectId, candidateBaselineDigest])
-      const row = result.rows[0] ?? null
-      await client.query('COMMIT')
-      return row ? {
-        candidateBaselineDigest: row.candidate_baseline_digest,
-        sourceRevision: row.source_revision,
-        sourceText: row.source_text,
-        applicationRuntimeProfile: row.application_runtime_profile,
-      } : null
-    } catch (error) {
-      await client.query('ROLLBACK')
-      throw error
-    } finally {
-      client.release()
-    }
-  }
-  const getApprovedBaseline = async ({ accountId, projectId }: Readonly<{
-    accountId: string
-    projectId: string
-  }>): Promise<Prj08Response | null> => {
-    const client = await requireBaselineReadPool().connect()
-    try {
-      await client.query('BEGIN READ ONLY')
-      const result = await client.query<ApprovedBaselineRow>(`
-        SELECT baseline.baseline_digest, baseline.source_revision,
-          baseline.source_text, baseline.application_runtime_profile
-        FROM project.get_approved_baseline(
-          $2,
-          ARRAY(SELECT admitted.project_id
-                FROM iam.admit_project_manage($1, $2) admitted)
-        ) baseline
-      `, [accountId, projectId])
-      const row = result.rows[0] ?? null
-      await client.query('COMMIT')
-      return row ? approvedBaseline(row) : null
-    } catch (error) {
-      await client.query('ROLLBACK')
-      throw error
-    } finally {
-      client.release()
-    }
-  }
-  const approveBaseline = async ({ accountId, projectId, candidateBaselineDigest }: Readonly<{
-    accountId: string
-    projectId: string
-    candidateBaselineDigest: string
-  }>): Promise<Prj09Response> => {
-    const client = await requireBaselineCommandPool().connect()
-    try {
-      await client.query('BEGIN')
-      const result = await client.query<ApprovedBaselineRow>(`
-        SELECT approved.baseline_digest, approved.source_revision,
-          approved.source_text, approved.application_runtime_profile
-        FROM project.approve_baseline_revision(
-          $1, $2, $3, $4,
-          ARRAY(SELECT admitted.project_id
-                FROM iam.admit_project_manage($1, $2) admitted)
-        ) approved
-      `, [accountId, projectId, candidateBaselineDigest, mintIdentity()])
-      const row = result.rows[0]
-      if (!row) throw new Error('PRJ09_OUTCOME_UNKNOWN')
-      await client.query('COMMIT')
-      return approvedBaseline(row)
     } catch (error) {
       await client.query('ROLLBACK')
       throw error
@@ -461,9 +330,6 @@ export const createProjectStore = ({
     createProject,
     listProjects,
     getProject,
-    getBaselineCandidate,
-    getApprovedBaseline,
-    approveBaseline,
   })
 }
 
