@@ -241,8 +241,8 @@ const measureProductJourneys = async (built, modules, root) => {
   }
   const requiredEnvironment = [
     'CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER',
-    'CONEXUS_DB_RB_INGRESS_PASSWORD_FILE', 'CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE',
-    'CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE', 'CONEXUS_DB_S3_READ_PASSWORD_FILE',
+    'CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE', 'CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE',
+    'CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE', 'CONEXUS_DB_PROJECT_READ_PASSWORD_FILE',
     'CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE', 'CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE',
     'CONEXUS_BUILDER_E2B_API_KEY_FILE', 'CONEXUS_BUILDER_E2B_TEMPLATE_ID',
     'CONEXUS_PROJECT_MODEL_CATALOG_FILE', 'CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE',
@@ -344,8 +344,8 @@ const measureProductJourneys = async (built, modules, root) => {
     phase = 'compose-current-project-and-builder-modules'
     const projectGit = createOciGitExecutionPort({ projectStorageRoot: storageRoot }, runProcess(projectGitProcesses))
     const projectStore = createProjectStore({
-      commandPool: await projectPool('hub_prj03_command', 'CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE'),
-      readPool: await projectPool('hub_s3_read', 'CONEXUS_DB_S3_READ_PASSWORD_FILE'),
+      commandPool: await projectPool('hub_project_command', 'CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE'),
+      readPool: await projectPool('hub_project_read', 'CONEXUS_DB_PROJECT_READ_PASSWORD_FILE'),
       baselineReadPool: await projectPool('hub_s4_baseline_read', 'CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE'),
       baselineCommandPool: await projectPool('hub_s4_baseline_command', 'CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE'),
       git: projectGit,
@@ -359,13 +359,13 @@ const measureProductJourneys = async (built, modules, root) => {
       requiredCapabilities: ['BUILDER_CODING'],
     })
     const artifacts = createApplicationArtifactStore()
-    const executorPassword = (await readFile(process.env.CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE, 'utf8')).trim()
-    executor = new pg.Pool({ ...current, user: 'hub_rb_executor', password: executorPassword })
+    const executorPassword = (await readFile(process.env.CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE, 'utf8')).trim()
+    executor = new pg.Pool({ ...current, user: 'hub_builder_executor', password: executorPassword })
     builder = createConfiguredBuilderModule({
       database: { host: admin.host, port: admin.port, database },
       builder: {
-        ingressPasswordFile: process.env.CONEXUS_DB_RB_INGRESS_PASSWORD_FILE,
-        executorPasswordFile: process.env.CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE,
+        ingressPasswordFile: process.env.CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE,
+        executorPasswordFile: process.env.CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE,
         e2bApiKeyFile: process.env.CONEXUS_BUILDER_E2B_API_KEY_FILE,
         e2bTemplateId: process.env.CONEXUS_BUILDER_E2B_TEMPLATE_ID,
         modelAdmissionId: admission.admissionId,
@@ -744,7 +744,7 @@ const probeProductComposition = async (built, modules, root) => {
   const required = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER']
   if (required.some((name) => !process.env[name]) ||
     (!process.env.CONEXUS_TEST_DB_PASSWORD && !process.env.CONEXUS_TEST_DB_PASSWORD_FILE) ||
-    !process.env.CONEXUS_DB_RB_INGRESS_PASSWORD_FILE || !process.env.CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE) {
+    !process.env.CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE || !process.env.CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE) {
     return inconclusive('disposable PostgreSQL admin connection is not configured')
   }
   const apiKeyFile = process.env.CONEXUS_BUILDER_E2B_API_KEY_FILE
@@ -849,8 +849,8 @@ const probeProductComposition = async (built, modules, root) => {
     module = createConfiguredBuilderModule({
       database: { host: admin.host, port: admin.port, database },
       builder: {
-        ingressPasswordFile: process.env.CONEXUS_DB_RB_INGRESS_PASSWORD_FILE,
-        executorPasswordFile: process.env.CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE,
+        ingressPasswordFile: process.env.CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE,
+        executorPasswordFile: process.env.CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE,
         e2bApiKeyFile: apiKeyFile,
         e2bTemplateId: templateRef,
         modelAdmissionId: admissionId,
@@ -912,7 +912,7 @@ const probeProductComposition = async (built, modules, root) => {
     sample.timing.queuedAtToStartedMs = row?.started_at && row?.created_at ? new Date(row.started_at).valueOf() - new Date(row.created_at).valueOf() : null
     sample.timing.startedToFinishedMs = row?.started_at && row?.finished_at ? new Date(row.finished_at).valueOf() - new Date(row.started_at).valueOf() : null
 
-    executor = new pg.Pool({ ...current, user: 'hub_rb_executor', password: (await readFile(process.env.CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE, 'utf8')).trim() })
+    executor = new pg.Pool({ ...current, user: 'hub_builder_executor', password: (await readFile(process.env.CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE, 'utf8')).trim() })
     const artifacts = createApplicationArtifactStore()
     const artifact = row?.result_source_revision
       ? await artifacts.getApplicationBySource(executor, { accountId, projectId, sourceRevision: row.result_source_revision })

@@ -23,7 +23,7 @@ const r1MigrationNames = [
 const r2MigrationNames = ['011_r2_brain_connections.sql', '012_r2_project_binding_recovery.sql', '013_r2_binding_source_concordance.sql', '014_r2_brain_binding_settlement.sql', '015_r2_project_brain_read_envelopes.sql', '016_r2_brain_binding_removal.sql', '017_r2_key_conformance_subject.sql', '018_r2_brain_revision_selection.sql']
 const currentMigrationNames = [...r1MigrationNames, ...r2MigrationNames, '019_rb_builder_first_vertical.sql', '020_rb_builder_verification_acceptance.sql', '021_rb_builder_bounded_correction.sql', '022_builder_source_inspection.sql', '023_rb_builder_preview_subject.sql', '026_builder_application_registry.sql', '027_rb_builder_working_source.sql', '028_builder_run.sql', '029_builder_run_execution.sql', '030_builder_run_invariants.sql', '031_builder_run_application_build.sql', '032_builder_project_build_grant.sql', '033_builder_execution_artifact_admission.sql', '034_builder_project_source_preview.sql', '035_builder_c020_state_invariants.sql', '036_builder_project_creation_bootstrap.sql', '037_builder_c020_source_inspection.sql', '038_builder_c020_legacy_excision.sql', '039_builder_c020_execution_invariants.sql', '040_builder_registry_settlement_boundary.sql', '041_builder_claude_connections.sql']
 currentMigrationNames[currentMigrationNames.indexOf('022_builder_source_inspection.sql')] = '022_rb_builder_source_inspection.sql'
-currentMigrationNames.push('042_builder_claude_connection_safety.sql', '043_builder_model_admission.sql', '044_builder_run_cancellation.sql', '045_builder_run_history.sql', '046_builder_run_admission_cas.sql', '047_reconcile_040_settlement_boundary.sql', '048_builder_claude_connection_label.sql', '049_project_creator_builder_grant.sql', '050_builder_run_phase.sql', '051_builder_orphan_function_excision.sql', '052_iam_membership_authority.sql', '053_iam_grant_surface_excision.sql', '054_iam_invitation_admission.sql', '055_removed_surface_excision.sql', '056_model_connection_provider_neutrality.sql', '057_model_connection_credential_kind_read.sql', '058_workspace_visible_summary_admission.sql')
+currentMigrationNames.push('042_builder_claude_connection_safety.sql', '043_builder_model_admission.sql', '044_builder_run_cancellation.sql', '045_builder_run_history.sql', '046_builder_run_admission_cas.sql', '047_reconcile_040_settlement_boundary.sql', '048_builder_claude_connection_label.sql', '049_project_creator_builder_grant.sql', '050_builder_run_phase.sql', '051_builder_orphan_function_excision.sql', '052_iam_membership_authority.sql', '053_iam_grant_surface_excision.sql', '054_iam_invitation_admission.sql', '055_removed_surface_excision.sql', '056_model_connection_provider_neutrality.sql', '057_model_connection_credential_kind_read.sql', '058_workspace_visible_summary_admission.sql', '059_hub_roles_by_capability.sql')
 const expectedMigrationNames = [...currentMigrationNames]
 const migration001Digest = 'd27e76b972145bc3a6bf669d4fd32734fc06153d07cddaf1072c6b29845b112f'
 const migration002Digest = 'b64a8e041a8e63ac3b85559805ac5573a1d53f6d5d95ba1421ffe3f9803804b5'
@@ -81,6 +81,7 @@ const migration055Digest = '3a6e65120a19872c138cbb12151ab09607572fb48639bd1b2db0
 const migration056Digest = '482df26899f3ff45f97865be46b94bc6dfb50b924af53c7efeaa2c60aee1a35f'
 const migration057Digest = '24dbb28629acd8a73d937dacb22ef28f5ef78b556a692123e4144cc756bd8afb'
 const migration058Digest = '57030b55c94bd83c80116f151b27a977512256025e4b76b54bb1aa68c684a439'
+const migration059Digest = '071b5797f8e689c4d21f9fec5c3a710cd3677c58b9510b7064caad6b078e6843'
 const legacyMigrationDigests = new Map([
   ['040', '359d1d386b01f40a5b842f56363e82176db56b9b731736f01080597ca762f7f5'],
   ['047', '74703fb0042a0617f81dd68ae0b2553401050262aa4ad385ea758cec97ba70c3'],
@@ -145,6 +146,7 @@ const migrationDigests = new Map([
   ['056_model_connection_provider_neutrality.sql', migration056Digest],
   ['057_model_connection_credential_kind_read.sql', migration057Digest],
   ['058_workspace_visible_summary_admission.sql', migration058Digest],
+  ['059_hub_roles_by_capability.sql', migration059Digest],
 ])
 const recognizedMigrationNames = new Set(expectedMigrationNames)
 

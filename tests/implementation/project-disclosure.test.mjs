@@ -25,6 +25,8 @@ const compileHub = (t) => {
 test('S3-P6 migration freezes direct project.read admission behind one execute-only role', () => {
   assert.equal(existsSync(migrationPath), true)
   const source = readFileSync(migrationPath, 'utf8')
+  // 007 is pinned history and names the role it created, hub_s3_read. 059 moves that role's
+  // privileges to hub_project_read; it does not rewrite the file that created it.
   assert.match(source, /CREATE ROLE hub_s3_read LOGIN NOINHERIT NOSUPERUSER NOBYPASSRLS/)
   assert.match(source, /iam\.list_workspace_readable_project_ids/)
   assert.match(source, /iam\.admit_project_read/)

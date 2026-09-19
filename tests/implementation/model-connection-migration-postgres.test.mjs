@@ -178,7 +178,7 @@ describe('056 model connection provider neutrality', { skip: configured ? false 
       ORDER BY 1`)).rows
     for (const row of grants) {
       assert.equal(row.holders,
-        'builder_owner,claude_connection_owner,hub_r2_connections,hub_rb_executor,hub_rb_ingress',
+        'builder_owner,hub_builder_executor,hub_builder_ingress,hub_model_connection,model_connection_owner',
         `${row.name} lost a grant`)
     }
   })
@@ -202,10 +202,10 @@ describe('056 model connection provider neutrality', { skip: configured ? false 
     await assertRoleInvariants(client, '056')
   })
 
-  test('the schema keeps its owner role, which is cluster-global and not renamed here', async () => {
+  test('the schema is owned by the role named for what it owns', async () => {
     const owner = (await client.query(
       `SELECT pg_get_userbyid(nspowner) AS owner FROM pg_namespace WHERE nspname = 'model_connection'`)).rows[0]
-    assert.equal(owner.owner, 'claude_connection_owner')
+    assert.equal(owner.owner, 'model_connection_owner')
   })
 
   // A run must spend the credential of the provider it is running on. admit_for_project filters by

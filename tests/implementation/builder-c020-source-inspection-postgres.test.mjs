@@ -64,8 +64,8 @@ test('C-020 source inspection admits current subjects and latest code-changing r
     builder_run_id, project_id, account_id, trigger_message_id, idempotency_digest, request_digest, mode,
     base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind
   ) VALUES ($1, $2, $3, $4, $5, $5, 'BUILD', $6, 0, 0, 'SUCCEEDED', $7, 'SOURCE_CHANGED')`, [otherRun, otherProject, account, otherRun, otherRun.replaceAll('-', '').padEnd(64, '0'), qWorking, otherResult])
-  const ingress = { ...current, user: 'hub_rb_ingress', password: 'source-inspection-ingress' }
-  await query("ALTER ROLE hub_rb_ingress PASSWORD 'source-inspection-ingress'")
+  const ingress = { ...current, user: 'hub_builder_ingress', password: 'source-inspection-ingress' }
+  await query("ALTER ROLE hub_builder_ingress PASSWORD 'source-inspection-ingress'")
   const admit = async (revision, subject = project, actor = account) => {
     const client = await connect(ingress)
     try { return (await client.query('SELECT builder.admit_source_revision($1, $2, $3) AS admitted', [actor, subject, revision])).rows[0].admitted } finally { await client.end() }

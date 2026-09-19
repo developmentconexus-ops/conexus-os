@@ -62,6 +62,9 @@ const query = async (connection, statement, values = []) => {
 }
 const digest = (character) => character.repeat(64)
 
+// The first two tests install the R1 ledger, which ends at 010, so they name the roles R1 itself
+// creates. The capability names arrive at 059 and the third test, which installs the current
+// ledger, uses them.
 test('real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback boundary', async (t) => {
   await refuseProtectedCluster()
   const database = `conexus_s3_p1_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 10)}`
@@ -452,7 +455,7 @@ test('real PostgreSQL proves current project.read disclosure and revocation', as
     const cleanup = new Client(adminConnection)
     await cleanup.connect()
     try {
-      await cleanup.query('ALTER ROLE hub_s3_read PASSWORD NULL').catch(() => {})
+      await cleanup.query('ALTER ROLE hub_project_read PASSWORD NULL').catch(() => {})
       await cleanup.query(`DROP DATABASE ${quoteIdentifier(database)} WITH (FORCE)`)
     } finally {
       await cleanup.end()
@@ -482,8 +485,8 @@ test('real PostgreSQL proves current project.read disclosure and revocation', as
     ($3, $5, 'Cross Workspace', 'NEW', 'source-cross', 'revision-cross')`,
   [projectId, siblingProjectId, crossWorkspaceProjectId, workspaceId, otherWorkspaceId])
   const readPassword = 's3-p6-read-test-only'
-  await query(fresh, `ALTER ROLE hub_s3_read PASSWORD '${readPassword}'`)
-  const read = new Client({ ...fresh, user: 'hub_s3_read', password: readPassword })
+  await query(fresh, `ALTER ROLE hub_project_read PASSWORD '${readPassword}'`)
+  const read = new Client({ ...fresh, user: 'hub_project_read', password: readPassword })
   await read.connect()
   liveClients.push(read)
   await assert.rejects(read.query('SELECT * FROM project.project'), /permission denied/)

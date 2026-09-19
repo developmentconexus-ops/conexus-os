@@ -67,21 +67,21 @@ test('S2 database capabilities are mandatory in production and preserve the pinn
   assert.equal(s1Test.database.workspace, undefined)
   assert.throws(
     () => readHubConfig(baseEnvironment),
-    /MISSING_CONFIG_CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE/,
+    /MISSING_CONFIG_CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE/,
   )
   assert.throws(
     () => readHubConfig({
       ...baseEnvironment,
       NODE_ENV: 'test',
-      CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE: '/secrets/command',
+      CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE: '/secrets/command',
     }),
-    /MISSING_CONFIG_CONEXUS_DB_S2_READ_PASSWORD_FILE/,
+    /MISSING_CONFIG_CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE/,
   )
   assert.deepEqual(readHubConfig({
     ...baseEnvironment,
     NODE_ENV: 'test',
-    CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE: '/secrets/command',
-    CONEXUS_DB_S2_READ_PASSWORD_FILE: '/secrets/read',
+    CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE: '/secrets/command',
+    CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE: '/secrets/read',
   }).database.workspace, {
     commandPasswordFile: '/secrets/command',
     readPasswordFile: '/secrets/read',

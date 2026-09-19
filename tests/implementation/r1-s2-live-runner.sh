@@ -5,7 +5,7 @@ tar -C /source --exclude=.git --exclude=node_modules --exclude=.wireframe-previe
 cd /work
 test "$(node --version)" = "v24.20.0"
 test -x node_modules/.bin/playwright
-node -e "const fs=require('node:fs'); for (const [path,value] of [['/tmp/kc-admin','admin-test-only'],['/tmp/oidc-primary','primary-test-only'],['/tmp/oidc-other','other-test-only'],['/tmp/oidc-user','user-test-only'],['/tmp/db-runtime','runtime-test-only'],['/tmp/db-ws01','ws01-test-only'],['/tmp/db-s2-read','s2-read-test-only']]) fs.writeFileSync(path, value+'\n', { mode: 0o600 })"
+node -e "const fs=require('node:fs'); for (const [path,value] of [['/tmp/kc-admin','admin-test-only'],['/tmp/oidc-primary','primary-test-only'],['/tmp/oidc-other','other-test-only'],['/tmp/oidc-user','user-test-only'],['/tmp/db-runtime','runtime-test-only'],['/tmp/db-workspace-command','workspace-command-test-only'],['/tmp/db-workspace-read','workspace-read-test-only']]) fs.writeFileSync(path, value+'\n', { mode: 0o600 })"
 
 export POSTGRES_ADMIN_PASSWORD=postgres-test-only
 export KEYCLOAK_ADMIN_PASSWORD=admin-test-only
@@ -15,8 +15,8 @@ export OIDC_OTHER_SECRET_FILE=/tmp/oidc-other
 export OIDC_USER_PASSWORD_FILE=/tmp/oidc-user
 export OIDC_SECONDARY_USER_PASSWORD=secondary-test-only
 export IAM_RUNTIME_PASSWORD_FILE=/tmp/db-runtime
-export WS01_COMMAND_PASSWORD_FILE=/tmp/db-ws01
-export S2_READ_PASSWORD_FILE=/tmp/db-s2-read
+export WORKSPACE_COMMAND_PASSWORD_FILE=/tmp/db-workspace-command
+export WORKSPACE_READ_PASSWORD_FILE=/tmp/db-workspace-read
 export BOOTSTRAP_SUBJECT_FILE=/tmp/bootstrap-subject
 export SECONDARY_SUBJECT_FILE=/tmp/secondary-subject
 node tests/implementation/r1-s2-live-setup.mjs
@@ -34,8 +34,8 @@ export CONEXUS_DB_PORT=5432
 export CONEXUS_DB_NAME=conexus_s1
 export CONEXUS_DB_USER=hub_iam_runtime
 export CONEXUS_DB_PASSWORD_FILE=/tmp/db-runtime
-export CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE=/tmp/db-ws01
-export CONEXUS_DB_S2_READ_PASSWORD_FILE=/tmp/db-s2-read
+export CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE=/tmp/db-workspace-command
+export CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE=/tmp/db-workspace-read
 export CONEXUS_LIVE_USER_PASSWORD=user-test-only
 export CONEXUS_LIVE_SECONDARY_PASSWORD=secondary-test-only
 

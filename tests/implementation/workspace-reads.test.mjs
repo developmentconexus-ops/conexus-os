@@ -131,7 +131,7 @@ const addMember = (connection, accountId, workspaceId) => query(connection,
 
 test('the Workspace list runs as the deployed read role and shows exactly the accounts memberships', async (t) => {
   const { connection, poolAs } = await migratedDatabase(t)
-  const readPool = await poolAs('hub_s2_read')
+  const readPool = await poolAs('hub_workspace_read')
   const store = createIdentityAccessStore({ pool: fakePool().pool, workspaceReadPool: readPool })
 
   const member = await seedAccount(connection)
@@ -154,7 +154,7 @@ test('the Workspace list runs as the deployed read role and shows exactly the ac
 
 test('the read role reaches the Workspace list and nothing underneath it', async (t) => {
   const { connection, poolAs } = await migratedDatabase(t)
-  const readPool = await poolAs('hub_s2_read')
+  const readPool = await poolAs('hub_workspace_read')
 
   await assert.rejects(readPool.query('SELECT * FROM iam.workspace_membership'), /permission denied/)
   await assert.rejects(readPool.query('SELECT * FROM iam.visible_workspaces($1)', [ACCOUNT_ID]), /permission denied/)
@@ -264,5 +264,5 @@ test('one shared pool object serves both operation-specific ports and I&A does n
   assert.match(server, sharedWorkspacePool)
   assert.doesNotMatch(server.replace('readPool: s2ReadPool,', 'readPool: unrelatedPool,'), sharedWorkspacePool)
   assert.match(server, /config\.database\.workspace\s*&&\s*s2ReadPool\s*\?\s*createWorkspaceModule/)
-  assert.equal((server.match(/user:\s*'hub_s2_read'/g) ?? []).length, 1)
+  assert.equal((server.match(/user:\s*'hub_workspace_read'/g) ?? []).length, 1)
 })

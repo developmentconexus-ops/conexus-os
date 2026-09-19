@@ -57,6 +57,8 @@ const makeMigrationFixture = (mutate = () => {}) => {
   return root
 }
 
+// This file installs the R1 ledger, which ends at 010. The capability names arrive at 059, so the
+// roles an R1-only database holds are the phase-named ones its own migrations created.
 test('real PostgreSQL proves migration custody and the six-function Workspace foundation', async (t) => {
   await refuseProtectedCluster()
   const databases = []

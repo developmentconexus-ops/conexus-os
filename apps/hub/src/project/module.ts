@@ -100,12 +100,12 @@ export const createConfiguredProjectModule = ({
   return createProjectModule({
     commandPool: createPostgresPool({
       ...database,
-      user: 'hub_prj03_command',
+      user: 'hub_project_command',
       password: readSecretFile(project.commandPasswordFile),
     }),
     readPool: createPostgresPool({
       ...database,
-      user: 'hub_s3_read',
+      user: 'hub_project_read',
       password: readSecretFile(project.readPasswordFile),
     }),
     git: createOciGitExecutionPort({

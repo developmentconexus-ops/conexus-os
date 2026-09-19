@@ -192,9 +192,9 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   origin: string
   resolveCurrentSession: ResolveCurrentSession
 }>) => {
-  const executorPool = createPostgresPool({ ...database, user: 'hub_rb_executor', password: readSecretFile(builder.executorPasswordFile) })
+  const executorPool = createPostgresPool({ ...database, user: 'hub_builder_executor', password: readSecretFile(builder.executorPasswordFile) })
   const store = createBuilderStore({
-    ingressPool: createPostgresPool({ ...database, user: 'hub_rb_ingress', password: readSecretFile(builder.ingressPasswordFile) }),
+    ingressPool: createPostgresPool({ ...database, user: 'hub_builder_ingress', password: readSecretFile(builder.ingressPasswordFile) }),
     executorPool,
   })
   const getApplicationBySource = applicationArtifacts.getApplicationBySource

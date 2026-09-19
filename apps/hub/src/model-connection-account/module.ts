@@ -30,7 +30,7 @@ export type ModelConnectionDependencies = Readonly<{
 }>
 
 export const createModelConnectionModule = ({ database, passwordFile, credentialBackend, enabledProviders, origin, resolveCurrentSession, fetchImpl }: ModelConnectionDependencies): ModelConnectionModule => {
-  const pool = createPostgresPool({ ...database, user: 'hub_r2_connections', password: readFileSync(passwordFile, 'utf8').trim() })
+  const pool = createPostgresPool({ ...database, user: 'hub_model_connection', password: readFileSync(passwordFile, 'utf8').trim() })
   const store = createModelConnectionStore({ pool, credentialBackend })
   const tokenStores = new Map<string, ReturnType<typeof createBackendOAuthTokenStore>>()
   return Object.freeze({

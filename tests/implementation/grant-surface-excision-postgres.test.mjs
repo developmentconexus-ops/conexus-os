@@ -372,16 +372,16 @@ test('each function 053 creates is reachable only by the login role its predeces
     ORDER BY 1
   `, [signature])).rows.map((row) => row.rolname)
 
-  assert.deepEqual(await reachableBy('project.list_project_summaries(uuid,uuid)'), ['hub_s3_read'])
-  assert.deepEqual(await reachableBy('project.get_project(uuid,uuid)'), ['hub_s3_read'])
-  assert.deepEqual(await reachableBy('workspace.create_workspace(uuid,text,uuid)'), ['hub_ws01_command'])
-  assert.deepEqual(await reachableBy('workspace.get_workspace_summary(uuid,uuid)'), ['hub_s2_read'])
+  assert.deepEqual(await reachableBy('project.list_project_summaries(uuid,uuid)'), ['hub_project_read'])
+  assert.deepEqual(await reachableBy('project.get_project(uuid,uuid)'), ['hub_project_read'])
+  assert.deepEqual(await reachableBy('workspace.create_workspace(uuid,text,uuid)'), ['hub_workspace_command'])
+  assert.deepEqual(await reachableBy('workspace.get_workspace_summary(uuid,uuid)'), ['hub_workspace_read'])
   assert.deepEqual(await reachableBy('model_connection.share_connection(uuid,uuid,uuid)'),
-    ['hub_r2_connections', 'hub_rb_executor', 'hub_rb_ingress'])
+    ['hub_builder_executor', 'hub_builder_ingress', 'hub_model_connection'])
   assert.deepEqual(await reachableBy('model_connection.unshare_connection(uuid,uuid,uuid)'),
-    ['hub_r2_connections', 'hub_rb_executor', 'hub_rb_ingress'])
-  assert.deepEqual(await reachableBy('builder.admit_source_revision(uuid,uuid,text)'), ['hub_rb_ingress'])
-  assert.deepEqual(await reachableBy('builder.read_preview_subject(uuid,uuid)'), ['hub_rb_ingress'])
+    ['hub_builder_executor', 'hub_builder_ingress', 'hub_model_connection'])
+  assert.deepEqual(await reachableBy('builder.admit_source_revision(uuid,uuid,text)'), ['hub_builder_ingress'])
+  assert.deepEqual(await reachableBy('builder.read_preview_subject(uuid,uuid)'), ['hub_builder_ingress'])
   assert.deepEqual(await reachableBy('iam.account_is_active(uuid)'), [])
 
   // The two the verifier executed: the Workspace read role could create a Workspace and hand
@@ -404,8 +404,8 @@ test('each function 053 creates is reachable only by the login role its predeces
     }
   }
   for (const [role, sql, parameters] of [
-    ['hub_s2_read', 'SELECT workspace.create_workspace($1,$2,$3)', [randomUUID(), 'pwned-by-s2read', accountId]],
-    ['hub_prj03_command', 'SELECT * FROM project.list_project_summaries($1,$2)', [accountId, workspaceId]],
+    ['hub_workspace_read', 'SELECT workspace.create_workspace($1,$2,$3)', [randomUUID(), 'pwned-by-s2read', accountId]],
+    ['hub_project_command', 'SELECT * FROM project.list_project_summaries($1,$2)', [accountId, workspaceId]],
   ]) {
     const denied = await asRole(role, sql, parameters)
     assert.equal(denied.code, '42501', `${role} reached ${sql}`)
