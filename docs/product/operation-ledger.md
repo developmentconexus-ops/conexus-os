@@ -32,7 +32,8 @@ opaque census key and not a user-visible surface.
 
 The figure above read 34 until that day while the table held 25 rows, and `wire-bijection` had
 been reporting the table's own count all along. The number is corrected here to the one the gate
-proves, so the two stop disagreeing.
+proves, so the two stop disagreeing. The census block in §1.1 had been left at F-06's `20` through
+every unit that added an operation since; it is set to the same gate-proved 26 here.
 
 The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. The accepted bounded findings through F38 remain preserved. The pre-P11 coherence review then admits one transient `TRUSTED_BOOTSTRAP_CONTEXT` principal for first Account self-provisioning and adds one Project-owned model-policy discovery read, `PRJ-29`, while ordinary Permissions remain 25. No new semantic owner or durable record class is added.
 
@@ -53,10 +54,10 @@ platform scope. They are retained evidence and do not expand the current Product
 ### 1.1 Current fixed Product census
 
 ```text
-N_current = 20
-current operations with named owner       = 20
-current operations with real consumer     = 20
-current operations with authority mapping = 20
+N_current = 26
+current operations with named owner       = 26
+current operations with real consumer     = 26
+current operations with authority mapping = 26
 orphaned current operations                = 0
 speculative current operations             = 0
 ```
