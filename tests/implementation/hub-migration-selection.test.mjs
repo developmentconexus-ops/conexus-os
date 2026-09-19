@@ -77,6 +77,7 @@ const currentNames = [
   '050_builder_run_phase.sql',
   '051_builder_orphan_function_excision.sql',
   '052_iam_membership_authority.sql',
+  '054_iam_invitation_admission.sql',
 ]
 const names = (migrations) => migrations.map((migration) => migration.name)
 
