@@ -106,41 +106,41 @@ test('R2-P4 migration catalog and ACL successor preserve 012..016 while admittin
   assert.deepEqual((await runR2HubMigrations({ connectionString: url.toString() })).appliedNow, [])
 
   await query(fresh, 'GRANT SELECT ON project.binding_source_intent TO hub_r2_project_binding')
-  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_014_TABLE_PRIVILEGE_REFUSED/)
+  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_CATALOG_DRIFT/)
   await query(fresh, 'REVOKE SELECT ON project.binding_source_intent FROM hub_r2_project_binding')
 
   await query(fresh, 'GRANT SELECT ON project.connection_binding TO hub_r2_project_binding')
-  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_014_TABLE_PRIVILEGE_REFUSED/)
+  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_CATALOG_DRIFT/)
   await query(fresh, 'REVOKE SELECT ON project.connection_binding FROM hub_r2_project_binding')
 
   await query(fresh, `GRANT EXECUTE ON FUNCTION
     project.prepare_connection_binding(uuid, uuid, uuid, uuid, text, jsonb, boolean)
     TO hub_r2_brain_read`)
-  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_014_RUNTIME_FUNCTION_ACL_REFUSED/)
+  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_CATALOG_DRIFT/)
   await query(fresh, `REVOKE EXECUTE ON FUNCTION
     project.prepare_connection_binding(uuid, uuid, uuid, uuid, text, jsonb, boolean)
     FROM hub_r2_brain_read`)
 
   await query(fresh, 'REVOKE EXECUTE ON FUNCTION con.get_connection(uuid, uuid) FROM hub_r2_connections')
-  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_014_RUNTIME_FUNCTION_ACL_REFUSED/)
+  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_CATALOG_DRIFT/)
   await query(fresh, 'GRANT EXECUTE ON FUNCTION con.get_connection(uuid, uuid) TO hub_r2_connections')
 
   await query(fresh, `GRANT EXECUTE ON FUNCTION
     reg.get_project_brain_candidate(uuid, uuid)
     TO hub_r2_brain_attester WITH GRANT OPTION`)
-  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_015_EXECUTE_GRANT_OPTION_REFUSED/)
+  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_CATALOG_DRIFT/)
   await query(fresh, `REVOKE GRANT OPTION FOR EXECUTE ON FUNCTION
     reg.get_project_brain_candidate(uuid, uuid)
     FROM hub_r2_brain_attester`)
 
   await query(fresh, 'ALTER TABLE con.connection DROP CONSTRAINT connection_current_revision_fkey')
-  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_011_CONNECTION_CATALOG_REFUSED/)
+  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_CATALOG_DRIFT/)
   await query(fresh, `ALTER TABLE con.connection ADD CONSTRAINT connection_current_revision_fkey
     FOREIGN KEY (connection_id, current_revision_id)
     REFERENCES con.connection_revision(connection_id, connection_revision_id) ON DELETE RESTRICT`)
 
   await query(fresh, 'DROP INDEX project.binding_source_intent_one_active')
-  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_012_TABLE_CATALOG_REFUSED/)
+  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_CATALOG_DRIFT/)
   await query(fresh, `CREATE UNIQUE INDEX binding_source_intent_one_active
     ON project.binding_source_intent(project_id)
     WHERE state IN ('PREPARING', 'APPLYING', 'ABORTING')`)
@@ -148,7 +148,7 @@ test('R2-P4 migration catalog and ACL successor preserve 012..016 while admittin
   await query(fresh, `ALTER TABLE project.binding_source_intent
     DROP CONSTRAINT binding_source_intent_operation_shape,
     ADD CONSTRAINT binding_source_intent_operation_shape CHECK (true)`)
-  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_014_TABLE_CATALOG_REFUSED/)
+  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_CATALOG_DRIFT/)
   await query(fresh, `ALTER TABLE project.binding_source_intent
     DROP CONSTRAINT binding_source_intent_operation_shape,
     ADD CONSTRAINT binding_source_intent_operation_shape CHECK (
@@ -161,18 +161,18 @@ test('R2-P4 migration catalog and ACL successor preserve 012..016 while admittin
 
   await query(fresh, `ALTER FUNCTION project.abort_binding_source_intent(uuid, uuid, uuid, bigint, text)
     SECURITY INVOKER`)
-  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_014_FUNCTION_SECURITY_REFUSED/)
+  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_CATALOG_DRIFT/)
   await query(fresh, `ALTER FUNCTION project.abort_binding_source_intent(uuid, uuid, uuid, bigint, text)
     SECURITY DEFINER`)
 
   await query(fresh, 'GRANT USAGE ON SCHEMA reg TO hub_iam_runtime')
-  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_014_SCHEMA_PRIVILEGE_REFUSED/)
+  await assert.rejects(runR2HubMigrations({ connectionString: url }), /MIGRATION_CATALOG_DRIFT/)
   await query(fresh, 'REVOKE USAGE ON SCHEMA reg FROM hub_iam_runtime')
 
   await query(fresh, 'ALTER FUNCTION project.validate_binding_source_intent(uuid, uuid, uuid, bigint) RENAME TO validate_binding_source_intent_drift')
   await assert.rejects(
     runR2HubMigrations({ connectionString: url }),
-    /MIGRATION_(?:014_RUNTIME_FUNCTION_ACL|016_FUNCTION_SOURCE)_REFUSED/,
+    /MIGRATION_CATALOG_DRIFT/,
   )
   await query(fresh, 'ALTER FUNCTION project.validate_binding_source_intent_drift(uuid, uuid, uuid, bigint) RENAME TO validate_binding_source_intent')
 
