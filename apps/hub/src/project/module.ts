@@ -1,16 +1,14 @@
 import type { FastifyInstance } from 'fastify'
-import type { MastraLanguageModel } from '@mastra/core/agent'
-import { PROVIDER_REGISTRY } from '@mastra/core/llm'
-import { lstatSync, readFileSync } from 'node:fs'
 import { createPostgresPool } from '../platform/postgres.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { ProjectRuntimeConfig } from '../platform/config.js'
 import { readSecretFile } from '../platform/secrets.js'
 import {
-  createAnthropicOAuthModel,
   PROJECT_ANTHROPIC_ADMISSION_ID,
   PROJECT_ANTHROPIC_MODEL_ID,
-} from './anthropic-oauth-provider.js'
+} from '../model-connection/anthropic-oauth-provider.js'
+import { readJsonFile, resolveModelAdmission } from '../model-connection/model-catalog.js'
+import type { ResolvedModelAdmission } from '../model-connection/model-catalog.js'
 import { createOciGitExecutionPort, createOciProjectBindingGitCapability } from './git-execution.js'
 import type { GitExecutionPort, ProjectBindingRecoveryGitCapability } from './git-execution.js'
 import { R2_PROJECT_BINDING_OWNERSHIP } from '../generated/r2-project-binding-ownership.js'
@@ -20,7 +18,6 @@ import type { GitImportAdmissionEntry } from './git-import-admission.js'
 import { createProjectBaselineExplanationService } from './explanation.js'
 import { createProjectInceptionService } from './inception.js'
 import type { ProjectInceptionService, ProjectSourceSnapshotFactory } from './inception.js'
-import { createOAuthTokenStore, createUnavailableOAuthTokenStore } from './oauth-token-store.js'
 import { createProjectMastra } from './project-mastra.js'
 import type { ProjectMastraPort } from './project-mastra.js'
 import { registerProjectBrainBindingRoutes, registerProjectConnectionBindingRoutes, registerProjectRoutes } from './routes.js'
@@ -228,12 +225,6 @@ export const createProjectModule = ({
   })
 }
 
-const readJsonFile = (path: string): unknown => {
-  const stat = lstatSync(path)
-  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('PROJECT_CONFIG_FILE_REFUSED')
-  return JSON.parse(readFileSync(path, 'utf8'))
-}
-
 export const composeProjectSourceOwnership = (input: unknown): Readonly<Record<string, string>> => {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('PROJECT_SOURCE_OWNERSHIP_REFUSED')
   const result: Record<string, string> = Object.create(null)
@@ -261,154 +252,11 @@ export const readProjectSourceOwnership = (path: string): Readonly<Record<string
 export const createBuilderProjectGitCapability = (storageRoot: string): GitExecutionPort =>
   createOciGitExecutionPort({ projectStorageRoot: storageRoot })
 
-export type ResolvedProjectModelAdmission = Readonly<{
-  admissionId: string
-  providerId: string
-  modelId: string
-  model: MastraLanguageModel
-  validateCredential(): void
-}>
-
-export type ProjectModelCapability = 'PROJECT_INCEPTION' | 'BASELINE_EXPLANATION' | 'BUILDER_CODING' | 'BUILDER_VERIFICATION'
-
-type ProjectModelAdmissionCatalogEntry = Readonly<{
-  admissionId: string
-  providerKey: string
-  modelId: string
-  officialHttpsOrigin: string
-  credentialSlot: string
-  capabilitySet: readonly ProjectModelCapability[]
-  enabled: boolean
-}>
-
-export type ProjectModelChoice = Readonly<{
-  choiceId: string
-  label: string
-  providerId: string
-  modelId: string
-  capabilities: readonly ProjectModelCapability[]
-}>
-
-const projectOAuthTokenStores = new Map<string, ReturnType<typeof createOAuthTokenStore>>()
-
-const projectOAuthTokenStore = (credentialFile: string): ReturnType<typeof createOAuthTokenStore> => {
-  const existing = projectOAuthTokenStores.get(credentialFile)
-  if (existing) return existing
-  const created = createOAuthTokenStore(credentialFile)
-  projectOAuthTokenStores.set(credentialFile, created)
-  return created
-}
-
-const readProjectModelAdmissionCatalog = (catalogFile: string): readonly ProjectModelAdmissionCatalogEntry[] => {
-  const catalog = readJsonFile(catalogFile)
-  if (!catalog || typeof catalog !== 'object' || Array.isArray(catalog) ||
-    !('schemaVersion' in catalog) || catalog.schemaVersion !== 'conexus-model-admission-catalog/v1' ||
-    !('entries' in catalog) || !Array.isArray(catalog.entries) || catalog.entries.length < 1 || catalog.entries.length > 16) {
-    throw new Error('PROJECT_MODEL_CATALOG_REFUSED')
-  }
-  const identities = new Set<string>()
-  const admittedCapabilities = new Set<ProjectModelCapability>([
-    'PROJECT_INCEPTION', 'BASELINE_EXPLANATION', 'BUILDER_CODING', 'BUILDER_VERIFICATION',
-  ])
-  return Object.freeze(catalog.entries.map((value): ProjectModelAdmissionCatalogEntry => {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('PROJECT_MODEL_CATALOG_REFUSED')
-    const entry = value as Record<string, unknown>
-    const keys = Object.keys(entry).sort().join(',')
-    const capabilities = entry.capabilitySet
-    const provider = typeof entry.providerKey === 'string'
-      ? PROVIDER_REGISTRY[entry.providerKey as keyof typeof PROVIDER_REGISTRY]
-      : undefined
-    if (keys !== 'admissionId,capabilitySet,credentialSlot,enabled,modelId,officialHttpsOrigin,providerKey' ||
-      typeof entry.admissionId !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(entry.admissionId) ||
-      identities.has(entry.admissionId) || typeof entry.providerKey !== 'string' ||
-      !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(entry.providerKey) ||
-      typeof entry.modelId !== 'string' || !entry.modelId || /latest|\*/i.test(entry.modelId) ||
-      !provider || !provider.models.includes(entry.modelId) ||
-      typeof entry.officialHttpsOrigin !== 'string' || !entry.officialHttpsOrigin.startsWith('https://') ||
-      typeof entry.credentialSlot !== 'string' || !/^[a-zA-Z0-9._-]{1,128}$/.test(entry.credentialSlot) ||
-      !Array.isArray(capabilities) || capabilities.length < 1 || capabilities.length > admittedCapabilities.size ||
-      capabilities.some((item) => typeof item !== 'string' || !admittedCapabilities.has(item as ProjectModelCapability)) ||
-      new Set(capabilities).size !== capabilities.length || typeof entry.enabled !== 'boolean') {
-      throw new Error('PROJECT_MODEL_CATALOG_REFUSED')
-    }
-    identities.add(entry.admissionId)
-    return Object.freeze({
-      admissionId: entry.admissionId,
-      providerKey: entry.providerKey,
-      modelId: entry.modelId,
-      officialHttpsOrigin: entry.officialHttpsOrigin,
-      credentialSlot: entry.credentialSlot,
-      capabilitySet: Object.freeze([...capabilities]) as readonly ProjectModelCapability[],
-      enabled: entry.enabled,
-    }) as ProjectModelAdmissionCatalogEntry
-  }))
-}
-
-export const readProjectModelChoices = ({ catalogFile, requiredCapabilities }: Readonly<{
-  catalogFile: string
-  requiredCapabilities: readonly ProjectModelCapability[]
-}>): readonly ProjectModelChoice[] => Object.freeze(readProjectModelAdmissionCatalog(catalogFile)
-  .filter((entry) => entry.enabled && requiredCapabilities.every((capability) => entry.capabilitySet.includes(capability)))
-  .map((entry) => Object.freeze({
-    choiceId: entry.admissionId,
-    label: entry.modelId.replaceAll('-', ' '),
-    providerId: entry.providerKey,
-    modelId: entry.modelId,
-    capabilities: entry.capabilitySet,
-  })))
-
-export const resolveProjectModelAdmission = ({
-  catalogFile,
-  credentialSlotsFile,
-  admissionId,
-  requiredCapabilities,
-  credentialRequired = true,
-}: Readonly<{
-  catalogFile: string
-  credentialSlotsFile?: string
-  admissionId: string
-  requiredCapabilities: readonly ProjectModelCapability[]
-  credentialRequired?: boolean
-}>): ResolvedProjectModelAdmission => {
-  const catalog = readProjectModelAdmissionCatalog(catalogFile)
-  const slots = credentialRequired ? (credentialSlotsFile ? readJsonFile(credentialSlotsFile) : null) : null
-  if ((credentialRequired && (!slots || typeof slots !== 'object' || Array.isArray(slots) ||
-    Object.values(slots).some((value) => typeof value !== 'string'))) ||
-    requiredCapabilities.length < 1 || new Set(requiredCapabilities).size !== requiredCapabilities.length ||
-    requiredCapabilities.some((capability) =>
-      !(['PROJECT_INCEPTION', 'BASELINE_EXPLANATION', 'BUILDER_CODING', 'BUILDER_VERIFICATION'] as const).includes(capability))) {
-    throw new Error('PROJECT_MODEL_CATALOG_REFUSED')
-  }
-  const selected = catalog.find((entry) => entry.admissionId === admissionId)
-  if (selected?.enabled !== true ||
-    requiredCapabilities.some((capability) => !selected.capabilitySet.includes(capability))) {
-    throw new Error('PROJECT_MODEL_ADMISSION_UNAVAILABLE')
-  }
-  if (selected.providerKey !== 'anthropic' || selected.officialHttpsOrigin !== 'https://api.anthropic.com') {
-    throw new Error('PROJECT_MODEL_PROVIDER_UNSUPPORTED')
-  }
-  const credentialFile = slots && typeof slots === 'object' && !Array.isArray(slots)
-    ? (slots as Record<string, unknown>)[selected.credentialSlot]
-    : undefined
-  if (credentialRequired && (typeof credentialFile !== 'string' || !credentialFile)) throw new Error('PROJECT_MODEL_CREDENTIAL_SLOT_REFUSED')
-  const tokenStore = credentialRequired
-    ? projectOAuthTokenStore(credentialFile as string)
-    : createUnavailableOAuthTokenStore()
-  tokenStore.validate()
-  return Object.freeze({
-    admissionId: selected.admissionId,
-    providerId: selected.providerKey,
-    modelId: selected.modelId,
-    model: createAnthropicOAuthModel({ tokenStore, modelId: selected.modelId }),
-    validateCredential: tokenStore.validate,
-  })
-}
-
 export const resolveProjectCognitionModelAdmission = (input: Readonly<{
   catalogFile: string
   credentialSlotsFile: string
-}>): ResolvedProjectModelAdmission => {
-  const admission = resolveProjectModelAdmission({
+}>): ResolvedModelAdmission => {
+  const admission = resolveModelAdmission({
     ...input,
     admissionId: PROJECT_ANTHROPIC_ADMISSION_ID,
     requiredCapabilities: ['PROJECT_INCEPTION', 'BASELINE_EXPLANATION'],

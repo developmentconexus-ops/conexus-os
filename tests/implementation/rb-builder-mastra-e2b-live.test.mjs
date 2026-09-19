@@ -42,11 +42,11 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
     ], { cwd: repositoryRoot, encoding: 'utf8' })
     if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
     const built = (path) => pathToFileURL(resolve(buildRoot, path)).href
-    const { resolveProjectModelAdmission } = await import(built('project/module.js'))
+    const { resolveModelAdmission } = await import(built('model-connection/model-catalog.js'))
     const { BUILDER_TRACE_REQUEST_CONTEXT_KEYS, createMastraE2BCodingWorkerRuntime, resolveBuilderWorkspace } = await import(built('builder/runtime.js'))
     const { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } = await import(built('builder/application-starter.js'))
 
-    const admission = resolveProjectModelAdmission({
+    const admission = resolveModelAdmission({
       catalogFile,
       credentialSlotsFile: slotsFile,
       admissionId,

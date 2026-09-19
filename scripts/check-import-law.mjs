@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts'])
-const TECHNICAL_HUB_LAYERS = new Set(['generated', 'http', 'platform'])
+const TECHNICAL_HUB_LAYERS = new Set(['generated', 'http', 'model-connection', 'platform'])
 const NODE_BUILTINS = new Set(builtinModules.flatMap((name) => [name, `node:${name}`]))
 
 function normalize(path) {
@@ -229,10 +229,12 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/http/app.ts',
           'apps/hub/src/brain/module.ts',
           'apps/hub/src/builder/module.ts',
+          'apps/hub/src/claude-account/module.ts',
           'apps/hub/src/connections/module.ts',
           'apps/hub/src/gateway/module.ts',
           'apps/hub/src/identity-access/module.ts',
           'apps/hub/src/mar/module.ts',
+          'apps/hub/src/model-connection/model-catalog.ts',
           'apps/hub/src/platform/config.ts',
           'apps/hub/src/platform/postgres.ts',
           'apps/hub/src/platform/secrets.ts',
@@ -289,6 +291,10 @@ export function checkImportLaw(rootDirectory) {
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
           violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'workspace store may use only owner errors/types, PostgreSQL types, and canonical JSON'))
         }
+      }
+      if (source.startsWith('apps/hub/src/model-connection/') && isRelative &&
+          !target.startsWith('apps/hub/src/model-connection/') && !target.startsWith('apps/hub/src/platform/')) {
+        violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'model connections may use only their own module and platform adapters'))
       }
       if (source.startsWith('apps/hub/src/platform/') && isRelative &&
           !target.startsWith('apps/hub/src/platform/')) {

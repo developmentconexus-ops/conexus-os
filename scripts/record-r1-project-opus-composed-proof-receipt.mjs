@@ -17,7 +17,7 @@ const postgresImage = 'postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d
 const testRelative = 'tests/implementation/r1-s6-composed-journey.test.mjs'
 const testArgs = ['--test', '--test-concurrency=1', testRelative]
 const subjectPaths = Object.freeze([
-  'apps/hub/src/project/anthropic-oauth-provider.ts',
+  'apps/hub/src/model-connection/anthropic-oauth-provider.ts',
   'apps/hub/src/project/module.ts',
   testRelative,
 ])

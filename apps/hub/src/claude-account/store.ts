@@ -2,8 +2,9 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { CredentialBackend } from '../platform/credential-backend.js'
-import type { OAuthTokenSet } from '../project/anthropic-oauth.js'
-import type { ClaudeCredentialReference } from './module.js'
+import type { OAuthTokenSet } from '../model-connection/anthropic-oauth.js'
+
+export type ClaudeCredentialReference = Readonly<{ connectionId: string; generation: string }>
 
 export type ClaudeConnectionProjection = Readonly<{ connectionId: string; label: string; state: 'ACTIVE' | 'REVOKED'; generation: string; ownerAccountId: string; workspaceId: string; role: 'OWNER' | 'USER'; revokedAt: string | null }>
 export type ClaudeAuthorization = Readonly<{ authorizationId: string; url: string; state: string }>
