@@ -198,7 +198,8 @@ This is the current Product authority for the supported internal MVP. It is the 
 | `CLA-02` | `StartClaudeAuthorization` | Claude Account | current authorization start against the server-pinned Anthropic flow | command |
 | `CLA-03` | `CompleteClaudeAuthorization` | Claude Account | exact provider code and state result; server resolves the authorized subject | command |
 | `CLA-04` | `SelectClaudeConnection` | Claude Account | exact connection preference for future BuilderRuns | command |
-| `CLA-05` | `ShareClaudeConnection` | Claude Account | exact same-Workspace Account share authority | command |
+| `CLA-05` | `ShareClaudeConnection` | Claude Account | exact Workspace the sharing Account belongs to; every member may then use it | command |
+| `CLA-07` | `UnshareClaudeConnection` | Claude Account | exact Workspace share, withdrawn by the connection owner or a Workspace member manager | command |
 | `CLA-06` | `RevokeClaudeConnection` | Claude Account | exact owner-scope connection revocation | command |
 
 # 5A. Broader retained historical/platform ledger

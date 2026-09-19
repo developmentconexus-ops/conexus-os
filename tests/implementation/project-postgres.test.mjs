@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
-import { loadR1MigrationFiles, runR1HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { loadR1MigrationFiles, runCurrentHubMigrations, runR1HubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 // The R1 corpus is whatever loadR1MigrationFiles admits. A literal list here rotted twice as the
@@ -459,8 +459,7 @@ test('real PostgreSQL proves current project.read disclosure and revocation', as
     }
   })
 
-  assert.deepEqual((await runR1HubMigrations({ connectionString: connectionString(fresh) })).versions,
-    r1Versions)
+  await runCurrentHubMigrations({ connectionString: connectionString(fresh) })
   const accountId = '10000000-0000-4000-8000-000000000081'
   const otherAccountId = '10000000-0000-4000-8000-000000000082'
   const workspaceId = '20000000-0000-4000-8000-000000000081'
@@ -473,42 +472,33 @@ test('real PostgreSQL proves current project.read disclosure and revocation', as
     ($2, 'https://issuer.test', 'p6-other', 'P6 Other')`, [accountId, otherAccountId])
   await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name) VALUES
     ($1, 'P6 Workspace'), ($2, 'Other Workspace')`, [workspaceId, otherWorkspaceId])
-  await query(fresh, `INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project)
-    VALUES ($1, $2, true)`, [accountId, workspaceId])
+  await query(fresh, `INSERT INTO iam.workspace_membership(account_id, workspace_id, role)
+    VALUES ($1, $2, 'owner')`, [accountId, workspaceId])
+  await query(fresh, `INSERT INTO iam.workspace_membership(account_id, workspace_id, role)
+    VALUES ($1, $2, 'owner')`, [otherAccountId, otherWorkspaceId])
   await query(fresh, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES
     ($1, $4, 'Visible Project', 'NEW', 'source-visible', 'revision-visible'),
     ($2, $4, 'Sibling Project', 'NEW', 'source-sibling', 'revision-sibling'),
     ($3, $5, 'Cross Workspace', 'NEW', 'source-cross', 'revision-cross')`,
   [projectId, siblingProjectId, crossWorkspaceProjectId, workspaceId, otherWorkspaceId])
-  await query(fresh, `INSERT INTO iam.account_project_grant(account_id, project_id, can_read, can_manage) VALUES
-    ($1, $3, true, true), ($2, $4, true, true), ($1, $5, true, true)`,
-  [accountId, otherAccountId, projectId, siblingProjectId, crossWorkspaceProjectId])
-
   const readPassword = 's3-p6-read-test-only'
   await query(fresh, `ALTER ROLE hub_s3_read PASSWORD '${readPassword}'`)
   const read = new Client({ ...fresh, user: 'hub_s3_read', password: readPassword })
   await read.connect()
   liveClients.push(read)
   await assert.rejects(read.query('SELECT * FROM project.project'), /permission denied/)
-  await assert.rejects(read.query('SELECT * FROM iam.account_project_grant'), /permission denied/)
+  await assert.rejects(read.query('SELECT * FROM iam.workspace_membership'), /permission denied/)
 
-  const list = await read.query(`
-    SELECT summary.* FROM project.list_project_summaries(
-      $2, ARRAY(SELECT admitted.project_id
-                FROM iam.list_workspace_readable_project_ids($1, $2) admitted)
-    ) summary
-  `, [accountId, workspaceId])
-  assert.deepEqual(list.rows, [{
-    project_id: projectId,
-    workspace_id: workspaceId,
-    name: 'Visible Project',
-    archived: false,
-  }])
-  const detail = await read.query(`
-    SELECT detail.* FROM project.get_project_representation(
-      $2, ARRAY(SELECT admitted.project_id FROM iam.admit_project_read($1, $2) admitted)
-    ) detail
-  `, [accountId, projectId])
+  // The Workspace is the boundary: a member reads every Project in it, including one they did
+  // not create, and nothing in a Workspace they do not belong to.
+  const list = await read.query('SELECT summary.* FROM project.list_project_summaries($1, $2) summary', [accountId, workspaceId])
+  assert.deepEqual(list.rows, [
+    { project_id: siblingProjectId, workspace_id: workspaceId, name: 'Sibling Project', archived: false },
+    { project_id: projectId, workspace_id: workspaceId, name: 'Visible Project', archived: false },
+  ])
+  assert.deepEqual((await read.query('SELECT summary.* FROM project.list_project_summaries($1, $2) summary', [accountId, otherWorkspaceId])).rows, [])
+
+  const detail = await read.query('SELECT detail.* FROM project.get_project($1, $2) detail', [accountId, projectId])
   assert.deepEqual(detail.rows, [{
     project_id: projectId,
     workspace_id: workspaceId,
@@ -516,10 +506,10 @@ test('real PostgreSQL proves current project.read disclosure and revocation', as
     project_revision: 'revision-visible',
     archived: false,
   }])
-  assert.deepEqual((await read.query('SELECT * FROM iam.admit_project_read($1, $2)', [accountId, siblingProjectId])).rows, [])
-  assert.deepEqual((await read.query('SELECT * FROM iam.admit_project_read($1, $2)', [accountId, crossWorkspaceProjectId])).rows, [])
+  assert.deepEqual((await read.query('SELECT * FROM project.get_project($1, $2)', [accountId, crossWorkspaceProjectId])).rows, [])
 
-  await query(fresh, 'DELETE FROM iam.account_project_grant WHERE account_id = $1 AND project_id = $2', [accountId, projectId])
-  assert.deepEqual((await read.query('SELECT * FROM iam.admit_project_read($1, $2)', [accountId, projectId])).rows, [])
-  assert.deepEqual((await read.query('SELECT * FROM iam.list_workspace_readable_project_ids($1, $2)', [accountId, workspaceId])).rows, [])
+  // One DELETE closes the list and the detail read together, because both derive from that row.
+  await query(fresh, 'DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [accountId, workspaceId])
+  assert.deepEqual((await read.query('SELECT * FROM project.get_project($1, $2)', [accountId, projectId])).rows, [])
+  assert.deepEqual((await read.query('SELECT summary.* FROM project.list_project_summaries($1, $2) summary', [accountId, workspaceId])).rows, [])
 })

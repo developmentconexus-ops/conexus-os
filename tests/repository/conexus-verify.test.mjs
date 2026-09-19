@@ -25,7 +25,7 @@ const packageScripts = Object.freeze({
 })
 
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
-  'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority',
+  'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-grant-surface-excision',
   'c020-builder-postgres', 'c020-mastra-lifecycle',
   'foundation-postgres', 'c020-registry', 'c020-source-runtime', 'c020-compiler-runtime',
   'c020-browser', 'c020-e2b-template', 'c020-hub-typecheck', 'c020-web-typecheck', 'c020-web-build',
@@ -39,7 +39,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
   'claude-account', 'claude-account-web-api', 'protected-cluster-coverage',
   'wire-openapi-lint', 'wire-openapi-bundle',
-  'wire-bijection', 'wire-carriers', 'wire-identity-workspace',
+  'wire-bijection', 'wire-bijection-gate', 'wire-carriers', 'wire-identity-workspace',
   'wire-project', 'wire-builder',
   'wire-technical-lint', 'wire-technical-ingress',
 ])

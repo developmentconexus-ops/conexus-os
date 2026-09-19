@@ -87,8 +87,7 @@ export const createWorkspaceStore = ({
       }
       if (row.state !== 'RESERVED') throw workspaceError('OUTCOME_UNKNOWN')
 
-      await client.query('SELECT workspace.create_workspace($1, $2)', [row.workspace_id, name])
-      await client.query('SELECT iam.establish_workspace_creator_access($1, $2)', [accountId, row.workspace_id])
+      await client.query('SELECT workspace.create_workspace($1, $2, $3)', [row.workspace_id, name, accountId])
 
       const responseBody: WorkspaceResponseBody = {
         workspaceId: row.workspace_id,
@@ -119,11 +118,7 @@ export const createWorkspaceStore = ({
       await client.query('BEGIN READ ONLY')
       const result = await client.query<WorkspaceRow>(`
         SELECT s.workspace_id, s.name
-        FROM workspace.list_workspace_summaries(
-          ARRAY(SELECT m.workspace_id
-                FROM iam.list_workspace_memberships($1) m
-                WHERE m.workspace_id = $2)
-        ) s
+        FROM workspace.get_workspace_summary($1, $2) s
       `, [accountId, workspaceId])
       const row = result.rows[0] ?? null
       await client.query('COMMIT')

@@ -52,7 +52,7 @@ test('the membership authority derives every right from one role row and revokes
     return workspaceId
   }
   const member = (accountId, workspaceId, role) =>
-    client.query('INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project, role) VALUES ($1,$2,true,$3)', [accountId, workspaceId, role])
+    client.query('INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,$3)', [accountId, workspaceId, role])
   const project = async (workspaceId, label) => {
     const projectId = randomUUID()
     await client.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1,$2,$3,'NEW',$4,$5)",
@@ -295,7 +295,7 @@ test('the membership authority derives every right from one role row and revokes
     const workspaceId = await workspace('no-default')
     const nameless = await account('no-default-account')
     const refused = await refusal(() => client.query(
-      'INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project) VALUES ($1,$2,true)',
+      'INSERT INTO iam.workspace_membership(account_id, workspace_id) VALUES ($1,$2)',
       [nameless, workspaceId]))
     assert.equal(refused.code, '23502')
     assert.match(refused.message, /null value in column "role" of relation "workspace_membership"/)

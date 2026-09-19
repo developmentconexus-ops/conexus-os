@@ -13,7 +13,8 @@ export type ClaudeAccountStore = Readonly<{
   completeAuthorization(input: Readonly<{ accountId: string; result: string; label: string; parse: (value: string, state: string) => string; exchange: (input: Readonly<{ code: string; state: string; verifier: string; fetchImpl?: typeof fetch }>) => Promise<OAuthTokenSet>; fetchImpl?: typeof fetch }>): Promise<ClaudeConnectionProjection>
   list(accountId: string): Promise<readonly ClaudeConnectionProjection[]>
   select(input: Readonly<{ accountId: string; connectionId: string }>): Promise<void>
-  share(input: Readonly<{ accountId: string; connectionId: string; targetAccountId: string; workspaceId: string }>): Promise<void>
+  share(input: Readonly<{ accountId: string; connectionId: string; workspaceId: string }>): Promise<void>
+  unshare(input: Readonly<{ accountId: string; connectionId: string; workspaceId: string }>): Promise<void>
   revoke(input: Readonly<{ accountId: string; connectionId: string }>): Promise<void>
   admitForProject(input: Readonly<{ accountId: string; projectId: string }>): Promise<ClaudeCredentialReference>
 }>
@@ -21,6 +22,10 @@ export type ClaudeAccountStore = Readonly<{
 const text = (value: unknown): string => typeof value === 'string' ? value : ''
 const stateDigest = (state: string): Buffer => createHash('sha256').update(state, 'utf8').digest()
 const generation = (value: unknown): string => typeof value === 'bigint' ? value.toString() : String(value)
+const refuseNotAdmitted = (denial: string) => (error: unknown): never => {
+  if (typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501') throw new Error(denial)
+  throw error
+}
 const rowProjection = (row: QueryResultRow): ClaudeConnectionProjection => ({
   connectionId: text(row.connection_id), label: text(row.label), state: row.state === 'REVOKED' ? 'REVOKED' : 'ACTIVE',
   generation: generation(row.current_generation), ownerAccountId: text(row.owner_account_id), workspaceId: text(row.workspace_id),
@@ -63,7 +68,14 @@ export const createClaudeAccountStore = ({ pool, credentialBackend }: Readonly<{
   },
   list: async (accountId) => (await pool.query('SELECT * FROM claude_connection.list_connections($1)', [accountId])).rows.map(rowProjection),
   select: async ({ accountId, connectionId }) => { if ((await pool.query('SELECT claude_connection.select_connection($1,$2) AS value', [accountId, connectionId])).rows[0]?.value !== true) throw new Error('CLAUDE_CONNECTION_SELECT_DENIED') },
-  share: async ({ accountId, connectionId, targetAccountId, workspaceId }) => { if ((await pool.query('SELECT claude_connection.share_connection($1,$2,$3,$4) AS value', [accountId, connectionId, targetAccountId, workspaceId])).rows[0]?.value !== true) throw new Error('CLAUDE_CONNECTION_SHARE_DENIED') },
+  share: async ({ accountId, connectionId, workspaceId }) => {
+    const shared = await pool.query('SELECT claude_connection.share_connection($1,$2,$3) AS value', [accountId, connectionId, workspaceId]).catch(refuseNotAdmitted('CLAUDE_CONNECTION_SHARE_DENIED'))
+    if (shared.rows[0]?.value !== true) throw new Error('CLAUDE_CONNECTION_SHARE_DENIED')
+  },
+  unshare: async ({ accountId, connectionId, workspaceId }) => {
+    const unshared = await pool.query('SELECT claude_connection.unshare_connection($1,$2,$3) AS value', [accountId, connectionId, workspaceId]).catch(refuseNotAdmitted('CLAUDE_CONNECTION_UNSHARE_DENIED'))
+    if (unshared.rows[0]?.value !== true) throw new Error('CLAUDE_CONNECTION_UNSHARE_DENIED')
+  },
   revoke: async ({ accountId, connectionId }) => { if ((await pool.query('SELECT claude_connection.revoke_connection($1,$2) AS value', [accountId, connectionId])).rows[0]?.value !== true) throw new Error('CLAUDE_CONNECTION_REVOKE_DENIED') },
   admitForProject: async ({ accountId, projectId }) => {
     const row = (await pool.query<QueryResultRow & { connection_id: string; generation: string | number | bigint }>('SELECT * FROM claude_connection.admit_for_project($1,$2)', [accountId, projectId])).rows[0]
