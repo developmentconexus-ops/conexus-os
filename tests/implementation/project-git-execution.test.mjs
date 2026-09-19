@@ -18,9 +18,15 @@ const compiled = spawnSync(process.execPath, [
 if (compiled.status !== 0) throw new Error(`S3_HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
 const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
 const { createOciGitExecutionPort } = await import(built('project/git-execution.js'))
+const { createOciGitExecution } = await import(built('platform/oci-git.js'))
 const { admitGitImportLocator, createGitImportAdmissionCatalog } = await import(built('project/git-import-admission.js'))
 const { R1C14_GIT_IDENTITY } = await import(built('generated/r1c14-git-identity.js'))
 const { R1_NEW_PROJECT_SEED } = await import(built('generated/r1-new-project-seed.js'))
+
+// The Project port drives git through the one shared OCI mechanism; a case
+// supplying its own process runner wraps it in that mechanism.
+const createPort = (options = {}, runProcess) =>
+  createOciGitExecutionPort(options, runProcess ? createOciGitExecution(R1C14_GIT_IDENTITY, runProcess) : undefined)
 
 const result = (stdout = '', overrides = {}) => ({
   exitCode: 0, signal: null, stdout, stderr: '', overflow: false, spawnError: false, ...overrides,
@@ -90,14 +96,14 @@ test('S3-P2 NEW seed source has an empty APP-owned set', () => {
 test('S3-P5 Project-private port exposes only the seven bounded named operations', () => {
   const methods = ['verifyAdmittedImage', 'stageNewProjectSource', 'stageExistingGitProjectSource', 'promoteStagedProjectSource', 'verifyCanonicalProjectSource', 'createProjectSourceBundle', 'restoreProjectSourceBundle']
   assert.deepEqual(checkR1S3GitExecution(repositoryRoot).portMethods, methods)
-  assert.deepEqual(Object.keys(createOciGitExecutionPort({}, async () => result())), methods)
-  assert.equal(createOciGitExecutionPort({}, async () => result()).verifyAdmittedImage.length, 0)
-  assert.equal(createOciGitExecutionPort({}, async () => result()).stageNewProjectSource.length, 1)
-  assert.equal(createOciGitExecutionPort({}, async () => result()).stageExistingGitProjectSource.length, 1)
-  assert.equal(createOciGitExecutionPort({}, async () => result()).promoteStagedProjectSource.length, 1)
-  assert.equal(createOciGitExecutionPort({}, async () => result()).verifyCanonicalProjectSource.length, 1)
-  assert.equal(createOciGitExecutionPort({}, async () => result()).createProjectSourceBundle.length, 1)
-  assert.equal(createOciGitExecutionPort({}, async () => result()).restoreProjectSourceBundle.length, 1)
+  assert.deepEqual(Object.keys(createPort({}, async () => result())), methods)
+  assert.equal(createPort({}, async () => result()).verifyAdmittedImage.length, 0)
+  assert.equal(createPort({}, async () => result()).stageNewProjectSource.length, 1)
+  assert.equal(createPort({}, async () => result()).stageExistingGitProjectSource.length, 1)
+  assert.equal(createPort({}, async () => result()).promoteStagedProjectSource.length, 1)
+  assert.equal(createPort({}, async () => result()).verifyCanonicalProjectSource.length, 1)
+  assert.equal(createPort({}, async () => result()).createProjectSourceBundle.length, 1)
+  assert.equal(createPort({}, async () => result()).restoreProjectSourceBundle.length, 1)
 })
 
 test('S3-P4 custody RED matrix fails closed without moving canonical state', async (suite) => {
@@ -113,11 +119,11 @@ test('S3-P4 custody RED matrix fails closed without moving canonical state', asy
 
   await suite.test('identity and storage refusal precede custody mutation', async () => {
     let responses = verified()
-    assert.deepEqual(await createOciGitExecutionPort({}, async () => responses.shift()).promoteStagedProjectSource({
+    assert.deepEqual(await createPort({}, async () => responses.shift()).promoteStagedProjectSource({
       projectId, attemptId, sourceRevision: 'not-an-oid',
     }), { status: 'REFUSED', code: 'IDENTITY_REFUSED' })
     responses = verified()
-    assert.deepEqual(await createOciGitExecutionPort({ projectStorageRoot: '/tmp/conexus-s3-p4-absent' }, async () => responses.shift()).promoteStagedProjectSource({
+    assert.deepEqual(await createPort({ projectStorageRoot: '/tmp/conexus-s3-p4-absent' }, async () => responses.shift()).promoteStagedProjectSource({
       projectId, attemptId, sourceRevision,
     }), { status: 'REFUSED', code: 'STORAGE_ROOT_REFUSED' })
   })
@@ -131,7 +137,7 @@ test('S3-P4 custody RED matrix fails closed without moving canonical state', asy
     writeFileSync(resolve(canonicalRoot, 'canonical-marker'), 'preserve canonical\n', { mode: 0o600 })
     const responses = [...verified(), repositoryVerified(), result('', { exitCode: 1 })]
     try {
-      const outcome = await createOciGitExecutionPort({ projectStorageRoot: storageRoot }, async () => responses.shift()).promoteStagedProjectSource({
+      const outcome = await createPort({ projectStorageRoot: storageRoot }, async () => responses.shift()).promoteStagedProjectSource({
         projectId, attemptId, sourceRevision,
       })
       assert.deepEqual(outcome, { status: 'REFUSED', code: 'CANDIDATE_QUARANTINED' })
@@ -151,7 +157,7 @@ test('S3-P4 custody RED matrix fails closed without moving canonical state', asy
     const calls = []
     const responses = [...verified(), repositoryVerified(), result('', { exitCode: 1 })]
     try {
-      const outcome = await createOciGitExecutionPort({ projectStorageRoot: storageRoot }, async (executable, args) => {
+      const outcome = await createPort({ projectStorageRoot: storageRoot }, async (executable, args) => {
         calls.push({ executable, args: [...args] })
         return responses.shift()
       }).createProjectSourceBundle({ projectId, attemptId, sourceRevision })
@@ -174,7 +180,7 @@ test('S3-P4 custody RED matrix fails closed without moving canonical state', asy
     const imageResponses = verified()
     let restoreCalls = 0
     try {
-      const port = createOciGitExecutionPort({ projectStorageRoot: storageRoot }, async (_executable, args) => {
+      const port = createPort({ projectStorageRoot: storageRoot }, async (_executable, args) => {
         if (imageResponses.length) return imageResponses.shift()
         const program = args.at(-1)
         if (typeof program === 'string' && program.includes("'clone', '--bare', '--no-hardlinks'")) {
@@ -244,7 +250,7 @@ test('S3-P0 uses only the exact inspect and hardened no-network Docker vectors',
     result(`git version ${R1C14_GIT_IDENTITY.gitVersion}\n`),
     result(`${R1C14_GIT_IDENTITY.gitExecutableSha256}\n`),
   ]
-  const port = createOciGitExecutionPort({}, async (executable, args) => {
+  const port = createPort({}, async (executable, args) => {
     calls.push({ executable, args: [...args] })
     return responses.shift()
   })
@@ -282,7 +288,7 @@ test('S3-P0 coalesces concurrent OCI identity probes and caches only verified id
   ]
   let release
   const gate = new Promise((resolve) => { release = resolve })
-  const port = createOciGitExecutionPort({}, async (executable, args) => {
+  const port = createPort({}, async (executable, args) => {
     calls.push({ executable, args: [...args] })
     if (calls.length === 1) await gate
     return responses.shift()
@@ -305,7 +311,7 @@ test('S3-P0 retries identity verification after a refusal instead of caching fai
     result(`git version ${R1C14_GIT_IDENTITY.gitVersion}\n`),
     result(`${R1C14_GIT_IDENTITY.gitExecutableSha256}\n`),
   ]
-  const port = createOciGitExecutionPort({}, async () => responses.shift())
+  const port = createPort({}, async () => responses.shift())
   assert.deepEqual(await port.verifyAdmittedImage(), { status: 'REFUSED', code: 'IMAGE_INSPECT_FAILED' })
   assert.deepEqual(await port.verifyAdmittedImage(), {
     status: 'VERIFIED',
@@ -328,7 +334,7 @@ test('S3-P0 fails closed for inspect, process, version and executable-hash falsi
   ]
   for (const [label, responses, code] of cases) {
     await suite.test(label, async () => {
-      const port = createOciGitExecutionPort({}, async () => responses.shift())
+      const port = createPort({}, async () => responses.shift())
       assert.deepEqual(await port.verifyAdmittedImage(), { status: 'REFUSED', code })
     })
   }
@@ -338,7 +344,7 @@ test('S3-P0 real WSL proof runs only the admitted image with networking disabled
   skip: process.env.CONEXUS_S3_LIVE !== 'true' ? 'set CONEXUS_S3_LIVE=true for deciding local proof' : false,
   timeout: 120_000,
 }, async () => {
-  assert.deepEqual(await createOciGitExecutionPort().verifyAdmittedImage(), {
+  assert.deepEqual(await createPort().verifyAdmittedImage(), {
     status: 'VERIFIED',
     ociIndexDigest: R1C14_GIT_IDENTITY.ociIndexDigest,
     gitVersion: R1C14_GIT_IDENTITY.gitVersion,
@@ -357,14 +363,14 @@ test('S3-P2 refuses unsafe identities, absent roots and symlink owner roots befo
     result(`git version ${R1C14_GIT_IDENTITY.gitVersion}\n`),
     result(`${R1C14_GIT_IDENTITY.gitExecutableSha256}\n`),
   ]
-  const port = createOciGitExecutionPort({ projectStorageRoot: link }, async () => verified.shift())
+  const port = createPort({ projectStorageRoot: link }, async () => verified.shift())
   assert.deepEqual(await port.stageNewProjectSource({ projectId: 'not-a-uuid', attemptId: 'also-not-a-uuid' }), { status: 'REFUSED', code: 'IDENTITY_REFUSED' })
   const verifiedAgain = [
     result(`${R1C14_GIT_IDENTITY.ociIndexDigest}\n`),
     result(`git version ${R1C14_GIT_IDENTITY.gitVersion}\n`),
     result(`${R1C14_GIT_IDENTITY.gitExecutableSha256}\n`),
   ]
-  const symlinkPort = createOciGitExecutionPort({ projectStorageRoot: link }, async () => verifiedAgain.shift())
+  const symlinkPort = createPort({ projectStorageRoot: link }, async () => verifiedAgain.shift())
   assert.deepEqual(await symlinkPort.stageNewProjectSource({
     projectId: '11111111-1111-4111-8111-111111111111',
     attemptId: '22222222-2222-4222-8222-222222222222',
@@ -395,7 +401,7 @@ test('S3-P2 stage vector is owner-bound and refuses process or typed-result fals
         stageResult,
       ]
       try {
-        const port = createOciGitExecutionPort({ projectStorageRoot: storageRoot }, async () => responses.shift())
+        const port = createPort({ projectStorageRoot: storageRoot }, async () => responses.shift())
         assert.deepEqual(await port.stageNewProjectSource({ projectId, attemptId }), expected)
       } finally {
         rmSync(storageRoot, { recursive: true, force: true })
@@ -412,7 +418,7 @@ test('S3-P2 stage vector is owner-bound and refuses process or typed-result fals
     result(JSON.stringify({ status: 'STAGED', sourceRevision, tree, appOwnedPathCount: 0 })),
   ]
   try {
-    const port = createOciGitExecutionPort({ projectStorageRoot: storageRoot }, async (executable, args) => {
+    const port = createPort({ projectStorageRoot: storageRoot }, async (executable, args) => {
       calls.push({ executable, args: [...args] })
       return responses.shift()
     })
@@ -451,12 +457,12 @@ test('S3-P3 admitted import uses only catalog network and temporary secret-file 
     result(JSON.stringify({ status: 'STAGED', sourceRevision, defaultRef: 'refs/heads/main', objectCount: 3, fetchedBytes: 123 })),
   ]
   try {
-    const port = createOciGitExecutionPort({
+    const port = createPort({
       projectStorageRoot: storageRoot,
       gitImportCatalog: catalog,
       externalFileSlots: { 'canary-credential': secretFile, 'canary-ca': caFile },
-    }, async (executable, args, timeoutMs) => {
-      calls.push({ executable, args: [...args], timeoutMs })
+    }, async (executable, args, limits) => {
+      calls.push({ executable, args: [...args], timeoutMs: limits?.timeoutMs })
       return responses.shift()
     })
     const output = await port.stageExistingGitProjectSource({
@@ -504,17 +510,17 @@ test('S3-P3 refuses missing catalog, forbidden locator and unsafe secret before 
   }
   try {
     let responses = verified()
-    assert.deepEqual(await createOciGitExecutionPort({ projectStorageRoot: storageRoot }, async () => responses.shift()).stageExistingGitProjectSource(input), {
+    assert.deepEqual(await createPort({ projectStorageRoot: storageRoot }, async () => responses.shift()).stageExistingGitProjectSource(input), {
       status: 'REFUSED', code: 'CATALOG_REFUSED',
     })
     responses = verified()
-    assert.deepEqual(await createOciGitExecutionPort({ projectStorageRoot: storageRoot, gitImportCatalog: catalog }, async () => responses.shift()).stageExistingGitProjectSource({
+    assert.deepEqual(await createPort({ projectStorageRoot: storageRoot, gitImportCatalog: catalog }, async () => responses.shift()).stageExistingGitProjectSource({
       ...input, locator: 'https://git.allowed.test/outside/repo.git',
     }), { status: 'REFUSED', code: 'DESTINATION_NOT_ADMITTED' })
     const secretFile = resolve(storageRoot, 'world-readable-secret')
     writeFileSync(secretFile, 'user\npassword\n', { mode: 0o644 })
     responses = verified()
-    assert.deepEqual(await createOciGitExecutionPort({
+    assert.deepEqual(await createPort({
       projectStorageRoot: storageRoot,
       gitImportCatalog: catalog,
       externalFileSlots: { 'canary-credential': secretFile, 'canary-ca': resolve(storageRoot, 'missing-ca') },
@@ -591,7 +597,7 @@ process.stdout.write(git(['--git-dir=/fixture/repo.git', 'rev-parse', 'refs/head
       admittedEntry({ id: 'redirect-canary', port: 8443, pathPrefix: '/redirect/', networkName, timeoutMs: 60_000 }),
     ])
     assert.ok(catalog)
-    const port = createOciGitExecutionPort({
+    const port = createPort({
       projectStorageRoot: workRoot,
       gitImportCatalog: catalog,
       externalFileSlots: { 'canary-credential': credentialPath, 'canary-ca': certPath },
@@ -678,7 +684,7 @@ test('S3-P4-A real exact-image NEW promotes, bundles and restores the same Proje
   const mismatchAttemptId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
   const sourceRevision = R1_NEW_PROJECT_SEED.expectedSourceRevision
   try {
-    const port = createOciGitExecutionPort({ projectStorageRoot: storageRoot })
+    const port = createPort({ projectStorageRoot: storageRoot })
     const staged = await port.stageNewProjectSource({ projectId, attemptId: stageAttemptId })
     assert.equal(staged.status, 'STAGED', JSON.stringify(staged))
     context.diagnostic('NEW staged')
@@ -751,7 +757,7 @@ test('S3-P2 real exact-image NEW stages one immutable revision and classifies th
 }, async () => {
   const storageRoot = mkdtempSync('/tmp/conexus-s3-p2-live-')
   try {
-    const port = createOciGitExecutionPort({ projectStorageRoot: storageRoot })
+    const port = createPort({ projectStorageRoot: storageRoot })
     const input = {
       projectId: '11111111-1111-4111-8111-111111111111',
       attemptId: '22222222-2222-4222-8222-222222222222',

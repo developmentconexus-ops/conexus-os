@@ -1,7 +1,7 @@
-import { spawn } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, resolve, sep } from 'node:path'
+import { createOciGitExecution, ociGitDigest } from '../platform/oci-git.js'
+import type { GitImageRefusal, OciGitExecution, VerifiedGitImage } from '../platform/oci-git.js'
 import { R1C14_GIT_IDENTITY } from '../generated/r1c14-git-identity.js'
 import { R1_NEW_PROJECT_SEED } from '../generated/r1-new-project-seed.js'
 import {
@@ -10,26 +10,7 @@ import {
 } from './git-import-admission.js'
 import { isProjectIdentity } from './identity.js'
 
-const MAX_OUTPUT_BYTES = 4_096
-const PROCESS_TIMEOUT_MS = 60_000
-const DOCKER_EXECUTABLE = 'docker'
-const ownerProcessUser = (): string => {
-  if (!process.getuid || !process.getgid) throw new Error('S3_GIT_POSIX_OWNER_REQUIRED')
-  return `${process.getuid()}:${process.getgid()}`
-}
-const CONTAINER_USER = ownerProcessUser()
 const ZERO_OID = '0'.repeat(40)
-const HARDENED_NETWORK_RUN = Object.freeze([
-  'run', '--rm', '--pull', 'never', '--cap-drop', 'ALL',
-  '--security-opt', 'no-new-privileges', '--read-only',
-  '--tmpfs', '/tmp:rw,noexec,nosuid,size=16m',
-] as const)
-const HARDENED_RUN = Object.freeze([
-  'run', '--rm', '--pull', 'never', '--network', 'none', '--cap-drop', 'ALL',
-  '--security-opt', 'no-new-privileges', '--read-only',
-  '--tmpfs', '/tmp:rw,noexec,nosuid,size=16m',
-] as const)
-const HASH_PROGRAM = `const f=require('node:fs');const c=require('node:crypto');process.stdout.write(c.createHash('sha256').update(f.readFileSync(${JSON.stringify(R1C14_GIT_IDENTITY.gitExecutablePath)})).digest('hex')+'\\n')`
 const NEW_STAGE_PROGRAM = `
 const { spawnSync } = require('node:child_process')
 const { createHash } = require('node:crypto')
@@ -205,34 +186,7 @@ if (!ok(ref) || ref.stdout.trim() !== request.sourceRevision || !ok(object) || !
 finish({ status: 'RESTORED', sourceRevision: request.sourceRevision })
 `
 
-type ProcessResult = Readonly<{
-  exitCode: number | null
-  signal: NodeJS.Signals | null
-  stdout: string
-  stderr: string
-  overflow: boolean
-  spawnError: boolean
-}>
-
-type ProcessRunner = (executable: string, args: readonly string[], timeoutMs?: number) => Promise<ProcessResult>
-
-export type VerifiedGitImage = Readonly<{
-  status: 'VERIFIED'
-  ociIndexDigest: string
-  gitVersion: string
-  gitExecutableSha256: string
-}>
-
-export type GitImageRefusal = Readonly<{
-  status: 'REFUSED'
-  code:
-    | 'IMAGE_INSPECT_FAILED'
-    | 'IMAGE_IDENTITY_MISMATCH'
-    | 'VERSION_PROBE_FAILED'
-    | 'VERSION_MISMATCH'
-    | 'EXECUTABLE_HASH_PROBE_FAILED'
-    | 'EXECUTABLE_HASH_MISMATCH'
-}>
+export type { GitImageRefusal, VerifiedGitImage } from '../platform/oci-git.js'
 
 export type NewProjectSourceInput = Readonly<{ projectId: string; attemptId: string }>
 export type ExistingGitProjectSourceInput = Readonly<{ projectId: string; attemptId: string; locator: string }>
@@ -267,38 +221,7 @@ export interface GitExecutionPort {
   restoreProjectSourceBundle(input: ProjectSourceCustodyInput): Promise<ProjectSourceCustodyResult>
 }
 
-const boundedProcess: ProcessRunner = (executable, args, timeoutMs = PROCESS_TIMEOUT_MS) => new Promise((complete) => {
-  const child = spawn(executable, [...args], { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
-  let stdout: Buffer<ArrayBufferLike> = Buffer.alloc(0)
-  let stderr: Buffer<ArrayBufferLike> = Buffer.alloc(0)
-  let overflow = false
-  let spawnError = false
-  let settled = false
-  const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs)
-
-  const append = (current: Buffer<ArrayBufferLike>, chunk: Buffer<ArrayBufferLike>): Buffer<ArrayBufferLike> => {
-    const remaining = MAX_OUTPUT_BYTES - current.length
-    if (remaining <= 0) {
-      overflow = true
-      return current
-    }
-    if (chunk.length > remaining) overflow = true
-    return Buffer.concat([current, chunk.subarray(0, remaining)])
-  }
-  child.stdout.on('data', (chunk: Buffer) => { stdout = append(stdout, chunk) })
-  child.stderr.on('data', (chunk: Buffer) => { stderr = append(stderr, chunk) })
-  child.once('error', () => { spawnError = true })
-  child.once('close', (exitCode, signal) => {
-    if (settled) return
-    settled = true
-    clearTimeout(timer)
-    complete({ exitCode, signal, stdout: stdout.toString('utf8'), stderr: stderr.toString('utf8'), overflow, spawnError })
-  })
-})
-
-const passed = (result: ProcessResult): boolean =>
-  !result.spawnError && !result.overflow && result.exitCode === 0 && result.signal === null && result.stderr === ''
-const digest = (bytes: Buffer): string => createHash('sha256').update(bytes).digest('hex')
+const digest = ociGitDigest
 
 async function exactDirectory(path: string): Promise<boolean> {
   try {
@@ -387,55 +310,9 @@ export function createOciGitExecutionPort(
     gitImportCatalog?: GitImportAdmissionCatalog
     externalFileSlots?: Readonly<Record<string, string>>
   }> = {},
-  runProcess: ProcessRunner = boundedProcess,
+  oci: OciGitExecution = createOciGitExecution(R1C14_GIT_IDENTITY),
 ): GitExecutionPort {
-  let verifiedImageSuccess: VerifiedGitImage | undefined
-  let verifiedImageAttempt: Promise<VerifiedGitImage | GitImageRefusal> | undefined
-  const verifyAdmittedImage = (): Promise<VerifiedGitImage | GitImageRefusal> => {
-    if (verifiedImageSuccess) return Promise.resolve(verifiedImageSuccess)
-    if (verifiedImageAttempt) return verifiedImageAttempt
-
-    const attempt = (async (): Promise<VerifiedGitImage | GitImageRefusal> => {
-      const inspected = await runProcess(DOCKER_EXECUTABLE, Object.freeze([
-        'image', 'inspect', '--format', '{{.Id}}', R1C14_GIT_IDENTITY.ociIndexDigest,
-      ]))
-      if (!passed(inspected)) return Object.freeze({ status: 'REFUSED', code: 'IMAGE_INSPECT_FAILED' })
-      if (inspected.stdout.trim() !== R1C14_GIT_IDENTITY.ociIndexDigest) {
-        return Object.freeze({ status: 'REFUSED', code: 'IMAGE_IDENTITY_MISMATCH' })
-      }
-
-      const version = await runProcess(DOCKER_EXECUTABLE, Object.freeze([
-        ...HARDENED_RUN, R1C14_GIT_IDENTITY.ociIndexDigest, '--version',
-      ]))
-      if (!passed(version)) return Object.freeze({ status: 'REFUSED', code: 'VERSION_PROBE_FAILED' })
-      if (version.stdout.trim() !== `git version ${R1C14_GIT_IDENTITY.gitVersion}`) {
-        return Object.freeze({ status: 'REFUSED', code: 'VERSION_MISMATCH' })
-      }
-
-      const executableHash = await runProcess(DOCKER_EXECUTABLE, Object.freeze([
-        ...HARDENED_RUN, '--entrypoint', '/usr/local/bin/node', R1C14_GIT_IDENTITY.ociIndexDigest,
-        '-e', HASH_PROGRAM,
-      ]))
-      if (!passed(executableHash)) return Object.freeze({ status: 'REFUSED', code: 'EXECUTABLE_HASH_PROBE_FAILED' })
-      if (executableHash.stdout.trim() !== R1C14_GIT_IDENTITY.gitExecutableSha256) {
-        return Object.freeze({ status: 'REFUSED', code: 'EXECUTABLE_HASH_MISMATCH' })
-      }
-
-      verifiedImageSuccess = Object.freeze({
-        status: 'VERIFIED',
-        ociIndexDigest: R1C14_GIT_IDENTITY.ociIndexDigest,
-        gitVersion: R1C14_GIT_IDENTITY.gitVersion,
-        gitExecutableSha256: R1C14_GIT_IDENTITY.gitExecutableSha256,
-      })
-      return verifiedImageSuccess
-    })()
-    verifiedImageAttempt = attempt
-    const clearFailedAttempt = (): void => {
-      if (verifiedImageAttempt === attempt && !verifiedImageSuccess) verifiedImageAttempt = undefined
-    }
-    void attempt.then(clearFailedAttempt, clearFailedAttempt)
-    return attempt
-  }
+  const verifyAdmittedImage = (): Promise<VerifiedGitImage | GitImageRefusal> => oci.verifyAdmittedImage()
 
   const custodyInputValid = (input: ProjectSourceCustodyInput): boolean =>
     isProjectIdentity(input.projectId) && isProjectIdentity(input.attemptId) && /^[0-9a-f]{40}$/.test(input.sourceRevision)
@@ -461,16 +338,17 @@ export function createOciGitExecutionPort(
     const requestPath = resolve(requestRoot, '.conexus-custody-request.json')
     try {
       await writeFile(requestPath, `${JSON.stringify({ sourceRevision })}\n`, { flag: 'wx', mode: 0o400 })
-      const result = await runProcess(DOCKER_EXECUTABLE, Object.freeze([
-        ...HARDENED_RUN, '--user', CONTAINER_USER,
-        '--mount', `type=bind,src=${repositoryRoot},dst=/repository.git,readonly`,
-        '--mount', `type=bind,src=${requestPath},dst=/run/conexus/request.json,readonly`,
-        '--entrypoint', '/usr/local/bin/node', R1C14_GIT_IDENTITY.ociIndexDigest,
-        '-e', REPOSITORY_VERIFY_PROGRAM,
-      ]))
-      if (!passed(result)) return false
-      const parsed = JSON.parse(result.stdout)
-      return parsed?.status === 'VERIFIED' && parsed.sourceRevision === sourceRevision && /^[0-9a-f]{40}$/.test(parsed.tree)
+      const result = await oci.runGitProgram({
+        program: REPOSITORY_VERIFY_PROGRAM,
+        mounts: [
+          { source: repositoryRoot, target: '/repository.git', readonly: true },
+          { source: requestPath, target: '/run/conexus/request.json', readonly: true },
+        ],
+      })
+      if (result.status !== 'COMPLETED') return false
+      const parsed = result.verdict
+      return parsed.status === 'VERIFIED' && parsed.sourceRevision === sourceRevision &&
+        typeof parsed.tree === 'string' && /^[0-9a-f]{40}$/.test(parsed.tree)
     } catch {
       return false
     } finally {
@@ -537,15 +415,15 @@ export function createOciGitExecutionPort(
     const finalPath = resolve(bundleProjectRoot, `${input.sourceRevision}.bundle`)
     try {
       await writeFile(requestPath, `${JSON.stringify({ sourceRevision: input.sourceRevision })}\n`, { flag: 'wx', mode: 0o400 })
-      const created = await runProcess(DOCKER_EXECUTABLE, Object.freeze([
-        ...HARDENED_RUN, '--user', CONTAINER_USER,
-        '--mount', `type=bind,src=${canonicalRoot},dst=/repository.git,readonly`,
-        '--mount', `type=bind,src=${temporaryRoot},dst=/bundle`,
-        '--mount', `type=bind,src=${requestPath},dst=/run/conexus/request.json,readonly`,
-        '--entrypoint', '/usr/local/bin/node', R1C14_GIT_IDENTITY.ociIndexDigest,
-        '-e', BUNDLE_CREATE_PROGRAM,
-      ]))
-      if (!passed(created) || JSON.parse(created.stdout)?.status !== 'CREATED') return Object.freeze({ status: 'REFUSED', code: 'BUNDLE_REFUSED' })
+      const created = await oci.runGitProgram({
+        program: BUNDLE_CREATE_PROGRAM,
+        mounts: [
+          { source: canonicalRoot, target: '/repository.git', readonly: true },
+          { source: temporaryRoot, target: '/bundle' },
+          { source: requestPath, target: '/run/conexus/request.json', readonly: true },
+        ],
+      })
+      if (created.status !== 'COMPLETED' || created.verdict.status !== 'CREATED') return Object.freeze({ status: 'REFUSED', code: 'BUNDLE_REFUSED' })
       try {
         await rename(outputPath, finalPath)
       } catch (error) {
@@ -599,15 +477,15 @@ export function createOciGitExecutionPort(
     const requestPath = resolve(attemptRoot, '.conexus-restore-request.json')
     try {
       await writeFile(requestPath, `${JSON.stringify({ sourceRevision: input.sourceRevision })}\n`, { flag: 'wx', mode: 0o400 })
-      const restored = await runProcess(DOCKER_EXECUTABLE, Object.freeze([
-        ...HARDENED_RUN, '--user', CONTAINER_USER,
-        '--mount', `type=bind,src=${attemptRoot},dst=/workspace`,
-        '--mount', `type=bind,src=${bundlePath},dst=/bundle/source.bundle,readonly`,
-        '--mount', `type=bind,src=${requestPath},dst=/run/conexus/request.json,readonly`,
-        '--entrypoint', '/usr/local/bin/node', R1C14_GIT_IDENTITY.ociIndexDigest,
-        '-e', BUNDLE_RESTORE_PROGRAM,
-      ]))
-      if (!passed(restored) || JSON.parse(restored.stdout)?.status !== 'RESTORED') {
+      const restored = await oci.runGitProgram({
+        program: BUNDLE_RESTORE_PROGRAM,
+        mounts: [
+          { source: attemptRoot, target: '/workspace' },
+          { source: bundlePath, target: '/bundle/source.bundle', readonly: true },
+          { source: requestPath, target: '/run/conexus/request.json', readonly: true },
+        ],
+      })
+      if (restored.status !== 'COMPLETED' || restored.verdict.status !== 'RESTORED') {
         await Promise.all([
           rm(resolve(attemptRoot, 'repository.git'), { recursive: true, force: true }),
           rm(resolve(attemptRoot, 'verify.git'), { recursive: true, force: true }),
@@ -646,35 +524,29 @@ export function createOciGitExecutionPort(
       if (!attemptRoot) return Object.freeze({ status: 'REFUSED', code: 'STORAGE_ROOT_REFUSED' })
       if (!await materializeSeed(attemptRoot)) return Object.freeze({ status: 'REFUSED', code: 'SEED_BYTES_REFUSED' })
 
-      const staged = await runProcess(DOCKER_EXECUTABLE, Object.freeze([
-        ...HARDENED_RUN,
-        '--user', CONTAINER_USER,
-        '--mount', `type=bind,src=${attemptRoot},dst=/workspace`,
-        '--entrypoint', '/usr/local/bin/node',
-        R1C14_GIT_IDENTITY.ociIndexDigest,
-        '-e', NEW_STAGE_PROGRAM,
-      ]))
-      if (!passed(staged)) return Object.freeze({ status: 'REFUSED', code: 'GIT_PROCESS_FAILED' })
-      let result: unknown
-      try {
-        result = JSON.parse(staged.stdout)
-      } catch {
-        return Object.freeze({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
+      const staged = await oci.runGitProgram({
+        program: NEW_STAGE_PROGRAM,
+        mounts: [{ source: attemptRoot, target: '/workspace' }],
+      })
+      if (staged.status !== 'COMPLETED') {
+        return Object.freeze({ status: 'REFUSED', code: staged.code === 'PROCESS_FAILED' ? 'GIT_PROCESS_FAILED' : staged.code === 'IMAGE_NOT_VERIFIED' ? 'IMAGE_NOT_VERIFIED' : 'GIT_RESULT_REFUSED' })
       }
+      const result = staged.verdict
       await rm(resolve(attemptRoot, 'tree'), { recursive: true, force: true })
-      if (!result || typeof result !== 'object' || !('status' in result)) {
-        return Object.freeze({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
+      const exactRevision = result.sourceRevision === R1_NEW_PROJECT_SEED.expectedSourceRevision
+      if (result.status === 'CAS_CONFLICT' && exactRevision) {
+        return Object.freeze({ status: 'CAS_CONFLICT', sourceRevision: R1_NEW_PROJECT_SEED.expectedSourceRevision })
       }
-      if (result.status === 'CAS_CONFLICT' && 'sourceRevision' in result && result.sourceRevision === R1_NEW_PROJECT_SEED.expectedSourceRevision) {
-        return Object.freeze({ status: 'CAS_CONFLICT', sourceRevision: result.sourceRevision })
+      if (result.status === 'STAGED' && exactRevision &&
+        result.tree === R1_NEW_PROJECT_SEED.expectedTree && result.appOwnedPathCount === 0) {
+        return Object.freeze({
+          status: 'STAGED',
+          sourceRevision: R1_NEW_PROJECT_SEED.expectedSourceRevision,
+          tree: R1_NEW_PROJECT_SEED.expectedTree,
+          appOwnedPathCount: 0,
+        })
       }
-      if (result.status === 'STAGED' && 'sourceRevision' in result && 'tree' in result &&
-        result.sourceRevision === R1_NEW_PROJECT_SEED.expectedSourceRevision &&
-        result.tree === R1_NEW_PROJECT_SEED.expectedTree &&
-        'appOwnedPathCount' in result && result.appOwnedPathCount === 0) {
-        return Object.freeze({ status: 'STAGED', sourceRevision: result.sourceRevision, tree: result.tree, appOwnedPathCount: 0 })
-      }
-      if (result.status === 'REFUSED' && 'code' in result && (result.code === 'GIT_PROCESS_FAILED' || result.code === 'GIT_RESULT_REFUSED')) {
+      if (result.status === 'REFUSED' && (result.code === 'GIT_PROCESS_FAILED' || result.code === 'GIT_RESULT_REFUSED')) {
         return Object.freeze({ status: 'REFUSED', code: result.code })
       }
       return Object.freeze({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
@@ -743,52 +615,38 @@ export function createOciGitExecutionPort(
       }
 
       const containerName = `conexus-s3-${input.attemptId}`
-      let staged: ProcessResult
+      let staged: Awaited<ReturnType<OciGitExecution['runGitProgram']>>
       try {
-        const mounts = [
-          '--mount', `type=bind,src=${repositoryRoot},dst=/workspace/repository.git`,
-          '--mount', `type=bind,src=${requestPath},dst=/run/conexus/import.json,readonly`,
-          '--mount', `type=bind,src=${askpassPath},dst=/run/conexus/askpass,readonly`,
-          ...(credentialBytes ? ['--mount', `type=bind,src=${credentialPath},dst=/run/conexus/credential,readonly`] : []),
-          ...(caPath ? ['--mount', `type=bind,src=${caPath},dst=/run/conexus/ca.pem,readonly`] : []),
-        ]
-        staged = await runProcess(DOCKER_EXECUTABLE, Object.freeze([
-          ...HARDENED_NETWORK_RUN,
-          '--network', admission.entry.networkName,
-          '--name', containerName,
-          '--user', CONTAINER_USER,
-          ...mounts,
-          '--entrypoint', '/usr/local/bin/node',
-          R1C14_GIT_IDENTITY.ociIndexDigest,
-          '-e', EXISTING_STAGE_PROGRAM,
-        ]), admission.entry.timeoutMs)
-        if (!passed(staged)) {
-          await runProcess(DOCKER_EXECUTABLE, Object.freeze(['rm', '-f', containerName]))
-          return Object.freeze({ status: 'REFUSED', code: 'GIT_PROCESS_FAILED' })
-        }
+        staged = await oci.runGitProgram({
+          program: EXISTING_STAGE_PROGRAM,
+          networkName: admission.entry.networkName,
+          containerName,
+          timeoutMs: admission.entry.timeoutMs,
+          mounts: [
+            { source: repositoryRoot, target: '/workspace/repository.git' },
+            { source: requestPath, target: '/run/conexus/import.json', readonly: true },
+            { source: askpassPath, target: '/run/conexus/askpass', readonly: true },
+            ...(credentialBytes ? [{ source: credentialPath, target: '/run/conexus/credential', readonly: true }] : []),
+            ...(caPath ? [{ source: caPath, target: '/run/conexus/ca.pem', readonly: true }] : []),
+          ],
+        })
       } finally {
         credentialBytes?.fill(0)
         await Promise.all(temporaryPaths.map((path) => rm(path, { force: true })))
       }
-
-      let result: unknown
-      try {
-        result = JSON.parse(staged.stdout)
-      } catch {
-        return Object.freeze({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
+      if (staged.status !== 'COMPLETED') {
+        return Object.freeze({ status: 'REFUSED', code: staged.code === 'PROCESS_FAILED' ? 'GIT_PROCESS_FAILED' : staged.code === 'IMAGE_NOT_VERIFIED' ? 'IMAGE_NOT_VERIFIED' : 'GIT_RESULT_REFUSED' })
       }
-      if (!result || typeof result !== 'object' || !('status' in result)) {
-        return Object.freeze({ status: 'REFUSED', code: 'GIT_RESULT_REFUSED' })
-      }
+      const result = staged.verdict
       if ((result.status === 'STAGED' || result.status === 'CAS_CONFLICT') &&
-        'sourceRevision' in result && typeof result.sourceRevision === 'string' && /^[0-9a-f]{40}$/.test(result.sourceRevision) &&
-        'defaultRef' in result && result.defaultRef === admission.entry.defaultRef &&
-        'objectCount' in result && typeof result.objectCount === 'number' && result.objectCount <= admission.entry.maxObjectCount &&
-        'fetchedBytes' in result && typeof result.fetchedBytes === 'number' && result.fetchedBytes <= admission.entry.maxFetchedBytes) {
+        typeof result.sourceRevision === 'string' && /^[0-9a-f]{40}$/.test(result.sourceRevision) &&
+        result.defaultRef === admission.entry.defaultRef &&
+        typeof result.objectCount === 'number' && result.objectCount <= admission.entry.maxObjectCount &&
+        typeof result.fetchedBytes === 'number' && result.fetchedBytes <= admission.entry.maxFetchedBytes) {
         return Object.freeze({
           status: result.status,
           sourceRevision: result.sourceRevision,
-          defaultRef: result.defaultRef,
+          defaultRef: admission.entry.defaultRef,
           objectCount: result.objectCount,
           fetchedBytes: result.fetchedBytes,
         })

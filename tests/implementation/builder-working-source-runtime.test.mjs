@@ -9,12 +9,17 @@ const repositoryRoot = resolve(import.meta.dirname, '../..')
 const buildRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/working-source-build-'))
 const compiled = spawnSync(resolve(repositoryRoot, 'node_modules/.bin/esbuild'), [
   resolve(repositoryRoot, 'apps/hub/src/builder/source.ts'), resolve(repositoryRoot, 'apps/hub/src/builder/runtime.ts'),
-  `--outdir=${buildRoot}`, '--bundle', '--platform=node', '--format=esm', '--packages=external', '--log-level=error',
+  resolve(repositoryRoot, 'apps/hub/src/platform/oci-git.ts'),
+  resolve(repositoryRoot, 'apps/hub/src/generated/r1c14-git-identity.ts'),
+  `--outdir=${buildRoot}`, `--outbase=${resolve(repositoryRoot, 'apps/hub/src')}`,
+  '--bundle', '--platform=node', '--format=esm', '--packages=external', '--log-level=error',
 ], { cwd: repositoryRoot, encoding: 'utf8' })
 if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
 const built = (path) => pathToFileURL(resolve(buildRoot, path)).href
-const { createBuilderSourcePort } = await import(built('source.js'))
-const { classifyCodingResult } = await import(built('runtime.js'))
+const { createBuilderSourcePort } = await import(built('builder/source.js'))
+const { classifyCodingResult } = await import(built('builder/runtime.js'))
+const { createOciGitExecution } = await import(built('platform/oci-git.js'))
+const { R1C14_GIT_IDENTITY } = await import(built('generated/r1c14-git-identity.js'))
 
 test.after(() => rmSync(buildRoot, { recursive: true, force: true }))
 
@@ -114,19 +119,36 @@ const createResultBundle = (fixture, { branch, base, files, message, extraRefs =
   return { revision, bundlePath }
 }
 
+const completed = (stdout) => ({ exitCode: 0, signal: null, stdout, stderr: '', overflow: false, spawnError: false })
+
+// The three image-identity probes are answered from the pinned identity so the
+// suite exercises the shared container preamble without a real admitted image.
+const fakeOciRunner = (dockerPath) => (_executable, args, limits) => {
+  if (args[0] === 'image') return Promise.resolve(completed(`${R1C14_GIT_IDENTITY.ociIndexDigest}\n`))
+  if (args.at(-1) === '--version') return Promise.resolve(completed(`git version ${R1C14_GIT_IDENTITY.gitVersion}\n`))
+  if (!args.includes('--mount')) return Promise.resolve(completed(`${R1C14_GIT_IDENTITY.gitExecutableSha256}\n`))
+  const result = spawnSync(dockerPath, args, {
+    encoding: 'utf8',
+    maxBuffer: limits?.maxOutputBytes ?? 64 * 1024,
+    timeout: limits?.timeoutMs ?? 60_000,
+  })
+  return Promise.resolve({
+    exitCode: result.status,
+    signal: result.signal ?? null,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+    overflow: false,
+    spawnError: Boolean(result.error),
+  })
+}
+
 const withSourcePort = async (fixture, sourceOwnership, callback) => {
   const dockerBin = fakeDocker(fixture.root)
-  const oldPath = process.env.PATH
-  process.env.PATH = `${dockerBin}:${oldPath}`
-  try {
-    return await callback(createBuilderSourcePort({
-      git: { verifyAdmittedImage: async () => ({ status: 'VERIFIED' }), createProjectSourceBundle: async () => ({ status: 'BUNDLED' }) },
-      storageRoot: fixture.storageRoot,
-      sourceOwnership,
-    }))
-  } finally {
-    process.env.PATH = oldPath
-  }
+  return callback(createBuilderSourcePort({
+    git: createOciGitExecution(R1C14_GIT_IDENTITY, fakeOciRunner(resolve(dockerBin, 'docker'))),
+    storageRoot: fixture.storageRoot,
+    sourceOwnership,
+  }))
 }
 
 test('C-020 source custody continues exact A to B to C without moving main', async () => {
@@ -282,6 +304,43 @@ test('C-020 result admission refuses unsafe entries and source-ref collisions', 
         claimedResultSourceRevision: collision.revision, resultBundle: readFileSync(collision.bundlePath),
       }), /SOURCE_REF_COLLISION/)
       assert.equal(git(fixture.root, ['--git-dir', fixture.repository, 'rev-parse', `refs/conexus/sources/${collision.revision}`]), fixture.baseline)
+    })
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true })
+  }
+})
+
+test('C-020 the Hub re-read is the only authority for the result source revision', async () => {
+  const fixture = createSourceFixture()
+  try {
+    await withSourcePort(fixture, {}, async (port) => {
+      const honest = createResultBundle(fixture, {
+        branch: 'result-honest', base: fixture.baseline,
+        files: { 'app/index.ts': 'export const value = 1\n' }, message: 'honest result',
+      })
+      const wrong = createResultBundle(fixture, {
+        branch: 'result-other', base: fixture.baseline,
+        files: { 'app/index.ts': 'export const value = 2\n' }, message: 'other result',
+      })
+      assert.notEqual(honest.revision, wrong.revision)
+
+      // A sandbox that reports a revision other than the one the bundle carries
+      // must fail the run by name, never have its claim recorded.
+      await assert.rejects(port.admitSourceResult({
+        projectId, executionId, baseSourceRevision: fixture.baseline,
+        claimedResultSourceRevision: wrong.revision, resultBundle: readFileSync(honest.bundlePath),
+      }), /SANDBOX_REVISION_MISMATCH/)
+      assert.equal(git(fixture.root, ['--git-dir', fixture.repository, 'rev-parse', 'refs/heads/main']), fixture.baseline)
+      for (const revision of [honest.revision, wrong.revision]) {
+        const stored = spawnSync('git', ['--git-dir', fixture.repository, 'rev-parse', '--verify', `refs/conexus/sources/${revision}`], { encoding: 'utf8' })
+        assert.notEqual(stored.status, 0, `no source ref may exist for ${revision}`)
+      }
+
+      const admitted = await port.admitSourceResult({
+        projectId, executionId, baseSourceRevision: fixture.baseline,
+        claimedResultSourceRevision: honest.revision, resultBundle: readFileSync(honest.bundlePath),
+      })
+      assert.equal(admitted.resultSourceRevision, honest.revision)
     })
   } finally {
     rmSync(fixture.root, { recursive: true, force: true })
