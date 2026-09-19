@@ -22,8 +22,8 @@ export type BuilderRunSummary = Readonly<{
   modelProviderId?: string | null
   modelId?: string | null
   cancellationRequested?: boolean
-  claudeConnectionId?: string | null
-  claudeCredentialGeneration?: string | null
+  modelConnectionId?: string | null
+  modelCredentialGeneration?: string | null
 }>
 export type BuilderCodeChangingRun = Readonly<{
   builderRunId: string
@@ -39,7 +39,7 @@ export type BuilderWorkingPreviewSubject = BuilderPreviewSubject & Readonly<{
 }>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
-const claudeCredentialGeneration = (value: unknown): string | null => {
+const modelCredentialGeneration = (value: unknown): string | null => {
   if (value === null) return null
   if (typeof value === 'string' && /^[1-9]\d*$/.test(value)) return value
   if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return String(value)
@@ -47,8 +47,8 @@ const claudeCredentialGeneration = (value: unknown): string | null => {
   throw new Error('BUILDER_RUN_ROW_INVALID')
 }
 const toBuilderRunSummary = (row: BuilderRunSummary): BuilderRunSummary =>
-  'claudeCredentialGeneration' in row && row.claudeCredentialGeneration !== undefined
-    ? Object.freeze({ ...row, claudeCredentialGeneration: claudeCredentialGeneration(row.claudeCredentialGeneration) })
+  'modelCredentialGeneration' in row && row.modelCredentialGeneration !== undefined
+    ? Object.freeze({ ...row, modelCredentialGeneration: modelCredentialGeneration(row.modelCredentialGeneration) })
     : row
 
 export type BuilderStore = Readonly<{
@@ -89,8 +89,8 @@ export const createBuilderStore = ({
         [accountId, projectId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), null, mode, mintIdentity(), modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId],
       )
       : await ingressPool.query<JsonRow<BuilderRunSummary>>(
-        'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7) AS value',
-        [accountId, projectId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), null, mode, mintIdentity()],
+        'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8) AS value',
+        [accountId, projectId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), null, mode, mintIdentity(), null],
       )
     const value = result.rows[0]?.value
     if (!value) throw new Error('BUILDER_RUN_CREATE_FAILED')

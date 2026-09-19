@@ -7,7 +7,7 @@ export type OAuthTokenStore = Readonly<{
   getAccessToken(): Promise<string>
 }>
 
-export const createUnavailableOAuthTokenStore = (code = 'CLAUDE_CONNECTION_REQUIRED'): OAuthTokenStore => Object.freeze({
+export const createUnavailableOAuthTokenStore = (code = 'MODEL_CONNECTION_REQUIRED'): OAuthTokenStore => Object.freeze({
   validate: () => undefined,
   getAccessToken: async () => { throw new Error(code) },
 })

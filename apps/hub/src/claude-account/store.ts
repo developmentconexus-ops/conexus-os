@@ -4,6 +4,8 @@ import type { PostgresPool } from '../platform/postgres.js'
 import type { CredentialBackend } from '../platform/credential-backend.js'
 import type { OAuthTokenSet } from '../model-connection/anthropic-oauth.js'
 
+export const ANTHROPIC_PROVIDER_ID = 'anthropic'
+
 export type ClaudeCredentialReference = Readonly<{ connectionId: string; generation: string }>
 
 export type ClaudeConnectionProjection = Readonly<{ connectionId: string; label: string; state: 'ACTIVE' | 'REVOKED'; generation: string; ownerAccountId: string; workspaceId: string; role: 'OWNER' | 'USER'; revokedAt: string | null }>
@@ -16,7 +18,7 @@ export type ClaudeAccountStore = Readonly<{
   share(input: Readonly<{ accountId: string; connectionId: string; workspaceId: string }>): Promise<void>
   unshare(input: Readonly<{ accountId: string; connectionId: string; workspaceId: string }>): Promise<void>
   revoke(input: Readonly<{ accountId: string; connectionId: string }>): Promise<void>
-  admitForProject(input: Readonly<{ accountId: string; projectId: string }>): Promise<ClaudeCredentialReference>
+  admitForProject(input: Readonly<{ accountId: string; projectId: string; providerId?: string | null }>): Promise<ClaudeCredentialReference>
 }>
 
 const text = (value: unknown): string => typeof value === 'string' ? value : ''
@@ -34,7 +36,7 @@ const rowProjection = (row: QueryResultRow): ClaudeConnectionProjection => ({
 
 export const createClaudeAccountStore = ({ pool, credentialBackend }: Readonly<{ pool: PostgresPool; credentialBackend: CredentialBackend }>): ClaudeAccountStore => Object.freeze({
   startAuthorization: async ({ accountId, authorization }) => {
-    const ok = (await pool.query('SELECT claude_connection.start_authorization($1,$2,$3,$4,$5) AS value', [authorization.authorizationId, accountId, stateDigest(authorization.state), authorization.verifier, new Date(Date.now() + 10 * 60_000)])).rows[0]?.value
+    const ok = (await pool.query('SELECT model_connection.start_authorization($1,$2,$3,$4,$5) AS value', [authorization.authorizationId, accountId, stateDigest(authorization.state), authorization.verifier, new Date(Date.now() + 10 * 60_000)])).rows[0]?.value
     if (ok !== true) throw new Error('CLAUDE_AUTHORIZATION_REFUSED')
     return { authorizationId: authorization.authorizationId, url: authorization.url, state: authorization.state }
   },
@@ -42,7 +44,7 @@ export const createClaudeAccountStore = ({ pool, credentialBackend }: Readonly<{
     const separator = result.lastIndexOf('#')
     if (separator < 1) throw new Error('ANTHROPIC_OAUTH_AUTHORIZATION_RESULT_INVALID')
     const state = result.slice(separator + 1).trim()
-    const consumed = await pool.query<QueryResultRow & { authorization_id: string; pkce_verifier: string }>('SELECT * FROM claude_connection.consume_authorization($1,$2)', [accountId, stateDigest(state)])
+    const consumed = await pool.query<QueryResultRow & { authorization_id: string; pkce_verifier: string }>('SELECT * FROM model_connection.consume_authorization($1,$2)', [accountId, stateDigest(state)])
     const pending = consumed.rows[0]
     if (!pending) throw new Error('ANTHROPIC_OAUTH_STATE_INVALID')
     const code = parse(result, state)
@@ -53,33 +55,33 @@ export const createClaudeAccountStore = ({ pool, credentialBackend }: Readonly<{
       try {
         await credentialBackend.publishOrMatch({ connectionId, generation: '1' }, plaintext)
       } finally { plaintext.fill(0) }
-      const published = await pool.query('SELECT claude_connection.publish_connection($1,$2,$3,$4) AS value', [accountId, connectionId, label, 1])
-      if (published.rows[0]?.value !== true) throw new Error('CLAUDE_CONNECTION_PUBLISH_REFUSED')
-      if ((await pool.query('SELECT claude_connection.complete_authorization($1) AS value', [pending.authorization_id])).rows[0]?.value !== true) {
-        throw new Error('CLAUDE_AUTHORIZATION_SETTLEMENT_REFUSED')
+      const published = await pool.query('SELECT model_connection.publish_connection($1,$2,$3,$4,$5,$6) AS value', [accountId, connectionId, ANTHROPIC_PROVIDER_ID, 'OAUTH_TOKEN_SET', label, 1])
+      if (published.rows[0]?.value !== true) throw new Error('MODEL_CONNECTION_PUBLISH_REFUSED')
+      if ((await pool.query('SELECT model_connection.complete_authorization($1) AS value', [pending.authorization_id])).rows[0]?.value !== true) {
+        throw new Error('MODEL_AUTHORIZATION_SETTLEMENT_REFUSED')
       }
-      const listed = await pool.query('SELECT * FROM claude_connection.list_connections($1) WHERE connection_id = $2', [accountId, connectionId])
-      if (!listed.rows[0]) throw new Error('CLAUDE_CONNECTION_PUBLISH_REFUSED')
+      const listed = await pool.query('SELECT * FROM model_connection.list_connections($1) WHERE connection_id = $2', [accountId, connectionId])
+      if (!listed.rows[0]) throw new Error('MODEL_CONNECTION_PUBLISH_REFUSED')
       return rowProjection(listed.rows[0])
     } catch (error) {
-      await pool.query('SELECT claude_connection.fail_authorization($1) AS value', [pending.authorization_id]).catch(() => undefined)
+      await pool.query('SELECT model_connection.fail_authorization($1) AS value', [pending.authorization_id]).catch(() => undefined)
       throw error
     }
   },
-  list: async (accountId) => (await pool.query('SELECT * FROM claude_connection.list_connections($1)', [accountId])).rows.map(rowProjection),
-  select: async ({ accountId, connectionId }) => { if ((await pool.query('SELECT claude_connection.select_connection($1,$2) AS value', [accountId, connectionId])).rows[0]?.value !== true) throw new Error('CLAUDE_CONNECTION_SELECT_DENIED') },
+  list: async (accountId) => (await pool.query('SELECT * FROM model_connection.list_connections($1)', [accountId])).rows.map(rowProjection),
+  select: async ({ accountId, connectionId }) => { if ((await pool.query('SELECT model_connection.select_connection($1,$2) AS value', [accountId, connectionId])).rows[0]?.value !== true) throw new Error('MODEL_CONNECTION_SELECT_DENIED') },
   share: async ({ accountId, connectionId, workspaceId }) => {
-    const shared = await pool.query('SELECT claude_connection.share_connection($1,$2,$3) AS value', [accountId, connectionId, workspaceId]).catch(refuseNotAdmitted('CLAUDE_CONNECTION_SHARE_DENIED'))
-    if (shared.rows[0]?.value !== true) throw new Error('CLAUDE_CONNECTION_SHARE_DENIED')
+    const shared = await pool.query('SELECT model_connection.share_connection($1,$2,$3) AS value', [accountId, connectionId, workspaceId]).catch(refuseNotAdmitted('MODEL_CONNECTION_SHARE_DENIED'))
+    if (shared.rows[0]?.value !== true) throw new Error('MODEL_CONNECTION_SHARE_DENIED')
   },
   unshare: async ({ accountId, connectionId, workspaceId }) => {
-    const unshared = await pool.query('SELECT claude_connection.unshare_connection($1,$2,$3) AS value', [accountId, connectionId, workspaceId]).catch(refuseNotAdmitted('CLAUDE_CONNECTION_UNSHARE_DENIED'))
-    if (unshared.rows[0]?.value !== true) throw new Error('CLAUDE_CONNECTION_UNSHARE_DENIED')
+    const unshared = await pool.query('SELECT model_connection.unshare_connection($1,$2,$3) AS value', [accountId, connectionId, workspaceId]).catch(refuseNotAdmitted('MODEL_CONNECTION_UNSHARE_DENIED'))
+    if (unshared.rows[0]?.value !== true) throw new Error('MODEL_CONNECTION_UNSHARE_DENIED')
   },
-  revoke: async ({ accountId, connectionId }) => { if ((await pool.query('SELECT claude_connection.revoke_connection($1,$2) AS value', [accountId, connectionId])).rows[0]?.value !== true) throw new Error('CLAUDE_CONNECTION_REVOKE_DENIED') },
-  admitForProject: async ({ accountId, projectId }) => {
-    const row = (await pool.query<QueryResultRow & { connection_id: string; generation: string | number | bigint }>('SELECT * FROM claude_connection.admit_for_project($1,$2)', [accountId, projectId])).rows[0]
-    if (!row) throw new Error('CLAUDE_CONNECTION_REQUIRED')
+  revoke: async ({ accountId, connectionId }) => { if ((await pool.query('SELECT model_connection.revoke_connection($1,$2) AS value', [accountId, connectionId])).rows[0]?.value !== true) throw new Error('MODEL_CONNECTION_REVOKE_DENIED') },
+  admitForProject: async ({ accountId, projectId, providerId = null }) => {
+    const row = (await pool.query<QueryResultRow & { connection_id: string; generation: string | number | bigint }>('SELECT * FROM model_connection.admit_for_project($1,$2,$3)', [accountId, projectId, providerId])).rows[0]
+    if (!row) throw new Error('MODEL_CONNECTION_REQUIRED')
     return { connectionId: row.connection_id, generation: generation(row.generation) }
   },
 })

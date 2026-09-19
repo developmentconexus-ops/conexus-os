@@ -79,6 +79,7 @@ const currentNames = [
   '052_iam_membership_authority.sql',
   '053_iam_grant_surface_excision.sql',
   '054_iam_invitation_admission.sql',
+  '056_model_connection_provider_neutrality.sql',
 ]
 const names = (migrations) => migrations.map((migration) => migration.name)
 

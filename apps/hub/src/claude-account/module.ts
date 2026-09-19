@@ -40,9 +40,9 @@ export const createClaudeAccountModule = ({ database, passwordFile, credentialBa
       if (!tokenStore) {
         tokenStore = createBackendOAuthTokenStore(credentialBackend, reference, refreshAuthorizationToken, {
           resolveCurrent: async () => {
-            const result = await pool.query('SELECT claude_connection.read_current_generation($1) AS generation', [reference.connectionId])
+            const result = await pool.query('SELECT model_connection.read_current_generation($1) AS generation', [reference.connectionId])
             const value = result.rows[0]?.generation
-            if (value === null || value === undefined) throw new Error('CLAUDE_CONNECTION_REVOKED')
+            if (value === null || value === undefined) throw new Error('MODEL_CONNECTION_REVOKED')
             return { connectionId: reference.connectionId, generation: String(value) }
           },
           publishRefresh: async ({ current, next, tokens }) => {
@@ -52,7 +52,7 @@ export const createClaudeAccountModule = ({ database, passwordFile, credentialBa
               if (error instanceof Error && error.message === 'CREDENTIAL_GENERATION_CONFLICT') return false
               throw error
             } finally { plaintext.fill(0) }
-            const result = await pool.query('SELECT claude_connection.advance_generation($1,$2,$3) AS value', [current.connectionId, current.generation, next.generation])
+            const result = await pool.query('SELECT model_connection.advance_generation($1,$2,$3) AS value', [current.connectionId, current.generation, next.generation])
             return result.rows[0]?.value === true
           },
         })

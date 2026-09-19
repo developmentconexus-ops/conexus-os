@@ -274,7 +274,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
       content: { format: 2, parts: [{ type: 'text', text: `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}. Corrija a solicitação para tentar novamente.` }] },
     }] })
   }
-  const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts, ...(modelChoices ? { modelChoices } : {}), requiresClaudeConnection: true, appendDiagnostic })
+  const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts, ...(modelChoices ? { modelChoices } : {}), requiresModelConnection: true, appendDiagnostic })
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })

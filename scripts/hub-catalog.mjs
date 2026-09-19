@@ -136,6 +136,10 @@ export const assertRoleInvariants = async (client, appliedVersion = null) => {
   // the wrong ACL as the truth. 053 was written without them and both gates passed. The rule is
   // absolute: no allowlist, because every function the Hub calls is reached as a named login
   // role that holds an explicit grant.
+  // The model connection schema is listed under both its names on purpose. It is claude_connection
+  // at versions 053 and 054 and model_connection from 056, and a replay asserts this invariant at
+  // every one of those versions, so dropping the old name would stop covering the schema for the
+  // versions that still carry it.
   if (appliedVersion !== null && appliedVersion < PUBLIC_EXECUTE_INVARIANT_FROM) return
 
   const publicExecutable = (await client.query(`
@@ -143,7 +147,7 @@ export const assertRoleInvariants = async (client, appliedVersion = null) => {
     FROM pg_proc AS p
     JOIN pg_namespace AS n ON n.oid = p.pronamespace
     CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) AS entry
-    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'claude_connection')
+    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'claude_connection', 'model_connection')
       AND entry.grantee = 0
       AND entry.privilege_type = 'EXECUTE'
     ORDER BY 1
