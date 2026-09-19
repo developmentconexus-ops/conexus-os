@@ -86,6 +86,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('wire-openapi-lint', 'npm run wire:lint'),
   candidateStep('wire-openapi-bundle', 'npm run wire:bundle'),
   candidateStep('wire-bijection', 'npm run wire:bijection'),
+  candidateStep('wire-bijection-gate', 'node --test tests/repository/wire-bijection-gate.test.mjs'),
   candidateStep('wire-carriers', 'npm run wire:carriers'),
   candidateStep('wire-identity-workspace', 'npm run wire:identity-workspace'),
   candidateStep('wire-project', 'npm run wire:project'),

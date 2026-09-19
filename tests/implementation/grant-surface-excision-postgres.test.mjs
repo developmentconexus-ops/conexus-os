@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
+import { assertRoleInvariants } from '../../scripts/hub-catalog.mjs'
 import { loadCurrentHubMigrationFiles, runSelectedHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
@@ -328,6 +329,136 @@ test('a pilot-shaped ledger at 050 runs 051 to 054 in one invocation', async (t)
     assert.deepEqual((await query(connection, 'SELECT project_id FROM project.get_project($1,$2)', [accountId, projectId])).rows,
       [{ project_id: projectId }])
   }
+})
+
+test('no function in the Hub schemas is executable by PUBLIC', async (t) => {
+  const connection = await freshDatabase(t)
+  await runSelectedHubMigrations({
+    connectionString: connectionStringFor(connection),
+    migrations: loadCurrentHubMigrationFiles(),
+    catalogSnapshot: null,
+  })
+
+  // EXECUTE is the second fence: nothing below the Hub route binds the account id these
+  // SECURITY DEFINER bodies admit. CREATE FUNCTION grants EXECUTE to PUBLIC by default, so this
+  // enumerates the whole surface rather than the functions 053 happened to touch.
+  assert.deepEqual((await query(connection, `
+    SELECT n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' AS signature
+    FROM pg_proc AS p
+    JOIN pg_namespace AS n ON n.oid = p.pronamespace
+    CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) AS entry
+    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'claude_connection')
+      AND entry.grantee = 0 AND entry.privilege_type = 'EXECUTE'
+    ORDER BY 1
+  `)).rows, [])
+})
+
+test('each function 053 creates is reachable only by the login role its predecessor had', async (t) => {
+  const connection = await freshDatabase(t)
+  await runSelectedHubMigrations({
+    connectionString: connectionStringFor(connection),
+    migrations: loadCurrentHubMigrationFiles(),
+    catalogSnapshot: null,
+  })
+
+  const reachableBy = async (signature) => (await query(connection, `
+    SELECT r.rolname
+    FROM pg_roles AS r
+    WHERE r.rolname LIKE 'hub\\_%'
+      AND has_function_privilege(r.rolname, $1, 'EXECUTE')
+      AND has_schema_privilege(r.rolname, split_part($1, '.', 1), 'USAGE')
+    ORDER BY 1
+  `, [signature])).rows.map((row) => row.rolname)
+
+  assert.deepEqual(await reachableBy('project.list_project_summaries(uuid,uuid)'), ['hub_s3_read'])
+  assert.deepEqual(await reachableBy('project.get_project(uuid,uuid)'), ['hub_s3_read'])
+  assert.deepEqual(await reachableBy('workspace.create_workspace(uuid,text,uuid)'), ['hub_ws01_command'])
+  assert.deepEqual(await reachableBy('workspace.get_workspace_summary(uuid,uuid)'), ['hub_s2_read'])
+  assert.deepEqual(await reachableBy('claude_connection.share_connection(uuid,uuid,uuid)'),
+    ['hub_r2_connections', 'hub_rb_executor', 'hub_rb_ingress'])
+  assert.deepEqual(await reachableBy('claude_connection.unshare_connection(uuid,uuid,uuid)'),
+    ['hub_r2_connections', 'hub_rb_executor', 'hub_rb_ingress'])
+  assert.deepEqual(await reachableBy('builder.admit_source_revision(uuid,uuid,text)'), ['hub_rb_ingress'])
+  assert.deepEqual(await reachableBy('builder.read_preview_subject(uuid,uuid)'), ['hub_rb_ingress'])
+  assert.deepEqual(await reachableBy('iam.account_is_active(uuid)'), [])
+
+  // The two the verifier executed: the Workspace read role could create a Workspace and hand
+  // owner to any account id it named, and the Project command role could enumerate any account's
+  // Projects.
+  const workspaceId = await seedWorkspace(connection, { label: 'Fence' })
+  const accountId = await seedAccount(connection, { label: 'Fence' })
+  await seedMember(connection, accountId, workspaceId, 'owner')
+  const asRole = async (role, sql, parameters) => {
+    const client = new pg.Client(connection)
+    await client.connect()
+    try {
+      await client.query(`SET ROLE ${role}`)
+      await client.query(sql, parameters)
+      return { code: null, message: null }
+    } catch (error) {
+      return { code: error.code ?? null, message: error.message ?? null }
+    } finally {
+      await client.end()
+    }
+  }
+  for (const [role, sql, parameters] of [
+    ['hub_s2_read', 'SELECT workspace.create_workspace($1,$2,$3)', [randomUUID(), 'pwned-by-s2read', accountId]],
+    ['hub_prj03_command', 'SELECT * FROM project.list_project_summaries($1,$2)', [accountId, workspaceId]],
+  ]) {
+    const denied = await asRole(role, sql, parameters)
+    assert.equal(denied.code, '42501', `${role} reached ${sql}`)
+    assert.match(denied.message, /permission denied for function/)
+  }
+})
+
+test('the runner refuses a database where PUBLIC may execute a Hub function', async (t) => {
+  const connection = await freshDatabase(t)
+  await runSelectedHubMigrations({
+    connectionString: connectionStringFor(connection),
+    migrations: loadCurrentHubMigrationFiles(),
+    catalogSnapshot: null,
+  })
+
+  // Held open only for this body: the fixture's DROP DATABASE WITH (FORCE) would otherwise
+  // terminate it first and report a connection failure instead of the assertion.
+  const client = new pg.Client(connection)
+  await client.connect()
+  try {
+    await assertRoleInvariants(client, '053')
+    await client.query('GRANT EXECUTE ON FUNCTION project.get_project(uuid, uuid) TO PUBLIC')
+    await assert.rejects(assertRoleInvariants(client, '053'),
+      /MIGRATION_FUNCTION_PUBLIC_EXECUTE_REFUSED:project\.get_project\(p_account_id uuid, p_project_id uuid\)/)
+
+    // History still replays: the invariant belongs to the version that establishes it.
+    await assertRoleInvariants(client, '052')
+  } finally {
+    await client.end()
+  }
+})
+
+test('a connection needs no Workspace, but a deactivated account cannot mint one', async (t) => {
+  const connection = await freshDatabase(t)
+  await runSelectedHubMigrations({
+    connectionString: connectionStringFor(connection),
+    migrations: loadCurrentHubMigrationFiles(),
+    catalogSnapshot: null,
+  })
+
+  // Deliberate: the membership half of the guard publish_connection used to carry is gone,
+  // because a connection belongs to an account and needs no Workspace to exist. The orphan
+  // resolves nowhere, since resolution runs through the owner's visible Workspaces.
+  const unaffiliated = await seedAccount(connection, { label: 'Unaffiliated' })
+  const unaffiliatedConnection = randomUUID()
+  assert.equal((await query(connection, 'SELECT claude_connection.publish_connection($1,$2,$3,$4) AS value',
+    [unaffiliated, unaffiliatedConnection, 'No workspace', 1])).rows[0].value, true)
+  assert.deepEqual((await query(connection, 'SELECT connection_id FROM claude_connection.list_connections($1)', [unaffiliated])).rows, [])
+
+  // The account half is kept, so deactivation closes creation too.
+  const dormant = await seedAccount(connection, { label: 'Dormant', active: false })
+  assert.equal((await query(connection, 'SELECT claude_connection.publish_connection($1,$2,$3,$4) AS value',
+    [dormant, randomUUID(), 'Dormant key', 1])).rows[0].value, false)
+  assert.deepEqual((await query(connection, 'SELECT count(*)::int AS rows FROM claude_connection.connection WHERE owner_account_id = $1', [dormant])).rows,
+    [{ rows: 0 }])
 })
 
 test('the migration refuses a grant whose account holds no membership', async (t) => {
