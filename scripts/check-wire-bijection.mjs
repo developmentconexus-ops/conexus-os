@@ -59,12 +59,18 @@ const leafDefinedOperations = () => {
   return operations;
 };
 
+// The census ends at the next top-level heading, whatever it is. Naming one particular
+// successor heading tied this gate to a section that has since been deleted, and a rename
+// there would have failed the gate for a reason that has nothing to do with the wire.
 const ledger = fs.readFileSync(ledgerPath, 'utf8');
-const sectionStart = ledger.indexOf('# 5. Current fixed Product census');
-const sectionEnd = ledger.indexOf('\n# 5A. Broader retained historical/platform ledger');
-if (sectionStart < 0 || sectionEnd < 0) {
+const censusHeading = /^# \d+[A-Z]?\. Current fixed Product census\s*$/m.exec(ledger);
+if (!censusHeading) {
   throw new Error('unable to locate fixed-platform census in operation ledger');
 }
+const sectionStart = censusHeading.index;
+const afterHeading = ledger.indexOf('\n', sectionStart);
+const nextHeading = ledger.indexOf('\n# ', afterHeading);
+const sectionEnd = nextHeading < 0 ? ledger.length : nextHeading;
 
 const fixedSection = ledger.slice(sectionStart, sectionEnd);
 

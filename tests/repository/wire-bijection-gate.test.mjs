@@ -160,6 +160,33 @@ test('a census row the gate cannot parse fails instead of being dropped', (t) =>
   assert.match(result.stderr, /unparsable 4A census row in operation ledger: \| `CLA-X`/)
 })
 
+test('the census is found under any section number and ends at the next top-level heading', (t) => {
+  // The gate used to hardcode "# 5." and the exact heading of the section that followed it.
+  // Renumbering the ledger, or deleting that successor section, broke the gate for a reason
+  // that has nothing to do with the wire. The census is located by name now, and a row under
+  // a later heading must stay outside it.
+  const fixture = buildFixture(t, {
+    rows: [censusRow('CLA-01', 'ShareThing')],
+    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'CLA-01')],
+    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'CLA-01' }],
+  })
+  writeFileSync(resolve(fixture.root, 'docs/product/operation-ledger.md'), `# Ledger
+
+# 3. Current fixed Product census
+
+| ID | Operation | Owner | Consumer / authority root | Class |
+| --- | --- | --- | --- | --- |
+${censusRow('CLA-01', 'ShareThing')}
+
+# 4. What is not an operation
+
+${censusRow('CLA-02', 'NotCounted')}
+`)
+  const result = runGate(fixture)
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stdout, /bijection passed \(1 fixed Product operations/)
+})
+
 test('a leaf contract file the scanner cannot read fails instead of reporting nothing', (t) => {
   const fixture = buildFixture(t, {
     rows: [censusRow('CLA-01', 'ShareThing')],
