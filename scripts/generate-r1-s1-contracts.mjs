@@ -41,7 +41,7 @@ try {
         if (responseSchema) responses[status] = responseSchema
       }
       if (Object.keys(responses).length) schema.response = responses
-      definitions.push({ ownerId: operation['x-conexus-4a-id'], operationId: operation.operationId, method: method.toUpperCase(), url: path, schema })
+      definitions.push({ ownerId: operation['x-conexus-4a-id'], operationId: operation.operationId, method: method.toUpperCase(), path, url: toFastifyUrl(path), schema })
     }
   }
   definitions.sort((a, b) => a.ownerId.localeCompare(b.ownerId, 'en'))
@@ -49,7 +49,7 @@ try {
   const canonicalOperations = JSON.parse(readFileSync(operationSource, 'utf8')).operations
   for (const definition of definitions) {
     const operation = canonicalOperations.find((candidate) => candidate.ownerId === definition.ownerId)
-    if (!operation || operation.operationId !== definition.operationId || operation.method !== definition.method || operation.path !== definition.url) {
+    if (!operation || operation.operationId !== definition.operationId || operation.method !== definition.method || operation.path !== definition.path) {
       throw new Error(`S1_G0_ROUTE_MISMATCH_${definition.ownerId}`)
     }
   }
@@ -73,7 +73,7 @@ try {
     `export type WorkspaceParams = ${JSON.stringify({ workspaceId: 'string' }).replaceAll('"', '')}`,
     `export type MemberParams = ${JSON.stringify({ workspaceId: 'string', accountId: 'string' }).replaceAll('"', '')}`,
     `export type RosterEntryParams = ${JSON.stringify({ workspaceId: 'string', entryKind: 'string', entryId: 'string' }).replaceAll('"', '')}`,
-    "export type S1RouteDefinition = Readonly<{ ownerId: S1OwnerId; operationId: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE'; url: string; schema: FastifySchema }>",
+    "export type S1RouteDefinition = Readonly<{ ownerId: S1OwnerId; operationId: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE'; path: string; url: string; schema: FastifySchema }>",
     `export const S1_GENERATED_ROUTES = Object.freeze(Object.fromEntries(${JSON.stringify(definitions)}.map((definition) => [definition.ownerId, Object.freeze(definition)])) as Record<S1OwnerId, S1RouteDefinition>)`,
     '',
   ].join('\n')
@@ -96,10 +96,10 @@ try {
     `  getAccessContext: () => request(${JSON.stringify(byId.get('IAM-01').url)}),`,
     `  provisionAccount: (body: ProvisionAccountInput, idempotencyKey: string) => request(${JSON.stringify(byId.get('IAM-03').url)}, { method: ${JSON.stringify(byId.get('IAM-03').method)}, headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey }, body: JSON.stringify(body) }),`,
     `  endSession: () => request(${JSON.stringify(byId.get('IAM-02').url)}, { method: ${JSON.stringify(byId.get('IAM-02').method)} }),`,
-    `  listWorkspaceMembers: (workspaceId: string) => request(${templateUrl(byId.get('IAM-04').url)}),`,
-    `  inviteWorkspaceMember: (workspaceId: string, body: InviteWorkspaceMemberInput) => request(${templateUrl(byId.get('IAM-05').url)}, { method: ${JSON.stringify(byId.get('IAM-05').method)}, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),`,
-    `  setWorkspaceMemberRole: (workspaceId: string, accountId: string, body: SetWorkspaceMemberRoleInput) => request(${templateUrl(byId.get('IAM-10').url)}, { method: ${JSON.stringify(byId.get('IAM-10').method)}, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),`,
-    `  removeWorkspaceRosterEntry: (workspaceId: string, entryKind: 'member' | 'invitation', entryId: string) => request(${templateUrl(byId.get('IAM-06').url)}, { method: ${JSON.stringify(byId.get('IAM-06').method)} }),`,
+    `  listWorkspaceMembers: (workspaceId: string) => request(${templateUrl(byId.get('IAM-04').path)}),`,
+    `  inviteWorkspaceMember: (workspaceId: string, body: InviteWorkspaceMemberInput) => request(${templateUrl(byId.get('IAM-05').path)}, { method: ${JSON.stringify(byId.get('IAM-05').method)}, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),`,
+    `  setWorkspaceMemberRole: (workspaceId: string, accountId: string, body: SetWorkspaceMemberRoleInput) => request(${templateUrl(byId.get('IAM-10').path)}, { method: ${JSON.stringify(byId.get('IAM-10').method)}, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),`,
+    `  removeWorkspaceRosterEntry: (workspaceId: string, entryKind: 'member' | 'invitation', entryId: string) => request(${templateUrl(byId.get('IAM-06').path)}, { method: ${JSON.stringify(byId.get('IAM-06').method)} }),`,
     '})',
     '',
   ].join('\n')
@@ -110,9 +110,11 @@ try {
   rmSync(temporary, { recursive: true, force: true })
 }
 
-function templateUrl(url) {
-  return `\`${url.replaceAll(/\{(\w+)\}/g, (_match, name) => `\${encodeURIComponent(${name})}`)}\``
+function templateUrl(path) {
+  return `\`${path.replaceAll(/\{(\w+)\}/g, (_match, name) => `\${encodeURIComponent(${name})}`)}\``
 }
+
+function toFastifyUrl(path) { return path.replace(/\{([^}]+)\}/g, ':$1') }
 
 function toTypeScript(schema) {
   if (schema.oneOf) return schema.oneOf.map(toTypeScript).join(' | ')

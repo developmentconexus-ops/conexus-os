@@ -1,5 +1,5 @@
 // GENERATED from exact admitted Conexus R1 wire authority. Do not edit.
-export const R1_WIRE_DIGEST = "419335de73ffb47bf95663984ab26ce3221929c3e03ded1db9d4b83351959d5a"
+export const R1_WIRE_DIGEST = "dd6151e40ec4098f5d22ef999d25c22610030427b63e37e33c4250408f277d20"
 export const R1_OPERATIONS = Object.freeze([
   Object.freeze({"ownerId":"IAM-01","operationId":"GetControlPlaneAccessContext","owner":"I&A","method":"GET","path":"/api/control/access-context","permission":"authenticated-session","currentStateCarrier":"NONE","sourceRef":"identity-workspace-paths.yaml#/paths/~1api~1control~1access-context/get"}),
   Object.freeze({"ownerId":"IAM-02","operationId":"EndSession","owner":"I&A","method":"DELETE","path":"/api/session","permission":"authenticated-session","currentStateCarrier":"OWNER_CURRENT","sourceRef":"identity-workspace-paths.yaml#/paths/~1api~1session/delete"}),

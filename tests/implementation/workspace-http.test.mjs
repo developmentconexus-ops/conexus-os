@@ -147,16 +147,11 @@ test('generated WS-01/02 routes enforce operator creation and membership-shaped 
   assert.equal(hidden.statusCode, 404)
 })
 
-test('WS-01 refuses unauthenticated, non-operator, authenticity failures and caller-selected authority', async (t) => {
+test('WS-01 refuses unauthenticated, authenticity failures and caller-selected authority', async (t) => {
   const unauthenticated = await buildRoutes({ current: null })
   t.after(() => unauthenticated.app.close())
   const noSession = await unauthenticated.app.inject({ method: 'POST', url: '/api/control/workspaces', headers: authenticHeaders, payload: { name: 'Operations' } })
   assert.equal(noSession.statusCode, 401)
-
-  const member = await buildRoutes({ current: MEMBER })
-  t.after(() => member.app.close())
-  const notOperator = await member.app.inject({ method: 'POST', url: '/api/control/workspaces', headers: authenticHeaders, payload: { name: 'Operations' } })
-  assert.equal(notOperator.statusCode, 403)
 
   const operator = await buildRoutes()
   t.after(() => operator.app.close())
@@ -165,6 +160,14 @@ test('WS-01 refuses unauthenticated, non-operator, authenticity failures and cal
   const callerSelectedCreator = await operator.app.inject({ method: 'POST', url: '/api/control/workspaces', headers: authenticHeaders, payload: { name: 'Operations', creatorAccountId: MEMBER.account.accountId } })
   assert.equal(callerSelectedCreator.statusCode, 400)
   assert.equal(operator.calls.length, 0)
+})
+
+test('WS-01 admits any authenticated Account, who becomes the Workspace owner', async (t) => {
+  const member = await buildRoutes({ current: MEMBER })
+  t.after(() => member.app.close())
+  const created = await member.app.inject({ method: 'POST', url: '/api/control/workspaces', headers: authenticHeaders, payload: { name: 'Operations' } })
+  assert.equal(created.statusCode, 201)
+  assert.equal(member.calls[0][1].accountId, MEMBER.account.accountId)
 })
 
 test('WS-01 maps changed-request/outcome conflicts to 409 without leaking internals', async (t) => {
