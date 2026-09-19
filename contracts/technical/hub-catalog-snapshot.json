@@ -1,6 +1,6 @@
 {
  "format": 1,
- "head": "056",
+ "head": "057",
  "digests": {
   "001": "97fc583195e157393415f3c7cc99804b7e01b87f1ecd3d798f7dc27039516966",
   "002": "3de606973fa521c51d2e6dddae7365f0caf5ed9b77bb8989d0a5673d46d765f1",
@@ -54,7 +54,8 @@
   "052": "663a29fd0cd1e9edd3d9fc6b7dfa3b62385d659d0fbd47791ae2dc7a0e2a2f91",
   "053": "ed50fc20e0cc43ef709888799f8328c9c1535c6873b6f8d5238b48e068a4f86e",
   "054": "32ef02b5467179ff7f053a76313ea664f1d02f18f2f89749d897a34d1d63bf6f",
-  "056": "b0518493ab4208f9c5010d3b467410732c9bc83e27db3de373ba3b4f357682a5"
+  "056": "b0518493ab4208f9c5010d3b467410732c9bc83e27db3de373ba3b4f357682a5",
+  "057": "82f987210aeb1c40d5ba67963bf42301a5d77e669b8584cff0bc00ef799f5540"
  },
  "catalog": {
   "schema": [
@@ -699,6 +700,7 @@
    "function model_connection.fail_authorization(p_authorization_id uuid) returns boolean kind=f owner=claude_connection_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,claude_connection_owner:EXECUTE:false,hub_r2_connections:EXECUTE:false,hub_rb_executor:EXECUTE:false,hub_rb_ingress:EXECUTE:false body=497654b548a246f977ad2b38a8e700bb",
    "function model_connection.list_connections(p_account_id uuid) returns TABLE(connection_id uuid, label text, state text, current_generation bigint, owner_account_id uuid, workspace_id uuid, role text, revoked_at timestamp with time zone, provider_id text, credential_kind text) kind=f owner=claude_connection_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,claude_connection_owner:EXECUTE:false,hub_r2_connections:EXECUTE:false,hub_rb_executor:EXECUTE:false,hub_rb_ingress:EXECUTE:false body=45c572eeb6acafe3bd26ad458bf02450",
    "function model_connection.publish_connection(p_account_id uuid, p_connection_id uuid, p_provider_id text, p_credential_kind text, p_label text, p_generation bigint) returns boolean kind=f owner=claude_connection_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,claude_connection_owner:EXECUTE:false,hub_r2_connections:EXECUTE:false,hub_rb_executor:EXECUTE:false,hub_rb_ingress:EXECUTE:false body=61789a9852b56464c006123b1a085d81",
+   "function model_connection.read_connection_credential(p_connection_id uuid) returns TABLE(provider_id text, credential_kind text, current_generation bigint) kind=f owner=claude_connection_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,claude_connection_owner:EXECUTE:false,hub_r2_connections:EXECUTE:false,hub_rb_executor:EXECUTE:false,hub_rb_ingress:EXECUTE:false body=58aeebd5231fcdad2bf323146914e73d",
    "function model_connection.read_current_generation(p_connection_id uuid) returns bigint kind=f owner=claude_connection_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,claude_connection_owner:EXECUTE:false,hub_r2_connections:EXECUTE:false,hub_rb_executor:EXECUTE:false,hub_rb_ingress:EXECUTE:false body=ad6796d38289811baf6f1e10016ffd15",
    "function model_connection.revoke_connection(p_account_id uuid, p_connection_id uuid) returns boolean kind=f owner=claude_connection_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,claude_connection_owner:EXECUTE:false,hub_r2_connections:EXECUTE:false,hub_rb_executor:EXECUTE:false,hub_rb_ingress:EXECUTE:false body=ec4190a45003eb9d69e39da0a0d59224",
    "function model_connection.select_connection(p_account_id uuid, p_connection_id uuid) returns boolean kind=f owner=claude_connection_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,claude_connection_owner:EXECUTE:false,hub_r2_connections:EXECUTE:false,hub_rb_executor:EXECUTE:false,hub_rb_ingress:EXECUTE:false body=5efab79a879cdb22fca07fe78d17bf40",

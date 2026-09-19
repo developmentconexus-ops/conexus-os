@@ -37,7 +37,6 @@ const writeModelCatalog = (root, entry = {}) => {
       admissionId: BUILDER_ADMISSION_ID,
       providerKey: 'anthropic',
       modelId: BUILDER_MODEL_ID,
-      officialHttpsOrigin: 'https://api.anthropic.com',
       capabilitySet: ['BUILDER_CODING'],
       enabled: true,
       ...entry,

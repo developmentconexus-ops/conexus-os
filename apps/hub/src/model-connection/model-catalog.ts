@@ -20,14 +20,26 @@ export type ResolvedModelAdmission = Readonly<{
 
 export type ModelCapability = 'BUILDER_CODING' | 'BUILDER_VERIFICATION'
 
+// The two shapes a resolved model takes. Anthropic with an OAuth token set is a provider
+// instance, because a bounded egress fetch, the beta headers and the system-prompt identity
+// rewrite cannot ride a config object. An API key for any provider is Mastra's own config, which
+// the model router turns into that provider's client. It lives here because both the Builder and
+// the connection custody module name it, and neither may reach into the other.
+export type ResolvedBuilderModel = MastraLanguageModel | Readonly<{ id: `${string}/${string}`; apiKey: string }>
+
 type ModelAdmissionCatalogEntry = Readonly<{
   admissionId: string
   providerKey: string
   modelId: string
-  officialHttpsOrigin: string
   capabilitySet: readonly ModelCapability[]
   enabled: boolean
 }>
+
+// officialHttpsOrigin fed a gate that refused any origin but Anthropic's. The gate is gone, so
+// the field is gone with it. It is named in its own refusal rather than ignored: an operator who
+// still carries it believes it is pinning egress, and silently dropping a control someone thinks
+// they have is worse than refusing to start.
+const REMOVED_ENTRY_FIELDS = Object.freeze(['officialHttpsOrigin'])
 
 export type ModelChoice = Readonly<{
   choiceId: string
@@ -49,18 +61,19 @@ const readModelAdmissionCatalog = (catalogFile: string): readonly ModelAdmission
   return Object.freeze(catalog.entries.map((value): ModelAdmissionCatalogEntry => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('PROJECT_MODEL_CATALOG_REFUSED')
     const entry = value as Record<string, unknown>
+    const removed = REMOVED_ENTRY_FIELDS.filter((field) => field in entry)
+    if (removed.length > 0) throw new Error(`PROJECT_MODEL_CATALOG_FIELD_REMOVED:${removed.join(',')}`)
     const keys = Object.keys(entry).sort().join(',')
     const capabilities = entry.capabilitySet
     const provider = typeof entry.providerKey === 'string'
       ? PROVIDER_REGISTRY[entry.providerKey as keyof typeof PROVIDER_REGISTRY]
       : undefined
-    if (keys !== 'admissionId,capabilitySet,enabled,modelId,officialHttpsOrigin,providerKey' ||
+    if (keys !== 'admissionId,capabilitySet,enabled,modelId,providerKey' ||
       typeof entry.admissionId !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(entry.admissionId) ||
       identities.has(entry.admissionId) || typeof entry.providerKey !== 'string' ||
       !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(entry.providerKey) ||
       typeof entry.modelId !== 'string' || !entry.modelId || /latest|\*/i.test(entry.modelId) ||
       !provider || !provider.models.includes(entry.modelId) ||
-      typeof entry.officialHttpsOrigin !== 'string' || !entry.officialHttpsOrigin.startsWith('https://') ||
       !Array.isArray(capabilities) || capabilities.length < 1 || capabilities.length > admittedCapabilities.size ||
       capabilities.some((item) => typeof item !== 'string' || !admittedCapabilities.has(item as ModelCapability)) ||
       new Set(capabilities).size !== capabilities.length || typeof entry.enabled !== 'boolean') {
@@ -71,7 +84,6 @@ const readModelAdmissionCatalog = (catalogFile: string): readonly ModelAdmission
       admissionId: entry.admissionId,
       providerKey: entry.providerKey,
       modelId: entry.modelId,
-      officialHttpsOrigin: entry.officialHttpsOrigin,
       capabilitySet: Object.freeze([...capabilities]) as readonly ModelCapability[],
       enabled: entry.enabled,
     }) as ModelAdmissionCatalogEntry
@@ -111,9 +123,9 @@ export const resolveModelAdmission = ({
     requiredCapabilities.some((capability) => !selected.capabilitySet.includes(capability))) {
     throw new Error('PROJECT_MODEL_ADMISSION_UNAVAILABLE')
   }
-  if (selected.providerKey !== 'anthropic' || selected.officialHttpsOrigin !== 'https://api.anthropic.com') {
-    throw new Error('PROJECT_MODEL_PROVIDER_UNSUPPORTED')
-  }
+  // The boot-time model is the sentinel the Builder falls back to when no credential was admitted
+  // at all. It can only refuse, so it is built on Anthropic's shape whatever the entry names; the
+  // model that actually runs is resolved per request from the connection's own credential.
   const tokenStore = createUnavailableOAuthTokenStore()
   tokenStore.validate()
   return Object.freeze({

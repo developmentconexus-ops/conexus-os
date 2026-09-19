@@ -9,13 +9,13 @@ import type { ClaudeCredentialReference } from './store.js'
 export type { ClaudeCredentialReference } from './store.js'
 import { createBackendOAuthTokenStore } from '../model-connection/oauth-token-store.js'
 import { createAnthropicOAuthModel } from '../model-connection/anthropic-oauth-provider.js'
-import type { MastraLanguageModel } from '@mastra/core/agent'
+import type { ResolvedBuilderModel } from '../model-connection/model-catalog.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 
 export type ClaudeAccountModule = Readonly<{
   registerRoutes(app: FastifyInstance): Promise<readonly string[]>
   resolveForBuilder(input: Readonly<{ accountId: string; projectId: string }>): Promise<ClaudeCredentialReference>
-  createModel(reference: ClaudeCredentialReference, modelId?: string): MastraLanguageModel
+  createModel(reference: ClaudeCredentialReference, modelId?: string): Promise<ResolvedBuilderModel>
   close(): Promise<void>
 }>
 
@@ -35,7 +35,23 @@ export const createClaudeAccountModule = ({ database, passwordFile, credentialBa
   return Object.freeze({
     registerRoutes: (app: FastifyInstance) => registerClaudeAccountRoutes(app, { store, origin, resolveCurrentSession, createAuthorizationRequest, parseAuthorizationResult, exchangeAuthorizationCode, ...(fetchImpl ? { fetchImpl } : {}) }),
     resolveForBuilder: (input) => store.admitForProject(input),
-    createModel: (reference, modelId) => {
+    createModel: async (reference, modelId) => {
+      const credential = (await pool.query<{ provider_id: string; credential_kind: string }>(
+        'SELECT provider_id, credential_kind FROM model_connection.read_connection_credential($1)',
+        [reference.connectionId])).rows[0]
+      if (!credential) throw new Error('MODEL_CONNECTION_REVOKED')
+      if (credential.credential_kind === 'API_KEY') {
+        if (!modelId) throw new Error('MODEL_CONNECTION_MODEL_REQUIRED')
+        // Decrypted at call time and handed straight to the router. It is never written to the
+        // RequestContext, the run row, a span, a log or a problem response.
+        const plaintext = await credentialBackend.materialize(reference)
+        try {
+          return Object.freeze({
+            id: `${credential.provider_id}/${modelId}` as `${string}/${string}`,
+            apiKey: Buffer.from(plaintext).toString('utf8'),
+          })
+        } finally { plaintext.fill(0) }
+      }
       let tokenStore = tokenStores.get(reference.connectionId)
       if (!tokenStore) {
         tokenStore = createBackendOAuthTokenStore(credentialBackend, reference, refreshAuthorizationToken, {

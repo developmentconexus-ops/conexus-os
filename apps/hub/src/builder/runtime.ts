@@ -7,6 +7,7 @@ import { Workspace } from '@mastra/core/workspace'
 import { E2BSandbox } from '@mastra/e2b'
 import { Sandbox } from 'e2b'
 import { materializeFixedApplicationStarter } from './application-starter.js'
+import type { ResolvedBuilderModel } from '../model-connection/model-catalog.js'
 
 type CodingWorkerCommonInput = Readonly<{
   projectId: string
@@ -68,7 +69,7 @@ export type E2BBuilderRuntimeConfig = Readonly<{
   model: MastraLanguageModel
   modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   validateModelCredential(): void
-  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => MastraLanguageModel
+  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => Promise<ResolvedBuilderModel>
   sharedHarness: Readonly<{
     controller: AgentController<Record<string, unknown>>
     ready: Promise<void>
