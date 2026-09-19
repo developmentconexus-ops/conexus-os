@@ -15,6 +15,34 @@ import {
 
 export type SettingsWorkspace = Readonly<{ workspaceId: string; name: string }>
 
+// One row per sign-in the Hub offers. What the user pastes differs because the providers differ:
+// Anthropic hosts a page that prints code#state, and OpenAI redirects to a port on the user's own
+// machine that nothing is listening on, so the browser shows an error page and the address bar is
+// where the result actually is. Saying that up front is the difference between a confusing failure
+// and an expected step.
+const OAUTH_SIGN_INS = [
+  {
+    providerId: 'anthropic',
+    button: 'Conectar conta Anthropic',
+    defaultLabel: 'Minha conta Anthropic',
+    resultLabel: 'Resultado da autorização',
+    placeholder: 'code#state',
+    pattern: '[^#]+#[^#]+',
+    title: 'Use o formato code#state',
+    started: 'Autorização aberta em uma nova aba. Cole aqui o resultado code#state quando terminar.',
+  },
+  {
+    providerId: 'openai-codex',
+    button: 'Entrar com ChatGPT',
+    defaultLabel: 'Minha conta ChatGPT',
+    resultLabel: 'URL de redirecionamento',
+    placeholder: 'http://localhost:1455/auth/callback?code=…&state=…',
+    pattern: 'http://localhost:1455/auth/callback\\?.+',
+    title: 'Cole a URL inteira que ficou na barra de endereços',
+    started: 'Autorização aberta em uma nova aba. Ao final o navegador vai parar em uma página que não carrega: isso é esperado. Copie a URL inteira da barra de endereços e cole aqui.',
+  },
+] as const
+
 // The list never carries the owner's name, only their Account id, so a connection someone
 // else shared is named by the Workspace it came through rather than by a person.
 const ownership = (
@@ -28,9 +56,9 @@ const ownership = (
 }
 
 const safeMessage = (error: unknown) => {
-  if (error instanceof ModelConnectionRequestError && error.problemType === 'urn:conexus:problem:model-authorization-rejected') return 'O provedor recusou essa autorização. Inicie uma nova conexão e cole um novo code#state.'
+  if (error instanceof ModelConnectionRequestError && error.problemType === 'urn:conexus:problem:model-authorization-rejected') return 'O provedor recusou essa autorização. Inicie uma nova conexão e cole um novo resultado.'
   if (error instanceof ModelConnectionRequestError && error.problemType === 'urn:conexus:problem:model-connection-publish-failed') return 'A autorização foi aceita, mas o Hub não conseguiu publicar a conexão. Tente novamente.'
-  if (error instanceof ModelConnectionRequestError && error.status === 422) return 'O resultado de autorização não foi aceito. Confira o formato code#state e inicie uma nova conexão.'
+  if (error instanceof ModelConnectionRequestError && error.status === 422) return 'O resultado de autorização não foi aceito. Confira o formato pedido e inicie uma nova conexão.'
   return 'Não foi possível concluir essa operação. Tente novamente.'
 }
 
@@ -44,7 +72,9 @@ export function ModelConnectionSettings({
   const queryClient = useQueryClient()
   const connections = useQuery({ queryKey: modelConnectionsQueryKey, queryFn: listModelConnections })
   const [authorizationResult, setAuthorizationResult] = useState('')
-  const [label, setLabel] = useState('Minha conta Anthropic')
+  const [signInProviderId, setSignInProviderId] = useState<string>(OAUTH_SIGN_INS[0].providerId)
+  const signIn = OAUTH_SIGN_INS.find((candidate) => candidate.providerId === signInProviderId) ?? OAUTH_SIGN_INS[0]
+  const [label, setLabel] = useState<string>(OAUTH_SIGN_INS[0].defaultLabel)
   // The picker offers only what the operator's model catalog enables, so a member cannot file a
   // key under a provider this deployment will never run.
   const providers = useMemo(() => connections.data?.providers ?? [], [connections.data])
@@ -55,7 +85,15 @@ export function ModelConnectionSettings({
   const [shareConnectionId, setShareConnectionId] = useState('')
   const [shareWorkspaceId, setShareWorkspaceId] = useState(workspaces[0]?.workspaceId ?? '')
   const [message, setMessage] = useState<string | null>(null)
-  const start = useMutation({ mutationFn: startModelAuthorization, onSuccess: ({ url }) => { window.open(url, '_blank', 'noopener,noreferrer'); setMessage('Autorização aberta em uma nova aba. Cole aqui o resultado code#state quando terminar.') }, onError: (error) => setMessage(safeMessage(error)) })
+  // The message comes from the provider this mutation ran for, not from the current selection: the
+  // state that records the selection has not been applied yet when the mutation starts.
+  const start = useMutation({ mutationFn: startModelAuthorization, onSuccess: ({ url }, providerId) => { window.open(url, '_blank', 'noopener,noreferrer'); setMessage(OAUTH_SIGN_INS.find((candidate) => candidate.providerId === providerId)?.started ?? '') }, onError: (error) => setMessage(safeMessage(error)) })
+  const beginSignIn = (provider: (typeof OAUTH_SIGN_INS)[number]) => {
+    setSignInProviderId(provider.providerId)
+    setAuthorizationResult('')
+    if (OAUTH_SIGN_INS.some((candidate) => candidate.defaultLabel === label)) setLabel(provider.defaultLabel)
+    start.mutate(provider.providerId)
+  }
   const complete = useMutation({ mutationFn: completeModelAuthorization, onSuccess: async () => { setAuthorizationResult(''); await queryClient.invalidateQueries({ queryKey: modelConnectionsQueryKey }); setMessage('Conexão de modelo criada com segurança.') }, onError: (error) => setMessage(safeMessage(error)) })
   const select = useMutation({ mutationFn: selectModelConnection, onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: modelConnectionsQueryKey }); setMessage('Conexão selecionada para novos BuilderRuns.') }, onError: (error) => setMessage(safeMessage(error)) })
   const share = useMutation({ mutationFn: shareModelConnection, onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: modelConnectionsQueryKey }); setShareConnectionId(''); setMessage('Conexão compartilhada com o Workspace. Quem for membro dele pode usá-la nos próprios runs.') }, onError: (error) => setMessage(safeMessage(error)) })
@@ -67,11 +105,11 @@ export function ModelConnectionSettings({
   if (connections.isError) return <section className="settings-card"><h2>Conexões de modelo</h2><p role="alert">Não foi possível consultar suas conexões de modelo.</p><button type="button" onClick={() => void connections.refetch()}>Tentar novamente</button></section>
 
   return <section className="settings-card">
-    <div className="page-heading"><div><p className="eyebrow">Credencial do Builder</p><h2>Conexões de modelo</h2></div><button type="button" onClick={() => start.mutate()} disabled={start.isPending}>{start.isPending ? "Abrindo…" : "Conectar conta Anthropic"}</button></div>
+    <div className="page-heading"><div><p className="eyebrow">Credencial do Builder</p><h2>Conexões de modelo</h2></div><div className="settings-actions">{OAUTH_SIGN_INS.map((provider) => <button key={provider.providerId} type="button" onClick={() => beginSignIn(provider)} disabled={start.isPending}>{start.isPending && provider.providerId === signInProviderId ? 'Abrindo…' : provider.button}</button>)}</div></div>
     <p className="panel-intro">A conexão selecionada será usada somente em novos BuilderRuns. Tokens não ficam no navegador.</p>
     {message && <p role="status" className="settings-message">{message}</p>}
-    <form onSubmit={(event) => { event.preventDefault(); complete.mutate({ result: authorizationResult.trim(), label: label.trim() }) }}>
-      <label><span>Resultado da autorização</span><input value={authorizationResult} onChange={(event) => setAuthorizationResult(event.target.value)} placeholder="code#state" pattern="[^#]+#[^#]+" title="Use o formato code#state" autoComplete="off" required /></label>
+    <form onSubmit={(event) => { event.preventDefault(); complete.mutate({ providerId: signInProviderId, result: authorizationResult.trim(), label: label.trim() }) }}>
+      <label><span>{signIn.resultLabel}</span><input value={authorizationResult} onChange={(event) => setAuthorizationResult(event.target.value)} placeholder={signIn.placeholder} pattern={signIn.pattern} title={signIn.title} autoComplete="off" required /></label>
       <label><span>Nome da conexão</span><input value={label} onChange={(event) => setLabel(event.target.value)} maxLength={120} required /></label>
       <button type="submit" disabled={complete.isPending || !authorizationResult.trim() || !label.trim()}>{complete.isPending ? 'Conectando…' : 'Concluir conexão'}</button>
     </form>
