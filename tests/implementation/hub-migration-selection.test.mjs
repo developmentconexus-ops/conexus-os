@@ -76,6 +76,7 @@ const currentNames = [
   '049_project_creator_builder_grant.sql',
   '050_builder_run_phase.sql',
   '051_builder_orphan_function_excision.sql',
+  '052_iam_membership_authority.sql',
 ]
 const names = (migrations) => migrations.map((migration) => migration.name)
 
@@ -108,6 +109,21 @@ test('050 carries durable BuilderRun phase semantics without widening the runnin
   assert.match(source, /CREATE OR REPLACE FUNCTION builder\.set_builder_run_phase/)
   assert.match(source, /GRANT EXECUTE ON FUNCTION builder\.set_builder_run_phase\(uuid,text\) TO hub_rb_executor/)
   assert.match(source, /CREATE TRIGGER builder_run_phase_boundary/)
+})
+
+test('052 adds the membership authority without switching or dropping a grant surface', () => {
+  const source = readFileSync(resolve(migrationsRoot, '052_iam_membership_authority.sql'), 'utf8')
+  assert.match(source, /CREATE TYPE iam\.workspace_role AS ENUM \('owner', 'member'\)/)
+  assert.match(source, /ADD COLUMN role iam\.workspace_role NOT NULL DEFAULT 'owner'/)
+  assert.match(source, /ALTER COLUMN role DROP DEFAULT/)
+  assert.match(source, /FOR SHARE OF admitted_account, membership/)
+  assert.match(source, /RAISE EXCEPTION 'NOT_ADMITTED' USING ERRCODE = '42501'/)
+  assert.match(source, /RAISE EXCEPTION 'LAST_OWNER' USING ERRCODE = '42501'/)
+  assert.match(source, /MIGRATION_052_GRANT_WITHOUT_MEMBERSHIP_REFUSED/)
+  assert.match(source, /MIGRATION_052_WORKSPACE_MULTIPLE_MEMBERSHIPS_REFUSED/)
+  assert.equal(/\bDROP (TABLE|COLUMN|FUNCTION)\b/.test(source), false)
+  assert.match(source, /can_read_brain,\n\s*can_read_connection, can_manage_connection, can_qualify_connection, role/)
+  assert.equal(/CREATE OR REPLACE FUNCTION/.test(source.replace('CREATE OR REPLACE FUNCTION iam.establish_workspace_creator_access', '')), false)
 })
 
 test('each loader accepts a fixture containing only its selected migrations', (t) => {

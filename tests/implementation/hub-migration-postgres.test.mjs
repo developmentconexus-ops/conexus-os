@@ -20,7 +20,7 @@ const versions = [
   '001', '002', '003', '004', '005', '006', '007', '008', '009', '010',
   '011', '012', '013', '014', '015', '016', '017', '018', '019', '020',
   '021', '022', '023',
-  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '039', '040', '041', '042', '043', '044', '045', '046', '047', '048', '049', '050', '051',
+  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '039', '040', '041', '042', '043', '044', '045', '046', '047', '048', '049', '050', '051', '052',
 ]
 const query = async (connection, sql, parameters = []) => {
   const client = new pg.Client(connection)
@@ -84,7 +84,7 @@ test('current Hub installs accepted schemas and restarts without applying held R
   await query(admin, "ALTER ROLE hub_prj03_command PASSWORD 'migration-bootstrap-test'")
   await query(fixture.connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://migration-bootstrap.test', $2, 'Bootstrap')", [accountId, accountId])
   await query(fixture.connection, 'INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'Bootstrap'])
-  await query(fixture.connection, 'INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project) VALUES ($1, $2, true)', [accountId, workspaceId])
+  await query(fixture.connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project, role) VALUES ($1, $2, true, 'owner')", [accountId, workspaceId])
   const command = { ...fixture.connection, user: 'hub_prj03_command', password: 'migration-bootstrap-test' }
   await query(command, 'SELECT * FROM project.reserve_or_replay_create_project($1, $2, $3, $4, $5)', [accountId, workspaceId, keyDigest, requestDigest, projectId])
   await query(command, 'SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)', [accountId, workspaceId, keyDigest, requestDigest, projectId, 'Bootstrap', 'NEW', sourceRevision, 'project-revision'])
@@ -189,7 +189,7 @@ test('a fresh install produces exactly the committed catalog snapshot', async (t
     const catalog = await readCatalog(client)
     assert.equal(describeCatalogDrift(catalog, snapshot.catalog), null)
     assert.equal(catalogDigest(catalog), snapshot.digests[snapshot.head])
-    assert.equal(snapshot.head, '051')
+    assert.equal(snapshot.head, '052')
     assert.equal(Object.keys(snapshot.digests).length, versions.length)
   } finally {
     await client.end()
@@ -289,6 +289,57 @@ test('051 drops exactly the Builder functions orphaned by 038, keeping every one
     `SELECT unnest($1::text[]) AS signature, to_regprocedure(unnest($1::text[]))::text AS resolved`,
     [droppedSignatures])
   for (const row of droppedResult.rows) assert.equal(row.resolved, null, `${row.signature} should no longer resolve`)
+})
+
+test('052 adds the membership authority beside the grant surfaces it will replace', async (t) => {
+  await refuseProtectedCluster()
+  const fixture = await databaseFixture(t)
+  await runCurrentHubMigrations(fixture)
+
+  const addedSignatures = [
+    'iam.role_allows(iam.workspace_role,iam.action)',
+    'iam.admit_workspace(uuid,uuid,iam.action)',
+    'iam.admit_project(uuid,uuid,iam.action)',
+    'iam.visible_workspaces(uuid)',
+    'iam.visible_projects(uuid)',
+    'iam.list_workspace_roster(uuid,uuid)',
+    'iam.invite_workspace_member(uuid,uuid,uuid,text,iam.workspace_role,timestamp with time zone)',
+    'iam.cancel_workspace_invitation(uuid,uuid)',
+    'iam.set_workspace_member_role(uuid,uuid,uuid,iam.workspace_role)',
+    'iam.remove_workspace_member(uuid,uuid,uuid)',
+    'iam.claim_invitations(uuid,text)',
+  ]
+  const survivingSignatures = [
+    'iam.admit_project_read(uuid,uuid)',
+    'iam.admit_project_manage(uuid,uuid)',
+    'iam.admit_project_build(uuid,uuid)',
+    'iam.admit_project_source_read(uuid,uuid)',
+    'iam.admit_application_build(uuid,uuid)',
+    'iam.ensure_project_builder_grant(uuid,uuid)',
+    'iam.establish_project_creator_grant(uuid,uuid,text,text,uuid)',
+    'iam.list_workspace_memberships(uuid)',
+  ]
+  const resolved = await query(fixture.connection,
+    'SELECT unnest($1::text[]) AS signature, to_regprocedure(unnest($1::text[]))::text AS resolved',
+    [[...addedSignatures, ...survivingSignatures]])
+  for (const row of resolved.rows) assert.notEqual(row.resolved, null, `${row.signature} should resolve`)
+
+  assert.deepEqual((await query(fixture.connection,
+    "SELECT enumlabel FROM pg_enum JOIN pg_type ON pg_type.oid = pg_enum.enumtypid WHERE pg_type.typname = 'action' ORDER BY enumsortorder")).rows.map(row => row.enumlabel),
+    ['workspace.read', 'members.manage', 'project.create', 'project.read', 'project.change', 'project.build', 'connection.share'])
+
+  assert.deepEqual((await query(fixture.connection,
+    `SELECT column_default, is_nullable FROM information_schema.columns
+     WHERE table_schema = 'iam' AND table_name = 'workspace_membership' AND column_name = 'role'`)).rows,
+    [{ column_default: null, is_nullable: 'NO' }])
+
+  assert.deepEqual((await query(fixture.connection,
+    `SELECT has_function_privilege($1, 'iam.admit_project(uuid,uuid,iam.action)', 'EXECUTE') AS builder_admits,
+            has_function_privilege($2, 'iam.visible_workspaces(uuid)', 'EXECUTE') AS connection_reads,
+            has_function_privilege($3, 'iam.remove_workspace_member(uuid,uuid,uuid)', 'EXECUTE') AS runtime_manages,
+            has_function_privilege($3, 'iam.admit_project(uuid,uuid,iam.action)', 'EXECUTE') AS runtime_admits`,
+    ['builder_owner', 'claude_connection_owner', 'hub_iam_runtime'])).rows,
+    [{ builder_admits: true, connection_reads: true, runtime_manages: true, runtime_admits: false }])
 })
 
 test('a schema change outside a migration is refused and named', async (t) => {
