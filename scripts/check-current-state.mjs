@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -61,6 +61,11 @@ for (const range of diffRanges) {
 const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z'],
   { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean)
 for (const path of untracked) {
+  // git lists an untracked directory as one entry, and a worktree can hold an untracked symlink
+  // such as a node_modules link. Reading either throws EISDIR and takes the whole check down, so
+  // only regular files are scanned for conflict markers.
+  const entry = lstatSync(resolve(root, path))
+  if (!entry.isFile()) continue
   const bytes = readFileSync(resolve(root, path))
   if (!bytes.includes(0) && /^(?:<{7} |={7}$|>{7} )/m.test(bytes.toString('utf8'))) {
     errors.push(`unresolved merge-conflict marker: ${path}`)
