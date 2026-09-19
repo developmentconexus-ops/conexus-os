@@ -1,364 +1,121 @@
 # Conexus OS roadmap
 
-This file owns mutable status, allowed work, and the exact next action.
+This file owns current status and the next action. Read it before anything else.
 
-Current program: [Builder operational delivery](tasks/builder-first-app.md).
-Current task: [Foundation review](tasks/foundation-review.md).
-Paused behind it: [Builder repair program](tasks/builder-repair-program.md).
-Predecessor task: [Approved interactive Builder](tasks/builder-interactive-delivery.md),
-whose repair ledger this program closes.
-Technical authority: [C-020](reference/builder-c020-mastra-native.md).
-Interaction authority: [Frontend section 33.6](reference/frontend-and-product-surfaces.md#336-build-surface).
+## What Conexus is
 
-## Current direction
+Conexus is the platform the people at this company log in to. They sign in, open a
+Workspace, open a Project, and talk to the Builder. The Builder writes the code for
+a small business application and serves it back as a Preview they can use.
 
-On 2026-09-17 the operator approved `conexus_builder_interativo.html` as the
-functional reference for the ordinary Builder. Functionality and interaction
-matter now. Colors, typography, theme fidelity, and pixel matching do not gate
-implementation. Preserve the app-first workspace and contextual chat.
+Integrations are future work. One day somebody will connect Sankhya and build an
+application on top of it. That is not what is being built now.
 
-Deliver one real path: connect Claude from the chat, select a model, send a
-request, see native activity, use Preview, change the model for the next request,
-and continue through a failed build or reload. Keep Code/Diff read-only and
-execution details safe. Demo playback controls and artificial metrics are not
-Product features.
+The first base is the Builder running on the Mastra Agent Controller. It has to work.
+Everything after it arrives one planned step at a time. The legacy base tried to do
+everything at once and is being removed for that reason.
 
-## Current state
+## What exists and works today
 
-| Work | Disposition |
-| --- | --- |
-| 7R-0 | CLOSED. Preserve adopted native Mastra findings. |
-| 7R-1 | ACCEPTED. Preserve live-state and reconnect behavior. |
-| 7R1-LIVE-01 | CLOSED. Accepted correction is `fb1b1d4fe77e5a60e1d8bf78adacbf1e11ffad57`. |
-| 7R-2 | REPLAN. Partial evidence at `ed658c65152db27390dc1c5c88ff6d1b5cfa406e` remains partial; it is not a universal gate. |
-| First operational delivery | UNACCEPTED predecessor evidence. Its remaining guarantees are integrated into the current task, not waived. |
-| Claude Account connection | Predecessor candidate `f9fbb655463aa24da1c3e902c20d555487ce9629` was never accepted as a delivery, and its corrections are incorporated in the current task. The connection surface itself is CURRENT PRODUCT: the approved journey requires connecting Claude and selecting a model, so its six Control Plane operations are current Product authority and belong in the fixed Product census. |
-| Interactive HTML | FUNCTIONAL REFERENCE APPROVED BY OPERATOR. Exact artifact identity is in frontend section 33.6. This is not Product implementation acceptance. |
-| Interactive Builder delivery | APPROVED FOR EXECUTION under the current task. Four ordered units form one integrated candidate. |
-| Builder repair program | PAUSED. P-01 landed as #72 and #73 with unit proof and a green CI graph; its live lanes 6 and 10 and its perf box are outstanding. P-02 through P-06 have not started. The foundation review took the trunk in front of it. |
-| Credential and role remediation | CLOSED ON 2026-09-19. All six PRs merged: #74 and #76 for steps 1 and 2, #79 the execution contract, #80 the role register, #81 provisioning plus the startup census, #82 the MAR excision and the census count, #84 the generated catalog snapshot, and #83 repairing two guarded suites #74 had left unable to run. The three rotted R1 Postgres suites were repaired and admitted to CI as #91. Credential consolidation stays deliberately outside the grant. |
-| Foundation review | IN EXECUTION since 2026-09-19, and nearly closed. Twenty-nine PRs merged to trunk, #79 through #105 and #107. Migrations 051 through 055 are on trunk. The Product census went from 39 fixed operations to 25. Multi-account works end to end in CI: a second person can be invited, sign in and join a Workspace. M-01, provider-neutral model connections, is the one unit still open, as #106. Its execution contract is `docs/tasks/foundation-review.md`, which records what landed, what changed from the plan and what the operator must do before the next Hub start. |
-| Broader platform and visual polish | DEFERRED. No requirement to finish them before operating the Builder. |
+The foundation closed on 2026-09-19.
 
-The initial accepted 7R-1 implementation remains
-`3276f8fbf3ae8a38f6d0cab43fe540df221ebee9`.
-The planning publication at `2e39f3ebd5db24838358671604f4b29c1583e4fa`
-is predecessor evidence. Its earlier execution restriction is superseded only
-within this operator-approved functional delivery and the current task's limits.
+- Multiple accounts. A second person can be invited, sign in through Keycloak and
+  join a Workspace. The Hub reads `email_verified` from the validated ID token and
+  accepts only the boolean `true`.
+- Model connections that are provider-neutral. A connection carries a provider id
+  and a credential kind. Both an account sign-in and a pasted API key are accepted
+  credential kinds. Model selection stays Mastra-native; Conexus adds credential
+  custody and sign-in, not a model abstraction of its own.
+- Roles by capability. The Hub connects to PostgreSQL as roles named for what they
+  may do. `docs/reference/hub-database-roles.md` is the register.
+- One database baseline. `apps/hub/migrations/0001_baseline.sql` is the whole
+  schema history. A role change costs one migration.
+- The pilot is adopted and clean. It holds one account, one Workspace, 22 Projects
+  and 23 BuilderRuns.
 
-## Current grant
+Project Inception, the Project Baseline, the Brain, connection bindings, Sankhya,
+the capability gateway, the Managed Application Runtime and the R3 program were
+removed from the product on 2026-09-19. They are not paused. They return only as
+future features on this base, with their own plan, if they are ever wanted.
 
-Execute [foundation-review.md](tasks/foundation-review.md). The credential and
-role remediation described below is closed, and the Builder repair program is
-paused behind the foundation review rather than cancelled; its grant below still
-describes what it may do when it resumes.
-On 2026-09-18 the operator granted its six ordered PRs, P-01 through P-06. The
-grant covers those units, their focused tests, bounded local provider/model/E2B/
-browser proof, current contract updates, commit, push, and opening a pull request.
-Mechanical steps and unit boundaries do not require another approval. Do not
-reopen the approved layout or create another prototype.
+Trunk is `analysis/internal-mvp-2026-09-12`, not `main`.
 
-The verification bar is the program's own. Tests alone are not sufficient. A PR is
-verified only when its unit, live, and perf boxes each carry real evidence. The
-operator merges every PR by default; each one stops at merge-ready. On 2026-09-18
-she lifted that gate for the remediation work and authorized merging directly.
-P-02 through P-06 also
-stop for her review in chat with two screenshots and a 30-to-60-second video.
+## In flight
 
-The predecessor task keeps its meaning. Its four units remain the delivered
-shape, and its repair ledger is the record this program closes and reconciles.
+M-02, ChatGPT account sign-in, on branch `feat/m02-chatgpt-sign-in`. It adds a second
+account sign-in beside the Anthropic one. It is gated on primary sources for the
+client id, the token endpoint, the wire format and the terms. If a primary source
+cannot be found for the client id or the terms, it stops and reports. API keys
+already cover OpenAI models.
 
-### Credential and role remediation, closed
+Removal of the one-time baseline-adoption code, on branch `chore/remove-baseline-adoption`.
+The pilot is adopted, so the adoption path has no remaining caller.
 
-Its execution contract is [credential-and-role-remediation.md](tasks/credential-and-role-remediation.md).
-That task owns the ordered pull requests, their file boundaries, and the evidence each one
-carries. This section stays the grant and the authorized sequence, and the sequence is done.
-All five steps merged on 2026-09-19. What remains of this section is history and the standing
-refusals at its end, which are still in force.
+## The Builder sequence
 
-On 2026-09-18 the operator authorized this explicitly, including the parts the
-preservation clause below previously refused, and instructed that legacy be removed
-rather than worked around.
+This is the order. Each step is one unit of work that ends in something a person
+can see. `docs/tasks/builder-repair-program.md` holds the file boundaries, the
+build steps and the evidence each one owes.
 
-The cause of the long-standing `28P01` was found that day and is no longer unknown.
-Twenty Postgres suites run `ALTER ROLE` on cluster-global `hub_*` roles. The throwaway
-database each suite creates does not contain that change, so running them against the
-pilot cluster replaces the live Hub credentials with test fixture values. The roles were
-found holding `invariants-executor` and `invariants-ingress`, the fixtures from
-`builder-run-invariants-postgres.test.mjs`. `builder-first-operational-delivery.md`
-records an earlier reconciliation of the same role and states the cause was never found.
+1. **Prove the Builder live on the pilot.** Start the Hub against the pilot
+   database, sign in, open a Project's Build surface, send a request, and watch a
+   real run reach a working Preview. CI already proves the unit behaviour at every
+   commit. What CI cannot reach is the operator's pilot database, a running Hub and
+   a browser holding a real session. This needs the operator's Hub sign-in.
+2. **Keep a failed request visible and named.** Today a run that fails before the
+   agent starts loses the operator's own words, because the request text lives only
+   in a Mastra message written after the failure point, and the optimistic bubble is
+   gated on the run being active. Persist the request on the run, render it when no
+   Mastra message exists, and map the internal failure codes onto a small public set
+   that reads distinctly. This is P-02 in the repair program.
+3. **Move the Builder front end to Mastra-native.** The server already reads live
+   state from `Session.displayState` and publishes a safe projection. The browser
+   still carries a hand-written SSE transport and parser in
+   `apps/web/src/features/builder/observation.ts`, and the repository does not depend
+   on `@mastra/client-js`. Adopting the native client removes that parallel
+   transport. This step has no plan yet. Write one before the first edit.
 
-The authorized sequence, smallest and least risky first, each step ending verifiable:
-
-1. Refuse role-altering suites against a cluster that hosts a live Hub. Test tooling only.
-2. Set `application_name` per connection pool and write a role register naming each role,
-   its capability, its grants, its password-file variable, and the module that connects as
-   it. No database change.
-3. Provision the Hub role credentials idempotently from the same `*_PASSWORD_FILE`
-   variables the Hub config already reads, as a separate installation step rather than a
-   power the Hub holds at startup. The Hub's own startup check stays read-only and reports
-   which connection is invalid, so `28P01` surfaces as a named census rather than
-   mid-journey.
-4. Finish the MAR excision and reconcile the census against itself. Decide delete or
-   restore for migrations 024 and 025, `mar-paths.yaml`, `hub_mar_runtime` and
-   `check-wire-mar`. Move the retained checkers behind an explicit target or delete them.
-   Correct the trailer that claims a 31-operation census while section 5 holds more.
-5. Done on 2026-09-19. `scripts/run-hub-migrations.mjs` was reduced from a
-   hand-maintained schema oracle to one baseline file plus the committed catalog
-   snapshot, and the 57 pins, the three name arrays and both subset loaders are gone.
-   A role change now costs one migration.
-
-Step 3 changes credentials, to the values the existing secret files already hold. It is
-authorized here. No step changes a role's grants or its ability to assume another role.
-
-Credential consolidation is deliberately not authorized. An earlier draft proposed one
-login role that could `SET ROLE` into every capability. That is the opposite of what
-`docs/reference/data-and-persistence.md` requires: its negative property for owner-scoped
-capabilities forbids `SET ROLE into unrelated owner authority`, and selecting a role at
-connect time does not remove the session user's ability to select another. The pattern in
-`qualification/4f/r3-root-tuple/run.mjs` is also the reverse of what that draft claimed:
-it creates one login per capability, each granted only its own role. Reducing the number
-of credentials remains worth doing, and it needs a design that keeps the negative property
-rather than trading it for convenience.
-
-What still stops. Existing Product data is never destroyed; the pilot database holds real
-work and no step may drop, truncate or recreate it. A step that would require destroying
-it returns to the operator instead. Grants keep their current meaning, and no capability
-gains the ability to assume another.
-
-Keep Mastra as the coding runtime and the existing encrypted credential backend.
-The operator authorized local account OAuth after being informed of provider
-restrictions. Record that risk honestly. Do not represent operator consent as
-provider endorsement. Do not evade a provider refusal. An API key is an
-authorized credential kind that the user chooses on purpose, and it is never
-substituted for an account whose provider refused. Real sign-in is performed by
-the user in the application.
-
-The pilot is single-Hub and local. No secret services, cloud telemetry, business
-integrations, production publication, deployment, or merge. Providers are no
-longer closed. On 2026-09-19 the operator reversed the refusal this line used to
-carry, and granted two additions to the foundation review's units M-01 and M-02.
-The first is an API key for any provider Mastra already routes. The second is a
-ChatGPT account sign-in beside the Anthropic one. Model selection stays
-Mastra-native, and Conexus adds only credential custody and sign-in. The grant
-reaches those two units and nothing else.
-
-The planner prepares/reconciles this plan and verifies candidates. Codex executes
-Product changes and their proofs. Do not silently combine those roles.
-
-Preserve unowned working-tree and untracked files, private configuration, secrets,
-containers, and existing data. No reset, clean, stash, force-push, or destructive
-migration is authorized here. Credential rotation and role-attribute changes are
-authorized only inside the credential and role remediation above, and only to the
-values the existing secret files already hold; no new credential is generated.
-
-### Foundation review
-
-Its execution contract is [foundation-review.md](tasks/foundation-review.md). That
-task owns the ordered units, their bases and their migration numbers, and it
-records what actually landed against what was planned. This section is the grant.
-The remediation closed on 2026-09-19 and the foundation review is the current task.
-
-On 2026-09-19 the operator decided its scope in four parts.
-
-1. Project Inception and Baseline may be deleted.
-2. Brain, bindings and Sankhya come out now. They return only as future features on
-   a solid base.
-3. Multi-account lands now, at the minimum that is correct.
-4. Model selection stays Mastra-native. Conexus adds credential custody and sign-in
-   for an Anthropic account, API keys for any provider Mastra routes, and later a
-   ChatGPT account sign-in.
-
-The same day the operator authorized one read-only row count against the pilot with
-the root credential, and then said "você roda e deleta o que precisar". That is the
-operator's word the plan's A-02 waits on before it drops the derived grant tables,
-and the word F-07 waits on before it drops the empty Inception and R2 tables. The
-counts are recorded in the plan.
-
-Destroying real Product data is still refused. The plan's migrations assert that
-each table they drop is empty and abort otherwise, so the count stays a
-precondition rather than a promise. Migration 055 does exactly that, and an
-independent verifier reproduced its refusal by name on three separate tables.
-
-### In flight
-
-M-01, provider-neutral model connections and API keys, is #106 against trunk. It
-renames the schema to `model_connection`, adds `provider_id` and
-`credential_kind`, adds the operation that pastes an API key, and returns a
-Mastra-native config object instead of a Conexus model abstraction. Its migration
-is 056.
-
-### Queued
-
-Role naming by capability. The eight login roles still carry the program phase
-that introduced them rather than what they permit. Renaming them changes pilot
-secret file names and environment variable names, so it needs the operator before
-it starts, not after.
-
-M-02, ChatGPT account sign-in. Blocked on M-01, and gated on primary sources for
-the client id, the token endpoint, the wire format and the terms. If a primary
-source cannot be found for the client id or the terms, it stops and reports. API
-keys from M-01 already cover OpenAI models.
-
-Hardening follow-ups on the OCI Git container. `--pids-limit`, `--memory` and
-`--cpus` are absent and were absent before #101 unified the three
-implementations, so the unified port is the natural place to add them. A
-`tmpfsBytes` value under one mebibyte renders as `size=0m`; no caller passes one
-today. The mount-template assertion lost its pin on the `readonly` suffix, though
-the credential mount is still pinned separately.
-
-A browser test for the Members page. The page is one route, one query and four
-mutations, all already stubbed at the HTTP level. The assertion worth having is
-that the role toggle, remove, cancel and invite controls are absent for a viewer
-whose role is `member`.
-
-### Open Product questions for the operator
-
-These are decisions about shipped behaviour. None of them blocks M-01.
-
-1. What "Baseline" means in [contract.md](product/contract.md) Journey B now that
-   Inception is gone. Journey B is still written as Inception then Baseline then
-   approval, and section 5.5 still defines the Baseline as the pinned material
-   intent the Builder's Change and Release gates read. The code behind both is
-   deleted. Either Journey B is rewritten around what the Builder actually does,
-   or the Baseline returns as a future feature and Journey B says so.
-2. The `project.manage` Permission has no consumer. Its Published-App access and
-   archive and duplicate consumers were contract for surfaces never built and were
-   removed, and the candidate-review, explanation and binding consumers went with
-   Inception, Baseline, Brain and the bindings.
-   [permission-contract.md](product/permission-contract.md) already records this.
-   Either a consumer is owed or the Permission is retired.
-3. Whether a plain member, and not only an owner, may share their own model
-   connection into a Workspace. The design default was yes and A-02 built it, so
-   this is a question about behaviour that ships today, not about a plan.
-
-## Recorded environment limits
-
-The last reported local proof had HTTPS and `hub_iam_runtime` working after the
-previously authorized `hub_rb_executor` reconciliation. `hub_prj03_command` and
-`hub_builder_ingress` still reported `28P01`.
-
-That `28P01` is gone. On 2026-09-18 a read-only census opened one session per
-configured role against the pilot cluster at `conexus_s7` through the Hub's own
-`createPostgresPool`, and every configured role authenticated, including
-`hub_project_command` and `hub_builder_ingress`. Postgres reported the expected
-`conexus-hub:<capability>` for each one. No role is in a blocked state today.
-
-The Hub now connects as eight roles, not eleven.
-[hub-database-roles.md](reference/hub-database-roles.md) is the register and
-matches `contracts/technical/hub-database-roles.json`. `hub_r2_project_binding`,
-`hub_r2_brain_read`, `hub_r2_brain_attester` and `hub_r2_key_conformance_subject`
-were removed from it by #98 when the pools that opened them went with the Brain
-and the bindings; they are not live roles and the pilot never had password files
-for them. Four more, `hub_s4_baseline_read`, `hub_s4_baseline_command`,
-`hub_s6_inception_command` and `hub_r2_brain_bootstrap`, are equally inert. All
-eight still exist in the cluster, holding no privilege after 055.
-
-Report a surviving operational block without declaring the entire code path
-proven, and continue independent implementation/offline tests.
-
-The approved HTML bytes are supplied in the handoff package. Import their exact
-hash-verified copy in the first implementation unit. Do not substitute screenshots
-or regenerate a similar file.
-
-## Acceptance
-
-Acceptance requires real application interaction and the same execution's source,
-model, Thread, and native trace evidence. A prototype, green unit suite, model
-label, issued Preview grant, or generated artifact alone is not sufficient.
-
-Use the pinned WSL environment, isolated test PostgreSQL, and current `npm run
-verify` graph. Include targeted authorization, model, cancellation, failure/repair,
-reload, and browser proofs from the current task. Run risk-triggered independent
-review under the existing method. Neither self-review nor this plan is that review.
-Do not mark the Product accepted while a deciding live path remains blocked.
+The repair program's P-03 through P-06 sit behind those three. P-03 stops the UI
+claiming the Preview loaded when all it observed was a grant. P-04 makes a past run
+selectable and a retry idempotent. P-05 settles which authorized connection and
+model a run uses. P-06 makes the compile answer whether the artifact boots.
 
 ## Exact next action
 
-Land M-01 (#106), then take the operator steps below and run the foundation
-review's live lanes on the pilot. P-01's live proof and P-02 follow after that.
+**Prove the Builder live on the pilot: start the Hub, sign in, send one request in a Project and watch it reach a working Preview.**
 
-## Before the next Hub start on this trunk
+## Later layers
 
-Nothing here is optional. The Hub refuses to start if step 1 is skipped.
+One line each. None of these has a plan, and none is started.
 
-The pilot database was carried across to the single baseline,
-`apps/hub/migrations/0001_baseline.sql`, on 2026-09-19: its 57-version 001-059
-ledger was adopted onto the baseline, and the eighteen superseded role names
-were then dropped from the cluster. No database on the replaced history exists
-any more, so the migration runner only ever applies pending migrations from a
-ledger that starts at 0001; there is no adoption path left to run.
+- A data and SDK layer so a generated application can own business data.
+- Local publication of a built application.
+- External integrations, which is where Sankhya arrives.
+- Managed automations and scheduled jobs.
 
-1. The Hub config refuses retired variables rather than ignoring them, so delete
-   `CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE`,
-   `CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE` and
-   `CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE` from the pilot environment
-   first. `readHubConfig` throws `RETIRED_CONFIG_<name>` while any of the three is
-   set, and the pilot environment file still sets all three.
-2. The database roles are named for what they may do, and their password-file
-   variables with them. Run `node scripts/cutover-hub-role-names.mjs <env-file>
-   <secrets-directory>` to see what it would do, then again with `--apply`: it
-   copies each secret file to its new name at mode 0600, rewrites the variable
-   names in the environment file and keeps a timestamped backup. It never
-   generates a password and prints names only. Then run
-   `npm run db:roles:provision` so the roles take those passwords, and start
-   the Hub; the connection census should report every role `ok`. A stale variable
-   is refused at startup with `RETIRED_CONFIG_<old>_USE_<new>` rather than
-   surfacing later as a `28P01`.
-3. Once M-01 lands, the model catalog file will need `officialHttpsOrigin` removed
-   from each entry, because the provider registry answers it. Do not remove it
-   before then; the field is still read today.
-4. For multi-account, an invited person must already exist in Keycloak with that
-   exact email address, marked verified. The Hub reads `email_verified` from the
-   validated ID token and accepts only the boolean `true`. Nothing is emailed, and
-   an address that is not verified at the provider is refused.
+## What the operator still owes
 
-### What P-01 has and has not
+Three things, and nothing else.
 
-The verification floor is restored and CI runs the whole graph. Landed on
-2026-09-18 as `c0328ca3` (#72) and `e2d400b3` (#73), because the floor had three
-holes rather than the one the program assumed:
+1. A Hub sign-in on the pilot, for every live lane. The session idles out after
+   thirty minutes without a request.
+2. A ChatGPT sign-in, to prove M-02 live.
+3. A second Keycloak user with a verified email address, to prove multi-account
+   end to end outside CI. Nothing is emailed, and an unverified address is refused.
 
-1. Migrations 040 and 047 both created `reg.matches_application_artifact`, so every
-   from-scratch install halted at step 2 of 28.
-2. `builder-application-runtime.test.mjs` called `mkdtempSync` under a
-   `node_modules/.cache` that does not exist on a clean checkout.
-3. Six Claude connection operations carried no `x-conexus-4a-id` and no census row,
-   so `wire:bijection` failed. That gate had been red since 2026-09-17 at 10:26.
-   The migration defect landed at 14:01 the same day and buried the signal until it
-   was fixed.
+## The merge gate
 
-Against P-01's own bar, unit is met and live is not. Six of ten live lanes passed
-with evidence. Lanes 6 and 10, the two that need a browser and an operator session,
-never completed. The perf box never ran. `npm run verify` completes 28 of 28 on a
-clean CI runner at the merged SHA, which is stronger evidence than the six lanes it
-repeats.
+A pull request is ready to merge when CI's `verify` check is green on its exact head
+SHA and the coordinator has read the diff. There is no independent verifier agent per
+pull request. A unit that changes behaviour ships the test that would fail without it.
 
-So P-01's next action is lanes 6 and 10 plus the perf probe, not another attempt at
-the migration.
+Never run `npm run verify` locally. Run the focused checks your change touches, push,
+and let CI be the full run. Confirm the run's head SHA equals yours; GitHub skips the
+workflow without saying so when a pull request conflicts with its base.
 
-### Then P-02
+## Acceptance
 
-P-02 keeps a failed request visible and named. It depends on P-01 and on nothing
-else that is outstanding. P-03, P-04 and P-05 branch from P-01 as before; P-06
-follows P-03.
-
-### Topology
-
-The stack's trunk is `analysis/internal-mvp-2026-09-12`, not main. Migrations 023
-through 055 exist only on that branch; main still stops at 022. Consolidating the
-analysis branch into main is a separate pull request, and it no longer waits on the
-migration defect, which is fixed.
-
-### Running alongside
-
-Nothing runs alongside. The credential and role remediation closed on 2026-09-19
-with all five steps merged, and the foundation review holds the trunk until M-01
-lands. The repair program resumes after that.
-
-### What proof to run
-
-Use the existing first-delivery environment and runner; no new qualification
-framework. Do not re-run locally what CI already proves at the same commit. The
-lanes that earn their cost are the ones CI cannot reach: the operator's pilot
-database, a running Hub, and a browser holding a real session.
+Acceptance requires real application interaction, with the source, model, Thread and
+native trace evidence from that same execution. A green unit suite, a model label, an
+issued Preview grant or a generated artifact is not sufficient on its own. Do not mark
+the product accepted while a deciding live path is blocked.

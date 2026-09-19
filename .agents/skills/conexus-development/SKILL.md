@@ -46,11 +46,10 @@ Do not silently combine roles because doing so is convenient.
 Before changing a web, Builder, or Preview surface:
 
 1. read the current grant in `docs/roadmap.md`;
-2. read `docs/reference/frontend-and-product-surfaces.md`;
-3. read `docs/evidence/4c/p01-build-workspace-screen-contract.md` and operate `docs/evidence/4c/p01-build-workspace-functional-wireframe.html` before production UI changes;
-4. preserve the app-first composition, contextual Conexus interaction, and read-only Code/Diff lenses unless current Product authority explicitly changes them.
+2. read `docs/reference/frontend-and-product-surfaces.md`, whose section 33.6 owns the Build surface's functional contract;
+3. preserve the app-first composition, contextual Conexus interaction, and read-only Code/Diff lenses unless current Product authority explicitly changes them.
 
-The P-01 wireframe is an interaction contract, not a styling mandate. The roadmap controls deferred surfaces. If current Product Experience authority conflicts with requested implementation, stop at the smallest owner instead of inventing a replacement UI in code.
+That functional contract is an interaction contract, not a styling mandate. The roadmap controls deferred surfaces. If current Product Experience authority conflicts with requested implementation, stop at the smallest owner instead of inventing a replacement UI in code.
 
 ## Execute an authorized slice
 

@@ -20,7 +20,6 @@ source format                = YAML 1.2-compatible OpenAPI Description
 
 OAS 3.2.0 is deliberately deferred for current F1 4B. No accepted 4A property requires a 3.2-only feature and the current interoperable validation/codegen surface is stronger around 3.1. Reopen only if a current accepted operation requires a 3.2-only property or exact selected tooling makes 3.1 materially unfit.
 
-Bounded Evidence: [../evidence/4b/wire-representation-assessment.md](../evidence/4b/wire-representation-assessment.md).
 
 ## 2. Canonical artifact topology
 
@@ -104,7 +103,7 @@ duplicate method+path      = 0
 
 `npm run wire:bijection` must remain green. The checker also rejects generic Product paths shaped like unrestricted `/execute` or `{operationSlug}` dispatch.
 
-HTTP shape Evidence: [../evidence/4b/http-shape-derivation.md](../evidence/4b/http-shape-derivation.md). Historical 4A/4B operations remain retained reference material and are outside the current Product OAS.
+Historical 4A/4B operations remain retained reference material and are outside the current Product OAS.
 
 Surface roots preserve 4A ingress separation:
 
@@ -261,7 +260,6 @@ Likewise, when no exact item GET exists (for example a Published-App grant item)
 
 Failed standard representation preconditions remain 412-class Problems.
 
-Bounded Evidence: [../evidence/4b/current-state-carrier-assessment.md](../evidence/4b/current-state-carrier-assessment.md).
 
 ## 8. Idempotency contract
 
@@ -356,7 +354,6 @@ HEADLESS is a distinct non-browser Product ingress. Absence of Fetch Metadata do
 
 Safe HTTP methods never mutate Product state.
 
-Bounded Evidence: [../evidence/4b/browser-request-authenticity-assessment.md](../evidence/4b/browser-request-authenticity-assessment.md).
 
 ## 11. API surface separation
 
@@ -399,7 +396,7 @@ live stream / reconnect / runtime observe
 -X-> stream end as AgentRun terminal truth
 ```
 
-Current framework-leverage Evidence favors Mastra-native stream/HITL mechanics and AI-SDK-compatible projection at realization time, but 4B selects no runtime package or React transport. [Bounded Evidence](../evidence/4b/technology-leverage-and-par-streaming-review.md).
+Current framework-leverage Evidence favors Mastra-native stream/HITL mechanics and AI-SDK-compatible projection at realization time, but 4B selects no runtime package or React transport. Bounded Evidence.
 
 ## 12. Project-operation declaration law
 
@@ -426,7 +423,6 @@ An exact declaration is not runtime authority by file existence; it must be admi
 
 The generated HTTP OAD preserves the declaration's HTTP caller objects, scope and effect classification. Admitted non-HTTP callers remain explicitly classified as non-HTTP projection metadata and are never converted into session/header authority. A declaration with no admitted HTTP caller fails closed in the HTTP OAD generator rather than fabricating HTTP carriage; a separate 4D non-HTTP projection may consume that authority if a real realization requires it.
 
-Whole-wire Evidence: [../evidence/4b/whole-wire-adversarial-proof.md](../evidence/4b/whole-wire-adversarial-proof.md).
 
 ## 13. Pagination / continuation law
 
@@ -617,7 +613,6 @@ All generated artifacts and probe dependencies live under `/tmp`; none become ru
 
 Kubb 5.0.0 is therefore an **empirically viable 4D ADOPT candidate**, not a 4B Paved-Road selection. Orval remains a fallback probe only if a material Kubb falsifier fires. TanStack Query and generated Zod remain focused 4D consumer/validation evaluations; canonical OpenAPI + JSON Schema/AJV authority is never weakened to fit a generator.
 
-Bounded Evidence: [../evidence/4b/generated-projection-no-parallel-dto.md](../evidence/4b/generated-projection-no-parallel-dto.md).
 
 ## 17. Current executable proof
 
@@ -644,8 +639,8 @@ or subsystem checks. They are not current Product authority and are not part of
 the default verification graph. MAR was in that list until its Path Items and its
 `wire:mar` checker were deleted on 2026-09-18.
 
-Historical owner-slice RED/GREEN Evidence remains in the bounded files under
-`docs/evidence/4b/`; this contract does not duplicate the full worklog.
+Historical owner-slice RED/GREEN Evidence is in Git history; this contract does
+not duplicate the full worklog.
 
 ## 18. Retained historical 4B closure
 
@@ -666,7 +661,6 @@ operator ratification                    = COMPLETE
 
 Ratification does not authorize merge by itself. The retained 4B candidate was not a current Product implementation grant; the current MVP implementation is owned by operation-ledger §5 and the canonical OAS.
 
-Whole-wire Evidence: [../evidence/4b/whole-wire-adversarial-proof.md](../evidence/4b/whole-wire-adversarial-proof.md).
 
 Do not begin 4C, router/framework selection, persistence design, Paved Road selection, migrations, Sankhya implementation or Product code before 4B is integrated.
 ## Pre-P11 F03–F05 bounded wire recompile

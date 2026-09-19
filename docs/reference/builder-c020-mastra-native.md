@@ -2,7 +2,7 @@
 
 > **Status:** CURRENT / OPERATOR RATIFIED. Delivery amendment approved 2026-09-16; interactive functional delta approved 2026-09-17.
 > **Scope:** ordinary internal Builder for the Metal Nobre MVP.
-> **Program:** `docs/tasks/builder-first-app.md`.
+> **Program:** `docs/tasks/builder-repair-program.md`.
 > **Status and grant:** `docs/roadmap.md`.
 > **Decision:** C-020 in `docs/decisions/index.md`.
 

@@ -26,7 +26,7 @@ const gitFixture = (context, files) => {
 }
 const currentFiles = () => Object.fromEntries([
   'AGENTS.md', 'README.md', 'docs/index.md', 'docs/roadmap.md',
-  'docs/product/contract.md', 'docs/architecture/index.md', 'docs/decisions/index.md',
+  'docs/product/contract.md', 'docs/decisions/index.md',
   'docs/development/engineering-method.md', 'docs/development/repository-method.md',
   'docs/development/frontend-product-experience-planning-method.md',
   'docs/development/engineering-rules.md', 'contracts/api/product/openapi.yaml',

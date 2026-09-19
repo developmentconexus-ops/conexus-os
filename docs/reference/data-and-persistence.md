@@ -1,6 +1,6 @@
 # Data and Persistence
 
-Current technical detail extracted without semantic rewriting from the accepted Phase-3 architecture baseline. `docs/architecture/index.md` owns the overview; this file owns the detailed task surface named by its title. The operator-approved C-015 Keycloak refinement is projected as provider persistence, not a new Conexus semantic owner.
+Current technical detail for the surface this file's title names. The operator-approved C-015 Keycloak refinement is projected as provider persistence, not a new Conexus semantic owner.
 
 ## 5. Durable authority and storage boundaries
 

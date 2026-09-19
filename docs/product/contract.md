@@ -1,7 +1,7 @@
 # Conexus OS — Product Contract
 
 > **Semantic authority:** CURRENT / ACCEPTED PRODUCT CONTRACT
-> **Mutable status:** owned only by [../roadmap.md](../roadmap.md). Accepted technology qualification is summarized in [../phases/3l-technology-qualification.md](../phases/3l-technology-qualification.md).
+> **Mutable status:** owned only by [../roadmap.md](../roadmap.md).
 > **Method:** DevelopmentConexus Engineering Method v1.0.0
 
 This current accepted authority projection consolidates **what Conexus is, what users can do, which Product meanings and whole-product journeys must remain true, and which future capabilities are deliberately preserved without becoming F1 machinery**.
@@ -111,7 +111,7 @@ Administrative authority never implies automatic business access to every Publis
 
 ## 4.2 Project administrator / Builder operator
 
-Authorized to create/evolve a Project, manage its Baseline/Changes/bindings/access and drive candidate verification/Release according to current gates.
+Authorized to create/evolve a Project, manage its access, and drive candidate verification/Release according to current gates.
 
 ## 4.3 Project contributor / reviewer
 
@@ -184,7 +184,7 @@ A technical layer does not become another Project by default.
 
 F1 has one canonical source repo per Project; multi-repo is deferred until a real consumer.
 
-Every software-publishing Project fixes exactly one `ApplicationRuntimeProfile` in its approved Project Baseline:
+Every software-publishing Project fixes exactly one `ApplicationRuntimeProfile`:
 
 ```text
 ApplicationRuntimeProfile = MANAGED | DEDICATED
@@ -208,19 +208,13 @@ ARCHIVED
 
 While archived, trigger `CREATE`/`ENABLE`/semantic reconfiguration and ordinary new composition remain blocked; explicit trigger `DISABLE` remains allowed narrowing. Recovery may target only a Release previously activated for that Project that still passes current conformance. The Product must tell the operator plainly: **Archive does not stop automations and does not unpublish.**
 
-## 5.5 Project Baseline
+## 5.5 Project working source
 
-Approved, versioned statement of Project architecture/Product meaning sufficient for current work.
+The current state of a Project's authored source, owned by Conexus and held in Project Git.
 
-```text
-SPEC-ANCHORED
-LIVING
-INCREMENTAL
-```
+Each Builder request starts from the current working source, including source that failed to compile. A request that changes source advances the working revision. The last-good Preview only advances when a revision compiles.
 
-Readable source lives in Project Git; the Hub pins the exact approved revision/digest.
-
-The Baseline is sufficient for the current Change, not every imagined future. A coding actor must not be forced to invent a material Project-level decision because the Baseline omitted something the Change requires.
+There is no separate approved statement of Project intent that the Builder reads before coding. Intent lives in the conversation and in the source.
 
 ## 5.6 Change
 
@@ -557,7 +551,7 @@ Storage provider/path/object key/prefix never becomes semantic identity or autho
 |---|---|
 | global human identity/session/access | Identity & Access |
 | Workspace/Area lifecycle | Workspace |
-| Project identity/Baseline/binding intent | Project |
+| Project identity and working source | Project |
 | Change/Plan/WorkUnit/Builder ActorRun/Findings | Builder |
 | authored Project source | Project Git |
 | published canonical Brain source | Workspace/Brain Git boundary |
@@ -593,23 +587,32 @@ No public signup, tenant onboarding, billing or default reusable admin credentia
 
 ---
 
-# 8. Journey B — Project Inception / Baseline
+# 8. Journey B — create a Project and build with the Builder
 
 ```text
 Workspace
 → Create/Import Project
 → establish/associate canonical source repo
-→ Inception / Discovery
-→ inspect objective/users/constraints/source systems/real data where relevant
-→ propose sufficient Project Baseline
-→ human checkpoint: “this is what we are building”
-→ approved Baseline digest
-→ initial Change
+→ the person writes a request in the Project's Build conversation
+→ BuilderRun is admitted: one active run per Project, idempotency key, authorized model connection
+→ fresh scoped Mastra Session on the persistent Project Thread
+→ fresh per-run E2B workspace materialized from the current working source
+→ the agent reads and edits files
+→ Conexus admits the resulting source revision and advances the working source
+→ compile
+→ on success, an ArtifactRevision becomes the last-good Preview
+→ the person uses the Preview and writes the next request
 ```
 
-Brownfield Discovery includes current source/contracts/architecture/data reality.
+A run settles as `SUCCEEDED`, `FAILED` or `INTERRUPTED`. Its result is
+`RESPONSE_ONLY` when the agent only answered, `SOURCE_CHANGED` when the source
+changed and compiled, or `SOURCE_CHANGED_BUILD_FAILED` when the source changed and
+the compile did not. A failed compile still advances the working source, so the next
+request continues from it. It never substitutes an uncompiled artifact for the
+last-good Preview.
 
-Inception is not a fake Change. Baseline is incremental and can later be revised through governed Project authority.
+Importing a brownfield Project associates the existing repository. The Builder reads
+that source in the same way it reads source it wrote itself.
 
 ---
 
@@ -618,7 +621,7 @@ Inception is not a fake Change. Baseline is incremental and can later be revised
 ```text
 user states intent
 → Change
-→ current Baseline/authority pinned
+→ current authority pinned
 → discovery/planning proportional to risk/uncertainty
 → visual Plan/checkpoint when warranted
 → Hub-owned live checklist / Work Units
@@ -644,11 +647,11 @@ Release AVAILABLE    != live
 pointer switched     != SERVED_VERIFIED
 ```
 
-Material Project-level discovery returns to Baseline/decision before coding silently crosses the boundary.
+Material Project-level discovery returns to an explicit decision before coding silently crosses the boundary.
 
 For the internal development pilot, executable Preview may precede independent
 material verification. The next human request edits the retained working source,
-not necessarily the original Baseline or the displayed last-good artifact.
+not necessarily the displayed last-good artifact.
 A response-only turn preserves its answer without a commit or compilation.
 Release and publication still require their own accepted authority.
 
@@ -952,7 +955,6 @@ Workspace: Metal Nobre
 ├── Brain: budget/pending/conversion definitions + caveats
 ├── Connection: Sankhya
 └── Project: Budget Analyzer
-    ├── Baseline
     ├── Brain binding
     ├── Connection binding
     ├── governed sync
@@ -1002,9 +1004,8 @@ Agents surface may honestly be empty.
 ```text
 new request / bug / source change / Finding / Brain update
 → Change
-→ pin current Baseline/Release-relevant context
+→ pin current Release-relevant context
 → investigate
-→ revise Baseline only if Project meaning materially changes
 → build/verify
 → Release/Promotion
 → served verification
@@ -1102,7 +1103,7 @@ revocation committed before admission denies the read; an already admitted
 in-flight read may finish. Session and MAR route state are checked again after
 the asynchronous Registry read. This does not promise to recall delivered bytes.
 The bounded transport
-and proof are in [the first-app task](../tasks/builder-first-app.md#selected-local-access-implementation).
+and proof are in the first-app task.
 
 ## 23.4 Release
 
@@ -1175,7 +1176,7 @@ F1 target Product scope includes, even where technology-specific proof remains p
 ```text
 Account/session/current access
 Workspace + optional Areas
-Project lifecycle + Inception/Baseline
+Project lifecycle
 Change + proportional visual Plan/checklist
 agent-first Build workspace
 Platform Consultant/contextual Conexus assistance
@@ -1288,7 +1289,7 @@ formal security deferred because “F1 is internal”
 
 1. Workspace is sovereign isolation root; shared Account identity never transfers authority.
 2. Project owns one coherent Product/software lifecycle; technical layers do not automatically split Projects.
-3. Material Project intent is pinned by approved Baseline.
+3. Material Project intent lives in the Project conversation and its authored source; no separate pinned statement of intent gates the Builder.
 4. Change describes what must become true; WorkUnit/ActorRun do not replace Change authority.
 5. Plan/current checklist state is Hub-owned; model narration cannot close work.
 6. `tasks.md` preserves purpose/context but never operational status authority.
@@ -1335,13 +1336,13 @@ formal security deferred because “F1 is internal”
 |---|---|
 | Account in two Workspaces | identity can be shared; authority/resources do not cross |
 | Workspace member lacks Project grant | Project remains undiscoverable/unusable under current access rules |
-| Create greenfield Project | Discovery → Baseline candidate → approval → initial Change |
+| Create greenfield Project | Project and canonical source repo established, then the first Builder request |
 | Import brownfield | current code/contracts/data reality discovered before target assumptions |
 | Tiny safe Change | lighter route allowed; applicable authority/proof not bypassed |
 | Material Change | visual Plan/checkpoint/progress visible and owner-held where required |
 | Worker dies mid-plan | current item becomes honest interrupted/recoverable state; prose cannot say done |
 | `tasks.md` says done but Hub does not | structured mismatch fails/checks; Hub state wins |
-| Material architecture discovery during coding | stop → Finding/Replan/Baseline checkpoint |
+| Material architecture discovery during coding | stop → Finding/Replan checkpoint |
 | Builder session spans WorkUnits | cognitive continuity okay; ActorRuns stay bounded/auditable |
 | physical E2B sandbox dies | no silent cross-incarnation write replay |
 | New Brain revision | Project remains pinned until explicit rebind/revalidation/Release |
@@ -1393,8 +1394,6 @@ F1 is Product-complete when a real operator/company can, under accepted technica
 ```text
 establish Workspace/access
 → create/import Project
-→ perform Discovery/Inception
-→ approve sufficient Baseline
 → formulate/approve Plan when needed
 → ask Conexus to build/evolve real business software
 → inspect Preview/Code/Diff/Plan/progress/Data/Capabilities/Integrations/Brain/Agents/Versions/Activity
@@ -1436,7 +1435,7 @@ It gates a challenger/reconsideration when current primary runtime/model is mate
 
 # 33. Qualification-state boundary
 
-This Product Contract owns required Product meaning, not mutable phase or technology-qualification status. Current stage/implementation authority lives only in [../roadmap.md](../roadmap.md). The accepted bounded 3L outcomes, exact pins, proven properties, unproven properties and requalification triggers live in [../phases/3l-technology-qualification.md](../phases/3l-technology-qualification.md) and the routed qualification references.
+This Product Contract owns required Product meaning, not mutable phase or technology-qualification status. Current stage and implementation authority live only in [../roadmap.md](../roadmap.md).
 
 Framework/substrate Evidence may strengthen or falsify a realization claim; it never changes Product meaning by implication.
 

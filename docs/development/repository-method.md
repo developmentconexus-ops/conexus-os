@@ -13,7 +13,7 @@ Repository organization exists to increase decision signal, not ceremony.
 
 The 1.1 amendment was accepted by the operator on 2026-09-08 as part of the
 operating-model correction recorded in the
-[execution/result owner](../evidence/4d/4d-development-operating-model-execution-result.md).
+execution/result owner.
 It distinguishes stage, part and PR authority; requires one integrator for
 disjoint writers; and makes the flat verification graph a shared executable
 profile with explicit environment classes. Acceptance applies to this
@@ -21,7 +21,7 @@ repository; propagation to other repositories is not claimed or authorized.
 Existing Product, publication, merge and proof authority boundaries remain unchanged.
 
 The operator ratified the local verification cleanup on 2026-09-12 in
-[repository consolidation](../tasks/repository-consolidation.md). One current
+repository consolidation. One current
 verification graph serves local work and CI. Historical admission is explicit
 audit work, not a prerequisite for unrelated development. This amendment applies
 only to Conexus OS.
@@ -42,12 +42,13 @@ docs/decisions/index.md
   current decision disposition and reopen routing
 
 docs/product/
-docs/architecture/
+docs/reference/
 contracts/
   semantic/current authority according to stated ownership
 
-docs/evidence/
-docs/research/
+docs/tasks/
+  the bounded execution contract for work in flight
+
 qualification/
 Git history
   supporting proof, provenance and history; not implicit Product authority

@@ -69,8 +69,6 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('contract-projection-check-project', 'node scripts/generate-r1-s3-contracts.mjs --check'),
   candidateStep('repository-hygiene', 'node scripts/check-repository-hygiene.mjs'),
   candidateStep('repository-doc-index', 'node scripts/check-doc-index.mjs'),
-  candidateStep('repository-architecture', 'node scripts/check-architecture-verification.mjs'),
-  candidateStep('repository-architecture-unit', 'node --test tests/repository/architecture-history.test.mjs tests/repository/architecture-verification.test.mjs tests/repository/3o-closure-progression.test.mjs'),
   candidateStep('repository-contract-checks', 'node --test tests/repository/repository-contract.test.mjs'),
   candidateStep('biome-current', 'npx --no-install biome check apps/hub/src apps/web/src packages/canonical-json/src scripts/run-hub-migrations.mjs scripts/hub-catalog.mjs scripts/generate-hub-catalog-snapshot.mjs scripts/generate-hub-baseline.mjs tests/implementation/hub-database.mjs tests/implementation/hub-baseline.test.mjs tests/implementation/grant-surface-excision-postgres.test.mjs tests/implementation/workspace-postgres.test.mjs tests/implementation/builder-*.mjs tests/implementation/project-browser.test.mjs tests/repository/conexus-verify.test.mjs'),
 

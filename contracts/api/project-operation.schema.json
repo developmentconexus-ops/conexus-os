@@ -228,7 +228,6 @@
             "project.read",
             "project.source.read",
             "project.data.read",
-            "project.manage",
             "project.build",
             "project.review",
             "release.promote",
