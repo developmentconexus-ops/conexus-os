@@ -20,7 +20,7 @@ const versions = [
   '001', '002', '003', '004', '005', '006', '007', '008', '009', '010',
   '011', '012', '013', '014', '015', '016', '017', '018', '019', '020',
   '021', '022', '023',
-  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '039', '040', '041', '042', '043', '044', '045', '046', '047', '048', '049', '050', '051', '052', '053', '054', '055', '056', '057', '058',
+  '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '039', '040', '041', '042', '043', '044', '045', '046', '047', '048', '049', '050', '051', '052', '053', '054', '055', '056', '057', '058', '059',
 ]
 const query = async (connection, sql, parameters = []) => {
   const client = new pg.Client(connection)
@@ -81,11 +81,11 @@ test('current Hub installs accepted schemas and restarts without applying held R
 
   const accountId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID()
   const sourceRevision = 'd'.repeat(40); const keyDigest = 'e'.repeat(64); const requestDigest = 'f'.repeat(64)
-  await query(admin, "ALTER ROLE hub_prj03_command PASSWORD 'migration-bootstrap-test'")
+  await query(admin, "ALTER ROLE hub_project_command PASSWORD 'migration-bootstrap-test'")
   await query(fixture.connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://migration-bootstrap.test', $2, 'Bootstrap')", [accountId, accountId])
   await query(fixture.connection, 'INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'Bootstrap'])
   await query(fixture.connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
-  const command = { ...fixture.connection, user: 'hub_prj03_command', password: 'migration-bootstrap-test' }
+  const command = { ...fixture.connection, user: 'hub_project_command', password: 'migration-bootstrap-test' }
   await query(command, 'SELECT * FROM project.reserve_or_replay_create_project($1, $2, $3, $4, $5)', [accountId, workspaceId, keyDigest, requestDigest, projectId])
   await query(command, 'SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)', [accountId, workspaceId, keyDigest, requestDigest, projectId, 'Bootstrap', 'NEW', sourceRevision, 'project-revision'])
   assert.deepEqual((await query(fixture.connection, 'SELECT project_id, working_source_revision, working_version, current_state FROM builder.project_working_state WHERE project_id = $1', [projectId])).rows, [
@@ -215,23 +215,23 @@ test('a regenerated snapshot cannot bless a role that could cross the owner boun
 
   // Roles are cluster-global and after-hooks run in registration order, so the fixture database is
   // already gone when these run. The admin connection reaches the same roles.
-  t.after(() => query(admin, 'ALTER ROLE hub_rb_ingress NOCREATEROLE'))
-  await query(fixture.connection, 'ALTER ROLE hub_rb_ingress CREATEROLE')
-  await assert.rejects(rerun(), /MIGRATION_ROLE_ATTRIBUTE_REFUSED:hub_rb_ingress/)
-  await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_ATTRIBUTE_REFUSED:hub_rb_ingress/)
-  await query(fixture.connection, 'ALTER ROLE hub_rb_ingress NOCREATEROLE')
+  t.after(() => query(admin, 'ALTER ROLE hub_builder_ingress NOCREATEROLE'))
+  await query(fixture.connection, 'ALTER ROLE hub_builder_ingress CREATEROLE')
+  await assert.rejects(rerun(), /MIGRATION_ROLE_ATTRIBUTE_REFUSED:hub_builder_ingress/)
+  await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_ATTRIBUTE_REFUSED:hub_builder_ingress/)
+  await query(fixture.connection, 'ALTER ROLE hub_builder_ingress NOCREATEROLE')
 
-  t.after(() => query(admin, 'REVOKE hub_rb_executor FROM hub_rb_ingress'))
-  await query(fixture.connection, 'GRANT hub_rb_executor TO hub_rb_ingress')
-  await assert.rejects(rerun(), /MIGRATION_ROLE_MEMBERSHIP_REFUSED:hub_rb_ingress in hub_rb_executor/)
-  await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_MEMBERSHIP_REFUSED:hub_rb_ingress in hub_rb_executor/)
-  await query(fixture.connection, 'REVOKE hub_rb_executor FROM hub_rb_ingress')
+  t.after(() => query(admin, 'REVOKE hub_builder_executor FROM hub_builder_ingress'))
+  await query(fixture.connection, 'GRANT hub_builder_executor TO hub_builder_ingress')
+  await assert.rejects(rerun(), /MIGRATION_ROLE_MEMBERSHIP_REFUSED:hub_builder_ingress in hub_builder_executor/)
+  await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_MEMBERSHIP_REFUSED:hub_builder_ingress in hub_builder_executor/)
+  await query(fixture.connection, 'REVOKE hub_builder_executor FROM hub_builder_ingress')
 
-  t.after(() => query(admin, 'ALTER ROLE hub_rb_ingress LOGIN'))
-  await query(fixture.connection, 'ALTER ROLE hub_rb_ingress NOLOGIN')
-  await assert.rejects(rerun(), /MIGRATION_ROLE_LOGIN_REFUSED:hub_rb_ingress/)
-  await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_LOGIN_REFUSED:hub_rb_ingress/)
-  await query(fixture.connection, 'ALTER ROLE hub_rb_ingress LOGIN')
+  t.after(() => query(admin, 'ALTER ROLE hub_builder_ingress LOGIN'))
+  await query(fixture.connection, 'ALTER ROLE hub_builder_ingress NOLOGIN')
+  await assert.rejects(rerun(), /MIGRATION_ROLE_LOGIN_REFUSED:hub_builder_ingress/)
+  await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_LOGIN_REFUSED:hub_builder_ingress/)
+  await query(fixture.connection, 'ALTER ROLE hub_builder_ingress LOGIN')
 
   t.after(() => query(admin, 'ALTER ROLE builder_owner NOLOGIN'))
   await query(fixture.connection, 'ALTER ROLE builder_owner LOGIN')
@@ -239,11 +239,11 @@ test('a regenerated snapshot cannot bless a role that could cross the owner boun
   await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_LOGIN_REFUSED:builder_owner/)
   await query(fixture.connection, 'ALTER ROLE builder_owner NOLOGIN')
 
-  t.after(() => query(admin, 'ALTER ROLE hub_rb_ingress NOINHERIT'))
-  await query(fixture.connection, 'ALTER ROLE hub_rb_ingress INHERIT')
-  await assert.rejects(rerun(), /MIGRATION_ROLE_INHERIT_REFUSED:hub_rb_ingress/)
-  await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_INHERIT_REFUSED:hub_rb_ingress/)
-  await query(fixture.connection, 'ALTER ROLE hub_rb_ingress NOINHERIT')
+  t.after(() => query(admin, 'ALTER ROLE hub_builder_ingress NOINHERIT'))
+  await query(fixture.connection, 'ALTER ROLE hub_builder_ingress INHERIT')
+  await assert.rejects(rerun(), /MIGRATION_ROLE_INHERIT_REFUSED:hub_builder_ingress/)
+  await assert.rejects(rerun(await forge()), /MIGRATION_ROLE_INHERIT_REFUSED:hub_builder_ingress/)
+  await query(fixture.connection, 'ALTER ROLE hub_builder_ingress NOINHERIT')
 
   assert.deepEqual(await rerun(), { verdict: 'PASS', appliedNow: [], versions })
 })
@@ -366,7 +366,7 @@ test('the membership authority is the only admission surface left', async (t) =>
   `)).rows.map(row => row.attname), ['account_id', 'workspace_id', 'created_at', 'role'])
 
   assert.deepEqual((await query(fixture.connection,
-    `SELECT has_table_privilege('claude_connection_owner', 'iam.workspace_membership', 'SELECT') AS connection_reads_membership`)).rows,
+    `SELECT has_table_privilege('model_connection_owner', 'iam.workspace_membership', 'SELECT') AS connection_reads_membership`)).rows,
     [{ connection_reads_membership: false }])
 
   assert.deepEqual((await query(fixture.connection,
@@ -383,7 +383,7 @@ test('the membership authority is the only admission surface left', async (t) =>
             has_function_privilege($2, 'iam.visible_workspaces(uuid)', 'EXECUTE') AS connection_reads,
             has_function_privilege($3, 'iam.remove_workspace_member(uuid,uuid,uuid)', 'EXECUTE') AS runtime_manages,
             has_function_privilege($3, 'iam.admit_project(uuid,uuid,iam.action)', 'EXECUTE') AS runtime_admits`,
-    ['builder_owner', 'claude_connection_owner', 'hub_iam_runtime'])).rows,
+    ['builder_owner', 'model_connection_owner', 'hub_iam_runtime'])).rows,
     [{ builder_admits: true, connection_reads: true, runtime_manages: true, runtime_admits: false }])
 })
 

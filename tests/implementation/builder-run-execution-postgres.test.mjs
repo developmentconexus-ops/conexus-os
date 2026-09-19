@@ -41,8 +41,8 @@ test('BuilderRun admission and settlement are idempotent, serialized, and CAS-pr
   connectionString.pathname = `/${database}`; connectionString.username = current.user; connectionString.password = current.password
   await runCurrentHubMigrations({ connectionString: connectionString.toString() })
 
-  const ingress = { ...current, user: 'hub_rb_ingress', password: 'task1-ingress' }
-  const executor = { ...current, user: 'hub_rb_executor', password: 'task1-executor' }
+  const ingress = { ...current, user: 'hub_builder_ingress', password: 'task1-ingress' }
+  const executor = { ...current, user: 'hub_builder_executor', password: 'task1-executor' }
   const accountId = randomUUID()
   const workspaceId = randomUUID()
   const projectId = randomUUID()
@@ -56,7 +56,7 @@ test('BuilderRun admission and settlement are idempotent, serialized, and CAS-pr
   const requestDigest = '2'.repeat(64)
 
   adminClient = await connect(current)
-  await adminClient.query("ALTER ROLE hub_rb_ingress PASSWORD 'task1-ingress'; ALTER ROLE hub_rb_executor PASSWORD 'task1-executor'")
+  await adminClient.query("ALTER ROLE hub_builder_ingress PASSWORD 'task1-ingress'; ALTER ROLE hub_builder_executor PASSWORD 'task1-executor'")
   await adminClient.query('BEGIN')
   try {
     await adminClient.query('INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, $2, $3, $4)', [accountId, 'https://task1.test', accountId, 'Task 1'])

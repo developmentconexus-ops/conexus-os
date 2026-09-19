@@ -34,7 +34,7 @@ const s2ReadPool = config.database.workspace ? createPostgresPool({
   host: config.database.host,
   port: config.database.port,
   database: config.database.database,
-  user: 'hub_s2_read',
+  user: 'hub_workspace_read',
   password: readSecretFile(config.database.workspace.readPasswordFile),
 }) : undefined
 const identityAccessDependencies = {
@@ -53,7 +53,7 @@ const workspace = config.database.workspace && s2ReadPool ? createWorkspaceModul
     host: config.database.host,
     port: config.database.port,
     database: config.database.database,
-    user: 'hub_ws01_command',
+    user: 'hub_workspace_command',
     password: readSecretFile(config.database.workspace.commandPasswordFile),
   }),
   readPool: s2ReadPool,

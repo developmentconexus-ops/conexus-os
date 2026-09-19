@@ -22,8 +22,8 @@ await admin.connect()
 try {
   for (const [role, passwordFile] of [
     ['hub_iam_runtime', 'IAM_RUNTIME_PASSWORD_FILE'],
-    ['hub_ws01_command', 'WS01_COMMAND_PASSWORD_FILE'],
-    ['hub_s2_read', 'S2_READ_PASSWORD_FILE'],
+    ['hub_workspace_command', 'WORKSPACE_COMMAND_PASSWORD_FILE'],
+    ['hub_workspace_read', 'WORKSPACE_READ_PASSWORD_FILE'],
   ]) {
     const { rows: [{ statement }] } = await admin.query(
       'SELECT format(\'ALTER ROLE %I PASSWORD %L\', $1::text, $2::text) AS statement',

@@ -235,12 +235,12 @@ These are decisions about shipped behaviour. None of them blocks M-01.
 
 The last reported local proof had HTTPS and `hub_iam_runtime` working after the
 previously authorized `hub_rb_executor` reconciliation. `hub_prj03_command` and
-`hub_rb_ingress` still reported `28P01`.
+`hub_builder_ingress` still reported `28P01`.
 
 That `28P01` is gone. On 2026-09-18 a read-only census opened one session per
 configured role against the pilot cluster at `conexus_s7` through the Hub's own
 `createPostgresPool`, and every configured role authenticated, including
-`hub_prj03_command` and `hub_rb_ingress`. Postgres reported the expected
+`hub_project_command` and `hub_builder_ingress`. Postgres reported the expected
 `conexus-hub:<capability>` for each one. No role is in a blocked state today.
 
 The Hub now connects as eight roles, not eleven.
@@ -284,7 +284,7 @@ migration runner aborts if step 2's precondition does not hold.
 
 1. The pilot database is at migration 050, read read-only on 2026-09-19. The next
    start applies 051 through the current head in one runner invocation. That is
-   051, 052, 053, 054 and 055 together. Verifiers have staged this exact sequence
+   051 through 059 together. Verifiers have staged this exact sequence
    on pilot-shaped copies, from 050 to head, and it commits.
 2. Migration 055 asserts that every table it drops is empty and aborts with
    `MIGRATION_055_TABLE_NOT_EMPTY_REFUSED`, naming the table and its count, if one
@@ -297,14 +297,24 @@ migration runner aborts if step 2's precondition does not hold.
    `CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE` from the pilot environment
    first. `readHubConfig` throws `RETIRED_CONFIG_<name>` while any of the three is
    set, and the pilot environment file still sets all three.
-4. Once M-01 lands, the model catalog file will need `officialHttpsOrigin` removed
+4. The database roles are now named for what they may do, and their password-file
+   variables with them. Run `node scripts/cutover-hub-role-names.mjs <env-file>
+   <secrets-directory>` to see what it would do, then again with `--apply`: it
+   copies each secret file to its new name at mode 0600, rewrites the variable
+   names in the environment file and keeps a timestamped backup. It never
+   generates a password and prints names only. Then apply the migration, run
+   `npm run db:roles:provision` so the new roles take those passwords, and start
+   the Hub; the connection census should report every role `ok`. A stale variable
+   is refused at startup with `RETIRED_CONFIG_<old>_USE_<new>` rather than
+   surfacing later as a `28P01`.
+5. Once M-01 lands, the model catalog file will need `officialHttpsOrigin` removed
    from each entry, because the provider registry answers it. Do not remove it
    before then; the field is still read today.
-5. For multi-account, an invited person must already exist in Keycloak with that
+6. For multi-account, an invited person must already exist in Keycloak with that
    exact email address, marked verified. The Hub reads `email_verified` from the
    validated ID token and accepts only the boolean `true`. Nothing is emailed, and
    an address that is not verified at the provider is refused.
-6. Eight database login roles are now inert: `hub_r2_brain_attester`,
+7. Eight database login roles are now inert: `hub_r2_brain_attester`,
    `hub_r2_brain_bootstrap`, `hub_r2_brain_read`, `hub_r2_key_conformance_subject`,
    `hub_r2_project_binding`, `hub_s4_baseline_command`, `hub_s4_baseline_read` and
    `hub_s6_inception_command`. Migration 055 revoked every privilege they hold and
@@ -312,6 +322,13 @@ migration runner aborts if step 2's precondition does not hold.
    answers `2BP01` while any other database on the cluster still grants to it. They
    can be dropped from the cluster by hand, and only after every database on that
    cluster is at 055.
+8. Eight more names joined them at 059, for the same reason: `hub_ws01_command`,
+   `hub_s2_read`, `hub_s3_read`, `hub_prj03_command`, `hub_rb_ingress`,
+   `hub_rb_executor`, `hub_r2_connections` and `claude_connection_owner`. 059
+   moved every privilege and every owned object each of them held to the
+   capability-named role that replaces it, and asserts they are left holding
+   nothing. They too can be dropped by hand once every database on the cluster
+   is at 059.
 
 ### What P-01 has and has not
 

@@ -54,12 +54,12 @@ const port = (value: string, name: string): number => {
 }
 
 const workspaceDatabase = (environment: NodeJS.ProcessEnv): HubConfig['database']['workspace'] => {
-  const commandPasswordFile = environment.CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE
-  const readPasswordFile = environment.CONEXUS_DB_S2_READ_PASSWORD_FILE
+  const commandPasswordFile = environment.CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE
+  const readPasswordFile = environment.CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE
   if (commandPasswordFile && readPasswordFile) return { commandPasswordFile, readPasswordFile }
   if (commandPasswordFile || readPasswordFile || environment.NODE_ENV !== 'test') {
-    if (!commandPasswordFile) throw new Error('MISSING_CONFIG_CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE')
-    throw new Error('MISSING_CONFIG_CONEXUS_DB_S2_READ_PASSWORD_FILE')
+    if (!commandPasswordFile) throw new Error('MISSING_CONFIG_CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE')
+    throw new Error('MISSING_CONFIG_CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE')
   }
   return undefined
 }
@@ -82,13 +82,27 @@ const RETIRED_BRAIN_CONNECTIONS_VARIABLES = [
   'CONEXUS_R2_KEY_CONFORMANCE_REGISTRATION_CATALOG_FILE',
 ] as const
 
+// The database roles are named for what they may do, not for the program phase that introduced
+// them. An operator whose environment still carries the old variable names would otherwise get a
+// 28P01 from the cluster, several layers away from the file that needs editing, so each retired
+// name is refused here and the error says which one replaced it.
+const RENAMED_ROLE_VARIABLES = {
+  CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE: 'CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE',
+  CONEXUS_DB_S2_READ_PASSWORD_FILE: 'CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE',
+  CONEXUS_DB_S3_READ_PASSWORD_FILE: 'CONEXUS_DB_PROJECT_READ_PASSWORD_FILE',
+  CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE: 'CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE',
+  CONEXUS_DB_RB_INGRESS_PASSWORD_FILE: 'CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE',
+  CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE: 'CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE',
+  CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE: 'CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE',
+} as const
+
 const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] => {
   for (const name of RETIRED_PLANNING_VARIABLES) {
     if (environment[name]) throw new Error(`RETIRED_CONFIG_${name}`)
   }
   const ordinaryValues = {
-    commandPasswordFile: environment.CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE,
-    readPasswordFile: environment.CONEXUS_DB_S3_READ_PASSWORD_FILE,
+    commandPasswordFile: environment.CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE,
+    readPasswordFile: environment.CONEXUS_DB_PROJECT_READ_PASSWORD_FILE,
     storageRoot: environment.CONEXUS_PROJECT_STORAGE_ROOT,
     gitImportCatalogFile: environment.CONEXUS_GIT_IMPORT_CATALOG_FILE,
     externalFileSlotsFile: environment.CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE,
@@ -100,8 +114,8 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
 
   if (hasOrdinaryValues && !ordinaryComplete) {
     for (const [name, value] of Object.entries({
-      CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE: ordinaryValues.commandPasswordFile,
-      CONEXUS_DB_S3_READ_PASSWORD_FILE: ordinaryValues.readPasswordFile,
+      CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE: ordinaryValues.commandPasswordFile,
+      CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: ordinaryValues.readPasswordFile,
       CONEXUS_PROJECT_STORAGE_ROOT: ordinaryValues.storageRoot,
       CONEXUS_GIT_IMPORT_CATALOG_FILE: ordinaryValues.gitImportCatalogFile,
       CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE: ordinaryValues.externalFileSlotsFile,
@@ -111,8 +125,8 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
   }
   if (!ordinaryComplete) return undefined
   const ordinary: ProjectRuntimeConfig = {
-    commandPasswordFile: required(environment, 'CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE'),
-    readPasswordFile: required(environment, 'CONEXUS_DB_S3_READ_PASSWORD_FILE'),
+    commandPasswordFile: required(environment, 'CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE'),
+    readPasswordFile: required(environment, 'CONEXUS_DB_PROJECT_READ_PASSWORD_FILE'),
     storageRoot: required(environment, 'CONEXUS_PROJECT_STORAGE_ROOT'),
     gitImportCatalogFile: required(environment, 'CONEXUS_GIT_IMPORT_CATALOG_FILE'),
     externalFileSlotsFile: required(environment, 'CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE'),
@@ -124,20 +138,20 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
 
 const connectionsRuntime = (environment: NodeJS.ProcessEnv): HubConfig['connections'] => {
   const values = {
-    passwordFile: environment.CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE,
+    passwordFile: environment.CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE,
     credentialRoot: environment.CONEXUS_CONNECTION_CREDENTIAL_ROOT,
     credentialKeyFile: environment.CONEXUS_CONNECTION_CREDENTIAL_KEY_FILE,
     credentialKeyGeneration: environment.CONEXUS_CONNECTION_CREDENTIAL_KEY_GENERATION,
   }
   if (Object.values(values).every(Boolean)) return {
-    passwordFile: required(environment, 'CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE'),
+    passwordFile: required(environment, 'CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE'),
     credentialRoot: required(environment, 'CONEXUS_CONNECTION_CREDENTIAL_ROOT'),
     credentialKeyFile: required(environment, 'CONEXUS_CONNECTION_CREDENTIAL_KEY_FILE'),
     credentialKeyGeneration: required(environment, 'CONEXUS_CONNECTION_CREDENTIAL_KEY_GENERATION'),
   }
   if (Object.values(values).some(Boolean)) {
     for (const [name, value] of Object.entries({
-      CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE: values.passwordFile,
+      CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE: values.passwordFile,
       CONEXUS_CONNECTION_CREDENTIAL_ROOT: values.credentialRoot,
       CONEXUS_CONNECTION_CREDENTIAL_KEY_FILE: values.credentialKeyFile,
       CONEXUS_CONNECTION_CREDENTIAL_KEY_GENERATION: values.credentialKeyGeneration,
@@ -148,23 +162,23 @@ const connectionsRuntime = (environment: NodeJS.ProcessEnv): HubConfig['connecti
 
 const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] => {
   const values = {
-    ingressPasswordFile: environment.CONEXUS_DB_RB_INGRESS_PASSWORD_FILE,
-    executorPasswordFile: environment.CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE,
+    ingressPasswordFile: environment.CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE,
+    executorPasswordFile: environment.CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE,
     e2bApiKeyFile: environment.CONEXUS_BUILDER_E2B_API_KEY_FILE,
     e2bTemplateId: environment.CONEXUS_BUILDER_E2B_TEMPLATE_ID,
     modelAdmissionId: environment.CONEXUS_BUILDER_MODEL_ADMISSION_ID,
   }
   if (Object.values(values).every(Boolean)) return {
-    ingressPasswordFile: required(environment, 'CONEXUS_DB_RB_INGRESS_PASSWORD_FILE'),
-    executorPasswordFile: required(environment, 'CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE'),
+    ingressPasswordFile: required(environment, 'CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE'),
+    executorPasswordFile: required(environment, 'CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE'),
     e2bApiKeyFile: required(environment, 'CONEXUS_BUILDER_E2B_API_KEY_FILE'),
     e2bTemplateId: required(environment, 'CONEXUS_BUILDER_E2B_TEMPLATE_ID'),
     modelAdmissionId: required(environment, 'CONEXUS_BUILDER_MODEL_ADMISSION_ID'),
   }
   if (Object.values(values).some(Boolean)) {
     for (const [name, value] of Object.entries({
-      CONEXUS_DB_RB_INGRESS_PASSWORD_FILE: values.ingressPasswordFile,
-      CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE: values.executorPasswordFile,
+      CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: values.ingressPasswordFile,
+      CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: values.executorPasswordFile,
       CONEXUS_BUILDER_E2B_API_KEY_FILE: values.e2bApiKeyFile,
       CONEXUS_BUILDER_E2B_TEMPLATE_ID: values.e2bTemplateId,
       CONEXUS_BUILDER_MODEL_ADMISSION_ID: values.modelAdmissionId,
@@ -194,6 +208,9 @@ const previewRuntime = (environment: NodeJS.ProcessEnv, hubOrigin: string, hubPo
 export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): HubConfig => {
   for (const name of RETIRED_BRAIN_CONNECTIONS_VARIABLES) {
     if (environment[name]) throw new Error(`RETIRED_CONFIG_${name}`)
+  }
+  for (const [name, replacement] of Object.entries(RENAMED_ROLE_VARIABLES)) {
+    if (environment[name]) throw new Error(`RETIRED_CONFIG_${name}_USE_${replacement}`)
   }
   const hubOrigin = required(environment, 'CONEXUS_ORIGIN')
   const hubPort = port(environment.CONEXUS_PORT ?? '3000', 'CONEXUS_PORT')

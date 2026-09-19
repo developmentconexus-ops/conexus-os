@@ -9,45 +9,45 @@
       "connectsFrom": ["apps/hub/src/server.ts"]
     },
     {
-      "role": "hub_s2_read",
+      "role": "hub_workspace_read",
       "capability": "workspace-read",
-      "passwordFileVariable": "CONEXUS_DB_S2_READ_PASSWORD_FILE",
+      "passwordFileVariable": "CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE",
       "connectsFrom": ["apps/hub/src/server.ts"]
     },
     {
-      "role": "hub_ws01_command",
+      "role": "hub_workspace_command",
       "capability": "workspace-command",
-      "passwordFileVariable": "CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE",
+      "passwordFileVariable": "CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE",
       "connectsFrom": ["apps/hub/src/server.ts"]
     },
     {
-      "role": "hub_s3_read",
+      "role": "hub_project_read",
       "capability": "project-read",
-      "passwordFileVariable": "CONEXUS_DB_S3_READ_PASSWORD_FILE",
+      "passwordFileVariable": "CONEXUS_DB_PROJECT_READ_PASSWORD_FILE",
       "connectsFrom": ["apps/hub/src/project/module.ts"]
     },
     {
-      "role": "hub_prj03_command",
+      "role": "hub_project_command",
       "capability": "project-command",
-      "passwordFileVariable": "CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE",
+      "passwordFileVariable": "CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE",
       "connectsFrom": ["apps/hub/src/project/module.ts"]
     },
     {
-      "role": "hub_r2_connections",
+      "role": "hub_model_connection",
       "capability": "connections",
-      "passwordFileVariable": "CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE",
+      "passwordFileVariable": "CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE",
       "connectsFrom": ["apps/hub/src/model-connection-account/module.ts"]
     },
     {
-      "role": "hub_rb_ingress",
+      "role": "hub_builder_ingress",
       "capability": "builder-request",
-      "passwordFileVariable": "CONEXUS_DB_RB_INGRESS_PASSWORD_FILE",
+      "passwordFileVariable": "CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE",
       "connectsFrom": ["apps/hub/src/builder/module.ts"]
     },
     {
-      "role": "hub_rb_executor",
+      "role": "hub_builder_executor",
       "capability": "builder-run-execution",
-      "passwordFileVariable": "CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE",
+      "passwordFileVariable": "CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE",
       "connectsFrom": ["apps/hub/src/builder/module.ts"]
     }
   ]

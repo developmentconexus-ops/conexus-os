@@ -23,26 +23,26 @@ test.after(() => rm(buildRoot, { recursive: true, force: true }))
 test('the register holds every role the Hub connects as, with the capability an operator reads', () => {
   assert.deepEqual(register.roles.map((row) => [row.role, row.capability]), [
     ['hub_iam_runtime', 'identity-and-access'],
-    ['hub_s2_read', 'workspace-read'],
-    ['hub_ws01_command', 'workspace-command'],
-    ['hub_s3_read', 'project-read'],
-    ['hub_prj03_command', 'project-command'],
-    ['hub_r2_connections', 'connections'],
-    ['hub_rb_ingress', 'builder-request'],
-    ['hub_rb_executor', 'builder-run-execution'],
+    ['hub_workspace_read', 'workspace-read'],
+    ['hub_workspace_command', 'workspace-command'],
+    ['hub_project_read', 'project-read'],
+    ['hub_project_command', 'project-command'],
+    ['hub_model_connection', 'connections'],
+    ['hub_builder_ingress', 'builder-request'],
+    ['hub_builder_executor', 'builder-run-execution'],
   ])
 })
 
 test('a connection labels itself with the capability the register gives its role', () => {
-  assert.equal(capabilityFor('hub_rb_ingress'), 'builder-request')
-  assert.equal(capabilityFor('hub_prj03_command'), 'project-command')
-  assert.equal(capabilityFor('hub_r2_connections'), 'connections')
+  assert.equal(capabilityFor('hub_builder_ingress'), 'builder-request')
+  assert.equal(capabilityFor('hub_project_command'), 'project-command')
+  assert.equal(capabilityFor('hub_model_connection'), 'connections')
   assert.equal(capabilityFor('postgres'), 'postgres')
   assert.equal(capabilityFor(undefined), 'unlabelled')
 })
 
 test('every pool carries its capability into application_name', async () => {
-  const pool = createPostgresPool({ host: '127.0.0.1', port: 1, database: 'unreachable', user: 'hub_rb_executor', password: 'unused' })
+  const pool = createPostgresPool({ host: '127.0.0.1', port: 1, database: 'unreachable', user: 'hub_builder_executor', password: 'unused' })
   assert.equal(pool.options.application_name, 'conexus-hub:builder-run-execution')
   await pool.end()
 })
@@ -98,7 +98,7 @@ test('--check on a register edited after generation names the role that drifted,
     await writeFile(generatedPath, generateRegister())
 
     const staged = JSON.parse(readFileSync(registerPath, 'utf8'))
-    const target = staged.roles.find((row) => row.role === 'hub_rb_executor')
+    const target = staged.roles.find((row) => row.role === 'hub_builder_executor')
     target.capability = 'builder-run-exec-DRIFT'
     await writeFile(registerPath, JSON.stringify(staged, null, 2))
 
@@ -107,7 +107,7 @@ test('--check on a register edited after generation names the role that drifted,
       encoding: 'utf8',
     })
     assert.notEqual(checkResult.status, 0)
-    assert.match(checkResult.stderr, /hub_rb_executor/)
+    assert.match(checkResult.stderr, /hub_builder_executor/)
     assert.doesNotMatch(checkResult.stderr, /line 3\b/)
   } finally {
     await rm(stageRoot, { recursive: true, force: true })

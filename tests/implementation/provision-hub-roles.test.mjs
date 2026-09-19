@@ -30,9 +30,9 @@ const secretFile = (root, name, value) => {
 }
 
 test('a missing password file is reported without a write', async () => {
-  const roles = readRegister(repositoryRoot).filter(row => row.role === 'hub_rb_executor')
+  const roles = readRegister(repositoryRoot).filter(row => row.role === 'hub_builder_executor')
   const rows = await censusRoles({ host: '127.0.0.1', port: 1, database: 'unreachable' }, {}, roles)
-  assert.deepEqual(rows, [{ role: 'hub_rb_executor', capability: 'builder-run-execution', state: 'unconfigured' }])
+  assert.deepEqual(rows, [{ role: 'hub_builder_executor', capability: 'builder-run-execution', state: 'unconfigured' }])
 })
 
 test('the register every provisioning run reads is the one the Hub projects', () => {
@@ -73,30 +73,30 @@ test('provisioning repairs a role with no password and then writes nothing', { s
     CONEXUS_DB_NAME: database,
     CONEXUS_PROVISION_USER: admin.user,
     CONEXUS_PROVISION_PASSWORD_FILE: secretFile(secretRoot, 'provision-admin', admin.password),
-    CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE: secretFile(secretRoot, 'db-rb-executor', executorPassword),
-    CONEXUS_DB_RB_INGRESS_PASSWORD_FILE: secretFile(secretRoot, 'db-rb-ingress', ingressPassword),
+    CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: secretFile(secretRoot, 'db-builder-executor', executorPassword),
+    CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: secretFile(secretRoot, 'db-builder-ingress', ingressPassword),
   }
-  const roles = readRegister(repositoryRoot).filter(row => row.role === 'hub_rb_executor' || row.role === 'hub_rb_ingress')
+  const roles = readRegister(repositoryRoot).filter(row => row.role === 'hub_builder_executor' || row.role === 'hub_builder_ingress')
   const target = { host: admin.host, port: admin.port, database }
 
   const before = await censusRoles(target, environment, roles)
   assert.deepEqual(before.map(row => [row.role, row.state, row.sqlstate]), [
-    ['hub_rb_ingress', 'invalid', '28P01'],
-    ['hub_rb_executor', 'invalid', '28P01'],
+    ['hub_builder_ingress', 'invalid', '28P01'],
+    ['hub_builder_executor', 'invalid', '28P01'],
   ])
 
   const first = await provisionRoles(target, environment, roles)
   assert.equal(first.verdict, 'REPAIRED')
-  assert.deepEqual([...first.repaired].sort(), ['hub_rb_executor', 'hub_rb_ingress'])
+  assert.deepEqual([...first.repaired].sort(), ['hub_builder_executor', 'hub_builder_ingress'])
   assert.deepEqual(first.invalid, [])
 
   const second = await provisionRoles(target, environment, roles)
   assert.deepEqual(second, { verdict: 'CURRENT', checked: 2, repaired: [], invalid: [], unconfigured: [], errors: [] })
 
-  const executorClient = new pg.Client({ ...target, user: 'hub_rb_executor', password: executorPassword })
+  const executorClient = new pg.Client({ ...target, user: 'hub_builder_executor', password: executorPassword })
   await executorClient.connect()
   const { rows } = await executorClient.query('select current_user')
-  assert.equal(rows[0].current_user, 'hub_rb_executor')
+  assert.equal(rows[0].current_user, 'hub_builder_executor')
   await executorClient.end()
 
   // A real wrong password against a role that exists and connects fine over the network:
@@ -108,10 +108,10 @@ test('provisioning repairs a role with no password and then writes nothing', { s
   const wrongPasswordRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/provision-wrong-password-'))
   t.after(() => rmSync(wrongPasswordRoot, { recursive: true, force: true }))
   const wrongPasswordEnvironment = {
-    CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE: secretFile(wrongPasswordRoot, 'db-rb-executor', `${executorPassword}-wrong`),
+    CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: secretFile(wrongPasswordRoot, 'db-builder-executor', `${executorPassword}-wrong`),
   }
   const censusRows = await censusConnections(target, wrongPasswordEnvironment)
-  const wrongPasswordRow = censusRows.find(row => row.role === 'hub_rb_executor')
+  const wrongPasswordRow = censusRows.find(row => row.role === 'hub_builder_executor')
   assert.equal(wrongPasswordRow.state, 'invalid')
   assert.equal(wrongPasswordRow.sqlstate, '28P01')
 })
@@ -119,12 +119,12 @@ test('provisioning repairs a role with no password and then writes nothing', { s
 test('a password file with loose permissions is refused', async (t) => {
   const secretRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/provision-loose-'))
   t.after(() => rmSync(secretRoot, { recursive: true, force: true }))
-  const path = resolve(secretRoot, 'db-rb-executor')
+  const path = resolve(secretRoot, 'db-builder-executor')
   writeFileSync(path, 'world-readable\n')
   chmodSync(path, 0o644)
-  const roles = readRegister(repositoryRoot).filter(row => row.role === 'hub_rb_executor')
+  const roles = readRegister(repositoryRoot).filter(row => row.role === 'hub_builder_executor')
   await assert.rejects(
-    censusRoles({ host: '127.0.0.1', port: 1, database: 'unreachable' }, { CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE: path }, roles),
+    censusRoles({ host: '127.0.0.1', port: 1, database: 'unreachable' }, { CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: path }, roles),
     /SECRET_FILE_PERMISSIONS/,
   )
 })

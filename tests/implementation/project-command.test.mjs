@@ -55,7 +55,7 @@ test('S3-P5 migration 006 makes project.create authorization internal and curren
   assert.match(source, /CREATE OR REPLACE FUNCTION project\.lock_create_project_receipt/)
   assert.equal((source.match(/IF NOT iam\.can_create_project\(/g) ?? []).length, 2)
   assert.match(source, /GRANT EXECUTE ON FUNCTION iam\.can_create_project\(uuid, uuid\) TO project_owner/)
-  assert.doesNotMatch(source, /GRANT EXECUTE ON FUNCTION iam\.can_create_project\(uuid, uuid\) TO hub_prj03_command/)
+  assert.doesNotMatch(source, /GRANT EXECUTE ON FUNCTION iam\.can_create_project\(uuid, uuid\) TO hub_project_command/)
   assert.match(source, /REVOKE EXECUTE ON FUNCTION iam\.can_create_project\(uuid, uuid\) FROM PUBLIC/)
 })
 
@@ -363,8 +363,8 @@ test('S3-P5 real NEW and EXISTING_GIT HTTP compose PostgreSQL and exact-image Gi
     const cleanup = new pg.Client(adminConnection)
     await cleanup.connect()
     try {
-      await cleanup.query('ALTER ROLE hub_prj03_command PASSWORD NULL').catch(() => {})
-      await cleanup.query('ALTER ROLE hub_s3_read PASSWORD NULL').catch(() => {})
+      await cleanup.query('ALTER ROLE hub_project_command PASSWORD NULL').catch(() => {})
+      await cleanup.query('ALTER ROLE hub_project_read PASSWORD NULL').catch(() => {})
       await cleanup.query(`DROP DATABASE ${quote(database)} WITH (FORCE)`)
     } finally {
       await cleanup.end()
@@ -385,8 +385,8 @@ test('S3-P5 real NEW and EXISTING_GIT HTTP compose PostgreSQL and exact-image Gi
   `, [accountId, workspaceId])
   const commandPassword = 's3-p5-command-synthetic-only'
   const readPassword = 's3-p6-read-synthetic-only'
-  await query(fresh, `ALTER ROLE hub_prj03_command PASSWORD '${commandPassword}'`)
-  await query(fresh, `ALTER ROLE hub_s3_read PASSWORD '${readPassword}'`)
+  await query(fresh, `ALTER ROLE hub_project_command PASSWORD '${commandPassword}'`)
+  await query(fresh, `ALTER ROLE hub_project_read PASSWORD '${readPassword}'`)
 
   const built = compileHub(t)
   const { createHttpApp } = await import(built('http/app.js'))
@@ -469,8 +469,8 @@ git(['--git-dir=/fixture/repo.git', 'update-server-info'])
     enabled: true,
   }])
   assert.ok(catalog)
-  commandPool = createPostgresPool({ ...fresh, user: 'hub_prj03_command', password: commandPassword })
-  readPool = createPostgresPool({ ...fresh, user: 'hub_s3_read', password: readPassword })
+  commandPool = createPostgresPool({ ...fresh, user: 'hub_project_command', password: commandPassword })
+  readPool = createPostgresPool({ ...fresh, user: 'hub_project_read', password: readPassword })
   const store = createProjectStore({
     commandPool,
     readPool,

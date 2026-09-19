@@ -41,8 +41,8 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
   await setup.query(`INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1, $2)`, [projectId, sourceRevision])
   await setup.query(`INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, trigger_message_id, idempotency_digest, request_digest, mode, base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind)
     VALUES ($1, $2, $3, $4, $5, $5, 'BUILD', $6, 0, 0, 'RUNNING', $6, NULL)`, [builderRunId, projectId, accountId, builderRunId, digest, sourceRevision])
-  await setup.query("ALTER ROLE hub_rb_executor PASSWORD 'registry-c020-test'")
-  runtime = await connect({ ...config, user: 'hub_rb_executor', password: 'registry-c020-test' })
+  await setup.query("ALTER ROLE hub_builder_executor PASSWORD 'registry-c020-test'")
+  runtime = await connect({ ...config, user: 'hub_builder_executor', password: 'registry-c020-test' })
   const store = createApplicationArtifactStore()
   assert.equal((await setup.query('SELECT builder.admit_verified_application_source($1,$2,$3,$4) AS admitted', [accountId, projectId, builderRunId, sourceRevision])).rows[0].admitted, true)
   await setup.query("UPDATE builder.builder_run SET state = 'SUCCEEDED' WHERE builder_run_id = $1", [builderRunId])
@@ -90,9 +90,9 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
     has_function_privilege('builder_owner', 'reg.get_application_by_source(uuid,uuid,text)', 'EXECUTE') AS builder_source_get,
     has_function_privilege('builder_owner', 'reg.retain_application_execution(uuid,uuid,uuid,text,jsonb)', 'EXECUTE') AS builder_execution_retain,
     has_function_privilege('builder_owner', 'reg.read_application_file_by_source(uuid,uuid,text,uuid,text)', 'EXECUTE') AS builder_source_read,
-    has_function_privilege('hub_rb_executor', 'reg.retain_application_execution(uuid,uuid,uuid,text,jsonb)', 'EXECUTE') AS executor_execution_retain,
-    has_function_privilege('hub_rb_executor', 'reg.get_application_by_source(uuid,uuid,text)', 'EXECUTE') AS executor_source_get,
-    has_function_privilege('hub_rb_executor', 'reg.read_application_file_by_source(uuid,uuid,text,uuid,text)', 'EXECUTE') AS executor_source_read,
+    has_function_privilege('hub_builder_executor', 'reg.retain_application_execution(uuid,uuid,uuid,text,jsonb)', 'EXECUTE') AS executor_execution_retain,
+    has_function_privilege('hub_builder_executor', 'reg.get_application_by_source(uuid,uuid,text)', 'EXECUTE') AS executor_source_get,
+    has_function_privilege('hub_builder_executor', 'reg.read_application_file_by_source(uuid,uuid,text,uuid,text)', 'EXECUTE') AS executor_source_read,
     has_function_privilege('public', 'reg.get_application_by_source(uuid,uuid,text)', 'EXECUTE') AS public_source_get,
     has_function_privilege('public', 'reg.read_application_file_by_source(uuid,uuid,text,uuid,text)', 'EXECUTE') AS public_source_read,
     has_function_privilege('public', 'reg.retain_application_execution(uuid,uuid,uuid,text,jsonb)', 'EXECUTE') AS public_execution_retain,
@@ -117,8 +117,8 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   await setup.query('INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1, $2)', [projectId, sourceA])
   await setup.query(`INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, trigger_message_id, idempotency_digest, request_digest, mode, base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind)
     VALUES ($1, $2, $3, $4, $5, $5, 'BUILD', $6, 0, 0, 'RUNNING', $6, NULL)`, [builderRunId, projectId, accountId, builderRunId, digest, sourceA])
-  await setup.query("ALTER ROLE hub_rb_executor PASSWORD 'registry-settlement-test'")
-  runtime = await connect({ ...config, user: 'hub_rb_executor', password: 'registry-settlement-test' })
+  await setup.query("ALTER ROLE hub_builder_executor PASSWORD 'registry-settlement-test'")
+  runtime = await connect({ ...config, user: 'hub_builder_executor', password: 'registry-settlement-test' })
   const store = createApplicationArtifactStore()
   assert.equal((await runtime.query('SELECT builder.advance_builder_run_source($1,$2) AS advanced', [builderRunId, sourceB])).rows[0].advanced, true)
   const bytes = Buffer.from('<!doctype html><title>Settlement</title>')

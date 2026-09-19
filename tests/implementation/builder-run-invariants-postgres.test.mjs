@@ -27,12 +27,12 @@ test('C-020 preserves state invariants and separates response settlement from bu
   connectionString.pathname = `/${database}`; connectionString.username = current.user; connectionString.password = current.password
   await runCurrentHubMigrations({ connectionString: connectionString.toString() })
 
-  const ingress = { ...current, user: 'hub_rb_ingress', password: 'invariants-ingress' }
-  const executor = { ...current, user: 'hub_rb_executor', password: 'invariants-executor' }
+  const ingress = { ...current, user: 'hub_builder_ingress', password: 'invariants-ingress' }
+  const executor = { ...current, user: 'hub_builder_executor', password: 'invariants-executor' }
   const accountId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID()
   const source = 'a'.repeat(40); const nextSource = 'b'.repeat(40)
   adminClient = await connect(current)
-  await adminClient.query("ALTER ROLE hub_rb_ingress PASSWORD 'invariants-ingress'; ALTER ROLE hub_rb_executor PASSWORD 'invariants-executor'")
+  await adminClient.query("ALTER ROLE hub_builder_ingress PASSWORD 'invariants-ingress'; ALTER ROLE hub_builder_executor PASSWORD 'invariants-executor'")
   await adminClient.query('INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, $2, $3, $4)', [accountId, 'https://invariants.test', accountId, '030'])
   await adminClient.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, '030'])
   await adminClient.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
