@@ -83,9 +83,7 @@ test('S3-P2 NEW seed source has an empty APP-owned set', () => {
   assert.match(seed.expectedTree, /^[0-9a-f]{40}$/)
   assert.match(seed.expectedSourceRevision, /^[0-9a-f]{40}$/)
   assert.deepEqual(seed.entries.map(({ class: ownerClass, path }) => ({ class: ownerClass, path })), [
-    { class: 'GENERATED', path: 'generated/r1/operations.json' },
-    { class: 'GENERATED', path: 'generated/r1/operations.mjs' },
-    { class: 'PLATFORM-CONTRACT', path: 'platform/r1/contract.json' },
+    { class: 'GENERATED', path: 'README.md' },
   ])
 })
 

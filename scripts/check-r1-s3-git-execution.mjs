@@ -56,7 +56,7 @@ export function checkR1S3GitExecution(root = repositoryRoot) {
   if (!sourceText.includes("rmSync('/workspace/verify.git', { recursive: true, force: true })") || !sourceText.includes("rm(resolve(attemptRoot, 'verify.git'), { recursive: true, force: true })")) throw new Error('S3_GIT_RESTORE_SCRATCH_CLEANUP_DRIFT')
   if (!sourceText.includes("'--mount', `type=bind,src=") || !sourceText.includes(',dst=/workspace`')) throw new Error('S3_GIT_OWNED_MOUNT_DRIFT')
   if (!sourceText.includes("'--user', CONTAINER_USER") || !sourceText.includes("'/usr/local/bin/git'")) throw new Error('S3_GIT_OWNER_PROCESS_DRIFT')
-  if (seed.appOwnedPathCount !== 0 || seed.entries.length !== 3) throw new Error('S3_GIT_NEW_SEED_CENSUS_DRIFT')
+  if (seed.appOwnedPathCount !== 0 || seed.entries.length !== 1) throw new Error('S3_GIT_NEW_SEED_CENSUS_DRIFT')
   for (const forbidden of identity.forbiddenBindingIdentities.filter((value) => value.startsWith('sha256:'))) {
     if (sourceText.includes(forbidden)) throw new Error(`S3_GIT_FORBIDDEN_IDENTITY_EMBEDDED:${forbidden}`)
   }
