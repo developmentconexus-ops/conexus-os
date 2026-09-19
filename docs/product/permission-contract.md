@@ -447,7 +447,7 @@ DecideApprovalRequest
 → current ingress may be CP or an exact admitted PA approval surface; PA role alone grants nothing
 ```
 
-`CreateProject` source bootstrap does not create a `git.import`, `repository.manage` or network Permission. The caller still needs only `project.create`; repository locator admission is bounded input validation and GitInfra remains mechanism under current server policy. `GetProjectBaselineCandidate` and `AskConexusAboutBaselineCandidate` likewise use `project.manage`; neither exact candidate read justifies `baseline.read`/`baseline.approve`/`baseline.chat` Permission proliferation. `BLD-16 AskConexusAboutContext` remains separately governed by `project.build` because it serves Builder context rather than Baseline administration.
+`CreateProject` source bootstrap does not create a `git.import`, `repository.manage` or network Permission. The caller still needs only `project.create`; repository locator admission is bounded input validation and GitInfra remains mechanism under current server policy. The candidate reads that once carried the same argument against `baseline.read`/`baseline.approve`/`baseline.chat` proliferation were retired with Project Inception and Baseline on 2026-09-19; those Permissions remain uncreated. `BLD-16 AskConexusAboutContext` is governed by `project.build` because it serves Builder context.
 
 F11 likewise does not create Account/Area/grant CRUD Permissions. `workspace.access.manage` already represents the reusable authority distinction required to administer those exact membership/grant facts; the new reads merely make that existing authority safely inspectable.
 

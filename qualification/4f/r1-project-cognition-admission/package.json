@@ -7,7 +7,7 @@
     "node": "24.20.0"
   },
   "scripts": {
-    "test": "node --test --test-concurrency=1 p0-response-boundary.test.mjs p1-project-mastra-admission.test.mjs p2-anthropic-oauth-admission.test.mjs",
+    "test": "node --test --test-concurrency=1 p0-response-boundary.test.mjs p2-anthropic-oauth-admission.test.mjs",
     "auth:login": "node auth-login.mjs",
     "qualify:live": "node p2-live-anthropic-oauth.mjs"
   },

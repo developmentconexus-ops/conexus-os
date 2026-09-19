@@ -328,7 +328,7 @@ const measureProductJourneys = async (built, modules, root) => {
 
     await setup.query('INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, $2, $3, $4)', [accountId, 'https://conexus.7r2.invalid', accountId, '7R2 disposable measurement'])
     await setup.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, '7R2 disposable measurement'])
-    await setup.query('INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project) VALUES ($1, $2, true)', [accountId, workspaceId])
+    await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project, role) VALUES ($1, $2, true, 'owner')", [accountId, workspaceId])
     await mkdir(join(storageRoot, 'projects'), { recursive: true })
     await mkdir(join(storageRoot, 'staging'), { recursive: true })
     await mkdir(join(storageRoot, 'quarantine'), { recursive: true })
@@ -839,7 +839,7 @@ const probeProductComposition = async (built, modules, root) => {
 
     await setup.query('INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, $2, $3, $4)', [accountId, 'https://conexus.7r2.invalid', accountId, '7R2 disposable Product probe'])
     await setup.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, '7R2 disposable Product probe'])
-    await setup.query('INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project) VALUES ($1, $2, true)', [accountId, workspaceId])
+    await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, can_create_project, role) VALUES ($1, $2, true, 'owner')", [accountId, workspaceId])
     await setup.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, '7R2 Product probe', 'NEW', $3, '7r2-product-probe')", [projectId, workspaceId, sourceRevision])
     await setup.query('INSERT INTO iam.project_builder_grant(account_id, project_id, can_build, can_read_source) VALUES ($1, $2, true, true)', [accountId, projectId])
     await setup.query('INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1, $2)', [projectId, sourceRevision])

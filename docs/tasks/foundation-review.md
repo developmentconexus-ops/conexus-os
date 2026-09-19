@@ -64,7 +64,7 @@ On the same day, asked about dropping those objects, the operator said "você ro
 ## F-01. Delete dead code
 
 - [ ] Delete `scripts/check-r3-candidate-freeze.mjs`, `scripts/record-r1-candidate-custody.mjs`, `scripts/check-r1-a0-migration.mjs` and their npm scripts. Each already fails on trunk (`BASE_DRIFT`, `RC01_UNKNOWN_CLASSIFICATION:.gitignore`, `A0_UNCLASSIFIED_PATH`). Evidence: each failure reproduced before deletion, `npm run verify` green after.
-- [ ] Delete `apps/hub/src/mar/admission.ts` and the `pg-boss` dependency if no import remains. Evidence: `git grep pg-boss` empty, typecheck green.
+- [x] Delete `apps/hub/src/mar/admission.ts` and the `pg-boss` dependency if no import remains. Evidence: `git grep pg-boss` empty, typecheck green. Done 2026-09-19: also deleted the R3 gates (`r3:p2p3:check`, `tests/implementation/r3-mar-admission.test.mjs`, `tests/implementation/r3-project-read-model.test.mjs`) and the `pg-boss` qualification programs that kept these alive.
 - [ ] Remove the `indexOf` no-op at `scripts/run-hub-migrations.mjs:25`. Evidence: migration suite green.
 - [ ] Census the 153 npm scripts against `CANDIDATE_GRAPH` and delete every script nothing runs and no document names. Evidence: the list in the PR body, with the grep that cleared each one.
 
