@@ -25,7 +25,8 @@ const packageScripts = Object.freeze({
 })
 
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
-  'c020-migration-selection', 'c020-migration-postgres', 'c020-builder-postgres', 'c020-mastra-lifecycle',
+  'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority',
+  'c020-builder-postgres', 'c020-mastra-lifecycle',
   'foundation-postgres', 'c020-registry', 'c020-source-runtime', 'c020-compiler-runtime',
   'c020-browser', 'c020-e2b-template', 'c020-hub-typecheck', 'c020-web-typecheck', 'c020-web-build',
   'db-role-register', 'db-role-provision-postgres',
