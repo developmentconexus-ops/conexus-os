@@ -43,10 +43,41 @@ Trunk is `analysis/internal-mvp-2026-09-12`, not `main`.
 ## In flight
 
 M-02, ChatGPT account sign-in, on branch `feat/m02-chatgpt-sign-in`. It adds a second
-account sign-in beside the Anthropic one. It is gated on primary sources for the
-client id, the token endpoint, the wire format and the terms. If a primary source
-cannot be found for the client id or the terms, it stops and reports. API keys
-already cover OpenAI models.
+account sign-in beside the Anthropic one, so a member can spend a ChatGPT subscription
+on a BuilderRun without holding an API key. The sign-in had been written for one
+provider and said so in thirteen places; those are now fields on a per-provider OAuth
+descriptor, and Anthropic and `openai-codex` are two rows in a registry. Custody needed
+no schema change: `provider_id` already accepts the name and `credential_kind` already
+admits `OAUTH_TOKEN_SET`.
+
+Two things in it are worth knowing. The registered redirect is a loopback port on the
+user's own machine, which the Hub cannot listen on, so the user authorizes in the
+browser, lands on a page that does not load, and pastes that URL back; the settings page
+says so before it opens the tab. And OpenAI's refresh token rotates, which custody's
+compare-and-swap alone does not handle, because it decides who won only after both
+writers have already called the token endpoint. Refresh is therefore serialized per
+connection on a Postgres advisory lock, held across the call, and a test drives two
+refreshes concurrently against a token endpoint that refuses a reused refresh token.
+
+What the study settled: the client id, both endpoints, the scope string, the PKCE and
+authorize parameters, the form-encoded token bodies, the rotation, the `chatgpt_account_id`
+claim, and the inference endpoint with its headers and required body fields. Conexus
+sends its own `originator`, `conexus-os`, rather than borrowing the Codex CLI's, so a
+refusal aimed at this caller is possible and would be the answer.
+
+What remains unproven, because no ChatGPT credential is available and no live call was
+made: whether the authorize endpoint accepts that loopback redirect from a request a
+server originated, whether `OpenAI-Beta: responses=experimental` is required, whether the
+`instructions` content is policed, which model ids the backend actually accepts, whether
+the 8 MiB response cap survives a long reasoning stream, and whether OpenAI tolerates a
+third-party `originator` on this client id. The pull request lists the operator steps that
+would settle each. This remains undocumented and unendorsed by OpenAI: a refusal ends it
+and is not worked around.
+
+Model selection stays Mastra-native. The catalog names the model and the connection names
+the credential, so a Codex entry is `providerKey: "openai"` with a model id Mastra's
+registry lists, while the connection stays `provider_id: "openai-codex"` so an account can
+hold a selected subscription and a selected API key at the same time.
 
 ## The Builder sequence
 

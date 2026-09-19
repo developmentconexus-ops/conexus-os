@@ -2,9 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { CredentialBackend } from '../platform/credential-backend.js'
-import type { OAuthTokenSet } from '../model-connection/anthropic-oauth.js'
-
-export const ANTHROPIC_PROVIDER_ID = 'anthropic'
+import type { OAuthTokenSet } from '../model-connection/oauth-token-endpoint.js'
 
 export type ModelCredentialReference = Readonly<{ connectionId: string; generation: string }>
 
@@ -14,7 +12,7 @@ export type ModelConnectionProjection = Readonly<{ connectionId: string; label: 
 export type ModelAuthorization = Readonly<{ authorizationId: string; url: string; state: string }>
 export type ModelConnectionStore = Readonly<{
   startAuthorization(input: Readonly<{ accountId: string; authorization: Readonly<{ authorizationId: string; state: string; verifier: string; url: string }> }>): Promise<ModelAuthorization>
-  completeAuthorization(input: Readonly<{ accountId: string; result: string; label: string; parse: (value: string, state: string) => string; exchange: (input: Readonly<{ code: string; state: string; verifier: string; fetchImpl?: typeof fetch }>) => Promise<OAuthTokenSet>; fetchImpl?: typeof fetch }>): Promise<ModelConnectionProjection>
+  completeAuthorization(input: Readonly<{ accountId: string; providerId: string; result: string; label: string; extractState: (value: string) => string; parse: (value: string, state: string) => string; exchange: (input: Readonly<{ code: string; state: string; verifier: string; fetchImpl?: typeof fetch }>) => Promise<OAuthTokenSet>; fetchImpl?: typeof fetch }>): Promise<ModelConnectionProjection>
   addApiKey(input: Readonly<{ accountId: string; providerId: string; label: string; apiKey: string }>): Promise<ModelConnectionProjection>
   list(accountId: string): Promise<readonly ModelConnectionProjection[]>
   select(input: Readonly<{ accountId: string; connectionId: string }>): Promise<void>
@@ -44,13 +42,15 @@ export const createModelConnectionStore = ({ pool, credentialBackend }: Readonly
     if (ok !== true) throw new Error('MODEL_AUTHORIZATION_REFUSED')
     return { authorizationId: authorization.authorizationId, url: authorization.url, state: authorization.state }
   },
-  completeAuthorization: async ({ accountId, result, label, parse, exchange, fetchImpl }) => {
-    const separator = result.lastIndexOf('#')
-    if (separator < 1) throw new Error('ANTHROPIC_OAUTH_AUTHORIZATION_RESULT_INVALID')
-    const state = result.slice(separator + 1).trim()
+  // The state is recovered from the pasted value by the provider that minted it, because what the
+  // user pastes differs per provider: Anthropic prints `code#state`, OpenAI sends the whole
+  // redirect URL. The recovered state is only a lookup key for the authorization row; the row's
+  // own state digest decides whether it matches, and parse() compares the two in constant time.
+  completeAuthorization: async ({ accountId, providerId, result, label, extractState, parse, exchange, fetchImpl }) => {
+    const state = extractState(result)
     const consumed = await pool.query<QueryResultRow & { authorization_id: string; pkce_verifier: string }>('SELECT * FROM model_connection.consume_authorization($1,$2)', [accountId, stateDigest(state)])
     const pending = consumed.rows[0]
-    if (!pending) throw new Error('ANTHROPIC_OAUTH_STATE_INVALID')
+    if (!pending) throw new Error('MODEL_AUTHORIZATION_STATE_INVALID')
     const code = parse(result, state)
     try {
       const tokens = await exchange({ code, state, verifier: pending.pkce_verifier, ...(fetchImpl ? { fetchImpl } : {}) })
@@ -59,7 +59,7 @@ export const createModelConnectionStore = ({ pool, credentialBackend }: Readonly
       try {
         await credentialBackend.publishOrMatch({ connectionId, generation: '1' }, plaintext)
       } finally { plaintext.fill(0) }
-      const published = await pool.query('SELECT model_connection.publish_connection($1,$2,$3,$4,$5,$6) AS value', [accountId, connectionId, ANTHROPIC_PROVIDER_ID, 'OAUTH_TOKEN_SET', label, 1])
+      const published = await pool.query('SELECT model_connection.publish_connection($1,$2,$3,$4,$5,$6) AS value', [accountId, connectionId, providerId, 'OAUTH_TOKEN_SET', label, 1])
       if (published.rows[0]?.value !== true) throw new Error('MODEL_CONNECTION_PUBLISH_REFUSED')
       if ((await pool.query('SELECT model_connection.complete_authorization($1) AS value', [pending.authorization_id])).rows[0]?.value !== true) {
         throw new Error('MODEL_AUTHORIZATION_SETTLEMENT_REFUSED')

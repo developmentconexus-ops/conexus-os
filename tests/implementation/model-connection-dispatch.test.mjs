@@ -121,6 +121,22 @@ test('the catalog admits a second provider now that the Anthropic gate is gone',
   assert.equal(resolveModelAdmission({ catalogFile: catalog, admissionId: 'openai-default', requiredCapabilities: ['BUILDER_CODING'] }).providerId, 'openai')
 })
 
+// The catalog names the model and the connection names the credential. A Codex entry therefore
+// carries providerKey 'openai', because that is what Mastra's registry lists and the validator
+// checks, while the connection behind it stays provider_id 'openai-codex' so an account can hold a
+// selected subscription and a selected API key at the same time.
+test('the Codex models are selectable under the provider key Mastra actually carries', () => {
+  const catalog = resolve(buildRoot, 'catalog-codex.json')
+  writeCatalog(catalog, [
+    { admissionId: 'codex-default', providerKey: 'openai', modelId: 'gpt-5.3-codex', capabilitySet: ['BUILDER_CODING', 'BUILDER_VERIFICATION'], enabled: true },
+    { admissionId: 'codex-spark', providerKey: 'openai', modelId: 'gpt-5.3-codex-spark', capabilitySet: ['BUILDER_CODING'], enabled: true },
+  ])
+  const choices = readModelChoices({ catalogFile: catalog, requiredCapabilities: ['BUILDER_CODING'] })
+  assert.deepEqual(choices.map((choice) => choice.modelId), ['gpt-5.3-codex', 'gpt-5.3-codex-spark'])
+  assert.deepEqual(choices.map((choice) => choice.providerId), ['openai', 'openai'])
+  assert.equal(resolveModelAdmission({ catalogFile: catalog, admissionId: 'codex-default', requiredCapabilities: ['BUILDER_CODING'] }).modelId, 'gpt-5.3-codex')
+})
+
 test('a model the provider registry does not list is still refused', () => {
   const catalog = resolve(buildRoot, 'catalog-unknown-model.json')
   writeCatalog(catalog, [{ admissionId: 'openai-default', providerKey: 'openai', modelId: 'gpt-not-a-model', capabilitySet: ['BUILDER_CODING'], enabled: true }])
