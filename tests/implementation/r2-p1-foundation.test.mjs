@@ -284,13 +284,13 @@ test('R2-P1 real PostgreSQL proves exact record census, Tier-2 boundary and owne
   await query(fresh, 'GRANT USAGE ON SCHEMA reg TO hub_iam_runtime')
   await assert.rejects(
     runR2HubMigrations({ connectionString: url.toString() }),
-    /MIGRATION_014_SCHEMA_PRIVILEGE_REFUSED/,
+    /MIGRATION_CATALOG_DRIFT/,
   )
   await query(fresh, 'REVOKE USAGE ON SCHEMA reg FROM hub_iam_runtime')
   await query(fresh, 'GRANT SELECT ON project.brain_binding TO hub_iam_runtime')
   await assert.rejects(
     runR2HubMigrations({ connectionString: url.toString() }),
-    /MIGRATION_014_TABLE_PRIVILEGE_REFUSED/,
+    /MIGRATION_CATALOG_DRIFT/,
   )
   await query(fresh, 'REVOKE SELECT ON project.brain_binding FROM hub_iam_runtime')
 

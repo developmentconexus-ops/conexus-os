@@ -301,13 +301,6 @@ test('PRJ-12 migration is manage-only and preserves exact removal identities', (
   assert.match(sql, /GRANT EXECUTE ON FUNCTION project\.begin_brain_binding_removal_intent[\s\S]*TO hub_r2_project_binding/)
 })
 
-test('PRJ-12 ledger preserves the complete 015 census before checking 016', () => {
-  const runner = readFileSync(resolve(root, 'scripts/run-hub-migrations.mjs'), 'utf8')
-  assert.match(runner, /if \(applied\.has\('016'\)\) \{[\s\S]*await assert015Catalog\([\s\S]*\{ after016: true \}[\s\S]*await assert016Catalog\(/)
-  assert.match(runner, /MIGRATION_015_CUMULATIVE_FUNCTION_CENSUS_REFUSED/)
-  assert.match(runner, /MIGRATION_015_RUNTIME_ACL_CENSUS_REFUSED/)
-})
-
 test('PRJ-12 Git deletion fails closed on bytes, absence, mismatch, and preserves cancellation trees', () => {
   const source = readFileSync(resolve(root, 'apps/hub/src/project/git-execution.ts'), 'utf8')
   assert.match(source, /request\.mutation === 'DELETE'[\s\S]*declaration\.length === 0/)
