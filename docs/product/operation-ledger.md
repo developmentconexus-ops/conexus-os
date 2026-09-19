@@ -221,13 +221,6 @@ The tables below preserve the broader historical/platform ledger for context. Th
 | `IAM-05` | `InviteWorkspaceMember` | I&A | exact Workspace + verified email; the pair is the natural key | command |
 | `IAM-06` | `RemoveWorkspaceRosterEntry` | I&A | exact Workspace roster entry; narrowing | narrowing command |
 | `IAM-10` | `SetWorkspaceMemberRole` | I&A | exact Workspace membership; the last owner cannot be demoted | command/current-authority |
-| `IAM-13` | `GetPublishedAppAccessContext` | I&A | exact Published App human; canonical Account presentation + current app access/role/active Release | read |
-| `IAM-14` | `ListPublishedAppAccess` | I&A | Project/app administration; business use not implied | read |
-| `IAM-15` | `SetPublishedAppAccess` | I&A | exact Project/app + Account + `{admin,member}` + expected current grant state, including explicit absent state on create | command/current-authority |
-| `IAM-17` | `RevokePublishedAppAccess` | I&A | exact current app grant; narrowing | narrowing command/current-authority |
-| `IAM-18` | `ListWorkspaceMembershipCandidates` | I&A | exact Workspace access administration; currently disclosable existing Account candidates | read |
-| `IAM-19` | `GetWorkspaceMemberAccess` | I&A | exact Workspace + member Account; I&A-derived effective Project access from the membership row | read/current-authority projection |
-| `IAM-21` | `ListPublishedAppAccessCandidates` | I&A | exact Project/app access administration; bounded existing Conexus Account candidates not already granted; candidate disclosure grants nothing | read |
 
 `IAM-16 ChangePublishedAppAccessRole` was subtracted into `IAM-15`: grant and role change are one Product meaning over `iam.published_app_access`; wire-level create/update/precondition detail belongs to 4B.
 
@@ -303,20 +296,10 @@ No `DeleteWorkspace`, generic Organization tree or hidden/default Workspace oper
 | `PRJ-01` | `ListProjects` | Project | Workspace Projects surface under ordinary disclosure **or** exact-Workspace access-administration ProjectSummary-only disclosure | read |
 | `PRJ-02` | `GetProject` | Project | exact Project disclosure/access | read |
 | `PRJ-03` | `CreateProject` | Project + accepted L7 composition | exact Workspace; atomically establishes Project + initial I&A grant + one canonical Project source bootstrap | command/cross-owner atomic |
-| `PRJ-05` | `ArchiveProject` | Project | exact Project archive authority; does not unpublish/stop automations | command/current-state |
-| `PRJ-06` | `DuplicateProject` | Project | source authority + destination Workspace create authority; default NO DATA; no credential/binding copy | command/cross-scope |
-| `PRJ-16` | `ListProjectCapabilities` | Project projection | exact authored/Release capabilities with human name/purpose; inspection only, no invocation grant | read |
-| `PRJ-17` | `GetProjectCapability` | Project projection | exact Project/capability identity + human purpose + logical input/output contract; inspection only | read |
-| `PRJ-18` | `ListProjectDataResources` | Project | declared Project Data resources with exact machine identity + server-owned human presentation + semantic resource/source classification | read/provenance |
-| `PRJ-19` | `GetProjectDataResource` | Project | exact Data resource identity/presentation + grain/freshness/coverage/provenance + logical fields/relationships/rules | read/provenance |
-| `PRJ-20` | `ListProjectProductAgents` | Project projection | authored Agent identities/revisions/Release state; ordinary source-read or purpose-bound trigger-administration summary disclosure | read |
-| `PRJ-21` | `GetProjectProductAgent` | Project projection | exact Agent authoring identity/revisions/Release refs | read |
-| `PRJ-22` | `ListWorkspaceProductAgents` | Project-owned filtered projection | Workspace access-filtered catalog; no Workspace Agent owner | read |
 | `PRJ-25` | `ListProjectDataExplorerSources` | Project | exact Project; current explorer-eligible Project Database and eligible currently bound integration source summaries, with server-resolved disclosure eligibility | read/provenance |
 | `PRJ-26` | `ListProjectDataExplorerObjects` | Project | exact Project + exact disclosed explorer source; paged/searchable TABLE/VIEW/genuinely-tabular DATASET summaries without generic provider-tree authority | read/provenance |
 | `PRJ-27` | `GetProjectDataExplorerObject` | Project | exact Project + disclosed source/object; physical columns/keys/relationships/constraints plus optional semantic coordinates; no SQL/storage-admin authority | read/provenance |
 | `PRJ-28` | `ListProjectDataExplorerRows` | Project | exact Project + disclosed source/object; current read-only rows through bounded typed filter/sort/pagination with scoped continuation truth | read/provenance |
-| `PRJ-29` | `ListProjectModelPolicies` | Project | small finite Project-owned model-policy set with human label/purpose, server-issued default and bounded sampling limits; ordinary inspection or purpose-bound construction discovery | read |
 
 `PRJ-04 UpdateProject` remains subtracted. F11's alternate PRJ-01 access-administration route reveals only exact contained `ProjectSummary` identity needed to administer grants; it is not generic `project.read` and does not restore Project mutation.
 
@@ -1006,25 +989,12 @@ Owner-specific finer distinctions may narrow disclosure further, but no later wi
 | `IAM-03` | `TRUSTED_BOOTSTRAP_CONTEXT / CP` | exact one-shot self-provision from a verified identity that is either the first account or invited | the route derives its own exact subject server-side and cannot provision another Account; an invited Account's email comes from the verified claim and its membership is written in the same transaction; no public signup | `COMMAND` | `IC3` |
 | `IAM-04` | `HUMAN_ACCOUNT_SESSION / CP` | current Workspace membership | exact Workspace roster; a caller who is not a member is told nothing, including whether the Workspace exists | `READ` | `IC0` |
 | `IAM-05,IAM-06,IAM-10` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.access.manage` | exact Workspace containment; the actor is the current session and never a request value; authority is rechecked inside the same statement that writes | `COMMAND` | `IC1` |
-| `IAM-18..19` | `HUMAN_ACCOUNT_SESSION / CP` | `workspace.access.manage` | exact Workspace containment; access reads are exact current I&A projections | `READ` | `IC0` |
-| `IAM-13` | `PUBLISHED_APP_HUMAN / PA` | exact app access + role | canonical AccountSummary + exact Published App + active Release; app role never implies Control Plane authority | `READ` | `IC0` |
-| `IAM-14` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app administration; current grants carry Account presentation and exact active-Release `admin|member` capability consequences | `READ` | `IC0` |
-| `IAM-21` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app; existing I&A-owned Conexus Accounts not already granted; search never queries or proves Keycloak-directory existence and candidate inclusion grants nothing | `READ` | `IC0` |
-| `IAM-15,IAM-17` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact Project/app/Account subject; current grant state includes explicit absent state for create and exact current role/grant for change/revoke | `COMMAND` | `IC2` |
 | `WS-01` | `HUMAN_ACCOUNT_SESSION / CP` | `authenticated` | any authenticated Account may create a Workspace; success establishes the creator's `owner` membership in that exact Workspace so it is immediately disclosable and can create the first Project | `COMMAND` | `IC3` |
 | `WS-02` | `HUMAN_ACCOUNT_SESSION / CP` | current Workspace membership | exact Workspace disclosure | `READ` | `IC0` |
 | `PRJ-01` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `project.read` **or** narrow `workspace.access.manage` access-administration summary disclosure | ordinary route applies current Project disclosure; alternate route exposes only contained ProjectSummary identities in exact Workspace | `READ` | `IC0` |
 | `PRJ-02` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` + exact Project grant | exact Project disclosure | `READ` | `IC0` |
 | `PRJ-03` | `HUMAN_ACCOUNT_SESSION / CP` | `project.create` | destination Workspace + atomic Project/initial current-Account direct grant carrying `project.read + project.manage` + one canonical source-bootstrap admission; success implies a source-complete Project | `COMMAND` | `IC3` |
-| `PRJ-05` | `HUMAN_ACCOUNT_SESSION / CP` | `project.manage` | exact current Project; archive preserves independent serving/automation laws | `COMMAND` | `IC2` |
-| `PRJ-06` | `HUMAN_ACCOUNT_SESSION / CP` | source `project.manage` + destination `project.create` | source Project + destination Workspace; NO DATA/no credentials/no bindings by default | `COMMAND` | `IC3` |
-| `PRJ-16,PRJ-17` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `project.read` or purpose-bound `project.build` | exact Project + capability identity; human name/purpose and logical input/output contract are inspection/construction truth only and do not grant invocation, data, source or runtime authority | `READ` | `IC0` |
-| `PRJ-18,PRJ-19` | `HUMAN_ACCOUNT_SESSION / CP` | `project.data.read` | exact declared semantic Data resource + admitted source/read-model scope; human name, resource/source kind and logical fields/relationships/rules are disclosed semantic inspection truth only, never physical explorer identity or authorization | `PROVENANCE_READ` | `IC0` |
 | `PRJ-25..28` | `HUMAN_ACCOUNT_SESSION / CP` | `project.data.read` | exact Project + server-resolved current explorer eligibility; Project Database business/application data or exact eligible currently bound integration source only; source/object/page coordinates remain untrusted, and PRJ-28 filters/sorts only disclosed exact-object columns | `PROVENANCE_READ` | `IC0` |
-| `PRJ-20` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `project.source.read` **or** purpose-bound `agent.trigger.manage` | exact Project/Agent authored summary; alternate route supports trigger administration only and grants no PRJ-21/source/mutation authority | `READ` | `IC0` |
-| `PRJ-21` | `HUMAN_ACCOUNT_SESSION / CP` | `project.source.read` | exact Project/Agent safe complete authored `agent/v1` definition plus immutable authored-revision/Release coordinates; no runtime/provider/Mastra authority | `READ` | `IC0` |
-| `PRJ-22` | `HUMAN_ACCOUNT_SESSION / CP` | `project.read` | Workspace-filtered Project-owned Agent disclosure; no fleet owner | `READ` | `IC0` |
-| `PRJ-29` | `HUMAN_ACCOUNT_SESSION / CP` | ordinary `project.read` or purpose-bound `project.build` | exact Project-owned model-policy summaries; server-issued default and sampling envelope grant no provider/model/runtime selection or policy mutation | `READ` | `IC0` |
 | `BLD-01..04,BLD-06,BLD-10,BLD-16..22` | `HUMAN_ACCOUNT_SESSION / CP` | `project.build` | exact Project/Change human intent/Plan/current-or-candidate Preview/context plus typed Product Agent draft and exact verified Change candidate preparation; BLD-18 reads current draft, BLD-19 idempotently establishes NEW/EXISTING draft, BLD-20 revises only the expected current draft revision, BLD-21 starts/coalesces preparation without setting MAR readiness, and BLD-22 launches only the exact currently prepared attempt with a one-use entry grant | reads `READ`; create/revise/prepare/launch `COMMAND` | reads `IC0`; BLD-03/19 `IC3`; BLD-20/21/22 `IC2` |
 | `BLD-05,BLD-11..15` | `HUMAN_ACCOUNT_SESSION / CP` | `project.review` | exact Change/Plan/Finding/Evidence subject + current eligibility | reads `READ`; decisions `DECISION` | reads `IC0`; decisions `IC2` |
 | `BLD-07..09` | `HUMAN_ACCOUNT_SESSION / CP` | `project.source.read` | exact immutable/current source revision/path/lineage | `READ` | `IC0` |
