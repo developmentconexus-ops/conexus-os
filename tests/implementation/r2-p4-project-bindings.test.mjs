@@ -8,6 +8,7 @@ import test from 'node:test'
 import pg from 'pg'
 import { canonicalBytes, sha256 } from '../../packages/canonical-json/src/index.mjs'
 import { runHubMigrations, runR2HubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const gitLive = process.env.CONEXUS_R2_P4_GIT_LIVE === 'true'
@@ -577,7 +578,6 @@ const spawnBindingCrashChild = ({ fixture, subject, fault }) => {
   const command = fixture.command(subject)
   const child = spawnSync(process.execPath, ['--input-type=module', '-e', `
 import pg from 'pg'
-import { refuseProtectedCluster } from './protected-cluster.mjs'
 const { createProjectConnectionBindingStore } = await import(${JSON.stringify(fixture.built('project/store.js'))})
 const { createOciProjectBindingGitCapability } = await import(${JSON.stringify(fixture.built('project/git-execution.js'))})
 const fault = ${JSON.stringify(fault)}

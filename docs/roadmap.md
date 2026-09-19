@@ -35,7 +35,7 @@ Product features.
 | Interactive HTML | FUNCTIONAL REFERENCE APPROVED BY OPERATOR. Exact artifact identity is in frontend section 33.6. This is not Product implementation acceptance. |
 | Interactive Builder delivery | APPROVED FOR EXECUTION under the current task. Four ordered units form one integrated candidate. |
 | Builder repair program | IN EXECUTION. P-01 landed as #72 and #73 with unit proof and a green CI graph; its live lanes 6 and 10 and its perf box are outstanding. P-02 through P-06 have not started. The operator lifted the merge gate on 2026-09-18. |
-| Credential and role remediation | IN EXECUTION beside the repair program. Steps 1 and 2 landed as #74 and #76. Step 3, provisioning, is next. Credential consolidation is deliberately outside the grant. |
+| Credential and role remediation | IN EXECUTION beside the repair program. Steps 1 and 2 landed as #74 and #76. Its execution contract is #79. Step 3 is #80, the role register, and #81, provisioning plus the startup census. Step 4 is #82, the MAR excision and the census count. Step 5 is #84, which replaces the schema oracle with a generated catalog snapshot and is proven read-only against the pilot. #83 repairs two guarded suites #74 left unable to run. All six are verified and wait at merge-ready for the operator. Next is repairing the three R1 Postgres suites that rotted outside the candidate graph. Credential consolidation is deliberately outside the grant. |
 | Broader platform and visual polish | DEFERRED. No requirement to finish them before operating the Builder. |
 
 The initial accepted 7R-1 implementation remains

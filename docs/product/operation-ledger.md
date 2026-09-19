@@ -9,13 +9,27 @@ This ledger is the canonical 4A Product-operation authority. It is intentionally
 The retained ledger records the broader platform design; the current Product census below is the supported internal MVP surface:
 
 ```text
-current fixed Product operations = 31
+current fixed Product operations = 39
 Project-defined operations        = exact finite Ops(R) admitted by the grammar in §4
 first Budget Analyzer operations  = 2
 ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
 ```
 
+This count was stated as 31 until 2026-09-18, while the §5 table it summarizes held 39 rows.
+The number is derived from that table and nothing else, and `scripts/check-wire-bijection.mjs`
+reads the same table and requires the current Product OAS to hold exactly the same set. That
+gate is `wire-bijection` in the candidate graph and it reports 39 fixed Product operations,
+0 missing, 0 extra and 0 duplicate. So 39 is the derived and verified figure, and 31 was
+stale rather than a different definition.
+
 The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. The accepted bounded findings through F38 remain preserved. The pre-P11 coherence review then admits one transient `TRUSTED_BOOTSTRAP_CONTEXT` principal for first Account self-provisioning and adds one Project-owned model-policy discovery read, `PRJ-29`, while ordinary Permissions remain 25. No new semantic owner or durable record class is added.
+
+`PRJ-29` is an open contradiction, recorded here rather than resolved. The sentence above says
+it was added, and it is absent from both the §5 table and the current Product OAS. The
+bijection gate would refuse it in one and not the other, so the two are consistent with each
+other and inconsistent with this sentence. Whether `PRJ-29` is owed as a current operation or
+the sentence is stale is a Product call for its owner, not something this ledger can settle by
+editing a number.
 
 Historical F03 and Phase-4 reachability records retain their recorded
 platform scope. They are retained evidence and do not expand the current Product OAS.
@@ -27,10 +41,10 @@ platform scope. They are retained evidence and do not expand the current Product
 ### 1.1 Current fixed Product census
 
 ```text
-N_current = 31
-current operations with named owner       = 31
-current operations with real consumer     = 31
-current operations with authority mapping = 31
+N_current = 39
+current operations with named owner       = 39
+current operations with real consumer     = 39
+current operations with authority mapping = 39
 orphaned current operations                = 0
 speculative current operations             = 0
 ```
@@ -2094,4 +2108,4 @@ CURRENT INTERNAL MVP PREVIEW LAUNCH CONSUMER
 → N_platform 129 → 130
 ```
 
-The current Product census is the 31-operation surface at the start of this ledger. The retained tables below are not current Product authority.
+The current Product census is the 39-operation surface at the start of this ledger. The retained tables below are not current Product authority.

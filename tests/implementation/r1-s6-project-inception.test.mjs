@@ -194,7 +194,7 @@ test('S6-P0 catalog, migration and external OAuth custody fail closed', async (t
   const built = compileHub(t)
   const [{ createProjectMastra }, { createOAuthTokenStore }, { PROJECT_SOURCE_PROGRAM }, generated] = await Promise.all([
     import(built('project/project-mastra.js')),
-    import(built('project/oauth-token-store.js')),
+    import(built('model-connection/oauth-token-store.js')),
     import(built('project/source-snapshot.js')),
     import(built('generated/s3-routes.js')),
   ])

@@ -59,7 +59,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('repository-hygiene', 'node scripts/check-repository-hygiene.mjs'),
   candidateStep('repository-doc-index', 'node scripts/check-doc-index.mjs'),
   candidateStep('repository-architecture', 'node scripts/check-architecture-verification.mjs'),
-  candidateStep('biome-current', 'npx --no-install biome check apps/hub/src apps/web/src packages/canonical-json/src packages/profile-compiler/src scripts/run-hub-migrations.mjs tests/implementation/builder-*.mjs tests/repository/conexus-verify.test.mjs'),
+  candidateStep('biome-current', 'npx --no-install biome check apps/hub/src apps/web/src packages/canonical-json/src packages/profile-compiler/src scripts/run-hub-migrations.mjs scripts/hub-catalog.mjs scripts/generate-hub-catalog-snapshot.mjs tests/implementation/builder-*.mjs tests/repository/conexus-verify.test.mjs'),
 
   candidateStep('wire-openapi-lint', 'npm run wire:lint'),
   candidateStep('wire-openapi-bundle', 'npm run wire:bundle'),
