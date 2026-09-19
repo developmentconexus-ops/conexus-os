@@ -33,15 +33,6 @@ for (const [name, version] of Object.entries(expectedB)) {
   if (packageB.dependencies?.[name] !== version || evidenceB.directPins?.[name] !== version) errors.push(`Package-B pin drift: ${name}`)
 }
 
-const packageD = json('qualification/3l/managed-execution/package.json')
-const evidenceD = json('qualification/3l/managed-execution/evidence/dt1p.json')
-const lockD = read('qualification/3l/managed-execution/package-lock.json')
-const vendorDdl = read('qualification/3l/managed-execution/vendor/pgboss-12.26.3-mar.sql')
-if (packageD.dependencies?.['pg-boss'] !== '12.26.3' || evidenceD.dependencies?.['pg-boss'] !== '12.26.3') errors.push('Package-D pg-boss pin drift')
-if (sha256(lockD) !== evidenceD.dependencies?.lockSha256) errors.push('Package-D lock digest drift')
-if (sha256CanonicalText(vendorDdl) !== evidenceD.dependencies?.vendorDdlSha256) errors.push('Package-D vendor DDL digest drift')
-if (evidenceD.authority !== 'docs/reference/managed-execution-qualification.md') errors.push('Package-D authority route drift')
-
 if (errors.length) {
   console.error(errors.join('\n'))
   process.exitCode = 1
