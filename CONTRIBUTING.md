@@ -1,14 +1,20 @@
 # Contributing to Conexus OS
 
-Start with `AGENTS.md`, then `docs/index.md`, `docs/roadmap.md`, and the smallest task-specific authority pack. Repository workflow follows the DevelopmentConexus Repository Standard v1.0.0; engineering decisions follow the DevelopmentConexus Engineering Method v1.0.0.
+Start with `AGENTS.md`, then [`docs/index.md`](docs/index.md) and
+[`docs/roadmap.md`](docs/roadmap.md).
 
-Use an Ubuntu WSL2 Linux-filesystem worktree. Create one focused branch/PR for one coherent gate. Define proof before material implementation; show meaningful negative controls can fire; run focused checks and then:
+Work in an Ubuntu WSL2 worktree on the Linux filesystem. Trunk is
+`analysis/internal-mvp-2026-09-12`, not `main`. Open one focused branch and one
+pull request per coherent change, against that trunk.
 
-```bash
-npm ci
-npm run verify
-```
+Define the proof before the implementation, and show that a meaningful negative
+control can fire. Run the focused checks your change touches. Do not run
+`npm run verify` locally; CI runs the full graph at your exact head SHA.
 
-Framework, dependency, and live-integration claims require current primary documentation plus exact pinned source/configuration and proportionate Evidence. Research never becomes Product authority without an accepted decision.
+A pull request is ready to merge when its `verify` check is green on that head SHA
+and the coordinator has read the diff. The operator merges. You never do.
 
-Do not infer mutable stage, implementation permission, or merge authorization from history; [docs/roadmap.md](docs/roadmap.md) owns current program status and operator authority owns merge.
+A claim about a framework, a dependency or a live integration needs current primary
+documentation plus the exact pinned source or configuration. Research never becomes
+product authority without an accepted decision in
+[`docs/decisions/index.md`](docs/decisions/index.md).

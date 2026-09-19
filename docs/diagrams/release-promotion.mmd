@@ -1,8 +1,0 @@
-flowchart LR
-  Change[Verified Change result] --> Candidate[Immutable candidate]
-  Candidate --> Release[ReleaseManifest exact composition]
-  Release --> Promotion[Promotion CAS]
-  Promotion --> Served[Served pointer]
-  Served --> Verify[Serving verification]
-  Verify --> Truth[Owner serving truth]
-
