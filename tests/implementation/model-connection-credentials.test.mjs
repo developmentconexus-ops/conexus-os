@@ -8,7 +8,7 @@ import test from 'node:test'
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
 const compile = async (t) => {
-  const buildRoot = await mkdtemp(resolve(repositoryRoot, 'apps/hub/claude-account-build-'))
+  const buildRoot = await mkdtemp(resolve(repositoryRoot, 'apps/hub/model-connection-build-'))
   t.after(() => rm(buildRoot, { recursive: true, force: true }))
   const result = spawnSync(resolve(repositoryRoot, 'node_modules/.bin/esbuild'), [
     resolve(repositoryRoot, 'apps/hub/src/model-connection/oauth-token-store.ts'),
@@ -22,7 +22,7 @@ const compile = async (t) => {
   }
 }
 
-test('Claude OAuth builds the admitted PKCE request and rejects a mismatched provider state', async (t) => {
+test('Anthropic OAuth builds the admitted PKCE request and rejects a mismatched provider state', async (t) => {
   const { oauth } = await compile(t)
   const authorization = await oauth.createAuthorizationRequest()
   const url = new URL(authorization.url)
@@ -36,7 +36,7 @@ test('Claude OAuth builds the admitted PKCE request and rejects a mismatched pro
   assert.throws(() => oauth.parseAuthorizationResult(`provider-code#wrong`, authorization.state), /ANTHROPIC_OAUTH_STATE_INVALID/)
 })
 
-test('Claude OAuth exchange uses the qualified provider protocol and bounds the response', async (t) => {
+test('Anthropic OAuth exchange uses the qualified provider protocol and bounds the response', async (t) => {
   const { oauth } = await compile(t)
   let request
   const response = new Response(JSON.stringify({ access_token: 'access-fixture', refresh_token: 'refresh-fixture', expires_in: 3600 }), {
@@ -65,7 +65,7 @@ test('Claude OAuth exchange uses the qualified provider protocol and bounds the 
   )
 })
 
-test('Claude credential custody reads an admitted generation and rotates only through the next generation', async (t) => {
+test('Anthropic credential custody reads an admitted generation and rotates only through the next generation', async (t) => {
   const { store } = await compile(t)
   const entries = new Map()
   const backend = {
@@ -89,7 +89,7 @@ test('Claude credential custody reads an admitted generation and rotates only th
   assert.match(new TextDecoder().decode(entries.get('connection-fixture:2')), /access-2/)
 })
 
-test('Claude credential acquisition rechecks the active generation before using a cached token', async (t) => {
+test('Anthropic credential acquisition rechecks the active generation before using a cached token', async (t) => {
   const { store } = await compile(t)
   const entries = new Map([
     ['connection-fixture:1', Buffer.from(JSON.stringify({ access: 'access-1', refresh: 'refresh-1', expiresAt: Date.now() + 60_000 }))],

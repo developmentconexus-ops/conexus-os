@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CSSProperties, FormEvent, KeyboardEvent } from 'react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { useMutation as useClaudeMutation, useQuery as useClaudeQuery, useQueryClient as useClaudeQueryClient } from '@tanstack/react-query'
-import { claudeConnectionsQueryKey, listClaudeConnections, selectClaudeConnection } from '../../claude-account/api'
+import { useMutation as useConnectionMutation, useQuery as useConnectionQuery, useQueryClient as useConnectionQueryClient } from '@tanstack/react-query'
+import { modelConnectionsQueryKey, listModelConnections, selectModelConnection } from '../../model-connection/api'
 import { BuilderRequestError, cancelBuilderRun, getBuilderRunTrace, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type BuilderMessagePart, type BuilderSession, type BuilderSessionMessage, type PreviewLaunch, type SourceTree } from '../api'
 import { observeBuilderRun, type BuilderLiveView, type BuilderObservation } from '../observation'
 import { BuilderMarkdown } from './builder-markdown'
@@ -80,16 +80,16 @@ type PreviewState = Readonly<{
 type PreviewRequest = Readonly<{ projectId: string; keyId: string; requestToken: number }>
 const EMPTY_MODEL_CHOICES: readonly BuilderSession['modelChoices'][number][] = []
 
-function BuilderClaudeConnection({ initialOpen = false }: { initialOpen?: boolean }) {
+function BuilderModelConnection({ initialOpen = false }: { initialOpen?: boolean }) {
   const [open, setOpen] = useState(false)
   const connectionRef = useRef<HTMLDivElement>(null)
-  const claudeQuery = useClaudeQuery({ queryKey: claudeConnectionsQueryKey, queryFn: listClaudeConnections })
-  const claudeQueryClient = useClaudeQueryClient()
-  const select = useClaudeMutation({
-    mutationFn: selectClaudeConnection,
-    onSuccess: async () => { await claudeQueryClient.invalidateQueries({ queryKey: claudeConnectionsQueryKey }); setOpen(false) },
+  const connectionQuery = useConnectionQuery({ queryKey: modelConnectionsQueryKey, queryFn: listModelConnections })
+  const connectionQueryClient = useConnectionQueryClient()
+  const select = useConnectionMutation({
+    mutationFn: selectModelConnection,
+    onSuccess: async () => { await connectionQueryClient.invalidateQueries({ queryKey: modelConnectionsQueryKey }); setOpen(false) },
   })
-  const active = claudeQuery.data?.find((connection) => connection.state === 'ACTIVE')
+  const active = connectionQuery.data?.connections.find((connection) => connection.state === 'ACTIVE')
   useEffect(() => { if (initialOpen) setOpen(true) }, [initialOpen])
   useEffect(() => {
     if (!open) return undefined
@@ -105,17 +105,17 @@ function BuilderClaudeConnection({ initialOpen = false }: { initialOpen?: boolea
     }
   }, [open])
   return <div ref={connectionRef} className="builder-connection">
-    <button className="builder-connection-trigger" type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="dialog" aria-controls="builder-claude-connection">
+    <button className="builder-connection-trigger" type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="dialog" aria-controls="builder-model-connection">
       <span className="builder-connection-dot" aria-hidden="true" />
-      <span><strong>{active ? active.label : 'Conectar Claude'}</strong><small>{active ? 'disponível para o próximo pedido' : 'necessário para construir'}</small></span>
+      <span><strong>{active ? active.label : 'Conectar modelo'}</strong><small>{active ? 'disponível para o próximo pedido' : 'necessário para construir'}</small></span>
     </button>
-    {open && <div id="builder-claude-connection" className="builder-connection-popover" role="dialog" aria-modal="false" aria-labelledby="builder-claude-connection-title">
-      <div className="dialog-heading"><div><p className="eyebrow">Credencial do Builder</p><h3 id="builder-claude-connection-title">Conexão Claude</h3></div><button type="button" onClick={() => setOpen(false)} aria-label="Fechar conexão">Fechar</button></div>
+    {open && <div id="builder-model-connection" className="builder-connection-popover" role="dialog" aria-modal="false" aria-labelledby="builder-model-connection-title">
+      <div className="dialog-heading"><div><p className="eyebrow">Credencial do Builder</p><h3 id="builder-model-connection-title">Conexão de modelo</h3></div><button type="button" onClick={() => setOpen(false)} aria-label="Fechar conexão">Fechar</button></div>
       <p className="panel-intro">A conta selecionada é resolvida no servidor e vale somente para novos BuilderRuns.</p>
-      {claudeQuery.isPending && <p>Carregando conexões…</p>}
-      {claudeQuery.isError && <p role="alert">Não foi possível consultar as conexões Claude.</p>}
-      {claudeQuery.data?.length === 0 && <p>Nenhuma conexão Claude disponível. <a href="/settings">Abrir configurações</a></p>}
-      {claudeQuery.data?.map((connection) => <div className="builder-connection-option" key={connection.connectionId}>
+      {connectionQuery.isPending && <p>Carregando conexões…</p>}
+      {connectionQuery.isError && <p role="alert">Não foi possível consultar as conexões de modelo.</p>}
+      {connectionQuery.data?.connections.length === 0 && <p>Nenhuma conexão de modelo disponível. <a href="/settings">Abrir configurações</a></p>}
+      {connectionQuery.data?.connections.map((connection) => <div className="builder-connection-option" key={connection.connectionId}>
         <span><strong>{connection.label}</strong><small>{connection.state === 'ACTIVE' ? 'Ativa' : 'Revogada'} · {connection.role === 'OWNER' ? 'Sua conexão' : 'Compartilhada'}</small></span>
         <button type="button" disabled={connection.state !== 'ACTIVE' || select.isPending} onClick={() => select.mutate(connection.connectionId)}>{connection.connectionId === active?.connectionId ? 'Selecionada' : 'Usar'}</button>
       </div>)}
@@ -200,7 +200,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const [observation, setObservation] = useState<BuilderObservation | null>(null)
   const [liveRequest, setLiveRequest] = useState<LiveRequest | null>(null)
   const [inspection, setInspection] = useState<Inspection | null>(null)
-  const [requiresClaudeConnection, setRequiresClaudeConnection] = useState(false)
+  const [requiresModelConnection, setRequiresModelConnection] = useState(false)
   const [selectedSourcePath, setSelectedSourcePath] = useState<string | null>(null)
   const [previewState, setPreviewState] = useState<PreviewState>({ kind: 'IDLE', projectId, lastGood: null })
   const frameName = `builder-preview-${inputId.replaceAll(':', '')}`
@@ -212,14 +212,14 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     queryKey: ['builder-session', projectId], queryFn: () => getBuilderSession(projectId),
     refetchInterval: (query) => query.state.data?.latestBuilderRun?.state === 'RUNNING' ? 1_000 : 2_000,
   })
-  const claudeConnections = useClaudeQuery({ queryKey: claudeConnectionsQueryKey, queryFn: listClaudeConnections })
+  const modelConnections = useConnectionQuery({ queryKey: modelConnectionsQueryKey, queryFn: listModelConnections })
   const send = useMutation({
     mutationFn: (value: Readonly<{ content: string; mode: 'BUILD' | 'PLAN'; key: string; messageBoundary: number; modelChoiceId?: string }>) =>
       sendBuilderMessage(projectId, value.content, value.mode, value.key, value.modelChoiceId),
     onSuccess: async (result, variables) => {
       setContent((current) => current === variables.content ? '' : current)
       setMessage('Mensagem enviada ao Builder.')
-      setRequiresClaudeConnection(false)
+      setRequiresModelConnection(false)
       setLiveRequest({ runId: result.builderRun.builderRunId, text: variables.content, messageBoundary: variables.messageBoundary })
       setObservation(null)
       await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] })
@@ -227,12 +227,12 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     onError: (error) => {
       if (error instanceof BuilderRequestError && error.status === 409) setMessage('O Project está ocupado ou recebeu outra alteração. Aguarde e tente novamente.')
       else if (error instanceof BuilderRequestError && error.status === 403) setMessage('Sua autoridade atual não permite construir neste Project.')
-      else if (error instanceof BuilderRequestError && error.status === 422 && error.problemType === 'urn:conexus:problem:claude-connection-required') {
-        setMessage('Conecte uma conta Claude antes de enviar um Build.')
-        setRequiresClaudeConnection(true)
+      else if (error instanceof BuilderRequestError && error.status === 422 && error.problemType === 'urn:conexus:problem:model-connection-required') {
+        setMessage('Conecte um modelo do provedor selecionado antes de enviar um Build.')
+        setRequiresModelConnection(true)
       } else {
         setMessage('Não foi possível enviar a mensagem ao Builder.')
-        setRequiresClaudeConnection(false)
+        setRequiresModelConnection(false)
       }
     },
   })
@@ -241,8 +241,12 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const runActive = run?.state === 'QUEUED' || run?.state === 'RUNNING'
   const modelChoices = session.data?.modelChoices ?? EMPTY_MODEL_CHOICES
   const selectedModelChoice = modelChoices.find((choice) => choice.choiceId === modelChoiceId) ?? null
-  const hasClaudeConnection = claudeConnections.data?.some((connection) => connection.state === 'ACTIVE') ?? false
-  const connectionUnavailable = !claudeConnections.isPending && !hasClaudeConnection
+  // A connection is only usable for the model that is actually selected: an Anthropic account
+  // cannot pay for an OpenAI run, and the database refuses the mismatch anyway.
+  const hasModelConnection = modelConnections.data?.connections.some((connection) =>
+    connection.state === 'ACTIVE'
+    && (!selectedModelChoice || connection.providerId === selectedModelChoice.providerId)) ?? false
+  const connectionUnavailable = !modelConnections.isPending && !hasModelConnection
   const cancel = useMutation({
     mutationFn: () => {
       if (!runId) throw new Error('BUILDER_RUN_NOT_READY')
@@ -426,7 +430,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     const value = content.trim()
     if (!value || send.isPending || !selectedModelChoice || connectionUnavailable) {
       if (!selectedModelChoice && !session.isPending) setMessage('Nenhum modelo admitido foi retornado pelo servidor.')
-      else if (connectionUnavailable) setMessage('Conecte uma conta Claude antes de enviar um Build.')
+      else if (connectionUnavailable) setMessage('Conecte um modelo do provedor selecionado antes de enviar um Build.')
       return
     }
     send.mutate({ content: value, mode, key: crypto.randomUUID(), messageBoundary: session.data?.messages.length ?? 0, ...(modelChoiceId ? { modelChoiceId } : {}) })
@@ -525,7 +529,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
         </section>}
       </section>
       {!chatCollapsed && <aside data-mobile-pane={mobilePane} className="conexus-panel" aria-labelledby="conexus-panel-title">
-        <div className="builder-panel-heading"><div><p className="eyebrow">Conexus Builder</p><h2 id="conexus-panel-title">Converse com o Conexus</h2><p className="builder-surface-caption">Peça alterações e acompanhe o que está acontecendo.</p></div><BuilderClaudeConnection initialOpen={requiresClaudeConnection} /></div>
+        <div className="builder-panel-heading"><div><p className="eyebrow">Conexus Builder</p><h2 id="conexus-panel-title">Converse com o Conexus</h2><p className="builder-surface-caption">Peça alterações e acompanhe o que está acontecendo.</p></div><BuilderModelConnection initialOpen={requiresModelConnection} /></div>
         <section ref={conversationRef} onScroll={onConversationScroll} className="builder-conversation" aria-label="Mensagens do Builder" aria-live="polite">
           {timelineMessages.flatMap((item) => {
             const textOccurrences = new Map<string, number>()
@@ -548,14 +552,14 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
           <div className="builder-composer-box"><textarea id={inputId} rows={4} required placeholder="Descreva uma alteração ou pergunte sobre o Project…" value={content} onChange={(event) => setContent(event.target.value)} onKeyDown={onComposerKeyDown} /><div className="builder-composer-footer"><span>Enter envia · Shift+Enter quebra linha</span><button className="primary builder-send-button" type="submit" disabled={send.isPending || runActive || !hasChoices || connectionUnavailable}>{send.isPending ? 'Enviando…' : 'Enviar mensagem'}</button></div></div>
           <BuilderModelSelector choices={modelChoices} value={modelChoiceId} onChange={setModelChoiceId} disabled={!hasChoices || runActive} />
           {!hasChoices && !session.isPending && <p className="builder-no-model" role="alert">Nenhum modelo admitido foi retornado pelo servidor. Não é possível enviar uma solicitação.</p>}
-          {connectionUnavailable && <p className="builder-no-model" role="alert">Nenhuma conexão Claude ativa. <a href="/settings">Abrir configurações</a></p>}
+          {connectionUnavailable && <p className="builder-no-model" role="alert">Nenhuma conexão de modelo ativa para o provedor selecionado. <a href="/settings">Abrir configurações</a></p>}
           <fieldset className="builder-mode-toggle">
             <legend>Modo do Builder</legend>
             <button className={mode === 'BUILD' ? 'builder-mode-selected' : undefined} type="button" aria-pressed={mode === 'BUILD'} onClick={() => setMode('BUILD')}>Build</button>
             <button className={mode === 'PLAN' ? 'builder-mode-selected' : undefined} type="button" aria-pressed={mode === 'PLAN'} onClick={() => setMode('PLAN')}>Plan</button>
           </fieldset>
           {runActive && <button className="builder-stop-button" type="button" onClick={() => cancel.mutate()} disabled={cancel.isPending || run?.cancellationRequested}>{cancel.isPending || run?.cancellationRequested ? 'Parando execução…' : 'Parar execução'}</button>}
-          {message && <p className="builder-form-message" role="status" aria-live="polite">{message}{requiresClaudeConnection && <> <a href="/settings">Abrir configurações</a></>}</p>}
+          {message && <p className="builder-form-message" role="status" aria-live="polite">{message}{requiresModelConnection && <> <a href="/settings">Abrir configurações</a></>}</p>}
           {runActive && <p className="builder-form-hint">A troca de modelo vale somente para o próximo pedido.</p>}
         </form>
       </aside>}

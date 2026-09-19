@@ -9,7 +9,7 @@ This ledger is the canonical 4A Product-operation authority. It is intentionally
 The retained ledger records the broader platform design; the current Product census below is the supported internal MVP surface:
 
 ```text
-current fixed Product operations = 34
+current fixed Product operations = 26
 Project-defined operations        = exact finite Ops(R) admitted by the grammar in §4
 first Budget Analyzer operations  = 2
 ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
@@ -17,13 +17,22 @@ ordinary Conexus Permissions      = 25 (owned by permission-contract.md)
 
 The number is derived from the §5 table and nothing else, and `scripts/check-wire-bijection.mjs`
 reads the same table and requires the current Product OAS to hold exactly the same set. That
-gate is `wire-bijection` in the candidate graph and it reports 34 fixed Product operations,
+gate is `wire-bijection` in the candidate graph and it reports 26 fixed Product operations,
 0 missing, 0 extra and 0 duplicate.
 
 The count was 39 until 2026-09-19, when Project Inception and Baseline left the product and
 their five operations were removed from the §5 table and the Product OAS together. It had been
 stated as 31 until 2026-09-18 while that table held 39 rows; that was staleness, not a
 different definition.
+
+It became 26 on 2026-09-19, when a model connection stopped being a Claude account. `CLA-08`
+adds an API-key connection for any provider the model router's registry knows. The other seven
+`CLA-*` rows kept their ids and were renamed only in what they say, because the 4A id is an
+opaque census key and not a user-visible surface.
+
+The figure above read 34 until that day while the table held 25 rows, and `wire-bijection` had
+been reporting the table's own count all along. The number is corrected here to the one the gate
+proves, so the two stop disagreeing.
 
 The numbers are derivation results, not targets. The original 4A candidate survived independent Fable challenge and explicit operator ratification. The accepted bounded findings through F38 remain preserved. The pre-P11 coherence review then admits one transient `TRUSTED_BOOTSTRAP_CONTEXT` principal for first Account self-provisioning and adds one Project-owned model-policy discovery read, `PRJ-29`, while ordinary Permissions remain 25. No new semantic owner or durable record class is added.
 
@@ -198,13 +207,14 @@ This is the current Product authority for the supported internal MVP. It is the 
 | `BLD-24` | `SendBuilderMessage` | Builder | authorized Project + server-resolved current source and Project Thread | command |
 | `BLD-25` | `CancelBuilderRun` | Builder | authorized Project + exact BuilderRun; repeated requests remain idempotent | command |
 | `BLD-26` | `GetBuilderRunTrace` | Builder | authorized Project + exact BuilderRun; safe native trace projection only | read |
-| `CLA-01` | `ListClaudeConnections` | Claude Account | current Account's Claude connection disclosure; safe metadata only | read |
-| `CLA-02` | `StartClaudeAuthorization` | Claude Account | current authorization start against the server-pinned Anthropic flow | command |
-| `CLA-03` | `CompleteClaudeAuthorization` | Claude Account | exact provider code and state result; server resolves the authorized subject | command |
-| `CLA-04` | `SelectClaudeConnection` | Claude Account | exact connection preference for future BuilderRuns | command |
-| `CLA-05` | `ShareClaudeConnection` | Claude Account | exact Workspace the sharing Account belongs to; every member may then use it | command |
-| `CLA-07` | `UnshareClaudeConnection` | Claude Account | exact Workspace share, withdrawn by the connection owner or a Workspace member manager | command |
-| `CLA-06` | `RevokeClaudeConnection` | Claude Account | exact owner-scope connection revocation | command |
+| `CLA-01` | `ListModelConnections` | Model Connection | current Account's model connection disclosure; provider, kind, label and state only, never a credential | read |
+| `CLA-02` | `StartModelAuthorization` | Model Connection | current authorization start against the server-pinned Anthropic flow | command |
+| `CLA-03` | `CompleteModelAuthorization` | Model Connection | exact provider code and state result; server resolves the authorized subject | command |
+| `CLA-04` | `SelectModelConnection` | Model Connection | exact connection preference for future BuilderRuns | command |
+| `CLA-05` | `ShareModelConnection` | Model Connection | exact Workspace the sharing Account belongs to; every member may then use it | command |
+| `CLA-07` | `UnshareModelConnection` | Model Connection | exact Workspace share, withdrawn by the connection owner or a Workspace member manager | command |
+| `CLA-06` | `RevokeModelConnection` | Model Connection | exact owner-scope connection revocation | command |
+| `CLA-08` | `AddModelConnectionApiKey` | Model Connection | exact provider from the model router's registry plus a label and a key; the key goes to custody and is never returned | command |
 
 # 5A. Broader retained historical/platform ledger
 

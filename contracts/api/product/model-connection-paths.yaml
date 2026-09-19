@@ -1,9 +1,9 @@
 openapi: 3.1.2
 paths:
-  /api/control/me/claude-connections:
+  /api/control/me/model-connections:
     get:
-      operationId: ListClaudeConnections
-      summary: List Claude connections available to the current Account.
+      operationId: ListModelConnections
+      summary: List model connections available to the current Account.
       x-conexus-4a-id: CLA-01
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
@@ -15,16 +15,20 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [connections]
+                required: [connections, providers]
                 properties:
                   connections:
                     type: array
                     items:
-                      $ref: '#/components/schemas/ClaudeConnection'
+                      $ref: '#/components/schemas/ModelConnection'
+                  providers:
+                    description: Providers this deployment's model catalog enables, which are the ones a key may be filed under.
+                    type: array
+                    items: { type: string }
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-  /api/control/me/claude-connections/authorization:
+  /api/control/me/model-connections/authorization:
     post:
-      operationId: StartClaudeAuthorization
+      operationId: StartModelAuthorization
       summary: Start the configured Anthropic authorization flow.
       x-conexus-4a-id: CLA-02
       x-conexus-ingress: [CONTROL_PLANE]
@@ -51,9 +55,9 @@ paths:
                   state: { type: string }
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-  /api/control/me/claude-connections/authorization/complete:
+  /api/control/me/model-connections/authorization/complete:
     post:
-      operationId: CompleteClaudeAuthorization
+      operationId: CompleteModelAuthorization
       summary: Complete authorization with the provider code and state result.
       x-conexus-4a-id: CLA-03
       x-conexus-ingress: [CONTROL_PLANE]
@@ -75,14 +79,43 @@ paths:
           description: Newly connected safe metadata.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ClaudeConnection' }
+              schema: { $ref: '#/components/schemas/ModelConnection' }
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
-  /api/control/me/claude-connections/select:
+  /api/control/me/model-connections/api-key:
     post:
-      operationId: SelectClaudeConnection
-      summary: Select a Claude connection for future BuilderRuns.
+      operationId: AddModelConnectionApiKey
+      summary: Add a model connection from an API key for a provider the model router knows.
+      x-conexus-4a-id: CLA-08
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [providerId, label, apiKey]
+              properties:
+                providerId: { type: string, minLength: 1, maxLength: 128 }
+                label: { type: string, minLength: 1, maxLength: 120 }
+                apiKey: { type: string, minLength: 8, maxLength: 4096 }
+      responses:
+        '201':
+          description: Safe connection metadata. The key is written to custody and never returned.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModelConnection' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
+  /api/control/me/model-connections/select:
+    post:
+      operationId: SelectModelConnection
+      summary: Select a model connection for future BuilderRuns, one per provider.
       x-conexus-4a-id: CLA-04
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
@@ -101,10 +134,10 @@ paths:
         '204': { description: Selection updated. }
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-  /api/control/me/claude-connections/share:
+  /api/control/me/model-connections/share:
     post:
-      operationId: ShareClaudeConnection
-      summary: Share a Claude connection into a Workspace the current Account belongs to.
+      operationId: ShareModelConnection
+      summary: Share a model connection into a Workspace the current Account belongs to.
       x-conexus-4a-id: CLA-05
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
@@ -124,10 +157,10 @@ paths:
         '204': { description: Connection shared. }
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-  /api/control/me/claude-connections/unshare:
+  /api/control/me/model-connections/unshare:
     post:
-      operationId: UnshareClaudeConnection
-      summary: Withdraw a Claude connection share from a Workspace.
+      operationId: UnshareModelConnection
+      summary: Withdraw a model connection share from a Workspace.
       x-conexus-4a-id: CLA-07
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
@@ -147,10 +180,10 @@ paths:
         '204': { description: Connection share withdrawn. }
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-  /api/control/me/claude-connections/{connectionId}/revoke:
+  /api/control/me/model-connections/{connectionId}/revoke:
     post:
-      operationId: RevokeClaudeConnection
-      summary: Revoke a Claude connection owned by the current Account.
+      operationId: RevokeModelConnection
+      summary: Revoke a model connection owned by the current Account.
       x-conexus-4a-id: CLA-06
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
@@ -167,12 +200,14 @@ paths:
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 components:
   schemas:
-    ClaudeConnection:
+    ModelConnection:
       type: object
       additionalProperties: false
-      required: [connectionId, label, state, generation, ownerAccountId, workspaceId, role, revokedAt]
+      required: [connectionId, label, state, generation, ownerAccountId, workspaceId, role, revokedAt, providerId, credentialKind]
       properties:
         connectionId: { type: string, format: uuid }
+        providerId: { type: string }
+        credentialKind: { type: string, enum: [OAUTH_TOKEN_SET, API_KEY] }
         label: { type: string }
         state: { type: string, enum: [ACTIVE, REVOKED] }
         generation: { type: string }

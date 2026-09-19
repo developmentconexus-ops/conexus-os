@@ -8,9 +8,14 @@ const repositoryRoot = resolve(import.meta.dirname, '../..')
 
 const admittedModelChoices = [{ choiceId: 'builder-coding-primary', label: 'Claude Sonnet 5', providerId: 'anthropic', modelId: 'claude-sonnet-5', capabilities: ['BUILDER_CODING'] }]
 
-const routeClaudeConnections = (page, accountId) => page.route('**/api/control/me/claude-connections', (route) => route.fulfill({
+const routeModelConnections = (page, accountId) => page.route('**/api/control/me/model-connections', (route) => route.fulfill({
   status: 200, contentType: 'application/json',
-  body: JSON.stringify({ connections: [{ connectionId: '70000000-0000-4000-8000-0000000000c1', label: 'Claude do operador', state: 'ACTIVE', generation: '1', ownerAccountId: accountId, workspaceId: accountId, role: 'OWNER', revokedAt: null }] }),
+  // The connection's provider has to match the selected model's, or the Builder gate refuses it
+  // exactly as the database would.
+  body: JSON.stringify({
+    connections: [{ connectionId: '70000000-0000-4000-8000-0000000000c1', label: 'Conta Anthropic do operador', state: 'ACTIVE', generation: '1', ownerAccountId: accountId, workspaceId: accountId, role: 'OWNER', revokedAt: null, providerId: 'anthropic', credentialKind: 'OAUTH_TOKEN_SET' }],
+    providers: ['anthropic'],
+  }),
 }))
 
 test('Project Build uses the Project session and BuilderRun API', async (t) => {
@@ -44,7 +49,7 @@ test('Project Build uses the Project session and BuilderRun API', async (t) => {
       : run, latestCodeChangingRun: buildCount > 0 ? { baseSourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: buildCount > 0 ? sourceRevision : null, lastGoodArtifactRevisionId: buildCount > 0 ? artifactRevisionId : null, lastGoodArtifactDigest: buildCount > 0 ? artifactDigest : null }, mode: run?.mode ?? 'BUILD', modelChoices: admittedModelChoices,
   })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeClaudeConnections(page, accountId)
+  await routeModelConnections(page, accountId)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Counter', projectRevision: 'revision', archived: false }) }))
   const previewRequests = []
   const forbiddenRequests = []
@@ -175,7 +180,7 @@ test('new Project lands directly in Build and can send its first Builder message
     mode: 'BUILD', modelChoices: admittedModelChoices,
   })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [{ workspaceId, name: 'New Workspace' }], projects: [] }) }))
-  await routeClaudeConnections(page, accountId)
+  await routeModelConnections(page, accountId)
   await page.route(`**/api/control/workspaces/${workspaceId}/projects`, async (route) => {
     if (route.request().method() === 'POST') return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId, name: 'New Counter', projectRevision: 'created', archived: false }) })
     return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
@@ -220,7 +225,7 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeClaudeConnections(page, accountId)
+  await routeModelConnections(page, accountId)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview continuity', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
     const useB = phase === 'B'
@@ -308,7 +313,7 @@ test('Preview ignores an older launch completion after the artifact key changes'
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeClaudeConnections(page, accountId)
+  await routeModelConnections(page, accountId)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview race', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
     const useB = phase === 'B'
@@ -380,7 +385,7 @@ const openActiveRunObservation = async (t, port, respondToStream) => {
   await page.route('**/api/control/access-context', (route) => sessionValid
     ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) })
     : route.fulfill({ status: 401, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:authentication-required' }) }))
-  await routeClaudeConnections(page, accountId)
+  await routeModelConnections(page, accountId)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Transport truth', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, messages: [], mode: 'BUILD', modelChoices: admittedModelChoices, latestCodeChangingRun: null,
@@ -491,7 +496,7 @@ test('settled ACTIVITY parts render every step once, in server order, failed vis
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeClaudeConnections(page, accountId)
+  await routeModelConnections(page, accountId)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Activity parts', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, mode: 'BUILD', modelChoices: admittedModelChoices, latestCodeChangingRun: null,
