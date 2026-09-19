@@ -159,7 +159,7 @@ const runComposedLive = async () => {
     buildRoot = await buildHubLocal()
     server = spawn(process.execPath, [resolve(buildRoot, 'server.js')], { cwd: repositoryRoot, env: process.env, stdio: 'inherit' })
     await waitForHub(config.origin, server)
-    const result = spawnSync(process.execPath, ['--test', '--test-concurrency=1', resolve(repositoryRoot, 'tests/implementation/rb-builder-production-composed-live.test.mjs')], {
+    const result = spawnSync(process.execPath, ['--test', '--test-concurrency=1', resolve(repositoryRoot, 'tests/implementation/builder-production-composed-live.test.mjs')], {
       cwd: repositoryRoot, env: process.env, stdio: 'inherit',
     })
     exitCode = result.status ?? 1
