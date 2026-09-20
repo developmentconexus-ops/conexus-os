@@ -351,9 +351,9 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     ? previewState
     : { kind: 'IDLE' as const, projectId, lastGood: null }
   const previewFailed = currentPreviewState.kind === 'FAILED' && currentPreviewState.keyId === previewKeyId
-  const previewLaunch = currentPreviewState.kind === 'ISSUED'
-    ? currentPreviewState.lease.launch
-    : currentPreviewState.lastGood?.launch
+  const previewLease = currentPreviewState.kind === 'ISSUED' ? currentPreviewState.lease : currentPreviewState.lastGood
+  const previewLaunch = previewLease?.launch
+  const previewLeaseKeyId = previewLease?.keyId ?? null
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const value = content.trim()
@@ -369,7 +369,22 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       event.currentTarget.form?.requestSubmit()
     }
   }
-  useEffect(() => { if (previewLaunch) queueMicrotask(() => entryForm.current?.requestSubmit()) }, [previewLaunch])
+  // The frame starts at about:blank, whose own load fires before any grant exists, so a load only
+  // counts once the entry for this exact lease has been submitted.
+  const submittedLeaseKeyId = useRef<string | null>(null)
+  const [navigatedLeaseKeyId, setNavigatedLeaseKeyId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!previewLaunch || !previewLeaseKeyId) return
+    submittedLeaseKeyId.current = previewLeaseKeyId
+    setNavigatedLeaseKeyId(null)
+    queueMicrotask(() => entryForm.current?.requestSubmit())
+  }, [previewLaunch, previewLeaseKeyId])
+  const frameNavigated = navigatedLeaseKeyId !== null && navigatedLeaseKeyId === previewLeaseKeyId
+  const onFrameLoad = () => {
+    if (submittedLeaseKeyId.current && submittedLeaseKeyId.current === previewLeaseKeyId) {
+      setNavigatedLeaseKeyId(previewLeaseKeyId)
+    }
+  }
 
   if (session.isError) {
     const denied = session.error instanceof BuilderRequestError && session.error.status === 403
@@ -406,7 +421,11 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
         {!previewReady && !previewLaunch && <div className="preview-empty"><div className="preview-empty-mark" aria-hidden="true">⌁</div><strong>Seu aplicativo aparecerá aqui</strong><span>Envie uma solicitação pelo chat para criar o primeiro Preview real.</span></div>}
         {previewReady && !previewLaunch && <p className="preview-last-good"><strong>Último Preview bom disponível.</strong><span>Ainda não há uma sessão de Preview aberta.</span></p>}
         {run?.resultKind === 'SOURCE_CHANGED_BUILD_FAILED' && <p className="preview-warning" role="alert"><strong>A nova fonte não compilou.</strong><span>O Preview anterior continua disponível para você.</span>{run.failureCode && <code>{run.failureCode}</code>}</p>}
-        {previewLaunch && <><div className="preview-frame-stack"><div className="preview-frame-bar"><span aria-hidden="true" /><span>Aplicativo autorizado</span><button type="button" onClick={() => { if (previewKey) launchPreviewForKey(previewKey) }}>Reabrir</button></div><iframe title="Preview do aplicativo" name={frameName} src="about:blank" /></div><form ref={entryForm} hidden method="post" action={previewLaunch.entryUrl} target={frameName}><input type="hidden" name="entryGrant" value={previewLaunch.entryGrant} /></form>{currentPreviewState.kind === 'ISSUED' && <p className="preview-issued">Preview emitido e carregado com acesso autorizado.</p>}</>}
+        {previewLaunch && <><div className="preview-frame-stack"><div className="preview-frame-bar"><span aria-hidden="true" /><span>Aplicativo autorizado</span><button type="button" onClick={() => { if (previewKey) launchPreviewForKey(previewKey) }}>Reabrir</button></div><iframe title="Preview do aplicativo" name={frameName} src="about:blank" onLoad={onFrameLoad} /></div><form ref={entryForm} hidden method="post" action={previewLaunch.entryUrl} target={frameName}><input type="hidden" name="entryGrant" value={previewLaunch.entryGrant} /></form>{/* Only what the browser can observe. A cross-origin load fires for a refusal as readily as for
+             a working app, so navigation is the furthest this can honestly claim. */}
+          <p className="preview-issued" role="status" aria-live="polite">{frameNavigated
+            ? 'Aplicativo aberto abaixo. Se a área ficar vazia, ele não desenhou nada.'
+            : 'Acesso autorizado. Abrindo o aplicativo…'}</p></>}
         {previewFailed && <div className="preview-warning" role="alert"><strong>Não foi possível abrir o Preview atual.</strong><span>O último Preview bom permanece preservado.</span><button type="button" onClick={retryPreview}>Tentar novamente</button></div>}
         {inspection === 'CODE' && <section className="build-inspection" aria-labelledby="build-code-title">
           <h3 id="build-code-title">Código da fonte em trabalho</h3>
