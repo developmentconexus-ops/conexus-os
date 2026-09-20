@@ -248,6 +248,15 @@ Each live lane runs in its own worktree at the PR head. Drive through the `verif
 
 ## Settle which authorized subject runs (P-05)
 
+**Done, mostly by other work.** The deployment model catalog, `PROJECT_ANTHROPIC_MODEL_ID`,
+`PROJECT_ANTHROPIC_ADMISSION_ID` and the string-equality re-validation all went with the native
+model choice change, and `apps/hub/src/claude-account` no longer exists. Model offers are built
+from `model_connection.admit_for_project`, the same decision run admission makes, so the screen
+cannot name one connection while the run uses another. A run records its own admission id,
+provider and model on its row and reads them back, so history survives a catalog that moved on.
+What was left was that the paying connection appeared only inside the model picker's closed
+dropdown. The composer names it now, which shipped with P-04.
+
 **Depends on.** Nothing outstanding.
 
 **Files.**

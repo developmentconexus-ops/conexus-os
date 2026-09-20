@@ -190,7 +190,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .builder-composer-footer { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .45rem .55rem .5rem; border-top: 1px solid #edf1ee; }
 .builder-composer-footer > span { color: #79867d; font-size: .64rem; }
 .builder-send-button { padding: .5rem .7rem; font-size: .76rem; }
-.builder-no-model, .builder-form-message, .builder-form-hint { margin: 0; color: #69786e; font-size: .72rem; line-height: 1.4; }
+.builder-no-model, .builder-form-message, .builder-form-hint, .builder-next-run-connection { margin: 0; color: #69786e; font-size: .72rem; line-height: 1.4; }
 .builder-no-model { color: #8b4c2f; }
 .builder-stop-button { width: 100%; border-color: #bb7062; color: #873d31; }
 .builder-form-message a { margin-left: .25rem; }
