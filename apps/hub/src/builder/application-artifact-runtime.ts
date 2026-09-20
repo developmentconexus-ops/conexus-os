@@ -235,15 +235,18 @@ try {
   ], { stdio: 'ignore' })
   chromium.once('error', () => output({ ok: false, reason: 'APPLICATION_SMOKE_CHROMIUM_UNAVAILABLE' }))
 
+  // Runtime and Page live on a page target. The browser-level endpoint from /json/version answers
+  // the handshake and then refuses those domains, so the page target's own socket is the one to use.
   let webSocketDebuggerUrl
   const deadline = Date.now() + BUDGET_MS
   while (Date.now() < deadline && !webSocketDebuggerUrl) {
     try {
-      const response = await fetch(\`http://127.0.0.1:\${DEVTOOLS_PORT}/json/version\`)
-      webSocketDebuggerUrl = (await response.json()).webSocketDebuggerUrl
+      const targets = await (await fetch(\`http://127.0.0.1:\${DEVTOOLS_PORT}/json/list\`)).json()
+      webSocketDebuggerUrl = targets.find((target) => target.type === 'page')?.webSocketDebuggerUrl
     } catch {
-      await new Promise((resolveWait) => setTimeout(resolveWait, 100))
+      // the browser is not listening yet
     }
+    if (!webSocketDebuggerUrl) await new Promise((resolveWait) => setTimeout(resolveWait, 100))
   }
   if (!webSocketDebuggerUrl) throw new Error('APPLICATION_SMOKE_DEVTOOLS_UNAVAILABLE')
 
@@ -297,8 +300,8 @@ try {
   clearTimeout(timer)
   chromium.kill('SIGKILL')
   server.close()
-  if (typeof childCount !== 'number' || childCount <= 0) return output({ ok: false, reason: 'APPLICATION_SMOKE_NO_ROOT_CHILD' })
-  if (uncaughtErrorText !== null) return output({ ok: false, reason: 'APPLICATION_SMOKE_UNCAUGHT_ERROR', detail: uncaughtErrorText })
+  if (typeof childCount !== 'number' || childCount <= 0) output({ ok: false, reason: 'APPLICATION_SMOKE_NO_ROOT_CHILD' })
+  if (uncaughtErrorText !== null) output({ ok: false, reason: 'APPLICATION_SMOKE_UNCAUGHT_ERROR', detail: uncaughtErrorText })
   output({ ok: true, childCount })
 } catch (error) {
   clearTimeout(timer)
@@ -337,7 +340,14 @@ const smokeApplicationInSandbox = async (sandbox: Sandbox, signal: AbortSignal |
     })
   } catch (error) {
     if (signal?.aborted) throw cancellation()
-    throw new Error('APPLICATION_SMOKE_FAILED', { cause: error })
+    // The script exits non-zero to carry its own refusal, and E2B raises that exit as an error
+    // which still carries the verdict it printed. Reading it is what tells the operator which
+    // refusal happened instead of a bare smoke failure.
+    const raised = error as Partial<CommandResult>
+    if (typeof raised?.stdout !== 'string' || typeof raised.exitCode !== 'number') {
+      throw new Error('APPLICATION_SMOKE_FAILED', { cause: error })
+    }
+    result = { stdout: raised.stdout, stderr: raised.stderr ?? '', exitCode: raised.exitCode } as CommandResult
   }
   assertNotAborted(signal)
   const verdict = parseSmokeVerdict(result)
