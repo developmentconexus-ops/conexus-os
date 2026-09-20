@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
 import { LibSQLStore } from '@mastra/libsql'
@@ -84,6 +84,22 @@ export const createBuilderObservabilityLifecycle = (
       return closePromise
     },
   })
+}
+
+// Deterministic on run+code so a retried call collapses onto the same message instead of
+// appending a duplicate diagnostic.
+const diagnosticMessageId = (builderRunId: string, code: string): string =>
+  createHash('sha256').update(`builder-diagnostic:${builderRunId}:${code}`).digest('hex')
+
+export const createDiagnosticAppender = ({ sessionMemory, ensureSessionStorage }: Readonly<{
+  sessionMemory: Pick<Memory, 'saveMessages'>
+  ensureSessionStorage: () => Promise<void>
+}>) => async ({ projectId, builderRunId, code }: Readonly<{ projectId: string; builderRunId: string; code: string }>): Promise<void> => {
+  await ensureSessionStorage()
+  await sessionMemory.saveMessages({ messages: [{
+    id: diagnosticMessageId(builderRunId, code), role: 'assistant', createdAt: new Date(), threadId: threadIdForProject(projectId), resourceId: projectId,
+    content: { format: 2, parts: [{ type: 'text', text: `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}. Corrija a solicitação para tentar novamente.` }] },
+  }] })
 }
 
 export const resolveBuilderModel = ({ reference, modelIdentity, resolveModel }: Readonly<{
@@ -185,13 +201,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
       flushObservability: observabilityLifecycle.flush,
     },
   })
-  const appendDiagnostic = async ({ projectId, builderRunId, code }: Readonly<{ projectId: string; builderRunId: string; code: string }>): Promise<void> => {
-    await ensureSessionStorage()
-    await sessionMemory.saveMessages({ messages: [{
-      id: randomUUID(), role: 'assistant', createdAt: new Date(), threadId: threadIdForProject(projectId), resourceId: projectId,
-      content: { format: 2, parts: [{ type: 'text', text: `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}. Corrija a solicitação para tentar novamente.` }] },
-    }] })
-  }
+  const appendDiagnostic = createDiagnosticAppender({ sessionMemory, ensureSessionStorage })
   const service = createBuilderService({ store, source, runtime, applicationArtifacts: boundApplicationArtifacts, listModelOffers, appendDiagnostic })
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {

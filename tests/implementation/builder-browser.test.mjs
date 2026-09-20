@@ -217,6 +217,117 @@ test('new Project lands directly in Build and can send its first Builder message
   assert.equal((await page.getByLabel('O que o Project precisa fazer?').inputValue()), 'texto digitado depois')
 })
 
+test('selecting a past run moves Details and Diff onto that run, and the composer names the paying connection', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000061'
+  const projectId = '70000000-0000-4000-8000-000000000062'
+  const olderRunId = '70000000-0000-4000-8000-000000000063'
+  const latestRunId = '70000000-0000-4000-8000-000000000064'
+  const origin = 'http://127.0.0.1:41757'
+  const olderBase = '1'.repeat(40)
+  const olderResult = '2'.repeat(40)
+  const latestBase = '3'.repeat(40)
+  const latestResult = '4'.repeat(40)
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41757, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+
+  const settled = (builderRunId, baseSourceRevision, resultSourceRevision) => ({
+    builderRunId, projectId, state: 'SUCCEEDED', phase: null, mode: 'BUILD',
+    baseSourceRevision, resultSourceRevision, resultKind: 'SOURCE_CHANGED', failureCode: null, failureCategory: null,
+    modelProviderId: 'anthropic', modelId: 'claude-opus-4-5', requestText: `pedido ${builderRunId}`, createdAt: '2026-09-20T12:00:00.000Z',
+  })
+  const tracedRuns = []
+  const diffed = []
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeModelConnections(page, accountId)
+  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*/messages*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: [] }) }))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'History', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, threadId: `conexus-builder:${projectId}`,
+    latestBuilderRun: settled(latestRunId, latestBase, latestResult),
+    latestCodeChangingRun: { baseSourceRevision: latestBase, resultSourceRevision: latestResult, resultKind: 'SOURCE_CHANGED' },
+    preview: { workingSourceRevision: latestResult, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    mode: 'BUILD', modelChoices: admittedModelChoices,
+    runHistory: [settled(latestRunId, latestBase, latestResult), settled(olderRunId, olderBase, olderResult)],
+  }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session/runs/*/trace`, (route) => {
+    tracedRuns.push(route.request().url().split('/runs/')[1].split('/')[0])
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ inferences: [], sandboxCommands: [] }) })
+  })
+  await page.route(`**/api/control/projects/${projectId}/source/tree*`, (route) => {
+    const revision = new URL(route.request().url()).searchParams.get('sourceRevision')
+    diffed.push(revision)
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision: revision, entries: [] }) })
+  })
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByText('Próximo pedido:', { exact: false }).waitFor()
+  assert.equal((await page.locator('.builder-next-run-connection').innerText()).includes('Meu Claude'), true,
+    'the composer must name the connection that pays for the next run')
+
+  await page.getByRole('button', { name: 'Detalhes' }).click()
+  await page.locator('.build-inspection dl').getByText(latestRunId, { exact: true }).waitFor()
+  await page.locator('.builder-run-history button').nth(1).click()
+  await page.locator('.build-inspection dl').getByText(olderRunId, { exact: true }).waitFor()
+  assert.equal(tracedRuns.at(-1), olderRunId, `the trace followed ${tracedRuns.at(-1)} instead of the selected run`)
+
+  diffed.length = 0
+  await page.getByRole('button', { name: 'Diff' }).click()
+  await page.waitForFunction(() => document.querySelectorAll('.build-inspection').length > 0)
+  await page.waitForTimeout(800)
+  assert.deepEqual([...diffed].sort(), [olderBase, olderResult].sort(),
+    `the Diff read ${diffed.join(', ')} instead of the selected run's own revisions`)
+})
+
+test('a send whose outcome is unknown reuses its idempotency key on an identical resend', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000071'
+  const projectId = '70000000-0000-4000-8000-000000000072'
+  const origin = 'http://127.0.0.1:41758'
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41758, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+
+  const keys = []
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeModelConnections(page, accountId)
+  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*/messages*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: [] }) }))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Idempotency', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, threadId: `conexus-builder:${projectId}`, latestBuilderRun: null, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    mode: 'BUILD', modelChoices: admittedModelChoices, runHistory: [],
+  }) }))
+  // The first attempt dies on the wire, so the browser never learns whether the server acted.
+  await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
+    keys.push(route.request().headers()['idempotency-key'])
+    return keys.length === 1 ? route.abort('connectionreset') : route.fulfill({
+      status: 201, contentType: 'application/json',
+      body: JSON.stringify({ builderRun: { builderRunId: '70000000-0000-4000-8000-000000000073', projectId, state: 'QUEUED', phase: null, mode: 'BUILD', baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null } }),
+    })
+  })
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByLabel('O que o Project precisa fazer?').fill('Crie um contador')
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click()
+  await page.getByText('Não foi possível enviar a mensagem ao Builder.', { exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click()
+  await page.getByText('Mensagem enviada ao Builder.', { exact: true }).waitFor()
+  assert.equal(keys.length, 2)
+  assert.equal(keys[0], keys[1], `a resend of the same text issued a second key: ${keys.join(' vs ')}`)
+})
+
 test('Preview launch failure is terminal for its key until explicit retry and keeps the last good frame', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000021'
   const projectId = '70000000-0000-4000-8000-000000000022'

@@ -149,6 +149,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const [inspection, setInspection] = useState<Inspection | null>(null)
   const [requiresModelConnection, setRequiresModelConnection] = useState(false)
   const [selectedSourcePath, setSelectedSourcePath] = useState<string | null>(null)
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [previewState, setPreviewState] = useState<PreviewState>({ kind: 'IDLE', projectId, lastGood: null })
   const frameName = `builder-preview-${inputId.replaceAll(':', '')}`
   const entryForm = useRef<HTMLFormElement>(null)
@@ -159,17 +160,26 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     queryKey: ['builder-session', projectId], queryFn: () => getBuilderSession(projectId),
     refetchInterval: (query) => query.state.data?.latestBuilderRun?.state === 'RUNNING' ? 1_000 : 2_000,
   })
+  // A network error or abort leaves the outcome unknown (the request may have landed server-side),
+  // so its key is kept and reused for an identical retry; the server dedupes by content digest and
+  // raises IDEMPOTENCY_CONFLICT if the retry's content differs. A clean 4xx means the request never
+  // took effect, so its key is safe to discard.
+  const retainedIdempotencyKey = useRef<{ key: string; content: string } | null>(null)
   const send = useMutation({
     mutationFn: (value: Readonly<{ content: string; mode: 'BUILD' | 'PLAN'; key: string; modelChoiceId?: string }>) =>
       sendBuilderMessage(projectId, value.content, value.mode, value.key, value.modelChoiceId),
     onSuccess: async (result, variables) => {
+      retainedIdempotencyKey.current = null
       setContent((current) => current === variables.content ? '' : current)
       setMessage('Mensagem enviada ao Builder.')
       setRequiresModelConnection(false)
       setLiveRequest({ runId: result.builderRun.builderRunId, text: variables.content })
       await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] })
     },
-    onError: (error) => {
+    onError: (error, variables) => {
+      retainedIdempotencyKey.current = error instanceof BuilderRequestError && error.status === null
+        ? { key: variables.key, content: variables.content }
+        : null
       if (error instanceof BuilderRequestError && error.status === 409) setMessage('O Project está ocupado ou recebeu outra alteração. Aguarde e tente novamente.')
       else if (error instanceof BuilderRequestError && error.status === 403) setMessage('Sua autoridade atual não permite construir neste Project.')
       else if (error instanceof BuilderRequestError && error.status === 422 && error.problemType === 'urn:conexus:problem:model-connection-required') {
@@ -189,6 +199,12 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const runId = session.data?.latestBuilderRun?.builderRunId
   const run = session.data?.latestBuilderRun
   const runActive = run?.state === 'QUEUED' || run?.state === 'RUNNING'
+  const runHistoryList = session.data?.runHistory ?? []
+  const runsById = new Map<string, BuilderRun>()
+  for (const entry of runHistoryList) runsById.set(entry.builderRunId, entry)
+  if (run) runsById.set(run.builderRunId, run)
+  const selectedRun = (selectedRunId && runsById.get(selectedRunId)) || run
+  const effectiveRunId = selectedRun?.builderRunId ?? runId ?? null
   const offers = session.data?.modelChoices ?? EMPTY_MODEL_OFFERS
   const lastRunOffer = offers.find((offer) => offer.providerId === run?.modelProviderId && offer.modelId === run?.modelId)
   const selectedOffer = offers.find((offer) => offer.choiceId === pickedChoiceId) ?? lastRunOffer ?? offers.at(0) ?? null
@@ -248,7 +264,9 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     },
     enabled: inspection === 'CODE' && Boolean(workingSourceRevision && selectedSourcePath),
   })
-  const diffBasis = session.data?.latestCodeChangingRun
+  const diffBasis = selectedRun?.resultSourceRevision
+    ? { baseSourceRevision: selectedRun.baseSourceRevision, resultSourceRevision: selectedRun.resultSourceRevision }
+    : null
   const sourceDiff = useQuery({
     queryKey: ['builder-source-diff', projectId, diffBasis?.baseSourceRevision, diffBasis?.resultSourceRevision],
     queryFn: async () => {
@@ -261,12 +279,12 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     enabled: inspection === 'DIFF' && Boolean(diffBasis),
   })
   const trace = useQuery({
-    queryKey: ['builder-run-trace', projectId, runId],
+    queryKey: ['builder-run-trace', projectId, effectiveRunId],
     queryFn: () => {
-      if (!runId) throw new Error('BUILDER_TRACE_NOT_READY')
-      return getBuilderRunTrace(projectId, runId)
+      if (!effectiveRunId) throw new Error('BUILDER_TRACE_NOT_READY')
+      return getBuilderRunTrace(projectId, effectiveRunId)
     },
-    enabled: inspection === 'DETAILS' && Boolean(runId),
+    enabled: inspection === 'DETAILS' && Boolean(effectiveRunId),
   })
   const previewSourceRevision = previewSummary?.lastGoodSourceRevision
   const previewArtifactRevisionId = previewSummary?.lastGoodArtifactRevisionId
@@ -361,7 +379,8 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       if (!selectedOffer && !session.isPending) setMessage('Nenhum modelo disponível para este Project.')
       return
     }
-    send.mutate({ content: value, mode, key: crypto.randomUUID(), modelChoiceId: selectedOffer.choiceId })
+    const key = retainedIdempotencyKey.current?.content === value ? retainedIdempotencyKey.current.key : crypto.randomUUID()
+    send.mutate({ content: value, mode, key, modelChoiceId: selectedOffer.choiceId })
   }
   const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -461,11 +480,11 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
             <div><dt>Último Preview bom</dt><dd><code>{lastGoodSourceRevision ?? 'Ainda não disponível'}</code></dd></div>
             <div><dt>Artefato do Preview</dt><dd><code>{previewSummary?.lastGoodArtifactRevisionId ?? 'Ainda não disponível'}</code></dd></div>
             <div><dt>Digest do artefato</dt><dd><code>{previewSummary?.lastGoodArtifactDigest ?? 'Ainda não disponível'}</code></dd></div>
-            <div><dt>Última execução</dt><dd><code>{run?.builderRunId ?? 'Nenhuma'}</code> · {runStatus(run, null)}</dd></div>
+            <div><dt>Execução selecionada</dt><dd><code>{selectedRun?.builderRunId ?? 'Nenhuma'}</code> · {runStatus(selectedRun, null)}</dd></div>
           </dl>
           <h3>Histórico recente</h3>
-          {(session.data?.runHistory?.length ?? 0) === 0 && <p>Nenhuma execução persistida.</p>}
-          {session.data?.runHistory && session.data.runHistory.length > 0 && <ol className="builder-run-history">{session.data.runHistory.map((historyRun) => <li key={historyRun.builderRunId}><code>{historyRun.builderRunId}</code><span>{runStatus(historyRun, null)}</span>{historyRun.modelId && <small>{historyRun.modelId}</small>}</li>)}</ol>}
+          {runHistoryList.length === 0 && <p>Nenhuma execução persistida.</p>}
+          {runHistoryList.length > 0 && <ol className="builder-run-history">{runHistoryList.map((historyRun) => <li key={historyRun.builderRunId}><button type="button" aria-pressed={historyRun.builderRunId === effectiveRunId} onClick={() => setSelectedRunId(historyRun.builderRunId)}><code>{historyRun.builderRunId}</code><span>{runStatus(historyRun, null)}</span>{historyRun.modelId && <small>{historyRun.modelId}</small>}</button></li>)}</ol>}
           <h3>Trace nativo</h3>
           {trace.isPending && <p>Consultando trace…</p>}
           {trace.isError && <p role="alert">Trace indisponível.</p>}
@@ -482,6 +501,9 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
           <label className="builder-composer-label" htmlFor={inputId}>O que o Project precisa fazer?</label>
           <div className="builder-composer-box"><textarea id={inputId} rows={4} required disabled={!hasOffers} placeholder="Descreva uma alteração ou pergunte sobre o Project…" value={content} onChange={(event) => setContent(event.target.value)} onKeyDown={onComposerKeyDown} /><div className="builder-composer-footer"><span>Enter envia · Shift+Enter quebra linha</span><button className="primary builder-send-button" type="submit" disabled={send.isPending || runActive || !hasOffers}>{send.isPending ? 'Enviando…' : 'Enviar mensagem'}</button></div></div>
           {hasOffers && <BuilderModelPicker offers={offers} value={selectedOffer?.choiceId ?? null} onChange={setPickedChoiceId} disabled={runActive} />}
+          {/* The connection is only visible inside the picker's closed dropdown, and it decides
+              which credential pays, so the next run names it where the operator can see it. */}
+          {selectedOffer && <p className="builder-next-run-connection">Próximo pedido: <strong>{selectedOffer.connectionLabel}</strong></p>}
           {!hasOffers && !session.isPending && <p className="builder-no-model" role="alert">Nenhum modelo disponível para este Project. Conecte uma credencial de modelo em <a href="/settings">configurações</a>.</p>}
           <fieldset className="builder-mode-toggle">
             <legend>Modo do Builder</legend>
