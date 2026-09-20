@@ -52,10 +52,14 @@ It is a qualification and ends in evidence and a recommendation; it authorizes n
 Its evidence is recorded in
 [`docs/evidence/sessions-work-qualification/`](evidence/sessions-work-qualification/README.md),
 with the corrected report in
-[`report.md`](evidence/sessions-work-qualification/report.md). The conversations half now
-has evidence, property by property, from probes that run outside the product. The
-comparison the task asks for is answered with a recommendation and with what still has no
-evidence; the qualification is not closed, and no migration has started.
+[`report.md`](evidence/sessions-work-qualification/report.md). The conversations half has
+evidence, property by property, from probes that run outside the product and fail loudly.
+The comparison is answered against the Factory's real Work engine rather than its storage:
+adopting the Factory for Work requires an integration registered under the id `github` and
+shaped like its GitHub class, which a product that keeps custody of its own source cannot
+supply honestly. The recommendation is therefore the native controller for conversations
+with the Factory's Work engine driving Work. The qualification is not closed, no migration
+has started, and the Factory is not installed.
 
 M-02, the ChatGPT account sign-in, was proven live on 2026-09-20: OpenAI accepted the
 loopback redirect from a request the Hub originated, the token exchange, Conexus's own
@@ -161,9 +165,11 @@ logic, while preserving authorization and the product's effects. It is a qualifi
 it ends in evidence and a recommendation, and it does not authorize a migration.
 
 What remains of it is named in
-[section 6 of the report](evidence/sessions-work-qualification/report.md#6-what-has-no-evidence-yet),
-and the open comparison is whether Conexus identity maps onto the Factory's tenancy without
-a second conversation store. Nothing before it is blocking.
+[section 6 of the report](evidence/sessions-work-qualification/report.md#6-what-has-no-evidence-yet).
+The first increment it prepares is scoped in
+[section 7](evidence/sessions-work-qualification/report.md#7-first-increment-scoped-and-not-started),
+several conversations per Project with no Work and no Goals, and it awaits a decision rather
+than a start. Nothing before it is blocking.
 
 ## Later layers
 

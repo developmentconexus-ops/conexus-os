@@ -12,29 +12,32 @@ The qualification is **not** concluded: the comparison it asks for is answered i
 
 | Probe | What it exercises | Where it runs |
 | --- | --- | --- |
-| [`probe.mjs`](probe.mjs) with [`run.sh`](run.sh) | Conversations on the installed `@mastra/core`, one property at a time, across two separate OS processes | A scratch LibSQL file under `/tmp`, reading the product's `node_modules` without writing to it |
-| [`factory-compat.sh`](factory-compat.sh) | Whether `@mastra/factory` resolves alongside the versions the product already has | `/tmp/factory-compat`, its own `package.json` and `node_modules` |
-| [`factory-boot.mjs`](factory-boot.mjs) | Whether the Factory boots self-hosted, with no Mastra platform account and no auth provider | `/tmp/factory-compat` |
-| [`factory-work.mjs`](factory-work.mjs) | Whether the Factory's Work domain is usable on its own, which is what one of the two compositions needs | `/tmp/factory-compat` |
+| [`probe.mjs`](probe.mjs), driven by [`run.sh`](run.sh) | Conversations on the installed `@mastra/core`, one property at a time, across two separate OS processes | A fresh scratch LibSQL file, reading an existing `node_modules` without writing to it |
+| [`factory-compat.sh`](factory-compat.sh) | Whether `@mastra/factory` resolves alongside the versions the product already has, with a single copy of `@mastra/core` | A fresh scratch directory with its own `package.json` and `node_modules` |
+| [`factory-boot.mjs`](factory-boot.mjs) | The Factory's whole boot lifecycle, `prepare()` then `new Mastra(...)` then `finalize()` then `shutdown()`, self-hosted with no platform account | That scratch install |
+| [`factory-work.mjs`](factory-work.mjs) | The Factory's Work engine, `FactoryTransitionService`, which is what evaluates a move. Not its storage | That scratch install |
+| [`capture.sh`](capture.sh) | Runs all of the above and produces [output.md](output.md) verbatim | Creates its own scratch directories |
+
+Every probe exits non-zero when an assertion fails, and each run ends with a negative
+control whose claim is false on purpose, so a run proves the harness can fail. Each probe
+creates its own scratch directory with `mktemp -d` and deletes nothing it did not create.
 
 ## Reproducing
 
-The product worktree used was `/home/leandrotheodoro/wt-stream` on trunk `0b7bca05`. Node is
-not on `PATH` by default in this environment.
-
 ```bash
 export PATH="$HOME/.nvm/versions/node/v24.20.0/bin:$PATH"
-bash docs/evidence/sessions-work-qualification/run.sh
-bash docs/evidence/sessions-work-qualification/factory-compat.sh
-cd /tmp/factory-compat && cp <this directory>/factory-boot.mjs . && node factory-boot.mjs
-cd /tmp/factory-compat && cp <this directory>/factory-work.mjs . && node factory-work.mjs
+bash docs/evidence/sessions-work-qualification/capture.sh
 ```
 
-`run.sh` hard-codes the product worktree path, because the point of the probe is to read the
-versions the product actually resolved rather than a fresh install of its own.
+`run.sh` reads an existing install rather than making its own, because the point is to
+qualify the versions the product actually resolved. It defaults to
+`/home/leandrotheodoro/wt-stream/node_modules` on trunk `0b7bca05` and prints the path and
+the three versions it found. Point `CONEXUS_NODE_MODULES` at another install to run it
+elsewhere. `factory-compat.sh` takes `FACTORY_VERSION`, `CONEXUS_CORE_VERSION` and
+`CONEXUS_LIBSQL_VERSION` the same way.
 
-No probe calls a model, so none of this costs anything. `factory-compat.sh` and the two
-Factory probes reach the public npm registry; the conversations probe reaches nothing.
+No probe calls a model, so none of this costs anything. `factory-compat.sh` reaches the
+public npm registry; the conversations probe reaches nothing.
 
 ## Versions this evidence rests on
 
