@@ -5,6 +5,8 @@ import { Workspace } from '@mastra/core/workspace'
 import { E2BSandbox } from '@mastra/e2b'
 import { Sandbox } from 'e2b'
 import { materializeFixedApplicationStarter } from './application-starter.js'
+import { buildApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
+import type { CompiledApplication } from './application-artifact-runtime.js'
 import type { BuilderRunningPhase } from './store.js'
 
 type CodingWorkerCommonInput = Readonly<{
@@ -35,7 +37,7 @@ type CodingWorkerResultScope = Readonly<{
 }>
 
 type CodingWorkerResultVariant<TScope> = TScope & (
-  | Readonly<{ kind: 'SOURCE_CHANGED'; claimedResultSourceRevision: string; resultBundle: Uint8Array }>
+  | Readonly<{ kind: 'SOURCE_CHANGED'; claimedResultSourceRevision: string; resultBundle: Uint8Array; compiledApplication: CompiledApplication }>
   | Readonly<{ kind: 'RESPONSE_ONLY' }>
 )
 
@@ -174,7 +176,28 @@ const isUserAuthoredMessage = (message: Readonly<{ role?: string; content?: unkn
   return type === 'user' || type === 'user-message'
 }
 
-export const classifyCodingResult = (input: Readonly<{ changed: boolean; summary: string }>): Readonly<{ kind: 'SOURCE_CHANGED' | 'RESPONSE_ONLY'; summary: string }> => Object.freeze({
+/** `git ls-tree -r -l HEAD app/` output, held to the limits the compile input has always had. */
+export const admitApplicationTree = (listing: string): readonly string[] => {
+  const paths: string[] = []
+  let totalBytes = 0
+  for (const line of listing.split('\n').filter(Boolean)) {
+    // The modes source admission accepts. A symlink or a submodule refuses here rather than
+    // compiling into an artifact the admission that follows would reject.
+    const entry = /^(?:100644|100755) blob [0-9a-f]{40} +(\d+)\t(.+)$/.exec(line)
+    if (!entry) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+    const bytes = Number(entry[1])
+    if (!Number.isSafeInteger(bytes) || bytes > 1024 * 1024) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+    totalBytes += bytes
+    paths.push(entry[2] as string)
+  }
+  if (paths.length > 256 || totalBytes > 12 * 1024 * 1024) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+  if (new Set(paths).size !== paths.length || !paths.includes('app/index.html')) {
+    throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+  }
+  return Object.freeze(paths)
+}
+
+export const classifyCodingResult =(input: Readonly<{ changed: boolean; summary: string }>): Readonly<{ kind: 'SOURCE_CHANGED' | 'RESPONSE_ONLY'; summary: string }> => Object.freeze({
   kind: input.changed ? 'SOURCE_CHANGED' : 'RESPONSE_ONLY',
   summary: input.summary,
 })
@@ -381,7 +404,27 @@ export const createMastraE2BCodingWorkerRuntime = (
         if (!oid.test(claimedResultSourceRevision)) throw new Error('BUILDER_RESULT_IDENTITY_REFUSED')
         const resultBundle = await sandbox.e2b.files.read('/workspace/result.bundle', { format: 'bytes' })
         if (sandbox.sandboxId !== observedSandboxId || input.signal?.aborted) throw new Error('BUILDER_LATE_RESULT_REFUSED')
-        return Object.freeze({ ...scope, kind: 'SOURCE_CHANGED' as const, claimedResultSourceRevision, resultBundle })
+
+        // The artifact has to equal the revision that gets admitted, so the tree is
+        // checked clean before anything (the node_modules symlink included) touches it.
+        const clean = await direct('git', ['-C', '/workspace/repo', 'status', '--porcelain'])
+        if (!clean.success || clean.stdout.length > 0) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+
+        const listed = await direct('git', ['-C', '/workspace/repo', 'ls-tree', '-r', '-l', 'HEAD', 'app/'])
+        if (!listed.success) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+        admitApplicationTree(listed.stdout)
+
+        await input.setPhase?.('COMPILING')
+        const compiledFiles = await buildApplicationInSandbox(sandbox.e2b, { appRoot: '/workspace/repo/app', ...(input.signal ? { signal: input.signal } : {}) })
+        const compiledApplication: CompiledApplication = {
+          projectId: input.projectId,
+          executionId,
+          sourceRevision: claimedResultSourceRevision,
+          templateRef: TEMPLATE_REF,
+          recipeSha256: RECIPE_SHA256,
+          files: compiledFiles,
+        }
+        return Object.freeze({ ...scope, kind: 'SOURCE_CHANGED' as const, claimedResultSourceRevision, resultBundle, compiledApplication })
       } finally {
         await sandbox.destroy().catch(() => undefined)
       }

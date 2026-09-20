@@ -9,7 +9,6 @@ const repositoryRoot = resolve(import.meta.dirname, '../..')
 const buildRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/working-source-build-'))
 const compiled = spawnSync(resolve(repositoryRoot, 'node_modules/.bin/esbuild'), [
   resolve(repositoryRoot, 'apps/hub/src/builder/source.ts'), resolve(repositoryRoot, 'apps/hub/src/builder/runtime.ts'),
-  resolve(repositoryRoot, 'apps/hub/src/builder/application-build.ts'),
   resolve(repositoryRoot, 'apps/hub/src/platform/oci-git.ts'),
   resolve(repositoryRoot, 'apps/hub/src/generated/r1c14-git-identity.ts'),
   `--outdir=${buildRoot}`, `--outbase=${resolve(repositoryRoot, 'apps/hub/src')}`,
@@ -18,8 +17,7 @@ const compiled = spawnSync(resolve(repositoryRoot, 'node_modules/.bin/esbuild'),
 if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
 const built = (path) => pathToFileURL(resolve(buildRoot, path)).href
 const { createBuilderSourcePort } = await import(built('builder/source.js'))
-const { classifyCodingResult } = await import(built('builder/runtime.js'))
-const { prepareBuilderRunApplicationArtifact } = await import(built('builder/application-build.js'))
+const { admitApplicationTree, classifyCodingResult } = await import(built('builder/runtime.js'))
 const { createOciGitExecution } = await import(built('platform/oci-git.js'))
 const { R1C14_GIT_IDENTITY } = await import(built('generated/r1c14-git-identity.js'))
 
@@ -152,6 +150,46 @@ const withSourcePort = async (fixture, sourceOwnership, callback) => {
     sourceOwnership,
   }))
 }
+
+const countingGit = (execution, runs) => Object.freeze({
+  verifyAdmittedImage: () => execution.verifyAdmittedImage(),
+  runGitProgram: (input) => { runs.count += 1; return execution.runGitProgram(input) },
+})
+
+test('C-020 disclosing many files costs one container run, not one per file', async () => {
+  const fixture = createSourceFixture()
+  const contents = {
+    'app/index.html': '<div id="root"></div>\n',
+    'app/package.json': '{ "name": "app" }\n',
+    'app/src/main.tsx': 'export const count = 0\n',
+    'app/src/app.tsx': 'export const App = () => null\n',
+    'app/src/style.css': 'body { margin: 0 }\n',
+    'app/src/label.ts': 'export const label = "acentuacao"\n',
+  }
+  try {
+    const revision = commitAppRevision(fixture, contents)
+    const dockerBin = fakeDocker(fixture.root)
+    const runs = { count: 0 }
+    const port = createBuilderSourcePort({
+      git: countingGit(createOciGitExecution(R1C14_GIT_IDENTITY, fakeOciRunner(resolve(dockerBin, 'docker'))), runs),
+      storageRoot: fixture.storageRoot,
+    })
+    const paths = Object.keys(contents)
+    const disclosed = await port.readSourceFiles({ projectId, sourceRevision: revision, paths })
+    assert.equal(runs.count, 1, 'six files, one container run')
+    for (const file of disclosed.files) assert.equal(file.content, contents[file.path])
+
+    // The Code lens still asks for one file at a time, and each of those is its own
+    // container run. That is the cost the batch removes from every build.
+    const batched = runs.count
+    for (const path of paths) {
+      assert.equal((await port.readSourceFile({ projectId, sourceRevision: revision, path })).content, contents[path])
+    }
+    assert.equal(runs.count - batched, paths.length)
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true })
+  }
+})
 
 test('C-020 source custody continues exact A to B to C without moving main', async () => {
   const fixture = createSourceFixture()
@@ -349,11 +387,6 @@ test('C-020 the Hub re-read is the only authority for the result source revision
   }
 })
 
-const countingGit = (execution, runs) => Object.freeze({
-  verifyAdmittedImage: () => execution.verifyAdmittedImage(),
-  runGitProgram: (input) => { runs.count += 1; return execution.runGitProgram(input) },
-})
-
 const commitAppRevision = (fixture, files) => {
   git(fixture.work, ['checkout', '-B', 'app-base', fixture.baseline])
   for (const [path, content] of Object.entries(files)) {
@@ -367,61 +400,6 @@ const commitAppRevision = (fixture, files) => {
   git(fixture.root, ['--git-dir', fixture.repository, 'fetch', '--no-tags', fixture.work, `+refs/heads/app-base:refs/conexus/sources/${revision}`])
   return revision
 }
-
-test('C-020 compile input costs one container run for the tree and one for every file', async () => {
-  const fixture = createSourceFixture()
-  const accountId = '22222222-2222-4222-8222-222222222222'
-  const builderRunId = '33333333-3333-4333-8333-333333333333'
-  const contents = {
-    'app/index.html': '<div id="root"></div>\n',
-    'app/package.json': '{ "name": "app" }\n',
-    'app/src/main.tsx': 'export const count = 0\n',
-    'app/src/app.tsx': 'export const App = () => null\n',
-    'app/src/style.css': 'body { margin: 0 }\n',
-    'app/src/label.ts': 'export const label = "acentuação"\n',
-  }
-  try {
-    const revision = commitAppRevision(fixture, contents)
-    const dockerBin = fakeDocker(fixture.root)
-    const runs = { count: 0 }
-    const port = createBuilderSourcePort({
-      git: countingGit(createOciGitExecution(R1C14_GIT_IDENTITY, fakeOciRunner(resolve(dockerBin, 'docker'))), runs),
-      storageRoot: fixture.storageRoot,
-    })
-    let compiled
-    const metadata = await prepareBuilderRunApplicationArtifact({
-      source: port,
-      compiler: {
-        kind: 'REMOTE_E2B',
-        compile: async (input) => {
-          compiled = input.files
-          return { projectId: input.projectId, executionId: input.executionId, sourceRevision: input.sourceRevision }
-        },
-      },
-      applicationArtifacts: {
-        retainApplication: async ({ compiled: result }) => ({ artifactRevisionId: 'artifact', sourceRevision: result.sourceRevision }),
-      },
-    }, { accountId, projectId, builderRunId, sourceRevision: revision })
-
-    assert.equal(metadata.sourceRevision, revision)
-    assert.equal(runs.count, 2, 'one tree listing and one batched disclosure')
-    assert.deepEqual(
-      compiled.map(file => file.path).sort(),
-      Object.keys(contents).map(path => path.slice('app/'.length)).sort(),
-    )
-    for (const file of compiled) assert.equal(file.content, contents[`app/${file.path}`])
-
-    // The Code lens still reads one file per request, and that route still costs
-    // one container run each. It is the cost the batch removes from every build.
-    const batched = runs.count
-    for (const path of Object.keys(contents)) {
-      assert.equal((await port.readSourceFile({ projectId, sourceRevision: revision, path })).content, contents[path])
-    }
-    assert.equal(runs.count - batched, Object.keys(contents).length)
-  } finally {
-    rmSync(fixture.root, { recursive: true, force: true })
-  }
-})
 
 test('C-020 one undisclosable path refuses the whole batch by that path own code', async () => {
   const fixture = createSourceFixture()
@@ -441,6 +419,24 @@ test('C-020 one undisclosable path refuses the whole batch by that path own code
   } finally {
     rmSync(fixture.root, { recursive: true, force: true })
   }
+})
+
+test('the application tree the sandbox compiles is held to the compile input limits', () => {
+  const entry = (size, path, mode = '100644') => `${mode} blob ${'a'.repeat(40)} ${String(size).padStart(7)}\t${path}`
+  const ok = [entry(120, 'app/index.html'), entry(80, 'app/src/main.tsx')].join('\n')
+  assert.deepEqual(admitApplicationTree(ok), ['app/index.html', 'app/src/main.tsx'])
+  assert.deepEqual(admitApplicationTree(`${ok}\n`), ['app/index.html', 'app/src/main.tsx'])
+
+  const refuses = (listing, because) =>
+    assert.throws(() => admitApplicationTree(listing), /BUILDER_APPLICATION_SOURCE_REFUSED/, because)
+
+  refuses(entry(10, 'app/main.tsx'), 'no entry point')
+  refuses([entry(10, 'app/index.html'), entry(10, 'app/index.html')].join('\n'), 'a duplicate path')
+  refuses([entry(10, 'app/index.html'), entry(1024 * 1024 + 1, 'app/big.js')].join('\n'), 'one file over 1 MiB')
+  refuses([entry(10, 'app/index.html'), ...Array.from({ length: 12 }, (_, index) => entry(1024 * 1024, `app/f${index}.js`))].join('\n'), 'over 12 MiB in total')
+  refuses([entry(10, 'app/index.html'), ...Array.from({ length: 256 }, (_, index) => entry(1, `app/f${index}.js`))].join('\n'), 'over 256 paths')
+  refuses([entry(10, 'app/index.html'), entry(10, 'app/link', '120000')].join('\n'), 'a symlink, which is not a blob mode this accepts')
+  refuses('not a tree listing at all', 'output that is not a listing')
 })
 
 test('Coding result classification preserves a response-only turn without a candidate', () => {

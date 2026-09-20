@@ -60,7 +60,7 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
         return { projectId, executionId: runId, sandboxId: 'physical-sandbox', baseSourceRevision: sourceRevision, summary: 'Resposta', kind: 'RESPONSE_ONLY' }
       },
     },
-    compiler: {}, applicationArtifacts: {}, listModelOffers,
+    applicationArtifacts: {}, listModelOffers,
   })
   const result = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', mode: 'PLAN' })
   await service.close()
@@ -91,7 +91,7 @@ test('a failure before the agent keeps the operator request on the run and names
     store,
     source: { prepareProjectSource: async () => { throw new Error('BUILDER_SOURCE_MATERIALIZATION_REFUSED') } },
     runtime: { kind: 'REMOTE_E2B', execute: async () => { throw new Error('the agent must never start') } },
-    compiler: {}, applicationArtifacts: {}, listModelOffers,
+    applicationArtifacts: {}, listModelOffers,
   })
   const accepted = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'preagent', content: 'Crie um contador', mode: 'BUILD' })
   await service.close()
@@ -135,7 +135,7 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
         throw new Error('BUILDER_RUN_CANCELLED')
       },
     },
-    compiler: {}, applicationArtifacts: {}, listModelOffers,
+    applicationArtifacts: {}, listModelOffers,
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-key', content: 'pare', mode: 'BUILD' })
   await startedPromise
@@ -171,7 +171,7 @@ test('a run cancelled mid phase change is interrupted, not failed, whatever erro
         throw new Error('BUILDER_RUN_PHASE_UPDATE_REFUSED')
       },
     },
-    compiler: {}, applicationArtifacts: {}, listModelOffers,
+    applicationArtifacts: {}, listModelOffers,
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-mid-phase', content: 'pare', mode: 'BUILD' })
   await startedPromise
@@ -208,17 +208,26 @@ test('BUILD source result is admitted, CASed, compiled, settles Preview and pers
     },
     runtime: {
       kind: 'REMOTE_E2B',
-      execute: async _input => ({ projectId, executionId: runId, sandboxId: 'sandbox', baseSourceRevision: base, summary: 'alterado', kind: 'CANDIDATE', resultSourceRevision: resultRevision, resultBundle: new Uint8Array([1]) }),
+      // The sandbox that runs the agent now also compiles, so the runtime owns that phase.
+      execute: async (input) => {
+        await input.setPhase?.('COMPILING')
+        return {
+          projectId, executionId: runId, sandboxId: 'sandbox', baseSourceRevision: base, summary: 'alterado', kind: 'CANDIDATE',
+          resultSourceRevision: resultRevision, resultBundle: new Uint8Array([1]),
+          compiledApplication: { projectId, executionId: runId, sourceRevision: resultRevision, templateRef: 'x', recipeSha256: 'y', files: [] },
+        }
+      },
     },
-    compiler: { kind: 'REMOTE_E2B', compile: async _input => ({ projectId, executionId: runId, sourceRevision: resultRevision, templateRef: 'x', recipeSha256: 'y', files: [] }) },
-    applicationArtifacts: { retainApplication: async () => ({ artifactRevisionId: '77777777-7777-4777-8777-777777777777', artifactDigest: 'd'.repeat(64) }) },
+    applicationArtifacts: { retainApplication: async (input) => { calls.push(['retain', input.compiled]); return { artifactRevisionId: '77777777-7777-4777-8777-777777777777', artifactDigest: 'd'.repeat(64) } } },
     listModelOffers,
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
   await service.close()
   assert.deepEqual(calls, [
-    ['phase', 'PREPARING'], ['prepareProjectSource', runId], ['phase', 'SOURCE_ADMISSION'], ['admitSourceResult', runId],
-    ['advance', resultRevision], ['phase', 'COMPILING'], ['phase', 'FINALIZING'],
+    ['phase', 'PREPARING'], ['prepareProjectSource', runId], ['phase', 'COMPILING'],
+    ['phase', 'SOURCE_ADMISSION'], ['admitSourceResult', runId], ['advance', resultRevision],
+    ['retain', { projectId, executionId: runId, sourceRevision: resultRevision, templateRef: 'x', recipeSha256: 'y', files: [] }],
+    ['phase', 'FINALIZING'],
     ['build-settle', '77777777-7777-4777-8777-777777777777', 'd'.repeat(64)],
   ])
 })
