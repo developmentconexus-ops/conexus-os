@@ -68,6 +68,44 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
   assert.deepEqual(calls, ['claim', ['phase', 'PREPARING'], ['prepareProjectSource', runId], ['execute', 'PLAN', 'Explique o app'], ['sandbox', 'physical-sandbox'], ['message', 'mastra-message'], ['phase', 'FINALIZING'], ['settle', 'RESPONSE_ONLY']])
 })
 
+test('the sandbox is created while the source bundle is still being exported', async () => {
+  const runId = '11111111-1111-4111-8111-111111111112'
+  const projectId = '22222222-2222-4222-8222-222222222222'
+  const accountId = '33333333-3333-4333-8333-333333333333'
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', phase: null, mode: 'PLAN', baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted }
+  let releaseBundle
+  const bundleHeld = new Promise((resolve) => { releaseBundle = resolve })
+  let sandboxStarted
+  const sandboxRunning = new Promise((resolve) => { sandboxStarted = resolve })
+  const service = createBuilderService({
+    store: {
+      createBuilderRun: async () => run,
+      claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
+      setBuilderRunPhase: async () => {},
+      bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {},
+      settleBuilderRun: async () => {}, failBuilderRun: async () => {}, close: async () => {},
+    },
+    source: {
+      prepareProjectSource: async () => { await bundleHeld; return new Uint8Array([1]) },
+      admitSourceResult: async () => { throw new Error('not reached') },
+    },
+    runtime: {
+      kind: 'REMOTE_E2B',
+      execute: async (input) => {
+        sandboxStarted()
+        const bundle = await input.sourceBundle
+        assert.equal(bundle.byteLength, 1)
+        return { projectId, executionId: runId, sandboxId: 's', baseSourceRevision: run.baseSourceRevision, summary: 'ok', kind: 'RESPONSE_ONLY' }
+      },
+    },
+    compiler: {}, applicationArtifacts: {}, listModelOffers,
+  })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'overlap', content: 'Explique', mode: 'PLAN' })
+  await sandboxRunning
+  releaseBundle()
+  await service.close()
+})
+
 test('a failure before the agent keeps the operator request on the run and names a public category', async () => {
   const runId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
   const projectId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccd'
@@ -90,7 +128,13 @@ test('a failure before the agent keeps the operator request on the run and names
   const service = createBuilderService({
     store,
     source: { prepareProjectSource: async () => { throw new Error('BUILDER_SOURCE_MATERIALIZATION_REFUSED') } },
-    runtime: { kind: 'REMOTE_E2B', execute: async () => { throw new Error('the agent must never start') } },
+    runtime: {
+      kind: 'REMOTE_E2B',
+      execute: async (input) => {
+        await input.sourceBundle
+        throw new Error('the agent must never start')
+      },
+    },
     compiler: {}, applicationArtifacts: {}, listModelOffers,
   })
   const accepted = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'preagent', content: 'Crie um contador', mode: 'BUILD' })
