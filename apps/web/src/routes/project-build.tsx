@@ -1,11 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
 import { createRoute, Link } from '@tanstack/react-router'
+import { lazy, Suspense } from 'react'
 import { useAuthorityLost } from '../app/query-client'
 import { Shell } from '../app/shell'
-import { ProjectBuild } from '../features/builder/components/project-build'
 import { accessContextQueryKey, getAccessContext, isAuthenticationRequired } from '../features/identity-access/api'
 import { getProject, ProjectRequestError, projectQueryKey } from '../features/project/api'
 import { rootRoute } from './__root'
+
+// The chat components and their stylesheet are most of the application's weight and only this page
+// and Settings use them, so they load when one of those opens rather than on every page.
+const ProjectBuild = lazy(() => import('../features/builder/components/project-build').then((module) => ({ default: module.ProjectBuild })))
 
 export const projectBuildRoute = createRoute({ getParentRoute: () => rootRoute, path: '/projects/$projectId/build', component: ProjectBuildRoute })
 
@@ -22,5 +26,5 @@ function ProjectBuildRoute() {
     return <Shell context={access.data}><main className="status"><h1>{hidden ? 'Project indisponível' : 'Não foi possível consultar o Project'}</h1></main></Shell>
   }
   const workspace = access.data.workspaces.find((candidate) => candidate.workspaceId === project.data.workspaceId)
-  return <Shell context={access.data} scope={workspace ? { workspace, project: project.data } : undefined}><main className="control-plane-page builder-route"><p className="eyebrow">{project.data.name} / Build</p><h1>Construir com o Conexus</h1><p>Veja a aplicação no centro, converse com o Conexus ao lado e acompanhe cada alteração quando precisar.</p><ProjectBuild projectId={projectId} /><Link to="/projects/$projectId" params={{ projectId }}>Voltar ao Project</Link></main></Shell>
+  return <Shell context={access.data} scope={workspace ? { workspace, project: project.data } : undefined}><main className="control-plane-page builder-route"><p className="eyebrow">{project.data.name} / Build</p><h1>Construir com o Conexus</h1><p>Veja a aplicação no centro, converse com o Conexus ao lado e acompanhe cada alteração quando precisar.</p><Suspense fallback={<p role="status">Carregando o Build…</p>}><ProjectBuild projectId={projectId} /></Suspense><Link to="/projects/$projectId" params={{ projectId }}>Voltar ao Project</Link></main></Shell>
 }
