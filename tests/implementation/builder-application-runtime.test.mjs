@@ -51,6 +51,25 @@ const fakeSandbox = (output, { buildExitCode = 0, smokeVerdict = { ok: true, chi
   return { sandbox, calls }
 }
 
+test('a refusal E2B raises as an exit error still names which refusal it was', async () => {
+  const output = new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]])
+  const { sandbox } = fakeSandbox(output)
+  const run = sandbox.commands.run
+  // E2B raises a non-zero exit as a CommandExitError that still carries the command's own output,
+  // which is where the script puts its verdict.
+  sandbox.commands.run = async (command, options) => {
+    const result = await run(command, options)
+    if (!String(command).includes('CONEXUS_SMOKE_SCRIPT_EOF')) return result
+    throw Object.assign(new Error('exit status 1'), {
+      exitCode: 1, stderr: '', stdout: JSON.stringify({ ok: false, reason: 'APPLICATION_SMOKE_NO_ROOT_CHILD' }),
+    })
+  }
+  await assert.rejects(
+    buildApplicationInSandbox(sandbox, { appRoot: '/workspace/app' }),
+    /APPLICATION_SMOKE_NO_ROOT_CHILD/,
+  )
+})
+
 test('the smoke script the sandbox is handed parses as the module Node will load it as', async () => {
   const { mkdtempSync, writeFileSync, rmSync, readFileSync } = await import('node:fs')
   const { tmpdir } = await import('node:os')
