@@ -12,6 +12,7 @@ owns status and the next action. Start there.
 | The approved product destination | [Product contract, section 12](product/contract.md#12-approved-destination) |
 | The next task and its condition to start | [Sessions and Work qualification](tasks/sessions-work-qualification.md) |
 | What that qualification has established so far | [its evidence and corrected report](evidence/sessions-work-qualification/README.md) |
+| The first increment it proposes, awaiting a decision | [Several conversations per Project](tasks/project-conversations-first-increment.md) |
 | What the Builder repair program delivered | [Builder repair program](tasks/builder-repair-program.md), closed |
 
 ## Product

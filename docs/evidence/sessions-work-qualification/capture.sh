@@ -35,6 +35,26 @@ section 'factory conversations and the step that starts Work'
 cp "$HERE/factory-binding.mjs" "$SCRATCH/"
 ( cd "$SCRATCH" && node factory-binding.mjs 2>&1 ) || status=1
 
+section 'interactive coding over a source the host owns'
+cp "$HERE/coding-session.mjs" "$HERE/fixture-model.mjs" "$SCRATCH/"
+( cd "$SCRATCH" && node coding-session.mjs 2>&1 ) || status=1
+
+section 'the code-sdk mount the Factory itself uses, with a host workspace'
+cp "$HERE/code-sdk-mount.mjs" "$SCRATCH/"
+( cd "$SCRATCH" && node code-sdk-mount.mjs 2>&1 ) || status=1
+
+section 'interactive coding, negative control'
+CODING_OUT=$(mktemp "${TMPDIR:-/tmp}/coding-negative-control-XXXXXX")
+( cd "$SCRATCH" && node coding-session.mjs --negative-control >"$CODING_OUT" 2>&1 )
+coding=$?
+tail -1 "$CODING_OUT"
+rm -f "$CODING_OUT"
+if [ "$coding" -eq 0 ]; then
+  echo 'negative control passed, so the harness cannot fail'; status=1
+else
+  echo 'negative control failed as required'
+fi
+
 section 'factory work engine, negative control'
 CONTROL_OUT=$(mktemp "${TMPDIR:-/tmp}/factory-negative-control-XXXXXX")
 ( cd "$SCRATCH" && node factory-work.mjs --negative-control >"$CONTROL_OUT" 2>&1 )

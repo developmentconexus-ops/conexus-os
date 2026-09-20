@@ -16,7 +16,14 @@ The qualification is **not** concluded: the comparison it asks for is answered i
 | [`factory-compat.sh`](factory-compat.sh) | Whether `@mastra/factory` resolves alongside the versions the product already has, with a single copy of `@mastra/core` | A fresh scratch directory with its own `package.json` and `node_modules` |
 | [`factory-boot.mjs`](factory-boot.mjs) | The Factory's whole boot lifecycle, `prepare()` then `new Mastra(...)` then `finalize()` then `shutdown()`, self-hosted with no platform account | That scratch install |
 | [`factory-work.mjs`](factory-work.mjs) | The Factory's Work engine, `FactoryTransitionService`, which is what evaluates a move. Not its storage | That scratch install |
+| [`factory-binding.mjs`](factory-binding.mjs) | Conversations under the Factory's own controller, and the step that starts a Work item | That scratch install |
+| [`coding-session.mjs`](coding-session.mjs) with [`fixture-model.mjs`](fixture-model.mjs) | An interactive session running its own code tools over a source directory the host owns, from a message to a changed file | A scratch git repository and a scratch store |
+| [`code-sdk-mount.mjs`](code-sdk-mount.mjs) | The `@mastra/code-sdk` mount the Factory itself uses, handed a host workspace | That scratch install |
 | [`capture.sh`](capture.sh) | Runs all of the above and produces [output.md](output.md) verbatim | Creates its own scratch directories |
+
+`fixture-model.mjs` is a deterministic fake model that emits a scripted tool call and a
+final message. It exists so the tool path can run without a provider and without cost. It is
+an integration fixture, not evidence about a real model.
 
 Every probe exits non-zero when an assertion fails, and each run ends with a negative
 control whose claim is false on purpose, so a run proves the harness can fail. Each probe

@@ -231,9 +231,15 @@ literal id and concrete class. That is the decisive fact this report was missing
 | Application of the result | A pull request through `VersionControl`. `[package]` nothing merges, deploys or publishes by itself | The same, and equally unproven against Conexus custody |
 | Compatibility | One copy of `@mastra/core` at 1.67.0, boots and shuts down self-hosted `[probe]` | Same resolution, and no Factory server or second controller is required `[package]` |
 
-### Recommendation: B, on the blocker, not on conservatism
+### Where this stood before the interactive coding path was traced
 
-A is blocked by something specific rather than risky in general. To start Work under A,
+The paragraphs below were written when the only Factory path anyone had run was starting
+Work. They are kept because the blocker they describe is real, and corrected by section 8,
+which traces the different path: a Factory session running its own code tools over a
+Project's source. A refusal to start Work does not by itself say what an interactive
+session can do.
+
+Starting Work under A is blocked by something specific rather than risky in general. To do it,
 Conexus must register an integration whose id is literally `github` and which behaves like
 the `GithubIntegration` class, backed by installation, repository, connection and session
 rows describing a repository that does not exist, plus a sandbox callback that clones from
@@ -248,10 +254,122 @@ is the seam where Conexus authorization belongs anyway. B does not ask us to rei
 the dispatcher, the phase advance, review or recovery, and this report is not licence to
 write any of them.
 
-This recommendation rests on the published 0.15.0. A host-pluggable source control would
-overturn it, and nothing in this report treats the future as settled.
+That reasoning covers starting Work and nothing else. It is not a decision about the first
+increment, and section 8 is what settles which composition that increment should use.
 
-## 6. What has no evidence yet
+## 8. The three paths, traced separately
+
+Section 5 answered one question, starting Work, and let its refusal stand for everything
+else. That was wrong. A session doing interactive coding is a different path with different
+requirements, and it had never been run. These are the three, each traced to the operation
+that touches files.
+
+### Path 1, create and resume a conversation
+
+Works, under both compositions, and costs nothing. `[probe]` the Factory's own controller
+opens two conversations for a project with no repository and no sandbox, on a `resourceId`
+the host chooses, and the session has no workspace without failing for the lack of one.
+`[probe]` on plain `@mastra/core` the same holds across a process restart, with messages and
+metadata recovered per conversation.
+
+### Path 2, run code tools on the Project's source
+
+This is the path the product needs, and it splits in two.
+
+**Under the Factory's own wrapper it is blocked, for a reason that is not about Work.**
+`[package]` `dist/factory.js:380` fixes the controller's workspace resolver to
+`createWorkspaceFactory({ sandbox, sandboxStart, github, projects, workItems })`, and
+`MastraFactoryConfig` has no workspace, filesystem or project-path field. Inside that
+resolver, `dist/workspace.js:196-197` looks the session up in the GitHub source-control
+sessions table and returns `undefined` when there is no row, which leaves the session with
+no workspace at all and its tools raising `WorkspaceNotAvailableError`. With a row but no
+sandbox callback, `dist/workspace.js:202` throws `GitHub and a sandbox callback are required
+to create a Factory session workspace`. On the success path the first operation that touches
+files is a `git clone` from `github.com` using a minted installation token
+(`dist/workspace.js:415-435`, `dist/integrations/github/sandbox.js:176-186`). A local
+sandbox returned from the `sandbox` callback only changes where that clone lands
+(`dist/sandbox/workdir.js:26-32`); it does not remove the GitHub rows or the clone.
+
+**Under the composition the Factory itself mounts, it works.** The Factory does not write
+its own coding session: `dist/factory.js:64` imports `prepareAgentControllerMount` from
+`@mastra/code-sdk`, and that package's `MastraCodeConfig.workspace` is a documented option,
+"Override the workspace. Default: local filesystem + local sandbox based on detected
+project". `[probe]` mounting it directly with a host-supplied `Workspace` and storage yields
+a controller, a conversation on a host-chosen `resourceId`, and a session that resolves the
+host's workspace, with no forge and no source-control row anywhere.
+
+**And the full turn runs.** `[probe]` on the same building blocks a session sends a message,
+the model calls `mastra_workspace_write_file`, the call stops for approval, the approval is
+granted, and `app/counter.js` changes on disk from `counter = 0` to `counter = 1`. The
+Project's own git sees it as `M app/counter.js` against the revision it started from. The
+conversation keeps the turn, a second conversation in the same Project starts empty, and
+switching back finds the first one's messages again.
+
+That run uses a deterministic fixture model, so it is an integration proof of the tool path
+and says nothing about how a real model behaves. It also grants the tool approval
+unconditionally, where the product would have a person or a policy decide.
+
+### Path 3, start a Work item through the coordinator
+
+Refused, as section 5 established, and for the same GitHub-shaped reason rather than a
+different one. `[probe]` `FactoryStartCoordinator.prepare` answers `Factory source control
+storage is unavailable`.
+
+### What this changes
+
+The limitation is one thing in one place, not three. Every path that needs the Project's
+files goes through the Factory's GitHub-bound source control, and the Factory offers no
+supported seam to point that at source the host holds. Nothing about conversations, tools,
+boards, transitions or approvals is the obstacle, and none of that has to be rebuilt.
+
+## 9. The minimal integration, and what could disappear
+
+**What the first increment needs, and nothing more.** A controller mounted over the
+product's own storage; a workspace resolver over the Project's source, which the Builder
+already has as `resolveBuilderWorkspace` in
+[`apps/hub/src/builder/runtime.ts`](../../../apps/hub/src/builder/runtime.ts); conversations
+created and switched through `SessionThread`; and Conexus deciding which `resourceId` a
+request may act under, which is where its authorization already belongs. Tool approval is
+native and already emits `tool_approval_required` before a tool touches anything.
+
+**What could disappear, as candidates with a condition.** `threadIdForProject()` in
+[`apps/hub/src/builder/module.ts`](../../../apps/hub/src/builder/module.ts), which derives
+one conversation per Project, is replaced by real conversations, and the condition is that
+existing derived ids stay reachable. If the product later adopts the `@mastra/code-sdk`
+mount for the coding surface, its tools, modes and approval flow would replace the Builder's
+hand-built agent wiring, and the condition there is a model path that mount accepts, which
+is the open question below. Nothing about queueing, cancellation, idempotency or recovery is
+a candidate on this evidence.
+
+**What is not yet proven, precisely.** Driving a turn through the `@mastra/code-sdk` mount
+needs a model selected through its own resolver (`dist/agents/model.js:122`, then
+`resolveModel` at `:39`), which reaches a provider gateway rather than any model object
+given in configuration. `[probe]` the mount stops exactly there, with `No model selected.
+Use /models to select a model first.` Whether a Conexus model connection can be presented to
+that resolver as a custom provider is the next thing to settle, and it is small.
+
+## 10. The decision the operator owns
+
+The Factory's Work path is not blocked by a missing feature that a future version might add
+by accident. It is blocked because the Factory treats a Project as a repository on a forge,
+and Conexus treats a Project as source under its own custody. One of those has to give for
+Work to run under the Factory.
+
+- **Keep custody as it is.** Conexus stays the authority over Project source. The
+  interactive coding experience is available now, as section 8 shows. The Factory's Work
+  engine stays unavailable until it accepts a host source-control implementation, and no
+  amount of Conexus code changes that, short of impersonating GitHub, which this
+  qualification refuses to do.
+- **Put Project source on a real forge.** Work, boards, review and the dispatcher become
+  available as they are. That means an external service holding the Project's source, real
+  repositories and installations, and a publication boundary that now runs through someone
+  else's merge button. It is a custody and infrastructure decision with a cost, and it is
+  not executed here.
+
+Nothing in this qualification requires that decision to be made before the first increment,
+because the first increment needs neither Work nor a forge.
+
+## 11. What has no evidence yet
 
 - Concurrent agent runs on one Project, as opposed to concurrent thread creation.
 - The dispatcher driving a real run end to end. `[package]` `FactoryDecisionDispatcher`
@@ -269,7 +387,7 @@ overturn it, and nothing in this report treats the future as settled.
   Factory nor the core controller provides it inside one Project.
 - Anything about upstream main beyond its release cadence, and anything about 0.16 alpha.
 
-## 7. First increment, scoped and not started
+## 12. First increment, scoped and not started
 
 Several conversations per Project in the Builder. It is the smallest thing a person would
 notice, and it exercises the primitive everything else depends on.
@@ -287,11 +405,17 @@ Project, the Project's current source, and the last good Preview, each unchanged
 switching conversations. Isolation between Projects stays refused by `resourceId`, with
 Conexus still deciding which `resourceId` a request may act under.
 
-**Its shape follows the recommendation in section 5**, which is B. The conversation
-authority is a native `AgentController`, the Factory is not installed, and the increment
-adds no Conexus-owned conversation store. The migration from today's one derived thread per
-Project is part of the increment and is what replaces
-[`threadIdForProject()`](../../../apps/hub/src/builder/module.ts).
+**Its shape follows sections 8 to 10.** The conversation authority is one controller over
+the product's own storage, with the Project's source reached through a workspace resolver,
+which is the composition the interactive probe ran end to end. The Factory is not installed,
+and the increment adds no Conexus-owned conversation store: today's one derived conversation
+per Project, [`threadIdForProject()`](../../../apps/hub/src/builder/module.ts), is migrated
+into real conversations, which is a migration and not a second authority.
+
+This is deliberately not a decision to stay outside the Factory forever. The Factory's own
+coding session is a `@mastra/code-sdk` mount, and the same mount takes a host workspace, so
+adopting it later is a change of mount rather than a change of design. What blocks it today
+is named in section 9 and is small.
 
 **Done means.** A person opens two conversations in one Project, switches between them,
 restarts the Hub, and finds both with their messages. No Work exists in the product.

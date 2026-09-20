@@ -54,12 +54,16 @@ Its evidence is recorded in
 with the corrected report in
 [`report.md`](evidence/sessions-work-qualification/report.md). The conversations half has
 evidence, property by property, from probes that run outside the product and fail loudly.
-The comparison is answered against the Factory's real Work engine rather than its storage:
-adopting the Factory for Work requires an integration registered under the id `github` and
-shaped like its GitHub class, which a product that keeps custody of its own source cannot
-supply honestly. The recommendation is therefore the native controller for conversations
-with the Factory's Work engine driving Work. The qualification is not closed, no migration
-has started, and the Factory is not installed.
+Three paths are now traced separately. A conversation costs nothing under either
+composition. An interactive session running its own code tools over a Project's source runs
+end to end on the composition the Factory itself mounts, proven with a deterministic model
+fixture: the file changes on disk and the Project's git sees it. Starting a Work item is
+refused, and so is the Factory's own workspace, for one reason in one place: the Factory
+treats a Project as a repository on GitHub, and offers no supported seam to point that at
+source the host holds. The first increment therefore needs neither Work nor a forge, and
+whether Project source ever moves to a forge is a custody decision for the operator, named
+in the report and not taken here. The qualification is not closed, no migration has started,
+and the Factory is not installed.
 
 M-02, the ChatGPT account sign-in, was proven live on 2026-09-20: OpenAI accepted the
 loopback redirect from a request the Hub originated, the token exchange, Conexus's own
@@ -165,11 +169,11 @@ logic, while preserving authorization and the product's effects. It is a qualifi
 it ends in evidence and a recommendation, and it does not authorize a migration.
 
 What remains of it is named in
-[section 6 of the report](evidence/sessions-work-qualification/report.md#6-what-has-no-evidence-yet).
-The first increment it prepares is scoped in
-[section 7](evidence/sessions-work-qualification/report.md#7-first-increment-scoped-and-not-started),
-several conversations per Project with no Work and no Goals, and it awaits a decision rather
-than a start. Nothing before it is blocking.
+[section 11 of the report](evidence/sessions-work-qualification/report.md#11-what-has-no-evidence-yet).
+The first increment it prepares is
+[Several conversations per Project](tasks/project-conversations-first-increment.md), with no
+Work and no Goals. It awaits a decision rather than a start, and nothing before it is
+blocking.
 
 ## Later layers
 
