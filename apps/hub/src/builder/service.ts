@@ -48,9 +48,12 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
       const claimed = await store.claimBuilderRun(run.builderRunId, modelIdentity)
       if (!claimed.modelConnectionId || !claimed.modelCredentialGeneration) throw new Error('MODEL_CONNECTION_REQUIRED')
       await setPhase('PREPARING')
-      const sourceBundle = await source.prepareProjectSource({
+      const sourceBundle = source.prepareProjectSource({
         projectId: claimed.projectId, executionId: claimed.builderRunId, sourceRevision: claimed.baseSourceRevision,
       })
+      // The runtime awaits this once its sandbox exists. Node reports a rejection nobody is awaiting
+      // yet as unhandled, and this one is awaited later, so it is observed here too.
+      sourceBundle.catch(() => undefined)
       const result = await runtime.execute({
         projectId: claimed.projectId, executionId: claimed.builderRunId, intent: input.content,
         mode: claimed.mode, baseSourceRevision: claimed.baseSourceRevision, sourceBundle, modelIdentity,

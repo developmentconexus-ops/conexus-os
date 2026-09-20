@@ -54,7 +54,7 @@ test('an id nobody offered is refused with 422 model-choice-unavailable, and no 
       store: {},
       service: createBuilderService({
         store: { createBuilderRun: async () => { throw new Error('must not reach the database') }, close: async () => {} },
-        source: {}, compiler: {}, applicationArtifacts: {},
+        source: {}, applicationArtifacts: {},
         runtime: { kind: 'REMOTE_E2B', execute: async () => { throw new Error('must not execute') } },
         listModelOffers: async () => offers,
       }),
