@@ -12,6 +12,20 @@ if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
 test.after(() => rmSync(output, { recursive: true, force: true }))
 const { createBuilderService } = await import(pathToFileURL(resolve(output, 'builder/service.js')).href)
 
+// One offer, the shape the connection custody module hands over: a model the account can pay for
+// in this Project, named with the connection's own provider id.
+const offer = {
+  choiceId: 'anthropic/claude-opus-4-5', label: 'claude-opus-4-5',
+  providerId: 'anthropic', modelId: 'claude-opus-4-5',
+  connectionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', connectionLabel: 'Meu Claude',
+  credentialKind: 'OAUTH_TOKEN_SET',
+}
+const listModelOffers = async () => [offer]
+const admitted = {
+  modelAdmissionId: 'anthropic-claude-opus-4-5', modelProviderId: 'anthropic', modelId: 'claude-opus-4-5',
+  modelConnectionId: offer.connectionId, modelCredentialGeneration: '1',
+}
+
 test('BuilderRun message dispatch claims, executes and settles without Change pipeline', async () => {
   const runId = '11111111-1111-4111-8111-111111111111'
   const projectId = '22222222-2222-4222-8222-222222222222'
@@ -19,8 +33,8 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
   const sourceRevision = 'a'.repeat(40)
   const calls = []
   const store = {
-    createBuilderRun: async () => ({ builderRunId: runId, projectId, state: 'QUEUED', phase: null, mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }),
-    claimBuilderRun: async () => { calls.push('claim'); return { builderRunId: runId, projectId, state: 'RUNNING', phase: 'PREPARING', mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null } },
+    createBuilderRun: async () => ({ builderRunId: runId, projectId, state: 'QUEUED', phase: null, mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted }),
+    claimBuilderRun: async () => { calls.push('claim'); return { builderRunId: runId, projectId, state: 'RUNNING', phase: 'PREPARING', mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted } },
     setBuilderRunPhase: async (_id, phase) => calls.push(['phase', phase]),
     bindBuilderRunMessage: async (_id, messageId) => calls.push(['message', messageId]),
     bindBuilderRunSandbox: async (_id, sandboxId) => calls.push(['sandbox', sandboxId]),
@@ -37,7 +51,7 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
       admitSourceResult: async () => { throw new Error('must not admit source for PLAN response') },
     },
     runtime: {
-      kind: 'REMOTE_E2B', modelIdentity: { admissionId: 'admission', providerId: 'provider', modelId: 'model' },
+      kind: 'REMOTE_E2B',
       execute: async (input) => {
         calls.push(['execute', input.mode, input.intent])
         await input.bindPhysicalSandbox('physical-sandbox')
@@ -45,7 +59,7 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
         return { projectId, executionId: runId, sandboxId: 'physical-sandbox', baseSourceRevision: sourceRevision, summary: 'Resposta', kind: 'RESPONSE_ONLY' }
       },
     },
-    compiler: {}, applicationArtifacts: {},
+    compiler: {}, applicationArtifacts: {}, listModelOffers,
   })
   const result = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', mode: 'PLAN' })
   await service.close()
@@ -61,7 +75,7 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
   const calls = []
   let started
   const startedPromise = new Promise((resolve) => { started = resolve })
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted }
   const store = {
     createBuilderRun: async () => run,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
@@ -73,7 +87,7 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
     store,
     source: { prepareProjectSource: async () => new Uint8Array([1]), admitSourceResult: async () => { throw new Error('not reached') } },
     runtime: {
-      kind: 'REMOTE_E2B', modelIdentity: { admissionId: 'admission', providerId: 'provider', modelId: 'model' },
+      kind: 'REMOTE_E2B',
       execute: async (input) => {
         started()
         await new Promise((_resolve, reject) => {
@@ -83,7 +97,7 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
         throw new Error('BUILDER_RUN_CANCELLED')
       },
     },
-    compiler: {}, applicationArtifacts: {},
+    compiler: {}, applicationArtifacts: {}, listModelOffers,
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-key', content: 'pare', mode: 'BUILD' })
   await startedPromise
@@ -100,7 +114,7 @@ test('BUILD source result is admitted, CASed, compiled, settles Preview and pers
   const base = 'b'.repeat(40)
   const resultRevision = 'c'.repeat(40)
   const calls = []
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted }
   const store = {
     createBuilderRun: async () => run,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
@@ -120,11 +134,12 @@ test('BUILD source result is admitted, CASed, compiled, settles Preview and pers
       readSourceFile: async input => ({ ...input, content: '<html></html>' }),
     },
     runtime: {
-      kind: 'REMOTE_E2B', modelIdentity: { admissionId: 'admission', providerId: 'provider', modelId: 'model' },
+      kind: 'REMOTE_E2B',
       execute: async _input => ({ projectId, executionId: runId, sandboxId: 'sandbox', baseSourceRevision: base, summary: 'alterado', kind: 'CANDIDATE', resultSourceRevision: resultRevision, resultBundle: new Uint8Array([1]) }),
     },
     compiler: { kind: 'REMOTE_E2B', compile: async _input => ({ projectId, executionId: runId, sourceRevision: resultRevision, templateRef: 'x', recipeSha256: 'y', files: [] }) },
     applicationArtifacts: { retainApplication: async () => ({ artifactRevisionId: '77777777-7777-4777-8777-777777777777', artifactDigest: 'd'.repeat(64) }) },
+    listModelOffers,
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
   await service.close()

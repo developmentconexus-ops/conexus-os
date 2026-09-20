@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { PROVIDER_REGISTRY } from '@mastra/core/llm'
 import { sendProblem } from '../http/problem.js'
+import { accountSignIns, apiKeyProviders } from '../model-connection/paid-models.js'
 import type { ModelConnectionStore } from './store.js'
 import type { AuthorizationRequest } from '../model-connection/oauth-provider.js'
 import type { OAuthTokenSet } from '../model-connection/oauth-token-endpoint.js'
@@ -39,7 +40,6 @@ const authenticity = async (request: FastifyRequest, reply: import('fastify').Fa
 export const registerModelConnectionRoutes = async (app: FastifyInstance, dependencies: Readonly<{
   store: ModelConnectionStore
   origin: string
-  enabledProviders: readonly string[]
   resolveCurrentSession: ResolveCurrentSession
   oauthFlows: Readonly<Record<string, OAuthFlow>>
   fetchImpl?: typeof fetch
@@ -53,7 +53,13 @@ export const registerModelConnectionRoutes = async (app: FastifyInstance, depend
   app.get('/api/control/me/model-connections', async (request, reply) => {
     const session = await dependencies.resolveCurrentSession(request)
     if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-    return { connections: await dependencies.store.list(session.account.accountId), providers: dependencies.enabledProviders }
+    // Everything that can be connected, not only what is connected: the account sign-ins Conexus
+    // built, and every provider the model router knows a key for.
+    return {
+      connections: await dependencies.store.list(session.account.accountId),
+      accountSignIns: accountSignIns(),
+      apiKeyProviders: apiKeyProviders(),
+    }
   })
   // The provider is named by the caller on both halves of the sign-in rather than stored on the
   // authorization row, so this needs no schema change. It is not a trust boundary: naming the
@@ -82,9 +88,6 @@ export const registerModelConnectionRoutes = async (app: FastifyInstance, depend
     const session = await authenticity(request, reply, dependencies.origin, dependencies.resolveCurrentSession); if (!session) return reply
     if (!Object.hasOwn(PROVIDER_REGISTRY, request.body.providerId)) {
       return sendProblem(reply, 422, 'model-connection-provider-unknown', 'That provider is not one the model router knows')
-    }
-    if (!dependencies.enabledProviders.includes(request.body.providerId)) {
-      return sendProblem(reply, 422, 'model-connection-provider-not-enabled', "That provider is not enabled by this deployment's model catalog")
     }
     try { return reply.code(201).send(await dependencies.store.addApiKey({ accountId: session.account.accountId, providerId: request.body.providerId, label: request.body.label, apiKey: request.body.apiKey })) }
     catch (error) { return mutationProblem(reply, error) }

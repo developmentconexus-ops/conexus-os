@@ -4,7 +4,7 @@ import { sendProblem } from '../http/problem.js'
 import type { BuilderService } from './service.js'
 import type { BuilderRunSummary, BuilderStore } from './store.js'
 import type { ApplicationArtifactMetadata } from './application-build.js'
-import type { ModelChoice } from '../model-connection/model-catalog.js'
+import type { ModelOffer } from '../model-connection/paid-models.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
@@ -23,7 +23,7 @@ export type BuilderSessionSnapshot = Readonly<{
   lastPreviewSourceRevision: string | null
   lastPreviewArtifactRevisionId: string | null
   lastPreviewArtifactDigest: string | null
-  modelChoices: readonly ModelChoice[]
+  modelChoices: readonly ModelOffer[]
   runHistory: readonly BuilderRunSummary[]
 }>
 export type BuilderSessionPort = Readonly<{
@@ -116,7 +116,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       if (detail.includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
       if (detail.includes('SOURCE_STALE') || detail.includes('PROJECT_BUSY') || detail.includes('IDEMPOTENCY_CONFLICT')) return sendProblem(reply, 409, 'builder-conflict', 'Builder request conflict')
       if (detail.includes('INPUT_REFUSED')) return sendProblem(reply, 422, 'builder-message-refused', 'Builder message refused')
-      if (detail.includes('MODEL_CHOICE')) return sendProblem(reply, 422, 'builder-model-choice-refused', 'Builder model choice refused')
+      if (detail.includes('MODEL_CHOICE')) return sendProblem(reply, 422, 'model-choice-unavailable', 'That model is not one this account can pay for in this Project')
       if (detail.includes('MODEL_CONNECTION_PROVIDER_MISMATCH')) return sendProblem(reply, 422, 'model-connection-provider-mismatch', "The selected connection belongs to a different provider than the selected model")
       if (detail.includes('MODEL_CONNECTION_REQUIRED')) return sendProblem(reply, 422, 'model-connection-required', "Connect a model for the selected model's provider before building")
       return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')

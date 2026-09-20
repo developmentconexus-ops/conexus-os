@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
@@ -9,8 +9,14 @@ import { baselineDigest, baselineName, loadHubMigrationFiles } from '../../scrip
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const migrationsRoot = resolve(repositoryRoot, 'apps/hub/migrations')
 const baselineBytes = readFileSync(resolve(migrationsRoot, baselineName))
-const secondMigrationName = '0002_prune_dead_iam_actions.sql'
-const secondMigrationDigest = createHash('sha256').update(readFileSync(resolve(migrationsRoot, secondMigrationName))).digest('hex')
+// Every forward migration on disk, digested here, so the corpus assertion stays true of whatever
+// the directory holds rather than of a list copied into this file.
+const forwardMigrations = readdirSync(migrationsRoot).filter((name) => name !== baselineName).sort()
+  .map((name) => ({
+    name,
+    version: name.slice(0, 4),
+    checksum: createHash('sha256').update(readFileSync(resolve(migrationsRoot, name))).digest('hex'),
+  }))
 
 const fixtureRoot = (t, mutate = () => {}) => {
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-baseline-corpus-'))
@@ -24,8 +30,9 @@ test('the corpus is the baseline plus every forward migration, in order', () => 
   const loaded = loadHubMigrationFiles()
   assert.deepEqual(loaded.map(({ name, version, checksum }) => ({ name, version, checksum })), [
     { name: '0001_baseline.sql', version: '0001', checksum: baselineDigest },
-    { name: secondMigrationName, version: '0002', checksum: secondMigrationDigest },
+    ...forwardMigrations,
   ])
+  assert.ok(forwardMigrations.length >= 1)
 })
 
 test('a baseline whose bytes drifted is refused before any connection opens', (t) => {

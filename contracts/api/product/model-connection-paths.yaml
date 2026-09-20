@@ -15,16 +15,34 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [connections, providers]
+                additionalProperties: false
+                required: [connections, accountSignIns, apiKeyProviders]
                 properties:
                   connections:
                     type: array
                     items:
                       $ref: '#/components/schemas/ModelConnection'
-                  providers:
-                    description: Providers this deployment's model catalog enables, which are the ones a key may be filed under.
+                  accountSignIns:
+                    description: The account sign-ins Conexus built, each named as the person knows it.
                     type: array
-                    items: { type: string }
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [providerId, name]
+                      properties:
+                        providerId: { type: string, minLength: 1, maxLength: 128 }
+                        name: { type: string, minLength: 1 }
+                  apiKeyProviders:
+                    description: Every provider the model router knows, sorted by name. A key may be filed under any of them.
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [providerId, name, docUrl]
+                      properties:
+                        providerId: { type: string, minLength: 1, maxLength: 128 }
+                        name: { type: string, minLength: 1 }
+                        docUrl: { type: [string, 'null'], format: uri }
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
   /api/control/me/model-connections/authorization:
     post:
@@ -207,7 +225,7 @@ components:
     ModelConnection:
       type: object
       additionalProperties: false
-      required: [connectionId, label, state, generation, ownerAccountId, workspaceId, role, revokedAt, providerId, credentialKind]
+      required: [connectionId, label, state, generation, ownerAccountId, workspaceId, role, revokedAt, providerId, credentialKind, selected]
       properties:
         connectionId: { type: string, format: uuid }
         providerId: { type: string }
@@ -219,3 +237,6 @@ components:
         workspaceId: { type: string, format: uuid }
         role: { type: string, enum: [OWNER, USER] }
         revokedAt: { type: [string, 'null'], format: date-time }
+        selected:
+          description: True when this connection is the Account's current preference for its provider.
+          type: boolean

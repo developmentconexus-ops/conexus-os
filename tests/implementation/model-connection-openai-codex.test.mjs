@@ -266,6 +266,7 @@ test('a Codex request reaches the one Codex endpoint, bearing the OAuth token an
   assert.equal(headers.get('chatgpt-account-id'), ACCOUNT_ID)
   assert.equal(headers.get('originator'), 'conexus-os')
   assert.equal(headers.get('user-agent'), 'conexus-os')
+  assert.equal(headers.get('version'), '1.0.0')
   assert.equal(headers.get('x-api-key'), null)
   assert.equal(headers.get('content-length'), null)
   assert.equal(captured.init.redirect, 'manual')
@@ -276,6 +277,69 @@ test('a Codex request reaches the one Codex endpoint, bearing the OAuth token an
   assert.equal(body.store, false)
   assert.equal(typeof body.instructions, 'string')
   assert.equal(body.instructions.length > 0, true)
+})
+
+test('a second step replays the earlier reasoning and text themselves, because nothing is stored to refer back to', async () => {
+  const fetchImpl = capturingFetch(() => new Response('data: {"type":"response.completed"}\n\n', { status: 200, headers: { 'content-type': 'text/event-stream' } }))
+  const model = dispatch.createOpenAICodexOAuthModel({ tokenStore: codexTokenStore(), modelId: 'gpt-5.5', fetchImpl })
+  try {
+    await model.doStream({
+      includeRawChunks: false,
+      prompt: [
+        { role: 'user', content: [{ type: 'text', text: 'list the files' }] },
+        { role: 'assistant', content: [
+          { type: 'reasoning', text: '', providerOptions: { openai: { itemId: 'rs_kept_nowhere', reasoningEncryptedContent: 'sealed' } } },
+          { type: 'text', text: 'There is one file.', providerOptions: { openai: { itemId: 'msg_kept_nowhere' } } },
+        ] },
+        { role: 'user', content: [{ type: 'text', text: 'and now?' }] },
+      ],
+    })
+  } catch (error) { if (!fetchImpl.captured) throw error }
+
+  const body = JSON.parse(fetchImpl.captured.init.body)
+  assert.deepEqual(body.input.filter((item) => item.type === 'item_reference'), [])
+  assert.deepEqual(body.input.filter((item) => item.role === 'assistant').map((item) => item.content[0].text), ['There is one file.'])
+  assert.deepEqual(body.input.filter((item) => item.type === 'reasoning').map((item) => item.encrypted_content), ['sealed'])
+  assert.deepEqual(body.include, ['reasoning.encrypted_content'])
+  assert.equal(body.store, false)
+})
+
+test('a reasoning summary is asked for, unless the caller already chose one', async () => {
+  const respond = () => new Response('data: {"type":"response.completed"}\n\n', { status: 200, headers: { 'content-type': 'text/event-stream' } })
+  const prompt = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }]
+  const asked = capturingFetch(respond)
+  try { await dispatch.createOpenAICodexOAuthModel({ tokenStore: codexTokenStore(), modelId: 'gpt-5.5', fetchImpl: asked }).doStream({ prompt, includeRawChunks: false }) }
+  catch (error) { if (!asked.captured) throw error }
+  assert.equal(JSON.parse(asked.captured.init.body).reasoning.summary, 'auto')
+
+  const chosen = capturingFetch(respond)
+  try { await dispatch.createOpenAICodexOAuthModel({ tokenStore: codexTokenStore(), modelId: 'gpt-5.5', fetchImpl: chosen }).doStream({ prompt, includeRawChunks: false, providerOptions: { openai: { reasoningSummary: 'detailed' } } }) }
+  catch (error) { if (!chosen.captured) throw error }
+  assert.equal(JSON.parse(chosen.captured.init.body).reasoning.summary, 'detailed')
+})
+
+test('the account catalog is read with the account\'s own token and keeps only listed, well-formed models', async () => {
+  const fetchImpl = capturingFetch(() => jsonResponse({ models: [
+    { slug: 'gpt-6-astra', display_name: 'GPT-6-Astra', visibility: 'list' },
+    { slug: 'codex-auto-review', display_name: 'Codex Auto Review', visibility: 'hide' },
+    { slug: '../../etc/passwd', display_name: 'not a model id', visibility: 'list' },
+    { slug: 'gpt-5.5', visibility: 'list' },
+    { display_name: 'no slug', visibility: 'list' },
+    'not an object',
+  ] }))
+  const models = await dispatch.listOpenAICodexModels({ tokenStore: codexTokenStore(), fetchImpl })
+
+  assert.deepEqual(models, [{ modelId: 'gpt-6-astra', label: 'GPT-6-Astra' }, { modelId: 'gpt-5.5', label: 'gpt-5.5' }])
+  assert.equal(fetchImpl.captured.url, 'https://chatgpt.com/backend-api/codex/models?client_version=1.0.0')
+  const headers = new Headers(fetchImpl.captured.init.headers)
+  assert.equal(headers.get('authorization'), 'Bearer access-fixture')
+  assert.equal(headers.get('chatgpt-account-id'), ACCOUNT_ID)
+  assert.equal(headers.get('version'), '1.0.0')
+})
+
+test('a catalog the backend will not serve is an error, not an empty list of models', async () => {
+  const fetchImpl = capturingFetch(() => new Response('{"detail":"no"}', { status: 403, headers: { 'content-type': 'application/json' } }))
+  await assert.rejects(dispatch.listOpenAICodexModels({ tokenStore: codexTokenStore(), fetchImpl }), /OPENAI_CODEX_CATALOG_UNAVAILABLE/)
 })
 
 test('the settings the backend requires are not the caller to choose, but its instructions are kept', async () => {

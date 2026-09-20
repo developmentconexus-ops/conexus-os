@@ -52,7 +52,7 @@ const toBuilderRunSummary = (row: BuilderRunSummary): BuilderRunSummary =>
     : row
 
 export type BuilderStore = Readonly<{
-  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN'; modelIdentity?: BuilderModelIdentity }>): Promise<BuilderRunSummary>
+  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN'; modelIdentity: BuilderModelIdentity }>): Promise<BuilderRunSummary>
   readBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderRunSummary | null>
   listBuilderRuns(input: Readonly<{ accountId: string; projectId: string; limit?: number }>): Promise<readonly BuilderRunSummary[]>
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderCodeChangingRun | null>
@@ -83,15 +83,10 @@ export const createBuilderStore = ({
 }>): BuilderStore => Object.freeze({
   createBuilderRun: async ({ accountId, projectId, idempotencyKey, content, mode, modelIdentity }) => {
     const request = { mode, content }
-    const result = modelIdentity
-      ? await ingressPool.query<JsonRow<BuilderRunSummary>>(
-        'SELECT builder.create_builder_run_with_model($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value',
-        [accountId, projectId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), null, mode, mintIdentity(), modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId],
-      )
-      : await ingressPool.query<JsonRow<BuilderRunSummary>>(
-        'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8) AS value',
-        [accountId, projectId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), null, mode, mintIdentity(), null],
-      )
+    const result = await ingressPool.query<JsonRow<BuilderRunSummary>>(
+      'SELECT builder.create_builder_run_with_model($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value',
+      [accountId, projectId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), null, mode, mintIdentity(), modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId],
+    )
     const value = result.rows[0]?.value
     if (!value) throw new Error('BUILDER_RUN_CREATE_FAILED')
     return toBuilderRunSummary(value)

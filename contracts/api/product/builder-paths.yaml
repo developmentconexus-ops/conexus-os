@@ -247,17 +247,22 @@ components:
           type: array
           items: { $ref: '#/components/schemas/BuilderRunSummary' }
     BuilderModelChoice:
+      description: One model this Account can pay for in this Project, and the connected credential that pays for it.
       type: object
       additionalProperties: false
-      required: [choiceId, label, providerId, modelId, capabilities]
+      required: [choiceId, label, providerId, modelId, connectionId, connectionLabel, credentialKind]
       properties:
-        choiceId: { type: string, minLength: 1 }
+        choiceId: { type: string, minLength: 1, maxLength: 256 }
         label: { type: string, minLength: 1 }
-        providerId: { type: string, minLength: 1 }
+        providerId:
+          description: The connection's own provider id, which is what run admission compares against the credential.
+          type: string
+          minLength: 1
+          maxLength: 128
         modelId: { type: string, minLength: 1 }
-        capabilities:
-          type: array
-          items: { type: string, minLength: 1 }
+        connectionId: { type: string, format: uuid }
+        connectionLabel: { type: string, minLength: 1 }
+        credentialKind: { type: string, enum: [OAUTH_TOKEN_SET, API_KEY] }
     EmptyRequest:
       type: object
       additionalProperties: false
@@ -289,6 +294,11 @@ components:
       properties:
         content: { type: string, minLength: 1, maxLength: 20000, pattern: '.*\S.*' }
         mode: { type: string, enum: [BUILD, PLAN] }
+        modelChoiceId:
+          description: The choiceId of one offered model. Omitted means the first offer.
+          type: string
+          minLength: 1
+          maxLength: 128
     BuilderMessageAccepted:
       type: object
       additionalProperties: false

@@ -33,7 +33,7 @@ test('a database built from the baseline and forward migrations is exactly the c
   const snapshot = readCommittedSnapshot()
   const catalog = await catalogOf(connectionString)
   assert.equal(describeCatalogDrift(catalog, snapshot.catalog), null)
-  assert.equal(catalogDigest(catalog), 'e76447d815949f18f428441a74ae806ccb8c8c98308972be01f51b415937f886')
+  assert.equal(catalogDigest(catalog), '7ebd7387b8c51cdbaa2f74c3c8adc70942f800976479d7b1b6ba8a51c9b83365')
 })
 
 test('a database built from the baseline satisfies the role and PUBLIC-execute invariants', async (t) => {

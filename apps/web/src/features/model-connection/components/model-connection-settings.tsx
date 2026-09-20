@@ -1,5 +1,12 @@
+import { AlertDialog } from '@mastra/playground-ui/components/AlertDialog'
+import { Badge } from '@mastra/playground-ui/components/Badge'
+import { Button } from '@mastra/playground-ui/components/Button'
+import { Combobox } from '@mastra/playground-ui/components/Combobox'
+import { Input } from '@mastra/playground-ui/components/Input'
+import { Tab, TabContent, TabList, Tabs } from '@mastra/playground-ui/components/Tabs'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { KeyRound, UserRound } from 'lucide-react'
+import { createContext, useContext, useId, useRef, useState, type RefObject } from 'react'
 import {
   ModelConnectionRequestError,
   modelConnectionsQueryKey,
@@ -11,155 +18,181 @@ import {
   shareModelConnection,
   startModelAuthorization,
   unshareModelConnection,
+  type AccountSignIn,
+  type ApiKeyProvider,
+  type ModelConnection,
 } from '../api'
 
 export type SettingsWorkspace = Readonly<{ workspaceId: string; name: string }>
 
-// One row per sign-in the Hub offers. What the user pastes differs because the providers differ:
-// Anthropic hosts a page that prints code#state, and OpenAI redirects to a port on the user's own
-// machine that nothing is listening on, so the browser shows an error page and the address bar is
-// where the result actually is. Saying that up front is the difference between a confusing failure
-// and an expected step.
-const OAUTH_SIGN_INS = [
-  {
-    providerId: 'anthropic',
-    button: 'Conectar conta Anthropic',
-    defaultLabel: 'Minha conta Anthropic',
-    resultLabel: 'Resultado da autorização',
-    placeholder: 'code#state',
+// What the person pastes back differs because the providers differ: Anthropic hosts a page that
+// prints code#state, and OpenAI redirects to a port on the person's own machine that nothing is
+// listening on, so the browser shows an error page and the address bar holds the result.
+const PASTE_STEPS: Readonly<Record<string, Readonly<{ instruction: string; field: string; placeholder: string; pattern: string }>>> = {
+  anthropic: {
+    instruction: 'Autorize na aba que abriu. A página final mostra um código. Copie e cole aqui.',
+    field: 'Código mostrado pela Anthropic',
+    placeholder: 'código#estado',
     pattern: '[^#]+#[^#]+',
-    title: 'Use o formato code#state',
-    started: 'Autorização aberta em uma nova aba. Cole aqui o resultado code#state quando terminar.',
   },
-  {
-    providerId: 'openai-codex',
-    button: 'Entrar com ChatGPT',
-    defaultLabel: 'Minha conta ChatGPT',
-    resultLabel: 'URL de redirecionamento',
-    placeholder: 'http://localhost:1455/auth/callback?code=…&state=…',
+  'openai-codex': {
+    instruction: 'Autorize na aba que abriu. No final o navegador para em uma página que não carrega: isso é esperado. Copie o endereço inteiro da barra e cole aqui.',
+    field: 'Endereço da página que não carregou',
+    placeholder: 'http://localhost:1455/auth/callback?code=…',
     pattern: 'http://localhost:1455/auth/callback\\?.+',
-    title: 'Cole a URL inteira que ficou na barra de endereços',
-    started: 'Autorização aberta em uma nova aba. Ao final o navegador vai parar em uma página que não carrega: isso é esperado. Copie a URL inteira da barra de endereços e cole aqui.',
   },
-] as const
-
-// The list never carries the owner's name, only their Account id, so a connection someone
-// else shared is named by the Workspace it came through rather than by a person.
-const ownership = (
-  connection: Readonly<{ ownerAccountId: string; workspaceId: string }>,
-  currentAccountId: string,
-  workspaces: readonly SettingsWorkspace[],
-) => {
-  if (connection.ownerAccountId === currentAccountId) return 'Sua conexão'
-  const workspace = workspaces.find((candidate) => candidate.workspaceId === connection.workspaceId)
-  return workspace ? `Compartilhada com ${workspace.name}` : 'Compartilhada com você'
 }
 
-const safeMessage = (error: unknown) => {
-  if (error instanceof ModelConnectionRequestError && error.problemType === 'urn:conexus:problem:model-authorization-rejected') return 'O provedor recusou essa autorização. Inicie uma nova conexão e cole um novo resultado.'
-  if (error instanceof ModelConnectionRequestError && error.problemType === 'urn:conexus:problem:model-connection-publish-failed') return 'A autorização foi aceita, mas o Hub não conseguiu publicar a conexão. Tente novamente.'
-  if (error instanceof ModelConnectionRequestError && error.status === 422) return 'O resultado de autorização não foi aceito. Confira o formato pedido e inicie uma nova conexão.'
-  return 'Não foi possível concluir essa operação. Tente novamente.'
+const failure = (error: unknown): string => {
+  if (!(error instanceof ModelConnectionRequestError)) return 'Não foi possível concluir. Tente novamente.'
+  if (error.problemType === 'urn:conexus:problem:model-authorization-rejected') return 'O provedor recusou essa autorização. Comece de novo e cole um resultado novo.'
+  if (error.problemType === 'urn:conexus:problem:model-connection-publish-failed') return 'A autorização foi aceita, mas a conexão não pôde ser guardada. Tente novamente.'
+  if (error.problemType === 'urn:conexus:problem:model-connection-provider-unknown') return 'Esse provedor não é conhecido pelo roteador de modelos.'
+  if (error.status === 422) return 'O que foi colado não está no formato esperado. Comece de novo.'
+  return 'Não foi possível concluir. Tente novamente.'
 }
 
-export function ModelConnectionSettings({
-  workspaces,
-  currentAccountId,
-}: {
+// Popups are portalled. Landing them inside the page keeps the library's own control styles in
+// force instead of the app's global form rules.
+const PopupContainer = createContext<RefObject<HTMLDivElement | null> | null>(null)
+
+const useRefreshConnections = () => {
+  const queryClient = useQueryClient()
+  return () => queryClient.invalidateQueries({ queryKey: modelConnectionsQueryKey })
+}
+
+function AccountSignInCard({ signIn }: Readonly<{ signIn: AccountSignIn }>) {
+  const refresh = useRefreshConnections()
+  const fieldId = useId()
+  const step = PASTE_STEPS[signIn.providerId]
+  const [pasted, setPasted] = useState('')
+  const [label, setLabel] = useState(`Minha conta ${signIn.name}`)
+  const start = useMutation({ mutationFn: startModelAuthorization, onSuccess: ({ url }) => { window.open(url, '_blank', 'noopener,noreferrer') } })
+  const complete = useMutation({ mutationFn: completeModelAuthorization, onSuccess: async () => { setPasted(''); start.reset(); await refresh() } })
+  const error = start.error ?? complete.error
+  return <article className="credential-card">
+    <header><UserRound aria-hidden="true" size={18} /><div><strong>{signIn.name}</strong><span>Entrar com a sua conta. Usa a assinatura que você já paga.</span></div>
+      {!start.isSuccess && <Button variant="primary" size="sm" disabled={start.isPending} onClick={() => start.mutate(signIn.providerId)}>{start.isPending ? 'Abrindo…' : 'Conectar'}</Button>}
+    </header>
+    {start.isSuccess && step && <form onSubmit={(event) => { event.preventDefault(); complete.mutate({ providerId: signIn.providerId, result: pasted.trim(), label: label.trim() }) }}>
+      <p>{step.instruction}</p>
+      <label htmlFor={`${fieldId}-result`}><span>{step.field}</span><Input id={`${fieldId}-result`} value={pasted} onChange={(event) => setPasted(event.target.value)} placeholder={step.placeholder} pattern={step.pattern} autoComplete="off" required /></label>
+      <label htmlFor={`${fieldId}-label`}><span>Nome da conexão</span><Input id={`${fieldId}-label`} value={label} onChange={(event) => setLabel(event.target.value)} maxLength={120} required /></label>
+      <div className="credential-actions">
+        <Button type="submit" variant="primary" size="sm" disabled={complete.isPending || !pasted.trim() || !label.trim()}>{complete.isPending ? 'Conectando…' : 'Concluir'}</Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => { start.reset(); complete.reset(); setPasted('') }}>Cancelar</Button>
+      </div>
+    </form>}
+    {error && <p role="alert" className="credential-error">{failure(error)}</p>}
+  </article>
+}
+
+function ApiKeyForm({ providers }: Readonly<{ providers: readonly ApiKeyProvider[] }>) {
+  const refresh = useRefreshConnections()
+  const popups = useContext(PopupContainer)
+  const fieldId = useId()
+  const [providerId, setProviderId] = useState('')
+  const [label, setLabel] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const provider = providers.find((candidate) => candidate.providerId === providerId)
+  const add = useMutation({ mutationFn: addModelConnectionApiKey, onSuccess: async () => { setApiKey(''); setLabel(''); await refresh() } })
+  return <form className="credential-card" onSubmit={(event) => { event.preventDefault(); add.mutate({ providerId, label: label.trim(), apiKey }) }}>
+    <header><KeyRound aria-hidden="true" size={18} /><div><strong>Chave de API</strong><span>{providers.length} provedores que o roteador de modelos do Mastra conhece. A chave fica em custódia e nunca é mostrada de novo.</span></div></header>
+    <div className="credential-field"><span>Provedor</span>
+      <Combobox
+        options={providers.map((candidate) => ({ value: candidate.providerId, label: candidate.name, description: candidate.providerId }))}
+        value={providerId} onValueChange={(value) => { setProviderId(value); if (!label.trim()) setLabel(`Chave ${providers.find((candidate) => candidate.providerId === value)?.name ?? value}`) }}
+        placeholder="Escolha um provedor" searchPlaceholder="Buscar provedor…" emptyText="Nenhum provedor com esse nome" aria-label="Provedor" container={popups} />
+    </div>
+    {provider?.docUrl && <a href={provider.docUrl} target="_blank" rel="noreferrer noopener">Onde encontrar a chave de {provider.name}</a>}
+    <label htmlFor={`${fieldId}-label`}><span>Nome da conexão</span><Input id={`${fieldId}-label`} value={label} onChange={(event) => setLabel(event.target.value)} maxLength={120} required /></label>
+    <label htmlFor={`${fieldId}-key`}><span>Chave</span><Input id={`${fieldId}-key`} type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} minLength={8} maxLength={4096} autoComplete="off" spellCheck={false} required /></label>
+    <div className="credential-actions"><Button type="submit" variant="primary" size="sm" disabled={add.isPending || !providerId || !label.trim() || apiKey.length < 8}>{add.isPending ? 'Guardando…' : 'Guardar chave'}</Button></div>
+    {add.error && <p role="alert" className="credential-error">{failure(add.error)}</p>}
+  </form>
+}
+
+function ConnectionRow({ connection, providerName, currentAccountId, workspaces }: Readonly<{
+  connection: ModelConnection
+  providerName: string
+  currentAccountId: string
+  workspaces: readonly SettingsWorkspace[]
+}>) {
+  const refresh = useRefreshConnections()
+  const popups = useContext(PopupContainer)
+  const owned = connection.ownerAccountId === currentAccountId
+  const active = connection.state === 'ACTIVE'
+  const sharedWith = workspaces.find((workspace) => workspace.workspaceId === connection.workspaceId)
+  const [shareWorkspaceId, setShareWorkspaceId] = useState('')
+  const select = useMutation({ mutationFn: selectModelConnection, onSuccess: refresh })
+  const share = useMutation({ mutationFn: shareModelConnection, onSuccess: async () => { setShareWorkspaceId(''); await refresh() } })
+  const unshare = useMutation({ mutationFn: unshareModelConnection, onSuccess: refresh })
+  const revoke = useMutation({ mutationFn: revokeModelConnection, onSuccess: refresh })
+  const error = select.error ?? share.error ?? unshare.error ?? revoke.error
+  const shareable = workspaces.filter((workspace) => workspace.workspaceId !== connection.workspaceId)
+  return <article className="credential-row" data-state={connection.state}>
+    <div className="credential-row-main">
+      <div>
+        <strong>{connection.label}</strong>
+        <p>
+          <Badge variant="neutral" emphasis="muted" size="sm">{providerName}</Badge>
+          <Badge variant="blue" emphasis="muted" size="sm">{connection.credentialKind === 'API_KEY' ? 'Chave de API' : 'Conta'}</Badge>
+          {!active && <Badge variant="red" emphasis="muted" size="sm">Revogada</Badge>}
+          {active && connection.selected && <Badge variant="green" indicator="dot" size="sm">Em uso no Builder</Badge>}
+          {!owned && <Badge variant="neutral" emphasis="muted" size="sm">{sharedWith ? `Compartilhada por ${sharedWith.name}` : 'Compartilhada com você'}</Badge>}
+        </p>
+      </div>
+      {active && !connection.selected && <Button variant="outline" size="sm" disabled={select.isPending} onClick={() => select.mutate(connection.connectionId)}>Usar no Builder</Button>}
+    </div>
+    {owned && active && <div className="credential-row-manage">
+      {sharedWith
+        ? <span>Compartilhada com <strong>{sharedWith.name}</strong>. <Button variant="ghost" size="xs" disabled={unshare.isPending} onClick={() => unshare.mutate({ connectionId: connection.connectionId, workspaceId: connection.workspaceId })}>Parar de compartilhar</Button></span>
+        : shareable.length > 0 && <span className="credential-share">
+          <Combobox options={shareable.map((workspace) => ({ value: workspace.workspaceId, label: workspace.name }))} value={shareWorkspaceId} onValueChange={setShareWorkspaceId} placeholder="Compartilhar com um Workspace" size="sm" aria-label="Workspace" container={popups} />
+          <Button variant="outline" size="sm" disabled={!shareWorkspaceId || share.isPending} onClick={() => share.mutate({ connectionId: connection.connectionId, workspaceId: shareWorkspaceId })}>Compartilhar</Button>
+        </span>}
+      {connection.role === 'OWNER' && <AlertDialog>
+        <AlertDialog.Trigger render={<Button variant="destructive-ghost" size="xs">Revogar</Button>} />
+        <AlertDialog.Portal><AlertDialog.Overlay /><AlertDialog.Content>
+          <AlertDialog.Header><AlertDialog.Title>Revogar “{connection.label}”?</AlertDialog.Title><AlertDialog.Description>Novos pedidos no Builder deixam de poder usar esta conexão, para você e para quem a recebeu por compartilhamento. Não dá para desfazer.</AlertDialog.Description></AlertDialog.Header>
+          <AlertDialog.Footer><AlertDialog.Cancel>Manter</AlertDialog.Cancel><AlertDialog.Action onClick={() => revoke.mutate(connection.connectionId)}>Revogar</AlertDialog.Action></AlertDialog.Footer>
+        </AlertDialog.Content></AlertDialog.Portal>
+      </AlertDialog>}
+    </div>}
+    {error && <p role="alert" className="credential-error">{failure(error)}</p>}
+  </article>
+}
+
+export function ModelConnectionSettings({ workspaces, currentAccountId }: Readonly<{
   workspaces: readonly SettingsWorkspace[]
   currentAccountId: string
-}) {
-  const queryClient = useQueryClient()
+}>) {
+  const popups = useRef<HTMLDivElement>(null)
   const connections = useQuery({ queryKey: modelConnectionsQueryKey, queryFn: listModelConnections })
-  const [authorizationResult, setAuthorizationResult] = useState('')
-  const [signInProviderId, setSignInProviderId] = useState<string>(OAUTH_SIGN_INS[0].providerId)
-  const signIn = OAUTH_SIGN_INS.find((candidate) => candidate.providerId === signInProviderId) ?? OAUTH_SIGN_INS[0]
-  const [label, setLabel] = useState<string>(OAUTH_SIGN_INS[0].defaultLabel)
-  // The picker offers only what the operator's model catalog enables, so a member cannot file a
-  // key under a provider this deployment will never run.
-  const providers = useMemo(() => connections.data?.providers ?? [], [connections.data])
-  const [apiKeyProvider, setApiKeyProvider] = useState('')
-  const [apiKeyLabel, setApiKeyLabel] = useState('')
-  const [apiKey, setApiKey] = useState('')
-  const selectedProvider = apiKeyProvider || providers[0] || ''
-  const [shareConnectionId, setShareConnectionId] = useState('')
-  const [shareWorkspaceId, setShareWorkspaceId] = useState(workspaces[0]?.workspaceId ?? '')
-  const [message, setMessage] = useState<string | null>(null)
-  // The message comes from the provider this mutation ran for, not from the current selection: the
-  // state that records the selection has not been applied yet when the mutation starts.
-  const start = useMutation({ mutationFn: startModelAuthorization, onSuccess: ({ url }, providerId) => { window.open(url, '_blank', 'noopener,noreferrer'); setMessage(OAUTH_SIGN_INS.find((candidate) => candidate.providerId === providerId)?.started ?? '') }, onError: (error) => setMessage(safeMessage(error)) })
-  const beginSignIn = (provider: (typeof OAUTH_SIGN_INS)[number]) => {
-    setSignInProviderId(provider.providerId)
-    setAuthorizationResult('')
-    if (OAUTH_SIGN_INS.some((candidate) => candidate.defaultLabel === label)) setLabel(provider.defaultLabel)
-    start.mutate(provider.providerId)
-  }
-  const complete = useMutation({ mutationFn: completeModelAuthorization, onSuccess: async () => { setAuthorizationResult(''); await queryClient.invalidateQueries({ queryKey: modelConnectionsQueryKey }); setMessage('Conexão de modelo criada com segurança.') }, onError: (error) => setMessage(safeMessage(error)) })
-  const select = useMutation({ mutationFn: selectModelConnection, onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: modelConnectionsQueryKey }); setMessage('Conexão selecionada para novos BuilderRuns.') }, onError: (error) => setMessage(safeMessage(error)) })
-  const share = useMutation({ mutationFn: shareModelConnection, onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: modelConnectionsQueryKey }); setShareConnectionId(''); setMessage('Conexão compartilhada com o Workspace. Quem for membro dele pode usá-la nos próprios runs.') }, onError: (error) => setMessage(safeMessage(error)) })
-  const unshare = useMutation({ mutationFn: unshareModelConnection, onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: modelConnectionsQueryKey }); setMessage('Compartilhamento retirado.') }, onError: (error) => setMessage(safeMessage(error)) })
-  const addKey = useMutation({ mutationFn: addModelConnectionApiKey, onSuccess: async () => { setApiKey(''); setApiKeyLabel(''); await queryClient.invalidateQueries({ queryKey: modelConnectionsQueryKey }); setMessage('Chave guardada em custódia. Ela nunca é exibida novamente.') }, onError: (error) => setMessage(safeMessage(error)) })
-  const revoke = useMutation({ mutationFn: revokeModelConnection, onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: modelConnectionsQueryKey }); setMessage('Conexão revogada para novos BuilderRuns.') }, onError: (error) => setMessage(safeMessage(error)) })
-
-  if (connections.isPending) return <section className="settings-card"><p>Carregando conexões de modelo…</p></section>
-  if (connections.isError) return <section className="settings-card"><h2>Conexões de modelo</h2><p role="alert">Não foi possível consultar suas conexões de modelo.</p><button type="button" onClick={() => void connections.refetch()}>Tentar novamente</button></section>
-
-  return <section className="settings-card">
-    <div className="page-heading"><div><p className="eyebrow">Credencial do Builder</p><h2>Conexões de modelo</h2></div><div className="settings-actions">{OAUTH_SIGN_INS.map((provider) => <button key={provider.providerId} type="button" onClick={() => beginSignIn(provider)} disabled={start.isPending}>{start.isPending && provider.providerId === signInProviderId ? 'Abrindo…' : provider.button}</button>)}</div></div>
-    <p className="panel-intro">A conexão selecionada será usada somente em novos BuilderRuns. Tokens não ficam no navegador.</p>
-    {message && <p role="status" className="settings-message">{message}</p>}
-    <form onSubmit={(event) => { event.preventDefault(); complete.mutate({ providerId: signInProviderId, result: authorizationResult.trim(), label: label.trim() }) }}>
-      <label><span>{signIn.resultLabel}</span><input value={authorizationResult} onChange={(event) => setAuthorizationResult(event.target.value)} placeholder={signIn.placeholder} pattern={signIn.pattern} title={signIn.title} autoComplete="off" required /></label>
-      <label><span>Nome da conexão</span><input value={label} onChange={(event) => setLabel(event.target.value)} maxLength={120} required /></label>
-      <button type="submit" disabled={complete.isPending || !authorizationResult.trim() || !label.trim()}>{complete.isPending ? 'Conectando…' : 'Concluir conexão'}</button>
-    </form>
-    <form onSubmit={(event) => { event.preventDefault(); addKey.mutate({ providerId: selectedProvider, label: apiKeyLabel.trim(), apiKey }) }}>
-      <h3>Conectar por chave de API</h3>
-      <p className="panel-intro">A chave é guardada em custódia e nunca é devolvida por nenhuma operação.</p>
-      <label><span>Provedor</span>
-        <select value={selectedProvider} onChange={(event) => setApiKeyProvider(event.target.value)} required>
-          {providers.map((provider) => <option key={provider} value={provider}>{provider}</option>)}
-        </select>
-      </label>
-      <label><span>Nome da conexão</span><input value={apiKeyLabel} onChange={(event) => setApiKeyLabel(event.target.value)} maxLength={120} required /></label>
-      <label><span>Chave de API</span><input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} minLength={8} maxLength={4096} autoComplete="off" spellCheck={false} required /></label>
-      <button type="submit" disabled={addKey.isPending || !selectedProvider || !apiKeyLabel.trim() || apiKey.length < 8}>{addKey.isPending ? 'Guardando…' : 'Guardar chave'}</button>
-    </form>
-    <div className="settings-list">
-      <h3>Conexões disponíveis</h3>
-      {connections.data.connections.length === 0 ? <p className="empty">Nenhuma conexão de modelo foi adicionada.</p> : connections.data.connections.map((connection) => <article className="settings-connection" key={connection.connectionId}>
-        <div>
-          <strong>{connection.label}</strong>
-          <p>{connection.state === 'ACTIVE' ? 'Ativa' : 'Revogada'} · geração •••{connection.generation.slice(-2)} · {ownership(connection, currentAccountId, workspaces)}</p>
-        </div>
-        <div className="settings-actions">
-          <button type="button" disabled={connection.state !== 'ACTIVE' || select.isPending} onClick={() => select.mutate(connection.connectionId)}>Usar nos próximos runs</button>
-          {connection.ownerAccountId === currentAccountId && <button type="button" disabled={connection.state !== 'ACTIVE' || unshare.isPending} onClick={() => unshare.mutate({ connectionId: connection.connectionId, workspaceId: connection.workspaceId })}>Parar de compartilhar</button>}
-          {connection.role === 'OWNER' && <button type="button" disabled={connection.state !== 'ACTIVE' || revoke.isPending} onClick={() => revoke.mutate(connection.connectionId)}>Revogar</button>}
-        </div>
-      </article>)}
-    </div>
-    <form onSubmit={(event) => { event.preventDefault(); share.mutate({ connectionId: shareConnectionId, workspaceId: shareWorkspaceId }) }}>
-      <h3>Compartilhar uma conexão com um Workspace</h3>
-      <p className="panel-intro">Quem for membro do Workspace passa a poder usar esta conexão nos próprios runs, inclusive quem entrar depois. Ninguém vê o token.</p>
-      {workspaces.length === 0
-        ? <p className="empty">Você ainda não pertence a nenhum Workspace.</p>
-        : <>
-          <label>
-            <span>Conexão</span>
-            <select value={shareConnectionId} onChange={(event) => setShareConnectionId(event.target.value)} required>
-              <option value="">Escolha uma conexão sua</option>
-              {connections.data.connections.filter((connection) => connection.ownerAccountId === currentAccountId && connection.state === 'ACTIVE').map((connection) => <option key={connection.connectionId} value={connection.connectionId}>{connection.label}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>Workspace</span>
-            <select value={shareWorkspaceId} onChange={(event) => setShareWorkspaceId(event.target.value)} required>
-              {workspaces.map((workspace) => <option key={workspace.workspaceId} value={workspace.workspaceId}>{workspace.name}</option>)}
-            </select>
-          </label>
-          <button type="submit" disabled={share.isPending || !shareConnectionId || !shareWorkspaceId}>Compartilhar</button>
-        </>}
-    </form>
-  </section>
+  if (connections.isPending) return <p>Carregando credenciais…</p>
+  if (connections.isError) return <div role="alert"><p>Não foi possível consultar suas credenciais.</p><Button variant="outline" size="sm" onClick={() => void connections.refetch()}>Tentar novamente</Button></div>
+  const { accountSignIns, apiKeyProviders } = connections.data
+  const providerName = (connection: ModelConnection): string =>
+    accountSignIns.find((signIn) => signIn.providerId === connection.providerId)?.name
+    ?? apiKeyProviders.find((provider) => provider.providerId === connection.providerId)?.name
+    ?? connection.providerId
+  const ordered = [...connections.data.connections].sort((left, right) => Number(right.state === 'ACTIVE') - Number(left.state === 'ACTIVE') || Number(right.selected) - Number(left.selected))
+  return <PopupContainer.Provider value={popups}><div className="credentials">
+    <section aria-labelledby="credentials-yours">
+      <h2 id="credentials-yours">Suas conexões</h2>
+      <p className="panel-intro">O Builder só oferece modelos dos provedores que têm uma conexão ativa aqui.</p>
+      {ordered.length === 0
+        ? <p className="empty">Nenhuma conexão ainda. Adicione uma abaixo para poder usar o Builder.</p>
+        : ordered.map((connection) => <ConnectionRow key={`${connection.connectionId}-${connection.workspaceId}`} connection={connection} providerName={providerName(connection)} currentAccountId={currentAccountId} workspaces={workspaces} />)}
+    </section>
+    <section aria-labelledby="credentials-add">
+      <h2 id="credentials-add">Adicionar conexão</h2>
+      <Tabs defaultTab="account">
+        <TabList variant="pill"><Tab value="account">Entrar com uma conta</Tab><Tab value="api-key">Chave de API</Tab></TabList>
+        <TabContent value="account"><div className="credential-grid">{accountSignIns.map((signIn) => <AccountSignInCard key={signIn.providerId} signIn={signIn} />)}</div></TabContent>
+        <TabContent value="api-key"><ApiKeyForm providers={apiKeyProviders} /></TabContent>
+      </Tabs>
+    </section>
+    <div ref={popups} />
+  </div></PopupContainer.Provider>
 }

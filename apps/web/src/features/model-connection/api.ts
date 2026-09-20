@@ -11,7 +11,11 @@ export type ModelConnection = Readonly<{
   revokedAt: string | null
   providerId: string
   credentialKind: 'OAUTH_TOKEN_SET' | 'API_KEY'
+  selected: boolean
 }>
+
+export type AccountSignIn = Readonly<{ providerId: string; name: string }>
+export type ApiKeyProvider = Readonly<{ providerId: string; name: string; docUrl: string | null }>
 
 export type ModelAuthorization = Readonly<{ authorizationId: string; url: string; state: string }>
 
@@ -46,12 +50,15 @@ async function request(path: string, init: RequestInit = {}) {
   }
 }
 
-export type ModelConnectionList = Readonly<{ connections: readonly ModelConnection[]; providers: readonly string[] }>
+export type ModelConnectionList = Readonly<{
+  connections: readonly ModelConnection[]
+  accountSignIns: readonly AccountSignIn[]
+  apiKeyProviders: readonly ApiKeyProvider[]
+}>
 
 export async function listModelConnections(): Promise<ModelConnectionList> {
   const response = await request('/api/control/me/model-connections')
-  const body = await response.json() as ModelConnectionList
-  return { connections: body.connections ?? [], providers: body.providers ?? [] }
+  return response.json() as Promise<ModelConnectionList>
 }
 
 export async function startModelAuthorization(providerId: string): Promise<ModelAuthorization> {

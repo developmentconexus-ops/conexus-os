@@ -1,7 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
-import type { MastraLanguageModel } from '@mastra/core/agent'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
@@ -21,11 +20,12 @@ import {
   resolveBuilderWorkspace,
 } from './runtime.js'
 import { createBuilderService } from './service.js'
+import type { ListModelOffers } from './service.js'
 import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderSourcePort } from './source.js'
 import type { BuilderGitSourceCapability } from './source.js'
 import { createBuilderStore } from './store.js'
-import type { ModelChoice, ResolvedBuilderModel } from '../model-connection/model-catalog.js'
+import type { ResolvedBuilderModel } from '../model-connection/resolved-model.js'
 import { createE2BApplicationCompiler } from './application-artifact-runtime.js'
 import { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } from './application-starter.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
@@ -87,14 +87,12 @@ export const createBuilderObservabilityLifecycle = (
   })
 }
 
-export const resolveBuilderModel = ({ reference, modelIdentity, resolveModel, fallbackModel }: Readonly<{
+export const resolveBuilderModel = ({ reference, modelIdentity, resolveModel }: Readonly<{
   reference: unknown
   modelIdentity: unknown
-  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => Promise<ResolvedBuilderModel>
-  fallbackModel: MastraLanguageModel
-}>): ResolvedBuilderModel | Promise<ResolvedBuilderModel> => {
-  if (reference === undefined) return fallbackModel
-  if (resolveModel && reference && typeof reference === 'object' && 'connectionId' in reference && 'generation' in reference &&
+  resolveModel: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => Promise<ResolvedBuilderModel>
+}>): Promise<ResolvedBuilderModel> => {
+  if (reference && typeof reference === 'object' && 'connectionId' in reference && 'generation' in reference &&
     typeof reference.connectionId === 'string' && typeof reference.generation === 'string' &&
     modelIdentity && typeof modelIdentity === 'object' && 'modelId' in modelIdentity && typeof modelIdentity.modelId === 'string') {
     return resolveModel({ connectionId: reference.connectionId, generation: reference.generation }, modelIdentity.modelId)
@@ -102,20 +100,17 @@ export const resolveBuilderModel = ({ reference, modelIdentity, resolveModel, fa
   throw new Error('BUILDER_MODEL_CREDENTIAL_UNRESOLVABLE')
 }
 
-export const createConfiguredBuilderModule = ({ database, builder, projectSource, applicationArtifacts, launchPreview, model, modelIdentity, modelChoices, validateModelCredential, resolveModel, origin, resolveCurrentSession }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, projectSource, applicationArtifacts, launchPreview, listModelOffers, resolveModel, origin, resolveCurrentSession }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
-    e2bTemplateId: string; modelAdmissionId: string
+    e2bTemplateId: string
   }>
   applicationArtifacts: UnboundBuilderApplicationArtifacts
   launchPreview?: BuilderLaunchPreviewPort
   projectSource: Readonly<{ storageRoot: string; git: BuilderGitSourceCapability }>
-  model: MastraLanguageModel
-  modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
-  modelChoices?: readonly ModelChoice[]
-  validateModelCredential(): void
-  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => Promise<ResolvedBuilderModel>
+  listModelOffers: ListModelOffers
+  resolveModel: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => Promise<ResolvedBuilderModel>
   origin: string
   resolveCurrentSession: ResolveCurrentSession
 }>) => {
@@ -162,8 +157,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     model: ({ requestContext }) => resolveBuilderModel({
       reference: requestContext?.getRaw(BUILDER_CREDENTIAL_REQUEST_CONTEXT_KEY),
       modelIdentity: requestContext?.getRaw(BUILDER_MODEL_REQUEST_CONTEXT_KEY),
-      ...(resolveModel ? { resolveModel } : {}),
-      fallbackModel: model,
+      resolveModel,
     }), workspace: resolveBuilderWorkspace,
     editor: false, instructions: BUILDER_BASE_AGENT_INSTRUCTIONS, tools: {},
   })
@@ -174,9 +168,9 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     defaultModeId: 'build', agent: sharedAgent, workspace: undefined,
     observability,
   })
-  // A controller registered on a Mastra instance reads threads through that instance's storage, so the
-  // instance has to hold the same store the sessions write to.
-  const mastra = new Mastra({ storage: sessionStorage, agentControllers: { [sharedController.id]: sharedController }, logger: false })
+  // A controller registered on a Mastra instance reads threads and records traces through that
+  // instance, so it has to hold the same store and the same observability the sessions were built with.
+  const mastra = new Mastra({ storage: sessionStorage, observability, agentControllers: { [sharedController.id]: sharedController }, logger: false })
   const sharedControllerReady = sharedController.init()
   let sessionStorageInit: Promise<void> | undefined
   const ensureSessionStorage = async (): Promise<void> => {
@@ -186,10 +180,6 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   const runtime = createMastraE2BCodingWorkerRuntime({
     apiKey: readSecretFile(builder.e2bApiKeyFile),
     templateId: builder.e2bTemplateId,
-    model,
-    modelIdentity,
-    validateModelCredential,
-    ...(resolveModel ? { resolveModel } : {}),
     sharedHarness: {
       controller: sharedController,
       ready: sharedControllerReady,
@@ -204,13 +194,16 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
       content: { format: 2, parts: [{ type: 'text', text: `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}. Corrija a solicitação para tentar novamente.` }] },
     }] })
   }
-  const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts, ...(modelChoices ? { modelChoices } : {}), requiresModelConnection: true, appendDiagnostic })
+  const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts, listModelOffers, appendDiagnostic })
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
       if (!preview) throw new Error('NOT_AUTHORIZED')
       await ensureSessionStorage()
-      const runHistory = await store.listBuilderRuns({ accountId, projectId })
+      const [runHistory, modelChoices] = await Promise.all([
+        store.listBuilderRuns({ accountId, projectId }),
+        listModelOffers({ accountId, projectId }),
+      ])
       return Object.freeze({
         projectId,
         threadId: threadIdForProject(projectId),
@@ -218,7 +211,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
         lastPreviewSourceRevision: preview.lastPreviewSourceRevision ?? null,
         lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId ?? null,
         lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest ?? null,
-        modelChoices: modelChoices ?? [{ choiceId: modelIdentity.admissionId, label: modelIdentity.modelId, providerId: modelIdentity.providerId, modelId: modelIdentity.modelId, capabilities: ['BUILDER_CODING'] as const }],
+        modelChoices,
         runHistory,
       })
     },

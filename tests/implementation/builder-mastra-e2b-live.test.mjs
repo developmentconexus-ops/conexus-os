@@ -24,11 +24,13 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
   timeout: 15 * 60_000,
 }, async () => {
   const templateRef = process.env.CONEXUS_BUILDER_E2B_TEMPLATE_ID
-  const catalogFile = process.env.CONEXUS_PROJECT_MODEL_CATALOG_FILE
-  const slotsFile = process.env.CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE
-  const admissionId = process.env.CONEXUS_BUILDER_MODEL_ADMISSION_ID
+  // The Builder has no boot-time model any more: a run is paid for by a connected credential. A
+  // live proof therefore needs a real one, named here rather than resolved through custody, which
+  // this test does not stand up. The file holds one Anthropic OAuth token set as JSON.
+  const tokenFile = process.env.CONEXUS_RB_BUILDER_LIVE_ANTHROPIC_TOKEN_FILE
+  const modelId = process.env.CONEXUS_RB_BUILDER_LIVE_MODEL_ID
   if (!templateRef || !/^[a-z0-9]+:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(templateRef) ||
-    !catalogFile || !slotsFile || !admissionId) throw new Error('CONEXUS_RB_BUILDER_LIVE_CONFIG_REFUSED')
+    !tokenFile || !modelId) throw new Error('CONEXUS_RB_BUILDER_LIVE_CONFIG_REFUSED')
 
   const apiKey = readBuilderE2BApiKey(process.env.CONEXUS_BUILDER_E2B_API_KEY_FILE)
   const proofRoot = mkdtempSync(resolve(tmpdir(), 'conexus-rb-builder-live-'))
@@ -42,18 +44,17 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
     ], { cwd: repositoryRoot, encoding: 'utf8' })
     if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
     const built = (path) => pathToFileURL(resolve(buildRoot, path)).href
-    const { resolveModelAdmission } = await import(built('model-connection/model-catalog.js'))
+    const { createAnthropicOAuthModel } = await import(built('model-connection/anthropic-oauth-provider.js'))
     const { BUILDER_TRACE_REQUEST_CONTEXT_KEYS, createMastraE2BCodingWorkerRuntime, resolveBuilderWorkspace } = await import(built('builder/runtime.js'))
     const { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } = await import(built('builder/application-starter.js'))
 
-    const admission = resolveModelAdmission({
-      catalogFile,
-      credentialSlotsFile: slotsFile,
-      admissionId,
-      requiredCapabilities: ['BUILDER_CODING'],
+    const tokens = JSON.parse(readFileSync(tokenFile, 'utf8'))
+    const model = createAnthropicOAuthModel({
+      tokenStore: { validate: () => undefined, getToken: async () => tokens },
+      modelId,
     })
-    assert.equal(admission.admissionId, admissionId)
-    assert.equal(admission.providerId, 'anthropic')
+    assert.equal(model.modelId, modelId)
+    const modelIdentity = { admissionId: 'rb-live', providerId: 'anthropic', modelId }
 
     git(proofRoot, 'init', '--initial-branch=main', sourceRoot)
     git(sourceRoot, 'config', 'user.name', 'Conexus Proof')
@@ -80,7 +81,7 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
     const agent = createCodingAgent({
       id: `rb-live-agent-${randomUUID()}`,
       name: 'Conexus Coding Worker',
-      model: admission.model,
+      model,
       workspace: resolveBuilderWorkspace,
       editor: false,
       instructions: BUILDER_BASE_AGENT_INSTRUCTIONS,
@@ -108,13 +109,6 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
     const runtime = createMastraE2BCodingWorkerRuntime({
       apiKey,
       templateId: templateRef,
-      model: admission.model,
-      modelIdentity: {
-        admissionId: admission.admissionId,
-        providerId: admission.providerId,
-        modelId: admission.modelId,
-      },
-      validateModelCredential: admission.validateCredential,
       sharedHarness: { controller, ready: controllerReady, flushObservability },
       timeoutMs: 12 * 60_000,
     })
@@ -146,6 +140,7 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
         intent: firstIntent,
         baseSourceRevision,
         sourceBundle: readFileSync(sourceBundlePath),
+        modelIdentity,
         bindPhysicalSandbox: async (sandboxId) => { boundSandboxId = sandboxId },
       })
 
@@ -183,6 +178,7 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
         intent: correctionIntent,
         baseSourceRevision: failedCandidate,
         sourceBundle: readFileSync(failedBundlePath),
+        modelIdentity,
         bindPhysicalSandbox: async (sandboxId) => { correctionSandboxId = sandboxId },
       })
       assert.equal(correction.sandboxId, correctionSandboxId)

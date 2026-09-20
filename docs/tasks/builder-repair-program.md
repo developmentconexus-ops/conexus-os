@@ -263,7 +263,7 @@ Each live lane runs in its own worktree at the PR head. Drive through the `verif
 **Build.**
 
 - [ ] Expose the existing connection preference on the list and read it in the UI. The UI shows the first ACTIVE connection ordered by creation, while run admission reads `claude_connection.preference`, so with two ACTIVE connections the chip can name one while the server admits another. Do not add a caller-supplied connection id; the server already resolves the authorized subject correctly.
-- [ ] Delete `BUILDER_VERIFICATION`, which no caller ever requests. `PROJECT_INCEPTION` and `BASELINE_EXPLANATION` went with Inception and the Baseline on 2026-09-19; confirm no catalog entry in the operator's environment still carries them.
+- [x] Delete `BUILDER_VERIFICATION`, which no caller ever requests. `PROJECT_INCEPTION` and `BASELINE_EXPLANATION` went with Inception and the Baseline on 2026-09-19. Done together with the deployment model catalog that carried capabilities at all: the Builder now offers the models each connected credential actually pays for, read from Mastra's `PROVIDER_REGISTRY`, so no catalog entry is left to carry one.
 - [ ] Delete `PROJECT_ANTHROPIC_MODEL_ID` and `PROJECT_ANTHROPIC_ADMISSION_ID`, which pin a model and an admission id in source and are then validated against the catalog by string equality.
 - [ ] Drop the model-id existence re-validation against the catalog and keep the registry as the authority for it. Keep admission id, credential slot, enabled and origin pinning, which Mastra does not model.
 

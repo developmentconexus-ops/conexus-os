@@ -32,9 +32,6 @@ const { requestHubShell, waitForHub } = await import(pathToFileURL(resolve(repos
 const runtimeConfig = {
   apiKey: 'e2b-api-key',
   templateId: 'template:12345678-1234-4234-8234-123456789012',
-  model: { modelId: 'admitted-model' },
-  modelIdentity: { admissionId: 'admission', providerId: 'provider', modelId: 'admitted-model' },
-  validateModelCredential: () => {},
 }
 
 test('Project composition registers exactly the three surviving Project routes', async () => {

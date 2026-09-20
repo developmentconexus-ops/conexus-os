@@ -17,11 +17,22 @@ export type PastedResultShape = 'code-hash-state' | 'redirect-url'
 // under a namespaced claim, and its inference endpoint will not route without it.
 export type AccountIdClaim = Readonly<{ claim: string; namespace: string }>
 
+// Which model router provider a sign-in's credential actually pays for, and how much of that
+// provider's model list it reaches. A subscription is not a key for the whole provider, so the reach
+// is named here as data. Without `modelIds` the credential reaches every model the registry lists.
+export type PaidRegistryProvider = Readonly<{
+  registryProviderId: string
+  modelIds?: readonly string[]
+}>
+
 // One row per provider. Every difference the Anthropic flow used to assume - the endpoints, the
 // body encoding, whether the exchange echoes state, what the user pastes, whether an account id
-// is part of the credential - is a field here rather than a branch at a call site.
+// is part of the credential, what it pays for - is a field here rather than a branch at a call
+// site.
 export type OAuthProviderDescriptor = Readonly<{
   providerId: string
+  displayName: string
+  pays: PaidRegistryProvider
   codePrefix: string
   clientId: string
   authorizeUrl: string

@@ -28,15 +28,20 @@ export type BuilderSession = Readonly<{
     lastGoodArtifactDigest: string | null
   }>
   mode: 'BUILD' | 'PLAN'
-  modelChoices: readonly BuilderModelChoice[]
+  modelChoices: readonly BuilderModelOffer[]
   runHistory?: readonly BuilderRun[]
 }>
-export type BuilderModelChoice = Readonly<{
+export type ModelCredentialKind = 'OAUTH_TOKEN_SET' | 'API_KEY'
+// One model this account can actually pay for in this Project, paired with the credential that
+// pays for it. providerId is the connection's provider, not the model's registry provider.
+export type BuilderModelOffer = Readonly<{
   choiceId: string
   label: string
   providerId: string
   modelId: string
-  capabilities: readonly string[]
+  connectionId: string
+  connectionLabel: string
+  credentialKind: ModelCredentialKind
 }>
 export type BuilderRun = Readonly<{
   builderRunId: string
