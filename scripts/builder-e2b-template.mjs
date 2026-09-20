@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { closeSync, constants, fstatSync, openSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { E2B, Template } from 'e2b'
 
@@ -9,21 +10,50 @@ export const BUILDER_TEMPLATE_BASE_IMAGE = 'node:24.20.0-bookworm-slim@sha256:ba
 export const BUILDER_TEMPLATE_CPU_COUNT = 2
 export const BUILDER_TEMPLATE_MEMORY_MB = 2_048
 
-export const createBuilderTemplate = (Template) => Template()
-  .fromImage(BUILDER_TEMPLATE_BASE_IMAGE)
-  .setUser('root')
-  .runCmd([
-    'apt-get update',
-    'DEBIAN_FRONTEND=noninteractive DEBCONF_NOWARNINGS=yes apt-get install -y --no-install-recommends ca-certificates git',
-    'rm -rf /var/lib/apt/lists/*',
-  ].join(' && '))
-  .makeDir('/workspace', { mode: 0o700 })
-  .setWorkdir('/workspace')
-  .setReadyCmd([
-    `test "$(node --version)" = "v${BUILDER_TEMPLATE_NODE_VERSION}"`,
-    'git --version',
-    'test "$(pwd)" = "/workspace"',
-  ].join(' && '))
+export const BUILDER_TEMPLATE_COMPILER_ROOT = '/opt/conexus/compiler'
+export const BUILDER_TEMPLATE_COMPILER_FILES = Object.freeze(['package.json', 'package-lock.json', 'vite.config.mjs'])
+const HEREDOC = 'CONEXUS_TEMPLATE_EOF'
+
+const compilerRecipeFile = (name) =>
+  readFileSync(resolve(import.meta.dirname, '../apps/hub/compiler-template', name), 'utf8')
+
+// The recipe may not COPY, so each file is written by the recipe itself and the recipe text alone
+// still determines the image.
+const writeFileStep = (path, content) => {
+  if (content.split('\n').includes(HEREDOC)) throw new Error('BUILDER_TEMPLATE_HEREDOC_COLLISION')
+  return `cat > ${path} <<'${HEREDOC}'\n${content}\n${HEREDOC}`
+}
+
+export const createBuilderTemplate = (Template) => {
+  const base = Template()
+    .fromImage(BUILDER_TEMPLATE_BASE_IMAGE)
+    .setUser('root')
+    .runCmd([
+      'apt-get update',
+      'DEBIAN_FRONTEND=noninteractive DEBCONF_NOWARNINGS=yes apt-get install -y --no-install-recommends ca-certificates git',
+      'rm -rf /var/lib/apt/lists/*',
+    ].join(' && '))
+    .runCmd(`mkdir -p ${BUILDER_TEMPLATE_COMPILER_ROOT}`)
+  const withCompiler = BUILDER_TEMPLATE_COMPILER_FILES.reduce(
+    (template, name) => template.runCmd(writeFileStep(`${BUILDER_TEMPLATE_COMPILER_ROOT}/${name}`, compilerRecipeFile(name))),
+    base,
+  )
+  return withCompiler
+    .runCmd([
+      `cd ${BUILDER_TEMPLATE_COMPILER_ROOT}`,
+      'npm ci --no-audit --no-fund',
+      'npm cache clean --force',
+    ].join(' && '))
+    .makeDir('/workspace', { mode: 0o700 })
+    .setWorkdir('/workspace')
+    .setReadyCmd([
+      `test "$(node --version)" = "v${BUILDER_TEMPLATE_NODE_VERSION}"`,
+      'git --version',
+      `test -f ${BUILDER_TEMPLATE_COMPILER_ROOT}/vite.config.mjs`,
+      `test -x ${BUILDER_TEMPLATE_COMPILER_ROOT}/node_modules/.bin/vite`,
+      'test "$(pwd)" = "/workspace"',
+    ].join(' && '))
+}
 
 export const inspectBuilderTemplate = async (Template) => {
   const template = createBuilderTemplate(Template)

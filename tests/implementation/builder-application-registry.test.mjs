@@ -18,8 +18,8 @@ const projectId = '22222222-2222-4222-8222-222222222222'
 const executionId = '33333333-3333-4333-8333-333333333333'
 const revisionId = '44444444-4444-4444-8444-444444444444'
 const sourceRevision = 'a'.repeat(40)
-const templateRef = 'xdli9puqp1nepk4ht6lw:8a1e3885-c6d7-4b06-aea6-860632f407e6'
-const recipeSha256 = '32230b4ba0b72625474b7f722e2294a256f9ab2f7c1c9b1eb107f38770edbe97'
+const templateRef = '537fnzf4c16x9d7oz21k:392ec729-82d7-4f25-bbf0-cc09361611fe'
+const recipeSha256 = '6834ca0434e1e6a597340d22d5c1692339a4fc4860948ff834b9851e61406edc'
 const bytes = Buffer.from('<!doctype html><title>Proof</title>')
 const file = { path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }
 const metadata = (payload) => ({ artifact_revision_id: revisionId, artifact_digest: createHash('sha256').update(JSON.stringify(payload)).digest('hex'), project_id: projectId, source_revision: sourceRevision, profile: 'REACT_VITE_V1', template_ref: templateRef, recipe_sha256: recipeSha256, entry_path: 'index.html', files: [{ path: 'index.html', mediaType: file.mediaType, byteLength: bytes.byteLength, sha256: file.sha256 }] })
