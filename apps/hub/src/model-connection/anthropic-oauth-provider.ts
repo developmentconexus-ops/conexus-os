@@ -44,9 +44,23 @@ export const createAnthropicOAuthModel = ({
       return fetchImpl(input, { ...init, redirect: 'manual', headers, ...(body === undefined ? {} : { body }) })
     },
   })
-  return createAnthropic({
+  const model = createAnthropic({
     apiKey: 'replaced-by-closed-oauth-transport',
     baseURL: `${ORIGIN}v1`,
     fetch: bounded,
-  })(modelId) as unknown as MastraLanguageModel
+  })(modelId)
+  // Current Claude models think on their own and return the block with its text omitted, so a
+  // person watching a run saw that the model thought and never what. A summary is asked for unless
+  // the caller already said how thinking should behave. The request goes through the SDK's own
+  // reasoning option because it knows which models take adaptive thinking: claude-sonnet-4-5
+  // refuses it, and the SDK asks that one with a token budget. high is the effort Anthropic defaults to.
+  type CallOptions = Parameters<typeof model.doStream>[0]
+  const summarized = (options: CallOptions): CallOptions =>
+    options.reasoning !== undefined || options.providerOptions?.anthropic?.thinking !== undefined
+      ? options
+      : { ...options, reasoning: 'high' }
+  return Object.assign(Object.create(model) as typeof model, {
+    doGenerate: (options: CallOptions) => model.doGenerate(summarized(options)),
+    doStream: (options: CallOptions) => model.doStream(summarized(options)),
+  }) as unknown as MastraLanguageModel
 }
