@@ -36,9 +36,22 @@ test('an Anthropic account sign-in pays for every Anthropic model the registry n
   assert.ok(paidModels('anthropic', 'OAUTH_TOKEN_SET').includes('claude-opus-4-5'))
 })
 
-test('a ChatGPT account sign-in pays only for the openai models its backend answered for', () => {
-  assert.deepEqual(paidModels('openai-codex', 'OAUTH_TOKEN_SET'), ['gpt-5.5', 'gpt-5.6-terra'])
+test('without its own catalog, a ChatGPT account is offered the openai ids that catalog last listed', () => {
+  assert.deepEqual(paidModels('openai-codex', 'OAUTH_TOKEN_SET'), ['gpt-5.5', 'gpt-5.6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-6-astra'])
   assert.equal(paidModels('openai-codex', 'OAUTH_TOKEN_SET').includes('gpt-5.4'), false)
+})
+
+test('an account catalog replaces the registry for that connection, in the provider\'s order and names', () => {
+  const offers = modelOffers({
+    connectionId: '11111111-1111-4111-8111-111111111111',
+    connectionLabel: 'Meu ChatGPT',
+    providerId: 'openai-codex',
+    credentialKind: 'OAUTH_TOKEN_SET',
+  }, [{ modelId: 'gpt-6-astra', label: 'GPT-6-Astra' }, { modelId: 'gpt-7-not-in-any-registry', label: 'GPT-7' }])
+  assert.deepEqual(offers.map((offer) => [offer.choiceId, offer.label, offer.modelId]), [
+    ['openai-codex/gpt-6-astra', 'GPT-6-Astra', 'gpt-6-astra'],
+    ['openai-codex/gpt-7-not-in-any-registry', 'GPT-7', 'gpt-7-not-in-any-registry'],
+  ])
 })
 
 test('an API key pays for every model of the registry provider it was filed under', () => {
@@ -74,7 +87,7 @@ test('an offer names the connection that pays for it and the model id as Mastra 
     connectionLabel: 'Meu ChatGPT',
     credentialKind: 'OAUTH_TOKEN_SET',
   })
-  assert.equal(offers.length, 2)
+  assert.equal(offers.length, 5)
 })
 
 test('the offer slug is what create_builder_run_with_model will accept', () => {

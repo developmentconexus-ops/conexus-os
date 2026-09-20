@@ -45,12 +45,15 @@ Trunk is `analysis/internal-mvp-2026-09-12`, not `main`.
 Nothing. M-02, the ChatGPT account sign-in, was proven live on 2026-09-20: OpenAI accepted the
 loopback redirect from a request the Hub originated, the token exchange, Conexus's own
 `originator`, and a request without the `OpenAI-Beta` header, and a BuilderRun paid for by a ChatGPT
-account succeeded. What the backend does police is the model id. Every gpt-5 family id Mastra's
-registry lists was sent through a real run: `gpt-5.5` and `gpt-5.6-terra` answered, and each of the
-others, `gpt-5.3-codex` included, was refused with "model is not supported when using Codex with a
-ChatGPT account". The measured list lives on the `openai-codex` row of
-`apps/hub/src/model-connection/oauth-provider-registry.ts`, and a refusal is written to the Hub log
-as `OPENAI_CODEX_REFUSED`. Unproven still: one real refresh-token rotation, and whether the 8 MiB
+account succeeded, editing source and reaching a Preview. The backend publishes what an account may
+run at `/backend-api/codex/models`, and that catalog is what the Builder offers for a ChatGPT
+connection, under the backend's own names; a short list on the `openai-codex` row of
+`apps/hub/src/model-connection/oauth-provider-registry.ts` stands in only when the catalog cannot be
+read. Both the catalog and the models are gated on the version the client declares: with no
+`version` header the catalog's own `gpt-5.6-sol` and `gpt-5.6-luna` were refused as "not supported
+when using Codex with a ChatGPT account" while `gpt-5.6-terra` answered, and with one all five
+listed models answered. Ids outside the catalog, `gpt-5.3-codex` included, are refused. A refusal is
+written to the Hub log as `OPENAI_CODEX_REFUSED`. Unproven still: one real refresh-token rotation, and whether the 8 MiB
 response cap survives a long reasoning stream. This remains undocumented and unendorsed by OpenAI: a
 refusal ends it and is not worked around.
 

@@ -125,16 +125,27 @@ test('a ChatGPT connection the account selected yields openai-codex offers, and 
   await adminClient.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1,$2,'Contador','NEW',$3,'r1')", [projectId, workspaceId, source])
   await adminClient.query('INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1,$2)', [projectId, source])
 
+  const catalogRequests = []
   const { createModelConnectionModule } = await import(built('model-connection-account/module.js'))
   const module = createModelConnectionModule({
     database: { host: current.host, port: current.port, database },
     passwordFile,
+    // An account catalog is read with the connection's own token, so a ChatGPT connection does
+    // materialize one. The catalog lists a model no registry knows, and hides one.
     credentialBackend: {
       publishOrMatch: async () => undefined,
-      materialize: async () => { throw new Error('offers never materialize a credential') },
+      materialize: async () => Buffer.from(JSON.stringify({ access: 'access-fixture', refresh: 'refresh-fixture', expiresAt: Date.now() + 3_600_000, accountId: 'acct_fixture' })),
     },
     origin: 'https://hub.test',
     resolveCurrentSession: async () => null,
+    fetchImpl: async (input) => {
+      catalogRequests.push(String(input))
+      return new Response(JSON.stringify({ models: [
+        { slug: 'gpt-6-astra', display_name: 'GPT-6-Astra', visibility: 'list' },
+        { slug: 'gpt-next-unknown-to-mastra', display_name: 'GPT Next', visibility: 'list' },
+        { slug: 'codex-auto-review', display_name: 'Codex Auto Review', visibility: 'hide' },
+      ] }), { status: 200, headers: { 'content-type': 'application/json' } })
+    },
   })
   modules.push(module)
 
@@ -155,10 +166,11 @@ test('a ChatGPT connection the account selected yields openai-codex offers, and 
   await select(chatgpt)
 
   const offers = await module.listModelOffers({ accountId, projectId })
-  assert.deepEqual(offers.map((offer) => offer.choiceId), ['openai-codex/gpt-5.5', 'openai-codex/gpt-5.6-terra'])
+  assert.deepEqual(offers.map((offer) => offer.choiceId), ['openai-codex/gpt-6-astra', 'openai-codex/gpt-next-unknown-to-mastra'])
+  assert.deepEqual(catalogRequests, ['https://chatgpt.com/backend-api/codex/models?client_version=1.0.0'])
   assert.deepEqual(offers[0], {
-    choiceId: 'openai-codex/gpt-5.5', label: 'gpt-5.5',
-    providerId: 'openai-codex', modelId: 'gpt-5.5',
+    choiceId: 'openai-codex/gpt-6-astra', label: 'GPT-6-Astra',
+    providerId: 'openai-codex', modelId: 'gpt-6-astra',
     connectionId: chatgpt, connectionLabel: 'Meu ChatGPT', credentialKind: 'OAUTH_TOKEN_SET',
   })
 
@@ -172,13 +184,13 @@ test('a ChatGPT connection the account selected yields openai-codex offers, and 
   const store = createBuilderStore({ ingressPool, executorPool: ingressPool })
   const run = await store.createBuilderRun({
     accountId, projectId, idempotencyKey: 'offers-key', content: 'crie um contador', mode: 'BUILD',
-    modelIdentity: resolveBuilderModelChoice(offers, 'openai-codex/gpt-5.5').identity,
+    modelIdentity: resolveBuilderModelChoice(offers, 'openai-codex/gpt-6-astra').identity,
   })
   assert.equal(run.state, 'QUEUED')
   assert.deepEqual((await adminClient.query('SELECT model_admission_id, model_provider_id, model_id, model_connection_id FROM builder.builder_run WHERE builder_run_id = $1', [run.builderRunId])).rows[0], {
-    model_admission_id: 'openai-codex-gpt-5.5',
+    model_admission_id: 'openai-codex-gpt-6-astra',
     model_provider_id: 'openai-codex',
-    model_id: 'gpt-5.5',
+    model_id: 'gpt-6-astra',
     model_connection_id: chatgpt,
   })
 

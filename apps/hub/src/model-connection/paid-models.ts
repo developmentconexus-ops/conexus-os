@@ -63,15 +63,18 @@ export const paidModels = (providerId: string, credentialKind: ModelCredentialKi
 export const modelOfferSlug = (choiceId: string): string =>
   choiceId.toLowerCase().replaceAll(/[^a-z0-9._-]/g, '-').slice(0, 128)
 
+// `catalog` is the account's own list when its provider publishes one. It replaces the registry's
+// reach for that connection, because what an account may run is the provider's to say.
 export const modelOffers = (connection: Readonly<{
   connectionId: string
   connectionLabel: string
   providerId: string
   credentialKind: ModelCredentialKind
-}>): readonly ModelOffer[] => Object.freeze(paidModels(connection.providerId, connection.credentialKind).map((modelId) =>
+}>, catalog?: readonly Readonly<{ modelId: string; label: string }>[]): readonly ModelOffer[] => Object.freeze(
+  (catalog ?? paidModels(connection.providerId, connection.credentialKind).map((modelId) => ({ modelId, label: modelId }))).map(({ modelId, label }) =>
   Object.freeze({
     choiceId: `${connection.providerId}/${modelId}`,
-    label: modelId,
+    label,
     providerId: connection.providerId,
     modelId,
     connectionId: connection.connectionId,

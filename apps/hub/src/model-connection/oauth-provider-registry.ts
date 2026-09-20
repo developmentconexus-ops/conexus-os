@@ -30,11 +30,10 @@ export const ANTHROPIC_OAUTH: OAuthProviderDescriptor = Object.freeze({
 export const OPENAI_CODEX_OAUTH: OAuthProviderDescriptor = Object.freeze({
   providerId: 'openai-codex',
   displayName: 'ChatGPT',
-  // The backend names no list, so this one was measured: on 2026-09-20 every gpt-5 family id the
-  // registry lists was sent through a real run on a ChatGPT account. These two answered; each of the
-  // others, gpt-5.3-codex included, was refused with "model is not supported when using Codex with a
-  // ChatGPT account". A plan may reach others, and the refusal is logged as OPENAI_CODEX_REFUSED.
-  pays: Object.freeze({ registryProviderId: 'openai', modelIds: Object.freeze(['gpt-5.5', 'gpt-5.6-terra']) }),
+  // The account's own catalog is what is offered (listOpenAICodexModels). This list is what is
+  // offered when that catalog cannot be read: the five ids it listed, and that answered real runs,
+  // on 2026-09-20.
+  pays: Object.freeze({ registryProviderId: 'openai', modelIds: Object.freeze(['gpt-6-astra', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5']) }),
   codePrefix: 'OPENAI_CODEX_OAUTH',
   clientId: 'app_EMoamEEZ73f0CkXaXp7hrann',
   authorizeUrl: 'https://auth.openai.com/oauth/authorize',
