@@ -18,7 +18,7 @@ const routeModelConnections = (page, accountId) => page.route('**/api/control/me
   // The connection's provider has to match the selected model's, or the Builder gate refuses it
   // exactly as the database would.
   body: JSON.stringify({
-    connections: [{ connectionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', label: 'Meu Claude', state: 'ACTIVE', generation: '1', ownerAccountId: accountId, workspaceId: accountId, role: 'OWNER', revokedAt: null, providerId: 'anthropic', credentialKind: 'OAUTH_TOKEN_SET', selected: true }],
+    connections: [{ connectionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', label: 'Meu Claude', state: 'ACTIVE', generation: '1', ownerAccountId: accountId, workspaceId: accountId, role: 'OWNER', revokedAt: null, providerId: 'anthropic', credentialKind: 'OAUTH_TOKEN_SET', selected: true, shared: false }],
     accountSignIns: [{ providerId: 'anthropic', name: 'Claude' }, { providerId: 'openai-codex', name: 'ChatGPT' }],
     apiKeyProviders: [{ providerId: 'anthropic', name: 'Anthropic', docUrl: null }],
   }),

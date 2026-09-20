@@ -225,7 +225,11 @@ components:
     ModelConnection:
       type: object
       additionalProperties: false
-      required: [connectionId, label, state, generation, ownerAccountId, workspaceId, role, revokedAt, providerId, credentialKind, selected]
+      description: >-
+        One row per connection and Workspace pair. A connection the Account owns yields one row per
+        Workspace the Account can see, so the same connectionId repeats; a connection somebody else
+        shared yields one row per share the Account can see.
+      required: [connectionId, label, state, generation, ownerAccountId, workspaceId, role, revokedAt, providerId, credentialKind, selected, shared]
       properties:
         connectionId: { type: string, format: uuid }
         providerId: { type: string }
@@ -234,9 +238,20 @@ components:
         state: { type: string, enum: [ACTIVE, REVOKED] }
         generation: { type: string }
         ownerAccountId: { type: string, format: uuid }
-        workspaceId: { type: string, format: uuid }
+        workspaceId:
+          description: >-
+            On an OWNER row, a Workspace the owner can see, which is a Workspace this connection may
+            be shared with or already is; `shared` says which. On a USER row, the Workspace whose
+            share makes the connection visible to this Account.
+          type: string
+          format: uuid
         role: { type: string, enum: [OWNER, USER] }
         revokedAt: { type: [string, 'null'], format: date-time }
         selected:
           description: True when this connection is the Account's current preference for its provider.
+          type: boolean
+        shared:
+          description: >-
+            True when this connection is shared into this row's workspaceId. Always true on a USER
+            row, because the share is what makes that row exist.
           type: boolean

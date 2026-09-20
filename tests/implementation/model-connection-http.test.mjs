@@ -37,6 +37,7 @@ const projection = {
   providerId: 'openai',
   credentialKind: 'API_KEY',
   selected: true,
+  shared: false,
 }
 
 const makeStore = (overrides = {}) => {
@@ -261,6 +262,7 @@ test('the list is everything that can be connected, and says which connection is
   assert.deepEqual(Object.keys(body).sort(), ['accountSignIns', 'apiKeyProviders', 'connections'])
   assert.deepEqual(body.connections, [projection])
   assert.equal(body.connections[0].selected, true)
+  assert.equal(body.connections[0].shared, false)
   assert.deepEqual(body.accountSignIns, [
     { providerId: 'anthropic', name: 'Claude' },
     { providerId: 'openai-codex', name: 'ChatGPT' },
