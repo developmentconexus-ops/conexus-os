@@ -33,7 +33,10 @@ test('a database built from the baseline and forward migrations is exactly the c
   const snapshot = readCommittedSnapshot()
   const catalog = await catalogOf(connectionString)
   assert.equal(describeCatalogDrift(catalog, snapshot.catalog), null)
-  assert.equal(catalogDigest(catalog), '7ebd7387b8c51cdbaa2f74c3c8adc70942f800976479d7b1b6ba8a51c9b83365')
+  // The digest a migration must acknowledge by hand is pinned once, in hub-migration-postgres,
+  // which every machine can run. This suite needs pg_dump 17, so a second literal here went stale
+  // unseen until CI.
+  assert.equal(catalogDigest(catalog), catalogDigest(snapshot.catalog))
 })
 
 test('a database built from the baseline satisfies the role and PUBLIC-execute invariants', async (t) => {
