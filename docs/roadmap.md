@@ -42,42 +42,17 @@ Trunk is `analysis/internal-mvp-2026-09-12`, not `main`.
 
 ## In flight
 
-M-02, ChatGPT account sign-in, on branch `feat/m02-chatgpt-sign-in`. It adds a second
-account sign-in beside the Anthropic one, so a member can spend a ChatGPT subscription
-on a BuilderRun without holding an API key. The sign-in had been written for one
-provider and said so in thirteen places; those are now fields on a per-provider OAuth
-descriptor, and Anthropic and `openai-codex` are two rows in a registry. Custody needed
-no schema change: `provider_id` already accepts the name and `credential_kind` already
-admits `OAUTH_TOKEN_SET`.
-
-Two things in it are worth knowing. The registered redirect is a loopback port on the
-user's own machine, which the Hub cannot listen on, so the user authorizes in the
-browser, lands on a page that does not load, and pastes that URL back; the settings page
-says so before it opens the tab. And OpenAI's refresh token rotates, which custody's
-compare-and-swap alone does not handle, because it decides who won only after both
-writers have already called the token endpoint. Refresh is therefore serialized per
-connection on a Postgres advisory lock, held across the call, and a test drives two
-refreshes concurrently against a token endpoint that refuses a reused refresh token.
-
-What the study settled: the client id, both endpoints, the scope string, the PKCE and
-authorize parameters, the form-encoded token bodies, the rotation, the `chatgpt_account_id`
-claim, and the inference endpoint with its headers and required body fields. Conexus
-sends its own `originator`, `conexus-os`, rather than borrowing the Codex CLI's, so a
-refusal aimed at this caller is possible and would be the answer.
-
-What remains unproven, because no ChatGPT credential is available and no live call was
-made: whether the authorize endpoint accepts that loopback redirect from a request a
-server originated, whether `OpenAI-Beta: responses=experimental` is required, whether the
-`instructions` content is policed, which model ids the backend actually accepts, whether
-the 8 MiB response cap survives a long reasoning stream, and whether OpenAI tolerates a
-third-party `originator` on this client id. The pull request lists the operator steps that
-would settle each. This remains undocumented and unendorsed by OpenAI: a refusal ends it
-and is not worked around.
-
-Model selection stays Mastra-native. The catalog names the model and the connection names
-the credential, so a Codex entry is `providerKey: "openai"` with a model id Mastra's
-registry lists, while the connection stays `provider_id: "openai-codex"` so an account can
-hold a selected subscription and a selected API key at the same time.
+Nothing. M-02, the ChatGPT account sign-in, was proven live on 2026-09-20: OpenAI accepted the
+loopback redirect from a request the Hub originated, the token exchange, Conexus's own
+`originator`, and a request without the `OpenAI-Beta` header, and a BuilderRun paid for by a ChatGPT
+account succeeded. What the backend does police is the model id. Every gpt-5 family id Mastra's
+registry lists was sent through a real run: `gpt-5.5` and `gpt-5.6-terra` answered, and each of the
+others, `gpt-5.3-codex` included, was refused with "model is not supported when using Codex with a
+ChatGPT account". The measured list lives on the `openai-codex` row of
+`apps/hub/src/model-connection/oauth-provider-registry.ts`, and a refusal is written to the Hub log
+as `OPENAI_CODEX_REFUSED`. Unproven still: one real refresh-token rotation, and whether the 8 MiB
+response cap survives a long reasoning stream. This remains undocumented and unendorsed by OpenAI: a
+refusal ends it and is not worked around.
 
 ## The Builder sequence
 
@@ -88,9 +63,11 @@ build steps and the evidence each one owes.
 1. **Prove the Builder live on the pilot.** Done on 2026-09-19. A real request in a pilot Project
    reached a working Preview, with the model, the Thread and the native trace from that same run.
    The same sitting proved the ChatGPT sign-in against OpenAI. It also found that no run can use that
-   connection yet: the model catalog requires Mastra's provider key `openai`, while
+   connection yet: the deployment model catalog required Mastra's provider key `openai`, while
    `model_connection.admit_for_project` matches the connection's `provider_id` `openai-codex`
-   literally, and nothing maps one to the other.
+   literally, and nothing mapped one to the other. The catalog is gone: the Builder offers the
+   models each connected credential actually pays for, and admission compares the connection's own
+   provider id on both sides.
 2. **Keep a failed request visible and named.** Today a run that fails before the
    agent starts loses the operator's own words, because the request text lives only
    in a Mastra message written after the failure point, and the optimistic bubble is
@@ -105,13 +82,16 @@ build steps and the evidence each one owes.
    projection, its SSE route and the hand-written parser are deleted. The run still owns the turn,
    because a sandbox must exist before the agent acts, so the browser cannot create a session or send
    the opening message through Mastra's routes.
-4. **Let Mastra own model choice.** The conversation is native and the model list is not. Mastra
-   already lists every model it can route and switches the model of a live thread
-   (`listAvailableModels`, `session.model.switch`), while the Builder offers a deployment file of at
-   most sixteen entries read once at boot. Reduce the catalog to an allow-list over Mastra's list, map
-   a provider key to the connection that can pay for it, and keep credential custody as the only part
-   that is Conexus's. This also unblocks the ChatGPT connection. This step has no plan yet. Write one
-   before the first edit.
+4. **Let Mastra own model choice.** Done. The deployment model catalog file, its two environment
+   variables and the boot-time sentinel model are deleted. Providers and models come from Mastra's
+   provider registry. What stays Conexus's is custody and who may use which connection, plus one
+   table that says which registry provider a credential pays for: an API key pays for the provider
+   it was filed under, a Claude account pays for `anthropic`, a ChatGPT account pays for the `openai`
+   ids its backend answers for. The Builder offers only the models of connections the account may
+   use in that Project, and Settings lists every provider a key can be filed under beside the two
+   account sign-ins. Settings is a tabbed page built with the same Mastra components as the chat.
+   Mastra's model gateways were considered for custody and do not fit: `resolveAuth` receives no
+   account, and the Hub serves many.
 
 The repair program's P-03 through P-06 sit behind those four. P-03 stops the UI
 claiming the Preview loaded when all it observed was a grant. P-04 makes a past run
@@ -120,7 +100,7 @@ model a run uses. P-06 makes the compile answer whether the artifact boots.
 
 ## Exact next action
 
-**Keep a failed request visible and named (step 2), then plan step 4.**
+**Keep a failed request visible and named (step 2).**
 
 ## Later layers
 
@@ -133,12 +113,11 @@ One line each. None of these has a plan, and none is started.
 
 ## What the operator still owes
 
-Three things, and nothing else.
+Two things, and nothing else.
 
 1. A Hub sign-in on the pilot, for every live lane. The session idles out after
    thirty minutes without a request.
-2. A ChatGPT sign-in, to prove M-02 live.
-3. A second Keycloak user with a verified email address, to prove multi-account
+2. A second Keycloak user with a verified email address, to prove multi-account
    end to end outside CI. Nothing is emailed, and an unverified address is refused.
 
 ## The merge gate

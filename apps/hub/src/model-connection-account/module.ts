@@ -13,12 +13,15 @@ import { createBackendOAuthTokenStore } from '../model-connection/oauth-token-st
 import type { OAuthTokenStore } from '../model-connection/oauth-token-store.js'
 import { createAnthropicOAuthModel } from '../model-connection/anthropic-oauth-provider.js'
 import { createOpenAICodexOAuthModel } from '../model-connection/openai-codex-oauth-provider.js'
-import type { ResolvedBuilderModel } from '../model-connection/model-catalog.js'
+import type { ResolvedBuilderModel } from '../model-connection/resolved-model.js'
+import { modelOffers } from '../model-connection/paid-models.js'
+import type { ModelOffer } from '../model-connection/paid-models.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 
 export type ModelConnectionModule = Readonly<{
   registerRoutes(app: FastifyInstance): Promise<readonly string[]>
   resolveForBuilder(input: Readonly<{ accountId: string; projectId: string }>): Promise<ModelCredentialReference>
+  listModelOffers(input: Readonly<{ accountId: string; projectId: string }>): Promise<readonly ModelOffer[]>
   createModel(reference: ModelCredentialReference, modelId?: string): Promise<ResolvedBuilderModel>
   close(): Promise<void>
 }>
@@ -27,7 +30,6 @@ export type ModelConnectionDependencies = Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   passwordFile: string
   credentialBackend: CredentialBackend
-  enabledProviders: readonly string[]
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   fetchImpl?: typeof globalThis.fetch
@@ -41,7 +43,7 @@ const OAUTH_MODELS: Readonly<Record<string, (input: Readonly<{ tokenStore: OAuth
   [OPENAI_CODEX_OAUTH.providerId]: createOpenAICodexOAuthModel,
 })
 
-export const createModelConnectionModule = ({ database, passwordFile, credentialBackend, enabledProviders, origin, resolveCurrentSession, fetchImpl }: ModelConnectionDependencies): ModelConnectionModule => {
+export const createModelConnectionModule = ({ database, passwordFile, credentialBackend, origin, resolveCurrentSession, fetchImpl }: ModelConnectionDependencies): ModelConnectionModule => {
   const credentials = { ...database, user: 'hub_model_connection', password: readFileSync(passwordFile, 'utf8').trim() }
   const pool = createPostgresPool(credentials)
   // A refresh lock is held across a call to the provider, and the work it guards issues its own
@@ -74,8 +76,30 @@ export const createModelConnectionModule = ({ database, passwordFile, credential
     } finally { client.release() }
   }
   return Object.freeze({
-    registerRoutes: (app: FastifyInstance) => registerModelConnectionRoutes(app, { store, origin, enabledProviders, resolveCurrentSession, oauthFlows, ...(fetchImpl ? { fetchImpl } : {}) }),
+    registerRoutes: (app: FastifyInstance) => registerModelConnectionRoutes(app, { store, origin, resolveCurrentSession, oauthFlows, ...(fetchImpl ? { fetchImpl } : {}) }),
     resolveForBuilder: (input) => store.admitForProject(input),
+    // What this account can actually pay for in this Project. admit_for_project already applies
+    // ownership, the workspace share, ACTIVE state and the account's own preference, so asking it
+    // once per provider is the same decision the run will make, taken early enough to offer.
+    listModelOffers: async ({ accountId, projectId }) => {
+      const connections = await store.list(accountId)
+      const providerIds = [...new Set(connections.map((connection) => connection.providerId))].sort()
+      const admitted = await Promise.all(providerIds.map((providerId) =>
+        store.admitForProject({ accountId, projectId, providerId }).catch((error: unknown) => {
+          if (error instanceof Error && error.message === 'MODEL_CONNECTION_REQUIRED') return undefined
+          throw error
+        })))
+      return Object.freeze(admitted.flatMap((reference) => {
+        const connection = reference && connections.find((candidate) => candidate.connectionId === reference.connectionId)
+        if (!connection) return []
+        return [...modelOffers({
+          connectionId: connection.connectionId,
+          connectionLabel: connection.label,
+          providerId: connection.providerId,
+          credentialKind: connection.credentialKind,
+        })]
+      }))
+    },
     createModel: async (reference, modelId) => {
       const credential = (await pool.query<{ provider_id: string; credential_kind: string }>(
         'SELECT provider_id, credential_kind FROM model_connection.read_connection_credential($1)',

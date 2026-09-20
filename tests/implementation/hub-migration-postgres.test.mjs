@@ -1,18 +1,18 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { catalogDigest, readCatalog, readCommittedSnapshot } from '../../scripts/hub-catalog.mjs'
-import { baselineDigest, baselineVersion, runHubMigrations, runMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { loadHubMigrationFiles, runHubMigrations, runMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { buildHubDatabase, createEmptyDatabase, query, withClient } from './hub-database.mjs'
 
 const ledgerOf = async (connectionString) =>
   (await query(connectionString, 'SELECT version, checksum_sha256 FROM iam.schema_migration ORDER BY version')).rows
 
-const headVersion = '0002'
-const headMigrationPath = resolve(import.meta.dirname, '../../apps/hub/migrations/0002_prune_dead_iam_actions.sql')
-const headDigest = createHash('sha256').update(readFileSync(headMigrationPath)).digest('hex')
+// Derived from the runner's own corpus rather than named here, so adding a migration does not
+// mean editing this file to say the same thing twice.
+const corpus = loadHubMigrationFiles()
+const corpusVersions = corpus.map(({ version }) => version)
+const corpusLedger = corpus.map(({ version, checksum }) => ({ version, checksum_sha256: checksum }))
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 
@@ -57,21 +57,15 @@ test('a database already at the first migration upgrades to the second', async (
 test('a fresh database is built by the baseline and the forward migration, and reports both', async (t) => {
   const { connectionString } = await createEmptyDatabase(t, 'conexus_mig')
   const installed = await runHubMigrations({ connectionString })
-  assert.deepEqual(installed, { verdict: 'PASS', appliedNow: [baselineVersion, headVersion], versions: [baselineVersion, headVersion] })
-  assert.deepEqual(await ledgerOf(connectionString), [
-    { version: baselineVersion, checksum_sha256: baselineDigest },
-    { version: headVersion, checksum_sha256: headDigest },
-  ])
+  assert.deepEqual(installed, { verdict: 'PASS', appliedNow: corpusVersions, versions: corpusVersions })
+  assert.deepEqual(await ledgerOf(connectionString), corpusLedger)
 })
 
 test('running again applies nothing and still passes', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
   const restarted = await runHubMigrations({ connectionString })
-  assert.deepEqual(restarted, { verdict: 'PASS', appliedNow: [], versions: [baselineVersion, headVersion] })
-  assert.deepEqual(await ledgerOf(connectionString), [
-    { version: baselineVersion, checksum_sha256: baselineDigest },
-    { version: headVersion, checksum_sha256: headDigest },
-  ])
+  assert.deepEqual(restarted, { verdict: 'PASS', appliedNow: [], versions: corpusVersions })
+  assert.deepEqual(await ledgerOf(connectionString), corpusLedger)
 })
 
 // The advisory lock is what stops two Hub processes starting at once from both applying the same
@@ -80,11 +74,8 @@ test('two runs at once leave one ledger row per version', async (t) => {
   const { connectionString } = await createEmptyDatabase(t, 'conexus_mig')
   const results = await Promise.all([runHubMigrations({ connectionString }), runHubMigrations({ connectionString })])
   assert.deepEqual(results.map(({ verdict }) => verdict), ['PASS', 'PASS'])
-  assert.deepEqual(results.flatMap(({ appliedNow }) => appliedNow).sort(), [baselineVersion, headVersion])
-  assert.deepEqual(await ledgerOf(connectionString), [
-    { version: baselineVersion, checksum_sha256: baselineDigest },
-    { version: headVersion, checksum_sha256: headDigest },
-  ])
+  assert.deepEqual(results.flatMap(({ appliedNow }) => appliedNow).sort(), [...corpusVersions].sort())
+  assert.deepEqual(await ledgerOf(connectionString), corpusLedger)
 })
 
 test('the baseline is refused over a schema that already exists without the ledger', async (t) => {
@@ -117,10 +108,10 @@ test('a catalog that drifted from the snapshot is refused by line', async (t) =>
 test('the committed snapshot is the catalog the baseline and forward migration build', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
   const snapshot = readCommittedSnapshot()
-  assert.equal(snapshot.head, headVersion)
+  assert.equal(snapshot.head, corpusVersions.at(-1))
   assert.equal(snapshot.format, 2)
-  assert.equal(catalogDigest(snapshot.catalog), 'e76447d815949f18f428441a74ae806ccb8c8c98308972be01f51b415937f886')
-  assert.equal((await ledgerOf(connectionString)).length, 2)
+  assert.equal(catalogDigest(snapshot.catalog), '7ebd7387b8c51cdbaa2f74c3c8adc70942f800976479d7b1b6ba8a51c9b83365')
+  assert.deepEqual(await ledgerOf(connectionString), corpusLedger)
 })
 
 test('after the forward migration the action enum holds exactly the five live values, and role_allows is unchanged', async (t) => {

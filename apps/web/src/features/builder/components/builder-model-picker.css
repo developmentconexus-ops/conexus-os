@@ -1,0 +1,10 @@
+/* The app's global `button` and `input` rules would otherwise repaint the playground-ui combobox
+   trigger and its search field. Same escape hatch as `.builder-conversation button` in styles.css.
+   The popup is portalled into `.builder-model-picker-portal`, so both halves are covered. */
+.builder-model-picker button,
+.builder-model-picker input,
+.builder-model-picker-portal button,
+.builder-model-picker-portal input { all: revert-layer; }
+
+.builder-model-picker { display: grid; gap: .25rem; }
+.builder-model-picker > small { color: #79867d; font-size: .64rem; }

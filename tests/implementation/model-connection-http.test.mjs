@@ -36,6 +36,7 @@ const projection = {
   revokedAt: null,
   providerId: 'openai',
   credentialKind: 'API_KEY',
+  selected: true,
 }
 
 const makeStore = (overrides = {}) => {
@@ -65,11 +66,10 @@ const fakeFlow = (providerId) => ({
 })
 const oauthFlows = Object.freeze({ anthropic: fakeFlow('anthropic'), 'openai-codex': fakeFlow('openai-codex') })
 
-const createHubApp = (store, { signedIn = true, enabledProviders = ['anthropic', 'openai'] } = {}) => createHttpApp({
+const createHubApp = (store, { signedIn = true } = {}) => createHttpApp({
   registerRoutes: (app) => registerModelConnectionRoutes(app, {
     store,
     origin,
-    enabledProviders,
     resolveCurrentSession: async (request, requireCsrf = false) => {
       if (!signedIn || !request.cookies['__Host-conexus_session']) return null
       const value = request.headers['x-conexus-csrf']
@@ -227,14 +227,13 @@ test('a provider the model router does not know is refused by name, before custo
   assert.deepEqual(store.calls, [])
 })
 
-test('a provider this deployment does not enable is refused by name, before custody', async (t) => {
+test('a key may be filed under any provider the model router knows, not a deployment shortlist', async (t) => {
   const store = makeStore()
-  const app = await createHubApp(store, { enabledProviders: ['anthropic'] })
+  const app = await createHubApp(store)
   t.after(() => app.close())
-  const response = await app.inject({ ...addKey, ...authentic, payload: keyPayload })
-  assert.equal(response.statusCode, 422)
-  assert.equal(response.json().title, "That provider is not enabled by this deployment's model catalog")
-  assert.deepEqual(store.calls, [])
+  const response = await app.inject({ ...addKey, ...authentic, payload: JSON.stringify({ providerId: 'groq', label: 'Groq key', apiKey: SENTINEL }) })
+  assert.equal(response.statusCode, 201)
+  assert.deepEqual(store.calls, [{ name: 'addApiKey', input: { accountId, providerId: 'groq', label: 'Groq key', apiKey: SENTINEL } }])
 })
 
 test('a custody failure answers a fixed problem that never quotes the key', async (t) => {
@@ -248,7 +247,7 @@ test('a custody failure answers a fixed problem that never quotes the key', asyn
   assert.equal(response.body.includes(SENTINEL), false)
 })
 
-test('the list is the account own connections and the providers the picker may offer', async (t) => {
+test('the list is everything that can be connected, and says which connection is in use', async (t) => {
   const store = makeStore()
   const app = await createHubApp(store)
   t.after(() => app.close())
@@ -258,7 +257,18 @@ test('the list is the account own connections and the providers the picker may o
     cookies: { '__Host-conexus_session': 'session-1' },
   })
   assert.equal(response.statusCode, 200)
-  assert.deepEqual(response.json(), { connections: [projection], providers: ['anthropic', 'openai'] })
+  const body = response.json()
+  assert.deepEqual(Object.keys(body).sort(), ['accountSignIns', 'apiKeyProviders', 'connections'])
+  assert.deepEqual(body.connections, [projection])
+  assert.equal(body.connections[0].selected, true)
+  assert.deepEqual(body.accountSignIns, [
+    { providerId: 'anthropic', name: 'Claude' },
+    { providerId: 'openai-codex', name: 'ChatGPT' },
+  ])
+  assert.deepEqual(body.apiKeyProviders.find((provider) => provider.providerId === 'groq'),
+    { providerId: 'groq', name: 'Groq', docUrl: 'https://console.groq.com/docs/models' })
+  assert.ok(body.apiKeyProviders.length > 100)
+  assert.equal(body.apiKeyProviders.some((provider) => provider.providerId === 'openai-codex'), false)
   assert.deepEqual(store.calls, [{ name: 'list', input: accountId }])
 })
 

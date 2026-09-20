@@ -6,15 +6,21 @@ import { createServer } from 'vite'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
-const admittedModelChoices = [{ choiceId: 'builder-coding-primary', label: 'Claude Sonnet 5', providerId: 'anthropic', modelId: 'claude-sonnet-5', capabilities: ['BUILDER_CODING'] }]
+const admittedModelChoices = [{
+  choiceId: 'anthropic/claude-opus-4-5', label: 'claude-opus-4-5',
+  providerId: 'anthropic', modelId: 'claude-opus-4-5',
+  connectionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', connectionLabel: 'Meu Claude',
+  credentialKind: 'OAUTH_TOKEN_SET',
+}]
 
 const routeModelConnections = (page, accountId) => page.route('**/api/control/me/model-connections', (route) => route.fulfill({
   status: 200, contentType: 'application/json',
   // The connection's provider has to match the selected model's, or the Builder gate refuses it
   // exactly as the database would.
   body: JSON.stringify({
-    connections: [{ connectionId: '70000000-0000-4000-8000-0000000000c1', label: 'Conta Anthropic do operador', state: 'ACTIVE', generation: '1', ownerAccountId: accountId, workspaceId: accountId, role: 'OWNER', revokedAt: null, providerId: 'anthropic', credentialKind: 'OAUTH_TOKEN_SET' }],
-    providers: ['anthropic'],
+    connections: [{ connectionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', label: 'Meu Claude', state: 'ACTIVE', generation: '1', ownerAccountId: accountId, workspaceId: accountId, role: 'OWNER', revokedAt: null, providerId: 'anthropic', credentialKind: 'OAUTH_TOKEN_SET', selected: true }],
+    accountSignIns: [{ providerId: 'anthropic', name: 'Claude' }, { providerId: 'openai-codex', name: 'ChatGPT' }],
+    apiKeyProviders: [{ providerId: 'anthropic', name: 'Anthropic', docUrl: null }],
   }),
 }))
 
@@ -119,7 +125,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   await page.getByRole('button', { name: 'Enviar mensagem' }).click()
   await page.getByText('Mensagem enviada ao Builder.').waitFor()
   assert.equal(requests.length, 1)
-  assert.deepEqual(requests[0].body, { content: 'Crie um contador até 100 interativo', mode: 'BUILD', modelChoiceId: 'builder-coding-primary' })
+  assert.deepEqual(requests[0].body, { content: 'Crie um contador até 100 interativo', mode: 'BUILD', modelChoiceId: 'anthropic/claude-opus-4-5' })
   assert.ok(requests[0].key)
   await page.getByText('Aplicando a alteração', { exact: true }).waitFor()
   assert.deepEqual(streamScopes.slice(0, 1), [`builder:${runId}`])

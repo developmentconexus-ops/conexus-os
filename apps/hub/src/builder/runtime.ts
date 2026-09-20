@@ -1,5 +1,4 @@
 import type { AgentController, AgentControllerEvent } from '@mastra/core/agent-controller'
-import type { MastraLanguageModel } from '@mastra/core/agent'
 import { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspace'
 import { Workspace } from '@mastra/core/workspace'
@@ -7,7 +6,6 @@ import { E2BSandbox } from '@mastra/e2b'
 import { Sandbox } from 'e2b'
 import { materializeFixedApplicationStarter } from './application-starter.js'
 import type { BuilderRunningPhase } from './store.js'
-import type { ResolvedBuilderModel } from '../model-connection/model-catalog.js'
 
 type CodingWorkerCommonInput = Readonly<{
   projectId: string
@@ -47,17 +45,12 @@ type BuilderSession = Awaited<ReturnType<AgentController<Record<string, unknown>
 
 export type CodingWorkerRuntime = Readonly<{
   kind: 'REMOTE_E2B'
-  modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   execute(input: CodingWorkerInput): Promise<CodingWorkerResult>
 }>
 
 export type E2BBuilderRuntimeConfig = Readonly<{
   apiKey: string
   templateId: string
-  model: MastraLanguageModel
-  modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
-  validateModelCredential(): void
-  resolveModel?: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => Promise<ResolvedBuilderModel>
   sharedHarness: Readonly<{
     controller: AgentController<Record<string, unknown>>
     ready: Promise<void>
@@ -191,17 +184,13 @@ export const shouldMaterializeApplicationStarter = (input: Readonly<{ mode?: 'BU
 export const createMastraE2BCodingWorkerRuntime = (
   config: E2BBuilderRuntimeConfig,
 ): CodingWorkerRuntime => {
-  if (!config.apiKey || !immutableE2BTemplate.test(config.templateId) ||
-    !config.modelIdentity.admissionId || !config.modelIdentity.providerId || !config.modelIdentity.modelId ||
-    /latest|\*/i.test(config.modelIdentity.modelId) || config.model.modelId !== config.modelIdentity.modelId ||
-    typeof config.validateModelCredential !== 'function') {
+  if (!config.apiKey || !immutableE2BTemplate.test(config.templateId)) {
     throw new Error('BUILDER_RUNTIME_CONFIG_REFUSED')
   }
   const sharedHarness = config.sharedHarness
   if (!sharedHarness) throw new Error('BUILDER_RUNTIME_SHARED_COMPOSITION_REQUIRED')
   return Object.freeze({
     kind: 'REMOTE_E2B' as const,
-    modelIdentity: Object.freeze({ ...config.modelIdentity }),
     execute: async (input: CodingWorkerInput) => {
       const executionId = input.executionId
       if (![input.projectId, executionId].every(safeIdentity) ||
@@ -209,8 +198,6 @@ export const createMastraE2BCodingWorkerRuntime = (
         input.sourceBundle.byteLength > 256 * 1024 * 1024) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
 
       await input.setPhase?.('PREPARING')
-
-      if (!input.credentialReference) config.validateModelCredential()
 
       const logicalSandboxId = `conexus-builder-${executionId}`
       const timeoutMs = config.timeoutMs ?? 15 * 60_000

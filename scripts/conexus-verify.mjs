@@ -90,6 +90,8 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('model-connection-openai-codex', 'node --test tests/implementation/model-connection-openai-codex.test.mjs && npx --no-install biome check tests/implementation/model-connection-openai-codex.test.mjs'),
   candidateStep('model-connection-http', 'node --test tests/implementation/model-connection-http.test.mjs && npx --no-install biome check tests/implementation/model-connection-http.test.mjs'),
   candidateStep('model-connection-web-api', 'node --test tests/implementation/model-connection-web-api.test.mjs'),
+  candidateStep('model-offers', 'node --test tests/implementation/model-offers.test.mjs && npx --no-install biome check tests/implementation/model-offers.test.mjs tests/implementation/model-offers-postgres.test.mjs'),
+  candidateStep('model-offers-postgres', 'node --test --test-concurrency=1 tests/implementation/model-offers-postgres.test.mjs', 'postgres'),
   candidateStep('protected-cluster-coverage', 'node --test tests/implementation/protected-cluster-coverage.test.mjs'),
 
   candidateStep('wire-openapi-lint', 'npm run wire:lint'),

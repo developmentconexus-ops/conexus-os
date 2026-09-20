@@ -30,11 +30,12 @@ test('Model connection web surface exposes only safe metadata and opaque mutatio
 // out of the browser once and is never rendered, cached or read back from a response.
 test('the API key leaves the browser once and is never rendered or read back', () => {
   // Typed into a password field, held in local state, and cleared the moment it is accepted.
-  assert.match(uiSource, /<input type="password" value=\{apiKey\}/)
+  assert.match(uiSource, /type="password" value=\{apiKey\}/)
   assert.match(uiSource, /onSuccess: async \(\) => \{ setApiKey\(''\)/)
   // The key is named exactly once in the client, as an input the caller supplies. There is no
   // second mention, so there is no path that reads one back out.
-  assert.deepEqual(apiSource.match(/apiKey/g), ['apiKey'])
+  // `apiKeyProviders` is the list of providers a key may be filed under, not a key.
+  assert.deepEqual(apiSource.match(/\bapiKey\b/g), ['apiKey'])
   assert.match(apiSource, /addModelConnectionApiKey\(input: Readonly<\{ providerId: string; label: string; apiKey: string \}>\)/)
   // Nothing reads a credential off a response: the projection type has no field for one.
   assert.doesNotMatch(apiSource, /type ModelConnection = Readonly<\{[^}]*(apiKey|token|secret)/s)

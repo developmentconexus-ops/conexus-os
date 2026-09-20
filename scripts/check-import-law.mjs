@@ -238,7 +238,6 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/gateway/module.ts',
           'apps/hub/src/identity-access/module.ts',
           'apps/hub/src/mar/module.ts',
-          'apps/hub/src/model-connection/model-catalog.ts',
           'apps/hub/src/platform/config.ts',
           'apps/hub/src/platform/connection-census.ts',
           'apps/hub/src/platform/postgres.ts',

@@ -4,7 +4,6 @@ export type ProjectRuntimeConfig = Readonly<{
   storageRoot: string
   gitImportCatalogFile: string
   externalFileSlotsFile: string
-  modelCatalogFile: string
   sourceOwnershipManifestFile: string
 }>
 
@@ -36,7 +35,6 @@ export type HubConfig = Readonly<{
     executorPasswordFile: string
     e2bApiKeyFile: string
     e2bTemplateId: string
-    modelAdmissionId: string
   }> | undefined
   oidc: Readonly<{ issuer: string; clientId: string; clientSecretFile: string; allowInsecureForTest: boolean }>
 }>
@@ -82,6 +80,15 @@ const RETIRED_BRAIN_CONNECTIONS_VARIABLES = [
   'CONEXUS_R2_KEY_CONFORMANCE_REGISTRATION_CATALOG_FILE',
 ] as const
 
+// The deployment model admission catalog decided which models the Builder offered and which
+// providers a key could be filed under. Both are now the account's own connected credentials
+// against Mastra's provider registry, so an operator still carrying these files believes they are
+// choosing models for their deployment and are not. Refused rather than ignored.
+const RETIRED_MODEL_CATALOG_VARIABLES = [
+  'CONEXUS_PROJECT_MODEL_CATALOG_FILE',
+  'CONEXUS_BUILDER_MODEL_ADMISSION_ID',
+] as const
+
 // The database roles are named for what they may do, not for the program phase that introduced
 // them. An operator whose environment still carries the old variable names would otherwise get a
 // 28P01 from the cluster, several layers away from the file that needs editing, so each retired
@@ -106,7 +113,6 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
     storageRoot: environment.CONEXUS_PROJECT_STORAGE_ROOT,
     gitImportCatalogFile: environment.CONEXUS_GIT_IMPORT_CATALOG_FILE,
     externalFileSlotsFile: environment.CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE,
-    modelCatalogFile: environment.CONEXUS_PROJECT_MODEL_CATALOG_FILE,
     sourceOwnershipManifestFile: environment.CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE,
   }
   const hasOrdinaryValues = Object.values(ordinaryValues).some(Boolean)
@@ -119,7 +125,6 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
       CONEXUS_PROJECT_STORAGE_ROOT: ordinaryValues.storageRoot,
       CONEXUS_GIT_IMPORT_CATALOG_FILE: ordinaryValues.gitImportCatalogFile,
       CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE: ordinaryValues.externalFileSlotsFile,
-      CONEXUS_PROJECT_MODEL_CATALOG_FILE: ordinaryValues.modelCatalogFile,
       CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE: ordinaryValues.sourceOwnershipManifestFile,
     })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
   }
@@ -130,7 +135,6 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
     storageRoot: required(environment, 'CONEXUS_PROJECT_STORAGE_ROOT'),
     gitImportCatalogFile: required(environment, 'CONEXUS_GIT_IMPORT_CATALOG_FILE'),
     externalFileSlotsFile: required(environment, 'CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE'),
-    modelCatalogFile: required(environment, 'CONEXUS_PROJECT_MODEL_CATALOG_FILE'),
     sourceOwnershipManifestFile: required(environment, 'CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE'),
   }
   return ordinary
@@ -166,14 +170,12 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
     executorPasswordFile: environment.CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE,
     e2bApiKeyFile: environment.CONEXUS_BUILDER_E2B_API_KEY_FILE,
     e2bTemplateId: environment.CONEXUS_BUILDER_E2B_TEMPLATE_ID,
-    modelAdmissionId: environment.CONEXUS_BUILDER_MODEL_ADMISSION_ID,
   }
   if (Object.values(values).every(Boolean)) return {
     ingressPasswordFile: required(environment, 'CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE'),
     executorPasswordFile: required(environment, 'CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE'),
     e2bApiKeyFile: required(environment, 'CONEXUS_BUILDER_E2B_API_KEY_FILE'),
     e2bTemplateId: required(environment, 'CONEXUS_BUILDER_E2B_TEMPLATE_ID'),
-    modelAdmissionId: required(environment, 'CONEXUS_BUILDER_MODEL_ADMISSION_ID'),
   }
   if (Object.values(values).some(Boolean)) {
     for (const [name, value] of Object.entries({
@@ -181,7 +183,6 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
       CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: values.executorPasswordFile,
       CONEXUS_BUILDER_E2B_API_KEY_FILE: values.e2bApiKeyFile,
       CONEXUS_BUILDER_E2B_TEMPLATE_ID: values.e2bTemplateId,
-      CONEXUS_BUILDER_MODEL_ADMISSION_ID: values.modelAdmissionId,
     })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
   }
   return undefined
@@ -206,7 +207,7 @@ const previewRuntime = (environment: NodeJS.ProcessEnv, hubOrigin: string, hubPo
 }
 
 export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): HubConfig => {
-  for (const name of RETIRED_BRAIN_CONNECTIONS_VARIABLES) {
+  for (const name of [...RETIRED_BRAIN_CONNECTIONS_VARIABLES, ...RETIRED_MODEL_CATALOG_VARIABLES]) {
     if (environment[name]) throw new Error(`RETIRED_CONFIG_${name}`)
   }
   for (const [name, replacement] of Object.entries(RENAMED_ROLE_VARIABLES)) {

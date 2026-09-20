@@ -15,7 +15,7 @@ const BASE_URL = `${ORIGIN}backend-api/codex`
 // supplies a default only when the caller has no instructions of its own.
 const INSTRUCTIONS = 'You are a coding agent running inside Conexus. Use the tools available to you to help the user with software engineering tasks.'
 
-export const DEFAULT_OPENAI_CODEX_MODEL_ID = 'gpt-5.3-codex'
+export const DEFAULT_OPENAI_CODEX_MODEL_ID = 'gpt-5.5'
 
 // stream and store are not the caller's to choose. The backend delivers Server-Sent Events and
 // refuses a request that asks it not to, and store: false keeps the conversation off OpenAI's
@@ -52,12 +52,33 @@ export const createOpenAICodexOAuthModel = ({
       headers.set('user-agent', CONEXUS_ORIGINATOR)
       headers.delete('content-length')
       const body = withCodexRequirements(init.body)
-      return fetchImpl(input, { ...init, redirect: 'manual', headers, ...(body === undefined ? {} : { body }) })
+      const response = await fetchImpl(input, { ...init, redirect: 'manual', headers, ...(body === undefined ? {} : { body }) })
+      // This backend is undocumented, so its own words are the only account of a refusal. The body of
+      // a refusal names what it disliked and carries no credential; the operator reads it in the Hub log.
+      if (response.status >= 400) {
+        const refusal = (await response.clone().text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 600)
+        process.emitWarning(`${response.status} ${refusal}`, { code: 'OPENAI_CODEX_REFUSED' })
+      }
+      return response
     },
   })
-  return createOpenAI({
+  const model = createOpenAI({
     apiKey: 'replaced-by-closed-oauth-transport',
     baseURL: BASE_URL,
     fetch: bounded,
-  }).responses(modelId) as unknown as MastraLanguageModel
+  }).responses(modelId)
+  // The SDK decides how to replay earlier steps from its own `store` option, before any request
+  // exists: with it unset it sends references to items it assumes OpenAI kept. Nothing is kept here,
+  // so a second step, which every tool call is, was refused with "Items are not persisted when
+  // `store` is set to false". Told up front, the SDK replays the items themselves and asks for the
+  // encrypted reasoning that makes that possible.
+  type CallOptions = Parameters<typeof model.doStream>[0]
+  const stateless = (options: CallOptions): CallOptions => ({
+    ...options,
+    providerOptions: { ...options.providerOptions, openai: { ...options.providerOptions?.openai, store: false } },
+  })
+  return Object.assign(Object.create(model) as typeof model, {
+    doGenerate: (options: CallOptions) => model.doGenerate(stateless(options)),
+    doStream: (options: CallOptions) => model.doStream(stateless(options)),
+  }) as unknown as MastraLanguageModel
 }

@@ -278,6 +278,31 @@ test('a Codex request reaches the one Codex endpoint, bearing the OAuth token an
   assert.equal(body.instructions.length > 0, true)
 })
 
+test('a second step replays the earlier reasoning and text themselves, because nothing is stored to refer back to', async () => {
+  const fetchImpl = capturingFetch(() => new Response('data: {"type":"response.completed"}\n\n', { status: 200, headers: { 'content-type': 'text/event-stream' } }))
+  const model = dispatch.createOpenAICodexOAuthModel({ tokenStore: codexTokenStore(), modelId: 'gpt-5.5', fetchImpl })
+  try {
+    await model.doStream({
+      includeRawChunks: false,
+      prompt: [
+        { role: 'user', content: [{ type: 'text', text: 'list the files' }] },
+        { role: 'assistant', content: [
+          { type: 'reasoning', text: '', providerOptions: { openai: { itemId: 'rs_kept_nowhere', reasoningEncryptedContent: 'sealed' } } },
+          { type: 'text', text: 'There is one file.', providerOptions: { openai: { itemId: 'msg_kept_nowhere' } } },
+        ] },
+        { role: 'user', content: [{ type: 'text', text: 'and now?' }] },
+      ],
+    })
+  } catch (error) { if (!fetchImpl.captured) throw error }
+
+  const body = JSON.parse(fetchImpl.captured.init.body)
+  assert.deepEqual(body.input.filter((item) => item.type === 'item_reference'), [])
+  assert.deepEqual(body.input.filter((item) => item.role === 'assistant').map((item) => item.content[0].text), ['There is one file.'])
+  assert.deepEqual(body.input.filter((item) => item.type === 'reasoning').map((item) => item.encrypted_content), ['sealed'])
+  assert.deepEqual(body.include, ['reasoning.encrypted_content'])
+  assert.equal(body.store, false)
+})
+
 test('the settings the backend requires are not the caller to choose, but its instructions are kept', async () => {
   const fetchImpl = capturingFetch(() => new Response('', { status: 200, headers: { 'content-type': 'text/event-stream' } }))
   const model = dispatch.createOpenAICodexOAuthModel({ tokenStore: codexTokenStore(), modelId: 'gpt-5.3-codex', fetchImpl })

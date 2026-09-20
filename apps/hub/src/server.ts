@@ -19,7 +19,6 @@ const {
   createConfiguredProjectModule,
   createBuilderProjectGitCapability,
 } = await import('./project/module.js')
-const { resolveModelAdmission, readModelChoices } = await import('./model-connection/model-catalog.js')
 const { createConfiguredBuilderModule } = await import('./builder/module.js')
 
 const config = readHubConfig()
@@ -75,23 +74,10 @@ const project = config.project ? createConfiguredProjectModule({
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
-const builderModel = config.builder && config.project ? resolveModelAdmission({
-  catalogFile: config.project.modelCatalogFile,
-  admissionId: config.builder.modelAdmissionId,
-  requiredCapabilities: ['BUILDER_CODING'],
-}) : undefined
-const builderModelChoices = config.builder && config.project ? readModelChoices({
-  catalogFile: config.project.modelCatalogFile,
-  requiredCapabilities: ['BUILDER_CODING'],
-}) : undefined
-// A key may only be filed under a provider this deployment would actually run, which is what
-// the operator's model catalog says and not what the router happens to know.
-const enabledProviders = Object.freeze([...new Set((builderModelChoices ?? []).map((choice) => choice.providerId))].sort())
 const modelConnection = config.connections && credentialBackend ? createModelConnectionModule({
   database: { host: config.database.host, port: config.database.port, database: config.database.database },
   passwordFile: config.connections.passwordFile,
   credentialBackend,
-  enabledProviders,
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
@@ -138,7 +124,7 @@ const launchPreview = mar ? async (request: import('fastify').FastifyRequest, in
     throw error
   }
 } : undefined
-builder = config.builder && config.project && builderModel ? createConfiguredBuilderModule({
+builder = config.builder && config.project && modelConnection ? createConfiguredBuilderModule({
   database: {
     host: config.database.host,
     port: config.database.port,
@@ -151,15 +137,8 @@ builder = config.builder && config.project && builderModel ? createConfiguredBui
     storageRoot: config.project.storageRoot,
     git: project?.sourceGit ?? createBuilderProjectGitCapability(config.project.storageRoot),
   },
-  model: builderModel.model,
-  modelIdentity: {
-    admissionId: builderModel.admissionId,
-    providerId: builderModel.providerId,
-    modelId: builderModel.modelId,
-  },
-  ...(builderModelChoices ? { modelChoices: builderModelChoices } : {}),
-  validateModelCredential: builderModel.validateCredential,
-  ...(modelConnection ? { resolveModel: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => modelConnection.createModel(reference, modelId) } : {}),
+  listModelOffers: (input) => modelConnection.listModelOffers(input),
+  resolveModel: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => modelConnection.createModel(reference, modelId),
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined

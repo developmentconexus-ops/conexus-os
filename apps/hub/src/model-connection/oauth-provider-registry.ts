@@ -8,6 +8,8 @@ export const CONEXUS_ORIGINATOR = 'conexus-os'
 
 export const ANTHROPIC_OAUTH: OAuthProviderDescriptor = Object.freeze({
   providerId: 'anthropic',
+  displayName: 'Claude',
+  pays: Object.freeze({ registryProviderId: 'anthropic' }),
   codePrefix: 'ANTHROPIC_OAUTH',
   clientId: '9d1c250a-e61b-44d9-88ed-5944d1962f5e',
   authorizeUrl: 'https://claude.ai/oauth/authorize',
@@ -27,6 +29,12 @@ export const ANTHROPIC_OAUTH: OAuthProviderDescriptor = Object.freeze({
 // sign-in that cannot produce one is a failed sign-in rather than a connection that cannot work.
 export const OPENAI_CODEX_OAUTH: OAuthProviderDescriptor = Object.freeze({
   providerId: 'openai-codex',
+  displayName: 'ChatGPT',
+  // The backend names no list, so this one was measured: on 2026-09-20 every gpt-5 family id the
+  // registry lists was sent through a real run on a ChatGPT account. These two answered; each of the
+  // others, gpt-5.3-codex included, was refused with "model is not supported when using Codex with a
+  // ChatGPT account". A plan may reach others, and the refusal is logged as OPENAI_CODEX_REFUSED.
+  pays: Object.freeze({ registryProviderId: 'openai', modelIds: Object.freeze(['gpt-5.5', 'gpt-5.6-terra']) }),
   codePrefix: 'OPENAI_CODEX_OAUTH',
   clientId: 'app_EMoamEEZ73f0CkXaXp7hrann',
   authorizeUrl: 'https://auth.openai.com/oauth/authorize',

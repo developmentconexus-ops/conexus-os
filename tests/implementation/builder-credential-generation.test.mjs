@@ -67,7 +67,6 @@ test('a run whose generation arrives from the database as a NUMBER still resolve
   const claimed = await store.claimBuilderRun(runId, { admissionId: 'a', providerId: 'p', modelId: 'm' })
 
   const resolvedModel = { modelId: 'claude-resolved' }
-  const sentinelModel = { modelId: 'unavailable-sentinel' }
   const calls = []
   const resolveModel = (reference, modelId) => { calls.push([reference, modelId]); return resolvedModel }
 
@@ -75,34 +74,28 @@ test('a run whose generation arrives from the database as a NUMBER still resolve
     reference: { connectionId: claimed.modelConnectionId, generation: claimed.modelCredentialGeneration },
     modelIdentity: { modelId: 'claude-3-x' },
     resolveModel,
-    fallbackModel: sentinelModel,
   })
 
   assert.equal(result, resolvedModel)
   assert.deepEqual(calls, [[{ connectionId: 'conn-1', generation: '1' }, 'claude-3-x']])
 })
 
-test('resolveBuilderModel refuses an unnormalized numeric generation instead of silently downgrading to the sentinel model', () => {
-  const sentinelModel = { modelId: 'unavailable-sentinel' }
+test('resolveBuilderModel refuses an unnormalized numeric generation instead of calling custody with it', () => {
   let resolveModelCalled = false
   assert.throws(() => resolveBuilderModel({
     reference: { connectionId: 'conn-1', generation: 1 },
     modelIdentity: { modelId: 'claude-3-x' },
-    resolveModel: () => { resolveModelCalled = true; return sentinelModel },
-    fallbackModel: sentinelModel,
+    resolveModel: () => { resolveModelCalled = true; return { modelId: 'never' } },
   }), /BUILDER_MODEL_CREDENTIAL_UNRESOLVABLE/)
   assert.equal(resolveModelCalled, false)
 })
 
-test('resolveBuilderModel falls back to the configured model only when no credential was admitted at all', () => {
-  const fallbackModel = { modelId: 'unavailable-sentinel' }
-  const result = resolveBuilderModel({
+test('resolveBuilderModel refuses when no credential was admitted at all, because there is nothing to run on', () => {
+  assert.throws(() => resolveBuilderModel({
     reference: undefined,
     modelIdentity: { modelId: 'claude-3-x' },
     resolveModel: () => { throw new Error('must not be called') },
-    fallbackModel,
-  })
-  assert.equal(result, fallbackModel)
+  }), /BUILDER_MODEL_CREDENTIAL_UNRESOLVABLE/)
 })
 
 test('sendBuilderSessionMessage classifies a 401/403 agent error as an auth failure without leaking the provider message', async () => {
