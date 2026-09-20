@@ -46,6 +46,23 @@ test('a code nobody declared and a raw provider message are both internal errors
   assert.equal(builderFailureCategory(null), null)
 })
 
+test('every code a build failure can settle with names the build, not an internal error', async () => {
+  const { readFileSync } = await import('node:fs')
+  const { resolve: resolvePath } = await import('node:path')
+  const runtime = readFileSync(resolvePath(import.meta.dirname, '../../apps/hub/src/builder/runtime.ts'), 'utf8')
+  // The runtime turns exactly these into a BUILD_FAILED outcome, which the service then persists as
+  // the run's failure code. Anything it can persist has to be a declared build failure.
+  const guard = /if \(code !== '([A-Z_]+)' && code !== '([A-Z_]+)' &&\s*!code\.startsWith\('([A-Z_]+)'\)\) throw error/.exec(runtime)
+  assert.ok(guard, 'the build-failure guard in runtime.ts moved; this test must follow it')
+  for (const code of [guard[1], guard[2]]) {
+    assert.equal(builderFailureCategory(code), 'APPLICATION_BUILD_FAILED', `${code} settles a build failure but is not declared as one`)
+  }
+  for (const code of ['APPLICATION_SMOKE_FAILED', 'APPLICATION_SMOKE_TIMEOUT', 'APPLICATION_SMOKE_NO_ROOT_CHILD', 'APPLICATION_SMOKE_UNCAUGHT_ERROR']) {
+    assert.equal(code.startsWith(guard[3]), true)
+    assert.equal(builderFailureCategory(code), 'APPLICATION_BUILD_FAILED', `${code} settles a build failure but is not declared as one`)
+  }
+})
+
 test('no code outside the table reaches the wire', () => {
   assert.equal(projectBuilderRun(run('FAILED', 'SOMETHING_NOBODY_DECLARED')).failureCode, null)
   assert.equal(projectBuilderRun(run('FAILED', 'SOMETHING_NOBODY_DECLARED')).failureCategory, 'INTERNAL_ERROR')
