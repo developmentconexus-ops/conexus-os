@@ -4,8 +4,13 @@ This file owns who may do what. [The operation ledger](operation-ledger.md) owns
 operation census, [the product contract](contract.md) owns product meaning, and
 [the roadmap](../roadmap.md) owns status.
 
-The authority model lives in `apps/hub/migrations/0001_baseline.sql`. This file
-describes that code. If the two disagree, the code is right.
+The authority model lives in `apps/hub/migrations/0001_baseline.sql`. Sections 1 to 4
+describe that code. If the two disagree, the code is right.
+
+[Section 5](#5-target-requirements-not-yet-enforced) is different. It holds the
+authorization requirements the approved destination creates, which nothing enforces
+yet. It names no action, no grant and no endpoint, because inventing one before its
+first real call site is exactly what section 4 forbids.
 
 ---
 
@@ -116,3 +121,27 @@ project.manage
 `project.manage` was retired on 2026-09-19. Its consumers were either surfaces that
 were never built or subsystems that left the product that day. A future Project
 lifecycle surface introduces its own action at its first real call site.
+
+---
+
+## 5. Target requirements not yet enforced
+
+[C-021](../decisions/index.md) approved a direction that will need authority this model
+does not express. Each line below is a requirement on a future call site. None of them
+is an action today, and none may be added to `iam.action` before the operation that
+needs it exists. [Section 12 of the product contract](contract.md#12-approved-destination)
+owns what each one means.
+
+| Requirement | What it must decide | Why the current model does not answer it |
+| --- | --- | --- |
+| Conversation privacy | who may read a conversation of a Project whose policy is `PER_USER` | containment answers Project reads, and every member sees every Project read today; a conversation private to its author is a narrower question than membership |
+| Privacy of everything a conversation carries | the same answer applied to persisted requests, diagnostics, recovered memory and delegated work | hiding a conversation from a list is not the same as withholding what it wrote elsewhere |
+| Continuing somebody else's conversation | that continuing it grants neither the author's credentials nor the author's permissions | the actor is the one asking; nothing today can be tempted to read authority from a conversation's author |
+| Project capabilities | what a conversation, an application or an automation may call on the Project's behalf, and what it may never reach | `project.build` gates starting a run and using a connection for it; it says nothing about a capability a generated application invokes at runtime |
+| Publication | that publishing is explicit, authorized and separate from editing and from a run settling | nothing publishes today, so no action gates it |
+| Work applied to a Project | that a reviewed candidate reaches the source only through the Project's own reconciliation and authorization | source advances inside a run the actor already holds `project.build` for; delegated work arrives from elsewhere |
+
+Two rules from section 4 govern all of them. An action exists only when a real call
+site needs the distinction, and an action is necessary without being sufficient: the
+operation still rechecks the exact subject, the current membership and the current
+owner state.

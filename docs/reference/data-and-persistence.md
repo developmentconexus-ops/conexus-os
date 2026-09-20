@@ -93,6 +93,19 @@ Project DB is not Hub control authority, Brain semantic authority or proof that 
 
 Persistent DEV/PROD databases exist where the Project needs them. Validation databases are ephemeral proof fixtures, not a permanent third business environment by default.
 
+### 5.4.1 Approved destination
+
+C-021 approved that each Project owns a logical data space of its own, isolated from
+Conexus's internal data, and that a conversation or an application reaches it through
+authorized capabilities rather than through arbitrary access. Evolving a Project's
+structure grants nothing on the system database or on production, and a product's own
+data stays distinct from data belonging to an external system.
+
+Which physical database, schema or namespace carries that space is unchosen, and is
+decided in the increment that delivers it. Nothing here describes an implemented
+isolation boundary. [Product contract section 12.5](../product/contract.md#125-data)
+owns the rule.
+
 ## 5.5 `mastra_builder`
 
 Builder Mastra substrate persistence only:
@@ -104,6 +117,12 @@ runtime continuation mechanics
 ```
 
 Never Change/Plan/WorkUnit/ActorRun/correctness authority.
+
+The shape of what this substrate holds follows from the composition C-020 realized: one
+Thread per Project and a run-scoped Session. C-021 reopened that premise, so the mapping
+between a conversation and what is persisted here is open and belongs to
+[the Sessions and Work qualification](../tasks/sessions-work-qualification.md). Do not
+pre-empt it with a Conexus-owned conversation store.
 
 ## 5.6 `mastra_par`
 

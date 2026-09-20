@@ -27,8 +27,8 @@ orientation only. **Global coverage does not require global context.**
 ## Authority
 
 - [`docs/roadmap.md`](docs/roadmap.md) owns status, what exists, and the next action.
-- [`docs/tasks/builder-repair-program.md`](docs/tasks/builder-repair-program.md) owns the Builder work sequence and the evidence each unit owes. It does not own product or architecture meaning.
-- [`docs/decisions/index.md`](docs/decisions/index.md) holds the decisions in force and their reopen triggers.
+- The task the roadmap names owns the bounded execution contract and the evidence it owes. It does not own product or architecture meaning. [`docs/tasks/builder-repair-program.md`](docs/tasks/builder-repair-program.md) is closed and kept as a record, not as an execution path.
+- [`docs/decisions/index.md`](docs/decisions/index.md) holds the decisions in force and their reopen triggers. C-021 is the approved product destination; [`docs/product/contract.md`](docs/product/contract.md) section 12 owns what it means, and nothing in it is implemented.
 - The product, contract and technical-reference owners own their stated semantics.
 - Methods govern how work is reasoned about. They create no product meaning.
 - Evidence, code, tests, runtime output and Git history may challenge accepted authority. They do not silently replace it.

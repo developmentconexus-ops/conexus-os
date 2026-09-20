@@ -1,12 +1,31 @@
 # Builder repair program plan
 
-Five changes that take the Builder from "one journey worked once" to "the acceptance journey is provable and the product stops asserting what it cannot observe". P-02 and P-03 close what an operator notices when something fails. P-04 makes past work inspectable. P-05 settles which authorized subject runs. P-06 makes the compile answer whether the artifact boots. Order is P-02, P-03, P-04, P-05, P-06.
+**Closed on 2026-09-20.** Every unit is delivered and merged. This file is kept as the
+record of what each unit owed and what it proved; it is no longer an execution path, and
+nothing here is a next action. [The roadmap](../roadmap.md) owns what is next.
 
-P-01 restored the verification floor and landed on 2026-09-18 as `c0328ca3` and `e2d400b3`. CI runs the whole graph. Its own live lanes 6 and 10 and its perf box were never completed; the roadmap's first Builder step covers that ground live on the pilot.
+| Unit | Outcome |
+| --- | --- |
+| P-01 | Verification floor restored, 2026-09-18. |
+| P-02 | A failed request stays on screen with a named reason, and an internal failure code never reaches the browser. Migration `0005` carries the request text on the run. |
+| P-03 | The Preview states a grant and then a frame that navigated, and never that the application loaded. The iframe gained the load handler it never had, counted only after the entry submit for that lease. |
+| P-04 | A past run is selectable and drives Details, Diff and the trace. A send whose outcome is unknown keeps its idempotency key. A retried diagnostic collapses onto one message. |
+| P-05 | Overtaken rather than executed. The deployment model catalog and the pinned model and admission constants had already gone with Mastra-native model choice, and `apps/hub/src/claude-account` no longer exists. What remained, naming the connection that pays for the next request, shipped with P-04. The unit below records the original intent; do not run it. |
+| P-06 | The compile answers whether the artifact boots. The agent's sandbox serves the built bytes and drives headless Chromium at them. A build or boot failure keeps the source and the previous Preview. |
+
+Three defects were found by running the result rather than by the suites, and each was
+fixed with a test that fails without the fix: a tree refusal that killed the whole run
+instead of settling as a build failure, a smoke script that could not parse and so never
+ran, and a verdict that was discarded because the sandbox raised a non-zero exit as an
+error. Two of those corrections were still open as pull requests when this file closed.
+
+The checklists below are historical. Their boxes are not instructions, their ten-lane
+swarm and review-gate blocks were not the process actually used, and the live and perf
+lanes record what was owed rather than what to do next.
 
 ## How to read this
 
-One box is one unit of work. Every box names the evidence that checks it. A nested box is a sub-step of the box above it. Check a box only when its evidence exists, a file, a log line, a screenshot, a test run, or a SHA. The body is a how-to. The appendices explain and record.
+One box was one unit of work, and every box named the evidence that checked it. Read this as a record of what was owed. It is not a how-to any more.
 
 The program runs `skills/poteto-mode/playbooks/autopilot-stack.md` from the installed plugin. The operator merges every PR. Every unit stops at merge-ready.
 

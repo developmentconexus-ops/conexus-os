@@ -111,6 +111,23 @@ source/freshness, and release/serving distinctions. Client retry and preference
 state never create server authority. Use safe Markdown without executable raw
 HTML. Tool presentation does not imply raw arguments/output are public.
 
+The Preview states only what the browser can observe. A grant resolved, and then a
+frame that navigated. It never states that the application loaded: the frame is
+cross-origin and its load event fires for a refusal as readily as for a working page.
+Whether the application actually boots is answered before the artifact is retained, not
+by the client.
+
+A run whose build or boot failed keeps its source and says so, and the last good Preview
+stays on screen beside it.
+
+### 33.7.1 Several conversations, not yet built
+
+C-021 approved that a Project offers several persistent conversations under a `SHARED`
+or `PER_USER` policy, with one principal agent and no specialist chooser. The Build
+surface today is one conversation subordinate to a run. Do not design a replacement UI
+ahead of [the Sessions and Work qualification](../tasks/sessions-work-qualification.md),
+and do not surface a privacy control before the policy and its default are approved.
+
 ## 33.8 Contextual inspectability
 
 Current run details are a bounded, authorized projection of Product and native

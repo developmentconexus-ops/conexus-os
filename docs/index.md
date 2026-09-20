@@ -9,7 +9,9 @@ owns status and the next action. Start there.
 | --- | --- |
 | Status, what exists, what is next | [Roadmap](roadmap.md) |
 | How to work on this repository | [`AGENTS.md`](../AGENTS.md) and [`CONTRIBUTING.md`](../CONTRIBUTING.md) |
-| The Builder work sequence and its evidence | [Builder repair program](tasks/builder-repair-program.md) |
+| The approved product destination | [Product contract, section 12](product/contract.md#12-approved-destination) |
+| The next task and its condition to start | [Sessions and Work qualification](tasks/sessions-work-qualification.md) |
+| What the Builder repair program delivered | [Builder repair program](tasks/builder-repair-program.md), closed |
 
 ## Product
 

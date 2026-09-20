@@ -11,6 +11,14 @@ The roadmap and current task distinguish implementation, proof, and acceptance.
 Conflicting Change-centric wording in older references and locked evidence is
 historical. Preserve its human job and layout without reviving its old machinery.
 
+C-021 amended two of this document's premises on 2026-09-20. One Thread per Project
+with no second conversation store, and a conversation subordinate to a run, are no
+longer the destination. They remain an accurate description of what the code does
+today, and this file marks each place where the two now differ. Nothing else in C-020
+is reopened: authorization, source custody, execution settlement and artifact identity
+stand. The replacement is not chosen here; it is the subject of
+[the Sessions and Work qualification](../tasks/sessions-work-qualification.md).
+
 ## 1. Product job
 
 The operator opens a Project, converses with a coding agent over its current source,
@@ -39,6 +47,13 @@ Thread/messages, Workspace tools, and live display mechanics.
 
 Each Project has a persistent Thread. Each BuilderRun has a fresh scoped Session
 and Workspace/E2B. There is no second Conexus conversation store or persistent Turn.
+
+That is the realization in force and it keeps running until something replaces it.
+It is no longer the destination: C-021 approved several persistent conversations per
+Project, so the single Thread and the run-scoped Session are one answer to a question
+that is now open. Do not build a Conexus conversation store to get there, and do not
+remove authorization, effect idempotency, source custody or Preview protection from
+`BuilderRun` before the qualification says what replaces it.
 
 | Fact | Authority |
 | --- | --- |
@@ -315,7 +330,9 @@ No persistent Conexus Turn, ordinary Change hierarchy, generic workflow/task eng
 multi-session chooser, broad Mastra browser API, stack selector, movement of main
 on every edit, destructive legacy-schema rewrite, business expansion before core
 acceptance, or mandatory AI review before internal Preview.
-Keep coding and compiler isolation unless a separately approved decision changes it.
+Coding and compiler isolation was a non-goal to preserve until a separate decision
+changed it. Section 23 records the decision that changed it and what replaced the
+separation.
 
 ## 21. Reopen triggers
 
@@ -367,3 +384,51 @@ Accepted pending cancellation prevents later success or Preview promotion.
 Keep already-admitted source and prior last-good Preview. The terminal result
 is INTERRUPTED with the appropriate reason. Browser disconnect is observation
 detachment, not cancellation. No automatic retry or new run is implied.
+
+## 23. Realized run pipeline
+
+Facts about the code on trunk, kept here because the plan that produced them was never
+committed and because section 20 named the separation this replaced. Nothing here is a
+ratified architecture: it is the shape the delivered work left, and the qualification
+may change it.
+
+A BUILD run crosses three out-of-process boundaries. It used to cross six.
+
+| Boundary | When | What it does |
+| --- | --- | --- |
+| OCI git container | before the agent | exports the current source as a bundle |
+| E2B sandbox | the run | materializes the bundle, runs the agent, compiles, smokes the artifact |
+| OCI git container | after the agent | admits the result bundle into the canonical repository |
+
+Three changes produced that. The source bundle is exported while the sandbox is
+created, because neither depends on the other. One E2B template carries both roles, the
+agent's git and Node and the compiler's pre-baked `node_modules` and vite config, whose
+recipe now lives in `apps/hub/compiler-template` after being read back out of the image
+it only existed inside. The agent's own sandbox compiles what it wrote, which removed
+the second sandbox and the two git container starts that had read the source back out
+to feed it.
+
+Two properties hold that together. The working tree is checked clean after the agent's
+commit and before anything touches it, so the artifact equals the revision that gets
+admitted. The compile input keeps every limit it had, now read from `git ls-tree` inside
+the sandbox, and it accepts only the blob modes source admission accepts, so a symlink
+or a submodule refuses here instead of compiling into an artifact the admission that
+follows would reject.
+
+After the build the sandbox serves the artifact's own bytes over loopback and drives the
+headless Chromium the template carries. The verdict is that the root has a child within
+a bounded time and that nothing threw, both read through the browser's own
+instrumentation. Nothing is injected into the page: Conexus serves those bytes later
+with a sha256 check per request, so a serve-time beacon would defeat that invariant, and
+a beacon inside `app/**` would be the agent's own code.
+
+A build or a boot failure is an outcome the run carries, not an exception. The source is
+still admitted and advanced, the run settles `SOURCE_CHANGED_BUILD_FAILED`, and the last
+good Preview stays. That was briefly lost when the compile moved ahead of admission and
+is restored deliberately: an operator keeps the agent's work and is told it did not
+build.
+
+The git container stays. It is the boundary that keeps a crafted result bundle away from
+git's parser with the repository writable, and merging the remaining two into one would
+require holding a container open across the agent's turn with the repository mounted for
+writing. That trade has not been made.
