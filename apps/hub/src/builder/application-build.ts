@@ -1,12 +1,12 @@
 import { z } from 'zod'
-import type { ApplicationCompilerRuntime, CompiledApplication } from './application-artifact-runtime.js'
-import type { BuilderSourcePort } from './source.js'
+import type { CompiledApplication } from './application-artifact-runtime.js'
 
 export type BuilderRunApplicationBuildRequest = Readonly<{
   accountId: string
   projectId: string
   builderRunId: string
   sourceRevision: string
+  compiledApplication: CompiledApplication
   signal?: AbortSignal
 }>
 
@@ -57,11 +57,7 @@ export type UnboundBuilderApplicationArtifacts = Readonly<{
 }>
 
 export const prepareBuilderRunApplicationArtifact = async (
-  dependencies: Readonly<{
-    source: Pick<BuilderSourcePort, 'listSourceTree' | 'readSourceFiles'>
-    compiler: ApplicationCompilerRuntime
-    applicationArtifacts: BuilderApplicationArtifacts
-  }>,
+  dependencies: Readonly<{ applicationArtifacts: BuilderApplicationArtifacts }>,
   input: BuilderRunApplicationBuildRequest,
 ): Promise<ApplicationArtifactMetadata> => {
   const cancelled = (): void => { if (input.signal?.aborted) throw new Error('BUILDER_APPLICATION_CANCELLED') }
@@ -70,37 +66,10 @@ export const prepareBuilderRunApplicationArtifact = async (
     !z.uuid().safeParse(input.builderRunId).success || !/^[0-9a-f]{40}$/i.test(input.sourceRevision)) {
     throw new Error('BUILDER_APPLICATION_REQUEST_REFUSED')
   }
-  if (dependencies.compiler.kind !== 'REMOTE_E2B') throw new Error('BUILDER_LOCAL_RUNTIME_REFUSED')
-  const sourceCoordinates = { projectId: input.projectId, sourceRevision: input.sourceRevision }
-  const tree = await dependencies.source.listSourceTree(sourceCoordinates)
-  cancelled()
-  if (tree.sourceRevision !== input.sourceRevision) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
-  const paths = tree.entries.filter(entry => entry.kind === 'FILE' && entry.path.startsWith('app/')).map(entry => entry.path).sort()
-  if (paths.length > 256 || new Set(paths).size !== paths.length || !paths.includes('app/index.html')) {
-    throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
-  }
-  const disclosed = await dependencies.source.readSourceFiles({ ...sourceCoordinates, paths })
-  cancelled()
-  if (disclosed.sourceRevision !== input.sourceRevision || disclosed.files.length !== paths.length) {
-    throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
-  }
-  const files: { path: string; content: string }[] = []
-  let totalBytes = 0
-  for (const [index, file] of disclosed.files.entries()) {
-    const path = paths[index] as string
-    const bytes = Buffer.byteLength(file.content, 'utf8')
-    totalBytes += bytes
-    if (file.path !== path || bytes > 1024 * 1024 || totalBytes > 12 * 1024 * 1024) {
-      throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
-    }
-    files.push({ path: path.slice('app/'.length), content: file.content })
-  }
-  const result = await dependencies.compiler.compile({
-    ...sourceCoordinates, executionId: input.builderRunId, files, ...(input.signal ? { signal: input.signal } : {}),
-  })
-  cancelled()
-  if (result.projectId !== input.projectId || !('executionId' in result) || result.executionId !== input.builderRunId || result.sourceRevision !== input.sourceRevision) {
+  const result = input.compiledApplication
+  if (result.projectId !== input.projectId || result.executionId !== input.builderRunId || result.sourceRevision !== input.sourceRevision) {
     throw new Error('BUILDER_APPLICATION_RESULT_SCOPE_REFUSED')
   }
+  cancelled()
   return dependencies.applicationArtifacts.retainApplication({ accountId: input.accountId, compiled: result })
 }

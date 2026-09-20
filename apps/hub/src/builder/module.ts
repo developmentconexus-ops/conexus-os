@@ -26,7 +26,6 @@ import { createBuilderSourcePort } from './source.js'
 import type { BuilderGitSourceCapability } from './source.js'
 import { createBuilderStore } from './store.js'
 import type { ResolvedBuilderModel } from '../model-connection/resolved-model.js'
-import { createE2BApplicationCompiler } from './application-artifact-runtime.js'
 import { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } from './application-starter.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 
@@ -186,7 +185,6 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
       flushObservability: observabilityLifecycle.flush,
     },
   })
-  const compiler = createE2BApplicationCompiler({ apiKey: readSecretFile(builder.e2bApiKeyFile) })
   const appendDiagnostic = async ({ projectId, builderRunId, code }: Readonly<{ projectId: string; builderRunId: string; code: string }>): Promise<void> => {
     await ensureSessionStorage()
     await sessionMemory.saveMessages({ messages: [{
@@ -194,7 +192,7 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
       content: { format: 2, parts: [{ type: 'text', text: `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}. Corrija a solicitação para tentar novamente.` }] },
     }] })
   }
-  const service = createBuilderService({ store, source, runtime, compiler, applicationArtifacts: boundApplicationArtifacts, listModelOffers, appendDiagnostic })
+  const service = createBuilderService({ store, source, runtime, applicationArtifacts: boundApplicationArtifacts, listModelOffers, appendDiagnostic })
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })

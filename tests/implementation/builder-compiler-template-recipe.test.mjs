@@ -28,7 +28,6 @@ test('the template recipe carries every committed compiler file verbatim and ins
 test('the committed vite config builds the directories the compile step writes and reads', () => {
   assert.equal(viteConfig.root, '/workspace/app')
   assert.equal(viteConfig.build.outDir, '/workspace/dist')
-  assert.match(runtime, /const APP_ROOT = '\/workspace\/app'/)
   assert.match(runtime, /const DIST_ROOT = '\/workspace\/dist'/)
 })
 
@@ -45,7 +44,7 @@ test('the vite root follows CONEXUS_COMPILE_ROOT, so the agent sandbox can build
 
 test('the compile command runs the vite this manifest installs, from where the template puts it', () => {
   assert.match(runtime, /node \/opt\/conexus\/compiler\/node_modules\/vite\/bin\/vite\.js build --config \/opt\/conexus\/compiler\/vite\.config\.mjs/)
-  assert.match(runtime, /ln -s \/opt\/conexus\/compiler\/node_modules \/workspace\/app\/node_modules/)
+  assert.match(runtime, /ln -sfn \/opt\/conexus\/compiler\/node_modules \$\{input\.appRoot\}\/node_modules/)
   assert.equal(typeof manifest.dependencies.vite, 'string')
 })
 

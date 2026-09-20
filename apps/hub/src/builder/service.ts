@@ -3,7 +3,6 @@ import type { CodingWorkerRuntime } from './runtime.js'
 import type { BuilderRunningPhase, BuilderRunSummary, BuilderStore } from './store.js'
 import { prepareBuilderRunApplicationArtifact } from './application-build.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, BuilderApplicationArtifacts } from './application-build.js'
-import type { ApplicationCompilerRuntime } from './application-artifact-runtime.js'
 import { resolveBuilderModelChoice } from './model-choice.js'
 import type { ModelOffer } from '../model-connection/paid-models.js'
 
@@ -20,11 +19,10 @@ export type BuilderService = Readonly<{
   close(): Promise<void>
 }>
 
-export const createBuilderService = ({ store, source, runtime, compiler, applicationArtifacts, listModelOffers, appendDiagnostic }: Readonly<{
+export const createBuilderService = ({ store, source, runtime, applicationArtifacts, listModelOffers, appendDiagnostic }: Readonly<{
   store: BuilderStore
   source: BuilderSourcePort
   runtime: CodingWorkerRuntime
-  compiler: ApplicationCompilerRuntime
   applicationArtifacts: BuilderApplicationArtifacts
   listModelOffers: ListModelOffers
   appendDiagnostic?: (input: Readonly<{ projectId: string; builderRunId: string; code: string }>) => Promise<void>
@@ -84,11 +82,13 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
       if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
       await store.advanceBuilderRunSource(claimed.builderRunId, admitted.resultSourceRevision)
       if (claimed.mode === 'PLAN') throw new Error('BUILDER_PLAN_SOURCE_RESULT_REFUSED')
-      await setPhase('COMPILING')
+      // The agent's sandbox already compiled, and reported COMPILING while it did. What is left
+      // is retaining the artifact, which FINALIZING below covers.
       try {
-        const artifact = await prepareBuilderRunApplicationArtifact({ source, compiler, applicationArtifacts }, {
+        const artifact = await prepareBuilderRunApplicationArtifact({ applicationArtifacts }, {
           accountId: input.accountId, projectId: claimed.projectId, builderRunId: claimed.builderRunId,
           sourceRevision: admitted.resultSourceRevision,
+          compiledApplication: result.compiledApplication,
           signal: controller.signal,
         })
         if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
