@@ -38,8 +38,18 @@ type CodingWorkerResultScope = Readonly<{
   summary: string
 }>
 
+// The compile now runs inside the agent's own sandbox, before source admission (apps/hub/src/builder/service.ts
+// commits the source only after `execute` returns). A thrown build or smoke failure would therefore
+// discard the already-committed result bundle instead of settling the run, so a failure the agent's
+// work itself caused travels back as data, not as a rejected promise: service.ts still admits the
+// source and settles SOURCE_CHANGED_BUILD_FAILED, the same shape a build failure produced before the
+// compile moved in-sandbox. Anything else (a workspace fault, cancellation) is still a thrown failure.
+export type ApplicationBuildOutcome =
+  | Readonly<{ kind: 'BUILT'; compiledApplication: CompiledApplication }>
+  | Readonly<{ kind: 'BUILD_FAILED'; code: string }>
+
 type CodingWorkerResultVariant<TScope> = TScope & (
-  | Readonly<{ kind: 'SOURCE_CHANGED'; claimedResultSourceRevision: string; resultBundle: Uint8Array; compiledApplication: CompiledApplication }>
+  | Readonly<{ kind: 'SOURCE_CHANGED'; claimedResultSourceRevision: string; resultBundle: Uint8Array; applicationBuild: ApplicationBuildOutcome }>
   | Readonly<{ kind: 'RESPONSE_ONLY' }>
 )
 
@@ -425,21 +435,31 @@ export const createMastraE2BCodingWorkerRuntime = (
         const clean = await direct('git', ['-C', '/workspace/repo', 'status', '--porcelain'])
         if (!clean.success || clean.stdout.length > 0) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
 
-        const listed = await direct('git', ['-C', '/workspace/repo', 'ls-tree', '-r', '-l', 'HEAD', 'app/'])
-        if (!listed.success) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
-        admitApplicationTree(listed.stdout)
-
         await input.setPhase?.('COMPILING')
-        const compiledFiles = await buildApplicationInSandbox(sandbox.e2b, { appRoot: '/workspace/repo/app', ...(input.signal ? { signal: input.signal } : {}) })
-        const compiledApplication: CompiledApplication = {
-          projectId: input.projectId,
-          executionId,
-          sourceRevision: claimedResultSourceRevision,
-          templateRef: TEMPLATE_REF,
-          recipeSha256: RECIPE_SHA256,
-          files: compiledFiles,
+        let applicationBuild: ApplicationBuildOutcome
+        try {
+          // A tree the compile input cannot accept is a build failure like any other, so the
+          // operator keeps the source and is told it did not build.
+          const listed = await direct('git', ['-C', '/workspace/repo', 'ls-tree', '-r', '-l', 'HEAD', 'app/'])
+          if (!listed.success) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+          admitApplicationTree(listed.stdout)
+          const compiledFiles = await buildApplicationInSandbox(sandbox.e2b, { appRoot: '/workspace/repo/app', ...(input.signal ? { signal: input.signal } : {}) })
+          const compiledApplication: CompiledApplication = {
+            projectId: input.projectId,
+            executionId,
+            sourceRevision: claimedResultSourceRevision,
+            templateRef: TEMPLATE_REF,
+            recipeSha256: RECIPE_SHA256,
+            files: compiledFiles,
+          }
+          applicationBuild = { kind: 'BUILT', compiledApplication }
+        } catch (error) {
+          const code = error instanceof Error ? error.message : ''
+          if (code !== 'APPLICATION_COMPILATION_FAILED' && code !== 'BUILDER_APPLICATION_SOURCE_REFUSED' &&
+            !code.startsWith('APPLICATION_SMOKE_')) throw error
+          applicationBuild = { kind: 'BUILD_FAILED', code }
         }
-        return Object.freeze({ ...scope, kind: 'SOURCE_CHANGED' as const, claimedResultSourceRevision, resultBundle, compiledApplication })
+        return Object.freeze({ ...scope, kind: 'SOURCE_CHANGED' as const, claimedResultSourceRevision, resultBundle, applicationBuild })
       } finally {
         await sandbox.destroy().catch(() => undefined)
       }

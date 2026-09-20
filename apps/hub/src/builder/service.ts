@@ -82,13 +82,23 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
       if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
       await store.advanceBuilderRunSource(claimed.builderRunId, admitted.resultSourceRevision)
       if (claimed.mode === 'PLAN') throw new Error('BUILDER_PLAN_SOURCE_RESULT_REFUSED')
-      // The agent's sandbox already compiled, and reported COMPILING while it did. What is left
-      // is retaining the artifact, which FINALIZING below covers.
+      // The agent's sandbox already compiled (and smoked) the artifact, and reported COMPILING while
+      // it did. A build or smoke failure there still admitted the source above, so it settles the
+      // same way a post-admission build failure always has, leaving the last-good Preview in place.
+      if (result.applicationBuild.kind === 'BUILD_FAILED') {
+        const code = result.applicationBuild.code
+        await setPhase('FINALIZING')
+        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.resultSourceRevision, failureCode: code })
+        if (appendDiagnostic) {
+          await appendDiagnostic({ projectId: claimed.projectId, builderRunId: claimed.builderRunId, code }).catch(() => undefined)
+        }
+        return
+      }
       try {
         const artifact = await prepareBuilderRunApplicationArtifact({ applicationArtifacts }, {
           accountId: input.accountId, projectId: claimed.projectId, builderRunId: claimed.builderRunId,
           sourceRevision: admitted.resultSourceRevision,
-          compiledApplication: result.compiledApplication,
+          compiledApplication: result.applicationBuild.compiledApplication,
           signal: controller.signal,
         })
         if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')

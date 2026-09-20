@@ -21,6 +21,10 @@ test('C-020 Builder E2B template is a source-free exact Node recipe with require
   assert.match(parsed.fromImage, new RegExp(`^node:${BUILDER_TEMPLATE_NODE_VERSION}-bookworm-slim@sha256:[0-9a-f]{64}$`))
   assert.match(parsed.readyCmd, /git --version/)
   assert.match(parsed.readyCmd, /\/workspace/)
+  // Chromium is the P-06 boot-smoke driver: it must be installed through runCmd (no COPY, asserted
+  // below) and the ready command must fail the image build if the binary never landed.
+  assert.equal(parsed.steps.some((step) => step.type === 'RUN' && JSON.stringify(step.args).includes('chromium')), true)
+  assert.match(parsed.readyCmd, /command -v chromium/)
   assert.equal(parsed.steps.some((step) => step.type === 'USER' && step.args[0] === 'root'), true)
   assert.equal(parsed.steps.some((step) => step.type === 'COPY'), false)
   assert.equal(JSON.stringify(parsed).includes('E2B_API_KEY'), false)
