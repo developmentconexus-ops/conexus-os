@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import pg from 'pg'
-import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { loadHubMigrationFiles, runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const required = (name) => process.env[name] || (() => { throw new Error(`MISSING_TEST_CONFIG_${name}`) })()
@@ -24,7 +24,7 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
   const config = { ...admin, database }
   const url = new URL('postgresql://localhost'); url.hostname = config.host; url.port = String(config.port); url.pathname = `/${database}`; url.username = config.user; url.password = config.password
   const migrated = await runHubMigrations({ connectionString: url.toString() })
-  assert.deepEqual(migrated.versions, ['0001', '0002'])
+  assert.deepEqual(migrated.versions, loadHubMigrationFiles().map(({ version }) => version))
   const root = resolve(import.meta.dirname, '../..')
   const buildRoot = mkdtempSync(resolve(root, 'apps/hub/registry-postgres-build-'))
   t.after(() => rmSync(buildRoot, { recursive: true, force: true }))
@@ -76,7 +76,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   const config = { ...admin, database }
   const url = new URL('postgresql://localhost'); url.hostname = config.host; url.port = String(config.port); url.pathname = `/${database}`; url.username = config.user; url.password = config.password
   const migrated = await runHubMigrations({ connectionString: url.toString() })
-  assert.deepEqual(migrated.versions, ['0001', '0002'])
+  assert.deepEqual(migrated.versions, loadHubMigrationFiles().map(({ version }) => version))
   const root = resolve(import.meta.dirname, '../..')
   const buildRoot = mkdtempSync(resolve(root, 'apps/hub/registry-settlement-build-'))
   t.after(() => rmSync(buildRoot, { recursive: true, force: true }))

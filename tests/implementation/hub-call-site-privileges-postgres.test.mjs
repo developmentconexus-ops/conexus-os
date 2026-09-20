@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import pg from 'pg'
-import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { loadHubMigrationFiles, runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const required = (name) => {
@@ -51,7 +51,6 @@ const registeredRoles = new Set(roleRegister.roles.map(({ role }) => role))
 const ROLE_BY_CALL_SITE = Object.freeze({
   'builder/store.ts': Object.freeze({
     'builder.create_builder_run_with_model': 'hub_builder_ingress',
-    'builder.create_builder_run': 'hub_builder_ingress',
     'builder.read_builder_run': 'hub_builder_ingress',
     'builder.list_builder_runs': 'hub_builder_ingress',
     'builder.read_latest_code_changing_builder_run': 'hub_builder_ingress',
@@ -199,7 +198,7 @@ test('every declared Hub call site names a registered login role and every decla
 test('every function the Hub calls is EXECUTE-granted to the login role that calls it', async (t) => {
   const connection = await freshDatabase(t)
   const finished = await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
-  assert.deepEqual(finished.versions, ['0001', '0002'])
+  assert.deepEqual(finished.versions, loadHubMigrationFiles().map(({ version }) => version))
 
   const denied = []
   const unresolved = []
