@@ -47,10 +47,8 @@ Trunk is `analysis/internal-mvp-2026-09-12`, not `main`.
 
 ## In flight
 
-**Documentary consolidation of the approved product amendment.** Open for review, not
-merged. It carries C-021 into the owners that hold each rule, reconciles the Builder
-reference with the pipeline the code actually runs, and prepares the next task without
-executing it. It changes no code, no migration, no contract schema and no check.
+**The Sessions and Work qualification**, authorized to start on 2026-09-20. It is a
+qualification and ends in evidence and a recommendation; it authorizes no migration.
 
 M-02, the ChatGPT account sign-in, was proven live on 2026-09-20: OpenAI accepted the
 loopback redirect from a request the Hub originated, the token exchange, Conexus's own
@@ -67,9 +65,7 @@ written to the Hub log as `OPENAI_CODEX_REFUSED`. Unproven still: one real refre
 response cap survives a long reasoning stream. This remains undocumented and unendorsed by OpenAI: a
 refusal ends it and is not worked around.
 
-Two corrections to the Builder are open as pull requests and are not part of this
-consolidation. They do not advance the trunk this branch is based on. One of them is
-load bearing: without it the boot smoke merged with P-06 cannot run at all.
+Nothing else is open.
 
 ## The Builder sequence
 
@@ -120,23 +116,23 @@ or a fixture. "Pilot" means a real run on the pilot proved it end to end.
 | P-03 | yes | yes | yes | The Preview states a grant and then a frame that navigated, never that the application loaded. |
 | P-04 | yes | yes | no | Run selection, idempotency-key retention and the collapsed diagnostic are proven by browser and hub tests. No pilot run exercised them. |
 | P-05 | n/a | n/a | n/a | Overtaken rather than executed. The deployment model catalog and the pinned constants had already gone with Mastra-native model choice; what remained, naming the connection that pays, shipped with P-04. |
-| P-06 | yes | yes | **not working as merged** | See below. |
+| P-06 | yes | yes | yes | The compile answers whether the artifact boots. It needed three corrections after the unit merged; see below. |
 
-**P-06 is open.** The merged commit compiles, its tests pass and it was proven on the
-pilot only after two corrections that are still unmerged. As merged, the smoke script is
-written to a `.mjs` path and uses a top-level `return`, which is a syntax error in a
-module, so it never ran and every source-changing BUILD that reached it settled as a
-build failure. A second defect discarded the script's verdict, because the sandbox raises
-a non-zero exit as an error that the caller did not read, and a third drove the browser
-endpoint instead of the page target, which answers the handshake and then refuses
-`Runtime.enable`. Twelve tests covered the smoke and passed against a script that could
-not parse, because they faked the sandbox and never the script.
+**P-06 needed three corrections and now works.** The unit merged in a state where the
+smoke could not run at all. The script is written to a `.mjs` path and used a top-level
+`return`, which is a syntax error in a module, so every source-changing BUILD that
+reached it settled as a build failure. A second defect discarded the script's verdict,
+because the sandbox raises a non-zero exit as an error the caller did not read. A third
+drove the browser endpoint instead of the page target, which answers the handshake and
+then refuses `Runtime.enable`.
 
-Both corrections are open as pull requests and are not part of the documentary
-consolidation. Until they merge, the product on trunk fails a healthy BUILD. A pilot run
-with the corrections applied did succeed, and an application with a throw at module
-evaluation failed with `APPLICATION_SMOKE_NO_ROOT_CHILD` while its source and the
-previous Preview were kept.
+Twelve tests covered the smoke and passed against a script that could not parse, because
+they faked the sandbox and never the script itself. The lesson is specific and worth
+keeping: a generated program tested only through its caller is not tested.
+
+All three corrections are merged. On the pilot at `9c0c62cb`, a healthy BUILD succeeds,
+and an application with a throw at module evaluation fails with
+`APPLICATION_SMOKE_NO_ROOT_CHILD` while its source and the previous Preview are kept.
 
 Alongside those units the run pipeline was reduced from six out-of-process boundaries to
 three. The source bundle is exported while the sandbox is created, one E2B template
