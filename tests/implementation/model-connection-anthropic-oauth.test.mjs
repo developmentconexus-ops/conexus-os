@@ -19,13 +19,13 @@ const { createAnthropicOAuthModel } = await import(pathToFileURL(outfile).href)
 const tokenStore = Object.freeze({ validate: () => undefined, getToken: async () => Object.freeze({ access: 'access-fixture' }) })
 const prompt = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }]
 
-const requestSent = async (callOptions) => {
+const requestSent = async (callOptions, modelId = 'claude-sonnet-5') => {
   let captured
   const fetchImpl = async (input, init) => {
     captured = { url: String(input instanceof Request ? input.url : input), init }
     return new Response('event: message_stop\ndata: {"type":"message_stop"}\n\n', { status: 200, headers: { 'content-type': 'text/event-stream' } })
   }
-  try { await createAnthropicOAuthModel({ tokenStore, modelId: 'claude-sonnet-5', fetchImpl }).doStream({ prompt, includeRawChunks: false, ...callOptions }) }
+  try { await createAnthropicOAuthModel({ tokenStore, modelId, fetchImpl }).doStream({ prompt, includeRawChunks: false, ...callOptions }) }
   catch (error) { if (!captured) throw error }
   return { url: captured.url, headers: new Headers(captured.init.headers), body: JSON.parse(captured.init.body) }
 }
@@ -41,6 +41,12 @@ test('a Claude request bears the OAuth token, never an API key, and reaches the 
 test('a thinking summary is asked for, so the person sees what the model thought', async () => {
   const sent = await requestSent({})
   assert.deepEqual(sent.body.thinking, { type: 'adaptive', display: 'summarized' })
+})
+
+test('a model without adaptive thinking is asked the way it accepts, not refused', async () => {
+  const sent = await requestSent({}, 'claude-sonnet-4-5')
+  assert.equal(sent.body.thinking.type, 'enabled')
+  assert.ok(sent.body.thinking.budget_tokens > 0)
 })
 
 test('a caller that already said how thinking behaves is left alone', async () => {
