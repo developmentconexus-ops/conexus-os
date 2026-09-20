@@ -12,7 +12,9 @@ type CodingWorkerCommonInput = Readonly<{
   intent: string
   mode?: 'BUILD' | 'PLAN'
   baseSourceRevision: string
-  sourceBundle: Uint8Array
+  // A promise, not the bytes: exporting the bundle and creating the sandbox do not depend on each
+  // other, and each costs an out-of-process start.
+  sourceBundle: Promise<Uint8Array>
   bindPhysicalSandbox(sandboxId: string): Promise<void>
   bindMessage?(messageId: string): Promise<void>
   credentialReference?: Readonly<{ connectionId: string; generation: string }>
@@ -194,10 +196,7 @@ export const createMastraE2BCodingWorkerRuntime = (
     execute: async (input: CodingWorkerInput) => {
       const executionId = input.executionId
       if (![input.projectId, executionId].every(safeIdentity) ||
-        !oid.test(input.baseSourceRevision) || !input.intent.trim() || input.sourceBundle.byteLength === 0 ||
-        input.sourceBundle.byteLength > 256 * 1024 * 1024) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
-
-      await input.setPhase?.('PREPARING')
+        !oid.test(input.baseSourceRevision) || !input.intent.trim()) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
 
       const logicalSandboxId = `conexus-builder-${executionId}`
       const timeoutMs = config.timeoutMs ?? 15 * 60_000
@@ -206,15 +205,31 @@ export const createMastraE2BCodingWorkerRuntime = (
         'conexus-project-id': input.projectId,
         'conexus-execution-id': executionId,
       }
-      const physical = await Sandbox.create(config.templateId, {
-        apiKey: config.apiKey,
-        timeoutMs,
-        envs: {},
-        metadata,
-        allowInternetAccess: false,
-        network: { denyOut: ({ allTraffic }) => [allTraffic] },
-        lifecycle: { onTimeout: 'kill' },
-      })
+      // Both starts are paid at once, and a bundle that never arrives still refuses the run with its
+      // own code, taking the sandbox down with it.
+      const [created, delivered] = await Promise.allSettled([
+        Sandbox.create(config.templateId, {
+          apiKey: config.apiKey,
+          timeoutMs,
+          envs: {},
+          metadata,
+          allowInternetAccess: false,
+          network: { denyOut: ({ allTraffic }) => [allTraffic] },
+          lifecycle: { onTimeout: 'kill' },
+        }),
+        input.sourceBundle,
+      ])
+      if (delivered.status === 'rejected') {
+        if (created.status === 'fulfilled') await created.value.kill().catch(() => undefined)
+        throw delivered.reason
+      }
+      if (created.status === 'rejected') throw created.reason
+      const physical = created.value
+      const sourceBundle = delivered.value
+      if (sourceBundle.byteLength === 0 || sourceBundle.byteLength > 256 * 1024 * 1024) {
+        await physical.kill().catch(() => undefined)
+        throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
+      }
       const sandbox = new ConexusGuardedE2BSandbox({
         id: logicalSandboxId,
         sandboxId: physical.sandboxId,
@@ -251,7 +266,7 @@ export const createMastraE2BCodingWorkerRuntime = (
         // Override Mastra's provider retry path. Every agent command remains
         // bound to the one physical E2B incarnation admitted above.
         sandbox.executeCommand = direct
-        await sandbox.writeFiles([{ path: '/workspace/source.bundle', content: Buffer.from(input.sourceBundle) }])
+        await sandbox.writeFiles([{ path: '/workspace/source.bundle', content: Buffer.from(sourceBundle) }])
         const prepared = await direct('sh', ['-lc', [
           'rm -rf /workspace/repo',
           'git init --quiet --initial-branch=main /workspace/repo',
