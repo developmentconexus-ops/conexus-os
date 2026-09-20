@@ -47,8 +47,15 @@ Trunk is `analysis/internal-mvp-2026-09-12`, not `main`.
 
 ## In flight
 
-**The Sessions and Work qualification**, authorized to start on 2026-09-20. It is a
-qualification and ends in evidence and a recommendation; it authorizes no migration.
+**The Sessions and Work qualification**, authorized to start on 2026-09-20 and under way.
+It is a qualification and ends in evidence and a recommendation; it authorizes no migration.
+Its evidence is recorded in
+[`docs/evidence/sessions-work-qualification/`](evidence/sessions-work-qualification/README.md),
+with the corrected report in
+[`report.md`](evidence/sessions-work-qualification/report.md). The conversations half now
+has evidence, property by property, from probes that run outside the product. The
+comparison the task asks for is answered with a recommendation and with what still has no
+evidence; the qualification is not closed, and no migration has started.
 
 M-02, the ChatGPT account sign-in, was proven live on 2026-09-20: OpenAI accepted the
 loopback redirect from a request the Hub originated, the token exchange, Conexus's own
@@ -146,12 +153,17 @@ magnitude rather than a benchmark. The shape is described in
 
 **Qualify the native composition for Project conversations and delegated Work.**
 [`docs/tasks/sessions-work-qualification.md`](tasks/sessions-work-qualification.md) owns
-it. It is prepared and not started. It answers which native composition serves several
+it. It is under way, with its evidence and corrected report in
+[`docs/evidence/sessions-work-qualification/`](evidence/sessions-work-qualification/README.md).
+It answers which native composition serves several
 persistent conversations in one Project and allows delegated Work with the least Conexus
 logic, while preserving authorization and the product's effects. It is a qualification:
 it ends in evidence and a recommendation, and it does not authorize a migration.
 
-It starts once this consolidation is merged. Nothing before it is blocking.
+What remains of it is named in
+[section 6 of the report](evidence/sessions-work-qualification/report.md#6-what-has-no-evidence-yet),
+and the open comparison is whether Conexus identity maps onto the Factory's tenancy without
+a second conversation store. Nothing before it is blocking.
 
 ## Later layers
 

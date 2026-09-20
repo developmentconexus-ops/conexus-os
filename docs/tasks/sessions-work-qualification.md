@@ -1,6 +1,8 @@
 # Qualify the native composition for Project conversations and delegated Work
 
-> **Status:** prepared, not started. [The roadmap](../roadmap.md) owns the grant.
+> **Status:** under way, not closed. Evidence and the corrected report live in
+> [`docs/evidence/sessions-work-qualification/`](../evidence/sessions-work-qualification/README.md).
+> [The roadmap](../roadmap.md) owns the grant.
 > **Authority:** [C-021](../decisions/index.md), [product contract section 12](../product/contract.md#12-approved-destination).
 > **Technical owner of what exists:** [C-020 reference](../reference/builder-c020-mastra-native.md).
 
