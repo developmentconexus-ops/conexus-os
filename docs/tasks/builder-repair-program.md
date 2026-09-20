@@ -70,20 +70,20 @@ Each live lane runs in its own worktree at the PR head. Drive through the `verif
 
 **Files.**
 
-- [ ] Create a migration adding durable request text to `builder.builder_run`.
-- [ ] Edit `apps/hub/src/builder/store.ts`.
-- [ ] Edit `apps/hub/src/builder/service.ts`.
-- [ ] Edit `apps/hub/src/builder/routes.ts`.
-- [ ] Edit `contracts/api/product/builder-paths.yaml`.
-- [ ] Edit `apps/web/src/features/builder/api.ts`.
-- [ ] Edit `apps/web/src/features/builder/components/project-build.tsx`.
+- [x] Create a migration adding durable request text to `builder.builder_run`.
+- [x] Edit `apps/hub/src/builder/store.ts`.
+- [ ] Edit `apps/hub/src/builder/service.ts`. Not needed: `failureCode()` keeps its behaviour and the vocabulary table maps `BUILDER_PREPARATION_FAILED` to `INTERNAL_ERROR`.
+- [x] Edit `apps/hub/src/builder/routes.ts`.
+- [x] Edit `contracts/api/product/builder-paths.yaml`.
+- [x] Edit `apps/web/src/features/builder/api.ts`.
+- [x] Edit `apps/web/src/features/builder/components/project-build.tsx`.
 
 **Build.**
 
-- [ ] Persist enough of the accepted request on the run to reconstruct the operator's own words. Today the row stores only a content digest, `trigger_message_id` is always null, and the text lives solely in a Mastra message written inside `session.sendMessage()`. Everything from `claimBuilderRun` through sandbox creation, source materialization and `controller.createSession` runs before that call.
-- [ ] Render from that field when no bound Mastra message exists. The optimistic bubble is gated on `runActive`, so it vanishes when the run settles to FAILED.
-- [ ] Map the internal failure codes onto a small public set. `failureCode()` passes through any message matching `/^[A-Z0-9_]{1,120}$/`, so over seventy internal codes reach the wire unmapped, and anything whose message is not an uppercase snake code collapses to `BUILDER_PREPARATION_FAILED`, which is the most common real code because raw E2B, Postgres and fetch errors all land there.
-- [ ] Render each public category distinctly. `runStatus()` special-cases only `BUILDER_MODEL_RATE_LIMITED` today. Keep the existing `BUILDER_MODEL_AUTH_FAILED` and `BUILDER_MODEL_CREDENTIAL_UNRESOLVABLE` distinctions.
+- [x] Persist enough of the accepted request on the run to reconstruct the operator's own words. Today the row stores only a content digest, `trigger_message_id` is always null, and the text lives solely in a Mastra message written inside `session.sendMessage()`. Everything from `claimBuilderRun` through sandbox creation, source materialization and `controller.createSession` runs before that call.
+- [x] Render from that field when no bound Mastra message exists. The optimistic bubble is gated on `runActive`, so it vanishes when the run settles to FAILED.
+- [x] Map the internal failure codes onto a small public set. `failureCode()` passes through any message matching `/^[A-Z0-9_]{1,120}$/`, so over seventy internal codes reach the wire unmapped, and anything whose message is not an uppercase snake code collapses to `BUILDER_PREPARATION_FAILED`, which is the most common real code because raw E2B, Postgres and fetch errors all land there.
+- [x] Render each public category distinctly. `runStatus()` special-cases only `BUILDER_MODEL_RATE_LIMITED` today. Keep the existing `BUILDER_MODEL_AUTH_FAILED` and `BUILDER_MODEL_CREDENTIAL_UNRESOLVABLE` distinctions.
 
 **You see.**
 
@@ -91,9 +91,9 @@ Each live lane runs in its own worktree at the PR head. Drive through the `verif
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] A hub test drives a pre-agent failure and asserts the request text survives on the run row. Run `node --test --test-concurrency=1 tests/implementation/builder-run-dispatch.test.mjs`.
-- [ ] A hub test asserts each public failure category for a representative internal code and that no unmapped internal code reaches the wire.
-- [ ] `tests/implementation/builder-browser.test.mjs` gains a case where a settled FAILED run with no assistant message still renders the user's request and its named reason.
+- [x] A hub test drives a pre-agent failure and asserts the request text survives on the run row. Run `node --test --test-concurrency=1 tests/implementation/builder-run-dispatch.test.mjs`.
+- [x] A hub test asserts each public failure category for a representative internal code and that no unmapped internal code reaches the wire.
+- [x] `tests/implementation/builder-browser.test.mjs` gains a case where a settled FAILED run with no assistant message still renders the user's request and its named reason.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` model at the PR head, per the boot recipe.
 

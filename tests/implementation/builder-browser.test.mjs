@@ -81,7 +81,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
     buildCount += body.mode === 'BUILD' ? 1 : 0
     threadMessages.push(userMessage(`user-${threadMessages.length + 1}`, body.content))
     runFinished = false
-    run = { builderRunId: runId, projectId, state: 'RUNNING', phase: 'AGENT', mode: body.mode, baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
+    run = { builderRunId: runId, projectId, state: 'RUNNING', phase: 'AGENT', mode: body.mode, baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) =>
@@ -135,6 +135,10 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   await page.waitForTimeout(400)
   assert.equal(await page.locator('.builder-conversation').getByText('Aplicando a alteração', { exact: true }).count(), 1,
     'the live message and its persisted twin share an id and render once')
+  assert.equal(await page.locator('.builder-conversation .builder-turn-user').count(), 1,
+    'a run whose request is already a Mastra message renders one user bubble, not two')
+  assert.equal(await page.locator('.builder-conversation .builder-turn-reason').count(), 0,
+    'a run that succeeded is given no failure reason')
   assert.deepEqual(forbiddenRequests, [])
   assert.ok(threadReads.every((path) => path.includes(encodeURIComponent(threadId))))
   const previewBox = await page.locator('.build-preview-surface').boundingBox()
@@ -290,6 +294,48 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
   await page.getByRole('button', { name: 'Reabrir' }).click()
   await reopenRequest
   assert.equal(previewRequests, 5)
+})
+
+test('a run that failed before the agent still shows the request and names why it failed', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000041'
+  const projectId = '70000000-0000-4000-8000-000000000042'
+  const runId = '70000000-0000-4000-8000-000000000043'
+  const origin = 'http://127.0.0.1:41753'
+  const sourceRevision = '9'.repeat(40)
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41753, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  // Nothing reached Mastra: the run failed while the sandbox was being prepared, so the thread is
+  // empty and the row is the only record of what the operator asked for.
+  const failedRun = {
+    builderRunId: runId, projectId, state: 'FAILED', phase: null, mode: 'BUILD',
+    baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+    failureCode: 'BUILDER_SOURCE_MATERIALIZATION_REFUSED', failureCategory: 'ENVIRONMENT_PREPARATION_FAILED',
+    requestText: 'Crie um contador até 100 interativo', createdAt: '2026-09-20T12:00:00.000Z',
+  }
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeModelConnections(page, accountId)
+  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*/messages*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: [] }) }))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Pre-agent failure', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, threadId: `conexus-builder:${projectId}`, latestBuilderRun: failedRun, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    mode: 'BUILD', modelChoices: admittedModelChoices, runHistory: [failedRun],
+  }) }))
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.locator('.builder-conversation').getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
+  await page.getByText('Não foi possível preparar o ambiente de código. Tente enviar o pedido novamente.', { exact: true }).waitFor()
+  assert.equal(await page.locator('.builder-conversation .builder-turn-user').count(), 1,
+    'the run appears once although it is both the latest run and a history entry')
+  assert.equal(await page.locator('.builder-conversation .builder-turn-reason').count(), 1)
+  assert.equal(await page.getByText('BUILDER_SOURCE_MATERIALIZATION_REFUSED', { exact: true }).count(), 0,
+    'the internal code is never the sentence the operator reads')
 })
 
 test('Preview ignores an older launch completion after the artifact key changes', async (t) => {

@@ -3,7 +3,8 @@ import type { CSSProperties, FormEvent, KeyboardEvent } from 'react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { BuilderRequestError, cancelBuilderRun, getBuilderRunTrace, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type BuilderModelOffer, type BuilderRun, type PreviewLaunch, type SourceTree } from '../api'
 import { useBuilderLiveTurn, useBuilderThreadMessages } from '../mastra-session'
-import { BuilderConversation } from './builder-conversation'
+import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
+import { BuilderConversation, type PersistedRequest } from './builder-conversation'
 import { BuilderModelPicker } from './builder-model-picker'
 
 const phaseLabels: Record<NonNullable<BuilderRun['phase']>, string> = {
@@ -14,17 +15,53 @@ const phaseLabels: Record<NonNullable<BuilderRun['phase']>, string> = {
   FINALIZING: 'Publicando o Preview',
 }
 
-const runStatus = (state: string | undefined, kind: string | null | undefined, phase?: BuilderRun['phase'], failureCode?: string | null): string => {
+const failureStatusByCategory: Record<BuilderFailureCategory, string> = {
+  ENVIRONMENT_PREPARATION_FAILED: 'Falha ao preparar o ambiente de código',
+  MODEL_CREDENTIAL_REFUSED: 'Credencial do modelo recusada',
+  MODEL_RATE_LIMITED: 'Modelo temporariamente limitado; tente novamente mais tarde',
+  MODEL_REQUEST_REFUSED: 'O provedor do modelo recusou o pedido',
+  SOURCE_RESULT_REJECTED: 'A nova fonte proposta foi recusada',
+  APPLICATION_BUILD_FAILED: 'O aplicativo não compilou',
+  RUN_CANCELLED: 'Execução interrompida',
+  RUN_INTERRUPTED: 'Execução interrompida por reinício do Conexus',
+  INTERNAL_ERROR: 'Execução falhou por um erro interno',
+}
+
+// These three share one public category but have always been separate outcomes on screen, and an
+// operator acts on each differently.
+const failureStatusByCode: Record<string, string> = {
+  BUILDER_MODEL_AUTH_FAILED: 'O provedor recusou a credencial do modelo',
+  BUILDER_MODEL_CREDENTIAL_UNRESOLVABLE: 'A credencial do modelo não pôde ser resolvida',
+  BUILDER_MODEL_RATE_LIMITED: 'Modelo temporariamente limitado; tente novamente mais tarde',
+}
+
+const runStatus = (run: BuilderRun | null | undefined, phase: BuilderRun['phase']): string => {
   if (phase) return phaseLabels[phase]
-  if (state === 'QUEUED') return 'Na fila para iniciar'
-  if (state === 'RUNNING') return 'Executando no Builder'
-  if (kind === 'RESPONSE_ONLY') return 'Resposta somente'
-  if (kind === 'SOURCE_CHANGED_BUILD_FAILED') return 'Build falhou; o Preview anterior continua disponível'
-  if (kind === 'SOURCE_CHANGED' || state === 'SUCCEEDED') return 'Build concluído'
-  if (state === 'INTERRUPTED') return 'Execução interrompida'
-  if (failureCode === 'BUILDER_MODEL_RATE_LIMITED') return 'Modelo temporariamente limitado; tente novamente mais tarde'
-  if (state === 'FAILED') return 'Execução falhou'
+  if (run?.state === 'QUEUED') return 'Na fila para iniciar'
+  if (run?.state === 'RUNNING') return 'Executando no Builder'
+  if (run?.resultKind === 'RESPONSE_ONLY') return 'Resposta somente'
+  if (run?.resultKind === 'SOURCE_CHANGED_BUILD_FAILED') return 'Build falhou; o Preview anterior continua disponível'
+  if (run?.resultKind === 'SOURCE_CHANGED' || run?.state === 'SUCCEEDED') return 'Build concluído'
+  const named = run?.failureCode ? failureStatusByCode[run.failureCode] : undefined
+  if (named) return named
+  if (run?.failureCategory) return failureStatusByCategory[run.failureCategory]
+  if (run?.state === 'INTERRUPTED') return 'Execução interrompida'
+  if (run?.state === 'FAILED') return 'Execução falhou'
   return 'Pronto para construir'
+}
+
+// runHistory arrives newest first; the conversation reads oldest first, and latestBuilderRun is the
+// fresher copy of whichever run it repeats.
+const persistedRequestsOf = (history: readonly BuilderRun[], latest: BuilderRun | null | undefined): readonly PersistedRequest[] => {
+  const byId = new Map<string, BuilderRun>()
+  for (const entry of [...history].reverse()) byId.set(entry.builderRunId, entry)
+  if (latest) byId.set(latest.builderRunId, latest)
+  return [...byId.values()].flatMap((entry) => !entry.requestText ? [] : [{
+    runId: entry.builderRunId,
+    text: entry.requestText,
+    createdAt: entry.createdAt,
+    reason: entry.state === 'FAILED' || entry.state === 'INTERRUPTED' ? failureReason(entry.failureCategory) : null,
+  }])
 }
 
 type Inspection = 'CODE' | 'DIFF' | 'DETAILS'
@@ -342,7 +379,8 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     </section>
   }
 
-  const activeStatus = runStatus(run?.state, run?.resultKind, run?.phase, run?.failureCode)
+  const activeStatus = runStatus(run, run?.phase ?? null)
+  const persistedRequests = persistedRequestsOf(session.data?.runHistory ?? [], run)
   const phaseLabel = run?.state === 'QUEUED' ? 'Na fila para iniciar' : run?.phase && !(run.phase === 'AGENT' && turn.messages.length > 0) ? phaseLabels[run.phase] : null
   const hasOffers = offers.length > 0
 
@@ -404,11 +442,11 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
             <div><dt>Último Preview bom</dt><dd><code>{lastGoodSourceRevision ?? 'Ainda não disponível'}</code></dd></div>
             <div><dt>Artefato do Preview</dt><dd><code>{previewSummary?.lastGoodArtifactRevisionId ?? 'Ainda não disponível'}</code></dd></div>
             <div><dt>Digest do artefato</dt><dd><code>{previewSummary?.lastGoodArtifactDigest ?? 'Ainda não disponível'}</code></dd></div>
-            <div><dt>Última execução</dt><dd><code>{run?.builderRunId ?? 'Nenhuma'}</code> · {runStatus(run?.state, run?.resultKind, null, run?.failureCode)}</dd></div>
+            <div><dt>Última execução</dt><dd><code>{run?.builderRunId ?? 'Nenhuma'}</code> · {runStatus(run, null)}</dd></div>
           </dl>
           <h3>Histórico recente</h3>
           {(session.data?.runHistory?.length ?? 0) === 0 && <p>Nenhuma execução persistida.</p>}
-          {session.data?.runHistory && session.data.runHistory.length > 0 && <ol className="builder-run-history">{session.data.runHistory.map((historyRun) => <li key={historyRun.builderRunId}><code>{historyRun.builderRunId}</code><span>{runStatus(historyRun.state, historyRun.resultKind, null, historyRun.failureCode)}</span>{historyRun.modelId && <small>{historyRun.modelId}</small>}</li>)}</ol>}
+          {session.data?.runHistory && session.data.runHistory.length > 0 && <ol className="builder-run-history">{session.data.runHistory.map((historyRun) => <li key={historyRun.builderRunId}><code>{historyRun.builderRunId}</code><span>{runStatus(historyRun, null)}</span>{historyRun.modelId && <small>{historyRun.modelId}</small>}</li>)}</ol>}
           <h3>Trace nativo</h3>
           {trace.isPending && <p>Consultando trace…</p>}
           {trace.isError && <p role="alert">Trace indisponível.</p>}
@@ -419,7 +457,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       {!chatCollapsed && <aside data-mobile-pane={mobilePane} className="conexus-panel" aria-labelledby="conexus-panel-title">
         <div className="builder-panel-heading"><div><p className="eyebrow">Conexus Builder</p><h2 id="conexus-panel-title">Converse com o Conexus</h2><p className="builder-surface-caption">Peça alterações e acompanhe o que está acontecendo.</p></div></div>
         <section ref={conversationRef} onScroll={onConversationScroll} className="builder-conversation" aria-label="Mensagens do Builder" aria-live="polite">
-          <BuilderConversation history={history.data ?? []} turn={turn} pendingRequest={runActive && liveRequest && liveRequest.runId === runId ? liveRequest.text : null} runActive={runActive} phaseLabel={phaseLabel} />
+          <BuilderConversation history={history.data ?? []} turn={turn} pendingRequest={runActive && liveRequest && liveRequest.runId === runId ? liveRequest.text : null} persistedRequests={persistedRequests} failureCategory={run?.failureCategory ?? null} runActive={runActive} phaseLabel={phaseLabel} />
         </section>
         <form onSubmit={submit}>
           <label className="builder-composer-label" htmlFor={inputId}>O que o Project precisa fazer?</label>

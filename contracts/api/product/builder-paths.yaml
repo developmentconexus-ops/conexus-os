@@ -175,7 +175,7 @@ components:
     BuilderRunSummary:
       type: object
       additionalProperties: false
-      required: [builderRunId, projectId, state, mode, baseSourceRevision, modelAdmissionId, modelProviderId, modelId, cancellationRequested]
+      required: [builderRunId, projectId, state, mode, baseSourceRevision, requestText, createdAt, failureCategory, modelAdmissionId, modelProviderId, modelId, cancellationRequested]
       properties:
         builderRunId: { type: string, format: uuid }
         projectId: { type: string, format: uuid }
@@ -185,6 +185,14 @@ components:
         resultSourceRevision: { type: [string, 'null'], pattern: '^[0-9a-f]{40}$' }
         resultKind: { type: [string, 'null'], enum: [RESPONSE_ONLY, SOURCE_CHANGED, SOURCE_CHANGED_BUILD_FAILED, null] }
         failureCode: { type: [string, 'null'] }
+        # The public category the operator is shown. failureCode stays beside it as the handle the
+        # Detalhes lens and an operator's diagnosis need, and carries only codes the category table
+        # declares.
+        failureCategory:
+          type: [string, 'null']
+          enum: [ENVIRONMENT_PREPARATION_FAILED, MODEL_CREDENTIAL_REFUSED, MODEL_RATE_LIMITED, MODEL_REQUEST_REFUSED, SOURCE_RESULT_REJECTED, APPLICATION_BUILD_FAILED, RUN_CANCELLED, RUN_INTERRUPTED, INTERNAL_ERROR, null]
+        requestText: { type: [string, 'null'], maxLength: 20000 }
+        createdAt: { type: string, format: date-time }
         modelAdmissionId: { type: [string, 'null'] }
         modelProviderId: { type: [string, 'null'] }
         modelId: { type: [string, 'null'] }
