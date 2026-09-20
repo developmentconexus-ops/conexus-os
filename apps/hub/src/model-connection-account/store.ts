@@ -8,7 +8,7 @@ export type ModelCredentialReference = Readonly<{ connectionId: string; generati
 
 // The projection is everything a caller may learn about a connection. It carries provider, kind,
 // label and state, and never the credential: no operation in this module returns one.
-export type ModelConnectionProjection = Readonly<{ connectionId: string; label: string; state: 'ACTIVE' | 'REVOKED'; generation: string; ownerAccountId: string; workspaceId: string; role: 'OWNER' | 'USER'; revokedAt: string | null; providerId: string; credentialKind: 'OAUTH_TOKEN_SET' | 'API_KEY'; selected: boolean }>
+export type ModelConnectionProjection = Readonly<{ connectionId: string; label: string; state: 'ACTIVE' | 'REVOKED'; generation: string; ownerAccountId: string; workspaceId: string; role: 'OWNER' | 'USER'; revokedAt: string | null; providerId: string; credentialKind: 'OAUTH_TOKEN_SET' | 'API_KEY'; selected: boolean; shared: boolean }>
 export type ModelAuthorization = Readonly<{ authorizationId: string; url: string; state: string }>
 export type ModelConnectionStore = Readonly<{
   startAuthorization(input: Readonly<{ accountId: string; authorization: Readonly<{ authorizationId: string; state: string; verifier: string; url: string }> }>): Promise<ModelAuthorization>
@@ -34,7 +34,7 @@ const rowProjection = (row: QueryResultRow): ModelConnectionProjection => ({
   generation: generation(row.current_generation), ownerAccountId: text(row.owner_account_id), workspaceId: text(row.workspace_id),
   role: row.role === 'OWNER' ? 'OWNER' : 'USER', revokedAt: row.revoked_at instanceof Date ? row.revoked_at.toISOString() : null,
   providerId: text(row.provider_id), credentialKind: row.credential_kind === 'API_KEY' ? 'API_KEY' : 'OAUTH_TOKEN_SET',
-  selected: row.selected === true,
+  selected: row.selected === true, shared: row.shared === true,
 })
 
 export const createModelConnectionStore = ({ pool, credentialBackend }: Readonly<{ pool: PostgresPool; credentialBackend: CredentialBackend }>): ModelConnectionStore => Object.freeze({

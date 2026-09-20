@@ -112,8 +112,9 @@ function ApiKeyForm({ providers }: Readonly<{ providers: readonly ApiKeyProvider
   </form>
 }
 
-function ConnectionRow({ connection, providerName, currentAccountId, workspaces }: Readonly<{
+function ConnectionRow({ connection, rows, providerName, currentAccountId, workspaces }: Readonly<{
   connection: ModelConnection
+  rows: readonly ModelConnection[]
   providerName: string
   currentAccountId: string
   workspaces: readonly SettingsWorkspace[]
@@ -122,14 +123,18 @@ function ConnectionRow({ connection, providerName, currentAccountId, workspaces 
   const popups = useContext(PopupContainer)
   const owned = connection.ownerAccountId === currentAccountId
   const active = connection.state === 'ACTIVE'
-  const sharedWith = workspaces.find((workspace) => workspace.workspaceId === connection.workspaceId)
+  const workspaceName = (workspaceId: string): string =>
+    workspaces.find((workspace) => workspace.workspaceId === workspaceId)?.name ?? 'outro Workspace'
+  // A row is one connection paired with one Workspace, and only `shared` says whether the
+  // connection is in it: on an owner row the Workspace is merely one the owner can see.
+  const sharedWith = rows.filter((row) => row.shared)
+  const shareable = rows.filter((row) => !row.shared)
   const [shareWorkspaceId, setShareWorkspaceId] = useState('')
   const select = useMutation({ mutationFn: selectModelConnection, onSuccess: refresh })
   const share = useMutation({ mutationFn: shareModelConnection, onSuccess: async () => { setShareWorkspaceId(''); await refresh() } })
   const unshare = useMutation({ mutationFn: unshareModelConnection, onSuccess: refresh })
   const revoke = useMutation({ mutationFn: revokeModelConnection, onSuccess: refresh })
   const error = select.error ?? share.error ?? unshare.error ?? revoke.error
-  const shareable = workspaces.filter((workspace) => workspace.workspaceId !== connection.workspaceId)
   return <article className="credential-row" data-state={connection.state}>
     <div className="credential-row-main">
       <div>
@@ -139,18 +144,19 @@ function ConnectionRow({ connection, providerName, currentAccountId, workspaces 
           <Badge variant="blue" emphasis="muted" size="sm">{connection.credentialKind === 'API_KEY' ? 'Chave de API' : 'Conta'}</Badge>
           {!active && <Badge variant="red" emphasis="muted" size="sm">Revogada</Badge>}
           {active && connection.selected && <Badge variant="green" indicator="dot" size="sm">Em uso no Builder</Badge>}
-          {!owned && <Badge variant="neutral" emphasis="muted" size="sm">{sharedWith ? `Compartilhada por ${sharedWith.name}` : 'Compartilhada com você'}</Badge>}
+          {!owned && <Badge variant="neutral" emphasis="muted" size="sm">{sharedWith.length > 0 ? `Compartilhada por ${sharedWith.map((row) => workspaceName(row.workspaceId)).join(', ')}` : 'Compartilhada com você'}</Badge>}
         </p>
       </div>
       {active && !connection.selected && <Button variant="outline" size="sm" disabled={select.isPending} onClick={() => select.mutate(connection.connectionId)}>Usar no Builder</Button>}
     </div>
     {owned && active && <div className="credential-row-manage">
-      {sharedWith
-        ? <span>Compartilhada com <strong>{sharedWith.name}</strong>. <Button variant="ghost" size="xs" disabled={unshare.isPending} onClick={() => unshare.mutate({ connectionId: connection.connectionId, workspaceId: connection.workspaceId })}>Parar de compartilhar</Button></span>
-        : shareable.length > 0 && <span className="credential-share">
-          <Combobox options={shareable.map((workspace) => ({ value: workspace.workspaceId, label: workspace.name }))} value={shareWorkspaceId} onValueChange={setShareWorkspaceId} placeholder="Compartilhar com um Workspace" size="sm" aria-label="Workspace" container={popups} />
+      <div className="credential-shares">
+        {sharedWith.map((row) => <span key={row.workspaceId}>Compartilhada com <strong>{workspaceName(row.workspaceId)}</strong>. <Button variant="ghost" size="xs" disabled={unshare.isPending} onClick={() => unshare.mutate({ connectionId: connection.connectionId, workspaceId: row.workspaceId })}>Parar de compartilhar</Button></span>)}
+        {shareable.length > 0 && <span className="credential-share">
+          <Combobox options={shareable.map((row) => ({ value: row.workspaceId, label: workspaceName(row.workspaceId) }))} value={shareWorkspaceId} onValueChange={setShareWorkspaceId} placeholder="Compartilhar com um Workspace" size="sm" aria-label="Workspace" container={popups} />
           <Button variant="outline" size="sm" disabled={!shareWorkspaceId || share.isPending} onClick={() => share.mutate({ connectionId: connection.connectionId, workspaceId: shareWorkspaceId })}>Compartilhar</Button>
         </span>}
+      </div>
       {connection.role === 'OWNER' && <AlertDialog>
         <AlertDialog.Trigger render={<Button variant="destructive-ghost" size="xs">Revogar</Button>} />
         <AlertDialog.Portal><AlertDialog.Overlay /><AlertDialog.Content>
@@ -176,14 +182,23 @@ export function ModelConnectionSettings({ workspaces, currentAccountId }: Readon
     accountSignIns.find((signIn) => signIn.providerId === connection.providerId)?.name
     ?? apiKeyProviders.find((provider) => provider.providerId === connection.providerId)?.name
     ?? connection.providerId
-  const ordered = [...connections.data.connections].sort((left, right) => Number(right.state === 'ACTIVE') - Number(left.state === 'ACTIVE') || Number(right.selected) - Number(left.selected))
+  // The endpoint returns one row per connection and Workspace pair, so an owned connection repeats
+  // once per Workspace the owner can see. Settings is about the connection, not the pair.
+  const groups: { connection: ModelConnection; rows: ModelConnection[] }[] = []
+  const byConnection = new Map<string, { connection: ModelConnection; rows: ModelConnection[] }>()
+  for (const row of connections.data.connections) {
+    const group = byConnection.get(row.connectionId)
+    if (group) group.rows.push(row)
+    else { const created = { connection: row, rows: [row] }; byConnection.set(row.connectionId, created); groups.push(created) }
+  }
+  const ordered = groups.sort((left, right) => Number(right.connection.state === 'ACTIVE') - Number(left.connection.state === 'ACTIVE') || Number(right.connection.selected) - Number(left.connection.selected))
   return <PopupContainer.Provider value={popups}><div className="credentials">
     <section aria-labelledby="credentials-yours">
       <h2 id="credentials-yours">Suas conexões</h2>
       <p className="panel-intro">O Builder só oferece modelos dos provedores que têm uma conexão ativa aqui.</p>
       {ordered.length === 0
         ? <p className="empty">Nenhuma conexão ainda. Adicione uma abaixo para poder usar o Builder.</p>
-        : ordered.map((connection) => <ConnectionRow key={`${connection.connectionId}-${connection.workspaceId}`} connection={connection} providerName={providerName(connection)} currentAccountId={currentAccountId} workspaces={workspaces} />)}
+        : ordered.map((group) => <ConnectionRow key={group.connection.connectionId} connection={group.connection} rows={group.rows} providerName={providerName(group.connection)} currentAccountId={currentAccountId} workspaces={workspaces} />)}
     </section>
     <section aria-labelledby="credentials-add">
       <h2 id="credentials-add">Adicionar conexão</h2>

@@ -52,6 +52,7 @@ fieldset input { margin: 0; }
 .credential-row-main { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 .credential-row-main p { display: flex; flex-wrap: wrap; gap: .35rem; margin: .4rem 0 0; }
 .credential-row-manage { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-top: .75rem; border-top: 1px solid #edf0ee; color: #617068; font-size: .85rem; }
+.credential-shares { display: grid; gap: .45rem; justify-items: start; }
 .credential-share { display: flex; align-items: center; gap: .5rem; }
 .credential-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: .9rem; margin-top: 1rem; align-items: start; }
 .credential-card { margin-top: 1rem; }
