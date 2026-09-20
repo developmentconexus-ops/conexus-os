@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import type { RegistryQueryClient } from './store.js'
 
-const TEMPLATE_REF = '537fnzf4c16x9d7oz21k:392ec729-82d7-4f25-bbf0-cc09361611fe'
-const RECIPE_SHA256 = '6834ca0434e1e6a597340d22d5c1692339a4fc4860948ff834b9851e61406edc'
+const TEMPLATE_REF = '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189'
+const RECIPE_SHA256 = '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf'
 const MAX_FILES = 256
 const MAX_TOTAL_BYTES = 12 * 1024 * 1024
 const SHA256 = /^[a-f0-9]{64}$/

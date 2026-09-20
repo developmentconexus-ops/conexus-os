@@ -258,7 +258,7 @@ test('BUILD source result is admitted, CASed, compiled, settles Preview and pers
         return {
           projectId, executionId: runId, sandboxId: 'sandbox', baseSourceRevision: base, summary: 'alterado', kind: 'CANDIDATE',
           resultSourceRevision: resultRevision, resultBundle: new Uint8Array([1]),
-          compiledApplication: { projectId, executionId: runId, sourceRevision: resultRevision, templateRef: 'x', recipeSha256: 'y', files: [] },
+          applicationBuild: { kind: 'BUILT', compiledApplication: { projectId, executionId: runId, sourceRevision: resultRevision, templateRef: 'x', recipeSha256: 'y', files: [] } },
         }
       },
     },
@@ -274,5 +274,84 @@ test('BUILD source result is admitted, CASed, compiled, settles Preview and pers
     ['phase', 'FINALIZING'],
     ['build-settle', '77777777-7777-4777-8777-777777777777', 'd'.repeat(64)],
   ])
+})
+
+test('a build or smoke failure still admits and advances the source, and settles SOURCE_CHANGED_BUILD_FAILED', async () => {
+  const runId = '44444444-4444-4444-8444-444444444445'
+  const projectId = '55555555-5555-4555-8555-555555555555'
+  const accountId = '66666666-6666-4666-8666-666666666666'
+  const base = 'b'.repeat(40)
+  const resultRevision = 'c'.repeat(40)
+  const calls = []
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted }
+  const store = {
+    createBuilderRun: async () => run,
+    claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
+    setBuilderRunPhase: async (_id, phase) => calls.push(['phase', phase]),
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
+    advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
+    settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.failureCode ?? null]),
+  }
+  // retainApplication must never be reached: there is no compiled application to retain when the
+  // sandbox reports a build or smoke failure, only the code that names it.
+  const service = createBuilderService({
+    store,
+    source: {
+      prepareProjectSource: async (input) => { calls.push(['prepareProjectSource', input.executionId]); return new Uint8Array([1]) },
+      admitSourceResult: async (input) => { calls.push(['admitSourceResult', input.executionId]); return { baseSourceRevision: base, resultSourceRevision: resultRevision, patch: 'diff' } },
+    },
+    runtime: {
+      kind: 'REMOTE_E2B',
+      execute: async (input) => {
+        await input.setPhase?.('COMPILING')
+        return {
+          projectId, executionId: runId, sandboxId: 'sandbox', baseSourceRevision: base, summary: 'alterado', kind: 'CANDIDATE',
+          resultSourceRevision: resultRevision, resultBundle: new Uint8Array([1]),
+          applicationBuild: { kind: 'BUILD_FAILED', code: 'APPLICATION_SMOKE_NO_ROOT_CHILD' },
+        }
+      },
+    },
+    applicationArtifacts: { retainApplication: async () => { throw new Error('must not retain a build-failed compile') } },
+    listModelOffers,
+  })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
+  await service.close()
+  assert.deepEqual(calls, [
+    ['phase', 'PREPARING'], ['prepareProjectSource', runId], ['phase', 'COMPILING'],
+    ['phase', 'SOURCE_ADMISSION'], ['admitSourceResult', runId], ['advance', resultRevision],
+    ['phase', 'FINALIZING'],
+    ['build-settle', 'APPLICATION_SMOKE_NO_ROOT_CHILD'],
+  ])
+})
+
+test('a runtime failure that is not a build or smoke failure still fails the run outright', async () => {
+  const runId = '44444444-4444-4444-8444-444444444446'
+  const projectId = '55555555-5555-4555-8555-555555555555'
+  const accountId = '66666666-6666-4666-8666-666666666666'
+  const base = 'b'.repeat(40)
+  const calls = []
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted }
+  const store = {
+    createBuilderRun: async () => run,
+    claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
+    setBuilderRunPhase: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {},
+    failBuilderRun: async (_id, code) => calls.push(['fail', code]),
+    close: async () => {},
+    advanceBuilderRunSource: async () => { throw new Error('must not admit: the runtime never returned a result') },
+    settleBuilderRunBuild: async () => { throw new Error('must not settle a build: the runtime never returned a result') },
+  }
+  const service = createBuilderService({
+    store,
+    source: { prepareProjectSource: async () => new Uint8Array([1]) },
+    runtime: {
+      kind: 'REMOTE_E2B',
+      execute: async () => { throw new Error('APPLICATION_COMPILER_WORKSPACE_REFUSED') },
+    },
+    applicationArtifacts: {}, listModelOffers,
+  })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
+  await service.close()
+  assert.deepEqual(calls, [['fail', 'APPLICATION_COMPILER_WORKSPACE_REFUSED']])
 })
 

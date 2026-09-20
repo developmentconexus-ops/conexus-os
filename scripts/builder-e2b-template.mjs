@@ -30,7 +30,9 @@ export const createBuilderTemplate = (Template) => {
     .setUser('root')
     .runCmd([
       'apt-get update',
-      'DEBIAN_FRONTEND=noninteractive DEBCONF_NOWARNINGS=yes apt-get install -y --no-install-recommends ca-certificates git',
+      // chromium is the P-06 boot-smoke driver: headless Chromium serves as the observer that
+      // decides whether a compiled artifact boots, so it ships in the same image the compile runs in.
+      'DEBIAN_FRONTEND=noninteractive DEBCONF_NOWARNINGS=yes apt-get install -y --no-install-recommends ca-certificates git chromium',
       'rm -rf /var/lib/apt/lists/*',
     ].join(' && '))
     .runCmd(`mkdir -p ${BUILDER_TEMPLATE_COMPILER_ROOT}`)
@@ -51,6 +53,7 @@ export const createBuilderTemplate = (Template) => {
       'git --version',
       `test -f ${BUILDER_TEMPLATE_COMPILER_ROOT}/vite.config.mjs`,
       `test -x ${BUILDER_TEMPLATE_COMPILER_ROOT}/node_modules/.bin/vite`,
+      'command -v chromium',
       'test "$(pwd)" = "/workspace"',
     ].join(' && '))
 }
