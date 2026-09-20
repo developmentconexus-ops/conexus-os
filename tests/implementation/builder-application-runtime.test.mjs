@@ -115,8 +115,8 @@ test('application compiler preserves source identity and hashes actual regular o
     assert.equal(result.projectId, projectId)
     assert.equal(result.executionId, executionId)
     assert.equal(result.sourceRevision, sourceRevision)
-    assert.equal(result.templateRef, 'xdli9puqp1nepk4ht6lw:8a1e3885-c6d7-4b06-aea6-860632f407e6')
-    assert.equal(result.recipeSha256, '32230b4ba0b72625474b7f722e2294a256f9ab2f7c1c9b1eb107f38770edbe97')
+    assert.equal(result.templateRef, '537fnzf4c16x9d7oz21k:392ec729-82d7-4f25-bbf0-cc09361611fe')
+    assert.equal(result.recipeSha256, '6834ca0434e1e6a597340d22d5c1692339a4fc4860948ff834b9851e61406edc')
     assert.deepEqual(result.files.map(file => ({ ...file, bytes: [...file.bytes] })), [
       { path: 'assets/app.js', mediaType: 'text/javascript; charset=utf-8', bytes: [...output.get('/workspace/dist/assets/app.js')], sha256: createHash('sha256').update(output.get('/workspace/dist/assets/app.js')).digest('hex') },
       { path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes: [...output.get('/workspace/dist/index.html')], sha256: createHash('sha256').update(output.get('/workspace/dist/index.html')).digest('hex') },

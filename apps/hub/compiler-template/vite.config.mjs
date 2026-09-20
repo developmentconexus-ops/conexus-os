@@ -1,5 +1,7 @@
 export default {
-  root: '/workspace/app',
+  // The compiler sandbox writes the application to /workspace/app. The agent's sandbox already
+  // holds it inside its checkout, so that flow points this at the checkout instead of copying.
+  root: process.env.CONEXUS_COMPILE_ROOT ?? '/workspace/app',
   base: '/',
   publicDir: false,
   cacheDir: '/workspace/.vite',

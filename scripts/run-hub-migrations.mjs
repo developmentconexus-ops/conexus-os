@@ -15,12 +15,14 @@ const pruneDeadIamActionsDigest = 'a7ec17faae66640cbe2e85efec79f168abe0b3f8dc2bd
 const listConnectionsSelectedDigest = '35a82f9f7a4a78da5571f503c4cd7d1f440f7d0ae7b9718b51a4fb6646c9031c'
 const listConnectionsSharedDigest = '0d62c72585ce8d2987d4cb5a2cec04ec0cea1284f369c748130382a1f7da03f6'
 const builderRunRequestTextDigest = '4dded47eda6987575baea9cdc6f3565990cb3b637b779cb4bd7d428d0e9d9386'
+const mergedSandboxTemplateDigest = '4a3f1e7dbc2b8c8e6d2df71fd506f19991ee72cec67133446c530501f16fd595'
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
   ['0002_prune_dead_iam_actions.sql', pruneDeadIamActionsDigest],
   ['0003_list_connections_selected.sql', listConnectionsSelectedDigest],
   ['0004_list_connections_shared.sql', listConnectionsSharedDigest],
   ['0005_builder_run_request_text.sql', builderRunRequestTextDigest],
+  ['0006_merged_sandbox_template.sql', mergedSandboxTemplateDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n
