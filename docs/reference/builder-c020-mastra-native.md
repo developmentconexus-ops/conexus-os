@@ -186,15 +186,14 @@ Keep the physical sandbox bound for the run; do not silently resume in a replace
 
 ## 11. Streaming and reconnect
 
-History is persistent Thread/messages. Live view is native Session.displayState.
-Subscribe to display_state_changed, then send one current safe snapshot and
-replace the live view on each native update. Do not add replay, sequence cursors,
-an observation store, or a second tool/text lifecycle.
+History is persistent Thread/messages and the live turn is the native Session
+event stream. Both reach the browser over Mastra's own Agent Controller session
+routes, mounted under /api/mastra behind Conexus authorization. Conexus defines
+no live projection of its own: no replay, sequence cursors, observation store, or
+second tool/text lifecycle.
 
-The authenticated Project/run projection hides raw tool arguments/results,
-shell output, credentials, provider metadata, and unsafe paths.
-Reconnect reads persisted messages, current BuilderRun, working source, and
-last-good Preview, then attaches only to the currently available Session.
+Reconnect reads the native thread messages, current BuilderRun, working source,
+and last-good Preview, then resubscribes to the currently available Session.
 Missed live events do not become lost durable state.
 
 ## 12. Product API
@@ -205,11 +204,11 @@ The ordinary API is Project-scoped:
 GET  /api/control/projects/:projectId/builder-session
 POST /api/control/projects/:projectId/builder-session/messages
 POST /api/control/projects/:projectId/builder-session/preview
-GET  /api/control/projects/:projectId/builder-session/runs/:builderRunId/stream
 ```
 
-GET projects messages, latest run/code-changing run, mode, and working/last-good
-coordinates. It does not expose Thread, Controller, Session, or sandbox identities.
+GET projects the Project's Mastra thread id, latest run/code-changing run, mode,
+and working/last-good coordinates. It does not expose Controller, Session, or
+sandbox identities.
 Public model choice IDs/labels and the admitted model label may be projected.
 POST message accepts content, BUILD/PLAN, an authorized connection choice,
 a server-issued model choice, and Idempotency-Key. Account, Project authority,

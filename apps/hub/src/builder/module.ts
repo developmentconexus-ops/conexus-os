@@ -7,19 +7,18 @@ import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 import { createCodingAgent } from '@mastra/core/coding-agent'
 import { AgentController } from '@mastra/core/agent-controller'
+import { Mastra } from '@mastra/core/mastra'
 import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
-import type { BuilderLaunchPreviewPort, BuilderMessagePart, BuilderSessionMessage, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
+import { registerBuilderMastraRoutes } from './mastra-session-routes.js'
+import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
 import {
   BUILDER_TRACE_REQUEST_CONTEXT_KEYS,
   BUILDER_CREDENTIAL_REQUEST_CONTEXT_KEY,
   BUILDER_MODEL_REQUEST_CONTEXT_KEY,
   createMastraE2BCodingWorkerRuntime,
   resolveBuilderWorkspace,
-  safeActivityId,
-  safePath,
-  toolLabel,
 } from './runtime.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
@@ -87,78 +86,6 @@ export const createBuilderObservabilityLifecycle = (
     },
   })
 }
-
-const messageDate = (value: unknown): string => {
-  const date = value instanceof Date ? value : new Date(String(value))
-  return Number.isNaN(date.valueOf()) ? new Date(0).toISOString() : date.toISOString()
-}
-type ProjectableBuilderMessage = Readonly<{
-  id: string
-  role: string
-  type?: string
-  content: unknown
-  createdAt: unknown
-}>
-const nativeMessageParts = (content: unknown): readonly Record<string, unknown>[] => {
-  if (typeof content === 'string') return content ? [{ type: 'text', text: content }] : []
-  if (Array.isArray(content)) return content as Record<string, unknown>[]
-  if (typeof content === 'object' && content !== null && 'parts' in content && Array.isArray((content as { parts?: unknown }).parts)) {
-    return (content as { parts: Record<string, unknown>[] }).parts
-  }
-  return []
-}
-const sandboxExitOutcomes = (parts: readonly Record<string, unknown>[]): ReadonlyMap<string, Readonly<{ success: boolean; executionTimeMs?: number }>> => {
-  const outcomes = new Map<string, Readonly<{ success: boolean; executionTimeMs?: number }>>()
-  for (const part of parts) {
-    if (part.type !== 'data-sandbox-exit' || typeof part.data !== 'object' || part.data === null) continue
-    const { toolCallId, success, executionTimeMs } = part.data as Record<string, unknown>
-    if (typeof toolCallId === 'string' && typeof success === 'boolean') {
-      outcomes.set(toolCallId, Object.freeze({ success, ...(typeof executionTimeMs === 'number' ? { executionTimeMs } : {}) }))
-    }
-  }
-  return outcomes
-}
-const buildActivityPart = (
-  toolInvocation: Record<string, unknown>,
-  outcomes: ReadonlyMap<string, Readonly<{ success: boolean; executionTimeMs?: number }>>,
-): BuilderMessagePart | undefined => {
-  const { toolCallId, toolName, args, state } = toolInvocation
-  if (typeof toolCallId !== 'string' || typeof toolName !== 'string' || typeof state !== 'string') return undefined
-  const outcome = outcomes.get(toolCallId)
-  const path = safePath(args)
-  return Object.freeze({
-    kind: 'ACTIVITY' as const,
-    id: safeActivityId(toolCallId),
-    label: toolLabel(toolName),
-    ...(path ? { path } : {}),
-    state: outcome ? outcome.success ? 'succeeded' : 'failed' : state === 'result' ? 'succeeded' : 'interrupted',
-    ...(outcome?.executionTimeMs !== undefined ? { durationMs: outcome.executionTimeMs } : {}),
-  })
-}
-const buildMessageParts = (parts: readonly Record<string, unknown>[]): readonly BuilderMessagePart[] => {
-  const outcomes = sandboxExitOutcomes(parts)
-  return parts.flatMap((part): BuilderMessagePart[] => {
-    if (part.type === 'text' && typeof part.text === 'string' && part.text.trim()) return [Object.freeze({ kind: 'TEXT' as const, text: part.text })]
-    if (part.type === 'tool-invocation' && typeof part.toolInvocation === 'object' && part.toolInvocation !== null) {
-      const activity = buildActivityPart(part.toolInvocation as Record<string, unknown>, outcomes)
-      return activity ? [activity] : []
-    }
-    return []
-  })
-}
-export const projectBuilderMessages = (messages: readonly ProjectableBuilderMessage[]): readonly BuilderSessionMessage[] => Object.freeze(messages
-  .flatMap((message) => {
-    const role: 'user' | 'assistant' | 'system' | null = message.role === 'signal' && message.type === 'user'
-      ? 'user'
-      : message.role === 'user' || message.role === 'assistant' || message.role === 'system'
-        ? message.role
-        : null
-    if (!role) return []
-    const parts = buildMessageParts(nativeMessageParts(message.content))
-    return parts.length ? [{ id: message.id, role, createdAt: messageDate(message.createdAt), parts: Object.freeze(parts) }] : []
-  })
-  .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
-  .map((message) => Object.freeze(message)))
 
 export const resolveBuilderModel = ({ reference, modelIdentity, resolveModel, fallbackModel }: Readonly<{
   reference: unknown
@@ -247,6 +174,9 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     defaultModeId: 'build', agent: sharedAgent, workspace: undefined,
     observability,
   })
+  // A controller registered on a Mastra instance reads threads through that instance's storage, so the
+  // instance has to hold the same store the sessions write to.
+  const mastra = new Mastra({ storage: sessionStorage, agentControllers: { [sharedController.id]: sharedController }, logger: false })
   const sharedControllerReady = sharedController.init()
   let sessionStorageInit: Promise<void> | undefined
   const ensureSessionStorage = async (): Promise<void> => {
@@ -281,16 +211,9 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
       if (!preview) throw new Error('NOT_AUTHORIZED')
       await ensureSessionStorage()
       const runHistory = await store.listBuilderRuns({ accountId, projectId })
-      const threadId = threadIdForProject(projectId)
-      const thread = await sessionMemory.getThreadById({ threadId })
-      const history = thread
-        ? await sessionMemory.recall({ threadId, resourceId: projectId, page: 0, perPage: 50 })
-        : { messages: [] }
-      const messages = projectBuilderMessages(history.messages)
       return Object.freeze({
         projectId,
-        threadId,
-        messages: Object.freeze(messages),
+        threadId: threadIdForProject(projectId),
         workingSourceRevision: preview.workingSourceRevision,
         lastPreviewSourceRevision: preview.lastPreviewSourceRevision ?? null,
         lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId ?? null,
@@ -323,7 +246,16 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
     },
   })
   return Object.freeze({
-    registerBuilderRoutes: (app: FastifyInstance) => registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) }),
+    registerBuilderRoutes: async (app: FastifyInstance) => {
+      await registerBuilderMastraRoutes(app, {
+        mastra,
+        controller: sharedController,
+        origin,
+        resolveCurrentSession,
+        admitProjectBuild: async (input) => Boolean(await store.readPreviewSubject(input)),
+      })
+      return registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) })
+    },
     readApplicationFileBySource: service.readApplicationFileBySource,
     getApplicationBySource: service.getApplicationBySource,
     recover: service.recover,

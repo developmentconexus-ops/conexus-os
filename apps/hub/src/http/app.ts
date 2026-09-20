@@ -49,7 +49,13 @@ export const createHttpApp = async ({
   await app.register(cookie)
   await app.register(helmet, {
     contentSecurityPolicy: { directives: {
-      defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'"],
+      defaultSrc: ["'self'"], scriptSrc: ["'self'"],
+      // The two hashes are the only <style> elements @mastra/playground-ui injects: an empty one and
+      // sonner's toaster sheet, which that library adds on import. Any other injected style stays
+      // refused, so a library upgrade that changes either shows up as a CSP violation, not silently.
+      styleSrc: ["'self'", "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='", "'sha256-StEaX+se6YS7pqjzrzMIA0KaX9zF/8zAhvQXZAe5epY='"],
+      // Style attributes only: syntax-highlight tokens and collapsible geometry are set per element.
+      styleSrcAttr: ["'unsafe-inline'"],
       ...(previewCspSource ? { frameSrc: [previewCspSource] } : {}),
       ...(previewCspSource ? { connectSrc: ["'self'", previewCspSource] } : {}),
       ...(previewCspSource ? { formAction: ["'self'", previewCspSource] } : {}),

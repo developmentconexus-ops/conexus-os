@@ -3,12 +3,20 @@ import type { CSSProperties, FormEvent, KeyboardEvent } from 'react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useMutation as useConnectionMutation, useQuery as useConnectionQuery, useQueryClient as useConnectionQueryClient } from '@tanstack/react-query'
 import { modelConnectionsQueryKey, listModelConnections, selectModelConnection } from '../../model-connection/api'
-import { BuilderRequestError, cancelBuilderRun, getBuilderRunTrace, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type BuilderMessagePart, type BuilderSession, type BuilderSessionMessage, type PreviewLaunch, type SourceTree } from '../api'
-import { observeBuilderRun, type BuilderLiveView, type BuilderObservation } from '../observation'
-import { BuilderMarkdown } from './builder-markdown'
+import { BuilderRequestError, cancelBuilderRun, getBuilderRunTrace, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type BuilderRun, type BuilderSession, type PreviewLaunch, type SourceTree } from '../api'
+import { useBuilderLiveTurn, useBuilderThreadMessages } from '../mastra-session'
+import { BuilderConversation } from './builder-conversation'
 
-const runStatus = (state: string | undefined, kind: string | null | undefined, phase?: string | null, failureCode?: string | null): string => {
-  if (phase) return phase
+const phaseLabels: Record<NonNullable<BuilderRun['phase']>, string> = {
+  PREPARING: 'Preparando o ambiente de código',
+  AGENT: 'Conexus está trabalhando',
+  SOURCE_ADMISSION: 'Conferindo a nova fonte',
+  COMPILING: 'Compilando o aplicativo',
+  FINALIZING: 'Publicando o Preview',
+}
+
+const runStatus = (state: string | undefined, kind: string | null | undefined, phase?: BuilderRun['phase'], failureCode?: string | null): string => {
+  if (phase) return phaseLabels[phase]
   if (state === 'QUEUED') return 'Na fila para iniciar'
   if (state === 'RUNNING') return 'Executando no Builder'
   if (kind === 'RESPONSE_ONLY') return 'Resposta somente'
@@ -20,26 +28,10 @@ const runStatus = (state: string | undefined, kind: string | null | undefined, p
   return 'Pronto para construir'
 }
 
-const activityLabel = (label: BuilderLiveView['activities'][number]['label']): string => ({
-  READ_FILES: 'Lendo arquivos', EDIT_FILES: 'Editando', RUN_COMMAND: 'Executando comando', WORKSPACE: 'Trabalhando no Workspace',
-}[label])
-
-const activityState = (state: BuilderLiveView['activities'][number]['state']): string => ({
-  started: 'em andamento', succeeded: 'concluído', failed: 'falhou', interrupted: 'interrompido',
-}[state])
-
-const messageText = (message: BuilderSessionMessage): string =>
-  message.parts.filter((part): part is Extract<BuilderMessagePart, { kind: 'TEXT' }> => part.kind === 'TEXT').map((part) => part.text).join('')
-
-const observationNotices: Partial<Record<BuilderObservation['status'], string>> = {
-  RECONNECTING: 'Conexão de acompanhamento perdida. Reconectando à execução…',
-  UNOBSERVABLE: 'Não é possível acompanhar esta execução ao vivo. O estado atual vem da sessão do Project.',
-}
-
 type Inspection = 'CODE' | 'DIFF' | 'DETAILS'
 type SourceDiffEntry = Readonly<{ path: string; status: 'ADDED' | 'REMOVED' | 'MODIFIED' }>
 type SourceSnapshot = Readonly<{ sourceRevision: string; files: ReadonlyMap<string, string> }>
-type LiveRequest = Readonly<{ runId: string; text: string; messageBoundary: number }>
+type LiveRequest = Readonly<{ runId: string; text: string }>
 type PreviewKey = Readonly<{
   projectId: string
   sourceRevision: string
@@ -197,7 +189,6 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const [previewRatio, setPreviewRatio] = useState(2)
   const [mobilePane, setMobilePane] = useState<'PREVIEW' | 'CHAT'>('PREVIEW')
   const [chatCollapsed, setChatCollapsed] = useState(false)
-  const [observation, setObservation] = useState<BuilderObservation | null>(null)
   const [liveRequest, setLiveRequest] = useState<LiveRequest | null>(null)
   const [inspection, setInspection] = useState<Inspection | null>(null)
   const [requiresModelConnection, setRequiresModelConnection] = useState(false)
@@ -214,14 +205,13 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   })
   const modelConnections = useConnectionQuery({ queryKey: modelConnectionsQueryKey, queryFn: listModelConnections })
   const send = useMutation({
-    mutationFn: (value: Readonly<{ content: string; mode: 'BUILD' | 'PLAN'; key: string; messageBoundary: number; modelChoiceId?: string }>) =>
+    mutationFn: (value: Readonly<{ content: string; mode: 'BUILD' | 'PLAN'; key: string; modelChoiceId?: string }>) =>
       sendBuilderMessage(projectId, value.content, value.mode, value.key, value.modelChoiceId),
     onSuccess: async (result, variables) => {
       setContent((current) => current === variables.content ? '' : current)
       setMessage('Mensagem enviada ao Builder.')
       setRequiresModelConnection(false)
-      setLiveRequest({ runId: result.builderRun.builderRunId, text: variables.content, messageBoundary: variables.messageBoundary })
-      setObservation(null)
+      setLiveRequest({ runId: result.builderRun.builderRunId, text: variables.content })
       await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] })
     },
     onError: (error) => {
@@ -260,26 +250,15 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     if (firstChoice && !selectedModelChoice) setModelChoiceId(firstChoice.choiceId)
     if (!firstChoice && modelChoiceId) setModelChoiceId('')
   }, [modelChoiceId, modelChoices, selectedModelChoice])
-  useEffect(() => {
-    if (!runId || !runActive) return undefined
-    const controller = new AbortController()
-    void observeBuilderRun(projectId, runId, controller.signal, setObservation)
-    return () => controller.abort()
-  }, [projectId, runActive, runId])
+  const history = useBuilderThreadMessages(projectId, session.data?.threadId)
+  const turn = useBuilderLiveTurn(projectId, runId, runActive && run?.phase === 'AGENT')
   const previousRunState = useRef<string | undefined>(undefined)
   useEffect(() => {
     const wasActive = previousRunState.current === 'QUEUED' || previousRunState.current === 'RUNNING'
     previousRunState.current = run?.state
     if (!runId || !wasActive || runActive) return
-    void session.refetch().finally(() => {
-      setObservation(null)
-      setLiveRequest(null)
-    })
-  }, [run, runActive, runId, session])
-  const timelineMessages = session.data?.messages ?? []
-  const hasLiveUser = Boolean(liveRequest && timelineMessages.slice(liveRequest.messageBoundary).some((item) => item.role === 'user' && messageText(item) === liveRequest.text))
-  const persistedActivityIds = new Set(timelineMessages.flatMap((item) => item.parts.filter((part) => part.kind === 'ACTIVITY').map((part) => part.id)))
-  const liveRequestPart = runActive && liveRequest && !hasLiveUser ? liveRequest : null
+    void Promise.all([session.refetch(), history.refetch()]).finally(() => setLiveRequest(null))
+  }, [history, run, runActive, runId, session])
   const onConversationScroll = () => {
     const element = conversationRef.current
     if (!element) return
@@ -433,7 +412,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       else if (connectionUnavailable) setMessage('Conecte um modelo do provedor selecionado antes de enviar um Build.')
       return
     }
-    send.mutate({ content: value, mode, key: crypto.randomUUID(), messageBoundary: session.data?.messages.length ?? 0, ...(modelChoiceId ? { modelChoiceId } : {}) })
+    send.mutate({ content: value, mode, key: crypto.randomUUID(), ...(modelChoiceId ? { modelChoiceId } : {}) })
   }
   const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -451,12 +430,9 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     </section>
   }
 
-  const liveView = observation?.view ?? null
-  const observationNotice = observation ? observationNotices[observation.status] ?? null : null
-  const visiblePhase = liveView?.phase ?? run?.phase ?? null
-  const activeStatus = runStatus(run?.state, run?.resultKind, visiblePhase, run?.failureCode)
+  const activeStatus = runStatus(run?.state, run?.resultKind, run?.phase, run?.failureCode)
+  const phaseLabel = run?.state === 'QUEUED' ? 'Na fila para iniciar' : run?.phase && !(run.phase === 'AGENT' && turn.messages.length > 0) ? phaseLabels[run.phase] : null
   const hasChoices = modelChoices.length > 0
-  const latestActivity = liveView?.activities.at(-1)
 
   return <div className="project-build">
     <nav className="builder-mobile-switcher" aria-label="Painel do Builder">
@@ -531,21 +507,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       {!chatCollapsed && <aside data-mobile-pane={mobilePane} className="conexus-panel" aria-labelledby="conexus-panel-title">
         <div className="builder-panel-heading"><div><p className="eyebrow">Conexus Builder</p><h2 id="conexus-panel-title">Converse com o Conexus</h2><p className="builder-surface-caption">Peça alterações e acompanhe o que está acontecendo.</p></div><BuilderModelConnection initialOpen={requiresModelConnection} /></div>
         <section ref={conversationRef} onScroll={onConversationScroll} className="builder-conversation" aria-label="Mensagens do Builder" aria-live="polite">
-          {timelineMessages.flatMap((item) => {
-            const textOccurrences = new Map<string, number>()
-            return item.parts.map((part) => {
-              if (part.kind === 'ACTIVITY') return <div key={part.id} className="builder-timeline-item builder-activity" data-state={part.state}><span className="builder-activity-icon" aria-hidden="true">{part.state === 'failed' ? '!' : part.state === 'succeeded' ? '✓' : '·'}</span><span><strong>{activityLabel(part.label)}</strong>{part.path && <small>{part.path}</small>}<span>{activityState(part.state)}</span></span></div>
-              const occurrence = textOccurrences.get(part.text) ?? 0
-              textOccurrences.set(part.text, occurrence + 1)
-              return <div key={`${item.id}-text-${part.text}-${occurrence}`} className={`builder-timeline-item builder-message builder-message-${item.role}`}><strong>{item.role === 'user' ? 'Você' : 'Conexus'}</strong><BuilderMarkdown text={part.text} /></div>
-            })
-          })}
-          {liveRequestPart && <div key={liveRequestPart.runId} className="builder-timeline-item builder-message builder-message-user"><strong>Você</strong><BuilderMarkdown text={liveRequestPart.text} /></div>}
-          {runActive && liveView?.message && <div key={liveView.message.id} className="builder-timeline-item builder-message builder-message-assistant"><BuilderMarkdown text={liveView.message.text || ' '}/></div>}
-          {liveView?.activities.filter((activity) => !persistedActivityIds.has(activity.id)).map((activity) => <div key={activity.id} className="builder-timeline-item builder-activity" data-state={activity.state}><span className="builder-activity-icon" aria-hidden="true">{activity.state === 'failed' ? '!' : activity.state === 'succeeded' ? '✓' : '·'}</span><span><strong>{activityLabel(activity.label)}</strong>{activity.detail && <small>{activity.detail}</small>}<span>{activityState(activity.state)}</span></span></div>)}
-          {runActive && <div className="builder-live-status" role="status"><span className="builder-live-pulse" aria-hidden="true" /><strong>{latestActivity ? activityLabel(latestActivity.label) : activeStatus}</strong><span>{latestActivity ? 'Atividade recebida do Builder.' : 'Aguardando atividade do servidor…'}</span></div>}
-          {runActive && observationNotice && <p className="builder-observation-notice" data-status={observation?.status} role={observation?.status === 'RECONNECTING' ? 'status' : 'alert'}>{observationNotice}</p>}
-          {!timelineMessages.length && !liveRequestPart && !liveView?.message && !liveView?.activities.length && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}
+          <BuilderConversation history={history.data ?? []} turn={turn} pendingRequest={runActive && liveRequest && liveRequest.runId === runId ? liveRequest.text : null} runActive={runActive} phaseLabel={phaseLabel} />
         </section>
         <form onSubmit={submit}>
           <label className="builder-composer-label" htmlFor={inputId}>O que o Project precisa fazer?</label>
