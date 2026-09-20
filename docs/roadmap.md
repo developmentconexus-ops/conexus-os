@@ -85,32 +85,42 @@ This is the order. Each step is one unit of work that ends in something a person
 can see. `docs/tasks/builder-repair-program.md` holds the file boundaries, the
 build steps and the evidence each one owes.
 
-1. **Prove the Builder live on the pilot.** Start the Hub against the pilot
-   database, sign in, open a Project's Build surface, send a request, and watch a
-   real run reach a working Preview. CI already proves the unit behaviour at every
-   commit. What CI cannot reach is the operator's pilot database, a running Hub and
-   a browser holding a real session. This needs the operator's Hub sign-in.
+1. **Prove the Builder live on the pilot.** Done on 2026-09-19. A real request in a pilot Project
+   reached a working Preview, with the model, the Thread and the native trace from that same run.
+   The same sitting proved the ChatGPT sign-in against OpenAI. It also found that no run can use that
+   connection yet: the model catalog requires Mastra's provider key `openai`, while
+   `model_connection.admit_for_project` matches the connection's `provider_id` `openai-codex`
+   literally, and nothing maps one to the other.
 2. **Keep a failed request visible and named.** Today a run that fails before the
    agent starts loses the operator's own words, because the request text lives only
    in a Mastra message written after the failure point, and the optimistic bubble is
    gated on the run being active. Persist the request on the run, render it when no
    Mastra message exists, and map the internal failure codes onto a small public set
    that reads distinctly. This is P-02 in the repair program.
-3. **Move the Builder front end to Mastra-native.** The server already reads live
-   state from `Session.displayState` and publishes a safe projection. The browser
-   still carries a hand-written SSE transport and parser in
-   `apps/web/src/features/builder/observation.ts`, and the repository does not depend
-   on `@mastra/client-js`. Adopting the native client removes that parallel
-   transport. This step has no plan yet. Write one before the first edit.
+3. **Move the Builder conversation to Mastra-native.** Done. The Hub mounts Mastra's own Agent
+   Controller session routes under `/api/mastra` through `@mastra/fastify`, behind the Hub session,
+   CSRF and `project.build`. The browser follows a run's session with `@mastra/client-js` and renders
+   native message parts with the `@mastra/playground-ui` chat components: text that grows as it
+   arrives, reasoning, and every tool call with its arguments, output and edit diff. The Conexus live
+   projection, its SSE route and the hand-written parser are deleted. The run still owns the turn,
+   because a sandbox must exist before the agent acts, so the browser cannot create a session or send
+   the opening message through Mastra's routes.
+4. **Let Mastra own model choice.** The conversation is native and the model list is not. Mastra
+   already lists every model it can route and switches the model of a live thread
+   (`listAvailableModels`, `session.model.switch`), while the Builder offers a deployment file of at
+   most sixteen entries read once at boot. Reduce the catalog to an allow-list over Mastra's list, map
+   a provider key to the connection that can pay for it, and keep credential custody as the only part
+   that is Conexus's. This also unblocks the ChatGPT connection. This step has no plan yet. Write one
+   before the first edit.
 
-The repair program's P-03 through P-06 sit behind those three. P-03 stops the UI
+The repair program's P-03 through P-06 sit behind those four. P-03 stops the UI
 claiming the Preview loaded when all it observed was a grant. P-04 makes a past run
 selectable and a retry idempotent. P-05 settles which authorized connection and
 model a run uses. P-06 makes the compile answer whether the artifact boots.
 
 ## Exact next action
 
-**Prove the Builder live on the pilot: start the Hub, sign in, send one request in a Project and watch it reach a working Preview.**
+**Keep a failed request visible and named (step 2), then plan step 4.**
 
 ## Later layers
 

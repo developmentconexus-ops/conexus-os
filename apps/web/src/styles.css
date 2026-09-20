@@ -1,6 +1,6 @@
 :root { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #18211d; background: #f4f6f2; }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; }
+body { margin: 0; min-width: 320px; background: #f4f6f2; color: #18211d; }
 button, input, select, textarea, a { font: inherit; }
 button, .primary { border: 1px solid #254d3c; border-radius: .55rem; padding: .7rem 1rem; background: white; color: #183b2c; cursor: pointer; }
 .primary { display: inline-block; background: #183b2c; color: white; text-decoration: none; }
@@ -89,21 +89,10 @@ button:disabled { opacity: .6; cursor: wait; }
 .panel-intro { margin: 0; color: #617068; }
 .builder-conversation { max-height: 26rem; overflow: auto; overflow-wrap: anywhere; display: grid; gap: .55rem; scroll-behavior: smooth; }
 .builder-conversation-empty { margin: 1rem 0 0; padding: .9rem; border: 1px dashed #8b9991; border-radius: .5rem; color: #617068; }
-.builder-timeline-item { white-space: pre-wrap; line-height: 1.5; }
-.builder-message { padding: .7rem .8rem; border-radius: .7rem; }
-.builder-message strong { display: block; margin-bottom: .2rem; font-size: .78rem; letter-spacing: .02em; }
-.builder-message-user { margin-left: 2rem; background: #e7efe8; }
-.builder-message-assistant { border: 1px solid #d9dfda; background: #fbfcfb; }
-.builder-markdown { white-space: normal; }
-.builder-markdown p { margin: .45rem 0; }
-.builder-markdown ul { margin: .45rem 0; padding-left: 1.25rem; }
-.builder-request { padding: .75rem; border-radius: .5rem; background: #e7efe8; white-space: pre-wrap; }
-.builder-activity { display: flex; align-items: flex-start; gap: .55rem; padding: .55rem .7rem; border: 1px solid #d9dfda; border-radius: .45rem; background: #f0f4f1; font-size: .85rem; }
-.builder-activity > span:last-child { display: grid; gap: .1rem; }
-.builder-activity small { color: #617068; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-.builder-activity-icon { display: grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 50%; background: #d3ded7; color: #183b2c; font-weight: 800; }
-.builder-activity[data-state="failed"] { color: #8b2828; background: #fff1ee; }
-.builder-activity[data-state="failed"] .builder-activity-icon { background: #f0c7bf; }
+.builder-turn { display: grid; gap: .5rem; min-width: 0; line-height: 1.55; }
+.builder-turn-user { justify-self: end; max-width: 88%; padding: .6rem .8rem; border-radius: .8rem; background: #e7efe8; }
+.builder-turn-phase { display: flex; align-items: center; gap: .5rem; color: #617068; font-size: .88rem; }
+.builder-turn-error { margin: 0; padding: .6rem .8rem; border-radius: .5rem; background: #fff1ee; color: #8b2828; }
 .builder-run-status { margin: 0; color: #617068; font-size: .82rem; }
 .builder-mode-toggle { grid-template-columns: 1fr 1fr; }
 .builder-mode-toggle legend { grid-column: 1 / -1; }
@@ -147,7 +136,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .build-workspace { grid-template-columns: minmax(0, var(--builder-preview-ratio, 2fr)) minmax(20rem, 25rem); gap: 0; min-height: 46rem; overflow: hidden; border: 1px solid #c8d3cc; border-radius: .9rem; background: #edf2ee; box-shadow: 0 .8rem 2rem #183b2c12; }
 .build-preview-surface, .conexus-panel { border: 0; border-radius: 0; }
 .build-preview-surface { min-height: 46rem; padding: 1rem 1.1rem 1.1rem; background: #f8faf8; grid-template-rows: auto auto auto auto 1fr; }
-.conexus-panel { min-height: 46rem; padding: 1rem; border-left: 1px solid #c8d3cc; background: #fff; display: grid; grid-template-rows: auto minmax(12rem, 1fr) auto; gap: .9rem; }
+.conexus-panel { position: sticky; top: 1rem; height: calc(100dvh - 2rem); min-height: 34rem; padding: 1rem; border-left: 1px solid #c8d3cc; background: #fff; display: grid; grid-template-rows: auto minmax(12rem, 1fr) auto; gap: .9rem; }
 .work-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: .2rem .2rem .75rem; }
 .work-heading h2, .builder-panel-heading h2 { font-size: 1.05rem; letter-spacing: -.01em; }
 .builder-surface-caption { margin: .2rem 0 0; color: #6b786f; font-size: .78rem; line-height: 1.4; }
@@ -190,19 +179,8 @@ button:disabled { opacity: .6; cursor: wait; }
 .builder-connection-popover h3 { margin: .2rem 0 0; font-size: 1rem; }
 .builder-connection-popover > .panel-intro { font-size: .8rem; line-height: 1.45; }
 .builder-connection-option { padding: .75rem 0; }
-.builder-conversation { max-height: none; min-height: 14rem; padding: .15rem .1rem; align-content: start; gap: .7rem; }
-.builder-message { padding: .7rem .75rem; border-radius: .65rem; font-size: .82rem; }
-.builder-message strong { margin-bottom: .35rem; color: #587065; font-size: .67rem; text-transform: uppercase; letter-spacing: .07em; }
-.builder-message-user { margin-left: 1.4rem; background: #e5f0e8; }
-.builder-message-assistant { border-color: #e0e7e2; background: #fbfcfb; }
-.builder-activity { padding: .65rem .7rem; border-color: #dae5dd; border-radius: .55rem; background: #f3f7f4; font-size: .76rem; }
-.builder-activity-icon { width: 1.15rem; height: 1.15rem; background: #d8e7dc; }
-.builder-live-status { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .1rem .5rem; align-items: center; padding: .65rem .7rem; border: 1px solid #d8e5dc; border-radius: .55rem; background: #f7faf7; color: #426352; font-size: .75rem; }
-.builder-live-status strong { grid-column: 2; }
-.builder-live-status > span:last-child { grid-column: 2; color: #748279; }
-.builder-live-pulse { grid-row: span 2; width: .55rem; height: .55rem; border-radius: 50%; background: #d6921e; box-shadow: 0 0 0 .25rem #d6921e1f; }
-.builder-observation-notice { margin: 0; padding: .6rem .7rem; border: 1px solid #e3d3ac; border-radius: .55rem; background: #fdf9ef; color: #6d5a2c; font-size: .74rem; }
-.builder-observation-notice[data-status="UNOBSERVABLE"] { border-color: #e6c3bd; background: #fdf4f2; color: #7c4136; }
+.builder-conversation { max-height: none; min-height: 0; padding: .15rem .1rem; align-content: start; gap: .7rem; }
+.builder-conversation button { all: revert-layer; }
 .builder-conversation-empty { margin: auto 0; padding: 1rem; border: 1px dashed #b5c3b9; background: #fbfdfb; text-align: center; font-size: .8rem; }
 .conexus-panel form { gap: .55rem; margin-top: 0; }
 .builder-composer-label { color: #40584a; font-size: .75rem; font-weight: 700; }

@@ -93,7 +93,7 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
   assert.deepEqual(calls.at(-1), ['interrupt', 'USER_CANCELLED'])
 })
 
-test('BUILD source result is admitted, CASed, compiled and settles Preview', async () => {
+test('BUILD source result is admitted, CASed, compiled, settles Preview and persists every phase in order', async () => {
   const runId = '44444444-4444-4444-8444-444444444444'
   const projectId = '55555555-5555-4555-8555-555555555555'
   const accountId = '66666666-6666-4666-8666-666666666666'
@@ -104,6 +104,7 @@ test('BUILD source result is admitted, CASed, compiled and settles Preview', asy
   const store = {
     createBuilderRun: async () => run,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
+    setBuilderRunPhase: async (_id, phase) => calls.push(['phase', phase]),
     bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, failBuilderRun: async () => calls.push('fail'), close: async () => {},
     advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
     settleBuilderRunBuild: async input => calls.push(['build-settle', input.artifactRevisionId, input.artifactDigest]),
@@ -127,115 +128,10 @@ test('BUILD source result is admitted, CASed, compiled and settles Preview', asy
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
   await service.close()
-  assert.deepEqual(calls, [['prepareProjectSource', runId], ['admitSourceResult', runId], ['advance', resultRevision], ['build-settle', '77777777-7777-4777-8777-777777777777', 'd'.repeat(64)]])
+  assert.deepEqual(calls, [
+    ['phase', 'PREPARING'], ['prepareProjectSource', runId], ['phase', 'SOURCE_ADMISSION'], ['admitSourceResult', runId],
+    ['advance', resultRevision], ['phase', 'COMPILING'], ['phase', 'FINALIZING'],
+    ['build-settle', '77777777-7777-4777-8777-777777777777', 'd'.repeat(64)],
+  ])
 })
 
-test('native display stream resyncs current isolated Session state without replay', async () => {
-  const projectA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-  const projectB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-  const runA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab'
-  const runB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbc'
-  const sessionState = (text, toolStatus) => ({
-    isRunning: true,
-    currentMessage: { id: `message-${text}`, role: 'assistant', content: { parts: [{ type: 'text', text }] } },
-    activeTools: new Map([['provider-only-id', { name: 'mastra_workspace_read_file', args: { path: '/workspace/repo/app/src/main.tsx', secret: 'no-leak' }, status: toolStatus, result: { private: 'no-leak' } }]]),
-  })
-  let stateA = sessionState('A current', 'running')
-  let listenerA
-  let unsubscribeCount = 0
-  const sessionA = {
-    displayState: { get: () => stateA },
-    subscribe: callback => { listenerA = callback; return () => { unsubscribeCount += 1 } },
-  }
-  const sessionB = {
-    displayState: { get: () => sessionState('B current', 'completed') },
-    subscribe: () => () => {},
-  }
-  const service = createBuilderService({
-    store: { close: async () => {} },
-    source: {}, runtime: {
-      kind: 'REMOTE_E2B', modelIdentity: { admissionId: 'admission', providerId: 'provider', modelId: 'model' },
-      execute: async () => { throw new Error('not used') },
-      getSessionByResource: async (projectId, scope) => projectId === projectA && scope === `builder:${runA}` ? sessionA : projectId === projectB && scope === `builder:${runB}` ? sessionB : undefined,
-    }, compiler: {}, applicationArtifacts: {},
-  })
-
-  const stream = await service.observeBuilderRun({ projectId: projectA, builderRunId: runA })
-  assert.ok(stream)
-  const reader = stream.getReader()
-  const initial = JSON.parse((await reader.read()).value.slice(6))
-  assert.equal(initial.message.text, 'A current')
-  assert.equal(initial.activities[0].state, 'started')
-  assert.equal(JSON.stringify(initial).includes('no-leak'), false)
-
-  stateA = sessionState('A after tool', 'completed')
-  listenerA({ type: 'display_state_changed', displayState: stateA })
-  const updated = JSON.parse((await reader.read()).value.slice(6))
-  assert.equal(updated.message.text, 'A after tool')
-  assert.equal(updated.activities[0].state, 'succeeded')
-  await reader.cancel()
-  assert.equal(unsubscribeCount, 1, 'a fallback observation owns its native Session subscription')
-
-  const reconnect = await service.observeBuilderRun({ projectId: projectA, builderRunId: runA })
-  assert.ok(reconnect)
-  const reconnectReader = reconnect.getReader()
-  assert.equal(JSON.parse((await reconnectReader.read()).value.slice(6)).message.text, 'A after tool')
-  await reconnectReader.cancel()
-  assert.equal(await service.observeBuilderRun({ projectId: projectB, builderRunId: runA }), null)
-  await service.close()
-})
-
-test('native observation continues with real phases after the Session is released', async () => {
-  const runId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
-  const projectId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
-  const accountId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
-  const sourceRevision = 'e'.repeat(40)
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
-  let resolveAgent
-  const agentReady = new Promise((resolve) => { resolveAgent = resolve })
-  let sessionUnsubscribeCount = 0
-  const session = {
-    displayState: { get: () => ({ isRunning: true, currentMessage: { id: 'agent-message', role: 'assistant', content: { parts: [{ type: 'text', text: 'Lendo o projeto' }] } }, activeTools: new Map([['stable-tool-call', { name: 'mastra_workspace_read_file', args: { path: 'app/App.tsx', secret: 'private' }, status: 'running', result: 'private' }]]) }) },
-    subscribe: () => { return () => { sessionUnsubscribeCount += 1 } },
-  }
-  const store = {
-    createBuilderRun: async () => run,
-    claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
-    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {},
-    settleBuilderRun: async () => {}, failBuilderRun: async () => {}, close: async () => {},
-  }
-  const service = createBuilderService({
-    store,
-    source: { prepareProjectSource: async () => new Uint8Array([1]) },
-    runtime: {
-      kind: 'REMOTE_E2B', modelIdentity: { admissionId: 'admission', providerId: 'provider', modelId: 'model' },
-      execute: async (input) => {
-        await input.setPhase?.('AGENT')
-        const detachSession = input.onSession?.(session)
-        await agentReady
-        detachSession?.()
-        return { projectId, executionId: runId, sandboxId: 'sandbox', baseSourceRevision: sourceRevision, summary: 'Resposta', kind: 'RESPONSE_ONLY' }
-      },
-    },
-    compiler: {}, applicationArtifacts: {},
-  })
-
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'phase-key', content: 'Explique', mode: 'PLAN' })
-  const stream = await service.observeBuilderRun({ projectId, builderRunId: runId })
-  assert.ok(stream)
-  const reader = stream.getReader()
-  const first = JSON.parse((await reader.read()).value.slice(6))
-  assert.equal(['PREPARING', 'AGENT'].includes(first.phase), true)
-  resolveAgent()
-  const phases = [first.phase]
-  for (;;) {
-    const next = await reader.read()
-    if (next.done) break
-    phases.push(JSON.parse(next.value.slice(6)).phase)
-  }
-  assert.equal(phases.includes('AGENT'), true)
-  assert.equal(phases.includes('FINALIZING'), true)
-  assert.equal(phases.at(-1), 'SUCCEEDED')
-  assert.equal(sessionUnsubscribeCount, 1, 'native Session subscription ends before the runtime releases the Session')
-  await service.close()
-})

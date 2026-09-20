@@ -48,7 +48,7 @@ const closed = (value, label) => {
 }
 
 const session = closed(schema('BLD-23', 'response'), 'BLD-23 response')
-required(session, 'projectId', 'messages', 'latestBuilderRun', 'latestCodeChangingRun', 'preview', 'modelChoices', 'runHistory')
+required(session, 'projectId', 'threadId', 'latestBuilderRun', 'latestCodeChangingRun', 'preview', 'modelChoices', 'runHistory')
 if (session.properties?.activeBuilderRun) throw new Error('BLD-23 exposes activeBuilderRun')
 const preview = closed(resolve(session.properties?.preview), 'BLD-23 preview')
 required(preview, 'workingSourceRevision', 'lastGoodSourceRevision', 'lastGoodArtifactRevisionId', 'lastGoodArtifactDigest')
