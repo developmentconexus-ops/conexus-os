@@ -297,8 +297,8 @@ try {
   clearTimeout(timer)
   chromium.kill('SIGKILL')
   server.close()
-  if (typeof childCount !== 'number' || childCount <= 0) return output({ ok: false, reason: 'APPLICATION_SMOKE_NO_ROOT_CHILD' })
-  if (uncaughtErrorText !== null) return output({ ok: false, reason: 'APPLICATION_SMOKE_UNCAUGHT_ERROR', detail: uncaughtErrorText })
+  if (typeof childCount !== 'number' || childCount <= 0) output({ ok: false, reason: 'APPLICATION_SMOKE_NO_ROOT_CHILD' })
+  if (uncaughtErrorText !== null) output({ ok: false, reason: 'APPLICATION_SMOKE_UNCAUGHT_ERROR', detail: uncaughtErrorText })
   output({ ok: true, childCount })
 } catch (error) {
   clearTimeout(timer)

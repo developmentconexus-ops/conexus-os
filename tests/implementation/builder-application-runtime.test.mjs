@@ -51,6 +51,36 @@ const fakeSandbox = (output, { buildExitCode = 0, smokeVerdict = { ok: true, chi
   return { sandbox, calls }
 }
 
+test('the smoke script the sandbox is handed parses as the module Node will load it as', async () => {
+  const { mkdtempSync, writeFileSync, rmSync, readFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+
+  // The sandbox writes it to a .mjs path, so Node parses it as an ES module, where a top-level
+  // return is a syntax error. node --check on the same extension runs the same parser.
+  const runtimeSource = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/application-artifact-runtime.ts'), 'utf8')
+  const scriptPath = /const SMOKE_SCRIPT_PATH = '([^']+)'/.exec(runtimeSource)?.[1]
+  const heredoc = /const SMOKE_HEREDOC = '([^']+)'/.exec(runtimeSource)?.[1]
+  assert.ok(scriptPath?.endsWith('.mjs'), 'the smoke script path moved; this test must follow its extension')
+  assert.ok(heredoc, 'the smoke heredoc marker moved; this test must follow it')
+
+  const { sandbox, calls } = fakeSandbox(new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]]))
+  await buildApplicationInSandbox(sandbox, { appRoot: '/workspace/app' })
+  const smoke = calls.find((call) => call.kind === 'run' && String(call.command).includes(heredoc))
+  assert.ok(smoke, 'no command carried the smoke script')
+  const body = String(smoke.command).split(`<<'${heredoc}'\n`)[1]?.split(`\n${heredoc}`)[0]
+  assert.ok(body && body.length > 0, 'the smoke script came through empty')
+
+  const directory = mkdtempSync(resolve(tmpdir(), 'conexus-smoke-parse-'))
+  try {
+    const file = resolve(directory, 'smoke.mjs')
+    writeFileSync(file, body)
+    const checked = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' })
+    assert.equal(checked.status, 0, `the smoke script does not parse: ${String(checked.stderr).split('\n').filter(Boolean).slice(-3).join(' | ')}`)
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
 test('buildApplicationInSandbox exports the fixed template identity', () => {
   assert.equal(TEMPLATE_REF, '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189')
   assert.equal(RECIPE_SHA256, '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf')
