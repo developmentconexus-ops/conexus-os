@@ -19,11 +19,14 @@ The qualification is **not** concluded: the comparison it asks for is answered i
 | [`factory-binding.mjs`](factory-binding.mjs) | Conversations under the Factory's own controller, and the step that starts a Work item | That scratch install |
 | [`coding-session.mjs`](coding-session.mjs) with [`fixture-model.mjs`](fixture-model.mjs) | An interactive session running its own code tools over a source directory the host owns, from a message to a changed file | A scratch git repository and a scratch store |
 | [`code-sdk-mount.mjs`](code-sdk-mount.mjs) | The `@mastra/code-sdk` mount the Factory itself uses, handed a host workspace | That scratch install |
+| [`code-sdk-turn.sh`](code-sdk-turn.sh) with [`code-sdk-turn.mjs`](code-sdk-turn.mjs) and [`local-provider-stub.mjs`](local-provider-stub.mjs) | One whole agent turn through that mount, from a message to a changed file, with a local stub answering the model calls | A scratch project and store, plus a loopback HTTP server |
 | [`capture.sh`](capture.sh) | Runs all of the above and produces [output.md](output.md) verbatim | Creates its own scratch directories |
 
-`fixture-model.mjs` is a deterministic fake model that emits a scripted tool call and a
-final message. It exists so the tool path can run without a provider and without cost. It is
-an integration fixture, not evidence about a real model.
+`fixture-model.mjs` is a deterministic fake model that emits a scripted tool call and a final
+message, and `local-provider-stub.mjs` is a loopback HTTP server that answers the OpenAI
+Chat Completions streaming API with the same script. They exist so the tool path can run
+without a provider and without cost. Both are integration fixtures, not evidence about a
+real model, and each run prints what they were asked for.
 
 Every probe exits non-zero when an assertion fails, and each run ends with a negative
 control whose claim is false on purpose, so a run proves the harness can fail. Each probe

@@ -298,16 +298,22 @@ project". `[probe]` mounting it directly with a host-supplied `Workspace` and st
 a controller, a conversation on a host-chosen `resourceId`, and a session that resolves the
 host's workspace, with no forge and no source-control row anywhere.
 
-**And the full turn runs.** `[probe]` on the same building blocks a session sends a message,
+**And the full turn runs through that mount.** `[probe]` with a local stub provider
+answering the model calls, a session on the mounted controller sends a message, the model
+calls `mastra_workspace_write_file`, the call stops for approval, and `app/counter.js`
+changes on disk. Two model calls appear in the stub's own request log.
+
+**The same turn runs on the plain core composition too.** `[probe]` a session sends a message,
 the model calls `mastra_workspace_write_file`, the call stops for approval, the approval is
 granted, and `app/counter.js` changes on disk from `counter = 0` to `counter = 1`. The
 Project's own git sees it as `M app/counter.js` against the revision it started from. The
 conversation keeps the turn, a second conversation in the same Project starts empty, and
 switching back finds the first one's messages again.
 
-That run uses a deterministic fixture model, so it is an integration proof of the tool path
-and says nothing about how a real model behaves. It also grants the tool approval
-unconditionally, where the product would have a person or a policy decide.
+Both runs answer the model calls locally, one with a fixture object and one with a stub HTTP
+server, so they are integration proofs of the tool path and say nothing about how a real
+model behaves. Both grant the tool approval unconditionally, where the product would have a
+person or a policy decide. Nothing here was paid for and nothing left this machine.
 
 ### Path 3, start a Work item through the coordinator
 
@@ -341,12 +347,27 @@ hand-built agent wiring, and the condition there is a model path that mount acce
 is the open question below. Nothing about queueing, cancellation, idempotency or recovery is
 a candidate on this evidence.
 
-**What is not yet proven, precisely.** Driving a turn through the `@mastra/code-sdk` mount
-needs a model selected through its own resolver (`dist/agents/model.js:122`, then
-`resolveModel` at `:39`), which reaches a provider gateway rather than any model object
-given in configuration. `[probe]` the mount stops exactly there, with `No model selected.
-Use /models to select a model first.` Whether a Conexus model connection can be presented to
-that resolver as a custom provider is the next thing to settle, and it is small.
+**The model path through that mount is now proven, with one wart.** Driving a turn needs a
+model the mount's own resolver accepts (`dist/agents/model.js:122`, then `resolveModel` at
+`:39`), which reaches a provider gateway rather than any model object given in
+configuration. `[probe]` a full turn runs once a custom provider is registered: a local HTTP
+server answering the OpenAI Chat Completions streaming API takes the two model calls, the
+session's tool call stops for approval, and `app/counter.js` changes on disk. The stub's own
+log shows both calls, so the model path is observed rather than assumed.
+
+The wart is worth writing down, because it is the kind of thing that costs a day later.
+`MastraCodeConfig.settingsPath` is documented as the way to point at a custom settings file,
+but it does not reach model resolution: `resolveModel` calls `loadSettings()` with no
+argument (`dist/agents/model.js:42`), so `customProviders` always comes from the real global
+settings file. `[probe]` registering through `setCustomProvidersSource`, exported from
+`dist/agents/custom-provider-source.js` and reachable through the package's `./*` subpath, is
+what works. That is a subpath rather than the public barrel, and a host depending on it is
+depending on an internal path across versions.
+
+One more thing the probe found. Supplying your own `Workspace` bypasses the mount's own
+workspace builder, which is the only place code-sdk renames the tools, so the model sees the
+raw `@mastra/core` names such as `mastra_workspace_write_file` rather than `write_file`.
+Harmless, and surprising if nobody wrote it down.
 
 ## 10. The decision the operator owns
 
@@ -385,6 +406,8 @@ because the first increment needs neither Work nor a forge.
   `user.organizationId`.
 - Whether Factory work items need per-person privacy in Conexus. `[probe]` neither the
   Factory nor the core controller provides it inside one Project.
+- How a real model behaves in either composition. Every turn here was answered locally, by a
+  fixture object or by a loopback stub, which is what kept this free.
 - Anything about upstream main beyond its release cadence, and anything about 0.16 alpha.
 
 ## 12. First increment, scoped and not started

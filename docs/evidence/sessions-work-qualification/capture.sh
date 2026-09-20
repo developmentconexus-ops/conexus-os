@@ -43,6 +43,21 @@ section 'the code-sdk mount the Factory itself uses, with a host workspace'
 cp "$HERE/code-sdk-mount.mjs" "$SCRATCH/"
 ( cd "$SCRATCH" && node code-sdk-mount.mjs 2>&1 ) || status=1
 
+section 'a full turn through the code-sdk mount, against a local stub provider'
+bash "$HERE/code-sdk-turn.sh" "$SCRATCH" || status=1
+
+section 'the code-sdk turn, negative control'
+TURN_OUT=$(mktemp "${TMPDIR:-/tmp}/code-sdk-turn-negative-XXXXXX")
+bash "$HERE/code-sdk-turn.sh" "$SCRATCH" --fail >"$TURN_OUT" 2>&1
+turn=$?
+grep -E '^(PASS|FAIL)' "$TURN_OUT"
+rm -f "$TURN_OUT"
+if [ "$turn" -eq 0 ]; then
+  echo 'negative control passed, so the harness cannot fail'; status=1
+else
+  echo 'negative control failed as required'
+fi
+
 section 'interactive coding, negative control'
 CODING_OUT=$(mktemp "${TMPDIR:-/tmp}/coding-negative-control-XXXXXX")
 ( cd "$SCRATCH" && node coding-session.mjs --negative-control >"$CODING_OUT" 2>&1 )

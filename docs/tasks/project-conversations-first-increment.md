@@ -61,8 +61,10 @@ Work exists in the product, and no dependency was added for this increment.
 
 ## Open before it starts
 
-Whether the product later drives its coding surface through the `@mastra/code-sdk` mount
-depends on one unanswered question, named in
-[section 9 of the report](../evidence/sessions-work-qualification/report.md#9-the-minimal-integration-and-what-could-disappear):
-whether a Conexus model connection can be presented to that mount's own model resolver. This
-increment does not depend on the answer.
+Nothing blocks this increment. If the product later drives its coding surface through the
+`@mastra/code-sdk` mount, the qualification has already run a whole turn through it against a
+local provider, and
+[section 9 of the report](../evidence/sessions-work-qualification/report.md#9-the-minimal-integration-and-what-could-disappear)
+names the two things to carry into that decision. A custom provider reaches that mount only
+through a subpath export rather than through its documented settings option, and a
+host-supplied workspace keeps the raw workspace tool names.
