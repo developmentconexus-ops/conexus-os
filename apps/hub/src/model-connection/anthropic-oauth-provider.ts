@@ -44,9 +44,22 @@ export const createAnthropicOAuthModel = ({
       return fetchImpl(input, { ...init, redirect: 'manual', headers, ...(body === undefined ? {} : { body }) })
     },
   })
-  return createAnthropic({
+  const model = createAnthropic({
     apiKey: 'replaced-by-closed-oauth-transport',
     baseURL: `${ORIGIN}v1`,
     fetch: bounded,
-  })(modelId) as unknown as MastraLanguageModel
+  })(modelId)
+  // Current Claude models think on their own and return the block with its text omitted, so a
+  // person watching a run saw that the model thought and never what. A summary is asked for unless
+  // the caller already said how thinking should behave.
+  type CallOptions = Parameters<typeof model.doStream>[0]
+  const summarized = (options: CallOptions): CallOptions => {
+    const anthropic = options.providerOptions?.anthropic
+    if (anthropic?.thinking !== undefined) return options
+    return { ...options, providerOptions: { ...options.providerOptions, anthropic: { ...anthropic, thinking: { type: 'adaptive', display: 'summarized' } } } }
+  }
+  return Object.assign(Object.create(model) as typeof model, {
+    doGenerate: (options: CallOptions) => model.doGenerate(summarized(options)),
+    doStream: (options: CallOptions) => model.doStream(summarized(options)),
+  }) as unknown as MastraLanguageModel
 }
