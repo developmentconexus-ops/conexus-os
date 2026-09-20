@@ -131,7 +131,7 @@ test('BUILD source result is admitted, CASed, compiled, settles Preview and pers
       prepareProjectSource: async input => { calls.push(['prepareProjectSource', input.executionId]); return new Uint8Array([1]) },
       admitSourceResult: async input => { calls.push(['admitSourceResult', input.executionId]); return { baseSourceRevision: base, resultSourceRevision: resultRevision, patch: 'diff' } },
       listSourceTree: async () => ({ sourceRevision: resultRevision, entries: [{ kind: 'FILE', path: 'app/index.html' }] }),
-      readSourceFile: async input => ({ ...input, content: '<html></html>' }),
+      readSourceFiles: async input => ({ sourceRevision: input.sourceRevision, files: input.paths.map(path => ({ path, content: '<html></html>' })) }),
     },
     runtime: {
       kind: 'REMOTE_E2B',

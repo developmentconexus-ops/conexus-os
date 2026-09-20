@@ -58,7 +58,7 @@ export type UnboundBuilderApplicationArtifacts = Readonly<{
 
 export const prepareBuilderRunApplicationArtifact = async (
   dependencies: Readonly<{
-    source: Pick<BuilderSourcePort, 'listSourceTree' | 'readSourceFile'>
+    source: Pick<BuilderSourcePort, 'listSourceTree' | 'readSourceFiles'>
     compiler: ApplicationCompilerRuntime
     applicationArtifacts: BuilderApplicationArtifacts
   }>,
@@ -79,15 +79,20 @@ export const prepareBuilderRunApplicationArtifact = async (
   if (paths.length > 256 || new Set(paths).size !== paths.length || !paths.includes('app/index.html')) {
     throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
   }
+  const disclosed = await dependencies.source.readSourceFiles({ ...sourceCoordinates, paths })
+  cancelled()
+  if (disclosed.sourceRevision !== input.sourceRevision || disclosed.files.length !== paths.length) {
+    throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+  }
   const files: { path: string; content: string }[] = []
   let totalBytes = 0
-  for (const path of paths) {
-    cancelled()
-    const file = await dependencies.source.readSourceFile({ ...sourceCoordinates, path })
+  for (const [index, file] of disclosed.files.entries()) {
+    const path = paths[index] as string
     const bytes = Buffer.byteLength(file.content, 'utf8')
     totalBytes += bytes
-    if (file.sourceRevision !== input.sourceRevision || file.path !== path || bytes > 1024 * 1024 ||
-      totalBytes > 12 * 1024 * 1024) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+    if (file.path !== path || bytes > 1024 * 1024 || totalBytes > 12 * 1024 * 1024) {
+      throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+    }
     files.push({ path: path.slice('app/'.length), content: file.content })
   }
   const result = await dependencies.compiler.compile({
