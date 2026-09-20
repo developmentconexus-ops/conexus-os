@@ -8,12 +8,17 @@ Conexus is the platform the people at this company log in to. They sign in, open
 Workspace, open a Project, and talk to the Builder. The Builder writes the code for
 a small business application and serves it back as a Preview they can use.
 
-Integrations are future work. One day somebody will connect Sankhya and build an
-application on top of it. That is not what is being built now.
-
 The first base is the Builder running on the Mastra Agent Controller. It has to work.
 Everything after it arrives one planned step at a time. The legacy base tried to do
 everything at once and is being removed for that reason.
+
+On 2026-09-20 the operator approved where this is going: a Project is one publishable
+product, it offers several persistent conversations rather than one Builder chat, and
+source admission, artifact health and publication become three separate gates.
+[Section 12 of the product contract](product/contract.md#12-approved-destination) owns
+that destination and [C-021](decisions/index.md) registers it. None of it is built.
+Integrations, Brain, automations and publication are named there as direction, not as
+work in progress.
 
 ## What exists and works today
 
@@ -42,7 +47,12 @@ Trunk is `analysis/internal-mvp-2026-09-12`, not `main`.
 
 ## In flight
 
-Nothing. M-02, the ChatGPT account sign-in, was proven live on 2026-09-20: OpenAI accepted the
+**Documentary consolidation of the approved product amendment.** Open for review, not
+merged. It carries C-021 into the owners that hold each rule, reconciles the Builder
+reference with the pipeline the code actually runs, and prepares the next task without
+executing it. It changes no code, no migration, no contract schema and no check.
+
+M-02, the ChatGPT account sign-in, was proven live on 2026-09-20: OpenAI accepted the
 loopback redirect from a request the Hub originated, the token exchange, Conexus's own
 `originator`, and a request without the `OpenAI-Beta` header, and a BuilderRun paid for by a ChatGPT
 account succeeded, editing source and reaching a Preview. The backend publishes what an account may
@@ -56,6 +66,10 @@ listed models answered. Ids outside the catalog, `gpt-5.3-codex` included, are r
 written to the Hub log as `OPENAI_CODEX_REFUSED`. Unproven still: one real refresh-token rotation, and whether the 8 MiB
 response cap survives a long reasoning stream. This remains undocumented and unendorsed by OpenAI: a
 refusal ends it and is not worked around.
+
+Two corrections to the Builder are open as pull requests and are not part of this
+consolidation. They do not advance the trunk this branch is based on. One of them is
+load bearing: without it the boot smoke merged with P-06 cannot run at all.
 
 ## The Builder sequence
 
@@ -96,25 +110,65 @@ build steps and the evidence each one owes.
    Mastra's model gateways were considered for custody and do not fit: `resolveAuth` receives no
    account, and the Hub serves many.
 
-The repair program's P-03 through P-06 sit behind those four. P-03 stops the UI
-claiming the Preview loaded when all it observed was a grant. P-04 makes a past run
-selectable and a retry idempotent. P-05 settles which authorized connection and
-model a run uses. P-06 makes the compile answer whether the artifact boots.
+P-02 through P-06 of the repair program are merged. Merged is not the same as proven,
+and the table below separates the two. "Isolated" means a test proved it against a fake
+or a fixture. "Pilot" means a real run on the pilot proved it end to end.
+
+| Unit | Merged | Isolated | Pilot | Standing |
+| --- | --- | --- | --- | --- |
+| P-02 | yes | yes | yes | A failed request stays on screen with a named reason and no internal code reaches the browser. |
+| P-03 | yes | yes | yes | The Preview states a grant and then a frame that navigated, never that the application loaded. |
+| P-04 | yes | yes | no | Run selection, idempotency-key retention and the collapsed diagnostic are proven by browser and hub tests. No pilot run exercised them. |
+| P-05 | n/a | n/a | n/a | Overtaken rather than executed. The deployment model catalog and the pinned constants had already gone with Mastra-native model choice; what remained, naming the connection that pays, shipped with P-04. |
+| P-06 | yes | yes | **not working as merged** | See below. |
+
+**P-06 is open.** The merged commit compiles, its tests pass and it was proven on the
+pilot only after two corrections that are still unmerged. As merged, the smoke script is
+written to a `.mjs` path and uses a top-level `return`, which is a syntax error in a
+module, so it never ran and every source-changing BUILD that reached it settled as a
+build failure. A second defect discarded the script's verdict, because the sandbox raises
+a non-zero exit as an error that the caller did not read, and a third drove the browser
+endpoint instead of the page target, which answers the handshake and then refuses
+`Runtime.enable`. Twelve tests covered the smoke and passed against a script that could
+not parse, because they faked the sandbox and never the script.
+
+Both corrections are open as pull requests and are not part of the documentary
+consolidation. Until they merge, the product on trunk fails a healthy BUILD. A pilot run
+with the corrections applied did succeed, and an application with a throw at module
+evaluation failed with `APPLICATION_SMOKE_NO_ROOT_CHILD` while its source and the
+previous Preview were kept.
+
+Alongside those units the run pipeline was reduced from six out-of-process boundaries to
+three. The source bundle is exported while the sandbox is created, one E2B template
+carries both the agent and the compiler, and the agent's own sandbox compiles what it
+wrote. A measured BUILD on the pilot fell from about 153 seconds to 69 at its best, on a
+host whose container starts vary by a factor of ten, so treat that as an order of
+magnitude rather than a benchmark. The shape is described in
+[the C-020 reference](reference/builder-c020-mastra-native.md).
 
 ## Exact next action
 
-**Stop claiming the Preview loaded (P-03).** Steps 2 and 3 are done. A failed request stays
-on screen with a named reason, and the Builder run pipeline now crosses three out-of-process
-boundaries instead of six, which `docs/tasks/builder-throughput-program.md` records.
+**Qualify the native composition for Project conversations and delegated Work.**
+[`docs/tasks/sessions-work-qualification.md`](tasks/sessions-work-qualification.md) owns
+it. It is prepared and not started. It answers which native composition serves several
+persistent conversations in one Project and allows delegated Work with the least Conexus
+logic, while preserving authorization and the product's effects. It is a qualification:
+it ends in evidence and a recommendation, and it does not authorize a migration.
+
+It starts once this consolidation is merged. Nothing before it is blocking.
 
 ## Later layers
 
-One line each. None of these has a plan, and none is started.
+[Section 12 of the product contract](product/contract.md#12-approved-destination) owns
+what each of these means and what it may not become. None has a plan and none is
+started, and none may be built ahead of the increment that delivers it.
 
 - A data and SDK layer so a generated application can own business data.
-- Local publication of a built application.
-- External integrations, which is where Sankhya arrives.
-- Managed automations and scheduled jobs.
+- Publication of a built application, with a Release and an explicit authorized act.
+- External integrations reaching a Project as authorized capabilities, which is where
+  Sankhya arrives.
+- Automations as persistent Project resources.
+- Brain as governed Workspace and Project knowledge.
 
 ## What the operator still owes
 

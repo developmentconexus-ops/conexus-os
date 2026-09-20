@@ -5,8 +5,16 @@ behaviour must keep. [The roadmap](../roadmap.md) owns status and the next actio
 [The operation ledger](operation-ledger.md) owns the operation census, and
 [the permission contract](permission-contract.md) owns who may do what.
 
-Every statement here describes behaviour the code has today. When the code and this
-file disagree, the code is right and this file is wrong.
+This file carries two kinds of statement and marks which is which. Sections 1 to 11
+describe behaviour the code has today; where they and the code disagree, the code is
+right and this file is wrong. [Section 12](#12-approved-destination) is the approved
+destination, which is where the product is going and what it may not become.
+
+Section 12 is approval, not proof. Reading a rule there is never evidence that the rule
+is enforced. It is also not a denial: a few of its rules restate a guarantee sections 3.5
+and 3.6 already carry, and those stay guarantees. Where the two overlap, section 12 marks
+which part is already kept, so that widening a rule is never mistaken for having built
+it.
 
 ---
 
@@ -269,18 +277,172 @@ authority by convenience.
 
 ---
 
-## 12. Later, not defined here
+## 12. Approved destination
 
-One line each. None of these has a plan, and none is started. They are listed so that
-nobody builds machinery for them now.
+The operator approved this direction on 2026-09-20. It is registered as C-021 in
+[the decision register](../decisions/index.md). None of it is built. It is written
+here so that the next increment is chosen against a destination instead of against a
+memory, and so that nobody builds machinery the destination does not ask for.
 
-- A data and SDK layer so a generated application can own business data.
-- Local publication of a built application.
-- External integrations, which is where Sankhya arrives.
-- Managed automations and scheduled jobs.
+Each rule below is owned here as product meaning. Where a rule needs a mechanism, the
+mechanism stays open on purpose, and [the roadmap](../roadmap.md) owns which question
+is being answered next.
 
-Project Inception, the Project Baseline, the Brain, AnalyticQuery, Product Agents,
-connection bindings, Releases, Promotions, the capability gateway and the Managed
-Application Runtime were removed from the product on 2026-09-19. They are not paused
-and they are not deferred work with a seam waiting for them. If one is ever wanted it
-arrives as a new feature on this base, with its own plan.
+### 12.1 What Conexus is for
+
+Conexus is the platform a company builds, administers and evolves its own products on,
+connected to its own context and systems. The target stays a usable internal base. It
+is not a general SaaS or a multi-stack platform product.
+
+### 12.2 Project and application
+
+A Project is one publishable product. It holds that product's development and its
+operation together: source, frontend and backend, conversations, the product's own
+agents, knowledge, data, integrations and automations, each as it is delivered.
+
+Administration happens inside Conexus. The people who use the published application
+reach it by URL without administering the Project. A reachable URL does not mean an
+application without authentication. This chooses no domain, hosting, topology or
+access mechanism.
+
+### 12.3 Conversations
+
+A Project offers several persistent conversations. The Project's policy is `SHARED` or
+`PER_USER`. No default is approved yet, there is no extra per-conversation sharing, and
+no transition may quietly expose conversations that were private when they were written.
+
+A conversation is general. It can explain, investigate, develop, test and use the
+capabilities it is authorized for. It is not a Builder chat with another name. The
+person talks to one principal agent and does not pick a specialist first; delegation
+and subagents belong to the native mechanisms wherever those are adequate.
+
+Agents that ship inside the published application are product resources. They are not
+the agent that helps build it.
+
+A persistent conversation does not imply a live SDK session or a permanent sandbox. The
+physical mapping between a conversation, a Thread, a Session, a `resourceId`, a scope
+and an owner is deliberately unfixed.
+
+Offering more conversations is not a reason to own them. Their messages stay in the
+framework's store, and Conexus does not grow a second conversation lifecycle beside it.
+
+Privacy covers messages, persisted requests, diagnostics, recovered memory and
+delegation, not only what a list shows. Sharing a conversation transfers neither
+credentials nor its author's permissions to whoever continues it.
+
+### 12.4 Source, Preview and publication
+
+A Project has one current source. Conversations and delegated work are not competing
+authorities over it. In ordinary interactive use an admitted change advances the source
+automatically, without imposing visible branches or pull requests, and a change built on
+an older revision never silently overwrites later work.
+
+Source admission and artifact health are different questions. An admitted source may be
+kept when the build or the boot fails, so the next interaction can repair it, and the
+last healthy Preview stays. The Preview advances automatically only when the checks that
+apply have allowed it.
+
+Those two paragraphs are mostly kept today, by [3.5](#35-working-source) and
+[3.6](#36-builder-run), and the destination widens them rather than introducing them.
+What is already true: source advances automatically, a stale base is refused, a failed
+build keeps the source and the last-good Preview. What is not yet true: the same
+guarantee under several conversations and under delegated work, and a boot check that
+gates the Preview, which is merged with a correction still open.
+
+Publishing is a separate, explicit, authorized capability. Editing, an agent finishing,
+or a Work item completing never publishes production. A Release names an immutable
+source and artifact, and publishing records who did it and when. Hosting is unchosen.
+
+Separating Preview from Published does not make it safe to edit production data while
+developing, and rolling an artifact back does not undo data, migrations or effects that
+already left the system. Those limits are recorded here rather than answered by an
+environment and rollback platform designed in advance.
+
+### 12.5 Data
+
+Each Project owns a logical data space of its own, isolated from Conexus's internal
+data. Which physical database, schema or namespace carries it is decided in the
+increment that delivers it.
+
+A conversation and an application act through authorized capabilities. Evolving a
+Project's structure grants no arbitrary access to the system database or to production.
+A product's own data and data that belongs to an external system stay distinct.
+
+### 12.6 Integrations
+
+Enterprise connections belong to the Workspace. A Project receives authorized
+capabilities that conversations, the application and automations reuse. The consumers
+never receive the secret and never reimplement the same integration on their own.
+
+This does not retroactively change the personal model connections that already exist,
+and it authorizes nobody to share an account or work around a provider's rules.
+
+### 12.7 Brain
+
+Brain is governed enterprise knowledge at the Workspace and Project levels. Conversation
+memory, something learned in passing and a one-off exception do not become standing
+policy on their own.
+
+Existing memory, retrieval and knowledge mechanisms are reused where they fit. No
+retrieval-augmented pipeline, knowledge graph, embedding store or memory engine is built
+here, and the Factory's Knowledge capability is not called qualified without evidence.
+
+### 12.8 Automations
+
+An automation is a persistent Project resource with a trigger, an action and the
+capabilities it is authorized for. Known steps run as deterministic code or workflows,
+and an agent is used where judgement is actually needed.
+
+Existing execution, scheduling and observability mechanisms come first. That does not
+assume Mastra already answers every trigger and schedule. A generated automation gains
+no production authority by existing.
+
+### 12.9 Work
+
+A Session is interaction. Work is bounded, delegable work, which may come from a Session
+or from authorized feedback inside the application.
+
+Work produces a reviewed, validated candidate. Applying it to the Project is explicit
+and goes through the Project's own reconciliation and authorization. There is no
+auto-apply and no implicit publish of delegated work.
+
+### 12.10 How it is built
+
+Each increment ends in a usable, verified result before anything leans on it. Only the
+next increment is planned in detail.
+
+Conexus does not build a second implementation of a mechanism the framework already
+provides adequately. Owning an enterprise rule does not oblige Conexus to own the engine
+that runs it. Binding an authorization to a native id is allowed; mirroring the
+framework's messages, states and lifecycles is not, and neither is a universal wrapper
+whose purpose is to hide it.
+
+### 12.11 What is still open
+
+These are unanswered on purpose. None has an answer hidden in this file, and none gets a
+placeholder task.
+
+```text
+the Factory and Controller composition
+which APIs and versions are adequate
+how conversations map onto Threads and Sessions
+the physical sandbox lifecycle
+what becomes of BuilderRun
+the admission and reconciliation protocol
+migration of existing history
+the privacy default and its transition
+the physical data schema
+application authentication
+hosting
+the scheduler
+the Brain mechanism
+```
+
+### 12.12 Removed, not deferred
+
+Project Inception, the Project Baseline, AnalyticQuery, Product Agents, connection
+bindings, the capability gateway and the Managed Application Runtime were removed from
+the product on 2026-09-19. They are not paused and no seam waits for them. Brain,
+Releases, publication, integrations and automations appear above as destination because
+the operator approved them as direction, not because the removed implementations are
+returning; each arrives as a new feature on this base, with its own plan.

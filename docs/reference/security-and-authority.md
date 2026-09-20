@@ -12,7 +12,8 @@ Zones are classifications, not deployment units.
 | --- | --- | --- |
 | Browser | the Control Plane SPA and the Preview it opens | untrusted for anything authority bearing |
 | Hub | the modular monolith and its module owners | trusted |
-| Guest execution | the E2B sandbox that runs the Builder agent and the application under test | root capable and untrusted |
+| Guest execution | the E2B sandbox that runs the Builder agent, compiles its output and boots it under headless Chromium | root capable and untrusted |
+| Source custody | the OCI git container that exports a Project's source and admits a result bundle | isolated on purpose, and the reason is below |
 | External providers | Keycloak, model providers, E2B, the Git provider, package registries | outside the trust boundary |
 | Storage | the Hub PostgreSQL cluster, the artifact store and the credential backend | trusted, and not one credential domain |
 
@@ -22,6 +23,23 @@ blast radius that is avoidable.
 
 The Control Plane and Preview browser contexts stay separate. Ids for a Project, a run
 or a connection that arrive from the browser are hints and are resolved server side.
+
+Source custody is its own zone because the bundle an agent returns is adversarial input
+to git. Exporting and admitting run inside a container with no network, a read-only root
+filesystem and dropped capabilities, against an image the Hub re-verifies by digest, git
+version and the hash of the git binary. The admission refuses anything but a single
+commit descending from the declared base, on an allow-listed path, in a regular blob
+mode. That boundary is kept deliberately, and merging the remaining two container starts
+into one would mean holding a container open across the agent's turn with the repository
+mounted for writing.
+
+### 1.1 Authority the destination will need
+
+C-021 creates authorization questions this reference does not answer yet, and nothing
+enforces them. [The permission contract](../product/permission-contract.md#5-target-requirements-not-yet-enforced)
+owns the list. Two of them are trust-boundary questions rather than vocabulary: a
+conversation's author never lends credentials or permissions to whoever continues it,
+and a capability granted to a Project never becomes the secret behind it.
 
 ## 2. Database roles
 

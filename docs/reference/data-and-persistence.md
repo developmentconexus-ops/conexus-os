@@ -6,37 +6,18 @@ Current technical detail for the surface this file's title names. The operator-a
 
 ## 5.1 Project Git
 
-Canonical authored **Project-scoped** content includes, according to the Project Baseline and artifact kind:
+Canonical authored **Project-scoped** content:
 
 ```text
-Project Baseline readable source
-application/frontend/backend source
-artifact source definitions
-agent/v1 definitions
-ProjectBrainBinding + Project-local refinements/overrides
-ProjectConnectionBinding declarations
-migrations
-config schema/contracts
-verification/test assets
-tasks.md purpose/context memory
+application source under app/
 ```
+
+That is the whole of it today. The Builder writes it, source admission accepts it, and
+the compiler reads it. Everything else this section used to list belonged to Project
+Inception, the Project Baseline and the connection and Brain bindings, which left the
+product on 2026-09-19.
 
 Project Git is authoring/provenance truth. It is not current authorization, runtime or serving truth.
-
-## 5.2 Workspace Brain Git
-
-Canonical published Brain source lives in a **Workspace/group-scoped Git tree/repository independent from the first Project repo**.
-
-```text
-Workspace Brain Git
-→ BrainDefinition published source
-→ semantic/knowledge/evidence-spec source material
-→ publication history
-```
-
-A Project repo pins/binds/refines/overrides according to Brain rules; it does not become the canonical Workspace Brain source by being the first consumer.
-
-This separation prevents Project-local implementation from silently becoming company-level meaning.
 
 ## 5.3 `hub_control` PostgreSQL
 
@@ -45,17 +26,16 @@ Authoritative Hub operational/domain truth for current owners such as:
 ```text
 Identity & Access
 Workspace
-Project
-Builder Change/Plan/WorkUnit/ActorRun/Findings
+Project and its working state
+BuilderRun
 Artifact Registry metadata
-Connections logical state/qualification
-Gateway effect/current counters/receipts
-Brain operational proposals/health overlays
-PAR owner facts
-Release/Promotion/current serving state
-Observability/Audit records
-MAR job-run occurrence facts
+Model connections: logical state, custody references, sharing and preference
 ```
+
+`apps/hub/migrations/0001_baseline.sql` plus its forward migrations is the exact
+census. Change, Plan, WorkUnit, ActorRun, the capability gateway, Brain overlays,
+Product Agent facts, Release and Promotion state and Managed Application Runtime job
+runs were removed from the product on 2026-09-19 and have no tables.
 
 For C-015 human authentication, the verified external identity key `(issuer, subject)` is stored as attributes of the existing `iam.account` identity. It is not a separate durable record class and does not make Keycloak provider state Hub authority.
 
@@ -93,6 +73,19 @@ Project DB is not Hub control authority, Brain semantic authority or proof that 
 
 Persistent DEV/PROD databases exist where the Project needs them. Validation databases are ephemeral proof fixtures, not a permanent third business environment by default.
 
+### 5.4.1 Approved destination
+
+C-021 approved that each Project owns a logical data space of its own, isolated from
+Conexus's internal data, and that a conversation or an application reaches it through
+authorized capabilities rather than through arbitrary access. Evolving a Project's
+structure grants nothing on the system database or on production, and a product's own
+data stays distinct from data belonging to an external system.
+
+Which physical database, schema or namespace carries that space is unchosen, and is
+decided in the increment that delivers it. Nothing here describes an implemented
+isolation boundary. [Product contract section 12.5](../product/contract.md#125-data)
+owns the rule.
+
 ## 5.5 `mastra_builder`
 
 Builder Mastra substrate persistence only:
@@ -103,19 +96,14 @@ AgentController/session substrate state
 runtime continuation mechanics
 ```
 
-Never Change/Plan/WorkUnit/ActorRun/correctness authority.
+Never correctness authority. Settlement, source identity and artifact identity are Conexus facts in `hub_control`, never substrate state.
 
-## 5.6 `mastra_par`
-
-Product Agent Mastra substrate persistence only:
-
-```text
-thread/message history
-suspension/checkpoint mechanics
-runtime state needed to resume exact Agent execution
-```
-
-Never current Release/permission/approval/AgentRun terminal/Gateway effect authority.
+The shape of what this substrate holds follows from the composition C-020 realized: one
+Thread per Project and a run-scoped Session. C-021 reopened how many conversations a
+Project offers, so the mapping between a conversation and what is persisted here is open
+and belongs to [the Sessions and Work qualification](../tasks/sessions-work-qualification.md).
+What did not change is that conversation messages live in the framework's store. A
+Conexus-owned conversation store is not one of the answers on the table.
 
 ## 5.7 Artifact/Blob/CAS backing
 
@@ -133,7 +121,7 @@ Storage/provider path/key/prefix is never Product authority.
 
 Opaque encrypted secret-byte/crypto mechanism behind the narrow `CredentialBackend` boundary.
 
-Connections owns logical credential handles/grant facts; Gateway receives plaintext only at trusted last-mile use. CredentialBackend is not a generic Secret domain.
+Connections owns logical credential handles and grant facts; plaintext is materialized only at the trusted last-mile use, which today is the model call a run makes. CredentialBackend is not a generic Secret domain.
 
 Outside the trusted Hub boundary, no single compromise path/location/credential may yield both the Connection ciphertext backup set and root/recovery-key material. F1 transient acquired tokens are memory-only; no durable transient-token cache is admitted.
 
@@ -217,15 +205,11 @@ Migration/provisioning/backup credentials with broader operational power remain 
 ```text
 hub owner credential
 -X-> mastra_builder
--X-> mastra_par
 -X-> Project DB by default
 -X-> Keycloak provider persistence
 
 mastra_builder
--X-> hub_control / mastra_par / Project DB / Keycloak provider persistence
-
-mastra_par
--X-> hub_control / mastra_builder / Project DB / Keycloak provider persistence
+-X-> hub_control / Project DB / Keycloak provider persistence
 
 Project query/action/migrator capability roles (NOLOGIN; adopted by an
 already-admitted per-capability session; controlled qualification proves this
@@ -266,51 +250,30 @@ Keycloak provider persistence is deliberately outside this Conexus semantic inve
 
 The current projection below preserves the accepted 3E closure directly so a Fresh Actor can verify this load-bearing boundary without Git archaeology. Names are semantic record classes, not post-C-018 table/column spellings.
 
-## 6.5.1 Current durable record inventory
+## 6.5.1 Durable record inventory
 
-```text
-iam: account / session / workspace_membership / area_membership / area_project_grant / account_project_grant / published_app_access
-ws: workspace / area
-prj: project / approved_baseline / brain_binding / connection_binding / config_contract_revision
-bld: change / contract_revision / plan_revision / work_unit / actor_run / coding_session / finding / change_acceptance
-reg: artifact / artifact_revision
-con: connection / connection_revision / connection_qualification
-gw: effect_attempt / idempotency_claim / budget_counter
-brn: knowledge_proposal / health / binding_validation
-par: conversation / agent_run / approval_request / agent_trigger
-rel: release / promotion / active_pointer
-mar: serving_route / job_run
-obs: audit_record / operational_event
-att: attachment / blob
-TOTAL 46
-```
+The census below is the F1 inventory as it was closed, and it is history. It counted
+46 record classes across owners that no longer exist: `bld` held the Change hierarchy,
+`gw` the capability gateway, `brn` the Brain, `par` Product Agents, `rel` Release and
+Promotion, `mar` the Managed Application Runtime, and `prj` carried the Project Baseline
+and the bindings.
 
-A new durable record class still requires the existing Decision Loop/material Finding and the same admission test: one current owner, a real durable consumer/invariant, non-derivability from sufficient authority, no mutable foreign-authority mirror, no substrate/provider-only duplication, and no generic framework without a consumer.
+`apps/hub/migrations/0001_baseline.sql` and the forward migrations after it are the
+current census, and they are the only one a reader should measure against. A new durable
+record class still requires the existing Decision Loop and the same admission test.
 
-## 6.5.2 Current Tier-2 cross-module FK allowlist — 16
+## 6.5.2 Tier-2 cross-module foreign keys
 
-Tier-2 is admitted only when a cross-owner reference protects stable structural identity or containment whose dangling state is invalid independently of mutable authorization/eligibility. The target is a stable owner identity/PK; enforcement is `RESTRICT`/`NO ACTION`, never `CASCADE`/`SET NULL`; the FK grants no Product authority and authorizes no cross-schema SQL. Historical/exact semantic pins whose current eligibility must be revalidated remain Tier-3. Absence remains the default, and any new Tier-2 FK requires the existing Decision Loop/material Finding.
+The rule stands. A cross-owner foreign key is admitted only where it protects stable
+structural identity or containment whose dangling state would be invalid. Tier-3
+semantic references and digests remain the default everywhere else.
 
-| # | Tier-2 FK |
-| --- | --- |
-| 1 | `iam.workspace_membership.workspace_id → ws.workspace(id)` |
-| 2 | `iam.area_membership.area_id → ws.area(id)` |
-| 3 | `iam.area_project_grant.area_id → ws.area(id)` |
-| 4 | `iam.area_project_grant.project_id → prj.project(id)` |
-| 5 | `iam.account_project_grant.project_id → prj.project(id)` |
-| 6 | `iam.published_app_access.project_id → prj.project(id)` |
-| 7 | `prj.project.workspace_id → ws.workspace(id)` |
-| 8 | `con.connection.workspace_id → ws.workspace(id)` when `ownerScope=WORKSPACE` |
-| 9 | `con.connection.project_id → prj.project(id)` when `ownerScope=PROJECT` |
-| 10 | `reg.artifact.workspace_id → ws.workspace(id)` when `kind=brain` |
-| 11 | `reg.artifact.project_id → prj.project(id)` for PROJECT-scoped kinds |
-| 12 | `bld.change.project_id → prj.project(id)` |
-| 13 | `rel.release.project_id → prj.project(id)` |
-| 14 | `rel.active_pointer.project_id → prj.project(id)` |
-| 15 | `mar.serving_route.project_id → prj.project(id)` |
-| 16 | `att.attachment.project_id → prj.project(id)` |
-
-Tier-3 semantic references/digests remain the default for non-structural cross-owner references. In particular, ProjectConnectionBinding→Connection/ConnectionRevision, ProjectBrainBinding→Brain/Registry revision, Gateway↔PAR semantic refs, JobRun→Release composition, OBS refs, Mastra refs, and digest refs do not gain Tier-2 FKs merely for convenience.
+The sixteen-row allowlist that stood here counted owners that no longer exist, among
+them `bld.change`, `rel.release`, `rel.active_pointer` and `mar.serving_route`, and
+areas and per-project grants that the authority model no longer has. It is history.
+`apps/hub/migrations/0001_baseline.sql` and the forward migrations after it are what a
+reader measures against, and `tests/implementation/hub-call-site-privileges-postgres.test.mjs`
+is what holds the boundary.
 
 ---
 
@@ -342,32 +305,21 @@ Where SQL artifacts exist, input schema validation and real bind parameters rema
 
 ---
 
-## 14. EnvironmentConformance
+## 12. What this file no longer describes
 
-Promotion measures the **real target**, not just source files.
-
-Current conformance properties include, where applicable:
-
-```text
-PostgreSQL major/extensions
-current DB role + prohibited privilege checks
-owner grants / least privilege
-migration ledger + checksums
-schemaFingerprint real target
-required config bindings resolvable
-exact pinned Connection revision == exact active revision in target environment
-current Release pointer / expected generation
-served digest after switch
-```
-
-Schema fingerprint is a deterministic versioned catalog representation; privilege/extension/PG-major checks remain separate proofs rather than being hidden inside one fingerprint.
-
-Material divergence:
+These owners left the product on 2026-09-19 and their storage prescriptions were
+removed from this reference on 2026-09-20 rather than left readable as current design.
+Git history holds what they said.
 
 ```text
-DRIFT
-→ STOP / reconcile
--X-> apply the rest and hope
+Workspace Brain Git            Brain
+mastra_par                     Product Agents
+EnvironmentConformance         Promotion
+Project Baseline, bindings     Project Inception
+Release / Promotion state      publication as it was then designed
 ```
 
----
+C-021 approved Brain, integrations and publication as destination. That approval names
+no storage, and nothing here may be read as the mechanism for any of them.
+[Product contract section 12](../product/contract.md#12-approved-destination) owns what
+each one must mean; the increment that delivers it chooses how it is stored.
