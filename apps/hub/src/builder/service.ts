@@ -105,7 +105,9 @@ export const createBuilderService = ({ store, source, runtime, compiler, applica
       }
     })().catch(async (error) => {
       const code = failureCode(error)
-      if (code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED' || code === 'APPLICATION_COMPILER_CANCELLED') {
+      // Only the operator's cancellation aborts this controller, and what the abort surfaces depends
+      // on where the run was standing: a phase write the database now refuses is still a cancellation.
+      if (controller.signal.aborted || code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED' || code === 'APPLICATION_COMPILER_CANCELLED') {
         await store.interruptBuilderRun(run.builderRunId, 'USER_CANCELLED').catch(() => undefined)
       } else {
         await store.failBuilderRun(run.builderRunId, code).catch(() => undefined)

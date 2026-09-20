@@ -53,7 +53,7 @@ test('C-020 preserves state invariants and separates response settlement from bu
   await adminClient.query('UPDATE builder.project_working_state SET last_preview_source_revision = NULL, last_preview_artifact_revision_id = NULL, last_preview_artifact_digest = NULL WHERE project_id = $1', [projectId])
 
   ingressClient = await connect(ingress); executorClient = await connect(executor)
-  const create = async (client, mode, id, key = randomUUID(), request = randomUUID()) => (await client.query('SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8) AS value', [accountId, projectId, key.replaceAll('-', '').padEnd(64, '0'), request.replaceAll('-', '').padEnd(64, '1'), null, mode, id, null])).rows[0].value
+  const create = async (client, mode, id, key = randomUUID(), request = randomUUID()) => (await client.query('SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9) AS value', [accountId, projectId, key.replaceAll('-', '').padEnd(64, '0'), request.replaceAll('-', '').padEnd(64, '1'), 'pedido', null, mode, id, null])).rows[0].value
   const claim = async (id) => (await executorClient.query('SELECT builder.claim_builder_run($1,$2,$3,$4) AS value', [id, randomUUID(), 'provider', 'model'])).rows[0].value
 
   const planId = randomUUID(); await create(ingressClient, 'PLAN', planId)

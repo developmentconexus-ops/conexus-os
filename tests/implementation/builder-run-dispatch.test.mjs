@@ -11,6 +11,7 @@ const compiled = spawnSync(process.execPath, [resolve(root, 'node_modules/typesc
 if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
 test.after(() => rmSync(output, { recursive: true, force: true }))
 const { createBuilderService } = await import(pathToFileURL(resolve(output, 'builder/service.js')).href)
+const { projectBuilderRun } = await import(pathToFileURL(resolve(output, 'builder/failure-vocabulary.js')).href)
 
 // One offer, the shape the connection custody module hands over: a model the account can pay for
 // in this Project, named with the connection's own provider id.
@@ -67,6 +68,43 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
   assert.deepEqual(calls, ['claim', ['phase', 'PREPARING'], ['prepareProjectSource', runId], ['execute', 'PLAN', 'Explique o app'], ['sandbox', 'physical-sandbox'], ['message', 'mastra-message'], ['phase', 'FINALIZING'], ['settle', 'RESPONSE_ONLY']])
 })
 
+test('a failure before the agent keeps the operator request on the run and names a public category', async () => {
+  const runId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  const projectId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccd'
+  const accountId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  const sourceRevision = 'a'.repeat(40)
+  const createdAt = '2026-09-20T12:00:00.000Z'
+  let stored = null
+  let failed = null
+  const row = (state, failureCode) => ({
+    builderRunId: runId, projectId, state, phase: null, mode: 'BUILD', baseSourceRevision: sourceRevision,
+    resultSourceRevision: null, resultKind: null, failureCode, requestText: stored, createdAt, ...admitted,
+  })
+  const store = {
+    createBuilderRun: async (input) => { stored = input.content; return row('QUEUED', null) },
+    claimBuilderRun: async () => row('RUNNING', null),
+    setBuilderRunPhase: async () => {},
+    failBuilderRun: async (_id, code) => { failed = code },
+    close: async () => {},
+  }
+  const service = createBuilderService({
+    store,
+    source: { prepareProjectSource: async () => { throw new Error('BUILDER_SOURCE_MATERIALIZATION_REFUSED') } },
+    runtime: { kind: 'REMOTE_E2B', execute: async () => { throw new Error('the agent must never start') } },
+    compiler: {}, applicationArtifacts: {}, listModelOffers,
+  })
+  const accepted = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'preagent', content: 'Crie um contador', mode: 'BUILD' })
+  await service.close()
+  assert.equal(stored, 'Crie um contador')
+  assert.equal(accepted.requestText, 'Crie um contador')
+  assert.equal(failed, 'BUILDER_SOURCE_MATERIALIZATION_REFUSED')
+  assert.deepEqual(projectBuilderRun(row('FAILED', failed)), {
+    builderRunId: runId, projectId, state: 'FAILED', phase: null, mode: 'BUILD', baseSourceRevision: sourceRevision,
+    resultSourceRevision: null, resultKind: null, failureCode: 'BUILDER_SOURCE_MATERIALIZATION_REFUSED',
+    failureCategory: 'ENVIRONMENT_PREPARATION_FAILED', requestText: 'Crie um contador', createdAt, ...admitted,
+  })
+})
+
 test('BuilderRun cancellation records intent, aborts native work, and interrupts once', async () => {
   const runId = '88888888-8888-4888-8888-888888888888'
   const projectId = '99999999-9999-4999-8999-999999999999'
@@ -105,6 +143,41 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
   await service.close()
   assert.equal(calls[0], 'request-cancellation')
   assert.deepEqual(calls.at(-1), ['interrupt', 'USER_CANCELLED'])
+})
+
+test('a run cancelled mid phase change is interrupted, not failed, whatever error the abort surfaces', async () => {
+  const runId = '88888888-8888-4888-8888-888888888889'
+  const projectId = '99999999-9999-4999-8999-999999999999'
+  const accountId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const calls = []
+  let started
+  const startedPromise = new Promise((resolve) => { started = resolve })
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted }
+  const service = createBuilderService({
+    store: {
+      createBuilderRun: async () => run,
+      claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
+      setBuilderRunPhase: async () => {},
+      requestBuilderRunCancellation: async () => ({ ...run, state: 'RUNNING', cancellationRequested: true }),
+      interruptBuilderRun: async (_id, reason) => calls.push(['interrupt', reason]),
+      bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
+    },
+    source: { prepareProjectSource: async () => new Uint8Array([1]), admitSourceResult: async () => { throw new Error('not reached') } },
+    runtime: {
+      kind: 'REMOTE_E2B',
+      execute: async (input) => {
+        started()
+        await new Promise((resolve) => input.signal?.addEventListener('abort', resolve, { once: true }))
+        throw new Error('BUILDER_RUN_PHASE_UPDATE_REFUSED')
+      },
+    },
+    compiler: {}, applicationArtifacts: {}, listModelOffers,
+  })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-mid-phase', content: 'pare', mode: 'BUILD' })
+  await startedPromise
+  await service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+  await service.close()
+  assert.deepEqual(calls, [['interrupt', 'USER_CANCELLED']])
 })
 
 test('BUILD source result is admitted, CASed, compiled, settles Preview and persists every phase in order', async () => {

@@ -12,6 +12,9 @@ export type ModelConnection = Readonly<{
   providerId: string
   credentialKind: 'OAUTH_TOKEN_SET' | 'API_KEY'
   selected: boolean
+  // One row per connection and Workspace pair. On an OWNER row workspaceId is a Workspace the owner
+  // can see, and only `shared` says whether the connection is in it.
+  shared: boolean
 }>
 
 export type AccountSignIn = Readonly<{ providerId: string; name: string }>

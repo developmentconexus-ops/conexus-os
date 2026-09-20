@@ -52,6 +52,7 @@ fieldset input { margin: 0; }
 .credential-row-main { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 .credential-row-main p { display: flex; flex-wrap: wrap; gap: .35rem; margin: .4rem 0 0; }
 .credential-row-manage { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-top: .75rem; border-top: 1px solid #edf0ee; color: #617068; font-size: .85rem; }
+.credential-shares { display: grid; gap: .45rem; justify-items: start; }
 .credential-share { display: flex; align-items: center; gap: .5rem; }
 .credential-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: .9rem; margin-top: 1rem; align-items: start; }
 .credential-card { margin-top: 1rem; }
@@ -102,6 +103,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .builder-turn-user { justify-self: end; max-width: 88%; padding: .6rem .8rem; border-radius: .8rem; background: #e7efe8; }
 .builder-turn-phase { display: flex; align-items: center; gap: .5rem; color: #617068; font-size: .88rem; }
 .builder-turn-error { margin: 0; padding: .6rem .8rem; border-radius: .5rem; background: #fff1ee; color: #8b2828; }
+.builder-turn-reason { justify-self: end; max-width: 88%; margin: 0; padding: .5rem .8rem; border-radius: .5rem; background: #fdf3e7; color: #7a4a17; font-size: .9rem; }
 .builder-run-status { margin: 0; color: #617068; font-size: .82rem; }
 .builder-mode-toggle { grid-template-columns: 1fr 1fr; }
 .builder-mode-toggle legend { grid-column: 1 / -1; }

@@ -9,7 +9,9 @@ import {
 } from '@mastra/playground-ui/components/ai/tool-call'
 import { Brain } from 'lucide-react'
 import type { ActiveTool, LiveTurn, MastraDBMessage } from '../mastra-session'
+import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
 
+export type PersistedRequest = Readonly<{ runId: string; text: string; createdAt: string; reason: string | null }>
 type MessagePart = MastraDBMessage['content']['parts'][number]
 type ToolInvocationPart = Extract<MessagePart, { type: 'tool-invocation' }>
 type ReasoningPart = Extract<MessagePart, { type: 'reasoning' }>
@@ -58,10 +60,25 @@ function Reasoning({ part, streaming }: Readonly<{ part: ReasoningPart; streamin
   </ToolCall>
 }
 
-function Message({ message, tools, streaming }: Readonly<{ message: MastraDBMessage; tools: LiveTurn['tools']; streaming: boolean }>) {
+const userText = (message: MastraDBMessage): string =>
+  message.content.parts.flatMap((part) => part.type === 'text' ? [part.text] : []).join('')
+
+const messageTime = (message: MastraDBMessage): number => {
+  const at = new Date(message.createdAt).getTime()
+  return Number.isNaN(at) ? 0 : at
+}
+
+function RequestTurn({ entry }: Readonly<{ entry: PersistedRequest }>) {
+  return <>
+    <div className="builder-turn builder-turn-user"><MarkdownRenderer>{entry.text}</MarkdownRenderer></div>
+    {entry.reason && <p className="builder-turn-reason" role="note">{entry.reason}</p>}
+  </>
+}
+
+function Message({ message, tools, streaming, reason }: Readonly<{ message: MastraDBMessage; tools: LiveTurn['tools']; streaming: boolean; reason: string }>) {
   const parts = message.content.parts
   if (isUserAuthored(message)) {
-    const text = parts.flatMap((part) => part.type === 'text' ? [part.text] : []).join('')
+    const text = userText(message)
     return text ? <div className="builder-turn builder-turn-user"><MarkdownRenderer>{text}</MarkdownRenderer></div> : null
   }
   if (message.role !== 'assistant') return null
@@ -72,29 +89,42 @@ function Message({ message, tools, streaming }: Readonly<{ message: MastraDBMess
       if (part.type === 'text') return part.text ? <MarkdownRenderer key={key} streaming={last}>{part.text}</MarkdownRenderer> : null
       if (part.type === 'reasoning') return <Reasoning key={key} part={part} streaming={last} />
       if (part.type === 'tool-invocation') return <ToolInvocation key={part.toolInvocation.toolCallId} part={part} live={tools[part.toolInvocation.toolCallId]} />
+      // The provider's own words name sandboxes, ids and stack frames. The category is what the
+      // operator is told.
+      if (part.type === 'error') return <p key={key} className="builder-turn-reason" role="note">{reason}</p>
       return null
     })}
   </div>
 }
 
-export function BuilderConversation({ history, turn, pendingRequest, runActive, phaseLabel }: Readonly<{
+export function BuilderConversation({ history, turn, pendingRequest, persistedRequests, failureCategory, runActive, phaseLabel }: Readonly<{
   history: readonly MastraDBMessage[]
   turn: LiveTurn
   pendingRequest: string | null
+  persistedRequests: readonly PersistedRequest[]
+  failureCategory: BuilderFailureCategory | null
   runActive: boolean
   phaseLabel: string | null
 }>) {
   const liveIds = new Set(turn.messages.map((message) => message.id))
   const settled = history.filter((message) => !liveIds.has(message.id))
-  const requestVisible = pendingRequest !== null && [...settled, ...turn.messages].some((message) =>
-    isUserAuthored(message) && message.content.parts.some((part) => part.type === 'text' && part.text === pendingRequest))
+  const spoken = new Set([...settled, ...turn.messages].filter(isUserAuthored).map(userText))
+  const requestVisible = pendingRequest !== null && spoken.has(pendingRequest)
+  const orphans = persistedRequests.filter((entry) => !spoken.has(entry.text) && entry.text !== pendingRequest)
+  const timeline = [
+    ...settled.map((message) => ({ at: messageTime(message), key: message.id, message, entry: null as PersistedRequest | null })),
+    ...orphans.map((entry) => ({ at: new Date(entry.createdAt).getTime(), key: `request-${entry.runId}`, message: null, entry })),
+  ].sort((left, right) => left.at - right.at)
+  const reason = failureReason(failureCategory)
   const streamingId = turn.status === 'LIVE' ? turn.messages.at(-1)?.id : undefined
   return <ThemeProvider defaultTheme="light" storageKey="conexus-builder-theme">
-    {settled.map((message) => <Message key={message.id} message={message} tools={turn.tools} streaming={false} />)}
+    {timeline.map((item) => item.message
+      ? <Message key={item.key} message={item.message} tools={turn.tools} streaming={false} reason={reason} />
+      : item.entry && <RequestTurn key={item.key} entry={item.entry} />)}
     {pendingRequest !== null && !requestVisible && <div className="builder-turn builder-turn-user"><MarkdownRenderer>{pendingRequest}</MarkdownRenderer></div>}
-    {turn.messages.map((message) => <Message key={message.id} message={message} tools={turn.tools} streaming={message.id === streamingId} />)}
+    {turn.messages.map((message) => <Message key={message.id} message={message} tools={turn.tools} streaming={message.id === streamingId} reason={reason} />)}
     {runActive && phaseLabel && <div className="builder-turn-phase" role="status"><PendingIndicator /><Shimmer active>{phaseLabel}</Shimmer></div>}
-    {turn.error && <p className="builder-turn-error" role="alert">{turn.error}</p>}
-    {!settled.length && !turn.messages.length && pendingRequest === null && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}
+    {turn.error && <p className="builder-turn-error" role="alert">{reason}</p>}
+    {!timeline.length && !turn.messages.length && pendingRequest === null && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}
   </ThemeProvider>
 }
