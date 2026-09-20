@@ -20,24 +20,54 @@ The two candidates are named in C-021 and neither is chosen in advance.
 
 ## What it must establish
 
-The initial target is small and concrete. In one Project, create, switch between and
-resume two conversations, and preserve across that: the conversation's own context, the
-acting account's access, the Project's current source, and the last good Preview.
+Two things, and it stops there.
 
-Beyond that, inspect the contracts where Work meets a conversation, and test only the
-doubts capable of invalidating the choice. Do not build two complete systems to compare
-them. Reading an API, its version and its stated guarantees is evidence; a desired API
-is not a proven one.
+**Conversations.** In one Project, create, switch between and resume two conversations,
+and preserve across that: each conversation's own context, the acting account's access,
+the Project's current source, and the last good Preview.
 
-## Non-goals
+**Work.** Conversations alone cannot separate the candidates, because both can carry
+them. The properties below are what makes Work different, and each needs evidence that
+the composition provides it rather than a plan to build it. Read the contract, and prove
+only what reading cannot settle.
 
-- Installing or activating the Factory.
-- Migrating existing Threads, runs or history.
-- Removing `BuilderRun`, or anything it carries, on the strength of this task.
-- Choosing the physical sandbox lifecycle, the data schema, hosting, the scheduler or
-  the Brain mechanism.
-- Building a Conexus conversation store, a wrapper over the framework, or a second
-  implementation of a mechanism the framework already offers adequately.
+| Property | What evidence looks like |
+| --- | --- |
+| Work is bounded and delegable | a unit of work can be described, handed off and tracked without the originating conversation staying alive |
+| It produces a reviewed, validated candidate | the mechanism carries a candidate and a verdict on it, rather than applying changes as it goes |
+| Applying it is explicit | nothing in the mechanism applies a candidate to the Project on its own |
+| It never publishes | completing Work triggers no production effect |
+| It carries authorization | the acting identity and what it may do travel with the work, and do not default to whoever started it |
+
+This is not a demand to build a working SDLC before the first increment. The question is
+whether the mechanism's own contracts can hold these properties, which is answered by
+reading its API and its version and by testing only the doubts that reading leaves open.
+
+Do not build two complete systems to compare them. A desired API is not a proven one.
+
+## What may and may not be done
+
+Inspecting packages is allowed and expected. So is standing a throwaway proof up in an
+isolated environment, reading source and type declarations, and running a scratch script
+against a scratch store.
+
+Not allowed:
+
+- incorporating or activating anything in the product, including the Factory;
+- changing the product's dependencies, its data, or its runtime;
+- touching the pilot's database, its Hub or any operator session beyond what an
+  authorized live lane already permits.
+
+A cost, a credential or an effect that leaves this machine needs its own authorization
+before it is incurred. That covers paid model calls, provider accounts, sandboxes billed
+to the operator and anything written outside a scratch environment.
+
+**Minimal integration of authorization is not a parallel engine.** Binding a Conexus
+authorization to a native id, so that the mechanism knows which account acts, is the
+kind of integration this qualification is allowed to propose. Re-implementing the
+mechanism's triage, planning, coordination, review or lifecycle on the Conexus side is
+the kind it may not, and finding that the native mechanism lacks something is a finding
+to report, not a licence to build the replacement.
 
 ## What the answer must not cost
 

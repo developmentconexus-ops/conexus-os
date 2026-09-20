@@ -11,9 +11,10 @@ The roadmap and current task distinguish implementation, proof, and acceptance.
 Conflicting Change-centric wording in older references and locked evidence is
 historical. Preserve its human job and layout without reviving its old machinery.
 
-C-021 amended two of this document's premises on 2026-09-20. One Thread per Project
-with no second conversation store, and a conversation subordinate to a run, are no
-longer the destination. They remain an accurate description of what the code does
+C-021 amended two of this document's premises on 2026-09-20. One Thread per Project,
+and a conversation subordinate to a run, are no longer the destination. The rule that
+there is no second conversation store was not amended and still holds: more
+conversations is a product requirement, not a reason to own their messages. They remain an accurate description of what the code does
 today, and this file marks each place where the two now differ. Nothing else in C-020
 is reopened: authorization, source custody, execution settlement and artifact identity
 stand. The replacement is not chosen here; it is the subject of
@@ -51,9 +52,10 @@ and Workspace/E2B. There is no second Conexus conversation store or persistent T
 That is the realization in force and it keeps running until something replaces it.
 It is no longer the destination: C-021 approved several persistent conversations per
 Project, so the single Thread and the run-scoped Session are one answer to a question
-that is now open. Do not build a Conexus conversation store to get there, and do not
-remove authorization, effect idempotency, source custody or Preview protection from
-`BuilderRun` before the qualification says what replaces it.
+that is now open. The rest of the sentence above still binds. There is no second
+conversation store, and getting to several conversations by building one is refused
+rather than qualified. Do not remove authorization, effect idempotency, source custody
+or Preview protection from `BuilderRun` before the qualification says what replaces it.
 
 | Fact | Authority |
 | --- | --- |
@@ -65,11 +67,21 @@ remove authorization, effect idempotency, source custody or Preview protection f
 
 ## 4. Exact Mastra baseline and accepted use
 
-Adopted Builder pins are core 1.63.2, e2b adapter 0.11.0, memory 1.28.1,
-and libsql 1.22.2. Consult the installed package and Mastra skill before remote docs.
-The native qualification supports Project isolation, persistent deterministic
-Threads, per-run Workspace binding, native tool restrictions, and conversation
-persistence across Controller recreation. Stored user input has `role=signal`,
+The pins in `package.json` and its lockfile are the answer. On 2026-09-20 they were
+core and server 1.67.0, client-js 1.46.0, e2b adapter 0.12.0, fastify 1.5.11, memory
+1.30.0, libsql 1.23.0, observability 1.17.8, react 1.5.0, playground-ui 55.0.0 and the
+`e2b` SDK 2.46.1. Consult the installed package and the Mastra skill before remote docs,
+and never quote this paragraph in place of reading them.
+
+The qualification that produced those statements ran against core 1.63.2 with the
+e2b adapter 0.11.0, memory 1.28.1 and libsql 1.22.2. It supported Project isolation,
+persistent deterministic Threads, per-run Workspace binding, native tool restrictions,
+and conversation persistence across Controller recreation. The packages moved to 1.67.0
+during the native-streaming work and the qualification was not re-run against them, so
+those five properties are carried forward on the earlier evidence. What the newer
+packages did prove is narrower and specific: the Agent Controller session routes, the
+session scope a run uses, and the browser rendering native message parts, each proven
+live on the pilot. Stored user input has `role=signal`,
 `type=user`, and a stable message ID. User message_start is not the live display source.
 
 ### 4.1 Lifetime

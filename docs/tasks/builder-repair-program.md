@@ -1,8 +1,9 @@
 # Builder repair program plan
 
-**Closed on 2026-09-20.** Every unit is delivered and merged. This file is kept as the
-record of what each unit owed and what it proved; it is no longer an execution path, and
-nothing here is a next action. [The roadmap](../roadmap.md) owns what is next.
+**Closed on 2026-09-20.** Every unit is merged. One of them, P-06, does not work as
+merged and its corrections are open; [the roadmap](../roadmap.md) owns that status and
+what is next. This file is the record of what each unit owed and what it proved. It is
+not an execution path and nothing in it is a next action.
 
 | Unit | Outcome |
 | --- | --- |
@@ -11,7 +12,7 @@ nothing here is a next action. [The roadmap](../roadmap.md) owns what is next.
 | P-03 | The Preview states a grant and then a frame that navigated, and never that the application loaded. The iframe gained the load handler it never had, counted only after the entry submit for that lease. |
 | P-04 | A past run is selectable and drives Details, Diff and the trace. A send whose outcome is unknown keeps its idempotency key. A retried diagnostic collapses onto one message. |
 | P-05 | Overtaken rather than executed. The deployment model catalog and the pinned model and admission constants had already gone with Mastra-native model choice, and `apps/hub/src/claude-account` no longer exists. What remained, naming the connection that pays for the next request, shipped with P-04. The unit below records the original intent; do not run it. |
-| P-06 | The compile answers whether the artifact boots. The agent's sandbox serves the built bytes and drives headless Chromium at them. A build or boot failure keeps the source and the previous Preview. |
+| P-06 | The compile answers whether the artifact boots, and a build or boot failure keeps the source and the previous Preview. The build-failure contract is proven and holds. The smoke itself does not run as merged: its script cannot parse, its verdict was discarded, and it drove the wrong DevTools target. Two open pull requests fix those, and the pilot proof was taken with them applied. |
 
 Three defects were found by running the result rather than by the suites, and each was
 fixed with a test that fails without the fix: a tree refusal that killed the whole run
@@ -23,394 +24,27 @@ The checklists below are historical. Their boxes are not instructions, their ten
 swarm and review-gate blocks were not the process actually used, and the live and perf
 lanes record what was owed rather than what to do next.
 
-## How to read this
-
-One box was one unit of work, and every box named the evidence that checked it. Read this as a record of what was owed. It is not a how-to any more.
-
-The program runs `skills/poteto-mode/playbooks/autopilot-stack.md` from the installed plugin. The operator merges every PR. Every unit stops at merge-ready.
-
-Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
-
-## Program checklist
-
-### Arm the program
-
-- [ ] State the protocol and this plan to the operator, then stop. Start execution only on her explicit go.
-- [ ] On her go, write this exact text into the standing orders and restate it in your todolist. "Run docs/tasks/builder-repair-program.md. PRs P-02 through P-06 in order. Tests alone are not sufficient verification; a PR is verified only when its unit, live, and perf boxes are all checked. The operator merges every PR. Done when every box carries its evidence."
-- [ ] Read these from the installed plugin at program start. Re-read them at every tick.
-  - [ ] `skills/poteto-mode/playbooks/autopilot-stack.md`
-  - [ ] `skills/swarm/SKILL.md`
-  - [ ] `skills/verify/SKILL.md`
-  - [ ] `skills/poteto-mode/playbooks/opening-a-pr.md`
-  - [ ] `skills/mastra/SKILL.md`
-- [ ] Read the repository authority before the first edit. `AGENTS.md`, `docs/roadmap.md`, `docs/reference/builder-c020-mastra-native.md`.
-- [ ] Arm the 30-minute audit tick as a real `/loop` in dynamic mode, which schedules its own wake-up rather than blocking on a sleep. Never leave the cadence to memory.
-- [ ] Use this tick prompt, verbatim. "Re-read the execution playbook from the installed plugin and the standing objective. Audit the operation against both and fix drift in this tick. Probe every active lane and judge progress by side effects only. Stand down a stuck lane and dispatch its replacement now. Then send the operator a status message, whether or not anything changed, with the queue table of PR, owner, state, and head SHA, the verdicts since the last tick, what merged, open operator gates, and blockers."
-- [ ] On the operator's hold or stand-down, send every owner a zero-writes order at once.
-
-### Spawn owners
-
-- [ ] Spawn one owner per PR with the full lifecycle the execution playbook names.
-- [ ] Follow this dependency graph.
-  - [ ] P-02, P-03, P-04 and P-05 are independent of each other. All four branch from trunk.
-  - [ ] P-06 after P-03, because it consumes the artifact state P-03 introduces.
-- [ ] Hold the file boundaries. P-03 and P-06 both touch Preview. P-03 owns `apps/web/src/features/builder/**` only. P-06 owns `apps/hub/src/builder/application-artifact-runtime.ts` and the compiler template only.
-- [ ] Hold the review gate. P-02, P-03, P-04, P-05 and P-06 change an interaction. They wait for the operator's review in chat with screenshots and a video before merge.
-
-### PR mechanics, for every PR
-
-- [ ] Resolve the forge once. Default to `gh`; if `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Record any fallback to `gh`. Never require `gt`.
-- [ ] Open the PR ready, never draft, with `origin pr create --status open --base <base-branch>` or `gh pr create --base <base-branch>` according to the resolved forge. A stack child targets its parent branch.
-- [ ] Write the failing test first. Show it fails for the right reason before implementing.
-- [ ] Run the repo's lint and typecheck once before the PR-facing push. Push with hooks on.
-- [ ] Run `/deslop` before each commit and `/no-comments` before review.
-- [ ] Triage every review-bot and security-reviewer comment per `../references/bugbot-triage.md`.
-- [ ] Before babysit and the merge-ready report, record the base and head SHAs prepared by the topology owner under the execution playbook.
-
-### Verdict and merge, for every PR
-
-- [ ] At the merge-ready head SHA, run the swarm per `skills/swarm/SKILL.md`. One gates lane. The ten live lanes from the PR's **Verify, live** block. The perf lane from its **Verify, perf** block. One audit lane that reads the diff and the receipts and distrusts the PR body.
-- [ ] Clean only when every lane is `PASS`. Findings go back to the owner. A new head gets a fresh swarm and a fresh verdict.
-- [ ] The root appends the PR to the base-branch stack and the operator lands it. Apply the patch-id rule from `playbooks/shipping.md` before appending.
-
-### Boot recipe, for every live lane
-
-Each live lane runs in its own worktree at the PR head. Drive through the `verify` skill.
-
-- [ ] `git fetch origin <head-branch> && git checkout <head SHA>`.
-- [ ] Start the Hub with `node --env-file=.audit/slice7/hub.env scripts/build-hub-local.mjs` from the WSL checkout with Node from nvm. Wait for `https://hub.conexus.localhost:3443` to serve the shell.
-- [ ] Sign in through the Keycloak realm `r1f` in a headed browser and save the storage state. Never type a password into an automated field. The session idles out after 30 minutes without a request, so a lane that pauses longer signs in again.
-- [ ] Deliver input only through the control skill's commands. Read-only diagnostics are the Hub log, the pilot Postgres, and the Mastra LibSQL store at `~/.local/share/conexus/pilot/slice7/storage/builder-session.db`.
-- [ ] Save every screenshot to `/tmp/swarm-<pr-id>/worker-<n>/<slug>.png` and return the paths with the report.
-
-## Keep a failed request visible and named (P-02)
-
-**Depends on.** Nothing outstanding.
-
-**Files.**
-
-- [x] Create a migration adding durable request text to `builder.builder_run`.
-- [x] Edit `apps/hub/src/builder/store.ts`.
-- [ ] Edit `apps/hub/src/builder/service.ts`. Not needed: `failureCode()` keeps its behaviour and the vocabulary table maps `BUILDER_PREPARATION_FAILED` to `INTERNAL_ERROR`.
-- [x] Edit `apps/hub/src/builder/routes.ts`.
-- [x] Edit `contracts/api/product/builder-paths.yaml`.
-- [x] Edit `apps/web/src/features/builder/api.ts`.
-- [x] Edit `apps/web/src/features/builder/components/project-build.tsx`.
-
-**Build.**
-
-- [x] Persist enough of the accepted request on the run to reconstruct the operator's own words. Today the row stores only a content digest, `trigger_message_id` is always null, and the text lives solely in a Mastra message written inside `session.sendMessage()`. Everything from `claimBuilderRun` through sandbox creation, source materialization and `controller.createSession` runs before that call.
-- [x] Render from that field when no bound Mastra message exists. The optimistic bubble is gated on `runActive`, so it vanishes when the run settles to FAILED.
-- [x] Map the internal failure codes onto a small public set. `failureCode()` passes through any message matching `/^[A-Z0-9_]{1,120}$/`, so over seventy internal codes reach the wire unmapped, and anything whose message is not an uppercase snake code collapses to `BUILDER_PREPARATION_FAILED`, which is the most common real code because raw E2B, Postgres and fetch errors all land there.
-- [x] Render each public category distinctly. `runStatus()` special-cases only `BUILDER_MODEL_RATE_LIMITED` today. Keep the existing `BUILDER_MODEL_AUTH_FAILED` and `BUILDER_MODEL_CREDENTIAL_UNRESOLVABLE` distinctions.
-
-**You see.**
-
-- [ ] A run that fails during sandbox preparation still shows the operator's request in the conversation, with a named reason beside it.
-
-**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
-
-- [x] A hub test drives a pre-agent failure and asserts the request text survives on the run row. Run `node --test --test-concurrency=1 tests/implementation/builder-run-dispatch.test.mjs`.
-- [x] A hub test asserts each public failure category for a representative internal code and that no unmapped internal code reaches the wire.
-- [x] `tests/implementation/builder-browser.test.mjs` gains a case where a settled FAILED run with no assistant message still renders the user's request and its named reason.
-
-**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` model at the PR head, per the boot recipe.
-
-- [ ] Lane 1. Regression lane against trunk. Induce the same pre-agent failure at trunk and head. Save `p02-preagent-both.png`. Pass when trunk loses the bubble and head keeps it with a named reason.
-- [ ] Lane 2. A normal successful run. Save `p02-success.png`. Pass when exactly one user bubble renders, not two.
-- [ ] Lane 3. Reload after a pre-agent failure. Save `p02-reload.png`. Pass when the request and its reason are still there.
-- [ ] Lane 4. Induce a compile failure. Save `p02-compile.png`. Pass when the reason reads differently from a sandbox failure.
-- [ ] Lane 5. Induce a credential failure by revoking the connection mid-run. Save `p02-credential.png`. Pass when the operator can tell it from a compile failure without reading logs.
-- [ ] Lane 6. Cancel a run. Save `p02-cancel.png`. Pass when the request stays and the reason reads as cancellation, not failure.
-- [ ] Lane 7. A raw unnamed error. Force a Postgres error inside dispatch. Save `p02-unnamed.png`. Pass when the public category is honest rather than a leaked internal string.
-- [ ] Lane 8. Confirm no internal detail leaks. Read the session payload for every failed run. Save `p02-no-leak.png`. Pass when no stack, no shell, no provider message and no sandbox id appears.
-- [ ] Lane 9. Two consecutive failures. Save `p02-two-failures.png`. Pass when both requests and both reasons are present and distinct.
-- [ ] Lane 10. A failure followed by a successful retry. Save `p02-recovery.png`. Pass when the conversation shows the failed request, its reason, and then the successful one.
-
-**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
-
-- [ ] Metric. Time from clicking send to the request appearing in the conversation.
-- [ ] Probe. Drive the composer through the `verify` skill at trunk and at head, interleaved, five sends each, timing from click to the bubble's first paint.
-- [ ] Baseline. Record the trunk median first.
-- [ ] Rule. Head must not exceed the trunk median by more than 100ms. The absolute budget is 500ms from click to bubble.
-
-**Review gate.** The operator reviews before merge.
-
-- [ ] Copy lane 1 and lane 5 screenshots into `docs/evidence/builder/p02-review-preagent.png` and `docs/evidence/builder/p02-review-credential.png`.
-- [ ] Record a 30 to 60 second video of a failing run keeping its request and naming its reason. Save it as `docs/evidence/builder/p02-review.mp4`.
-- [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
-
-**Merge.**
-
-- [ ] Root's clean verdict at the exact head SHA.
-- [ ] Bugbot triage done.
-- [ ] Base and verdict are current under the execution playbook and the patch-id rule in `playbooks/shipping.md`.
-- [ ] The root appends P-02 to the base-branch stack and the operator lands it.
-
-## Stop claiming the Preview loaded (P-03)
-
-**Depends on.** Nothing outstanding.
-
-**Files.**
-
-- [ ] Edit `apps/web/src/features/builder/components/project-build.tsx`.
-- [ ] Edit `apps/web/src/styles.css`.
-- [ ] Edit `tests/implementation/builder-browser.test.mjs`.
-
-**Build.**
-
-- [ ] Distinguish only what the client can observe. An artifact is available. A grant was issued. The frame navigated. The launch failed. Never claim the application loaded. Today the UI renders "Preview emitido e carregado com acesso autorizado." when the launch promise resolves, which is before the hidden form's microtask submit runs, so before navigation starts.
-- [ ] Attach a load handler to the iframe, which has none today. A cross-origin `load` fires for a 403 as readily as for a working app, so the state it supports is navigation, not success.
-- [ ] Count only a load that follows the entry submit for the current lease, and reset on a new artifact key. The iframe starts at `about:blank`, whose own `load` fires before any grant exists.
-
-**You see.**
-
-- [ ] No string anywhere claims the application loaded or works.
-
-**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
-
-- [ ] A browser test asserts the success claim is absent when the grant resolves. Run `node --test --test-concurrency=1 tests/implementation/builder-browser.test.mjs`.
-- [ ] A browser test asserts the navigated state appears only after the entry load and never on `about:blank`.
-- [ ] The two pinned behaviours still hold. One automatic launch per key until explicit retry, and a stale older launch never replaces a newer frame.
-
-**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` model at the PR head, per the boot recipe.
-
-- [ ] Lane 1. Regression lane against trunk. Cold load a Project with a good artifact at trunk and head. Save `p03-cold-both.png`. Pass when trunk claims loaded at grant time and head does not.
-- [ ] Lane 2. Watch the states in order on a cold load. Save `p03-sequence.png`. Pass when grant precedes navigated and neither claims the application works.
-- [ ] Lane 3. Reload within five seconds of a run settling. Save `p03-window.png`. Pass when the UI states something true during the window rather than nothing or a success claim.
-- [ ] Lane 4. Force the launch endpoint to 503. Save `p03-launch-failure.png`. Pass when the failure is named and the previous good frame stays.
-- [ ] Lane 5. Click retry after that failure. Save `p03-retry.png`. Pass when exactly one new launch is issued.
-- [ ] Lane 6. Change the artifact key while a launch is in flight. Save `p03-stale.png`. Pass when the stale grant never replaces the newer frame.
-- [ ] Lane 7. Open a Project that has never built. Save `p03-empty.png`. Pass when the empty state shows and no grant is requested.
-- [ ] Lane 8. Click reopen on a loaded frame. Save `p03-reopen.png`. Pass when a fresh grant is issued and the navigated state returns.
-- [ ] Lane 9. Serve a 403 from the preview entry. Save `p03-entry-denied.png`. Pass when the UI does not claim the application loaded.
-- [ ] Lane 10. A failing compile with a preserved last-good Preview. Save `p03-last-good.png`. Pass when the previous application still renders and the build failure is stated separately.
-
-**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
-
-- [ ] Metric. Time from the grant response to the frame-navigated state. Trunk has no such state, so also record trunk's time from grant response to its own success claim and treat the two as unlike.
-- [ ] Probe. Instrument the browser through the `verify` skill at trunk and head, interleaved, five cold loads each on the same artifact.
-- [ ] Baseline. Record trunk's time to its claim first.
-- [ ] Rule. Absolute budget. The navigated state must appear within 10s of the grant on a healthy artifact. Fail otherwise.
-
-**Review gate.** The operator reviews before merge.
-
-- [ ] Copy lane 1 and lane 10 screenshots into `docs/evidence/builder/p03-review-cold.png` and `docs/evidence/builder/p03-review-last-good.png`.
-- [ ] Record a 30 to 60 second video of a cold load showing each state in turn. Save it as `docs/evidence/builder/p03-review.mp4`.
-- [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
-
-**Merge.**
-
-- [ ] Root's clean verdict at the exact head SHA.
-- [ ] Bugbot triage done.
-- [ ] Base and verdict are current under the execution playbook and the patch-id rule in `playbooks/shipping.md`.
-- [ ] The root appends P-03 to the base-branch stack and the operator lands it.
-
-## Make past work inspectable and retries safe (P-04)
-
-**Depends on.** Nothing outstanding.
-
-**Files.**
-
-- [ ] Edit `apps/web/src/features/builder/components/project-build.tsx`.
-- [ ] Edit `apps/hub/src/builder/module.ts`.
-- [ ] Edit `tests/implementation/builder-browser.test.mjs`.
-
-**Build.**
-
-- [ ] Add a selected run that Details, Diff and the trace query follow, falling back to latest. `runHistory` already ships every field those views need, the list renders as plain items with no click handler, and all three views are hardwired to the latest run. No server or wire change is needed.
-- [ ] Retain the idempotency key on an uncertain failure and reuse it when the content is unchanged. `crypto.randomUUID()` runs on every submit with nothing retained. The server already matches by digest and raises `IDEMPOTENCY_CONFLICT` on a changed body, and `BuilderRequestError.status === null` already means the fetch never got a response.
-- [ ] Derive the diagnostic message id from the run so a second append is a no-op. `appendDiagnostic` already names the run and a safe code, but uses a fresh uuid per call.
-
-**You see.**
-
-- [ ] Clicking a past run changes the trace, the model and the diff to that run's, and a resend after a dropped connection produces one run.
-
-**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
-
-- [ ] A browser test with two runs in history asserts selecting the older one changes the rendered run id and diff revisions to that run's literal values.
-- [ ] A browser test aborts the first send, resends the same text, and asserts both requests carried the same `Idempotency-Key`.
-- [ ] A hub test calls the diagnostic append twice for one run and asserts one message.
-
-**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` model at the PR head, per the boot recipe.
-
-- [ ] Lane 1. Regression lane against trunk. With three real runs in history, click the first at trunk and head. Save `p04-select-both.png`. Pass when trunk does nothing and head follows the selection.
-- [ ] Lane 2. Select a failed run. Save `p04-failed-run.png`. Pass when its trace loads, not the latest run's.
-- [ ] Lane 3. Select a run, then send a new request. Save `p04-selection-reset.png`. Pass when the view returns to the new run.
-- [ ] Lane 4. Select a run and open Diff. Save `p04-diff.png`. Pass when the diff shows that run's base and result revisions.
-- [ ] Lane 5. Select a run and open Code. Save `p04-code.png`. Pass when the source shown belongs to that run or the view states it cannot.
-- [ ] Lane 6. Kill a send in flight, resend the same text. Save `p04-retry-same.png`. Pass when one run exists and both requests carried one key.
-- [ ] Lane 7. Kill a send, change the text, resend. Save `p04-retry-changed.png`. Pass when a new key is issued and no conflict is raised.
-- [ ] Lane 8. A definite 409 from the server. Save `p04-conflict.png`. Pass when the key is discarded and the operator is told.
-- [ ] Lane 9. Induce a compile failure. Save `p04-one-diagnostic.png`. Pass when exactly one diagnostic message appears.
-- [ ] Lane 10. Reload with a run selected. Save `p04-reload.png`. Pass when the view returns to latest and nothing is stale.
-
-**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
-
-- [ ] Metric. Time from clicking a history item to the trace rendering.
-- [ ] Probe. Drive the history list through the `verify` skill at head, five selections, and compare against the existing latest-run trace fetch measured at trunk.
-- [ ] Baseline. Record trunk's latest-run trace fetch time first.
-- [ ] Rule. Selection must not exceed the trunk trace fetch by more than 200ms. The absolute budget is 2s from click to rendered trace.
-
-**Review gate.** The operator reviews before merge.
-
-- [ ] Copy lane 1 and lane 6 screenshots into `docs/evidence/builder/p04-review-select.png` and `docs/evidence/builder/p04-review-retry.png`.
-- [ ] Record a 30 to 60 second video selecting a past run and driving an uncertain retry. Save it as `docs/evidence/builder/p04-review.mp4`.
-- [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
-
-**Merge.**
-
-- [ ] Root's clean verdict at the exact head SHA.
-- [ ] Bugbot triage done.
-- [ ] Base and verdict are current under the execution playbook and the patch-id rule in `playbooks/shipping.md`.
-- [ ] The root appends P-04 to the base-branch stack and the operator lands it.
-
-## Settle which authorized subject runs (P-05)
-
-**Done, mostly by other work.** The deployment model catalog, `PROJECT_ANTHROPIC_MODEL_ID`,
-`PROJECT_ANTHROPIC_ADMISSION_ID` and the string-equality re-validation all went with the native
-model choice change, and `apps/hub/src/claude-account` no longer exists. Model offers are built
-from `model_connection.admit_for_project`, the same decision run admission makes, so the screen
-cannot name one connection while the run uses another. A run records its own admission id,
-provider and model on its row and reads them back, so history survives a catalog that moved on.
-What was left was that the paying connection appeared only inside the model picker's closed
-dropdown. The composer names it now, which shipped with P-04.
-
-**Depends on.** Nothing outstanding.
-
-**Files.**
-
-- [ ] Edit `apps/hub/migrations/` with a migration exposing the connection preference on the list.
-- [ ] Edit `apps/hub/src/claude-account/store.ts`.
-- [ ] Edit `contracts/api/product/claude-account-paths.yaml`.
-- [ ] Edit `apps/web/src/features/claude-account/api.ts`.
-- [ ] Edit `apps/hub/src/project/module.ts`.
-- [ ] Edit `apps/hub/src/project/anthropic-oauth-provider.ts`.
-- [ ] Edit `apps/web/src/features/builder/components/project-build.tsx`.
-
-**Build.**
-
-- [ ] Expose the existing connection preference on the list and read it in the UI. The UI shows the first ACTIVE connection ordered by creation, while run admission reads `claude_connection.preference`, so with two ACTIVE connections the chip can name one while the server admits another. Do not add a caller-supplied connection id; the server already resolves the authorized subject correctly.
-- [x] Delete `BUILDER_VERIFICATION`, which no caller ever requests. `PROJECT_INCEPTION` and `BASELINE_EXPLANATION` went with Inception and the Baseline on 2026-09-19. Done together with the deployment model catalog that carried capabilities at all: the Builder now offers the models each connected credential actually pays for, read from Mastra's `PROVIDER_REGISTRY`, so no catalog entry is left to carry one.
-- [ ] Delete `PROJECT_ANTHROPIC_MODEL_ID` and `PROJECT_ANTHROPIC_ADMISSION_ID`, which pin a model and an admission id in source and are then validated against the catalog by string equality.
-- [ ] Drop the model-id existence re-validation against the catalog and keep the registry as the authority for it. Keep admission id, credential slot, enabled and origin pinning, which Mastra does not model.
-
-**You see.**
-
-- [ ] The chip names the connection the next run will use, and a second `BUILDER_CODING` catalog entry needs no code change.
-
-**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
-
-- [ ] A browser test with two ACTIVE connections, the second preferred, asserts the chip names the second.
-- [ ] A hub test asserts an unknown model id is refused and a valid second entry produces two choices.
-- [ ] A hub test asserts a historical run whose admission id is absent from the current catalog still reads back its recorded model triple.
-
-**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` model at the PR head, per the boot recipe.
-
-- [ ] Lane 1. Regression lane against trunk. Two real connections with the newer preferred. Save `p05-chip-both.png`. Pass when trunk names the older and head names the preferred one.
-- [ ] Lane 2. Send a run and read the recorded connection. Save `p05-recorded.png`. Pass when it matches the chip.
-- [ ] Lane 3. Switch the preference and send again. Save `p05-switch-connection.png`. Pass when the chip and the new run both follow.
-- [ ] Lane 4. Revoke the preferred connection. Save `p05-revoked.png`. Pass when the chip stops naming it and the composer states the requirement.
-- [ ] Lane 5. Two `BUILDER_CODING` entries. Send on the first model. Save `p05-model-one.png`. Pass when the run records that model.
-- [ ] Lane 6. Switch the model and send again. Save `p05-model-two.png`. Pass when the second run records the second model. This is the acceptance falsifier that has never been provable.
-- [ ] Lane 7. Open run history after both. Save `p05-history-models.png`. Pass when each run names its own model.
-- [ ] Lane 8. Remove an entry from the catalog and reopen the Project. Save `p05-removed-entry.png`. Pass when the historical run still names the removed model.
-- [ ] Lane 9. Put an unknown model id in the catalog and restart. Save `p05-unknown-model.png`. Pass when the Hub refuses it by name.
-- [ ] Lane 10. Confirm every surviving catalog consumer still resolves its model after the hardcode deletion. Save `p05-catalog.png`. Pass when each one reads its model from the catalog rather than from source.
-
-**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
-
-- [ ] Metric. Hub start time to listening, since catalog validation runs at composition.
-- [ ] Probe. `time` the Hub boot at trunk and at head, interleaved, three boots each against the same database.
-- [ ] Baseline. Record the trunk boot time first.
-- [ ] Rule. Head must not exceed trunk by more than 200ms.
-
-**Review gate.** The operator reviews before merge.
-
-- [ ] Copy lane 1 and lane 6 screenshots into `docs/evidence/builder/p05-review-chip.png` and `docs/evidence/builder/p05-review-model-switch.png`.
-- [ ] Record a 30 to 60 second video switching the model between two runs. Save it as `docs/evidence/builder/p05-review.mp4`.
-- [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
-
-**Merge.**
-
-- [ ] Root's clean verdict at the exact head SHA.
-- [ ] Bugbot triage done.
-- [ ] Base and verdict are current under the execution playbook and the patch-id rule in `playbooks/shipping.md`.
-- [ ] The root appends P-05 to the base-branch stack and the operator lands it.
-
-## Make the compile answer whether the artifact boots (P-06)
-
-**Depends on.** P-03.
-
-**Files.**
-
-- [ ] Edit `apps/hub/src/builder/application-artifact-runtime.ts`.
-- [ ] Edit `scripts/builder-e2b-template.mjs`.
-- [ ] Edit `apps/hub/src/builder/application-build.ts`.
-
-**Build.**
-
-- [ ] After the build, serve the output inside the compiler sandbox, drive headless Chromium, require the root to have a child within a bounded time and zero page errors, and treat failure as compile failure, which section 13 already knows how to settle.
-- [ ] Record the verdict as artifact metadata so the client can state it as a fact about the artifact, separate from frame state.
-- [ ] Do not inject a beacon. Conexus serves the artifact's own bytes with a sha256 check per request, so serve-time injection defeats the integrity invariant, and a beacon inside `app/**` would be the agent's claim rather than an observation, since section 8.3 makes those files the agent's.
-
-**You see.**
-
-- [ ] An artifact that builds but throws on boot fails the compile and never advances the last-good Preview.
-
-**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
-
-- [ ] A compiler test with a source that builds and throws at module evaluation fails the smoke and preserves the previous artifact.
-- [ ] A compiler test with a healthy source passes and records the verdict.
-- [ ] A compiler test asserts the smoke has a bounded timeout and that exceeding it fails rather than hangs.
-
-**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` model at the PR head, per the boot recipe.
-
-- [ ] Lane 1. Regression lane against trunk. Ask the agent for an app that compiles and throws on render. Save `p06-broken-both.png`. Pass when trunk advances the Preview to a broken artifact and head refuses.
-- [ ] Lane 2. A normal build. Save `p06-healthy.png`. Pass when the Preview advances and the verdict is recorded.
-- [ ] Lane 3. An app that renders nothing into the root. Save `p06-empty-root.png`. Pass when the smoke fails.
-- [ ] Lane 4. An app that throws asynchronously after first paint. Save `p06-async-throw.png`. Pass when the recorded verdict is honest about what was observed.
-- [ ] Lane 5. An app with a slow but valid boot. Save `p06-slow-boot.png`. Pass when it is not failed for being slow inside the bound.
-- [ ] Lane 6. Confirm the last-good Preview survives a failed smoke. Save `p06-last-good.png`. Pass when the previous application still renders.
-- [ ] Lane 7. Confirm working source still advances to the failing revision. Save `p06-working-source.png`. Pass when the next edit starts from it.
-- [ ] Lane 8. Confirm the artifact hash check still holds. Save `p06-integrity.png`. Pass when the served bytes match the registry digest.
-- [ ] Lane 9. Confirm the failure reads distinctly from a build failure. Save `p06-failure-category.png`. Pass when the operator can tell a build error from a boot error.
-- [ ] Lane 10. Two consecutive builds, the first broken and the second healthy. Save `p06-recovery.png`. Pass when the Preview advances only on the second.
-
-**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
-
-- [ ] Metric. Compile wall time from source admission to artifact retention, on the same source.
-- [ ] Probe. Run the same build at trunk and at head, interleaved, three builds each on the identical source revision.
-- [ ] Baseline. Record the trunk compile time first.
-- [ ] Rule. Head must add no more than 15s over trunk, and the whole compile must stay inside the existing build budget. Fail otherwise.
-
-**Review gate.** The operator reviews before merge.
-
-- [ ] Copy lane 1 and lane 6 screenshots into `docs/evidence/builder/p06-review-broken.png` and `docs/evidence/builder/p06-review-last-good.png`.
-- [ ] Record a 30 to 60 second video of a broken build being refused while the last-good Preview survives. Save it as `docs/evidence/builder/p06-review.mp4`.
-- [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
-
-**Merge.**
-
-- [ ] Root's clean verdict at the exact head SHA.
-- [ ] Bugbot triage done.
-- [ ] Base and verdict are current under the execution playbook and the patch-id rule in `playbooks/shipping.md`.
-- [ ] The root appends P-06 to the base-branch stack and the operator lands it.
-
-## Close the program
-
-- [ ] Every box above is checked with its evidence.
-- [ ] Reply to the operator with the report the execution playbook names.
-
-## Appendix A. Prototype evidence
-
-The composed journey ran against real Claude, E2B, source, compiler and Preview on 2026-09-17 in project `dc311c82-0e32-4b42-85bb-7a3e9bb8e9df`, at commits `d27c625` and `c163b01`. A request executed on the admitted connection and reached `SOURCE_CHANGED`; the generated counter responded to input. A second request continued the same Thread from the first result, `9eee02af` to `c2c5ffa5`. Cancellation settled `INTERRUPTED` with `USER_CANCELLED` in five seconds without touching the source. A failing compile settled `SOURCE_CHANGED_BUILD_FAILED`, advanced working source to `89d3f774` and preserved artifact `9633c70c`. Those runs are the trunk baseline for P-02, P-03 and P-06.
-
-The session-loss question was settled by measurement rather than assumption. The saved cookie's row was present, unrevoked, with `absolute_expires_at` seven hours away and `idle_expires_at` thirty minutes past. It is ordinary idle expiry on a sliding thirty-minute window, not an effect of restarting the Hub.
-
-Unproven and deliberately left so. Model switching, which P-05 makes provable for the first time. OAuth reconnect, which no PR here covers. Whether the reload window after a settling run is a defect or latency; P-03 lane 3 measures it rather than assuming.
-
-## Appendix B. Alternatives rejected
+## What each unit changed
+
+Compact record. The execution checklists, their ten-lane swarm blocks, their perf rules
+and their review gates were removed on 2026-09-20 rather than left readable as
+instructions. Git history holds them.
+
+| Unit | Code it moved | Evidence it left |
+| --- | --- | --- |
+| P-02 | `builder/failure-vocabulary.ts` maps internal codes onto nine public categories and is the one place a run becomes wire shape; migration `0005` adds `builder_run.request_text`; the Build screen renders a request the thread has no message for. | `builder-failure-vocabulary.test.mjs`, `builder-run-request-text-postgres.test.mjs`, three pilot lanes: preparation failure, success, cancellation. |
+| P-03 | `project-build.tsx` gains an iframe load handler counted only after the entry submit for that lease, and states a grant and then a navigation. | A browser test that holds the entry route open so the grant resolves while the frame is still blank; a cold pilot load. |
+| P-04 | A selected run drives Details, Diff and the trace; an uncertain send keeps its idempotency key; `appendDiagnostic` derives its message id from the run and the code. | Three tests, each mutated to confirm it fails for the reason it claims. No pilot lane. |
+| P-05 | Nothing. Overtaken by Mastra-native model choice; the remaining line shipped with P-04. | The absence is the evidence: the constants and `apps/hub/src/claude-account` do not exist. |
+| P-06 | `buildApplicationInSandbox` gains a smoke step; the run carries a build outcome instead of raising one, so a build or boot failure still admits the source and settles `SOURCE_CHANGED_BUILD_FAILED`. | The build-failure contract is proven by dispatch tests and holds. The smoke does not run as merged; see the roadmap. |
+
+## What the units found that the plan did not predict
+
+- A refused application tree killed the whole run instead of settling as a build failure. It is a build failure now.
+- Codes a build failure can settle with were not all declared, so a run that kept its source could have reported an internal error. One open pull request fixes that and ties the table to the branch that feeds it.
+- Twelve tests covered the boot smoke and passed against a script that could not parse, because they faked the sandbox and never the script itself. The lesson is specific: a generated program tested only through its caller is not tested.
+
+## Alternatives rejected along the way
 
 Adding a second catalog entry by hand to unblock the model-switching proof. It institutionalises the parallel list the operator objects to, even as a temporary step. P-05 removes the reason instead.
 
@@ -422,24 +56,13 @@ Ten separate PRs, one per ledger item. The lane discipline exposed the decomposi
 
 Two claims carried by the predecessor delivery contract were false and are recorded here because its file is gone. Restarting the Hub does not invalidate the operator session; the cause is ordinary idle expiry, per Appendix A. Native discovery cannot replace the catalog for Mastra 1.63.2, which has no per-credential discovery at all.
 
-## Appendix C. Risks
+## Risks that outlived the program
 
-P-02 adds a column to `builder.builder_run`. The owner writes the migration additive and nullable so existing rows stay readable.
+- P-06 added Chromium to the template, roughly 281 MB. The build budget was not breached.
+- A live lane needs an operator session, which idles out after thirty minutes.
+- A lane that drives a real build creates E2B sandboxes and spends the operator's model quota.
 
-P-05 deletes capability values. The catalog lives outside the repository at `~/.config/conexus/project-models.json`, so the owner confirms no entry in the operator's environment carries a deleted value before merge. Lane 10 guards the cognition path, which is the one that reads those values today.
+## Reading before touching this area
 
-P-06 adds Chromium to the compiler template, roughly 281MB. The perf rule fails the PR if the build budget is breached.
-
-Every live lane needs an operator session, which idles out after thirty minutes without a request. A lane that pauses longer signs in again. The owner never types the password into an automated field.
-
-Live lanes that drive a real build create E2B sandboxes and spend the operator's Claude quota. Lanes that only exercise the UI against an existing artifact cost nothing, and most lanes here are that kind by design.
-
-## Appendix D. Links and reading list
-
-Read before editing. `docs/reference/builder-c020-mastra-native.md` sections 4.2, 8.3, 11, 13 and 13.1. `AGENTS.md`. `.agents/skills/mastra/SKILL.md` for anything touching Mastra.
-
-P-05 and P-06 get `skills/how/SKILL.md` before the first edit, because both cross a boundary whose ownership the ledger has previously described wrongly. P-02 gets `skills/interrogate/SKILL.md` before review, because its failure taxonomy is the kind of contested design a single reviewer approves too easily.
-
-The trail for this program follows `skills/show-me-your-work/SKILL.md`, committed, because the operator audits it after the fact rather than watching each step.
-
-Gate list for a PR touching `apps/hub/src/builder` or `apps/web/src/features/builder`. `npm run r1:s2:hub:typecheck` at about 4s. `npm run r1:a0:web:typecheck` at about 3s. `node --test --test-concurrency=1 tests/implementation/builder-browser.test.mjs` at about 32s. The builder Postgres, registry, source-runtime, compiler-runtime and Mastra-lifecycle suites. `npx --no-install biome check` over the touched paths. `npm run wire:bundle && npm run wire:builder` when the contract moves.
+`docs/reference/builder-c020-mastra-native.md`, `AGENTS.md`, `.agents/skills/mastra/SKILL.md`
+and the installed Mastra packages.

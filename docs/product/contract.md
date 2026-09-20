@@ -8,8 +8,13 @@ behaviour must keep. [The roadmap](../roadmap.md) owns status and the next actio
 This file carries two kinds of statement and marks which is which. Sections 1 to 11
 describe behaviour the code has today; where they and the code disagree, the code is
 right and this file is wrong. [Section 12](#12-approved-destination) is the approved
-destination, which is where the product is going and what it may not become. Nothing
-in section 12 is delivered, and none of it may be read as an implemented guarantee.
+destination, which is where the product is going and what it may not become.
+
+Section 12 is approval, not proof. Reading a rule there is never evidence that the rule
+is enforced. It is also not a denial: a few of its rules restate a guarantee sections 3.5
+and 3.6 already carry, and those stay guarantees. Where the two overlap, section 12 marks
+which part is already kept, so that widening a rule is never mistaken for having built
+it.
 
 ---
 
@@ -318,6 +323,9 @@ A persistent conversation does not imply a live SDK session or a permanent sandb
 physical mapping between a conversation, a Thread, a Session, a `resourceId`, a scope
 and an owner is deliberately unfixed.
 
+Offering more conversations is not a reason to own them. Their messages stay in the
+framework's store, and Conexus does not grow a second conversation lifecycle beside it.
+
 Privacy covers messages, persisted requests, diagnostics, recovered memory and
 delegation, not only what a list shows. Sharing a conversation transfers neither
 credentials nor its author's permissions to whoever continues it.
@@ -333,6 +341,13 @@ Source admission and artifact health are different questions. An admitted source
 kept when the build or the boot fails, so the next interaction can repair it, and the
 last healthy Preview stays. The Preview advances automatically only when the checks that
 apply have allowed it.
+
+Those two paragraphs are mostly kept today, by [3.5](#35-working-source) and
+[3.6](#36-builder-run), and the destination widens them rather than introducing them.
+What is already true: source advances automatically, a stale base is refused, a failed
+build keeps the source and the last-good Preview. What is not yet true: the same
+guarantee under several conversations and under delegated work, and a boot check that
+gates the Preview, which is merged with a correction still open.
 
 Publishing is a separate, explicit, authorized capability. Editing, an agent finishing,
 or a Work item completing never publishes production. A Release names an immutable

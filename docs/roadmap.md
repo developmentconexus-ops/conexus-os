@@ -68,7 +68,8 @@ response cap survives a long reasoning stream. This remains undocumented and une
 refusal ends it and is not worked around.
 
 Two corrections to the Builder are open as pull requests and are not part of this
-consolidation. They do not advance the trunk this branch is based on.
+consolidation. They do not advance the trunk this branch is based on. One of them is
+load bearing: without it the boot smoke merged with P-06 cannot run at all.
 
 ## The Builder sequence
 
@@ -109,26 +110,41 @@ build steps and the evidence each one owes.
    Mastra's model gateways were considered for custody and do not fit: `resolveAuth` receives no
    account, and the Hub serves many.
 
-P-02 through P-06 of the repair program are delivered and merged. A failed request
-stays on screen with a named reason and an internal code never reaches the browser
-(P-02). The Preview states only what the browser observed, a grant and then a frame that
-navigated, and never that the application loaded (P-03). A past run is selectable and
-drives Details, Diff and the trace, a send whose outcome is unknown keeps its
-idempotency key, and a retried diagnostic collapses onto one message (P-04). P-05 was
-overtaken: the deployment model catalog and its pinned constants had already gone with
-Mastra-native model choice, and what remained of it, naming the connection that pays for
-the next request, shipped with P-04. The compile now serves the built artifact inside
-the agent's sandbox and drives headless Chromium at it, so an application that compiles
-and then throws on boot fails the build instead of reaching the Preview as a blank frame
-(P-06).
+P-02 through P-06 of the repair program are merged. Merged is not the same as proven,
+and the table below separates the two. "Isolated" means a test proved it against a fake
+or a fixture. "Pilot" means a real run on the pilot proved it end to end.
 
-Alongside them the run pipeline was reduced from six out-of-process boundaries to three.
-The source bundle is exported while the sandbox is created, one E2B template carries both
-the agent and the compiler, and the agent's own sandbox compiles what it wrote, so the
-second sandbox and two of the four git container starts are gone. A measured BUILD on the
-pilot fell from about 153 seconds to 69 at its best. That work is described where it
-belongs, in [the C-020 reference](reference/builder-c020-mastra-native.md); its plan file
-was never committed and is not being revived.
+| Unit | Merged | Isolated | Pilot | Standing |
+| --- | --- | --- | --- | --- |
+| P-02 | yes | yes | yes | A failed request stays on screen with a named reason and no internal code reaches the browser. |
+| P-03 | yes | yes | yes | The Preview states a grant and then a frame that navigated, never that the application loaded. |
+| P-04 | yes | yes | no | Run selection, idempotency-key retention and the collapsed diagnostic are proven by browser and hub tests. No pilot run exercised them. |
+| P-05 | n/a | n/a | n/a | Overtaken rather than executed. The deployment model catalog and the pinned constants had already gone with Mastra-native model choice; what remained, naming the connection that pays, shipped with P-04. |
+| P-06 | yes | yes | **not working as merged** | See below. |
+
+**P-06 is open.** The merged commit compiles, its tests pass and it was proven on the
+pilot only after two corrections that are still unmerged. As merged, the smoke script is
+written to a `.mjs` path and uses a top-level `return`, which is a syntax error in a
+module, so it never ran and every source-changing BUILD that reached it settled as a
+build failure. A second defect discarded the script's verdict, because the sandbox raises
+a non-zero exit as an error that the caller did not read, and a third drove the browser
+endpoint instead of the page target, which answers the handshake and then refuses
+`Runtime.enable`. Twelve tests covered the smoke and passed against a script that could
+not parse, because they faked the sandbox and never the script.
+
+Both corrections are open as pull requests and are not part of the documentary
+consolidation. Until they merge, the product on trunk fails a healthy BUILD. A pilot run
+with the corrections applied did succeed, and an application with a throw at module
+evaluation failed with `APPLICATION_SMOKE_NO_ROOT_CHILD` while its source and the
+previous Preview were kept.
+
+Alongside those units the run pipeline was reduced from six out-of-process boundaries to
+three. The source bundle is exported while the sandbox is created, one E2B template
+carries both the agent and the compiler, and the agent's own sandbox compiles what it
+wrote. A measured BUILD on the pilot fell from about 153 seconds to 69 at its best, on a
+host whose container starts vary by a factor of ten, so treat that as an order of
+magnitude rather than a benchmark. The shape is described in
+[the C-020 reference](reference/builder-c020-mastra-native.md).
 
 ## Exact next action
 

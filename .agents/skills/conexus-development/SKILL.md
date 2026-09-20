@@ -16,6 +16,11 @@ Use this skill for every material Conexus OS development session.
 5. Read `references/slice-lifecycle.md` for any planned slice, implementation, implementation review, or correction.
 6. Load the applicable engineering/repository/frontend method and the current task owner named by the roadmap.
 7. For Mastra-sensitive work, read `.agents/skills/mastra/SKILL.md` before making version-specific claims.
+8. Load the Poteto Mode skill available in the session, the playbook that matches the
+   work, and the leaf of every principle you apply. Read them where they are installed;
+   this repository does not copy them, restate them or hold a second methodology. Name
+   the principles that changed a decision. If Poteto Mode is not available in the
+   session, say so rather than claiming to have followed it.
 
 Preserve every unowned or pre-existing working-tree path. Never reset, clean, stash, force-update, or absorb unrelated state.
 
