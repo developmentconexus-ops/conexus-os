@@ -1,4 +1,5 @@
 import { clearAuthorityCache } from '../../app/query-client'
+import type { BuilderFailureCategory } from './failure-reasons'
 export type SourceTree = Readonly<{
   sourceRevision: string
   entries: readonly Readonly<{ path: string; kind: 'FILE' | 'DIRECTORY' }>[]
@@ -53,6 +54,9 @@ export type BuilderRun = Readonly<{
   resultSourceRevision: string | null
   resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
   failureCode: string | null
+  failureCategory: BuilderFailureCategory | null
+  requestText: string | null
+  createdAt: string
   modelAdmissionId?: string | null
   modelProviderId?: string | null
   modelId?: string | null

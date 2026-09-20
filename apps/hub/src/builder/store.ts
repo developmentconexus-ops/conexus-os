@@ -18,6 +18,8 @@ export type BuilderRunSummary = Readonly<{
   resultSourceRevision: string | null
   resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
   failureCode: string | null
+  requestText: string | null
+  createdAt: string
   modelAdmissionId?: string | null
   modelProviderId?: string | null
   modelId?: string | null
@@ -84,8 +86,8 @@ export const createBuilderStore = ({
   createBuilderRun: async ({ accountId, projectId, idempotencyKey, content, mode, modelIdentity }) => {
     const request = { mode, content }
     const result = await ingressPool.query<JsonRow<BuilderRunSummary>>(
-      'SELECT builder.create_builder_run_with_model($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value',
-      [accountId, projectId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), null, mode, mintIdentity(), modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId],
+      'SELECT builder.create_builder_run_with_model($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) AS value',
+      [accountId, projectId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), content, null, mode, mintIdentity(), modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId],
     )
     const value = result.rows[0]?.value
     if (!value) throw new Error('BUILDER_RUN_CREATE_FAILED')

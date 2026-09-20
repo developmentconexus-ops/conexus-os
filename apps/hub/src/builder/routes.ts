@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { sendProblem } from '../http/problem.js'
 import type { BuilderService } from './service.js'
 import type { BuilderRunSummary, BuilderStore } from './store.js'
+import { projectBuilderRun } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata } from './application-build.js'
 import type { ModelOffer } from '../model-connection/paid-models.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
@@ -75,7 +76,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       return {
         projectId: snapshot.projectId,
         threadId: snapshot.threadId,
-        latestBuilderRun: run,
+        latestBuilderRun: run ? projectBuilderRun(run) : null,
         latestCodeChangingRun: latestCodeChangingRun ? {
           baseSourceRevision: latestCodeChangingRun.baseSourceRevision,
           resultSourceRevision: latestCodeChangingRun.resultSourceRevision,
@@ -83,7 +84,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
         } : null,
         preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodSourceRevision: snapshot.lastPreviewSourceRevision, lastGoodArtifactRevisionId: snapshot.lastPreviewArtifactRevisionId, lastGoodArtifactDigest: snapshot.lastPreviewArtifactDigest },
         modelChoices: snapshot.modelChoices,
-        runHistory: snapshot.runHistory,
+        runHistory: snapshot.runHistory.map((historyRun) => projectBuilderRun(historyRun)),
         mode: run?.mode ?? 'BUILD',
       }
     } catch (error) {
@@ -110,7 +111,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
         idempotencyKey, content: request.body.content, mode: request.body.mode,
         ...(request.body.modelChoiceId ? { modelChoiceId: request.body.modelChoiceId } : {}),
       })
-      return reply.code(201).send({ builderRun: run })
+      return reply.code(201).send({ builderRun: projectBuilderRun(run) })
     } catch (error) {
       const detail = message(error)
       if (detail.includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
@@ -135,7 +136,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
     try {
       const run = await dependencies.service.cancelBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId, builderRunId: request.params.builderRunId })
-      return reply.code(200).send({ builderRun: run })
+      return reply.code(200).send({ builderRun: projectBuilderRun(run) })
     } catch (error) {
       const detail = message(error)
       if (detail.includes('NOT_AUTHORIZED') || detail.includes('NOT_FOUND')) return sendProblem(reply, 404, 'builder-run-not-found', 'BuilderRun not found')
