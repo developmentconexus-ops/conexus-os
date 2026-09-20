@@ -287,7 +287,7 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
   await page.getByText('Não foi possível abrir o Preview atual.', { exact: true }).waitFor()
   assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/entry-a`)
   await page.getByRole('button', { name: 'Tentar novamente' }).click()
-  await page.getByText('Preview emitido', { exact: false }).waitFor()
+  await page.locator(`form[method="post"][action="${origin}/entry-b"]`).waitFor({ state: 'attached' })
   assert.equal(previewRequests, 4)
   assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/entry-b`)
   const reopenRequest = page.waitForRequest((request) => request.url().endsWith('/builder-session/preview') && request.method() === 'POST')
@@ -336,6 +336,54 @@ test('a run that failed before the agent still shows the request and names why i
   assert.equal(await page.locator('.builder-conversation .builder-turn-reason').count(), 1)
   assert.equal(await page.getByText('BUILDER_SOURCE_MATERIALIZATION_REFUSED', { exact: true }).count(), 0,
     'the internal code is never the sentence the operator reads')
+})
+
+test('the Preview names the grant and the navigation, and never claims the application loaded', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000051'
+  const projectId = '70000000-0000-4000-8000-000000000052'
+  const origin = 'http://127.0.0.1:41755'
+  const sourceRevision = '7'.repeat(40)
+  const artifactRevisionId = '70000000-0000-4000-8000-000000000053'
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41755, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+
+  let releaseEntry
+  const entryHeld = new Promise((resolve) => { releaseEntry = resolve })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeModelConnections(page, accountId)
+  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*/messages*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: [] }) }))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview truth', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, threadId: `conexus-builder:${projectId}`, latestBuilderRun: null, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: sourceRevision, lastGoodArtifactRevisionId: artifactRevisionId, lastGoodArtifactDigest: 'd'.repeat(64) },
+    mode: 'BUILD', modelChoices: admittedModelChoices, runHistory: [],
+  }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({
+    status: 201, contentType: 'application/json',
+    body: JSON.stringify({ entryUrl: `${origin}/preview-entry`, previewUrl: `${origin}/preview`, entryGrant: 'grant', artifactRevisionId, artifactDigest: 'd'.repeat(64) }),
+  }))
+  // The entry is held open, so the frame is still on about:blank while the grant already resolved.
+  await page.route(`${origin}/preview-entry`, async (route) => {
+    await entryHeld
+    return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>app</title><main>ok</main>' })
+  })
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByText('Acesso autorizado. Abrindo o aplicativo…', { exact: true }).waitFor()
+  assert.equal(await page.getByText('Aplicativo aberto abaixo. Se a área ficar vazia, ele não desenhou nada.', { exact: true }).count(), 0,
+    'about:blank fires its own load, which must not count as the application navigating')
+
+  releaseEntry()
+  await page.getByText('Aplicativo aberto abaixo. Se a área ficar vazia, ele não desenhou nada.', { exact: true }).waitFor()
+  const text = await page.locator('.build-preview-surface').innerText()
+  assert.equal(/carregad|funcionando|pronto para uso/i.test(text), false, `the Preview claimed more than it observed: ${text}`)
 })
 
 test('Preview ignores an older launch completion after the artifact key changes', async (t) => {

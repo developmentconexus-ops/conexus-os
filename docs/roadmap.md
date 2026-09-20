@@ -103,7 +103,9 @@ model a run uses. P-06 makes the compile answer whether the artifact boots.
 
 ## Exact next action
 
-**Keep a failed request visible and named (step 2).**
+**Stop claiming the Preview loaded (P-03).** Steps 2 and 3 are done. A failed request stays
+on screen with a named reason, and the Builder run pipeline now crosses three out-of-process
+boundaries instead of six, which `docs/tasks/builder-throughput-program.md` records.
 
 ## Later layers
 
