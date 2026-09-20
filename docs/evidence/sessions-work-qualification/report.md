@@ -30,6 +30,17 @@ Those last two rows are different questions and the earlier report ran them toge
 Isolation between Projects is real. Privacy between two people inside one Project is not
 provided by `resourceId` scoping, and whoever wants it has to add it above.
 
+That is a statement about the framework, not about the product. `SHARED` and `PER_USER` are
+approved product requirements in
+[contract section 12.3](../../product/contract.md#123-conversations); what stays open is
+which is the default and how either is implemented. The framework's silence here is a cost
+to price, not a reason to reopen the requirement. Worth noting for that pricing:
+`[package]` the Factory's own source-control sessions already carry
+`visibility: 'org' | 'private'` (`dist/storage/domains/source-control/base.d.ts:104`) and
+its workspace resolver refuses a private session to another user
+(`dist/workspace.js:201`), so the shape exists there even though threads themselves are not
+scoped per person.
+
 The condition on isolation is ours, not the framework's. The framework refuses a
 cross-resource read because the session carries a different `resourceId`, so whatever
 decides that a request may act under a Project's `resourceId` is the real authorization
@@ -134,7 +145,9 @@ What the Factory actually has, all `[package]` unless marked:
   `capabilities/version-control.d.ts` is a forge-shaped contract:
   `createPullRequest`, `submitReview`, `mergePullRequest`, review comments, requested
   reviewers. `[docs]` factory.mastra.ai/using/reviews says the merge decision is made
-  through the repository's normal human review process.
+  through the repository's normal human review process. Merging there integrates a reviewed
+  change into a branch. It is not the product's Publish, which stays a separate, explicitly
+  authorized act, and nothing in this report treats the two as the same event.
 
 Against the five properties the task names:
 
@@ -142,7 +155,7 @@ Against the five properties the task names:
 | --- | --- | --- |
 | Work is bounded and delegable | holds | `[package]` a `WorkItemRow` carries its own stages, history and `sessions` map, so it outlives the conversation that raised it. `[probe]` one was created and moved with no conversation in play at all |
 | It produces a reviewed, validated candidate | holds, through a pull request | `[package]` there is a review board and an engine that judges each move. `[probe]` the engine accepted a legal move and rejected three illegal ones on its own. The candidate is a pull request rather than a type named candidate, which the task does not require |
-| Applying it is explicit | holds for the Factory's own shape | `[docs]` the merge decision is made through the repository's normal human review process, and `[package]` the Factory exposes `mergePullRequest` rather than merging on completion. Whether this maps onto Conexus applying to a Project's source is `[not established]` |
+| Applying it is explicit | holds for the Factory's own shape | `[docs]` the merge decision is made through the repository's normal human review process, and `[package]` the Factory exposes `mergePullRequest` rather than merging on completion. That merge integrates a reviewed change; it is not the product's Publish. Whether it maps onto Conexus applying to a Project's source is `[not established]` |
 | It never publishes | holds for the package | `[package]` nothing in the Factory merges, deploys or publishes on completion. `mergePullRequest` exists on the `VersionControl` interface and is called by no automatic path; opening and merging are both explicit calls |
 | It carries authorization | holds for the actor, not for the right | `[package]` an actor, an ingress identity and `isAgentActor()` travel with every transition, and `[probe]` a stage history named who left a stage and who entered the next. Whether that actor may act on a Conexus Project is still our decision |
 
@@ -290,9 +303,12 @@ files is a `git clone` from `github.com` using a minted installation token
 sandbox returned from the `sandbox` callback only changes where that clone lands
 (`dist/sandbox/workdir.js:26-32`); it does not remove the GitHub rows or the clone.
 
-**Under the composition the Factory itself mounts, it works.** The Factory does not write
-its own coding session: `dist/factory.js:64` imports `prepareAgentControllerMount` from
-`@mastra/code-sdk`, and that package's `MastraCodeConfig.workspace` is a documented option,
+**Under the composition the Factory itself mounts, it works.** That composition is one
+piece of the Factory and not the Factory: `MastraFactory` wraps this mount with its own
+storage, auth, routes, workers, boards and GitHub-bound workspace resolver, and everything
+proven in this subsection is about the mount alone. `dist/factory.js:64` imports
+`prepareAgentControllerMount` from `@mastra/code-sdk`, and that package's
+`MastraCodeConfig.workspace` is a documented option,
 "Override the workspace. Default: local filesystem + local sandbox based on detected
 project". `[probe]` mounting it directly with a host-supplied `Workspace` and storage yields
 a controller, a conversation on a host-chosen `resourceId`, and a session that resolves the

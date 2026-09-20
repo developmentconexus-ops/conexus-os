@@ -32,6 +32,9 @@ Every probe exits non-zero when an assertion fails, and each run ends with a neg
 control whose claim is false on purpose, so a run proves the harness can fail. Each probe
 creates its own scratch directory with `mktemp -d` and deletes nothing it did not create.
 
+[factory-integration-setup.md](factory-integration-setup.md) records the disposable private
+repository the integrated Factory test uses, and what is deliberately absent from it.
+
 ## Reproducing
 
 ```bash
