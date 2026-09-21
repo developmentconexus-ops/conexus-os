@@ -14,6 +14,7 @@ owns status and the next action. Start there.
 | What that increment proved by running it | [its evidence](evidence/project-conversations/README.md) |
 | Why the composition under it was chosen | [Sessions and Work qualification](evidence/sessions-work-qualification/README.md), closed |
 | What the Builder repair program delivered | [Builder repair program](tasks/builder-repair-program.md), closed |
+| How the Builder got faster on 2026-09-20 | [Builder throughput program](tasks/builder-throughput-program.md), historical |
 
 ## Product
 
