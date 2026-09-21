@@ -7,14 +7,7 @@ import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
 import { BuilderConversation, type PersistedRequest } from './builder-conversation'
 import { BuilderConversationList } from './builder-conversation-list'
 import { BuilderModelSelect } from './builder-model-select'
-
-const phaseLabels: Record<NonNullable<BuilderRun['phase']>, string> = {
-  PREPARING: 'Preparando o ambiente de código',
-  AGENT: 'Conexus está trabalhando',
-  SOURCE_ADMISSION: 'Conferindo a nova fonte',
-  COMPILING: 'Compilando o aplicativo',
-  FINALIZING: 'Publicando o Preview',
-}
+import { BuilderRunStatus, phaseLabels } from './builder-run-status'
 
 const failureStatusByCategory: Record<BuilderFailureCategory, string> = {
   ENVIRONMENT_PREPARATION_FAILED: 'Falha ao preparar o ambiente de código',
@@ -421,8 +414,6 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const activeStatus = runStatus(run, run?.phase ?? null)
   const conversationTurn = conversationRun ? turn : noTurn
   const persistedRequests = persistedRequestsOf(runHistoryList.filter((entry) => entry.conversationId === conversationId), conversationRun)
-  const phaseLabel = conversationRun?.state === 'QUEUED' ? 'Na fila para iniciar'
-    : conversationRun?.phase && !(conversationRun.phase === 'AGENT' && conversationTurn.messages.length > 0) ? phaseLabels[conversationRun.phase] : null
   const canCompose = Boolean(conversationId) && modelReady
 
   return <div className="project-build">
@@ -514,8 +505,9 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
           pending={conversationActions.create.isPending || conversationActions.rename.isPending}
         />
         <section ref={conversationRef} onScroll={onConversationScroll} className="builder-conversation" aria-label="Mensagens do Builder" aria-live="polite">
-          <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={conversationRunActive && liveRequest && liveRequest.runId === conversationRun?.builderRunId ? liveRequest.text : null} persistedRequests={persistedRequests} failureCategory={conversationRun?.failureCategory ?? null} runActive={conversationRunActive} phaseLabel={phaseLabel} />
+          <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={conversationRunActive && liveRequest && liveRequest.runId === conversationRun?.builderRunId ? liveRequest.text : null} persistedRequests={persistedRequests} failureCategory={conversationRun?.failureCategory ?? null} />
         </section>
+        {run && runActive && <BuilderRunStatus run={run} inThisConversation={conversationRunActive} stopping={cancel.isPending || Boolean(run.cancellationRequested)} onStop={() => cancel.mutate()} />}
         <form onSubmit={submit}>
           <label className="builder-composer-label" htmlFor={inputId}>O que o Project precisa fazer?</label>
           <div className="builder-composer-box"><textarea id={inputId} rows={4} required disabled={!canCompose} placeholder="Descreva uma alteração ou pergunte sobre o Project…" value={content} onChange={(event) => setContent(event.target.value)} onKeyDown={onComposerKeyDown} /><div className="builder-composer-footer"><span>Enter envia · Shift+Enter quebra linha</span><button className="primary builder-send-button" type="submit" disabled={send.isPending || runActive || !canCompose}>{send.isPending ? 'Enviando…' : 'Enviar mensagem'}</button></div></div>
@@ -527,7 +519,6 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
             <button className={mode === 'BUILD' ? 'builder-mode-selected' : undefined} type="button" aria-pressed={mode === 'BUILD'} onClick={() => setMode('BUILD')}>Build</button>
             <button className={mode === 'PLAN' ? 'builder-mode-selected' : undefined} type="button" aria-pressed={mode === 'PLAN'} onClick={() => setMode('PLAN')}>Plan</button>
           </fieldset>
-          {runActive && <button className="builder-stop-button" type="button" onClick={() => cancel.mutate()} disabled={cancel.isPending || run?.cancellationRequested}>{cancel.isPending || run?.cancellationRequested ? 'Parando execução…' : 'Parar execução'}</button>}
           {message && <p className="builder-form-message" role="status" aria-live="polite">{message}</p>}
         </form>
       </aside>}

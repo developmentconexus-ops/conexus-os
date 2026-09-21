@@ -555,6 +555,63 @@ test('a run that failed before the agent still shows the request and names why i
     'the internal code is never the sentence the operator reads')
 })
 
+test('an agent that spoke once and then works in silence still reads as working, with its elapsed time and a way to stop', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000071'
+  const projectId = '70000000-0000-4000-8000-000000000072'
+  const runId = '70000000-0000-4000-8000-000000000073'
+  const origin = 'http://127.0.0.1:41759'
+  const sourceRevision = '7'.repeat(40)
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41759, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const working = 'conversation-working'
+  const other = 'conversation-other'
+  const run = {
+    builderRunId: runId, projectId, conversationId: working, state: 'RUNNING', phase: 'AGENT', mode: 'BUILD',
+    baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null,
+    requestText: 'Crie um cadastro de clientes', createdAt: new Date(Date.now() - 75_000).toISOString(),
+  }
+  const cancels = []
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilderController(page, projectId, controllerState(
+    [conversation(working, 'Cadastro'), conversation(other, 'Outra')],
+    { [working]: [userMessage('request', 'Crie um cadastro de clientes')] },
+  ))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Clientes', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, latestBuilderRun: run, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    mode: 'BUILD', runHistory: [run],
+  }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session/runs/${runId}/cancel`, (route) => {
+    cancels.push(runId)
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ builderRun: { ...run, cancellationRequested: true } }) })
+  })
+  // The agent says what it is about to do, then works through tools without saying anything else.
+  await page.route(`${MASTRA_SESSIONS(projectId)}/stream*`, (route) => route.fulfill(sse(
+    { type: 'message_start', message: assistantMessage('assistant-plan', 'Vou estruturar a interface de cadastro.') },
+  )))
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.locator('.builder-conversation').getByText('Vou estruturar a interface de cadastro.', { exact: true }).waitFor()
+  const status = page.locator('.builder-run-status')
+  await status.waitFor()
+  assert.match(await status.innerText(), /Conexus está trabalhando/)
+  assert.match(await status.innerText(), /há 1 min \d\d s/)
+  await status.getByRole('button', { name: 'Parar' }).click()
+  await page.getByText('Solicitação de interrupção enviada.').waitFor()
+  assert.deepEqual(cancels, [runId])
+
+  await page.locator('.builder-conversations-list button').filter({ hasText: 'Outra' }).click()
+  assert.match(await status.innerText(), /em outra conversa/, 'the Project stays busy while another conversation is shown')
+})
+
 test('the Preview names the grant and the navigation, and never claims the application loaded', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000051'
   const projectId = '70000000-0000-4000-8000-000000000052'
