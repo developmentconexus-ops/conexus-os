@@ -190,7 +190,9 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       if (turn.reason === 'aborted') ports.log(`BUILDER_FACTORY_AGENT_END:aborted:${input.executionId}:${turn.endedAt.toISOString()}`)
       if (!turn.userMessageId) throw new Error('BUILDER_MESSAGE_ID_UNAVAILABLE')
       await input.bindMessage(turn.userMessageId)
-      if (cancelled() || turn.reason === 'aborted') throw new Error('BUILDER_RUN_CANCELLED')
+      // An agent that ends aborted without the person's stop failed on its own, for example a model
+      // call it could not authenticate; reporting that as their cancellation would be false.
+      if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       if (turn.reason !== 'complete') throw new Error('BUILDER_MODEL_INCOMPLETE')
       await closeSession()
 

@@ -299,13 +299,14 @@ test('a token never reaches argv, rides only in the git command environment, and
   }
 })
 
-test('a stop that aborts the agent is logged with the run id and settles the run interrupted', async (t) => {
+test('an agent that aborts with no stop from the person fails with a named reason, never as cancelled by them', async (t) => {
   const endedAt = new Date('2026-09-21T15:00:00.000Z')
   const run = await harness(t, { turn: () => ({ reason: 'aborted', endedAt, userMessageId: 'user-message', summary: '' }) })
   await run.start()
   await run.service.close()
   assert.deepEqual(run.logs, [`BUILDER_FACTORY_AGENT_END:aborted:${runId}:2026-09-21T15:00:00.000Z`])
-  assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
+  assert.notDeepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
+  assert.ok(JSON.stringify(run.calls.at(-1)).includes('BUILDER_MODEL_INCOMPLETE'), JSON.stringify(run.calls.at(-1)))
   assert.equal(run.commands().some((line) => line.includes(' push ')), false)
 })
 
