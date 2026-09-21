@@ -424,6 +424,21 @@ because the first increment needs neither Work nor a forge.
   Factory nor the core controller provides it inside one Project.
 - How a real model behaves in either composition. Every turn here was answered locally, by a
   fixture object or by a loopback stub, which is what kept this free.
+
+The owning task also demands four things this report does not yet establish, and they belong
+in this list rather than in a footnote.
+
+- That a Project's current source and its last good Preview survive switching conversations.
+  `[probe]` the probes never built a Preview, so this is untested in either composition.
+- That a reviewed candidate can be identified as an exact revision under Conexus custody.
+  `[package]` the Factory identifies one as a pull request on a forge; what plays that part
+  when the source is ours is `[not established]`.
+- That completing Work publishes nothing. `[package]` nothing in the Factory deploys or
+  merges on completion, which is evidence about the package and not about a Conexus
+  Publish boundary that does not exist yet.
+- That authorization is rechecked at the operation against current membership. `[probe]`
+  what travels with a transition is an actor id, and an actor id is not an entitlement. The
+  recheck stays a Conexus responsibility in every composition compared here.
 - Anything about upstream main beyond its release cadence, and anything about 0.16 alpha.
 
 ## 12. First increment, scoped and not started

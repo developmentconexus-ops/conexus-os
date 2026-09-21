@@ -32,6 +32,39 @@ the repository above. Whether the Factory's own GitHub integration can use a cre
 that kind, or requires a GitHub App installation, is settled in the report rather than
 assumed here.
 
+## The external gate, and why it is one
+
+`[package]` the published integration is a GitHub App and nothing else.
+`GithubIntegrationConfig` in `dist/integrations/github/integration.d.ts:91` requires `appId`,
+`privateKey` as a PEM, `clientId`, `clientSecret` and `slug`, and the class mints
+installation tokens with them. There is no constructor that takes a personal access token,
+so the `gh` credential that created this repository cannot drive the Factory's own
+integration. Building an object that merely satisfies the class's shape would not be a test
+of the integration, and this qualification does not do it.
+
+Creating a GitHub App is a browser action. GitHub's REST API has no endpoint that creates
+one outright; the only programmatic path is the App Manifest flow, which still redirects a
+signed-in person through github.com. So the setup stops at exactly one human step.
+
+**What a person has to do, once.** Create a GitHub App owned by the
+`developmentconexus-ops` organization, named for this probe. Generate a private key and keep
+the PEM. Install the App on the single repository
+`developmentconexus-ops/conexus-factory-integration-probe`, choosing "Only select
+repositories" rather than all. The App's callback URL points at wherever the Factory server
+runs during the test, which is `http://localhost:4111` by default. A webhook secret is
+optional for the coding path and only matters for inbound deliveries, which a machine behind
+NAT does not receive.
+
+**The permissions the run path actually exercises**, read from the calls the integration
+makes in `dist/integrations/github/*.js`: repository contents to clone and push, pull
+requests to create, update, review and merge, issues for the comment surface it writes to,
+and metadata, which GitHub grants implicitly. Nothing in that list needs organization-wide
+access, and nothing needs administration.
+
+The five values the App produces (`appId`, `slug`, `clientId`, `clientSecret`, `privateKey`)
+are read by the Factory as its GitHub identity. Their values are never recorded here, and
+the qualification reads them from the environment when the test runs.
+
 ## What this setup is not
 
 It is not a migration of any Conexus Project, and no existing repository was touched. The
