@@ -13,20 +13,6 @@ test.after(() => rmSync(output, { recursive: true, force: true }))
 const { createBuilderService } = await import(pathToFileURL(resolve(output, 'builder/service.js')).href)
 const { projectBuilderRun } = await import(pathToFileURL(resolve(output, 'builder/failure-vocabulary.js')).href)
 
-// One offer, the shape the connection custody module hands over: a model the account can pay for
-// in this Project, named with the connection's own provider id.
-const offer = {
-  choiceId: 'anthropic/claude-opus-4-5', label: 'claude-opus-4-5',
-  providerId: 'anthropic', modelId: 'claude-opus-4-5',
-  connectionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', connectionLabel: 'Meu Claude',
-  credentialKind: 'OAUTH_TOKEN_SET',
-}
-const listModelOffers = async () => [offer]
-const admitted = {
-  modelAdmissionId: 'anthropic-claude-opus-4-5', modelProviderId: 'anthropic', modelId: 'claude-opus-4-5',
-  modelConnectionId: offer.connectionId, modelCredentialGeneration: '1',
-}
-
 test('BuilderRun message dispatch claims, executes and settles without Change pipeline', async () => {
   const runId = '11111111-1111-4111-8111-111111111111'
   const projectId = '22222222-2222-4222-8222-222222222222'
@@ -34,8 +20,8 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
   const sourceRevision = 'a'.repeat(40)
   const calls = []
   const store = {
-    createBuilderRun: async () => ({ builderRunId: runId, projectId, state: 'QUEUED', phase: null, mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted }),
-    claimBuilderRun: async () => { calls.push('claim'); return { builderRunId: runId, projectId, state: 'RUNNING', phase: 'PREPARING', mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted } },
+    createBuilderRun: async () => ({ builderRunId: runId, projectId, state: 'QUEUED', phase: null, mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }),
+    claimBuilderRun: async () => { calls.push('claim'); return { builderRunId: runId, projectId, state: 'RUNNING', phase: 'PREPARING', mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null } },
     setBuilderRunPhase: async (_id, phase) => calls.push(['phase', phase]),
     bindBuilderRunMessage: async (_id, messageId) => calls.push(['message', messageId]),
     bindBuilderRunSandbox: async (_id, sandboxId) => calls.push(['sandbox', sandboxId]),
@@ -60,7 +46,7 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
         return { projectId, executionId: runId, sandboxId: 'physical-sandbox', baseSourceRevision: sourceRevision, summary: 'Resposta', kind: 'RESPONSE_ONLY' }
       },
     },
-    applicationArtifacts: {}, listModelOffers,
+    applicationArtifacts: {},
   })
   const result = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', mode: 'PLAN' })
   await service.close()
@@ -72,7 +58,7 @@ test('the sandbox is created while the source bundle is still being exported', a
   const runId = '11111111-1111-4111-8111-111111111112'
   const projectId = '22222222-2222-4222-8222-222222222222'
   const accountId = '33333333-3333-4333-8333-333333333333'
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', phase: null, mode: 'PLAN', baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', phase: null, mode: 'PLAN', baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null }
   let releaseBundle
   const bundleHeld = new Promise((resolve) => { releaseBundle = resolve })
   let sandboxStarted
@@ -98,7 +84,7 @@ test('the sandbox is created while the source bundle is still being exported', a
         return { projectId, executionId: runId, sandboxId: 's', baseSourceRevision: run.baseSourceRevision, summary: 'ok', kind: 'RESPONSE_ONLY' }
       },
     },
-    applicationArtifacts: {}, listModelOffers,
+    applicationArtifacts: {},
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'overlap', content: 'Explique', mode: 'PLAN' })
   await sandboxRunning
@@ -116,7 +102,7 @@ test('a failure before the agent keeps the operator request on the run and names
   let failed = null
   const row = (state, failureCode) => ({
     builderRunId: runId, projectId, state, phase: null, mode: 'BUILD', baseSourceRevision: sourceRevision,
-    resultSourceRevision: null, resultKind: null, failureCode, requestText: stored, createdAt, ...admitted,
+    resultSourceRevision: null, resultKind: null, failureCode, requestText: stored, createdAt,
   })
   const store = {
     createBuilderRun: async (input) => { stored = input.content; return row('QUEUED', null) },
@@ -135,7 +121,7 @@ test('a failure before the agent keeps the operator request on the run and names
         throw new Error('the agent must never start')
       },
     },
-    applicationArtifacts: {}, listModelOffers,
+    applicationArtifacts: {},
   })
   const accepted = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'preagent', content: 'Crie um contador', mode: 'BUILD' })
   await service.close()
@@ -145,7 +131,7 @@ test('a failure before the agent keeps the operator request on the run and names
   assert.deepEqual(projectBuilderRun(row('FAILED', failed)), {
     builderRunId: runId, projectId, state: 'FAILED', phase: null, mode: 'BUILD', baseSourceRevision: sourceRevision,
     resultSourceRevision: null, resultKind: null, failureCode: 'BUILDER_SOURCE_MATERIALIZATION_REFUSED',
-    failureCategory: 'ENVIRONMENT_PREPARATION_FAILED', requestText: 'Crie um contador', createdAt, ...admitted,
+    failureCategory: 'ENVIRONMENT_PREPARATION_FAILED', requestText: 'Crie um contador', createdAt,
   })
 })
 
@@ -157,7 +143,7 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
   const calls = []
   let started
   const startedPromise = new Promise((resolve) => { started = resolve })
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
   const store = {
     createBuilderRun: async () => run,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
@@ -179,7 +165,7 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
         throw new Error('BUILDER_RUN_CANCELLED')
       },
     },
-    applicationArtifacts: {}, listModelOffers,
+    applicationArtifacts: {},
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-key', content: 'pare', mode: 'BUILD' })
   await startedPromise
@@ -196,7 +182,7 @@ test('a run cancelled mid phase change is interrupted, not failed, whatever erro
   const calls = []
   let started
   const startedPromise = new Promise((resolve) => { started = resolve })
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null }
   const service = createBuilderService({
     store: {
       createBuilderRun: async () => run,
@@ -215,7 +201,7 @@ test('a run cancelled mid phase change is interrupted, not failed, whatever erro
         throw new Error('BUILDER_RUN_PHASE_UPDATE_REFUSED')
       },
     },
-    applicationArtifacts: {}, listModelOffers,
+    applicationArtifacts: {},
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-mid-phase', content: 'pare', mode: 'BUILD' })
   await startedPromise
@@ -231,7 +217,7 @@ test('BUILD source result is admitted, CASed, compiled, settles Preview and pers
   const base = 'b'.repeat(40)
   const resultRevision = 'c'.repeat(40)
   const calls = []
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
   const store = {
     createBuilderRun: async () => run,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
@@ -263,7 +249,6 @@ test('BUILD source result is admitted, CASed, compiled, settles Preview and pers
       },
     },
     applicationArtifacts: { retainApplication: async (input) => { calls.push(['retain', input.compiled]); return { artifactRevisionId: '77777777-7777-4777-8777-777777777777', artifactDigest: 'd'.repeat(64) } } },
-    listModelOffers,
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
   await service.close()
@@ -283,7 +268,7 @@ test('a build or smoke failure still admits and advances the source, and settles
   const base = 'b'.repeat(40)
   const resultRevision = 'c'.repeat(40)
   const calls = []
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
   const store = {
     createBuilderRun: async () => run,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
@@ -312,7 +297,6 @@ test('a build or smoke failure still admits and advances the source, and settles
       },
     },
     applicationArtifacts: { retainApplication: async () => { throw new Error('must not retain a build-failed compile') } },
-    listModelOffers,
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
   await service.close()
@@ -330,7 +314,7 @@ test('a runtime failure that is not a build or smoke failure still fails the run
   const accountId = '66666666-6666-4666-8666-666666666666'
   const base = 'b'.repeat(40)
   const calls = []
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null, ...admitted }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
   const store = {
     createBuilderRun: async () => run,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
@@ -348,7 +332,7 @@ test('a runtime failure that is not a build or smoke failure still fails the run
       kind: 'REMOTE_E2B',
       execute: async () => { throw new Error('APPLICATION_COMPILER_WORKSPACE_REFUSED') },
     },
-    applicationArtifacts: {}, listModelOffers,
+    applicationArtifacts: {},
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
   await service.close()

@@ -1,6 +1,5 @@
 import { resolve } from 'node:path'
 import { readFileSync } from 'node:fs'
-import { createEncryptedFileCredentialBackend } from './platform/credential-backend.js'
 import { createHttpApp } from './http/app.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
 import { createMarModule } from './mar/module.js'
@@ -10,7 +9,6 @@ import { createPostgresPool } from './platform/postgres.js'
 import { readSecretFile } from './platform/secrets.js'
 import { createApplicationArtifactStore } from './registry/module.js'
 import { createWorkspaceModule } from './workspace/module.js'
-import { createModelConnectionModule } from './model-connection-account/module.js'
 
 // Mastra is loaded only after the production entrypoint has disabled its
 // optional telemetry. Keep this before the dynamic Project-module import.
@@ -59,11 +57,6 @@ const workspace = config.database.workspace && s2ReadPool ? createWorkspaceModul
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
-const credentialBackend = config.connections ? createEncryptedFileCredentialBackend({
-  root: config.connections.credentialRoot,
-  keyFile: config.connections.credentialKeyFile,
-  keyGeneration: config.connections.credentialKeyGeneration,
-}) : undefined
 const project = config.project ? createConfiguredProjectModule({
   database: {
     host: config.database.host,
@@ -71,13 +64,6 @@ const project = config.project ? createConfiguredProjectModule({
     database: config.database.database,
   },
   project: config.project,
-  origin: config.origin,
-  resolveCurrentSession: identityAccess.resolveCurrentSession,
-}) : undefined
-const modelConnection = config.connections && credentialBackend ? createModelConnectionModule({
-  database: { host: config.database.host, port: config.database.port, database: config.database.database },
-  passwordFile: config.connections.passwordFile,
-  credentialBackend,
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
@@ -145,7 +131,6 @@ const app = await createHttpApp({
     ...await identityAccess.registerIdentityAccessRoutes(server),
     ...(workspace ? await workspace.registerWorkspaceRoutes(server) : []),
     ...(project ? await project.registerProjectRoutes(server) : []),
-    ...(modelConnection ? await modelConnection.registerRoutes(server) : []),
     ...(builder ? await builder.registerBuilderRoutes(server) : []),
   ],
   staticRoot: resolve(import.meta.dirname, '../public'),
@@ -196,7 +181,7 @@ const close = async (): Promise<void> => {
   closed = true
   await Promise.all([app.close(), previewApp?.close()])
   await mar?.close()
-  await Promise.all([builder?.close(), modelConnection?.close(), project?.close(), workspace?.close(), identityAccess.close()])
+  await Promise.all([builder?.close(), project?.close(), workspace?.close(), identityAccess.close()])
 }
 process.once('SIGINT', close)
 process.once('SIGTERM', close)

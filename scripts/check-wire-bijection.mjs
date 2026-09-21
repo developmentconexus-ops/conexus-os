@@ -74,7 +74,7 @@ const sectionEnd = nextHeading < 0 ? ledger.length : nextHeading;
 
 const fixedSection = ledger.slice(sectionStart, sectionEnd);
 
-// The id grammar allows a letter suffix (CLA-05B). The previous pattern required a purely numeric
+// The id grammar allows a letter suffix (BLD-05B). The previous pattern required a purely numeric
 // suffix and skipped anything else, so a census row could be dropped without a word and the count
 // on both sides would simply agree one lower. Every data row in the census must now parse, or the
 // gate fails naming the row it could not read.

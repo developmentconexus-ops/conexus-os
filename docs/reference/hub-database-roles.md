@@ -23,13 +23,14 @@ defect in this table. Adding a role means adding a row to the register and regen
 | `hub_workspace_command` | `workspace-command` | `server.ts` | `CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE` |
 | `hub_project_read` | `project-read` | `project/module.ts` | `CONEXUS_DB_PROJECT_READ_PASSWORD_FILE` |
 | `hub_project_command` | `project-command` | `project/module.ts` | `CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE` |
-| `hub_model_connection` | `connections` | `model-connection-account/module.ts` | `CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE` |
 | `hub_builder_ingress` | `builder-request` | `builder/module.ts` | `CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE` |
 | `hub_builder_executor` | `builder-run-execution` | `builder/module.ts` | `CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE` |
 
-These eight and the six owner roles `iam_owner`, `workspace_owner`, `project_owner`,
-`registry_owner`, `builder_owner` and `model_connection_owner` are every role the product has. A
-cluster built only from `apps/hub/migrations/0001_baseline.sql` holds exactly those fourteen.
+These seven and the five owner roles `iam_owner`, `workspace_owner`, `project_owner`,
+`registry_owner` and `builder_owner` are every role the product has. A cluster built from
+`apps/hub/migrations/` holds exactly those twelve. `0009_remove_model_connections.sql` dropped
+`hub_model_connection` and `model_connection_owner` with the model connection subsystem, and leaves
+either one in place while another database on the cluster still grants to it.
 
 ## The Builder split, which is load-bearing
 
@@ -42,7 +43,7 @@ the background execution loop reaches the executor side. A request path holding
 The separation bounds a logic bug, not an attacker. Both pools live in the same process,
 declared three lines apart, so code execution in the Hub reaches either one. The property
 that does hold against a wider class of failure is that no Hub role has table grants at
-all: 236 functions are `SECURITY DEFINER` and `REVOKE ALL ON ALL TABLES` is applied.
+all: every one of the 49 functions is `SECURITY DEFINER` and `REVOKE ALL ON ALL TABLES` is applied.
 `hub_iam_runtime` is the exception, holding direct `SELECT`, `INSERT` and `UPDATE` on the
 `iam` tables.
 

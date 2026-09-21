@@ -105,3 +105,26 @@ test('a deployment still carrying the model catalog variables is refused, not si
     )
   }
 })
+
+test('a deployment still carrying the model-connection variables is refused, not silently ignored', async (t) => {
+  const built = compileHub(t)
+  const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-model-connection-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const environment = hubEnvironment(root)
+
+  const { readHubConfig } = await import(built('platform/config.js'))
+
+  for (const name of [
+    'CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE',
+    'CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE',
+    'CONEXUS_CONNECTION_CREDENTIAL_ROOT',
+    'CONEXUS_CONNECTION_CREDENTIAL_KEY_FILE',
+    'CONEXUS_CONNECTION_CREDENTIAL_KEY_GENERATION',
+  ]) {
+    assert.throws(
+      () => readHubConfig({ ...environment, [name]: resolve(root, 'retired') }),
+      new RegExp(`^Error: RETIRED_CONFIG_${name}$`),
+    )
+  }
+  assert.equal(Object.hasOwn(readHubConfig(environment), 'connections'), false)
+})

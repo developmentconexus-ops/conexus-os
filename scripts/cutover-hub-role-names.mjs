@@ -16,7 +16,6 @@ export const ROLE_VARIABLE_RENAMES = Object.freeze([
   { from: 'CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE', to: 'CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE', fromFile: 'db-prj03-command', toFile: 'db-project-command' },
   { from: 'CONEXUS_DB_RB_INGRESS_PASSWORD_FILE', to: 'CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE', fromFile: 'db-rb-ingress', toFile: 'db-builder-ingress' },
   { from: 'CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE', to: 'CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE', fromFile: 'db-rb-executor', toFile: 'db-builder-executor' },
-  { from: 'CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE', to: 'CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE', fromFile: 'db-r2-connections', toFile: 'db-model-connection' },
 ])
 
 const fail = (code, detail) => {

@@ -33,12 +33,6 @@
       "connectsFrom": ["apps/hub/src/project/module.ts"]
     },
     {
-      "role": "hub_model_connection",
-      "capability": "connections",
-      "passwordFileVariable": "CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/model-connection-account/module.ts"]
-    },
-    {
       "role": "hub_builder_ingress",
       "capability": "builder-request",
       "passwordFileVariable": "CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE",

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts'])
-const TECHNICAL_HUB_LAYERS = new Set(['generated', 'http', 'model-connection', 'platform'])
+const TECHNICAL_HUB_LAYERS = new Set(['generated', 'http', 'platform'])
 // What a Conexus session is has one definition. Every owner needs it and none may fork it,
 // so it is admitted across owner boundaries the way the HTTP problem helper is.
 const SESSION_CONTRACT = 'apps/hub/src/identity-access/current-session.ts'
@@ -233,7 +233,6 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/http/app.ts',
           'apps/hub/src/brain/module.ts',
           'apps/hub/src/builder/module.ts',
-          'apps/hub/src/model-connection-account/module.ts',
           'apps/hub/src/connections/module.ts',
           'apps/hub/src/gateway/module.ts',
           'apps/hub/src/identity-access/module.ts',
@@ -242,7 +241,6 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/platform/connection-census.ts',
           'apps/hub/src/platform/postgres.ts',
           'apps/hub/src/platform/secrets.ts',
-          'apps/hub/src/platform/credential-backend.ts',
           'apps/hub/src/project/module.ts',
           'apps/hub/src/registry/module.ts',
           'apps/hub/src/workspace/module.ts',
@@ -297,10 +295,6 @@ export function checkImportLaw(rootDirectory) {
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
           violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'workspace store may use only owner errors/types, PostgreSQL types, and canonical JSON'))
         }
-      }
-      if (source.startsWith('apps/hub/src/model-connection/') && isRelative &&
-          !target.startsWith('apps/hub/src/model-connection/') && !target.startsWith('apps/hub/src/platform/')) {
-        violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'model connections may use only their own module and platform adapters'))
       }
       if (source.startsWith('apps/hub/src/platform/') && isRelative &&
           !target.startsWith('apps/hub/src/platform/')) {

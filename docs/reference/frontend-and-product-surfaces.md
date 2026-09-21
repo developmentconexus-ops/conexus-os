@@ -42,12 +42,12 @@ These are the routes, and there are no others.
 /workspaces/$workspaceId/members         the roster: members and pending invitations
 /projects/$projectId                     Project detail
 /projects/$projectId/build               the Build surface
-/settings                                model connections
+/settings                                the Account's details
 /setup                                   first-run Account provisioning
 ```
 
-Model connections live in Settings and in the Build surface, reached through the
-same flow from either. There is no Agents, Brain, Data, Capabilities,
+Settings shows the Account's details and nothing else. Model sign-in and model
+choice are Mastra Code's, per [C-022](../decisions/index.md). There is no Agents, Brain, Data, Capabilities,
 Integrations, Versions or Activity surface, and none is planned. Do not add
 navigation for one because a shell looks empty without it.
 
@@ -75,8 +75,7 @@ ask for another color review.
 | --- | --- |
 | Workspace | Dominant Preview and contextual Conexus chat. Resize, expand/collapse, and narrow-screen switching remain usable; neither panel loses state when hidden. |
 | Composer | Multiline input, Enter to send, Shift+Enter for newline, IME-safe behavior, clear sending/stopping feedback, keyboard/focus operation. |
-| Connection | Connect from chat or Settings through the same flow. Provider sign-in and pasted temporary code; safe status, explicit disconnect/reconnect. No tokens in browser storage. |
-| Model | Search choices supplied by the authorized Hub. Show the choice for the next request and the model actually admitted for each existing run. A choice change never changes an active run. |
+| Model | Offer the models Mastra Code's credential store has authenticated, and refuse to send until one is chosen. A choice belongs to the conversation it was made in. A choice change never changes an active run. |
 | Tool restriction | Friendly Edit and Read-only labels map to the BUILD and PLAN tool sets. They are a tool restriction on the run, not an approval workflow. |
 | Conversation | Persistent native Thread messages with ordered safe parts and streaming native activity. Scroll follows only when the user remains at the tail. |
 | Progress | Preparation, agent work, compilation and Preview opening reflect actual facts. Missing facts are not fabricated percentages or timers. |

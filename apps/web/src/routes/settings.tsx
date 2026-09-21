@@ -1,12 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { createRoute } from '@tanstack/react-router'
-import { lazy, Suspense } from 'react'
 import { useAuthorityLost } from '../app/query-client'
 import { Shell } from '../app/shell'
+import { AccountSettings } from '../features/settings/components/account-settings'
 import { accessContextQueryKey, getAccessContext, isAuthenticationRequired } from '../features/identity-access/api'
 import { rootRoute } from './__root'
-
-const SettingsTabs = lazy(() => import('../features/settings/components/settings-tabs').then((module) => ({ default: module.SettingsTabs })))
 
 export const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', component: SettingsRoute })
 
@@ -18,6 +16,6 @@ function SettingsRoute() {
   if (access.isError) return <main className="status"><h1>Não foi possível consultar suas configurações</h1><button type="button" onClick={() => void access.refetch()}>Tentar novamente</button></main>
   return <Shell context={access.data}><main className="control-plane-page settings-page">
     <div className="page-heading"><div><p className="eyebrow">Conta</p><h1>Configurações</h1></div></div>
-    <Suspense fallback={<p role="status">Carregando suas configurações…</p>}><SettingsTabs account={access.data.account} workspaces={access.data.workspaces} /></Suspense>
+    <AccountSettings account={access.data.account} workspaces={access.data.workspaces} />
   </main></Shell>
 }

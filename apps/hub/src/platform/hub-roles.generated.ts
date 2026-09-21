@@ -1,6 +1,6 @@
 // GENERATED from contracts/technical/hub-database-roles.json by scripts/generate-hub-role-register.mjs. Do not edit.
 
-export const HUB_ROLE_REGISTER_DIGEST = "c63e90e3ea473a896a8fcf8ad991aa77ff81b9506979798b6d792ac43c29e798"
+export const HUB_ROLE_REGISTER_DIGEST = "8ae5388aa19b47b2c42a4adf71d9e8a1ea8d73c37b4522c2c4d322577cf102e2"
 
 export type HubRoleRow = Readonly<{
   role: string
@@ -16,7 +16,6 @@ export const HUB_ROLES: readonly HubRoleRow[] = Object.freeze([
   Object.freeze({ role: "hub_workspace_command", capability: "workspace-command", passwordFileVariable: "CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE", connectsFrom: ["apps/hub/src/server.ts"] }),
   Object.freeze({ role: "hub_project_read", capability: "project-read", passwordFileVariable: "CONEXUS_DB_PROJECT_READ_PASSWORD_FILE", connectsFrom: ["apps/hub/src/project/module.ts"] }),
   Object.freeze({ role: "hub_project_command", capability: "project-command", passwordFileVariable: "CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE", connectsFrom: ["apps/hub/src/project/module.ts"] }),
-  Object.freeze({ role: "hub_model_connection", capability: "connections", passwordFileVariable: "CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE", connectsFrom: ["apps/hub/src/model-connection-account/module.ts"] }),
   Object.freeze({ role: "hub_builder_ingress", capability: "builder-request", passwordFileVariable: "CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE", connectsFrom: ["apps/hub/src/builder/module.ts"] }),
   Object.freeze({ role: "hub_builder_executor", capability: "builder-run-execution", passwordFileVariable: "CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE", connectsFrom: ["apps/hub/src/builder/module.ts"] }),
 ])
@@ -27,7 +26,6 @@ export const CAPABILITY_BY_ROLE: Readonly<Record<string, string>> = Object.freez
   hub_workspace_command: "workspace-command",
   hub_project_read: "project-read",
   hub_project_command: "project-command",
-  hub_model_connection: "connections",
   hub_builder_ingress: "builder-request",
   hub_builder_executor: "builder-run-execution",
 })

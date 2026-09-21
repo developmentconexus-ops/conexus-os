@@ -110,21 +110,58 @@ test('the committed snapshot is the catalog the baseline and forward migration b
   const snapshot = readCommittedSnapshot()
   assert.equal(snapshot.head, corpusVersions.at(-1))
   assert.equal(snapshot.format, 2)
-  assert.equal(catalogDigest(snapshot.catalog), 'd9353f53c1585f35166dc50c4bd06833df22c0aa623246a3acca7c692f252c00')
+  assert.equal(catalogDigest(snapshot.catalog), '4b5285322a2799c8b5b92fd8333e7cf1c71037e84fb557404b75e506c8d0e211')
   assert.deepEqual(await ledgerOf(connectionString), corpusLedger)
 })
 
-test('after the forward migration the action enum holds exactly the five live values, and role_allows is unchanged', async (t) => {
+test('after the forward migrations the action enum holds exactly the four live values, and role_allows is unchanged', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
   const labels = (await query(
     connectionString,
     "SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'action' ORDER BY e.enumsortorder",
   )).rows.map((row) => row.enumlabel)
-  assert.deepEqual(labels, ['workspace.read', 'members.manage', 'project.create', 'project.build', 'connection.share'])
+  assert.deepEqual(labels, ['workspace.read', 'members.manage', 'project.create', 'project.build'])
 
   const allows = async (role, action) =>
     (await query(connectionString, 'SELECT iam.role_allows($1, $2) AS allowed', [role, action])).rows[0].allowed
   for (const action of labels) assert.equal(await allows('owner', action), true, action)
   assert.equal(await allows('member', 'members.manage'), false)
   for (const action of labels.filter((action) => action !== 'members.manage')) assert.equal(await allows('member', action), true, action)
+})
+
+test('after the forward migrations nothing of the model-connection subsystem is left in the database', async (t) => {
+  const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
+  const present = (await query(connectionString, `
+    SELECT to_regnamespace('model_connection') IS NOT NULL AS schema,
+      to_regprocedure('iam.account_is_active(uuid)') IS NOT NULL AS account_is_active,
+      EXISTS (
+        SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        CROSS JOIN LATERAL aclexplode(p.proacl) AS entry
+        WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg')
+          AND pg_get_userbyid(entry.grantee) IN ('hub_model_connection', 'model_connection_owner')
+      ) AS function_grant
+  `)).rows[0]
+  assert.deepEqual(present, { schema: false, account_is_active: false, function_grant: false })
+})
+
+test('a login role provisioned with CONNECT on its database is still revoked and dropped', async (t) => {
+  // Provisioning grants a login role CONNECT on its own database, a cluster-level dependency that
+  // 0009 alone never revoked, so the role outlived the subsystem on every install.
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_mig')
+  const throughRemoval = corpus.filter(({ version }) => version <= '0009')
+  await runMigrations({ connectionString, migrations: throughRemoval, catalogSnapshot: null })
+  const database = (await query(connectionString, 'SELECT current_database() AS name')).rows[0].name
+  await query(connectionString, "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hub_model_connection') THEN CREATE ROLE hub_model_connection LOGIN; END IF; END $$")
+  await query(connectionString, `GRANT CONNECT ON DATABASE "${database}" TO hub_model_connection`)
+
+  await runHubMigrations({ connectionString })
+
+  const granted = (await query(connectionString, `
+    SELECT EXISTS (
+      SELECT 1 FROM pg_database d CROSS JOIN LATERAL aclexplode(d.datacl) AS entry
+      WHERE d.datname = current_database()
+        AND pg_get_userbyid(entry.grantee) IN ('hub_model_connection', 'model_connection_owner')
+    ) AS granted
+  `)).rows[0].granted
+  assert.equal(granted, false)
 })

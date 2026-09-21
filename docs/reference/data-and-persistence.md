@@ -29,7 +29,6 @@ Workspace
 Project and its working state
 BuilderRun
 Artifact Registry metadata
-Model connections: logical state, custody references, sharing and preference
 ```
 
 `apps/hub/migrations/0001_baseline.sql` plus its forward migrations is the exact
@@ -48,8 +47,10 @@ path. Atlas or another migration CLI may remain historical Evidence, but it is
 not a competing runtime owner.
 
 That lineage is one baseline file plus the forward migrations added after it.
-`0001_baseline.sql` creates the whole catalog, the eight capability roles and
-the six owner roles, and a fresh installation runs it alone. The runner pins
+`0001_baseline.sql` creates the catalog, the capability roles and the owner
+roles, and the forward migrations change it from there.
+`0009_remove_model_connections.sql` dropped the `model_connection` schema and
+its two roles. The runner pins
 each file by SHA-256, records it in `iam.schema_migration`, and refuses any
 database whose catalog is not the one the committed snapshot
 `contracts/technical/hub-catalog-snapshot.json` records. The one installation
@@ -117,28 +118,7 @@ same bytes/digest
 
 Storage/provider path/key/prefix is never Product authority.
 
-## 5.8 CredentialBackend backing
-
-Opaque encrypted secret-byte/crypto mechanism behind the narrow `CredentialBackend` boundary.
-
-Connections owns logical credential handles and grant facts; plaintext is materialized only at the trusted last-mile use, which today is the model call a run makes. CredentialBackend is not a generic Secret domain.
-
-Outside the trusted Hub boundary, no single compromise path/location/credential may yield both the Connection ciphertext backup set and root/recovery-key material. F1 transient acquired tokens are memory-only; no durable transient-token cache is admitted.
-
-### 5.8.1 Recovery closure
-
-A ciphertext generation is recoverable only if its referenced decryption key generation or equivalent recovery means is also recoverable and restore-time decryptability can be proven.
-
-```text
-recoverable ciphertext generation
-+ separately custodied required key generation / recovery means
-+ successful decryptability proof
-→ credential bytes are recoverable
-```
-
-Ciphertext backup custody and root/recovery-key custody remain separate. This refinement does not create a generic Secret owner or permit one recovery location/credential to expose both sets.
-
-### 5.8.2 Keycloak Identity Provider backing
+## 5.8 Keycloak Identity Provider backing
 
 C-015 selects Keycloak as the authentication provider. Its realm, user, credential, signing/provider configuration and other persistence required to preserve the configured OIDC issuer and stable subject identities are **provider-owned authentication state**, not Conexus Product authority.
 
