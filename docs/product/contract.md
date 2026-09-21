@@ -136,6 +136,12 @@ may use it. A plain member may share their own connection. The owner of the conn
 or a Workspace owner, may withdraw the share. Model selection stays Mastra-native:
 Conexus adds credential custody and sign-in, not a model abstraction of its own.
 
+> **This section describes what exists today and is on its way out.**
+> [C-022](../decisions/index.md) moves model authentication, credentials, provider
+> connection and selection to the Factory, which has its own. The custody and sharing
+> rules above go with the subsystem when the adoption work replaces it. They say nothing
+> about the Workspace's enterprise connections, which stay Conexus's.
+
 ---
 
 ## 4. Journey A. First access and the first Workspace

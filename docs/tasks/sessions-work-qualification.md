@@ -1,6 +1,10 @@
 # Qualify the native composition for Project conversations and delegated Work
 
-> **Status:** prepared, not started. [The roadmap](../roadmap.md) owns the grant.
+> **Status:** closed on 2026-09-20. The verdict is section 14 of
+> [the report](../evidence/sessions-work-qualification/report.md), the decision it produced
+> is [C-022](../decisions/index.md), and the evidence lives beside the report in
+> [`docs/evidence/sessions-work-qualification/`](../evidence/sessions-work-qualification/README.md).
+> This file is kept as the contract the work was held to, not as an execution path.
 > **Authority:** [C-021](../decisions/index.md), [product contract section 12](../product/contract.md#12-approved-destination).
 > **Technical owner of what exists:** [C-020 reference](../reference/builder-c020-mastra-native.md).
 
