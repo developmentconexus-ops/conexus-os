@@ -69,6 +69,10 @@ they are the package's, not the migrations'. The `factory` schema line itself st
 and grants, so a grant on it to any other role is catalog drift and refuses the next migration run.
 `tests/implementation/builder-factory-binding-postgres.test.mjs` asserts both bounds.
 
+Its register row is `"optional": true`, so a Hub without `CONEXUS_DB_FACTORY_PASSWORD_FILE` leaves it
+out of the startup census instead of reporting it `unconfigured`. With the file, it is censused like
+any other role.
+
 The Hub connects as `hub_factory` only when the Factory is configured, and its pool pins
 `search_path` to `factory` on every connection, because `PgFactoryStorage` creates its tables under
 unqualified names. `tests/implementation/builder-factory-composition.test.mjs` runs `prepare()` as

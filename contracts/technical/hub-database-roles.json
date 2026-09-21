@@ -48,6 +48,7 @@
       "role": "hub_factory",
       "capability": "factory-storage",
       "passwordFileVariable": "CONEXUS_DB_FACTORY_PASSWORD_FILE",
+      "optional": true,
       "connectsFrom": ["apps/hub/src/builder/factory.ts"]
     }
   ]
