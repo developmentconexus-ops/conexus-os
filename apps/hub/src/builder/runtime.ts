@@ -260,8 +260,9 @@ export const createMastraE2BCodingWorkerRuntime = (
           timeoutMs,
           envs: {},
           metadata,
-          allowInternetAccess: false,
-          network: { denyOut: ({ allTraffic }) => [allTraffic] },
+          // Open egress is the operator's choice (C-023), to be narrowed to named hosts once the
+          // Builder's real needs are known.
+          allowInternetAccess: true,
           lifecycle: { onTimeout: 'kill' },
         }),
         input.sourceBundle,
@@ -286,7 +287,6 @@ export const createMastraE2BCodingWorkerRuntime = (
         lifecycle: { onTimeout: 'kill' },
         env: {},
         metadata,
-        network: { denyOut: ({ allTraffic }) => [allTraffic] },
         instructions: 'Remote Conexus Builder sandbox. No host fallback, remote credentials, or owner-state authority.',
       })
       let observedSandboxId: string | undefined

@@ -100,7 +100,7 @@ test('the smoke script the sandbox is handed parses as the module Node will load
   }
 })
 
-test('an app that imports a web font the offline sandbox cannot reach still passes the smoke in a real browser', async (t) => {
+test('an app that imports a web font from an unreachable host still passes the smoke in a real browser', async (t) => {
   const { mkdtempSync, writeFileSync, rmSync, readFileSync, mkdirSync: makeDirectory, chmodSync } = await import('node:fs')
   const { tmpdir } = await import('node:os')
   const { chromium } = await import('@playwright/test')
@@ -112,12 +112,12 @@ test('an app that imports a web font the offline sandbox cannot reach still pass
   const smoke = calls.find((call) => call.kind === 'run' && String(call.command).includes(heredoc))
   const script = String(smoke.command).split(`<<'${heredoc}'\n`)[1]?.split(`\n${heredoc}`)[0]
 
-  const directory = mkdtempSync(resolve(tmpdir(), 'conexus-smoke-offline-'))
+  const directory = mkdtempSync(resolve(tmpdir(), 'conexus-smoke-external-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
   const dist = resolve(directory, 'dist')
   makeDirectory(dist)
   // 10.255.255.1 is not routable, so a connection to it neither succeeds nor is refused: it hangs,
-  // which is what the sandbox's missing network does to a Google Fonts import.
+  // which is what a slow or unreachable font host does to the load event.
   writeFileSync(resolve(dist, 'style.css'), "@import url('http://10.255.255.1/font.css');\nbody { margin: 0; }\n")
   writeFileSync(resolve(dist, 'index.html'), '<!doctype html><html><head><link rel="stylesheet" href="/style.css"></head>'
     + '<body><div id="root"></div><script>document.getElementById("root").append(document.createElement("main"))</script></body></html>')
