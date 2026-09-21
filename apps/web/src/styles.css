@@ -78,10 +78,10 @@ button:disabled { opacity: .6; cursor: wait; }
 .builder-conversation-empty { margin: 1rem 0 0; padding: .9rem; border: 1px dashed #8b9991; border-radius: .5rem; color: #617068; }
 .builder-turn { display: grid; gap: .5rem; min-width: 0; line-height: 1.55; }
 .builder-turn-user { justify-self: end; max-width: 88%; padding: .6rem .8rem; border-radius: .8rem; background: #e7efe8; }
-.builder-turn-phase { display: flex; align-items: center; gap: .5rem; color: #617068; font-size: .88rem; }
+.builder-run-status { display: flex; align-items: center; gap: .5rem; padding: .5rem .65rem; border: 1px solid #d6e2da; border-radius: .6rem; background: #f3f7f4; color: #40584a; font-size: .86rem; }
+.builder-run-status-elapsed { margin-left: auto; color: #617068; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .builder-turn-error { margin: 0; padding: .6rem .8rem; border-radius: .5rem; background: #fff1ee; color: #8b2828; }
 .builder-turn-reason { justify-self: end; max-width: 88%; margin: 0; padding: .5rem .8rem; border-radius: .5rem; background: #fdf3e7; color: #7a4a17; font-size: .9rem; }
-.builder-run-status { margin: 0; color: #617068; font-size: .82rem; }
 .builder-mode-toggle { grid-template-columns: 1fr 1fr; }
 .builder-mode-toggle legend { grid-column: 1 / -1; }
 .builder-mode-toggle button { border-color: #8b9991; background: #fff; font-weight: 700; }
@@ -181,7 +181,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .builder-send-button { padding: .5rem .7rem; font-size: .76rem; }
 .builder-no-model, .builder-form-message { margin: 0; color: #69786e; font-size: .72rem; line-height: 1.4; }
 .builder-no-model { color: #8b4c2f; }
-.builder-stop-button { width: 100%; border-color: #bb7062; color: #873d31; }
+.builder-stop-button { padding: .2rem .7rem; border-color: #bb7062; color: #873d31; font-size: .8rem; }
 .builder-form-message a { margin-left: .25rem; }
 .builder-mode-toggle { margin: 0; padding: .5rem; border-color: #e1e8e2; border-radius: .55rem; }
 .builder-mode-toggle legend { padding: 0 .25rem; color: #748279; font-size: .68rem; }

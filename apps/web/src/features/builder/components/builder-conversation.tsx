@@ -1,7 +1,5 @@
 import '@mastra/playground-ui/style.css'
 import { MarkdownRenderer } from '@mastra/playground-ui/components/MarkdownRenderer'
-import { PendingIndicator } from '@mastra/playground-ui/components/PendingIndicator'
-import { Shimmer } from '@mastra/playground-ui/components/Shimmer'
 import { ThemeProvider } from '@mastra/playground-ui/components/ThemeProvider'
 import {
   ToolCall, ToolCallCommand, ToolCallContent, ToolCallEdit, ToolCallMono, ToolCallPresentedHeader, ToolCallTrigger,
@@ -97,14 +95,12 @@ function Message({ message, tools, streaming, reason }: Readonly<{ message: Mast
   </div>
 }
 
-export function BuilderConversation({ history, turn, pendingRequest, persistedRequests, failureCategory, runActive, phaseLabel }: Readonly<{
+export function BuilderConversation({ history, turn, pendingRequest, persistedRequests, failureCategory }: Readonly<{
   history: readonly MastraDBMessage[]
   turn: LiveTurn
   pendingRequest: string | null
   persistedRequests: readonly PersistedRequest[]
   failureCategory: BuilderFailureCategory | null
-  runActive: boolean
-  phaseLabel: string | null
 }>) {
   const liveIds = new Set(turn.messages.map((message) => message.id))
   const settled = history.filter((message) => !liveIds.has(message.id))
@@ -123,7 +119,6 @@ export function BuilderConversation({ history, turn, pendingRequest, persistedRe
       : item.entry && <RequestTurn key={item.key} entry={item.entry} />)}
     {pendingRequest !== null && !requestVisible && <div className="builder-turn builder-turn-user"><MarkdownRenderer>{pendingRequest}</MarkdownRenderer></div>}
     {turn.messages.map((message) => <Message key={message.id} message={message} tools={turn.tools} streaming={message.id === streamingId} reason={reason} />)}
-    {runActive && phaseLabel && <div className="builder-turn-phase" role="status"><PendingIndicator /><Shimmer active>{phaseLabel}</Shimmer></div>}
     {turn.error && <p className="builder-turn-error" role="alert">{reason}</p>}
     {!timeline.length && !turn.messages.length && pendingRequest === null && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}
   </ThemeProvider>
