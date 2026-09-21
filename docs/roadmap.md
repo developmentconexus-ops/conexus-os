@@ -50,9 +50,16 @@ Trunk is `analysis/internal-mvp-2026-09-12`, not `main`.
 **Next: adopt the Factory for real.** [The Factory adoption task](tasks/factory-adoption.md) is the
 next structural work. Conversations and native model authentication are done, but the Factory itself
 is not installed, and Project source is still under Conexus's own Git custody. C-022 already chose
-the Factory and a forge. That task closes the gap between the decision and the runtime, with Project
-source in private GitHub repositories, admission kept by Conexus, and the host Git path deleted. The
-frontend redesign waits for it.
+the Factory and a forge, and [C-024](decisions/index.md) settled that one Conexus installation
+connects one company's GitHub organization once. That task closes the gap between the decision and
+the runtime. Project source moves to private GitHub repositories, admission stays with Conexus, and
+the host Git path is deleted. It runs in five units, each proven on the pilot.
+
+**After it, in this order.** First the frontend redesign, on a path that is no longer being replaced.
+Then the approved destination in
+[section 12 of the product contract](product/contract.md#12-approved-destination): admission,
+artifact health and Publish as three separate gates, and Publish itself. The Factory's Work engine
+(planning, execution and review in the product) comes after that, when a real need for it shows.
 
 **Several conversations per Project**, the first cut of Factory-centered development in the
 product. [Its task](tasks/project-conversations-first-increment.md) owns the scope and
