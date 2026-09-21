@@ -1,10 +1,9 @@
 import { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput } from '@mastra/core/workspace'
-import { E2BSandbox } from '@mastra/e2b'
 import { buildApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { CompiledApplication } from './application-artifact-runtime.js'
 import { BUILDER_BASE_AGENT_INSTRUCTIONS, materializeFixedApplicationStarter } from './application-starter.js'
-import { FACTORY_WORKING_DIRECTORY, scrubCheckoutCredentials } from './factory.js'
+import { ConexusFactoryE2BSandbox, FACTORY_WORKING_DIRECTORY, scrubCheckoutCredentials } from './factory.js'
 import type { FactoryComposition } from './factory.js'
 import type { GithubApp } from './factory-github.js'
 import { conversationBranch } from './factory-routes.js'
@@ -22,8 +21,8 @@ export type FactoryRunSandbox = Readonly<{
   start(): Promise<void>
   executeCommand(command: string, args?: string[], options?: ExecuteCommandOptions): Promise<CommandResult>
   writeFiles(files: SandboxFileInput[]): Promise<void>
-  // Outside the agent's reach: E2B runs it as root through its own command API.
-  runAsRoot(script: string): Promise<CommandResult>
+  // Kills what the agent left running, against the process list the Hub took when it created the VM.
+  reapAgentProcesses(): Promise<CommandResult>
   buildApplication(appRoot: string, signal?: AbortSignal): Promise<CompiledApplication['files']>
 }>
 
@@ -89,30 +88,14 @@ const repositoryUrl = (slug: string): string => `https://github.com/${slug}.git`
 
 // The token rides in the git process's environment as a one-command http header, never in argv,
 // a URL, a remote or a config file. Anything the agent left running could still read the process's
-// environ, which is why every token-bearing command is preceded by REAP_AGENT_PROCESSES.
+// environ, which is why every token-bearing command is preceded by a reap. No agent turn is live
+// then, and the run's session is closed before the push, so nothing respawns before git runs.
 const tokenEnvironment = (token: string): Record<string, string> => ({
   GIT_CONFIG_COUNT: '1',
   GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
   GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
   GIT_TERMINAL_PROMPT: '0',
 })
-
-// The template runs the agent as root, so there is no separate agent user to kill by uid. Every
-// process the agent could have started was spawned through envd, so it started after envd did.
-// The reap kills only processes whose start time (field 22 of /proc/<pid>/stat, clock ticks since
-// boot) is later than envd's, skipping kernel threads and its own ancestry. Whatever the VM ran
-// when envd came up survives. With no envd to measure against it kills nothing and fails. No agent
-// turn is live at the pin, and the run's session is closed before the push, so nothing respawns
-// before the git command runs.
-export const REAP_AGENT_PROCESSES = [
-  'started() { sed -E \'s/^.*\\) //\' "$1/stat" 2>/dev/null | cut -d" " -f20; }',
-  'floor=""; for d in /proc/[0-9]*; do [ "$(cat "$d/comm" 2>/dev/null)" = envd ] || continue; s=$(started "$d"); [ -n "$s" ] || continue; if [ -z "$floor" ] || [ "$s" -lt "$floor" ]; then floor=$s; fi; done',
-  '[ -n "$floor" ] || exit 3',
-  'keep=" 1 $$ "; p=$$',
-  'while [ "$p" -gt 1 ] 2>/dev/null; do p=$(sed -E \'s/^.*\\) [A-Za-z] ([0-9]+) .*/\\1/\' "/proc/$p/stat" 2>/dev/null); keep="$keep$p "; done',
-  'for d in /proc/[0-9]*; do pid=${d#/proc/}; case "$keep" in *" $pid "*) continue;; esac; readlink "$d/exe" >/dev/null 2>&1 || continue; s=$(started "$d"); [ "$s" -gt "$floor" ] 2>/dev/null || continue; kill -9 "$pid" 2>/dev/null; done',
-  'true',
-].join('\n')
 
 const BASE_MOVED = 'BUILDER_SOURCE_BASE_MOVED'
 
@@ -143,6 +126,10 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
     try {
       const { sandbox } = session
       await sandbox.start()
+      // start() returns at once for a sandbox this process already started, even when E2B's idle
+      // timeout killed its VM since. A first command replaces a dead VM (and reclones), so the
+      // run records the incarnation that will actually run it.
+      await sandbox.executeCommand('true', [], { env: {} })
       const incarnation = sandbox.sandboxId
       if (!incarnation) throw new Error('BUILDER_SANDBOX_FRESH_CREATE_REQUIRED')
       await input.bindPhysicalSandbox(incarnation)
@@ -159,7 +146,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
         onIncarnation(() => sandbox.executeCommand(command, args, { ...options, env: options.env ?? {} }))
       const sh = (script: string, env: Record<string, string> = {}): Promise<CommandResult> => direct('sh', ['-c', script], { env })
       const withToken = async (token: string, script: string): Promise<CommandResult> => {
-        const reaped = await onIncarnation(() => sandbox.runAsRoot(REAP_AGENT_PROCESSES))
+        const reaped = await onIncarnation(() => sandbox.reapAgentProcesses())
         if (reaped.exitCode !== 0) throw new Error('BUILDER_SANDBOX_REAP_FAILED')
         return sh(script, tokenEnvironment(token))
       }
@@ -310,7 +297,7 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, appendDiagnost
       if (!deleted || await controller.getSessionByResource(conversationId, scope)) throw new Error('BUILDER_SESSION_DELETE_FAILED')
     }
     const sandbox = session.getWorkspace()?.sandbox
-    if (!(sandbox instanceof E2BSandbox) || !sandbox.executeCommand) {
+    if (!(sandbox instanceof ConexusFactoryE2BSandbox) || !sandbox.executeCommand) {
       await close().catch(() => undefined)
       throw new Error('BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED')
     }
@@ -322,17 +309,7 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, appendDiagnost
         executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) =>
           execute(command, args, { ...options, cwd: options.cwd ?? FACTORY_WORKING_DIRECTORY, timeout: options.timeout ?? 120_000 }),
         writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
-        runAsRoot: async (script: string): Promise<CommandResult> => {
-          const startedAt = Date.now()
-          try {
-            const ran = await sandbox.e2b.commands.run(script, { user: 'root', cwd: '/', envs: {}, timeoutMs: 30_000 })
-            return { success: true, exitCode: ran.exitCode, stdout: ran.stdout, stderr: ran.stderr, executionTimeMs: Date.now() - startedAt }
-          } catch (error) {
-            // The SDK throws for a nonzero exit; the caller only needs to know the reap did not finish.
-            const exitCode = typeof (error as { exitCode?: unknown }).exitCode === 'number' ? (error as { exitCode: number }).exitCode : 1
-            return { success: false, exitCode, stdout: '', stderr: '', executionTimeMs: Date.now() - startedAt }
-          }
-        },
+        reapAgentProcesses: () => sandbox.reapAgentProcesses(),
         buildApplication: (appRoot: string, signal?: AbortSignal) => buildApplicationInSandbox(sandbox.e2b, { appRoot, ...(signal ? { signal } : {}) }),
       }),
       configure: async ({ mode, instructions }) => {

@@ -22,7 +22,7 @@ const compiled = spawnSync(process.execPath, [
 ], { encoding: 'utf8' })
 if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
 const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
-const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, scrubCheckoutCredentials } = await import(built('builder/factory.js'))
+const { ConexusFactoryE2BSandbox, PROCESS_BASELINE_SCRIPT, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, scrubCheckoutCredentials } = await import(built('builder/factory.js'))
 const { createBuilderMountOptions } = await import(built('builder/module.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
 
@@ -65,6 +65,68 @@ test('the sandbox never lets GH_TOKEN or GITHUB_TOKEN into its environment', () 
   assert.deepEqual(sandbox.getEnv(), { KEEP: '1' })
   sandbox.setEnv((env) => ({ ...env, GH_TOKEN: 'ghs_injected', GITHUB_TOKEN: 'ghs_injected', OTHER: '2' }))
   assert.deepEqual(sandbox.getEnv(), { KEEP: '1', OTHER: '2' })
+})
+
+const fakeVm = (sandboxId, { baseline = '1:5\n321:40\n', baselineExit = 0 } = {}) => {
+  const vm = { sandboxId, killed: false, runs: [] }
+  vm.kill = async () => { vm.killed = true }
+  vm.commands = {
+    run: async (script, options) => {
+      vm.runs.push({ script, options })
+      if (script === PROCESS_BASELINE_SCRIPT) return { exitCode: baselineExit, stdout: baseline, stderr: '' }
+      return { exitCode: 0, stdout: '', stderr: '' }
+    },
+  }
+  return vm
+}
+
+const offlineSandbox = ({ existing, created }) => {
+  const sandbox = new ConexusFactoryE2BSandbox({ id: 'conexus-factory-row', template: 'conexus:template', apiKey: 'e2b-test' })
+  sandbox.findExistingSandbox = async () => existing
+  sandbox.createSdkSandbox = async () => created
+  return sandbox
+}
+
+test('the Hub lists the VM processes as root the moment it creates the VM, before the Factory start hook', async () => {
+  const created = fakeVm('vm-fresh')
+  const sandbox = offlineSandbox({ existing: undefined, created })
+  let seenByStartHook
+  sandbox.setOnStart(() => async () => { seenByStartHook = sandbox.processBaseline })
+  await sandbox.start()
+  assert.deepEqual(seenByStartHook && [seenByStartHook.sandboxId, [...seenByStartHook.processes]], ['vm-fresh', ['1:5', '321:40']])
+  assert.deepEqual(created.runs.map(({ options }) => options), [{ user: 'root', cwd: '/', envs: {}, timeoutMs: 30_000 }])
+})
+
+test('the reap spares exactly the baseline, by pid and start time, and runs as root with an empty environment', async () => {
+  const created = fakeVm('vm-fresh')
+  const sandbox = offlineSandbox({ existing: undefined, created })
+  await sandbox.start()
+  const reaped = await sandbox.reapAgentProcesses()
+  assert.equal(reaped.exitCode, 0)
+  const reap = created.runs.at(-1)
+  assert.deepEqual(reap.options, { user: 'root', cwd: '/', envs: {}, timeoutMs: 30_000 })
+  assert.match(reap.script, /^base=" 1:5 321:40 "$/m)
+  assert.match(reap.script, /kill -9 "\$pid"/)
+})
+
+test('a VM found by id is killed, never adopted, and a fresh one is created with its own baseline', async () => {
+  const existing = fakeVm('vm-left-by-a-previous-hub')
+  const created = fakeVm('vm-fresh', { baseline: '1:5\n400:77\n' })
+  const sandbox = offlineSandbox({ existing, created })
+  await sandbox.start()
+  assert.equal(existing.killed, true)
+  assert.deepEqual(existing.runs, [])
+  assert.equal(sandbox.sandboxId, 'vm-fresh')
+  assert.deepEqual([...sandbox.processBaseline.processes], ['1:5', '400:77'])
+})
+
+test('without a baseline for the live VM the reap refuses and runs nothing', async () => {
+  const sandbox = offlineSandbox({ existing: undefined, created: fakeVm('vm-fresh') })
+  const refused = await sandbox.reapAgentProcesses()
+  assert.equal(refused.exitCode, 3)
+  const failing = fakeVm('vm-unlistable', { baseline: '' })
+  await assert.rejects(offlineSandbox({ existing: undefined, created: failing }).start(), /BUILDER_SANDBOX_BASELINE_FAILED/)
+  assert.equal(failing.runs.length, 1)
 })
 
 test('the Factory sandbox callback builds one E2B sandbox per session row in /workspace', () => {

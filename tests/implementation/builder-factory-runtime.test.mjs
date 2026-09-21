@@ -31,7 +31,7 @@ const conversationId = '44444444-4444-4444-8444-444444444444'
 const privateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' })
 const listing = `100644 blob ${'d'.repeat(40)}      120\tapp/index.html\n`
 
-const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, pushExit = 0, onStart } = {}) => {
+const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, pushExit = 0, reapExit = 0, onStart, onCommand } = {}) => {
   const github = await startFakeGithub()
   t.after(() => github.close())
   const repository = github.addRepository({ owner: 'acme-org', name: 'app', head })
@@ -50,12 +50,13 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
     sandboxId: 'sbx-1',
     start: async () => { events.push('start'); onStart?.(sandbox) },
     writeFiles: async () => {},
-    runAsRoot: async (script) => {
-      events.push(`root:${script}`)
-      return { exitCode: 0, success: true, stdout: '', stderr: '' }
+    reapAgentProcesses: async () => {
+      events.push('reap')
+      return { exitCode: reapExit, success: reapExit === 0, stdout: '', stderr: '' }
     },
     executeCommand: async (command, args = [], options = {}) => {
       const line = [command, ...args].join(' ')
+      onCommand?.(sandbox, line)
       events.push(line)
       invocations.push({ argv: [command, ...args], env: options.env })
       if (line.includes('add --all')) return { exitCode: 0, success: true, stdout: `${result}\n`, stderr: '' }
@@ -294,7 +295,7 @@ test('a token never reaches argv, rides only in the git command environment, and
   assert.ok(run.invocations.every(({ env }) => env !== undefined), 'every command states its environment')
   for (const { argv } of bearing) {
     const index = run.events.indexOf(argv.join(' '))
-    assert.match(String(run.events[index - 1]), /^root:.*kill -9/s, `a root reap runs immediately before: ${argv.at(-1)}`)
+    assert.equal(run.events[index - 1], 'reap', `a reap runs immediately before: ${argv.at(-1)}`)
   }
 })
 
@@ -306,4 +307,31 @@ test('a stop that aborts the agent is logged with the run id and settles the run
   assert.deepEqual(run.logs, [`BUILDER_FACTORY_AGENT_END:aborted:${runId}:2026-09-21T15:00:00.000Z`])
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
   assert.equal(run.commands().some((line) => line.includes(' push ')), false)
+})
+
+test('a reap that does not finish refuses the token-bearing command with BUILDER_SANDBOX_REAP_FAILED', async (t) => {
+  const run = await harness(t, { reapExit: 3 })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_SANDBOX_REAP_FAILED'])
+  assert.deepEqual(run.github.state.tokens.length, 1)
+  assert.equal(run.commands().some((line) => line.includes(' fetch ')), false)
+  assert.equal(run.events.includes('turn'), false)
+})
+
+test('a VM that died while the conversation was idle is replaced before the run records its incarnation', async (t) => {
+  let replaced = false
+  const run = await harness(t, {
+    build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') },
+    onCommand: (sandbox) => {
+      if (replaced) return
+      replaced = true
+      sandbox.sandboxId = 'sbx-recreated'
+    },
+  })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'sandbox' || kind === 'fail' || kind === 'advance'), [
+    ['sandbox', 'sbx-recreated'], ['advance', RESULT],
+  ])
 })
