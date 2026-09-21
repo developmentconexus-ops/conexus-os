@@ -33,7 +33,7 @@ export type CodingWorkerInput = CodingWorkerCommonInput & Readonly<{
 }>
 
 type CodingWorkerResultScope = Readonly<{
-  runtimeId: 'mastra-native-e2b-v1'
+  runtimeId: 'mastra-native-e2b-v1' | 'mastra-factory-e2b-v1'
   projectId: string
   executionId: string
   sandboxId: string
@@ -57,6 +57,14 @@ type CodingWorkerResultVariant<TScope> = TScope & (
 )
 
 export type CodingWorkerResult = CodingWorkerResultVariant<CodingWorkerResultScope>
+
+// A repository-hosted source is admitted by the runtime itself: the compare-and-swap on the
+// default branch is the admission, so the service records it and never admits it again.
+export type SourceAdmittedResult = CodingWorkerResultScope & Readonly<{
+  kind: 'SOURCE_ADMITTED'
+  resultSourceRevision: string
+  applicationBuild: ApplicationBuildOutcome
+}>
 
 /** The Builder's controller is Mastra Code's, so it carries Mastra Code's own session state. */
 export type BuilderAgentController = AgentController<MastraCodeState>
@@ -182,7 +190,7 @@ export const sendBuilderSessionMessage = async (
   }
 }
 
-const messageText = (message: Readonly<{ content?: Readonly<{ parts?: readonly unknown[] }> }>): string => {
+export const messageText = (message: Readonly<{ content?: Readonly<{ parts?: readonly unknown[] }> }>): string => {
   const parts = Array.isArray(message.content?.parts) ? message.content.parts : []
   return parts.flatMap((part) => {
     if (typeof part !== 'object' || part === null || !('type' in part) || part.type !== 'text' || !('text' in part) || typeof part.text !== 'string') return []
@@ -190,7 +198,7 @@ const messageText = (message: Readonly<{ content?: Readonly<{ parts?: readonly u
   }).join('')
 }
 
-const isUserAuthoredMessage = (message: Readonly<{ role?: string; content?: unknown }>): boolean => {
+export const isUserAuthoredMessage = (message: Readonly<{ role?: string; content?: unknown }>): boolean => {
   if (message.role === 'user') return true
   if (message.role !== 'signal' || typeof message.content !== 'object' || message.content === null) return false
   const content = message.content as Record<string, unknown>

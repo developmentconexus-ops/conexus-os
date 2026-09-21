@@ -240,7 +240,7 @@ components:
         # declares.
         failureCategory:
           type: [string, 'null']
-          enum: [ENVIRONMENT_PREPARATION_FAILED, MODEL_CREDENTIAL_REFUSED, MODEL_RATE_LIMITED, MODEL_REQUEST_REFUSED, SOURCE_RESULT_REJECTED, APPLICATION_BUILD_FAILED, RUN_CANCELLED, RUN_INTERRUPTED, INTERNAL_ERROR, null]
+          enum: [ENVIRONMENT_PREPARATION_FAILED, MODEL_CREDENTIAL_REFUSED, MODEL_RATE_LIMITED, MODEL_REQUEST_REFUSED, SOURCE_RESULT_REJECTED, SOURCE_BASE_MOVED, PREVIEW_NOT_BUILT, APPLICATION_BUILD_FAILED, RUN_CANCELLED, RUN_INTERRUPTED, INTERNAL_ERROR, null]
         requestText: { type: [string, 'null'], maxLength: 20000 }
         createdAt: { type: string, format: date-time }
         cancellationRequested: { type: boolean }

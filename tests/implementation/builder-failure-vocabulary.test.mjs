@@ -31,6 +31,15 @@ test('each public category is reachable from a real internal code', () => {
   assert.equal(builderFailureCategory('APPLICATION_COMPILATION_FAILED'), 'APPLICATION_BUILD_FAILED')
   assert.equal(builderFailureCategory('USER_CANCELLED'), 'RUN_CANCELLED')
   assert.equal(builderFailureCategory('BUILDER_PREPARATION_FAILED'), 'INTERNAL_ERROR')
+  assert.equal(builderFailureCategory('BUILDER_SOURCE_BASE_MOVED'), 'SOURCE_BASE_MOVED')
+  assert.equal(builderFailureCategory('BUILDER_PREVIEW_NOT_BUILT'), 'PREVIEW_NOT_BUILT')
+})
+
+test('a stale base and a lost Preview reach the wire with their own codes', () => {
+  const moved = projectBuilderRun(run('FAILED', 'BUILDER_SOURCE_BASE_MOVED'))
+  assert.deepEqual([moved.failureCategory, moved.failureCode], ['SOURCE_BASE_MOVED', 'BUILDER_SOURCE_BASE_MOVED'])
+  const unbuilt = projectBuilderRun(run('FAILED', 'BUILDER_PREVIEW_NOT_BUILT'))
+  assert.deepEqual([unbuilt.failureCategory, unbuilt.failureCode], ['PREVIEW_NOT_BUILT', 'BUILDER_PREVIEW_NOT_BUILT'])
 })
 
 test('a source code carrying the git container suffix names the preparation failure and stays off the wire', () => {

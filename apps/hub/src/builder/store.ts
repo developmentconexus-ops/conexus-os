@@ -72,7 +72,17 @@ export type BuilderStore = Readonly<{
   recoverAndListQueuedBuilderRuns(): Promise<readonly string[]>
   readFactoryBinding(input: Readonly<{ accountId: string; projectId: string }>): Promise<FactoryBindingRecord | null>
   resolveFactoryProject(input: Readonly<{ accountId: string; projectRepositoryId: string }>): Promise<string | null>
+  readFactoryBindingForRun(builderRunId: string): Promise<FactoryBindingRecord | null>
+  listFactoryAdmissionRuns(): Promise<readonly FactoryAdmissionRun[]>
   close(): Promise<void>
+}>
+
+export type FactoryAdmissionRun = Readonly<{
+  builderRunId: string
+  projectId: string
+  conversationId: string
+  baseSourceRevision: string
+  binding: FactoryBindingRecord
 }>
 
 export const createBuilderStore = ({
@@ -213,6 +223,16 @@ export const createBuilderStore = ({
       'SELECT builder.resolve_factory_project($1,$2) AS value', [accountId, projectRepositoryId],
     )
     return result.rows[0]?.value ?? null
+  },
+  readFactoryBindingForRun: async (builderRunId) => {
+    const result = await executorPool.query<JsonRow<FactoryBindingRecord | null>>(
+      'SELECT builder.read_factory_binding_for_run($1) AS value', [builderRunId],
+    )
+    return result.rows[0]?.value ?? null
+  },
+  listFactoryAdmissionRuns: async () => {
+    const result = await executorPool.query<JsonRow<readonly FactoryAdmissionRun[]>>('SELECT builder.list_factory_admission_runs() AS value')
+    return result.rows[0]?.value ?? []
   },
   close: async () => { await Promise.all([ingressPool.end(), executorPool.end()]) },
 })

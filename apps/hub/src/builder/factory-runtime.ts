@@ -1,0 +1,353 @@
+import { RequestContext } from '@mastra/core/request-context'
+import type { CommandResult, ExecuteCommandOptions, SandboxFileInput } from '@mastra/core/workspace'
+import { E2BSandbox } from '@mastra/e2b'
+import { buildApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
+import type { CompiledApplication } from './application-artifact-runtime.js'
+import { BUILDER_BASE_AGENT_INSTRUCTIONS, materializeFixedApplicationStarter } from './application-starter.js'
+import { FACTORY_WORKING_DIRECTORY, scrubCheckoutCredentials } from './factory.js'
+import type { FactoryComposition } from './factory.js'
+import type { GithubApp } from './factory-github.js'
+import { conversationBranch } from './factory-routes.js'
+import { admitApplicationTree, isUserAuthoredMessage, messageText, sendBuilderSessionMessage } from './runtime.js'
+import type { ApplicationBuildOutcome, CodingWorkerResult, SourceAdmittedResult } from './runtime.js'
+import type { BuilderRunningPhase, BuilderStore, FactoryBindingRecord } from './store.js'
+
+/** Where a run's source lives, decided once at claim from the Project's binding. */
+export type RunSource =
+  | Readonly<{ kind: 'CONEXUS' }>
+  | Readonly<{ kind: 'FACTORY'; binding: FactoryBindingRecord }>
+
+export type FactoryRunSandbox = Readonly<{
+  readonly sandboxId: string | undefined
+  start(): Promise<void>
+  executeCommand(command: string, args?: string[], options?: ExecuteCommandOptions): Promise<CommandResult>
+  writeFiles(files: SandboxFileInput[]): Promise<void>
+  buildApplication(appRoot: string, signal?: AbortSignal): Promise<CompiledApplication['files']>
+}>
+
+export type FactoryAgentTurn = Readonly<{
+  reason: string
+  endedAt: Date
+  userMessageId: string | undefined
+  summary: string
+}>
+
+/** One run's session on the Factory controller, scoped to builder:<runId> under the conversation. */
+export type FactoryRunSession = Readonly<{
+  sandbox: FactoryRunSandbox
+  configure(input: Readonly<{ mode: 'BUILD' | 'PLAN'; instructions: string }>): Promise<void>
+  hasModelSelection(): boolean
+  sendTurn(content: string, signal?: AbortSignal): Promise<FactoryAgentTurn>
+  close(): Promise<void>
+}>
+
+export type FactoryRunPorts = Readonly<{
+  openSession(input: Readonly<{ conversationId: string; builderRunId: string; projectId: string; accountId: string }>): Promise<FactoryRunSession>
+  github: Pick<GithubApp, 'repositoryToken' | 'readBranchHead' | 'updateBranch'>
+  installationFor(binding: FactoryBindingRecord): Promise<number>
+  appendDiagnostic(input: Readonly<{ conversationId: string; builderRunId: string; code: string }>): Promise<void>
+  materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
+  log(line: string): void
+}>
+
+export type FactoryCodingWorkerInput = Readonly<{
+  projectId: string
+  accountId: string
+  conversationId: string
+  executionId: string
+  intent: string
+  mode: 'BUILD' | 'PLAN'
+  baseSourceRevision: string
+  binding: FactoryBindingRecord
+  bindPhysicalSandbox(sandboxId: string): Promise<void>
+  bindMessage(messageId: string): Promise<void>
+  setPhase(phase: BuilderRunningPhase): Promise<void>
+  signal?: AbortSignal
+}>
+
+export type FactoryCodingWorkerRuntime = Readonly<{
+  execute(input: FactoryCodingWorkerInput): Promise<Extract<CodingWorkerResult, { kind: 'RESPONSE_ONLY' }> | SourceAdmittedResult>
+}>
+
+const OID = /^[0-9a-f]{40}$/
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+const SLUG = /^[\w.-]+\/[\w.-]+$/
+const BRANCH = /^[A-Za-z0-9_./-]+$/
+
+// The Factory clones into <workingDirectory>/<repository name>, sanitized the same way.
+export const factoryWorkdir = (repositorySlug: string): string => {
+  const name = (repositorySlug.split('/')[1] ?? '').replace(/[^A-Za-z0-9._-]/g, '-').replace(/^\.+/, '') || 'repo'
+  return `${FACTORY_WORKING_DIRECTORY}/${name}`
+}
+
+export const factoryAgentInstructions = (workdir: string): string =>
+  BUILDER_BASE_AGENT_INSTRUCTIONS.replaceAll('/workspace/repo', workdir)
+
+const tokenUrl = (token: string, slug: string): string => `https://x-access-token:${token}@github.com/${slug}.git`
+
+const BASE_MOVED = 'BUILDER_SOURCE_BASE_MOVED'
+
+export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): FactoryCodingWorkerRuntime => Object.freeze({
+  execute: async (input) => {
+    const { binding } = input
+    if (!UUID.test(input.executionId) || !UUID.test(input.projectId) || !UUID.test(input.conversationId) ||
+      !OID.test(input.baseSourceRevision) || !SLUG.test(binding.repositorySlug) || !BRANCH.test(binding.defaultBranch) ||
+      !input.intent.trim()) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
+    const base = input.baseSourceRevision
+    const slug = binding.repositorySlug
+    const branch = conversationBranch(input.conversationId)
+    const workdir = factoryWorkdir(slug)
+    const git = `git -C '${workdir}'`
+    const repository = { externalId: binding.repositoryExternalId, slug }
+    const cancelled = (): boolean => input.signal?.aborted === true
+    const installation = await ports.installationFor(binding)
+
+    const session = await ports.openSession({
+      conversationId: input.conversationId, builderRunId: input.executionId, projectId: input.projectId, accountId: input.accountId,
+    })
+    let sessionOpen = true
+    const closeSession = async (): Promise<void> => {
+      if (!sessionOpen) return
+      sessionOpen = false
+      await session.close()
+    }
+    try {
+      const { sandbox } = session
+      await sandbox.start()
+      const incarnation = sandbox.sandboxId
+      if (!incarnation) throw new Error('BUILDER_SANDBOX_FRESH_CREATE_REQUIRED')
+      await input.bindPhysicalSandbox(incarnation)
+      // Every command stays on the one E2B incarnation the run recorded. A replaced VM has lost the
+      // pinned checkout, so the run fails rather than acting on whatever the new one holds.
+      const direct = async (command: string, args: string[] = [], options: ExecuteCommandOptions = {}): Promise<CommandResult> => {
+        if (sandbox.sandboxId !== incarnation) throw new Error('BUILDER_SANDBOX_INCARNATION_CHANGED')
+        const result = await sandbox.executeCommand(command, args, options)
+        if (sandbox.sandboxId !== incarnation) throw new Error('BUILDER_SANDBOX_INCARNATION_CHANGED')
+        return result
+      }
+      const sh = (script: string): Promise<CommandResult> => direct('sh', ['-c', script])
+      const hub = { executeCommand: direct }
+      await scrubCheckoutCredentials(hub, workdir, slug)
+
+      // The Factory fetches the base branch once per branch, so each run pins its own base. This also
+      // discards whatever a stopped or stale run left in the checkout. The token is inline in the
+      // command and never becomes a remote.
+      if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
+      const pinToken = await ports.github.repositoryToken(installation, binding.repositoryExternalId, 'write')
+      const pinned = await sh([
+        `${git} fetch --quiet --no-tags '${tokenUrl(pinToken, slug)}' '${base}'`,
+        `${git} reset --quiet --hard`,
+        `${git} clean -fdq`,
+        `${git} checkout --quiet -B '${branch}' '${base}'`,
+        `test "$(${git} rev-parse HEAD)" = '${base}'`,
+      ].join(' && '))
+      if (pinned.exitCode !== 0) throw new Error('BUILDER_SOURCE_BASE_PIN_REFUSED')
+      await scrubCheckoutCredentials(hub, workdir, slug)
+
+      if (input.mode === 'BUILD') {
+        await (ports.materializeStarter ?? materializeFixedApplicationStarter)({
+          repositoryRoot: workdir,
+          directCommand: (command, args) => direct(command, [...args]),
+          writeFiles: (files) => sandbox.writeFiles(files),
+        })
+      }
+      await session.configure({ mode: input.mode, instructions: factoryAgentInstructions(workdir) })
+      if (!session.hasModelSelection()) throw new Error('BUILDER_MODEL_NOT_SELECTED')
+
+      await input.setPhase('AGENT')
+      const turn = await session.sendTurn(input.intent, input.signal)
+      if (turn.reason === 'aborted') ports.log(`BUILDER_FACTORY_AGENT_END:aborted:${input.executionId}:${turn.endedAt.toISOString()}`)
+      if (!turn.userMessageId) throw new Error('BUILDER_MESSAGE_ID_UNAVAILABLE')
+      await input.bindMessage(turn.userMessageId)
+      if (cancelled() || turn.reason === 'aborted') throw new Error('BUILDER_RUN_CANCELLED')
+      if (turn.reason !== 'complete') throw new Error('BUILDER_MODEL_INCOMPLETE')
+      await closeSession()
+
+      const committed = await sh([
+        `${git} add --all`,
+        `{ ${git} diff --cached --quiet || ${git} -c user.name='Conexus Coding Worker' -c user.email='worker@conexus.invalid' commit --quiet -m 'Conexus Builder candidate'; }`,
+        `${git} rev-parse HEAD`,
+      ].join(' && '))
+      const result = committed.stdout.trim().split('\n').pop() ?? ''
+      if (committed.exitCode !== 0 || !OID.test(result)) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+      const scope = {
+        runtimeId: 'mastra-factory-e2b-v1' as const,
+        projectId: input.projectId,
+        executionId: input.executionId,
+        sandboxId: incarnation,
+        baseSourceRevision: base,
+        summary: turn.summary.trim() || (result === base ? 'Coding worker produced a response without source changes.' : 'Coding worker produced a candidate result.'),
+      }
+      if (result === base) {
+        if (cancelled()) throw new Error('BUILDER_LATE_RESULT_REFUSED')
+        return Object.freeze({ ...scope, kind: 'RESPONSE_ONLY' as const })
+      }
+      if (input.mode === 'PLAN') throw new Error('BUILDER_PLAN_SOURCE_RESULT_REFUSED')
+      const verified = await sh(`${git} merge-base --is-ancestor '${base}' '${result}' && test -z "$(${git} status --porcelain)"`)
+      if (verified.exitCode !== 0) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+
+      // Force applies only to the conversation's own scratch branch, which the base pin rewinds.
+      if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
+      const pushToken = await ports.github.repositoryToken(installation, binding.repositoryExternalId, 'write')
+      const pushed = await sh(`${git} push --quiet --force '${tokenUrl(pushToken, slug)}' '${result}:refs/heads/${branch}'`)
+      if (pushed.exitCode !== 0) throw new Error('BUILDER_SOURCE_PUSH_FAILED')
+      await scrubCheckoutCredentials(hub, workdir, slug)
+
+      await input.setPhase('COMPILING')
+      let applicationBuild: ApplicationBuildOutcome
+      try {
+        const listed = await direct('git', ['-C', workdir, 'ls-tree', '-r', '-l', 'HEAD', 'app/'])
+        if (listed.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+        admitApplicationTree(listed.stdout)
+        const files = await sandbox.buildApplication(`${workdir}/app`, input.signal)
+        applicationBuild = { kind: 'BUILT', compiledApplication: {
+          projectId: input.projectId, executionId: input.executionId, sourceRevision: result,
+          templateRef: TEMPLATE_REF, recipeSha256: RECIPE_SHA256, files,
+        } }
+      } catch (error) {
+        const code = error instanceof Error ? error.message : ''
+        if (code !== 'APPLICATION_COMPILATION_FAILED' && code !== 'BUILDER_APPLICATION_SOURCE_REFUSED' &&
+          !code.startsWith('APPLICATION_SMOKE_')) throw error
+        applicationBuild = { kind: 'BUILD_FAILED', code }
+      }
+
+      // The last step a stop can prevent. Recovery reads runs in SOURCE_ADMISSION, so the phase is
+      // recorded before GitHub hears anything; a cancelled run is refused the phase and stops here.
+      if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
+      await input.setPhase('SOURCE_ADMISSION')
+      if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
+      const head = await ports.github.readBranchHead(installation, repository, binding.defaultBranch)
+      // A retry after a lost response finds its own result already admitted.
+      if (head !== result) {
+        // R descends only from base, so a fast-forward is the compare-and-swap. The read catches the
+        // one case GitHub's own check would not: a default branch rewound to an ancestor of R.
+        const admitted = head === base && await ports.github.updateBranch(installation, repository, binding.defaultBranch, result) === 'UPDATED'
+        if (!admitted) {
+          await ports.appendDiagnostic({ conversationId: input.conversationId, builderRunId: input.executionId, code: BASE_MOVED }).catch(() => undefined)
+          throw new Error(BASE_MOVED)
+        }
+      }
+      return Object.freeze({ ...scope, kind: 'SOURCE_ADMITTED' as const, resultSourceRevision: result, applicationBuild })
+    } finally {
+      await closeSession().catch(() => undefined)
+    }
+  },
+})
+
+// The Factory's own tools reach GitHub with installation tokens, and web tools reach anything; the
+// agent's work is the checkout in front of it.
+const DENIED_TOOLS = Object.freeze([
+  'github_refresh_token', 'github_upsert_factory_triage_comment', 'github_subscribe_pr', 'github_unsubscribe_pr',
+  'web_search', 'web_extract',
+])
+
+type RecordedMessage = Readonly<{ id: string; role?: string; content?: unknown }>
+
+export const createMastraFactoryRunPorts = ({ composition, orgId, appendDiagnostic, log }: Readonly<{
+  composition: FactoryComposition
+  orgId: string
+  appendDiagnostic: FactoryRunPorts['appendDiagnostic']
+  log(line: string): void
+}>): Omit<FactoryRunPorts, 'github'> => Object.freeze({
+  installationFor: async (binding: FactoryBindingRecord) => {
+    const sourceControl = composition.github.sourceControlStorage
+    const repository = await sourceControl.repositories.get({ orgId, id: binding.repositoryId })
+    const installation = repository ? await sourceControl.installations.get({ orgId, id: repository.installationId }) : null
+    const externalId = Number(installation?.externalId)
+    if (!Number.isSafeInteger(externalId) || externalId <= 0) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
+    return externalId
+  },
+  appendDiagnostic,
+  log,
+  openSession: async ({ conversationId, builderRunId, projectId, accountId }) => {
+    const { controller } = composition
+    const requestContext = new RequestContext()
+    requestContext.set('user', { id: accountId, organizationId: orgId })
+    requestContext.setRaw('conexusBuilderProjectId', projectId)
+    requestContext.setRaw('conexusBuilderRunId', builderRunId)
+    const scope = `builder:${builderRunId}`
+    const session = await controller.createSession({ resourceId: conversationId, ownerId: conversationId, scope, threadId: conversationId, requestContext })
+    const close = async (): Promise<void> => {
+      const deleted = await controller.deleteSession({ resourceId: conversationId, scope })
+      if (!deleted || await controller.getSessionByResource(conversationId, scope)) throw new Error('BUILDER_SESSION_DELETE_FAILED')
+    }
+    const sandbox = session.getWorkspace()?.sandbox
+    if (!(sandbox instanceof E2BSandbox) || !sandbox.executeCommand) {
+      await close().catch(() => undefined)
+      throw new Error('BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED')
+    }
+    const execute = sandbox.executeCommand.bind(sandbox)
+    return Object.freeze({
+      sandbox: Object.freeze({
+        get sandboxId() { return sandbox.sandboxId },
+        start: async () => { await sandbox.start() },
+        executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) =>
+          execute(command, args, { ...options, cwd: options.cwd ?? FACTORY_WORKING_DIRECTORY, timeout: options.timeout ?? 120_000 }),
+        writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
+        buildApplication: (appRoot: string, signal?: AbortSignal) => buildApplicationInSandbox(sandbox.e2b, { appRoot, ...(signal ? { signal } : {}) }),
+      }),
+      configure: async ({ mode, instructions }) => {
+        await session.state.set({
+          yolo: true,
+          permissionRules: { categories: {}, tools: Object.fromEntries(DENIED_TOOLS.map((name) => [name, 'deny' as const])) },
+          pluginInstructions: [instructions],
+        })
+        await session.mode.switch({ modeId: mode.toLowerCase() })
+      },
+      hasModelSelection: () => session.model.hasSelection(),
+      sendTurn: async (content, signal) => {
+        let endedAt = new Date()
+        let userMessageId: string | undefined
+        const detach = session.subscribe((event) => {
+          if (event.type === 'agent_end') endedAt = new Date()
+          if (event.type === 'message_end' && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
+        })
+        const abort = (): void => { session.abort() }
+        if (signal?.aborted) abort()
+        else signal?.addEventListener('abort', abort, { once: true })
+        try {
+          const reason = await sendBuilderSessionMessage(session, { content }, requestContext)
+          const messages = await session.thread.listActiveMessages() as readonly RecordedMessage[]
+          userMessageId ??= [...messages].reverse().find(isUserAuthoredMessage)?.id
+          const summary = messages.filter((message) => message.role === 'assistant').map((message) => messageText(message as Parameters<typeof messageText>[0])).filter(Boolean).join('\n')
+          return { reason: reason ?? 'unknown', endedAt, userMessageId, summary }
+        } finally {
+          detach()
+          signal?.removeEventListener('abort', abort)
+        }
+      },
+      close,
+    })
+  },
+})
+
+/**
+ * Runs before builder.recover_builder_runs interrupts every RUNNING run. A run the Hub lost between
+ * the compare-and-swap and recording it has its result on both the default branch and its
+ * conversation branch; that run is admitted, with the last good Preview kept. Anything else is
+ * left for the ordinary interrupt.
+ */
+export const recoverFactoryAdmissions = async ({ store, github, installationFor }: Readonly<{
+  store: Pick<BuilderStore, 'listFactoryAdmissionRuns' | 'advanceBuilderRunSource' | 'settleBuilderRunBuild'>
+  github: Pick<GithubApp, 'readBranchHead'>
+  installationFor(binding: FactoryBindingRecord): Promise<number>
+}>): Promise<readonly string[]> => {
+  const recovered: string[] = []
+  for (const run of await store.listFactoryAdmissionRuns()) {
+    try {
+      const installation = await installationFor(run.binding)
+      const repository = { externalId: run.binding.repositoryExternalId, slug: run.binding.repositorySlug }
+      const [head, conversation] = await Promise.all([
+        github.readBranchHead(installation, repository, run.binding.defaultBranch),
+        github.readBranchHead(installation, repository, conversationBranch(run.conversationId)),
+      ])
+      if (!head || head !== conversation || head === run.baseSourceRevision) continue
+      await store.advanceBuilderRunSource(run.builderRunId, head)
+      await store.settleBuilderRunBuild({ builderRunId: run.builderRunId, sourceRevision: head, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
+      recovered.push(run.builderRunId)
+    } catch {
+      // GitHub unreachable or the run already moved: the normal interrupt settles it.
+    }
+  }
+  return recovered
+}

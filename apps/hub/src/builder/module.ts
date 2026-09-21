@@ -27,6 +27,11 @@ import { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } from './app
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig } from '../platform/config.js'
 import { assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox } from './factory.js'
+import type { FactoryComposition } from './factory.js'
+import { createGithubApp } from './factory-github.js'
+import { createFactoryCodingWorkerRuntime, createMastraFactoryRunPorts, recoverFactoryAdmissions } from './factory-runtime.js'
+import type { FactoryRunDependencies } from './service.js'
+import type { BuilderStore } from './store.js'
 
 const BUILDER_OBSERVABILITY_FLUSH_TIMEOUT_MS = 5_000
 
@@ -88,6 +93,10 @@ export const createBuilderObservabilityLifecycle = (
 const diagnosticMessageId = (builderRunId: string, code: string): string =>
   createHash('sha256').update(`builder-diagnostic:${builderRunId}:${code}`).digest('hex')
 
+const diagnosticText = (builderRunId: string, code: string): string => code === 'BUILDER_SOURCE_BASE_MOVED'
+  ? `A execução ${builderRunId} não foi aplicada: a fonte do Project mudou enquanto ela trabalhava, e nada foi sobrescrito. Diagnóstico seguro: ${code}. Envie o pedido novamente para trabalhar sobre a versão atual.`
+  : `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}. Corrija a solicitação para tentar novamente.`
+
 export const createDiagnosticAppender = ({ sessionMemory, ensureSessionStorage }: Readonly<{
   sessionMemory: Pick<Memory, 'saveMessages'>
   ensureSessionStorage: () => Promise<void>
@@ -95,9 +104,20 @@ export const createDiagnosticAppender = ({ sessionMemory, ensureSessionStorage }
   await ensureSessionStorage()
   await sessionMemory.saveMessages({ messages: [{
     id: diagnosticMessageId(builderRunId, code), role: 'assistant', createdAt: new Date(), threadId: conversationId, resourceId: projectId,
-    content: { format: 2, parts: [{ type: 'text', text: `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}. Corrija a solicitação para tentar novamente.` }] },
+    content: { format: 2, parts: [{ type: 'text', text: diagnosticText(builderRunId, code) }] },
   }] })
 }
+
+// A Factory conversation's thread lives under the conversation's own resourceId in Factory storage.
+const createFactoryDiagnosticAppender = (ready: Promise<FactoryComposition>) =>
+  async ({ conversationId, builderRunId, code }: Readonly<{ conversationId: string; builderRunId: string; code: string }>): Promise<void> => {
+    const memory = await (await ready).mastra.getStorage()?.getStore('memory')
+    if (!memory) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
+    await memory.saveMessages({ messages: [{
+      id: diagnosticMessageId(builderRunId, code), role: 'assistant', createdAt: new Date(), threadId: conversationId, resourceId: conversationId,
+      content: { format: 2, parts: [{ type: 'text', text: diagnosticText(builderRunId, code) }] },
+    }] })
+  }
 
 export const createBuilderMountOptions = ({ storage, memory, storageRoot }: Readonly<{
   storage: LibSQLStore
@@ -139,9 +159,10 @@ const createBuilderObservability = (serviceName: string): Observability => new O
 // Two Mastra instances until the legacy conversations move into Factory storage: a controller reads
 // and writes through its own Mastra's storage, so the legacy controller on the Factory's Postgres
 // would hide every existing Project's conversations.
-const startFactoryComposition = ({ database, factory, e2bApiKey, e2bTemplateId, origin }: Readonly<{
+const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTemplateId, origin }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   factory: FactoryRuntimeConfig
+  store: BuilderStore
   e2bApiKey: string
   e2bTemplateId: string
   origin: string
@@ -163,9 +184,24 @@ const startFactoryComposition = ({ database, factory, e2bApiKey, e2bTemplateId, 
     sandbox: createFactorySandbox({ apiKey: e2bApiKey, templateId: e2bTemplateId }),
   })
   ready.catch(() => undefined)
+  const githubApp = createGithubApp({ appId: factory.githubAppId, privateKey: github.privateKey })
+  const appendDiagnostic = createFactoryDiagnosticAppender(ready)
+  const portsReady = ready.then((composition) => createMastraFactoryRunPorts({
+    composition, orgId: factory.orgId, appendDiagnostic, log: (line) => { process.stderr.write(`${line}\n`) },
+  }))
+  portsReady.catch(() => undefined)
+  const runtime = portsReady.then((ports) => createFactoryCodingWorkerRuntime({ ...ports, github: githubApp }))
+  runtime.catch(() => undefined)
+  const run: FactoryRunDependencies = Object.freeze({
+    runtime: { execute: async (input) => (await runtime).execute(input) },
+    readBindingForRun: store.readFactoryBindingForRun,
+    appendDiagnostic: ({ conversationId, builderRunId, code }) => appendDiagnostic({ conversationId, builderRunId, code }),
+    recoverAdmissions: async () => recoverFactoryAdmissions({ store, github: githubApp, installationFor: (await portsReady).installationFor }),
+  })
   return Object.freeze({
     orgId: factory.orgId,
     ready,
+    run,
     observabilityLifecycle,
     close: async () => {
       try {
@@ -236,7 +272,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, proj
   harness.catch(() => undefined)
   const e2bApiKey = readSecretFile(builder.e2bApiKeyFile)
   const factoryComposition = factory
-    ? startFactoryComposition({ database, factory, e2bApiKey, e2bTemplateId: builder.e2bTemplateId, origin })
+    ? startFactoryComposition({ database, factory, store, e2bApiKey, e2bTemplateId: builder.e2bTemplateId, origin })
     : undefined
   let sessionStorageInit: Promise<void> | undefined
   const ensureSessionStorage = async (): Promise<void> => {
@@ -252,7 +288,10 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, proj
     },
   })
   const appendDiagnostic = createDiagnosticAppender({ sessionMemory, ensureSessionStorage })
-  const service = createBuilderService({ store, source, runtime, applicationArtifacts: boundApplicationArtifacts, appendDiagnostic })
+  const service = createBuilderService({
+    store, source, runtime, applicationArtifacts: boundApplicationArtifacts, appendDiagnostic,
+    ...(factoryComposition ? { factory: factoryComposition.run } : {}),
+  })
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })

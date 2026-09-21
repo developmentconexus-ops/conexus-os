@@ -15,6 +15,8 @@ const failureStatusByCategory: Record<BuilderFailureCategory, string> = {
   MODEL_RATE_LIMITED: 'Modelo temporariamente limitado; tente novamente mais tarde',
   MODEL_REQUEST_REFUSED: 'O provedor do modelo recusou o pedido',
   SOURCE_RESULT_REJECTED: 'A nova fonte proposta foi recusada',
+  SOURCE_BASE_MOVED: 'A fonte do Project mudou durante a execução; nada foi sobrescrito',
+  PREVIEW_NOT_BUILT: 'Fonte aceita; a prévia não foi gerada',
   APPLICATION_BUILD_FAILED: 'O aplicativo não compilou',
   RUN_CANCELLED: 'Execução interrompida',
   RUN_INTERRUPTED: 'Execução interrompida por reinício do Conexus',
