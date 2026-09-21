@@ -25,6 +25,7 @@ export type BuilderRunSummary = Readonly<{
 export type BuilderCodeChangingRun = Readonly<{
   builderRunId: string
   projectId: string
+  conversationId: string
   baseSourceRevision: string
   resultSourceRevision: string
   resultKind: 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED'
