@@ -1,8 +1,8 @@
 # Several conversations per Project
 
-> **Status:** proposed, and waiting on two things that are not in it. Not started.
-> The integrated Factory test has not run, and the composition has not been chosen. Being
-> technically deliverable today on a native composition does not settle either.
+> **Status:** ready to start, not started. The integrated Factory test has run and the
+> composition is chosen: [C-022](../decisions/index.md) selects Factory-centered
+> development.
 > **Authority:** [the roadmap](../roadmap.md) owns whether this runs.
 > **Evidence it rests on:** [the Sessions and Work qualification](../evidence/sessions-work-qualification/report.md),
 > sections 8 to 10 and 12.
@@ -28,22 +28,24 @@ a second line of thought.
 
 ## What it does not touch
 
-Work, work items, boards, the dispatcher and Goals. The Factory, which is not installed.
-Per-person privacy inside a Project, which the framework does not provide and which this
-increment does not fake. Source admission, artifact health and publication, which keep the
-gates they have today.
+Work, work items, boards, the dispatcher and Goals: the Factory arrives with the
+conversation surface, and its Work half stays unused in this increment. Per-person privacy
+inside a Project, which the framework does not provide and which this increment does not
+fake. Source admission, artifact health and publication, which keep the gates they have
+today.
 
-## The composition it uses, once that is decided
+## The composition it uses
 
-Not settled here. The qualification has run this user result end to end on a native
-composition, one controller over the product's own storage with the Project's source reached
-through a workspace resolver, and the Factory's own coding mount accepts a host workspace
-too. Which one this increment is built on follows the qualification's recommendation, and
-that recommendation waits on the integrated Factory test.
+The Factory's, per [C-022](../decisions/index.md). Conversations are the Factory session's
+own threads and the product adds no conversation store of its own. The model comes from the
+Factory's own credential store and selection, not from Conexus model connections, and the
+Conexus model subsystem named in
+[section 15 of the report](../evidence/sessions-work-qualification/report.md#15-the-decision-that-followed-and-what-it-removes)
+is removed as this path replaces it rather than left running beside it.
 
-What holds either way: conversations are Mastra threads and the product adds no conversation
-store of its own; Conexus decides which `resourceId` a request may act under; and a tool
-stops for approval before it touches source.
+What stays Conexus's here: which Account may act on which Project, and therefore which
+`resourceId` a request may act under; the Project's current source and its admission; and
+the Preview. None of those changes in this increment.
 
 ## What must stay true
 
@@ -58,14 +60,13 @@ stops for approval before it touches source.
 
 A person opens two conversations in one Project, switches between them, restarts the Hub,
 and finds both with their messages. The derived-thread migration has run on the pilot. No
-Work exists in the product, and no dependency was added for this increment.
+Work exists in the product, and the Conexus model subsystem this increment replaces has left
+with it rather than survived beside it.
 
-## Open before it starts
+## What the qualification learned that this increment should carry
 
-Nothing blocks this increment. If the product later drives its coding surface through the
-`@mastra/code-sdk` mount, the qualification has already run a whole turn through it against a
-local provider, and
-[section 9 of the report](../evidence/sessions-work-qualification/report.md#9-the-minimal-integration-and-what-could-disappear)
-names the two things to carry into that decision. A custom provider reaches that mount only
-through a subpath export rather than through its documented settings option, and a
-host-supplied workspace keeps the raw workspace tool names.
+A session is scoped to a caller identity the host supplies, and the Factory refuses one
+without it, so the Account-to-Project authorization is what fills that slot. The Factory's
+default approval policy asks for nothing before a tool runs, and `session.permissions` is
+where that changes. A work item needs an arrival stage when it is created. And the model is
+selected per session and persisted per mode, not passed as an object.

@@ -1,7 +1,9 @@
 # Sessions and Work qualification, corrected report
 
-This replaces an earlier report that claimed more than its evidence carried. It is not a
-closure: the task stays open, and the section on what has no evidence says why.
+This replaces an earlier report that claimed more than its evidence carried. The
+qualification is closed: section 14 carries the verdict from the integrated run, section 15
+carries the decision the operator took on it, and section 11 names what still has no
+evidence and did not need it to decide.
 
 Everything below is labelled by where it comes from. `[probe]` was observed by running
 something, and the run is recorded in [output.md](output.md). `[package]` was read in an
@@ -547,8 +549,9 @@ once per deployment. A forge holding the repository. A storage backend the Facto
 carrying both agent state and its app tables. A sandbox provider per session, which was a
 local one here. A model credential in the Factory's own credential store: `[probe]` a subscription login
 through `@mastra/code-sdk`'s OAuth flow works, and `[probe]` a model connection configured
-in Conexus does not reach it, so mapping Conexus connections onto that store is integration
-work that stays ours. Its own server
+in Conexus does not reach it. Under C-022 that is not a gap to bridge: model credentials
+become the Factory's, and the Conexus subsystem that holds them today is removed rather than
+adapted. Section 15 names what goes. Its own server
 surface, 87 routes with the GitHub integration registered, and its background workers,
 including a reconcile poller that starts with `finalize()`.
 
@@ -563,24 +566,63 @@ onto the Factory's `orgId` and `factoryProjectId`.
 
 ### Verdict
 
-**Factory-centered path confirmed, with the custody decision still the operator's.** The
-integrated path works and would let the product stop owning conversations, coding tools,
-work items, boards, lifecycle transitions, run binding and the pull-request surface. What it
-costs is a forge holding the Project's source and a GitHub App per deployment. That cost is
-not a technical blocker, it is a product decision about custody, and section 10 states it
-without deciding it.
+**Factory-centered path confirmed, and selected by the operator on 2026-09-20.** The
+integrated path works and lets the product stop owning conversations, coding tools, work
+items, boards, lifecycle transitions, run binding and the pull-request surface. What it
+costs is a forge holding the Project's source and a GitHub App per deployment, and that cost
+was accepted with the decision rather than left open.
 
-If that custody decision is no, the host-owned path remains available and is already proven
-for conversations and interactive coding; what it gives up is the Work half, which the
-Factory only serves over a forge.
+Section 15 carries the correction the operator added with it, which also retires the
+credential mapping this report called ours.
 
 ### The next increment
 
-Unchanged in what the person sees, and now decidable in how it is built: several
-conversations per Project, with no Work and no Goals. Both compositions reach it, and the
-custody decision above is what picks between them. The task is
+Unchanged in what the person sees, and now decided in how it is built: several
+conversations per Project, with no Work and no Goals, on the Factory-centered composition
+C-022 selects. The task is
 [Several conversations per Project](../../tasks/project-conversations-first-increment.md),
 and it remains not started.
+
+## 15. The decision that followed, and what it removes
+
+The operator selected the Factory-centered path on 2026-09-20 and added one correction to
+it, registered as [C-022](../../decisions/index.md). Model authentication, model
+credentials, provider connection and model selection belong to the Factory along with
+Sessions, coding, Work, planning and review. Conexus keeps the Account, the Workspace and
+the Project, the authorization from an Account to a Project, enterprise capabilities and
+connections, admission of the current source revision, Preview and Publish.
+
+The correction overturns a line in this report. Section 14 called the mapping from Conexus
+model connections onto the Factory's credential store "integration work that stays ours".
+It is not: `[probe]` the Factory's own OAuth login answered a real turn with a subscription,
+so the native path exists and works. Building an adapter onto it would preserve a Conexus
+subsystem because it exists, which is the opposite of subtracting first.
+
+### What becomes a removal candidate
+
+Named from the product tree as it stands, so the adoption work has a real list rather than
+a direction. None of it is removed here, and removing it is part of wiring the native path,
+never a separate cleanup that leaves two authorities running.
+
+| What | Where it is today | What replaces it |
+| --- | --- | --- |
+| The model connection subsystem | `apps/hub/src/model-connection/`, including the Anthropic and OpenAI Codex OAuth providers, the token endpoint and store, the bounded provider fetch, the paid-model list and the resolved-model shape | The Factory's own credential store and provider registry |
+| Its account-facing module | `apps/hub/src/model-connection-account/`, its module, routes and store | The Factory's own login and selection surface |
+| Builder model choice and admission | `apps/hub/src/builder/model-choice.ts`, and the model identity the run carries through `builder/module.ts`, `service.ts`, `store.ts` and `routes.ts` | The Factory session's own model selection |
+| The HTTP contract | `contracts/api/product/model-connection-paths.yaml` and its entries in `openapi.yaml` | Nothing in Conexus: the surface moves with the subsystem |
+| The web surface | `apps/web/src/features/model-connection/`, and the model picker in `apps/web/src/features/builder/` | The Factory's own surface |
+| The database role and its schema | `hub_model_connection` with the `connections` capability in the generated roles, and the connection tables in the baseline migration | Nothing: a role that exists only for this responsibility goes with it |
+
+Two things on that list are load bearing until the moment they are replaced. The OAuth
+refresh the Hub performs today keeps live pilot connections working, and the run's model
+identity is what admission compares. Both are removed in the same change that makes the
+Factory's path answer for them, which is what C-022 means by subtractive.
+
+### What is explicitly not in scope
+
+Enterprise connections. Sankhya and whatever else a Workspace connects to remain Conexus's
+domain and reach a Project as authorized capabilities. C-022 is about model connections, and
+the similarity in the word is not a similarity in the responsibility.
 
 ## 11. What has no evidence yet
 

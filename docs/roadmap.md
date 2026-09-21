@@ -29,8 +29,10 @@ The foundation closed on 2026-09-19.
   accepts only the boolean `true`.
 - Model connections that are provider-neutral. A connection carries a provider id
   and a credential kind. Both an account sign-in and a pasted API key are accepted
-  credential kinds. Model selection stays Mastra-native; Conexus adds credential
-  custody and sign-in, not a model abstraction of its own.
+  credential kinds. **This subsystem is on the way out.** [C-022](decisions/index.md)
+  moves model authentication, credentials, provider connection and selection to the
+  Factory, and section 15 of the qualification report names what is removed. It is
+  removed by the adoption work that wires the native path, not before.
 - Roles by capability. The Hub connects to PostgreSQL as roles named for what they
   may do. `docs/reference/hub-database-roles.md` is the register.
 - One database baseline. `apps/hub/migrations/0001_baseline.sql` is the whole
@@ -47,23 +49,23 @@ Trunk is `analysis/internal-mvp-2026-09-12`, not `main`.
 
 ## In flight
 
-**The Sessions and Work qualification**, authorized to start on 2026-09-20 and under way.
-It is a qualification and ends in evidence and a recommendation; it authorizes no migration.
-Its evidence is recorded in
-[`docs/evidence/sessions-work-qualification/`](evidence/sessions-work-qualification/README.md),
-with the corrected report in
-[`report.md`](evidence/sessions-work-qualification/report.md). The conversations half has
-evidence, property by property, from probes that run outside the product and fail loudly.
-Three paths are now traced separately. A conversation costs nothing under either
-composition. An interactive session running its own code tools over a Project's source runs
-end to end on the composition the Factory itself mounts, proven with a deterministic model
-fixture: the file changes on disk and the Project's git sees it. Starting a Work item is
-refused, and so is the Factory's own workspace, for one reason in one place: the Factory
-treats a Project as a repository on GitHub, and offers no supported seam to point that at
-source the host holds. The first increment therefore needs neither Work nor a forge, and
-whether Project source ever moves to a forge is a custody decision for the operator, named
-in the report and not taken here. The qualification is not closed, no migration has started,
-and the Factory is not installed.
+**The Sessions and Work qualification is closed**, and its pull request is what carries it.
+It authorized no migration and performed none. The evidence is in
+[`docs/evidence/sessions-work-qualification/`](evidence/sessions-work-qualification/README.md)
+and the verdict is section 14 of
+[the report](evidence/sessions-work-qualification/report.md#14-the-integrated-run-and-the-verdict).
+
+The integrated run used the real Factory, the real GitHub integration, a GitHub App on a
+disposable private repository, and a real model paid by the operator's ChatGPT subscription
+through the Factory's own login. It cloned the repository, edited it through its own
+session, held two conversations, started Work, moved it through its own lifecycle, opened a
+pull request and recorded a review. Nothing merged and nothing deployed.
+
+The operator selected Factory-centered development on that evidence, with the custody
+consequence it carries, and added one correction: model authentication, credentials,
+provider connection and selection become the Factory's, with no adapter onto the Conexus
+model subsystem. [C-022](decisions/index.md) registers both, and section 15 of the report
+names what the adoption work removes.
 
 M-02, the ChatGPT account sign-in, was proven live on 2026-09-20: OpenAI accepted the
 loopback redirect from a request the Hub originated, the token exchange, Conexus's own
@@ -159,30 +161,20 @@ magnitude rather than a benchmark. The shape is described in
 
 ## Exact next action
 
-**Qualify the native composition for Project conversations and delegated Work.**
-[`docs/tasks/sessions-work-qualification.md`](tasks/sessions-work-qualification.md) owns
-it. It is under way, with its evidence and corrected report in
-[`docs/evidence/sessions-work-qualification/`](evidence/sessions-work-qualification/README.md).
-It answers which native composition serves several
-persistent conversations in one Project and allows delegated Work with the least Conexus
-logic, while preserving authorization and the product's effects. It is a qualification:
-it ends in evidence and a recommendation, and it does not authorize a migration.
+**Adopt the Factory for a Project's development environment, starting with the smallest
+usable slice.** [C-022](decisions/index.md) owns the division of responsibility and
+[Several conversations per Project](tasks/project-conversations-first-increment.md) is the
+first increment: create, list, switch, resume after a restart, rename. No Work, no Goals, no
+per-person privacy faked, and no change to admission, Preview or publication.
 
-What remains of it is named in
+Two things travel with it and are not separate cleanups. The composition is the Factory's,
+so the increment wires the native path rather than a Conexus one. And the Conexus model
+subsystem named in section 15 of the report is removed as that path replaces it, never left
+running beside it.
+
+What the qualification did not settle is listed in
 [section 11 of the report](evidence/sessions-work-qualification/report.md#11-what-has-no-evidence-yet).
-The integrated Factory test has run, against a GitHub App the operator created and a
-disposable private repository. The Factory cloned the repository, edited it through its own
-session, held two conversations, started Work, moved it through its own lifecycle, opened a
-pull request and recorded a review, with nothing merged and nothing deployed.
-[Section 14 of the report](evidence/sessions-work-qualification/report.md#14-the-integrated-run-and-the-verdict)
-carries the verdict: the Factory-centered path is confirmed as workable, and what it costs
-is a forge holding the Project's source plus a GitHub App per deployment. That cost is the
-operator's custody decision, not a technical blocker.
-
-The first increment it prepares is
-[Several conversations per Project](tasks/project-conversations-first-increment.md), with no
-Work and no Goals. It does not start on feasibility: it waits on the integrated test and on
-the composition being chosen.
+None of it blocks this increment.
 
 ## Later layers
 
