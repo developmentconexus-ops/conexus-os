@@ -3,13 +3,9 @@ import type { CodingWorkerRuntime } from './runtime.js'
 import type { BuilderRunningPhase, BuilderRunSummary, BuilderStore } from './store.js'
 import { prepareBuilderRunApplicationArtifact } from './application-build.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, BuilderApplicationArtifacts } from './application-build.js'
-import { resolveBuilderModelChoice } from './model-choice.js'
-import type { ModelOffer } from '../model-connection/paid-models.js'
-
-export type ListModelOffers = (input: Readonly<{ accountId: string; projectId: string }>) => Promise<readonly ModelOffer[]>
 
 export type BuilderService = Readonly<{
-  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN'; modelChoiceId?: string }>): Promise<BuilderRunSummary>
+  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN' }>): Promise<BuilderRunSummary>
   cancelBuilderRun(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderRunSummary>
   listSourceTree(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<BuilderSourceTree>
   getSourceFile(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
@@ -19,13 +15,12 @@ export type BuilderService = Readonly<{
   close(): Promise<void>
 }>
 
-export const createBuilderService = ({ store, source, runtime, applicationArtifacts, listModelOffers, appendDiagnostic }: Readonly<{
+export const createBuilderService = ({ store, source, runtime, applicationArtifacts, appendDiagnostic }: Readonly<{
   store: BuilderStore
   source: BuilderSourcePort
   runtime: CodingWorkerRuntime
   applicationArtifacts: BuilderApplicationArtifacts
-  listModelOffers: ListModelOffers
-  appendDiagnostic?: (input: Readonly<{ projectId: string; builderRunId: string; code: string }>) => Promise<void>
+  appendDiagnostic?: (input: Readonly<{ projectId: string; conversationId: string; builderRunId: string; code: string }>) => Promise<void>
 }>): BuilderService => {
   if (runtime.kind !== 'REMOTE_E2B') throw new Error('BUILDER_LOCAL_RUNTIME_REFUSED')
   const builderActive = new Map<string, Readonly<{ controller: AbortController; work: Promise<void> }>>()
@@ -43,10 +38,7 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
       if (typeof store.setBuilderRunPhase === 'function') await store.setBuilderRunPhase(run.builderRunId, phase)
     }
     const work = (async () => {
-      if (!run.modelAdmissionId || !run.modelProviderId || !run.modelId) throw new Error('BUILDER_MODEL_ADMISSION_REFUSED')
-      const modelIdentity = { admissionId: run.modelAdmissionId, providerId: run.modelProviderId, modelId: run.modelId }
-      const claimed = await store.claimBuilderRun(run.builderRunId, modelIdentity)
-      if (!claimed.modelConnectionId || !claimed.modelCredentialGeneration) throw new Error('MODEL_CONNECTION_REQUIRED')
+      const claimed = await store.claimBuilderRun(run.builderRunId)
       await setPhase('PREPARING')
       const sourceBundle = source.prepareProjectSource({
         projectId: claimed.projectId, executionId: claimed.builderRunId, sourceRevision: claimed.baseSourceRevision,
@@ -55,11 +47,9 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
       // yet as unhandled, and this one is awaited later, so it is observed here too.
       sourceBundle.catch(() => undefined)
       const result = await runtime.execute({
-        projectId: claimed.projectId, executionId: claimed.builderRunId, intent: input.content,
-        mode: claimed.mode, baseSourceRevision: claimed.baseSourceRevision, sourceBundle, modelIdentity,
-        ...(claimed.modelConnectionId && claimed.modelCredentialGeneration
-          ? { credentialReference: { connectionId: claimed.modelConnectionId, generation: claimed.modelCredentialGeneration } }
-          : {}),
+        projectId: claimed.projectId, accountId: input.accountId, conversationId: claimed.conversationId,
+        executionId: claimed.builderRunId, intent: input.content,
+        mode: claimed.mode, baseSourceRevision: claimed.baseSourceRevision, sourceBundle,
         signal: controller.signal,
         setPhase,
         bindPhysicalSandbox: (sandboxId) => store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId),
@@ -90,7 +80,7 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
         await setPhase('FINALIZING')
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.resultSourceRevision, failureCode: code })
         if (appendDiagnostic) {
-          await appendDiagnostic({ projectId: claimed.projectId, builderRunId: claimed.builderRunId, code }).catch(() => undefined)
+          await appendDiagnostic({ projectId: claimed.projectId, conversationId: claimed.conversationId, builderRunId: claimed.builderRunId, code }).catch(() => undefined)
         }
         return
       }
@@ -112,7 +102,7 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.resultSourceRevision,
           failureCode: code }).catch(() => undefined)
         if (appendDiagnostic) {
-          await appendDiagnostic({ projectId: claimed.projectId, builderRunId: claimed.builderRunId, code }).catch(() => undefined)
+          await appendDiagnostic({ projectId: claimed.projectId, conversationId: claimed.conversationId, builderRunId: claimed.builderRunId, code }).catch(() => undefined)
         }
         throw error
       }
@@ -150,11 +140,7 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
   }
   return Object.freeze({
     createBuilderRun: async (input) => {
-      const resolved = resolveBuilderModelChoice(
-        await listModelOffers({ accountId: input.accountId, projectId: input.projectId }),
-        input.modelChoiceId,
-      )
-      const run = await store.createBuilderRun({ ...input, modelIdentity: resolved.identity })
+      const run = await store.createBuilderRun(input)
       if (run.state === 'QUEUED') dispatchBuilderRun(run, input)
       return run
     },

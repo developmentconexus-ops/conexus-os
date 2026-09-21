@@ -15,7 +15,6 @@ export type PreviewLaunch = Readonly<{
 }>
 export type BuilderSession = Readonly<{
   projectId: string
-  threadId: string
   latestBuilderRun: BuilderRun | null
   latestCodeChangingRun: Readonly<{
     baseSourceRevision: string
@@ -29,20 +28,7 @@ export type BuilderSession = Readonly<{
     lastGoodArtifactDigest: string | null
   }>
   mode: 'BUILD' | 'PLAN'
-  modelChoices: readonly BuilderModelOffer[]
   runHistory?: readonly BuilderRun[]
-}>
-export type ModelCredentialKind = 'OAUTH_TOKEN_SET' | 'API_KEY'
-// One model this account can actually pay for in this Project, paired with the credential that
-// pays for it. providerId is the connection's provider, not the model's registry provider.
-export type BuilderModelOffer = Readonly<{
-  choiceId: string
-  label: string
-  providerId: string
-  modelId: string
-  connectionId: string
-  connectionLabel: string
-  credentialKind: ModelCredentialKind
 }>
 export type BuilderRun = Readonly<{
   builderRunId: string
@@ -57,9 +43,7 @@ export type BuilderRun = Readonly<{
   failureCategory: BuilderFailureCategory | null
   requestText: string | null
   createdAt: string
-  modelAdmissionId?: string | null
-  modelProviderId?: string | null
-  modelId?: string | null
+  conversationId: string
   cancellationRequested?: boolean
 }>
 export type BuilderMessageAccepted = Readonly<{ builderRun: BuilderRun }>
@@ -107,12 +91,12 @@ export const getBuilderSession = async (projectId: string): Promise<BuilderSessi
   return response.json() as Promise<BuilderSession>
 }
 export const sendBuilderMessage = async (
-  projectId: string, content: string, mode: 'BUILD' | 'PLAN', idempotencyKey: string, modelChoiceId?: string,
+  projectId: string, conversationId: string, content: string, mode: 'BUILD' | 'PLAN', idempotencyKey: string,
 ): Promise<BuilderMessageAccepted> => {
   const response = await request(`${sessionBase(projectId)}/messages`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
-    body: JSON.stringify({ content, mode, ...(modelChoiceId ? { modelChoiceId } : {}) }),
+    body: JSON.stringify({ content, mode, conversationId }),
   })
   if (response.status !== 201) await reject(response)
   return response.json() as Promise<BuilderMessageAccepted>

@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CSSProperties, FormEvent, KeyboardEvent } from 'react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { BuilderRequestError, cancelBuilderRun, getBuilderRunTrace, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type BuilderModelOffer, type BuilderRun, type PreviewLaunch, type SourceTree } from '../api'
-import { useBuilderLiveTurn, useBuilderThreadMessages } from '../mastra-session'
+import { BuilderRequestError, cancelBuilderRun, getBuilderRunTrace, getBuilderSession, getProjectSourceFile, launchBuilderPreview, listProjectSourceTree, sendBuilderMessage, type BuilderRun, type PreviewLaunch, type SourceTree } from '../api'
+import { useBuilderLiveTurn, useBuilderModels, useBuilderThreadMessages, useConversationActions, useProjectConversations, useSessionModel, type LiveTurn } from '../mastra-session'
 import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
 import { BuilderConversation, type PersistedRequest } from './builder-conversation'
-import { BuilderModelPicker } from './builder-model-picker'
+import { BuilderConversationList } from './builder-conversation-list'
+import { BuilderModelSelect } from './builder-model-select'
 
 const phaseLabels: Record<NonNullable<BuilderRun['phase']>, string> = {
   PREPARING: 'Preparando o ambiente de código',
@@ -106,7 +107,9 @@ type PreviewState = Readonly<{
   lastGood: PreviewLease | null
 }>
 type PreviewRequest = Readonly<{ projectId: string; keyId: string; requestToken: number }>
-const EMPTY_MODEL_OFFERS: readonly BuilderModelOffer[] = []
+
+// A run streams into the conversation it belongs to. Another conversation's run shows nothing here.
+const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, error: null }
 
 const getPreviewKeyId = (key: PreviewKey): string => [
   key.projectId,
@@ -141,13 +144,12 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const [content, setContent] = useState('')
   const [mode, setMode] = useState<'BUILD' | 'PLAN'>('BUILD')
   const [message, setMessage] = useState('')
-  const [pickedChoiceId, setPickedChoiceId] = useState<string | null>(null)
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null)
   const [previewRatio, setPreviewRatio] = useState(2)
   const [mobilePane, setMobilePane] = useState<'PREVIEW' | 'CHAT'>('PREVIEW')
   const [chatCollapsed, setChatCollapsed] = useState(false)
   const [liveRequest, setLiveRequest] = useState<LiveRequest | null>(null)
   const [inspection, setInspection] = useState<Inspection | null>(null)
-  const [requiresModelConnection, setRequiresModelConnection] = useState(false)
   const [selectedSourcePath, setSelectedSourcePath] = useState<string | null>(null)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [previewState, setPreviewState] = useState<PreviewState>({ kind: 'IDLE', projectId, lastGood: null })
@@ -160,19 +162,32 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     queryKey: ['builder-session', projectId], queryFn: () => getBuilderSession(projectId),
     refetchInterval: (query) => query.state.data?.latestBuilderRun?.state === 'RUNNING' ? 1_000 : 2_000,
   })
+  const conversations = useProjectConversations(projectId)
+  const conversationActions = useConversationActions(projectId)
+  // Opening a Project binds a conversation, so the newest entry is the one to land on until the
+  // operator picks another; a selection that disappears falls back to it rather than to nothing.
+  const conversationList = conversations.data ?? []
+  const conversation = conversationList.find((entry) => entry.id === selectedConversationId) ?? conversationList.at(0) ?? null
+  const conversationId = conversation?.id ?? null
+  const models = useBuilderModels()
+  const sessionModel = useSessionModel(projectId)
+  // A model without a key on the controller would fail the run, so it is never offered, and a
+  // selection that lost its key counts as no selection rather than as a model the operator can use.
+  const offeredModels = (models.data ?? []).filter((model) => model.hasApiKey)
+  const selectedModelId = sessionModel.selected.data ?? ''
+  const modelReady = offeredModels.some((model) => model.id === selectedModelId)
   // A network error or abort leaves the outcome unknown (the request may have landed server-side),
   // so its key is kept and reused for an identical retry; the server dedupes by content digest and
   // raises IDEMPOTENCY_CONFLICT if the retry's content differs. A clean 4xx means the request never
   // took effect, so its key is safe to discard.
   const retainedIdempotencyKey = useRef<{ key: string; content: string } | null>(null)
   const send = useMutation({
-    mutationFn: (value: Readonly<{ content: string; mode: 'BUILD' | 'PLAN'; key: string; modelChoiceId?: string }>) =>
-      sendBuilderMessage(projectId, value.content, value.mode, value.key, value.modelChoiceId),
+    mutationFn: (value: Readonly<{ content: string; mode: 'BUILD' | 'PLAN'; key: string; conversationId: string }>) =>
+      sendBuilderMessage(projectId, value.conversationId, value.content, value.mode, value.key),
     onSuccess: async (result, variables) => {
       retainedIdempotencyKey.current = null
       setContent((current) => current === variables.content ? '' : current)
       setMessage('Mensagem enviada ao Builder.')
-      setRequiresModelConnection(false)
       setLiveRequest({ runId: result.builderRun.builderRunId, text: variables.content })
       await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] })
     },
@@ -182,18 +197,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
         : null
       if (error instanceof BuilderRequestError && error.status === 409) setMessage('O Project está ocupado ou recebeu outra alteração. Aguarde e tente novamente.')
       else if (error instanceof BuilderRequestError && error.status === 403) setMessage('Sua autoridade atual não permite construir neste Project.')
-      else if (error instanceof BuilderRequestError && error.status === 422 && error.problemType === 'urn:conexus:problem:model-connection-required') {
-        setMessage('Nenhuma conexão de modelo disponível para este Project.')
-        setRequiresModelConnection(true)
-      } else if (error instanceof BuilderRequestError && error.status === 422 && error.problemType === 'urn:conexus:problem:model-choice-unavailable') {
-        setPickedChoiceId(null)
-        setMessage('Este modelo deixou de estar disponível. Escolha outro na lista.')
-        setRequiresModelConnection(false)
-        void queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] })
-      } else {
-        setMessage('Não foi possível enviar a mensagem ao Builder.')
-        setRequiresModelConnection(false)
-      }
+      else setMessage('Não foi possível enviar a mensagem ao Builder.')
     },
   })
   const runId = session.data?.latestBuilderRun?.builderRunId
@@ -205,9 +209,10 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   if (run) runsById.set(run.builderRunId, run)
   const selectedRun = (selectedRunId && runsById.get(selectedRunId)) || run
   const effectiveRunId = selectedRun?.builderRunId ?? runId ?? null
-  const offers = session.data?.modelChoices ?? EMPTY_MODEL_OFFERS
-  const lastRunOffer = offers.find((offer) => offer.providerId === run?.modelProviderId && offer.modelId === run?.modelId)
-  const selectedOffer = offers.find((offer) => offer.choiceId === pickedChoiceId) ?? lastRunOffer ?? offers.at(0) ?? null
+  // A run belongs to one conversation. The chat pane shows only its own; the Preview, the source and
+  // the lenses stay on the Project, which is what they are about.
+  const conversationRun = run && conversationId && run.conversationId === conversationId ? run : null
+  const conversationRunActive = conversationRun?.state === 'QUEUED' || conversationRun?.state === 'RUNNING'
   const cancel = useMutation({
     mutationFn: () => {
       if (!runId) throw new Error('BUILDER_RUN_NOT_READY')
@@ -216,15 +221,15 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     onSuccess: async () => { setMessage('Solicitação de interrupção enviada.'); await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] }) },
     onError: () => setMessage('Não foi possível interromper a execução atual.'),
   })
-  const history = useBuilderThreadMessages(projectId, session.data?.threadId)
+  const history = useBuilderThreadMessages(projectId, conversationId ?? undefined)
   const turn = useBuilderLiveTurn(projectId, runId, runActive && run?.phase === 'AGENT')
   const previousRunState = useRef<string | undefined>(undefined)
   useEffect(() => {
     const wasActive = previousRunState.current === 'QUEUED' || previousRunState.current === 'RUNNING'
     previousRunState.current = run?.state
     if (!runId || !wasActive || runActive) return
-    void Promise.all([session.refetch(), history.refetch()]).finally(() => setLiveRequest(null))
-  }, [history, run, runActive, runId, session])
+    void Promise.all([session.refetch(), history.refetch(), conversations.refetch()]).finally(() => setLiveRequest(null))
+  }, [conversations, history, run, runActive, runId, session])
   const onConversationScroll = () => {
     const element = conversationRef.current
     if (!element) return
@@ -375,12 +380,12 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const value = content.trim()
-    if (!value || send.isPending || !selectedOffer) {
-      if (!selectedOffer && !session.isPending) setMessage('Nenhum modelo disponível para este Project.')
+    if (!value || send.isPending || !conversationId || !modelReady) {
+      if (!modelReady && !models.isPending) setMessage('Escolha o modelo do Builder antes de enviar.')
       return
     }
     const key = retainedIdempotencyKey.current?.content === value ? retainedIdempotencyKey.current.key : crypto.randomUUID()
-    send.mutate({ content: value, mode, key, modelChoiceId: selectedOffer.choiceId })
+    send.mutate({ content: value, mode, key, conversationId })
   }
   const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -414,9 +419,11 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
   }
 
   const activeStatus = runStatus(run, run?.phase ?? null)
-  const persistedRequests = persistedRequestsOf(session.data?.runHistory ?? [], run)
-  const phaseLabel = run?.state === 'QUEUED' ? 'Na fila para iniciar' : run?.phase && !(run.phase === 'AGENT' && turn.messages.length > 0) ? phaseLabels[run.phase] : null
-  const hasOffers = offers.length > 0
+  const conversationTurn = conversationRun ? turn : noTurn
+  const persistedRequests = persistedRequestsOf(runHistoryList.filter((entry) => entry.conversationId === conversationId), conversationRun)
+  const phaseLabel = conversationRun?.state === 'QUEUED' ? 'Na fila para iniciar'
+    : conversationRun?.phase && !(conversationRun.phase === 'AGENT' && conversationTurn.messages.length > 0) ? phaseLabels[conversationRun.phase] : null
+  const canCompose = Boolean(conversationId) && modelReady
 
   return <div className="project-build">
     <nav className="builder-mobile-switcher" aria-label="Painel do Builder">
@@ -435,7 +442,6 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
         <div className="builder-preview-status" role="status" aria-live="polite">
           <span className={`builder-status-dot ${runActive ? 'is-active' : previewReady ? 'is-ready' : 'is-idle'}`} aria-hidden="true" />
           <span>{run ? activeStatus : previewReady ? 'Preview pronto' : 'Aguardando o primeiro Build'}</span>
-          {run?.modelId && <small>Modelo admitido: {run.modelId}</small>}
         </div>
         {!previewReady && !previewLaunch && <div className="preview-empty"><div className="preview-empty-mark" aria-hidden="true">⌁</div><strong>Seu aplicativo aparecerá aqui</strong><span>Envie uma solicitação pelo chat para criar o primeiro Preview real.</span></div>}
         {previewReady && !previewLaunch && <p className="preview-last-good"><strong>Último Preview bom disponível.</strong><span>Ainda não há uma sessão de Preview aberta.</span></p>}
@@ -484,7 +490,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
           </dl>
           <h3>Histórico recente</h3>
           {runHistoryList.length === 0 && <p>Nenhuma execução persistida.</p>}
-          {runHistoryList.length > 0 && <ol className="builder-run-history">{runHistoryList.map((historyRun) => <li key={historyRun.builderRunId}><button type="button" aria-pressed={historyRun.builderRunId === effectiveRunId} onClick={() => setSelectedRunId(historyRun.builderRunId)}><code>{historyRun.builderRunId}</code><span>{runStatus(historyRun, null)}</span>{historyRun.modelId && <small>{historyRun.modelId}</small>}</button></li>)}</ol>}
+          {runHistoryList.length > 0 && <ol className="builder-run-history">{runHistoryList.map((historyRun) => <li key={historyRun.builderRunId}><button type="button" aria-pressed={historyRun.builderRunId === effectiveRunId} onClick={() => setSelectedRunId(historyRun.builderRunId)}><code>{historyRun.builderRunId}</code><span>{runStatus(historyRun, null)}</span></button></li>)}</ol>}
           <h3>Trace nativo</h3>
           {trace.isPending && <p>Consultando trace…</p>}
           {trace.isError && <p role="alert">Trace indisponível.</p>}
@@ -494,25 +500,35 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
       </section>
       {!chatCollapsed && <aside data-mobile-pane={mobilePane} className="conexus-panel" aria-labelledby="conexus-panel-title">
         <div className="builder-panel-heading"><div><p className="eyebrow">Conexus Builder</p><h2 id="conexus-panel-title">Converse com o Conexus</h2><p className="builder-surface-caption">Peça alterações e acompanhe o que está acontecendo.</p></div></div>
+        <BuilderConversationList
+          conversations={conversationList}
+          selectedId={conversationId}
+          onSelect={(id) => { setSelectedConversationId(id); conversationActions.select.mutate({ conversationId: id, carryModelId: modelReady ? selectedModelId : '' }) }}
+          onCreate={() => conversationActions.create.mutate('', { onSuccess: (created) => {
+            setSelectedConversationId(created.id)
+            // A new conversation starts with no model of its own. Carrying the one the operator
+            // already chose is their decision applied, not a default invented for them.
+            if (modelReady) sessionModel.choose.mutate(selectedModelId)
+          } })}
+          onRename={(title) => { if (conversationId) conversationActions.rename.mutate({ conversationId, title }) }}
+          pending={conversationActions.create.isPending || conversationActions.rename.isPending}
+        />
         <section ref={conversationRef} onScroll={onConversationScroll} className="builder-conversation" aria-label="Mensagens do Builder" aria-live="polite">
-          <BuilderConversation history={history.data ?? []} turn={turn} pendingRequest={runActive && liveRequest && liveRequest.runId === runId ? liveRequest.text : null} persistedRequests={persistedRequests} failureCategory={run?.failureCategory ?? null} runActive={runActive} phaseLabel={phaseLabel} />
+          <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={conversationRunActive && liveRequest && liveRequest.runId === conversationRun?.builderRunId ? liveRequest.text : null} persistedRequests={persistedRequests} failureCategory={conversationRun?.failureCategory ?? null} runActive={conversationRunActive} phaseLabel={phaseLabel} />
         </section>
         <form onSubmit={submit}>
           <label className="builder-composer-label" htmlFor={inputId}>O que o Project precisa fazer?</label>
-          <div className="builder-composer-box"><textarea id={inputId} rows={4} required disabled={!hasOffers} placeholder="Descreva uma alteração ou pergunte sobre o Project…" value={content} onChange={(event) => setContent(event.target.value)} onKeyDown={onComposerKeyDown} /><div className="builder-composer-footer"><span>Enter envia · Shift+Enter quebra linha</span><button className="primary builder-send-button" type="submit" disabled={send.isPending || runActive || !hasOffers}>{send.isPending ? 'Enviando…' : 'Enviar mensagem'}</button></div></div>
-          {hasOffers && <BuilderModelPicker offers={offers} value={selectedOffer?.choiceId ?? null} onChange={setPickedChoiceId} disabled={runActive} />}
-          {/* The connection is only visible inside the picker's closed dropdown, and it decides
-              which credential pays, so the next run names it where the operator can see it. */}
-          {selectedOffer && <p className="builder-next-run-connection">Próximo pedido: <strong>{selectedOffer.connectionLabel}</strong></p>}
-          {!hasOffers && !session.isPending && <p className="builder-no-model" role="alert">Nenhum modelo disponível para este Project. Conecte uma credencial de modelo em <a href="/settings">configurações</a>.</p>}
+          <div className="builder-composer-box"><textarea id={inputId} rows={4} required disabled={!canCompose} placeholder="Descreva uma alteração ou pergunte sobre o Project…" value={content} onChange={(event) => setContent(event.target.value)} onKeyDown={onComposerKeyDown} /><div className="builder-composer-footer"><span>Enter envia · Shift+Enter quebra linha</span><button className="primary builder-send-button" type="submit" disabled={send.isPending || runActive || !canCompose}>{send.isPending ? 'Enviando…' : 'Enviar mensagem'}</button></div></div>
+          <BuilderModelSelect models={offeredModels} value={modelReady ? selectedModelId : ''} onChange={(modelId) => sessionModel.choose.mutate(modelId)} disabled={runActive || sessionModel.choose.isPending} />
+          {!modelReady && offeredModels.length > 0 && <p className="builder-no-model" role="alert">Escolha o modelo do Builder para poder enviar mensagens.</p>}
+          {offeredModels.length === 0 && !models.isPending && <p className="builder-no-model" role="alert">Nenhum modelo autenticado disponível no controlador do Builder.</p>}
           <fieldset className="builder-mode-toggle">
             <legend>Modo do Builder</legend>
             <button className={mode === 'BUILD' ? 'builder-mode-selected' : undefined} type="button" aria-pressed={mode === 'BUILD'} onClick={() => setMode('BUILD')}>Build</button>
             <button className={mode === 'PLAN' ? 'builder-mode-selected' : undefined} type="button" aria-pressed={mode === 'PLAN'} onClick={() => setMode('PLAN')}>Plan</button>
           </fieldset>
           {runActive && <button className="builder-stop-button" type="button" onClick={() => cancel.mutate()} disabled={cancel.isPending || run?.cancellationRequested}>{cancel.isPending || run?.cancellationRequested ? 'Parando execução…' : 'Parar execução'}</button>}
-          {message && <p className="builder-form-message" role="status" aria-live="polite">{message}{requiresModelConnection && <> <a href="/settings">Abrir configurações</a></>}</p>}
-          {runActive && <p className="builder-form-hint">A troca de modelo vale somente para o próximo pedido.</p>}
+          {message && <p className="builder-form-message" role="status" aria-live="polite">{message}</p>}
         </form>
       </aside>}
     </div>

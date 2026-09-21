@@ -18,85 +18,7 @@ const bundle = (relativeSourcePath) => {
   return import(pathToFileURL(outfile).href)
 }
 
-const { createBuilderStore } = await bundle('apps/hub/src/builder/store.ts')
-const { resolveBuilderModel } = await bundle('apps/hub/src/builder/module.ts')
 const { sendBuilderSessionMessage } = await bundle('apps/hub/src/builder/runtime.ts')
-
-const runId = '11111111-1111-4111-8111-111111111111'
-const projectId = '22222222-2222-4222-8222-222222222222'
-const accountId = '33333333-3333-4333-8333-333333333333'
-const baseSourceRevision = 'a'.repeat(40)
-
-const fakeRunRow = (modelCredentialGeneration) => ({
-  builderRunId: runId, projectId, state: 'RUNNING', phase: 'PREPARING', mode: 'BUILD',
-  baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null,
-  modelConnectionId: 'conn-1', modelCredentialGeneration,
-})
-
-test('store normalizes a bigint-as-number modelCredentialGeneration to a string before it leaves the boundary', async () => {
-  const pool = { query: async () => ({ rows: [{ value: fakeRunRow(1) }] }), end: async () => {} }
-  const store = createBuilderStore({ ingressPool: pool, executorPool: pool })
-  const run = await store.readBuilderRun({ accountId, projectId })
-  assert.equal(run.modelCredentialGeneration, '1')
-  assert.equal(typeof run.modelCredentialGeneration, 'string')
-})
-
-test('store passes an explicit null modelCredentialGeneration through unchanged', async () => {
-  const pool = { query: async () => ({ rows: [{ value: fakeRunRow(null) }] }), end: async () => {} }
-  const store = createBuilderStore({ ingressPool: pool, executorPool: pool })
-  const run = await store.readBuilderRun({ accountId, projectId })
-  assert.equal(run.modelCredentialGeneration, null)
-})
-
-test('store refuses a modelCredentialGeneration it cannot normalize instead of passing it on', async () => {
-  const pool = { query: async () => ({ rows: [{ value: fakeRunRow('not-a-generation') }] }), end: async () => {} }
-  const store = createBuilderStore({ ingressPool: pool, executorPool: pool })
-  await assert.rejects(() => store.readBuilderRun({ accountId, projectId }), /BUILDER_RUN_ROW_INVALID/)
-})
-
-test('claimBuilderRun normalizes the same bigint-as-number generation', async () => {
-  const pool = { query: async () => ({ rows: [{ value: fakeRunRow(7) }] }), end: async () => {} }
-  const store = createBuilderStore({ ingressPool: pool, executorPool: pool })
-  const claimed = await store.claimBuilderRun(runId, { admissionId: 'a', providerId: 'p', modelId: 'm' })
-  assert.equal(claimed.modelCredentialGeneration, '7')
-})
-
-test('a run whose generation arrives from the database as a NUMBER still resolves the connection model, not the sentinel', async () => {
-  const pool = { query: async () => ({ rows: [{ value: fakeRunRow(1) }] }), end: async () => {} }
-  const store = createBuilderStore({ ingressPool: pool, executorPool: pool })
-  const claimed = await store.claimBuilderRun(runId, { admissionId: 'a', providerId: 'p', modelId: 'm' })
-
-  const resolvedModel = { modelId: 'claude-resolved' }
-  const calls = []
-  const resolveModel = (reference, modelId) => { calls.push([reference, modelId]); return resolvedModel }
-
-  const result = resolveBuilderModel({
-    reference: { connectionId: claimed.modelConnectionId, generation: claimed.modelCredentialGeneration },
-    modelIdentity: { modelId: 'claude-3-x' },
-    resolveModel,
-  })
-
-  assert.equal(result, resolvedModel)
-  assert.deepEqual(calls, [[{ connectionId: 'conn-1', generation: '1' }, 'claude-3-x']])
-})
-
-test('resolveBuilderModel refuses an unnormalized numeric generation instead of calling custody with it', () => {
-  let resolveModelCalled = false
-  assert.throws(() => resolveBuilderModel({
-    reference: { connectionId: 'conn-1', generation: 1 },
-    modelIdentity: { modelId: 'claude-3-x' },
-    resolveModel: () => { resolveModelCalled = true; return { modelId: 'never' } },
-  }), /BUILDER_MODEL_CREDENTIAL_UNRESOLVABLE/)
-  assert.equal(resolveModelCalled, false)
-})
-
-test('resolveBuilderModel refuses when no credential was admitted at all, because there is nothing to run on', () => {
-  assert.throws(() => resolveBuilderModel({
-    reference: undefined,
-    modelIdentity: { modelId: 'claude-3-x' },
-    resolveModel: () => { throw new Error('must not be called') },
-  }), /BUILDER_MODEL_CREDENTIAL_UNRESOLVABLE/)
-})
 
 test('sendBuilderSessionMessage classifies a 401/403 agent error as an auth failure without leaking the provider message', async () => {
   let listener
@@ -141,13 +63,13 @@ test('sendBuilderSessionMessage still reports rate limiting distinctly', async (
   })
 })
 
-test('sendBuilderSessionMessage propagates a model-resolution rejection unchanged, with no agent_end event required', async () => {
+test('sendBuilderSessionMessage propagates a model-selection refusal unchanged, with no agent_end event required', async () => {
   const session = {
     subscribe: () => () => {},
-    sendMessage: async () => { throw new Error('BUILDER_MODEL_CREDENTIAL_UNRESOLVABLE') },
+    sendMessage: async () => { throw new Error('BUILDER_MODEL_NOT_SELECTED') },
   }
   await assert.rejects(() => sendBuilderSessionMessage(session, { content: 'hi' }), (error) => {
-    assert.equal(error.message, 'BUILDER_MODEL_CREDENTIAL_UNRESOLVABLE')
+    assert.equal(error.message, 'BUILDER_MODEL_NOT_SELECTED')
     return true
   })
 })

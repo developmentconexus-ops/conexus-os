@@ -6,25 +6,54 @@ import { createServer } from 'vite'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
-const admittedModelChoices = [{
-  choiceId: 'anthropic/claude-opus-4-5', label: 'claude-opus-4-5',
-  providerId: 'anthropic', modelId: 'claude-opus-4-5',
-  connectionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', connectionLabel: 'Meu Claude',
-  credentialKind: 'OAUTH_TOKEN_SET',
-}]
+const MASTRA_CONTROLLER = '**/api/mastra/agent-controller/conexus-builder-controller'
+const MASTRA_SESSIONS = (projectId) => `${MASTRA_CONTROLLER}/sessions/${projectId}`
+// The model and the Project's conversations are the controller's, so the screen reads both from
+// Mastra and holds neither. A model with no key on the controller is never offered.
+const BUILDER_MODELS = [
+  { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true },
+  { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', modelName: 'claude-sonnet-4-5', hasApiKey: true },
+  { id: 'groq/llama-4', provider: 'groq', modelName: 'llama-4', hasApiKey: false },
+]
+const SELECTED_MODEL = BUILDER_MODELS[0].id
+const conversation = (id, title) => ({ id, title, resourceId: null, createdAt: '2026-09-20T12:00:00.000Z', updatedAt: '2026-09-20T12:00:00.000Z' })
 
-const routeModelConnections = (page, accountId) => page.route('**/api/control/me/model-connections', (route) => route.fulfill({
-  status: 200, contentType: 'application/json',
-  // The connection's provider has to match the selected model's, or the Builder gate refuses it
-  // exactly as the database would.
-  body: JSON.stringify({
-    connections: [{ connectionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', label: 'Meu Claude', state: 'ACTIVE', generation: '1', ownerAccountId: accountId, workspaceId: accountId, role: 'OWNER', revokedAt: null, providerId: 'anthropic', credentialKind: 'OAUTH_TOKEN_SET', selected: true, shared: false }],
-    accountSignIns: [{ providerId: 'anthropic', name: 'Claude' }, { providerId: 'openai-codex', name: 'ChatGPT' }],
-    apiKeyProviders: [{ providerId: 'anthropic', name: 'Anthropic', docUrl: null }],
-  }),
-}))
+const threadIdOf = (url, offsetFromEnd) => decodeURIComponent(new URL(url).pathname.split('/').at(offsetFromEnd))
 
-const MASTRA_SESSIONS = (projectId) => `**/api/mastra/agent-controller/conexus-builder-controller/sessions/${projectId}`
+const routeBuilderController = async (page, projectId, state) => {
+  await page.route(`${MASTRA_CONTROLLER}/models`, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
+  await page.route(MASTRA_SESSIONS(projectId), (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ modelId: state.modelId, modeId: 'build', threadId: state.conversations.at(0)?.id ?? null }),
+  }))
+  await page.route(`${MASTRA_SESSIONS(projectId)}/model`, (route) => {
+    state.modelId = route.request().postDataJSON().modelId
+    state.modelSwitches.push(state.modelId)
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+  await page.route(`${MASTRA_SESSIONS(projectId)}/threads*`, (route) => {
+    if (route.request().method() !== 'POST') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ threads: state.conversations }) })
+    }
+    const created = conversation(`conversation-${state.conversations.length + 1}`, route.request().postDataJSON().title)
+    state.conversations = [created, ...state.conversations]
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(created) })
+  })
+  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*`, (route) => {
+    const id = threadIdOf(route.request().url(), -1)
+    state.conversations = state.conversations.map((entry) => entry.id === id ? { ...entry, title: route.request().postDataJSON().title } : entry)
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*/messages*`, (route) => {
+    const id = threadIdOf(route.request().url(), -2)
+    state.messageReads.push(id)
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: state.messages[id] ?? [] }) })
+  })
+}
+
+const controllerState = (conversations, messages = {}, modelId = SELECTED_MODEL) =>
+  ({ conversations, messages, modelId, modelSwitches: [], messageReads: [] })
 const assistantMessage = (id, text) => ({ id, role: 'assistant', createdAt: new Date().toISOString(), content: { format: 2, parts: [{ type: 'text', text }] } })
 const userMessage = (id, text) => ({ id, role: 'user', createdAt: new Date().toISOString(), content: { format: 2, parts: [{ type: 'text', text }] } })
 const sse = (...events) => ({
@@ -36,7 +65,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   const accountId = '70000000-0000-4000-8000-000000000001'
   const projectId = '70000000-0000-4000-8000-000000000002'
   const runId = '70000000-0000-4000-8000-000000000003'
-  const threadId = `conexus-builder:${projectId}`
+  const conversationId = 'conversation-counter'
   const baseSourceRevision = 'a'.repeat(40)
   const sourceRevision = 'b'.repeat(40)
   const artifactRevisionId = '70000000-0000-4000-8000-000000000004'
@@ -57,16 +86,17 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   const session = () => ({
-    projectId, threadId,
+    projectId,
     latestBuilderRun: run && runFinished
       ? { ...run, state: 'SUCCEEDED', phase: null, resultSourceRevision: run.mode === 'PLAN' ? null : sourceRevision, resultKind: run.mode === 'PLAN' ? 'RESPONSE_ONLY' : 'SOURCE_CHANGED' }
       : run,
     latestCodeChangingRun: buildCount > 0 ? { baseSourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: buildCount > 0 ? sourceRevision : null, lastGoodArtifactRevisionId: buildCount > 0 ? artifactRevisionId : null, lastGoodArtifactDigest: buildCount > 0 ? artifactDigest : null },
-    mode: run?.mode ?? 'BUILD', modelChoices: admittedModelChoices, runHistory: [],
+    mode: run?.mode ?? 'BUILD', runHistory: [],
   })
+  const controller = controllerState([conversation(conversationId, 'Contador')], { [conversationId]: threadMessages })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeModelConnections(page, accountId)
+  await routeBuilderController(page, projectId, controller)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Counter', projectRevision: 'revision', archived: false }) }))
   const previewRequests = []
   const forbiddenRequests = []
@@ -81,7 +111,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
     buildCount += body.mode === 'BUILD' ? 1 : 0
     threadMessages.push(userMessage(`user-${threadMessages.length + 1}`, body.content))
     runFinished = false
-    run = { builderRunId: runId, projectId, state: 'RUNNING', phase: 'AGENT', mode: body.mode, baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
+    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', mode: body.mode, baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) =>
@@ -97,11 +127,6 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   await page.route(`**/api/control/projects/${projectId}/source/file*`, (route) => {
     const revision = new URL(route.request().url()).searchParams.get('sourceRevision')
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision: revision, path: 'app/index.html', content: revision === baseSourceRevision ? '<main>Counter</main>' : '<main>Counter v2</main>' }) })
-  })
-  const threadReads = []
-  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*/messages*`, (route) => {
-    threadReads.push(new URL(route.request().url()).pathname)
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: threadMessages }) })
   })
   const streamScopes = []
   await page.route(`${MASTRA_SESSIONS(projectId)}/stream*`, (route) => {
@@ -125,7 +150,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   await page.getByRole('button', { name: 'Enviar mensagem' }).click()
   await page.getByText('Mensagem enviada ao Builder.').waitFor()
   assert.equal(requests.length, 1)
-  assert.deepEqual(requests[0].body, { content: 'Crie um contador até 100 interativo', mode: 'BUILD', modelChoiceId: 'anthropic/claude-opus-4-5' })
+  assert.deepEqual(requests[0].body, { content: 'Crie um contador até 100 interativo', mode: 'BUILD', conversationId })
   assert.ok(requests[0].key)
   await page.getByText('Aplicando a alteração', { exact: true }).waitFor()
   assert.deepEqual(streamScopes.slice(0, 1), [`builder:${runId}`])
@@ -140,7 +165,8 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   assert.equal(await page.locator('.builder-conversation .builder-turn-reason').count(), 0,
     'a run that succeeded is given no failure reason')
   assert.deepEqual(forbiddenRequests, [])
-  assert.ok(threadReads.every((path) => path.includes(encodeURIComponent(threadId))))
+  assert.deepEqual([...new Set(controller.messageReads)], [conversationId],
+    'the messages read are the selected conversation\'s own thread, never a name derived from the Project')
   const previewBox = await page.locator('.build-preview-surface').boundingBox()
   const panelBox = await page.locator('.conexus-panel').boundingBox()
   assert.ok(previewBox && panelBox && previewBox.width > panelBox.width)
@@ -187,14 +213,15 @@ test('new Project lands directly in Build and can send its first Builder message
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const conversationId = 'conversation-new-project'
   const session = () => ({
-    projectId, threadId: `conexus-builder:${projectId}`,
+    projectId,
     latestBuilderRun: run, latestCodeChangingRun: null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    mode: 'BUILD', modelChoices: admittedModelChoices, runHistory: [],
+    mode: 'BUILD', runHistory: [],
   })
+  const conversationMessages = []
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [{ workspaceId, name: 'New Workspace' }], projects: [] }) }))
-  await routeModelConnections(page, accountId)
-  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*/messages*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: run ? [userMessage('new-message', 'Crie um contador')] : [] }) }))
+  await routeBuilderController(page, projectId, controllerState([conversation(conversationId, 'Primeira conversa')], { [conversationId]: conversationMessages }))
   await page.route(`**/api/control/workspaces/${workspaceId}/projects`, async (route) => {
     if (route.request().method() === 'POST') return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId, name: 'New Counter', projectRevision: 'created', archived: false }) })
     return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
@@ -203,7 +230,8 @@ test('new Project lands directly in Build and can send its first Builder message
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session()) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, async (route) => {
     const body = route.request().postDataJSON()
-    run = { builderRunId: runId, projectId, state: 'QUEUED', phase: null, mode: body.mode, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
+    conversationMessages.push(userMessage('new-message', body.content))
+    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'QUEUED', phase: null, mode: body.mode, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
   await page.goto(`${origin}/workspaces/${workspaceId}/projects/new`)
@@ -217,7 +245,85 @@ test('new Project lands directly in Build and can send its first Builder message
   assert.equal((await page.getByLabel('O que o Project precisa fazer?').inputValue()), 'texto digitado depois')
 })
 
-test('selecting a past run moves Details and Diff onto that run, and the composer names the paying connection', async (t) => {
+test('a Project holds several conversations, and switching between them leaves the source and the last good Preview alone', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000081'
+  const projectId = '70000000-0000-4000-8000-000000000082'
+  const origin = 'http://127.0.0.1:41759'
+  const sourceRevision = '8'.repeat(40)
+  const artifactRevisionId = '70000000-0000-4000-8000-000000000083'
+  const counter = conversation('conversation-counter', 'Contador')
+  const clock = conversation('conversation-clock', 'Relógio')
+  // The session arrives with no model chosen, which is the state a Project that has never built is in.
+  const controller = controllerState([counter, clock], {
+    [counter.id]: [userMessage('counter-1', 'Crie um contador'), assistantMessage('counter-2', 'Contador pronto')],
+    [clock.id]: [userMessage('clock-1', 'Crie um relógio'), assistantMessage('clock-2', 'Relógio pronto')],
+  }, '')
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41759, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+
+  const previewRequests = []
+  const sourceReads = []
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilderController(page, projectId, controller)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Conversas', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, latestBuilderRun: null, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: sourceRevision, lastGoodArtifactRevisionId: artifactRevisionId, lastGoodArtifactDigest: 'f'.repeat(64) },
+    mode: 'BUILD', runHistory: [],
+  }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => {
+    previewRequests.push(route.request().url())
+    return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ entryUrl: `${origin}/preview-entry`, previewUrl: `${origin}/preview`, entryGrant: 'grant', artifactRevisionId, artifactDigest: 'f'.repeat(64), expiresAt: new Date(Date.now() + 60_000).toISOString() }) })
+  })
+  await page.route(`**/api/control/projects/${projectId}/source/tree*`, (route) => {
+    sourceReads.push(new URL(route.request().url()).searchParams.get('sourceRevision'))
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision, entries: [{ path: 'app/index.html', kind: 'FILE' }] }) })
+  })
+  await page.route(`**/api/control/projects/${projectId}/source/file*`, (route) => {
+    sourceReads.push(new URL(route.request().url()).searchParams.get('sourceRevision'))
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision, path: 'app/index.html', content: '<main>Contador</main>' }) })
+  })
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByTitle('Preview do aplicativo').waitFor()
+  assert.equal(previewRequests.length, 1)
+
+  await page.getByText('Escolha o modelo do Builder para poder enviar mensagens.', { exact: true }).waitFor()
+  assert.equal(await page.getByRole('button', { name: 'Enviar mensagem' }).isDisabled(), true)
+  await page.locator('.builder-model-select select').selectOption(SELECTED_MODEL)
+  await page.waitForFunction(() => document.querySelector('.builder-send-button')?.disabled === false)
+  assert.deepEqual(controller.modelSwitches, [SELECTED_MODEL])
+
+  assert.deepEqual(await page.locator('.builder-conversations-list button').allTextContents(), ['Contador', 'Relógio'])
+  await page.locator('.builder-conversation').getByText('Contador pronto', { exact: true }).waitFor()
+  assert.equal(await page.locator('.builder-conversation').getByText('Relógio pronto', { exact: true }).count(), 0)
+
+  await page.locator('.builder-conversations-list button', { hasText: 'Relógio' }).click()
+  await page.locator('.builder-conversation').getByText('Relógio pronto', { exact: true }).waitFor()
+  assert.equal(await page.locator('.builder-conversation').getByText('Contador pronto', { exact: true }).count(), 0)
+  assert.equal(await page.locator('.builder-conversations-list button[aria-pressed="true"]').innerText(), 'Relógio')
+  // The conversation is the chat's. The Preview belongs to the Project and is not relaunched.
+  assert.equal(previewRequests.length, 1)
+  assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/preview-entry`)
+
+  await page.getByRole('button', { name: 'Código' }).click()
+  await page.getByText('<main>Contador</main>', { exact: true }).waitFor()
+  const readsBeforeSwitch = [...sourceReads]
+  await page.locator('.builder-conversations-list button', { hasText: 'Contador' }).click()
+  await page.locator('.builder-conversation').getByText('Contador pronto', { exact: true }).waitFor()
+  assert.equal(await page.getByText('<main>Contador</main>', { exact: true }).count(), 1)
+  assert.deepEqual(sourceReads, readsBeforeSwitch,
+    'switching conversation re-read the source, which belongs to the Project and not to the conversation')
+})
+
+test('selecting a past run moves Details and Diff onto that run, and the composer names the chosen model', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000061'
   const projectId = '70000000-0000-4000-8000-000000000062'
   const olderRunId = '70000000-0000-4000-8000-000000000063'
@@ -237,23 +343,23 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
 
+  const conversationId = 'conversation-history'
   const settled = (builderRunId, baseSourceRevision, resultSourceRevision) => ({
-    builderRunId, projectId, state: 'SUCCEEDED', phase: null, mode: 'BUILD',
+    builderRunId, projectId, conversationId, state: 'SUCCEEDED', phase: null, mode: 'BUILD',
     baseSourceRevision, resultSourceRevision, resultKind: 'SOURCE_CHANGED', failureCode: null, failureCategory: null,
-    modelProviderId: 'anthropic', modelId: 'claude-opus-4-5', requestText: `pedido ${builderRunId}`, createdAt: '2026-09-20T12:00:00.000Z',
+    requestText: `pedido ${builderRunId}`, createdAt: '2026-09-20T12:00:00.000Z',
   })
   const tracedRuns = []
   const diffed = []
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeModelConnections(page, accountId)
-  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*/messages*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: [] }) }))
+  await routeBuilderController(page, projectId, controllerState([conversation(conversationId, 'Histórico')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'History', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-    projectId, threadId: `conexus-builder:${projectId}`,
+    projectId,
     latestBuilderRun: settled(latestRunId, latestBase, latestResult),
     latestCodeChangingRun: { baseSourceRevision: latestBase, resultSourceRevision: latestResult, resultKind: 'SOURCE_CHANGED' },
     preview: { workingSourceRevision: latestResult, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    mode: 'BUILD', modelChoices: admittedModelChoices,
+    mode: 'BUILD',
     runHistory: [settled(latestRunId, latestBase, latestResult), settled(olderRunId, olderBase, olderResult)],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/runs/*/trace`, (route) => {
@@ -267,9 +373,11 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   })
 
   await page.goto(`${origin}/projects/${projectId}/build`)
-  await page.getByText('Próximo pedido:', { exact: false }).waitFor()
-  assert.equal((await page.locator('.builder-next-run-connection').innerText()).includes('Meu Claude'), true,
-    'the composer must name the connection that pays for the next run')
+  // The model the next run uses is the controller's own selection, and the composer shows it.
+  await page.waitForFunction((expected) => document.querySelector('.builder-model-select select')?.value === expected, SELECTED_MODEL)
+  assert.deepEqual(await page.getByLabel('Modelo do Builder').locator('option:not([disabled])').allTextContents(),
+    ['anthropic · claude-opus-4-5', 'anthropic · claude-sonnet-4-5'],
+    'a model the controller has no key for is never offered')
 
   await page.getByRole('button', { name: 'Detalhes' }).click()
   await page.locator('.build-inspection dl').getByText(latestRunId, { exact: true }).waitFor()
@@ -301,13 +409,12 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
 
   const keys = []
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeModelConnections(page, accountId)
-  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*/messages*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: [] }) }))
+  await routeBuilderController(page, projectId, controllerState([conversation('conversation-idempotency', 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Idempotency', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-    projectId, threadId: `conexus-builder:${projectId}`, latestBuilderRun: null, latestCodeChangingRun: null,
+    projectId, latestBuilderRun: null, latestCodeChangingRun: null,
     preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    mode: 'BUILD', modelChoices: admittedModelChoices, runHistory: [],
+    mode: 'BUILD', runHistory: [],
   }) }))
   // The first attempt dies on the wire, so the browser never learns whether the server acted.
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
@@ -350,13 +457,12 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeModelConnections(page, accountId)
-  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*/messages*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: [] }) }))
+  await routeBuilderController(page, projectId, controllerState([conversation('conversation-preview-continuity', 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview continuity', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
     const useB = phase === 'B'
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-      projectId, threadId: `conexus-builder:${projectId}`, latestBuilderRun: null, latestCodeChangingRun: null, mode: 'BUILD', modelChoices: admittedModelChoices, runHistory: [],
+      projectId, latestBuilderRun: null, latestCodeChangingRun: null, mode: 'BUILD', runHistory: [],
       preview: {
         workingSourceRevision: useB ? sourceB : sourceA,
         lastGoodSourceRevision: useB ? sourceB : sourceA,
@@ -424,20 +530,20 @@ test('a run that failed before the agent still shows the request and names why i
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   // Nothing reached Mastra: the run failed while the sandbox was being prepared, so the thread is
   // empty and the row is the only record of what the operator asked for.
+  const conversationId = 'conversation-pre-agent-failure'
   const failedRun = {
-    builderRunId: runId, projectId, state: 'FAILED', phase: null, mode: 'BUILD',
+    builderRunId: runId, projectId, conversationId, state: 'FAILED', phase: null, mode: 'BUILD',
     baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
     failureCode: 'BUILDER_SOURCE_MATERIALIZATION_REFUSED', failureCategory: 'ENVIRONMENT_PREPARATION_FAILED',
     requestText: 'Crie um contador até 100 interativo', createdAt: '2026-09-20T12:00:00.000Z',
   }
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeModelConnections(page, accountId)
-  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*/messages*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: [] }) }))
+  await routeBuilderController(page, projectId, controllerState([conversation(conversationId, 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Pre-agent failure', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-    projectId, threadId: `conexus-builder:${projectId}`, latestBuilderRun: failedRun, latestCodeChangingRun: null,
+    projectId, latestBuilderRun: failedRun, latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    mode: 'BUILD', modelChoices: admittedModelChoices, runHistory: [failedRun],
+    mode: 'BUILD', runHistory: [failedRun],
   }) }))
   await page.goto(`${origin}/projects/${projectId}/build`)
   await page.locator('.builder-conversation').getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
@@ -468,13 +574,12 @@ test('the Preview names the grant and the navigation, and never claims the appli
   let releaseEntry
   const entryHeld = new Promise((resolve) => { releaseEntry = resolve })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeModelConnections(page, accountId)
-  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*/messages*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: [] }) }))
+  await routeBuilderController(page, projectId, controllerState([conversation('conversation-preview-truth', 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview truth', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-    projectId, threadId: `conexus-builder:${projectId}`, latestBuilderRun: null, latestCodeChangingRun: null,
+    projectId, latestBuilderRun: null, latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: sourceRevision, lastGoodArtifactRevisionId: artifactRevisionId, lastGoodArtifactDigest: 'd'.repeat(64) },
-    mode: 'BUILD', modelChoices: admittedModelChoices, runHistory: [],
+    mode: 'BUILD', runHistory: [],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({
     status: 201, contentType: 'application/json',
@@ -528,13 +633,12 @@ test('Preview ignores an older launch completion after the artifact key changes'
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeModelConnections(page, accountId)
-  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*/messages*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: [] }) }))
+  await routeBuilderController(page, projectId, controllerState([conversation('conversation-preview-race', 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview race', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
     const useB = phase === 'B'
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-      projectId, threadId: `conexus-builder:${projectId}`, latestBuilderRun: null, latestCodeChangingRun: null, mode: 'BUILD', modelChoices: admittedModelChoices, runHistory: [],
+      projectId, latestBuilderRun: null, latestCodeChangingRun: null, mode: 'BUILD', runHistory: [],
       preview: {
         workingSourceRevision: useB ? sourceB : sourceA,
         lastGoodSourceRevision: useB ? sourceB : sourceA,

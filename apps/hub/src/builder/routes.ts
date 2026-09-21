@@ -5,7 +5,6 @@ import type { BuilderService } from './service.js'
 import type { BuilderRunSummary, BuilderStore } from './store.js'
 import { projectBuilderRun } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata } from './application-build.js'
-import type { ModelOffer } from '../model-connection/paid-models.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
@@ -19,12 +18,10 @@ const sourceFileQuery = { type: 'object', additionalProperties: false, required:
 export type BuilderOperationId = 'BLD-08' | 'BLD-09' | 'BLD-23' | 'BLD-24' | 'BLD-25' | 'BLD-26'
 export type BuilderSessionSnapshot = Readonly<{
   projectId: string
-  threadId: string
   workingSourceRevision: string | null
   lastPreviewSourceRevision: string | null
   lastPreviewArtifactRevisionId: string | null
   lastPreviewArtifactDigest: string | null
-  modelChoices: readonly ModelOffer[]
   runHistory: readonly BuilderRunSummary[]
 }>
 export type BuilderSessionPort = Readonly<{
@@ -75,7 +72,6 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       ])
       return {
         projectId: snapshot.projectId,
-        threadId: snapshot.threadId,
         latestBuilderRun: run ? projectBuilderRun(run) : null,
         latestCodeChangingRun: latestCodeChangingRun ? {
           baseSourceRevision: latestCodeChangingRun.baseSourceRevision,
@@ -83,7 +79,6 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
           resultKind: latestCodeChangingRun.resultKind,
         } : null,
         preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodSourceRevision: snapshot.lastPreviewSourceRevision, lastGoodArtifactRevisionId: snapshot.lastPreviewArtifactRevisionId, lastGoodArtifactDigest: snapshot.lastPreviewArtifactDigest },
-        modelChoices: snapshot.modelChoices,
         runHistory: snapshot.runHistory.map((historyRun) => projectBuilderRun(historyRun)),
         mode: run?.mode ?? 'BUILD',
       }
@@ -93,10 +88,10 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     }
   })
 
-  app.post<{ Params: { projectId: string }; Body: { content: string; mode: 'BUILD' | 'PLAN'; modelChoiceId?: string } }>('/api/control/projects/:projectId/builder-session/messages', {
+  app.post<{ Params: { projectId: string }; Body: { content: string; mode: 'BUILD' | 'PLAN'; conversationId: string } }>('/api/control/projects/:projectId/builder-session/messages', {
     schema: {
       params,
-      body: { type: 'object', additionalProperties: false, required: ['content', 'mode'], properties: { content: { type: 'string', minLength: 1, maxLength: 20_000, pattern: '.*\\S.*' }, mode: { type: 'string', enum: ['BUILD', 'PLAN'] }, modelChoiceId: { type: 'string', minLength: 1, maxLength: 128 } } },
+      body: { type: 'object', additionalProperties: false, required: ['content', 'mode', 'conversationId'], properties: { content: { type: 'string', minLength: 1, maxLength: 20_000, pattern: '.*\\S.*' }, mode: { type: 'string', enum: ['BUILD', 'PLAN'] }, conversationId: { type: 'string', minLength: 1, maxLength: 200 } } },
     },
   }, async (request, reply) => {
     const csrf = header(request.headers['x-conexus-csrf'])
@@ -108,8 +103,8 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     try {
       const run = await dependencies.service.createBuilderRun({
         accountId: session.account.accountId, projectId: request.params.projectId,
+        conversationId: request.body.conversationId,
         idempotencyKey, content: request.body.content, mode: request.body.mode,
-        ...(request.body.modelChoiceId ? { modelChoiceId: request.body.modelChoiceId } : {}),
       })
       return reply.code(201).send({ builderRun: projectBuilderRun(run) })
     } catch (error) {
@@ -117,9 +112,6 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       if (detail.includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
       if (detail.includes('SOURCE_STALE') || detail.includes('PROJECT_BUSY') || detail.includes('IDEMPOTENCY_CONFLICT')) return sendProblem(reply, 409, 'builder-conflict', 'Builder request conflict')
       if (detail.includes('INPUT_REFUSED')) return sendProblem(reply, 422, 'builder-message-refused', 'Builder message refused')
-      if (detail.includes('MODEL_CHOICE')) return sendProblem(reply, 422, 'model-choice-unavailable', 'That model is not one this account can pay for in this Project')
-      if (detail.includes('MODEL_CONNECTION_PROVIDER_MISMATCH')) return sendProblem(reply, 422, 'model-connection-provider-mismatch', "The selected connection belongs to a different provider than the selected model")
-      if (detail.includes('MODEL_CONNECTION_REQUIRED')) return sendProblem(reply, 422, 'model-connection-required', "Connect a model for the selected model's provider before building")
       return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')
     }
   })

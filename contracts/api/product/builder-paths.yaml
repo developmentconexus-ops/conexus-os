@@ -175,10 +175,13 @@ components:
     BuilderRunSummary:
       type: object
       additionalProperties: false
-      required: [builderRunId, projectId, state, mode, baseSourceRevision, requestText, createdAt, failureCategory, modelAdmissionId, modelProviderId, modelId, cancellationRequested]
+      required: [builderRunId, projectId, conversationId, state, mode, baseSourceRevision, requestText, createdAt, failureCategory, cancellationRequested]
       properties:
         builderRunId: { type: string, format: uuid }
         projectId: { type: string, format: uuid }
+        # The conversation this run spoke in. It is a Mastra thread id under the Project's
+        # resourceId, not a Conexus record: the product keeps no conversation store of its own.
+        conversationId: { type: string, minLength: 1, maxLength: 200 }
         state: { type: string, enum: [QUEUED, RUNNING, SUCCEEDED, FAILED, INTERRUPTED] }
         mode: { type: string, enum: [BUILD, PLAN] }
         baseSourceRevision: { type: string, pattern: '^[0-9a-f]{40}$' }
@@ -193,9 +196,6 @@ components:
           enum: [ENVIRONMENT_PREPARATION_FAILED, MODEL_CREDENTIAL_REFUSED, MODEL_RATE_LIMITED, MODEL_REQUEST_REFUSED, SOURCE_RESULT_REJECTED, APPLICATION_BUILD_FAILED, RUN_CANCELLED, RUN_INTERRUPTED, INTERNAL_ERROR, null]
         requestText: { type: [string, 'null'], maxLength: 20000 }
         createdAt: { type: string, format: date-time }
-        modelAdmissionId: { type: [string, 'null'] }
-        modelProviderId: { type: [string, 'null'] }
-        modelId: { type: [string, 'null'] }
         cancellationRequested: { type: boolean }
     BuilderPreviewSummary:
       type: object
@@ -232,12 +232,12 @@ components:
     BuilderSession:
       type: object
       additionalProperties: false
-      required: [projectId, threadId, latestBuilderRun, latestCodeChangingRun, preview, modelChoices, runHistory]
+      required: [projectId, latestBuilderRun, latestCodeChangingRun, preview, runHistory]
       properties:
         projectId: { type: string, format: uuid }
-        # The conversation itself is Mastra's: the browser lists this thread's messages over the
-        # Agent Controller routes rather than receiving a Conexus projection of them here.
-        threadId: { type: string, minLength: 1 }
+        # The Project's conversations are its Mastra session's own threads, so the browser lists
+        # them and their messages over the Agent Controller routes. Nothing about them is projected
+        # here, and neither is the model, which is Mastra's own credential store and selection.
         latestBuilderRun:
           oneOf:
             - $ref: '#/components/schemas/BuilderRunSummary'
@@ -248,29 +248,9 @@ components:
             - type: 'null'
         preview: { $ref: '#/components/schemas/BuilderPreviewSummary' }
         mode: { type: string, enum: [BUILD, PLAN] }
-        modelChoices:
-          type: array
-          items: { $ref: '#/components/schemas/BuilderModelChoice' }
         runHistory:
           type: array
           items: { $ref: '#/components/schemas/BuilderRunSummary' }
-    BuilderModelChoice:
-      description: One model this Account can pay for in this Project, and the connected credential that pays for it.
-      type: object
-      additionalProperties: false
-      required: [choiceId, label, providerId, modelId, connectionId, connectionLabel, credentialKind]
-      properties:
-        choiceId: { type: string, minLength: 1, maxLength: 256 }
-        label: { type: string, minLength: 1 }
-        providerId:
-          description: The connection's own provider id, which is what run admission compares against the credential.
-          type: string
-          minLength: 1
-          maxLength: 128
-        modelId: { type: string, minLength: 1 }
-        connectionId: { type: string, format: uuid }
-        connectionLabel: { type: string, minLength: 1 }
-        credentialKind: { type: string, enum: [OAUTH_TOKEN_SET, API_KEY] }
     EmptyRequest:
       type: object
       additionalProperties: false
@@ -298,15 +278,15 @@ components:
     SendBuilderMessageRequest:
       type: object
       additionalProperties: false
-      required: [content, mode]
+      required: [content, mode, conversationId]
       properties:
         content: { type: string, minLength: 1, maxLength: 20000, pattern: '.*\S.*' }
         mode: { type: string, enum: [BUILD, PLAN] }
-        modelChoiceId:
-          description: The choiceId of one offered model. Omitted means the first offer.
+        conversationId:
+          description: Which of the Project's conversations this message belongs to.
           type: string
           minLength: 1
-          maxLength: 128
+          maxLength: 200
     BuilderMessageAccepted:
       type: object
       additionalProperties: false

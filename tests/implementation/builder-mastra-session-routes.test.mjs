@@ -23,10 +23,13 @@ const compiled = spawnSync(process.execPath, [
 if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
 const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
 const { createHttpApp } = await import(built('http/app.js'))
-const { registerBuilderMastraRoutes } = await import(built('builder/mastra-session-routes.js'))
+const { BUILDER_CONTROLLER_ID, registerBuilderMastraRoutes } = await import(built('builder/mastra-session-routes.js'))
 
 const origin = 'https://conexus.test'
-const controllerId = 'conexus-builder-controller'
+const controllerId = BUILDER_CONTROLLER_ID
+// Mastra Code names its own controller. The Hub registers it under a key of its own, and that key
+// is the one the browser addresses, so the boundary must read the registry key and not controller.id.
+const nativeControllerId = 'mastra-code'
 const accountId = '22222222-2222-4222-8222-222222222222'
 const projectId = '33333333-3333-4333-8333-333333333333'
 const runId = '44444444-4444-4444-8444-444444444444'
@@ -41,10 +44,10 @@ const createBoundaryApp = async ({ signedIn = true, admitted = true } = {}) => {
   const storage = new LibSQLStore({ id: `boundary-${randomUUID()}`, url: `file:${join(root, 'session.db')}` })
   const memory = new Memory({ storage, options: { lastMessages: 20 } })
   const agent = createCodingAgent({ id: 'boundary-agent', name: 'Boundary Probe', model, instructions: 'Mechanical probe.', memory, workspace: undefined })
-  const controller = new AgentController({ id: controllerId, storage, memory, agent, modes: [{ id: 'build', name: 'Build', availableTools: [] }], defaultModeId: 'build' })
+  const controller = new AgentController({ id: nativeControllerId, storage, memory, agent, modes: [{ id: 'build', name: 'Build', availableTools: [] }], defaultModeId: 'build' })
   await controller.init()
   // The routes read threads through the instance's storage, so it has to be the store the sessions write to.
-  const mastra = new Mastra({ storage, agentControllers: { [controller.id]: controller }, logger: false })
+  const mastra = new Mastra({ storage, agentControllers: { [BUILDER_CONTROLLER_ID]: controller }, logger: false })
   const admitCalls = []
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
@@ -95,9 +98,33 @@ test('a signed-in operator without Project build authority is refused', async (t
 test('a controller the Hub does not own is not found', async (t) => {
   const { app, admitCalls, close } = await createBoundaryApp()
   t.after(close)
-  const response = await app.inject({ method: 'GET', url: `${sessionBase('some-other-controller')}/stream?sessionScope=builder:${runId}`, ...authentic })
-  assert.equal(response.statusCode, 404)
+  for (const id of ['some-other-controller', nativeControllerId]) {
+    const response = await app.inject({ method: 'GET', url: `${sessionBase(id)}/stream?sessionScope=builder:${runId}`, ...authentic })
+    assert.equal(response.statusCode, 404, id)
+  }
   assert.deepEqual(admitCalls, [])
+})
+
+test("a Project's conversations are reachable as the session's own threads", async (t) => {
+  const { app, admitCalls, close } = await createBoundaryApp()
+  t.after(close)
+  const listed = await app.inject({ method: 'GET', url: `${sessionBase()}/threads?limit=50`, ...authentic })
+  assert.equal(listed.statusCode, 200)
+  assert.deepEqual(listed.json().threads, [])
+  assert.deepEqual(admitCalls, [{ accountId, projectId }])
+
+  const created = await app.inject({ method: 'POST', url: `${sessionBase()}/threads`, ...authentic, payload: { title: 'Primeira conversa' } })
+  assert.equal(created.statusCode, 200)
+  const conversationId = created.json().id
+  assert.ok(conversationId)
+
+  const renamed = await app.inject({ method: 'PUT', url: `${sessionBase()}/threads/${conversationId}`, ...authentic, payload: { title: 'Contador' } })
+  assert.equal(renamed.statusCode, 200)
+  const threads = (await app.inject({ method: 'GET', url: `${sessionBase()}/threads?limit=50`, ...authentic })).json().threads
+  assert.equal(threads.find((thread) => thread.id === conversationId)?.title, 'Contador')
+
+  const switched = await app.inject({ method: 'POST', url: `${sessionBase()}/thread`, ...authentic, payload: { threadId: conversationId } })
+  assert.equal(switched.statusCode, 200)
 })
 
 test('a session scope outside the run grammar is not found', async (t) => {

@@ -147,7 +147,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .build-workspace { grid-template-columns: minmax(0, var(--builder-preview-ratio, 2fr)) minmax(20rem, 25rem); gap: 0; min-height: 46rem; overflow: hidden; border: 1px solid #c8d3cc; border-radius: .9rem; background: #edf2ee; box-shadow: 0 .8rem 2rem #183b2c12; }
 .build-preview-surface, .conexus-panel { border: 0; border-radius: 0; }
 .build-preview-surface { min-height: 46rem; padding: 1rem 1.1rem 1.1rem; background: #f8faf8; grid-template-rows: auto auto auto auto 1fr; }
-.conexus-panel { position: sticky; top: 1rem; height: calc(100dvh - 2rem); min-height: 34rem; padding: 1rem; border-left: 1px solid #c8d3cc; background: #fff; display: grid; grid-template-rows: auto minmax(12rem, 1fr) auto; gap: .9rem; }
+.conexus-panel { position: sticky; top: 1rem; height: calc(100dvh - 2rem); min-height: 34rem; padding: 1rem; border-left: 1px solid #c8d3cc; background: #fff; display: grid; grid-template-rows: auto auto minmax(12rem, 1fr) auto; gap: .9rem; }
 .work-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: .2rem .2rem .75rem; }
 .work-heading h2, .builder-panel-heading h2 { font-size: 1.05rem; letter-spacing: -.01em; }
 .builder-surface-caption { margin: .2rem 0 0; color: #6b786f; font-size: .78rem; line-height: 1.4; }
@@ -182,6 +182,18 @@ button:disabled { opacity: .6; cursor: wait; }
 .builder-conversation { max-height: none; min-height: 0; padding: .15rem .1rem; align-content: start; gap: .7rem; }
 .builder-conversation button { all: revert-layer; }
 .builder-conversation-empty { margin: auto 0; padding: 1rem; border: 1px dashed #b5c3b9; background: #fbfdfb; text-align: center; font-size: .8rem; }
+.builder-conversations { min-width: 0; display: grid; gap: .45rem; }
+.builder-conversations-bar { display: flex; align-items: center; gap: .4rem; }
+.builder-conversations-bar h3 { flex: 1; min-width: 0; margin: 0; color: #40584a; font-size: .75rem; font-weight: 700; }
+.builder-conversations-bar button, .builder-conversations-rename button { padding: .3rem .5rem; font-size: .7rem; }
+.builder-conversations-rename { display: flex; gap: .35rem; }
+.builder-conversations-rename input { flex: 1; min-width: 0; margin: 0; padding: .3rem .5rem; font-size: .72rem; }
+.builder-conversations-list { display: flex; gap: .35rem; overflow-x: auto; margin: 0; padding: 0 0 .15rem; list-style: none; }
+.builder-conversations-list button { max-width: 11rem; overflow: hidden; padding: .3rem .65rem; border: 1px solid #cddbd2; border-radius: 999px; background: #fff; color: #42584b; font-size: .72rem; white-space: nowrap; text-overflow: ellipsis; }
+.builder-conversations-list button[aria-pressed="true"] { border-color: #183b2c; background: #183b2c; color: #fff; }
+.builder-model-select { display: grid; gap: .25rem; }
+.builder-model-select label { color: #79867d; font-size: .64rem; }
+.builder-model-select select { width: 100%; margin: 0; padding: .4rem .5rem; border: 1px solid #aebfb3; border-radius: .45rem; background: #fff; color: #42584b; font-size: .74rem; }
 .conexus-panel form { gap: .55rem; margin-top: 0; }
 .builder-composer-label { color: #40584a; font-size: .75rem; font-weight: 700; }
 .builder-composer-box { overflow: hidden; border: 1px solid #aebfb3; border-radius: .65rem; background: #fff; }
@@ -190,7 +202,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .builder-composer-footer { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .45rem .55rem .5rem; border-top: 1px solid #edf1ee; }
 .builder-composer-footer > span { color: #79867d; font-size: .64rem; }
 .builder-send-button { padding: .5rem .7rem; font-size: .76rem; }
-.builder-no-model, .builder-form-message, .builder-form-hint, .builder-next-run-connection { margin: 0; color: #69786e; font-size: .72rem; line-height: 1.4; }
+.builder-no-model, .builder-form-message { margin: 0; color: #69786e; font-size: .72rem; line-height: 1.4; }
 .builder-no-model { color: #8b4c2f; }
 .builder-stop-button { width: 100%; border-color: #bb7062; color: #873d31; }
 .builder-form-message a { margin-left: .25rem; }

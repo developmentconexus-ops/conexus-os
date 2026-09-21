@@ -27,12 +27,12 @@ The foundation closed on 2026-09-19.
 - Multiple accounts. A second person can be invited, sign in through Keycloak and
   join a Workspace. The Hub reads `email_verified` from the validated ID token and
   accepts only the boolean `true`.
-- Model connections that are provider-neutral. A connection carries a provider id
-  and a credential kind. Both an account sign-in and a pasted API key are accepted
-  credential kinds. **This subsystem is on the way out.** [C-022](decisions/index.md)
-  moves model authentication, credentials, provider connection and selection to the
-  Factory, and section 15 of the qualification report names what is removed. It is
-  removed by the adoption work that wires the native path, not before.
+- Model connections that are provider-neutral. **This subsystem is switched off and
+  awaiting deletion.** [C-022](decisions/index.md) moved model authentication,
+  credentials, provider connection and selection to the Factory, the Builder was cut
+  over to Mastra Code's own credential store, and no run reads a Conexus model
+  connection any more. Its files, routes, screen, tables and role are still installed
+  with nothing calling them. Deleting them is the exact next action below.
 - Roles by capability. The Hub connects to PostgreSQL as roles named for what they
   may do. `docs/reference/hub-database-roles.md` is the register.
 - One database baseline. `apps/hub/migrations/0001_baseline.sql` is the whole
@@ -48,6 +48,14 @@ future features on this base, with their own plan, if they are ever wanted.
 Trunk is `analysis/internal-mvp-2026-09-12`, not `main`.
 
 ## In flight
+
+**Several conversations per Project**, the first cut of Factory-centered development in the
+product. [Its task](tasks/project-conversations-first-increment.md) owns the scope and
+[its evidence](evidence/project-conversations/README.md) owns what was run. The Builder's agent,
+its tools, its model credentials and its model selection are Mastra Code's now, mounted on the
+Hub's own Mastra; a Project's conversations are that session's own threads; and the Conexus model
+subsystem lost its last caller, with its removal following as its own change because it rewrites
+the pilot's role register and baseline.
 
 **The Sessions and Work qualification is closed**, and its pull request is what carries it.
 It authorized no migration and performed none. The evidence is in
@@ -161,16 +169,18 @@ magnitude rather than a benchmark. The shape is described in
 
 ## Exact next action
 
-**Adopt the Factory for a Project's development environment, starting with the smallest
-usable slice.** [C-022](decisions/index.md) owns the division of responsibility and
-[Several conversations per Project](tasks/project-conversations-first-increment.md) is the
-first increment: create, list, switch, resume after a restart, rename. No Work, no Goals, no
-per-person privacy faked, and no change to admission, Preview or publication.
+**Delete the Conexus model subsystem.** The native path replaced it in
+[Several conversations per Project](tasks/project-conversations-first-increment.md) and nothing
+calls it any more, so what remains is a deletion: `apps/hub/src/model-connection/`,
+`apps/hub/src/model-connection-account/`, `contracts/api/product/model-connection-paths.yaml` and
+its OpenAPI entries, `apps/web/src/features/model-connection/` and its settings tab, the
+`model_connection` schema, and the `hub_model_connection` role with its `connections` capability.
+Section 15 of [the qualification report](evidence/sessions-work-qualification/report.md#15-the-decision-that-followed-and-what-it-removes)
+is the inventory. It is its own change because it rewrites the pilot's role register, baseline and
+catalog snapshot, and each of those is verified against a live database rather than by reading.
 
-Two things travel with it and are not separate cleanups. The composition is the Factory's,
-so the increment wires the native path rather than a Conexus one. And the Conexus model
-subsystem named in section 15 of the report is removed as that path replaces it, never left
-running beside it.
+This is not about the enterprise Connections a Workspace will hold. Sankhya and every other
+business integration stay Conexus's, per [C-022](decisions/index.md).
 
 What the qualification did not settle is listed in
 [section 11 of the report](evidence/sessions-work-qualification/report.md#11-what-has-no-evidence-yet).

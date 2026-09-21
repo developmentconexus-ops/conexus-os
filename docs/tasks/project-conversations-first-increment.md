@@ -1,11 +1,10 @@
 # Several conversations per Project
 
-> **Status:** ready to start, not started. The integrated Factory test has run and the
-> composition is chosen: [C-022](../decisions/index.md) selects Factory-centered
-> development.
+> **Status:** in flight. The composition was cut over to Mastra Code's own mount, the Project's
+> conversations are that session's threads, and the Conexus model path left the Builder with it.
 > **Authority:** [the roadmap](../roadmap.md) owns whether this runs.
 > **Evidence it rests on:** [the Sessions and Work qualification](../evidence/sessions-work-qualification/report.md),
-> sections 8 to 10 and 12.
+> sections 8 to 10 and 12, and [this increment's own probes](../evidence/project-conversations/README.md).
 
 A person opens a Project and finds the conversations they have had about it, rather than one
 permanent chat. They start another, switch between them, and come back after a restart to
@@ -60,8 +59,40 @@ the Preview. None of those changes in this increment.
 
 A person opens two conversations in one Project, switches between them, restarts the Hub,
 and finds both with their messages. The derived-thread migration has run on the pilot. No
-Work exists in the product, and the Conexus model subsystem this increment replaces has left
-with it rather than survived beside it.
+Work exists in the product.
+
+The Conexus model subsystem lost its last caller here: the Builder no longer reads a model
+connection, a credential or an offer, and `apps/hub/src/model-connection/`,
+`apps/hub/src/model-connection-account/`, their routes, their contracts, their database tables and
+roles and the Connect settings screen are now dead weight with nothing pointing at them. Deleting
+them is the change that follows this one, on its own, because it rewrites the pilot's role register,
+baseline and catalog snapshot and those are verified against a live database rather than by reading.
+Until that lands the subsystem is switched off rather than removed, and nothing bridges it to the
+native path: there is no adapter, and there is no code path from a Conexus model connection to a
+run.
+
+## How it was built
+
+The Builder no longer assembles its own agent. `apps/hub/src/builder/module.ts` calls
+`prepareAgentControllerMount` from `@mastra/code-sdk`, which is the composition the Factory itself
+mounts, and constructs the Mastra around it so the Builder keeps its own observability. Conexus
+supplies what is its own and nothing else: the storage the conversations live in, the per-run E2B
+Workspace, the Builder's two modes and its host instructions, and the Account-to-Project
+authorization that decides which `resourceId` a request may act under, which is also what fills the
+caller identity the session refuses to start without.
+
+The conversations are Mastra's own session routes, allowlisted beside the ones the Builder already
+exposed at `/api/mastra`: list, create, rename and switch. No Conexus endpoint and no Conexus table
+stands beside them. A `BuilderRun` carries the `conversationId` it spoke in, which is the thread the
+run's session binds; migration `0008_builder_run_conversation.sql` adds it, backfills every existing
+run with the conversation those runs actually ran in, and drops the run's model admission with the
+functions that read it.
+
+The model is Mastra Code's credential store and Mastra's own selection. The Builder's model picker,
+its offers and `modelChoiceId` are gone. A session arrives holding no model, so the screen offers
+the controller's authenticated models and refuses to send until one is chosen, and a run that
+reaches the sandbox without one is refused as `BUILDER_MODEL_NOT_SELECTED`. What the operator pays
+for stays the operator's decision and is never guessed.
 
 ## What the qualification learned that this increment should carry
 

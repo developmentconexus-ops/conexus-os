@@ -124,7 +124,7 @@ const launchPreview = mar ? async (request: import('fastify').FastifyRequest, in
     throw error
   }
 } : undefined
-builder = config.builder && config.project && modelConnection ? createConfiguredBuilderModule({
+builder = config.builder && config.project ? createConfiguredBuilderModule({
   database: {
     host: config.database.host,
     port: config.database.port,
@@ -137,8 +137,6 @@ builder = config.builder && config.project && modelConnection ? createConfigured
     storageRoot: config.project.storageRoot,
     git: project?.sourceGit ?? createBuilderProjectGitCapability(config.project.storageRoot),
   },
-  listModelOffers: (input) => modelConnection.listModelOffers(input),
-  resolveModel: (reference: Readonly<{ connectionId: string; generation: string }>, modelId: string) => modelConnection.createModel(reference, modelId),
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
