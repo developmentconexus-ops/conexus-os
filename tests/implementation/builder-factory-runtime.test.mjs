@@ -31,7 +31,7 @@ const conversationId = '44444444-4444-4444-8444-444444444444'
 const privateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' })
 const listing = `100644 blob ${'d'.repeat(40)}      120\tapp/index.html\n`
 
-const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, pushExit = 0, reapExit = 0, onStart, onCommand } = {}) => {
+const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, reapExit = 0, onStart, onCommand } = {}) => {
   const github = await startFakeGithub()
   t.after(() => github.close())
   const repository = github.addRepository({ owner: 'acme-org', name: 'app', head })
@@ -89,7 +89,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
     github: createGithubApp({ appId: '5015512', privateKey, baseUrl: github.baseUrl }),
     installationFor: async () => 163574754,
     appendDiagnostic: async (input) => { diagnostics.push(input) },
-    materializeStarter: async () => { events.push('starter') },
+    materializeStarter: async () => { events.push('starter'); await starter?.() },
     log: (line) => { logs.push(line) },
   })
   const claimed = { builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'PREPARING', mode, baseSourceRevision: BASE, resultSourceRevision: null, resultKind: null, failureCode: null }
@@ -335,6 +335,18 @@ test('a VM that died while the conversation was idle is replaced before the run 
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'sandbox' || kind === 'fail' || kind === 'advance'), [
     ['sandbox', 'sbx-recreated'], ['advance', RESULT],
   ])
+})
+
+test('a starter inspection that fails writes its command evidence to the Hub log under the run', async (t) => {
+  const run = await harness(t, {
+    starter: async () => {
+      throw new Error('BUILDER_STARTER_ENTRY_INSPECTION_FAILED', { cause: { exitCode: 1, stdout: '', stderr: 'Error: sandbox not found' } })
+    },
+  })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_STARTER_ENTRY_INSPECTION_FAILED'])
+  assert.deepEqual(run.logs, [`BUILDER_FACTORY_RUN_FAILED:${runId}:BUILDER_STARTER_ENTRY_INSPECTION_FAILED {"exitCode":1,"stdout":"","stderr":"Error: sandbox not found"}`])
 })
 
 test('the Factory agent is told to run the application check, and not that the compiler runs elsewhere', () => {

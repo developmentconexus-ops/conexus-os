@@ -262,6 +262,10 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
         }
       }
       return Object.freeze({ ...scope, kind: 'SOURCE_ADMITTED' as const, resultSourceRevision: result, applicationBuild })
+    } catch (error) {
+      // The run records only its failure code; a failure that carries command evidence says why.
+      if (error instanceof Error && error.cause !== undefined) ports.log(`BUILDER_FACTORY_RUN_FAILED:${input.executionId}:${error.message} ${JSON.stringify(error.cause)}`)
+      throw error
     } finally {
       await closeSession().catch(() => undefined)
     }

@@ -165,6 +165,42 @@ test('writes only the application check files a checkout lacks, and never over a
   }
 })
 
+const scriptedWorkspace = (result, writes = []) => ({
+  directCommand: async () => ({ executionTimeMs: 0, ...result }),
+  writeFiles: async (files) => { writes.push(...files.map((file) => file.path)) },
+})
+
+test('a successful inspection that also wrote to stderr still decides the entry', async () => {
+  const writes = []
+  const result = await materializeFixedApplicationStarter({
+    repositoryRoot: '/workspace/app',
+    ...scriptedWorkspace({ success: true, exitCode: 0, stdout: 'ABSENT', stderr: 'sh: warning: setlocale: LC_ALL: cannot change locale\n' }, writes),
+  })
+  assert.equal(result, 'MATERIALIZED')
+  assert.deepEqual(writes, ['/workspace/app/app/index.html', '/workspace/app/app/src/main.tsx', '/workspace/app/app/src/style.css'])
+})
+
+test('a failed inspection keeps its exit code and a bounded, redacted stderr as the cause', async () => {
+  const stderr = `Error: sandbox ijevj4 not found; header AUTHORIZATION: basic eC1hY2Nlc3MtdG9rZW46Z2hzX3NlY3JldA== token ghs_abcdefSECRET ${'x'.repeat(900)}`
+  const error = await materializeFixedApplicationStarter({
+    repositoryRoot: '/workspace/app',
+    ...scriptedWorkspace({ success: false, exitCode: 1, stdout: '', stderr }),
+  }).then(() => null, (thrown) => thrown)
+  assert.equal(error?.message, 'BUILDER_STARTER_ENTRY_INSPECTION_FAILED')
+  assert.equal(error.cause.exitCode, 1)
+  assert.equal(error.cause.stdout, '')
+  assert.equal(error.cause.stderr, `Error: sandbox ijevj4 not found; header AUTHORIZATION: [redacted] token [redacted] ${'x'.repeat(317)}…`)
+})
+
+test('an inspection that exits 0 with an unknown answer fails and keeps what it printed', async () => {
+  const error = await materializeFixedApplicationStarter({
+    repositoryRoot: '/workspace/app',
+    ...scriptedWorkspace({ success: true, exitCode: 0, stdout: 'MAYBE\n', stderr: '' }),
+  }).then(() => null, (thrown) => thrown)
+  assert.equal(error?.message, 'BUILDER_STARTER_ENTRY_INSPECTION_FAILED')
+  assert.deepEqual(error.cause, { exitCode: 0, stdout: 'MAYBE\n', stderr: '' })
+})
+
 test('refuses an unsafe app symlink before writing starter files', async () => {
   const root = mkdtempSync(resolve(cacheRoot, 'starter-unsafe-'))
   const outside = mkdtempSync(resolve(cacheRoot, 'starter-outside-'))

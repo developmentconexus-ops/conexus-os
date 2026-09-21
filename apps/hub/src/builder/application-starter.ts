@@ -114,6 +114,18 @@ export const BUILDER_MODE_DEFINITIONS = Object.freeze([
   }),
 ] as const)
 
+const EVIDENCE_LIMIT = 400
+
+// A failed command's output is the only record of why it failed, so it is kept, but it can carry a
+// Git header or a token from whatever produced it, and it goes to a log.
+export const commandEvidence = (text: string): string => {
+  const redacted = text
+    .replace(/(authorization:\s*)(?:(?:basic|bearer|token)\s+)?\S+/gi, '$1[redacted]')
+    .replace(/x-access-token:[^@\s]+/gi, 'x-access-token:[redacted]')
+    .replace(/\bgh[pousr]_[A-Za-z0-9_]+/g, '[redacted]')
+  return redacted.length > EVIDENCE_LIMIT ? `${redacted.slice(0, EVIDENCE_LIMIT)}…` : redacted
+}
+
 const inspectEntry = async (
   directCommand: FixedApplicationStarterWorkspace['directCommand'],
   appPath: string,
@@ -124,12 +136,11 @@ const inspectEntry = async (
     'conexus-fixed-application-starter',
     appPath,
   ])
-  if (!result.success || result.stderr) {
-    throw new Error('BUILDER_STARTER_ENTRY_INSPECTION_FAILED')
-  }
   const state = result.stdout.trim()
-  if (state === 'ABSENT' || state === 'PRESENT' || state === 'UNSAFE') return state
-  throw new Error('BUILDER_STARTER_ENTRY_INSPECTION_FAILED')
+  if (result.exitCode === 0 && (state === 'ABSENT' || state === 'PRESENT' || state === 'UNSAFE')) return state
+  throw new Error('BUILDER_STARTER_ENTRY_INSPECTION_FAILED', {
+    cause: { exitCode: result.exitCode, stdout: commandEvidence(result.stdout), stderr: commandEvidence(result.stderr) },
+  })
 }
 
 export const materializeFixedApplicationStarter = async ({
