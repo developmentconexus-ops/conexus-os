@@ -22,6 +22,8 @@ export type FactoryRunSandbox = Readonly<{
   start(): Promise<void>
   executeCommand(command: string, args?: string[], options?: ExecuteCommandOptions): Promise<CommandResult>
   writeFiles(files: SandboxFileInput[]): Promise<void>
+  // Outside the agent's reach: E2B runs it as root through its own command API.
+  runAsRoot(script: string): Promise<CommandResult>
   buildApplication(appRoot: string, signal?: AbortSignal): Promise<CompiledApplication['files']>
 }>
 
@@ -83,7 +85,28 @@ export const factoryWorkdir = (repositorySlug: string): string => {
 export const factoryAgentInstructions = (workdir: string): string =>
   BUILDER_BASE_AGENT_INSTRUCTIONS.replaceAll('/workspace/repo', workdir)
 
-const tokenUrl = (token: string, slug: string): string => `https://x-access-token:${token}@github.com/${slug}.git`
+const repositoryUrl = (slug: string): string => `https://github.com/${slug}.git`
+
+// The token rides in the git process's environment as a one-command http header, never in argv,
+// a URL, a remote or a config file. Anything the agent left running could still read the process's
+// environ, which is why every token-bearing command is preceded by REAP_AGENT_PROCESSES.
+const tokenEnvironment = (token: string): Record<string, string> => ({
+  GIT_CONFIG_COUNT: '1',
+  GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
+  GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
+  GIT_TERMINAL_PROMPT: '0',
+})
+
+// The template runs the agent as root, so there is no separate agent user to kill by uid. The reap
+// kills every live process except PID 1, E2B's envd, and its own ancestry, which leaves nothing the
+// agent could have started. No agent turn is live at the pin, and the run's session is closed
+// before the push, so nothing respawns before the git command runs.
+export const REAP_AGENT_PROCESSES = [
+  'keep=" 1 $$ "; p=$$',
+  'while [ "$p" -gt 1 ] 2>/dev/null; do p=$(sed -E \'s/^.*\\) [A-Za-z] ([0-9]+) .*/\\1/\' "/proc/$p/stat" 2>/dev/null); keep="$keep$p "; done',
+  'for d in /proc/[0-9]*; do pid=${d#/proc/}; case "$keep" in *" $pid "*) continue;; esac; readlink "$d/exe" >/dev/null 2>&1 || continue; [ "$(cat "$d/comm" 2>/dev/null)" = envd ] && continue; kill -9 "$pid" 2>/dev/null; done',
+  'true',
+].join('\n')
 
 const BASE_MOVED = 'BUILDER_SOURCE_BASE_MOVED'
 
@@ -119,13 +142,21 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       await input.bindPhysicalSandbox(incarnation)
       // Every command stays on the one E2B incarnation the run recorded. A replaced VM has lost the
       // pinned checkout, so the run fails rather than acting on whatever the new one holds.
-      const direct = async (command: string, args: string[] = [], options: ExecuteCommandOptions = {}): Promise<CommandResult> => {
+      const onIncarnation = async (work: () => Promise<CommandResult>): Promise<CommandResult> => {
         if (sandbox.sandboxId !== incarnation) throw new Error('BUILDER_SANDBOX_INCARNATION_CHANGED')
-        const result = await sandbox.executeCommand(command, args, options)
+        const result = await work()
         if (sandbox.sandboxId !== incarnation) throw new Error('BUILDER_SANDBOX_INCARNATION_CHANGED')
         return result
       }
-      const sh = (script: string): Promise<CommandResult> => direct('sh', ['-c', script])
+      // Commands state their environment: empty unless the command carries a token.
+      const direct = (command: string, args: string[] = [], options: ExecuteCommandOptions = {}): Promise<CommandResult> =>
+        onIncarnation(() => sandbox.executeCommand(command, args, { ...options, env: options.env ?? {} }))
+      const sh = (script: string, env: Record<string, string> = {}): Promise<CommandResult> => direct('sh', ['-c', script], { env })
+      const withToken = async (token: string, script: string): Promise<CommandResult> => {
+        const reaped = await onIncarnation(() => sandbox.runAsRoot(REAP_AGENT_PROCESSES))
+        if (reaped.exitCode !== 0) throw new Error('BUILDER_SANDBOX_REAP_FAILED')
+        return sh(script, tokenEnvironment(token))
+      }
       const hub = { executeCommand: direct }
       await scrubCheckoutCredentials(hub, workdir, slug)
 
@@ -134,8 +165,8 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       // command and never becomes a remote.
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       const pinToken = await ports.github.repositoryToken(installation, binding.repositoryExternalId, 'write')
-      const pinned = await sh([
-        `${git} fetch --quiet --no-tags '${tokenUrl(pinToken, slug)}' '${base}'`,
+      const pinned = await withToken(pinToken, [
+        `${git} fetch --quiet --no-tags '${repositoryUrl(slug)}' '${base}'`,
         `${git} reset --quiet --hard`,
         `${git} clean -fdq`,
         `${git} checkout --quiet -B '${branch}' '${base}'`,
@@ -189,7 +220,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       // Force applies only to the conversation's own scratch branch, which the base pin rewinds.
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       const pushToken = await ports.github.repositoryToken(installation, binding.repositoryExternalId, 'write')
-      const pushed = await sh(`${git} push --quiet --force '${tokenUrl(pushToken, slug)}' '${result}:refs/heads/${branch}'`)
+      const pushed = await withToken(pushToken, `${git} push --quiet --force '${repositoryUrl(slug)}' '${result}:refs/heads/${branch}'`)
       if (pushed.exitCode !== 0) throw new Error('BUILDER_SOURCE_PUSH_FAILED')
       await scrubCheckoutCredentials(hub, workdir, slug)
 
@@ -285,6 +316,17 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, appendDiagnost
         executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) =>
           execute(command, args, { ...options, cwd: options.cwd ?? FACTORY_WORKING_DIRECTORY, timeout: options.timeout ?? 120_000 }),
         writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
+        runAsRoot: async (script: string): Promise<CommandResult> => {
+          const startedAt = Date.now()
+          try {
+            const ran = await sandbox.e2b.commands.run(script, { user: 'root', cwd: '/', envs: {}, timeoutMs: 30_000 })
+            return { success: true, exitCode: ran.exitCode, stdout: ran.stdout, stderr: ran.stderr, executionTimeMs: Date.now() - startedAt }
+          } catch (error) {
+            // The SDK throws for a nonzero exit; the caller only needs to know the reap did not finish.
+            const exitCode = typeof (error as { exitCode?: unknown }).exitCode === 'number' ? (error as { exitCode: number }).exitCode : 1
+            return { success: false, exitCode, stdout: '', stderr: '', executionTimeMs: Date.now() - startedAt }
+          }
+        },
         buildApplication: (appRoot: string, signal?: AbortSignal) => buildApplicationInSandbox(sandbox.e2b, { appRoot, ...(signal ? { signal } : {}) }),
       }),
       configure: async ({ mode, instructions }) => {

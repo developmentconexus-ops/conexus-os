@@ -229,8 +229,8 @@ test('the base is pinned by fetch, reset, clean and checkout, and HEAD is checke
   await run.service.close()
   const git = "git -C '/workspace/app'"
   const pinIndex = run.events.findIndex((event) => typeof event === 'string' && event.includes(' fetch '))
-  const pin = run.events[pinIndex].replace(/x-access-token:[^@]+@/, 'x-access-token:TOKEN@')
-  assert.equal(pin, `sh -c ${git} fetch --quiet --no-tags 'https://x-access-token:TOKEN@github.com/acme-org/app.git' '${BASE}' && ${git} reset --quiet --hard && ${git} clean -fdq && ${git} checkout --quiet -B 'conexus/${conversationId}' '${BASE}' && test "$(${git} rev-parse HEAD)" = '${BASE}'`)
+  const pin = run.events[pinIndex]
+  assert.equal(pin, `sh -c ${git} fetch --quiet --no-tags 'https://github.com/acme-org/app.git' '${BASE}' && ${git} reset --quiet --hard && ${git} clean -fdq && ${git} checkout --quiet -B 'conexus/${conversationId}' '${BASE}' && test "$(${git} rev-parse HEAD)" = '${BASE}'`)
   assert.ok(pinIndex < run.events.indexOf('turn'), 'the pin runs before the agent turn')
   assert.ok(run.events.indexOf('start') < pinIndex, 'the pin runs after the Factory start hook')
   const scrubs = run.commands().filter((line) => line.includes('remote set-url origin'))
@@ -267,6 +267,35 @@ test('Git tokens are scoped to the one repository, used inline, and never reach 
   assert.deepEqual(minted, [{ repositoryIds: [700001], permissions: { contents: 'write' } }])
   assert.equal(run.commands().some((line) => /remote add|credential\.helper [^-]|config --global/.test(line.replace('--unset-all credential.helper', ''))), false)
   assert.doesNotMatch(JSON.stringify([run.calls, run.logs, run.diagnostics]), /ghs_/)
+})
+
+test('a token never reaches argv, rides only in the git command environment, and a root reap precedes it', async (t) => {
+  const run = await harness(t, { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.github.state.tokens.map(({ token, permissions }) => [token, permissions]), [
+    ['ghs_fake_1', { contents: 'write' }], ['ghs_fake_2', { contents: 'read' }],
+  ])
+  for (const { argv } of run.invocations) {
+    for (const part of argv) {
+      assert.doesNotMatch(part, /x-access-token:|ghs_fake_/)
+    }
+  }
+  const header = {
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
+    GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from('x-access-token:ghs_fake_1').toString('base64')}`,
+    GIT_TERMINAL_PROMPT: '0',
+  }
+  const bearing = run.invocations.filter(({ env }) => env && Object.keys(env).length > 0)
+  assert.deepEqual(bearing.map(({ argv, env }) => [/ fetch /.test(argv.at(-1)) ? 'fetch' : / push /.test(argv.at(-1)) ? 'push' : argv.at(-1), env]), [
+    ['fetch', header], ['push', header],
+  ])
+  assert.ok(run.invocations.every(({ env }) => env !== undefined), 'every command states its environment')
+  for (const { argv } of bearing) {
+    const index = run.events.indexOf(argv.join(' '))
+    assert.match(String(run.events[index - 1]), /^root:.*kill -9/s, `a root reap runs immediately before: ${argv.at(-1)}`)
+  }
 })
 
 test('a stop that aborts the agent is logged with the run id and settles the run interrupted', async (t) => {
