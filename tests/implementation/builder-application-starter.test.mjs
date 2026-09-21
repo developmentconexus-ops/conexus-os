@@ -18,6 +18,9 @@ const compiled = spawnSync(process.execPath, [
 if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
 
 const {
+  APPLICATION_CHECK_FILES,
+  APPLICATION_CHECK_INSTRUCTION,
+  materializeApplicationCheck,
   BUILDER_BASE_AGENT_INSTRUCTIONS,
   BUILDER_MODE_DEFINITIONS,
   BUILDER_MODE_INSTRUCTIONS,
@@ -117,6 +120,46 @@ test('preserves every existing app entry, including a different source filename'
     assert.deepEqual(writes, [])
     for (const [path, content] of Object.entries(existing)) assert.equal(readFileSync(join(root, path), 'utf8'), content)
     assert.equal(readFileSync(join(root, 'app/src/entry.tsx'), 'utf8'), existing['app/src/entry.tsx'])
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('the application check is the compiler build command writing to /tmp/conexus-check-dist', () => {
+  assert.deepEqual(APPLICATION_CHECK_FILES.map((file) => file.path), ['conexus.json', 'conexus/check.sh', '.gitignore'])
+  const [manifest, check, ignore] = APPLICATION_CHECK_FILES.map((file) => file.content)
+  assert.deepEqual(JSON.parse(manifest), { shape: 'REACT_VITE_V1', check: 'sh conexus/check.sh' })
+  assert.equal(check, [
+    '#!/bin/sh',
+    '# Builds app/ the way Conexus builds it before a Preview. Run it from the repository root.',
+    'set -eu',
+    'root=$(cd "$(dirname "$0")/.." && pwd)',
+    'ln -sfn /opt/conexus/compiler/node_modules "$root/app/node_modules"',
+    'cd "$root/app"',
+    'CONEXUS_COMPILE_ROOT="$root/app" exec node /opt/conexus/compiler/node_modules/vite/bin/vite.js build --config /opt/conexus/compiler/vite.config.mjs --configLoader native --outDir /tmp/conexus-check-dist --emptyOutDir',
+    '',
+  ].join('\n'))
+  assert.equal(ignore, '/app/node_modules\n')
+  assert.equal(APPLICATION_CHECK_INSTRUCTION, 'Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.')
+})
+
+test('writes only the application check files a checkout lacks, and never over a symlink', async () => {
+  const root = mkdtempSync(resolve(cacheRoot, 'starter-check-'))
+  try {
+    mkdirSync(join(root, 'conexus'))
+    writeFileSync(join(root, 'conexus/check.sh'), 'echo edited by the agent\n')
+    const writes = []
+    await materializeApplicationCheck({ repositoryRoot: root, ...localWorkspace(root, writes) })
+    assert.deepEqual(writes, [join(root, 'conexus.json'), join(root, '.gitignore')])
+    assert.equal(readFileSync(join(root, 'conexus/check.sh'), 'utf8'), 'echo edited by the agent\n')
+
+    await materializeApplicationCheck({ repositoryRoot: root, ...localWorkspace(root, writes) })
+    assert.equal(writes.length, 2)
+
+    rmSync(join(root, '.gitignore'))
+    symlinkSync('/etc/hostname', join(root, '.gitignore'))
+    await assert.rejects(materializeApplicationCheck({ repositoryRoot: root, ...localWorkspace(root, writes) }), /BUILDER_STARTER_ENTRY_UNSAFE/)
+    assert.equal(writes.length, 2)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

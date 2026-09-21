@@ -2,7 +2,7 @@ import { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput } from '@mastra/core/workspace'
 import { buildApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { CompiledApplication } from './application-artifact-runtime.js'
-import { BUILDER_BASE_AGENT_INSTRUCTIONS, materializeFixedApplicationStarter } from './application-starter.js'
+import { APPLICATION_CHECK_INSTRUCTION, BUILDER_SHARED_AGENT_INSTRUCTIONS, materializeApplicationCheck, materializeFixedApplicationStarter } from './application-starter.js'
 import { ConexusFactoryE2BSandbox, FACTORY_WORKING_DIRECTORY, scrubCheckoutCredentials } from './factory.js'
 import type { FactoryComposition } from './factory.js'
 import type { GithubApp } from './factory-github.js'
@@ -81,8 +81,15 @@ export const factoryWorkdir = (repositorySlug: string): string => {
   return `${FACTORY_WORKING_DIRECTORY}/${name}`
 }
 
-export const factoryAgentInstructions = (workdir: string): string =>
-  BUILDER_BASE_AGENT_INSTRUCTIONS.replaceAll('/workspace/repo', workdir)
+export const factoryAgentInstructions = (workdir: string): string => [
+  ...BUILDER_SHARED_AGENT_INSTRUCTIONS.map((line) => line.replaceAll('/workspace/repo', workdir)),
+  APPLICATION_CHECK_INSTRUCTION,
+].join(' ')
+
+const materializeFactoryStarter: NonNullable<FactoryRunPorts['materializeStarter']> = async (input) => {
+  await materializeFixedApplicationStarter(input)
+  await materializeApplicationCheck(input)
+}
 
 const repositoryUrl = (slug: string): string => `https://github.com/${slug}.git`
 
@@ -169,7 +176,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       await scrubCheckoutCredentials(hub, workdir, slug)
 
       if (input.mode === 'BUILD') {
-        await (ports.materializeStarter ?? materializeFixedApplicationStarter)({
+        await (ports.materializeStarter ?? materializeFactoryStarter)({
           repositoryRoot: workdir,
           directCommand: (command, args) => direct(command, [...args]),
           writeFiles: (files) => sandbox.writeFiles(files),

@@ -18,7 +18,7 @@ const compiled = spawnSync(process.execPath, [
 if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
 const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
 const { createBuilderService } = await import(built('builder/service.js'))
-const { createFactoryCodingWorkerRuntime } = await import(built('builder/factory-runtime.js'))
+const { createFactoryCodingWorkerRuntime, factoryAgentInstructions } = await import(built('builder/factory-runtime.js'))
 const { createGithubApp } = await import(built('builder/factory-github.js'))
 
 const BASE = 'b'.repeat(40)
@@ -334,4 +334,11 @@ test('a VM that died while the conversation was idle is replaced before the run 
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'sandbox' || kind === 'fail' || kind === 'advance'), [
     ['sandbox', 'sbx-recreated'], ['advance', RESULT],
   ])
+})
+
+test('the Factory agent is told to run the application check, and not that the compiler runs elsewhere', () => {
+  const instructions = factoryAgentInstructions('/workspace/app')
+  assert.match(instructions, /^Work only in the exact Session Workspace at \/workspace\/app\./)
+  assert.ok(instructions.endsWith('Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.'))
+  assert.doesNotMatch(instructions, /compiler runs separately|\/workspace\/repo/)
 })

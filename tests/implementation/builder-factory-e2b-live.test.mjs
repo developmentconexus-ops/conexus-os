@@ -22,7 +22,7 @@ const loadHub = () => {
     '--noEmit', 'false', '--outDir', hubBuild,
   ], { encoding: 'utf8' })
   if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
-  return import(pathToFileURL(resolve(hubBuild, 'builder/factory.js')).href)
+  return (path) => import(pathToFileURL(resolve(hubBuild, path)).href)
 }
 
 const liveConfig = () => {
@@ -48,7 +48,7 @@ const countSleeps = async (sandbox) => {
 }
 
 test('on a real E2B VM the reap kills what the agent left running and every boot service survives', { skip, timeout: 5 * 60_000 }, async () => {
-  const { ConexusFactoryE2BSandbox } = await loadHub()
+  const { ConexusFactoryE2BSandbox } = await (await loadHub())('builder/factory.js')
   const { templateId, apiKey } = liveConfig()
   const options = { id: `conexus-live-reap-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {}, workingDirectory: '/workspace' }
   const first = new ConexusFactoryE2BSandbox(options)
@@ -86,7 +86,7 @@ test('on a real E2B VM the reap kills what the agent left running and every boot
 })
 
 test('a VM that E2B killed for idling is replaced by the next command, with a baseline of its own', { skip, timeout: 5 * 60_000 }, async () => {
-  const { ConexusFactoryE2BSandbox } = await loadHub()
+  const { ConexusFactoryE2BSandbox } = await (await loadHub())('builder/factory.js')
   const { templateId, apiKey } = liveConfig()
   const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-idle-${randomUUID()}`, template: templateId, apiKey, timeout: 15_000, lifecycle: { onTimeout: 'kill' }, env: {}, workingDirectory: '/workspace' })
   try {
@@ -98,6 +98,31 @@ test('a VM that E2B killed for idling is replaced by the next command, with a ba
     assert.notEqual(sandbox.sandboxId, dead)
     assert.equal(sandbox.processBaseline.sandboxId, sandbox.sandboxId)
     assert.equal((await sandbox.reapAgentProcesses()).exitCode, 0)
+  } finally {
+    await sandbox.destroy().catch(() => undefined)
+  }
+})
+
+test('the application check builds the starter in the real template, keeps its link out of Git, and fails on broken code', { skip, timeout: 5 * 60_000 }, async () => {
+  const hub = await loadHub()
+  const { ConexusFactoryE2BSandbox } = await hub('builder/factory.js')
+  const { APPLICATION_CHECK_FILES, FIXED_APPLICATION_STARTER_FILES } = await hub('builder/application-starter.js')
+  const { templateId, apiKey } = liveConfig()
+  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-check-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {}, workingDirectory: '/workspace' })
+  const root = '/workspace/check-probe'
+  const sh = (script) => sandbox.executeCommand('sh', ['-c', script], { env: {}, cwd: root })
+  try {
+    await sandbox.start()
+    await sandbox.writeFiles([...FIXED_APPLICATION_STARTER_FILES, ...APPLICATION_CHECK_FILES].map((file) => ({ path: `${root}/${file.path}`, content: file.content })))
+    const passed = await sh('git init -q && sh conexus/check.sh >/dev/null && test -f /tmp/conexus-check-dist/index.html && git check-ignore -q app/node_modules && git status --porcelain --untracked-files=all')
+    assert.equal(passed.exitCode, 0, passed.stderr)
+    assert.deepEqual(passed.stdout.trim().split('\n').sort(), [
+      '?? .gitignore', '?? app/index.html', '?? app/src/main.tsx', '?? app/src/style.css', '?? conexus.json', '?? conexus/check.sh',
+    ])
+
+    await sandbox.writeFiles([{ path: `${root}/app/src/main.tsx`, content: 'import { missing } from "./nowhere"\nmissing(\n' }])
+    const failed = await sh('sh conexus/check.sh')
+    assert.notEqual(failed.exitCode, 0, 'broken code fails the check')
   } finally {
     await sandbox.destroy().catch(() => undefined)
   }

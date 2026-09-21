@@ -5,7 +5,7 @@ import type { CommandResult, EntryInfo, Sandbox } from 'e2b'
 export const TEMPLATE_REF = '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189'
 export const RECIPE_SHA256 = '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf'
 const DIST_ROOT = '/workspace/dist'
-const BUILD_COMMAND = 'node /opt/conexus/compiler/node_modules/vite/bin/vite.js build --config /opt/conexus/compiler/vite.config.mjs --configLoader native'
+export const BUILD_COMMAND ='node /opt/conexus/compiler/node_modules/vite/bin/vite.js build --config /opt/conexus/compiler/vite.config.mjs --configLoader native'
 const MAX_FILES = 256
 const MAX_TOTAL_BYTES = 12 * 1024 * 1024
 const MAX_LIST_ENTRIES = MAX_FILES * 8
