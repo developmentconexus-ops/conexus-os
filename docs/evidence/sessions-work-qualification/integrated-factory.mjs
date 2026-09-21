@@ -171,21 +171,37 @@ if (negativeControl) {
 
 // Stage B. A turn through the Factory's own session, over the real checkout. The model is a
 // loopback stub, so the turn costs nothing and proves the tool path rather than model quality.
-const stub = spawn(process.execPath, [resolve(process.cwd(), 'local-provider-stub.mjs')], { stdio: ['ignore', 'pipe', 'pipe'] })
-const stubPort = await new Promise((resolveP, rejectP) => {
-  const timer = setTimeout(() => rejectP(new Error('the local stub never reported a port')), 15000)
-  stub.stdout.on('data', (chunk) => {
-    const match = /port=(\d+)/.exec(String(chunk))
-    if (match) { clearTimeout(timer); resolveP(Number(match[1])) }
-  })
-}).catch((error) => { claim('stage B', 'the local stub provider is listening', false, error.message); return null })
-if (stubPort === null) { stub.kill(); finish() }
-setCustomProvidersSource(() => [{ name: 'Local Stub', url: `http://127.0.0.1:${stubPort}/v1`, apiKey: 'probe', models: ['stub-model-1'] }])
+// A real model is used when CONEXUS_REAL_MODEL names one and its provider key is in the
+// environment. Otherwise the loopback stub answers, and the run stays free. Which one ran is
+// reported, because a claim about a real model is worth nothing if a stub answered it.
+const realModel = env('CONEXUS_REAL_MODEL')
+const realKeyPresent = Boolean(process.env.ANTHROPIC_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim())
+let stub = null
+let modelId = realModel
+if (realModel && !realKeyPresent) {
+  claim('stage B', 'a real model was asked for and its provider key is present', false,
+    'set ANTHROPIC_API_KEY or OPENAI_API_KEY, or unset CONEXUS_REAL_MODEL to use the stub')
+  await factory.shutdown()
+  finish()
+}
+if (!realModel) {
+  stub = spawn(process.execPath, [resolve(process.cwd(), 'local-provider-stub.mjs')], { stdio: ['ignore', 'pipe', 'pipe'] })
+  const stubPort = await new Promise((resolveP, rejectP) => {
+    const timer = setTimeout(() => rejectP(new Error('the local stub never reported a port')), 15000)
+    stub.stdout.on('data', (chunk) => {
+      const match = /port=(\d+)/.exec(String(chunk))
+      if (match) { clearTimeout(timer); resolveP(Number(match[1])) }
+    })
+  }).catch((error) => { claim('stage B', 'the local stub provider is listening', false, error.message); return null })
+  if (stubPort === null) { stub.kill(); finish() }
+  setCustomProvidersSource(() => [{ name: 'Local Stub', url: `http://127.0.0.1:${stubPort}/v1`, apiKey: 'probe', models: ['stub-model-1'] }])
+  modelId = 'local-stub/stub-model-1'
+}
 const modeId = session.value.mode?.get?.()?.id ?? session.value.mode?.getId?.() ?? 'build'
-await session.value.model.saveForMode?.({ modeId, modelId: 'local-stub/stub-model-1' })
-session.value.model.set({ modelId: 'local-stub/stub-model-1' })
-claim('stage B', 'the session runs on a local provider, so no paid call is possible', true,
-  `model ${session.value.model.get?.() ?? 'local-stub/stub-model-1'}`)
+await session.value.model.saveForMode?.({ modeId, modelId })
+session.value.model.set({ modelId })
+claim('stage B', realModel ? 'the session runs on a real model, which costs money' : 'the session runs on a local provider, so no paid call is possible',
+  true, `model ${modelId}`)
 
 const before = await run('cat app/counter.js')
 const seen = []
@@ -242,7 +258,7 @@ const started = await attempt(() => coordinator.prepare({
 claim('stage C', 'the Factory coordinator starts Work on the same project',
   started.ok, started.detail ?? `work item ${started.value?.workItemId}, binding ${started.value?.bindingId}, kickoff ${started.value?.kickoffStatus}`)
 
-if (!started.ok) { stub.kill(); await factory.shutdown(); finish(`scratch at ${scratch}`) }
+if (!started.ok) { stub?.kill(); await factory.shutdown(); finish(`scratch at ${scratch}`) }
 
 const item = await work.get({ orgId, id: started.value.workItemId })
 claim('stage C', 'the work item carries the session the coordinator bound to it',
@@ -306,7 +322,7 @@ if (pr.ok) {
     'the pull request is left open for the operator')
 }
 
-stub.kill()
+stub?.kill()
 await factory.shutdown()
 if (negativeControl) {
   claim('negative control', 'the session left the checkout unchanged', before === after, 'this claim is false on purpose')
