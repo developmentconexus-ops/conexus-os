@@ -1,5 +1,7 @@
 import type { AgentController, AgentControllerEvent } from '@mastra/core/agent-controller'
 import type { MastraCodeState } from '@mastra/code-sdk/schema'
+import { SandboxFilesystem } from '@mastra/code-sdk/agents/sandbox-filesystem'
+import { TOOL_NAME_OVERRIDES } from '@mastra/code-sdk/tool-names'
 import { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspace'
 import { Workspace } from '@mastra/core/workspace'
@@ -90,6 +92,7 @@ export const createBuilderUserMessage = (intent: string): Readonly<{ content: st
 type AgentEndReason = Extract<AgentControllerEvent, { type: 'agent_end' }>['reason']
 type SendableAgentEndReason = Exclude<AgentEndReason, 'error'>
 
+export const BUILDER_REPOSITORY_ROOT = '/workspace/repo'
 export const BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY = 'conexus.builder.workspace'
 export const BUILDER_TRACE_REQUEST_CONTEXT_KEYS = Object.freeze([
   'conexusBuilderProjectId',
@@ -118,6 +121,18 @@ export const createBuilderRequestContext = ({
   requestContext.set('user', { id: accountId, organizationId: projectId })
   return requestContext
 }
+
+// Mastra Code's file tools act on a workspace filesystem and are exposed under its own names, which
+// the Builder's modes allow. A sandbox alone gave the agent no file tools, and the core names an
+// unmapped workspace offers matched nothing in those allowlists.
+export const createBuilderWorkspace = ({ sandbox, executeCommand }: Readonly<{
+  sandbox: E2BSandbox
+  executeCommand(command: string, args?: string[], options?: ExecuteCommandOptions): Promise<CommandResult>
+}>): Workspace => new Workspace({
+  sandbox,
+  filesystem: new SandboxFilesystem({ sandbox: { id: sandbox.id, executeCommand }, workdir: BUILDER_REPOSITORY_ROOT }),
+  tools: TOOL_NAME_OVERRIDES,
+})
 
 /** Resolve the per-run Workspace through Mastra's native dynamic workspace hook. */
 export const resolveBuilderWorkspace = ({ requestContext }: { requestContext: RequestContext }): Workspace | undefined => {
@@ -316,7 +331,7 @@ export const createMastraE2BCodingWorkerRuntime = (
           })
         }
 
-        const workspace = new Workspace({ sandbox })
+        const workspace = createBuilderWorkspace({ sandbox, executeCommand: direct })
         const prompt = createBuilderUserMessage(input.intent)
         let summaryText = ''
         let abortListener: (() => void) | undefined
