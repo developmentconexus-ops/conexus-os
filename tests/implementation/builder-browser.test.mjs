@@ -652,11 +652,42 @@ test('the Preview names the grant and the navigation, and never claims the appli
   await page.getByText('Acesso autorizado. Abrindo o aplicativo…', { exact: true }).waitFor()
   assert.equal(await page.getByText('Aplicativo aberto abaixo. Se a área ficar vazia, ele não desenhou nada.', { exact: true }).count(), 0,
     'about:blank fires its own load, which must not count as the application navigating')
+  assert.equal(await page.getByText(SOURCE_AHEAD_OF_PREVIEW, { exact: true }).count(), 0, 'a Preview built from the current source is not behind it')
 
   releaseEntry()
   await page.getByText('Aplicativo aberto abaixo. Se a área ficar vazia, ele não desenhou nada.', { exact: true }).waitFor()
   const text = await page.locator('.build-preview-surface').innerText()
   assert.equal(/carregad|funcionando|pronto para uso/i.test(text), false, `the Preview claimed more than it observed: ${text}`)
+})
+
+const SOURCE_AHEAD_OF_PREVIEW = 'A fonte atual do Project está à frente deste Preview. Ele mostra a última versão que compilou e muda quando uma execução compilar a fonte atual.'
+
+test('the Build screen says when the current source is ahead of the last good Preview', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000061'
+  const projectId = '70000000-0000-4000-8000-000000000062'
+  const artifactRevisionId = '70000000-0000-4000-8000-000000000063'
+  const origin = 'http://127.0.0.1:41762'
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41762, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilderController(page, projectId, controllerState([conversation('conversation-source-ahead', 'Conversa')]))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Source ahead', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, latestBuilderRun: null, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: 'e'.repeat(40), lastGoodSourceRevision: 'd'.repeat(40), lastGoodArtifactRevisionId: artifactRevisionId, lastGoodArtifactDigest: 'd'.repeat(64) },
+    mode: 'BUILD', sourceHost: 'FACTORY', runHistory: [],
+  }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }))
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByText(SOURCE_AHEAD_OF_PREVIEW, { exact: true }).waitFor()
 })
 
 test('Preview ignores an older launch completion after the artifact key changes', async (t) => {
