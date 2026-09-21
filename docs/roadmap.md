@@ -178,8 +178,8 @@ states the gate and what a person does once.
 
 The first increment it prepares is
 [Several conversations per Project](tasks/project-conversations-first-increment.md), with no
-Work and no Goals. It awaits a decision rather than a start, and nothing before it is
-blocking.
+Work and no Goals. It does not start on feasibility: it waits on the integrated test and on
+the composition being chosen.
 
 ## Later layers
 

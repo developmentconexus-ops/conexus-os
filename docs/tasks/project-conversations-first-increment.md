@@ -1,6 +1,8 @@
 # Several conversations per Project
 
-> **Status:** proposed, awaiting a decision. Not started.
+> **Status:** proposed, and waiting on two things that are not in it. Not started.
+> The integrated Factory test has not run, and the composition has not been chosen. Being
+> technically deliverable today on a native composition does not settle either.
 > **Authority:** [the roadmap](../roadmap.md) owns whether this runs.
 > **Evidence it rests on:** [the Sessions and Work qualification](../evidence/sessions-work-qualification/report.md),
 > sections 8 to 10 and 12.
@@ -31,18 +33,17 @@ Per-person privacy inside a Project, which the framework does not provide and wh
 increment does not fake. Source admission, artifact health and publication, which keep the
 gates they have today.
 
-## The composition it uses
+## The composition it uses, once that is decided
 
-One controller over the product's own storage, with the Project's source reached through
-the workspace resolver the Builder already has
-([`resolveBuilderWorkspace`](../../apps/hub/src/builder/runtime.ts)). Conversations are
-Mastra threads through `SessionThread`; the product adds no conversation store of its own.
-Authorization stays where it already is: Conexus decides which `resourceId` a request may
-act under, and a tool still stops for approval before it touches source.
+Not settled here. The qualification has run this user result end to end on a native
+composition, one controller over the product's own storage with the Project's source reached
+through a workspace resolver, and the Factory's own coding mount accepts a host workspace
+too. Which one this increment is built on follows the qualification's recommendation, and
+that recommendation waits on the integrated Factory test.
 
-This is the composition the qualification ran end to end. It is not a decision to stay away
-from the Factory: its coding session is a `@mastra/code-sdk` mount that accepts a host
-workspace, so adopting that mount later changes the mount, not the design.
+What holds either way: conversations are Mastra threads and the product adds no conversation
+store of its own; Conexus decides which `resourceId` a request may act under; and a tool
+stops for approval before it touches source.
 
 ## What must stay true
 

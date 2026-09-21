@@ -1,10 +1,10 @@
 // Walks the real Factory composition, with the real GithubIntegration class, as far as it
 // goes without a GitHub App, and records exactly where it stops. It builds nothing fake:
-// the class under test is the published one, and the credentials are placeholders, which is
-// precisely why every step past construction has to refuse.
+// the class under test is the published one, and the credentials are placeholders.
 //
-// Its purpose is to pin the external gate to a line rather than to a belief. A run that got
-// further than the gate would mean the gate is not where this report says it is.
+// What it does NOT do is test GitHub. Nothing here authenticates against github.com and no
+// request leaves the machine. The requirement for a GitHub App is established by reading the
+// package and by the configuration refusals below, not by this probe reaching GitHub.
 //
 // Throwaway and isolated. Scratch LibSQL file, no network, no credentials, no paid call.
 // Usage: node factory-github-gate.mjs [--negative-control]
@@ -64,16 +64,19 @@ claim('composition', 'the whole Factory boots with the real GitHub integration r
   Object.keys(args.agentControllers ?? {}).length === 1 && (args.server?.apiRoutes?.length ?? 0) > 0,
   `${Object.keys(args.agentControllers ?? {}).join(', ')}, ${args.server?.apiRoutes?.length ?? 0} routes`)
 
-const gate = await refusal(() => github.versionControl.getRepositoryAccess({
+// This is a local lookup against the Factory's own source-control storage, which holds no
+// rows here. It shows where the run path asks for a repository, and it proves nothing about
+// GitHub or about authentication: no request leaves the machine.
+const lookup = await refusal(() => github.versionControl.getRepositoryAccess({
   orgId: 'org-probe', repositoryId: 'repository-that-was-never-registered',
 }))
-claim('the gate', 'resolving repository access stops without a real App installation',
-  gate.refused, gate.detail)
+claim('local lookup', 'the run path asks its own storage for the repository, and finds none registered',
+  lookup.refused && /not found/i.test(lookup.detail), lookup.detail)
 
 await factory.shutdown()
 
 if (negativeControl) {
-  claim('negative control', 'repository access resolved without an installation', !gate.refused,
+  claim('negative control', 'the storage lookup found a repository nobody registered', !lookup.refused,
     'this claim is false on purpose')
 }
 

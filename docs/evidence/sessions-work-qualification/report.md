@@ -398,10 +398,27 @@ Work to run under the Factory.
   amount of Conexus code changes that, short of impersonating GitHub, which this
   qualification refuses to do.
 - **Put Project source on a real forge.** Work, boards, review and the dispatcher become
-  available as they are. That means an external service holding the Project's source, real
-  repositories and installations, and a publication boundary that now runs through someone
-  else's merge button. It is a custody and infrastructure decision with a cost, and it is
-  not executed here.
+  available as they are. That means an external service storing and versioning the Project's
+  source, real repositories and installations to keep working, and a review surface that
+  lives there. It is a custody and infrastructure decision with a cost, and it is not
+  executed here.
+
+An earlier version of this section said that choosing a forge moves publication to someone
+else's merge button. That was wrong, and it collapsed four different things that stay
+distinct whoever stores the bytes.
+
+- **Storage and versioning** is where the source and its history physically live. A forge
+  does that well and decides nothing about the product.
+- **A review a Project accepts** is Conexus admitting an exact revision as the Project's
+  source. A forge's merge can be the act that produces the revision, but the Project's
+  acceptance of it is ours, and no merge grants it.
+- **Preview** is whether the artifact built from a revision boots and serves. It is a health
+  question, separate from admission, and it fails without touching either.
+- **Publish** is making an application available to its audience. It is explicit, separately
+  authorized, and nothing about storing source elsewhere delegates it.
+
+So the forge option changes where source lives and where review is conducted. It does not
+move admission, Preview or Publish, and the comparison must not be argued as if it did.
 
 Nothing in this qualification requires that decision to be made before the first increment,
 because the first increment needs neither Work nor a forge.
@@ -424,8 +441,13 @@ identity and what is deliberately absent are recorded in
 refuses partial credentials with `missing required config field(s)`, it refuses to register
 that integration without a stable state secret, and with both supplied it mounts its
 controller, publishes 87 routes (eight more than without GitHub), starts its reconcile
-worker, and shuts down cleanly. The first thing that needs GitHub itself then refuses, which
-is where the test stops.
+worker, and shuts down cleanly.
+
+The probe then asks the run path for a repository and is told `Version-control repository
+not found`. That is a **local refusal from the Factory's own source-control storage**, which
+holds no rows in a scratch database. It is not a GitHub authentication result, and nothing in
+that probe reaches github.com. The requirement for a GitHub App rests on the two
+configuration refusals above and on reading the package, which is where it should rest.
 
 ### The gate, stated exactly
 
@@ -448,13 +470,14 @@ project-repository and session rows.
 
 ### What a person does once, and what happens next
 
-Create a GitHub App owned by `developmentconexus-ops`, generate its private key and client
-secret, and install it on the single repository `conexus-factory-integration-probe` with
-"Only select repositories". Permissions: repository contents read and write, pull requests
-read and write, metadata read, which is what the run path calls. Issues read and write plus
-the six webhook events are only for intake, which this test does not need, and no
-organization-wide or administration permission is involved. The callback URL matters only
-for the browser connect flow; `http://localhost:4111/auth/github/callback` is the default.
+Create a private GitHub App under `developmentconexus-ops`, which is a personal account and
+not an organization, generate its private key and client secret, and install it on the
+single repository `conexus-factory-integration-probe` with "Only select repositories".
+Permissions: repository contents read and write, pull requests read and write, metadata
+read, which is what the run path calls. Issues read and write plus the six webhook events
+are only for intake, which this test does not need, and nothing needs access beyond that one
+repository or any administration permission. The callback URL matters only for the browser
+connect flow; `http://localhost:4111/auth/github/callback` is the default.
 
 With those five values in the environment, the rest of the integrated test runs unattended:
 the Factory project, the connection and repository rows, an interactive session over the
@@ -529,17 +552,16 @@ Project, the Project's current source, and the last good Preview, each unchanged
 switching conversations. Isolation between Projects stays refused by `resourceId`, with
 Conexus still deciding which `resourceId` a request may act under.
 
-**Its shape follows sections 8 to 10.** The conversation authority is one controller over
-the product's own storage, with the Project's source reached through a workspace resolver,
-which is the composition the interactive probe ran end to end. The Factory is not installed,
-and the increment adds no Conexus-owned conversation store: today's one derived conversation
-per Project, [`threadIdForProject()`](../../../apps/hub/src/builder/module.ts), is migrated
-into real conversations, which is a migration and not a second authority.
+**It waits on two things, and neither is technical.** The integrated Factory test in
+section 13 has not run, and no composition has been chosen. That a native composition can
+already deliver this increment is a fact about feasibility, not a decision, and shipping it
+on that basis would choose the composition by default rather than on evidence.
 
-This is deliberately not a decision to stay outside the Factory forever. The Factory's own
-coding session is a `@mastra/code-sdk` mount, and the same mount takes a host workspace, so
-adopting it later is a change of mount rather than a change of design. What blocks it today
-is named in section 9 and is small.
+So this section describes what the increment is, not what it will be built on. Whichever
+composition wins, the increment is the same user result, and the parts that differ are named
+where they differ: today's one derived conversation per Project,
+[`threadIdForProject()`](../../../apps/hub/src/builder/module.ts), is migrated into real
+conversations in either case, which is a migration and not a second authority.
 
 **Done means.** A person opens two conversations in one Project, switches between them,
 restarts the Hub, and finds both with their messages. No Work exists in the product.
