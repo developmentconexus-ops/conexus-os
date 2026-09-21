@@ -1,4 +1,5 @@
 import { isAbsolute, join } from 'node:path'
+import { MC_TOOLS } from '@mastra/code-sdk/tool-names'
 import type { CommandResult, SandboxFileInput } from '@mastra/core/workspace'
 
 export type FixedApplicationStarterResult = 'MATERIALIZED' | 'PRESERVED'
@@ -77,11 +78,11 @@ export const BUILDER_MODE_INSTRUCTIONS = Object.freeze({
 export const BUILDER_MODE_DEFINITIONS = Object.freeze([
   Object.freeze({
     id: 'build', name: 'Build', instructions: BUILDER_MODE_INSTRUCTIONS.BUILD,
-    availableTools: Object.freeze(['mastra_workspace_read_file', 'mastra_workspace_write_file', 'mastra_workspace_edit_file', 'mastra_workspace_list_files', 'mastra_workspace_delete', 'mastra_workspace_file_stat', 'mastra_workspace_grep', 'mastra_workspace_execute_command']),
+    availableTools: Object.freeze([MC_TOOLS.VIEW, MC_TOOLS.WRITE_FILE, MC_TOOLS.STRING_REPLACE_LSP, MC_TOOLS.FIND_FILES, MC_TOOLS.DELETE_FILE, MC_TOOLS.FILE_STAT, MC_TOOLS.MKDIR, MC_TOOLS.SEARCH_CONTENT, MC_TOOLS.EXECUTE_COMMAND]),
   }),
   Object.freeze({
     id: 'plan', name: 'Plan', instructions: BUILDER_MODE_INSTRUCTIONS.PLAN,
-    availableTools: Object.freeze(['mastra_workspace_read_file', 'mastra_workspace_list_files', 'mastra_workspace_file_stat', 'mastra_workspace_grep']),
+    availableTools: Object.freeze([MC_TOOLS.VIEW, MC_TOOLS.FIND_FILES, MC_TOOLS.FILE_STAT, MC_TOOLS.SEARCH_CONTENT]),
   }),
 ] as const)
 

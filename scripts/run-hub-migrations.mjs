@@ -17,6 +17,7 @@ const listConnectionsSharedDigest = '0d62c72585ce8d2987d4cb5a2cec04ec0cea1284f36
 const builderRunRequestTextDigest = '4dded47eda6987575baea9cdc6f3565990cb3b637b779cb4bd7d428d0e9d9386'
 const mergedSandboxTemplateDigest = '4a3f1e7dbc2b8c8e6d2df71fd506f19991ee72cec67133446c530501f16fd595'
 const bootSmokeTemplateDigest = '4e29eb4b9372180428d9e02c3f85b3ab08fa4b1faa6959b1b2125930297350c4'
+const builderRunConversationDigest = '071d758f040764d99122e7ff013b0075fe0e497adc423176871887705fa0c2c8'
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
   ['0002_prune_dead_iam_actions.sql', pruneDeadIamActionsDigest],
@@ -25,6 +26,7 @@ const migrationDigests = new Map([
   ['0005_builder_run_request_text.sql', builderRunRequestTextDigest],
   ['0006_merged_sandbox_template.sql', mergedSandboxTemplateDigest],
   ['0007_boot_smoke_template.sql', bootSmokeTemplateDigest],
+  ['0008_builder_run_conversation.sql', builderRunConversationDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

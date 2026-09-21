@@ -39,6 +39,9 @@ test('current createCodingAgent exposes real workspace mechanics without a provi
     const tools = await agent.getToolsForExecution({})
     const names = Object.keys(tools).sort()
     assert.deepEqual(names, [
+      // Present since @mastra/code-sdk brought @ast-grep/napi into the tree: the core workspace
+      // offers this tool only when that engine can be loaded.
+      'mastra_workspace_ast_edit',
       'mastra_workspace_delete',
       'mastra_workspace_edit_file',
       'mastra_workspace_execute_command',

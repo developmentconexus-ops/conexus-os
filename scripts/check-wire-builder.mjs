@@ -48,12 +48,18 @@ const closed = (value, label) => {
 }
 
 const session = closed(schema('BLD-23', 'response'), 'BLD-23 response')
-required(session, 'projectId', 'threadId', 'latestBuilderRun', 'latestCodeChangingRun', 'preview', 'modelChoices', 'runHistory')
+required(session, 'projectId', 'latestBuilderRun', 'latestCodeChangingRun', 'preview', 'runHistory')
 if (session.properties?.activeBuilderRun) throw new Error('BLD-23 exposes activeBuilderRun')
+// A Project's conversations and the model are Mastra's. Projecting either one here would put a
+// second authority beside the one C-022 chose.
+for (const name of ['threadId', 'modelChoices']) {
+  if (session.properties?.[name]) throw new Error(`BLD-23 exposes ${name}`)
+}
 const preview = closed(resolve(session.properties?.preview), 'BLD-23 preview')
 required(preview, 'workingSourceRevision', 'lastGoodSourceRevision', 'lastGoodArtifactRevisionId', 'lastGoodArtifactDigest')
 const message = closed(schema('BLD-24', 'request'), 'BLD-24 request')
-required(message, 'content', 'mode')
+required(message, 'content', 'mode', 'conversationId')
+if (message.properties?.modelChoiceId) throw new Error('BLD-24 exposes modelChoiceId')
 const cancel = closed(schema('BLD-25', 'request'), 'BLD-25 request')
 if (Object.keys(cancel.properties ?? {}).length !== 0 || (cancel.required ?? []).length !== 0) throw new Error('BLD-25 request must be empty')
 for (const path of Object.keys(oas.paths ?? {})) {

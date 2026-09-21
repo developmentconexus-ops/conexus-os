@@ -1,4 +1,5 @@
 import type { AgentController, AgentControllerEvent } from '@mastra/core/agent-controller'
+import type { MastraCodeState } from '@mastra/code-sdk/schema'
 import { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspace'
 import { Workspace } from '@mastra/core/workspace'
@@ -11,6 +12,8 @@ import type { BuilderRunningPhase } from './store.js'
 
 type CodingWorkerCommonInput = Readonly<{
   projectId: string
+  accountId: string
+  conversationId: string
   intent: string
   mode?: 'BUILD' | 'PLAN'
   baseSourceRevision: string
@@ -19,8 +22,6 @@ type CodingWorkerCommonInput = Readonly<{
   sourceBundle: Promise<Uint8Array>
   bindPhysicalSandbox(sandboxId: string): Promise<void>
   bindMessage?(messageId: string): Promise<void>
-  credentialReference?: Readonly<{ connectionId: string; generation: string }>
-  modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
   setPhase?(phase: BuilderRunningPhase): Promise<void>
   signal?: AbortSignal
 }>
@@ -55,7 +56,9 @@ type CodingWorkerResultVariant<TScope> = TScope & (
 
 export type CodingWorkerResult = CodingWorkerResultVariant<CodingWorkerResultScope>
 
-type BuilderSession = Awaited<ReturnType<AgentController<Record<string, unknown>>['createSession']>>
+/** The Builder's controller is Mastra Code's, so it carries Mastra Code's own session state. */
+export type BuilderAgentController = AgentController<MastraCodeState>
+type BuilderSession = Awaited<ReturnType<BuilderAgentController['createSession']>>
 
 export type CodingWorkerRuntime = Readonly<{
   kind: 'REMOTE_E2B'
@@ -66,8 +69,7 @@ export type E2BBuilderRuntimeConfig = Readonly<{
   apiKey: string
   templateId: string
   sharedHarness: Readonly<{
-    controller: AgentController<Record<string, unknown>>
-    ready: Promise<void>
+    ready: Promise<Readonly<{ controller: BuilderAgentController }>>
     flushObservability(): Promise<void>
   }>
   timeoutMs?: number
@@ -89,8 +91,6 @@ type AgentEndReason = Extract<AgentControllerEvent, { type: 'agent_end' }>['reas
 type SendableAgentEndReason = Exclude<AgentEndReason, 'error'>
 
 export const BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY = 'conexus.builder.workspace'
-export const BUILDER_CREDENTIAL_REQUEST_CONTEXT_KEY = 'conexus.builder.credential'
-export const BUILDER_MODEL_REQUEST_CONTEXT_KEY = 'conexus.builder.model'
 export const BUILDER_TRACE_REQUEST_CONTEXT_KEYS = Object.freeze([
   'conexusBuilderProjectId',
   'conexusBuilderRunId',
@@ -101,22 +101,21 @@ export type BuilderRequestContext = RequestContext
 export const createBuilderRequestContext = ({
   workspace,
   projectId,
+  accountId,
   runId,
-  credentialReference,
-  modelIdentity,
 }: Readonly<{
   workspace: Workspace
   projectId: string
+  accountId: string
   runId: string
-  credentialReference?: Readonly<{ connectionId: string; generation: string }>
-  modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>
 }>): BuilderRequestContext => {
   const requestContext = new RequestContext()
   requestContext.setRaw(BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY, workspace)
   requestContext.setRaw('conexusBuilderProjectId', projectId)
   requestContext.setRaw('conexusBuilderRunId', runId)
-  if (credentialReference) requestContext.setRaw(BUILDER_CREDENTIAL_REQUEST_CONTEXT_KEY, credentialReference)
-  requestContext.setRaw(BUILDER_MODEL_REQUEST_CONTEXT_KEY, modelIdentity)
+  // Mastra Code scopes a session to the caller the host supplies and refuses one without it. The
+  // Account that Conexus already admitted for this Project is what fills that slot.
+  requestContext.set('user', { id: accountId, organizationId: projectId })
   return requestContext
 }
 
@@ -318,37 +317,38 @@ export const createMastraE2BCodingWorkerRuntime = (
         }
 
         const workspace = new Workspace({ sandbox })
-        const controller = sharedHarness.controller
-        const controllerReady = sharedHarness.ready
         const prompt = createBuilderUserMessage(input.intent)
         let summaryText = ''
         let abortListener: (() => void) | undefined
-        let activeSession: Awaited<ReturnType<AgentController<Record<string, unknown>>['createSession']>> | undefined
+        let activeSession: Awaited<ReturnType<BuilderAgentController['createSession']>> | undefined
         let submittedUserMessageId: string | undefined
         let detachMessageCapture: (() => void) | undefined
         let runError: unknown
         let cleanupError: unknown
         const runScope = `builder:${executionId}`
+        let controller: BuilderAgentController | undefined
         try {
-          await controllerReady
+          controller = (await sharedHarness.ready).controller
           const requestContext = createBuilderRequestContext({
             workspace,
             projectId: input.projectId,
+            accountId: input.accountId,
             runId: executionId,
-            ...(input.credentialReference ? { credentialReference: input.credentialReference } : {}),
-            modelIdentity: input.modelIdentity,
           })
           await input.setPhase?.('AGENT')
           const session = await controller.createSession({
             resourceId: input.projectId,
             ownerId: input.projectId,
             scope: runScope,
-            threadId: `conexus-builder:${input.projectId}`,
+            threadId: input.conversationId,
             workspace,
             requestContext,
           })
           activeSession = session
           if (input.mode) await session.mode.switch({ modeId: input.mode.toLowerCase() })
+          // Which model runs, and who pays for it, is the operator's choice through Mastra's own
+          // selection. A Project that has never been given one is refused here rather than guessed at.
+          if (!session.model.hasSelection()) throw new Error('BUILDER_MODEL_NOT_SELECTED')
           if (input.signal) {
             abortListener = () => session.abort()
             if (input.signal.aborted) abortListener()
@@ -382,10 +382,11 @@ export const createMastraE2BCodingWorkerRuntime = (
           detachMessageCapture = undefined
           if (input.signal && abortListener) input.signal.removeEventListener('abort', abortListener)
           abortListener = undefined
-          if (activeSession) {
+          if (activeSession && controller) {
+            const live = controller
             try {
-              const deleted = await controller.deleteSession({ resourceId: input.projectId, scope: runScope })
-              if (!deleted || await controller.getSessionByResource(input.projectId, runScope)) cleanupError = new Error('BUILDER_SESSION_DELETE_FAILED')
+              const deleted = await live.deleteSession({ resourceId: input.projectId, scope: runScope })
+              if (!deleted || await live.getSessionByResource(input.projectId, runScope)) cleanupError = new Error('BUILDER_SESSION_DELETE_FAILED')
             } catch (error) {
               if (!runError) cleanupError = error
             }

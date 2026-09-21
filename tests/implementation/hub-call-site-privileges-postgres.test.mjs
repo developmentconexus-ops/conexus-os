@@ -50,7 +50,7 @@ const registeredRoles = new Set(roleRegister.roles.map(({ role }) => role))
 // fails too, so the table cannot outlive the code it describes.
 const ROLE_BY_CALL_SITE = Object.freeze({
   'builder/store.ts': Object.freeze({
-    'builder.create_builder_run_with_model': 'hub_builder_ingress',
+    'builder.create_builder_run': 'hub_builder_ingress',
     'builder.read_builder_run': 'hub_builder_ingress',
     'builder.list_builder_runs': 'hub_builder_ingress',
     'builder.read_latest_code_changing_builder_run': 'hub_builder_ingress',

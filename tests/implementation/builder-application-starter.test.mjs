@@ -77,8 +77,11 @@ test('materializes the fixed empty React starter into an app-less checkout', asy
     assert.match(BUILDER_MODE_INSTRUCTIONS.BUILD, /implementar/i)
     assert.match(BUILDER_MODE_INSTRUCTIONS.PLAN, /somente leitura/i)
     assert.doesNotMatch(BUILDER_MODE_INSTRUCTIONS.PLAN, /editar|alterar/i)
-    assert.deepEqual(BUILDER_MODE_DEFINITIONS[0].availableTools.includes('mastra_workspace_write_file'), true)
-    assert.deepEqual(BUILDER_MODE_DEFINITIONS[1].availableTools.some((tool) => /write|edit|delete|execute/.test(tool)), false)
+    // The modes name Mastra Code's own tools, because that is the composition the run acts through.
+    assert.deepEqual([...BUILDER_MODE_DEFINITIONS[0].availableTools],
+      ['view', 'write_file', 'string_replace_lsp', 'find_files', 'delete_file', 'file_stat', 'mkdir', 'search_content', 'execute_command'])
+    assert.deepEqual([...BUILDER_MODE_DEFINITIONS[1].availableTools], ['view', 'find_files', 'file_stat', 'search_content'])
+    assert.deepEqual(BUILDER_MODE_DEFINITIONS[1].availableTools.some((tool) => /write|replace|delete|mkdir|execute/.test(tool)), false)
 
     const beforeSecondRequest = new Map(FIXED_APPLICATION_STARTER_FILES.map((file) => [file.path, readFileSync(join(root, file.path), 'utf8')]))
     assert.equal(await materializeFixedApplicationStarter({

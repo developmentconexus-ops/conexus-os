@@ -88,7 +88,6 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('builder-first-operational-delivery', 'node --test tests/implementation/builder-first-operational-delivery.test.mjs'),
   candidateStep('builder-planning-free-boot', 'node --test tests/implementation/builder-planning-free-boot.test.mjs'),
   candidateStep('model-connection-credentials', 'node --test tests/implementation/model-connection-credentials.test.mjs'),
-  candidateStep('model-connection-dispatch', 'node --test tests/implementation/model-connection-dispatch.test.mjs'),
   candidateStep('model-connection-anthropic-oauth', 'node --test tests/implementation/model-connection-anthropic-oauth.test.mjs && npx --no-install biome check tests/implementation/model-connection-anthropic-oauth.test.mjs'),
   candidateStep('model-connection-openai-codex', 'node --test tests/implementation/model-connection-openai-codex.test.mjs && npx --no-install biome check tests/implementation/model-connection-openai-codex.test.mjs'),
   candidateStep('model-connection-http', 'node --test tests/implementation/model-connection-http.test.mjs && npx --no-install biome check tests/implementation/model-connection-http.test.mjs tests/implementation/model-connection-share-postgres.test.mjs'),

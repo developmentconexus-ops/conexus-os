@@ -1,6 +1,6 @@
 import { MastraClient, isKnownAgentControllerEvent } from '@mastra/client-js'
-import type { AgentControllerEvent, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { AgentControllerAvailableModel, AgentControllerEvent, AgentControllerThreadInfo, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
 
 export type { MastraDBMessage }
@@ -26,6 +26,72 @@ const controller = client.getAgentController(BUILDER_CONTROLLER_ID)
 
 export const builderRunScope = (builderRunId: string): string => `builder:${builderRunId}`
 export const builderThreadMessagesKey = (projectId: string, threadId: string) => ['builder-thread-messages', projectId, threadId] as const
+
+export type Conversation = AgentControllerThreadInfo
+
+// A Project's conversations are its Mastra session's own threads: the product keeps no conversation
+// store beside them. The unscoped session is the one the browser holds while it reads and organises
+// them; a run gets its own scoped session because that is where its sandbox lives.
+const conversationsKey = (projectId: string) => ['project-conversations', projectId] as const
+const sessionModelKey = (projectId: string) => ['builder-session-model', projectId] as const
+
+export const useProjectConversations = (projectId: string) => useQuery({
+  queryKey: conversationsKey(projectId),
+  queryFn: () => controller.session(projectId).listThreads(50),
+})
+
+export const useConversationActions = (projectId: string) => {
+  const queryClient = useQueryClient()
+  const refresh = () => queryClient.invalidateQueries({ queryKey: conversationsKey(projectId) })
+  const create = useMutation({
+    mutationFn: (title: string) => controller.session(projectId).createThread(title),
+    onSuccess: refresh,
+  })
+  const rename = useMutation({
+    mutationFn: ({ conversationId, title }: Readonly<{ conversationId: string; title: string }>) =>
+      controller.session(projectId).renameThread(conversationId, title),
+    onSuccess: refresh,
+  })
+  // The controller persists a conversation's model on the conversation itself, and a run binds the
+  // conversation it was sent from. So the session has to stand on the conversation the operator is
+  // looking at, or the model they see is not the one their next message would run with.
+  const select = useMutation({
+    mutationFn: async ({ conversationId, carryModelId }: Readonly<{ conversationId: string; carryModelId: string }>) => {
+      const session = controller.session(projectId)
+      await session.switchThread(conversationId)
+      // The controller persists a model per conversation, and switching keeps the previous
+      // selection in memory without writing it, so a conversation the operator has not chosen for
+      // would look ready and then refuse the run. Writing their current choice onto the
+      // conversation they just opened is that choice applied, not a default invented for them.
+      if (carryModelId) await session.switchModel(carryModelId, { scope: 'thread' })
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
+  })
+  return { create, rename, select }
+}
+
+export type BuilderModel = AgentControllerAvailableModel
+
+const modelsKey = ['builder-models'] as const
+
+/** The controller owns model auth and selection, so the product reads both from it and stores neither. */
+export const useBuilderModels = () => useQuery({ queryKey: modelsKey, queryFn: () => controller.listModels() })
+
+export const useSessionModel = (projectId: string) => {
+  const queryClient = useQueryClient()
+  // A session arrives with no model selected, and an empty id is how the controller says so.
+  const selected = useQuery({
+    queryKey: sessionModelKey(projectId),
+    queryFn: async () => (await controller.session(projectId).state()).modelId,
+  })
+  // Thread scope is the only one the controller persists, and it is the right one: the choice is
+  // saved on the conversation, which is what a run opened from it will read.
+  const choose = useMutation({
+    mutationFn: (modelId: string) => controller.session(projectId).switchModel(modelId, { scope: 'thread' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
+  })
+  return { selected, choose }
+}
 
 export const useBuilderThreadMessages = (projectId: string, threadId: string | undefined) => useQuery({
   queryKey: builderThreadMessagesKey(projectId, threadId ?? ''),

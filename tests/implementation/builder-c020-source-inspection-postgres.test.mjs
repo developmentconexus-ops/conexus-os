@@ -54,16 +54,16 @@ test('C-020 source inspection admits current subjects and latest code-changing r
     last_preview_artifact_revision_id, last_preview_artifact_digest)
     VALUES ($1, $2, $3, $4, $5), ($6, $7, NULL, NULL, NULL)`, [project, working, preview, '83000000-0000-4000-8000-000000000001', '1'.repeat(64), otherProject, qWorking])
   const insertRun = async (id, revision, kind, createdAt, base) => query(`INSERT INTO builder.builder_run(
-    builder_run_id, project_id, account_id, trigger_message_id, idempotency_digest, request_digest, mode,
+    builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest, mode,
     base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind, created_at
-  ) VALUES ($1, $2, $3, $4, $5, $5, 'BUILD', $6, 0, 0, 'SUCCEEDED', $7, $8, $9)`, [id, project, account, id, id.replaceAll('-', '').padEnd(64, '0'), base, revision, kind, createdAt])
+  ) VALUES ($1, $2, $3, $10, $4, $5, $5, 'BUILD', $6, 0, 0, 'SUCCEEDED', $7, $8, $9)`, [id, project, account, id, id.replaceAll('-', '').padEnd(64, '0'), base, revision, kind, createdAt, `conversa-${project}`])
   await insertRun(runOne, runOneResult, 'SOURCE_CHANGED', '2026-09-14T10:00:00Z', olderRunOnly)
   await insertRun(runTwo, working, 'SOURCE_CHANGED_BUILD_FAILED', '2026-09-14T11:00:00Z', runOneResult)
   await insertRun(responseOnly, null, 'RESPONSE_ONLY', '2026-09-14T12:00:00Z', working)
   await query(`INSERT INTO builder.builder_run(
-    builder_run_id, project_id, account_id, trigger_message_id, idempotency_digest, request_digest, mode,
+    builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest, mode,
     base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind
-  ) VALUES ($1, $2, $3, $4, $5, $5, 'BUILD', $6, 0, 0, 'SUCCEEDED', $7, 'SOURCE_CHANGED')`, [otherRun, otherProject, account, otherRun, otherRun.replaceAll('-', '').padEnd(64, '0'), qWorking, otherResult])
+  ) VALUES ($1, $2, $3, $8, $4, $5, $5, 'BUILD', $6, 0, 0, 'SUCCEEDED', $7, 'SOURCE_CHANGED')`, [otherRun, otherProject, account, otherRun, otherRun.replaceAll('-', '').padEnd(64, '0'), qWorking, otherResult, `conversa-${otherProject}`])
   const ingress = { ...current, user: 'hub_builder_ingress', password: 'source-inspection-ingress' }
   await query("ALTER ROLE hub_builder_ingress PASSWORD 'source-inspection-ingress'")
   const admit = async (revision, subject = project, actor = account) => {
@@ -76,13 +76,13 @@ test('C-020 source inspection admits current subjects and latest code-changing r
   assert.equal(await admit(working, project, unauthorized), false)
 
   const projected = (await query('SELECT builder.read_latest_code_changing_builder_run($1, $2) AS value', [account, project])).rows[0].value
-  assert.deepEqual(projected, { builderRunId: runTwo, projectId: project, baseSourceRevision: runOneResult, resultSourceRevision: working, resultKind: 'SOURCE_CHANGED_BUILD_FAILED' })
+  assert.deepEqual(projected, { builderRunId: runTwo, projectId: project, conversationId: `conversa-${project}`, baseSourceRevision: runOneResult, resultSourceRevision: working, resultKind: 'SOURCE_CHANGED_BUILD_FAILED' })
   assert.equal((await query('SELECT builder.read_latest_code_changing_builder_run($1, $2) AS value', [unauthorized, project])).rows[0].value, null)
   assert.equal((await query('SELECT builder.read_latest_code_changing_builder_run($1, $2) AS value', [account, otherProject])).rows[0].value.builderRunId, otherRun)
   await query('DELETE FROM builder.builder_run WHERE project_id = $1', [otherProject])
   await query(`INSERT INTO builder.builder_run(
-    builder_run_id, project_id, account_id, trigger_message_id, idempotency_digest, request_digest, mode,
+    builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest, mode,
     base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind
-  ) VALUES ($1, $2, $3, $4, $5, $5, 'BUILD', $6, 0, 0, 'SUCCEEDED', NULL, 'RESPONSE_ONLY')`, [otherRun, otherProject, account, otherRun, otherRun.replaceAll('-', '').padEnd(64, '0'), qWorking])
+  ) VALUES ($1, $2, $3, $7, $4, $5, $5, 'BUILD', $6, 0, 0, 'SUCCEEDED', NULL, 'RESPONSE_ONLY')`, [otherRun, otherProject, account, otherRun, otherRun.replaceAll('-', '').padEnd(64, '0'), qWorking, `conversa-${otherProject}`])
   assert.equal((await query('SELECT builder.read_latest_code_changing_builder_run($1, $2) AS value', [account, otherProject])).rows[0].value, null)
 })

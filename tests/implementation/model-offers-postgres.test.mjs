@@ -31,59 +31,7 @@ const compileHub = (t) => {
   return (path) => pathToFileURL(resolve(build, path)).href
 }
 
-test('an id nobody offered is refused with 422 model-choice-unavailable, and no offers at all with model-connection-required', async (t) => {
-  const built = compileHub(t)
-  const { createHttpApp } = await import(built('http/app.js'))
-  const { registerBuilderRoutes } = await import(built('builder/routes.js'))
-  const { createBuilderService } = await import(built('builder/service.js'))
-  const { resolveBuilderModelChoice } = await import(built('builder/model-choice.js'))
-
-  const offer = {
-    choiceId: 'openai-codex/gpt-5.5', label: 'gpt-5.5',
-    providerId: 'openai-codex', modelId: 'gpt-5.5',
-    connectionId: randomUUID(), connectionLabel: 'Meu ChatGPT', credentialKind: 'OAUTH_TOKEN_SET',
-  }
-  assert.equal(resolveBuilderModelChoice([offer], undefined).identity.providerId, 'openai-codex')
-  assert.equal(resolveBuilderModelChoice([offer], undefined).identity.admissionId, 'openai-codex-gpt-5.5')
-  assert.throws(() => resolveBuilderModelChoice([offer], 'anthropic/claude-opus-4-5'), /BUILDER_MODEL_CHOICE_REFUSED/)
-  assert.throws(() => resolveBuilderModelChoice([], undefined), /MODEL_CONNECTION_REQUIRED/)
-
-  const projectId = randomUUID()
-  const appFor = (offers) => createHttpApp({
-    registerRoutes: (app) => registerBuilderRoutes(app, {
-      store: {},
-      service: createBuilderService({
-        store: { createBuilderRun: async () => { throw new Error('must not reach the database') }, close: async () => {} },
-        source: {}, applicationArtifacts: {},
-        runtime: { kind: 'REMOTE_E2B', execute: async () => { throw new Error('must not execute') } },
-        listModelOffers: async () => offers,
-      }),
-      origin: 'https://hub.test',
-      resolveCurrentSession: async () => ({ account: { accountId: randomUUID() } }),
-    }),
-    staticRoot: null,
-  })
-  const post = (app, modelChoiceId) => app.inject({
-    method: 'POST', url: `/api/control/projects/${projectId}/builder-session/messages`,
-    headers: { origin: 'https://hub.test', 'x-conexus-csrf': 'csrf-1', 'idempotency-key': randomUUID(), 'content-type': 'application/json' },
-    cookies: { '__Host-conexus_csrf': 'csrf-1' },
-    payload: JSON.stringify({ content: 'crie um contador', mode: 'BUILD', ...(modelChoiceId ? { modelChoiceId } : {}) }),
-  })
-
-  const offering = await appFor([offer])
-  t.after(() => offering.close())
-  const refused = await post(offering, 'anthropic/claude-opus-4-5')
-  assert.equal(refused.statusCode, 422)
-  assert.equal(refused.json().type, 'urn:conexus:problem:model-choice-unavailable')
-
-  const empty = await appFor([])
-  t.after(() => empty.close())
-  const unconnected = await post(empty, undefined)
-  assert.equal(unconnected.statusCode, 422)
-  assert.equal(unconnected.json().type, 'urn:conexus:problem:model-connection-required')
-})
-
-test('a ChatGPT connection the account selected yields openai-codex offers, and a run created with one is admitted', {
+test('a ChatGPT connection the account selected yields openai-codex offers', {
   skip: configured ? false : 'real PostgreSQL configuration not supplied',
 }, async (t) => {
   await refuseProtectedCluster()
@@ -172,26 +120,6 @@ test('a ChatGPT connection the account selected yields openai-codex offers, and 
     choiceId: 'openai-codex/gpt-6-astra', label: 'GPT-6-Astra',
     providerId: 'openai-codex', modelId: 'gpt-6-astra',
     connectionId: chatgpt, connectionLabel: 'Meu ChatGPT', credentialKind: 'OAUTH_TOKEN_SET',
-  })
-
-  // The regression. The run is created under the offer's own provider id, which is the connection's,
-  // and create_builder_run_with_model's credential comparison therefore holds.
-  const { createBuilderStore } = await import(built('builder/store.js'))
-  const { resolveBuilderModelChoice } = await import(built('builder/model-choice.js'))
-  const { createPostgresPool } = await import(built('platform/postgres.js'))
-  const ingressPool = createPostgresPool({ ...current, user: 'hub_builder_ingress', password: 'offers-ingress' })
-  modules.push({ close: () => ingressPool.end() })
-  const store = createBuilderStore({ ingressPool, executorPool: ingressPool })
-  const run = await store.createBuilderRun({
-    accountId, projectId, idempotencyKey: 'offers-key', content: 'crie um contador', mode: 'BUILD',
-    modelIdentity: resolveBuilderModelChoice(offers, 'openai-codex/gpt-6-astra').identity,
-  })
-  assert.equal(run.state, 'QUEUED')
-  assert.deepEqual((await adminClient.query('SELECT model_admission_id, model_provider_id, model_id, model_connection_id FROM builder.builder_run WHERE builder_run_id = $1', [run.builderRunId])).rows[0], {
-    model_admission_id: 'openai-codex-gpt-6-astra',
-    model_provider_id: 'openai-codex',
-    model_id: 'gpt-6-astra',
-    model_connection_id: chatgpt,
   })
 
   // An API key for another registry provider is offered alongside, under its own provider id.

@@ -23,6 +23,8 @@ const run = (state, failureCode) => ({
 test('each public category is reachable from a real internal code', () => {
   assert.equal(builderFailureCategory('BUILDER_SOURCE_MATERIALIZATION_REFUSED'), 'ENVIRONMENT_PREPARATION_FAILED')
   assert.equal(builderFailureCategory('BUILDER_MODEL_AUTH_FAILED'), 'MODEL_CREDENTIAL_REFUSED')
+  // A Project whose operator never chose a model reads as a credential the run does not have.
+  assert.equal(builderFailureCategory('BUILDER_MODEL_NOT_SELECTED'), 'MODEL_CREDENTIAL_REFUSED')
   assert.equal(builderFailureCategory('BUILDER_MODEL_RATE_LIMITED'), 'MODEL_RATE_LIMITED')
   assert.equal(builderFailureCategory('BUILDER_MODEL_STREAM_FAILED'), 'MODEL_REQUEST_REFUSED')
   assert.equal(builderFailureCategory('BUILDER_RESULT_IDENTITY_REFUSED'), 'SOURCE_RESULT_REJECTED')

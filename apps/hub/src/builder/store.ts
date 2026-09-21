@@ -3,7 +3,6 @@ import type { QueryResultRow } from 'pg'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { BuilderPreviewSubject } from './preview.js'
-import type { BuilderModelIdentity } from './model-choice.js'
 
 export type BuilderRunningPhase = 'PREPARING' | 'AGENT' | 'SOURCE_ADMISSION' | 'COMPILING' | 'FINALIZING'
 export type BuilderRunPhase = BuilderRunningPhase | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
@@ -11,6 +10,7 @@ export type BuilderRunPhase = BuilderRunningPhase | 'SUCCEEDED' | 'FAILED' | 'IN
 export type BuilderRunSummary = Readonly<{
   builderRunId: string
   projectId: string
+  conversationId: string
   state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
   phase: BuilderRunningPhase | null
   mode: 'BUILD' | 'PLAN'
@@ -20,16 +20,12 @@ export type BuilderRunSummary = Readonly<{
   failureCode: string | null
   requestText: string | null
   createdAt: string
-  modelAdmissionId?: string | null
-  modelProviderId?: string | null
-  modelId?: string | null
   cancellationRequested?: boolean
-  modelConnectionId?: string | null
-  modelCredentialGeneration?: string | null
 }>
 export type BuilderCodeChangingRun = Readonly<{
   builderRunId: string
   projectId: string
+  conversationId: string
   baseSourceRevision: string
   resultSourceRevision: string
   resultKind: 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED'
@@ -41,24 +37,12 @@ export type BuilderWorkingPreviewSubject = BuilderPreviewSubject & Readonly<{
 }>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
-const modelCredentialGeneration = (value: unknown): string | null => {
-  if (value === null) return null
-  if (typeof value === 'string' && /^[1-9]\d*$/.test(value)) return value
-  if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return String(value)
-  if (typeof value === 'bigint' && value > 0n) return value.toString()
-  throw new Error('BUILDER_RUN_ROW_INVALID')
-}
-const toBuilderRunSummary = (row: BuilderRunSummary): BuilderRunSummary =>
-  'modelCredentialGeneration' in row && row.modelCredentialGeneration !== undefined
-    ? Object.freeze({ ...row, modelCredentialGeneration: modelCredentialGeneration(row.modelCredentialGeneration) })
-    : row
-
 export type BuilderStore = Readonly<{
-  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN'; modelIdentity: BuilderModelIdentity }>): Promise<BuilderRunSummary>
+  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN' }>): Promise<BuilderRunSummary>
   readBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderRunSummary | null>
   listBuilderRuns(input: Readonly<{ accountId: string; projectId: string; limit?: number }>): Promise<readonly BuilderRunSummary[]>
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderCodeChangingRun | null>
-  claimBuilderRun(builderRunId: string, modelIdentity: Readonly<{ admissionId: string; providerId: string; modelId: string }>): Promise<BuilderRunSummary>
+  claimBuilderRun(builderRunId: string): Promise<BuilderRunSummary>
   setBuilderRunPhase(builderRunId: string, phase: BuilderRunPhase): Promise<void>
   bindBuilderRunMessage(builderRunId: string, messageId: string): Promise<void>
   bindBuilderRunSandbox(builderRunId: string, sandboxId: string): Promise<void>
@@ -83,28 +67,27 @@ export const createBuilderStore = ({
   executorPool: PostgresPool
   mintIdentity?: () => string
 }>): BuilderStore => Object.freeze({
-  createBuilderRun: async ({ accountId, projectId, idempotencyKey, content, mode, modelIdentity }) => {
+  createBuilderRun: async ({ accountId, projectId, conversationId, idempotencyKey, content, mode }) => {
     const request = { mode, content }
     const result = await ingressPool.query<JsonRow<BuilderRunSummary>>(
-      'SELECT builder.create_builder_run_with_model($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) AS value',
-      [accountId, projectId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), content, null, mode, mintIdentity(), modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId],
+      'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9) AS value',
+      [accountId, projectId, conversationId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), content, null, mode, mintIdentity()],
     )
     const value = result.rows[0]?.value
     if (!value) throw new Error('BUILDER_RUN_CREATE_FAILED')
-    return toBuilderRunSummary(value)
+    return value
   },
   readBuilderRun: async ({ accountId, projectId }) => {
     const result = await ingressPool.query<JsonRow<BuilderRunSummary | null>>(
       'SELECT builder.read_builder_run($1,$2) AS value', [accountId, projectId],
     )
-    const value = result.rows[0]?.value
-    return value ? toBuilderRunSummary(value) : null
+    return result.rows[0]?.value ?? null
   },
   listBuilderRuns: async ({ accountId, projectId, limit = 20 }) => {
     const result = await ingressPool.query<JsonRow<readonly BuilderRunSummary[]>>(
       'SELECT builder.list_builder_runs($1,$2,$3) AS value', [accountId, projectId, limit],
     )
-    return (result.rows[0]?.value ?? []).map(toBuilderRunSummary)
+    return result.rows[0]?.value ?? []
   },
   readLatestCodeChangingBuilderRun: async ({ accountId, projectId }) => {
     const result = await ingressPool.query<JsonRow<BuilderCodeChangingRun | null>>(
@@ -112,12 +95,11 @@ export const createBuilderStore = ({
     )
     return result.rows[0]?.value ?? null
   },
-  claimBuilderRun: async (builderRunId, modelIdentity) => {
-    // A claim asks for authority the run's author may no longer hold. That is terminal: the outer
+  claimBuilderRun: async (builderRunId) => {
+    // A claim asks for authority the run's author may no longer hold. That is terminal. The outer
     // dispatch catch fails the run, and no retry can recover an access that was taken away.
     const result = await executorPool.query<JsonRow<BuilderRunSummary>>(
-      'SELECT builder.claim_builder_run($1,$2,$3,$4) AS value',
-      [builderRunId, modelIdentity.admissionId, modelIdentity.providerId, modelIdentity.modelId],
+      'SELECT builder.claim_builder_run($1) AS value', [builderRunId],
     ).catch((error: unknown) => {
       if (typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501') {
         throw new Error('BUILDER_RUN_NOT_ADMITTED')
@@ -126,7 +108,7 @@ export const createBuilderStore = ({
     })
     const value = result.rows[0]?.value
     if (!value || value.builderRunId !== builderRunId || value.state !== 'RUNNING') throw new Error('BUILDER_RUN_CLAIM_REFUSED')
-    return toBuilderRunSummary(value)
+    return value
   },
   setBuilderRunPhase: async (builderRunId, phase) => {
     const result = await executorPool.query<{ value: boolean }>(
@@ -177,7 +159,7 @@ export const createBuilderStore = ({
     )
     const value = result.rows[0]?.value
     if (!value) throw new Error('BUILDER_RUN_CANCELLATION_REFUSED')
-    return toBuilderRunSummary(value)
+    return value
   },
   interruptBuilderRun: async (builderRunId, reason) => {
     const result = await executorPool.query<{ value: boolean }>(
