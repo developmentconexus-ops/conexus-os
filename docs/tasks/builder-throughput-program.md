@@ -1,5 +1,11 @@
 # Builder throughput program
 
+> **Status:** historical. This plan drove #125 to #128 on 2026-09-20 and authorizes no further work.
+> Three of its premises no longer hold. C-022 moves Project source toward a forge instead of
+> preserving the Conexus-owned Git boundary. C-023 opened the sandbox to the internet. The host
+> slowness it measured came from the C: SSD, and moving the WSL disk to D: on 2026-09-21 removed
+> it. Its Windows security-exclusion steps are not current instructions.
+
 A BUILD run takes 153 seconds on the pilot. The agent thinks for 12 of them. This plan removes the
 other 141 without moving the pilot off Leandro's machine and without paying for anything.
 
