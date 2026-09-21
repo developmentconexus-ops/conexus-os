@@ -105,12 +105,36 @@ test('a catalog that drifted from the snapshot is refused by line', async (t) =>
   )
 })
 
+// @mastra/pg migrates the factory schema itself at runtime, so what it creates there is not the
+// catalog the Hub's migrations describe. The schema itself, its owner and its grants still are.
+test('objects hub_factory creates inside the factory schema are not catalog drift', async (t) => {
+  const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
+  await query(connectionString, `
+    SET ROLE hub_factory;
+    CREATE TYPE factory.session_state AS ENUM ('open', 'closed');
+    CREATE TABLE factory.factory_projects (id text PRIMARY KEY, state factory.session_state NOT NULL);
+    CREATE INDEX factory_projects_state ON factory.factory_projects (state);
+    CREATE FUNCTION factory.touch() RETURNS int LANGUAGE sql AS 'SELECT 1';
+  `)
+  const restarted = await runHubMigrations({ connectionString })
+  assert.deepEqual(restarted, { verdict: 'PASS', appliedNow: [], versions: corpusVersions })
+})
+
+test('a grant on the factory schema to another Hub role is catalog drift', async (t) => {
+  const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
+  await query(connectionString, 'GRANT USAGE ON SCHEMA factory TO hub_builder_ingress')
+  await assert.rejects(
+    runHubMigrations({ connectionString }),
+    /MIGRATION_CATALOG_DRIFT:2 differing lines; missing schema factory owner=hub_factory acl=hub_factory:CREATE:false,hub_factory:USAGE:false \| unexpected schema factory owner=hub_factory acl=hub_builder_ingress:USAGE:false,hub_factory:CREATE:false,hub_factory:USAGE:false/,
+  )
+})
+
 test('the committed snapshot is the catalog the baseline and forward migration build', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
   const snapshot = readCommittedSnapshot()
   assert.equal(snapshot.head, corpusVersions.at(-1))
   assert.equal(snapshot.format, 2)
-  assert.equal(catalogDigest(snapshot.catalog), '4b5285322a2799c8b5b92fd8333e7cf1c71037e84fb557404b75e506c8d0e211')
+  assert.equal(catalogDigest(snapshot.catalog), 'd5b09b7ce8ad3641e8e0e9819b5c0836fb5761dd1d93f72ca8d7ebdecb85167a')
   assert.deepEqual(await ledgerOf(connectionString), corpusLedger)
 })
 
