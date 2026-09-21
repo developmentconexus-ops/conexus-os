@@ -143,3 +143,25 @@ test('after the forward migrations nothing of the model-connection subsystem is 
   `)).rows[0]
   assert.deepEqual(present, { schema: false, account_is_active: false, function_grant: false })
 })
+
+test('a login role provisioned with CONNECT on its database is still revoked and dropped', async (t) => {
+  // Provisioning grants a login role CONNECT on its own database, a cluster-level dependency that
+  // 0009 alone never revoked, so the role outlived the subsystem on every install.
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_mig')
+  const throughRemoval = corpus.filter(({ version }) => version <= '0009')
+  await runMigrations({ connectionString, migrations: throughRemoval, catalogSnapshot: null })
+  const database = (await query(connectionString, 'SELECT current_database() AS name')).rows[0].name
+  await query(connectionString, "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hub_model_connection') THEN CREATE ROLE hub_model_connection LOGIN; END IF; END $$")
+  await query(connectionString, `GRANT CONNECT ON DATABASE "${database}" TO hub_model_connection`)
+
+  await runHubMigrations({ connectionString })
+
+  const granted = (await query(connectionString, `
+    SELECT EXISTS (
+      SELECT 1 FROM pg_database d CROSS JOIN LATERAL aclexplode(d.datacl) AS entry
+      WHERE d.datname = current_database()
+        AND pg_get_userbyid(entry.grantee) IN ('hub_model_connection', 'model_connection_owner')
+    ) AS granted
+  `)).rows[0].granted
+  assert.equal(granted, false)
+})
