@@ -47,6 +47,13 @@ Trunk is `analysis/internal-mvp-2026-09-12`, not `main`.
 
 ## In flight
 
+**Next: adopt the Factory for real.** [The Factory adoption task](tasks/factory-adoption.md) is the
+next structural work. Conversations and native model authentication are done, but the Factory itself
+is not installed, and Project source is still under Conexus's own Git custody. C-022 already chose
+the Factory and a forge. That task closes the gap between the decision and the runtime, with Project
+source in private GitHub repositories, admission kept by Conexus, and the host Git path deleted. The
+frontend redesign waits for it.
+
 **Several conversations per Project**, the first cut of Factory-centered development in the
 product. [Its task](tasks/project-conversations-first-increment.md) owns the scope and
 [its evidence](evidence/project-conversations/README.md) owns what was run. The Builder's agent,
@@ -88,7 +95,10 @@ M-02, the ChatGPT account sign-in through a Conexus model connection, was proven
 Preview. That path left the product with the model connection subsystem. Git history holds what it
 proved.
 
-Nothing else is open.
+The pilot evaluation of 2026-09-21 found that a generated app's `<form>` did nothing in the Preview;
+the Preview policy now allows forms. It also found that the agent cannot compile what it writes, which
+the adoption task owns. Most of that day's slowness was the host's C: SSD, and moving the WSL disk
+to D: removed it.
 
 ## The Builder sequence
 
