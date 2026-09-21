@@ -221,6 +221,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       if (head !== result) {
         // R descends only from base, so a fast-forward is the compare-and-swap. The read catches the
         // one case GitHub's own check would not: a default branch rewound to an ancestor of R.
+        if (head === base && cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
         const admitted = head === base && await ports.github.updateBranch(installation, repository, binding.defaultBranch, result) === 'UPDATED'
         if (!admitted) {
           await ports.appendDiagnostic({ conversationId: input.conversationId, builderRunId: input.executionId, code: BASE_MOVED }).catch(() => undefined)

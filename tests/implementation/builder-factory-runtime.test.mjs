@@ -43,15 +43,21 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const calls = []
   const diagnostics = []
   const logs = []
+  const invocations = []
   let buildStarted
   const buildRunning = new Promise((started) => { buildStarted = started })
   const sandbox = {
     sandboxId: 'sbx-1',
     start: async () => { events.push('start'); onStart?.(sandbox) },
     writeFiles: async () => {},
-    executeCommand: async (command, args = []) => {
+    runAsRoot: async (script) => {
+      events.push(`root:${script}`)
+      return { exitCode: 0, success: true, stdout: '', stderr: '' }
+    },
+    executeCommand: async (command, args = [], options = {}) => {
       const line = [command, ...args].join(' ')
       events.push(line)
+      invocations.push({ argv: [command, ...args], env: options.env })
       if (line.includes('add --all')) return { exitCode: 0, success: true, stdout: `${result}\n`, stderr: '' }
       if (line.includes(' push ')) return { exitCode: pushExit, success: pushExit === 0, stdout: '', stderr: pushExit ? `fatal: https://x-access-token:${github.state.tokens.at(-1)?.token}@github.com refused` : '' }
       if (line.includes('ls-tree')) return { exitCode: 0, success: true, stdout: listing, stderr: '' }
@@ -116,7 +122,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const main = () => github.state.refs.get('acme-org/app:main')
   const patches = () => github.state.requests.filter((request) => request.method === 'PATCH')
   const commands = () => events.filter((event) => typeof event === 'string')
-  return { github, events, calls, diagnostics, logs, service, start, main, patches, commands, buildRunning }
+  return { github, events, invocations, calls, diagnostics, logs, service, start, main, patches, commands, buildRunning }
 }
 
 test('a compare-and-swap GitHub refuses with 422 settles BUILDER_SOURCE_BASE_MOVED and leaves main alone', async (t) => {
@@ -174,6 +180,21 @@ test('a stop that lands after the compile is still refused the PATCH', async (t)
   assert.equal(run.main(), BASE)
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
   assert.equal(run.calls.some(([kind, phase]) => kind === 'phase' && phase === 'SOURCE_ADMISSION'), false)
+})
+
+test('a stop that lands while the default head is read is still refused the PATCH', async (t) => {
+  const run = await harness(t)
+  const originalGet = run.github.state.refs.get.bind(run.github.state.refs)
+  run.github.state.refs.get = (key) => {
+    if (key === 'acme-org/app:main' && run.events.includes('build')) void run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+    return originalGet(key)
+  }
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.patches(), [])
+  assert.equal(run.main(), BASE)
+  assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
+  assert.equal(run.calls.some(([kind]) => kind === 'advance'), false)
 })
 
 test('a replaced sandbox incarnation fails the run with BUILDER_SANDBOX_INCARNATION_CHANGED', async (t) => {
