@@ -82,13 +82,16 @@ company runs its own Conexus installation with its own GitHub App and connects i
   repository again by its GitHub id and rebinds it. A Project whose repository cannot be reached shows
   that state, refuses new requests and keeps its last good Preview. Conexus never creates a
   replacement repository on its own.
-- **Session branch.** Each conversation works on its own branch, based on the Project's admitted
-  revision at the start of each run.
-- **Admission stays Conexus's.** After the agent commits, the branch is pushed. The application is
-  compiled and smoke-tested in the same sandbox. Conexus then advances the default branch with a
-  compare-and-swap ref update (`force: false`) from the run's base revision to the result. If the
-  default branch moved since the run began, the result is not admitted. The run settles with a
-  named stale-base outcome that the person sees, and nothing later is overwritten.
+- **Session branch.** Each conversation works on its own branch, reset at the start of each run to
+  the head of the repository's default branch.
+- **Admission stays Conexus's.** When a run is created, Conexus reads the default branch's head and
+  adopts it as the Project's working revision and the run's base, so a commit that reached the
+  default branch outside Conexus is where the next request starts. After the agent commits, the
+  branch is pushed. The application is compiled and smoke-tested in the same sandbox. Conexus then
+  advances the default branch with a compare-and-swap ref update (`force: false`) from the run's
+  base revision to the result. If the default branch moved since the run began, the result is not
+  admitted. The run settles with a named stale-base outcome that the person sees, and nothing later
+  is overwritten.
 - **Preview.** Its meaning is unchanged. It is built from the admitted revision, and a build or boot
   failure keeps the last good Preview.
 - **The agent checks its own work.** The application starter carries the manifest and a check
@@ -149,7 +152,8 @@ repository the App already reaches.
    Project keeps today's path until unit 3, and no Project is ever on both. Check: in that Project, a
    request changes the repository through the agent, the agent runs the application check, the
    compare-and-swap admits the result, and the Preview shows a text only that run could have written.
-   Unit 1 has no settings screen. The pilot's organization is connected once by configuration.
+   After a commit pushed to the default branch outside Conexus, the next request starts from it and
+   is admitted. Unit 1 has no settings screen. The pilot's organization is connected once by configuration.
 2. **A repository per Project (2a).** Project creation makes a private repository in the connected
    organization, or binds an existing one, and records its GitHub id. A personal-account installation
    is refused. Check: a new Project gets its repository with no step on GitHub.
@@ -174,7 +178,17 @@ The following holds on the pilot, through the product, and is recorded in this t
 - A request that breaks the build keeps the last good Preview and names the failure.
 - With two conversations, one advances the source. The other, started on the older revision, does not
   overwrite it and says so.
+- A commit made outside Conexus is the base of the next request, and the Preview keeps the last good
+  build until a run's build of that source succeeds.
+- A run whose edits were not admitted leaves a note in its conversation, and the next turn does not
+  claim those edits.
 - No branch or pull request is shown to the person.
 - The conversations that existed before the cut still open with their messages.
 - Stopping is measured in its three parts, and a late result is not admitted.
 - The host Git path is deleted.
+
+## Known gaps
+
+- Observational memory defaults to `google/gemini-3.5-flash`. The pilot sets
+  `DEFAULT_OM_MODEL_ID=openai/gpt-5.6-luna` in `hub.env` for now. Choosing the memory model belongs
+  to the frontend refactor.
