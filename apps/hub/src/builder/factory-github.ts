@@ -51,9 +51,10 @@ export type GithubApp = ReturnType<typeof createGithubApp>
 export const createGithubApp = ({ appId, privateKey, baseUrl = GITHUB_API_URL }: Readonly<{ appId: string; privateKey: string; baseUrl?: string }>) => {
   const request = octokitRequest.defaults({ baseUrl, headers: { 'x-github-api-version': '2022-11-28' } })
   const auth = createAppAuth({ appId, privateKey, request })
-  const call = async (route: string, token: string, parameters: Json = {}): Promise<Json> => {
+  // An installation token goes under `token`; GitHub refuses the App's own JWT unless it is `bearer`.
+  const call = async (route: string, token: string, parameters: Json = {}, scheme: 'token' | 'bearer' = 'token'): Promise<Json> => {
     try {
-      const response = await request(route, { ...parameters, headers: { authorization: `token ${token}` } })
+      const response = await request(route, { ...parameters, headers: { authorization: `${scheme} ${token}` } })
       return (response.data ?? {}) as Json
     } catch (error) {
       throw new GithubRequestError(statusOf(error))
@@ -83,7 +84,7 @@ export const createGithubApp = ({ appId, privateKey, baseUrl = GITHUB_API_URL }:
 
   return Object.freeze({
     readApp: async (): Promise<Readonly<{ clientId: string; slug: string }>> => {
-      const app = await call('GET /app', await appToken())
+      const app = await call('GET /app', await appToken(), {}, 'bearer')
       if (typeof app.client_id !== 'string' || typeof app.slug !== 'string') throw new Error('FACTORY_GITHUB_RESPONSE_REFUSED')
       return { clientId: app.client_id, slug: app.slug }
     },

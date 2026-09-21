@@ -76,7 +76,11 @@ test('connect prints the App identity for the operator and records the organizat
   assert.deepEqual(await snapshot(), before)
   const printed = lines.join('\n')
   assert.doesNotMatch(printed, /ghs_|PRIVATE KEY|eyJ/)
-  assert.ok(github.state.requests.every((request) => request.path !== '/app/installations' || request.authorization?.startsWith('bearer ')))
+  // GitHub answers 401 to an App JWT sent under any scheme but bearer.
+  const appCalls = github.state.requests.filter((request) => request.path === '/app' || request.path === '/app/installations')
+  assert.deepEqual(appCalls.map((request) => [request.path, request.authorization?.split(' ')[0].toLowerCase()]), [
+    ['/app', 'bearer'], ['/app/installations', 'bearer'], ['/app', 'bearer'], ['/app/installations', 'bearer'],
+  ])
 })
 
 test('a personal-account installation is refused with the organization message', async (t) => {
