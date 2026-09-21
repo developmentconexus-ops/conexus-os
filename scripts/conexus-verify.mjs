@@ -72,7 +72,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('repository-hygiene', 'node scripts/check-repository-hygiene.mjs'),
   candidateStep('repository-doc-index', 'node scripts/check-doc-index.mjs'),
   candidateStep('repository-contract-checks', 'node --test tests/repository/repository-contract.test.mjs'),
-  candidateStep('biome-current', 'npx --no-install biome check apps/hub/src apps/web/src packages/canonical-json/src scripts/run-hub-migrations.mjs scripts/hub-catalog.mjs scripts/generate-hub-catalog-snapshot.mjs scripts/generate-hub-baseline.mjs tests/implementation/hub-database.mjs tests/implementation/hub-baseline.test.mjs tests/implementation/grant-surface-excision-postgres.test.mjs tests/implementation/workspace-postgres.test.mjs tests/implementation/builder-*.mjs tests/implementation/project-browser.test.mjs tests/repository/conexus-verify.test.mjs'),
+  candidateStep('biome-current', 'npx --no-install biome check apps/hub/src apps/web/src packages/canonical-json/src scripts/run-hub-migrations.mjs scripts/hub-catalog.mjs scripts/generate-hub-catalog-snapshot.mjs scripts/generate-hub-baseline.mjs tests/implementation/hub-database.mjs tests/implementation/hub-baseline.test.mjs tests/implementation/grant-surface-excision-postgres.test.mjs tests/implementation/workspace-postgres.test.mjs tests/implementation/builder-*.mjs tests/implementation/project-browser.test.mjs tests/implementation/preview-form-policy.test.mjs tests/repository/conexus-verify.test.mjs'),
 
   candidateStep('identity-access-http', 'node --test tests/implementation/identity-access-http.test.mjs'),
   candidateStep('workspace-membership-http', 'node --test tests/implementation/workspace-membership-http.test.mjs && npx --no-install biome check tests/implementation/workspace-membership-http.test.mjs'),
@@ -84,6 +84,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('project-command-postgres', 'node --test --test-concurrency=1 tests/implementation/project-command.test.mjs', 'postgres'),
   candidateStep('project-browser', 'node --test --test-concurrency=1 tests/implementation/project-browser.test.mjs', 'browser'),
   candidateStep('shell-browser-boundary', 'node --test tests/implementation/shell-browser-boundary.test.mjs'),
+  candidateStep('preview-form-policy', 'node --test tests/implementation/preview-form-policy.test.mjs', 'browser'),
   candidateStep('builder-credential-generation', 'node --test tests/implementation/builder-credential-generation.test.mjs'),
   candidateStep('builder-first-operational-delivery', 'node --test tests/implementation/builder-first-operational-delivery.test.mjs'),
   candidateStep('builder-planning-free-boot', 'node --test tests/implementation/builder-planning-free-boot.test.mjs'),

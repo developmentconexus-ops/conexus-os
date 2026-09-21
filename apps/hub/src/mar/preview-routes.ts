@@ -77,10 +77,15 @@ const hostMatches = (requestHost: string | undefined, route: Readonly<{ exactHos
 const strictOrigin = (value: string | string[] | undefined, expected: string): boolean =>
   (Array.isArray(value) ? value[0] : value) === expected
 
+// allow-forms lets a submit event reach the app's own handler; form-action 'none' still refuses
+// any submission that would navigate or post somewhere.
+export const previewContentSecurityPolicy = (exactHubOrigin: string): string =>
+  `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'; worker-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors ${exactHubOrigin}; sandbox allow-scripts allow-same-origin allow-forms`
+
 const securityHeaders = (reply: { header(name: string, value: string): unknown; removeHeader(name: string): unknown }, exactHubOrigin: string): void => {
   reply.header('referrer-policy', 'no-referrer')
   reply.header('cache-control', 'no-store')
-  reply.header('content-security-policy', `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'; worker-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors ${exactHubOrigin}; sandbox allow-scripts allow-same-origin`)
+  reply.header('content-security-policy', previewContentSecurityPolicy(exactHubOrigin))
   reply.removeHeader('x-frame-options')
 }
 
