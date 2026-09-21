@@ -100,6 +100,40 @@ test('the smoke script the sandbox is handed parses as the module Node will load
   }
 })
 
+test('an app that imports a web font the offline sandbox cannot reach still passes the smoke in a real browser', async (t) => {
+  const { mkdtempSync, writeFileSync, rmSync, readFileSync, mkdirSync: makeDirectory, chmodSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { chromium } = await import('@playwright/test')
+
+  const runtimeSource = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/application-artifact-runtime.ts'), 'utf8')
+  const heredoc = /const SMOKE_HEREDOC = '([^']+)'/.exec(runtimeSource)?.[1]
+  const { sandbox, calls } = fakeSandbox(new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]]))
+  await buildApplicationInSandbox(sandbox, { appRoot: '/workspace/app' })
+  const smoke = calls.find((call) => call.kind === 'run' && String(call.command).includes(heredoc))
+  const script = String(smoke.command).split(`<<'${heredoc}'\n`)[1]?.split(`\n${heredoc}`)[0]
+
+  const directory = mkdtempSync(resolve(tmpdir(), 'conexus-smoke-offline-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const dist = resolve(directory, 'dist')
+  makeDirectory(dist)
+  // 10.255.255.1 is not routable, so a connection to it neither succeeds nor is refused: it hangs,
+  // which is what the sandbox's missing network does to a Google Fonts import.
+  writeFileSync(resolve(dist, 'style.css'), "@import url('http://10.255.255.1/font.css');\nbody { margin: 0; }\n")
+  writeFileSync(resolve(dist, 'index.html'), '<!doctype html><html><head><link rel="stylesheet" href="/style.css"></head>'
+    + '<body><div id="root"></div><script>document.getElementById("root").append(document.createElement("main"))</script></body></html>')
+  const bin = resolve(directory, 'bin')
+  makeDirectory(bin)
+  writeFileSync(resolve(bin, 'chromium'), `#!/bin/sh\nexec ${JSON.stringify(chromium.executablePath())} "$@"\n`)
+  chmodSync(resolve(bin, 'chromium'), 0o755)
+  const file = resolve(directory, 'smoke.mjs')
+  writeFileSync(file, script.replace(/const DIST_ROOT = "[^"]*"/, `const DIST_ROOT = ${JSON.stringify(dist)}`))
+
+  const started = Date.now()
+  const ran = spawnSync(process.execPath, [file], { encoding: 'utf8', timeout: 60_000, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } })
+  assert.deepEqual(JSON.parse(ran.stdout), { ok: true, childCount: 1 })
+  assert.ok(Date.now() - started < 15_000, `the smoke waited on the unreachable font for ${Date.now() - started} ms`)
+})
+
 test('buildApplicationInSandbox exports the fixed template identity', () => {
   assert.equal(TEMPLATE_REF, '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189')
   assert.equal(RECIPE_SHA256, '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf')

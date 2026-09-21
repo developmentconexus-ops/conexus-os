@@ -278,8 +278,23 @@ try {
     socket.send(JSON.stringify({ id, method, params }))
   })
 
+  // The sandbox has no network, and the load event waits for every subresource. An app that pulls a
+  // web font or a CDN script would hold the page until the connection gave up, long after the budget,
+  // and fail a smoke that is only asking whether the app mounts. Anything not served here fails at
+  // once instead, which is what an offline load looks like.
+  socket.addEventListener('message', (event) => {
+    const message = JSON.parse(event.data)
+    if (message.method !== 'Fetch.requestPaused') return
+    const { requestId, request } = message.params
+    const local = new URL(request.url).host === \`127.0.0.1:\${PORT}\`
+    socket.send(JSON.stringify(local
+      ? { id: nextRequestId++, method: 'Fetch.continueRequest', params: { requestId } }
+      : { id: nextRequestId++, method: 'Fetch.failRequest', params: { requestId, errorReason: 'BlockedByClient' } }))
+  })
+
   await send('Runtime.enable')
   await send('Page.enable')
+  await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] })
   const loaded = new Promise((resolveLoad) => {
     const handler = (event) => {
       const message = JSON.parse(event.data)
