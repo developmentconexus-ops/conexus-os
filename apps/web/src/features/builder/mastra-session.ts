@@ -1,19 +1,19 @@
 import { MastraClient, isKnownAgentControllerEvent } from '@mastra/client-js'
-import type { AgentControllerAvailableModel, AgentControllerEvent, AgentControllerThreadInfo, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
+import type { AgentControllerAvailableModel, AgentControllerEvent, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
+import { createFactoryConversation, listFactoryConversations } from './api'
+import type { BuilderSession } from './api'
 
 export type { MastraDBMessage }
 type DisplayState = Extract<KnownAgentControllerEvent, { type: 'display_state_changed' }>['displayState']
 export type ActiveTool = DisplayState['activeTools'][string]
 
-const BUILDER_CONTROLLER_ID = 'conexus-builder-controller'
-
 const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
 
-const client = new MastraClient({
+const clientAt = (apiPrefix: string) => new MastraClient({
   baseUrl: window.location.origin,
-  apiPrefix: '/api/mastra',
+  apiPrefix,
   credentials: 'same-origin',
   retries: 0,
   fetch: (input, init) => fetch(input, {
@@ -22,34 +22,52 @@ const client = new MastraClient({
   }),
 })
 
-const controller = client.getAgentController(BUILDER_CONTROLLER_ID)
+export type SourceHost = BuilderSession['sourceHost']
+
+// Where a Project's conversations live. A Conexus-hosted Project is one Mastra session whose
+// threads are its conversations. A Factory-hosted one gives each conversation its own session on
+// the Factory's mount, keyed by the conversation id and holding one thread of that id, and the Hub
+// creates and lists those conversations because each is a Factory session row.
+type BuilderMount = Readonly<{
+  controller: ReturnType<MastraClient['getAgentController']>
+  resourceOf(conversationId: string): string
+}>
+
+const conexusController = clientAt('/api/mastra').getAgentController('conexus-builder-controller')
+const factoryController = clientAt('/api/mastra-factory').getAgentController('code')
+
+const mountOf = (sourceHost: SourceHost, projectId: string): BuilderMount => sourceHost === 'FACTORY'
+  ? { controller: factoryController, resourceOf: (conversationId) => conversationId }
+  : { controller: conexusController, resourceOf: () => projectId }
 
 export const builderRunScope = (builderRunId: string): string => `builder:${builderRunId}`
 export const builderThreadMessagesKey = (projectId: string, threadId: string) => ['builder-thread-messages', projectId, threadId] as const
 
-export type Conversation = AgentControllerThreadInfo
+export type Conversation = Readonly<{ id: string; title?: string | null | undefined }>
 
-// A Project's conversations are its Mastra session's own threads: the product keeps no conversation
-// store beside them. The unscoped session is the one the browser holds while it reads and organises
-// them; a run gets its own scoped session because that is where its sandbox lives.
 const conversationsKey = (projectId: string) => ['project-conversations', projectId] as const
 const sessionModelKey = (projectId: string) => ['builder-session-model', projectId] as const
 
-export const useProjectConversations = (projectId: string) => useQuery({
-  queryKey: conversationsKey(projectId),
-  queryFn: () => controller.session(projectId).listThreads(50),
+export const useProjectConversations = (projectId: string, sourceHost: SourceHost | undefined) => useQuery({
+  queryKey: [...conversationsKey(projectId), sourceHost],
+  queryFn: async (): Promise<readonly Conversation[]> => sourceHost === 'FACTORY'
+    ? listFactoryConversations(projectId)
+    : conexusController.session(projectId).listThreads(50),
+  enabled: Boolean(sourceHost),
 })
 
-export const useConversationActions = (projectId: string) => {
+export const useConversationActions = (projectId: string, sourceHost: SourceHost | undefined) => {
   const queryClient = useQueryClient()
   const refresh = () => queryClient.invalidateQueries({ queryKey: conversationsKey(projectId) })
   const create = useMutation({
-    mutationFn: (title: string) => controller.session(projectId).createThread(title),
+    mutationFn: async (title: string): Promise<Conversation> => sourceHost === 'FACTORY'
+      ? createFactoryConversation(projectId, crypto.randomUUID())
+      : conexusController.session(projectId).createThread(title),
     onSuccess: refresh,
   })
   const rename = useMutation({
     mutationFn: ({ conversationId, title }: Readonly<{ conversationId: string; title: string }>) =>
-      controller.session(projectId).renameThread(conversationId, title),
+      conexusController.session(projectId).renameThread(conversationId, title),
     onSuccess: refresh,
   })
   // The controller persists a conversation's model on the conversation itself, and a run binds the
@@ -57,8 +75,8 @@ export const useConversationActions = (projectId: string) => {
   // looking at, or the model they see is not the one their next message would run with.
   const select = useMutation({
     mutationFn: async ({ conversationId, carryModelId }: Readonly<{ conversationId: string; carryModelId: string }>) => {
-      const session = controller.session(projectId)
-      await session.switchThread(conversationId)
+      const session = sourceHost === 'FACTORY' ? factoryController.session(conversationId) : conexusController.session(projectId)
+      if (sourceHost !== 'FACTORY') await session.switchThread(conversationId)
       // The controller persists a model per conversation, and switching keeps the previous
       // selection in memory without writing it, so a conversation the operator has not chosen for
       // would look ready and then refuse the run. Writing their current choice onto the
@@ -67,36 +85,48 @@ export const useConversationActions = (projectId: string) => {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
   })
-  return { create, rename, select }
+  // A Factory conversation's title is its Factory session row's, which has no rename route yet.
+  return { create, rename: sourceHost === 'FACTORY' ? null : rename, select }
 }
 
 export type BuilderModel = AgentControllerAvailableModel
 
-const modelsKey = ['builder-models'] as const
-
 /** The controller owns model auth and selection, so the product reads both from it and stores neither. */
-export const useBuilderModels = () => useQuery({ queryKey: modelsKey, queryFn: () => controller.listModels() })
+export const useBuilderModels = (sourceHost: SourceHost | undefined) => useQuery({
+  queryKey: ['builder-models', sourceHost],
+  queryFn: () => (sourceHost === 'FACTORY' ? factoryController : conexusController).listModels(),
+  enabled: Boolean(sourceHost),
+})
 
-export const useSessionModel = (projectId: string) => {
+export const useSessionModel = (projectId: string, sourceHost: SourceHost | undefined, conversationId: string | null) => {
   const queryClient = useQueryClient()
+  const mount = mountOf(sourceHost ?? 'CONEXUS', projectId)
+  const resourceId = sourceHost && conversationId ? mount.resourceOf(conversationId) : null
   // A session arrives with no model selected, and an empty id is how the controller says so.
   const selected = useQuery({
-    queryKey: sessionModelKey(projectId),
-    queryFn: async () => (await controller.session(projectId).state()).modelId,
+    queryKey: [...sessionModelKey(projectId), resourceId],
+    queryFn: async () => (await mount.controller.session(resourceId ?? '').state()).modelId,
+    enabled: Boolean(resourceId),
   })
   // Thread scope is the only one the controller persists, and it is the right one: the choice is
   // saved on the conversation, which is what a run opened from it will read.
   const choose = useMutation({
-    mutationFn: (modelId: string) => controller.session(projectId).switchModel(modelId, { scope: 'thread' }),
+    mutationFn: (modelId: string) => {
+      if (!resourceId) throw new Error('BUILDER_CONVERSATION_NOT_READY')
+      return mount.controller.session(resourceId).switchModel(modelId, { scope: 'thread' })
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
   })
   return { selected, choose }
 }
 
-export const useBuilderThreadMessages = (projectId: string, threadId: string | undefined) => useQuery({
+export const useBuilderThreadMessages = (projectId: string, sourceHost: SourceHost | undefined, threadId: string | undefined) => useQuery({
   queryKey: builderThreadMessagesKey(projectId, threadId ?? ''),
-  queryFn: () => controller.session(projectId).listMessages(threadId ?? '', 200),
-  enabled: Boolean(threadId),
+  queryFn: () => {
+    const mount = mountOf(sourceHost ?? 'CONEXUS', projectId)
+    return mount.controller.session(mount.resourceOf(threadId ?? '')).listMessages(threadId ?? '', 200)
+  },
+  enabled: Boolean(sourceHost && threadId),
 })
 
 export type LiveTurn = Readonly<{
@@ -145,12 +175,20 @@ const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => {
 }
 
 /** Follows one run's Mastra session for as long as the agent owns the turn. */
-export const useBuilderLiveTurn = (projectId: string, builderRunId: string | undefined, agentActive: boolean): LiveTurn => {
+export const useBuilderLiveTurn = (
+  projectId: string,
+  sourceHost: SourceHost | undefined,
+  run: Readonly<{ builderRunId: string; conversationId: string }> | undefined,
+  agentActive: boolean,
+): LiveTurn => {
   const [turn, dispatch] = useReducer(reduceTurn, idleTurn)
   const queryClient = useQueryClient()
+  const builderRunId = run?.builderRunId
+  const conversationId = run?.conversationId
   useEffect(() => {
-    if (!builderRunId || !agentActive) return undefined
-    const session = controller.session(projectId, builderRunScope(builderRunId))
+    if (!sourceHost || !builderRunId || !conversationId || !agentActive) return undefined
+    const mount = mountOf(sourceHost, projectId)
+    const session = mount.controller.session(mount.resourceOf(conversationId), builderRunScope(builderRunId))
     let closed = false
     let unsubscribe = () => {}
     let retry: ReturnType<typeof setTimeout> | undefined
@@ -179,6 +217,6 @@ export const useBuilderLiveTurn = (projectId: string, builderRunId: string | und
       if (retry) clearTimeout(retry)
       unsubscribe()
     }
-  }, [agentActive, builderRunId, projectId, queryClient])
+  }, [agentActive, builderRunId, conversationId, projectId, queryClient, sourceHost])
   return turn.runId === builderRunId ? turn : idleTurn
 }

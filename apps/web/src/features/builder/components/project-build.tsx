@@ -157,15 +157,16 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     queryKey: ['builder-session', projectId], queryFn: () => getBuilderSession(projectId),
     refetchInterval: (query) => query.state.data?.latestBuilderRun?.state === 'RUNNING' ? 1_000 : 2_000,
   })
-  const conversations = useProjectConversations(projectId)
-  const conversationActions = useConversationActions(projectId)
+  const sourceHost = session.data?.sourceHost
+  const conversations = useProjectConversations(projectId, sourceHost)
+  const conversationActions = useConversationActions(projectId, sourceHost)
   // Opening a Project binds a conversation, so the newest entry is the one to land on until the
   // operator picks another; a selection that disappears falls back to it rather than to nothing.
   const conversationList = conversations.data ?? []
   const conversation = conversationList.find((entry) => entry.id === selectedConversationId) ?? conversationList.at(0) ?? null
   const conversationId = conversation?.id ?? null
-  const models = useBuilderModels()
-  const sessionModel = useSessionModel(projectId)
+  const models = useBuilderModels(sourceHost)
+  const sessionModel = useSessionModel(projectId, sourceHost, conversationId)
   // A model without a key on the controller would fail the run, so it is never offered, and a
   // selection that lost its key counts as no selection rather than as a model the operator can use.
   const offeredModels = (models.data ?? []).filter((model) => model.hasApiKey)
@@ -216,8 +217,8 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     onSuccess: async () => { setMessage('Solicitação de interrupção enviada.'); await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] }) },
     onError: () => setMessage('Não foi possível interromper a execução atual.'),
   })
-  const history = useBuilderThreadMessages(projectId, conversationId ?? undefined)
-  const turn = useBuilderLiveTurn(projectId, runId, runActive && run?.phase === 'AGENT')
+  const history = useBuilderThreadMessages(projectId, sourceHost, conversationId ?? undefined)
+  const turn = useBuilderLiveTurn(projectId, sourceHost, run ?? undefined, runActive && run?.phase === 'AGENT')
   const previousRunState = useRef<string | undefined>(undefined)
   useEffect(() => {
     const wasActive = previousRunState.current === 'QUEUED' || previousRunState.current === 'RUNNING'
@@ -501,10 +502,10 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
             setSelectedConversationId(created.id)
             // A new conversation starts with no model of its own. Carrying the one the operator
             // already chose is their decision applied, not a default invented for them.
-            if (modelReady) sessionModel.choose.mutate(selectedModelId)
+            if (modelReady) conversationActions.select.mutate({ conversationId: created.id, carryModelId: selectedModelId })
           } })}
-          onRename={(title) => { if (conversationId) conversationActions.rename.mutate({ conversationId, title }) }}
-          pending={conversationActions.create.isPending || conversationActions.rename.isPending}
+          onRename={conversationActions.rename ? (title) => { if (conversationId) conversationActions.rename?.mutate({ conversationId, title }) } : undefined}
+          pending={conversationActions.create.isPending || Boolean(conversationActions.rename?.isPending)}
         />
         <section ref={conversationRef} onScroll={onConversationScroll} className="builder-conversation" aria-label="Mensagens do Builder" aria-live="polite">
           <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={conversationRunActive && liveRequest && liveRequest.runId === conversationRun?.builderRunId ? liveRequest.text : null} persistedRequests={persistedRequests} failureCategory={conversationRun?.failureCategory ?? null} />

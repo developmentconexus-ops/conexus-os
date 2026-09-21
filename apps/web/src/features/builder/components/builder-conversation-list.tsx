@@ -9,7 +9,8 @@ export function BuilderConversationList({ conversations, selectedId, onSelect, o
   selectedId: string | null
   onSelect: (conversationId: string) => void
   onCreate: () => void
-  onRename: (title: string) => void
+  // Absent where the conversation's host has no rename.
+  onRename?: ((title: string) => void) | undefined
   pending: boolean
 }>) {
   const headingId = useId()
@@ -20,14 +21,14 @@ export function BuilderConversationList({ conversations, selectedId, onSelect, o
     event.preventDefault()
     const title = (draft ?? '').trim()
     setDraft(null)
-    if (title && title !== selected?.title) onRename(title)
+    if (title && title !== selected?.title) onRename?.(title)
   }
   const onDraftKeyDown = (event: KeyboardEvent<HTMLInputElement>) => { if (event.key === 'Escape') setDraft(null) }
   return <section className="builder-conversations" aria-labelledby={headingId}>
     <div className="builder-conversations-bar">
       <h3 id={headingId}>Conversas</h3>
       <button type="button" onClick={onCreate} disabled={pending}>Nova conversa</button>
-      <button type="button" onClick={() => setDraft(selected?.title ?? '')} disabled={pending || !selected || draft !== null}>Renomear</button>
+      {onRename && <button type="button" onClick={() => setDraft(selected?.title ?? '')} disabled={pending || !selected || draft !== null}>Renomear</button>}
     </div>
     {draft !== null && <form className="builder-conversations-rename" onSubmit={submitRename}>
       <input aria-label="Novo nome da conversa" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onDraftKeyDown} />

@@ -130,7 +130,26 @@ export const cancelBuilderRun = async (projectId: string, builderRunId: string):
   return response.json() as Promise<BuilderMessageAccepted>
 }
 
-export const getBuilderRunTrace = async (projectId: string, builderRunId: string): Promise<BuilderTraceSummary> => {
+type FactoryConversation = Readonly<{ conversationId: string; title: string | null; createdAt: string }>
+const conversationsUrl = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/conversations`
+const asConversation = (entry: FactoryConversation) => ({ id: entry.conversationId, title: entry.title })
+
+export const listFactoryConversations = async (projectId: string): Promise<readonly Readonly<{ id: string; title: string | null }>[]> => {
+  const response = await request(conversationsUrl(projectId))
+  if (!response.ok) await reject(response)
+  return ((await response.json()) as { conversations: readonly FactoryConversation[] }).conversations.map(asConversation)
+}
+
+// The browser chooses the id, so a retry of a lost response lands on the row the first attempt wrote.
+export const createFactoryConversation = async (projectId: string, conversationId: string): Promise<Readonly<{ id: string; title: string | null }>> => {
+  const response = await request(conversationsUrl(projectId), {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ conversationId }),
+  })
+  if (response.status !== 201 && response.status !== 200) await reject(response)
+  return asConversation(((await response.json()) as { conversation: FactoryConversation }).conversation)
+}
+
+export const getBuilderRunTrace =async (projectId: string, builderRunId: string): Promise<BuilderTraceSummary> => {
   const response = await request(`${sessionBase(projectId)}/runs/${encodeURIComponent(builderRunId)}/trace`)
   if (!response.ok) await reject(response)
   return response.json() as Promise<BuilderTraceSummary>
