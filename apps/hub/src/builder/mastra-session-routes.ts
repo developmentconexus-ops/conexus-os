@@ -54,6 +54,12 @@ export const registerBuilderMastraRoutes = async (app: FastifyInstance, { mastra
           return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
         }
       }
+      // Mastra's context middleware merges a requestContext taken from the body or the query into
+      // the server's, so a caller could name another user or Project. Only the Hub sets it.
+      const body = request.body as Readonly<Record<string, unknown>> | undefined
+      if ((request.query as Readonly<Record<string, unknown>>).requestContext !== undefined || (typeof body === 'object' && body !== null && 'requestContext' in body)) {
+        return sendProblem(reply, 400, 'request-context-refused', 'Request context is set by the server')
+      }
       const params = request.params as Readonly<{ controllerId?: string; resourceId?: string }>
       // Mastra Code names its own controller; the id the browser addresses is the one this module
       // registered it under on the Mastra.

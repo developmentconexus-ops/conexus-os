@@ -49,8 +49,12 @@ const createBoundaryApp = async ({ signedIn = true, admitted = true } = {}) => {
   // The routes read threads through the instance's storage, so it has to be the store the sessions write to.
   const mastra = new Mastra({ storage, agentControllers: { [BUILDER_CONTROLLER_ID]: controller }, logger: false })
   const admitCalls = []
+  const reachedContexts = []
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
+      instance.addHook('onResponse', async (request) => {
+        if (request.requestContext) reachedContexts.push({ url: request.url, user: request.requestContext.get('user'), projectId: request.requestContext.get('conexusBuilderProjectId') })
+      })
       await registerBuilderMastraRoutes(instance, {
         mastra,
         controller,
@@ -64,7 +68,7 @@ const createBoundaryApp = async ({ signedIn = true, admitted = true } = {}) => {
     },
     staticRoot: null,
   })
-  return { app, admitCalls, close: async () => {
+  return { app, admitCalls, reachedContexts, close: async () => {
     await app.close()
     await controller.destroy()
     await storage.close()
@@ -161,4 +165,15 @@ test('the browser cannot open a session or send its opening message', async (t) 
   assert.equal(messages.statusCode, 404)
   const sessions = await app.inject({ method: 'POST', url: `/api/mastra/agent-controller/${controllerId}/sessions`, ...authentic, payload: { resourceId: projectId } })
   assert.equal(sessions.statusCode, 404)
+})
+
+test("a browser-supplied requestContext never reaches Mastra, in the body or in the query", async (t) => {
+  const { app, reachedContexts, close } = await createBoundaryApp()
+  t.after(close)
+  const forged = { user: { id: "99999999-9999-4999-8999-999999999999", organizationId: "55555555-5555-4555-8555-555555555555" }, conexusBuilderProjectId: "55555555-5555-4555-8555-555555555555" }
+  const inBody = await app.inject({ method: "POST", url: `${sessionBase()}/threads`, ...authentic, payload: { title: "Forjada", requestContext: forged } })
+  const inQuery = await app.inject({ method: "GET", url: `${sessionBase()}/threads?limit=50&requestContext=${encodeURIComponent(JSON.stringify(forged))}`, ...authentic })
+  const inBase64 = await app.inject({ method: "GET", url: `${sessionBase()}/threads?requestContext=${Buffer.from(JSON.stringify(forged)).toString("base64")}`, ...authentic })
+  assert.deepEqual(reachedContexts.filter((seen) => seen.user !== undefined || seen.projectId !== undefined), [])
+  assert.deepEqual([inBody.statusCode, inQuery.statusCode, inBase64.statusCode], [400, 400, 400])
 })
