@@ -21,6 +21,7 @@ import { randomUUID, createPrivateKey } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { MastraFactory, WorkItemsStorage, createBoardRegistry } from '@mastra/factory'
 import { setCustomProvidersSource } from '@mastra/code-sdk/agents/model'
+import { AuthStorage } from '@mastra/code-sdk/auth/storage'
 import { FactoryStartCoordinator } from '@mastra/factory/rules/start-coordinator'
 import { FactoryTransitionService } from '@mastra/factory/rules/transition-service'
 import { GithubIntegration } from '@mastra/factory/integrations/github/integration'
@@ -175,12 +176,15 @@ if (negativeControl) {
 // environment. Otherwise the loopback stub answers, and the run stays free. Which one ran is
 // reported, because a claim about a real model is worth nothing if a stub answered it.
 const realModel = env('CONEXUS_REAL_MODEL')
-const realKeyPresent = Boolean(process.env.ANTHROPIC_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim())
+// A subscription login held by code-sdk's own AuthStorage counts as a credential, the same
+// as a provider key in the environment.
+const subscriptionLogins = new AuthStorage().list()
+const realKeyPresent = Boolean(process.env.ANTHROPIC_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim()) || subscriptionLogins.length > 0
 let stub = null
 let modelId = realModel
 if (realModel && !realKeyPresent) {
   claim('stage B', 'a real model was asked for and its provider key is present', false,
-    'set ANTHROPIC_API_KEY or OPENAI_API_KEY, or unset CONEXUS_REAL_MODEL to use the stub')
+    'log in with a subscription, set ANTHROPIC_API_KEY or OPENAI_API_KEY, or unset CONEXUS_REAL_MODEL to use the stub')
   await factory.shutdown()
   finish()
 }

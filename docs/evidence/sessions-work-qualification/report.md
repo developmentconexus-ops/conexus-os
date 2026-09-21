@@ -526,8 +526,13 @@ tools and structured Work in one system.
 
 ### What did not work, and what was not tested
 
-The model was a loopback stub, so nothing here speaks to a real model's behaviour or to an
-agent driving the lifecycle unattended. The lifecycle moves were requested by the harness
+The first integrated run answered its turns with a loopback stub. A second run did not:
+`[probe]` the session ran on `openai/gpt-5.6-sol`, paid by the operator's ChatGPT
+subscription through `@mastra/code-sdk`'s own OAuth device login, and the real model made
+the requested edit through the Factory session's tools before the same lifecycle closed with
+pull request #8 and its review. One bounded edit is not evidence about model quality at
+large, and an agent driving the lifecycle unattended was not exercised. The lifecycle moves
+were requested by the harness
 and judged by the Factory; a fully autonomous run would have the dispatcher request them
 from the bound agent. The Factory ran the tool without stopping for approval, which is its
 default rather than a finding about what it can enforce. Four of the harness's own defects
@@ -540,7 +545,10 @@ work item created without an arrival stage.
 A GitHub App, with its private key and client credentials, created and installed by a human
 once per deployment. A forge holding the repository. A storage backend the Factory owns,
 carrying both agent state and its app tables. A sandbox provider per session, which was a
-local one here. A model provider, which a real deployment must supply. Its own server
+local one here. A model credential in the Factory's own credential store: `[probe]` a subscription login
+through `@mastra/code-sdk`'s OAuth flow works, and `[probe]` a model connection configured
+in Conexus does not reach it, so mapping Conexus connections onto that store is integration
+work that stays ours. Its own server
 surface, 87 routes with the GitHub integration registered, and its background workers,
 including a reconcile poller that starts with `finalize()`.
 

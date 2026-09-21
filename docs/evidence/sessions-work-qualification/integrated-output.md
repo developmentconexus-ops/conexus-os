@@ -58,6 +58,63 @@ PASS  [stage D] nothing merged and nothing deployed by itself  (the pull request
 # scratch at /tmp/integrated-factory-KgFIbZ
 ```
 
+## The same run with a real model
+
+The run above answered its turns with a loopback stub. This one does not: the session ran
+on `openai/gpt-5.6-sol`, paid by the operator's ChatGPT subscription through
+`@mastra/code-sdk`'s own OAuth device login, which is the credential path the Factory's model
+layer reads. No stub was started, and the harness refuses to claim a real model when no
+credential exists.
+
+```
+PASS  [setup] the App private key parses as a PEM  (parsed)
+PASS  [setup] the run has an App, an installation and one repository to act on  (app conexus-factory-integration-probe, repo developmentconexus-ops/conexus-factory-integration-probe)
+[factory:timing] prepare.storage.init 22ms
+[factory:timing] prepare.controllerMount 137ms
+[factory:timing] finalize.controller 64ms
+[factory:timing] finalize.reconcileBoundThreads 0ms
+PASS  [stage A] the Factory booted with the real GitHub integration registered  (code, 87 routes)
+PASS  [stage A] the installation GitHub issued is registered  (row 65e54414)
+PASS  [stage A] the repository is linked to that installation  (row e8ce96a9)
+PASS  [stage A] GitHub issues an installation token for that repository  (clone url resolved, token withheld from this log)
+PASS  [stage A] a Factory project exists  (project 6daa7b94)
+PASS  [stage A] the project is connected to the installation  (connection 9a9a3367)
+PASS  [stage A] the repository is linked to the project  (link ce841529)
+PASS  [stage A] the Factory creates a source-backed session for that repository  (session ece2e149 on factory-probe/5101c142)
+PASS  [stage A] an interactive session opens on that source session  (opened)
+PASS  [stage A] the session resolves a workspace over the real repository  (Workspace)
+[factory:timing] repository clone attempt=1 exit=0 2355ms
+[factory:timing] workspace.materialize 2383ms
+[factory:timing] branch checkout remote attempt=1 exit=0 4ms
+[factory:timing] branch checkout attempt=1 exit=0 1102ms
+[factory:timing] workspace.checkout 1344ms
+[factory:timing] workspace.onStart(created) 4135ms
+PASS  [stage A] the repository is materialized in the sandbox at the revision it was cloned from  (908cfa907e1967318a5113b82874df0a7be09ade)
+PASS  [stage A] the checkout points at the probe repository  (https://github.com/developmentconexus-ops/conexus-factory-integration-probe.git)
+PASS  [stage B] the session runs on a real model, which costs money  (model openai/gpt-5.6-sol)
+PASS  [stage B] the turn ran through the Factory session without an error event
+PASS  [stage B] the session edited the real checkout  ("export const counter = 0" -> "export const counter = 1")
+PASS  [stage B] the Factory ran the tool under its own approval policy, which asks for nothing by default  (0 approval(s) requested; session.permissions is where a host changes that)
+PASS  [stage B] git sees the change against the revision it started from  ("M app/counter.js")
+PASS  [stage B] a second conversation opens in the same Factory session  (thread fb2dee05)
+PASS  [stage B] the second conversation starts with none of the first one's messages  (0 messages)
+PASS  [stage B] both conversations are listed for the Factory session  (2 threads)
+PASS  [stage C] a source session exists for the Work branch  (session b2496eea on factory-work/d06621ff)
+PASS  [stage C] the Factory coordinator starts Work on the same project  (work item 7e48432d, binding d21e11f6, kickoff sent)
+PASS  [stage C] the work item carries the session the coordinator bound to it  (["execute"])
+PASS  [stage C] the Factory engine moved the item through its own lifecycle  (intake:accepted, triage:accepted, planning:accepted, execute:accepted, review:accepted; stage review)
+PASS  [stage C] the branch is pushed to the real repository with the installation token  (pushed)
+PASS  [stage C] the Factory opens a pull request for the candidate  (pull request #8)
+PASS  [stage C] the Factory records a review on that pull request  (review 5262568935)
+PASS  [stage D] nothing merged and nothing deployed by itself  (the pull request is left open for the operator)
+# scratch at /tmp/integrated-factory-VxGAw5
+```
+
+The model was asked, in Portuguese, to change the counter to 1 in `app/counter.js`. It made
+that edit through the Factory session's own tools, and the rest of the lifecycle ran as
+before: second conversation, Work through the coordinator and the engine, push, pull
+request #8 and its review. Pull request #8 is the recorded artifact of this run.
+
 ## What each stage established
 
 **Stage A, the Factory over a real repository.** The App minted an installation token, the
