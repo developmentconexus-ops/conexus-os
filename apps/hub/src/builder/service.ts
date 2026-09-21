@@ -16,7 +16,18 @@ export type BuilderService = Readonly<{
   close(): Promise<void>
 }>
 
-type DiagnosticAppender = (input: Readonly<{ projectId: string; conversationId: string; builderRunId: string; code: string }>) => Promise<void>
+/** A note in the run's conversation thread, keyed by run and code so a retry writes it once. */
+export type RunNote = Readonly<{
+  projectId: string
+  conversationId: string
+  builderRunId: string
+  code: string
+  outcome: 'SOURCE_BASE_MOVED' | 'RUN_NOT_FINISHED' | 'BUILD_FAILED'
+  // The revision the files are at after the run: its base when discarded, its result when admitted.
+  sourceRevision: string
+}>
+
+type DiagnosticAppender = (note: RunNote) => Promise<void>
 
 // A Hub composing the Factory runs a bound Project's runs on the Factory runtime, and settles the
 // ones a restart caught mid-admission before every other running run is interrupted.
@@ -50,6 +61,9 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
     const setPhase = async (phase: BuilderRunningPhase): Promise<void> => {
       if (typeof store.setBuilderRunPhase === 'function') await store.setBuilderRunPhase(run.builderRunId, phase)
     }
+    // A Factory run whose agent ran has tool calls in its conversation thread until its source is
+    // admitted; if it never is, the thread gets a note that those edits were discarded.
+    let unadmittedAgentRun: BuilderRunSummary | null = null
     const work = (async () => {
       const claimed = await store.claimBuilderRun(run.builderRunId)
       const binding = factory ? await factory.readBindingForRun(claimed.builderRunId) : null
@@ -60,7 +74,10 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
         executionId: claimed.builderRunId, intent: input.content,
         mode: claimed.mode, baseSourceRevision: claimed.baseSourceRevision,
         signal: controller.signal,
-        setPhase,
+        setPhase: async (phase: BuilderRunningPhase) => {
+          await setPhase(phase)
+          if (phase === 'AGENT' && runSource.kind === 'FACTORY') unadmittedAgentRun = claimed
+        },
         bindPhysicalSandbox: (sandboxId: string) => store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId),
         bindMessage: (messageId: string) => store.bindBuilderRunMessage(claimed.builderRunId, messageId),
       }
@@ -78,6 +95,7 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
         return runtime.execute({ ...common, sourceBundle })
       }
       const result = await execute()
+      if (result.kind === 'SOURCE_ADMITTED') unadmittedAgentRun = null
       if (result.projectId !== claimed.projectId || !('executionId' in result) || result.executionId !== claimed.builderRunId || result.baseSourceRevision !== claimed.baseSourceRevision) throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
       if (result.kind === 'RESPONSE_ONLY') {
         if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
@@ -116,7 +134,7 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
         await finalizing()
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.resultSourceRevision, failureCode: code })
         if (diagnose) {
-          await diagnose({ projectId: claimed.projectId, conversationId: claimed.conversationId, builderRunId: claimed.builderRunId, code }).catch(() => undefined)
+          await diagnose({ projectId: claimed.projectId, conversationId: claimed.conversationId, builderRunId: claimed.builderRunId, code, outcome: 'BUILD_FAILED', sourceRevision: admitted.resultSourceRevision }).catch(() => undefined)
         }
         return
       }
@@ -138,12 +156,19 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.resultSourceRevision,
           failureCode: code }).catch(() => undefined)
         if (diagnose) {
-          await diagnose({ projectId: claimed.projectId, conversationId: claimed.conversationId, builderRunId: claimed.builderRunId, code }).catch(() => undefined)
+          await diagnose({ projectId: claimed.projectId, conversationId: claimed.conversationId, builderRunId: claimed.builderRunId, code, outcome: 'BUILD_FAILED', sourceRevision: admitted.resultSourceRevision }).catch(() => undefined)
         }
         throw error
       }
     })().catch(async (error) => {
       const code = failureCode(error)
+      const discarded: BuilderRunSummary | null = unadmittedAgentRun
+      if (discarded && factory?.appendDiagnostic) {
+        await factory.appendDiagnostic({
+          projectId: discarded.projectId, conversationId: discarded.conversationId, builderRunId: discarded.builderRunId, code,
+          outcome: code === 'BUILDER_SOURCE_BASE_MOVED' ? 'SOURCE_BASE_MOVED' : 'RUN_NOT_FINISHED', sourceRevision: discarded.baseSourceRevision,
+        }).catch(() => undefined)
+      }
       // Only the operator's cancellation aborts this controller, and what the abort surfaces depends
       // on where the run was standing: a phase write the database now refuses is still a cancellation.
       if (controller.signal.aborted || code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED' || code === 'APPLICATION_COMPILER_CANCELLED') {

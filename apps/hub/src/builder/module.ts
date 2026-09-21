@@ -30,7 +30,7 @@ import { assertFactoryHost, composeFactory, createFactoryPool, createFactorySand
 import type { FactoryComposition } from './factory.js'
 import { createGithubApp } from './factory-github.js'
 import { createFactoryCodingWorkerRuntime, createMastraFactoryRunPorts, recoverFactoryAdmissions } from './factory-runtime.js'
-import type { FactoryRunDependencies } from './service.js'
+import type { FactoryRunDependencies, RunNote } from './service.js'
 import type { BuilderStore } from './store.js'
 
 const BUILDER_OBSERVABILITY_FLUSH_TIMEOUT_MS = 5_000
@@ -93,30 +93,39 @@ export const createBuilderObservabilityLifecycle = (
 const diagnosticMessageId = (builderRunId: string, code: string): string =>
   createHash('sha256').update(`builder-diagnostic:${builderRunId}:${code}`).digest('hex')
 
-const diagnosticText = (builderRunId: string, code: string): string => code === 'BUILDER_SOURCE_BASE_MOVED'
-  ? `A execução ${builderRunId} não foi aplicada: a fonte do Project mudou enquanto ela trabalhava, e nada foi sobrescrito. Diagnóstico seguro: ${code}. Envie o pedido novamente para trabalhar sobre a versão atual.`
-  : `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}. Corrija a solicitação para tentar novamente.`
+// The next turn reads this thread, and a discarded run's tool calls in it describe edits the files
+// no longer have, so the note is written for the agent as much as for the person.
+const discarded = (sourceRevision: string): string =>
+  `As alterações desta execução foram descartadas e os arquivos voltaram à revisão ${sourceRevision}; as edições descritas acima nesta conversa não existem nos arquivos. Leia os arquivos antes de confiar neste histórico.`
+
+const NOTE_TEXT: Readonly<Record<RunNote['outcome'], (note: RunNote) => string>> = Object.freeze({
+  SOURCE_BASE_MOVED: ({ builderRunId, code, sourceRevision }) =>
+    `A execução ${builderRunId} não foi aplicada: a fonte do Project mudou enquanto ela trabalhava, e nada foi sobrescrito. ${discarded(sourceRevision)} Diagnóstico seguro: ${code}. Envie o pedido novamente: ele começará da versão atual da fonte.`,
+  RUN_NOT_FINISHED: ({ builderRunId, code, sourceRevision }) =>
+    `A execução ${builderRunId} não terminou e nada dela foi aplicado. ${discarded(sourceRevision)} Diagnóstico seguro: ${code}.`,
+  BUILD_FAILED: ({ builderRunId, code }) =>
+    `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}. Corrija a solicitação para tentar novamente.`,
+})
+
+const noteMessage = (note: RunNote, resourceId: string) => ({
+  id: diagnosticMessageId(note.builderRunId, note.code), role: 'assistant' as const, createdAt: new Date(), threadId: note.conversationId, resourceId,
+  content: { format: 2 as const, parts: [{ type: 'text' as const, text: NOTE_TEXT[note.outcome](note) }] },
+})
 
 export const createDiagnosticAppender = ({ sessionMemory, ensureSessionStorage }: Readonly<{
   sessionMemory: Pick<Memory, 'saveMessages'>
   ensureSessionStorage: () => Promise<void>
-}>) => async ({ projectId, conversationId, builderRunId, code }: Readonly<{ projectId: string; conversationId: string; builderRunId: string; code: string }>): Promise<void> => {
+}>) => async (note: RunNote): Promise<void> => {
   await ensureSessionStorage()
-  await sessionMemory.saveMessages({ messages: [{
-    id: diagnosticMessageId(builderRunId, code), role: 'assistant', createdAt: new Date(), threadId: conversationId, resourceId: projectId,
-    content: { format: 2, parts: [{ type: 'text', text: diagnosticText(builderRunId, code) }] },
-  }] })
+  await sessionMemory.saveMessages({ messages: [noteMessage(note, note.projectId)] })
 }
 
 // A Factory conversation's thread lives under the conversation's own resourceId in Factory storage.
-const createFactoryDiagnosticAppender = (ready: Promise<FactoryComposition>) =>
-  async ({ conversationId, builderRunId, code }: Readonly<{ conversationId: string; builderRunId: string; code: string }>): Promise<void> => {
+export const createFactoryDiagnosticAppender = (ready: Promise<Pick<FactoryComposition, 'mastra'>>) =>
+  async (note: RunNote): Promise<void> => {
     const memory = await (await ready).mastra.getStorage()?.getStore('memory')
     if (!memory) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
-    await memory.saveMessages({ messages: [{
-      id: diagnosticMessageId(builderRunId, code), role: 'assistant', createdAt: new Date(), threadId: conversationId, resourceId: conversationId,
-      content: { format: 2, parts: [{ type: 'text', text: diagnosticText(builderRunId, code) }] },
-    }] })
+    await memory.saveMessages({ messages: [noteMessage(note, note.conversationId)] })
   }
 
 export const createBuilderMountOptions = ({ storage, memory, storageRoot }: Readonly<{
@@ -187,7 +196,7 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
   const githubApp = createGithubApp({ appId: factory.githubAppId, privateKey: github.privateKey })
   const appendDiagnostic = createFactoryDiagnosticAppender(ready)
   const portsReady = ready.then((composition) => createMastraFactoryRunPorts({
-    composition, orgId: factory.orgId, appendDiagnostic, log: (line) => { process.stderr.write(`${line}\n`) },
+    composition, orgId: factory.orgId, log: (line) => { process.stderr.write(`${line}\n`) },
   }))
   portsReady.catch(() => undefined)
   const runtime = portsReady.then((ports) => createFactoryCodingWorkerRuntime({ ...ports, github: githubApp }))
@@ -195,7 +204,7 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
   const run: FactoryRunDependencies = Object.freeze({
     runtime: { execute: async (input) => (await runtime).execute(input) },
     readBindingForRun: store.readFactoryBindingForRun,
-    appendDiagnostic: ({ conversationId, builderRunId, code }) => appendDiagnostic({ conversationId, builderRunId, code }),
+    appendDiagnostic,
     recoverAdmissions: async () => recoverFactoryAdmissions({ store, github: githubApp, installationFor: (await portsReady).installationFor }),
   })
   return Object.freeze({

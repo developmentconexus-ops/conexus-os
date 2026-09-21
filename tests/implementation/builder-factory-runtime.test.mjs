@@ -88,7 +88,6 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
     },
     github: createGithubApp({ appId: '5015512', privateKey, baseUrl: github.baseUrl }),
     installationFor: async () => 163574754,
-    appendDiagnostic: async (input) => { diagnostics.push(input) },
     materializeStarter: async () => { events.push('starter'); await starter?.() },
     log: (line) => { logs.push(line) },
   })
@@ -134,7 +133,9 @@ test('a compare-and-swap GitHub refuses with 422 settles BUILDER_SOURCE_BASE_MOV
   assert.equal(run.patches().length, 1)
   assert.equal(run.main(), BASE)
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'fail' || kind === 'advance'), [['fail', 'BUILDER_SOURCE_BASE_MOVED']])
-  assert.deepEqual(run.diagnostics, [{ conversationId, builderRunId: runId, code: 'BUILDER_SOURCE_BASE_MOVED' }])
+  assert.deepEqual(run.diagnostics, [{
+    projectId, conversationId, builderRunId: runId, code: 'BUILDER_SOURCE_BASE_MOVED', outcome: 'SOURCE_BASE_MOVED', sourceRevision: BASE, from: 'service',
+  }])
 })
 
 test('a default branch moved by someone else is never patched and settles BUILDER_SOURCE_BASE_MOVED', async (t) => {
@@ -221,7 +222,9 @@ test('a build failure still admits the source by PATCH and settles SOURCE_CHANGE
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild' || kind === 'fail'), [
     ['advance', RESULT], ['settleBuild', RESULT, 'APPLICATION_COMPILATION_FAILED'],
   ])
-  assert.deepEqual(run.diagnostics, [{ projectId, conversationId, builderRunId: runId, code: 'APPLICATION_COMPILATION_FAILED', from: 'service' }])
+  assert.deepEqual(run.diagnostics, [{
+    projectId, conversationId, builderRunId: runId, code: 'APPLICATION_COMPILATION_FAILED', outcome: 'BUILD_FAILED', sourceRevision: RESULT, from: 'service',
+  }])
 })
 
 test('the base is pinned by fetch, reset, clean and checkout, and HEAD is checked against it before the agent runs', async (t) => {
@@ -310,11 +313,37 @@ test('an agent that aborts with no stop from the person fails with a named reaso
   assert.equal(run.commands().some((line) => line.includes(' push ')), false)
 })
 
+test('a run that reached the agent and admitted nothing leaves one note that its edits were discarded at the base', async (t) => {
+  const run = await harness(t, { turn: () => ({ reason: 'error', endedAt: new Date(), userMessageId: 'user-message', summary: 'Concluído.' }) })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_MODEL_INCOMPLETE'])
+  assert.deepEqual(run.diagnostics, [{
+    projectId, conversationId, builderRunId: runId, code: 'BUILDER_MODEL_INCOMPLETE', outcome: 'RUN_NOT_FINISHED', sourceRevision: BASE, from: 'service',
+  }])
+})
+
+test('a run the person stopped during the agent turn also leaves the discarded note', async (t) => {
+  const context = {}
+  const run = await harness(t, {
+    turn: async () => {
+      await context.run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+      return { reason: 'aborted', endedAt: new Date(), userMessageId: 'user-message', summary: '' }
+    },
+  })
+  context.run = run
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
+  assert.deepEqual(run.diagnostics.map(({ code, outcome, sourceRevision }) => [code, outcome, sourceRevision]), [['BUILDER_RUN_CANCELLED', 'RUN_NOT_FINISHED', BASE]])
+})
+
 test('a reap that does not finish refuses the token-bearing command with BUILDER_SANDBOX_REAP_FAILED', async (t) => {
   const run = await harness(t, { reapExit: 3 })
   await run.start()
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_SANDBOX_REAP_FAILED'])
+  assert.deepEqual(run.diagnostics, [], 'a run that never reached the agent has no edits to disown')
   assert.deepEqual(run.github.state.tokens.length, 1)
   assert.equal(run.commands().some((line) => line.includes(' fetch ')), false)
   assert.equal(run.events.includes('turn'), false)
@@ -353,5 +382,6 @@ test('the Factory agent is told to run the application check, and not that the c
   const instructions = factoryAgentInstructions('/workspace/app')
   assert.match(instructions, /^Work only in the exact Session Workspace at \/workspace\/app\./)
   assert.ok(instructions.endsWith('Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.'))
+  assert.ok(instructions.includes(' The conversation history can describe edits from earlier turns that were discarded; trust the files in the workspace over the history. '))
   assert.doesNotMatch(instructions, /compiler runs separately|\/workspace\/repo/)
 })

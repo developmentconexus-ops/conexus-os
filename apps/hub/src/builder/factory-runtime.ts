@@ -46,7 +46,6 @@ export type FactoryRunPorts = Readonly<{
   openSession(input: Readonly<{ conversationId: string; builderRunId: string; projectId: string; accountId: string }>): Promise<FactoryRunSession>
   github: Pick<GithubApp, 'repositoryToken' | 'readBranchHead' | 'updateBranch'>
   installationFor(binding: FactoryBindingRecord): Promise<number>
-  appendDiagnostic(input: Readonly<{ conversationId: string; builderRunId: string; code: string }>): Promise<void>
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
   log(line: string): void
 }>
@@ -83,6 +82,7 @@ export const factoryWorkdir = (repositorySlug: string): string => {
 
 export const factoryAgentInstructions = (workdir: string): string => [
   ...BUILDER_SHARED_AGENT_INSTRUCTIONS.map((line) => line.replaceAll('/workspace/repo', workdir)),
+  'The conversation history can describe edits from earlier turns that were discarded; trust the files in the workspace over the history.',
   APPLICATION_CHECK_INSTRUCTION,
 ].join(' ')
 
@@ -103,8 +103,6 @@ const tokenEnvironment = (token: string): Record<string, string> => ({
   GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
   GIT_TERMINAL_PROMPT: '0',
 })
-
-const BASE_MOVED = 'BUILDER_SOURCE_BASE_MOVED'
 
 export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): FactoryCodingWorkerRuntime => Object.freeze({
   execute: async (input) => {
@@ -256,10 +254,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
         // one case GitHub's own check would not: a default branch rewound to an ancestor of R.
         if (head === base && cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
         const admitted = head === base && await ports.github.updateBranch(installation, repository, binding.defaultBranch, result) === 'UPDATED'
-        if (!admitted) {
-          await ports.appendDiagnostic({ conversationId: input.conversationId, builderRunId: input.executionId, code: BASE_MOVED }).catch(() => undefined)
-          throw new Error(BASE_MOVED)
-        }
+        if (!admitted) throw new Error('BUILDER_SOURCE_BASE_MOVED')
       }
       return Object.freeze({ ...scope, kind: 'SOURCE_ADMITTED' as const, resultSourceRevision: result, applicationBuild })
     } catch (error) {
@@ -281,10 +276,9 @@ const DENIED_TOOLS = Object.freeze([
 
 type RecordedMessage = Readonly<{ id: string; role?: string; content?: unknown }>
 
-export const createMastraFactoryRunPorts = ({ composition, orgId, appendDiagnostic, log }: Readonly<{
+export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonly<{
   composition: FactoryComposition
   orgId: string
-  appendDiagnostic: FactoryRunPorts['appendDiagnostic']
   log(line: string): void
 }>): Omit<FactoryRunPorts, 'github'> => Object.freeze({
   installationFor: async (binding: FactoryBindingRecord) => {
@@ -295,7 +289,6 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, appendDiagnost
     if (!Number.isSafeInteger(externalId) || externalId <= 0) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
     return externalId
   },
-  appendDiagnostic,
   log,
   openSession: async ({ conversationId, builderRunId, projectId, accountId }) => {
     const { controller } = composition
