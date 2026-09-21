@@ -94,6 +94,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const claimed = { builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'PREPARING', mode, baseSourceRevision: BASE, resultSourceRevision: null, resultKind: null, failureCode: null }
   const store = {
     createBuilderRun: async () => ({ ...claimed, state: 'QUEUED', phase: null }),
+    readFactoryBinding: async () => binding,
     claimBuilderRun: async () => claimed,
     setBuilderRunPhase: async (_id, phase) => { calls.push(['phase', phase]) },
     bindBuilderRunMessage: async (_id, messageId) => { calls.push(['message', messageId]) },
@@ -114,6 +115,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
     factory: {
       runtime,
       readBindingForRun: async () => binding,
+      readSourceHead: async () => BASE,
       appendDiagnostic: async (input) => { diagnostics.push({ ...input, from: 'service' }) },
       recoverAdmissions: async () => [],
     },

@@ -53,7 +53,9 @@ const refusedAsNotAuthorized = (error: unknown): never => {
 }
 
 export type BuilderStore = Readonly<{
-  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN' }>): Promise<BuilderRunSummary>
+  // sourceHead is the bound repository's default-branch head, which a Factory-backed Project adopts
+  // as its working revision; it is null for a Project with no binding.
+  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN'; sourceHead: string | null }>): Promise<BuilderRunSummary>
   readBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderRunSummary | null>
   listBuilderRuns(input: Readonly<{ accountId: string; projectId: string; limit?: number }>): Promise<readonly BuilderRunSummary[]>
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderCodeChangingRun | null>
@@ -94,11 +96,11 @@ export const createBuilderStore = ({
   executorPool: PostgresPool
   mintIdentity?: () => string
 }>): BuilderStore => Object.freeze({
-  createBuilderRun: async ({ accountId, projectId, conversationId, idempotencyKey, content, mode }) => {
+  createBuilderRun: async ({ accountId, projectId, conversationId, idempotencyKey, content, mode, sourceHead }) => {
     const request = { mode, content }
     const result = await ingressPool.query<JsonRow<BuilderRunSummary>>(
-      'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9) AS value',
-      [accountId, projectId, conversationId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), content, null, mode, mintIdentity()],
+      'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value',
+      [accountId, projectId, conversationId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), content, null, mode, mintIdentity(), sourceHead],
     )
     const value = result.rows[0]?.value
     if (!value) throw new Error('BUILDER_RUN_CREATE_FAILED')

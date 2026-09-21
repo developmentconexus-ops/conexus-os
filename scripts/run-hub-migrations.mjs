@@ -21,6 +21,7 @@ const builderRunConversationDigest = '071d758f040764d99122e7ff013b0075fe0e497adc
 const removeModelConnectionsDigest = 'eb802f15571f536b60c1218426a983c38365d5c07bb519fce50c484e1b613d08'
 const dropModelConnectionRolesDigest = '435eac1ee965f3e11a6e0d69869be1c57a781ed72ff17e7f8a975fd41c13a534'
 const factoryBindingDigest = 'd70c3ead2d7d9634927e6cd7d22ee65f8228524b477524a0cde3a212cfcd8191'
+const factorySourceHeadDigest = 'c0902c5e58c9b1a41c28cc1e5286409d7ecd78d7466a4aec983a33d50ddc6d96'
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
   ['0002_prune_dead_iam_actions.sql', pruneDeadIamActionsDigest],
@@ -33,6 +34,7 @@ const migrationDigests = new Map([
   ['0009_remove_model_connections.sql', removeModelConnectionsDigest],
   ['0010_drop_model_connection_roles.sql', dropModelConnectionRolesDigest],
   ['0011_factory_binding.sql', factoryBindingDigest],
+  ['0012_factory_source_head.sql', factorySourceHeadDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

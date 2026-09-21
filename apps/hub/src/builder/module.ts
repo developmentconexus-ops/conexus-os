@@ -204,6 +204,11 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
   const run: FactoryRunDependencies = Object.freeze({
     runtime: { execute: async (input) => (await runtime).execute(input) },
     readBindingForRun: store.readFactoryBindingForRun,
+    readSourceHead: async (binding) => githubApp.readBranchHead(
+      await (await portsReady).installationFor(binding),
+      { externalId: binding.repositoryExternalId, slug: binding.repositorySlug },
+      binding.defaultBranch,
+    ),
     appendDiagnostic,
     recoverAdmissions: async () => recoverFactoryAdmissions({ store, github: githubApp, installationFor: (await portsReady).installationFor }),
   })

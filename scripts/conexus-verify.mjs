@@ -53,7 +53,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('factory-dependency-tree', 'node --test tests/implementation/builder-factory-dependency-tree.test.mjs'),
   candidateStep('factory-composition', 'node --test --test-concurrency=1 tests/implementation/builder-factory-composition.test.mjs', 'postgres'),
   candidateStep('factory-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-factory-runtime.test.mjs tests/implementation/builder-diagnostic-appender.test.mjs'),
-  candidateStep('factory-recovery-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-factory-recovery-postgres.test.mjs', 'postgres'),
+  candidateStep('factory-recovery-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-factory-recovery-postgres.test.mjs tests/implementation/builder-factory-source-head-postgres.test.mjs', 'postgres'),
   candidateStep('factory-routes', 'node --test --test-concurrency=1 tests/implementation/builder-factory-routes.test.mjs'),
   candidateStep('factory-provisioning', 'node --test --test-concurrency=1 tests/implementation/builder-factory-provisioning.test.mjs && npx --no-install biome check scripts/hub-factory.mjs', 'postgres'),
   candidateStep('foundation-postgres', 'node --test --test-concurrency=1 tests/implementation/identity-access-postgres.test.mjs tests/implementation/workspace-postgres.test.mjs tests/implementation/project-postgres.test.mjs && npx --no-install biome check tests/implementation/identity-access-postgres.test.mjs tests/implementation/workspace-postgres.test.mjs tests/implementation/project-postgres.test.mjs', 'postgres'),

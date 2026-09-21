@@ -34,6 +34,8 @@ type DiagnosticAppender = (note: RunNote) => Promise<void>
 export type FactoryRunDependencies = Readonly<{
   runtime: FactoryCodingWorkerRuntime
   readBindingForRun(builderRunId: string): Promise<FactoryBindingRecord | null>
+  // The head of the bound repository's default branch, which is the Project's current source.
+  readSourceHead(binding: FactoryBindingRecord): Promise<string | null>
   appendDiagnostic?: DiagnosticAppender
   recoverAdmissions(): Promise<unknown>
 }>
@@ -201,7 +203,10 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
   }
   return Object.freeze({
     createBuilderRun: async (input) => {
-      const run = await store.createBuilderRun(input)
+      const binding = factory ? await store.readFactoryBinding({ accountId: input.accountId, projectId: input.projectId }) : null
+      const sourceHead = binding && factory ? await factory.readSourceHead(binding) : null
+      if (binding && !sourceHead) throw new Error('BUILDER_SOURCE_HEAD_UNAVAILABLE')
+      const run = await store.createBuilderRun({ ...input, sourceHead })
       if (run.state === 'QUEUED') dispatchBuilderRun(run, input)
       return run
     },
