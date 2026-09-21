@@ -170,6 +170,12 @@ it ends in evidence and a recommendation, and it does not authorize a migration.
 
 What remains of it is named in
 [section 11 of the report](evidence/sessions-work-qualification/report.md#11-what-has-no-evidence-yet).
+The integrated Factory test, against a disposable private repository, is set up and blocked
+on one external prerequisite: the published integration is a GitHub App, and creating and
+installing one is a browser action. Everything after it is scriptable.
+[Section 13 of the report](evidence/sessions-work-qualification/report.md#13-the-integrated-factory-test-and-the-one-thing-it-waits-on)
+states the gate and what a person does once.
+
 The first increment it prepares is
 [Several conversations per Project](tasks/project-conversations-first-increment.md), with no
 Work and no Goals. It awaits a decision rather than a start, and nothing before it is

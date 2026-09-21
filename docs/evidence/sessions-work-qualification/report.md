@@ -406,6 +406,76 @@ Work to run under the Factory.
 Nothing in this qualification requires that decision to be made before the first increment,
 because the first increment needs neither Work nor a forge.
 
+## 13. The integrated Factory test, and the one thing it waits on
+
+Sections 8 to 10 tested the mount the Factory wraps. This section is about the whole
+`MastraFactory` against a real private repository, which is what decides whether the Factory
+can be a Project's development environment rather than a library it borrows from.
+
+### What is already in place
+
+A disposable private repository exists for exactly this,
+`developmentconexus-ops/conexus-factory-integration-probe`, seeded with `app/counter.js`
+holding `export const counter = 0`, with no workflows, no secrets and no deployment. Its
+identity and what is deliberately absent are recorded in
+[factory-integration-setup.md](factory-integration-setup.md).
+
+`[probe]` the whole Factory boots with the real `GithubIntegration` class registered: it
+refuses partial credentials with `missing required config field(s)`, it refuses to register
+that integration without a stable state secret, and with both supplied it mounts its
+controller, publishes 87 routes (eight more than without GitHub), starts its reconcile
+worker, and shuts down cleanly. The first thing that needs GitHub itself then refuses, which
+is where the test stops.
+
+### The gate, stated exactly
+
+`[package]` the published integration is a GitHub App and only that.
+`dist/integrations/github/integration.js:44` lists `appId`, `privateKey`, `clientId`,
+`clientSecret` and `slug` as required, and `:245` refuses anything less. The clone, push and
+pull-request token is always minted from those through `mintInstallationToken` at `:347`,
+against an installation id the App produces. `[package]` a personal access token does not
+substitute: `dist/integrations/github/pat.js` feeds `GH_TOKEN` for the `gh` CLI, while
+`dist/workspace.js:314` takes the repository token from the installation.
+
+So the `gh` credential that created the probe repository cannot drive the Factory's own
+integration, and building an object that merely satisfies the class's shape would test
+nothing. This qualification does not do that.
+
+Creating a GitHub App is a browser action. GitHub exposes no API that creates one outright,
+and none that installs one. Everything after it is scriptable, including reading the
+installation id back with an App JWT and writing the installation, repository, connection,
+project-repository and session rows.
+
+### What a person does once, and what happens next
+
+Create a GitHub App owned by `developmentconexus-ops`, generate its private key and client
+secret, and install it on the single repository `conexus-factory-integration-probe` with
+"Only select repositories". Permissions: repository contents read and write, pull requests
+read and write, metadata read, which is what the run path calls. Issues read and write plus
+the six webhook events are only for intake, which this test does not need, and no
+organization-wide or administration permission is involved. The callback URL matters only
+for the browser connect flow; `http://localhost:4111/auth/github/callback` is the default.
+
+With those five values in the environment, the rest of the integrated test runs unattended:
+the Factory project, the connection and repository rows, an interactive session over the
+real repository, a bounded edit through its coding tools, a second conversation and back, a
+work item through intake, triage and build, a pull request, a review and an explicit merge
+inside that repository, with nothing deployed.
+
+### The verdict for now
+
+**Decision blocked, on one external prerequisite.** Not on a design question, not on a
+missing capability, and not on anything Conexus would have to build. Until a GitHub App
+exists and is installed on the probe repository, the integrated path cannot be exercised
+honestly, and comparing it against the host-owned path would be comparing something measured
+against something imagined.
+
+What the gate already tells us, and what the comparison will have to price whichever way it
+goes: choosing the Factory for Work means a GitHub App per deployment, repositories on a
+forge, and an installation to keep working. That is an operational dependency, not a line of
+code, and it is the kind of cost that belongs in the operator's decision in section 10
+rather than in an engineer's preference.
+
 ## 11. What has no evidence yet
 
 - Concurrent agent runs on one Project, as opposed to concurrent thread creation.

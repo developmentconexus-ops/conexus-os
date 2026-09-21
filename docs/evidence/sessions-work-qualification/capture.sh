@@ -43,6 +43,22 @@ section 'the code-sdk mount the Factory itself uses, with a host workspace'
 cp "$HERE/code-sdk-mount.mjs" "$SCRATCH/"
 ( cd "$SCRATCH" && node code-sdk-mount.mjs 2>&1 ) || status=1
 
+section 'the whole Factory with its real GitHub integration, up to the gate'
+cp "$HERE/factory-github-gate.mjs" "$SCRATCH/"
+( cd "$SCRATCH" && node factory-github-gate.mjs 2>&1 ) || status=1
+
+section 'the GitHub gate, negative control'
+GATE_OUT=$(mktemp "${TMPDIR:-/tmp}/factory-gate-negative-XXXXXX")
+( cd "$SCRATCH" && node factory-github-gate.mjs --negative-control >"$GATE_OUT" 2>&1 )
+gate=$?
+tail -1 "$GATE_OUT"
+rm -f "$GATE_OUT"
+if [ "$gate" -eq 0 ]; then
+  echo 'negative control passed, so the harness cannot fail'; status=1
+else
+  echo 'negative control failed as required'
+fi
+
 section 'a full turn through the code-sdk mount, against a local stub provider'
 bash "$HERE/code-sdk-turn.sh" "$SCRATCH" || status=1
 
