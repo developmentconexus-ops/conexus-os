@@ -67,6 +67,8 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'builder.fail_builder_run': 'hub_builder_executor',
     'builder.interrupt_builder_run': 'hub_builder_executor',
     'builder.recover_builder_runs': 'hub_builder_executor',
+    'builder.read_factory_binding': 'hub_builder_ingress',
+    'builder.resolve_factory_project': 'hub_builder_ingress',
   }),
   'builder/factory-provisioning.ts': Object.freeze({
     'builder.bind_factory_project': 'hub_builder_executor',

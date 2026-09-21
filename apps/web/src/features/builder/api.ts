@@ -28,6 +28,7 @@ export type BuilderSession = Readonly<{
     lastGoodArtifactDigest: string | null
   }>
   mode: 'BUILD' | 'PLAN'
+  sourceHost: 'CONEXUS' | 'FACTORY'
   runHistory?: readonly BuilderRun[]
 }>
 export type BuilderRun = Readonly<{

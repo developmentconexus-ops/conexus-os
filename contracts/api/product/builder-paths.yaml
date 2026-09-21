@@ -156,6 +156,53 @@ paths:
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
         '503': { $ref: './openapi.yaml#/components/responses/Problem503' }
 
+  /api/control/projects/{projectId}/conversations:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      summary: ListFactoryConversations
+      operationId: ListFactoryConversations
+      x-conexus-4a-id: BLD-27
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: The conversations of a Project developed through the Factory, newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FactoryConversationList' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+    post:
+      summary: CreateFactoryConversation
+      operationId: CreateFactoryConversation
+      x-conexus-4a-id: BLD-28
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateFactoryConversationRequest' }
+      responses:
+        '200':
+          description: The conversation a previous request with the same client-chosen id already created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FactoryConversationCreated' }
+        '201':
+          description: One new conversation of the Project, under the id the client chose.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FactoryConversationCreated' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
+
 components:
   parameters:
     ProjectId:
@@ -248,9 +295,45 @@ components:
             - type: 'null'
         preview: { $ref: '#/components/schemas/BuilderPreviewSummary' }
         mode: { type: string, enum: [BUILD, PLAN] }
+        # FACTORY when the Project's source is its GitHub repository, developed through the
+        # Mastra Factory; CONEXUS while it stays under Conexus's own Git custody.
+        sourceHost: { type: string, enum: [CONEXUS, FACTORY] }
         runHistory:
           type: array
           items: { $ref: '#/components/schemas/BuilderRunSummary' }
+    FactoryConversation:
+      type: object
+      additionalProperties: false
+      required: [conversationId, title, createdAt]
+      properties:
+        # The Factory session id, which is also the Mastra resourceId and thread id.
+        conversationId: { type: string, format: uuid }
+        title: { type: [string, 'null'], maxLength: 200 }
+        createdAt: { type: string, format: date-time }
+    FactoryConversationList:
+      type: object
+      additionalProperties: false
+      required: [conversations]
+      properties:
+        conversations:
+          type: array
+          items: { $ref: '#/components/schemas/FactoryConversation' }
+    CreateFactoryConversationRequest:
+      type: object
+      additionalProperties: false
+      required: [conversationId]
+      properties:
+        conversationId:
+          description: Chosen by the client, so a retried request returns the conversation the first one created.
+          type: string
+          format: uuid
+        title: { type: string, minLength: 1, maxLength: 200 }
+    FactoryConversationCreated:
+      type: object
+      additionalProperties: false
+      required: [conversation]
+      properties:
+        conversation: { $ref: '#/components/schemas/FactoryConversation' }
     EmptyRequest:
       type: object
       additionalProperties: false

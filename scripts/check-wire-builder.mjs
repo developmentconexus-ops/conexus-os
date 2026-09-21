@@ -16,6 +16,8 @@ const expected = {
   'BLD-24': ['/builder-session/messages', 'post'],
   'BLD-25': ['/builder-session/runs/{builderRunId}/cancel', 'post'],
   'BLD-26': ['/builder-session/runs/{builderRunId}/trace', 'get'],
+  'BLD-27': ['/conversations', 'get'],
+  'BLD-28': ['/conversations', 'post'],
 }
 for (const [id, [suffix, method]] of Object.entries(expected)) {
   const entry = operations.get(id)

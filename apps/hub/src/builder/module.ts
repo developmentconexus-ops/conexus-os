@@ -9,7 +9,8 @@ import { Mastra } from '@mastra/core/mastra'
 import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
-import { BUILDER_CONTROLLER_ID, registerBuilderMastraRoutes } from './mastra-session-routes.js'
+import { BUILDER_CONTROLLER_ID, registerBuilderMastraRoutes, registerFactoryMastraRoutes } from './mastra-session-routes.js'
+import { admitFactoryConversation, registerFactoryConversationRoutes } from './factory-routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
 import {
   BUILDER_REPOSITORY_ROOT,
@@ -257,8 +258,12 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, proj
       const preview = await store.readPreviewSubject({ accountId, projectId })
       if (!preview) throw new Error('NOT_AUTHORIZED')
       await ensureSessionStorage()
-      const runHistory = await store.listBuilderRuns({ accountId, projectId })
+      const [runHistory, binding] = await Promise.all([
+        store.listBuilderRuns({ accountId, projectId }),
+        store.readFactoryBinding({ accountId, projectId }),
+      ])
       return Object.freeze({
+        sourceHost: binding ? 'FACTORY' as const : 'CONEXUS' as const,
         projectId,
         workingSourceRevision: preview.workingSourceRevision,
         lastPreviewSourceRevision: preview.lastPreviewSourceRevision ?? null,
@@ -293,7 +298,6 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, proj
   return Object.freeze({
     registerBuilderRoutes: async (app: FastifyInstance) => {
       const { mastra, controller } = await harness
-      if (factoryComposition) await factoryComposition.ready
       await registerBuilderMastraRoutes(app, {
         mastra,
         controller,
@@ -301,7 +305,21 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, proj
         resolveCurrentSession,
         admitProjectBuild: async (input) => Boolean(await store.readPreviewSubject(input)),
       })
-      return registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) })
+      const builderOperations = await registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) })
+      if (!factoryComposition) return builderOperations
+      const composition = await factoryComposition.ready
+      const sessions = composition.github.sourceControlStorage.sessions
+      await registerFactoryMastraRoutes(app, {
+        mastra: composition.mastra,
+        controller: composition.controller,
+        origin,
+        orgId: factoryComposition.orgId,
+        resolveCurrentSession,
+        admitConversation: admitFactoryConversation({ sessions, resolveFactoryProject: store.resolveFactoryProject }),
+      })
+      return [...builderOperations, ...await registerFactoryConversationRoutes(app, {
+        readFactoryBinding: store.readFactoryBinding, sessions, orgId: factoryComposition.orgId, origin, resolveCurrentSession,
+      })]
     },
     readApplicationFileBySource: service.readApplicationFileBySource,
     getApplicationBySource: service.getApplicationBySource,

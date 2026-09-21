@@ -35,7 +35,22 @@ export type BuilderWorkingPreviewSubject = BuilderPreviewSubject & Readonly<{
   workingSourceRevision: string
   lastPreviewSourceRevision: string | null
 }>
+export type FactoryBindingRecord = Readonly<{
+  projectId: string
+  factoryProjectId: string
+  projectRepositoryId: string
+  repositoryId: string
+  repositoryExternalId: number
+  repositorySlug: string
+  defaultBranch: string
+  boundAt: string
+}>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
+
+const refusedAsNotAuthorized = (error: unknown): never => {
+  if (typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501') throw new Error('NOT_AUTHORIZED')
+  throw error
+}
 
 export type BuilderStore = Readonly<{
   createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN' }>): Promise<BuilderRunSummary>
@@ -55,6 +70,8 @@ export type BuilderStore = Readonly<{
   readPreviewSubject(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderWorkingPreviewSubject | null>
   admitSourceRevision(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<boolean>
   recoverAndListQueuedBuilderRuns(): Promise<readonly string[]>
+  readFactoryBinding(input: Readonly<{ accountId: string; projectId: string }>): Promise<FactoryBindingRecord | null>
+  resolveFactoryProject(input: Readonly<{ accountId: string; projectRepositoryId: string }>): Promise<string | null>
   close(): Promise<void>
 }>
 
@@ -184,6 +201,18 @@ export const createBuilderStore = ({
       'SELECT builder.recover_builder_runs() AS builder_run_id',
     )
     return result.rows.map((row) => row.builder_run_id)
+  },
+  readFactoryBinding: async ({ accountId, projectId }) => {
+    const result = await ingressPool.query<JsonRow<FactoryBindingRecord | null>>(
+      'SELECT builder.read_factory_binding($1,$2) AS value', [accountId, projectId],
+    ).catch(refusedAsNotAuthorized)
+    return result.rows[0]?.value ?? null
+  },
+  resolveFactoryProject: async ({ accountId, projectRepositoryId }) => {
+    const result = await ingressPool.query<QueryResultRow & Readonly<{ value: string | null }>>(
+      'SELECT builder.resolve_factory_project($1,$2) AS value', [accountId, projectRepositoryId],
+    )
+    return result.rows[0]?.value ?? null
   },
   close: async () => { await Promise.all([ingressPool.end(), executorPool.end()]) },
 })

@@ -80,6 +80,8 @@ must agree exactly.
 | `BLD-24` | `SendBuilderMessage` | Builder | authorized Project + server-resolved current source and Project Thread | command |
 | `BLD-25` | `CancelBuilderRun` | Builder | authorized Project + exact BuilderRun; repeated requests remain idempotent | command |
 | `BLD-26` | `GetBuilderRunTrace` | Builder | authorized Project + exact BuilderRun; safe native trace projection only | read |
+| `BLD-27` | `ListFactoryConversations` | Builder over Factory storage | authorized Project bound to its Factory repository; conversations are Factory session rows | read |
+| `BLD-28` | `CreateFactoryConversation` | Builder over Factory storage | authorized Project bound to its Factory repository + client-chosen conversation id; a retry returns the existing row | command |
 
 # 4. What is not an operation
 
