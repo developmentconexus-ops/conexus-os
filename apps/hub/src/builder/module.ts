@@ -10,7 +10,7 @@ import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
 import { BUILDER_CONTROLLER_ID, registerBuilderMastraRoutes, registerFactoryMastraRoutes } from './mastra-session-routes.js'
-import { admitFactoryConversation, registerFactoryConversationRoutes } from './factory-routes.js'
+import { admitFactoryConversation, openFactoryConversationThread, registerFactoryConversationRoutes } from './factory-routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
 import {
   BUILDER_REPOSITORY_ROOT,
@@ -358,6 +358,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, proj
       })
       return [...builderOperations, ...await registerFactoryConversationRoutes(app, {
         readFactoryBinding: store.readFactoryBinding, sessions, orgId: factoryComposition.orgId, origin, resolveCurrentSession,
+        openThread: openFactoryConversationThread({ controller: composition.controller, orgId: factoryComposition.orgId }),
       })]
     },
     readApplicationFileBySource: service.readApplicationFileBySource,

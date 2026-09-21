@@ -24,7 +24,7 @@ if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdou
 const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerFactoryMastraRoutes } = await import(built('builder/mastra-session-routes.js'))
-const { admitFactoryConversation, registerFactoryConversationRoutes } = await import(built('builder/factory-routes.js'))
+const { admitFactoryConversation, openFactoryConversationThread, registerFactoryConversationRoutes } = await import(built('builder/factory-routes.js'))
 
 const origin = 'https://conexus.test'
 const ORG = 'conexus-installation'
@@ -89,7 +89,9 @@ const createFactoryApp = async (t, { accountId = accountA } = {}) => {
         mastra, controller, origin, orgId: ORG, resolveCurrentSession,
         admitConversation: admitFactoryConversation({ sessions, resolveFactoryProject }),
       })
-      return registerFactoryConversationRoutes(instance, { readFactoryBinding, sessions, orgId: ORG, origin, resolveCurrentSession })
+      return registerFactoryConversationRoutes(instance, {
+        readFactoryBinding, sessions, orgId: ORG, origin, resolveCurrentSession, openThread: openFactoryConversationThread({ controller, orgId: ORG }),
+      })
     },
     staticRoot: null,
   })
@@ -172,4 +174,18 @@ test('the conversation routes refuse a Project the Account may not build, and an
   assert.equal((await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/conversations`, ...authentic })).statusCode, 403)
   const clash = await app.inject({ method: 'POST', url: `/api/control/projects/${projectB}/conversations`, ...authentic, payload: { conversationId: conversationA } })
   assert.equal(clash.statusCode, 409)
+})
+
+test('creating a conversation opens its Mastra thread, so the browser session reads and sets the model on that thread', async (t) => {
+  const { app } = await createFactoryApp(t)
+  const conversationId = randomUUID()
+  const created = await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/conversations`, ...authentic, payload: { conversationId } })
+  assert.equal(created.statusCode, 201)
+  const threads = await app.inject({ method: 'GET', url: `${sessionBase(conversationId)}/threads`, ...authentic })
+  assert.equal(threads.statusCode, 200)
+  assert.deepEqual(threads.json().threads.map((thread) => thread.id), [conversationId])
+  const retried = await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/conversations`, ...authentic, payload: { conversationId } })
+  assert.equal(retried.statusCode, 200)
+  const again = await app.inject({ method: 'GET', url: `${sessionBase(conversationId)}/threads`, ...authentic })
+  assert.deepEqual(again.json().threads.map((thread) => thread.id), [conversationId])
 })

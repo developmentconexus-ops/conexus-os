@@ -1,6 +1,8 @@
+import { RequestContext } from '@mastra/core/request-context'
 import type { FastifyInstance } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
+import type { BuilderAgentController } from './runtime.js'
 import type { FactoryBindingRecord } from './store.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
@@ -43,12 +45,26 @@ const projectConversation = (row: FactorySessionRow) => ({
 
 export type FactoryConversationOperationId = 'BLD-27' | 'BLD-28'
 
-export const registerFactoryConversationRoutes = async (app: FastifyInstance, { readFactoryBinding, sessions, orgId, origin, resolveCurrentSession }: Readonly<{
+type OpenThread = (input: Readonly<{ conversationId: string; accountId: string }>) => Promise<void>
+
+// A session with no thread named picks the resource's most recent thread, or creates one with a
+// random id. The browser's session on a new conversation would then hold its model on a thread no
+// run ever reads, so the Hub opens the conversation's own thread, id and resource both the
+// conversation id, before the browser asks for it.
+export const openFactoryConversationThread = ({ controller, orgId }: Readonly<{ controller: BuilderAgentController; orgId: string }>): OpenThread =>
+  async ({ conversationId, accountId }) => {
+    const requestContext = new RequestContext()
+    requestContext.set('user', { id: accountId, organizationId: orgId })
+    await controller.createSession({ resourceId: conversationId, ownerId: conversationId, threadId: conversationId, requestContext })
+  }
+
+export const registerFactoryConversationRoutes = async (app: FastifyInstance, { readFactoryBinding, sessions, orgId, origin, resolveCurrentSession, openThread }: Readonly<{
   readFactoryBinding(input: Readonly<{ accountId: string; projectId: string }>): Promise<FactoryBindingRecord | null>
   sessions: FactoryConversationSessions
   orgId: string
   origin: string
   resolveCurrentSession: ResolveCurrentSession
+  openThread: OpenThread
 }>): Promise<readonly FactoryConversationOperationId[]> => {
   const boundProject = async (accountId: string, projectId: string): Promise<FactoryBindingRecord | 'DENIED' | 'UNBOUND'> => {
     try {
@@ -87,6 +103,7 @@ export const registerFactoryConversationRoutes = async (app: FastifyInstance, { 
     const existing = await sessions.getBySessionId(conversationId)
     if (existing) {
       if (existing.projectRepositoryId !== binding.projectRepositoryId) return sendProblem(reply, 409, 'conversation-conflict', 'Conversation id already in use')
+      await openThread({ conversationId, accountId: session.account.accountId })
       return reply.code(200).send({ conversation: projectConversation(existing) })
     }
     // The shape the Factory's own session route writes, so its workspace resolver reads it unchanged.
@@ -100,6 +117,7 @@ export const registerFactoryConversationRoutes = async (app: FastifyInstance, { 
       ...(title ? { title } : {}),
       visibility: 'org',
     })
+    await openThread({ conversationId, accountId: session.account.accountId })
     return reply.code(201).send({ conversation: projectConversation(created) })
   })
   return ['BLD-27', 'BLD-28']
