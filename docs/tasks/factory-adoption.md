@@ -1,6 +1,6 @@
 # Factory adoption: a Project developed through the Mastra Factory
 
-> **Status:** next. Only unit 0 is done.
+> **Status:** in flight. Unit 0 is done.
 > **Authority:** [the roadmap](../roadmap.md) owns whether this runs. [C-022](../decisions/index.md)
 > chose the Factory and a forge for Project source, and [C-024](../decisions/index.md) fixed how a
 > Conexus installation connects to GitHub. This task carries both out.
@@ -119,21 +119,30 @@ side as sources of truth.
 
 ## Units, each ending in a live check on the pilot
 
+The Factory gives a session a workspace only when the session is bound to a GitHub repository. It
+throws `GitHub and a sandbox callback are required to create a Factory session workspace`
+otherwise, and its config takes no host workspace (`workspace.js`, the `getBySessionId` branch). So
+no unit can run the Factory over today's source path. The first unit is a vertical slice on a
+repository the App already reaches.
+
 0. **Preview forms.** Done (#144).
-1. **Compose through the Factory.** The Hub builds its Mastra from `MastraFactory.prepare()` with
-   `PgFactoryStorage` on the pilot Postgres and one organization identity for the installation. The
-   pilot's existing conversations move into it. Source still flows the old way in this unit.
-   Check: every existing conversation opens with its messages, and a run still reaches a Preview.
-2. **Connect GitHub.** The Factory's connect routes are mounted behind the Hub session, and the
-   installation is recorded. Check: an administrator connects the company organization, and the Hub
-   lists it.
-3. **A repository per Project.** Project creation makes the repository or binds an existing one. The
-   pilot's three Projects get repositories with their full history pushed. Check: each repository's
-   default head equals the Project's admitted revision.
-4. **Develop through GitHub.** Runs clone, work, check and push through the Factory sandbox, and
-   admission is the compare-and-swap. Check: the acceptance list below.
-5. **Remove the host Git path.** Check: the files listed above are gone, the Hub boots without the Git
-   image, and the acceptance list still passes.
+1. **One Project end to end through the Factory.** The Hub builds its Mastra from
+   `MastraFactory.prepare()` with `PgFactoryStorage` on the pilot Postgres, one organization identity
+   for the installation, the GitHub integration on App 5015512, and the sandbox callback on the E2B
+   template. One new pilot Project is bound to a repository the App already reaches. Every other
+   Project keeps today's path until unit 3, and no Project is ever on both. Check: in that Project, a
+   request changes the repository through the agent, the agent runs the application check, the
+   compare-and-swap admits the result, and the Preview shows a text only that run could have written.
+2. **Connect GitHub and a repository per Project.** The Factory's connect routes are mounted behind
+   the Hub session, as an option inside the Hub's settings. Project creation makes a private
+   repository in the connected organization, or binds an existing one. This unit needs the company's
+   GitHub organization with the App installed on all repositories. Check: an administrator connects the
+   organization in the Hub, and a new Project gets its repository with no step on GitHub.
+3. **Move the pilot over.** The pilot's existing Projects get repositories with their full history,
+   and their conversations move into the Factory's storage. Check: each repository's default head
+   equals the Project's admitted revision, and every existing conversation opens with its messages.
+4. **Remove the host Git path.** Check: the files listed above are gone, the Hub boots without the Git
+   image, and the acceptance list below still passes.
 
 ## How it ends
 
