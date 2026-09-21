@@ -5,8 +5,10 @@
 > chose the Factory and a forge for Project source, and [C-024](../decisions/index.md) fixed how a
 > Conexus installation connects to GitHub. This task carries both out.
 > **Evidence it rests on:** [the Sessions and Work qualification](../evidence/sessions-work-qualification/report.md),
-> sections 8 to 15, a read of `@mastra/factory` 0.16.0-alpha.9 on 2026-09-21 (cited below), the
-> pilot evaluation of 2026-09-21, and the independent review that followed it.
+> sections 8 to 15, a read of `@mastra/factory` on 2026-09-21 (cited below), the pilot evaluation of
+> 2026-09-21, and the independent review that followed it. Citations were read in 0.16.0-alpha.9. The
+> unit pins 0.15.0, which uses Conexus's exact core and code-sdk versions and has the same files on
+> this path.
 
 A person opens a Project and asks for a change. The Mastra Factory runs the conversation. The agent
 edits the Project's source in its private GitHub repository and checks that the application compiles
@@ -59,13 +61,27 @@ company runs its own Conexus installation with its own GitHub App and connects i
   `organizationId` (`apps/hub/src/builder/runtime.ts:121`). That would make every Project connect
   GitHub separately. The organization becomes one fixed identity for the installation. Which Account
   may act on which Project stays Conexus's authorization, rechecked at every operation.
-- **Connect GitHub once.** An administrator uses the Factory's connect flow, mounted behind the Hub's
-  session, and installs the App on the company's GitHub organization with access to all repositories.
-  GitHub does not let an App create repositories in a personal account, so the target is an
-  organization.
-- **Repository per Project.** Creating a Project creates its private repository in the connected
-  organization, and the App reaches it at once. A Project can also start from an existing repository
-  the installation already sees. That path replaces today's Git import catalog.
+- **Connect GitHub once, to an organization.** A Workspace owner uses the Factory's connect flow from
+  the Hub's settings, and installs the company's own App on the company's GitHub organization with
+  access to all repositories. No organization name is written in code. The connected account is read
+  from the installation the Factory records (`storage/domains/source-control/base.js`). GitHub does
+  not let an App create repositories in a personal account, so a personal account is refused with a
+  message that asks for an organization. Until the settings screen exists, the pilot connects once by
+  configuration.
+- **Each company has its own App.** A company creates its own private GitHub App and gives its Hub the
+  App's values, as the pilot did. A shared App is refused, because one key would reach every company's
+  code. Creating the App from inside Conexus through GitHub's manifest flow is a later convenience.
+- **Repository per Project, bound by its GitHub id.** Creating a Project creates its private
+  repository in the connected organization, and the App reaches it at once. A Project can also start
+  from an existing repository the installation already sees, and that path replaces today's Git import
+  catalog. The Project records the repository's GitHub id, which never changes, and not the
+  installation. The Factory's chain from a session to its repository runs through the installation,
+  and it prunes an installation GitHub no longer knows (`integrations/github/routes.js:376-381`). So a
+  disconnect and reconnect would otherwise orphan every Project.
+- **Reconnect and an unreachable repository.** After a reconnect, Conexus finds each Project's
+  repository again by its GitHub id and rebinds it. A Project whose repository cannot be reached shows
+  that state, refuses new requests and keeps its last good Preview. Conexus never creates a
+  replacement repository on its own.
 - **Session branch.** Each conversation works on its own branch, based on the Project's admitted
   revision at the start of each run.
 - **Admission stays Conexus's.** After the agent commits, the branch is pushed. The application is
@@ -133,16 +149,19 @@ repository the App already reaches.
    Project keeps today's path until unit 3, and no Project is ever on both. Check: in that Project, a
    request changes the repository through the agent, the agent runs the application check, the
    compare-and-swap admits the result, and the Preview shows a text only that run could have written.
-2. **Connect GitHub and a repository per Project.** The Factory's connect routes are mounted behind
-   the Hub session, as an option inside the Hub's settings. Project creation makes a private
-   repository in the connected organization, or binds an existing one. This unit needs the company's
-   GitHub organization with the App installed on all repositories. Check: an administrator connects the
-   organization in the Hub, and a new Project gets its repository with no step on GitHub.
-3. **Move the pilot over.** The pilot's existing Projects get repositories with their full history,
-   and their conversations move into the Factory's storage. Check: each repository's default head
-   equals the Project's admitted revision, and every existing conversation opens with its messages.
-4. **Remove the host Git path.** Check: the files listed above are gone, the Hub boots without the Git
-   image, and the acceptance list below still passes.
+   Unit 1 has no settings screen. The pilot's organization is connected once by configuration.
+2. **A repository per Project (2a).** Project creation makes a private repository in the connected
+   organization, or binds an existing one, and records its GitHub id. A personal-account installation
+   is refused. Check: a new Project gets its repository with no step on GitHub.
+3. **Move the pilot over, and remove the host Git path.** The pilot's existing Projects get
+   repositories with their full history, and their conversations move into the Factory's storage. The
+   two Mastra instances become one. The files listed above are deleted in the same release. Check: each
+   repository's default head equals the Project's admitted revision, every existing conversation opens
+   with its messages, the Hub boots without the Git image, and the acceptance list below still passes.
+4. **Connect GitHub in the Hub (2b).** The Factory's connect routes are mounted behind the Hub session,
+   in the settings, for Workspace owners. A reconnect rebinds every Project by its repository's GitHub
+   id, and an unreachable repository shows its state. Check: an owner disconnects and reconnects the
+   organization in the Hub, and every Project keeps working.
 
 ## How it ends
 
