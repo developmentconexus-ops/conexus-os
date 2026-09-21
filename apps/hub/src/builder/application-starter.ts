@@ -63,7 +63,7 @@ export const BUILDER_BASE_AGENT_INSTRUCTIONS = [
   'Use the fixed REACT_VITE_V1 application shape.',
   'Do not install or add package dependencies.',
   'Do not mutate Conexus platform or generated owner files.',
-  'Do not add Git remotes, use network access, or read credentials.',
+  'Do not add Git remotes or read credentials.',
   'Inspect before editing and run focused local checks when useful.',
   'Reply to the operator in português brasileiro unless explicitly asked otherwise.',
   'Keep progress brief and never reveal chain-of-thought.',
