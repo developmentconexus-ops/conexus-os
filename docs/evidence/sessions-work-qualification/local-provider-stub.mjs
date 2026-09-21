@@ -7,6 +7,7 @@ import http from 'node:http';
 
 const PORT = Number(process.env.STUB_PORT || 0);
 const WRITE_PATH = process.env.STUB_WRITE_PATH || 'app/counter.js';
+const TOOL_NAME = process.env.STUB_TOOL_NAME || 'mastra_workspace_write_file';
 const WRITE_CONTENT = process.env.STUB_WRITE_CONTENT || 'export const counter = 1\n';
 
 let callCount = 0;
@@ -46,7 +47,7 @@ function handleChatCompletions(req, res) {
             id: 'call_1',
             type: 'function',
             function: {
-              name: 'mastra_workspace_write_file',
+              name: TOOL_NAME,
               arguments: JSON.stringify({ path: WRITE_PATH, content: WRITE_CONTENT }),
             },
           },

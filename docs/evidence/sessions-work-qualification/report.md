@@ -499,6 +499,81 @@ forge, and an installation to keep working. That is an operational dependency, n
 code, and it is the kind of cost that belongs in the operator's decision in section 10
 rather than in an engineer's preference.
 
+## 14. The integrated run, and the verdict
+
+The test in section 13 has now run. The composition was the real `MastraFactory` with the
+real `GithubIntegration`, authenticated by a GitHub App on a disposable private repository.
+The transcript is [integrated-output.md](integrated-output.md); the harness is
+[integrated-factory.mjs](integrated-factory.mjs), which refuses and exits non-zero without
+credentials and carries a negative control that must fail.
+
+### What worked end to end
+
+`[probe]` the App minted an installation token, and the Factory cloned the private
+repository into a local sandbox at the revision it was created with. A session opened over
+that checkout, a turn through the Factory's own session changed `app/counter.js` from
+`counter = 0` to `counter = 1`, and git reported the change against the base revision. A
+second conversation opened in the same session and stayed empty, and both were listed.
+`FactoryStartCoordinator` started a work item bound to its own source session, the engine
+accepted its moves through `intake`, `triage`, `planning`, `execute` and `review` on its own
+board policy, the branch was pushed with the installation token, a pull request was opened
+through the `VersionControl` capability, and a review was recorded on it. Nothing merged and
+nothing deployed.
+
+So the answer to the question this qualification was opened for is yes: the Factory can
+serve as a Project's development environment, over a repository, with conversations, coding
+tools and structured Work in one system.
+
+### What did not work, and what was not tested
+
+The model was a loopback stub, so nothing here speaks to a real model's behaviour or to an
+agent driving the lifecycle unattended. The lifecycle moves were requested by the harness
+and judged by the Factory; a fully autonomous run would have the dispatcher request them
+from the bound agent. The Factory ran the tool without stopping for approval, which is its
+default rather than a finding about what it can enforce. Four of the harness's own defects
+had to be fixed along the way, each mine rather than the Factory's: a wrong checkout path, a
+caller identity missing from the request context, a work session that did not exist, and a
+work item created without an arrival stage.
+
+### The operational dependencies the Factory requires
+
+A GitHub App, with its private key and client credentials, created and installed by a human
+once per deployment. A forge holding the repository. A storage backend the Factory owns,
+carrying both agent state and its app tables. A sandbox provider per session, which was a
+local one here. A model provider, which a real deployment must supply. Its own server
+surface, 87 routes with the GitHub integration registered, and its background workers,
+including a reconcile poller that starts with `finalize()`.
+
+### What would stay Conexus's
+
+Deciding whether an Account may act on a Project, which the Factory does not answer: it
+scopes a session to a caller identity the host supplies, and `[probe]` refuses a session
+whose caller is missing, but the entitlement behind that identity is ours. Admitting a
+revision as a Project's source, which a forge merge does not do. Preview health. Publish,
+which nothing in the Factory performs. And the mapping from a Conexus Account and Project
+onto the Factory's `orgId` and `factoryProjectId`.
+
+### Verdict
+
+**Factory-centered path confirmed, with the custody decision still the operator's.** The
+integrated path works and would let the product stop owning conversations, coding tools,
+work items, boards, lifecycle transitions, run binding and the pull-request surface. What it
+costs is a forge holding the Project's source and a GitHub App per deployment. That cost is
+not a technical blocker, it is a product decision about custody, and section 10 states it
+without deciding it.
+
+If that custody decision is no, the host-owned path remains available and is already proven
+for conversations and interactive coding; what it gives up is the Work half, which the
+Factory only serves over a forge.
+
+### The next increment
+
+Unchanged in what the person sees, and now decidable in how it is built: several
+conversations per Project, with no Work and no Goals. Both compositions reach it, and the
+custody decision above is what picks between them. The task is
+[Several conversations per Project](../../tasks/project-conversations-first-increment.md),
+and it remains not started.
+
 ## 11. What has no evidence yet
 
 - Concurrent agent runs on one Project, as opposed to concurrent thread creation.

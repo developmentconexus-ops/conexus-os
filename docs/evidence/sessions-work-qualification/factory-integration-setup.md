@@ -75,9 +75,8 @@ the qualification reads them from the environment when the test runs.
 
 ## The operating envelope for the authenticated run
 
-One configuration, not a menu. Everything the authenticated test will use is listed here so
-the operator approves a known blast radius rather than a direction. Nothing in this section
-has run yet.
+One configuration, not a menu. This is what the authenticated run used, approved before it
+ran.
 
 | | |
 | --- | --- |
@@ -93,10 +92,9 @@ has run yet.
 | Attempts | at most three attempts per stage. A stage that fails three times ends the run and is reported as it failed |
 | Cleanup | scratch directories and the scratch database removed; the repository left for the operator to delete, or deleted on request |
 
-**What the run is allowed to do**, inside that one repository: clone it, create a branch,
-commit, push, open a pull request, create a review, and merge that pull request. Merging is
-authorized there because the handoff authorized it, and because a merge inside a disposable
-repository is the only way to show that nothing deploys when work completes.
+**What the run was allowed to do**, inside that one repository: clone it, create a branch,
+commit, push, open a pull request and create a review. Merging was authorized there as well,
+and the run did not use it: the pull request is left open so the merge stays the operator's.
 
 **What the run may not do**: touch any other repository, install anything into the Conexus
 product, use the pilot, enable a workflow, deploy, or call a paid model.
@@ -132,6 +130,22 @@ exits non-zero.
 
 The installation id can be read back afterwards with the App's own JWT, so it does not have
 to be copied by hand from the browser.
+
+## What the run did with it
+
+The App was created and installed on 2026-09-20, and the integrated test ran against it.
+What it produced in the disposable repository, and nothing else: branches named
+`factory-probe/*` and `factory-work/*`, and pull requests from the harness's iterations. One
+of them, pull request #4, is left open with its review as the recorded artifact; the rest
+were closed as iteration noise. Nothing was merged, nothing was deployed, and the repository
+still has no workflow.
+
+The credentials live where this file said they would: the private key in a mode-600 file
+under the operator's home directory, the non-secret identifiers in a shell file beside it.
+Neither is in this repository, in a commit, or in any log. The client secret was not used:
+the run path authenticates with the App id, the private key and the installation id, and the
+constructor's OAuth fields were filled with a declared placeholder rather than a real
+secret handled for no benefit.
 
 ## What this setup is not
 

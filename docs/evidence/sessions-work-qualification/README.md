@@ -5,8 +5,9 @@ and the procedure to reproduce them. None of it is part of the product. Nothing 
 imported by the Hub, runs in CI, or is installed into the product's dependency tree.
 
 The task being answered is [sessions-work-qualification](../../tasks/sessions-work-qualification.md).
-The qualification is **not** concluded: the comparison it asks for is answered in
-[report.md](report.md), which also names what remains without evidence.
+The comparison it asks for is answered in [report.md](report.md), whose section 14 carries
+the verdict after the integrated run against a real repository, and whose section 11 names
+what still has no evidence.
 
 ## What was run, and where
 
@@ -21,7 +22,7 @@ The qualification is **not** concluded: the comparison it asks for is answered i
 | [`code-sdk-mount.mjs`](code-sdk-mount.mjs) | The `@mastra/code-sdk` mount the Factory itself uses, handed a host workspace | That scratch install |
 | [`code-sdk-turn.sh`](code-sdk-turn.sh) with [`code-sdk-turn.mjs`](code-sdk-turn.mjs) and [`local-provider-stub.mjs`](local-provider-stub.mjs) | One whole agent turn through that mount, from a message to a changed file, with a local stub answering the model calls | A scratch project and store, plus a loopback HTTP server |
 | [`factory-github-gate.mjs`](factory-github-gate.mjs) | The whole Factory with the real `GithubIntegration` registered, up to the point where the run path asks its own storage for a repository. It reaches no network | That scratch install |
-| [`integrated-factory.mjs`](integrated-factory.mjs) | The integrated test against the real private repository. It refuses and exits non-zero without the operator's GitHub App credentials | That scratch install, once the App exists |
+| [`integrated-factory.mjs`](integrated-factory.mjs) | The integrated test against the real private repository: session, interactive edit, second conversation, Work through the Factory's lifecycle, pull request and review. It refuses and exits non-zero without the GitHub App credentials, and its run is recorded in [integrated-output.md](integrated-output.md) | That scratch install |
 | [`capture.sh`](capture.sh) | Runs all of the above and produces [output.md](output.md) verbatim | Creates its own scratch directories |
 
 `fixture-model.mjs` is a deterministic fake model that emits a scripted tool call and a final
@@ -51,7 +52,8 @@ the three versions it found. Point `CONEXUS_NODE_MODULES` at another install to 
 elsewhere. `factory-compat.sh` takes `FACTORY_VERSION`, `CONEXUS_CORE_VERSION` and
 `CONEXUS_LIBSQL_VERSION` the same way.
 
-No probe calls a model, so none of this costs anything. `factory-compat.sh` reaches the
+No probe calls a paid model, so none of this costs anything: turns are answered by a
+fixture object or by a loopback stub. `factory-compat.sh` reaches the
 public npm registry; the conversations probe reaches nothing.
 
 ## Versions this evidence rests on

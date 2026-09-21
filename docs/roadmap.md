@@ -170,11 +170,14 @@ it ends in evidence and a recommendation, and it does not authorize a migration.
 
 What remains of it is named in
 [section 11 of the report](evidence/sessions-work-qualification/report.md#11-what-has-no-evidence-yet).
-The integrated Factory test, against a disposable private repository, is set up and blocked
-on one external prerequisite: the published integration is a GitHub App, and creating and
-installing one is a browser action. Everything after it is scriptable.
-[Section 13 of the report](evidence/sessions-work-qualification/report.md#13-the-integrated-factory-test-and-the-one-thing-it-waits-on)
-states the gate and what a person does once.
+The integrated Factory test has run, against a GitHub App the operator created and a
+disposable private repository. The Factory cloned the repository, edited it through its own
+session, held two conversations, started Work, moved it through its own lifecycle, opened a
+pull request and recorded a review, with nothing merged and nothing deployed.
+[Section 14 of the report](evidence/sessions-work-qualification/report.md#14-the-integrated-run-and-the-verdict)
+carries the verdict: the Factory-centered path is confirmed as workable, and what it costs
+is a forge holding the Project's source plus a GitHub App per deployment. That cost is the
+operator's custody decision, not a technical blocker.
 
 The first increment it prepares is
 [Several conversations per Project](tasks/project-conversations-first-increment.md), with no
