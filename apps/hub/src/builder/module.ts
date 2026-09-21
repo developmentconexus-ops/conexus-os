@@ -12,6 +12,7 @@ import { registerBuilderRoutes } from './routes.js'
 import { BUILDER_CONTROLLER_ID, registerBuilderMastraRoutes } from './mastra-session-routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
 import {
+  BUILDER_REPOSITORY_ROOT,
   BUILDER_TRACE_REQUEST_CONTEXT_KEYS,
   createMastraE2BCodingWorkerRuntime,
   resolveBuilderWorkspace,
@@ -95,6 +96,32 @@ export const createDiagnosticAppender = ({ sessionMemory, ensureSessionStorage }
   }] })
 }
 
+export const createBuilderMountOptions = ({ storage, memory, storageRoot }: Readonly<{
+  storage: LibSQLStore
+  memory: Memory
+  storageRoot: string
+}>) => ({
+  controllerId: BUILDER_CONTROLLER_ID,
+  storage,
+  storageBackend: 'libsql' as const,
+  memory,
+  cwd: storageRoot,
+  configDir: '.conexus-builder',
+  disableMcp: true,
+  disableHooks: true,
+  disablePlugins: true,
+  disableGithubSignals: true,
+  disableSettingsOmSeed: true,
+  // Mastra Code tells the model its working directory is the project it detected at cwd, which on
+  // the Hub is the storage root. The agent then refused to edit the sandbox it was actually given.
+  // The Project's source lives at the sandbox's repository root, so that is the project it is told.
+  initialState: { yolo: true, projectPath: BUILDER_REPOSITORY_ROOT, projectName: 'Conexus Project' },
+  modes: BUILDER_MODE_DEFINITIONS.map((mode) => ({ ...mode, availableTools: [...mode.availableTools] })),
+  hostInstructions: BUILDER_BASE_AGENT_INSTRUCTIONS,
+  // Nothing local is ever the workspace: a run acts only in the E2B sandbox it was given.
+  workspace: resolveBuilderWorkspace,
+})
+
 export const createConfiguredBuilderModule = ({ database, builder, projectSource, applicationArtifacts, launchPreview, origin, resolveCurrentSession }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
@@ -152,24 +179,9 @@ export const createConfiguredBuilderModule = ({ database, builder, projectSource
   // may act under. The mount is prepared rather than booted so the Mastra that owns it is the
   // one this module constructs, carrying the Builder's observability with it.
   const harness = (async () => {
-    const prepared = await prepareAgentControllerMount({
-      controllerId: BUILDER_CONTROLLER_ID,
-      storage: sessionStorage,
-      storageBackend: 'libsql',
-      memory: sessionMemory,
-      cwd: projectSource.storageRoot,
-      configDir: '.conexus-builder',
-      disableMcp: true,
-      disableHooks: true,
-      disablePlugins: true,
-      disableGithubSignals: true,
-      disableSettingsOmSeed: true,
-      initialState: { yolo: true },
-      modes: BUILDER_MODE_DEFINITIONS.map((mode) => ({ ...mode, availableTools: [...mode.availableTools] })),
-      hostInstructions: BUILDER_BASE_AGENT_INSTRUCTIONS,
-      // Nothing local is ever the workspace: a run acts only in the E2B sandbox it was given.
-      workspace: resolveBuilderWorkspace,
-    })
+    const prepared = await prepareAgentControllerMount(createBuilderMountOptions({
+      storage: sessionStorage, memory: sessionMemory, storageRoot: projectSource.storageRoot,
+    }))
     const mastra = new Mastra({ ...prepared.mastraArgs, observability, logger: false })
     await prepared.finalize()
     return Object.freeze({ controller: prepared.base.controller, mastra })
