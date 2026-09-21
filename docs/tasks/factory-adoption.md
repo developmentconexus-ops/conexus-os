@@ -1,0 +1,152 @@
+# Factory adoption: a Project developed through the Mastra Factory
+
+> **Status:** next. Only unit 0 is done.
+> **Authority:** [the roadmap](../roadmap.md) owns whether this runs. [C-022](../decisions/index.md)
+> chose the Factory and a forge for Project source, and [C-024](../decisions/index.md) fixed how a
+> Conexus installation connects to GitHub. This task carries both out.
+> **Evidence it rests on:** [the Sessions and Work qualification](../evidence/sessions-work-qualification/report.md),
+> sections 8 to 15, a read of `@mastra/factory` 0.16.0-alpha.9 on 2026-09-21 (cited below), the
+> pilot evaluation of 2026-09-21, and the independent review that followed it.
+
+A person opens a Project and asks for a change. The Mastra Factory runs the conversation. The agent
+edits the Project's source in its private GitHub repository and checks that the application compiles
+before it stops. The Preview then shows the revision the Project accepted. The person never sees a
+branch or a pull request.
+
+## Why this is next
+
+The first increment gave a Project several conversations by mounting `@mastra/code-sdk` directly.
+It did not install the Factory, and Project source stayed under Conexus's own Git custody: an OCI Git
+container, source bundles and a bundle-based admission. That is the gap between C-022 and the
+runtime. The independent review ruled that closing it comes before the frontend redesign, and that
+there is no general stabilization phase of the current path first. Every further investment in the
+host-owned Git path strengthens a state the decision already replaced.
+
+## What Conexus is, for this task
+
+One Conexus installation serves one company. It is not a multi-tenant service. The company connects
+Conexus to its GitHub account once, and every Project becomes a private repository there. Workspaces
+group Projects and people inside the company and have nothing to do with GitHub accounts. Another
+company runs its own Conexus installation with its own GitHub App and connects its own account.
+
+## What the Factory gives, as read from its source
+
+- **Tenancy and GitHub connection.** A Factory organization owns GitHub installations
+  (`storage/domains/source-control/base.js`, table `installations` keyed by `org_id`), and each
+  installation owns repositories. Its connect flow ships as routes: `/auth/github/connect` sends the
+  person to GitHub, and `/auth/github/callback` records the installations they authorized. The
+  person's user token is used only to list those installations and is not stored
+  (`integrations/github/routes.js:309-358`).
+- **Sandbox.** `MastraFactoryConfig.sandbox` is a callback that returns any `MastraSandbox`
+  (`factory.js:262-265`). Clone, checkout, commit and push run as shell commands inside it
+  (`integrations/github/sandbox.js:222-260`, `:430-456`). The Conexus E2B template, which already
+  carries the compiler, can be that sandbox.
+- **Storage.** `FactoryStorage` is required, on Postgres (`PgFactoryStorage` from `@mastra/pg`) or
+  LibSQL (`factory.js:167`). The Hub's single `new Mastra(...)` must be built from `prepare()`'s
+  returned args (`factory.js:738-751`). Work-items storage is always registered (`factory.js:210`).
+  The Work engine runs only when boards are configured.
+- **Models.** The Factory uses the same `@mastra/code-sdk` credential store and thread-scoped
+  selection as today (`factory.js:64`).
+- **Routes.** `apiRoutes` is an array the host mounts selectively. The Hub keeps its session, CSRF
+  and authorization guards and exposes only what the product uses.
+- **What it does not do.** It never creates a repository (`integrations/github/integration.js:428`
+  is a read). Its push is a plain non-force `git push`, and a moved base fails as a generic
+  `push-failed` (`integrations/github/sandbox.js:360-364`). Neither is enough for the product.
+
+## The composition
+
+- **One Factory organization per installation.** Today the Hub passes the Project as the Mastra
+  `organizationId` (`apps/hub/src/builder/runtime.ts:121`). That would make every Project connect
+  GitHub separately. The organization becomes one fixed identity for the installation. Which Account
+  may act on which Project stays Conexus's authorization, rechecked at every operation.
+- **Connect GitHub once.** An administrator uses the Factory's connect flow, mounted behind the Hub's
+  session, and installs the App on the company's GitHub organization with access to all repositories.
+  GitHub does not let an App create repositories in a personal account, so the target is an
+  organization.
+- **Repository per Project.** Creating a Project creates its private repository in the connected
+  organization, and the App reaches it at once. A Project can also start from an existing repository
+  the installation already sees. That path replaces today's Git import catalog.
+- **Session branch.** Each conversation works on its own branch, based on the Project's admitted
+  revision at the start of each run.
+- **Admission stays Conexus's.** After the agent commits, the branch is pushed. The application is
+  compiled and smoke-tested in the same sandbox. Conexus then advances the default branch with a
+  compare-and-swap ref update (`force: false`) from the run's base revision to the result. If the
+  default branch moved since the run began, the result is not admitted. The run settles with a
+  named stale-base outcome that the person sees, and nothing later is overwritten.
+- **Preview.** Its meaning is unchanged. It is built from the admitted revision, and a build or boot
+  failure keeps the last good Preview.
+- **The agent checks its own work.** The application starter carries the manifest and a check
+  command bound to the compiler already in the template. The agent's instructions require that check
+  before finishing. Conexus still verifies the artifact before promoting a Preview, and the agent's
+  word never replaces that.
+
+## Carried from the pilot evaluation and the review
+
+- **Preview forms.** Done in unit 0. The Preview policy allows forms and keeps `form-action 'none'`.
+- **Models.** Discovery and the remembered choice improve through the native mechanism only. Conexus
+  builds no catalog, credential layer or adapter. A default choice must be a preference someone
+  authorized, never a silent pick that spends money.
+- **Stop.** This task measures stopping on the new path in three parts: when the request was
+  accepted, when generation and tools stopped, and when cleanup ended. It also checks that a late
+  result is not admitted. It adds no new cancellation mechanism.
+- **Live coverage.** `tests/implementation/builder-mastra-e2b-live.test.mjs` is skipped and still
+  describes the removed composition. It is rebuilt on the new path, not revived. The failing
+  `rb:first:check` is traced to its exact cause.
+
+## What leaves Conexus in this cut
+
+- `apps/hub/src/platform/oci-git.ts`.
+- `apps/hub/src/project/git-execution.ts`.
+- The bundle and admission halves of `apps/hub/src/builder/source.ts`.
+- The Git import catalog and its admission.
+- The Git OCI image and its warm-up.
+- The Project storage directories.
+- The LibSQL session store.
+
+The replacement lands and the old path's callers move in the same wave. The two never run side by
+side as sources of truth.
+
+## Out of scope
+
+- Work items, boards and the dispatcher in the product.
+- Publish.
+- The frontend redesign.
+- The Factory's own UI.
+- A forge other than GitHub.
+- Creating the GitHub App from inside Conexus. The pilot already has App 5015512. The GitHub App
+  manifest flow, which lets a new installation create its own App in two confirmations, is the first
+  thing to add when a second installation exists.
+
+## Units, each ending in a live check on the pilot
+
+0. **Preview forms.** Done (#144).
+1. **Compose through the Factory.** The Hub builds its Mastra from `MastraFactory.prepare()` with
+   `PgFactoryStorage` on the pilot Postgres and one organization identity for the installation. The
+   pilot's existing conversations move into it. Source still flows the old way in this unit.
+   Check: every existing conversation opens with its messages, and a run still reaches a Preview.
+2. **Connect GitHub.** The Factory's connect routes are mounted behind the Hub session, and the
+   installation is recorded. Check: an administrator connects the company organization, and the Hub
+   lists it.
+3. **A repository per Project.** Project creation makes the repository or binds an existing one. The
+   pilot's three Projects get repositories with their full history pushed. Check: each repository's
+   default head equals the Project's admitted revision.
+4. **Develop through GitHub.** Runs clone, work, check and push through the Factory sandbox, and
+   admission is the compare-and-swap. Check: the acceptance list below.
+5. **Remove the host Git path.** Check: the files listed above are gone, the Hub boots without the Git
+   image, and the acceptance list still passes.
+
+## How it ends
+
+The following holds on the pilot, through the product, and is recorded in this task's evidence:
+
+- A request edits source in the Project's repository. The Preview shows a text only that run could
+  have written.
+- The agent ran the application check inside the sandbox before finishing, and it shows in the tool
+  calls.
+- A request that breaks the build keeps the last good Preview and names the failure.
+- With two conversations, one advances the source. The other, started on the older revision, does not
+  overwrite it and says so.
+- No branch or pull request is shown to the person.
+- The conversations that existed before the cut still open with their messages.
+- Stopping is measured in its three parts, and a late result is not admitted.
+- The host Git path is deleted.
