@@ -20,6 +20,8 @@ The qualification is **not** concluded: the comparison it asks for is answered i
 | [`coding-session.mjs`](coding-session.mjs) with [`fixture-model.mjs`](fixture-model.mjs) | An interactive session running its own code tools over a source directory the host owns, from a message to a changed file | A scratch git repository and a scratch store |
 | [`code-sdk-mount.mjs`](code-sdk-mount.mjs) | The `@mastra/code-sdk` mount the Factory itself uses, handed a host workspace | That scratch install |
 | [`code-sdk-turn.sh`](code-sdk-turn.sh) with [`code-sdk-turn.mjs`](code-sdk-turn.mjs) and [`local-provider-stub.mjs`](local-provider-stub.mjs) | One whole agent turn through that mount, from a message to a changed file, with a local stub answering the model calls | A scratch project and store, plus a loopback HTTP server |
+| [`factory-github-gate.mjs`](factory-github-gate.mjs) | The whole Factory with the real `GithubIntegration` registered, up to the point where the run path asks its own storage for a repository. It reaches no network | That scratch install |
+| [`integrated-factory.mjs`](integrated-factory.mjs) | The integrated test against the real private repository. It refuses and exits non-zero without the operator's GitHub App credentials | That scratch install, once the App exists |
 | [`capture.sh`](capture.sh) | Runs all of the above and produces [output.md](output.md) verbatim | Creates its own scratch directories |
 
 `fixture-model.mjs` is a deterministic fake model that emits a scripted tool call and a final

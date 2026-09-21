@@ -116,6 +116,23 @@ separate authorization, not a judgement call to make mid-run: the run stops, and
 names the provider, the credential path, the bounded ceiling and what specifically could not
 be answered locally.
 
+## Handing the credentials over
+
+The five values the App produces, plus the installation id GitHub assigns when it is
+installed, are read from the environment by
+[`integrated-factory.mjs`](integrated-factory.mjs) and never printed by it:
+`GH_APP_ID`, `GH_APP_SLUG`, `GH_APP_CLIENT_ID`, `GH_APP_CLIENT_SECRET`,
+`GH_APP_PRIVATE_KEY_FILE` (a path, not the key), `GH_APP_INSTALLATION_ID` and `GH_REPO`.
+
+Put the private key in a file only you can read, for example `chmod 600` under your home
+directory, and keep the other values in a file of the same kind. Nothing goes into this
+repository, into a commit, into chat, or into a log. `[probe]` with none of them set, the
+harness refuses with `nothing ran, because this test refuses to invent a GitHub state` and
+exits non-zero.
+
+The installation id can be read back afterwards with the App's own JWT, so it does not have
+to be copied by hand from the browser.
+
 ## What this setup is not
 
 It is not a migration of any Conexus Project, and no existing repository was touched. The
