@@ -30,7 +30,19 @@ export type HubConfig = Readonly<{
     e2bApiKeyFile: string
     e2bTemplateId: string
   }> | undefined
+  factory: FactoryRuntimeConfig | undefined
   oidc: Readonly<{ issuer: string; clientId: string; clientSecretFile: string; allowInsecureForTest: boolean }>
+}>
+
+export type FactoryRuntimeConfig = Readonly<{
+  orgId: string
+  githubAppId: string
+  githubClientId: string
+  githubAppSlug: string
+  githubPrivateKeyFile: string
+  githubClientSecretFile: string
+  stateSecretFile: string
+  databasePasswordFile: string
 }>
 
 const required = (environment: NodeJS.ProcessEnv, name: string): string => {
@@ -168,6 +180,29 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
   return undefined
 }
 
+const FACTORY_VARIABLES = {
+  orgId: 'CONEXUS_FACTORY_ORG_ID',
+  githubAppId: 'CONEXUS_FACTORY_GITHUB_APP_ID',
+  githubClientId: 'CONEXUS_FACTORY_GITHUB_CLIENT_ID',
+  githubAppSlug: 'CONEXUS_FACTORY_GITHUB_APP_SLUG',
+  githubPrivateKeyFile: 'CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE',
+  githubClientSecretFile: 'CONEXUS_FACTORY_GITHUB_CLIENT_SECRET_FILE',
+  stateSecretFile: 'CONEXUS_FACTORY_STATE_SECRET_FILE',
+  databasePasswordFile: 'CONEXUS_DB_FACTORY_PASSWORD_FILE',
+} as const satisfies Record<keyof FactoryRuntimeConfig, string>
+
+// The Mastra Factory adds Mastra Platform integrations on its own whenever it sees Platform
+// credentials in the process, so a Hub composing it must not carry any.
+const factoryRuntime = (environment: NodeJS.ProcessEnv): HubConfig['factory'] => {
+  const present = Object.values(FACTORY_VARIABLES).filter((name) => environment[name])
+  if (present.length === 0) return undefined
+  for (const name of Object.values(FACTORY_VARIABLES)) if (!environment[name]) throw new Error(`MISSING_CONFIG_${name}`)
+  for (const name of Object.keys(environment)) {
+    if (name.startsWith('MASTRA_PLATFORM_') && environment[name]) throw new Error(`FACTORY_REFUSES_CONFIG_${name}`)
+  }
+  return Object.fromEntries(Object.entries(FACTORY_VARIABLES).map(([key, name]) => [key, required(environment, name)])) as FactoryRuntimeConfig
+}
+
 const previewRuntime = (environment: NodeJS.ProcessEnv, hubOrigin: string, hubPort: number): HubConfig['preview'] => {
   const portValue = environment.CONEXUS_PREVIEW_PORT
   const certFile = environment.CONEXUS_PREVIEW_CERT_FILE
@@ -214,6 +249,7 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
     },
     project: projectRuntime(environment),
     builder: builderRuntime(environment),
+    factory: factoryRuntime(environment),
     oidc: {
       issuer: required(environment, 'CONEXUS_OIDC_ISSUER'),
       clientId: required(environment, 'CONEXUS_OIDC_CLIENT_ID'),
@@ -222,5 +258,6 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
     },
   }
   if (config.builder && !config.project) throw new Error('BUILDER_PROJECT_RUNTIME_REQUIRED')
+  if (config.factory && !config.builder) throw new Error('FACTORY_BUILDER_RUNTIME_REQUIRED')
   return config
 }

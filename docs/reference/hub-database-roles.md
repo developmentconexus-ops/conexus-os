@@ -25,10 +25,11 @@ defect in this table. Adding a role means adding a row to the register and regen
 | `hub_project_command` | `project-command` | `project/module.ts` | `CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE` |
 | `hub_builder_ingress` | `builder-request` | `builder/module.ts` | `CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE` |
 | `hub_builder_executor` | `builder-run-execution` | `builder/module.ts` | `CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE` |
+| `hub_factory` | `factory-storage` | `builder/factory.ts` | `CONEXUS_DB_FACTORY_PASSWORD_FILE` |
 
-These seven, the five owner roles `iam_owner`, `workspace_owner`, `project_owner`,
-`registry_owner` and `builder_owner`, and `hub_factory` (below) are every role the product has. A
-cluster built from `apps/hub/migrations/` holds exactly those thirteen. `0009_remove_model_connections.sql` dropped
+These eight and the five owner roles `iam_owner`, `workspace_owner`, `project_owner`,
+`registry_owner` and `builder_owner` are every role the product has. A cluster built from
+`apps/hub/migrations/` holds exactly those thirteen. `0009_remove_model_connections.sql` dropped
 `hub_model_connection` and `model_connection_owner` with the model connection subsystem, and leaves
 either one in place while another database on the cluster still grants to it.
 
@@ -68,9 +69,10 @@ they are the package's, not the migrations'. The `factory` schema line itself st
 and grants, so a grant on it to any other role is catalog drift and refuses the next migration run.
 `tests/implementation/builder-factory-binding-postgres.test.mjs` asserts both bounds.
 
-`hub_factory` is not yet in the register above. The register requires a Hub module that connects
-as each role it lists, and nothing does until the Hub composes the Factory. Its row is added with
-that pool.
+The Hub connects as `hub_factory` only when the Factory is configured, and its pool pins
+`search_path` to `factory` on every connection, because `PgFactoryStorage` creates its tables under
+unqualified names. `tests/implementation/builder-factory-composition.test.mjs` runs `prepare()` as
+a throwaway role owning a throwaway `factory` schema and asserts every table lands there.
 
 ## Roles the replaced history left behind
 

@@ -29,6 +29,7 @@ test('the register holds every role the Hub connects as, with the capability an 
     ['hub_project_command', 'project-command'],
     ['hub_builder_ingress', 'builder-request'],
     ['hub_builder_executor', 'builder-run-execution'],
+    ['hub_factory', 'factory-storage'],
   ])
 })
 
