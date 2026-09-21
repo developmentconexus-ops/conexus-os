@@ -97,14 +97,20 @@ const tokenEnvironment = (token: string): Record<string, string> => ({
   GIT_TERMINAL_PROMPT: '0',
 })
 
-// The template runs the agent as root, so there is no separate agent user to kill by uid. The reap
-// kills every live process except PID 1, E2B's envd, and its own ancestry, which leaves nothing the
-// agent could have started. No agent turn is live at the pin, and the run's session is closed
-// before the push, so nothing respawns before the git command runs.
+// The template runs the agent as root, so there is no separate agent user to kill by uid. Every
+// process the agent could have started was spawned through envd, so it started after envd did.
+// The reap kills only processes whose start time (field 22 of /proc/<pid>/stat, clock ticks since
+// boot) is later than envd's, skipping kernel threads and its own ancestry. Whatever the VM ran
+// when envd came up survives. With no envd to measure against it kills nothing and fails. No agent
+// turn is live at the pin, and the run's session is closed before the push, so nothing respawns
+// before the git command runs.
 export const REAP_AGENT_PROCESSES = [
+  'started() { sed -E \'s/^.*\\) //\' "$1/stat" 2>/dev/null | cut -d" " -f20; }',
+  'floor=""; for d in /proc/[0-9]*; do [ "$(cat "$d/comm" 2>/dev/null)" = envd ] || continue; s=$(started "$d"); [ -n "$s" ] || continue; if [ -z "$floor" ] || [ "$s" -lt "$floor" ]; then floor=$s; fi; done',
+  '[ -n "$floor" ] || exit 3',
   'keep=" 1 $$ "; p=$$',
   'while [ "$p" -gt 1 ] 2>/dev/null; do p=$(sed -E \'s/^.*\\) [A-Za-z] ([0-9]+) .*/\\1/\' "/proc/$p/stat" 2>/dev/null); keep="$keep$p "; done',
-  'for d in /proc/[0-9]*; do pid=${d#/proc/}; case "$keep" in *" $pid "*) continue;; esac; readlink "$d/exe" >/dev/null 2>&1 || continue; [ "$(cat "$d/comm" 2>/dev/null)" = envd ] && continue; kill -9 "$pid" 2>/dev/null; done',
+  'for d in /proc/[0-9]*; do pid=${d#/proc/}; case "$keep" in *" $pid "*) continue;; esac; readlink "$d/exe" >/dev/null 2>&1 || continue; s=$(started "$d"); [ "$s" -gt "$floor" ] 2>/dev/null || continue; kill -9 "$pid" 2>/dev/null; done',
   'true',
 ].join('\n')
 
