@@ -27,16 +27,14 @@ The foundation closed on 2026-09-19.
 - Multiple accounts. A second person can be invited, sign in through Keycloak and
   join a Workspace. The Hub reads `email_verified` from the validated ID token and
   accepts only the boolean `true`.
-- Model connections that are provider-neutral. **This subsystem is switched off and
-  awaiting deletion.** [C-022](decisions/index.md) moved model authentication,
-  credentials, provider connection and selection to the Factory, the Builder was cut
-  over to Mastra Code's own credential store, and no run reads a Conexus model
-  connection any more. Its files, routes, screen, tables and role are still installed
-  with nothing calling them. Deleting them is the exact next action below.
+- Models through Mastra Code. [C-022](decisions/index.md) moved model authentication,
+  credentials, provider connection and selection to the Factory. The Builder uses
+  Mastra Code's own credential store, and the Conexus model connection subsystem is
+  deleted.
 - Roles by capability. The Hub connects to PostgreSQL as roles named for what they
   may do. `docs/reference/hub-database-roles.md` is the register.
-- One database baseline. `apps/hub/migrations/0001_baseline.sql` is the whole
-  schema history. A role change costs one migration.
+- One database baseline. `apps/hub/migrations/0001_baseline.sql` plus its forward
+  migrations is the whole schema history. A role change costs one migration.
 - The pilot is adopted and clean. It holds one account, one Workspace, 22 Projects
   and 23 BuilderRuns.
 
@@ -54,8 +52,18 @@ product. [Its task](tasks/project-conversations-first-increment.md) owns the sco
 [its evidence](evidence/project-conversations/README.md) owns what was run. The Builder's agent,
 its tools, its model credentials and its model selection are Mastra Code's now, mounted on the
 Hub's own Mastra; a Project's conversations are that session's own threads; and the Conexus model
-subsystem lost its last caller, with its removal following as its own change because it rewrites
-the pilot's role register and baseline.
+subsystem lost its last caller.
+
+**The Conexus model subsystem is deleted.** `apps/hub/src/model-connection/`,
+`apps/hub/src/model-connection-account/`, `apps/hub/src/platform/credential-backend.ts`, the
+`/api/control/me/model-connections` operations and their contract, and the Settings tab are gone.
+Settings shows the Account's details only. `apps/hub/migrations/0009_remove_model_connections.sql`
+drops the `model_connection` schema, `iam.account_is_active`, the `connection.share` action, and
+the `hub_model_connection` and `model_connection_owner` roles. The Hub refuses to boot while
+`CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE`, `CONEXUS_CONNECTION_CREDENTIAL_ROOT`,
+`CONEXUS_CONNECTION_CREDENTIAL_KEY_FILE` or `CONEXUS_CONNECTION_CREDENTIAL_KEY_GENERATION` is set,
+with `RETIRED_CONFIG_<name>`. The Workspace's enterprise Connections are a different subject and
+are untouched.
 
 **The Sessions and Work qualification is closed**, and its pull request is what carries it.
 It authorized no migration and performed none. The evidence is in
@@ -75,20 +83,10 @@ provider connection and selection become the Factory's, with no adapter onto the
 model subsystem. [C-022](decisions/index.md) registers both, and section 15 of the report
 names what the adoption work removes.
 
-M-02, the ChatGPT account sign-in, was proven live on 2026-09-20: OpenAI accepted the
-loopback redirect from a request the Hub originated, the token exchange, Conexus's own
-`originator`, and a request without the `OpenAI-Beta` header, and a BuilderRun paid for by a ChatGPT
-account succeeded, editing source and reaching a Preview. The backend publishes what an account may
-run at `/backend-api/codex/models`, and that catalog is what the Builder offers for a ChatGPT
-connection, under the backend's own names; a short list on the `openai-codex` row of
-`apps/hub/src/model-connection/oauth-provider-registry.ts` stands in only when the catalog cannot be
-read. Both the catalog and the models are gated on the version the client declares: with no
-`version` header the catalog's own `gpt-5.6-sol` and `gpt-5.6-luna` were refused as "not supported
-when using Codex with a ChatGPT account" while `gpt-5.6-terra` answered, and with one all five
-listed models answered. Ids outside the catalog, `gpt-5.3-codex` included, are refused. A refusal is
-written to the Hub log as `OPENAI_CODEX_REFUSED`. Unproven still: one real refresh-token rotation, and whether the 8 MiB
-response cap survives a long reasoning stream. This remains undocumented and unendorsed by OpenAI: a
-refusal ends it and is not worked around.
+M-02, the ChatGPT account sign-in through a Conexus model connection, was proven live on
+2026-09-20: a BuilderRun paid for by a ChatGPT account succeeded, editing source and reaching a
+Preview. That path left the product with the model connection subsystem. Git history holds what it
+proved.
 
 Nothing else is open.
 
@@ -100,12 +98,11 @@ build steps and the evidence each one owes.
 
 1. **Prove the Builder live on the pilot.** Done on 2026-09-19. A real request in a pilot Project
    reached a working Preview, with the model, the Thread and the native trace from that same run.
-   The same sitting proved the ChatGPT sign-in against OpenAI. It also found that no run can use that
+   The same sitting proved the ChatGPT sign-in against OpenAI. It also found that no run could use that
    connection yet: the deployment model catalog required Mastra's provider key `openai`, while
-   `model_connection.admit_for_project` matches the connection's `provider_id` `openai-codex`
-   literally, and nothing mapped one to the other. The catalog is gone: the Builder offers the
-   models each connected credential actually pays for, and admission compares the connection's own
-   provider id on both sides.
+   `model_connection.admit_for_project` matched the connection's `provider_id` `openai-codex`
+   literally, and nothing mapped one to the other. The catalog went, and admission then compared the
+   connection's own provider id on both sides. Both left with the model connection subsystem.
 2. **Keep a failed request visible and named.** Today a run that fails before the
    agent starts loses the operator's own words, because the request text lives only
    in a Mastra message written after the failure point, and the optimistic bubble is
@@ -122,14 +119,8 @@ build steps and the evidence each one owes.
    the opening message through Mastra's routes.
 4. **Let Mastra own model choice.** Done. The deployment model catalog file, its two environment
    variables and the boot-time sentinel model are deleted. Providers and models come from Mastra's
-   provider registry. What stays Conexus's is custody and who may use which connection, plus one
-   table that says which registry provider a credential pays for: an API key pays for the provider
-   it was filed under, a Claude account pays for `anthropic`, a ChatGPT account pays for the `openai`
-   ids its backend answers for. The Builder offers only the models of connections the account may
-   use in that Project, and Settings lists every provider a key can be filed under beside the two
-   account sign-ins. Settings is a tabbed page built with the same Mastra components as the chat.
-   Mastra's model gateways were considered for custody and do not fit: `resolveAuth` receives no
-   account, and the Hub serves many.
+   provider registry. Conexus kept credential custody for a time. C-022 withdrew that
+   half, and the Builder now takes its credentials and its model choice from Mastra Code.
 
 P-02 through P-06 of the repair program are merged. Merged is not the same as proven,
 and the table below separates the two. "Isolated" means a test proved it against a fake
@@ -169,18 +160,22 @@ magnitude rather than a benchmark. The shape is described in
 
 ## Exact next action
 
-**Delete the Conexus model subsystem.** The native path replaced it in
-[Several conversations per Project](tasks/project-conversations-first-increment.md) and nothing
-calls it any more, so what remains is a deletion: `apps/hub/src/model-connection/`,
-`apps/hub/src/model-connection-account/`, `contracts/api/product/model-connection-paths.yaml` and
-its OpenAPI entries, `apps/web/src/features/model-connection/` and its settings tab, the
-`model_connection` schema, and the `hub_model_connection` role with its `connections` capability.
-Section 15 of [the qualification report](evidence/sessions-work-qualification/report.md#15-the-decision-that-followed-and-what-it-removes)
-is the inventory. It is its own change because it rewrites the pilot's role register, baseline and
-catalog snapshot, and each of those is verified against a live database rather than by reading.
+**Put the deletion on the pilot and close Several conversations per Project.** The deletion
+rewrites the pilot's role register, baseline and catalog snapshot, and each of those is verified
+against a live database rather than by reading. On the pilot:
 
-This is not about the enterprise Connections a Workspace will hold. Sankhya and every other
-business integration stay Conexus's, per [C-022](decisions/index.md).
+1. Remove the four retired variables from the Hub environment, or the Hub refuses to boot.
+2. Apply `0009_remove_model_connections.sql` with `scripts/run-hub-migrations.mjs`, which refuses a
+   catalog that differs from `contracts/technical/hub-catalog-snapshot.json`.
+3. Run `npm run db:roles:census` and confirm every role in
+   [the register](reference/hub-database-roles.md) is `ok`, and that `hub_model_connection` and
+   `model_connection_owner` are gone from the cluster.
+4. Send one real request in a conversation and see it reach a Preview on Mastra Code's credential.
+
+The product proof of 2026-09-21 already met
+[How it ends](tasks/project-conversations-first-increment.md#how-it-ends) on the pilot database
+with `0008` applied. The deletion on the pilot is what remains, and the task closes after it. No increment after it is planned; the operator chooses the next one
+from the later layers below.
 
 What the qualification did not settle is listed in
 [section 11 of the report](evidence/sessions-work-qualification/report.md#11-what-has-no-evidence-yet).

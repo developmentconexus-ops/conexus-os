@@ -1,7 +1,7 @@
 # Conexus OS wire contract
 
 This file owns the rules the machine-readable wire artifacts must follow.
-[The operation ledger](operation-ledger.md) owns the census of 26 operations that the
+[The operation ledger](operation-ledger.md) owns the census of 18 operations that the
 wire carries, [the product contract](contract.md) owns product meaning, and
 [the roadmap](../roadmap.md) owns status.
 
@@ -39,7 +39,6 @@ contracts/api/product/openapi.yaml                  canonical entrypoint and sha
 contracts/api/product/identity-workspace-paths.yaml IAM and Workspace Path Items
 contracts/api/product/project-paths.yaml            Project Path Items
 contracts/api/product/builder-paths.yaml            Builder Path Items
-contracts/api/product/model-connection-paths.yaml   Model Connection Path Items
 ```
 
 Rules:
@@ -71,8 +70,8 @@ x-conexus-4a-id = exact accepted 4A ledger ID
 The shape is derived from the census and closes mechanically:
 
 ```text
-census operations     = 26
-OAS operations        = 26
+census operations     = 18
+OAS operations        = 18
 missing               = 0
 extra                 = 0
 duplicate operationId = 0
@@ -494,7 +493,7 @@ are:
 ```text
 wire:lint             the Product OAS passes Redocly recommended
 wire:bundle           the description bundles deterministically
-wire:bijection        the census and the bundle agree, 26 to 26
+wire:bijection        the census and the bundle agree, 18 to 18
 wire-bijection-gate   the bijection gate itself is proved against planted faults
 wire:carriers         current-state carriers are declared
 wire:identity-workspace, wire:project, wire:builder   per-module wire shape

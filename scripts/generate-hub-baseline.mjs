@@ -7,9 +7,21 @@ import pg from 'pg'
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
 export const baselinePath = 'apps/hub/migrations/0001_baseline.sql'
-const roleRegisterPath = 'contracts/technical/hub-database-roles.json'
+// The baseline is history once a later migration changes the role set: 0009 drops the
+// model-connection roles 0001 still creates. So the preamble renders 0001's own roles, in 0001's
+// order, rather than reading the live register.
+export const BASELINE_LOGIN_ROLES = Object.freeze([
+  'hub_iam_runtime',
+  'hub_workspace_read',
+  'hub_workspace_command',
+  'hub_project_read',
+  'hub_project_command',
+  'hub_model_connection',
+  'hub_builder_ingress',
+  'hub_builder_executor',
+])
 
-export const OWNER_ROLES = Object.freeze([
+export const BASELINE_OWNER_ROLES = Object.freeze([
   'iam_owner',
   'workspace_owner',
   'project_owner',
@@ -45,14 +57,11 @@ const fail = (code, detail = '') => {
   throw new Error(`${code}${detail ? `:${detail}` : ''}`)
 }
 
-export const readLoginRoles = (root = repositoryRoot) =>
-  JSON.parse(readFileSync(resolve(root, roleRegisterPath), 'utf8')).roles.map((entry) => entry.role)
-
 // CREATE only, never ALTER: a role that already exists on the cluster keeps the password and
 // attributes it was provisioned with, and two databases created at once on one cluster race into
 // duplicate_object rather than into each other's role definition.
-const renderRolePreamble = (loginRoles) =>
-  [...loginRoles.map((role) => [role, 'LOGIN']), ...OWNER_ROLES.map((role) => [role, 'NOLOGIN'])]
+const renderRolePreamble = () =>
+  [...BASELINE_LOGIN_ROLES.map((role) => [role, 'LOGIN']), ...BASELINE_OWNER_ROLES.map((role) => [role, 'NOLOGIN'])]
     .map(([role, login]) =>
       `DO $$ BEGIN\n  CREATE ROLE "${role}" ${login} NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;\nEXCEPTION WHEN duplicate_object THEN NULL;\nEND $$;`)
     .join('\n')
@@ -67,14 +76,14 @@ const header = `-- The Hub's baseline schema. This one file creates the whole ca
 // pg_dump emits a random token on its \restrict and \unrestrict meta-command lines and the pg
 // client cannot parse either, so both go. Comment lines go with them: they carry pg_dump's own
 // version string, which would make the file change when the dump binary is upgraded.
-export const renderBaseline = (rawDump, loginRoles) => {
+export const renderBaseline = (rawDump) => {
   const kept = rawDump
     .split('\n')
     .filter((line) => !line.startsWith('\\restrict') && !line.startsWith('\\unrestrict'))
   const body = kept.join('\n').replace(/^--.*$/gm, '').replace(/\n{3,}/g, '\n\n').trim()
   const offenders = SUPERSEDED_ROLES.filter((role) => new RegExp(`\\b${role}\\b`).test(body))
   if (offenders.length > 0) fail('BASELINE_SUPERSEDED_ROLE_REFUSED', offenders.join(','))
-  return `BEGIN;\n\n${header}\n\n${renderRolePreamble(loginRoles)}\n\n${body}\n\nCOMMIT;\n`
+  return `BEGIN;\n\n${header}\n\n${renderRolePreamble()}\n\n${body}\n\nCOMMIT;\n`
 }
 
 const readAdmin = () => {
@@ -175,7 +184,7 @@ export const regenerateBaseline = async (admin = readAdmin(), root = repositoryR
   const committed = readFileSync(resolve(root, baselinePath), 'utf8')
   return withThrowawayDatabase(admin, async (database) => {
     const serverMajor = await applyAndReadServerMajor(connectionStringFor(admin, database), committed)
-    return renderBaseline(dumpSchema(admin, database, serverMajor), readLoginRoles(root))
+    return renderBaseline(dumpSchema(admin, database, serverMajor))
   })
 }
 

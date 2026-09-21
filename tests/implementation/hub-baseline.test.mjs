@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { assertRoleInvariants, catalogDigest, describeCatalogDrift, readCommittedSnapshot } from '../../scripts/hub-catalog.mjs'
-import { OWNER_ROLES, SUPERSEDED_ROLES, baselinePath, readLoginRoles, regenerateBaseline, resolvePgDump } from '../../scripts/generate-hub-baseline.mjs'
+import { SUPERSEDED_ROLES, baselinePath, regenerateBaseline, resolvePgDump } from '../../scripts/generate-hub-baseline.mjs'
 import { adminConnection, buildHubDatabase, catalogOf, withClient } from './hub-database.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -22,10 +22,15 @@ test('the baseline names none of the roles or schemas the history left behind', 
 // Roles are cluster-global, so a shared cluster already holds names an earlier database created and
 // pg_roles cannot answer "what does a fresh install create". The file can, and it is the only
 // writer of roles in the product.
-test('the baseline creates exactly the register roles and the six owners', () => {
+test('the baseline creates the eight login roles and six owners it was cut with, and every register role among them', () => {
   const created = [...baselineSource.matchAll(/CREATE ROLE "([a-z0-9_]+)"/g)].map(([, role]) => role)
-  assert.deepEqual([...created].sort(), [...readLoginRoles(), ...OWNER_ROLES].sort())
-  assert.equal(created.length, 14)
+  assert.deepEqual(created, [
+    'hub_iam_runtime', 'hub_workspace_read', 'hub_workspace_command', 'hub_project_read', 'hub_project_command',
+    'hub_model_connection', 'hub_builder_ingress', 'hub_builder_executor',
+    'iam_owner', 'workspace_owner', 'project_owner', 'registry_owner', 'builder_owner', 'model_connection_owner',
+  ])
+  const register = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8')).roles
+  for (const { role } of register) assert.ok(created.includes(role), `the baseline creates the register role ${role}`)
 })
 
 test('a database built from the baseline and forward migrations is exactly the committed catalog', async (t) => {

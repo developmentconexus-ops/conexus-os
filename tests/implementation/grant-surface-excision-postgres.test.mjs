@@ -188,63 +188,6 @@ test('an inactive account is refused everywhere, including Preview and source re
     [dormant, projectId, `conversa-${projectId}`, '1'.repeat(64), '2'.repeat(64), 'pedido', null, 'PLAN', randomUUID()]), { code: '42501', message: 'NOT_ADMITTED' })
 })
 
-test('a connection is the owner\'s everywhere and a member\'s only where it is shared', async (t) => {
-  const connection = await freshDatabase(t)
-  await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
-
-  const homeWorkspaceId = await seedWorkspace(connection, { label: 'Home' })
-  const sharedWorkspaceId = await seedWorkspace(connection, { label: 'Shared' })
-  const owner = await seedAccount(connection, { label: 'Owner' })
-  const member = await seedAccount(connection, { label: 'Member' })
-  await seedMember(connection, owner, homeWorkspaceId, 'owner')
-  await seedMember(connection, owner, sharedWorkspaceId, 'member')
-  await seedMember(connection, member, sharedWorkspaceId, 'owner')
-  const homeProject = await seedProject(connection, homeWorkspaceId, 'Home', 'a'.repeat(40))
-  const sharedProject = await seedProject(connection, sharedWorkspaceId, 'Shared', 'b'.repeat(40))
-
-  const connectionId = randomUUID()
-  assert.equal((await query(connection, 'SELECT model_connection.publish_connection($1,$2,$3,$4,$5,$6) AS value',
-    [owner, connectionId, 'anthropic', 'OAUTH_TOKEN_SET', 'Owner key', 1])).rows[0].value, true)
-  await query(connection, 'SELECT model_connection.select_connection($1,$2)', [owner, connectionId])
-
-  // No row says the owner may use it here, or there. Owner use is implicit in every Workspace
-  // they belong to.
-  const admits = async (accountId, projectId) =>
-    (await query(connection, 'SELECT connection_id FROM model_connection.admit_for_project($1,$2,NULL)', [accountId, projectId])).rows
-  assert.deepEqual(await admits(owner, homeProject), [{ connection_id: connectionId }])
-  assert.deepEqual(await admits(owner, sharedProject), [{ connection_id: connectionId }])
-
-  // The member has selected it but no share exists yet.
-  assert.equal((await query(connection, 'SELECT model_connection.select_connection($1,$2) AS value', [member, connectionId])).rows[0].value, false)
-  assert.deepEqual(await admits(member, sharedProject), [])
-
-  assert.equal((await query(connection, 'SELECT model_connection.share_connection($1,$2,$3) AS value',
-    [owner, connectionId, sharedWorkspaceId])).rows[0].value, true)
-  assert.equal((await query(connection, 'SELECT model_connection.select_connection($1,$2) AS value', [member, connectionId])).rows[0].value, true)
-  assert.deepEqual(await admits(member, sharedProject), [{ connection_id: connectionId }])
-
-  // A share into a Workspace the member belongs to says nothing about the owner's own Workspace:
-  // there the member has no build right at all, so the gate refuses before any connection is
-  // considered.
-  assert.deepEqual(
-    await refusal(connection, 'SELECT * FROM model_connection.admit_for_project($1,$2,NULL)', [member, homeProject]),
-    { code: '42501', message: 'NOT_ADMITTED' })
-
-  assert.equal((await query(connection, 'SELECT model_connection.unshare_connection($1,$2,$3) AS value',
-    [owner, connectionId, sharedWorkspaceId])).rows[0].value, true)
-  assert.deepEqual(await admits(member, sharedProject), [])
-
-  // Re-share, then remove the sharer. The share row is untouched and the connection still stops
-  // resolving, because the sharer's membership is checked at use time and never cascaded.
-  await query(connection, 'SELECT model_connection.share_connection($1,$2,$3)', [owner, connectionId, sharedWorkspaceId])
-  assert.deepEqual(await admits(member, sharedProject), [{ connection_id: connectionId }])
-  await query(connection, 'SELECT iam.remove_workspace_member($1,$2,$3)', [member, sharedWorkspaceId, owner])
-  assert.deepEqual(await admits(member, sharedProject), [])
-  assert.deepEqual((await query(connection,
-    'SELECT count(*)::int AS shares FROM model_connection.workspace_share WHERE connection_id = $1 AND workspace_id = $2',
-    [connectionId, sharedWorkspaceId])).rows, [{ shares: 1 }])
-})
-
 test('the runner refuses a database where PUBLIC may execute a Hub function', async (t) => {
   const connection = await freshDatabase(t)
   await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
@@ -263,23 +206,3 @@ test('the runner refuses a database where PUBLIC may execute a Hub function', as
   }
 })
 
-test('a connection needs no Workspace, but a deactivated account cannot mint one', async (t) => {
-  const connection = await freshDatabase(t)
-  await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
-
-  // Deliberate: the membership half of the guard publish_connection used to carry is gone,
-  // because a connection belongs to an account and needs no Workspace to exist. The orphan
-  // resolves nowhere, since resolution runs through the owner's visible Workspaces.
-  const unaffiliated = await seedAccount(connection, { label: 'Unaffiliated' })
-  const unaffiliatedConnection = randomUUID()
-  assert.equal((await query(connection, 'SELECT model_connection.publish_connection($1,$2,$3,$4,$5,$6) AS value',
-    [unaffiliated, unaffiliatedConnection, 'anthropic', 'OAUTH_TOKEN_SET', 'No workspace', 1])).rows[0].value, true)
-  assert.deepEqual((await query(connection, 'SELECT connection_id FROM model_connection.list_connections($1)', [unaffiliated])).rows, [])
-
-  // The account half is kept, so deactivation closes creation too.
-  const dormant = await seedAccount(connection, { label: 'Dormant', active: false })
-  assert.equal((await query(connection, 'SELECT model_connection.publish_connection($1,$2,$3,$4,$5,$6) AS value',
-    [dormant, randomUUID(), 'anthropic', 'OAUTH_TOKEN_SET', 'Dormant key', 1])).rows[0].value, false)
-  assert.deepEqual((await query(connection, 'SELECT count(*)::int AS rows FROM model_connection.connection WHERE owner_account_id = $1', [dormant])).rows,
-    [{ rows: 0 }])
-})

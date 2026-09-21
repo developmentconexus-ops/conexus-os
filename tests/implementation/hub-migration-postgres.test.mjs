@@ -110,21 +110,36 @@ test('the committed snapshot is the catalog the baseline and forward migration b
   const snapshot = readCommittedSnapshot()
   assert.equal(snapshot.head, corpusVersions.at(-1))
   assert.equal(snapshot.format, 2)
-  assert.equal(catalogDigest(snapshot.catalog), 'd9353f53c1585f35166dc50c4bd06833df22c0aa623246a3acca7c692f252c00')
+  assert.equal(catalogDigest(snapshot.catalog), '4b5285322a2799c8b5b92fd8333e7cf1c71037e84fb557404b75e506c8d0e211')
   assert.deepEqual(await ledgerOf(connectionString), corpusLedger)
 })
 
-test('after the forward migration the action enum holds exactly the five live values, and role_allows is unchanged', async (t) => {
+test('after the forward migrations the action enum holds exactly the four live values, and role_allows is unchanged', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
   const labels = (await query(
     connectionString,
     "SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'action' ORDER BY e.enumsortorder",
   )).rows.map((row) => row.enumlabel)
-  assert.deepEqual(labels, ['workspace.read', 'members.manage', 'project.create', 'project.build', 'connection.share'])
+  assert.deepEqual(labels, ['workspace.read', 'members.manage', 'project.create', 'project.build'])
 
   const allows = async (role, action) =>
     (await query(connectionString, 'SELECT iam.role_allows($1, $2) AS allowed', [role, action])).rows[0].allowed
   for (const action of labels) assert.equal(await allows('owner', action), true, action)
   assert.equal(await allows('member', 'members.manage'), false)
   for (const action of labels.filter((action) => action !== 'members.manage')) assert.equal(await allows('member', action), true, action)
+})
+
+test('after the forward migrations nothing of the model-connection subsystem is left in the database', async (t) => {
+  const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
+  const present = (await query(connectionString, `
+    SELECT to_regnamespace('model_connection') IS NOT NULL AS schema,
+      to_regprocedure('iam.account_is_active(uuid)') IS NOT NULL AS account_is_active,
+      EXISTS (
+        SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        CROSS JOIN LATERAL aclexplode(p.proacl) AS entry
+        WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg')
+          AND pg_get_userbyid(entry.grantee) IN ('hub_model_connection', 'model_connection_owner')
+      ) AS function_grant
+  `)).rows[0]
+  assert.deepEqual(present, { schema: false, account_is_active: false, function_grant: false })
 })

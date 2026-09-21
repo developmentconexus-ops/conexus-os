@@ -10,14 +10,16 @@ table and requires the Product OAS to hold exactly the same set, by id and by op
 name, in both directions. The gate is `wire-bijection` in the candidate graph.
 
 ```text
-fixed Product operations = 26
+fixed Product operations = 18
 ```
 
 The number is a result, not a target. It is whatever the table below holds, and the gate
 fails if the wire disagrees. The count was 39 until 2026-09-19, when Project Inception
 and the Project Baseline left the product. It became 26 later that day, when a model
 connection stopped being a Claude account and `CLA-08` added an API key connection for
-any provider the model router's registry knows.
+any provider the model router's registry knows. It became 18 on 2026-09-21, when the eight
+`CLA` Model Connection operations left with the subsystem: Mastra owns model credentials
+and selection (C-022).
 
 ---
 
@@ -78,14 +80,6 @@ must agree exactly.
 | `BLD-24` | `SendBuilderMessage` | Builder | authorized Project + server-resolved current source and Project Thread | command |
 | `BLD-25` | `CancelBuilderRun` | Builder | authorized Project + exact BuilderRun; repeated requests remain idempotent | command |
 | `BLD-26` | `GetBuilderRunTrace` | Builder | authorized Project + exact BuilderRun; safe native trace projection only | read |
-| `CLA-01` | `ListModelConnections` | Model Connection | current Account's model connection disclosure; provider, kind, label and state only, never a credential | read |
-| `CLA-02` | `StartModelAuthorization` | Model Connection | current authorization start against the exact named provider's server-pinned flow | command |
-| `CLA-03` | `CompleteModelAuthorization` | Model Connection | exact named provider and its pasted authorization result; server resolves the authorized subject | command |
-| `CLA-04` | `SelectModelConnection` | Model Connection | exact connection preference for future BuilderRuns | command |
-| `CLA-05` | `ShareModelConnection` | Model Connection | exact Workspace the sharing Account belongs to; every member may then use it | command |
-| `CLA-07` | `UnshareModelConnection` | Model Connection | exact Workspace share, withdrawn by the connection owner or a Workspace member manager | command |
-| `CLA-06` | `RevokeModelConnection` | Model Connection | exact owner-scope connection revocation | command |
-| `CLA-08` | `AddModelConnectionApiKey` | Model Connection | exact provider from the model router's registry plus a label and a key; the key goes to custody and is never returned | command |
 
 # 4. What is not an operation
 

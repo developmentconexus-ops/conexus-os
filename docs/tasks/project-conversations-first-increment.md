@@ -62,14 +62,12 @@ and finds both with their messages. The derived-thread migration has run on the 
 Work exists in the product.
 
 The Conexus model subsystem lost its last caller here: the Builder no longer reads a model
-connection, a credential or an offer, and `apps/hub/src/model-connection/`,
-`apps/hub/src/model-connection-account/`, their routes, their contracts, their database tables and
-roles and the Connect settings screen are now dead weight with nothing pointing at them. Deleting
-them is the change that follows this one, on its own, because it rewrites the pilot's role register,
-baseline and catalog snapshot and those are verified against a live database rather than by reading.
-Until that lands the subsystem is switched off rather than removed, and nothing bridges it to the
-native path: there is no adapter, and there is no code path from a Conexus model connection to a
-run.
+connection, a credential or an offer. The change that followed this one removed it:
+`apps/hub/src/model-connection/`, `apps/hub/src/model-connection-account/`, the credential backend,
+their routes and contracts, and the Connect settings screen. Migration
+`0009_remove_model_connections.sql` dropped its schema, its two database roles and the
+`connection.share` action. Nothing bridged it to the native path at any point: there was no
+adapter, and no code path led from a Conexus model connection to a run.
 
 ## How it was built
 

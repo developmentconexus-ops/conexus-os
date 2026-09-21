@@ -15,14 +15,14 @@ Zones are classifications, not deployment units.
 | Guest execution | the E2B sandbox that runs the Builder agent, compiles its output and boots it under headless Chromium | root capable and untrusted |
 | Source custody | the OCI git container that exports a Project's source and admits a result bundle | isolated on purpose, and the reason is below |
 | External providers | Keycloak, model providers, E2B, the Git provider, package registries | outside the trust boundary |
-| Storage | the Hub PostgreSQL cluster, the artifact store and the credential backend | trusted, and not one credential domain |
+| Storage | the Hub PostgreSQL cluster and the artifact store | trusted, and not one credential domain |
 
 A module boundary inside the Hub is not process isolation. Full compromise of the Hub
 process stays an accepted residual class. Least privilege on the normal path limits the
 blast radius that is avoidable.
 
-The Control Plane and Preview browser contexts stay separate. Ids for a Project, a run
-or a connection that arrive from the browser are hints and are resolved server side.
+The Control Plane and Preview browser contexts stay separate. Ids for a Project or a run
+that arrive from the browser are hints and are resolved server side.
 
 Source custody is its own zone because the bundle an agent returns is adversarial input
 to git. Exporting and admitting run inside a container with no network, a read-only root
@@ -49,10 +49,10 @@ The Hub connects as roles named for what they may do, never as one superuser.
 ```text
 hub_iam_runtime        hub_workspace_read      hub_workspace_command
 hub_project_read       hub_project_command     hub_builder_ingress
-hub_builder_executor   hub_model_connection
+hub_builder_executor
 ```
 
-The schemas are `iam`, `workspace`, `project`, `builder`, `model_connection` and `reg`.
+The schemas are `iam`, `workspace`, `project`, `builder` and `reg`.
 Each schema has an owner role, and the Hub's connection roles hold only the privileges
 their capability needs. Authority functions are `SECURITY DEFINER` with a pinned
 `search_path`, so a caller cannot reach them through a shadowed schema.
@@ -66,7 +66,6 @@ by server configuration.
 I&A OIDC adapter   → the exact configured Keycloak issuer and client
 Builder runtime    → E2B
 Project Git        → the Git provider
-Model adapter      → the model provider the connection names
 ```
 
 There is no universal privileged `fetch(url, secret)` and no egress proxy. The generated
@@ -128,9 +127,10 @@ it does not claim a global Keycloak SSO logout.
 
 ## 5. Credentials
 
-A model provider credential goes to the credential backend and is never returned to a
-browser. A connection carries a generation, and a revocation raises it, so a credential
-read that was admitted under an older generation cannot be replayed.
+Conexus holds no model provider credential. Model authentication, credentials, provider
+connection and model selection belong to Mastra Code and the Factory, per
+[C-022](../decisions/index.md). The Hub refuses to boot when a retired credential
+variable is set, with `RETIRED_CONFIG_<name>`.
 
 ## 6. Preview serving
 

@@ -27,7 +27,6 @@ test('the register holds every role the Hub connects as, with the capability an 
     ['hub_workspace_command', 'workspace-command'],
     ['hub_project_read', 'project-read'],
     ['hub_project_command', 'project-command'],
-    ['hub_model_connection', 'connections'],
     ['hub_builder_ingress', 'builder-request'],
     ['hub_builder_executor', 'builder-run-execution'],
   ])
@@ -36,7 +35,7 @@ test('the register holds every role the Hub connects as, with the capability an 
 test('a connection labels itself with the capability the register gives its role', () => {
   assert.equal(capabilityFor('hub_builder_ingress'), 'builder-request')
   assert.equal(capabilityFor('hub_project_command'), 'project-command')
-  assert.equal(capabilityFor('hub_model_connection'), 'connections')
+  assert.equal(capabilityFor('hub_workspace_read'), 'workspace-read')
   assert.equal(capabilityFor('postgres'), 'postgres')
   assert.equal(capabilityFor(undefined), 'unlabelled')
 })

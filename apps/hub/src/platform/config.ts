@@ -24,12 +24,6 @@ export type HubConfig = Readonly<{
     }> | undefined
   }>
   project: ProjectRuntimeConfig | undefined
-  connections: Readonly<{
-    passwordFile: string
-    credentialRoot: string
-    credentialKeyFile: string
-    credentialKeyGeneration: string
-  }> | undefined
   builder: Readonly<{
     ingressPasswordFile: string
     executorPasswordFile: string
@@ -89,6 +83,17 @@ const RETIRED_MODEL_CATALOG_VARIABLES = [
   'CONEXUS_BUILDER_MODEL_ADMISSION_ID',
 ] as const
 
+// Model authentication, credentials and selection moved to Mastra (C-022), and the Hub's own
+// model-connection store and its database role went with them. A deployment still carrying these
+// is configured for a store the Hub no longer has, so it is refused rather than ignored.
+const RETIRED_MODEL_CONNECTION_VARIABLES = [
+  'CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE',
+  'CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE',
+  'CONEXUS_CONNECTION_CREDENTIAL_ROOT',
+  'CONEXUS_CONNECTION_CREDENTIAL_KEY_FILE',
+  'CONEXUS_CONNECTION_CREDENTIAL_KEY_GENERATION',
+] as const
+
 // The database roles are named for what they may do, not for the program phase that introduced
 // them. An operator whose environment still carries the old variable names would otherwise get a
 // 28P01 from the cluster, several layers away from the file that needs editing, so each retired
@@ -100,7 +105,6 @@ const RENAMED_ROLE_VARIABLES = {
   CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE: 'CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE',
   CONEXUS_DB_RB_INGRESS_PASSWORD_FILE: 'CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE',
   CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE: 'CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE',
-  CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE: 'CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE',
 } as const
 
 const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] => {
@@ -138,30 +142,6 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
     sourceOwnershipManifestFile: required(environment, 'CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE'),
   }
   return ordinary
-}
-
-const connectionsRuntime = (environment: NodeJS.ProcessEnv): HubConfig['connections'] => {
-  const values = {
-    passwordFile: environment.CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE,
-    credentialRoot: environment.CONEXUS_CONNECTION_CREDENTIAL_ROOT,
-    credentialKeyFile: environment.CONEXUS_CONNECTION_CREDENTIAL_KEY_FILE,
-    credentialKeyGeneration: environment.CONEXUS_CONNECTION_CREDENTIAL_KEY_GENERATION,
-  }
-  if (Object.values(values).every(Boolean)) return {
-    passwordFile: required(environment, 'CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE'),
-    credentialRoot: required(environment, 'CONEXUS_CONNECTION_CREDENTIAL_ROOT'),
-    credentialKeyFile: required(environment, 'CONEXUS_CONNECTION_CREDENTIAL_KEY_FILE'),
-    credentialKeyGeneration: required(environment, 'CONEXUS_CONNECTION_CREDENTIAL_KEY_GENERATION'),
-  }
-  if (Object.values(values).some(Boolean)) {
-    for (const [name, value] of Object.entries({
-      CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE: values.passwordFile,
-      CONEXUS_CONNECTION_CREDENTIAL_ROOT: values.credentialRoot,
-      CONEXUS_CONNECTION_CREDENTIAL_KEY_FILE: values.credentialKeyFile,
-      CONEXUS_CONNECTION_CREDENTIAL_KEY_GENERATION: values.credentialKeyGeneration,
-    })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
-  }
-  return undefined
 }
 
 const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] => {
@@ -207,7 +187,11 @@ const previewRuntime = (environment: NodeJS.ProcessEnv, hubOrigin: string, hubPo
 }
 
 export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): HubConfig => {
-  for (const name of [...RETIRED_BRAIN_CONNECTIONS_VARIABLES, ...RETIRED_MODEL_CATALOG_VARIABLES]) {
+  for (const name of [
+    ...RETIRED_BRAIN_CONNECTIONS_VARIABLES,
+    ...RETIRED_MODEL_CATALOG_VARIABLES,
+    ...RETIRED_MODEL_CONNECTION_VARIABLES,
+  ]) {
     if (environment[name]) throw new Error(`RETIRED_CONFIG_${name}`)
   }
   for (const [name, replacement] of Object.entries(RENAMED_ROLE_VARIABLES)) {
@@ -229,7 +213,6 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
       workspace: workspaceDatabase(environment),
     },
     project: projectRuntime(environment),
-    connections: connectionsRuntime(environment),
     builder: builderRuntime(environment),
     oidc: {
       issuer: required(environment, 'CONEXUS_OIDC_ISSUER'),

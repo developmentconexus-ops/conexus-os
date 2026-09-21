@@ -12,7 +12,6 @@ const SECRETS = [
   ['db-prj03-command', 'project-command-secret'],
   ['db-rb-ingress', 'builder-ingress-secret'],
   ['db-rb-executor', 'builder-executor-secret'],
-  ['db-r2-connections', 'model-connection-secret'],
 ]
 
 const pilotShaped = () => {
@@ -33,7 +32,6 @@ const pilotShaped = () => {
     `CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE=${join(secrets, 'db-prj03-command')}`,
     `CONEXUS_DB_RB_INGRESS_PASSWORD_FILE=${join(secrets, 'db-rb-ingress')}`,
     `CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE=${join(secrets, 'db-rb-executor')}`,
-    `CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE=${join(secrets, 'db-r2-connections')}`,
     '',
   ].join('\n'), { mode: 0o600 })
   return { root, secrets, environmentFile }
@@ -52,7 +50,6 @@ test('a dry run reports every rename and writes nothing', () => {
     'db-prj03-command -> db-project-command',
     'db-rb-ingress -> db-builder-ingress',
     'db-rb-executor -> db-builder-executor',
-    'db-r2-connections -> db-model-connection',
   ])
   assert.equal(readFileSync(environmentFile, 'utf8'), before)
   assert.deepEqual(readdirSync(secrets).sort(), SECRETS.map(([name]) => name).sort())
@@ -79,12 +76,11 @@ test('an applied cutover copies each secret at 0600, rewrites the variables and 
     'CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE', 'CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE',
     'CONEXUS_DB_PROJECT_READ_PASSWORD_FILE', 'CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE',
     'CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE', 'CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE',
-    'CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE',
   ]) assert.match(text, new RegExp(`^${name}=.*db-`, 'm'))
   for (const name of [
     'CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE', 'CONEXUS_DB_S2_READ_PASSWORD_FILE', 'CONEXUS_DB_S3_READ_PASSWORD_FILE',
     'CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE', 'CONEXUS_DB_RB_INGRESS_PASSWORD_FILE',
-    'CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE', 'CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE',
+    'CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE',
   ]) assert.equal(text.includes(name), false, name)
   assert.equal(statSync(join(environmentFile)).mode & 0o777, 0o600)
   assert.equal(statSync(`${environmentFile}.2026-09-19T12-00-00-000Z.bak`).mode & 0o777, 0o600)

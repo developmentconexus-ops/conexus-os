@@ -8,7 +8,7 @@ import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every(name => process.env[name])
 const connect = async (connection) => { const client = new pg.Client(connection); await client.connect(); return client }
 
-const ACTIONS = ['workspace.read', 'members.manage', 'project.create', 'project.build', 'connection.share']
+const ACTIONS = ['workspace.read', 'members.manage', 'project.create', 'project.build']
 
 const refusal = async (run) => {
   try {
@@ -84,12 +84,10 @@ test('the membership authority derives every right from one role row and revokes
       'owner members.manage true',
       'owner project.create true',
       'owner project.build true',
-      'owner connection.share true',
       'member workspace.read true',
       'member members.manage false',
       'member project.create true',
       'member project.build true',
-      'member connection.share true',
     ])
   })
 

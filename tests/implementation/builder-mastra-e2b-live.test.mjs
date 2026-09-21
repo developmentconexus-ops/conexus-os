@@ -14,13 +14,12 @@ import { Memory } from '@mastra/memory'
 
 import { readBuilderE2BApiKey } from '../../scripts/builder-e2b-template.mjs'
 
-const live = process.env.CONEXUS_RB_BUILDER_LIVE === 'true'
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
 
 test('RB live Mastra worker produces initial and bounded-correction E2B candidates', {
-  skip: live ? false : 'requires explicit CONEXUS_RB_BUILDER_LIVE=true authority and live model/E2B configuration',
+  skip: 'awaiting its rebuild on Mastra Code credentials: its model came from the Conexus model-connection module, which C-022 removed',
   timeout: 15 * 60_000,
 }, async () => {
   const templateRef = process.env.CONEXUS_BUILDER_E2B_TEMPLATE_ID
@@ -44,7 +43,7 @@ test('RB live Mastra worker produces initial and bounded-correction E2B candidat
     ], { cwd: repositoryRoot, encoding: 'utf8' })
     if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
     const built = (path) => pathToFileURL(resolve(buildRoot, path)).href
-    const { createAnthropicOAuthModel } = await import(built('model-connection/anthropic-oauth-provider.js'))
+    const createAnthropicOAuthModel = () => { throw new Error('BUILDER_LIVE_MODEL_SOURCE_REMOVED') }
     const { BUILDER_TRACE_REQUEST_CONTEXT_KEYS, createMastraE2BCodingWorkerRuntime, resolveBuilderWorkspace } = await import(built('builder/runtime.js'))
     const { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } = await import(built('builder/application-starter.js'))
 

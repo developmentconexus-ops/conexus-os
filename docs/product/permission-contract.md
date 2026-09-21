@@ -4,7 +4,8 @@ This file owns who may do what. [The operation ledger](operation-ledger.md) owns
 operation census, [the product contract](contract.md) owns product meaning, and
 [the roadmap](../roadmap.md) owns status.
 
-The authority model lives in `apps/hub/migrations/0001_baseline.sql`. Sections 1 to 4
+The authority model lives in `apps/hub/migrations/`, which
+`0009_remove_model_connections.sql` last rewrote. Sections 1 to 4
 describe that code. If the two disagree, the code is right.
 
 [Section 5](#5-target-requirements-not-yet-enforced) is different. It holds the
@@ -47,22 +48,23 @@ A Project has no authority of its own. It inherits the Workspace that owns it.
 
 ## 2. The action vocabulary
 
-`iam.action` is the vocabulary. It holds exactly the five values below.
+`iam.action` is the vocabulary. It holds exactly the four values below.
 
 | Action | Gates | Called from |
 | --- | --- | --- |
-| `workspace.read` | acting on a Workspace you belong to, where a roster change is a self-service narrowing rather than administration | `iam.remove_workspace_member`, `model_connection.unshare_connection` |
+| `workspace.read` | acting on a Workspace you belong to, where a roster change is a self-service narrowing rather than administration | `iam.remove_workspace_member` |
 | `members.manage` | administering the roster: invite, cancel an invitation, remove a member, change a role | `iam.invite_workspace_member`, `iam.cancel_workspace_invitation`, `iam.remove_workspace_member`, `iam.set_workspace_member_role` |
 | `project.create` | creating a Project in a Workspace | `project.reserve_or_replay_create_project`, `project.lock_create_project_receipt`, `project.complete_create_project_receipt` |
-| `project.build` | starting, claiming and cancelling a Builder run, and using a model connection for one | `builder.create_builder_run`, `builder.claim_builder_run`, `builder.request_builder_run_cancellation`, `model_connection.admit_for_project` |
-| `connection.share` | sharing a model connection into a Workspace | `model_connection.share_connection` |
+| `project.build` | starting, claiming and cancelling a Builder run | `builder.create_builder_run`, `builder.claim_builder_run`, `builder.request_builder_run_cancellation` |
 
 `members.manage` is the only action a member does not hold, so it is the only line
 that makes the two roles different.
 
 `project.read` and `project.change` were dead entries in the enum declaration: no
 function ever passed either one. `apps/hub/migrations/0002_prune_dead_iam_actions.sql`
-removed them; the table above lists only the five values that gate something.
+removed them. `connection.share` gated only sharing a model connection into a Workspace, and
+`apps/hub/migrations/0009_remove_model_connections.sql` removed it with the model connection
+subsystem. The table above lists only the four values that gate something.
 
 ### 2.1 Reads are gated by containment, not by an action
 
@@ -75,10 +77,8 @@ This is why there is no `project.read`. Containment already answers the question
 
 ### 2.2 Narrowing is self-service
 
-`iam.remove_workspace_member` and `model_connection.unshare_connection` each accept two
-routes. An actor removing their own membership, or the owner of a connection withdrawing
-their own share, needs `workspace.read`. An actor acting on somebody else needs
-`members.manage`.
+`iam.remove_workspace_member` accepts two routes. An actor removing their own membership
+needs `workspace.read`. An actor removing somebody else needs `members.manage`.
 
 The last owner of a Workspace cannot be demoted or removed. `iam.set_workspace_member_role`
 and `iam.remove_workspace_member` both check that another owner remains.
@@ -93,7 +93,6 @@ and `iam.remove_workspace_member` both check that another owner remains.
 | verified email | `email_verified` is the boolean `true` in the validated ID token; anything else is refused |
 | bootstrap context | the transient pre-Account context for the one preconfigured OIDC subject; it may provision only its own Account and is invalid afterwards |
 | Workspace membership | the containment root for every read |
-| connection ownership | the account that created a model connection may share, unshare and revoke it |
 
 None of these is a Permission and none may be inferred from a Keycloak role, group or
 organization, or from a provider, model, Mastra or E2B identity.
@@ -137,7 +136,7 @@ owns what each one means.
 | Conversation privacy | who may read a conversation of a Project whose policy is `PER_USER` | containment answers Project reads, and every member sees every Project read today; a conversation private to its author is a narrower question than membership |
 | Privacy of everything a conversation carries | the same answer applied to persisted requests, diagnostics, recovered memory and delegated work | hiding a conversation from a list is not the same as withholding what it wrote elsewhere |
 | Continuing somebody else's conversation | that continuing it grants neither the author's credentials nor the author's permissions | the actor is the one asking; nothing today can be tempted to read authority from a conversation's author |
-| Project capabilities | what a conversation, an application or an automation may call on the Project's behalf, and what it may never reach | `project.build` gates starting a run and using a connection for it; it says nothing about a capability a generated application invokes at runtime |
+| Project capabilities | what a conversation, an application or an automation may call on the Project's behalf, and what it may never reach | `project.build` gates starting a run; it says nothing about a capability a generated application invokes at runtime |
 | Publication | that publishing is explicit, authorized and separate from editing and from a run settling | nothing publishes today, so no action gates it |
 | Work applied to a Project | that a reviewed candidate reaches the source only through the Project's own reconciliation and authorization | source advances inside a run the actor already holds `project.build` for; delegated work arrives from elsewhere |
 
