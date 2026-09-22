@@ -3,8 +3,7 @@ import { createRoot } from "react-dom/client";
 import { createGetKcContextMock } from "keycloakify/login/KcContext";
 import KcPage from "./login/KcPage";
 import type { KcContext } from "./login/KcContext";
-import "../../../packages/brand/tokens.css";
-import "../../../packages/brand/fonts.css";
+import "../../../packages/brand/src/index";
 import "./styles.css";
 
 declare global {
@@ -25,7 +24,14 @@ const { getKcContextMock } = createGetKcContextMock({
 const previewPageId = (new URLSearchParams(window.location.search).get("pageId") ??
   "login.ftl") as Parameters<typeof getKcContextMock>[0]["pageId"];
 
-const kcContext = window.kcContext ?? getKcContextMock({ pageId: previewPageId });
+const kcContext =
+  window.kcContext ??
+  getKcContextMock({
+    pageId: previewPageId,
+    // The pilot realm sets pt-BR as its default locale (see
+    // infra/keycloak/README.md); mock the same for an accurate preview.
+    overrides: { locale: { currentLanguageTag: "pt-BR" } },
+  });
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
