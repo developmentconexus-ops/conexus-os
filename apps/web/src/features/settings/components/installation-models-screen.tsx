@@ -7,7 +7,7 @@ import { shareErrorMessage } from '../error-messages'
 import {
   listModelAccounts, type ModelAccountsRequestError, modelAccountsQueryKey, shareWithEveryone, stopSharing,
 } from '../model-accounts-api'
-import { shareableRows, sharedRows } from '../model-account-rows'
+import { connectableProviders, shareableRows, sharedRows } from '../model-account-rows'
 import { ConnectAccount } from './connect-account'
 import { PageHeader } from './page-header'
 import { Chip, SectionEmpty, SectionError, SectionLoading, StatusLine } from './states'
@@ -74,7 +74,7 @@ export function InstallationModelsScreen() {
     </section>
     <section aria-labelledby="cxs-connect-to-share-title">
       <h2 id="cxs-connect-to-share-title">Conectar uma conta para compartilhar</h2>
-      {accounts.isSuccess && <ConnectAccount providers={accounts.data.providers} onConnected={refresh} />}
+      {accounts.isSuccess && <ConnectAccount providers={connectableProviders(accounts.data.providers)} onConnected={refresh} />}
     </section>
   </main>
 }
