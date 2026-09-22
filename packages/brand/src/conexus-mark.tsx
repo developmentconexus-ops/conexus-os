@@ -23,13 +23,15 @@ export function ConexusMark({ size = 24, working = false, arrive = false }: Read
   </svg>
 }
 
-export function ConexusWordmark({ size = 20, working = false, arrive = false }: Readonly<{
+export function ConexusWordmark({ size = 20, markSize, working = false, arrive = false }: Readonly<{
   size?: number
+  /** The prototype draws the mark a size larger than the wordmark text. Defaults to `size`. */
+  markSize?: number
   working?: boolean
   arrive?: boolean
 }>) {
   return <span className="cx-wordmark" style={{ fontSize: size }} role="img" aria-label="Conexus">
-    <ConexusMark size={size} working={working} arrive={arrive} />
+    <ConexusMark size={markSize ?? size} working={working} arrive={arrive} />
     <span aria-hidden="true">Co<em>nexus</em></span>
   </span>
 }

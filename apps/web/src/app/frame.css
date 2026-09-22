@@ -4,8 +4,13 @@
 .cx-topbar { display: flex; align-items: center; gap: .5rem; min-height: 3.25rem; padding: .4rem .75rem .4rem .5rem; border-bottom: 1px solid var(--cx-line); background: var(--cx-surface); }
 .cx-trail { min-width: 0; margin-right: auto; }
 .cx-trail ol { flex-wrap: nowrap; }
-.cx-home-crumb { padding-inline: .5em; }
+.cx-lockup { display: flex; align-items: center; gap: .5rem; padding: .25rem .375rem; border-radius: var(--cx-radius-control); text-decoration: none; flex: none; }
+.cx-lockup:hover { background: var(--cx-surface-3); }
+.cx-topbar-divider { width: 1px; height: 1.25rem; background: var(--cx-line); flex: none; }
 .cx-lockup-narrow { display: none; }
+/* The crumb's own text size (12px, from the library's `text-ui-sm`) is one step below the
+   prototype's 14px/500; unlayered, so it wins back over the utility layer regardless of order. */
+.cx-crumb { height: 2rem; font-size: .875rem; font-weight: 500; }
 /* Same gap as .cx-rail-collapse below: the library's own button carries no border/padding reset,
    so the app's plain `button` base style otherwise wins and swallows the hamburger icon. */
 .cx-drawer-trigger { flex: none; border: 0; padding: 0; background: transparent; color: var(--cx-text-2); }
@@ -14,6 +19,7 @@
 @media (max-width: 767px) {
   .cx-lockup-wide { display: none; }
   .cx-lockup-narrow { display: inline-flex; }
+  .cx-topbar-divider { display: none; }
   .cx-topbar { padding-inline: .5rem; }
 }
 
@@ -38,7 +44,7 @@
 /* Sidebar top row: the workspace switch (or the plain Conexus mark, above any workspace) and the
    collapse toggle. Sits above MainSidebar's own scroll region so both stay put while nav scrolls. */
 .cx-rail-top { display: flex; align-items: center; gap: .25rem; padding: .5rem; }
-.cx-rail-switch { display: flex; align-items: center; gap: .5rem; min-width: 0; flex: 1; height: 2.5rem; padding: 0 .5rem; border: 0; border-radius: var(--cx-radius-control); background: transparent; color: var(--cx-text); font: 600 .9rem/1.2 var(--cx-font-body); text-align: left; cursor: pointer; }
+.cx-rail-switch { display: flex; align-items: center; gap: .5rem; min-width: 0; flex: 1; height: 2.5rem; padding: 0 .5rem; border: 0; border-radius: var(--cx-radius-control); background: transparent; color: var(--cx-text); font: 600 .9375rem/1.2 var(--cx-font-body); text-align: left; cursor: pointer; }
 .cx-rail-switch:hover, .cx-rail-switch[data-popup-open] { background: var(--cx-surface-3); }
 .cx-rail-switch--static { cursor: default; }
 .cx-rail-switch--static:hover { background: transparent; }
@@ -52,10 +58,20 @@
 [data-sidebar-state="collapsed"] .cx-rail-top { flex-direction: column; }
 [data-sidebar-state="collapsed"] .cx-rail-name, [data-sidebar-state="collapsed"] .cx-rail-switch-icon { display: none; }
 [data-sidebar-state="collapsed"] .cx-rail-switch { width: 2.5rem; flex: none; justify-content: center; padding: 0; }
+/* Expanded: switch first, toggle trailing it (unchanged). Collapsed: the toggle leads instead,
+   the switch's badge follows it — DOM order stays put, only the collapsed column reorders it. */
+[data-sidebar-state="collapsed"] .cx-rail-collapse { order: -1; }
 
 .cx-rail-bottom { border-top: 1px solid var(--cx-line); padding-top: .35rem; }
 .cx-nav-soon { margin-left: auto; font: 500 .65rem/1 var(--cx-font-body); color: var(--cx-text-2); border: 1px solid var(--cx-line); border-radius: 4px; padding: .15rem .3rem; flex: none; }
 [data-sidebar-state="collapsed"] .cx-nav-soon { display: none; }
+
+/* Nav rows: the library's default "sm" size (12px, 28px rows, 16px icons) is one step below the
+   prototype (14px/500, 34px rows, 18px icons). Scoped to the sidebar's own rows so it can't leak
+   into a menu or another list that happens to use <li>. */
+.shell-sidebar li > a, .shell-sidebar li > span[aria-disabled] { height: 34px; }
+.cx-nav-label { font: 500 14px/1 var(--cx-font-body); }
+.shell-sidebar li svg { width: 18px; height: 18px; }
 
 /* The page column. Wide for grids, narrow for forms; both keep a 16px gutter on a phone. */
 .cx-page { width: min(72rem, 100% - 2rem); margin: clamp(1.5rem, 4vw, 2.75rem) auto 4rem; }
