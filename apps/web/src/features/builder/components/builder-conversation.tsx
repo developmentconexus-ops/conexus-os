@@ -3,7 +3,8 @@ import {
   ToolCall, ToolCallCommand, ToolCallContent, ToolCallEdit, ToolCallMono, ToolCallPresentedHeader, ToolCallTrigger,
   presentTool, stringifyToolValue, stripAnsi, toolEdit,
 } from '@mastra/playground-ui/components/ai/tool-call'
-import { Brain } from 'lucide-react'
+import { Brain, ChevronRight } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { ActiveTool, LiveTurn, MastraDBMessage } from '../mastra-session'
 import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
 import { toolSentence } from '../construir/tool-sentences'
@@ -72,6 +73,26 @@ function RequestTurn({ entry }: Readonly<{ entry: PersistedRequest }>) {
   </>
 }
 
+const isRunningInvocation = (part: ToolInvocationPart, tools: LiveTurn['tools']): boolean => {
+  const live = tools[part.toolInvocation.toolCallId]
+  return part.toolInvocation.state !== 'result' && live?.status !== 'completed' && live?.status !== 'error'
+}
+
+// Consecutive tool calls read as one action, not a scroll of individual steps: a single disclosure
+// named by how many ran and whether any of them is still going.
+function ToolGroup({ parts, tools }: Readonly<{ parts: readonly ToolInvocationPart[]; tools: LiveTurn['tools'] }>) {
+  const only = parts.length === 1 ? parts[0] : undefined
+  if (only) return <ToolInvocation part={only} live={tools[only.toolInvocation.toolCallId]} />
+  const running = parts.filter((part) => isRunningInvocation(part, tools)).length
+  const label = running > 0 ? `Executando ${parts.length} ações` : `${parts.length} ações concluídas`
+  return <details className="cx-tool-group">
+    <summary><ChevronRight size={13} aria-hidden="true" />{label}</summary>
+    <div className="cx-tool-group-body">
+      {parts.map((part) => <ToolInvocation key={part.toolInvocation.toolCallId} part={part} live={tools[part.toolInvocation.toolCallId]} />)}
+    </div>
+  </details>
+}
+
 function Message({ message, tools, streaming, reason }: Readonly<{ message: MastraDBMessage; tools: LiveTurn['tools']; streaming: boolean; reason: string }>) {
   const parts = message.content.parts
   if (isUserAuthored(message)) {
@@ -79,19 +100,27 @@ function Message({ message, tools, streaming, reason }: Readonly<{ message: Mast
     return text ? <div className="builder-turn builder-turn-user"><MarkdownRenderer>{text}</MarkdownRenderer></div> : null
   }
   if (message.role !== 'assistant') return null
-  return <div className="builder-turn builder-turn-assistant">
-    {parts.map((part, index) => {
-      const last = streaming && index === parts.length - 1
-      const key = `${message.id}-${index}`
-      if (part.type === 'text') return part.text ? <MarkdownRenderer key={key} streaming={last}>{part.text}</MarkdownRenderer> : null
-      if (part.type === 'reasoning') return <Reasoning key={key} part={part} streaming={last} />
-      if (part.type === 'tool-invocation') return <ToolInvocation key={part.toolInvocation.toolCallId} part={part} live={tools[part.toolInvocation.toolCallId]} />
-      // The provider's own words name sandboxes, ids and stack frames. The category is what the
-      // operator is told.
-      if (part.type === 'error') return <p key={key} className="builder-turn-reason" role="note">{reason}</p>
-      return null
-    })}
-  </div>
+  // Runs of tool-invocation parts are rendered as one group; anything else renders on its own.
+  const rendered: ReactNode[] = []
+  let toolRun: ToolInvocationPart[] = []
+  const flushTools = (key: string) => {
+    if (!toolRun.length) return
+    rendered.push(<ToolGroup key={key} parts={toolRun} tools={tools} />)
+    toolRun = []
+  }
+  parts.forEach((part, index) => {
+    const last = streaming && index === parts.length - 1
+    const key = `${message.id}-${index}`
+    if (part.type === 'tool-invocation') { toolRun.push(part); return }
+    flushTools(`${key}-tools`)
+    if (part.type === 'text') { if (part.text) rendered.push(<MarkdownRenderer key={key} streaming={last}>{part.text}</MarkdownRenderer>) }
+    else if (part.type === 'reasoning') rendered.push(<Reasoning key={key} part={part} streaming={last} />)
+    // The provider's own words name sandboxes, ids and stack frames. The category is what the
+    // operator is told.
+    else if (part.type === 'error') rendered.push(<p key={key} className="builder-turn-reason" role="note">{reason}</p>)
+  })
+  flushTools(`${message.id}-tools-tail`)
+  return <div className="builder-turn builder-turn-assistant">{rendered}</div>
 }
 
 export function BuilderConversation({ history, turn, pendingRequest, persistedRequests, failureCategory }: Readonly<{

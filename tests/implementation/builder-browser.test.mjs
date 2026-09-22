@@ -63,17 +63,19 @@ const sse = (...events) => ({
 })
 
 // The composer names the chosen model on a button whose accessible name starts with "Modelo ",
-// which opens a popover holding a PUI Combobox of the models on offer.
+// which opens a single popover holding the search field and the provider-grouped list directly
+// (no nested combobox popup).
 const openModelPicker = async (page) => {
   await page.getByRole('button', { name: /^Modelo /, exact: false }).click()
-  await page.getByRole('combobox', { name: 'Modelo desta conversa' }).click()
+  await page.locator('.cx-model-popover').waitFor()
 }
 const chooseModel = async (page, modelName) => {
   await openModelPicker(page)
   await page.getByRole('option', { name: modelName }).click()
-  await page.keyboard.press('Escape')
   await page.locator('.cx-model-popover').waitFor({ state: 'detached' })
 }
+const messageBox = (page) => page.locator('[aria-label="Mensagem para o agente"]')
+const NO_MODEL_PLACEHOLDER = 'Escolha um modelo para começar'
 // The chat header's Combobox names the current conversation and lists the others as options. A
 // closing popup stays mounted through its exit, so the switcher opens only once no other list is
 // on screen, and the titles are read once the expected number of options arrived.
@@ -209,6 +211,10 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
     'a run whose request is already a Mastra message renders one user bubble, not two')
   assert.equal(await page.locator('.cx-messages .builder-turn-reason').count(), 0,
     'a run that succeeded is given no failure reason')
+  // The result card closes out the code-changing turn: the Project's own name, its first version,
+  // that the build passed, and how many files it touched.
+  await page.locator('.cx-result-card').getByText('Counter · versão 1 · Build passou', { exact: true }).waitFor()
+  await page.locator('.cx-result-card').getByText('1 arquivo', { exact: true }).waitFor()
   assert.deepEqual(forbiddenRequests, [])
   assert.deepEqual([...new Set(state.messageReads)], [conversationId],
     'the messages read are the selected conversation\'s own thread, never a name derived from the Project')
@@ -341,12 +347,12 @@ test('a Project holds several conversations, and switching between them leaves t
   await page.getByTitle('Prévia do aplicativo').waitFor()
   assert.equal(previewRequests.length, 1)
 
-  await page.getByText('Escolha o modelo desta conversa para enviar pedidos.', { exact: true }).waitFor()
+  assert.equal(await messageBox(page).getAttribute('placeholder'), NO_MODEL_PLACEHOLDER)
   assert.equal(await page.getByRole('button', { name: 'Enviar' }).isDisabled(), true)
   await chooseModel(page, SELECTED_MODEL_NAME)
   // The send button also stays disabled on an empty draft, so a chosen model is proven by the
-  // "choose a model" note going away, not by the button alone.
-  await page.getByText('Escolha o modelo desta conversa para enviar pedidos.', { exact: true }).waitFor({ state: 'detached' })
+  // composer's placeholder leaving its "no model" wording, not by the button alone.
+  await page.waitForFunction((placeholder) => document.querySelector('[aria-label="Mensagem para o agente"]')?.getAttribute('placeholder') !== placeholder, NO_MODEL_PLACEHOLDER)
   assert.deepEqual(state.modelSwitches, [SELECTED_MODEL])
 
   assert.deepEqual(await readConversationTitles(page, 2), ['Contador', 'Relógio'])
@@ -878,8 +884,8 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
 
   await chooseModel(page, SELECTED_MODEL_NAME)
   // The send button also stays disabled on an empty draft, so a chosen model is proven by the
-  // "choose a model" note going away, not by the button alone.
-  await page.getByText('Escolha o modelo desta conversa para enviar pedidos.', { exact: true }).waitFor({ state: 'detached' })
+  // composer's placeholder leaving its "no model" wording, not by the button alone.
+  await page.waitForFunction((placeholder) => document.querySelector('[aria-label="Mensagem para o agente"]')?.getAttribute('placeholder') !== placeholder, NO_MODEL_PLACEHOLDER)
   assert.deepEqual(modelWrites, [[counterId, SELECTED_MODEL]])
 
   const createConversation = page.waitForResponse((response) => response.url().endsWith(`/api/control/projects/${projectId}/conversations`) && response.request().method() === 'POST')
@@ -889,7 +895,7 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
   assert.match(created[0], /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   assert.equal((await readConversationTitles(page, 3)).length, 3)
   // The Hub opens the new conversation on the person's default model, so it is ready to send.
-  await page.getByText('Escolha o modelo desta conversa para enviar pedidos.', { exact: true }).waitFor({ state: 'detached' })
+  assert.notEqual(await messageBox(page).getAttribute('placeholder'), NO_MODEL_PLACEHOLDER)
   assert.deepEqual(modelWrites, [[counterId, SELECTED_MODEL]], 'a model chosen in one conversation is not written onto another')
 
   await switchConversationTo(page, 'Contador')

@@ -1,0 +1,70 @@
+/* The composer shared by home and Construir: one input, one model+reasoning popover, one send. */
+
+.cx-composer { display: grid; gap: .4rem; margin: 0; }
+.cx-composer [data-slot="composer-box"] { background: var(--cx-surface); border-radius: 16px; }
+/* The app's element defaults give every textarea a frame; inside the composer the ring is the only edge. */
+.cx-composer [data-slot="composer-input"] { margin: 0; padding: .7rem .8rem .4rem; border: 0; border-radius: 0; background: transparent; font: 400 .9375rem/1.45 var(--cx-font-body); color: var(--cx-text); }
+.cx-composer [data-slot="composer-input"]::placeholder { color: var(--cx-text-2); }
+.cx-composer .composer-ring { border-radius: 16px; }
+
+/* At rest the border carries a slow ipê arc, brighter and faster once the agent is working. */
+.cx-composer .composer-ring { --composer-ring-strength: .22; animation: cx-ring-idle 10s linear infinite; }
+.cx-composer .composer-ring:hover { --composer-ring-strength: .4; }
+.cx-composer .composer-ring[data-busy="false"]:focus-within { --composer-ring-strength: .4; }
+@keyframes cx-ring-idle { from { --composer-ring-spin: 0deg; } to { --composer-ring-spin: 360deg; } }
+@media (prefers-reduced-motion: reduce) {
+  .cx-composer .composer-ring { animation: none; --composer-ring-strength: .3; }
+}
+
+.cx-composer-actions { flex-wrap: nowrap; }
+.cx-composer-tools { display: flex; align-items: center; gap: .15rem; min-width: 0; }
+.cx-icon-button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--cx-text-2); }
+.cx-icon-button:hover:not(:disabled) { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
+.cx-icon-button:focus-visible { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
+.cx-icon-button[aria-disabled="true"] { opacity: .45; cursor: default; }
+.cx-icon-button[data-listening] { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
+.cx-model-button { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; height: 32px; padding: 0 .55rem 0 .65rem; border: 0; border-radius: 999px; background: transparent; color: var(--cx-text); font: 500 .8125rem/1 var(--cx-font-body); }
+.cx-model-button:hover, .cx-model-button:focus-visible { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
+.cx-model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 10rem; }
+.cx-model-button[title] .cx-model-name { max-width: none; }
+.cx-model-level { flex: none; color: var(--cx-text-2); font: 400 .75rem/1 var(--cx-font-mono); }
+.cx-model-button svg { flex: none; color: var(--cx-text-2); }
+.cx-level-dot { flex: none; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--cx-accent); }
+.cx-send-button { display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: var(--cx-ink); color: var(--cx-on-ink); }
+.cx-send-button:hover:not(:disabled), .cx-send-button:focus-visible:not(:disabled) { background: var(--cx-accent); color: var(--cx-accent-text); }
+.cx-send-button:disabled { background: var(--cx-surface-4); color: var(--cx-text-2); cursor: default; }
+.cx-send-button[data-stop] { background: var(--cx-ink); color: var(--cx-on-ink); }
+.cx-composer-hint { margin: 0; color: var(--cx-text-2); font-size: .75rem; text-align: center; text-wrap: balance; }
+.cx-composer-note { margin: 0 0 .4rem; color: var(--cx-text-2); font-size: .8125rem; }
+.cx-composer-note[role="alert"] { color: var(--cx-danger); }
+
+/* Model picker: one popover, no nested combobox. Search, a provider-grouped list, then Raciocínio. */
+.cx-model-popover { width: min(22rem, calc(100vw - 2rem)); padding: .5rem; display: grid; gap: .5rem; }
+.cx-popover-title { margin: .25rem .5rem 0; color: var(--cx-text-2); font: 500 .75rem/1 var(--cx-font-body); }
+.cx-model-empty { display: grid; gap: .35rem; padding: .25rem .5rem; font-size: .875rem; }
+.cx-model-empty p { margin: 0; color: var(--cx-text-2); }
+.cx-model-search { position: relative; display: flex; align-items: center; }
+.cx-model-search svg { position: absolute; left: .65rem; top: 50%; transform: translateY(-50%); color: var(--cx-text-2); pointer-events: none; }
+.cx-model-search input { width: 100%; padding-left: 2rem; }
+.cx-model-list { max-height: 16rem; overflow-y: auto; display: grid; gap: .35rem; }
+.cx-model-group { display: grid; gap: 1px; }
+.cx-model-group-label { margin: .3rem .4rem .1rem; color: var(--cx-text-2); font: 600 .6875rem/1 var(--cx-font-body); text-transform: uppercase; letter-spacing: .03em; }
+.cx-model-option { display: flex; align-items: center; gap: .5rem; width: 100%; padding: .45rem .5rem; border: 0; border-radius: 6px; background: transparent; color: var(--cx-text); font: 500 .8125rem/1.2 var(--cx-font-body); text-align: left; }
+.cx-model-option svg:first-child { flex: none; color: var(--cx-text-2); }
+.cx-model-option-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-model-option[data-active], .cx-model-option:hover { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
+.cx-model-option[aria-selected="true"] svg:last-child { color: var(--cx-accent-text); }
+.cx-model-empty-search { margin: .5rem; color: var(--cx-text-2); font-size: .8125rem; }
+
+/* Raciocínio: an oval track, an ipê fill, a round thumb, and pt-BR level names. */
+.cx-effort { display: grid; gap: .3rem; padding: .5rem .5rem .35rem; border-top: 1px solid var(--cx-line); }
+.cx-effort-head { display: flex; justify-content: space-between; font-size: .875rem; }
+.cx-effort-head b { color: var(--cx-accent-text); font: 600 .8125rem/1 var(--cx-font-body); }
+.cx-effort-stops { display: flex; justify-content: space-between; color: var(--cx-text-2); font: 400 .75rem/1 var(--cx-font-body); }
+.cx-effort-stops [data-on] { color: var(--cx-accent-text); font-weight: 600; }
+.cx-effort-slider { position: relative; display: flex; align-items: center; height: 20px; padding-block: 4px; cursor: pointer; }
+.cx-effort-slider[aria-disabled="true"] { cursor: default; opacity: .5; }
+.cx-effort-slider:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 2px; border-radius: 999px; }
+.cx-effort-track { position: relative; width: 100%; height: 8px; border-radius: 999px; background: var(--cx-surface-3); overflow: hidden; }
+.cx-effort-fill { height: 100%; border-radius: 999px; background: var(--cx-accent); }
+.cx-effort-thumb { position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 999px; border: 2px solid var(--cx-accent); background: var(--cx-surface); box-shadow: 0 1px 3px rgb(0 0 0 / .2); transform: translate(-50%, -50%); }
