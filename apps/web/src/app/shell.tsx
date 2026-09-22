@@ -23,7 +23,7 @@ const firstShellMount = (): boolean => {
 }
 
 function Lockup({ arrive }: Readonly<{ arrive: boolean }>) {
-  return <Link className="brand" to="/" search={{ workspaceId: undefined }}><ConexusWordmark size={22} arrive={arrive} /></Link>
+  return <Link className="brand" to="/" search={{ workspaceId: undefined }}><ConexusWordmark size="md" arrive={arrive} /></Link>
 }
 
 function NavItem({ active, children }: Readonly<{ active: boolean; children: ReactElement<{ className?: string }> }>) {
