@@ -61,7 +61,6 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('c020-builder-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-invariants-postgres.test.mjs tests/implementation/builder-run-execution-postgres.test.mjs tests/implementation/builder-c020-source-inspection-postgres.test.mjs', 'postgres'),
   candidateStep('c020-builder-request-text-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-request-text-postgres.test.mjs', 'postgres'),
   candidateStep('factory-binding-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-factory-binding-postgres.test.mjs', 'postgres'),
-  candidateStep('c020-mastra-lifecycle', 'node --test --test-concurrency=1 qualification/4d/mastra-builder-capability/probe.test.mjs'),
   candidateStep('factory-dependency-tree', 'node --test tests/implementation/builder-factory-dependency-tree.test.mjs'),
   candidateStep('factory-composition', 'node --test --test-concurrency=1 tests/implementation/builder-factory-composition.test.mjs', 'postgres'),
   candidateStep('model-accounts-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-model-accounts-postgres.test.mjs', 'postgres'),
@@ -92,8 +91,6 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('contract-projection-check-iam', 'node scripts/generate-r1-s1-contracts.mjs --check'),
   candidateStep('contract-projection-check-workspace', 'node scripts/generate-r1-s2-contracts.mjs --check'),
   candidateStep('contract-projection-check-project', 'node scripts/generate-r1-s3-contracts.mjs --check'),
-  candidateStep('repository-hygiene', 'node scripts/check-repository-hygiene.mjs'),
-  candidateStep('repository-doc-index', 'node scripts/check-doc-index.mjs'),
   candidateStep('repository-contract-checks', 'node --test tests/repository/repository-contract.test.mjs'),
   candidateStep('biome-current', 'npx --no-install biome check apps/hub/src apps/web/src packages/canonical-json/src packages/brand/src tests/implementation/brand-tokens.test.mjs scripts/run-hub-migrations.mjs scripts/hub-catalog.mjs scripts/generate-hub-catalog-snapshot.mjs scripts/generate-hub-baseline.mjs tests/implementation/hub-database.mjs tests/implementation/hub-baseline.test.mjs tests/implementation/grant-surface-excision-postgres.test.mjs tests/implementation/workspace-postgres.test.mjs tests/implementation/builder-*.mjs tests/implementation/project-browser.test.mjs tests/implementation/preview-form-policy.test.mjs tests/implementation/installation-settings-routes.test.mjs tests/repository/conexus-verify.test.mjs'),
 

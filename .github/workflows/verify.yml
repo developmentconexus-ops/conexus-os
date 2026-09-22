@@ -3,10 +3,8 @@ name: Verify
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
-  # A pull request restores dependency caches only from its own branch, its base branch and the
-  # default branch. Pull requests target the trunk, so the trunk has to run here to write them.
   push:
-    branches: [main, analysis/internal-mvp-2026-09-12]
+    branches: [main]
 
 # A newer push to the same pull request makes the older run moot.
 concurrency:
