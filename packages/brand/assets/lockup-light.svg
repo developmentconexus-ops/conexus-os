@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 48" role="img" aria-label="Conexus">
+  <!-- Requires "Bricolage Grotesque" (weight 600) to be available to the renderer. The @font-face
+       below points at the in-repo font file one level up; if that relative path cannot resolve
+       (e.g. this file copied elsewhere on its own), the text falls back to the platform
+       sans-serif and loses the brand tracking. -->
+  <defs>
+    <style>
+      @font-face {
+        font-family: "Bricolage Grotesque";
+        font-weight: 600;
+        src: url("../fonts/BricolageGrotesque-latin.woff2") format("woff2");
+      }
+      text { font: 600 34px "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -0.03em; }
+    </style>
+  </defs>
+  <g transform="translate(0,4) scale(1.25)">
+    <path d="M4 4H18V14H10V28H4Z" fill="#C08A12"/>
+    <path d="M28 28H14V18H22V4H28Z" fill="#C08A12"/>
+  </g>
+  <text x="52" y="33"><tspan fill="#121518">Co</tspan><tspan fill="#9A6A08">nexus</tspan></text>
+</svg>

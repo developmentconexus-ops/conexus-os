@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Conexus">
+  <style>
+    path { fill: #C08A12; }
+    @media (prefers-color-scheme: dark) {
+      path { fill: #F2B53A; }
+    }
+  </style>
+  <path d="M4 4H18V14H10V28H4Z"/>
+  <path d="M28 28H14V18H22V4H28Z"/>
+</svg>

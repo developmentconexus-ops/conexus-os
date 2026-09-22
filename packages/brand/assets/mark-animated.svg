@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Conexus">
+  <style>
+    path { transform-box: view-box; fill: #C08A12; }
+    .cx-mark-a { animation: cx-mark-a 1.2s cubic-bezier(.65,0,.35,1) infinite; }
+    .cx-mark-b { animation: cx-mark-b 1.2s cubic-bezier(.65,0,.35,1) infinite; }
+    @keyframes cx-mark-a { 50% { transform: translate(-2px, -2px); } }
+    @keyframes cx-mark-b { 50% { transform: translate(2px, 2px); } }
+    @media (prefers-reduced-motion: reduce) {
+      .cx-mark-a, .cx-mark-b { animation: none; }
+    }
+  </style>
+  <path class="cx-mark-a" d="M4 4H18V14H10V28H4Z"/>
+  <path class="cx-mark-b" d="M28 28H14V18H22V4H28Z"/>
+</svg>
