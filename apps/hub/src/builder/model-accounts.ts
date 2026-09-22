@@ -169,7 +169,8 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
     const loginProblem = (reply: FastifyReply, error: unknown) => {
       if (!(error instanceof GoogleAiProLoginError)) throw error
       const [status, title] = LOGIN_PROBLEMS[error.problem]
-      return sendProblem(reply, status, error.problem, title)
+      const extra = error.expiresAt ? { expiresAt: new Date(error.expiresAt).toISOString() } : undefined
+      return sendProblem(reply, status, error.problem, title, undefined, extra)
     }
     // The Factory's provider listing names this provider by its catalog id, which is not the
     // credential's id, so the Settings card reads the person's connection here.
