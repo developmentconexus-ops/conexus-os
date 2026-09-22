@@ -1,6 +1,6 @@
 import { Input } from '@mastra/playground-ui/components/Input'
 import { Check, Search } from 'lucide-react'
-import type { KeyboardEvent } from 'react'
+import type { CSSProperties, KeyboardEvent, PointerEvent } from 'react'
 import { useMemo, useRef, useState } from 'react'
 import type { BuilderModel, ReasoningLevel } from '../mastra-session'
 import { reasoningLevels } from '../mastra-session'
@@ -56,6 +56,15 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
     const next = reasoningLevels[Math.min(reasoningLevels.length - 1, Math.max(0, levelIndex + step))]
     if (next && next !== reasoning) onReasoningChange(next)
   }
+  // Stop centers run from one thumb radius inside the pill to one thumb radius from its far end.
+  const onSliderPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (reasoningDisabled) return
+    const box = event.currentTarget.getBoundingClientRect()
+    const inset = box.height / 2
+    const fraction = Math.min(1, Math.max(0, (event.clientX - box.left - inset) / (box.width - 2 * inset)))
+    const next = reasoningLevels[Math.round(fraction * (reasoningLevels.length - 1))]
+    if (next && next !== reasoning) onReasoningChange(next)
+  }
 
   return <div className="cx-model-popover">
     <p className="cx-popover-title">Modelo desta conversa</p>
@@ -66,7 +75,7 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
       </div>
       : <>
         <div className="cx-model-search">
-          <Search size={15} aria-hidden="true" />
+          <span className="cx-model-search-icon" aria-hidden="true"><Search size={15} /></span>
           <Input
             aria-label="Buscar modelo"
             placeholder="Buscar modelo"
@@ -105,10 +114,8 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
         </div>
       </>}
     <div className="cx-effort">
-      <div className="cx-effort-head">
-        <span id="cx-effort-label">Raciocínio</span>
-        <b>{reasoningLabels[reasoning]}</b>
-      </div>
+      <span id="cx-effort-label" className="cx-effort-title">Raciocínio</span>
+      <b className="cx-effort-value" aria-hidden="true">{reasoningLabels[reasoning]}</b>
       <div
         className="cx-effort-slider"
         role="slider"
@@ -119,17 +126,21 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
         aria-valuenow={levelIndex}
         aria-valuetext={reasoningLabels[reasoning]}
         aria-disabled={reasoningDisabled || undefined}
+        data-locked={reasoningLocked || undefined}
+        style={{ '--cx-effort-at': levelIndex / (reasoningLevels.length - 1) } as CSSProperties}
         onKeyDown={onSliderKeyDown}
+        onPointerDown={onSliderPointerDown}
       >
-        <div className="cx-effort-track">
-          <div className="cx-effort-dots" aria-hidden="true">
-            {reasoningLevels.map((level, index) => <span key={level} className="cx-effort-dot" style={{ left: `${(index / (reasoningLevels.length - 1)) * 100}%` }} />)}
-          </div>
-          <div className="cx-effort-fill" style={{ width: `${(levelIndex / (reasoningLevels.length - 1)) * 100}%` }} />
-        </div>
-        <div className="cx-effort-thumb" style={{ left: `${(levelIndex / (reasoningLevels.length - 1)) * 100}%` }} />
+        <span className="cx-effort-fill" aria-hidden="true" />
+        {reasoningLevels.map((level, index) => <span
+          key={level}
+          className="cx-effort-dot"
+          aria-hidden="true"
+          data-filled={index < levelIndex || undefined}
+          style={{ '--cx-effort-stop': index / (reasoningLevels.length - 1) } as CSSProperties}
+        />)}
+        <span className="cx-effort-thumb" aria-hidden="true" />
       </div>
-      <div className="cx-effort-stops" aria-hidden="true">{reasoningLevels.map((level) => <span key={level} data-on={level === reasoning || undefined}>{reasoningLabels[level]}</span>)}</div>
       {reasoningLocked && <p className="cx-effort-locked">Nível fixo neste modelo</p>}
     </div>
   </div>
