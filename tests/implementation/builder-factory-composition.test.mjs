@@ -331,4 +331,25 @@ test('prepare() registers the controller as code, lands every table in factory, 
   ])
   assert.deepEqual(await credentials.getCredential({ orgId: 'conexus-installation', userId: 'conexus-operator' }, 'openai'), { type: 'api_key', key: 'sk-probe-at-rest' })
   assert.deepEqual(await credentials.getCredential({ orgId: 'conexus-installation', userId: null }, 'anthropic'), { type: 'api_key', key: 'sk-ant-before-the-key' })
+  const atRest = (await inspector.query('SELECT convert_to(data::text, \'UTF8\') AS bytes FROM factory.model_provider_credentials')).rows.map(({ bytes }) => bytes)
+  assert.equal(atRest.length, 2)
+  for (const bytes of atRest) {
+    for (const secret of ['sk-probe-at-rest', 'sk-ant-before-the-key']) assert.equal(bytes.includes(Buffer.from(secret)), false, `${secret} is not stored in the clear`)
+  }
+
+  // Without the Hub's key the same rows give back no credential: another key is refused, and the
+  // Factory's plaintext default hands back only the envelope.
+  const readWith = async (encryption) => {
+    const readerPool = new pg.Pool({ ...connection, user: role, password, options: '-c search_path=factory', max: 1 })
+    onCleanup(() => readerPool.end())
+    const reader = createFactoryStorage(readerPool)
+    const domain = reader.registerDomain(new ModelCredentialsStorage(encryption))
+    await reader.init()
+    return domain.getCredential({ orgId: 'conexus-installation', userId: 'conexus-operator' }, 'openai')
+  }
+  await assert.rejects(readWith(createFactorySecretKeyEncryption('b2'.repeat(32))))
+  const keyless = await readWith(undefined)
+  assert.equal(typeof keyless, 'string')
+  assert.ok(keyless.startsWith('mastra:factory-secret:v1:'), keyless)
+  assert.equal(keyless.includes('sk-probe-at-rest'), false)
 })
