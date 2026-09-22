@@ -26,57 +26,16 @@ type E2BSandboxOptions = NonNullable<ConstructorParameters<typeof E2BSandbox>[0]
 const withoutGithubTokens = <T extends string | undefined>(environment: Record<string, T>): Record<string, T> =>
   Object.fromEntries(Object.entries(environment).filter(([name]) => name !== 'GH_TOKEN' && name !== 'GITHUB_TOKEN'))
 
-/** The processes alive in one VM before anything but its boot ran, as `<pid>:<start time>`. */
-export type ProcessBaseline = Readonly<{ sandboxId: string; processes: ReadonlySet<string> }>
-
-// Field 22 of /proc/<pid>/stat is the start time in clock ticks since boot. It is read after the
-// last ')' because a comm may contain spaces. Paired with the pid it survives pid reuse. A process
-// with no readable exe is a kernel thread or a zombie, and neither is listed or killed.
-const STARTED = 'started() { sed -E \'s/^.*\\) //\' "$1/stat" 2>/dev/null | cut -d" " -f20; }'
-export const PROCESS_BASELINE_SCRIPT = [
-  STARTED,
-  'cd /proc || exit 1',
-  'for pid in [0-9]*; do readlink "$pid/exe" >/dev/null 2>&1 || continue; s=$(started "$pid"); [ -z "$s" ] || echo "$pid:$s"; done',
-].join('\n')
-
-// Kills every process that is not in the baseline, not a kernel thread, and not in its own
-// ancestry, then looks again, because a process can fork while its parent is being killed. Five
-// passes that each still find something to kill mean the reap did not converge.
-export const reapScript = (baseline: ReadonlySet<string>): string => [
-  STARTED,
-  `base=" ${[...baseline].join(' ')} "`,
-  'keep=" 1 $$ "; p=$$',
-  'while [ "$p" -gt 1 ] 2>/dev/null; do p=$(sed -E \'s/^.*\\) [A-Za-z] ([0-9]+) .*/\\1/\' "/proc/$p/stat" 2>/dev/null); keep="$keep$p "; done',
-  'cd /proc || exit 1',
-  'pass=0',
-  'while [ "$pass" -lt 5 ]; do',
-  '  killed=0',
-  '  for pid in [0-9]*; do case "$keep" in *" $pid "*) continue;; esac; readlink "$pid/exe" >/dev/null 2>&1 || continue; s=$(started "$pid"); [ -n "$s" ] || continue; case "$base" in *" $pid:$s "*) continue;; esac; kill -9 "$pid" 2>/dev/null && killed=1; done',
-  '  [ "$killed" = 0 ] && exit 0',
-  '  pass=$((pass + 1))',
-  'done',
-  'exit 4',
-].join('\n')
-
-const BASELINE_ENTRY = /^\d+:\d+$/
-
-type E2BHandle = E2BSandbox['e2b']
-const runAsRoot = (handle: E2BHandle, script: string) => handle.commands.run(script, { user: 'root', cwd: '/', envs: {}, timeoutMs: 30_000 })
-
 // The Factory hands the sandbox an installation token as GH_TOKEN when a session starts and again
 // on every github_refresh_token. That token reaches every repository of the installation, and the
 // agent runs arbitrary commands in this sandbox. The agent never holds a GitHub token, so every
 // write to the environment overlay is filtered here. retryOnDead stays native: the sandbox outlives
 // runs, so a dead VM is recreated rather than failing the next command.
 //
-// The Hub mints Git tokens into commands that run in this VM, and anything the agent left running
-// could read them from /proc. The template runs the agent as root, so there is no agent uid to kill
-// by. Instead the Hub lists the VM's processes the moment it creates the VM, before the Factory's
-// start hook or any agent command, and keeps that list in its own memory where the agent cannot
-// edit it. The reap before each token-bearing command kills everything else.
+// The template runs every command and file write as its unprivileged agent user. The Hub's own
+// token-bearing git runs as root through runAsRoot, where nothing that user left running can read
+// the process environment.
 export class ConexusFactoryE2BSandbox extends E2BSandbox {
-  #baseline: ProcessBaseline | undefined
-
   constructor(options: E2BSandboxOptions = {}) {
     super({ ...options, env: withoutGithubTokens(options.env ?? {}) })
   }
@@ -85,44 +44,21 @@ export class ConexusFactoryE2BSandbox extends E2BSandbox {
     super.setEnv((environment) => withoutGithubTokens(update(environment)))
   }
 
-  // A VM this process did not create has no baseline, and listing its processes now would admit
-  // whatever an earlier agent turn left running in it (a Hub restart does not stop the VM). So a
-  // VM found by id is killed and a fresh one created. Nothing is lost: every run fetches and pins
-  // its base from GitHub, discarding the checkout's previous state.
-  protected override async find(): Promise<E2BHandle | undefined> {
-    if (this._sandbox) return this._sandbox
-    const found = await super.find()
-    if (found) await found.kill()
-    return undefined
-  }
-
-  protected override async create(): Promise<void> {
-    this.#baseline = undefined
-    await super.create()
-    const handle = this.e2b
-    const listed = await runAsRoot(handle, PROCESS_BASELINE_SCRIPT)
-    const processes = new Set(listed.stdout.split('\n').map((line) => line.trim()).filter((line) => BASELINE_ENTRY.test(line)))
-    if (listed.exitCode !== 0 || processes.size === 0) throw new Error('BUILDER_SANDBOX_BASELINE_FAILED')
-    this.#baseline = Object.freeze({ sandboxId: handle.sandboxId, processes })
-  }
-
-  get processBaseline(): ProcessBaseline | undefined {
-    return this.#baseline
-  }
-
-  /** Exit 0 once only baseline processes remain; nonzero, without killing anything, when this VM has no baseline. */
-  async reapAgentProcesses(): Promise<CommandResult> {
+  async runAsRoot(script: string, env: Record<string, string>): Promise<CommandResult> {
     const startedAt = Date.now()
-    const baseline = this.#baseline
-    const refused = (exitCode: number): CommandResult => ({ success: false, exitCode, stdout: '', stderr: '', executionTimeMs: Date.now() - startedAt })
-    if (!baseline || !this._sandbox || baseline.sandboxId !== this._sandbox.sandboxId) return refused(3)
     try {
-      const ran = await runAsRoot(this._sandbox, reapScript(baseline.processes))
+      const ran = await this.e2b.commands.run(script, { user: 'root', cwd: '/', envs: env, timeoutMs: 120_000 })
       return { success: ran.exitCode === 0, exitCode: ran.exitCode, stdout: ran.stdout, stderr: ran.stderr, executionTimeMs: Date.now() - startedAt }
     } catch (error) {
-      // The SDK throws for a nonzero exit; the caller only needs to know the reap did not finish.
-      const exitCode = (error as { exitCode?: unknown }).exitCode
-      return refused(typeof exitCode === 'number' ? exitCode : 1)
+      // The SDK throws for a nonzero exit; the caller reads the exit code.
+      const failed = error as { exitCode?: unknown; stdout?: unknown; stderr?: unknown }
+      return {
+        success: false,
+        exitCode: typeof failed.exitCode === 'number' ? failed.exitCode : 1,
+        stdout: typeof failed.stdout === 'string' ? failed.stdout : '',
+        stderr: typeof failed.stderr === 'string' ? failed.stderr : '',
+        executionTimeMs: Date.now() - startedAt,
+      }
     }
   }
 }
@@ -152,7 +88,7 @@ const REPOSITORY_SLUG = /^[\w.-]+\/[\w.-]+$/
 
 // The Factory's start hook clones with an installation token in the remote URL and scrubs it after,
 // but the scrub that follows a branch checkout ignores its own exit code, and it leaves git pointed
-// at `gh auth git-credential`. The agent runs next in this checkout, so after every start the Hub
+// at `gh auth git-credential`. The checkout belongs to the agent's user, so after the start the Hub
 // resets the remote, drops the helper, and refuses the sandbox if a token is still anywhere in .git.
 export const scrubCheckoutCredentials = async (sandbox: CommandSandbox, workdir: string, repositorySlug: string): Promise<void> => {
   if (!REPOSITORY_SLUG.test(repositorySlug) || !/^\/[\w./-]+$/.test(workdir)) throw new Error('FACTORY_CHECKOUT_REFUSED')

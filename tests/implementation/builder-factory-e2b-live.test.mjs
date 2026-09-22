@@ -31,61 +31,55 @@ const liveConfig = () => {
   return { templateId, apiKey: readBuilderE2BApiKey(process.env.CONEXUS_BUILDER_E2B_API_KEY_FILE) }
 }
 
-const PROCESS_TABLE = [
-  'started() { sed -E \'s/^.*\\) //\' "$1/stat" 2>/dev/null | cut -d" " -f20; }',
-  'cd /proc || exit 1',
-  'for pid in [0-9]*; do readlink "$pid/exe" >/dev/null 2>&1 || continue; s=$(started "$pid"); [ -z "$s" ] || echo "$pid:$s $(cat "$pid/comm" 2>/dev/null)"; done',
-].join('\n')
+// Left running by the agent: every 200 ms it copies any AUTHORIZATION it can read from any process
+// environment into /workspace/stolen.
+const WATCHER = `nohup setsid sh -c 'while :; do for p in /proc/[0-9]*; do tr "\\0" "\\n" < "$p/environ" 2>/dev/null; done | grep AUTHORIZATION >> /workspace/stolen; sleep 0.2; done' >/dev/null 2>&1 &`
 
-const processTable = async (sandbox) => {
-  const listed = await sandbox.e2b.commands.run(PROCESS_TABLE, { user: 'root', cwd: '/', envs: {}, timeoutMs: 30_000 })
-  return new Map(listed.stdout.trim().split('\n').map((line) => line.split(' ')))
-}
-
-const countSleeps = async (sandbox) => {
-  const counted = await sandbox.e2b.commands.run('pgrep -xc sleep || true', { user: 'root', cwd: '/', envs: {}, timeoutMs: 30_000 })
-  return Number(counted.stdout.trim())
-}
-
-test('on a real E2B VM the reap kills what the agent left running and every boot service survives', { skip, timeout: 5 * 60_000 }, async () => {
+test('on a real E2B VM the agent user cannot read a root git environment, and root still moves commits through its own mirror', { skip, timeout: 5 * 60_000 }, async () => {
   const { ConexusFactoryE2BSandbox } = await (await loadHub())('builder/factory.js')
   const { templateId, apiKey } = liveConfig()
-  const options = { id: `conexus-live-reap-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {}, workingDirectory: '/workspace' }
-  const first = new ConexusFactoryE2BSandbox(options)
-  const replacement = new ConexusFactoryE2BSandbox(options)
+  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-agent-user-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {}, workingDirectory: '/workspace' })
+  const agent = (script, cwd = '/workspace') => sandbox.executeCommand('sh', ['-c', script], { env: {}, cwd })
   try {
-    await first.start()
-    assert.equal(first.processBaseline.sandboxId, first.sandboxId)
+    await sandbox.start()
+    assert.equal((await agent('id -un')).stdout.trim(), 'conexus-agent')
+    assert.notEqual((await agent('sudo -n true')).exitCode, 0, 'the agent user has no sudo')
+    await agent(`: > /workspace/stolen && ${WATCHER}`)
 
-    await first.executeCommand('sh', ['-c', 'nohup setsid sleep 601 >/dev/null 2>&1 &'], { env: {} })
-    await first.processes.spawn('sleep 600', { env: {} })
-    assert.equal(await countSleeps(first), 2, 'both agent-left sleeps run before the reap')
+    const control = await agent('GIT_CONFIG_VALUE_0="AUTHORIZATION: basic agent-user-control" sleep 2')
+    assert.equal(control.exitCode, 0)
+    const root = await sandbox.runAsRoot('sleep 2 && git --version', { GIT_CONFIG_VALUE_0: 'AUTHORIZATION: basic root-held-secret' })
+    assert.equal(root.exitCode, 0)
+    const stolen = (await agent('sort -u /workspace/stolen')).stdout
+    process.stderr.write(`FACTORY_LIVE_STOLEN:${JSON.stringify(stolen)}\n`)
+    assert.match(stolen, /agent-user-control/, 'the watcher reads a process of its own user')
+    assert.doesNotMatch(stolen, /root-held-secret/, 'the watcher never reads the root process')
 
-    const beforeReap = await processTable(first)
-    const boot = new Map([...beforeReap].filter(([entry]) => first.processBaseline.processes.has(entry)))
-    const bootNames = [...new Set(boot.values())].sort()
-    process.stderr.write(`FACTORY_LIVE_BOOT_SERVICES:${bootNames.join(',')}\n`)
-    for (const service of ['sshd', 'chronyd', 'envd']) assert.ok(bootNames.includes(service), `${service} is a boot service of this template`)
-
-    const reaped = await first.reapAgentProcesses()
-    assert.equal(reaped.exitCode, 0)
-    assert.equal(await countSleeps(first), 0, 'no agent-left sleep survives the reap')
-    const afterReap = await processTable(first)
-    const killed = [...boot].filter(([entry]) => !afterReap.has(entry)).map(([entry, name]) => `${name}:${entry}`)
-    assert.deepEqual(killed, [], 'every boot service keeps its pid and start time')
-
-    // A second Hub object for the same conversation has no baseline for the VM it finds, so it
-    // kills that VM and creates its own rather than adopting what an earlier turn left running.
-    await replacement.start()
-    assert.notEqual(replacement.sandboxId, first.sandboxId)
-    assert.equal(replacement.processBaseline.sandboxId, replacement.sandboxId)
-    assert.equal(await first.e2b.isRunning(), false, 'the VM found by id was killed')
+    const repo = '/workspace/live-repo'
+    const committed = await agent(`git init -q -b main ${repo} && cd ${repo} && echo one > a.txt && git add --all && git -c user.name=a -c user.email=a@b.invalid commit -qm one && git bundle create --quiet /workspace/.conexus-result.bundle refs/heads/main && git rev-parse HEAD`)
+    assert.equal(committed.exitCode, 0, committed.stderr)
+    const result = committed.stdout.trim()
+    const mirror = "git --git-dir='/var/lib/conexus-git/live.git'"
+    const pushed = await sandbox.runAsRoot([
+      "mkdir -p '/var/lib/conexus-git'",
+      "git init --quiet --bare '/var/lib/conexus-git/live.git'",
+      'git init --quiet --bare /var/lib/conexus-live-remote.git',
+      `${mirror} fetch --quiet '/workspace/.conexus-result.bundle' 'refs/heads/main'`,
+      `${mirror} push --quiet --force /var/lib/conexus-live-remote.git '${result}:refs/heads/conexus/live'`,
+      "git --git-dir=/var/lib/conexus-live-remote.git rev-parse 'refs/heads/conexus/live'",
+      `${mirror} update-ref refs/conexus/base '${result}'`,
+      `${mirror} bundle create --quiet '/var/lib/conexus-git/live.base.bundle' refs/conexus/base`,
+    ].join(' && '), {})
+    assert.deepEqual([pushed.exitCode, pushed.stdout.trim()], [0, result], pushed.stderr)
+    const pinned = await agent(`git fetch --quiet --no-tags '/var/lib/conexus-git/live.base.bundle' refs/conexus/base && git checkout --quiet -B conexus/live '${result}' && git rev-parse HEAD && echo two >> a.txt && git status --porcelain`, repo)
+    assert.deepEqual([pinned.exitCode, pinned.stdout.trim()], [0, `${result}\n M a.txt`], pinned.stderr)
+    assert.notEqual((await agent('touch /var/lib/conexus-git/live.git/HEAD')).exitCode, 0, 'the agent user cannot write the Hub mirror')
   } finally {
-    await Promise.allSettled([first.destroy(), replacement.destroy()])
+    await sandbox.destroy().catch(() => undefined)
   }
 })
 
-test('a VM that E2B killed for idling is replaced by the next command, with a baseline of its own', { skip, timeout: 5 * 60_000 }, async () => {
+test('a VM that E2B killed for idling is replaced by the next command, and root commands reach the new one', { skip, timeout: 5 * 60_000 }, async () => {
   const { ConexusFactoryE2BSandbox } = await (await loadHub())('builder/factory.js')
   const { templateId, apiKey } = liveConfig()
   const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-idle-${randomUUID()}`, template: templateId, apiKey, timeout: 15_000, lifecycle: { onTimeout: 'kill' }, env: {}, workingDirectory: '/workspace' })
@@ -96,8 +90,7 @@ test('a VM that E2B killed for idling is replaced by the next command, with a ba
     const ran = await sandbox.executeCommand('true', [], { env: {} })
     assert.equal(ran.exitCode, 0)
     assert.notEqual(sandbox.sandboxId, dead)
-    assert.equal(sandbox.processBaseline.sandboxId, sandbox.sandboxId)
-    assert.equal((await sandbox.reapAgentProcesses()).exitCode, 0)
+    assert.equal((await sandbox.runAsRoot('id -un', {})).stdout.trim(), 'root')
   } finally {
     await sandbox.destroy().catch(() => undefined)
   }

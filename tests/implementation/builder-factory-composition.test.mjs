@@ -22,7 +22,7 @@ const compiled = spawnSync(process.execPath, [
 ], { encoding: 'utf8' })
 if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
 const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
-const { ConexusFactoryE2BSandbox, PROCESS_BASELINE_SCRIPT, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, scrubCheckoutCredentials } = await import(built('builder/factory.js'))
+const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, scrubCheckoutCredentials } = await import(built('builder/factory.js'))
 const { createBuilderMountOptions } = await import(built('builder/module.js'))
 const { createMastraFactoryRunPorts } = await import(built('builder/factory-runtime.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
@@ -68,14 +68,14 @@ test('the sandbox never lets GH_TOKEN or GITHUB_TOKEN into its environment', () 
   assert.deepEqual(sandbox.getEnv(), { KEEP: '1', OTHER: '2' })
 })
 
-const fakeVm = (sandboxId, { baseline = '1:5\n321:40\n', baselineExit = 0 } = {}) => {
+const fakeVm = (sandboxId) => {
   const vm = { sandboxId, killed: false, runs: [] }
   vm.kill = async () => { vm.killed = true }
   vm.commands = {
     run: async (script, options) => {
       vm.runs.push({ script, options })
-      if (script === PROCESS_BASELINE_SCRIPT) return { exitCode: baselineExit, stdout: baseline, stderr: '' }
-      return { exitCode: 0, stdout: '', stderr: '' }
+      if (script === 'exit 128') throw Object.assign(new Error('exit status 128'), { exitCode: 128, stdout: '', stderr: 'fatal: refused' })
+      return { exitCode: 0, stdout: 'ok\n', stderr: '' }
     },
   }
   return vm
@@ -88,46 +88,25 @@ const offlineSandbox = ({ existing, created }) => {
   return sandbox
 }
 
-test('the Hub lists the VM processes as root the moment it creates the VM, before the Factory start hook', async () => {
-  const created = fakeVm('vm-fresh')
-  const sandbox = offlineSandbox({ existing: undefined, created })
-  let seenByStartHook
-  sandbox.setOnStart(() => async () => { seenByStartHook = sandbox.processBaseline })
-  await sandbox.start()
-  assert.deepEqual(seenByStartHook && [seenByStartHook.sandboxId, [...seenByStartHook.processes]], ['vm-fresh', ['1:5', '321:40']])
-  assert.deepEqual(created.runs.map(({ options }) => options), [{ user: 'root', cwd: '/', envs: {}, timeoutMs: 30_000 }])
-})
-
-test('the reap spares exactly the baseline, by pid and start time, and runs as root with an empty environment', async () => {
-  const created = fakeVm('vm-fresh')
-  const sandbox = offlineSandbox({ existing: undefined, created })
-  await sandbox.start()
-  const reaped = await sandbox.reapAgentProcesses()
-  assert.equal(reaped.exitCode, 0)
-  const reap = created.runs.at(-1)
-  assert.deepEqual(reap.options, { user: 'root', cwd: '/', envs: {}, timeoutMs: 30_000 })
-  assert.match(reap.script, /^base=" 1:5 321:40 "$/m)
-  assert.match(reap.script, /kill -9 "\$pid"/)
-})
-
-test('a VM found by id is killed, never adopted, and a fresh one is created with its own baseline', async () => {
+test('a VM left running by an earlier Hub process is adopted, since the agent cannot reach the Hub root commands', async () => {
   const existing = fakeVm('vm-left-by-a-previous-hub')
-  const created = fakeVm('vm-fresh', { baseline: '1:5\n400:77\n' })
+  const created = fakeVm('vm-fresh')
   const sandbox = offlineSandbox({ existing, created })
   await sandbox.start()
-  assert.equal(existing.killed, true)
-  assert.deepEqual(existing.runs, [])
-  assert.equal(sandbox.sandboxId, 'vm-fresh')
-  assert.deepEqual([...sandbox.processBaseline.processes], ['1:5', '400:77'])
+  assert.equal(existing.killed, false)
+  assert.equal(sandbox.sandboxId, 'vm-left-by-a-previous-hub')
+  assert.deepEqual(created.runs, [])
 })
 
-test('without a baseline for the live VM the reap refuses and runs nothing', async () => {
-  const sandbox = offlineSandbox({ existing: undefined, created: fakeVm('vm-fresh') })
-  const refused = await sandbox.reapAgentProcesses()
-  assert.equal(refused.exitCode, 3)
-  const failing = fakeVm('vm-unlistable', { baseline: '' })
-  await assert.rejects(offlineSandbox({ existing: undefined, created: failing }).start(), /BUILDER_SANDBOX_BASELINE_FAILED/)
-  assert.equal(failing.runs.length, 1)
+test('a Hub root command runs as root from / with exactly the environment given, and a nonzero exit is returned, not thrown', async () => {
+  const created = fakeVm('vm-fresh')
+  const sandbox = offlineSandbox({ existing: undefined, created })
+  await sandbox.start()
+  const ran = await sandbox.runAsRoot('git --version', { GIT_TERMINAL_PROMPT: '0' })
+  assert.deepEqual({ exitCode: ran.exitCode, stdout: ran.stdout }, { exitCode: 0, stdout: 'ok\n' })
+  assert.deepEqual(created.runs.at(-1), { script: 'git --version', options: { user: 'root', cwd: '/', envs: { GIT_TERMINAL_PROMPT: '0' }, timeoutMs: 120_000 } })
+  const refused = await sandbox.runAsRoot('exit 128', {})
+  assert.deepEqual({ exitCode: refused.exitCode, stderr: refused.stderr, success: refused.success }, { exitCode: 128, stderr: 'fatal: refused', success: false })
 })
 
 test('the Factory sandbox callback builds one E2B sandbox per session row in /workspace', () => {

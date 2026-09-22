@@ -65,11 +65,14 @@ const pilot = async (t) => {
     sandboxId: 'sbx-pilot',
     start: async () => {},
     writeFiles: async () => {},
-    reapAgentProcesses: async () => ({ exitCode: 0, success: true, stdout: '', stderr: '' }),
+    runAsRoot: async (script) => {
+      const pin = / fetch --quiet --no-tags '[^']+' '([0-9a-f]{40})'/.exec(script)
+      if (pin) pins.push(pin[1])
+      return { exitCode: 0, success: true, stdout: '', stderr: '' }
+    },
     executeCommand: async (command, args = []) => {
       const line = [command, ...args].join(' ')
-      const pin = / fetch --quiet --no-tags '[^']+' '([0-9a-f]{40})'/.exec(line)
-      if (pin) pins.push(pin[1])
+      if (line === 'id -un') return { exitCode: 0, success: true, stdout: 'conexus-agent\n', stderr: '' }
       if (line.includes('add --all')) return { exitCode: 0, success: true, stdout: `${RESULT}\n`, stderr: '' }
       if (line.includes('ls-tree')) return { exitCode: 0, success: true, stdout: `100644 blob ${'1'.repeat(40)}      120\tapp/index.html\n`, stderr: '' }
       return { exitCode: 0, success: true, stdout: '', stderr: '' }

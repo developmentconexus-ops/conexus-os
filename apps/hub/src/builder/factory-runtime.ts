@@ -23,8 +23,7 @@ export type FactoryRunSandbox = Readonly<{
   start(): Promise<void>
   executeCommand(command: string, args?: string[], options?: ExecuteCommandOptions): Promise<CommandResult>
   writeFiles(files: SandboxFileInput[]): Promise<void>
-  // Kills what the agent left running, against the process list the Hub took when it created the VM.
-  reapAgentProcesses(): Promise<CommandResult>
+  runAsRoot(script: string, env: Record<string, string>): Promise<CommandResult>
   buildApplication(appRoot: string, signal?: AbortSignal): Promise<CompiledApplication['files']>
 }>
 
@@ -80,10 +79,9 @@ const SLUG = /^[\w.-]+\/[\w.-]+$/
 const BRANCH = /^[A-Za-z0-9_./-]+$/
 
 // The Factory clones into <workingDirectory>/<repository name>, sanitized the same way.
-export const factoryWorkdir = (repositorySlug: string): string => {
-  const name = (repositorySlug.split('/')[1] ?? '').replace(/[^A-Za-z0-9._-]/g, '-').replace(/^\.+/, '') || 'repo'
-  return `${FACTORY_WORKING_DIRECTORY}/${name}`
-}
+const repositoryName = (repositorySlug: string): string =>
+  (repositorySlug.split('/')[1] ?? '').replace(/[^A-Za-z0-9._-]/g, '-').replace(/^\.+/, '') || 'repo'
+export const factoryWorkdir = (repositorySlug: string): string => `${FACTORY_WORKING_DIRECTORY}/${repositoryName(repositorySlug)}`
 
 export const factoryAgentInstructions = (workdir: string): string => [
   ...BUILDER_SHARED_AGENT_INSTRUCTIONS.map((line) => line.replaceAll('/workspace/repo', workdir)),
@@ -99,9 +97,12 @@ const materializeFactoryStarter: NonNullable<FactoryRunPorts['materializeStarter
 const repositoryUrl = (slug: string): string => `https://github.com/${slug}.git`
 
 // The token rides in the git process's environment as a one-command http header, never in argv,
-// a URL, a remote or a config file. Anything the agent left running could still read the process's
-// environ, which is why every token-bearing command is preceded by a reap. No agent turn is live
-// then, and the run's session is closed before the push, so nothing respawns before git runs.
+// a URL, a remote or a config file. Only root git on the Hub's own mirror carries it: the agent's
+// user cannot read a root process's environment, and root git never reads the agent's checkout,
+// whose config and hooks the agent writes. Commits cross between the two as bundles.
+const AGENT_USER = 'conexus-agent'
+const HUB_GIT_ROOT = '/var/lib/conexus-git'
+const RESULT_BUNDLE = `${FACTORY_WORKING_DIRECTORY}/.conexus-result.bundle`
 const tokenEnvironment = (token: string): Record<string, string> => ({
   GIT_CONFIG_COUNT: '1',
   GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
@@ -119,6 +120,9 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
     const branch = conversationBranch(input.conversationId)
     const workdir = factoryWorkdir(slug)
     const git = `git -C '${workdir}'`
+    const mirror = `${HUB_GIT_ROOT}/${repositoryName(slug)}.git`
+    const hubGit = `git --git-dir='${mirror}'`
+    const baseBundle = `${HUB_GIT_ROOT}/${repositoryName(slug)}.base.bundle`
     const cancelled = (): boolean => input.signal?.aborted === true
 
     const session = await ports.openSession({
@@ -148,32 +152,35 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
         if (sandbox.sandboxId !== incarnation) throw new Error('BUILDER_SANDBOX_INCARNATION_CHANGED')
         return result
       }
-      // Commands state their environment: empty unless the command carries a token.
+      // Commands in the checkout run as the agent's user with an empty environment.
       const direct = (command: string, args: string[] = [], options: ExecuteCommandOptions = {}): Promise<CommandResult> =>
-        onIncarnation(() => sandbox.executeCommand(command, args, { ...options, env: options.env ?? {} }))
-      const sh = (script: string, env: Record<string, string> = {}): Promise<CommandResult> => direct('sh', ['-c', script], { env })
-      const withToken = async (token: string, script: string): Promise<CommandResult> => {
-        const reaped = await onIncarnation(() => sandbox.reapAgentProcesses())
-        if (reaped.exitCode !== 0) throw new Error('BUILDER_SANDBOX_REAP_FAILED')
-        return sh(script, tokenEnvironment(token))
-      }
-      const hub = { executeCommand: direct }
-      await scrubCheckoutCredentials(hub, workdir, slug)
+        onIncarnation(() => sandbox.executeCommand(command, args, { ...options, env: {} }))
+      const sh = (script: string): Promise<CommandResult> => direct('sh', ['-c', script])
+      const withToken = (token: string, script: string): Promise<CommandResult> => onIncarnation(() => sandbox.runAsRoot(script, tokenEnvironment(token)))
+      // A VM from an older template, adopted after a Hub restart, would still run the agent as root.
+      if ((await direct('id', ['-un'])).stdout.trim() !== AGENT_USER) throw new Error('BUILDER_SANDBOX_AGENT_USER_REQUIRED')
+      await scrubCheckoutCredentials({ executeCommand: direct }, workdir, slug)
 
       // The Factory fetches the base branch once per branch, so each run pins its own base. This also
-      // discards whatever a stopped or stale run left in the checkout. The token is inline in the
-      // command and never becomes a remote.
+      // discards whatever a stopped or stale run left in the checkout.
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       const pinToken = await ports.github.repositoryToken(installation, repository.externalId, 'write')
-      const pinned = await withToken(pinToken, [
-        `${git} fetch --quiet --no-tags '${repositoryUrl(slug)}' '${base}'`,
+      const fetched = await withToken(pinToken, [
+        `mkdir -p '${HUB_GIT_ROOT}'`,
+        `{ test -d '${mirror}' || git init --quiet --bare '${mirror}'; }`,
+        `${hubGit} fetch --quiet --no-tags '${repositoryUrl(slug)}' '${base}'`,
+        `${hubGit} update-ref refs/conexus/base '${base}'`,
+        `${hubGit} bundle create --quiet '${baseBundle}' refs/conexus/base`,
+      ].join(' && '))
+      if (fetched.exitCode !== 0) throw new Error('BUILDER_SOURCE_BASE_PIN_REFUSED')
+      const pinned = await sh([
+        `${git} fetch --quiet --no-tags '${baseBundle}' refs/conexus/base`,
         `${git} reset --quiet --hard`,
         `${git} clean -fdq`,
         `${git} checkout --quiet -B '${branch}' '${base}'`,
         `test "$(${git} rev-parse HEAD)" = '${base}'`,
       ].join(' && '))
       if (pinned.exitCode !== 0) throw new Error('BUILDER_SOURCE_BASE_PIN_REFUSED')
-      await scrubCheckoutCredentials(hub, workdir, slug)
 
       if (input.mode === 'BUILD') {
         await (ports.materializeStarter ?? materializeFactoryStarter)({
@@ -219,12 +226,17 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       const verified = await sh(`${git} merge-base --is-ancestor '${base}' '${result}' && test -z "$(${git} status --porcelain)"`)
       if (verified.exitCode !== 0) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
 
-      // Force applies only to the conversation's own scratch branch, which the base pin rewinds.
+      // Force applies only to the conversation's own scratch branch, which the base pin rewinds. The
+      // push names the result's id, so a bundle that lacks it pushes nothing.
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
+      const bundled = await sh(`${git} bundle create --quiet '${RESULT_BUNDLE}' 'refs/heads/${branch}'`)
+      if (bundled.exitCode !== 0) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
       const pushToken = await ports.github.repositoryToken(installation, repository.externalId, 'write')
-      const pushed = await withToken(pushToken, `${git} push --quiet --force '${repositoryUrl(slug)}' '${result}:refs/heads/${branch}'`)
+      const pushed = await withToken(pushToken, [
+        `${hubGit} fetch --quiet '${RESULT_BUNDLE}' 'refs/heads/${branch}'`,
+        `${hubGit} push --quiet --force '${repositoryUrl(slug)}' '${result}:refs/heads/${branch}'`,
+      ].join(' && '))
       if (pushed.exitCode !== 0) throw new Error('BUILDER_SOURCE_PUSH_FAILED')
-      await scrubCheckoutCredentials(hub, workdir, slug)
 
       await input.setPhase('COMPILING')
       let applicationBuild: ApplicationBuildOutcome
@@ -326,7 +338,7 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
         executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) =>
           execute(command, args, { ...options, cwd: options.cwd ?? FACTORY_WORKING_DIRECTORY, timeout: options.timeout ?? 120_000 }),
         writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
-        reapAgentProcesses: () => sandbox.reapAgentProcesses(),
+        runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
         buildApplication: (appRoot: string, signal?: AbortSignal) => buildApplicationInSandbox(sandbox.e2b, { appRoot, ...(signal ? { signal } : {}) }),
       }),
       configure: async ({ mode, instructions }) => {
