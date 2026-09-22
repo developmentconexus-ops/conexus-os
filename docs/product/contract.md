@@ -98,8 +98,8 @@ The current state of a Project's authored source, owned by Conexus and held in P
 Git.
 
 Each Builder request starts from the current working source, including source that
-failed to compile. A request that changes source advances the working revision. The
-last-good Preview only advances when a revision compiles.
+failed to compile. A request that changes source advances the working revision. Only a
+revision that passed its checks is offered as a Preview.
 
 There is no approved statement of intent the Builder reads before coding. Intent lives
 in the conversation and in the source.
@@ -120,14 +120,16 @@ result = RESPONSE_ONLY | SOURCE_CHANGED | SOURCE_CHANGED_BUILD_FAILED
 
 `RESPONSE_ONLY` means the agent answered without changing source. A response-only turn
 keeps its answer without a commit or a compilation. `SOURCE_CHANGED_BUILD_FAILED` still
-advances the working source, so the next request continues from it, and it never
-replaces the last-good Preview with an artifact that does not compile.
+advances the working source, so the next request continues from it, and an artifact that
+does not compile is never offered as a Preview.
 
 ### 3.7 Preview
 
-The last artifact that compiled, served back to the person who asked for it. Each
-launch binds its own immutable route. A newer candidate does not mutate an older route,
-so a Preview stays usable while the next run works.
+An artifact that passed its checks, served back to the person who asked for it. Each
+launch binds its own immutable route. A newer candidate does not mutate an older route.
+Today the Hub keeps offering the last artifact that compiled while a later candidate
+fails; that is implementation behaviour, not a Product guarantee (see
+[12.4](#124-source-preview-and-publication)).
 
 A grant issued or an iframe that loaded is not proof that the application works.
 
@@ -193,7 +195,7 @@ Workspace
 → the agent reads and edits files
 → Conexus admits the resulting revision and advances the working source
 → compile
-→ on success the artifact becomes the last-good Preview
+→ on success the artifact becomes the Preview
 → the person uses the Preview and writes the next request
 ```
 
@@ -252,7 +254,7 @@ Workspaces with owner and member roles
 a Workspace roster of members and pending invitations
 Projects, created new or imported from an existing repository
 read-only inspection of Project source at an exact revision
-the Builder: conversation, run, compile and last-good Preview
+the Builder: conversation, run, compile and Preview
 run cancellation and a safe native run trace
 ```
 
@@ -443,6 +445,8 @@ Q3 application-session/grant realization
 Q4 exact first Sankhya Connector contract
 Q5 exact Release/Publish ingress realization
 what becomes of BuilderRun beyond the current Builder path
+conversation privacy transitions
+admission and reconciliation of delegated Work
 the scheduler
 the Brain mechanism
 ```

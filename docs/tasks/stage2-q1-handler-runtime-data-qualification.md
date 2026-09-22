@@ -82,11 +82,18 @@ Initial platform baseline:
 - Ajv/Zod only where platform validation needs them; do not expose a framework merely to justify its presence;
 - pg 8.23.0;
 - parameterized SQL for the probe;
-- one separate application-runtime process, not code execution inside the Hub.
+- one shared runner outside the Hub: a supervisor plus one worker process per Project, never several Projects' generated code in one process.
+
+"A separate process" is not by itself a boundary. On the pilot the Hub's secrets are files readable by the operator's OS user (`~/.config/conexus/secrets/`, the Hub environment file), so a worker running as that user fails falsifier 4 by construction, and Projects sharing one process share memory and fail falsifier 2. The worker therefore runs under an identity that cannot read Hub secret files or the Hub environment, with network egress limited to the application database. Two realizations are candidates:
+
+- a dedicated unprivileged OS user per worker, with an egress filter by user;
+- one shared hardened container holding the supervisor and its per-Project workers.
+
+The throwaway runner arena (branch `spike/q1-runner-arena`, never merged) runs both against one adversarial suite. Its report selects the realization before Q1 implementation starts. Neither is a per-Project permanent container.
 
 The generated handler contract in Q1 is **qualification-only**. Keep it deliberately small. Q2 owns the durable programming-model decision.
 
-If the shared runner cannot satisfy the falsifiers, STOP with evidence and return to planning. Do not silently escalate to per-Project containers inside this task.
+If neither realization satisfies the falsifiers, STOP with evidence and return to planning. Do not silently escalate to per-Project containers inside this task.
 
 ## 6. Application used by the probe
 
@@ -176,6 +183,13 @@ Create the smallest Preview data allocation that proves:
 - schema owner/migration authority is separate from runtime DML authority;
 - public/default grants do not defeat the boundary.
 
+Project migrations are Builder-generated SQL executed with the Project's migration authority, so they are generated privileged code too. For Q1:
+
+- migrations apply to the Project's Preview schema after a successful build and before that build is offered as a Preview;
+- a failed migration means no Preview for that candidate, and the Builder receives the diagnostic;
+- Preview data is disposable: it must survive a runner restart, but Conexus may reset the Preview schema when a migration cannot apply cleanly, and says so;
+- the migration role owns only its Project's Preview schema and holds no role, database, extension or superuser authority.
+
 Add focused negative database tests first or alongside the implementation.
 
 ### Q1.2 — Runner boundary
@@ -252,11 +266,13 @@ Run generated/probe handler attempts for each forbidden capability:
 
 - read another Project's application data;
 - read Hub database data;
-- obtain Hub/model/GitHub/Connector credentials from environment/files/process state;
+- obtain Hub/model/GitHub/Connector credentials from environment/files/process state, including the pilot's real secret paths and the supervisor's `/proc` entries (report readable or not and size only, never contents);
 - choose or override a foreign Project/environment identity;
-- invoke an arbitrary network destination not admitted by the Q1 boundary;
-- escape the admitted handler/module root;
-- exhaust execution past the configured time/resource bound.
+- invoke an arbitrary network destination not admitted by the Q1 boundary, including the Hub's own ports and the container daemon socket;
+- escape the admitted handler/module root or spawn a child process;
+- exhaust execution past the configured time, memory or response bound;
+- crash its worker, after which the supervisor still serves the next request;
+- through a generated migration: `CREATE EXTENSION`, a `SECURITY DEFINER` function, `COPY ... PROGRAM`, `ALTER ROLE`, a grant to another Project's role, a schema outside its own, or a foreign-data/dblink connection.
 
 Each protected path must visibly refuse or terminate.
 
@@ -289,7 +305,8 @@ Q1 fails or returns to planning if any of these is observed:
 7. runner failure can take down the Hub;
 8. persistence depends on runner-local filesystem;
 9. Builder can reach a green build only when given implementation/file instructions that an ordinary user would never provide;
-10. the source needed to reproduce server behavior exists only in platform metadata and not Project Git.
+10. the source needed to reproduce server behavior exists only in platform metadata and not Project Git;
+11. a generated migration gains authority beyond its own Project's Preview schema.
 
 A falsifier is a result, not a request to patch indefinitely.
 

@@ -94,6 +94,17 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 
 Do not create implementation tasks for Q2-Q5 before the preceding verdict. Their current question, candidates and evidence requirements live in the Stage 2 reference so they are not lost.
 
+The sequence is a commitment order, not a dependency chain. Q3 does not depend on Q2, the Sankhya business input for Q4 needs no code, and Q5 depends on Q1's manifest rather than on Q3 or Q4. Exploration may therefore run ahead of the current gate, under two rules:
+
+- a spike that settles a gate's hypothesis runs on its own branch and worktree, is never merged, and ends in a report the gate's task cites;
+- only the current gate's task changes `main`.
+
+Running now alongside Q1:
+
+- the runner arena (`spike/q1-runner-arena`), which selects Q1's runner realization before Q1 implementation;
+- a rerunnable Builder eval (`scripts/builder-eval/`), the measuring tool every Builder proof in Stage 2 reuses, delivered as its own pull request;
+- the Sankhya business input for Q4: gateway, read-only credential, the open-purchase-order read and its fields, owned by the operator.
+
 ## Technology qualification rule
 
 Research does not select a dependency.
@@ -172,7 +183,7 @@ These return only through a named real consumer and their own qualification.
 
 ## Exact next action
 
-Execute only:
+**Execute only Stage 2 Q1, after the runner arena selects its runner realization.**
 
 [Stage 2 Q1 — Handler runtime + persistent Preview data qualification](tasks/stage2-q1-handler-runtime-data-qualification.md)
 
@@ -192,6 +203,11 @@ commit + push
 ```
 
 Do not start Q2 automatically.
+
+## What the operator still owes
+
+- A second Keycloak user with a verified email address, for multi-account and for Q3's app-only user.
+- The Sankhya business input for Q4.
 
 ## Merge gate
 

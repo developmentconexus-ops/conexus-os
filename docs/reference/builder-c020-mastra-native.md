@@ -20,10 +20,18 @@ is reopened: authorization, source custody, execution settlement and artifact id
 stand. The replacement is not chosen here; it is the subject of
 [the Sessions and Work qualification](../tasks/sessions-work-qualification.md).
 
+C-020 was amended again on 2026-09-22 under C-028. Keeping the previous Preview while a
+later candidate fails is no longer an invariant: a failed candidate may leave no usable
+Preview while its admitted source stays repairable. The code still keeps the last-good
+coordinates, and this file still names them, as a description of current behaviour. Where a
+sentence below promises that the previous Preview stays, read it as current implementation,
+not as a guarantee a change must preserve. Published stability is owned by Publish, not by
+Preview.
+
 ## 1. Product job
 
 The operator opens a Project, converses with a coding agent over its current source,
-sees real activity, and uses an automatically compiled last-good Preview.
+sees real activity, and uses an automatically compiled Preview.
 The next request continues the same conversation and exact working source.
 The operator does not administer Change, Plan records, WorkUnit, ActorRun,
 CodingSession, hashes, or manual Preview preparation.
@@ -147,7 +155,8 @@ Accepted-request recovery beyond currently proven behavior requires its named pr
 ProjectWorkingState owns working_source_revision, working_version, last-good
 source/artifact revision/digest, and relevant state/timestamps.
 Successful compilation of B advances last-good Preview to B.
-Failure after source admission keeps working B and the previous good Preview.
+Failure after source admission keeps working B. Today it also keeps the previous good
+Preview; that is current behaviour, not an invariant.
 The next edit starts from working source, including source that failed compilation.
 Legacy Change coordinates are not required to represent any of these facts.
 
@@ -257,7 +266,8 @@ Compiler subject is Project, execution correlation, exact source revision, and
 bounded source files. Registry identity is Project, source, and immutable artifact.
 No PreviewPreparationCoordinator or independent AI verifier is required for
 ordinary internal Preview. Compile admitted B, retain its artifact, then update
-last-good coordinates. On failure keep B as working source and the prior Preview.
+last-good coordinates. On failure keep B as working source; the prior Preview may stay
+or go.
 
 ### 13.1 P-01 Preview UX
 
@@ -268,8 +278,8 @@ A Nova aba action and explicit retry/reopen may remain.
 
 Compiled artifact, issued entry grant, and interactive application are different
 facts. A grant response or iframe load alone is not proof that application code works.
-Project only the readiness state actually observed. Bound automatic attempts and
-preserve last-good Preview while new work or a failed launch is handled.
+Project only the readiness state actually observed. Bound automatic attempts. Whether
+a Preview stays while new work or a failed launch is handled is implementation, not a rule.
 
 ### 13.2 Diff UX
 
@@ -393,7 +403,7 @@ Cancellation is an authenticated, idempotent command on an existing BuilderRun.
 It records intent before signaling the execution. Existing database arbitration
 settles the race with success/source promotion. A terminal run is not rewritten.
 Accepted pending cancellation prevents later success or Preview promotion.
-Keep already-admitted source and prior last-good Preview. The terminal result
+Keep already-admitted source. The terminal result
 is INTERRUPTED with the appropriate reason. Browser disconnect is observation
 detachment, not cancellation. No automatic retry or new run is implied.
 
