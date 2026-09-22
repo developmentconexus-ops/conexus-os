@@ -188,7 +188,13 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       // call it could not authenticate; reporting that as their cancellation would be false.
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       if (turn.reason !== 'complete') throw new Error('BUILDER_MODEL_INCOMPLETE')
-      await closeSession()
+      // Closing the session flushes secondary, best-effort model work (observational memory among
+      // it). The turn already changed the source; a failure here is a diagnostic, not a reason to
+      // discard a candidate the commit and build below have not even attempted yet.
+      await closeSession().catch((error) => {
+        const message = error instanceof Error ? error.message : String(error)
+        ports.log(`BUILDER_OM_OBSERVATION_FAILED:${input.executionId}:${message}`)
+      })
 
       const committed = await sh([
         `${git} add --all`,

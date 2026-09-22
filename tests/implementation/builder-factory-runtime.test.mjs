@@ -22,7 +22,7 @@ const conversationId = '44444444-4444-4444-8444-444444444444'
 const privateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' })
 const listing = `100644 blob ${'d'.repeat(40)}      120\tapp/index.html\n`
 
-const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository', lostAdvances = 0, bound = true } = {}) => {
+const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository', lostAdvances = 0, bound = true, close } = {}) => {
   const github = await startFakeGithub()
   t.after(() => github.close())
   const repository = github.addRepository({ owner: 'acme-org', name: 'app', head })
@@ -83,7 +83,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
           if (turn) return turn({ signal, sandbox })
           return { reason: 'complete', endedAt: new Date(), userMessageId: 'user-message', summary: 'Pronto.' }
         },
-        close: async () => { events.push('close') },
+        close: async () => { events.push('close'); if (close) await close() },
       }
     },
     github: app,
@@ -123,7 +123,14 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   }
   const service = createBuilderService({
     store,
-    applicationArtifacts: {},
+    applicationArtifacts: {
+      retainApplication: async ({ compiled }) => ({
+        artifactRevisionId: 'artifact-1', artifactDigest: 'g'.repeat(64),
+        projectId: compiled.projectId, sourceRevision: compiled.sourceRevision,
+        profile: 'REACT_VITE_V1', templateRef: compiled.templateRef, recipeSha256: compiled.recipeSha256,
+        entryPath: 'index.html', files: [],
+      }),
+    },
     factory: {
       runtime,
       readBindingForRun: async () => binding,
@@ -278,6 +285,19 @@ test('a build failure still admits the source by a push leased on the base and s
   assert.deepEqual(run.diagnostics, [{
     projectId, conversationId, builderRunId: runId, code: 'APPLICATION_COMPILATION_FAILED', outcome: 'BUILD_FAILED', sourceRevision: RESULT, from: 'service',
   }])
+})
+
+test('an observational-memory failure while closing the session does not discard a candidate whose build passed', async (t) => {
+  const run = await harness(t, {
+    close: async () => { throw new Error('BUILDER_OM_OBSERVATION_FAILED') },
+  })
+  await run.start()
+  await run.service.close()
+  assert.equal(run.main(), RESULT)
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild' || kind === 'fail'), [
+    ['advance', RESULT], ['settleBuild', RESULT, null],
+  ])
+  assert.ok(run.logs.some((line) => line.includes('BUILDER_OM_OBSERVATION_FAILED')), 'the OM failure is logged, not silenced')
 })
 
 test('root fetches the base into its own mirror, and the checkout takes it from a bundle, resets, cleans and checks HEAD before the agent runs', async (t) => {
