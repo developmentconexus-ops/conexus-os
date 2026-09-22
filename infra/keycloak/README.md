@@ -1,4 +1,38 @@
-# Keycloak realm export: r1f
+# Keycloak: realm export and the Conexus theme
+
+## Installing the sign-in theme on the pilot
+
+`install-theme.sh` builds `apps/keycloak-theme` into a Keycloakify jar, copies it into
+the running `conexus-s7-keycloak` container's `/opt/keycloak/providers/`, points realm
+`r1f` at it, and restarts the container:
+
+```
+infra/keycloak/install-theme.sh install
+```
+
+This also turns on internationalization for the realm with `pt-BR` as the default and
+only supported locale (it was off before this branch; Keycloak serves English message
+strings regardless of the theme's own translations until a realm has a locale). Admin
+auth comes from the container's own `KC_BOOTSTRAP_ADMIN_USERNAME` / `_PASSWORD`
+environment variables via `docker exec`, so nothing is typed or stored outside the
+container.
+
+To revert to Keycloak's built-in default theme:
+
+```
+infra/keycloak/install-theme.sh revert
+```
+
+This unsets the realm's `loginTheme`, removes the jar from the container, and restarts
+it. It does not turn internationalization back off (leaving `pt-BR` enabled is harmless
+against the stock theme, which also ships a `pt-BR` message set).
+
+Building the jar needs a JDK and Maven on `PATH` (`keycloakify build` shells out to
+`mvn`); see the comment at the top of `install-theme.sh` for a no-sudo local install if
+the coordinator's machine doesn't already have them. Everything else the script needs
+(Node, the theme's own npm dependencies) follows the repo's normal `npm ci` flow.
+
+## Realm export: r1f
 
 `realm-r1f.json` is a read-only export of the pilot realm `r1f` from the running
 `conexus-s7-keycloak` container. It is a reference for what the realm looks like today,
