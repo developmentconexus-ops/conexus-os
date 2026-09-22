@@ -3,8 +3,15 @@ name: Verify
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+  # A pull request restores dependency caches only from its own branch, its base branch and the
+  # default branch. Pull requests target the trunk, so the trunk has to run here to write them.
   push:
-    branches: [main]
+    branches: [main, analysis/internal-mvp-2026-09-12]
+
+# A newer push to the same pull request makes the older run moot.
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -34,19 +41,12 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      # scripts/generate-hub-baseline.mjs reads the schema back with pg_dump, and pg_dump refuses a
-      # server newer than itself. The runner image ships the 16 client; the service is 17.10.
-      - name: Install the PostgreSQL 17 client
-        run: |
-          sudo install -d /usr/share/postgresql-common/pgdg
-          sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
-          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
-          /usr/lib/postgresql/17/bin/pg_dump --version
-          echo "CONEXUS_PG_DUMP=/usr/lib/postgresql/17/bin/pg_dump" >> "$GITHUB_ENV"
       - run: npx --no-install playwright install --with-deps chromium
+      # The baseline check reads the schema back with pg_dump, which must be at least the server's
+      # version. The service container's own pg_dump always is, so no client is installed here.
       - run: npm run verify
+        env:
+          CONEXUS_TEST_DB_CONTAINER: ${{ job.services.postgres.id }}
       - run: git diff --check
       # A guard that fails without naming what it found costs a whole CI cycle to diagnose.
       - name: The working tree is unchanged by verification
