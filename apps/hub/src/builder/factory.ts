@@ -232,6 +232,17 @@ export const syncGoogleAiProProvider = async (storage: CustomProvidersStorage, r
   await customProvidersPrimer(storage)()
 }
 
+// The Factory's repository credential is this method's answer, and getRepositoryAccess is its only
+// caller: it lands in clone and checkout command lines, the checkout's remote URL and GH_TOKEN. The
+// Hub makes its own GitHub calls with its own App client, so every Factory caller gets the
+// credential that opens nothing. Subclassing is the integration's documented extension point; a
+// Factory upgrade must still have no other caller (docs/reference/mastra-boundary.md, item 2).
+class ConexusGithubIntegration extends GithubIntegration {
+  override async mintInstallationToken(): Promise<string> {
+    return SANDBOX_CREDENTIAL
+  }
+}
+
 export const composeFactory = async ({ pool, github, stateSecret, secretKey, publicUrl, sandbox, observability, googleAiProUrl }: Readonly<{
   pool: PostgresPool
   github: FactoryGithubApp
@@ -243,15 +254,7 @@ export const composeFactory = async ({ pool, github, stateSecret, secretKey, pub
   googleAiProUrl?: string
 }>): Promise<FactoryComposition> => {
   const storage = createFactoryStorage(pool)
-  const integration = new GithubIntegration(github)
-  // The Factory mints its repository tokens here and hands them to the sandbox: clone and checkout
-  // command lines, the checkout's remote URL, GH_TOKEN, a refreshed GH_TOKEN. The Hub makes its own
-  // GitHub calls with its own App client, so every Factory caller gets the credential that opens nothing.
-  integration.versionControl.getRepositoryAccess = async ({ orgId, repositoryId }) => {
-    const repository = await integration.sourceControlStorage.repositories.get({ orgId, id: repositoryId })
-    if (!repository) throw new Error('Version-control repository not found.')
-    return { cloneUrl: `https://github.com/${repository.slug}.git`, authorization: { scheme: 'bearer', token: SANDBOX_CREDENTIAL } }
-  }
+  const integration = new ConexusGithubIntegration(github)
   const factory = new MastraFactory({
     storage,
     auth: null,
