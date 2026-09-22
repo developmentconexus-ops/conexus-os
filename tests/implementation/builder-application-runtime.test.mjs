@@ -135,8 +135,8 @@ test('an app that imports a web font from an unreachable host still passes the s
 })
 
 test('buildApplicationInSandbox exports the fixed template identity', () => {
-  assert.equal(TEMPLATE_REF, '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189')
-  assert.equal(RECIPE_SHA256, '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf')
+  assert.equal(TEMPLATE_REF, '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440')
+  assert.equal(RECIPE_SHA256, 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4')
 })
 
 test('buildApplicationInSandbox symlinks the compiler dependencies into the given appRoot and builds it', async () => {

@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto'
 import { FileType } from 'e2b'
 import type { CommandResult, EntryInfo, Sandbox } from 'e2b'
 
-export const TEMPLATE_REF = '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189'
-export const RECIPE_SHA256 = '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf'
+export const TEMPLATE_REF = '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440'
+export const RECIPE_SHA256 = 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4'
 const DIST_ROOT = '/workspace/dist'
 export const BUILD_COMMAND ='node /opt/conexus/compiler/node_modules/vite/bin/vite.js build --config /opt/conexus/compiler/vite.config.mjs --configLoader native'
 const MAX_FILES = 256
