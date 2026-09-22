@@ -364,6 +364,8 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.getByText('O agente executa comandos sozinho num ambiente isolado com acesso à internet.').waitFor()
     await page.getByRole('link', { name: 'Construir' }).waitFor()
     await page.getByRole('link', { name: 'Voltar para Projetos' }).waitFor()
+    // In Project context, Configurações do projeto links to this same Project settings route.
+    assert.equal(await page.getByRole('link', { name: 'Configurações do projeto' }).getAttribute('href'), `/projects/${ids.vacation}/settings`)
     await shoot(page, '16-project-about')
     await reset({ repository: { state: 'UNREACHABLE' } })
     await page.reload()

@@ -1,7 +1,7 @@
 import { Avatar } from '@mastra/playground-ui/components/Avatar'
 import { Breadcrumb, Crumb } from '@mastra/playground-ui/components/Breadcrumb'
 import { DropdownMenu } from '@mastra/playground-ui/components/DropdownMenu'
-import { MainSidebar, MainSidebarProvider } from '@mastra/playground-ui/components/MainSidebar'
+import { MainSidebar, MainSidebarProvider, useMainSidebar } from '@mastra/playground-ui/components/MainSidebar'
 import { AppShell } from '@mastra/playground-ui/new/layout/app-shell'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useMatchRoute, useNavigate } from '@tanstack/react-router'
@@ -38,6 +38,16 @@ function NavItem({ active, label, children }: Readonly<{ active: boolean; label:
 
 function NavText({ icon, children }: Readonly<{ icon: ReactNode; children: string }>) {
   return <>{icon}<MainSidebar.NavLabel>{children}</MainSidebar.NavLabel></>
+}
+
+/** The library's own default button carries no border/padding reset, so our global `button` base
+ *  style (border, padding) otherwise leaks onto it and swallows the icon; `cx-rail-collapse` is
+ *  unlayered CSS, so it wins back the plain icon-button look regardless of source order. The label
+ *  flips with the actual state, not just the click that's about to happen. */
+function SidebarCollapseTrigger() {
+  const { desktopState } = useMainSidebar()
+  const collapsed = desktopState === 'collapsed'
+  return <MainSidebar.Trigger className="cx-rail-collapse" aria-label={collapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'} />
 }
 
 /** A capability the Project doesn't have yet. Shows "em breve" inline, and as the tooltip when the
@@ -263,36 +273,41 @@ export function Shell({
   const settingsLabel = project ? 'Configurações do projeto' : 'Configurações'
   return (
     <MainSidebarProvider storageKey="conexus-shell" mobileBreakpoint={768} collapsedWidth={56} disableKeyboardShortcut={false}>
-      <div className="shell">
-        <MainSidebar className="shell-sidebar">
-          <div className="cx-rail-top">
-            {workspace
-              ? <WorkspaceSwitcher context={context} current={workspace.workspaceId} trigger={
-                <SwitcherTrigger label="Trocar de Workspace" className="cx-rail-switch">
-                  <span className="cx-rail-badge" aria-hidden>{workspace.name.trim().charAt(0).toLocaleUpperCase('pt-BR')}</span>
-                  <span className="cx-rail-name">{workspace.name}</span>
-                  <ChevronsUpDown size={14} aria-hidden className="cx-rail-switch-icon" />
-                </SwitcherTrigger>
-              } />
-              : <span className="cx-rail-switch cx-rail-switch--static"><ConexusMark size={18} /><span className="cx-rail-name">Conexus</span></span>}
-            <MainSidebar.Trigger aria-label="Recolher barra lateral (Ctrl+B)" />
-          </div>
-          <MainSidebar.Nav aria-label="Navegação principal">
-            {rail ?? <ScopeRail scope={scope} />}
-          </MainSidebar.Nav>
-          {workspace && (
-            <MainSidebar.Bottom className="cx-rail-bottom">
-              <MainSidebar.NavList>
-                <NavItem active={false} label={settingsLabel}>
-                  <Link to="/settings/account"><NavText icon={<Settings size={16} aria-hidden />}>{settingsLabel}</NavText></Link>
-                </NavItem>
-              </MainSidebar.NavList>
-            </MainSidebar.Bottom>
-          )}
-        </MainSidebar>
-        <AppShell className="shell-main" mainLabel="Conteúdo" routeHeader={<TopBar context={context} scope={scope} place={place} arrive={arrive} />}>
-          {children}
-        </AppShell>
+      <div className="shell-frame">
+        <TopBar context={context} scope={scope} place={place} arrive={arrive} />
+        <div className="shell">
+          <MainSidebar className="shell-sidebar">
+            <div className="cx-rail-top">
+              {workspace
+                ? <WorkspaceSwitcher context={context} current={workspace.workspaceId} trigger={
+                  <SwitcherTrigger label="Trocar de Workspace" className="cx-rail-switch">
+                    <span className="cx-rail-badge" aria-hidden>{workspace.name.trim().charAt(0).toLocaleUpperCase('pt-BR')}</span>
+                    <span className="cx-rail-name">{workspace.name}</span>
+                    <ChevronsUpDown size={14} aria-hidden className="cx-rail-switch-icon" />
+                  </SwitcherTrigger>
+                } />
+                : <span className="cx-rail-switch cx-rail-switch--static"><ConexusMark size={18} /><span className="cx-rail-name">Conexus</span></span>}
+              <SidebarCollapseTrigger />
+            </div>
+            <MainSidebar.Nav aria-label="Navegação principal">
+              {rail ?? <ScopeRail scope={scope} />}
+            </MainSidebar.Nav>
+            {workspace && (
+              <MainSidebar.Bottom className="cx-rail-bottom">
+                <MainSidebar.NavList>
+                  <NavItem active={false} label={settingsLabel}>
+                    {project
+                      ? <Link to="/projects/$projectId/settings" params={{ projectId: project.projectId }}><NavText icon={<Settings size={16} aria-hidden />}>{settingsLabel}</NavText></Link>
+                      : <Link to="/settings/account"><NavText icon={<Settings size={16} aria-hidden />}>{settingsLabel}</NavText></Link>}
+                  </NavItem>
+                </MainSidebar.NavList>
+              </MainSidebar.Bottom>
+            )}
+          </MainSidebar>
+          <AppShell className="shell-main" mainLabel="Conteúdo">
+            {children}
+          </AppShell>
+        </div>
       </div>
     </MainSidebarProvider>
   )

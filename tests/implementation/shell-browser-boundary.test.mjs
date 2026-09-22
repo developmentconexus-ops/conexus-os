@@ -76,17 +76,36 @@ test('S5-P0 sidebar collapses to a 56px icon rail with a top toggle, ⌘B/Ctrl+B
   assert.match(shell, /collapsedWidth=\{56\}/)
   assert.match(shell, /disableKeyboardShortcut=\{false\}/)
   assert.match(shell, /mobileBreakpoint=\{768\}/)
-  // The toggle sits in the header row above <MainSidebar.Nav>, never in a footer.
+  // The toggle sits in the header row above <MainSidebar.Nav>, never in a footer, and its label
+  // reflects the real state (SidebarCollapseTrigger reads useMainSidebar()), not a static string.
+  assert.match(shell, /function SidebarCollapseTrigger\(\) \{[\s\S]*?<MainSidebar\.Trigger className="cx-rail-collapse" aria-label=\{collapsed \? 'Expandir barra lateral' : 'Recolher barra lateral'\}/)
   const rootIndex = shell.indexOf('<MainSidebar className="shell-sidebar">')
-  const triggerIndex = shell.indexOf('<MainSidebar.Trigger ')
+  const triggerIndex = shell.indexOf('<SidebarCollapseTrigger />')
   const navIndex = shell.indexOf('<MainSidebar.Nav aria-label="Navegação principal">')
   assert.ok(rootIndex >= 0 && triggerIndex > rootIndex && triggerIndex < navIndex, 'the collapse toggle is above the nav, at the top of the sidebar')
+})
+
+test('S5-P0 top bar spans the full width, above the sidebar, not inside AppShell\'s own frame', () => {
+  const shell = read('apps/web/src/app/shell.tsx')
+  const styles = read('apps/web/src/styles.css')
+  // AppShell's routeHeader slot renders inside its content frame, to the right of an outer
+  // sidebar, so it can't reach full width above the sidebar; the shell composes its own two rows
+  // instead (topbar row, then a sidebar+main row) around the library's components.
+  assert.doesNotMatch(shell, /routeHeader=/)
+  const frameIndex = shell.indexOf('<div className="shell-frame">')
+  const topBarIndex = shell.indexOf('<TopBar ')
+  const bodyIndex = shell.indexOf('<div className="shell">')
+  assert.ok(frameIndex >= 0 && topBarIndex > frameIndex && topBarIndex < bodyIndex, 'TopBar renders before the sidebar+main row, both inside shell-frame')
+  assert.match(styles, /\.shell-frame \{ display: flex; flex-direction: column; height: 100dvh;/)
 })
 
 test('S5-P0 sidebar is contextual: a Configurações link at the bottom, and disabled "Em breve" capabilities inside a Project', () => {
   const shell = read('apps/web/src/app/shell.tsx')
   assert.match(shell, /<MainSidebar\.Bottom className="cx-rail-bottom">/)
   assert.match(shell, /Configurações do projeto/)
+  // Configurações do projeto links to the existing Project settings route, not the account one.
+  assert.match(shell, /project\s*\n\s*\? <Link to="\/projects\/\$projectId\/settings" params=\{\{ projectId: project\.projectId \}\}>/)
+  assert.match(shell, /: <Link to="\/settings\/account">/)
   assert.match(shell, /aria-disabled="true"/)
   assert.match(shell, /tooltipMsg: 'Em breve'/)
   for (const label of ['Dados', 'Capacidades', 'Integrações']) assert.match(shell, new RegExp(`label="${label}"`))

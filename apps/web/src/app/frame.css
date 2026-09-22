@@ -6,7 +6,10 @@
 .cx-trail ol { flex-wrap: nowrap; }
 .cx-home-crumb { padding-inline: .5em; }
 .cx-lockup-narrow { display: none; }
-.cx-drawer-trigger { flex: none; }
+/* Same gap as .cx-rail-collapse below: the library's own button carries no border/padding reset,
+   so the app's plain `button` base style otherwise wins and swallows the hamburger icon. */
+.cx-drawer-trigger { flex: none; border: 0; padding: 0; background: transparent; color: var(--cx-text-2); }
+.cx-drawer-trigger:hover { background: var(--cx-surface-3); color: var(--cx-text); }
 @media (min-width: 768px) { .cx-drawer-trigger { display: none; } }
 @media (max-width: 767px) {
   .cx-lockup-wide { display: none; }
@@ -42,6 +45,10 @@
 .cx-rail-badge { display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: var(--cx-radius-control); background: var(--cx-surface-4); color: var(--cx-text); font: 600 .7rem/1 var(--cx-font-mono); flex: none; }
 .cx-rail-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cx-rail-switch-icon { flex: none; color: var(--cx-text-2); }
+/* The library's own Trigger button sets no border/padding, so the app's plain `button` reset
+   (border, .7rem 1rem padding) otherwise wins by default and squeezes its icon out of view. */
+.cx-rail-collapse { border: 0; padding: 0; background: transparent; color: var(--cx-text-2); }
+.cx-rail-collapse:hover { background: var(--cx-surface-3); color: var(--cx-text); }
 [data-sidebar-state="collapsed"] .cx-rail-top { flex-direction: column; }
 [data-sidebar-state="collapsed"] .cx-rail-name, [data-sidebar-state="collapsed"] .cx-rail-switch-icon { display: none; }
 [data-sidebar-state="collapsed"] .cx-rail-switch { width: 2.5rem; flex: none; justify-content: center; padding: 0; }
