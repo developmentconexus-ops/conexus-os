@@ -3,12 +3,9 @@ import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
-import { createServer } from 'vite'
+import { startWebServer } from './web-dev-server.mjs'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-const path = (relative) => resolve(repositoryRoot, relative)
-const port = 41736
-const origin = `http://127.0.0.1:${port}`
+let origin
 // Set to a folder to also save desktop and phone screenshots, light and dark, of every screen.
 const shotDirectory = process.env.CONEXUS_SCREENSHOT_DIR ? resolve(process.env.CONEXUS_SCREENSHOT_DIR) : null
 
@@ -135,9 +132,7 @@ async function shoot(page, name, { settle } = {}) {
 }
 
 test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto work in a real browser', { timeout: 240_000 }, async (t) => {
-  const server = await createServer({ configFile: path('apps/web/vite.config.mjs'), root: path('apps/web'), server: { host: '127.0.0.1', port, strictPort: true }, logLevel: 'error' })
-  await server.listen()
-  t.after(() => server.close())
+  origin = await startWebServer(t, { logLevel: 'error' })
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
