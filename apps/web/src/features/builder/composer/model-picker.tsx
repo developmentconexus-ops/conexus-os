@@ -5,19 +5,20 @@ import { useMemo, useRef, useState } from 'react'
 import type { BuilderModel, ReasoningLevel } from '../mastra-session'
 import { reasoningLevels } from '../mastra-session'
 import { groupModelsByProvider, providerIcon, providerLabel } from './model-order'
+import { humanizeModelName, parseReasoningSuffix } from './model-display-name'
 import { reasoningLabels } from './reasoning-labels'
 
 const matches = (model: BuilderModel, query: string): boolean => {
   const needle = query.trim().toLowerCase()
   if (!needle) return true
-  return model.modelName.toLowerCase().includes(needle) || providerLabel(model.provider).toLowerCase().includes(needle)
+  return humanizeModelName(model.modelName).toLowerCase().includes(needle) || providerLabel(model.provider).toLowerCase().includes(needle)
 }
 
 /**
  * One popover, one step: search the model, pick it, and set how hard it thinks, without opening a
  * second floating layer for either.
  */
-export function ModelPicker({ models, modelId, onModelChange, disabled, reasoning, onReasoningChange, reasoningDisabled }: Readonly<{
+export function ModelPicker({ models, modelId, onModelChange, disabled, reasoning, onReasoningChange, reasoningDisabled, reasoningLocked = false }: Readonly<{
   models: readonly BuilderModel[]
   modelId: string
   onModelChange: (modelId: string) => void
@@ -25,6 +26,8 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
   reasoning: ReasoningLevel
   onReasoningChange: (level: ReasoningLevel) => void
   reasoningDisabled: boolean
+  /** The selected model's id encodes its reasoning level (google-ai-pro's `-low`/`-high` suffix): no independent choice exists. */
+  reasoningLocked?: boolean
 }>) {
   const [query, setQuery] = useState('')
   const listRef = useRef<HTMLDivElement>(null)
@@ -93,7 +96,8 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
                 onClick={() => onModelChange(model.id)}
               >
                 <Icon width={15} height={15} aria-hidden="true" />
-                <span className="cx-model-option-name">{model.modelName}</span>
+                <span className="cx-model-option-name">{humanizeModelName(model.modelName)}</span>
+                {(() => { const suffix = parseReasoningSuffix(model.modelName); return suffix && <span className="cx-model-option-level">{reasoningLabels[suffix.level]}</span> })()}
                 {model.id === modelId && <Check size={14} aria-hidden="true" />}
               </button>)}
             </div>
@@ -101,7 +105,10 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
         </div>
       </>}
     <div className="cx-effort">
-      <div className="cx-effort-head"><span id="cx-effort-label">Raciocínio</span><b>{reasoningLabels[reasoning]}</b></div>
+      <div className="cx-effort-head">
+        <span id="cx-effort-label">Raciocínio</span>
+        <b>{reasoningLabels[reasoning]}</b>
+      </div>
       <div
         className="cx-effort-slider"
         role="slider"
@@ -114,10 +121,16 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
         aria-disabled={reasoningDisabled || undefined}
         onKeyDown={onSliderKeyDown}
       >
-        <div className="cx-effort-track"><div className="cx-effort-fill" style={{ width: `${(levelIndex / (reasoningLevels.length - 1)) * 100}%` }} /></div>
+        <div className="cx-effort-track">
+          <div className="cx-effort-dots" aria-hidden="true">
+            {reasoningLevels.map((level, index) => <span key={level} className="cx-effort-dot" style={{ left: `${(index / (reasoningLevels.length - 1)) * 100}%` }} />)}
+          </div>
+          <div className="cx-effort-fill" style={{ width: `${(levelIndex / (reasoningLevels.length - 1)) * 100}%` }} />
+        </div>
         <div className="cx-effort-thumb" style={{ left: `${(levelIndex / (reasoningLevels.length - 1)) * 100}%` }} />
       </div>
       <div className="cx-effort-stops" aria-hidden="true">{reasoningLevels.map((level) => <span key={level} data-on={level === reasoning || undefined}>{reasoningLabels[level]}</span>)}</div>
+      {reasoningLocked && <p className="cx-effort-locked">Nível fixo neste modelo</p>}
     </div>
   </div>
 }

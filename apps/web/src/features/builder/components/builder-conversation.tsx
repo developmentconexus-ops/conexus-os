@@ -7,6 +7,7 @@ import { Brain, Check, ChevronDown } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { providerIcon, providerLabel } from '../composer/model-order'
+import { humanizeModelName } from '../composer/model-display-name'
 import type { ActiveTool, BuilderModel, LiveTurn, MastraDBMessage } from '../mastra-session'
 import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
 import { clockLabel } from '../construir/run-state'
@@ -114,7 +115,7 @@ function ModelChip({ model }: Readonly<{ model: BuilderModel | null }>) {
   const Icon = providerIcon(model.provider)
   return <span className="builder-turn-model" title={`${providerLabel(model.provider)} · ${model.modelName}`}>
     <Icon width={12} height={12} aria-hidden="true" />
-    {model.modelName}
+    {humanizeModelName(model.modelName)}
   </span>
 }
 

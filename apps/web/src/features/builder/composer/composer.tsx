@@ -11,6 +11,7 @@ import { type BuilderModel, type ReasoningLevel, reasoningLevels } from '../mast
 import { useDictation } from './use-dictation'
 import { ModelPicker } from './model-picker'
 import { providerIcon } from './model-order'
+import { humanizeModelName, parseReasoningSuffix } from './model-display-name'
 import { reasoningLabels } from './reasoning-labels'
 
 export type ComposerMode =
@@ -26,7 +27,7 @@ const commands: readonly ComposerCommand[] = [
   { name: 'raciocinio', description: 'Mudar o nível de raciocínio', options: reasoningLevels.map((level) => ({ value: level, label: reasoningLabels[level] })) },
 ]
 
-const modelName = (model: BuilderModel | undefined): string => model?.modelName ?? 'Escolha um modelo'
+const modelName = (model: BuilderModel | undefined): string => model ? humanizeModelName(model.modelName) : 'Escolha um modelo'
 
 // Not built yet, and said so: focusable for its tooltip, inert to clicks, never a fake action.
 function Soon({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
@@ -98,7 +99,10 @@ export function BuilderComposer({
     else submit(draft)
   }
   const selected = models.find((model) => model.id === modelId)
-  const level = reasoning ?? 'medium'
+  // google-ai-pro/CLIProxy models bake the reasoning level into the id itself (`-low`/`-high`); such
+  // a model has no independent reasoning setting, so its own level wins over any stored choice.
+  const lockedReasoning = selected ? parseReasoningSuffix(selected.modelName) : null
+  const level = lockedReasoning?.level ?? reasoning ?? 'medium'
   const placeholderByMode: Readonly<Record<string, string>> = {
     NO_MODEL: 'Escolha um modelo para começar',
     BUSY_ELSEWHERE: 'Outra conversa está construindo este Projeto',
@@ -132,7 +136,9 @@ export function BuilderComposer({
                 {selected && <span className="cx-model-level">· {reasoningLabels[level]}</span>}
                 <ChevronDown size={14} aria-hidden="true" />
               </PopoverTrigger>
-              <PopoverContent side="top" align="end" sideOffset={8}>
+              {/* p-0 matches PopoverContent's own padding-utility check, so it skips its default px-3
+                  py-3.5 and lets .cx-model-popover-content own the padding instead. */}
+              <PopoverContent side="top" align="end" sideOffset={8} className="cx-model-popover-content p-0">
                 <ModelPicker
                   models={models}
                   modelId={selected ? modelId : ''}
@@ -140,7 +146,8 @@ export function BuilderComposer({
                   disabled={modelsPending || mode.kind === 'RUNNING'}
                   reasoning={level}
                   onReasoningChange={onReasoningChange}
-                  reasoningDisabled={!selected || mode.kind === 'RUNNING'}
+                  reasoningDisabled={!selected || mode.kind === 'RUNNING' || Boolean(lockedReasoning)}
+                  reasoningLocked={Boolean(lockedReasoning)}
                 />
               </PopoverContent>
             </Popover>
