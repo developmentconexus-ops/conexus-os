@@ -20,7 +20,8 @@ if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdou
 const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
 const { createFactoryStorage } = await import(built('builder/factory.js'))
 const { createGithubApp } = await import(built('builder/factory-github.js'))
-const { connectFactoryInstallation, openFactoryRecords, provisionFactoryProject, setFactoryMemoryModel } = await import(built('builder/factory-provisioning.js'))
+const { connectFactoryInstallation, factoryRepositoryName, openFactoryRecords, prepareFactoryRepository, provisionFactoryProject, setFactoryMemoryModel } = await import(built('builder/factory-provisioning.js'))
+const { APPLICATION_CHECK_FILES, FIXED_APPLICATION_STARTER_FILES } = await import(built('builder/application-starter.js'))
 
 const ORG = 'conexus-installation'
 const STARTER = 'a'.repeat(40)
@@ -40,8 +41,7 @@ const setup = async (t, fakeOptions) => {
   const app = createGithubApp({ appId: '5015512', privateKey: privateKeyPem, baseUrl: github.baseUrl })
   const workspaceId = randomUUID()
   await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Factory')", [workspaceId])
-  const newProject = async () => {
-    const projectId = randomUUID()
+  const newProject = async (projectId = randomUUID()) => {
     await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, $3, 'NEW', $4, $3)", [projectId, workspaceId, `p-${projectId.slice(0, 8)}`, STARTER])
     await query(connectionString, 'INSERT INTO builder.project_working_state(project_id, working_source_revision, working_version) VALUES ($1, $2, 0)', [projectId, STARTER])
     return projectId
@@ -49,7 +49,8 @@ const setup = async (t, fakeOptions) => {
   const lines = []
   const connect = () => connectFactoryInstallation({ github: app, records, orgId: ORG, write: (line) => lines.push(line) })
   const memory = (modelId) => setFactoryMemoryModel({ records, orgId: ORG, modelId, write: (line) => lines.push(line) })
-  const provision = (projectId, name) => provisionFactoryProject({ github: app, records, executorPool, orgId: ORG, projectId, name, headAttempts: 2, headDelayMs: 10 })
+  const provision = (projectId, projectName = PROJECT_NAME) => provisionFactoryProject({ github: app, records, executorPool, orgId: ORG, projectId, projectName, headAttempts: 2, headDelayMs: 10 })
+  const prepareOnly = (projectId, projectName = PROJECT_NAME) => prepareFactoryRepository({ github: app, records, orgId: ORG, projectId, projectName, headAttempts: 2, headDelayMs: 10 })
   const snapshot = async () => {
     const tables = ['source_control_installations', 'source_control_repositories', 'factory_projects', 'factory_project_source_control_connections', 'factory_project_repositories']
     const result = {}
@@ -58,9 +59,11 @@ const setup = async (t, fakeOptions) => {
     result.working = (await query(connectionString, 'SELECT project_id, working_source_revision, working_version FROM builder.project_working_state ORDER BY project_id')).rows
     return result
   }
-  return { connectionString, github, records, lines, connect, memory, provision, newProject, snapshot }
+  return { connectionString, github, app, records, lines, connect, memory, provision, prepareOnly, newProject, snapshot }
 }
 
+const PROJECT_NAME = 'Contador de Visitas'
+const repositoryName = (projectId) => `contador-de-visitas-${projectId.slice(0, 8)}`
 const INSTALLATION_B = { id: 208000001, account: { login: 'acme-org', type: 'Organization' } }
 const creations = (github) => github.state.requests.filter((request) => request.method === 'POST' && request.path.endsWith('/repos')).length
 
@@ -112,55 +115,112 @@ test('zero or two installations are refused', async (t) => {
   await assert.rejects(two.connect(), /^Error: FACTORY_INSTALLATION_AMBIGUOUS/)
 })
 
-test('provision creates a private auto_init repository under the installation account and binds the Project to it', async (t) => {
+test('a repository name is the Project name GitHub accepts plus the head of the Project id', () => {
+  const projectId = '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+  assert.equal(factoryRepositoryName('Contador de Visitas', projectId), 'contador-de-visitas-3fa85f64')
+  assert.equal(factoryRepositoryName('  Orçamento / Cliente #2 ', projectId), 'orcamento-cliente-2-3fa85f64')
+  assert.equal(factoryRepositoryName('../.git', projectId), 'git-3fa85f64')
+  assert.equal(factoryRepositoryName('日本語', projectId), 'project-3fa85f64')
+  assert.equal(factoryRepositoryName('a'.repeat(200), projectId), `${'a'.repeat(60)}-3fa85f64`)
+})
+
+test('provision creates a private repository in the organization, seeds the application template once, and binds the Project to that revision', async (t) => {
   const { connectionString, github, connect, provision, newProject } = await setup(t)
   await connect()
   const projectId = await newProject()
-  const binding = await provision(projectId, 'unit1-app')
+  const binding = await provision(projectId)
+  const name = repositoryName(projectId)
 
   const creation = github.state.requests.find((request) => request.method === 'POST' && request.path.endsWith('/repos'))
-  assert.deepEqual(creation && { path: creation.path, body: creation.body }, { path: '/orgs/acme-org/repos', body: { name: 'unit1-app', private: true, auto_init: true } })
-  assert.equal(binding.repositorySlug, 'acme-org/unit1-app')
+  assert.deepEqual(creation && { path: creation.path, body: creation.body }, { path: '/orgs/acme-org/repos', body: { name, private: true, auto_init: true } })
+  assert.equal(binding.repositorySlug, `acme-org/${name}`)
   assert.equal(binding.repositoryExternalId, 700001)
   assert.equal(binding.defaultBranch, 'main')
-  assert.equal(binding.headRevision, 'c'.repeat(40))
+  assert.deepEqual(github.state.createdCommits, [{ slug: `acme-org/${name}`, sha: binding.headRevision, message: 'Start the Conexus application', parents: ['c'.repeat(40)] }])
+  assert.equal(github.state.refs.get(`acme-org/${name}:main`), binding.headRevision)
+  const seeded = github.state.commits.get(`acme-org/${name}@${binding.headRevision}`)
+  assert.deepEqual([...seeded.keys()].sort(), ['README.md', 'app/index.html', 'app/src/main.tsx', 'app/src/style.css', 'conexus.json', 'conexus/check.sh'])
+  for (const file of [...FIXED_APPLICATION_STARTER_FILES, ...APPLICATION_CHECK_FILES]) assert.equal(seeded.get(file.path).content, file.content)
+  assert.equal(seeded.get('conexus/check.sh').mode, '100755')
   const headToken = github.state.tokens.find((token) => token.repositoryIds !== null)
   assert.deepEqual({ repositoryIds: headToken.repositoryIds, permissions: headToken.permissions }, { repositoryIds: [700001], permissions: { contents: 'read' } })
+  const writeTokens = github.state.tokens.filter((token) => token.permissions?.contents === 'write')
+  assert.deepEqual(writeTokens.map((token) => token.repositoryIds), [[700001]])
 
   const { bound_at: _boundAt, ...stored } = (await query(connectionString, 'SELECT * FROM builder.factory_binding')).rows[0]
   assert.deepEqual(stored, {
     project_id: projectId, factory_project_id: binding.factoryProjectId, project_repository_id: binding.projectRepositoryId, repository_id: binding.repositoryId,
   })
   const repositoryRow = (await query(connectionString, 'SELECT external_id, slug, default_branch FROM factory.source_control_repositories WHERE id::text = $1', [binding.repositoryId])).rows
-  assert.deepEqual(repositoryRow, [{ external_id: '700001', slug: 'acme-org/unit1-app', default_branch: 'main' }])
-  assert.equal((await query(connectionString, 'SELECT working_source_revision FROM builder.project_working_state WHERE project_id = $1', [projectId])).rows[0].working_source_revision, 'c'.repeat(40))
+  assert.deepEqual(repositoryRow, [{ external_id: '700001', slug: `acme-org/${name}`, default_branch: 'main' }])
+  assert.equal((await query(connectionString, 'SELECT working_source_revision FROM builder.project_working_state WHERE project_id = $1', [projectId])).rows[0].working_source_revision, binding.headRevision)
   const link = (await query(connectionString, 'SELECT r.slug, r.external_id, p.name FROM factory.factory_project_repositories pr JOIN factory.source_control_repositories r ON r.id::text = pr.repository_id JOIN factory.factory_project_source_control_connections c ON c.id::text = pr.connection_id JOIN factory.factory_projects p ON p.id::text = c.factory_project_id')).rows
-  assert.deepEqual(link, [{ slug: 'acme-org/unit1-app', external_id: '700001', name: `conexus-project:${projectId}` }])
+  assert.deepEqual(link, [{ slug: `acme-org/${name}`, external_id: '700001', name: `conexus-project:${projectId}` }])
+})
+
+test('a retry after a crash between creating the repository and recording the binding converges to one repository, one seed and one binding', async (t) => {
+  const { github, app, connect, provision, prepareOnly, newProject, snapshot } = await setup(t)
+  await connect()
+  const createdOnly = await newProject()
+  assert.notEqual(await app.createOrganizationRepository(163574754, 'acme-org', repositoryName(createdOnly)), null)
+  const first = await provision(createdOnly)
+  assert.equal(creations(github), 2, 'the retry asked once more and was told the name is taken')
+  assert.equal(github.state.repositories.size, 1)
+
+  const unbound = await newProject()
+  const prepared = await prepareOnly(unbound)
+  const bound = await provision(unbound)
+  assert.deepEqual(bound, prepared)
+  assert.equal(github.state.repositories.size, 2)
+  assert.deepEqual(github.state.createdCommits.map((commit) => commit.sha), [first.headRevision, bound.headRevision])
+  const before = await snapshot()
+  assert.deepEqual(await provision(unbound), bound)
+  assert.deepEqual(await snapshot(), before)
+})
+
+test('a GitHub refusal to create the repository leaves no Factory rows and no binding', async (t) => {
+  const { github, connect, provision, newProject, snapshot } = await setup(t)
+  await connect()
+  const before = await snapshot()
+  github.state.creationStatus = 403
+  await assert.rejects(provision(await newProject()), { message: 'FACTORY_GITHUB_REQUEST_FAILED:403' })
+  const after = await snapshot()
+  assert.deepEqual({ ...after, working: [] }, { ...before, working: [] })
+  assert.deepEqual(after.binding, [])
+})
+
+test('a personal-account installation recorded outside connect is refused before GitHub is asked for a repository', async (t) => {
+  const { github, records, provision, newProject } = await setup(t)
+  await records.sourceControl.installations.upsert({ orgId: ORG, connectedByUserId: 'conexus-operator', externalId: '1', accountName: 'leandro', accountType: 'User' })
+  await assert.rejects(provision(await newProject()), /^Error: FACTORY_INSTALLATION_ORGANIZATION_REQUIRED/)
+  assert.equal(creations(github), 0)
 })
 
 test('a taken name adopts the existing repository only when it is private and not bound to another Project', async (t) => {
   const { github, connect, provision, newProject } = await setup(t)
   await connect()
-  const adopted = github.addRepository({ owner: 'acme-org', name: 'existing-app', head: 'e'.repeat(40) })
   const first = await newProject()
-  const binding = await provision(first, 'existing-app')
-  assert.deepEqual([binding.repositoryExternalId, binding.headRevision], [adopted.id, 'e'.repeat(40)])
+  const adopted = github.addRepository({ owner: 'acme-org', name: repositoryName(first), head: 'e'.repeat(40), files: { 'app/index.html': '<!doctype html>\n', 'conexus.json': '{}\n', 'conexus/check.sh': 'true\n' } })
+  const binding = await provision(first)
+  assert.deepEqual([binding.repositoryExternalId, binding.headRevision], [adopted.id, 'e'.repeat(40)], 'a repository that already has the template is not written')
 
-  github.addRepository({ owner: 'acme-org', name: 'public-app', private: false })
-  await assert.rejects(provision(await newProject(), 'public-app'), { message: 'FACTORY_REPOSITORY_PUBLIC_REFUSED' })
-  await assert.rejects(provision(await newProject(), 'existing-app'), { message: 'FACTORY_REPOSITORY_BOUND_ELSEWHERE' })
+  const second = await newProject()
+  github.addRepository({ owner: 'acme-org', name: repositoryName(second), private: false })
+  await assert.rejects(provision(second), { message: 'FACTORY_REPOSITORY_PUBLIC_REFUSED' })
+  const sameHead = await newProject(`${first.slice(0, 8)}${randomUUID().slice(8)}`)
+  await assert.rejects(provision(sameHead), { message: 'FACTORY_REPOSITORY_BOUND_ELSEWHERE' })
 })
 
 test('the project repository carries the setup command that keeps the check link out of Git, and a rerun restores it', async (t) => {
   const { connectionString, connect, provision, newProject } = await setup(t)
   await connect()
   const projectId = await newProject()
-  const binding = await provision(projectId, 'setup-app')
+  const binding = await provision(projectId)
   const setupCommand = async () => (await query(connectionString, 'SELECT setup_command FROM factory.factory_project_repositories WHERE id::text = $1', [binding.projectRepositoryId])).rows[0].setup_command
   const expected = 'mkdir -p .git/info && { grep -qxF /app/node_modules .git/info/exclude 2>/dev/null || echo /app/node_modules >> .git/info/exclude; }'
   assert.equal(await setupCommand(), expected)
   await query(connectionString, 'UPDATE factory.factory_project_repositories SET setup_command = NULL WHERE id::text = $1', [binding.projectRepositoryId])
-  assert.deepEqual(await provision(projectId, 'setup-app'), binding)
+  assert.deepEqual(await provision(projectId), binding)
   assert.equal(await setupCommand(), expected)
 })
 
@@ -168,10 +228,10 @@ test('a bound Project reaches its Factory project by the bound id, even after th
   const { connectionString, connect, provision, newProject, snapshot } = await setup(t)
   await connect()
   const projectId = await newProject()
-  const first = await provision(projectId, 'renamed-app')
+  const first = await provision(projectId)
   await query(connectionString, "UPDATE factory.factory_projects SET name = 'renamed by someone' WHERE id::text = $1", [first.factoryProjectId])
   const before = await snapshot()
-  assert.deepEqual(await provision(projectId, 'renamed-app'), first)
+  assert.deepEqual(await provision(projectId), first)
   assert.deepEqual(await snapshot(), before)
 })
 
@@ -179,12 +239,12 @@ test('reconnecting as another installation of the organization keeps the binding
   const { connectionString, github, connect, provision, newProject } = await setup(t)
   await connect()
   const projectId = await newProject()
-  const first = await provision(projectId, 'moved-app')
+  const first = await provision(projectId)
   github.state.installations = [INSTALLATION_B]
   await connect()
   const installations = (await query(connectionString, 'SELECT id::text, external_id FROM factory.source_control_installations')).rows
   assert.deepEqual(installations.map((row) => row.external_id), [String(INSTALLATION_B.id)])
-  assert.deepEqual(await provision(projectId, 'moved-app'), first)
+  assert.deepEqual(await provision(projectId), first)
   const repositories = (await query(connectionString, 'SELECT id::text, installation_id, external_id FROM factory.source_control_repositories')).rows
   assert.deepEqual(repositories, [{ id: first.repositoryId, installation_id: installations[0].id, external_id: '700001' }])
   const connections = (await query(connectionString, 'SELECT installation_id FROM factory.factory_project_source_control_connections')).rows
@@ -196,7 +256,7 @@ test('reconnecting to an installation that already holds a row for the same repo
   const { connectionString, github, records, connect, provision, newProject } = await setup(t)
   await connect()
   const projectId = await newProject()
-  const first = await provision(projectId, 'twice-app')
+  const first = await provision(projectId)
   const conversationId = randomUUID()
   await records.sourceControl.sessions.create({
     sessionId: conversationId, projectRepositoryId: first.projectRepositoryId, orgId: ORG, userId: 'conexus-operator',
@@ -207,7 +267,7 @@ test('reconnecting to an installation that already holds a row for the same repo
   assert.notEqual(duplicate.id, first.repositoryId)
   github.state.installations = [INSTALLATION_B]
   await connect()
-  assert.deepEqual(await provision(projectId, 'twice-app'), first)
+  assert.deepEqual(await provision(projectId), first)
   const repositories = (await query(connectionString, 'SELECT id::text, installation_id FROM factory.source_control_repositories')).rows
   assert.deepEqual(repositories, [{ id: first.repositoryId, installation_id: incoming.id }])
   assert.equal((await records.sourceControl.sessions.getBySessionId(conversationId))?.projectRepositoryId, first.projectRepositoryId)
@@ -219,12 +279,12 @@ test('an installation the Factory pruned before reconnect still rebinds the Proj
   const { connectionString, github, records, connect, provision, newProject } = await setup(t)
   await connect()
   const projectId = await newProject()
-  const first = await provision(projectId, 'pruned-app')
+  const first = await provision(projectId)
   const [stale] = await records.sourceControl.installations.list({ orgId: ORG })
   assert.equal(await records.sourceControl.installations.delete({ orgId: ORG, id: stale.id }), true)
   github.state.installations = [INSTALLATION_B]
   await connect()
-  assert.deepEqual(await provision(projectId, 'pruned-app'), first)
+  assert.deepEqual(await provision(projectId), first)
   const [live] = await records.sourceControl.installations.list({ orgId: ORG })
   const repositories = (await query(connectionString, 'SELECT id::text, installation_id FROM factory.source_control_repositories')).rows
   assert.deepEqual(repositories, [{ id: first.repositoryId, installation_id: live.id }])
@@ -235,18 +295,18 @@ test('a bound Project whose repository is gone or replaced under its name is ref
   const { github, connect, provision, newProject } = await setup(t)
   await connect()
   const projectId = await newProject()
-  await provision(projectId, 'gone-app')
-  github.state.repositories.delete('acme-org/gone-app')
-  await assert.rejects(provision(projectId, 'gone-app'), { message: 'FACTORY_REPOSITORY_MISSING' })
-  github.addRepository({ owner: 'acme-org', name: 'gone-app' })
-  await assert.rejects(provision(projectId, 'gone-app'), { message: 'FACTORY_REPOSITORY_IDENTITY_CHANGED' })
+  await provision(projectId)
+  github.state.repositories.delete(`acme-org/${repositoryName(projectId)}`)
+  await assert.rejects(provision(projectId), { message: 'FACTORY_REPOSITORY_MISSING' })
+  github.addRepository({ owner: 'acme-org', name: repositoryName(projectId) })
+  await assert.rejects(provision(projectId), { message: 'FACTORY_REPOSITORY_IDENTITY_CHANGED' })
   assert.equal(creations(github), 1)
 })
 
 test('reconnect refuses to move repositories to an installation on another GitHub account', async (t) => {
   const { connectionString, github, connect, provision, newProject } = await setup(t)
   await connect()
-  await provision(await newProject(), 'kept-app')
+  await provision(await newProject())
   github.state.installations = [{ id: 208000002, account: { login: 'other-org', type: 'Organization' } }]
   await assert.rejects(connect(), /^Error: FACTORY_INSTALLATION_ACCOUNT_CHANGED/)
   const repositories = (await query(connectionString, 'SELECT i.external_id FROM factory.source_control_repositories r JOIN factory.source_control_installations i ON i.id::text = r.installation_id')).rows
@@ -257,10 +317,10 @@ test('a second full run of connect and provision changes nothing', async (t) => 
   const { connect, provision, newProject, snapshot } = await setup(t)
   const projectId = await newProject()
   await connect()
-  const first = await provision(projectId, 'repeat-app')
+  const first = await provision(projectId)
   const before = await snapshot()
   await connect()
-  const second = await provision(projectId, 'repeat-app')
+  const second = await provision(projectId)
   assert.deepEqual(second, first)
   assert.deepEqual(await snapshot(), before)
 })
