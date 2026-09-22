@@ -24,6 +24,8 @@ const { createGithubApp } = await import(built('builder/factory-github.js'))
 const BASE = 'b'.repeat(40)
 const RESULT = 'c'.repeat(40)
 const OUTSIDE = 'e'.repeat(40)
+// Between the base and the result in the result's own history.
+const MIDDLE = '9'.repeat(40)
 const runId = '11111111-1111-4111-8111-111111111111'
 const projectId = '22222222-2222-4222-8222-222222222222'
 const accountId = '33333333-3333-4333-8333-333333333333'
@@ -54,6 +56,8 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
     runAsRoot: async (script, env) => {
       events.push(['root', script])
       rootInvocations.push({ script, env })
+      const admitted = github.leasedPush(script)
+      if (admitted) return admitted
       const exitCode = script.includes(' push ') ? pushExit : pinExit
       return { exitCode, success: exitCode === 0, stdout: '', stderr: exitCode ? `fatal: https://x-access-token:${github.state.tokens.at(-1)?.token}@github.com refused` : '' }
     },
@@ -126,42 +130,28 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   })
   const start = () => service.createBuilderRun({ accountId, projectId, conversationId, idempotencyKey: 'key', content: 'Mostre UNIT1-nonce', mode })
   const main = () => github.state.refs.get('acme-org/app:main')
-  const patches = () => github.state.requests.filter((request) => request.method === 'PATCH')
   const commands = () => events.filter((event) => typeof event === 'string')
   const rootScripts = () => rootInvocations.map(({ script }) => script)
   const pushed = () => rootScripts().some((script) => script.includes(' push '))
-  return { github, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, patches, commands, rootScripts, pushed, buildRunning }
+  const admissions = () => rootScripts().filter((script) => script.includes('--force-with-lease'))
+  return { github, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, commands, rootScripts, pushed, admissions, buildRunning }
 }
 
-test('a compare-and-swap GitHub refuses with 422 settles BUILDER_SOURCE_BASE_MOVED and leaves main alone', async (t) => {
-  const run = await harness(t)
-  run.github.state.patchResponder = () => ({ status: 422, body: { message: 'Update is not a fast forward' } })
-  await run.start()
-  await run.service.close()
-  assert.equal(run.patches().length, 1)
-  assert.equal(run.main(), BASE)
-  assert.deepEqual(run.calls.filter(([kind]) => kind === 'fail' || kind === 'advance'), [['fail', 'BUILDER_SOURCE_BASE_MOVED']])
-  assert.deepEqual(run.diagnostics, [{
-    projectId, conversationId, builderRunId: runId, code: 'BUILDER_SOURCE_BASE_MOVED', outcome: 'SOURCE_BASE_MOVED', sourceRevision: BASE, from: 'service',
-  }])
-})
-
-test('a default branch moved by someone else is never patched and settles BUILDER_SOURCE_BASE_MOVED', async (t) => {
-  const run = await harness(t)
-  let firstRead = true
-  const originalGet = run.github.state.refs.get.bind(run.github.state.refs)
-  run.github.state.refs.get = (key) => {
-    if (key === 'acme-org/app:main' && firstRead && run.events.includes('build')) { firstRead = false; run.github.state.refs.set(key, OUTSIDE) }
-    return originalGet(key)
+test('a writer that moves main between the read and the update, even to an ancestor of the result, is refused and keeps its move', async (t) => {
+  for (const moved of [MIDDLE, OUTSIDE]) {
+    const run = await harness(t)
+    run.github.state.beforeRefUpdate = (key) => { if (key === 'acme-org/app:main') run.github.state.refs.set(key, moved) }
+    await run.start()
+    await run.service.close()
+    assert.equal(run.main(), moved)
+    assert.deepEqual(run.calls.filter(([kind]) => kind === 'fail' || kind === 'advance'), [['fail', 'BUILDER_SOURCE_BASE_MOVED']])
+    assert.deepEqual(run.diagnostics, [{
+      projectId, conversationId, builderRunId: runId, code: 'BUILDER_SOURCE_BASE_MOVED', outcome: 'SOURCE_BASE_MOVED', sourceRevision: BASE, from: 'service',
+    }])
   }
-  await run.start()
-  await run.service.close()
-  assert.deepEqual(run.patches(), [])
-  assert.equal(run.main(), OUTSIDE)
-  assert.deepEqual(run.calls.filter(([kind]) => kind === 'fail' || kind === 'advance'), [['fail', 'BUILDER_SOURCE_BASE_MOVED']])
 })
 
-test('a stop during the compile never sends the PATCH and settles the run interrupted', async (t) => {
+test('a stop during the compile never offers main the result and settles the run interrupted', async (t) => {
   const run = await harness(t, {
     build: (signal) => new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('APPLICATION_COMPILER_CANCELLED')), { once: true })),
   })
@@ -169,13 +159,13 @@ test('a stop during the compile never sends the PATCH and settles the run interr
   await run.buildRunning
   await run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
   await run.service.close()
-  assert.deepEqual(run.patches(), [])
+  assert.deepEqual(run.admissions(), [])
   assert.equal(run.main(), BASE)
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
   assert.equal(run.calls.some(([kind]) => kind === 'advance'), false)
 })
 
-test('a stop that lands after the compile is still refused the PATCH', async (t) => {
+test('a stop that lands after the compile is still refused the admission', async (t) => {
   const context = {}
   const run = await harness(t, {
     build: async () => {
@@ -186,25 +176,10 @@ test('a stop that lands after the compile is still refused the PATCH', async (t)
   context.run = run
   await run.start()
   await run.service.close()
-  assert.deepEqual(run.patches(), [])
+  assert.deepEqual(run.admissions(), [])
   assert.equal(run.main(), BASE)
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
   assert.equal(run.calls.some(([kind, phase]) => kind === 'phase' && phase === 'SOURCE_ADMISSION'), false)
-})
-
-test('a stop that lands while the default head is read is still refused the PATCH', async (t) => {
-  const run = await harness(t)
-  const originalGet = run.github.state.refs.get.bind(run.github.state.refs)
-  run.github.state.refs.get = (key) => {
-    if (key === 'acme-org/app:main' && run.events.includes('build')) void run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
-    return originalGet(key)
-  }
-  await run.start()
-  await run.service.close()
-  assert.deepEqual(run.patches(), [])
-  assert.equal(run.main(), BASE)
-  assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
-  assert.equal(run.calls.some(([kind]) => kind === 'advance'), false)
 })
 
 test('a conversation of another Project is refused before a run is created or its sandbox opened', async (t) => {
@@ -227,15 +202,16 @@ test('a replaced sandbox incarnation fails the run with BUILDER_SANDBOX_INCARNAT
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_SANDBOX_INCARNATION_CHANGED'])
   assert.equal(run.pushed(), false)
-  assert.deepEqual(run.patches(), [])
 })
 
-test('a build failure still admits the source by PATCH and settles SOURCE_CHANGED_BUILD_FAILED', async (t) => {
+test('a build failure still admits the source by a push leased on the base and settles SOURCE_CHANGED_BUILD_FAILED', async (t) => {
   const run = await harness(t, { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } })
   await run.start()
   await run.service.close()
   assert.equal(run.main(), RESULT)
-  assert.deepEqual(run.patches().map((request) => request.body), [{ sha: RESULT, force: false }])
+  assert.deepEqual(run.admissions(), [
+    `git --git-dir='/var/lib/conexus-git/app.git' push --porcelain --force-with-lease='refs/heads/main:${BASE}' 'https://github.com/acme-org/app.git' '${RESULT}:refs/heads/main'`,
+  ])
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild' || kind === 'fail'), [
     ['advance', RESULT], ['settleBuild', RESULT, 'APPLICATION_COMPILATION_FAILED'],
   ])
@@ -264,14 +240,12 @@ test('root fetches the base into its own mirror, and the checkout takes it from 
   assert.equal(run.commands().filter((line) => line.includes('remote set-url origin')).length, 1)
 })
 
-test('a retry that finds the default branch already at the result counts it admitted without a PATCH', async (t) => {
-  const run = await harness(t, { head: RESULT, build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } })
-  run.github.state.refs.set('acme-org/app:main', BASE)
-  const originalGet = run.github.state.refs.get.bind(run.github.state.refs)
-  run.github.state.refs.get = (key) => (key === 'acme-org/app:main' && run.events.includes('build') ? RESULT : originalGet(key))
+test('an admission that finds the default branch already at the result counts it admitted', async (t) => {
+  const run = await harness(t, { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } })
+  run.github.state.beforeRefUpdate = (key) => { run.github.state.refs.set(key, RESULT) }
   await run.start()
   await run.service.close()
-  assert.deepEqual(run.patches(), [])
+  assert.equal(run.main(), RESULT)
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild'), [['advance', RESULT], ['settleBuild', RESULT, 'APPLICATION_COMPILATION_FAILED']])
 })
 
@@ -301,7 +275,7 @@ test('a token rides only in the environment of root commands on the Hub mirror, 
   await run.start()
   await run.service.close()
   assert.deepEqual(run.github.state.tokens.map(({ token, permissions }) => [token, permissions]), [
-    ['ghs_fake_1', { contents: 'write' }], ['ghs_fake_2', { contents: 'read' }],
+    ['ghs_fake_1', { contents: 'write' }],
   ])
   for (const part of [...run.invocations.flatMap(({ argv }) => argv), ...run.rootScripts()]) {
     assert.doesNotMatch(part, /x-access-token:|ghs_fake_/)
@@ -312,8 +286,8 @@ test('a token rides only in the environment of root commands on the Hub mirror, 
     GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from('x-access-token:ghs_fake_1').toString('base64')}`,
     GIT_TERMINAL_PROMPT: '0',
   }
-  assert.deepEqual(run.rootInvocations.map(({ script, env }) => [/ push /.test(script) ? 'push' : / fetch /.test(script) ? 'fetch' : script, env]), [
-    ['fetch', header], ['push', header],
+  assert.deepEqual(run.rootInvocations.map(({ script, env }) => [/--force-with-lease/.test(script) ? 'admit' : / push /.test(script) ? 'push' : / fetch /.test(script) ? 'fetch' : script, env]), [
+    ['fetch', header], ['push', header], ['admit', header],
   ])
   assert.ok(run.rootScripts().every((script) => script.includes("--git-dir='/var/lib/conexus-git/app.git'") && !script.includes("-C '/workspace/app'")), 'root git never reads the agent checkout')
   assert.deepEqual(run.invocations.filter(({ env }) => env === undefined || Object.keys(env).length > 0), [], 'every agent-user command states an empty environment')

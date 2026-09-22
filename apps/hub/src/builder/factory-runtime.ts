@@ -49,7 +49,7 @@ export type FactoryRepository = Readonly<{ installation: number; externalId: num
 
 export type FactoryRunPorts = Readonly<{
   openSession(input: Readonly<{ conversationId: string; builderRunId: string; projectId: string; accountId: string }>): Promise<FactoryRunSession>
-  github: Pick<GithubApp, 'repositoryToken' | 'readBranchHead' | 'updateBranch'>
+  github: Pick<GithubApp, 'repositoryToken'>
   resolveRepository(binding: FactoryBindingRecord): Promise<FactoryRepository>
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
   log(line: string): void
@@ -231,6 +231,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       const pushToken = await ports.github.repositoryToken(installation, repository.externalId, 'write')
       const pushed = await withToken(pushToken, [
         `${hubGit} fetch --quiet '${RESULT_BUNDLE}' 'refs/heads/${branch}'`,
+        `${hubGit} merge-base --is-ancestor '${base}' '${result}'`,
         `${hubGit} push --quiet --force '${repositoryUrl(slug)}' '${result}:refs/heads/${branch}'`,
       ].join(' && '))
       if (pushed.exitCode !== 0) throw new Error('BUILDER_SOURCE_PUSH_FAILED')
@@ -258,14 +259,17 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       await input.setPhase('SOURCE_ADMISSION')
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
-      const head = await ports.github.readBranchHead(installation, repository, repository.defaultBranch)
-      // A retry after a lost response finds its own result already admitted.
-      if (head !== result) {
-        // R descends only from base, so a fast-forward is the compare-and-swap. The read catches the
-        // one case GitHub's own check would not: a default branch rewound to an ancestor of R.
-        if (head === base && cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
-        const admitted = head === base && await ports.github.updateBranch(installation, repository, repository.defaultBranch, result) === 'UPDATED'
-        if (!admitted) throw new Error('BUILDER_SOURCE_BASE_MOVED')
+      // The compare-and-swap: receive-pack moves the default branch only while it still holds base,
+      // under its own ref lock. The result descends from base (checked on the mirror before the
+      // conversation push), so an admitted update is a fast-forward from exactly base.
+      const defaultRef = `refs/heads/${repository.defaultBranch}`
+      const admission = await withToken(await ports.github.repositoryToken(installation, repository.externalId, 'write'),
+        `${hubGit} push --porcelain --force-with-lease='${defaultRef}:${base}' '${repositoryUrl(slug)}' '${result}:${defaultRef}'`)
+      // ' ' is a fast-forward, '=' finds the result already there, '!' is a refused lease.
+      const flag = admission.stdout.split('\n').map((line) => line.split('\t')).find(([, refs]) => refs === `${result}:${defaultRef}`)?.[0]
+      if (flag === '!') throw new Error('BUILDER_SOURCE_BASE_MOVED')
+      if (admission.exitCode !== 0 || (flag !== ' ' && flag !== '=')) {
+        throw new Error('BUILDER_SOURCE_ADMISSION_FAILED', { cause: { exitCode: admission.exitCode, stderr: commandEvidence(admission.stderr) } })
       }
       return Object.freeze({ ...scope, kind: 'SOURCE_ADMITTED' as const, resultSourceRevision: result, applicationBuild })
     } catch (error) {

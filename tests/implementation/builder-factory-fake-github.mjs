@@ -10,7 +10,8 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
     requests: [],
     tokens: [],
     nextRepositoryId: 700001,
-    patchResponder: null,
+    // Runs inside an update, after any earlier read and before the ref moves: a concurrent writer.
+    beforeRefUpdate: null,
   }
   const send = (response, status, body) => {
     response.writeHead(status, { 'content-type': 'application/json' })
@@ -60,12 +61,6 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
           const sha = state.refs.get(key)
           return sha ? send(response, 200, { ref: `refs/heads/${match[3]}`, object: { sha, type: 'commit' } }) : send(response, 404, { message: 'Not Found' })
         }
-        if (request.method === 'PATCH') {
-          const decided = state.patchResponder?.({ key, body })
-          if (decided) return send(response, decided.status, decided.body ?? {})
-          state.refs.set(key, body.sha)
-          return send(response, 200, { ref: `refs/heads/${match[3]}`, object: { sha: body.sha, type: 'commit' } })
-        }
       }
       return send(response, 404, { message: `no fake route for ${request.method} ${path}` })
     })
@@ -80,6 +75,20 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
       state.repositories.set(repository.fullName, repository)
       state.refs.set(`${repository.fullName}:main`, head)
       return repository
+    },
+    // Answers a root script that is one leased `git push --porcelain` the way git and receive-pack
+    // would: the ref moves only while it still holds the lease's expected id. Undefined otherwise.
+    leasedPush: (script) => {
+      const push = /push --porcelain --force-with-lease='refs\/heads\/([^:']+):([0-9a-f]{40})' 'https:\/\/github\.com\/([^']+)\.git' '([0-9a-f]{40}):refs\/heads\/\1'$/.exec(script)
+      if (!push) return undefined
+      const [, branch, expected, slug, sha] = push
+      const key = `${slug}:${branch}`
+      state.beforeRefUpdate?.(key)
+      const current = state.refs.get(key)
+      const flag = current === sha ? '=' : current === expected ? ' ' : '!'
+      if (flag === ' ') state.refs.set(key, sha)
+      const summary = { '=': '[up to date]', ' ': `${expected.slice(0, 7)}..${sha.slice(0, 7)}`, '!': '[rejected] (stale info)' }[flag]
+      return { exitCode: flag === '!' ? 1 : 0, success: flag !== '!', stdout: `To https://github.com/${slug}.git\n${flag}\t${sha}:refs/heads/${branch}\t${summary}\nDone\n`, stderr: '' }
     },
     close: () => new Promise((resolve) => server.close(resolve)),
   }

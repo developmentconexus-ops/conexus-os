@@ -68,7 +68,7 @@ const pilot = async (t) => {
     runAsRoot: async (script) => {
       const pin = / fetch --quiet --no-tags '[^']+' '([0-9a-f]{40})'/.exec(script)
       if (pin) pins.push(pin[1])
-      return { exitCode: 0, success: true, stdout: '', stderr: '' }
+      return github.leasedPush(script) ?? { exitCode: 0, success: true, stdout: '', stderr: '' }
     },
     executeCommand: async (command, args = []) => {
       const line = [command, ...args].join(' ')

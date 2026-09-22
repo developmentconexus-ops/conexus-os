@@ -12,7 +12,6 @@ export type GithubRepository = Readonly<{
   defaultBranch: string
   private: boolean
 }>
-export type GithubRefUpdate = 'UPDATED' | 'REFUSED'
 
 // A failure carries the HTTP status and nothing GitHub or the request said, so a token that
 // reached a URL or a header can never ride out in a thrown message or a log line.
@@ -132,19 +131,6 @@ export const createGithubApp = ({ appId, privateKey, baseUrl = GITHUB_API_URL }:
         return sha
       } catch (error) {
         if (error instanceof GithubRequestError && (error.status === 404 || error.status === 409)) return null
-        throw error
-      }
-    },
-    // A non-forced ref update: GitHub refuses with 422 unless `sha` descends from the current tip.
-    updateBranch: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, branch: string, sha: string): Promise<GithubRefUpdate> => {
-      if (!REPOSITORY_SLUG.test(repository.slug) || !BRANCH.test(branch) || !OID.test(sha)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
-      const [owner, repo] = repository.slug.split('/') as [string, string]
-      const token = await repositoryToken(installationId, repository.externalId, 'write')
-      try {
-        await call('PATCH /repos/{owner}/{repo}/git/refs/{ref}', token, { owner, repo, ref: `heads/${branch}`, sha, force: false })
-        return 'UPDATED'
-      } catch (error) {
-        if (error instanceof GithubRequestError && error.status === 422) return 'REFUSED'
         throw error
       }
     },
