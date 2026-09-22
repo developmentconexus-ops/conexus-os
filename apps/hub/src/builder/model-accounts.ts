@@ -11,6 +11,7 @@ import type { ModelPacksStorage } from '@mastra/factory/storage/domains/model-pa
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
+import { filterChatModels } from './chat-models.js'
 import { FACTORY_MEMORY_MODEL_ID, setFactoryMemoryModel } from './factory-provisioning.js'
 import { FACTORY_OPERATOR_ID } from './factory.js'
 import { GOOGLE_AI_PRO_CATALOG_PROVIDER, GOOGLE_AI_PRO_PROVIDER, seedGoogleAiProMemory } from './google-ai-pro/credential.js'
@@ -195,14 +196,15 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
     if (!caller) return reply
     const answer = await callFactory(listModels, caller, { params: {}, query: {}, body: undefined, headers: request.headers })
     if (answer.status !== 200) return reply.code(answer.status).send(answer.body)
-    const { models } = answer.body as Readonly<{ models: readonly OfferedModel[] }>
+    const { models: catalog } = answer.body as Readonly<{ models: readonly OfferedModel[] }>
+    const models = filterChatModels(catalog)
     const connected = await credentials.getCredential({ orgId, userId: caller.accountId }, GOOGLE_AI_PRO_PROVIDER) ??
       await credentials.getCredential({ orgId }, GOOGLE_AI_PRO_PROVIDER)
     if (!connected) return { models: models.filter((model) => model.provider !== GOOGLE_AI_PRO_CATALOG_PROVIDER) }
     const known = new Set(models.map((model) => model.id))
-    const googleAiPro = (await controller.listAvailableModels())
+    const googleAiPro = filterChatModels((await controller.listAvailableModels())
       .filter((model) => model.provider === GOOGLE_AI_PRO_CATALOG_PROVIDER && !known.has(model.id))
-      .map(({ id, provider, modelName }) => ({ id, provider, modelName, hasApiKey: true }))
+      .map(({ id, provider, modelName }) => ({ id, provider, modelName, hasApiKey: true })))
     return { models: [...models, ...googleAiPro] }
   })
   forward('PUT', '/:provider/key', '/web/config/providers/:provider/key')
