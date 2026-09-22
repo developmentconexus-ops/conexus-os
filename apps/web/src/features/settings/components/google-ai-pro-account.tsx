@@ -3,6 +3,7 @@ import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
 import { ModelAccountsRequestError, modelAccountsQueryKey, removeApiKey, shareWithEveryone, stopSharing } from '../model-accounts-api'
+import { Chip, SectionError, StatusLine } from './states'
 
 type Connection = Readonly<{ mine: boolean; shared: boolean; administrator: boolean }>
 type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
@@ -58,15 +59,15 @@ function SignIn({ login, onDone }: Readonly<{ login: Login; onDone: (state: Excl
     onSuccess: ({ state }) => { if (state !== 'waiting') onDone(state) },
     onError: () => setRefused(true),
   })
-  return <div className="google-ai-pro-sign-in">
+  return <div className="cxs-connect">
     <p><a href={login.url} target="_blank" rel="noreferrer">Abrir a entrada do Google</a></p>
-    <p>Depois de entrar, esta página conclui sozinha. Se a aba terminar em uma página que não abre, copie o endereço dela e cole aqui.</p>
-    <form onSubmit={(event: FormEvent) => { event.preventDefault(); setRefused(false); complete.mutate() }}>
+    <p className="cxs-hint">Depois de entrar, esta página conclui sozinha. Se a aba terminar em uma página que não abre, copie o endereço dela e cole aqui.</p>
+    <form className="cxs-connect-step" onSubmit={(event: FormEvent) => { event.preventDefault(); setRefused(false); complete.mutate() }}>
       <label htmlFor={pastedId}>Endereço da aba que não abriu</label>
       <Input id={pastedId} value={pasted} onChange={(event) => setPasted(event.target.value)} autoComplete="off" placeholder="http://localhost:51121/oauth-callback?…" />
       <Button type="submit" variant="primary" disabled={!pasted.trim() || complete.isPending}>Concluir</Button>
     </form>
-    {refused && <p role="alert">Esse endereço não é o da entrada do Google iniciada aqui.</p>}
+    {refused && <p role="alert" className="cxs-alert">Esse endereço não é o da entrada do Google iniciada aqui.</p>}
   </div>
 }
 
@@ -76,7 +77,8 @@ export function GoogleAiProAccount() {
   const titleId = useId()
   const connection = useQuery({ queryKey: connectionQueryKey, queryFn: () => call<Connection>('GET', `${base}/connection`), retry: false })
   const [login, setLogin] = useState<Login | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<Readonly<{ text: string; failed: boolean }> | null>(null)
+  const fail = (text: string) => setMessage({ text, failed: true })
   // Connecting or disconnecting changes which models this person's pickers offer.
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: modelAccountsQueryKey }),
@@ -85,29 +87,32 @@ export function GoogleAiProAccount() {
   const start = useMutation({
     mutationFn: () => call<Login>('POST', `${base}/login/start`, {}),
     onSuccess: (started) => { setMessage(null); setLogin(started) },
-    onError: (error) => setMessage(START_FAILURE[statusOf(error) ?? 0] ?? 'Não foi possível iniciar a entrada agora.'),
+    onError: (error) => fail(START_FAILURE[statusOf(error) ?? 0] ?? 'Não foi possível iniciar a entrada agora.'),
   })
   const act = useMutation({
     mutationFn: (action: () => Promise<unknown>) => action(),
     onSuccess: () => { setMessage(null); void refresh() },
-    onError: () => setMessage('Não foi possível concluir. Tente novamente.'),
+    onError: () => fail('Não foi possível concluir. Tente novamente.'),
   })
   if (connection.isPending || (connection.isError && statusOf(connection.error) === 404)) return null
-  if (connection.isError) return <p role="alert">Não foi possível consultar a sua conta Google AI Pro.</p>
+  if (connection.isError) return <section aria-labelledby={titleId}>
+    <h2 id={titleId}>Google AI Pro</h2>
+    <SectionError description="Não foi possível consultar a sua conta Google AI Pro." onRetry={() => void connection.refetch()} />
+  </section>
   const { mine, shared, administrator } = connection.data
-  return <section className="google-ai-pro-account" aria-labelledby={titleId}>
-    <h3 id={titleId}>Google AI Pro</h3>
-    <p>Use a sua assinatura Google AI Pro no Builder. Você entra com a sua conta Google no seu navegador; a Conexus nunca vê a sua senha.</p>
-    {mine && <p>Conectado com a sua conta Google.</p>}
-    {!mine && shared && <p>Você usa a conta compartilhada com todos.</p>}
+  return <section aria-labelledby={titleId}>
+    <h2 id={titleId}>Google AI Pro</h2>
+    <p className="cxs-hint">Use a sua assinatura Google AI Pro no Builder. Você entra com a sua conta Google no seu navegador; a Conexus nunca vê a sua senha.</p>
+    {mine && <div><Chip tone="positive">Conectado com a sua conta Google.</Chip></div>}
+    {!mine && shared && <div><Chip tone="neutral">Você usa a conta compartilhada com todos.</Chip></div>}
     {login
-      ? <SignIn login={login} onDone={(state) => { setLogin(null); setMessage(OUTCOME[state]); void refresh() }} />
-      : <div className="google-ai-pro-actions">
+      ? <SignIn login={login} onDone={(state) => { setLogin(null); setMessage({ text: OUTCOME[state], failed: state !== 'succeeded' }); void refresh() }} />
+      : <div className="cxs-row-actions cxs-actions-start">
         <Button type="button" variant={mine ? 'outline' : 'primary'} disabled={start.isPending} onClick={() => start.mutate()}>{mine ? 'Reconectar' : 'Conectar com o Google'}</Button>
         {mine && <Button type="button" variant="outline" disabled={act.isPending} onClick={() => act.mutate(() => removeApiKey(PROVIDER))}>Desconectar</Button>}
         {administrator && mine && !shared && <Button type="button" disabled={act.isPending} onClick={() => act.mutate(() => shareWithEveryone(PROVIDER))}>Compartilhar com todos</Button>}
         {administrator && shared && <Button type="button" variant="outline" disabled={act.isPending} onClick={() => act.mutate(() => stopSharing(PROVIDER))}>Parar de compartilhar</Button>}
       </div>}
-    {message && <p role="status">{message}</p>}
+    {message && (message.failed ? <p role="alert" className="cxs-alert">{message.text}</p> : <StatusLine>{message.text}</StatusLine>)}
   </section>
 }

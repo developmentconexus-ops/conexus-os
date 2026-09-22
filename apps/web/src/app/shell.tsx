@@ -163,7 +163,7 @@ function AccountMenu({ context }: Readonly<{ context: AccessContext }>) {
           {email && <span>{email}</span>}
         </div>
         <DropdownMenu.Separator />
-        <DropdownMenu.Item onClick={() => void navigate({ to: '/settings' })}>Configurações</DropdownMenu.Item>
+        <DropdownMenu.Item onClick={() => void navigate({ to: '/settings/account' })}>Configurações</DropdownMenu.Item>
         <DropdownMenu.Item
           disabled={signOut.isPending}
           onClick={() => {
@@ -182,7 +182,7 @@ function AccountMenu({ context }: Readonly<{ context: AccessContext }>) {
   </div>
 }
 
-function TopBar({ context, scope, arrive }: Readonly<{ context: AccessContext; scope: ShellScope | undefined; arrive: boolean }>) {
+function TopBar({ context, scope, place, arrive }: Readonly<{ context: AccessContext; scope: ShellScope | undefined; place: string | undefined; arrive: boolean }>) {
   const workspace = scope?.workspace
   const project = scope?.project
   return <header className="cx-topbar">
@@ -212,6 +212,7 @@ function TopBar({ context, scope, arrive }: Readonly<{ context: AccessContext; s
           {project.name}
         </Crumb>
       )}
+      {place && <Crumb as="span" isCurrent>{place}</Crumb>}
     </Breadcrumb>
     <AccountMenu context={context} />
   </header>
@@ -220,10 +221,15 @@ function TopBar({ context, scope, arrive }: Readonly<{ context: AccessContext; s
 export function Shell({
   context,
   scope,
+  rail,
+  place,
   children,
 }: {
   context: AccessContext
   scope?: ShellScope | undefined
+  rail?: ReactNode
+  /** A top-level area outside any Workspace, such as Configurações, named as the last crumb. */
+  place?: string
   children: ReactNode
 }) {
   const [arrive] = useState(firstShellMount)
@@ -233,10 +239,10 @@ export function Shell({
         <MainSidebar className="shell-sidebar">
           <div className="cx-rail-lockup"><ConexusWordmark size={20} /></div>
           <MainSidebar.Nav aria-label="Navegação principal">
-            <ScopeRail scope={scope} />
+            {rail ?? <ScopeRail scope={scope} />}
           </MainSidebar.Nav>
         </MainSidebar>
-        <AppShell className="shell-main" mainLabel="Conteúdo" routeHeader={<TopBar context={context} scope={scope} arrive={arrive} />}>
+        <AppShell className="shell-main" mainLabel="Conteúdo" routeHeader={<TopBar context={context} scope={scope} place={place} arrive={arrive} />}>
           {children}
         </AppShell>
       </div>

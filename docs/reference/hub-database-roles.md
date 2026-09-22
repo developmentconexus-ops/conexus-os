@@ -44,12 +44,14 @@ the background execution loop reaches the executor side. A request path holding
 The separation bounds a logic bug, not an attacker. Both pools live in the same process,
 declared three lines apart, so code execution in the Hub reaches either one. The property
 that does hold against a wider class of failure is that no Hub role has table grants at
-all: every one of the 59 functions is `SECURITY DEFINER` and `REVOKE ALL ON ALL TABLES` is applied.
+all: every one of the 62 functions is `SECURITY DEFINER` and `REVOKE ALL ON ALL TABLES` is applied.
 `hub_iam_runtime` is the exception, holding direct `SELECT`, `INSERT` and `UPDATE` on the
 `iam` tables. `iam.installation_administrator` is not among them: `hub_iam_runtime` reaches it
-only through the installation administration functions, and no Hub role may execute
-`iam.bootstrap_installation_administrator`. The operator runs that one with the provisioning
-credential described below.
+only through the installation administration functions (`iam.is_installation_administrator`,
+`iam.grant_installation_administrator`, `iam.revoke_installation_administrator`,
+`iam.list_installation_administrators`, `iam.grant_installation_administrator_by_email`), and no
+Hub role may execute `iam.bootstrap_installation_administrator`. The operator runs that one with
+the provisioning credential described below.
 
 ## `hub_factory`, the one role that owns its schema
 

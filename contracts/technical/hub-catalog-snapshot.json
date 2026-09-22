@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0019",
+ "head": "0020",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -348,8 +348,10 @@
    "function iam.email_has_open_invitation(p_verified_email text) returns boolean kind=f owner=iam_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=05b749c56aa6323a48c968ac384f025b",
    "function iam.establish_workspace_creator_access(p_account_id uuid, p_workspace_id uuid) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_workspace_command:EXECUTE:false,iam_owner:EXECUTE:false,workspace_owner:EXECUTE:false body=48167b502a780d7942c024180298f489",
    "function iam.grant_installation_administrator(p_actor uuid, p_account_id uuid) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=13ac2c59aa920e04cd95d3c77c533594",
+   "function iam.grant_installation_administrator_by_email(p_actor uuid, p_email text) returns uuid kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=c96d4106dcbbd9110f75477f89bd7380",
    "function iam.invite_workspace_member(p_actor uuid, p_workspace_id uuid, p_invitation_id uuid, p_email text, p_role iam.workspace_role, p_expires_at timestamp with time zone) returns uuid kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=0550b939968d810a5cf9582ec0f283f9",
    "function iam.is_installation_administrator(p_account_id uuid) returns boolean kind=f owner=iam_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=533fa7a67dc1d06a337d17c4c0e212ac",
+   "function iam.list_installation_administrators(p_actor uuid) returns TABLE(account_id uuid, display_name text, email text, granted_via text, granted_by uuid, granted_by_display_name text, granted_at timestamp with time zone) kind=f owner=iam_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=4c3f8fffdc23b7fcc9e1579188ea44da",
    "function iam.list_workspace_roster(p_actor uuid, p_workspace_id uuid) returns TABLE(kind text, account_id uuid, invitation_id uuid, display_name text, email text, role iam.workspace_role, since timestamp with time zone, expires_at timestamp with time zone) kind=f owner=iam_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=aca6f3625bda4784f241048fc0ac6ef1",
    "function iam.remove_workspace_member(p_actor uuid, p_workspace_id uuid, p_member uuid) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=20b5190410c2eadf6fb83e943c900a10",
    "function iam.revoke_installation_administrator(p_actor uuid, p_account_id uuid) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=eca2d9394d63aa38c86c9ed8c1e750d9",

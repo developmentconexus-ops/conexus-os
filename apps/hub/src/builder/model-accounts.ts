@@ -11,6 +11,8 @@ import type { ModelPacksStorage } from '@mastra/factory/storage/domains/model-pa
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
+import { FACTORY_MEMORY_MODEL_ID, setFactoryMemoryModel } from './factory-provisioning.js'
+import { FACTORY_OPERATOR_ID } from './factory.js'
 import { GOOGLE_AI_PRO_CATALOG_PROVIDER, GOOGLE_AI_PRO_PROVIDER, seedGoogleAiProMemory } from './google-ai-pro/credential.js'
 import { createGoogleAiProLogin, GoogleAiProLoginError, type LoginProblem } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
@@ -329,5 +331,19 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
     if (!caller) return reply
     await modelPacks.clearActive({ orgId, userId: caller.accountId })
     return reply.code(204).send()
+  })
+
+  const memoryBody = { type: 'object', additionalProperties: false, required: ['model'], properties: { model: { type: 'string', pattern: FACTORY_MEMORY_MODEL_ID.source } } } as const
+  app.get('/api/control/installation/memory', async (request, reply) => {
+    const caller = await admit(request, reply)
+    if (!caller || !await requireAdministrator(caller, reply)) return reply
+    const record = await memorySettings.get({ orgId, userId: FACTORY_OPERATOR_ID })
+    return { model: record?.observerModelId ?? null }
+  })
+  app.put<{ Body: { model: string } }>('/api/control/installation/memory', { schema: { body: memoryBody } }, async (request, reply) => {
+    const caller = await admit(request, reply)
+    if (!caller || !await requireAdministrator(caller, reply)) return reply
+    await setFactoryMemoryModel({ records: { memorySettings }, orgId, modelId: request.body.model, write: () => undefined })
+    return { model: request.body.model }
   })
 }
