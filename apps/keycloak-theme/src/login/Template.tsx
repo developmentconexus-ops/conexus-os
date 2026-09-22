@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import type { TemplateProps } from "keycloakify/login/TemplateProps";
 import { useInitialize } from "keycloakify/login/Template.useInitialize";
 import { kcSanitize } from "keycloakify/lib/kcSanitize";
-import { ConexusWordmark } from "../../../../packages/brand/src/conexus-mark";
+import { ConexusWordmark } from "../../../../packages/brand/src/index";
 import type { KcContext } from "./KcContext";
 import type { I18n } from "./i18n";
 
