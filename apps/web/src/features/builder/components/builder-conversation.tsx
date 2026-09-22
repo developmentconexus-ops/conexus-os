@@ -1,6 +1,5 @@
 import '@mastra/playground-ui/style.css'
 import { MarkdownRenderer } from '@mastra/playground-ui/components/MarkdownRenderer'
-import { ThemeProvider } from '@mastra/playground-ui/components/ThemeProvider'
 import {
   ToolCall, ToolCallCommand, ToolCallContent, ToolCallEdit, ToolCallMono, ToolCallPresentedHeader, ToolCallTrigger,
   presentTool, stringifyToolValue, stripAnsi, toolEdit,
@@ -113,7 +112,7 @@ export function BuilderConversation({ history, turn, pendingRequest, persistedRe
   ].sort((left, right) => left.at - right.at)
   const reason = failureReason(failureCategory)
   const streamingId = turn.status === 'LIVE' ? turn.messages.at(-1)?.id : undefined
-  return <ThemeProvider defaultTheme="system" storageKey="conexus-builder-theme">
+  return <>
     {timeline.map((item) => item.message
       ? <Message key={item.key} message={item.message} tools={turn.tools} streaming={false} reason={reason} />
       : item.entry && <RequestTurn key={item.key} entry={item.entry} />)}
@@ -121,5 +120,5 @@ export function BuilderConversation({ history, turn, pendingRequest, persistedRe
     {turn.messages.map((message) => <Message key={message.id} message={message} tools={turn.tools} streaming={message.id === streamingId} reason={reason} />)}
     {turn.error && <p className="builder-turn-error" role="alert">{reason}</p>}
     {!timeline.length && !turn.messages.length && pendingRequest === null && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}
-  </ThemeProvider>
+  </>
 }

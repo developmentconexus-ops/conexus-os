@@ -15,8 +15,8 @@ const block = (pattern) => {
 }
 
 const light = block(/^:root \{\n(\s+--cx-canvas[^}]*)\}/m)
-const darkByPreference = block(/@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\) \{([^}]*)\}/)
-const darkByChoice = block(/:root\[data-theme="dark"\] \{([^}]*)\}/)
+const darkByPreference = block(/@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\):not\(\.light\) \{([^}]*)\}/)
+const darkByChoice = block(/:root\[data-theme="dark"\], :root\.dark \{([^}]*)\}/)
 
 test('brand tokens define every color token in light, OS dark and chosen dark', () => {
   const names = Object.keys(light).sort()

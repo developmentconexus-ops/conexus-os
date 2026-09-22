@@ -1,6 +1,7 @@
 /* Conexus brand tokens, palette "Grafite e Ipê". The web app (through this package's index) and
    the sign-in theme both import this file. Light by default, dark when the operating system asks
-   for it, and data-theme on the root element overrides either way. */
+   for it. data-theme="light|dark" or the light/dark class that the component library's
+   ThemeProvider puts on the root element overrides either way. */
 
 @font-face {
   font-family: "Bricolage Grotesque";
@@ -59,7 +60,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-theme="light"]):not(.light) {
     --cx-canvas: #0E1012;
     --cx-surface: #16191C;
     --cx-surface-3: #1D2125;
@@ -81,7 +82,7 @@
   }
 }
 
-:root[data-theme="dark"] {
+:root[data-theme="dark"], :root.dark {
   --cx-canvas: #0E1012;
   --cx-surface: #16191C;
   --cx-surface-3: #1D2125;
