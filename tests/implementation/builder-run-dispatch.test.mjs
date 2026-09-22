@@ -1,17 +1,9 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import test from 'node:test'
+import { hubModuleUrl } from './hub-build.mjs'
 
-const root = resolve(import.meta.dirname, '../..')
-const output = mkdtempSync(resolve(root, 'apps/hub/builder-run-dispatch-build-'))
-const compiled = spawnSync(process.execPath, [resolve(root, 'node_modules/typescript/bin/tsc'), '--project', resolve(root, 'apps/hub/tsconfig.json'), '--noEmit', 'false', '--outDir', output], { cwd: root, encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
-test.after(() => rmSync(output, { recursive: true, force: true }))
-const { createBuilderService } = await import(pathToFileURL(resolve(output, 'builder/service.js')).href)
-const { projectBuilderRun } = await import(pathToFileURL(resolve(output, 'builder/failure-vocabulary.js')).href)
+const { createBuilderService } = await import(hubModuleUrl('builder/service.js'))
+const { projectBuilderRun } = await import(hubModuleUrl('builder/failure-vocabulary.js'))
 
 // A minimal FactoryRunDependencies fixture: every run is bound and dispatched through
 // factory.runtime.execute, so each test only overrides the pieces it exercises.

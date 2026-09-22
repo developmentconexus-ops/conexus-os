@@ -30,6 +30,15 @@ const candidateStep = (scope, command, environmentClass = 'static') => Object.fr
   graph: 'candidate',
 })
 
+const HUB_BUILD_DIRECTORY = 'node_modules/.cache/conexus-hub-build'
+
+// The hub typecheck also emits, once, the compiled Hub every Hub suite imports. It runs first and
+// publishes the directory to the steps after it, so no suite compiles the Hub again.
+const hubBuildStep = Object.freeze({
+  ...candidateStep('c020-hub-typecheck', `rm -rf ${HUB_BUILD_DIRECTORY} && node node_modules/typescript/bin/tsc --project apps/hub/tsconfig.json --pretty false --noEmit false --outDir ${HUB_BUILD_DIRECTORY}`),
+  publishes: Object.freeze({ CONEXUS_HUB_BUILD: HUB_BUILD_DIRECTORY }),
+})
+
 /**
  * The candidate profile is the review-lane composition. Each entry is an
  * objective leaf or an intentionally distinct environment/selection proof.
@@ -40,6 +49,7 @@ const candidateStep = (scope, command, environmentClass = 'static') => Object.fr
  * property while the candidate remains unadmitted.
  */
 export const CANDIDATE_GRAPH = Object.freeze([
+  hubBuildStep,
   candidateStep('hub-baseline', 'node --test --test-concurrency=1 tests/implementation/hub-baseline.test.mjs', 'postgres'),
   candidateStep('c020-migration-selection', 'node --test tests/implementation/hub-migration-selection.test.mjs && npx --no-install biome check tests/implementation/hub-migration-selection.test.mjs tests/implementation/hub-migration-postgres.test.mjs'),
   candidateStep('c020-migration-postgres', 'node --test --test-concurrency=1 tests/implementation/hub-migration-postgres.test.mjs', 'postgres'),
@@ -70,7 +80,6 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('c020-browser', 'node --test --test-concurrency=1 tests/implementation/builder-browser.test.mjs', 'browser'),
   candidateStep('settings-browser', 'node --test --test-concurrency=1 tests/implementation/settings-browser.test.mjs && npx --no-install biome check tests/implementation/settings-browser.test.mjs tests/implementation/settings-screenshots.mjs', 'browser'),
   candidateStep('c020-e2b-template', 'node scripts/builder-e2b-template.mjs --check && node --test --test-concurrency=1 tests/implementation/builder-e2b-template.test.mjs tests/implementation/builder-compiler-template-recipe.test.mjs'),
-  candidateStep('c020-hub-typecheck', 'node node_modules/typescript/bin/tsc --project apps/hub/tsconfig.json --pretty false'),
   candidateStep('c020-web-typecheck', 'node node_modules/typescript/bin/tsc --project apps/web/tsconfig.json --pretty false'),
   candidateStep('c020-web-build', 'node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web --outDir ../../node_modules/.cache/conexus-candidate-web-build --emptyOutDir'),
 
@@ -353,6 +362,7 @@ export function runVerification({
   assertExecutionEnvironment(requestedEntries, { platform, dryRun })
   const entries = requestedEntries.flatMap(entry => entry.graph === 'candidate' ? CANDIDATE_GRAPH : [entry])
   const records = []
+  const published = {}
 
   for (const entry of entries) {
     const command = formatCommand(entry)
@@ -371,7 +381,7 @@ export function runVerification({
     const startedAt = clock()
     let result
     try {
-      result = runCommand(entry, { root, command, args: commandArguments(entry) })
+      result = runCommand(entry, { root, command, args: commandArguments(entry), processEnvironment: { ...process.env, ...published } })
     } catch (error) {
       result = { status: null, error }
     }
@@ -391,6 +401,7 @@ export function runVerification({
     records.push(record)
 
     if (exitCode !== 0) break
+    for (const [name, path] of Object.entries(entry.publishes ?? {})) published[name] = resolve(root, path)
   }
 
   const failed = records.find(record => record.status === 'failed')

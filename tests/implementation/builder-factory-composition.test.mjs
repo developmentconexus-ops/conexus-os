@@ -2,23 +2,14 @@ import assert from 'node:assert/strict'
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
 import { createEmptyDatabase, testPool } from './hub-database.mjs'
+import { hubModuleUrl } from './hub-build.mjs'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/builder-factory-composition-build-'))
-process.once('exit', () => rmSync(hubBuild, { recursive: true, force: true }))
-const compiled = spawnSync(process.execPath, [
-  resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
-  '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-  '--noEmit', 'false', '--outDir', hubBuild,
-], { encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
-const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
+const built = hubModuleUrl
 const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, createFactoryStorage, createFactorySecretKeyEncryption, SANDBOX_CREDENTIAL } = await import(built('builder/factory.js'))
 const { ModelCredentialsStorage } = await import('@mastra/factory/storage/domains/credentials/base')
 const { createMastraFactoryRunPorts } = await import(built('builder/factory-runtime.js'))

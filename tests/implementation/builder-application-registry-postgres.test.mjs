@@ -1,12 +1,9 @@
 import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import pg from 'pg'
 import { loadHubMigrationFiles, runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const required = (name) => process.env[name] || (() => { throw new Error(`MISSING_TEST_CONFIG_${name}`) })()
@@ -25,12 +22,7 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
   const url = new URL('postgresql://localhost'); url.hostname = config.host; url.port = String(config.port); url.pathname = `/${database}`; url.username = config.user; url.password = config.password
   const migrated = await runHubMigrations({ connectionString: url.toString() })
   assert.deepEqual(migrated.versions, loadHubMigrationFiles().map(({ version }) => version))
-  const root = resolve(import.meta.dirname, '../..')
-  const buildRoot = mkdtempSync(resolve(root, 'apps/hub/registry-postgres-build-'))
-  t.after(() => rmSync(buildRoot, { recursive: true, force: true }))
-  const compiled = spawnSync(process.execPath, [resolve(root, 'node_modules/typescript/bin/tsc'), '--project', resolve(root, 'apps/hub/tsconfig.json'), '--noEmit', 'false', '--outDir', buildRoot], { cwd: root, encoding: 'utf8' })
-  assert.equal(compiled.status, 0, compiled.stdout + compiled.stderr)
-  const { createApplicationArtifactStore } = await import(pathToFileURL(resolve(buildRoot, 'registry/application-artifact-store.js')).href)
+  const { createApplicationArtifactStore } = await import(hubModuleUrl('registry/application-artifact-store.js'))
   setup = await connect(config)
   const accountId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID(); const builderRunId = randomUUID()
   const sourceRevision = 'b'.repeat(40); const digest = 'd'.repeat(64)
@@ -77,12 +69,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   const url = new URL('postgresql://localhost'); url.hostname = config.host; url.port = String(config.port); url.pathname = `/${database}`; url.username = config.user; url.password = config.password
   const migrated = await runHubMigrations({ connectionString: url.toString() })
   assert.deepEqual(migrated.versions, loadHubMigrationFiles().map(({ version }) => version))
-  const root = resolve(import.meta.dirname, '../..')
-  const buildRoot = mkdtempSync(resolve(root, 'apps/hub/registry-settlement-build-'))
-  t.after(() => rmSync(buildRoot, { recursive: true, force: true }))
-  const compiled = spawnSync(process.execPath, [resolve(root, 'node_modules/typescript/bin/tsc'), '--project', resolve(root, 'apps/hub/tsconfig.json'), '--noEmit', 'false', '--outDir', buildRoot], { cwd: root, encoding: 'utf8' })
-  assert.equal(compiled.status, 0, compiled.stdout + compiled.stderr)
-  const { createApplicationArtifactStore } = await import(pathToFileURL(resolve(buildRoot, 'registry/application-artifact-store.js')).href)
+  const { createApplicationArtifactStore } = await import(hubModuleUrl('registry/application-artifact-store.js'))
   setup = await connect(config)
   assert.deepEqual((await setup.query(`SELECT
     has_schema_privilege('builder_owner', 'reg', 'USAGE') AS builder_reg_usage,

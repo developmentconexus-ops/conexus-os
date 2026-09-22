@@ -1,28 +1,10 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import test from 'node:test'
-
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-
-const compileHub = (t) => {
-  const build = mkdtempSync(resolve(repositoryRoot, 'apps/hub/project-summary-routes-build-'))
-  t.after(() => rmSync(build, { recursive: true, force: true }))
-  const compiled = spawnSync(process.execPath, [
-    resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
-    '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-    '--noEmit', 'false', '--outDir', build,
-  ], { encoding: 'utf8' })
-  assert.equal(compiled.status, 0, `${compiled.stdout}\n${compiled.stderr}`)
-  return (path) => pathToFileURL(resolve(build, path)).href
-}
+import { hubModuleUrl } from './hub-build.mjs'
 
 test('GET project-summaries authenticates, sorts by lastActivityAt, and answers the store as-is', async (t) => {
-  const built = compileHub(t)
-  const { createHttpApp } = await import(built('http/app.js'))
-  const { registerProjectSummaryRoutes } = await import(built('project/summary-routes.js'))
+  const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
+  const { registerProjectSummaryRoutes } = await import(hubModuleUrl('project/summary-routes.js'))
 
   const workspaceId = '20000000-0000-4000-8000-000000000101'
   const summaries = [
@@ -69,9 +51,8 @@ test('GET project-summaries authenticates, sorts by lastActivityAt, and answers 
 })
 
 test('GET project repository answers REACHABLE, UNREACHABLE and denial from the port', async (t) => {
-  const built = compileHub(t)
-  const { createHttpApp } = await import(built('http/app.js'))
-  const { registerProjectRepositoryRoutes } = await import(built('builder/repository-routes.js'))
+  const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
+  const { registerProjectRepositoryRoutes } = await import(hubModuleUrl('builder/repository-routes.js'))
 
   const projectId = '30000000-0000-4000-8000-000000000102'
   let authenticated = true

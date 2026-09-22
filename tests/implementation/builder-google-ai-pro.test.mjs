@@ -1,23 +1,14 @@
 import assert from 'node:assert/strict'
-import { spawn, spawnSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { test } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
-import { pathToFileURL } from 'node:url'
+import { hubModuleUrl } from './hub-build.mjs'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/builder-google-ai-pro-build-'))
-process.once('exit', () => rmSync(hubBuild, { recursive: true, force: true }))
-const compiled = spawnSync(process.execPath, [
-  resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
-  '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-  '--noEmit', 'false', '--outDir', hubBuild,
-], { encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
-const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
+const built = hubModuleUrl
 const { encodeKey, decodeKey, parseKey, instanceIdOf } = await import(built('builder/google-ai-pro/credential.js'))
 const { createCliproxyPool, verifyCliproxyBinary } = await import(built('builder/google-ai-pro/pool.js'))
 const { startModelRouter } = await import(built('builder/google-ai-pro/router.js'))

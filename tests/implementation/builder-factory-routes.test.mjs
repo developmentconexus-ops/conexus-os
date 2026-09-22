@@ -2,26 +2,16 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
+import { join } from 'node:path'
 import { test } from 'node:test'
 import { AgentController } from '@mastra/core/agent-controller'
 import { Mastra } from '@mastra/core/mastra'
 import { createCodingAgent } from '@mastra/core/coding-agent'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
+import { hubModuleUrl } from './hub-build.mjs'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/builder-factory-routes-build-'))
-process.once('exit', () => rmSync(hubBuild, { recursive: true, force: true }))
-const compiled = spawnSync(process.execPath, [
-  resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
-  '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-  '--noEmit', 'false', '--outDir', hubBuild,
-], { encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
-const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
+const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerFactoryMastraRoutes } = await import(built('builder/mastra-session-routes.js'))
 const { admitFactoryConversation, openFactoryConversationThread, registerFactoryConversationRoutes } = await import(built('builder/factory-routes.js'))

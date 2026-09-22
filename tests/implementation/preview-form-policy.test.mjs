@@ -1,23 +1,9 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import test from 'node:test'
+import { hubModuleUrl } from './hub-build.mjs'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-const cacheRoot = resolve(repositoryRoot, 'node_modules/.cache')
-mkdirSync(cacheRoot, { recursive: true })
-const buildRoot = mkdtempSync(resolve(cacheRoot, 'conexus-preview-policy-build-'))
-const compiled = spawnSync(process.execPath, [
-  resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'), '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-  '--noEmit', 'false', '--outDir', buildRoot,
-], { cwd: repositoryRoot, encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
-const { previewContentSecurityPolicy } = await import(pathToFileURL(resolve(buildRoot, 'mar/preview-routes.js')).href)
-
-test.after(() => rmSync(buildRoot, { recursive: true, force: true }))
+const { previewContentSecurityPolicy } = await import(hubModuleUrl('mar/preview-routes.js'))
 
 const page = `<!doctype html><html><body>
 <form id="todo"><input name="task" value="Comprar pao"><button type="submit">Adicionar</button></form>

@@ -1,21 +1,9 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import * as openidClient from 'openid-client'
+import { hubModuleUrl } from './hub-build.mjs'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/r1-s1-http-build-'))
-process.once('exit', () => rmSync(hubBuild, { recursive: true, force: true }))
-const compiled = spawnSync(process.execPath, [
-  resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
-  '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-  '--noEmit', 'false', '--outDir', hubBuild,
-], { encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(`S1_HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
-const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
+const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerIdentityAccessRoutes } = await import(built('identity-access/routes.js'))
 const { createOidcAdapter, resolveVerifiedEmail } = await import(built('identity-access/oidc.js'))

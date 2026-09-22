@@ -1,24 +1,13 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { resolve } from 'node:path'
 import test from 'node:test'
+import { hubModuleUrl } from './hub-build.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
-const cacheRoot = resolve(repositoryRoot, 'node_modules/.cache')
-mkdirSync(cacheRoot, { recursive: true })
-const buildRoot = mkdtempSync(resolve(cacheRoot, 'conexus-application-runtime-build-'))
-const compiled = spawnSync(process.execPath, [
-  resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'), '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-  '--noEmit', 'false', '--outDir', buildRoot,
-], { cwd: repositoryRoot, encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
-const built = pathToFileURL(resolve(buildRoot, 'builder/application-artifact-runtime.js')).href
+const built = hubModuleUrl('builder/application-artifact-runtime.js')
 const { buildApplicationInSandbox, TEMPLATE_REF, RECIPE_SHA256 } = await import(built)
-
-test.after(() => rmSync(buildRoot, { recursive: true, force: true }))
 
 const appRoot = '/workspace/repo/app'
 

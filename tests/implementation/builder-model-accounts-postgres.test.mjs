@@ -2,23 +2,13 @@ import assert from 'node:assert/strict'
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
 import { RequestContext } from '@mastra/core/request-context'
+import { hubBuildDirectory, hubModuleUrl as built } from './hub-build.mjs'
 import { createEmptyDatabase, testPool } from './hub-database.mjs'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/builder-model-accounts-build-'))
-process.once('exit', () => rmSync(hubBuild, { recursive: true, force: true }))
-const compiled = spawnSync(process.execPath, [
-  resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
-  '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-  '--noEmit', 'false', '--outDir', hubBuild,
-], { encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
-const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
 const { composeFactory, createFactorySandbox, FACTORY_OPERATOR_ID } = await import(built('builder/factory.js'))
 const { createMastraFactoryRunPorts } = await import(built('builder/factory-runtime.js'))
 const { openFactoryRecords } = await import(built('builder/factory-provisioning.js'))
@@ -279,7 +269,7 @@ test('the operator imports a CLIProxyAPI Antigravity file as a person\'s or the 
   await assert.rejects(importAs('not-an-account'), { message: 'GOOGLE_AI_PRO_LOGIN_ACCOUNT_REFUSED' })
 
   for (const args of [['--shared'], ['--auth-file', authFile], ['--auth-file', authFile, '--shared', '--account-id', alice]]) {
-    const ran = spawnSync(process.execPath, [resolve(hubBuild, 'factory-cli.js'), 'import-google-ai-pro-login', ...args], { encoding: 'utf8', env: { PATH: process.env.PATH } })
+    const ran = spawnSync(process.execPath, [resolve(hubBuildDirectory(), 'factory-cli.js'), 'import-google-ai-pro-login', ...args], { encoding: 'utf8', env: { PATH: process.env.PATH } })
     assert.equal(ran.status, 1, `${args}: ${ran.stdout}${ran.stderr}${ran.error ?? ''}`)
     assert.match(ran.stderr, /^usage: factory-cli /, `${args}: ${ran.stdout}${ran.stderr}${ran.error ?? ''}`)
   }

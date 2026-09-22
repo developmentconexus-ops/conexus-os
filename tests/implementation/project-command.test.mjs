@@ -1,33 +1,19 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
+import { hubModuleUrl } from './hub-build.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const identityPath = resolve(repositoryRoot, 'apps/hub/src/project/identity.ts')
 const generatedRoutePath = resolve(repositoryRoot, 'apps/hub/src/generated/s3-routes.ts')
 
-const compileHub = (t) => {
-  const build = mkdtempSync(resolve(repositoryRoot, 'apps/hub/r1-s3-project-build-'))
-  t.after(() => rmSync(build, { recursive: true, force: true }))
-  const compiled = spawnSync(process.execPath, [
-    resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
-    '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-    '--noEmit', 'false', '--outDir', build,
-  ], { encoding: 'utf8' })
-  assert.equal(compiled.status, 0, `${compiled.stdout}\n${compiled.stderr}`)
-  return (path) => pathToFileURL(resolve(build, path)).href
-}
-
-test('S3-P5 centralizes one Project identity law for UUID versions 1 through 8', async (t) => {
+test('S3-P5 centralizes one Project identity law for UUID versions 1 through 8', async () => {
   await refuseProtectedCluster()
   assert.equal(existsSync(identityPath), true)
 
-  const built = compileHub(t)
-  const { isProjectIdentity } = await import(built('project/identity.js'))
+  const { isProjectIdentity } = await import(hubModuleUrl('project/identity.js'))
   for (let version = 1; version <= 8; version += 1) {
     assert.equal(isProjectIdentity(`30000000-0000-${version}000-8000-000000000051`), true)
   }
@@ -44,9 +30,8 @@ test('S3-P5 preserves generated PRJ-03 inside the bounded S3 projection', () => 
   assert.doesNotMatch(source, /workspace-client/)
 })
 
-test('S3-P5 store prepares the repository after the reservation and creates the Project bound to it in one transaction', async (t) => {
-  const built = compileHub(t)
-  const { createProjectStore } = await import(built('project/store.js'))
+test('S3-P5 store prepares the repository after the reservation and creates the Project bound to it in one transaction', async () => {
+  const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
   const projectId = '30000000-0000-8000-8000-000000000061'
   const projectRevision = '50000000-0000-8000-8000-000000000061'
   const reservationState = 'RESERVED'
@@ -105,9 +90,8 @@ test('S3-P5 store prepares the repository after the reservation and creates the 
   assert.equal(statements.filter(({ statement }) => statement === 'COMMIT').length, 2)
 })
 
-test('S3-P5 command failure matrix never reaches a false terminal receipt', async (t) => {
-  const built = compileHub(t)
-  const { createProjectStore } = await import(built('project/store.js'))
+test('S3-P5 command failure matrix never reaches a false terminal receipt', async () => {
+  const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
   const projectId = '30000000-0000-8000-8000-000000000065'
   const projectRevision = '50000000-0000-8000-8000-000000000065'
   const input = {
@@ -159,10 +143,9 @@ test('S3-P5 command failure matrix never reaches a false terminal receipt', asyn
 })
 
 test('S3-P5 generated HTTP route enforces authenticity/session and returns only terminal representation', async (t) => {
-  const built = compileHub(t)
-  const { createHttpApp } = await import(built('http/app.js'))
-  const { registerProjectRoutes } = await import(built('project/routes.js'))
-  const { ProjectError } = await import(built('project/errors.js'))
+  const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
+  const { registerProjectRoutes } = await import(hubModuleUrl('project/routes.js'))
+  const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
   const response = {
     projectId: '30000000-0000-8000-8000-000000000063',
     workspaceId: '20000000-0000-4000-8000-000000000063',

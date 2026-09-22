@@ -37,13 +37,14 @@ const packageScripts = Object.freeze({
 })
 
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
+  'c020-hub-typecheck',
   'hub-baseline',
   'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-installation-administrator', 'installation-settings-routes', 'iam-grant-surface-excision',
   'hub-call-site-privileges',
   'c020-builder-postgres', 'c020-builder-request-text-postgres', 'factory-binding-postgres', 'c020-mastra-lifecycle', 'factory-dependency-tree', 'factory-composition', 'model-accounts-postgres', 'google-ai-pro', 'factory-runtime', 'factory-recovery-postgres', 'factory-routes', 'factory-provisioning',
   'foundation-postgres', 'project-summary-activity-postgres', 'project-summary-routes',
   'c020-registry', 'c020-source-runtime', 'c020-failure-vocabulary', 'c020-compiler-runtime',
-  'c020-browser', 'settings-browser', 'c020-e2b-template', 'c020-hub-typecheck', 'c020-web-typecheck', 'c020-web-build',
+  'c020-browser', 'settings-browser', 'c020-e2b-template', 'c020-web-typecheck', 'c020-web-build',
   'db-catalog-snapshot', 'db-baseline-file', 'db-role-register', 'db-role-provision-postgres',
   'repository-check', 'repository-import-law',
   'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project',
@@ -130,6 +131,36 @@ test('execution is sequential and stops at the first failed npm command', () => 
     exitCode: 17,
     durationMs: 1,
   })
+})
+
+test('the hub build step publishes its directory to the steps after it, and only after it succeeds', () => {
+  const seen = []
+  const result = runVerification({
+    scopes: ['candidate'],
+    packageScripts,
+    platform: 'linux',
+    runCommand: (entry, { processEnvironment }) => {
+      seen.push([entry.scope, processEnvironment.CONEXUS_HUB_BUILD ?? null])
+      return { status: seen.length <= 2 ? 0 : 1 }
+    },
+  })
+  assert.equal(result.exitCode, 1)
+  assert.deepEqual(seen.map(([scope]) => scope), ['c020-hub-typecheck', 'hub-baseline', 'c020-migration-selection'])
+  assert.equal(seen[0][1], null)
+  assert.equal(seen[1][1], resolve(repositoryRoot, 'node_modules/.cache/conexus-hub-build'))
+  assert.equal(seen[2][1], seen[1][1])
+
+  const failedBuild = []
+  runVerification({
+    scopes: ['candidate'],
+    packageScripts,
+    platform: 'linux',
+    runCommand: (entry, { processEnvironment }) => {
+      failedBuild.push(processEnvironment.CONEXUS_HUB_BUILD ?? null)
+      return { status: 1 }
+    },
+  })
+  assert.deepEqual(failedBuild, [null])
 })
 
 test('final proof refuses a real Windows execution but remains inspectable as dry-run', () => {
