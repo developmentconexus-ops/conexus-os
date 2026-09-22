@@ -2,6 +2,7 @@ import { FactoryProjectsStorage } from '@mastra/factory'
 import { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import { SourceControlStorage } from '@mastra/factory/storage/domains/source-control/base'
 import type { PgFactoryStorage } from '@mastra/pg'
+import { APPLICATION_CHECK_SETUP_COMMAND } from './application-starter.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { FACTORY_INTEGRATION_ID, FACTORY_OPERATOR_ID, FACTORY_WORKING_DIRECTORY } from './factory.js'
 import type { GithubApp, GithubRepository } from './factory-github.js'
@@ -147,7 +148,7 @@ export const provisionFactoryProject = async ({ github, records, executorPool, o
   const connection = await records.sourceControl.connections.create({
     orgId, factoryProjectId: factoryProject.id, installationId: installation.id, createdByUserId: FACTORY_OPERATOR_ID,
   })
-  const projectRepository = await records.sourceControl.projectRepositories.link({
+  const linked = await records.sourceControl.projectRepositories.link({
     orgId,
     connectionId: connection.id,
     repositoryId: repositoryRow.id,
@@ -155,7 +156,13 @@ export const provisionFactoryProject = async ({ github, records, executorPool, o
     branch: null,
     sandboxProvider: 'e2b',
     sandboxWorkdir: FACTORY_WORKING_DIRECTORY,
+    setupCommand: APPLICATION_CHECK_SETUP_COMMAND,
   })
+  // link() returns an existing row as it is, so a link made before the setup command gets it here.
+  const projectRepository = linked.setupCommand === APPLICATION_CHECK_SETUP_COMMAND
+    ? linked
+    : await records.sourceControl.projectRepositories.update({ orgId, id: linked.id, input: { setupCommand: APPLICATION_CHECK_SETUP_COMMAND } })
+  if (!projectRepository) throw new Error('FACTORY_PROJECT_REPOSITORY_MISSING')
 
   const headRevision = await waitForHead(
     () => github.readBranchHead(installationExternalId, { externalId: repository.id, slug: repository.fullName }, repository.defaultBranch),

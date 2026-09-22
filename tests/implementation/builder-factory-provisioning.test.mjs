@@ -149,6 +149,19 @@ test('a taken name adopts the existing repository only when it is private and no
   await assert.rejects(provision(await newProject(), 'existing-app'), { message: 'FACTORY_REPOSITORY_BOUND_ELSEWHERE' })
 })
 
+test('the project repository carries the setup command that keeps the check link out of Git, and a rerun restores it', async (t) => {
+  const { connectionString, connect, provision, newProject } = await setup(t)
+  await connect()
+  const projectId = await newProject()
+  const binding = await provision(projectId, 'setup-app')
+  const setupCommand = async () => (await query(connectionString, 'SELECT setup_command FROM factory.factory_project_repositories WHERE id::text = $1', [binding.projectRepositoryId])).rows[0].setup_command
+  const expected = 'mkdir -p .git/info && { grep -qxF /app/node_modules .git/info/exclude 2>/dev/null || echo /app/node_modules >> .git/info/exclude; }'
+  assert.equal(await setupCommand(), expected)
+  await query(connectionString, 'UPDATE factory.factory_project_repositories SET setup_command = NULL WHERE id::text = $1', [binding.projectRepositoryId])
+  assert.deepEqual(await provision(projectId, 'setup-app'), binding)
+  assert.equal(await setupCommand(), expected)
+})
+
 test('a bound Project reaches its Factory project by the bound id, even after that project row is renamed', async (t) => {
   const { connectionString, connect, provision, newProject, snapshot } = await setup(t)
   await connect()

@@ -106,7 +106,7 @@ test('a VM that E2B killed for idling is replaced by the next command, with a ba
 test('the application check builds the starter in the real template, keeps its link out of Git, and fails on broken code', { skip, timeout: 5 * 60_000 }, async () => {
   const hub = await loadHub()
   const { ConexusFactoryE2BSandbox } = await hub('builder/factory.js')
-  const { APPLICATION_CHECK_FILES, FIXED_APPLICATION_STARTER_FILES } = await hub('builder/application-starter.js')
+  const { APPLICATION_CHECK_FILES, APPLICATION_CHECK_SETUP_COMMAND, FIXED_APPLICATION_STARTER_FILES } = await hub('builder/application-starter.js')
   const { templateId, apiKey } = liveConfig()
   const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-check-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {}, workingDirectory: '/workspace' })
   const root = '/workspace/check-probe'
@@ -114,10 +114,10 @@ test('the application check builds the starter in the real template, keeps its l
   try {
     await sandbox.start()
     await sandbox.writeFiles([...FIXED_APPLICATION_STARTER_FILES, ...APPLICATION_CHECK_FILES].map((file) => ({ path: `${root}/${file.path}`, content: file.content })))
-    const passed = await sh('git init -q && sh conexus/check.sh >/dev/null && test -f /tmp/conexus-check-dist/index.html && git check-ignore -q app/node_modules && git status --porcelain --untracked-files=all')
+    const passed = await sh(`git init -q && ${APPLICATION_CHECK_SETUP_COMMAND} && sh conexus/check.sh >/dev/null && test -f /tmp/conexus-check-dist/index.html && git check-ignore -q app/node_modules && git status --porcelain --untracked-files=all`)
     assert.equal(passed.exitCode, 0, passed.stderr)
     assert.deepEqual(passed.stdout.trim().split('\n').sort(), [
-      '?? .gitignore', '?? app/index.html', '?? app/src/main.tsx', '?? app/src/style.css', '?? conexus.json', '?? conexus/check.sh',
+      '?? app/index.html', '?? app/src/main.tsx', '?? app/src/style.css', '?? conexus.json', '?? conexus/check.sh',
     ])
 
     await sandbox.writeFiles([{ path: `${root}/app/src/main.tsx`, content: 'import { missing } from "./nowhere"\nmissing(\n' }])
