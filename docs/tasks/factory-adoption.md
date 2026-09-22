@@ -61,7 +61,7 @@ company runs its own Conexus installation with its own GitHub App and connects i
   `organizationId` (`apps/hub/src/builder/runtime.ts:121`). That would make every Project connect
   GitHub separately. The organization becomes one fixed identity for the installation. Which Account
   may act on which Project stays Conexus's authorization, rechecked at every operation.
-- **Connect GitHub once, to an organization.** A Workspace owner uses the Factory's connect flow from
+- **Connect GitHub once, to an organization.** An installation administrator uses the Factory's connect flow from
   the Hub's settings, and installs the company's own App on the company's GitHub organization with
   access to all repositories. No organization name is written in code. The connected account is read
   from the installation the Factory records (`storage/domains/source-control/base.js`). GitHub does
@@ -111,6 +111,20 @@ company runs its own Conexus installation with its own GitHub App and connects i
 - **Live coverage.** `tests/implementation/builder-mastra-e2b-live.test.mjs` is skipped and still
   describes the removed composition. It is rebuilt on the new path, not revived. The failing
   `rb:first:check` is traced to its exact cause.
+
+## Carried from the single-owner decisions of 2026-09-22
+
+The [single-owner map](../reference/single-owner-map.md) names the owner of each concept this task
+touches. Three of its consequences land in these units:
+
+- **Installation administrator.** Connecting GitHub needs the new installation administrator role in
+  Conexus IAM, as amended C-024 says. The role does not exist yet, and unit 4 depends on it.
+- **Model credentials.** Nobody connects a model account until the Hub configures the Factory's
+  `secretEncryption`, because the Factory stores credentials in plaintext without it. The per-person
+  credential path is also qualified end to end with `auth: null`, which skips the Factory's
+  per-person credential resolver. C-025 keeps credential sharing with the Factory.
+- **Tool policy.** The browser answers a pending call with approve or decline only. An answer that
+  changes effective policy for the session is refused.
 
 ## What leaves Conexus in this cut
 
@@ -163,8 +177,9 @@ repository the App already reaches.
    repository's default head equals the Project's admitted revision, every existing conversation opens
    with its messages, the Hub boots without the Git image, and the acceptance list below still passes.
 4. **Connect GitHub in the Hub (2b).** The Factory's connect routes are mounted behind the Hub session,
-   in the settings, for Workspace owners. A reconnect rebinds every Project by its repository's GitHub
-   id, and an unreachable repository shows its state. Check: an owner disconnects and reconnects the
+   in the settings, for installation administrators. A reconnect rebinds every Project by its
+   repository's GitHub id, and an unreachable repository shows its state. Check: an installation
+   administrator disconnects and reconnects the
    organization in the Hub, and every Project keeps working.
 
 ## How it ends
