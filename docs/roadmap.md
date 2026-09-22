@@ -53,7 +53,9 @@ is not installed, and Project source is still under Conexus's own Git custody. C
 the Factory and a forge, and [C-024](decisions/index.md) settled that one Conexus installation
 connects one company's GitHub organization once. That task closes the gap between the decision and
 the runtime. Project source moves to private GitHub repositories, admission stays with Conexus, and
-the host Git path is deleted. It runs in five units (0 to 4), each proven on the pilot.
+the host Git path is deleted. It runs in five units (0 to 4), each proven on the pilot. On
+2026-09-22 the operator decided that every concept Conexus and the Factory share has one owner, and
+[the single-owner map](reference/single-owner-map.md) lists them.
 
 **After it, in this order.** First the frontend redesign, on a path that is no longer being replaced.
 Then the approved destination in
