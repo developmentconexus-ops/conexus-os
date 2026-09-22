@@ -207,6 +207,18 @@ test('a complete Factory configuration is read, and a partial one names the miss
   assert.throws(() => readHubConfig({ ...baseEnvironment, ...keyless }), /^Error: MISSING_CONFIG_CONEXUS_FACTORY_SECRET_KEY_FILE$/)
 })
 
+test('Google AI Pro needs both CLIProxyAPI variables, an absolute path and a sha256, and the Factory', () => {
+  const sha256 = 'ab'.repeat(32)
+  const complete = { ...baseEnvironment, ...factoryEnvironment }
+  assert.equal(readHubConfig(complete).googleAiPro, undefined)
+  assert.deepEqual(readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cliproxy/cli-proxy-api', CONEXUS_CLIPROXY_SHA256: sha256 }).googleAiPro, { binary: '/opt/cliproxy/cli-proxy-api', sha256 })
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cliproxy/cli-proxy-api' }), /^Error: MISSING_CONFIG_CONEXUS_CLIPROXY_SHA256$/)
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_SHA256: sha256 }), /^Error: MISSING_CONFIG_CONEXUS_CLIPROXY_BIN$/)
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: 'cli-proxy-api', CONEXUS_CLIPROXY_SHA256: sha256 }), /^Error: INVALID_CONFIG_CONEXUS_CLIPROXY_BIN$/)
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cli-proxy-api', CONEXUS_CLIPROXY_SHA256: 'AB'.repeat(32) }), /^Error: INVALID_CONFIG_CONEXUS_CLIPROXY_SHA256$/)
+  assert.throws(() => readHubConfig({ ...environmentWithoutBuilder, CONEXUS_CLIPROXY_BIN: '/opt/cli-proxy-api', CONEXUS_CLIPROXY_SHA256: sha256 }), /^Error: GOOGLE_AI_PRO_FACTORY_RUNTIME_REQUIRED$/)
+})
+
 test('a secret key that is not 64 hex characters is refused before the Factory stores anything', () => {
   for (const key of ['', 'f'.repeat(63), 'F'.repeat(64), 'g'.repeat(64), 'f'.repeat(65)]) {
     assert.throws(() => createFactorySecretKeyEncryption(key), /^Error: FACTORY_SECRET_KEY_REFUSED$/)

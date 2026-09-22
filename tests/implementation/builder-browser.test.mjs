@@ -37,7 +37,7 @@ const routeFactory = async (page, projectId, state) => {
     state.conversations = [created, ...state.conversations]
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ conversation: created }) })
   })
-  await page.route(`${FACTORY_CONTROLLER}/models`, (route) =>
+  await page.route('**/api/control/model-accounts/models', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
   await page.route(`${FACTORY_CONTROLLER}/sessions/*`, (route) => {
     const id = threadIdOf(route.request().url(), -1)
@@ -921,7 +921,7 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
     run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', mode: body.mode, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
-  await page.route(`${FACTORY_CONTROLLER}/models`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
+  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
   await page.route(`${FACTORY_CONTROLLER}/sessions/*`, (route) => {
     const id = threadIdOf(route.request().url(), -1)
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: models[id] ?? '', modeId: 'build', threadId: id }) })
@@ -998,11 +998,13 @@ test('Configurações lets a person connect and disconnect model accounts, an ad
   const writes = []
   let mine = null
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Administradora' }, workspaces: [], projects: [] }) }))
-  await page.route(`${FACTORY_CONTROLLER}/models`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
+  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers: Object.values(providers), orgKeyAdmin: true }) }))
   await page.route('**/api/control/model-accounts/*/*', (route) => {
     const request = route.request()
     const [provider, action] = new URL(request.url()).pathname.split('/').slice(-2)
+    // This Hub runs no CLIProxyAPI.
+    if (provider === 'google-ai-pro') return route.fulfill({ status: 404 })
     writes.push([request.method(), provider, action, 'x-conexus-csrf' in request.headers(), request.postDataJSON?.() ?? null])
     if (action === 'share') providers[provider] = { ...providers[provider], source: 'stored-org', userCredential: undefined, orgCredential: 'api_key' }
     if (action === 'key' && request.method() === 'PUT') providers[provider] = { ...providers[provider], source: 'stored-user', userCredential: 'api_key' }
@@ -1040,4 +1042,69 @@ test('Configurações lets a person connect and disconnect model accounts, an ad
   await page.getByText('Padrões salvos.').waitFor()
   assert.deepEqual(mine, { build: BUILDER_MODELS[0].id, fast: BUILDER_MODELS[1].id })
   await page.getByRole('heading', { name: 'Modelos padrão' }).waitFor()
+})
+
+test('Configurações signs a person in to Google AI Pro through a pasted Google address, and hides the card where the Hub runs no CLIProxyAPI', async (t) => {
+  const accountId = '70000000-0000-4000-8000-0000000000a2'
+  const origin = 'http://127.0.0.1:41763'
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41763, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+
+  const loginId = '0f0f0f0f-0000-4000-8000-000000000001'
+  const signIn = 'https://accounts.google.com/o/oauth2/v2/auth?state=issued-state'
+  let connected = false
+  let enabled = true
+  const writes = []
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Pessoa' }, workspaces: [], projects: [] }) }))
+  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
+  await page.route('**/api/control/model-accounts', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers: [], orgKeyAdmin: false }) }))
+  await page.route('**/api/control/model-defaults', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
+  await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
+    const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
+    if (!enabled) return json(404, { type: 'not-found' })
+    writes.push([request.method(), path, 'x-conexus-csrf' in request.headers(), request.postDataJSON?.() ?? null])
+    if (path === '/connection') return json(200, { mine: connected, shared: false, administrator: false })
+    if (path === '/login/start') return json(200, { loginId, url: signIn })
+    if (path === '/login/complete') {
+      if (!request.postDataJSON().callbackUrl.includes('state=issued-state')) return json(400, { type: 'model-login-callback-refused' })
+      connected = true
+      return json(200, { state: 'succeeded' })
+    }
+    if (path === `/login/${loginId}`) return json(200, { state: 'waiting' })
+    return json(404, {})
+  })
+
+  await page.goto(`${origin}/settings`)
+  await page.getByRole('heading', { name: 'Google AI Pro' }).waitFor()
+  await page.getByRole('button', { name: 'Conectar com o Google' }).click()
+  assert.equal(await page.getByRole('link', { name: 'Abrir a entrada do Google' }).getAttribute('href'), signIn)
+  const pasted = page.getByLabel('Endereço da aba que não abriu')
+  await pasted.fill('http://localhost:51121/oauth-callback?state=other&code=x')
+  await page.getByRole('button', { name: 'Concluir' }).click()
+  await page.getByText('Esse endereço não é o da entrada do Google iniciada aqui.').waitFor()
+  await pasted.fill('http://localhost:51121/oauth-callback?state=issued-state&code=good')
+  await page.getByRole('button', { name: 'Concluir' }).click()
+  await page.getByText('Google AI Pro conectado.').waitFor()
+  await page.getByText('Conectado com a sua conta Google.').waitFor()
+  assert.deepEqual(writes.filter(([method]) => method === 'POST'), [
+    ['POST', '/login/start', true, {}],
+    ['POST', '/login/complete', true, { loginId, callbackUrl: 'http://localhost:51121/oauth-callback?state=other&code=x' }],
+    ['POST', '/login/complete', true, { loginId, callbackUrl: 'http://localhost:51121/oauth-callback?state=issued-state&code=good' }],
+  ])
+  await page.getByRole('button', { name: 'Desconectar' }).waitFor()
+
+  enabled = false
+  await page.reload()
+  await page.getByRole('heading', { name: 'Contas de modelo' }).waitFor()
+  await page.getByText('Nenhuma conta conectada. Conecte a sua para usar o Builder.').waitFor()
+  assert.equal(await page.getByRole('heading', { name: 'Google AI Pro' }).count(), 0)
 })

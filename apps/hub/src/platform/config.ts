@@ -27,8 +27,12 @@ export type HubConfig = Readonly<{
     e2bTemplateId: string
   }> | undefined
   factory: FactoryRuntimeConfig | undefined
+  googleAiPro: GoogleAiProRuntimeConfig | undefined
   oidc: Readonly<{ issuer: string; clientId: string; clientSecretFile: string; allowInsecureForTest: boolean }>
 }>
+
+// The CLIProxyAPI binary the Hub runs per person for Google AI Pro, pinned by its sha256.
+export type GoogleAiProRuntimeConfig = Readonly<{ binary: string; sha256: string }>
 
 export type FactoryRuntimeConfig = Readonly<{
   orgId: string
@@ -190,6 +194,17 @@ const factoryRuntime = (environment: NodeJS.ProcessEnv): HubConfig['factory'] =>
   return Object.fromEntries(Object.entries(FACTORY_VARIABLES).map(([key, name]) => [key, required(environment, name)])) as FactoryRuntimeConfig
 }
 
+const googleAiProRuntime = (environment: NodeJS.ProcessEnv): HubConfig['googleAiPro'] => {
+  const binary = environment.CONEXUS_CLIPROXY_BIN
+  const sha256 = environment.CONEXUS_CLIPROXY_SHA256
+  if (!binary && !sha256) return undefined
+  if (!binary) throw new Error('MISSING_CONFIG_CONEXUS_CLIPROXY_BIN')
+  if (!sha256) throw new Error('MISSING_CONFIG_CONEXUS_CLIPROXY_SHA256')
+  if (!binary.startsWith('/')) throw new Error('INVALID_CONFIG_CONEXUS_CLIPROXY_BIN')
+  if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error('INVALID_CONFIG_CONEXUS_CLIPROXY_SHA256')
+  return { binary, sha256 }
+}
+
 const previewRuntime = (environment: NodeJS.ProcessEnv, hubOrigin: string, hubPort: number): HubConfig['preview'] => {
   const portValue = environment.CONEXUS_PREVIEW_PORT
   const certFile = environment.CONEXUS_PREVIEW_CERT_FILE
@@ -237,6 +252,7 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
     project: projectRuntime(environment),
     builder: builderRuntime(environment),
     factory: factoryRuntime(environment),
+    googleAiPro: googleAiProRuntime(environment),
     oidc: {
       issuer: required(environment, 'CONEXUS_OIDC_ISSUER'),
       clientId: required(environment, 'CONEXUS_OIDC_CLIENT_ID'),
@@ -246,6 +262,7 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
   }
   if (config.builder && !config.project) throw new Error('BUILDER_PROJECT_RUNTIME_REQUIRED')
   if (config.factory && !config.builder) throw new Error('FACTORY_BUILDER_RUNTIME_REQUIRED')
+  if (config.googleAiPro && !config.factory) throw new Error('GOOGLE_AI_PRO_FACTORY_RUNTIME_REQUIRED')
   // A Builder runs every Project through the Factory; there is no second agent runtime to fall back to.
   if (config.builder && !config.factory) throw new Error('BUILDER_FACTORY_RUNTIME_REQUIRED')
   return config

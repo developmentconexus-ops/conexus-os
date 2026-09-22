@@ -50,12 +50,20 @@ export const useConversationActions = (projectId: string) => {
   return { create }
 }
 
-export type BuilderModel = AgentControllerAvailableModel
+export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | 'provider' | 'modelName' | 'hasApiKey'>>
 
-/** The controller owns model auth and selection, so the product reads both from it and stores neither. */
+/**
+ * The models this person can reach, as the Factory answers for their own credentials and the
+ * installation's shared ones. The controller's own list reads only the host's keys, the same for
+ * everyone. The product stores neither the list nor the choice.
+ */
 export const useBuilderModels = () => useQuery({
   queryKey: ['builder-models'],
-  queryFn: () => factoryController.listModels(),
+  queryFn: async (): Promise<readonly BuilderModel[]> => {
+    const response = await fetch('/api/control/model-accounts/models', { credentials: 'same-origin' })
+    if (!response.ok) throw new Error(`BUILDER_MODELS_UNAVAILABLE:${response.status}`)
+    return (await response.json() as Readonly<{ models: readonly BuilderModel[] }>).models
+  },
 })
 
 export const reasoningLevels = ['low', 'medium', 'high', 'xhigh'] as const
