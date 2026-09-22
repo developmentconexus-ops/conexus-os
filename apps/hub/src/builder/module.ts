@@ -223,7 +223,7 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
     readConversationRepository: async (conversationId) =>
       (await (await ready).github.sourceControlStorage.sessions.getBySessionId(conversationId))?.projectRepositoryId ?? null,
     appendDiagnostic,
-    recoverAdmissions: async () => recoverFactoryAdmissions({ store, github: githubApp, resolveRepository: (await portsReady).resolveRepository }),
+    recoverAdmissions: async (active) => recoverFactoryAdmissions({ store, github: githubApp, resolveRepository: (await portsReady).resolveRepository, active }),
   })
   return Object.freeze({
     orgId: factory.orgId,

@@ -31,21 +31,13 @@ const ON_TOP = 'd'.repeat(40)
 const privateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' })
 
 const interrupted = { state: 'INTERRUPTED', result_kind: null, result_source_revision: null, failure_code: 'HUB_RESTART', working_source_revision: BASE, working_version: '0' }
+const notAdmitted = { state: 'FAILED', result_kind: null, result_source_revision: null, failure_code: 'BUILDER_SOURCE_ADMISSION_FAILED', working_source_revision: BASE, working_version: '0' }
 const admitted = { state: 'FAILED', result_kind: 'SOURCE_CHANGED_BUILD_FAILED', result_source_revision: RESULT, failure_code: 'BUILDER_PREVIEW_NOT_BUILT', working_source_revision: RESULT, working_version: '1' }
+const pending = { state: 'RUNNING', result_kind: null, result_source_revision: null, failure_code: null, working_source_revision: BASE, working_version: '0' }
 
-// Each row is the database and GitHub as a Hub stopped after one more durable write left them.
-const crashes = [
-  { name: 'compiled', phase: 'COMPILING', candidate: null, main: BASE, expected: interrupted },
-  { name: 'offered-not-landed', phase: 'SOURCE_ADMISSION', candidate: RESULT, main: BASE, expected: interrupted },
-  { name: 'landed', phase: 'SOURCE_ADMISSION', candidate: RESULT, main: RESULT, expected: admitted },
-  { name: 'landed-then-built-on', phase: 'SOURCE_ADMISSION', candidate: RESULT, main: ON_TOP, expected: admitted },
-  { name: 'stopped-after-landing', phase: 'SOURCE_ADMISSION', candidate: RESULT, main: RESULT, stopped: true, expected: admitted },
-  { name: 'advanced', phase: 'SOURCE_ADMISSION', candidate: RESULT, main: RESULT, advanced: true, expected: admitted },
-  { name: 'finalizing', phase: 'FINALIZING', candidate: RESULT, main: RESULT, advanced: true, expected: admitted },
-]
-
-test('recovery settles every unsettled run whose candidate reached main, after a stop at each durable write', async (t) => {
-  const { connectionString, connection, onCleanup } = await buildHubDatabase(t, 'conexus_factory_recovery')
+// A database and a fake GitHub holding one run per crash, each as a Hub stopped after its last durable write.
+const recoveryHarness = async (t, name, crashes) => {
+  const { connectionString, connection, onCleanup } = await buildHubDatabase(t, name)
   const github = await startFakeGithub()
   onCleanup(() => github.close())
   github.state.parents.set(ON_TOP, RESULT).set(RESULT, BASE)
@@ -56,8 +48,6 @@ test('recovery settles every unsettled run whose candidate reached main, after a
   const executorPool = new pg.Pool({ ...connection, max: 2, options: '-c role=hub_builder_executor' })
   const ingressPool = new pg.Pool({ ...connection, max: 2, options: '-c role=hub_builder_ingress' })
   const store = createBuilderStore({ ingressPool, executorPool })
-  onCleanup(() => store.close())
-
   const repositories = new Map()
   const runs = []
   for (const crash of crashes) {
@@ -90,18 +80,51 @@ test('recovery settles every unsettled run whose candidate reached main, after a
     factory: {
       runtime: { execute: async () => { throw new Error('not reached') } },
       readBindingForRun: store.readFactoryBindingForRun,
-      recoverAdmissions: () => recoverFactoryAdmissions({ store, github: app, resolveRepository: async (binding) => repositories.get(binding.repositoryId) }),
+      recoverAdmissions: (active) => recoverFactoryAdmissions({ store, github: app, resolveRepository: async (binding) => repositories.get(binding.repositoryId), active }),
+      reconcileEveryMs: 10,
     },
   })
-  await service.recover()
-  // A second recovery over the settled rows changes nothing.
-  await service.recover()
-
+  onCleanup(() => service.close())
   const row = async ({ builderRunId, projectId }) => (await query(connectionString, `
     SELECT run.state, run.result_kind, run.result_source_revision, run.failure_code, working.working_source_revision, working.working_version
     FROM builder.builder_run run JOIN builder.project_working_state working USING (project_id)
     WHERE run.builder_run_id = $1 AND run.project_id = $2`, [builderRunId, projectId])).rows[0]
-  const actual = Object.fromEntries(await Promise.all(runs.map(async (run) => [run.name, await row(run)])))
-  assert.deepEqual(actual, Object.fromEntries(runs.map(({ name, expected }) => [name, expected])))
+  const rows = async () => Object.fromEntries(await Promise.all(runs.map(async (run) => [run.name, await row(run)])))
+  return { github, service, runs, rows }
+}
+
+test('recovery settles every unsettled run whose candidate reached main, after a stop at each durable write', async (t) => {
+  const crashes = [
+    { name: 'compiled', phase: 'COMPILING', candidate: null, main: BASE, expected: interrupted },
+    { name: 'offered-not-landed', phase: 'SOURCE_ADMISSION', candidate: RESULT, main: BASE, expected: notAdmitted },
+    { name: 'landed', phase: 'SOURCE_ADMISSION', candidate: RESULT, main: RESULT, expected: admitted },
+    { name: 'landed-then-built-on', phase: 'SOURCE_ADMISSION', candidate: RESULT, main: ON_TOP, expected: admitted },
+    { name: 'stopped-after-landing', phase: 'SOURCE_ADMISSION', candidate: RESULT, main: RESULT, stopped: true, expected: admitted },
+    { name: 'advanced', phase: 'SOURCE_ADMISSION', candidate: RESULT, main: RESULT, advanced: true, expected: admitted },
+    { name: 'finalizing', phase: 'FINALIZING', candidate: RESULT, main: RESULT, advanced: true, expected: admitted },
+  ]
+  const { github, service, runs, rows } = await recoveryHarness(t, 'conexus_factory_recovery', crashes)
+  await service.recover()
+  // A second recovery over the settled rows changes nothing.
+  await service.recover()
+  assert.deepEqual(await rows(), Object.fromEntries(runs.map(({ name, expected }) => [name, expected])))
   assert.deepEqual(github.state.requests.filter(({ method, path }) => method !== 'GET' && !path.endsWith('/access_tokens')), [], 'recovery only reads GitHub')
+})
+
+test('a candidate recovery cannot confirm while GitHub is unreachable stays running, and is admitted once GitHub answers, without another restart', async (t) => {
+  const crashes = [
+    { name: 'landed-unconfirmed', phase: 'SOURCE_ADMISSION', candidate: RESULT, main: RESULT },
+    { name: 'compiled', phase: 'COMPILING', candidate: null, main: BASE },
+  ]
+  const { github, service, rows } = await recoveryHarness(t, 'conexus_factory_recovery_outage', crashes)
+  github.state.compareStatus = 502
+  await service.recover()
+  assert.deepEqual(await rows(), { 'landed-unconfirmed': pending, compiled: interrupted })
+  github.state.compareStatus = null
+  let settled = await rows()
+  for (let attempt = 0; attempt < 300 && settled['landed-unconfirmed'].state === 'RUNNING'; attempt++) {
+    await new Promise((wake) => { setTimeout(wake, 10) })
+    settled = await rows()
+  }
+  assert.deepEqual(settled, { 'landed-unconfirmed': admitted, compiled: interrupted })
 })

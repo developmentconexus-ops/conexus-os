@@ -391,30 +391,35 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
 }
 
 /**
- * Runs before builder.recover_builder_runs interrupts every RUNNING run. A run that recorded a
- * candidate may have it on the default branch, whatever phase it stopped in. When the run already
- * recorded its advance, or main's history holds the candidate, the run is admitted with the last good
- * Preview kept; both writes converge when repeated. Anything else is left for the ordinary interrupt.
+ * Settles every running run with a candidate that no run in this process still owns, whatever phase
+ * it stopped in; the candidate may be on the default branch. When the run already recorded its
+ * advance, or main's history holds the candidate, the run is admitted with the last good Preview
+ * kept; both writes converge when repeated. A candidate main's history lacks fails the run. Answers
+ * the runs it could not settle, for example while GitHub is unreachable; they stay running.
  */
-export const recoverFactoryAdmissions = async ({ store, github, resolveRepository }: Readonly<{
-  store: Pick<BuilderStore, 'listFactoryAdmissionRuns' | 'advanceBuilderRunSource' | 'settleBuilderRunBuild'>
+export const recoverFactoryAdmissions = async ({ store, github, resolveRepository, active }: Readonly<{
+  store: Pick<BuilderStore, 'listFactoryAdmissionRuns' | 'advanceBuilderRunSource' | 'settleBuilderRunBuild' | 'failBuilderRun'>
   github: Pick<GithubApp, 'branchContains'>
   resolveRepository: FactoryRunPorts['resolveRepository']
+  active: ReadonlySet<string>
 }>): Promise<readonly string[]> => {
-  const recovered: string[] = []
+  const unsettled: string[] = []
   for (const run of await store.listFactoryAdmissionRuns()) {
+    if (active.has(run.builderRunId)) continue
     const candidate = run.candidateSourceRevision
     try {
       if (run.resultSourceRevision !== candidate) {
         const repository = await resolveRepository(run.binding)
-        if (!await github.branchContains(repository.installation, repository, repository.defaultBranch, candidate)) continue
+        if (!await github.branchContains(repository.installation, repository, repository.defaultBranch, candidate)) {
+          await store.failBuilderRun(run.builderRunId, 'BUILDER_SOURCE_ADMISSION_FAILED')
+          continue
+        }
       }
       await store.advanceBuilderRunSource(run.builderRunId, candidate)
       await store.settleBuilderRunBuild({ builderRunId: run.builderRunId, sourceRevision: candidate, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
-      recovered.push(run.builderRunId)
     } catch {
-      // GitHub unreachable: the normal interrupt settles it.
+      unsettled.push(run.builderRunId)
     }
   }
-  return recovered
+  return unsettled
 }

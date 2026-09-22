@@ -18,7 +18,7 @@ const compiled = spawnSync(process.execPath, [
 if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
 const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
 const { createBuilderService } = await import(built('builder/service.js'))
-const { createFactoryCodingWorkerRuntime, factoryAgentInstructions } = await import(built('builder/factory-runtime.js'))
+const { createFactoryCodingWorkerRuntime, factoryAgentInstructions, recoverFactoryAdmissions } = await import(built('builder/factory-runtime.js'))
 const { createGithubApp } = await import(built('builder/factory-github.js'))
 
 const BASE = 'b'.repeat(40)
@@ -33,7 +33,7 @@ const conversationId = '44444444-4444-4444-8444-444444444444'
 const privateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' })
 const listing = `100644 blob ${'d'.repeat(40)}      120\tapp/index.html\n`
 
-const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository' } = {}) => {
+const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository', lostAdvances = 0 } = {}) => {
   const github = await startFakeGithub()
   t.after(() => github.close())
   const repository = github.addRepository({ owner: 'acme-org', name: 'app', head })
@@ -80,6 +80,8 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
       return [{ path: 'index.html', mediaType: 'text/html', sha256: 'f'.repeat(64), bytes: 'PGh0bWw+' }]
     },
   }
+  const app = createGithubApp({ appId: '5015512', privateKey, baseUrl: github.baseUrl })
+  const resolveRepository = async () => ({ installation: 163574754, externalId: repository.id, slug: 'acme-org/app', defaultBranch: 'main' })
   const runtime = createFactoryCodingWorkerRuntime({
     openSession: async (input) => {
       events.push(['open', input.conversationId, input.builderRunId])
@@ -95,26 +97,38 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
         close: async () => { events.push('close') },
       }
     },
-    github: createGithubApp({ appId: '5015512', privateKey, baseUrl: github.baseUrl }),
-    resolveRepository: async () => ({ installation: 163574754, externalId: repository.id, slug: 'acme-org/app', defaultBranch: 'main' }),
+    github: app,
+    resolveRepository,
     materializeStarter: async () => { events.push('starter'); await starter?.() },
     log: (line) => { logs.push(line) },
   })
   const claimed = { builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'PREPARING', mode, baseSourceRevision: BASE, resultSourceRevision: null, resultKind: null, failureCode: null }
+  // The one run's row as the database holds it.
+  const row = { running: true, candidate: null, result: null }
   const store = {
     createBuilderRun: async () => { calls.push(['create']); return { ...claimed, state: 'QUEUED', phase: null } },
     readFactoryBinding: async () => binding,
     claimBuilderRun: async () => claimed,
     setBuilderRunPhase: async (_id, phase) => { calls.push(['phase', phase]) },
-    recordBuilderRunCandidate: async (_id, revision) => { calls.push(['candidate', revision]) },
+    recordBuilderRunCandidate: async (_id, revision) => { calls.push(['candidate', revision]); row.candidate = revision },
     bindBuilderRunMessage: async (_id, messageId) => { calls.push(['message', messageId]) },
     bindBuilderRunSandbox: async (_id, sandboxId) => { calls.push(['sandbox', sandboxId]) },
-    settleBuilderRun: async (input) => { calls.push(['settle', input.resultKind]) },
-    advanceBuilderRunSource: async (_id, revision) => { calls.push(['advance', revision]) },
-    settleBuilderRunBuild: async (input) => { calls.push(['settleBuild', input.sourceRevision, input.failureCode ?? null]) },
-    failBuilderRun: async (_id, code) => { calls.push(['fail', code]) },
-    interruptBuilderRun: async (_id, reason) => { calls.push(['interrupt', reason]) },
+    settleBuilderRun: async (input) => { calls.push(['settle', input.resultKind]); row.running = false },
+    advanceBuilderRunSource: async (_id, revision) => {
+      if (lostAdvances-- > 0) {
+        calls.push(['advanceLost', revision])
+        throw new Error('Connection terminated unexpectedly')
+      }
+      calls.push(['advance', revision])
+      row.result = revision
+    },
+    settleBuilderRunBuild: async (input) => { calls.push(['settleBuild', input.sourceRevision, input.failureCode ?? null]); row.running = false },
+    failBuilderRun: async (_id, code) => { calls.push(['fail', code]); row.running = false },
+    interruptBuilderRun: async (_id, reason) => { calls.push(['interrupt', reason]); row.running = false },
     requestBuilderRunCancellation: async () => ({ ...claimed, cancellationRequested: true }),
+    listFactoryAdmissionRuns: async () => row.running && row.candidate
+      ? [{ builderRunId: runId, projectId, conversationId, baseSourceRevision: BASE, candidateSourceRevision: row.candidate, resultSourceRevision: row.result, binding }]
+      : [],
     close: async () => {},
   }
   const service = createBuilderService({
@@ -128,7 +142,8 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
       readSourceHead: async () => BASE,
       readConversationRepository: async () => conversationRepository,
       appendDiagnostic: async (input) => { diagnostics.push({ ...input, from: 'service' }) },
-      recoverAdmissions: async () => [],
+      recoverAdmissions: (active) => recoverFactoryAdmissions({ store, github: app, resolveRepository, active }),
+      reconcileEveryMs: 5,
     },
   })
   const start = () => service.createBuilderRun({ accountId, projectId, conversationId, idempotencyKey: 'key', content: 'Mostre UNIT1-nonce', mode })
@@ -137,7 +152,11 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const rootScripts = () => rootInvocations.map(({ script }) => script)
   const pushed = () => rootScripts().some((script) => script.includes(' push '))
   const admissions = () => rootScripts().filter((script) => script.includes('--force-with-lease'))
-  return { github, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, commands, rootScripts, pushed, admissions, buildRunning, builtFrom }
+  const settled = async () => {
+    for (let attempt = 0; row.running && attempt < 400; attempt++) await new Promise((wake) => { setTimeout(wake, 5) })
+    return !row.running
+  }
+  return { github, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, commands, rootScripts, pushed, admissions, buildRunning, builtFrom, settled }
 }
 
 test('a writer that moves main between the read and the update, even to an ancestor of the result, is refused and keeps its move', async (t) => {
@@ -208,15 +227,30 @@ test('a push that lost its response and never reached main fails with the discar
   assert.deepEqual(run.diagnostics.map(({ code, outcome, sourceRevision }) => [code, outcome, sourceRevision]), [['BUILDER_SOURCE_ADMISSION_FAILED', 'RUN_NOT_FINISHED', BASE]])
 })
 
-test('a push that lost its response while GitHub cannot say where main is stays running for recovery, candidate recorded', async (t) => {
+test('a push that lost its response while GitHub cannot say where main is stays running, and is admitted once GitHub answers, without a restart', async (t) => {
   const run = await harness(t)
   run.github.state.pushResponseLost = true
   run.github.state.compareStatus = 502
   await run.start()
+  for (let attempt = 0; attempt < 400 && !run.logs.some((line) => line.startsWith(`BUILDER_FACTORY_RUN_FAILED:${runId}:BUILDER_SOURCE_ADMISSION_UNKNOWN `)); attempt++) await new Promise((wake) => { setTimeout(wake, 5) })
+  await new Promise((wake) => { setTimeout(wake, 50) })
+  assert.deepEqual(admissionCalls(run), [['candidate', RESULT]], 'still pending while GitHub cannot answer')
+  run.github.state.compareStatus = null
+  assert.equal(await run.settled(), true, 'reconciled without a restart')
   await run.service.close()
-  assert.deepEqual(admissionCalls(run), [['candidate', RESULT]])
+  assert.equal(run.main(), RESULT)
+  assert.deepEqual(admissionCalls(run), [['candidate', RESULT], ['advance', RESULT], ['settleBuild', RESULT, 'BUILDER_PREVIEW_NOT_BUILT']])
   assert.deepEqual(run.diagnostics, [])
-  assert.ok(run.logs.some((line) => line.startsWith(`BUILDER_FACTORY_RUN_FAILED:${runId}:BUILDER_SOURCE_ADMISSION_UNKNOWN `)), run.logs.join('\n'))
+})
+
+test('a database failure recording the advance after GitHub applied the push leaves the run pending, and reconciliation admits it', async (t) => {
+  const run = await harness(t, { lostAdvances: 1 })
+  await run.start()
+  assert.equal(await run.settled(), true, 'reconciled without a restart')
+  await run.service.close()
+  assert.equal(run.main(), RESULT)
+  assert.deepEqual(admissionCalls(run).filter(([kind]) => kind !== 'candidate'), [['advance', RESULT], ['settleBuild', RESULT, 'BUILDER_PREVIEW_NOT_BUILT']])
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'advanceLost'), [['advanceLost', RESULT]])
 })
 
 test('a conversation of another Project is refused before a run is created or its sandbox opened', async (t) => {

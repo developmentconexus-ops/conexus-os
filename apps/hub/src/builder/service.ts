@@ -39,8 +39,13 @@ export type FactoryRunDependencies = Readonly<{
   // The Factory project repository a conversation was opened on, or null for no such conversation.
   readConversationRepository(conversationId: string): Promise<string | null>
   appendDiagnostic?: DiagnosticAppender
-  recoverAdmissions(): Promise<unknown>
+  // Settles the candidate runs no run in `active` owns and answers the ones it could not settle yet.
+  recoverAdmissions(active: ReadonlySet<string>): Promise<readonly string[]>
+  reconcileEveryMs?: number
 }>
+
+// Only these end a run with a recorded candidate knowing its source is not on main.
+const NOT_ADMITTED = new Set(['BUILDER_SOURCE_BASE_MOVED', 'BUILDER_SOURCE_ADMISSION_FAILED', 'BUILDER_RUN_CANCELLED'])
 
 export const createBuilderService = ({ store, source, runtime, applicationArtifacts, appendDiagnostic, factory }: Readonly<{
   store: BuilderStore
@@ -54,6 +59,21 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
   const builderActive = new Map<string, Readonly<{ controller: AbortController; work: Promise<void> }>>()
   const applicationShutdown = new AbortController()
   let serviceClosing: Promise<void> | null = null
+  let reconcileTimer: ReturnType<typeof setTimeout> | null = null
+  let reconciling: Promise<void> = Promise.resolve()
+  // Candidate runs left running are settled here, again and again until GitHub and the database answer.
+  const reconcile = async (): Promise<void> => {
+    const unsettled = await factory?.recoverAdmissions(new Set(builderActive.keys())).then((ids) => ids.length > 0, () => true)
+    if (unsettled) reconcileSoon()
+  }
+  const reconcileSoon = (): void => {
+    if (!factory || reconcileTimer || serviceClosing) return
+    reconcileTimer = setTimeout(() => {
+      reconcileTimer = null
+      reconciling = reconciling.then(reconcile)
+    }, factory.reconcileEveryMs ?? 30_000)
+    reconcileTimer.unref?.()
+  }
   const failureCode = (error: unknown): string => {
     const code = error instanceof Error ? error.message : ''
     return /^[A-Z0-9_]{1,120}$/.test(code) ? code : 'BUILDER_PREPARATION_FAILED'
@@ -68,6 +88,7 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
     // A Factory run whose agent ran has tool calls in its conversation thread until its source is
     // admitted; if it never is, the thread gets a note that those edits were discarded.
     let unadmittedAgentRun: BuilderRunSummary | null = null
+    let candidateRecorded = false
     const work = (async () => {
       const claimed = await store.claimBuilderRun(run.builderRunId)
       const binding = factory ? await factory.readBindingForRun(claimed.builderRunId) : null
@@ -84,7 +105,10 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
         },
         bindPhysicalSandbox: (sandboxId: string) => store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId),
         bindMessage: (messageId: string) => store.bindBuilderRunMessage(claimed.builderRunId, messageId),
-        recordCandidate: (sourceRevision: string) => store.recordBuilderRunCandidate(claimed.builderRunId, sourceRevision),
+        recordCandidate: async (sourceRevision: string) => {
+          await store.recordBuilderRunCandidate(claimed.builderRunId, sourceRevision)
+          candidateRecorded = true
+        },
       }
       const execute = async (): Promise<CodingWorkerResult | SourceAdmittedResult> => {
         if (runSource.kind === 'FACTORY') {
@@ -167,8 +191,11 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
       }
     })().catch(async (error) => {
       const code = failureCode(error)
-      // Its source may be on main: the run stays running with its candidate until recovery settles it.
-      if (code === 'BUILDER_SOURCE_ADMISSION_UNKNOWN') return
+      // Its source may be on main: the run stays running with its candidate until reconciliation settles it.
+      if (candidateRecorded && !NOT_ADMITTED.has(code)) {
+        reconcileSoon()
+        return
+      }
       const discarded: BuilderRunSummary | null = unadmittedAgentRun
       if (discarded && factory?.appendDiagnostic) {
         await factory.appendDiagnostic({
@@ -202,6 +229,8 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
     serviceClosing = (async () => {
       applicationShutdown.abort()
       await Promise.all([...builderActive.values()].map(({ work }) => work))
+      if (reconcileTimer) clearTimeout(reconcileTimer)
+      await reconciling
       await store.close()
     })()
     return serviceClosing
@@ -237,7 +266,7 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
     getApplicationBySource,
     readApplicationFileBySource,
     recover: async () => {
-      await factory?.recoverAdmissions()
+      if ((await factory?.recoverAdmissions(new Set()))?.length) reconcileSoon()
       await store.recoverAndListQueuedBuilderRuns()
     },
     close,

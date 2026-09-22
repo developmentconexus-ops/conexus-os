@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0015",
+ "head": "0016",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -316,7 +316,7 @@
    "function builder.read_latest_code_changing_builder_run(p_account_id uuid, p_project_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=4d235eddfbe6ac0a74f48567b2e67abf",
    "function builder.read_preview_subject(p_account_id uuid, p_project_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=dfed29bad3f3c7d035f02411ecabf5b7",
    "function builder.record_builder_run_candidate(p_builder_run_id uuid, p_source_revision text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=9923c2bf70dad98c582243f9772329f3",
-   "function builder.recover_builder_runs() returns SETOF uuid kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=962d45d5a2a2070da594c9dddd2521ca",
+   "function builder.recover_builder_runs() returns SETOF uuid kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=eed3e03a045d5e6e6a6631d4e04e1f71",
    "function builder.request_builder_run_cancellation(p_account_id uuid, p_project_id uuid, p_builder_run_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=7c01aa8ea64c6407e0a319eafb41ea10",
    "function builder.resolve_factory_project(p_account_id uuid, p_project_repository_id text) returns uuid kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=f6710665acdd1dde013887a8702b8beb",
    "function builder.set_builder_run_phase(p_builder_run_id uuid, p_phase text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=22dd8e7b2ebb16e9a00efbe0e1f52d2a",
