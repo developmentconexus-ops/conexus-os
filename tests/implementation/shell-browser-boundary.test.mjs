@@ -1,10 +1,42 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const read = (relative) => readFileSync(resolve(repositoryRoot, relative), 'utf8')
+
+test('the SPA page carries its own style nonce, the same one its CSP allows, fresh per response', async (t) => {
+  const build = mkdtempSync(resolve(repositoryRoot, 'apps/hub/shell-csp-build-'))
+  t.after(() => rmSync(build, { recursive: true, force: true }))
+  const compiled = spawnSync(process.execPath, [
+    resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
+    '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
+    '--noEmit', 'false', '--outDir', build,
+  ], { encoding: 'utf8' })
+  assert.equal(compiled.status, 0, `${compiled.stdout}\n${compiled.stderr}`)
+  const { createHttpApp } = await import(pathToFileURL(resolve(build, 'http/app.js')).href)
+  const staticRoot = resolve(build, 'static')
+  mkdirSync(staticRoot)
+  writeFileSync(resolve(staticRoot, 'index.html'), '<!doctype html><html><head><title>Conexus</title></head><body></body></html>')
+  const app = await createHttpApp({ staticRoot, registerRoutes: async () => [] })
+  t.after(() => app.close())
+
+  const nonces = []
+  for (let i = 0; i < 2; i += 1) {
+    const response = await app.inject({ method: 'GET', url: '/settings/models' })
+    assert.equal(response.statusCode, 200)
+    const page = response.body.match(/<meta name="csp-nonce" content="([0-9a-f]{32})">/)?.[1]
+    assert.ok(page, response.body)
+    const styleSrc = response.headers['content-security-policy'].split(';').find((d) => d.trim().startsWith('style-src '))
+    assert.ok(styleSrc.includes(`'nonce-${page}'`), styleSrc)
+    assert.ok(!styleSrc.includes("'unsafe-inline'"), styleSrc)
+    nonces.push(page)
+  }
+  assert.notEqual(nonces[0], nonces[1])
+})
 
 test('S5-P0 serves every realized browser route through the same-origin SPA host', () => {
   const source = read('apps/hub/src/http/app.ts')
@@ -30,7 +62,7 @@ test('S5-P0 serves every realized browser route through the same-origin SPA host
   ]) {
     assert.match(source, new RegExp(route.replaceAll('/', '\\/').replaceAll(':', '\\:')))
   }
-  assert.match(source, /sendFile\('index\.html'/)
+  assert.match(source, /readFileSync\(join\(staticRoot, 'index\.html'\)/)
 })
 
 test('S5-P0 realizes one adaptive server-oriented shell and recoverable focus', () => {

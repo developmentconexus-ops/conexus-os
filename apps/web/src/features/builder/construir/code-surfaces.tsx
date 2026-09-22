@@ -23,7 +23,14 @@ const useLanguage = (path: string): LanguageSupport | null => {
   return support.path === path ? support.language : null
 }
 
-const readOnly: readonly Extension[] = [EditorState.readOnly.of(true), EditorView.editable.of(false), lineNumbers()]
+const cspNonce = document.querySelector<HTMLMetaElement>('meta[name="csp-nonce"]')?.content
+
+const readOnly: readonly Extension[] = [
+  EditorState.readOnly.of(true),
+  EditorView.editable.of(false),
+  lineNumbers(),
+  ...(cspNonce ? [EditorView.cspNonce.of(cspNonce)] : []),
+]
 
 export function CodeView({ path, content }: Readonly<{ path: string; content: string }>) {
   const theme = useCodemirrorTheme()

@@ -3,6 +3,8 @@ import helmet from '@fastify/helmet'
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import addFormatsModule from 'ajv-formats'
 import Fastify from 'fastify'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { FastifyInstance } from 'fastify'
 import { sendProblem } from './problem.js'
 
@@ -57,6 +59,9 @@ export const createHttpApp = async ({
   validatorInstallCount += 1
   await app.register(cookie)
   await app.register(helmet, {
+    // CodeMirror keeps rewriting one <style> element, so no fixed hash covers it; the page hands
+    // CodeMirror this response's style nonce instead.
+    enableCSPNonces: true,
     contentSecurityPolicy: { directives: {
       defaultSrc: ["'self'"], scriptSrc: ["'self'"],
       // The two hashes are the only <style> elements @mastra/playground-ui injects: an empty one and
@@ -76,6 +81,7 @@ export const createHttpApp = async ({
   if (staticRoot) {
     const staticPlugin = (await import('@fastify/static')).default
     await app.register(staticPlugin, { root: staticRoot })
+    const indexHtml = readFileSync(join(staticRoot, 'index.html'), 'utf8')
     const spaRoutes = [
       '/',
       '/setup',
@@ -101,8 +107,9 @@ export const createHttpApp = async ({
       '/no-access',
     ] as const
     for (const route of spaRoutes) {
-      app.get(route, (_request, reply) =>
-        reply.sendFile('index.html', { cacheControl: false }),
+      app.get(route, (_request, reply) => reply
+        .type('text/html; charset=utf-8')
+        .send(indexHtml.replace('<head>', `<head><meta name="csp-nonce" content="${reply.cspNonce.style}">`)),
       )
     }
   }
