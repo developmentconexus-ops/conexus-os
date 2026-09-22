@@ -36,6 +36,24 @@ const BROWSER_ROUTES: ReadonlySet<string> = new Set([
   `POST ${SESSION_BASE}/tool-suspension`,
 ])
 
+// Core's steer aborts and then sends, and its follow-up sends at once when the session is idle, so
+// both open a turn. A turn belongs to a run, which alone carries the sandbox and the run's settings.
+const RUN_TURN_ROUTES: readonly string[] = [`POST ${SESSION_BASE}/steer`, `POST ${SESSION_BASE}/follow-up`]
+
+// The Hub is the single writer of tool policy; the browser may only answer for the one pending
+// tool call it was shown. Core's approval decision is 'approve' | 'decline' | 'always_allow_category',
+// and the third literal grants the tool's whole category for the rest of the session, so it is a
+// policy write, not an answer to a call. tool-suspension's resumeData is unknown() and free-form
+// (a custom interactive tool could echo the same literal), so both routes are checked alike.
+const APPROVAL_ANSWER_ROUTES: readonly string[] = [`POST ${SESSION_BASE}/tool-approval`, `POST ${SESSION_BASE}/tool-suspension`]
+const POLICY_CHANGING_DECISION = 'always_allow_category'
+const carriesPolicyChangingAnswer = (value: unknown): boolean => {
+  if (typeof value === 'string') return value === POLICY_CHANGING_DECISION
+  if (Array.isArray(value)) return value.some(carriesPolicyChangingAnswer)
+  if (value && typeof value === 'object') return Object.values(value as Readonly<Record<string, unknown>>).some(carriesPolicyChangingAnswer)
+  return false
+}
+
 // On the Factory a conversation is a source-control session row the Hub creates, so the browser
 // may not create or switch threads there.
 const FACTORY_BROWSER_ROUTES: ReadonlySet<string> = new Set(
@@ -62,6 +80,8 @@ type GuardedMount = Readonly<{
 // another user or Project; only the Hub sets it, and a request carrying one is refused.
 const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMount): Promise<void> => {
   const accounts = new WeakMap<FastifyRequest, string>()
+  const runTurns = new Set(RUN_TURN_ROUTES.map((route) => route.replace(' ', ` ${mount.prefix}`)))
+  const approvalAnswers = new Set(APPROVAL_ANSWER_ROUTES.map((route) => route.replace(' ', ` ${mount.prefix}`)))
   await app.register(async (scope) => {
     scope.addHook('preHandler', async (request, reply) => {
       const session = await mount.resolveCurrentSession(request)
@@ -76,6 +96,9 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       if ((request.query as Readonly<Record<string, unknown>>).requestContext !== undefined || (typeof body === 'object' && body !== null && 'requestContext' in body)) {
         return sendProblem(reply, 400, 'request-context-refused', 'Request context is set by the server')
       }
+      if (approvalAnswers.has(`${request.method} ${request.routeOptions.url}`) && carriesPolicyChangingAnswer(body)) {
+        return sendProblem(reply, 400, 'tool-answer-refused', 'Only approve or decline is accepted for a pending tool call')
+      }
       const params = request.params as Readonly<{ controllerId?: string; resourceId?: string }>
       // Mastra Code names its own controller; the id the browser addresses is the one this module
       // registered it under on the Mastra.
@@ -86,6 +109,9 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       // Mastra's session routes get-or-create. A run's session carries that run's sandbox, so a
       // browser arriving first would create it without one and the run would inherit the empty shell.
       const { sessionScope } = request.query as Readonly<{ sessionScope?: string }>
+      if (sessionScope === undefined && runTurns.has(`${request.method} ${request.routeOptions.url}`)) {
+        return sendProblem(reply, 409, 'builder-run-required', 'Only a running Builder run takes a message')
+      }
       if (sessionScope !== undefined && params.resourceId !== undefined) {
         if (!RUN_SCOPE.test(sessionScope)) return sendProblem(reply, 404, 'builder-session-not-found', 'Builder session not found')
         if (!await mount.controller.getSessionByResource(params.resourceId, sessionScope)) {

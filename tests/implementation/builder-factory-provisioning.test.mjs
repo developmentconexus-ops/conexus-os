@@ -59,8 +59,11 @@ const setup = async (t, fakeOptions) => {
     result.working = (await query(connectionString, 'SELECT project_id, working_source_revision, working_version FROM builder.project_working_state ORDER BY project_id')).rows
     return result
   }
-  return { connectionString, github, lines, connect, memory, provision, newProject, snapshot }
+  return { connectionString, github, records, lines, connect, memory, provision, newProject, snapshot }
 }
+
+const INSTALLATION_B = { id: 208000001, account: { login: 'acme-org', type: 'Organization' } }
+const creations = (github) => github.state.requests.filter((request) => request.method === 'POST' && request.path.endsWith('/repos')).length
 
 test('connect prints the App identity for the operator and records the organization installation once', async (t) => {
   const { connectionString, github, lines, connect, snapshot } = await setup(t)
@@ -171,6 +174,61 @@ test('a bound Project reaches its Factory project by the bound id, even after th
   const before = await snapshot()
   assert.deepEqual(await provision(projectId, 'renamed-app'), first)
   assert.deepEqual(await snapshot(), before)
+})
+
+test('reconnecting as another installation of the organization keeps the binding, its repository row and its link', async (t) => {
+  const { connectionString, github, connect, provision, newProject } = await setup(t)
+  await connect()
+  const projectId = await newProject()
+  const first = await provision(projectId, 'moved-app')
+  github.state.installations = [INSTALLATION_B]
+  await connect()
+  const installations = (await query(connectionString, 'SELECT id::text, external_id FROM factory.source_control_installations')).rows
+  assert.deepEqual(installations.map((row) => row.external_id), [String(INSTALLATION_B.id)])
+  assert.deepEqual(await provision(projectId, 'moved-app'), first)
+  const repositories = (await query(connectionString, 'SELECT id::text, installation_id, external_id FROM factory.source_control_repositories')).rows
+  assert.deepEqual(repositories, [{ id: first.repositoryId, installation_id: installations[0].id, external_id: '700001' }])
+  const connections = (await query(connectionString, 'SELECT installation_id FROM factory.factory_project_source_control_connections')).rows
+  assert.deepEqual(connections, [{ installation_id: installations[0].id }])
+  assert.equal(creations(github), 1, 'a bound Project never asks GitHub to create a repository')
+})
+
+test('an installation the Factory pruned before reconnect still rebinds the Project by its GitHub id', async (t) => {
+  const { connectionString, github, records, connect, provision, newProject } = await setup(t)
+  await connect()
+  const projectId = await newProject()
+  const first = await provision(projectId, 'pruned-app')
+  const [stale] = await records.sourceControl.installations.list({ orgId: ORG })
+  assert.equal(await records.sourceControl.installations.delete({ orgId: ORG, id: stale.id }), true)
+  github.state.installations = [INSTALLATION_B]
+  await connect()
+  assert.deepEqual(await provision(projectId, 'pruned-app'), first)
+  const [live] = await records.sourceControl.installations.list({ orgId: ORG })
+  const repositories = (await query(connectionString, 'SELECT id::text, installation_id FROM factory.source_control_repositories')).rows
+  assert.deepEqual(repositories, [{ id: first.repositoryId, installation_id: live.id }])
+  assert.equal(creations(github), 1)
+})
+
+test('a bound Project whose repository is gone or replaced under its name is refused, never given a new one', async (t) => {
+  const { github, connect, provision, newProject } = await setup(t)
+  await connect()
+  const projectId = await newProject()
+  await provision(projectId, 'gone-app')
+  github.state.repositories.delete('acme-org/gone-app')
+  await assert.rejects(provision(projectId, 'gone-app'), { message: 'FACTORY_REPOSITORY_MISSING' })
+  github.addRepository({ owner: 'acme-org', name: 'gone-app' })
+  await assert.rejects(provision(projectId, 'gone-app'), { message: 'FACTORY_REPOSITORY_IDENTITY_CHANGED' })
+  assert.equal(creations(github), 1)
+})
+
+test('reconnect refuses to move repositories to an installation on another GitHub account', async (t) => {
+  const { connectionString, github, connect, provision, newProject } = await setup(t)
+  await connect()
+  await provision(await newProject(), 'kept-app')
+  github.state.installations = [{ id: 208000002, account: { login: 'other-org', type: 'Organization' } }]
+  await assert.rejects(connect(), /^Error: FACTORY_INSTALLATION_ACCOUNT_CHANGED/)
+  const repositories = (await query(connectionString, 'SELECT i.external_id FROM factory.source_control_repositories r JOIN factory.source_control_installations i ON i.id::text = r.installation_id')).rows
+  assert.deepEqual(repositories, [{ external_id: '163574754' }])
 })
 
 test('a second full run of connect and provision changes nothing', async (t) => {

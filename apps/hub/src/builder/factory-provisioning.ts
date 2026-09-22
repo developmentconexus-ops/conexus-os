@@ -5,12 +5,15 @@ import type { PgFactoryStorage } from '@mastra/pg'
 import { APPLICATION_CHECK_SETUP_COMMAND } from './application-starter.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { FACTORY_INTEGRATION_ID, FACTORY_OPERATOR_ID, FACTORY_WORKING_DIRECTORY } from './factory.js'
-import type { GithubApp, GithubRepository } from './factory-github.js'
+import { type GithubApp, GithubRequestError, type GithubRepository } from './factory-github.js'
 
 export type FactoryRecords = Readonly<{
   sourceControl: ReturnType<SourceControlStorage['forIntegration']>
   projects: FactoryProjectsStorage
   memorySettings: MemorySettingsStorage
+  // Moves a repositories row, and the connections of its installation, to another installation
+  // after the Factory deleted the old one. Answers false when the row itself is gone.
+  reattachRepository(input: Readonly<{ id: string; installationId: string }>): Promise<boolean>
 }>
 
 // The same storage API the Factory uses at runtime, registered here without prepare() so a
@@ -20,7 +23,17 @@ export const openFactoryRecords = async (storage: PgFactoryStorage): Promise<Fac
   const projects = storage.registerDomain(new FactoryProjectsStorage())
   const memorySettings = storage.registerDomain(new MemorySettingsStorage())
   await storage.init()
-  return Object.freeze({ sourceControl: sourceControl.forIntegration(FACTORY_INTEGRATION_ID), projects, memorySettings })
+  // migrateInstallation() only reaches a row whose installation still exists, and the Factory
+  // deletes an installation GitHub answers 404 for without touching its rows. This is the same
+  // move on the same collections.
+  const reattachRepository: FactoryRecords['reattachRepository'] = ({ id, installationId }) => storage.withTransaction(async (ops) => {
+    const row = await ops.findOne<{ installation_id: string }>('source_control_repositories', { id })
+    if (!row) return false
+    await ops.updateMany('source_control_repositories', { id }, { installation_id: installationId, updated_at: new Date() })
+    await ops.updateMany('factory_project_source_control_connections', { installation_id: row.installation_id, integration_id: FACTORY_INTEGRATION_ID }, { installation_id: installationId })
+    return true
+  })
+  return Object.freeze({ sourceControl: sourceControl.forIntegration(FACTORY_INTEGRATION_ID), projects, memorySettings, reattachRepository })
 }
 
 const MODEL_ID = /^[\w.-]+\/[\w.:-]+$/
@@ -64,15 +77,28 @@ export const connectFactoryInstallation = async ({ github, records, orgId, write
   const [installation] = installations as [typeof installations[number]]
   if (installation.accountType === 'User') throw new Error(ORGANIZATION_REQUIRED)
   const externalId = String(installation.id)
-  const existing = await records.sourceControl.installations.findByExternalId({ orgId, externalId })
-  if (!existing || existing.accountName !== installation.accountLogin || existing.accountType !== installation.accountType) {
-    await records.sourceControl.installations.upsert({
+  const { installations: recorded, repositories } = records.sourceControl
+  // GitHub lists every live installation of the App, so any other recorded one is gone. Its rows
+  // move to the live one, which keeps every id a binding names; only the same account can own them.
+  const gone = await Promise.all((await recorded.list({ orgId })).filter((row) => row.externalId !== externalId)
+    .map(async (old) => ({ old, held: await repositories.list({ orgId, installationId: old.id }) })))
+  const foreign = gone.find(({ old, held }) => held.length > 0 && old.accountName !== installation.accountLogin)
+  if (foreign) {
+    throw new Error(`FACTORY_INSTALLATION_ACCOUNT_CHANGED: repositories of ${foreign.old.accountName} are recorded under an installation that is gone. Install the App on ${foreign.old.accountName} again.`)
+  }
+  const existing = await recorded.findByExternalId({ orgId, externalId })
+  const live = existing && existing.accountName === installation.accountLogin && existing.accountType === installation.accountType
+    ? existing
+    : await recorded.upsert({
       orgId,
       connectedByUserId: FACTORY_OPERATOR_ID,
       externalId,
       accountName: installation.accountLogin,
       accountType: installation.accountType,
     })
+  for (const { old, held } of gone) {
+    for (const repository of held) await repositories.migrateInstallation({ orgId, id: repository.id, newInstallationId: live.id })
+    await recorded.delete({ orgId, id: old.id })
   }
   write(`FACTORY_INSTALLATION=${externalId} ACCOUNT=${installation.accountLogin} TYPE=${installation.accountType}`)
 }
@@ -89,6 +115,34 @@ const waitForHead = async (read: () => Promise<string | null>, attempts: number,
     if (attempt >= attempts) throw new Error('FACTORY_REPOSITORY_HEAD_UNAVAILABLE')
     await new Promise((resolve) => setTimeout(resolve, delayMs))
   }
+}
+
+type Installation = Awaited<ReturnType<FactoryRecords['sourceControl']['installations']['list']>>[number]
+
+// The repository a Project is bound to is the repositories row the binding names, whose GitHub id
+// never changes. It is brought under the live installation, then read from GitHub; a Project
+// whose repository is gone is refused rather than given a new one.
+const boundRepository = async ({ github, records, orgId, installation, repositoryId }: Readonly<{
+  github: GithubApp
+  records: FactoryRecords
+  orgId: string
+  installation: Installation
+  repositoryId: string
+}>): Promise<GithubRepository> => {
+  const { repositories } = records.sourceControl
+  const recorded = await repositories.get({ orgId, id: repositoryId })
+  if (recorded && recorded.installationId !== installation.id) {
+    await repositories.migrateInstallation({ orgId, id: repositoryId, newInstallationId: installation.id })
+  } else if (!recorded && !await records.reattachRepository({ id: repositoryId, installationId: installation.id })) {
+    throw new Error('FACTORY_REPOSITORY_MISSING')
+  }
+  const row = await repositories.get({ orgId, id: repositoryId })
+  if (!row) throw new Error('FACTORY_REPOSITORY_MISSING')
+  const repository = await github.readRepository(Number(installation.externalId), row.slug).catch((error: unknown) => {
+    throw error instanceof GithubRequestError && error.status === 404 ? new Error('FACTORY_REPOSITORY_MISSING') : error
+  })
+  if (String(repository.id) !== row.externalId) throw new Error('FACTORY_REPOSITORY_IDENTITY_CHANGED')
+  return repository
 }
 
 export const provisionFactoryProject = async ({ github, records, executorPool, orgId, projectId, name, headAttempts = 10, headDelayMs = 1_000 }: Readonly<{
@@ -111,14 +165,15 @@ export const provisionFactoryProject = async ({ github, records, executorPool, o
   const installationExternalId = Number(installation.externalId)
   const owner = installation.accountName
 
-  const created = await github.createOrganizationRepository(installationExternalId, owner, name)
-  const repository: GithubRepository = created ?? await github.readRepository(installationExternalId, `${owner}/${name}`)
+  // A bound Project reaches its Factory project and repository by the ids it was bound with. The
+  // name only finds what an earlier attempt created before it failed to bind.
+  const bound = (await executorPool.query<{ binding: Readonly<{ factoryProjectId: string; repositoryId: string }> | null }>(
+    'SELECT builder.read_factory_binding_for_project($1) AS binding', [projectId])).rows[0]?.binding ?? null
+  const repository = bound
+    ? await boundRepository({ github, records, orgId, installation, repositoryId: bound.repositoryId })
+    : await github.createOrganizationRepository(installationExternalId, owner, name) ?? await github.readRepository(installationExternalId, `${owner}/${name}`)
   if (!repository.private) throw new Error('FACTORY_REPOSITORY_PUBLIC_REFUSED')
 
-  // A bound Project reaches its Factory project by the id it was bound with. The name only finds
-  // the one an earlier attempt created before it failed to bind.
-  const bound = (await executorPool.query<{ binding: Readonly<{ factoryProjectId: string }> | null }>(
-    'SELECT builder.read_factory_binding_for_project($1) AS binding', [projectId])).rows[0]?.binding ?? null
   const ownName = factoryProjectName(projectId)
   const existingProject = bound
     ? await records.projects.get({ orgId, id: bound.factoryProjectId })
