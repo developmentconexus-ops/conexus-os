@@ -137,12 +137,11 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const service = createBuilderService({
     store,
     source: {
-      prepareProjectSource: () => { throw new Error('a Factory run never exports a source bundle') },
+      readSourceFiles: () => { throw new Error('a Factory run never reads local source in bulk') },
       // The Hub's local repository never saw a Factory commit.
       listSourceTree: async () => { localReads.push('tree'); throw new Error('BUILDER_SOURCE_READ_REVISION_NOT_FOUND') },
       readSourceFile: async () => { localReads.push('file'); throw new Error('BUILDER_SOURCE_READ_REVISION_NOT_FOUND') },
     },
-    runtime: { kind: 'REMOTE_E2B', execute: async () => { throw new Error('a Factory run never reaches the legacy runtime') } },
     applicationArtifacts: {},
     factory: {
       runtime,
@@ -509,6 +508,13 @@ test('an unbound Project still reads the local repository', async (t) => {
   await run.service.close()
   assert.deepEqual(run.localReads, ['tree', 'file'])
   assert.deepEqual(run.github.state.requests, [])
+})
+
+test('an unbound Project is refused a run before a sandbox is opened', async (t) => {
+  const run = await harness(t, { bound: false })
+  await assert.rejects(run.start(), /^Error: BUILDER_FACTORY_PROJECT_UNBOUND$/)
+  await run.service.close()
+  assert.deepEqual([run.calls, run.events], [[], []])
 })
 
 test('the Factory agent is told to run the application check, and not that the compiler runs elsewhere', () => {

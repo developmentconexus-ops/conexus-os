@@ -262,5 +262,7 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
   }
   if (config.builder && !config.project) throw new Error('BUILDER_PROJECT_RUNTIME_REQUIRED')
   if (config.factory && !config.builder) throw new Error('FACTORY_BUILDER_RUNTIME_REQUIRED')
+  // A Builder runs every Project through the Factory; there is no second agent runtime to fall back to.
+  if (config.builder && !config.factory) throw new Error('BUILDER_FACTORY_RUNTIME_REQUIRED')
   return config
 }

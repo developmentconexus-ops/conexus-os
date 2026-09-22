@@ -14,11 +14,6 @@ import { admitApplicationTree, isUserAuthoredMessage, messageText, sendBuilderSe
 import type { ApplicationBuildOutcome, CodingWorkerResult, SourceAdmittedResult } from './runtime.js'
 import type { BuilderRunningPhase, BuilderStore, FactoryBindingRecord } from './store.js'
 
-/** Where a run's source lives, decided once at claim from the Project's binding. */
-export type RunSource =
-  | Readonly<{ kind: 'CONEXUS' }>
-  | Readonly<{ kind: 'FACTORY'; binding: FactoryBindingRecord }>
-
 export type FactoryRunSandbox = Readonly<{
   readonly sandboxId: string | undefined
   start(): Promise<void>

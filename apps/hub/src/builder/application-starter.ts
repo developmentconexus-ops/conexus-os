@@ -1,5 +1,4 @@
 import { isAbsolute, join } from 'node:path'
-import { MC_TOOLS } from '@mastra/code-sdk/tool-names'
 import type { CommandResult, SandboxFileInput } from '@mastra/core/workspace'
 import { BUILD_COMMAND } from './application-artifact-runtime.js'
 
@@ -94,27 +93,6 @@ export const BUILDER_SHARED_AGENT_INSTRUCTIONS = Object.freeze([
   'Reply to the operator in português brasileiro unless explicitly asked otherwise.',
   'Keep progress brief and never reveal chain-of-thought.',
 ])
-
-export const BUILDER_BASE_AGENT_INSTRUCTIONS = [
-  ...BUILDER_SHARED_AGENT_INSTRUCTIONS,
-  'The trusted compiler runs separately; do not claim that unavailable application dependencies were tested in this coding image.',
-].join(' ')
-
-export const BUILDER_MODE_INSTRUCTIONS = Object.freeze({
-  BUILD: 'No modo BUILD, implemente o pedido do operador. Inspecione o app existente primeiro, depois faça as edições comuns necessárias em /workspace/repo/app. Continue até implementar o pedido ou encontrar um bloqueio real. Relate cada ação importante e seu resultado visível de forma breve.',
-  PLAN: 'No modo PLAN, use somente leitura para explicar o que seria alterado. Não mude arquivos, instale dependências, execute comandos de mutação nem diga que um Build ocorreu.',
-})
-
-export const BUILDER_MODE_DEFINITIONS = Object.freeze([
-  Object.freeze({
-    id: 'build', name: 'Build', instructions: BUILDER_MODE_INSTRUCTIONS.BUILD,
-    availableTools: Object.freeze([MC_TOOLS.VIEW, MC_TOOLS.WRITE_FILE, MC_TOOLS.STRING_REPLACE_LSP, MC_TOOLS.FIND_FILES, MC_TOOLS.DELETE_FILE, MC_TOOLS.FILE_STAT, MC_TOOLS.MKDIR, MC_TOOLS.SEARCH_CONTENT, MC_TOOLS.EXECUTE_COMMAND]),
-  }),
-  Object.freeze({
-    id: 'plan', name: 'Plan', instructions: BUILDER_MODE_INSTRUCTIONS.PLAN,
-    availableTools: Object.freeze([MC_TOOLS.VIEW, MC_TOOLS.FIND_FILES, MC_TOOLS.FILE_STAT, MC_TOOLS.SEARCH_CONTENT]),
-  }),
-] as const)
 
 const EVIDENCE_LIMIT = 400
 

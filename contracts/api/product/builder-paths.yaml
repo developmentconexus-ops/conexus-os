@@ -295,9 +295,6 @@ components:
             - type: 'null'
         preview: { $ref: '#/components/schemas/BuilderPreviewSummary' }
         mode: { type: string, enum: [BUILD, PLAN] }
-        # FACTORY when the Project's source is its GitHub repository, developed through the
-        # Mastra Factory; CONEXUS while it stays under Conexus's own Git custody.
-        sourceHost: { type: string, enum: [CONEXUS, FACTORY] }
         runHistory:
           type: array
           items: { $ref: '#/components/schemas/BuilderRunSummary' }

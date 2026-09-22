@@ -21,9 +21,6 @@ const {
   APPLICATION_CHECK_FILES,
   APPLICATION_CHECK_INSTRUCTION,
   materializeApplicationCheck,
-  BUILDER_BASE_AGENT_INSTRUCTIONS,
-  BUILDER_MODE_DEFINITIONS,
-  BUILDER_MODE_INSTRUCTIONS,
   FIXED_APPLICATION_STARTER_FILES,
   materializeFixedApplicationStarter,
 } = await import(pathToFileURL(resolve(buildRoot, 'builder/application-starter.js')).href)
@@ -72,19 +69,6 @@ test('materializes the fixed empty React starter into an app-less checkout', asy
     assert.match(readFileSync(join(root, 'app/src/main.tsx'), 'utf8'), /\.\/style\.css/)
     assert.doesNotMatch(readFileSync(join(root, 'app/src/main.tsx'), 'utf8'), /counter|business|seed/i)
     assert.match(readFileSync(join(root, 'app/src/style.css'), 'utf8'), /body \{[\s\S]*margin: 0;/)
-    assert.match(BUILDER_BASE_AGENT_INSTRUCTIONS, /Session Workspace/)
-    assert.match(BUILDER_BASE_AGENT_INSTRUCTIONS, /app\/\*\*/)
-    assert.match(BUILDER_BASE_AGENT_INSTRUCTIONS, /REACT_VITE_V1/)
-    assert.match(BUILDER_BASE_AGENT_INSTRUCTIONS, /portugu[eê]s brasileiro/i)
-    assert.match(BUILDER_BASE_AGENT_INSTRUCTIONS, /chain-of-thought/i)
-    assert.match(BUILDER_MODE_INSTRUCTIONS.BUILD, /implementar/i)
-    assert.match(BUILDER_MODE_INSTRUCTIONS.PLAN, /somente leitura/i)
-    assert.doesNotMatch(BUILDER_MODE_INSTRUCTIONS.PLAN, /editar|alterar/i)
-    // The modes name Mastra Code's own tools, because that is the composition the run acts through.
-    assert.deepEqual([...BUILDER_MODE_DEFINITIONS[0].availableTools],
-      ['view', 'write_file', 'string_replace_lsp', 'find_files', 'delete_file', 'file_stat', 'mkdir', 'search_content', 'execute_command'])
-    assert.deepEqual([...BUILDER_MODE_DEFINITIONS[1].availableTools], ['view', 'find_files', 'file_stat', 'search_content'])
-    assert.deepEqual(BUILDER_MODE_DEFINITIONS[1].availableTools.some((tool) => /write|replace|delete|mkdir|execute/.test(tool)), false)
 
     const beforeSecondRequest = new Map(FIXED_APPLICATION_STARTER_FILES.map((file) => [file.path, readFileSync(join(root, file.path), 'utf8')]))
     assert.equal(await materializeFixedApplicationStarter({

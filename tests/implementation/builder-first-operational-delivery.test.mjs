@@ -15,23 +15,11 @@ const compile = (entry) => {
   if (result.status !== 0) throw new Error(result.stdout || result.stderr)
 }
 compile('apps/hub/src/platform/config.ts')
-compile('apps/hub/src/builder/runtime.ts')
 compile('apps/hub/src/builder/module.ts')
 compile('apps/hub/src/project/routes.ts')
 const { registerProjectRoutes } = await import(pathToFileURL(resolve(buildRoot, 'routes.js')).href)
-const {
-  BUILDER_TRACE_REQUEST_CONTEXT_KEYS,
-  BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY,
-  createBuilderRequestContext,
-  createMastraE2BCodingWorkerRuntime,
-} = await import(pathToFileURL(resolve(buildRoot, 'runtime.js')).href)
 const { createBuilderObservabilityLifecycle } = await import(pathToFileURL(resolve(buildRoot, 'module.js')).href)
 const { requestHubShell, waitForHub } = await import(pathToFileURL(resolve(repositoryRoot, 'tests/implementation/builder-production-composed-live-runner.mjs')).href)
-
-const runtimeConfig = {
-  apiKey: 'e2b-api-key',
-  templateId: 'template:12345678-1234-4234-8234-123456789012',
-}
 
 test('Project composition registers exactly the three surviving Project routes', async () => {
   const routes = []
@@ -43,31 +31,6 @@ test('Project composition registers exactly the three surviving Project routes',
   assert.deepEqual(registered, ['PRJ-01', 'PRJ-02', 'PRJ-03'])
   assert.equal(routes.length, 3)
   assert.ok(routes.every((route) => !String(route.url).includes('baseline') && !String(route.url).includes('inception')))
-})
-
-test('coding runtime requires the Hub shared native composition', () => {
-  assert.throws(() => createMastraE2BCodingWorkerRuntime(runtimeConfig), /BUILDER_RUNTIME_SHARED_COMPOSITION_REQUIRED/)
-})
-
-test('Builder RequestContext carries Workspace, the admitted caller, and the two trace correlations', () => {
-  const workspace = { sentinel: 'workspace-instance' }
-  const context = createBuilderRequestContext({
-    workspace,
-    projectId: 'project-correlation',
-    accountId: 'account-correlation',
-    runId: 'run-correlation',
-  })
-  // No model and no credential ride here any more: both are Mastra Code's, and what Conexus supplies
-  // is the Account it already admitted for this Project.
-  assert.deepEqual([...context.keys()], [BUILDER_WORKSPACE_REQUEST_CONTEXT_KEY, 'conexusBuilderProjectId', 'conexusBuilderRunId', 'user'])
-  assert.equal(context.getRaw('conexusBuilderProjectId'), 'project-correlation')
-  assert.equal(context.getRaw('conexusBuilderRunId'), 'run-correlation')
-  assert.deepEqual(context.get('user'), { id: 'account-correlation', organizationId: 'project-correlation' })
-  assert.deepEqual(BUILDER_TRACE_REQUEST_CONTEXT_KEYS, ['conexusBuilderProjectId', 'conexusBuilderRunId'])
-  assert.deepEqual(Object.fromEntries(BUILDER_TRACE_REQUEST_CONTEXT_KEYS.map((key) => [key, context.getRaw(key)])), {
-    conexusBuilderProjectId: 'project-correlation',
-    conexusBuilderRunId: 'run-correlation',
-  })
 })
 
 test('Builder lifecycle lets Product timeout without closing storage under pending native work', async () => {

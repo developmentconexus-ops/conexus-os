@@ -1,6 +1,5 @@
 import type { BuilderSourceFile, BuilderSourcePort, BuilderSourceTree } from './source.js'
-import type { CodingWorkerResult, CodingWorkerRuntime, SourceAdmittedResult } from './runtime.js'
-import type { FactoryCodingWorkerRuntime, RunSource } from './factory-runtime.js'
+import type { FactoryCodingWorkerRuntime } from './factory-runtime.js'
 import type { FactorySourceReads } from './factory-source.js'
 import type { BuilderRunningPhase, BuilderRunSummary, BuilderStore, FactoryBindingRecord } from './store.js'
 import { prepareBuilderRunApplicationArtifact } from './application-build.js'
@@ -30,8 +29,8 @@ export type RunNote = Readonly<{
 
 type DiagnosticAppender = (note: RunNote) => Promise<void>
 
-// A Hub composing the Factory runs a bound Project's runs on the Factory runtime, and settles the
-// ones a restart caught mid-admission before every other running run is interrupted.
+// Every run is a Factory run on the Project's bound repository. The ones a restart caught
+// mid-admission are settled before every other running run is interrupted.
 export type FactoryRunDependencies = Readonly<{
   runtime: FactoryCodingWorkerRuntime
   readBindingForRun(builderRunId: string): Promise<FactoryBindingRecord | null>
@@ -39,7 +38,7 @@ export type FactoryRunDependencies = Readonly<{
   readSourceHead(binding: FactoryBindingRecord): Promise<string | null>
   // The Factory project repository a conversation was opened on, or null for no such conversation.
   readConversationRepository(conversationId: string): Promise<string | null>
-  appendDiagnostic?: DiagnosticAppender
+  appendDiagnostic: DiagnosticAppender
   // Settles the candidate runs no run in `active` owns and answers the ones it could not settle yet.
   recoverAdmissions(active: ReadonlySet<string>): Promise<readonly string[]>
   reconcileEveryMs?: number
@@ -50,15 +49,12 @@ export type FactoryRunDependencies = Readonly<{
 // Only these end a run with a recorded candidate knowing its source is not on main.
 const NOT_ADMITTED = new Set(['BUILDER_SOURCE_BASE_MOVED', 'BUILDER_SOURCE_ADMISSION_FAILED', 'BUILDER_RUN_CANCELLED'])
 
-export const createBuilderService = ({ store, source, runtime, applicationArtifacts, appendDiagnostic, factory }: Readonly<{
+export const createBuilderService = ({ store, source, applicationArtifacts, factory }: Readonly<{
   store: BuilderStore
   source: BuilderSourcePort
-  runtime: CodingWorkerRuntime
   applicationArtifacts: BuilderApplicationArtifacts
-  appendDiagnostic?: DiagnosticAppender
-  factory?: FactoryRunDependencies
+  factory: FactoryRunDependencies
 }>): BuilderService => {
-  if (runtime.kind !== 'REMOTE_E2B') throw new Error('BUILDER_LOCAL_RUNTIME_REFUSED')
   const builderActive = new Map<string, Readonly<{ controller: AbortController; work: Promise<void> }>>()
   const applicationShutdown = new AbortController()
   let serviceClosing: Promise<void> | null = null
@@ -66,11 +62,11 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
   let reconciling: Promise<void> = Promise.resolve()
   // Candidate runs left running are settled here, again and again until GitHub and the database answer.
   const reconcile = async (): Promise<void> => {
-    const unsettled = await factory?.recoverAdmissions(new Set(builderActive.keys())).then((ids) => ids.length > 0, () => true)
+    const unsettled = await factory.recoverAdmissions(new Set(builderActive.keys())).then((ids) => ids.length > 0, () => true)
     if (unsettled) reconcileSoon()
   }
   const reconcileSoon = (): void => {
-    if (!factory || reconcileTimer || serviceClosing) return
+    if (reconcileTimer || serviceClosing) return
     reconcileTimer = setTimeout(() => {
       reconcileTimer = null
       reconciling = reconciling.then(reconcile)
@@ -88,23 +84,24 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
     const setPhase = async (phase: BuilderRunningPhase): Promise<void> => {
       if (typeof store.setBuilderRunPhase === 'function') await store.setBuilderRunPhase(run.builderRunId, phase)
     }
-    // A Factory run whose agent ran has tool calls in its conversation thread until its source is
+    // A run whose agent ran has tool calls in its conversation thread until its source is
     // admitted; if it never is, the thread gets a note that those edits were discarded.
     let unadmittedAgentRun: BuilderRunSummary | null = null
     let candidateRecorded = false
     const work = (async () => {
       const claimed = await store.claimBuilderRun(run.builderRunId)
-      const binding = factory ? await factory.readBindingForRun(claimed.builderRunId) : null
-      const runSource: RunSource = binding ? { kind: 'FACTORY', binding } : { kind: 'CONEXUS' }
+      const binding = await factory.readBindingForRun(claimed.builderRunId)
+      if (!binding) throw new Error('BUILDER_FACTORY_PROJECT_UNBOUND')
       await setPhase('PREPARING')
-      const common = {
+      const result = await factory.runtime.execute({
         projectId: claimed.projectId, accountId: input.accountId, conversationId: claimed.conversationId,
         executionId: claimed.builderRunId, intent: input.content,
         mode: claimed.mode, baseSourceRevision: claimed.baseSourceRevision,
+        binding,
         signal: controller.signal,
         setPhase: async (phase: BuilderRunningPhase) => {
           await setPhase(phase)
-          if (phase === 'AGENT' && runSource.kind === 'FACTORY') unadmittedAgentRun = claimed
+          if (phase === 'AGENT') unadmittedAgentRun = claimed
         },
         bindPhysicalSandbox: (sandboxId: string) => store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId),
         bindMessage: (messageId: string) => store.bindBuilderRunMessage(claimed.builderRunId, messageId),
@@ -112,84 +109,51 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
           await store.recordBuilderRunCandidate(claimed.builderRunId, sourceRevision)
           candidateRecorded = true
         },
-      }
-      const execute = async (): Promise<CodingWorkerResult | SourceAdmittedResult> => {
-        if (runSource.kind === 'FACTORY') {
-          if (!factory) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
-          return factory.runtime.execute({ ...common, binding: runSource.binding })
-        }
-        const sourceBundle = source.prepareProjectSource({
-          projectId: claimed.projectId, executionId: claimed.builderRunId, sourceRevision: claimed.baseSourceRevision,
-        })
-        // The runtime awaits this once its sandbox exists. Node reports a rejection nobody is awaiting
-        // yet as unhandled, and this one is awaited later, so it is observed here too.
-        sourceBundle.catch(() => undefined)
-        return runtime.execute({ ...common, sourceBundle })
-      }
-      const result = await execute()
+      })
       if (result.kind === 'SOURCE_ADMITTED') unadmittedAgentRun = null
-      if (result.projectId !== claimed.projectId || !('executionId' in result) || result.executionId !== claimed.builderRunId || result.baseSourceRevision !== claimed.baseSourceRevision) throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
+      if (result.projectId !== claimed.projectId || result.executionId !== claimed.builderRunId || result.baseSourceRevision !== claimed.baseSourceRevision) throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
       if (result.kind === 'RESPONSE_ONLY') {
         if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
         await setPhase('FINALIZING')
         await store.settleBuilderRun({ builderRunId: claimed.builderRunId, resultSourceRevision: null, resultKind: 'RESPONSE_ONLY', failureCode: null })
         return
       }
-      // A source the runtime already admitted by compare-and-swap is on the default branch, so a
+      // The runtime admitted the source by compare-and-swap, so it is on the default branch and a
       // stop arriving now is too late: the run records it and settles admitted.
-      const admittedByRuntime = result.kind === 'SOURCE_ADMITTED'
-      const signal = admittedByRuntime ? undefined : controller.signal
-      const stopped = (): boolean => signal?.aborted === true
-      let admitted: Readonly<{ resultSourceRevision: string }>
-      if (result.kind === 'SOURCE_ADMITTED') {
-        admitted = { resultSourceRevision: result.resultSourceRevision }
-      } else {
-        await setPhase('SOURCE_ADMISSION')
-        if (stopped()) throw new Error('BUILDER_RUN_CANCELLED')
-        admitted = await source.admitSourceResult({
-          projectId: claimed.projectId, executionId: claimed.builderRunId,
-          baseSourceRevision: claimed.baseSourceRevision, claimedResultSourceRevision: result.claimedResultSourceRevision,
-          resultBundle: result.resultBundle,
-        })
-        if (stopped()) throw new Error('BUILDER_RUN_CANCELLED')
-      }
-      await store.advanceBuilderRunSource(claimed.builderRunId, admitted.resultSourceRevision)
+      const admitted = result.resultSourceRevision
+      await store.advanceBuilderRunSource(claimed.builderRunId, admitted)
       if (claimed.mode === 'PLAN') throw new Error('BUILDER_PLAN_SOURCE_RESULT_REFUSED')
-      const diagnose = runSource.kind === 'FACTORY' ? factory?.appendDiagnostic : appendDiagnostic
       // The database refuses a phase once a stop is requested; an admitted run still settles.
-      const finalizing = (): Promise<void> => admittedByRuntime ? setPhase('FINALIZING').catch(() => undefined) : setPhase('FINALIZING')
-      // The agent's sandbox already compiled (and smoked) the artifact, and reported COMPILING while
-      // it did. A build or smoke failure there still admitted the source above, so it settles the
-      // same way a post-admission build failure always has, leaving the last-good Preview in place.
+      const finalizing = (): Promise<void> => setPhase('FINALIZING').catch(() => undefined)
+      const buildFailed = (code: string): Promise<void> => factory.appendDiagnostic({
+        projectId: claimed.projectId, conversationId: claimed.conversationId, builderRunId: claimed.builderRunId, code, outcome: 'BUILD_FAILED', sourceRevision: admitted,
+      }).catch(() => undefined)
+      // The agent's sandbox already compiled (and smoked) the artifact. A build or smoke failure
+      // there still admitted the source, so it settles as a build failure and the last good
+      // Preview stays in place.
       if (result.applicationBuild.kind === 'BUILD_FAILED') {
         const code = result.applicationBuild.code
         await finalizing()
-        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.resultSourceRevision, failureCode: code })
-        if (diagnose) {
-          await diagnose({ projectId: claimed.projectId, conversationId: claimed.conversationId, builderRunId: claimed.builderRunId, code, outcome: 'BUILD_FAILED', sourceRevision: admitted.resultSourceRevision }).catch(() => undefined)
-        }
+        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted, failureCode: code })
+        await buildFailed(code)
         return
       }
       try {
         const artifact = await prepareBuilderRunApplicationArtifact({ applicationArtifacts }, {
           accountId: input.accountId, projectId: claimed.projectId, builderRunId: claimed.builderRunId,
-          sourceRevision: admitted.resultSourceRevision,
+          sourceRevision: admitted,
           compiledApplication: result.applicationBuild.compiledApplication,
-          ...(signal ? { signal } : {}),
         })
-        if (stopped()) throw new Error('BUILDER_RUN_CANCELLED')
         await finalizing()
-        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.resultSourceRevision,
+        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted,
           artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest })
       } catch (error) {
         const code = failureCode(error)
         if (code === 'BUILDER_RUN_CANCELLED' || code === 'APPLICATION_COMPILER_CANCELLED') throw error
         await finalizing()
-        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted.resultSourceRevision,
+        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted,
           failureCode: code }).catch(() => undefined)
-        if (diagnose) {
-          await diagnose({ projectId: claimed.projectId, conversationId: claimed.conversationId, builderRunId: claimed.builderRunId, code, outcome: 'BUILD_FAILED', sourceRevision: admitted.resultSourceRevision }).catch(() => undefined)
-        }
+        await buildFailed(code)
         throw error
       }
     })().catch(async (error) => {
@@ -200,7 +164,7 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
         return
       }
       const discarded: BuilderRunSummary | null = unadmittedAgentRun
-      if (discarded && factory?.appendDiagnostic) {
+      if (discarded) {
         await factory.appendDiagnostic({
           projectId: discarded.projectId, conversationId: discarded.conversationId, builderRunId: discarded.builderRunId, code,
           outcome: code === 'BUILDER_SOURCE_BASE_MOVED' ? 'SOURCE_BASE_MOVED' : 'RUN_NOT_FINISHED', sourceRevision: discarded.baseSourceRevision,
@@ -240,13 +204,14 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
   }
   return Object.freeze({
     createBuilderRun: async (input) => {
-      const binding = factory ? await store.readFactoryBinding({ accountId: input.accountId, projectId: input.projectId }) : null
+      const binding = await store.readFactoryBinding({ accountId: input.accountId, projectId: input.projectId })
+      if (!binding) throw new Error('BUILDER_FACTORY_PROJECT_UNBOUND')
       // The Factory opens a conversation for any member of the organization; Project authority is ours.
-      if (binding && await factory?.readConversationRepository(input.conversationId) !== binding.projectRepositoryId) {
+      if (await factory.readConversationRepository(input.conversationId) !== binding.projectRepositoryId) {
         throw new Error('BUILDER_CONVERSATION_INPUT_REFUSED')
       }
-      const sourceHead = binding && factory ? await factory.readSourceHead(binding) : null
-      if (binding && !sourceHead) throw new Error('BUILDER_SOURCE_HEAD_UNAVAILABLE')
+      const sourceHead = await factory.readSourceHead(binding)
+      if (!sourceHead) throw new Error('BUILDER_SOURCE_HEAD_UNAVAILABLE')
       const run = await store.createBuilderRun({ ...input, sourceHead })
       if (run.state === 'QUEUED') dispatchBuilderRun(run, input)
       return run
@@ -258,14 +223,14 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
     },
     listSourceTree: async (input) => {
       if (!await store.admitSourceRevision(input)) throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND')
-      const binding = factory ? await store.readFactoryBinding(input) : null
-      if (binding && factory) return factory.source.listSourceTree(binding, input.sourceRevision)
+      const binding = await store.readFactoryBinding(input)
+      if (binding) return factory.source.listSourceTree(binding, input.sourceRevision)
       return source.listSourceTree({ projectId: input.projectId, sourceRevision: input.sourceRevision })
     },
     getSourceFile: async (input) => {
       if (!await store.admitSourceRevision(input)) throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND')
-      const binding = factory ? await store.readFactoryBinding(input) : null
-      if (binding && factory) return factory.source.readSourceFile(binding, input.sourceRevision, input.path)
+      const binding = await store.readFactoryBinding(input)
+      if (binding) return factory.source.readSourceFile(binding, input.sourceRevision, input.path)
       return source.readSourceFile({
         projectId: input.projectId, sourceRevision: input.sourceRevision, path: input.path,
       })
@@ -273,7 +238,7 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
     getApplicationBySource,
     readApplicationFileBySource,
     recover: async () => {
-      if ((await factory?.recoverAdmissions(new Set()))?.length) reconcileSoon()
+      if ((await factory.recoverAdmissions(new Set())).length) reconcileSoon()
       await store.recoverAndListQueuedBuilderRuns()
     },
     close,

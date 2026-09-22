@@ -118,14 +118,14 @@ const launchPreview = mar ? async (request: import('fastify').FastifyRequest, in
     throw error
   }
 } : undefined
-builder = config.builder && config.project ? createConfiguredBuilderModule({
+builder = config.builder && config.project && config.factory ? createConfiguredBuilderModule({
   database: {
     host: config.database.host,
     port: config.database.port,
     database: config.database.database,
   },
   builder: config.builder,
-  ...(config.factory ? { factory: config.factory } : {}),
+  factory: config.factory,
   applicationArtifacts: createApplicationArtifactStore(),
   ...(launchPreview ? { launchPreview } : {}),
   projectSource: {

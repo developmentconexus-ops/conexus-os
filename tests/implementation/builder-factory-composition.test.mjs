@@ -1,15 +1,12 @@
 import assert from 'node:assert/strict'
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
-import { prepareAgentControllerMount } from '@mastra/code-sdk'
-import { LibSQLStore } from '@mastra/libsql'
-import { Memory } from '@mastra/memory'
 import { createEmptyDatabase, testPool } from './hub-database.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -24,7 +21,6 @@ if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdou
 const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
 const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, createFactoryStorage, createFactorySecretKeyEncryption, SANDBOX_CREDENTIAL } = await import(built('builder/factory.js'))
 const { ModelCredentialsStorage } = await import('@mastra/factory/storage/domains/credentials/base')
-const { createBuilderMountOptions } = await import(built('builder/module.js'))
 const { createMastraFactoryRunPorts } = await import(built('builder/factory-runtime.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
 
@@ -187,8 +183,14 @@ test('every start seeds root\'s mirror with a read token in root\'s environment 
 })
 
 
-test('with no Factory variable the Hub boots as it did before', () => {
-  assert.equal(readHubConfig(baseEnvironment).factory, undefined)
+const { CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: _ingress, CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: _executor, CONEXUS_BUILDER_E2B_API_KEY_FILE: _e2bKey, CONEXUS_BUILDER_E2B_TEMPLATE_ID: _e2bTemplate, ...environmentWithoutBuilder } = baseEnvironment
+
+test('with no Builder and no Factory variable the Hub boots as it did before', () => {
+  assert.equal(readHubConfig(environmentWithoutBuilder).factory, undefined)
+})
+
+test('a Builder without Factory variables is refused: there is no second agent runtime to fall back to', () => {
+  assert.throws(() => readHubConfig(baseEnvironment), /^Error: BUILDER_FACTORY_RUNTIME_REQUIRED$/)
 })
 
 test('a complete Factory configuration is read, and a partial one names the missing variable', () => {
@@ -220,7 +222,7 @@ test('a Hub composing the Factory refuses Mastra Platform credentials', () => {
     () => readHubConfig({ ...baseEnvironment, ...factoryEnvironment, MASTRA_PLATFORM_ACCESS_TOKEN: 'token' }),
     /^Error: FACTORY_REFUSES_CONFIG_MASTRA_PLATFORM_ACCESS_TOKEN$/,
   )
-  assert.equal(readHubConfig({ ...baseEnvironment, MASTRA_PLATFORM_ACCESS_TOKEN: 'token' }).factory, undefined)
+  assert.equal(readHubConfig({ ...environmentWithoutBuilder, MASTRA_PLATFORM_ACCESS_TOKEN: 'token' }).factory, undefined)
 })
 
 test('the Factory refuses to boot where Mastra Code would load .mastracode or .env', (t) => {
@@ -246,7 +248,7 @@ test('the Factory pool connects as hub_factory with its search_path pinned to fa
   await pool.end()
 })
 
-test('prepare() registers the controller as code, lands every table in factory, and leaves the legacy model list alone', async (t) => {
+test('prepare() registers the controller as code and lands every table in factory', async (t) => {
   const { admin, connection, onCleanup } = await createEmptyDatabase(t, 'conexus_factory_composition')
   const role = `factory_probe_${randomUUID().replaceAll('-', '').slice(0, 12)}`
   const password = randomUUID()
@@ -262,16 +264,6 @@ test('prepare() registers the controller as code, lands every table in factory, 
     await dropper.query('DROP SCHEMA IF EXISTS factory CASCADE')
     await dropper.end()
   })
-
-  const legacyRoot = mkdtempSync(join(tmpdir(), 'conexus-factory-legacy-'))
-  t.after(() => rmSync(legacyRoot, { recursive: true, force: true }))
-  const legacyStorage = new LibSQLStore({ id: 'legacy-probe', url: `file:${join(legacyRoot, 'session.db')}` })
-  const legacy = await prepareAgentControllerMount(createBuilderMountOptions({
-    storage: legacyStorage, memory: new Memory({ storage: legacyStorage }), storageRoot: legacyRoot,
-  }))
-  await legacy.finalize()
-  onCleanup(async () => { await legacy.base.controller.destroy(); await legacyStorage.close() })
-  const legacyModelsBefore = await legacy.base.controller.listAvailableModels()
 
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
   const pool = testPool({ ...connection, user: role, password, options: '-c search_path=factory', max: 4 })
@@ -297,7 +289,6 @@ test('prepare() registers the controller as code, lands every table in factory, 
   assert.equal(composition.mastra.getAgentController('code'), composition.controller)
   // The run ports list the GitHub integration's tools and read the memory-settings domain prepare() registered.
   assert.equal(typeof createMastraFactoryRunPorts({ composition, orgId: 'conexus-installation', log: () => undefined }).openSession, 'function')
-  assert.deepEqual(await legacy.base.controller.listAvailableModels(), legacyModelsBefore)
 
   // Every Factory path that would hand the sandbox a repository token gets the one that opens nothing.
   const sourceControl = composition.github.sourceControlStorage

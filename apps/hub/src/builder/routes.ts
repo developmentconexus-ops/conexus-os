@@ -23,8 +23,6 @@ export type BuilderSessionSnapshot = Readonly<{
   lastPreviewArtifactRevisionId: string | null
   lastPreviewArtifactDigest: string | null
   runHistory: readonly BuilderRunSummary[]
-  // Where the Project's source lives: Conexus's own Git custody, or its repository through the Factory.
-  sourceHost: 'CONEXUS' | 'FACTORY'
 }>
 export type BuilderSessionPort = Readonly<{
   read(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderSessionSnapshot>
@@ -83,7 +81,6 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
         preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodSourceRevision: snapshot.lastPreviewSourceRevision, lastGoodArtifactRevisionId: snapshot.lastPreviewArtifactRevisionId, lastGoodArtifactDigest: snapshot.lastPreviewArtifactDigest },
         runHistory: snapshot.runHistory.map((historyRun) => projectBuilderRun(historyRun)),
         mode: run?.mode ?? 'BUILD',
-        sourceHost: snapshot.sourceHost,
       }
     } catch (error) {
       if (message(error).includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
