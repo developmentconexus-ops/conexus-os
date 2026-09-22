@@ -303,78 +303,78 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
   const tools = deniedTools(composition.github, orgId)
   const memorySettings = composition.storage.getDomain<MemorySettingsStorage>('memory-settings')
   return Object.freeze({
-  resolveRepository: async (binding: FactoryBindingRecord) => {
-    const sourceControl = composition.github.sourceControlStorage
-    const row = await sourceControl.repositories.get({ orgId, id: binding.repositoryId })
-    const installation = row ? await sourceControl.installations.get({ orgId, id: row.installationId }) : null
-    const repository = { installation: Number(installation?.externalId), externalId: Number(row?.externalId), slug: row?.slug ?? '', defaultBranch: row?.defaultBranch ?? '' }
-    if (![repository.installation, repository.externalId].every((id) => Number.isSafeInteger(id) && id > 0) ||
-      !SLUG.test(repository.slug) || !BRANCH.test(repository.defaultBranch)) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
-    return Object.freeze(repository)
-  },
-  log,
-  openSession: async ({ conversationId, builderRunId, projectId, accountId }) => {
-    const { controller } = composition
-    const requestContext = new RequestContext()
-    requestContext.set('user', { id: accountId, organizationId: orgId })
-    requestContext.setRaw('conexusBuilderProjectId', projectId)
-    requestContext.setRaw('conexusBuilderRunId', builderRunId)
-    const scope = `builder:${builderRunId}`
-    const session = await controller.createSession({ resourceId: conversationId, ownerId: conversationId, scope, threadId: conversationId, requestContext })
-    const close = async (): Promise<void> => {
-      const deleted = await controller.deleteSession({ resourceId: conversationId, scope })
-      if (!deleted || await controller.getSessionByResource(conversationId, scope)) throw new Error('BUILDER_SESSION_DELETE_FAILED')
-    }
-    const sandbox = session.getWorkspace()?.sandbox
-    if (!(sandbox instanceof ConexusFactoryE2BSandbox) || !sandbox.executeCommand) {
-      await close().catch(() => undefined)
-      throw new Error('BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED')
-    }
-    const execute = sandbox.executeCommand.bind(sandbox)
-    return Object.freeze({
-      sandbox: Object.freeze({
-        get sandboxId() { return sandbox.sandboxId },
-        start: async () => { await sandbox.start() },
-        executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) =>
-          execute(command, args, { ...options, cwd: options.cwd ?? FACTORY_WORKING_DIRECTORY, timeout: options.timeout ?? 120_000 }),
-        writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
-        runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
-        buildApplication: (appRoot: string, signal?: AbortSignal) => buildApplicationInSandbox(sandbox.e2b, { appRoot, ...(signal ? { signal } : {}) }),
-      }),
-      configure: async ({ mode, instructions }) => {
-        await session.state.set({ yolo: true, permissionRules: { categories: {}, tools }, pluginInstructions: [instructions] })
-        // The Factory seeded this session from the conversation owner's row; the organization's row,
-        // which `hub-factory memory` writes, decides the memory model of every run.
-        const memory = await memorySettings.get({ orgId, userId: FACTORY_OPERATOR_ID })
-        if (memory) await applyStoredMemorySettings(session, memory)
-        await session.mode.switch({ modeId: mode.toLowerCase() })
-      },
-      hasModelSelection: () => session.model.hasSelection(),
-      sendTurn: async (content, signal) => {
-        let endedAt = new Date()
-        let userMessageId: string | undefined
-        const detach = session.subscribe((event) => {
-          if (event.type === 'agent_end') endedAt = new Date()
-          if (event.type === 'message_end' && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
-        })
-        const abort = (): void => { session.abort() }
-        if (signal?.aborted) abort()
-        else signal?.addEventListener('abort', abort, { once: true })
-        try {
-          const reason = await sendBuilderSessionMessage(session, { content }, requestContext)
-          const messages = await session.thread.listActiveMessages() as readonly RecordedMessage[]
-          userMessageId ??= [...messages].reverse().find(isUserAuthoredMessage)?.id
-          const summary = messages.slice(messages.findIndex((message) => message.id === userMessageId) + 1)
-            .filter((message) => message.role === 'assistant').map((message) => messageText(message as Parameters<typeof messageText>[0])).filter(Boolean).join('\n')
-          return { reason: reason ?? 'unknown', endedAt, userMessageId, summary }
-        } finally {
-          detach()
-          signal?.removeEventListener('abort', abort)
-        }
-      },
-      close,
-    })
-  },
+    resolveRepository: async (binding: FactoryBindingRecord) => {
+      const sourceControl = composition.github.sourceControlStorage
+      const row = await sourceControl.repositories.get({ orgId, id: binding.repositoryId })
+      const installation = row ? await sourceControl.installations.get({ orgId, id: row.installationId }) : null
+      const repository = { installation: Number(installation?.externalId), externalId: Number(row?.externalId), slug: row?.slug ?? '', defaultBranch: row?.defaultBranch ?? '' }
+      if (![repository.installation, repository.externalId].every((id) => Number.isSafeInteger(id) && id > 0) ||
+        !SLUG.test(repository.slug) || !BRANCH.test(repository.defaultBranch)) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
+      return Object.freeze(repository)
+    },
+    log,
+    openSession: async ({ conversationId, builderRunId, projectId, accountId }) => {
+      const { controller } = composition
+      const requestContext = new RequestContext()
+      requestContext.set('user', { id: accountId, organizationId: orgId })
+      requestContext.setRaw('conexusBuilderProjectId', projectId)
+      requestContext.setRaw('conexusBuilderRunId', builderRunId)
+      const scope = `builder:${builderRunId}`
+      const session = await controller.createSession({ resourceId: conversationId, ownerId: conversationId, scope, threadId: conversationId, requestContext })
+      const close = async (): Promise<void> => {
+        const deleted = await controller.deleteSession({ resourceId: conversationId, scope })
+        if (!deleted || await controller.getSessionByResource(conversationId, scope)) throw new Error('BUILDER_SESSION_DELETE_FAILED')
+      }
+      const sandbox = session.getWorkspace()?.sandbox
+      if (!(sandbox instanceof ConexusFactoryE2BSandbox) || !sandbox.executeCommand) {
+        await close().catch(() => undefined)
+        throw new Error('BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED')
+      }
+      const execute = sandbox.executeCommand.bind(sandbox)
+      return Object.freeze({
+        sandbox: Object.freeze({
+          get sandboxId() { return sandbox.sandboxId },
+          start: async () => { await sandbox.start() },
+          executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) =>
+            execute(command, args, { ...options, cwd: options.cwd ?? FACTORY_WORKING_DIRECTORY, timeout: options.timeout ?? 120_000 }),
+          writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
+          runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
+          buildApplication: (appRoot: string, signal?: AbortSignal) => buildApplicationInSandbox(sandbox.e2b, { appRoot, ...(signal ? { signal } : {}) }),
+        }),
+        configure: async ({ mode, instructions }) => {
+          await session.state.set({ yolo: true, permissionRules: { categories: {}, tools }, pluginInstructions: [instructions] })
+          // The Factory seeded this session from the conversation owner's row; the organization's row,
+          // which `hub-factory memory` writes, decides the memory model of every run.
+          const memory = await memorySettings.get({ orgId, userId: FACTORY_OPERATOR_ID })
+          if (memory) await applyStoredMemorySettings(session, memory)
+          await session.mode.switch({ modeId: mode.toLowerCase() })
+        },
+        hasModelSelection: () => session.model.hasSelection(),
+        sendTurn: async (content, signal) => {
+          let endedAt = new Date()
+          let userMessageId: string | undefined
+          const detach = session.subscribe((event) => {
+            if (event.type === 'agent_end') endedAt = new Date()
+            if (event.type === 'message_end' && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
+          })
+          const abort = (): void => { session.abort() }
+          if (signal?.aborted) abort()
+          else signal?.addEventListener('abort', abort, { once: true })
+          try {
+            const reason = await sendBuilderSessionMessage(session, { content }, requestContext)
+            const messages = await session.thread.listActiveMessages() as readonly RecordedMessage[]
+            userMessageId ??= [...messages].reverse().find(isUserAuthoredMessage)?.id
+            const summary = messages.slice(messages.findIndex((message) => message.id === userMessageId) + 1)
+              .filter((message) => message.role === 'assistant').map((message) => messageText(message as Parameters<typeof messageText>[0])).filter(Boolean).join('\n')
+            return { reason: reason ?? 'unknown', endedAt, userMessageId, summary }
+          } finally {
+            detach()
+            signal?.removeEventListener('abort', abort)
+          }
+        },
+        close,
+      })
+    },
   })
 }
 

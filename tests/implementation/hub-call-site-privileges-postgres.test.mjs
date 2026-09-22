@@ -74,6 +74,7 @@ const ROLE_BY_CALL_SITE = Object.freeze({
   }),
   'builder/factory-provisioning.ts': Object.freeze({
     'builder.bind_factory_project': 'hub_builder_executor',
+    'builder.read_factory_binding_for_project': 'hub_builder_executor',
   }),
   'identity-access/membership.ts': Object.freeze({
     'iam.invite_workspace_member': 'hub_iam_runtime',
