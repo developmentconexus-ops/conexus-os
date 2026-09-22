@@ -19,6 +19,7 @@ const bundle = (relativeSourcePath) => {
 }
 
 const { sendBuilderSessionMessage } = await bundle('apps/hub/src/builder/runtime.ts')
+const { ProviderAuthRequiredError } = await import('@mastra/code-sdk/auth/provider-auth-error')
 
 test('sendBuilderSessionMessage classifies a 401/403 agent error as an auth failure without leaking the provider message', async () => {
   let listener
@@ -35,6 +36,32 @@ test('sendBuilderSessionMessage classifies a 401/403 agent error as an auth fail
     assert.equal(error.message, 'BUILDER_MODEL_AUTH_FAILED')
     return true
   })
+})
+
+test('Mastra Code\'s provider-auth error is an auth failure, whether the run reports it or sendMessage throws it', async () => {
+  let listener
+  const reported = {
+    subscribe: (callback) => { listener = callback; return () => {} },
+    sendMessage: async () => {
+      listener({ type: 'error', error: new ProviderAuthRequiredError('Kimi For Coding credentials are invalid, token kimi-secret') })
+      listener({ type: 'agent_end', reason: 'error' })
+    },
+  }
+  const thrown = {
+    subscribe: () => () => {},
+    sendMessage: async () => { throw new ProviderAuthRequiredError('Not logged in to Kimi For Coding.') },
+  }
+  for (const session of [reported, thrown]) {
+    await assert.rejects(() => sendBuilderSessionMessage(session, { content: 'hi' }), { message: 'BUILDER_MODEL_AUTH_FAILED' })
+  }
+})
+
+test('Mastra Code\'s missing-credential message is an auth failure', async () => {
+  const session = {
+    subscribe: () => () => {},
+    sendMessage: async () => { throw new Error('No usable anthropic credential is configured for this signed-in Factory account. Connect the provider or add an organization credential, then try again.') },
+  }
+  await assert.rejects(() => sendBuilderSessionMessage(session, { content: 'hi' }), { message: 'BUILDER_MODEL_AUTH_FAILED' })
 })
 
 test('sendBuilderSessionMessage preserves a generic agent error as a safe named code, not the raw provider message', async () => {
