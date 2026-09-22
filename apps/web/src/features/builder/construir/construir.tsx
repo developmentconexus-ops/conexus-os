@@ -6,12 +6,11 @@ import { MessageScrollerItem } from '@mastra/playground-ui/components/MessageScr
 import { PanelGroup } from '@mastra/playground-ui/resize/panel-group'
 import { PanelSeparator } from '@mastra/playground-ui/resize/separator'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppWindow, Code2, Eye, FileDiff, Info, MessageSquare, SquarePen } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { AppWindow, MessageSquare, SquarePen } from 'lucide-react'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Panel, useDefaultLayout } from 'react-resizable-panels'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
-import { BuilderRequestError, type BuilderRun, cancelBuilderRun, getBuilderSession, sendBuilderMessage } from '../api'
+import { BuilderRequestError, type BuilderRun, cancelBuilderRun, compareProjectSource, getBuilderSession, sendBuilderMessage } from '../api'
 import { BuilderConversation, type PersistedRequest } from '../components/builder-conversation'
 import { BuilderComposer, type ComposerMode } from '../composer/composer'
 import { failureReason } from '../failure-reasons'
@@ -33,11 +32,11 @@ import { WorkingState } from './working-state'
 export const lenses = ['preview', 'code', 'diff', 'details'] as const
 export type Lens = typeof lenses[number]
 
-const lensTabs: readonly Readonly<{ lens: Lens; label: string; icon: ReactNode }>[] = [
-  { lens: 'preview', label: 'Prévia', icon: <Eye size={15} aria-hidden="true" /> },
-  { lens: 'code', label: 'Código', icon: <Code2 size={15} aria-hidden="true" /> },
-  { lens: 'diff', label: 'Alterações', icon: <FileDiff size={15} aria-hidden="true" /> },
-  { lens: 'details', label: 'Detalhes', icon: <Info size={15} aria-hidden="true" /> },
+const lensTabs: readonly Readonly<{ lens: Lens; label: string }>[] = [
+  { lens: 'preview', label: 'Prévia' },
+  { lens: 'code', label: 'Código' },
+  { lens: 'diff', label: 'Alterações' },
+  { lens: 'details', label: 'Sobre' },
 ]
 
 const conversationTitle = (conversation: Conversation): string => conversation.title?.trim() || 'Conversa sem título'
@@ -126,6 +125,14 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const runs = [...runsById.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
   const selectedRun = (selectedRunId && runsById.get(selectedRunId)) || run
   const diffRun = selectedRunId ? runsById.get(selectedRunId) ?? null : runs.find((entry) => entry.resultSourceRevision) ?? null
+  const diffBasis = changeBasisOf(diffRun)
+  // Same query key as the Diff lens's own comparison fetch, so the tab's count and the lens itself
+  // share one cache entry instead of asking the Hub twice.
+  const diffCount = useQuery({
+    queryKey: ['builder-source-compare', projectId, diffBasis?.baseSourceRevision, diffBasis?.resultSourceRevision],
+    queryFn: () => compareProjectSource(projectId, diffBasis?.baseSourceRevision ?? '', diffBasis?.resultSourceRevision ?? ''),
+    enabled: Boolean(diffBasis),
+  })
 
   const history = useBuilderThreadMessages(projectId, conversationId)
   const turn = useBuilderLiveTurn(projectId, run ?? undefined, isActive(run) && run.phase === 'AGENT')
@@ -232,7 +239,10 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
             onLensChange(next.lens)
             document.getElementById(`cx-lens-${next.lens}`)?.focus()
           }}
-        >{tab.icon}<span>{tab.label}</span></button>)}
+        >
+          <span>{tab.label}</span>
+          {tab.lens === 'diff' && diffCount.data && <span className="cx-lens-count">{diffCount.data.files.length}</span>}
+        </button>)}
       </div>
     </div>
     <div className="cx-lens-panel" id="cx-lens-panel" role="tabpanel" aria-labelledby={`cx-lens-${lens}`}>
@@ -242,8 +252,8 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           <LensPreview preview={preview} view={view} history={runs} lastGoodSourceRevision={preview_?.lastGoodSourceRevision ?? null} sourceAhead={sourceAhead} />
         </div>
         {lens === 'code' && <LensCode projectId={projectId} sourceRevision={preview_?.workingSourceRevision ?? null} />}
-        {lens === 'diff' && <LensDiff projectId={projectId} basis={changeBasisOf(diffRun)} runLabel={diffRun ? `Pedido das ${clockLabel(diffRun.createdAt)}: ${diffRun.requestText ?? 'sem texto'}` : null} />}
-        {lens === 'details' && <LensDetails projectId={projectId} runs={runs} selected={selectedRun} onSelect={setSelectedRunId} preview={{ workingSourceRevision: preview_?.workingSourceRevision ?? null, lastGoodSourceRevision: preview_?.lastGoodSourceRevision ?? null }} />}
+        {lens === 'diff' && <LensDiff projectId={projectId} basis={diffBasis} runLabel={diffRun ? `Pedido das ${clockLabel(diffRun.createdAt)}: ${diffRun.requestText ?? 'sem texto'}` : null} />}
+        {lens === 'details' && <LensDetails projectId={projectId} runs={runs} selected={selectedRun} onSelect={setSelectedRunId} preview={{ workingSourceRevision: preview_?.workingSourceRevision ?? null, lastGoodSourceRevision: preview_?.lastGoodSourceRevision ?? null }} onRetry={setDraft} />}
       </>}
     </div>
   </section>

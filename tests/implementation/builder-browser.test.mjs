@@ -234,8 +234,8 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   await page.getByRole('tab', { name: 'Código' }).click()
   await page.getByRole('treeitem', { name: 'index.html' }).waitFor()
   await codeContentIncludes(page, '<main>Counter v2</main>')
-  await page.getByRole('tab', { name: 'Detalhes' }).click()
-  await page.getByRole('heading', { name: 'Execução selecionada' }).waitFor()
+  await page.getByRole('tab', { name: 'Sobre' }).click()
+  await page.getByRole('heading', { name: 'Sobre este pedido' }).waitFor()
   await page.getByRole('tab', { name: 'Alterações' }).click()
   await page.getByText('Alterado', { exact: true }).waitFor()
 
@@ -439,10 +439,11 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   assert.equal(await page.getByRole('option').count(), 2, 'a model the controller has no key for is never offered')
   await page.keyboard.press('Escape')
 
-  await page.getByRole('tab', { name: 'Detalhes' }).click()
-  await page.locator('.cx-run-facts').getByText(latestRunId, { exact: true }).waitFor()
-  await page.locator('.cx-history button').nth(1).click()
-  await page.locator('.cx-run-facts').getByText(olderRunId, { exact: true }).waitFor()
+  await page.getByRole('tab', { name: 'Sobre' }).click()
+  await page.getByText('Detalhes técnicos', { exact: true }).click()
+  await page.locator('.cx-hash-table').getByTitle(latestRunId).waitFor()
+  await page.locator('.cx-run-entry').nth(1).click()
+  await page.locator('.cx-hash-table').getByTitle(olderRunId).waitFor()
   assert.equal(tracedRuns.at(-1), olderRunId, `the trace followed ${tracedRuns.at(-1)} instead of the selected run`)
 
   await page.getByRole('tab', { name: 'Alterações' }).click()
@@ -559,7 +560,7 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
   assert.equal(previewRequests, 4)
   assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/entry-b`)
   const reopenRequest = page.waitForRequest((request) => request.url().endsWith('/builder-session/preview') && request.method() === 'POST')
-  await page.getByRole('button', { name: 'Reabrir' }).click()
+  await page.getByRole('button', { name: 'Recarregar prévia' }).click()
   await reopenRequest
   assert.equal(previewRequests, 5)
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
@@ -665,7 +666,7 @@ test('an agent that spoke once and then works in silence still reads as working,
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
-const NEXT_SOURCE_UNCOMPILED = 'Próxima: código atual ainda sem prévia'
+const NEXT_SOURCE_UNCOMPILED = 'código sem prévia ainda'
 
 test('the Preview names the grant and the navigation, and never claims the application loaded', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000051'
@@ -702,7 +703,7 @@ test('the Preview names the grant and the navigation, and never claims the appli
   await page.getByText('Acesso autorizado. Abrindo a prévia…', { exact: true }).waitFor()
   assert.equal(await page.getByText('Prévia aberta. Se a área ficar vazia, o aplicativo não desenhou nada.', { exact: true }).count(), 0,
     'about:blank fires its own load, which must not count as the application navigating')
-  assert.equal((await page.locator('.cx-inuse').innerText()).includes(NEXT_SOURCE_UNCOMPILED), false, 'a Preview built from the current source is not behind it')
+  assert.equal((await page.locator('.cx-preview-toolbar').innerText()).includes(NEXT_SOURCE_UNCOMPILED), false, 'a Preview built from the current source is not behind it')
 
   releaseEntry()
   await page.getByText('Prévia aberta. Se a área ficar vazia, o aplicativo não desenhou nada.', { exact: true }).waitFor()
@@ -731,7 +732,7 @@ test('the Build screen says when the current source is ahead of the last good Pr
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }))
 
   await page.goto(`${origin}/projects/${projectId}/build`)
-  await page.locator('.cx-inuse').getByText(NEXT_SOURCE_UNCOMPILED, { exact: true }).waitFor()
+  await page.locator('.cx-preview-toolbar .cx-chip').getByText(NEXT_SOURCE_UNCOMPILED).waitFor()
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 

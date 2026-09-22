@@ -19,7 +19,7 @@ export function projectActivity(summary: ProjectCardSummary): ProjectActivity {
 
 const CHIPS: Record<ProjectActivity, Readonly<{ label: string; tone: string }>> = {
   BUILDING: { label: 'Construindo', tone: 'working' },
-  FAILED: { label: 'Falhou', tone: 'failed' },
+  FAILED: { label: 'Falhou: build do aplicativo', tone: 'failed' },
   LIVE: { label: 'Em uso', tone: 'live' },
   NEW: { label: 'Sem prévia ainda', tone: 'neutral' },
 }
@@ -29,12 +29,12 @@ const STEPS: readonly [Intl.RelativeTimeFormatUnit, number][] = [['minute', 60],
 
 export function lastChangeLabel(iso: string, now: number = Date.now()): string {
   let value = (new Date(iso).getTime() - now) / 60_000
-  if (Math.abs(value) < 1) return 'Última alteração agora'
+  if (Math.abs(value) < 1) return 'Alterado agora'
   for (const [unit, size] of STEPS) {
-    if (Math.abs(value) < size) return `Última alteração ${relative.format(Math.round(value), unit)}`
+    if (Math.abs(value) < size) return `Alterado ${relative.format(Math.round(value), unit)}`
     value /= size
   }
-  return 'Última alteração há muito tempo'
+  return 'Alterado há muito tempo'
 }
 
 // The Preview renders at this desktop width and is scaled to the card, whatever the card's size.

@@ -11,22 +11,18 @@
 /* Stage */
 .cx-stage { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--cx-canvas); }
 .cx-stagebar { display: flex; align-items: center; gap: .75rem; min-height: 3rem; padding: .5rem 1rem; border-bottom: 1px solid var(--cx-line); background: var(--cx-surface); }
-.cx-lenses { display: inline-flex; gap: 2px; padding: 3px; border-radius: 8px; background: var(--cx-surface-3); max-width: 100%; overflow-x: auto; }
-.cx-lens { display: inline-flex; align-items: center; gap: .4rem; padding: .45rem .7rem; border: 0; border-radius: 6px; background: transparent; color: var(--cx-text-2); font: 500 .8125rem/1 var(--cx-font-body); white-space: nowrap; cursor: pointer; transition: background-color .15s, color .15s; }
-.cx-lens:hover:not([aria-selected="true"]) { background: transparent; color: var(--cx-text); }
-.cx-lens[aria-selected="true"] { background: var(--cx-surface); color: var(--cx-text); box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
+/* Underline tabs: text only, the active one carries the accent rule beneath it. */
+.cx-lenses { display: inline-flex; gap: 1.5rem; max-width: 100%; overflow-x: auto; }
+.cx-lens { display: inline-flex; align-items: baseline; gap: .35rem; padding: .5rem 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--cx-text-2); font: 500 .875rem/1 var(--cx-font-body); white-space: nowrap; cursor: pointer; transition: color .15s, border-color .15s; }
+.cx-lens:hover:not([aria-selected="true"]) { color: var(--cx-text); }
+.cx-lens[aria-selected="true"] { color: var(--cx-text); border-bottom-color: var(--cx-accent); font-weight: 600; box-shadow: none; }
+.cx-lens-count { color: var(--cx-text-2); font-weight: 400; }
 .cx-lens-panel { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
 .cx-lens-layer { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .cx-lens-layer[hidden] { display: none; }
 
 /* Preview */
 .cx-preview { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .5rem; padding: 0 1rem 1rem; }
-.cx-inuse { display: flex; align-items: center; gap: .5rem; min-height: 2.5rem; color: var(--cx-text-2); font-size: .8125rem; }
-.cx-inuse p { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cx-inuse-sep { color: var(--cx-line-strong); }
-.cx-inuse-dot { flex: none; width: .5rem; height: .5rem; border-radius: 50%; background: var(--cx-success); }
-.cx-inuse-dot[data-state="building"] { background: var(--cx-accent); }
-.cx-inuse-action { margin-left: auto; flex: none; }
 .cx-frame { position: relative; flex: 1; min-height: 24rem; overflow: hidden; border: 1px solid var(--cx-line); border-radius: 10px; background: #FFFFFF; color-scheme: light; }
 .cx-frame iframe { display: block; width: 100%; height: 100%; min-height: 24rem; border: 0; background: #FFFFFF; }
 .cx-frame-veil { position: absolute; inset: 0; display: grid; place-items: center; background: var(--cx-surface); color: var(--cx-mark); }
@@ -67,7 +63,10 @@
 .cx-change-kind[data-status="REMOVED"] { color: var(--cx-danger); }
 
 /* Details */
-.cx-details { display: grid; gap: 1rem; padding: 1rem; align-content: start; }
+.cx-details { display: grid; gap: 1rem; padding: 1rem; align-content: start; align-items: start; }
+@media (min-width: 52rem) {
+  .cx-details { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
 .cx-details-card { display: grid; gap: .75rem; padding: 1rem; border: 1px solid var(--cx-line); border-radius: 10px; background: var(--cx-surface); }
 .cx-details-card h3 { margin: 0; font: 600 .9375rem/1.3 var(--cx-font-body); }
 .cx-run-facts { display: grid; gap: .5rem; margin: 0; }
@@ -167,8 +166,6 @@
   .cx-stagebar { padding-inline: .75rem; }
   .cx-lenses { width: 100%; }
   .cx-lens { flex: 1; justify-content: center; padding-inline: .4rem; }
-  .cx-lens svg { display: none; }
-  .cx-inuse p { white-space: normal; }
 }
 
 .cx-unavailable { display: grid; justify-items: center; gap: .75rem; max-width: 32rem; margin: 4rem auto; padding: 2rem 1.5rem; text-align: center; }

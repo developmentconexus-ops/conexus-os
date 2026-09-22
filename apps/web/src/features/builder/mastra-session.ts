@@ -71,6 +71,15 @@ export type ReasoningLevel = typeof reasoningLevels[number]
 const asReasoningLevel = (value: unknown): ReasoningLevel | null =>
   reasoningLevels.find((level) => level === value) ?? null
 
+// The model chosen before a Project exists has nowhere to live yet: the controller only persists a
+// choice on a conversation's own thread. Once the home prompt creates that first conversation, this
+// applies the choice to it, the same write useSessionModel's own mutations make.
+export const applyThreadModel = async (conversationId: string, modelId: string, reasoning: ReasoningLevel | null): Promise<void> => {
+  const session = factoryController.session(conversationId)
+  await session.switchModel(modelId, { scope: 'thread' })
+  if (reasoning) await session.setState({ thinkingLevel: reasoning })
+}
+
 export const useSessionModel = (projectId: string, conversationId: string | null) => {
   const queryClient = useQueryClient()
   // A session arrives with no model selected, and an empty id is how the controller says so. An
