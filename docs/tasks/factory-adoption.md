@@ -229,6 +229,11 @@ CLIProxyAPI v7.3.12. The Hub runs the binary; it never reads `~/cliproxy/config.
    Meus padrões. The sign-in also fills your memory model with
    `mastracode/google-ai-pro/gemini-3.5-flash-lite` when you have not chosen one.
 
+Without a browser, the operator can store an existing CLIProxyAPI login file instead. The command
+writes the same Factory row and memory seed as the sign-in, prints one line, and never prints the
+token:
+`node --env-file=<hub.env> scripts/hub-factory.mjs import-google-ai-pro-login --auth-file <path to antigravity-*.json> (--shared | --account-id <accountId>)`.
+
 Only one person can sign in at a time, because Google's redirect port is fixed; a sign-in expires
 after 5 minutes. A proxy stops after 10 minutes without calls and starts again on the next call.
 Disconnecting removes the Factory row, and the next call fails with the Factory's own missing

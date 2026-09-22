@@ -220,6 +220,63 @@ test('a person signs in to Google AI Pro from Settings, and their runs then carr
   assert.deepEqual(await catalog(), [], 'without a router the provider leaves the picker')
 })
 
+test('the operator imports a CLIProxyAPI Antigravity file as a person\'s or the shared Google AI Pro row, idempotently and without printing it', async (t) => {
+  const { writeFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { importGoogleAiProLogin } = await import(built('builder/factory-provisioning.js'))
+  const { decodeKey, parseKey } = await import(built('builder/google-ai-pro/credential.js'))
+  const composition = await composeOnPostgres(t)
+  const credentials = composition.storage.getDomain('model-credentials')
+  const memorySettings = composition.storage.getDomain('memory-settings')
+  const directory = mkdtempSync(resolve(tmpdir(), 'conexus-agy-import-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const record = { type: 'antigravity', email: 'person@example.com', refresh_token: 'refresh-secret-value', access_token: 'access-secret-value' }
+  const authFile = resolve(directory, 'antigravity-person@example.com.json')
+  writeFileSync(authFile, JSON.stringify(record))
+  const lines = []
+  const importAs = (accountId, file = authFile) => importGoogleAiProLogin({ credentials, memorySettings, orgId: ORG, accountId, authFile: file, write: (line) => lines.push(line) })
+
+  await importAs(alice)
+  await importAs(alice)
+  await importAs(null)
+  assert.deepEqual(lines, [
+    `GOOGLE_AI_PRO_LOGIN_IMPORTED=google-ai-pro:api_key:${alice}`,
+    `GOOGLE_AI_PRO_LOGIN_IMPORTED=google-ai-pro:api_key:${alice}`,
+    'GOOGLE_AI_PRO_LOGIN_IMPORTED=google-ai-pro:api_key:shared',
+  ])
+  for (const tenant of [{ orgId: ORG, userId: alice }, { orgId: ORG }]) {
+    const row = await credentials.getCredential(tenant, 'google-ai-pro')
+    assert.equal(row.type, 'api_key')
+    const stored = decodeKey(parseKey(row.key))
+    assert.equal(stored.fileName, 'antigravity-person@example.com.json')
+    assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), record)
+  }
+  const memory = await memorySettings.get({ orgId: ORG, userId: alice })
+  assert.deepEqual([memory.observerModelId, memory.reflectorModelId], ['mastracode/google-ai-pro/gemini-3.5-flash-lite', 'mastracode/google-ai-pro/gemini-3.5-flash-lite'])
+  await memorySettings.patch({ orgId: ORG, userId: bob, patch: { observerModelId: 'openai/gpt-5-mini' } })
+  await importAs(bob)
+  assert.equal((await memorySettings.get({ orgId: ORG, userId: bob })).observerModelId, 'openai/gpt-5-mini', 'a model the person chose is kept')
+  assert.equal(lines.some((line) => /secret-value|cxagy1/.test(line)), false)
+
+  const renamed = resolve(directory, 'credentials.json')
+  writeFileSync(renamed, JSON.stringify(record))
+  await assert.rejects(importAs(alice, renamed), { message: 'GOOGLE_AI_PRO_LOGIN_FILE_REFUSED' })
+  const codex = resolve(directory, 'antigravity-codex@example.com.json')
+  writeFileSync(codex, JSON.stringify({ type: 'codex' }))
+  await assert.rejects(importAs(alice, codex), { message: 'GOOGLE_AI_PRO_LOGIN_UNREADABLE' })
+  const garbled = resolve(directory, 'antigravity-garbled@example.com.json')
+  writeFileSync(garbled, 'not json')
+  await assert.rejects(importAs(alice, garbled), { message: 'GOOGLE_AI_PRO_LOGIN_UNREADABLE' })
+  await assert.rejects(importAs(alice, resolve(directory, 'antigravity-absent@example.com.json')), { message: 'GOOGLE_AI_PRO_LOGIN_UNREADABLE' })
+  await assert.rejects(importAs('not-an-account'), { message: 'GOOGLE_AI_PRO_LOGIN_ACCOUNT_REFUSED' })
+
+  for (const args of [['--shared'], ['--auth-file', authFile], ['--auth-file', authFile, '--shared', '--account-id', alice]]) {
+    const ran = spawnSync(process.execPath, [resolve(hubBuild, 'factory-cli.js'), 'import-google-ai-pro-login', ...args], { encoding: 'utf8', env: { PATH: process.env.PATH } })
+    assert.equal(ran.status, 1, `${args}: ${ran.stdout}${ran.stderr}${ran.error ?? ''}`)
+    assert.match(ran.stderr, /^usage: factory-cli /, `${args}: ${ran.stdout}${ran.stderr}${ran.error ?? ''}`)
+  }
+})
+
 const sourceOf = (listing, provider) => listing.body.providers.find((entry) => entry.provider === provider)?.source
 
 test('each person connects their own accounts, and only an installation administrator shares one with everyone', async (t) => {

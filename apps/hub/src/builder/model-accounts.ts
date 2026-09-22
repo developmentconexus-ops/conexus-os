@@ -11,7 +11,7 @@ import type { ModelPacksStorage } from '@mastra/factory/storage/domains/model-pa
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
-import { GOOGLE_AI_PRO_MEMORY_MODEL, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
+import { GOOGLE_AI_PRO_PROVIDER, seedGoogleAiProMemory } from './google-ai-pro/credential.js'
 import { createGoogleAiProLogin, GoogleAiProLoginError, type LoginProblem } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
 import type { BuilderAgentController } from './runtime.js'
@@ -226,13 +226,7 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
         const answer = await callFactory(putKey, caller, { params: { provider: GOOGLE_AI_PRO_PROVIDER }, query: {}, body: { key }, headers: {} })
         if (answer.status !== 200) throw new Error('GOOGLE_AI_PRO_CREDENTIAL_WRITE_FAILED')
       },
-      seedMemory: async ({ accountId }) => {
-        await memorySettings.ensureReady()
-        await memorySettings.patch({
-          orgId, userId: accountId, patch: {},
-          fillIfUnset: { observerModelId: GOOGLE_AI_PRO_MEMORY_MODEL, reflectorModelId: GOOGLE_AI_PRO_MEMORY_MODEL },
-        })
-      },
+      seedMemory: ({ accountId }) => seedGoogleAiProMemory(memorySettings, { orgId, userId: accountId }),
     })
     const loginProblem = (reply: FastifyReply, error: unknown) => {
       if (!(error instanceof GoogleAiProLoginError)) throw error

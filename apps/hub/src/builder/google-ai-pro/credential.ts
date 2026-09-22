@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 
 declare const brand: unique symbol
 
@@ -19,6 +20,15 @@ export const GOOGLE_AI_PRO_MODELS: readonly string[] = Object.freeze([
 // The Factory seeds a memory model only for providers it knows, and a custom provider is not one.
 // The catalog lists a custom provider under the Mastra Code gateway, and pickers store that id.
 export const GOOGLE_AI_PRO_MEMORY_MODEL = `mastracode/${GOOGLE_AI_PRO_PROVIDER}/gemini-3.5-flash-lite`
+
+// The Factory's own seed call (om-seed): it never overwrites a model the person already chose.
+export const seedGoogleAiProMemory = async (memorySettings: Pick<MemorySettingsStorage, 'ensureReady' | 'patch'>, tenant: Readonly<{ orgId: string; userId: string }>): Promise<void> => {
+  await memorySettings.ensureReady()
+  await memorySettings.patch({
+    ...tenant, patch: {},
+    fillIfUnset: { observerModelId: GOOGLE_AI_PRO_MEMORY_MODEL, reflectorModelId: GOOGLE_AI_PRO_MEMORY_MODEL },
+  })
+}
 
 const PREFIX = 'cxagy1.'
 const FILE_NAME = /^antigravity-[\w.@+-]{1,200}\.json$/
