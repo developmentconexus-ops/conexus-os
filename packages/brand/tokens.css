@@ -1,0 +1,124 @@
+/* Conexus brand tokens, palette "Grafite e Ipê". The web app and the sign-in theme both import
+   this file. Light by default, dark when the operating system asks for it, and data-theme on the
+   root element overrides either way. */
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 500 600;
+  font-display: swap;
+  src: url("./fonts/BricolageGrotesque-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./fonts/HankenGrotesk-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("./fonts/JetBrainsMono-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --cx-font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --cx-font-body: "Hanken Grotesk", system-ui, sans-serif;
+  --cx-font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --cx-ease-fit: cubic-bezier(.65, 0, .35, 1);
+  --cx-ease-arrive: cubic-bezier(.22, 1, .36, 1);
+}
+
+:root {
+  --cx-canvas: #F6F7F8;
+  --cx-surface: #FFFFFF;
+  --cx-surface-3: #EFF1F3;
+  --cx-surface-4: #E6E9EC;
+  --cx-line: #DDE1E5;
+  --cx-line-strong: #8A939C;
+  --cx-text: #121518;
+  --cx-text-2: #59616A;
+  --cx-ink: #121518;
+  --cx-on-ink: #FFFFFF;
+  --cx-accent: #B07A0C;
+  --cx-accent-text: #9A6A08;
+  --cx-accent-soft: #FBF1D9;
+  --cx-mark: #C08A12;
+  --cx-success: #1A7F4B;
+  --cx-warning: #B54708;
+  --cx-danger: #C0283D;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --cx-canvas: #0E1012;
+    --cx-surface: #16191C;
+    --cx-surface-3: #1D2125;
+    --cx-surface-4: #262B30;
+    --cx-line: #2C3237;
+    --cx-line-strong: #6E7780;
+    --cx-text: #EEF0F2;
+    --cx-text-2: #A3ABB3;
+    --cx-ink: #EEF0F2;
+    --cx-on-ink: #121518;
+    --cx-accent: #F2B53A;
+    --cx-accent-text: #F2B53A;
+    --cx-accent-soft: #3A2E12;
+    --cx-mark: #F2B53A;
+    --cx-success: #6FD39A;
+    --cx-warning: #F5A25B;
+    --cx-danger: #F28B9A;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --cx-canvas: #0E1012;
+  --cx-surface: #16191C;
+  --cx-surface-3: #1D2125;
+  --cx-surface-4: #262B30;
+  --cx-line: #2C3237;
+  --cx-line-strong: #6E7780;
+  --cx-text: #EEF0F2;
+  --cx-text-2: #A3ABB3;
+  --cx-ink: #EEF0F2;
+  --cx-on-ink: #121518;
+  --cx-accent: #F2B53A;
+  --cx-accent-text: #F2B53A;
+  --cx-accent-soft: #3A2E12;
+  --cx-mark: #F2B53A;
+  --cx-success: #6FD39A;
+  --cx-warning: #F5A25B;
+  --cx-danger: #F28B9A;
+  color-scheme: dark;
+}
+
+/* The mark "Encaixe": two equal L pieces. While the agent works they slide apart two units along
+   the diagonal and fit back; on first arrival they fit once. */
+.cx-mark { color: var(--cx-mark); flex: none; display: block; }
+.cx-mark path { transform-box: view-box; }
+.cx-mark--working .cx-mark-a { animation: cx-mark-a 1.2s var(--cx-ease-fit) infinite; }
+.cx-mark--working .cx-mark-b { animation: cx-mark-b 1.2s var(--cx-ease-fit) infinite; }
+.cx-mark--fit-once .cx-mark-a { animation: cx-fit-a .9s var(--cx-ease-arrive) .3s both; }
+.cx-mark--fit-once .cx-mark-b { animation: cx-fit-b .9s var(--cx-ease-arrive) .3s both; }
+@keyframes cx-mark-a { 50% { transform: translate(-2px, -2px); } }
+@keyframes cx-mark-b { 50% { transform: translate(2px, 2px); } }
+@keyframes cx-fit-a { from { transform: translate(-3px, -3px); } to { transform: none; } }
+@keyframes cx-fit-b { from { transform: translate(3px, 3px); } to { transform: none; } }
+
+.cx-wordmark { display: inline-flex; align-items: center; gap: .3em; font: 600 1em/1 var(--cx-font-display); letter-spacing: -0.03em; color: var(--cx-text); white-space: nowrap; }
+.cx-wordmark em { font-style: normal; color: var(--cx-mark); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cx-mark--working .cx-mark-a, .cx-mark--working .cx-mark-b,
+  .cx-mark--fit-once .cx-mark-a, .cx-mark--fit-once .cx-mark-b { animation: none; }
+}
