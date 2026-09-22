@@ -1,0 +1,371 @@
+{
+  "summary": {
+    "arm": "arm-b",
+    "cases": 24,
+    "passed": 24,
+    "failed": 0,
+    "measurements": {
+      "arm": "arm-b",
+      "initInfo": {
+        "coldStarts": {
+          "a": 61407,
+          "b": 182
+        }
+      },
+      "firstHandlerColdMs": {
+        "a": 106,
+        "b": 95
+      },
+      "warmSingleMs": 102,
+      "p50Ms": 91,
+      "p95Ms": 110,
+      "samples": 200,
+      "maxRuntimeConnDuringBurst": 0
+    }
+  },
+  "results": [
+    {
+      "case": "A_insert_legit",
+      "expected": "legit_insert",
+      "observed": "ok",
+      "detail": {
+        "id": "3",
+        "createdAt": "2026-09-22T22:30:18.252Z"
+      },
+      "pass": true
+    },
+    {
+      "case": "B_list_legit",
+      "expected": "legit_list",
+      "observed": "ok",
+      "detail": {
+        "notes": [
+          {
+            "id": "1",
+            "purchase_order_id": "PO-B",
+            "note": "secret-B-note",
+            "created_at": "2026-09-22T22:26:15.646Z"
+          },
+          {
+            "id": "2",
+            "purchase_order_id": "PO-B",
+            "note": "secret-B-note",
+            "created_at": "2026-09-22T22:28:48.873Z"
+          },
+          {
+            "id": "3",
+            "purchase_order_id": "PO-B",
+            "note": "secret-B-note",
+            "created_at": "2026-09-22T22:29:16.020Z"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "case": "A_list_legit",
+      "expected": "legit_list",
+      "observed": "ok",
+      "detail": {
+        "notes": [
+          {
+            "id": "1",
+            "purchase_order_id": "PO-1",
+            "note": "first note",
+            "created_at": "2026-09-22T22:26:15.692Z"
+          },
+          {
+            "id": "2",
+            "purchase_order_id": "PO-1",
+            "note": "first note",
+            "created_at": "2026-09-22T22:28:48.927Z"
+          },
+          {
+            "id": "3",
+            "purchase_order_id": "PO-1",
+            "note": "first note",
+            "created_at": "2026-09-22T22:30:18.252Z"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "case": "cross_project_sql",
+      "expected": "refuse",
+      "observed": "ok",
+      "detail": {
+        "BREACH": false,
+        "attempts": [
+          {
+            "sql": "select count(*) from p_b_preview.follow_up_note",
+            "ok": false,
+            "err": "42501"
+          },
+          {
+            "sql": "set search_path to p_b_preview",
+            "ok": true
+          },
+          {
+            "sql": "set role p_b_runtime",
+            "ok": false,
+            "err": "42501"
+          },
+          {
+            "sql": "set role p_b_migrator",
+            "ok": false,
+            "err": "42501"
+          }
+        ],
+        "readB": false
+      },
+      "pass": true
+    },
+    {
+      "case": "hub_db_read",
+      "expected": "refuse",
+      "observed": "ok",
+      "detail": {
+        "BREACH": false,
+        "via": [
+          {
+            "m": "dblink",
+            "ok": false,
+            "err": "42883"
+          }
+        ],
+        "freshConn": {
+          "ok": false,
+          "err": "42P01"
+        }
+      },
+      "pass": true
+    },
+    {
+      "case": "read_secrets",
+      "expected": "refuse",
+      "observed": "ok",
+      "detail": {
+        "BREACH": false,
+        "results": [
+          {
+            "path": "~/.config/conexus/secrets",
+            "exists": false,
+            "readable": false,
+            "bytes": null,
+            "err": "ENOENT"
+          },
+          {
+            "path": "~/.local/share/conexus/pilot/slice7/secrets",
+            "exists": false,
+            "readable": false,
+            "bytes": null,
+            "err": "ENOENT"
+          },
+          {
+            "path": "~/wt-u2/.audit/slice7/hub.env",
+            "exists": false,
+            "readable": false,
+            "bytes": null,
+            "err": "ENOENT"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "case": "read_env",
+      "expected": "refuse",
+      "observed": "ok",
+      "detail": {
+        "BREACH": false,
+        "found": []
+      },
+      "pass": true
+    },
+    {
+      "case": "read_proc",
+      "expected": "refuse",
+      "observed": "ok",
+      "detail": {
+        "BREACH": false,
+        "visiblePids": 2,
+        "sawForeignSecret": false
+      },
+      "pass": true
+    },
+    {
+      "case": "walk_fs",
+      "expected": "refuse",
+      "observed": "ok",
+      "detail": {
+        "BREACH": false,
+        "probes": {
+          "/nonexistent": "ENOENT",
+          "/home": 1,
+          "/root": "EACCES",
+          "/etc": 104,
+          "/": 21
+        }
+      },
+      "pass": true
+    },
+    {
+      "case": "network_egress",
+      "expected": "refuse",
+      "observed": "ok",
+      "detail": {
+        "BREACH": false,
+        "results": {
+          "exampleHttps": {
+            "ok": false,
+            "err": "EAI_AGAIN"
+          },
+          "localHub": {
+            "ok": false,
+            "err": "ECONNREFUSED"
+          },
+          "dockerSock": {
+            "ok": false,
+            "err": "ENOENT"
+          }
+        }
+      },
+      "pass": true
+    },
+    {
+      "case": "import_escape",
+      "expected": "refuse",
+      "observed": "ok",
+      "detail": {
+        "BREACH": false,
+        "idOut": "65534",
+        "spawn": {
+          "ok": true
+        },
+        "childSawSecrets": false,
+        "importOutside": {
+          "ok": false,
+          "err": "Invalid or unexpected token"
+        }
+      },
+      "pass": true
+    },
+    {
+      "case": "time_bound",
+      "expected": "terminate",
+      "observed": "killed",
+      "detail": "",
+      "pass": true
+    },
+    {
+      "case": "mem_bound",
+      "expected": "terminate",
+      "observed": "crashed",
+      "detail": "[node]\n 9: 0xeb7657  [node]\n10: 0x110b6e3  [node]\n11: 0x111e1a9  [node]\n12: 0x113ad18  [node]\n13: 0x1141914  [node]\n14: 0x13b4de5  [node]\n15: 0x1add9b6  [node]\n",
+      "pass": true
+    },
+    {
+      "case": "resp_size",
+      "expected": "resp",
+      "observed": "ok",
+      "detail": {
+        "blocked": true,
+        "reason": "response_too_large",
+        "bytes": 52428825
+      },
+      "pass": true
+    },
+    {
+      "case": "crash_worker",
+      "expected": "terminate",
+      "observed": "killed",
+      "detail": "",
+      "pass": true
+    },
+    {
+      "case": "serves_after_crash",
+      "expected": "legit_list",
+      "observed": "ok",
+      "detail": {
+        "notes": [
+          {
+            "id": "1",
+            "purchase_order_id": "PO-1",
+            "note": "first note",
+            "created_at": "2026-09-22T22:26:15.692Z"
+          },
+          {
+            "id": "2",
+            "purchase_order_id": "PO-1",
+            "note": "first note",
+            "created_at": "2026-09-22T22:28:48.927Z"
+          },
+          {
+            "id": "3",
+            "purchase_order_id": "PO-1",
+            "note": "first note",
+            "created_at": "2026-09-22T22:30:18.252Z"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "case": "mig_create_extension",
+      "expected": "refuse-or-contain(migration-role)",
+      "observed": "refused",
+      "detail": "42501",
+      "pass": true
+    },
+    {
+      "case": "mig_security_definer",
+      "expected": "refuse-or-contain(migration-role)",
+      "observed": "allowed-but-contained",
+      "detail": null,
+      "pass": true
+    },
+    {
+      "case": "mig_copy_program",
+      "expected": "refuse-or-contain(migration-role)",
+      "observed": "refused",
+      "detail": "42501",
+      "pass": true
+    },
+    {
+      "case": "mig_alter_role",
+      "expected": "refuse-or-contain(migration-role)",
+      "observed": "refused",
+      "detail": "42501",
+      "pass": true
+    },
+    {
+      "case": "mig_grant_cross",
+      "expected": "refuse-or-contain(migration-role)",
+      "observed": "allowed-but-contained",
+      "detail": null,
+      "pass": true
+    },
+    {
+      "case": "mig_create_schema_foreign",
+      "expected": "refuse-or-contain(migration-role)",
+      "observed": "refused",
+      "detail": "42501",
+      "pass": true
+    },
+    {
+      "case": "mig_read_hub_fdw",
+      "expected": "refuse-or-contain(migration-role)",
+      "observed": "refused",
+      "detail": "42501",
+      "pass": true
+    },
+    {
+      "case": "mig_write_pg_catalog",
+      "expected": "refuse-or-contain(migration-role)",
+      "observed": "refused",
+      "detail": "42501",
+      "pass": true
+    }
+  ]
+}
