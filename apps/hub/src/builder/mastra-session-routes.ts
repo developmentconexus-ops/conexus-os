@@ -13,11 +13,12 @@ const CSRF_COOKIE = '__Host-conexus_csrf'
 const SESSION_BASE = '/agent-controller/:controllerId/sessions/:resourceId'
 const RUN_SCOPE = /^builder:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
-// The run owns the turn: a sandbox has to exist before the agent may act, so the browser never
-// creates a run's session or sends the opening message here. Everything that observes or steers a
-// session that already exists is Mastra's own route, unmodified. A Project's conversations are
-// that session's own threads, so creating, listing, renaming and switching them are Mastra's
-// routes too and Conexus keeps no conversation store of its own.
+// The run owns every turn: its session exists before its checkout is pinned and its policy set, and
+// its settlement awaits the one turn it sent. So the browser never sends a message here, not even a
+// steer or a follow-up (both open a turn in core); a new message is a new run. Everything that
+// observes or answers a session that already exists is Mastra's own route, unmodified. A Project's
+// conversations are that session's own threads, so creating, listing, renaming and switching them
+// are Mastra's routes too and Conexus keeps no conversation store of its own.
 const BROWSER_ROUTES: ReadonlySet<string> = new Set([
   'GET /agent-controller/:controllerId/models',
   'GET /agent-controller/:controllerId/modes',
@@ -29,16 +30,10 @@ const BROWSER_ROUTES: ReadonlySet<string> = new Set([
   `GET ${SESSION_BASE}/threads/:threadId/messages`,
   `POST ${SESSION_BASE}/thread`,
   `POST ${SESSION_BASE}/abort`,
-  `POST ${SESSION_BASE}/steer`,
-  `POST ${SESSION_BASE}/follow-up`,
   `POST ${SESSION_BASE}/model`,
   `POST ${SESSION_BASE}/tool-approval`,
   `POST ${SESSION_BASE}/tool-suspension`,
 ])
-
-// Core's steer aborts and then sends, and its follow-up sends at once when the session is idle, so
-// both open a turn. A turn belongs to a run, which alone carries the sandbox and the run's settings.
-const RUN_TURN_ROUTES: readonly string[] = [`POST ${SESSION_BASE}/steer`, `POST ${SESSION_BASE}/follow-up`]
 
 // The Hub is the single writer of tool policy; the browser may only answer for the one pending
 // tool call it was shown. Core's approval decision is 'approve' | 'decline' | 'always_allow_category',
@@ -80,7 +75,6 @@ type GuardedMount = Readonly<{
 // another user or Project; only the Hub sets it, and a request carrying one is refused.
 const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMount): Promise<void> => {
   const accounts = new WeakMap<FastifyRequest, string>()
-  const runTurns = new Set(RUN_TURN_ROUTES.map((route) => route.replace(' ', ` ${mount.prefix}`)))
   const approvalAnswers = new Set(APPROVAL_ANSWER_ROUTES.map((route) => route.replace(' ', ` ${mount.prefix}`)))
   await app.register(async (scope) => {
     scope.addHook('preHandler', async (request, reply) => {
@@ -109,9 +103,6 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       // Mastra's session routes get-or-create. A run's session carries that run's sandbox, so a
       // browser arriving first would create it without one and the run would inherit the empty shell.
       const { sessionScope } = request.query as Readonly<{ sessionScope?: string }>
-      if (sessionScope === undefined && runTurns.has(`${request.method} ${request.routeOptions.url}`)) {
-        return sendProblem(reply, 409, 'builder-run-required', 'Only a running Builder run takes a message')
-      }
       if (sessionScope !== undefined && params.resourceId !== undefined) {
         if (!RUN_SCOPE.test(sessionScope)) return sendProblem(reply, 404, 'builder-session-not-found', 'Builder session not found')
         if (!await mount.controller.getSessionByResource(params.resourceId, sessionScope)) {

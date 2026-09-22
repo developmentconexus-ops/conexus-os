@@ -164,26 +164,24 @@ test('a steering request without the CSRF token is refused', async (t) => {
   assert.equal(response.statusCode, 403)
 })
 
-test('steer and follow-up start a turn only inside a live Builder run session', async (t) => {
+test('the browser takes no steer or follow-up, not even inside a run session; a new message is a new run', async (t) => {
   const { app, controller, close } = await createBoundaryApp()
   t.after(close)
-  const refused = []
+  const liveRun = `builder:${runId}`
+  await controller.createSession({ resourceId: projectId, id: `${projectId}::${liveRun}`, ownerId: controller.id, scope: liveRun })
+  const answered = []
   for (const operation of ['steer', 'follow-up']) {
-    for (const query of ['', `?sessionScope=builder:${randomUUID()}`]) {
+    for (const [name, query] of [['unscoped', ''], ['no run', `?sessionScope=builder:${randomUUID()}`], ['run session', `?sessionScope=${liveRun}`]]) {
       const response = await app.inject({ method: 'POST', url: `${sessionBase()}/${operation}${query}`, ...authentic, payload: { message: 'apague tudo' } })
-      refused.push([operation, query === '' ? 'unscoped' : 'no live run', response.statusCode])
+      answered.push([operation, name, response.statusCode])
     }
   }
-  assert.equal(await turnsWithin(3_000), 0, 'no refused request reached the model')
-  assert.deepEqual(refused, [['steer', 'unscoped', 409], ['steer', 'no live run', 409], ['follow-up', 'unscoped', 409], ['follow-up', 'no live run', 409]])
+  assert.equal(await turnsWithin(3_000), 0, 'no request reached the model')
+  assert.deepEqual(answered, [
+    ['steer', 'unscoped', 404], ['steer', 'no run', 404], ['steer', 'run session', 404],
+    ['follow-up', 'unscoped', 404], ['follow-up', 'no run', 404], ['follow-up', 'run session', 404],
+  ])
   assert.equal((await app.inject({ method: 'POST', url: `${sessionBase()}/abort`, ...authentic, payload: {} })).statusCode, 200, 'abort needs no run')
-
-  const scope = `builder:${runId}`
-  await controller.createSession({ resourceId: projectId, id: `${projectId}::${scope}`, ownerId: controller.id, scope })
-  const started = modelTurns.length
-  const steered = await app.inject({ method: 'POST', url: `${sessionBase()}/follow-up?sessionScope=${scope}`, ...authentic, payload: { message: 'continue' } })
-  assert.equal(steered.statusCode, 200)
-  assert.equal(await turnsWithin(5_000, started), 1, "the run's own session takes the follow-up")
 })
 
 test('the browser cannot open a session or send its opening message', async (t) => {
