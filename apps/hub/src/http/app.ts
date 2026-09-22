@@ -90,6 +90,13 @@ export const createHttpApp = async ({
       '/projects/:projectId/c/:conversationId',
       '/projects/:projectId/settings',
       '/settings',
+      '/settings/account',
+      '/settings/models',
+      '/settings/installation/github',
+      '/settings/installation/models',
+      '/settings/installation/model-defaults',
+      '/settings/installation/memory',
+      '/settings/installation/admins',
       '/signed-out',
       '/no-access',
     ] as const
