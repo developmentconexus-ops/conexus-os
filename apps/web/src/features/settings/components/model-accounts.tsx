@@ -10,6 +10,7 @@ import {
   type OAuthStart, pollOAuth, readModelDefaults, removeApiKey, saveApiKey, saveInstallationDefaults, saveMyDefaults, shareWithEveryone,
   signOut, startOAuth, stopSharing,
 } from '../model-accounts-api'
+import { GoogleAiProAccount } from './google-ai-pro-account'
 
 const ownKind = (provider: ModelProvider) => provider.userCredential === 'oauth' ? 'assinatura' : 'chave de API'
 const sharedKind = (provider: ModelProvider) => provider.orgCredential === 'oauth' ? 'assinatura' : 'chave de API'
@@ -137,6 +138,7 @@ function ModelAccountsSection() {
       : <ul className="model-accounts">{connected.map((provider) => <AccountRow key={provider.provider} provider={provider} administrator={administrator} />)}</ul>}
     {administrator && <Notice variant="warning"><Notice.Message>Os termos de uma assinatura podem proibir o uso por outras pessoas; confira antes de compartilhar.</Notice.Message></Notice>}
     <ConnectAccount providers={accounts.data.providers} />
+    <GoogleAiProAccount />
   </>
 }
 
