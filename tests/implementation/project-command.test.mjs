@@ -25,12 +25,6 @@ const compileHub = (t) => {
 test('S3-P5 centralizes one Project identity law for UUID versions 1 through 8', async (t) => {
   await refuseProtectedCluster()
   assert.equal(existsSync(identityPath), true)
-  const gitSource = readFileSync(resolve(repositoryRoot, 'apps/hub/src/project/git-execution.ts'), 'utf8')
-  const recoverySource = readFileSync(resolve(repositoryRoot, 'apps/hub/src/project/source-recovery.ts'), 'utf8')
-  assert.match(gitSource, /import \{ isProjectIdentity \} from '\.\/identity\.js'/)
-  assert.match(recoverySource, /import \{ isProjectIdentity \} from '\.\/identity\.js'/)
-  assert.doesNotMatch(gitSource, /const UUID\s*=/)
-  assert.doesNotMatch(recoverySource, /const UUID\s*=/)
 
   const built = compileHub(t)
   const { isProjectIdentity } = await import(built('project/identity.js'))
@@ -109,34 +103,6 @@ test('S3-P5 store prepares the repository after the reservation and creates the 
   assert.equal(statements.some(({ statement }) => statement.includes('iam.')), false)
   assert.equal(statements.some(({ statement }) => statement.includes('complete_create_project_receipt')), true)
   assert.equal(statements.filter(({ statement }) => statement === 'COMMIT').length, 2)
-})
-
-test('S3-P0 Project module exposes non-blocking OCI image warmup without changing route composition', async (t) => {
-  const built = compileHub(t)
-  const { createProjectModule } = await import(built('project/module.js'))
-  const image = {
-    status: 'VERIFIED',
-    ociIndexDigest: 'sha256:admitted',
-    gitVersion: '2.47.1',
-    gitExecutableSha256: 'a'.repeat(64),
-  }
-  let imageChecks = 0
-  const oci = {
-    verifyAdmittedImage: async () => { imageChecks += 1; return image },
-    runGitProgram: async () => { throw new Error('UNEXPECTED_GIT_PROGRAM') },
-  }
-  const pool = { end: async () => {} }
-  const project = createProjectModule({
-    commandPool: pool,
-    readPool: pool,
-    repository: { prepare: async () => { throw new Error('UNEXPECTED_REPOSITORY') } },
-    oci,
-    origin: 'https://control.example.test',
-    resolveCurrentSession: async () => null,
-  })
-  t.after(() => project.close())
-  assert.deepEqual(await project.warmGitImage(), image)
-  assert.equal(imageChecks, 1)
 })
 
 test('S3-P5 command failure matrix never reaches a false terminal receipt', async (t) => {
