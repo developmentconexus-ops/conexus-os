@@ -310,6 +310,17 @@ const deniedTools = (github: FactoryComposition['github'], orgId: string): Recor
 
 type RecordedMessage = Readonly<{ id: string; role?: string; content?: unknown }>
 
+const TITLE_LENGTH = 60
+
+// The request's first line, cut on a word so the ellipsis still fits.
+const conversationTitle = (request: string): string => {
+  const line = request.split('\n').map((text) => text.replace(/\s+/g, ' ').trim()).find(Boolean) ?? ''
+  if (line.length <= TITLE_LENGTH) return line
+  const head = line.slice(0, TITLE_LENGTH - 1)
+  const space = head.lastIndexOf(' ')
+  return `${(space > 0 ? head.slice(0, space) : head).trimEnd()}…`
+}
+
 export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonly<{
   composition: FactoryComposition
   orgId: string
@@ -387,6 +398,9 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
           // The model gateway reads a credential and a custom provider synchronously from snapshots,
           // which only an awaited hydration fills.
           await Promise.all([primeTenantCredentials({ tenant: { orgId, userId: accountId }, credentials }), primeCustomProviders()])
+          // Mastra names only an untitled thread, with no language instruction (upstream proposal U2
+          // in docs/reference/mastra-boundary.md), so the first request names it.
+          if (!(await session.thread.getById({ threadId: conversationId }))?.title) await session.thread.rename({ title: conversationTitle(content) })
           const abort = (): void => { session.abort() }
           if (signal?.aborted) abort()
           else signal?.addEventListener('abort', abort, { once: true })
