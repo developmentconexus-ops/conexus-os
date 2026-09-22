@@ -7,7 +7,6 @@ import type {
   Prj03Body,
   Prj03Response,
 } from '../generated/s3-routes.js'
-import type { FactoryBinding } from '../builder/factory-provisioning.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { projectError, repositoryRefused } from './errors.js'
 import { isProjectIdentity } from './identity.js'
@@ -15,7 +14,13 @@ import { isProjectIdentity } from './identity.js'
 // Gives a Project that does not exist yet its repository and Factory rows, and nothing else. The
 // same Project id always reaches the same repository, so calling it again converges.
 export type ProjectRepositoryPort = Readonly<{
-  prepare(input: Readonly<{ projectId: string; projectName: string }>): Promise<FactoryBinding>
+  prepare(input: Readonly<{ projectId: string; projectName: string }>): Promise<Readonly<{
+    projectId: string
+    factoryProjectId: string
+    projectRepositoryId: string
+    repositoryId: string
+    headRevision: string
+  }>>
 }>
 
 type CreateProjectInput = Readonly<{
