@@ -1,7 +1,11 @@
+import { Breadcrumb, Crumb } from '@mastra/playground-ui/components/Breadcrumb'
+import { MainSidebar, MainSidebarProvider } from '@mastra/playground-ui/components/MainSidebar'
+import { AppShell } from '@mastra/playground-ui/new/layout/app-shell'
 import { useMutation } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useMatchRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactElement, ReactNode } from 'react'
+import { ConexusWordmark } from '../../../../packages/brand/src/index'
 import { endCurrentSession } from '../features/identity-access/api'
 import type { AccessContext } from '../generated/iam-client'
 
@@ -10,21 +14,75 @@ export type ShellScope = Readonly<{
   project?: Readonly<{ projectId: string; name: string; workspaceId: string }> | undefined
 }>
 
-export function Shell({
-  context,
-  scope,
-  children,
-}: {
-  context: AccessContext
-  scope?: ShellScope | undefined
-  children: ReactNode
-}) {
+// The mark fits together once per page load, not on every route that remounts the shell.
+let shellArrived = false
+const firstShellMount = (): boolean => {
+  const first = !shellArrived
+  shellArrived = true
+  return first
+}
+
+function Lockup({ arrive }: Readonly<{ arrive: boolean }>) {
+  return <Link className="brand" to="/" search={{ workspaceId: undefined }}><ConexusWordmark size={22} arrive={arrive} /></Link>
+}
+
+function NavItem({ active, children }: Readonly<{ active: boolean; children: ReactElement<{ className?: string }> }>) {
+  return <MainSidebar.NavLink isActive={active} render={children} />
+}
+
+function Navigation({ scope }: Readonly<{ scope: ShellScope | undefined }>) {
+  const matchRoute = useMatchRoute()
+  const workspace = scope?.workspace
+  const project = scope?.project
+  const label = (text: string) => <MainSidebar.NavLabel>{text}</MainSidebar.NavLabel>
+  if (project && workspace) {
+    const params = { projectId: project.projectId }
+    return <MainSidebar.NavSection>
+      <MainSidebar.NavHeader>Project</MainSidebar.NavHeader>
+      <MainSidebar.NavList>
+        <NavItem active={Boolean(matchRoute({ to: '/projects/$projectId', params }))}>
+          <Link to="/projects/$projectId" params={params}>{label('Visão do Project')}</Link>
+        </NavItem>
+        <NavItem active={false}>
+          <Link to="/workspaces/$workspaceId/projects" params={{ workspaceId: workspace.workspaceId }}>{label('Voltar aos Projects')}</Link>
+        </NavItem>
+      </MainSidebar.NavList>
+    </MainSidebar.NavSection>
+  }
+  if (workspace) {
+    const params = { workspaceId: workspace.workspaceId }
+    return <MainSidebar.NavSection>
+      <MainSidebar.NavHeader>Workspace</MainSidebar.NavHeader>
+      <MainSidebar.NavList>
+        <NavItem active={Boolean(matchRoute({ to: '/workspaces/$workspaceId/projects', params }))}>
+          <Link to="/workspaces/$workspaceId/projects" params={params}>{label('Projects')}</Link>
+        </NavItem>
+        <NavItem active={Boolean(matchRoute({ to: '/workspaces/$workspaceId/projects/new', params }))}>
+          <Link to="/workspaces/$workspaceId/projects/new" params={params}>{label('Criar Project')}</Link>
+        </NavItem>
+        <NavItem active={Boolean(matchRoute({ to: '/workspaces/$workspaceId/members', params }))}>
+          <Link to="/workspaces/$workspaceId/members" params={params}>{label('Membros')}</Link>
+        </NavItem>
+      </MainSidebar.NavList>
+    </MainSidebar.NavSection>
+  }
+  return <MainSidebar.NavSection>
+    <MainSidebar.NavHeader>Conta</MainSidebar.NavHeader>
+    <MainSidebar.NavList>
+      <NavItem active={Boolean(matchRoute({ to: '/' }))}>
+        <Link to="/" search={{ workspaceId: undefined }}>{label('Workspaces')}</Link>
+      </NavItem>
+      <NavItem active={Boolean(matchRoute({ to: '/workspaces/new' }))}>
+        <Link to="/workspaces/new">{label('Novo Workspace')}</Link>
+      </NavItem>
+    </MainSidebar.NavList>
+  </MainSidebar.NavSection>
+}
+
+function AccountMenu({ context }: Readonly<{ context: AccessContext }>) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [navigationOpen, setNavigationOpen] = useState(false)
   const menu = useRef<HTMLDivElement>(null)
-  const navigation = useRef<HTMLElement>(null)
   const accountTrigger = useRef<HTMLButtonElement>(null)
-  const navigationTrigger = useRef<HTMLButtonElement>(null)
   const signOutInFlight = useRef(false)
   const navigate = useNavigate()
   const signOut = useMutation({
@@ -43,20 +101,10 @@ export function Shell({
   }, [menuOpen])
 
   useEffect(() => {
-    if (navigationOpen) navigation.current?.focus()
-  }, [navigationOpen])
-
-  useEffect(() => {
     const closeOnOutsidePointer = (event: PointerEvent) => {
       const target = event.target
       if (!(target instanceof Node)) return
-      if (
-        menuOpen &&
-        !menu.current?.contains(target) &&
-        !accountTrigger.current?.contains(target)
-      ) {
-        setMenuOpen(false)
-      }
+      if (menuOpen && !menu.current?.contains(target) && !accountTrigger.current?.contains(target)) setMenuOpen(false)
     }
     document.addEventListener('pointerdown', closeOnOutsidePointer)
     return () => document.removeEventListener('pointerdown', closeOnOutsidePointer)
@@ -67,148 +115,90 @@ export function Shell({
     queueMicrotask(() => accountTrigger.current?.focus())
   }
 
-  const closeNavigation = () => {
-    setNavigationOpen(false)
-    queueMicrotask(() => navigationTrigger.current?.focus())
-  }
+  return <div className="account">
+    <button type="button" ref={accountTrigger} aria-expanded={menuOpen} aria-controls="account-menu" onClick={() => setMenuOpen((value) => !value)}>
+      {context.account.displayName}
+    </button>
+    {menuOpen && (
+      <div
+        id="account-menu"
+        className="account-menu"
+        role="dialog"
+        aria-label="Conta atual"
+        tabIndex={-1}
+        ref={menu}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') closeAccountMenu()
+        }}
+      >
+        <strong>{context.account.displayName}</strong>
+        {context.account.email && <span>{context.account.email}</span>}
+        <details>
+          <summary>Identidade técnica</summary>
+          <code>{context.account.accountId}</code>
+        </details>
+        <Link to="/settings" onClick={closeAccountMenu}>Configurações</Link>
+        <button
+          type="button"
+          disabled={signOut.isPending}
+          onClick={() => {
+            if (signOutInFlight.current) return
+            signOutInFlight.current = true
+            signOut.mutate()
+          }}
+        >
+          {signOut.isPending ? 'Saindo…' : 'Sair'}
+        </button>
+        {signOut.isError && (
+          <p role="alert">
+            O encerramento não foi confirmado. Sua sessão continua sendo tratada como ativa.
+          </p>
+        )}
+      </div>
+    )}
+  </div>
+}
 
+export function Shell({
+  context,
+  scope,
+  children,
+}: {
+  context: AccessContext
+  scope?: ShellScope | undefined
+  children: ReactNode
+}) {
+  const [arrive] = useState(firstShellMount)
   const workspace = scope?.workspace
   const project = scope?.project
 
   return (
-    <div className="shell">
-      <header className="topbar">
-        <Link className="brand" to="/" search={{ workspaceId: undefined }}>Conexus</Link>
-        <nav className="context-trail" aria-label="Contexto atual">
-          <Link to="/" search={{ workspaceId: undefined }}>Workspaces</Link>
-          {workspace && (
-            <>
-              <span aria-hidden="true">/</span>
-              <Link to="/workspaces/$workspaceId/projects" params={{ workspaceId: workspace.workspaceId }}>
-                {workspace.name}
-              </Link>
-            </>
-          )}
-          {project && (
-            <>
-              <span aria-hidden="true">/</span>
-              <span>{project.name}</span>
-            </>
-          )}
-        </nav>
-        <button
-          className="navigation-toggle"
-          type="button"
-          ref={navigationTrigger}
-          aria-expanded={navigationOpen}
-          aria-controls="primary-navigation"
-          onClick={() => {
-            setMenuOpen(false)
-            setNavigationOpen((value) => !value)
-          }}
+    <MainSidebarProvider storageKey="conexus-shell" mobileBreakpoint={768} disableKeyboardShortcut>
+      <div className="shell">
+        <MainSidebar className="shell-sidebar">
+          <div className="shell-lockup"><Lockup arrive={arrive} /></div>
+          <MainSidebar.Nav aria-label="Navegação principal">
+            <Navigation scope={scope} />
+          </MainSidebar.Nav>
+        </MainSidebar>
+        <AppShell
+          className="shell-main"
+          mainLabel="Conteúdo"
+          mobileHeader={<div className="shell-mobile-header"><MainSidebar.MobileTrigger aria-label="Abrir navegação" /><Lockup arrive={false} /></div>}
+          routeHeader={
+            <header className="topbar">
+              <Breadcrumb label="Contexto atual" className="context-trail">
+                <Crumb as={Link} to="/" isCurrent={!workspace}>Workspaces</Crumb>
+                {workspace && <Crumb as={Link} to={`/workspaces/${workspace.workspaceId}/projects`} isCurrent={!project}>{workspace.name}</Crumb>}
+                {project && <Crumb as="span" isCurrent>{project.name}</Crumb>}
+              </Breadcrumb>
+              <AccountMenu context={context} />
+            </header>
+          }
         >
-          Navegação
-        </button>
-        <button
-          type="button"
-          ref={accountTrigger}
-          aria-expanded={menuOpen}
-          aria-controls="account-menu"
-          onClick={() => {
-            setNavigationOpen(false)
-            setMenuOpen((value) => !value)
-          }}
-        >
-          {context.account.displayName}
-        </button>
-        {menuOpen && (
-          <div
-            id="account-menu"
-            className="account-menu"
-            role="dialog"
-            aria-label="Conta atual"
-            tabIndex={-1}
-            ref={menu}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') closeAccountMenu()
-            }}
-          >
-            <strong>{context.account.displayName}</strong>
-            {context.account.email && <span>{context.account.email}</span>}
-            <details>
-              <summary>Identidade técnica</summary>
-              <code>{context.account.accountId}</code>
-            </details>
-            <Link to="/settings" onClick={closeAccountMenu}>Configurações</Link>
-            <button
-              type="button"
-              disabled={signOut.isPending}
-              onClick={() => {
-                if (signOutInFlight.current) return
-                signOutInFlight.current = true
-                signOut.mutate()
-              }}
-            >
-              {signOut.isPending ? 'Saindo…' : 'Sair'}
-            </button>
-            {signOut.isError && (
-              <p role="alert">
-                O encerramento não foi confirmado. Sua sessão continua sendo tratada como ativa.
-              </p>
-            )}
-          </div>
-        )}
-      </header>
-      <div className="shell-body">
-        <aside
-          id="primary-navigation"
-          className="navigation-drawer"
-          data-open={navigationOpen}
-          aria-label="Navegação principal"
-          tabIndex={-1}
-          ref={navigation}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') closeNavigation()
-          }}
-        >
-          <button className="navigation-close" type="button" onClick={closeNavigation}>
-            Fechar navegação
-          </button>
-          <nav aria-label="Navegação principal">
-            {project && workspace ? (
-              <>
-                <p className="navigation-context">Project</p>
-                <Link to="/projects/$projectId" params={{ projectId: project.projectId }} activeOptions={{ exact: true }}>
-                  Visão do Project
-                </Link>
-                <Link to="/workspaces/$workspaceId/projects" params={{ workspaceId: workspace.workspaceId }}>
-                  Voltar aos Projects
-                </Link>
-              </>
-            ) : workspace ? (
-              <>
-                <p className="navigation-context">Workspace</p>
-                <Link to="/workspaces/$workspaceId/projects" params={{ workspaceId: workspace.workspaceId }} activeOptions={{ exact: true }}>
-                  Projects
-                </Link>
-                <Link to="/workspaces/$workspaceId/projects/new" params={{ workspaceId: workspace.workspaceId }}>
-                  Criar Project
-                </Link>
-                <Link to="/workspaces/$workspaceId/members" params={{ workspaceId: workspace.workspaceId }}>
-                  Membros
-                </Link>
-              </>
-            ) : (
-              <>
-                <p className="navigation-context">Conta</p>
-                <Link to="/" search={{ workspaceId: undefined }} aria-current="page">Workspaces</Link>
-                <Link to="/workspaces/new">Novo Workspace</Link>
-              </>
-            )}
-          </nav>
-        </aside>
-        <div className="shell-content">{children}</div>
+          {children}
+        </AppShell>
       </div>
-    </div>
+    </MainSidebarProvider>
   )
 }

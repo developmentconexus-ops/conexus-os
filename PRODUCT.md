@@ -1,33 +1,56 @@
 # Product
 
-## Register
+<!-- impeccable:product-schema 1 -->
 
-product
+## Platform
+
+web
 
 ## Users
 
-Conexus serves the people at this company. Inside a Workspace a person is either an owner, who also administers the roster, or a member, who holds every other right. They use the product to create Projects and to build a business application by talking to the Builder. They must always be able to recognize the exact subject, understand current server truth, take only admitted actions, and recover without interpreting opaque infrastructure state.
+People inside one company, with equal weight for two groups:
+
+- Staff who are not technical (operations, sales, people teams). They describe the internal app they need in Portuguese and watch it get built. They never have to read code.
+- The company's developers. They use the same agent to go faster, and they read the code and the change of each run in the same place.
+
+Both groups work in the same Project and the same conversation. A request from one is reviewable by the other.
 
 ## Product Purpose
 
-Conexus is the platform the people at this company sign in to. They open a Workspace, open a Project, and talk to the Builder, which writes the source of a small business application, compiles it, and serves it back as a Preview they can use. A person creates or opens a Project, continues a Builder conversation, inspects source, and uses the last-good Preview while the run and the source truth stay server owned.
+Conexus OS lets a person in the company go from "I need an app that does X" to that app running, alone, without asking the IT team. Success for one session is a working internal app in the Preview, built from a conversation, that the person can use right away.
 
-## Brand Personality
+## Positioning
 
-Calm, trustworthy, and exact. The interface should feel like a capable enterprise workbench: human-first in language, restrained in presentation, explicit around consequential decisions, and confident without becoming decorative or theatrical.
+Every Project is a private repository in the company's own GitHub organization, and every change the agent makes is checked, built and admitted there before the Preview shows it. A non-technical person gets an app; the developers get real, reviewable source they own. The installation serves one company only and runs on the company's own accounts.
 
-## Anti-references
+## Operating Context
 
-Conexus must not resemble a generic SaaS dashboard, infrastructure console, IDE-first product, black-box chat, unrestricted database console, generic workflow or automation product, or low-code builder. It must not expose backend modules as navigation, decorate ordinary state as spectacle, or hide machine-centric ambiguity behind polished presentation.
+- Sign-in through the company's Keycloak; one installation is one company.
+- A Workspace holds Projects. A Project has conversations; each request is a run that edits source, runs the application check, builds, and updates the Preview.
+- The build workspace ("Construir") has the conversation, the live Preview, and lenses on Code and Diff.
+- Each person connects their own model accounts (subscription or API key); an installation administrator may share one with everyone.
+- Settings live at three levels: personal, Workspace, and installation.
 
-## Design Principles
+## Capabilities and Constraints
 
-1. Start from the human job and preserve context across browse, decision, action, and recovery.
-2. Keep the ordinary path simple, then progressively disclose exact truth when trust, risk, or investigation requires it.
-3. Make consequential subjects recognizable before action and keep owner truth distinct from browser state or presentation Evidence.
-4. Use familiar, restrained product patterns consistently; novelty must improve the task rather than advertise the interface.
-5. Never make the frontend a parallel owner of authorization, lifecycle, runtime, or business truth.
+- The interface is in Portuguese.
+- It is built over the Mastra Factory and Studio components (`@mastra/playground-ui`, React). The Factory owns conversations, model accounts, model packs and the SDLC; Conexus does not rebuild them.
+- Tool calls wait for the person to approve or decline; the browser never changes tool policy.
+- Model choice: installation defaults (administrators), personal defaults, and a switch per conversation for the build model. The thinking level is shown. A plan mode is not offered yet.
+- No branch or pull request is shown to the person.
+- Undecided: importing an existing repository (next), named-person sharing of model accounts (deferred), publish (out of scope).
 
-## Accessibility & Inclusion
+## Brand Commitments
 
-Target WCAG 2.2 AA structure. All material interactions require semantic controls, visible keyboard focus, logical focus order and return, non-color-only state meaning, 44px touch targets on touch layouts, readable mobile text, reduced-motion support, and responsive reflow without hiding decision-critical facts. Loading, empty, denied, unavailable, stale, expired, and failed states must remain distinguishable in language and structure.
+The name is Conexus (ecosystem domain `conexus.fun`). No logo, colors or visual identity exist yet; they are to be defined in the design phase.
+
+## Evidence on Hand
+
+No customers, testimonials or metrics exist. The pilot runs inside one company. Do not invent any of them.
+
+## Product Principles
+
+1. The person gets an app, not a process. Branches, pull requests and pipeline steps stay out of sight.
+2. The last good Preview never breaks. A failed run says what failed and keeps what worked.
+3. One owner for each thing. What the Factory provides is used as the Factory provides it.
+4. Built for both readers. Anything a non-technical person sees has a plain meaning, and a developer can always open the code behind it.
