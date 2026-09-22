@@ -124,6 +124,49 @@ test('an app that imports a web font from an unreachable host still passes the s
   assert.ok(Date.now() - started < 15_000, `the smoke waited on the unreachable font for ${Date.now() - started} ms`)
 })
 
+test('two smokes started at the same instant do not collide on a fixed port', async (t) => {
+  const { mkdtempSync, writeFileSync, rmSync, readFileSync, mkdirSync: makeDirectory, chmodSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { chromium } = await import('@playwright/test')
+  const { spawn: spawnAsync } = await import('node:child_process')
+
+  const runtimeSource = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/application-artifact-runtime.ts'), 'utf8')
+  const heredoc = /const SMOKE_HEREDOC = '([^']+)'/.exec(runtimeSource)?.[1]
+  const { sandbox, calls } = fakeSandbox(new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]]))
+  await buildApplicationInSandbox(sandbox, { appRoot: '/workspace/app' })
+  const smoke = calls.find((call) => call.kind === 'run' && String(call.command).includes(heredoc))
+  const script = String(smoke.command).split(`<<'${heredoc}'\n`)[1]?.split(`\n${heredoc}`)[0]
+
+  const runInstance = (label) => {
+    const directory = mkdtempSync(resolve(tmpdir(), `conexus-smoke-concurrent-${label}-`))
+    t.after(() => rmSync(directory, { recursive: true, force: true }))
+    const dist = resolve(directory, 'dist')
+    makeDirectory(dist)
+    writeFileSync(resolve(dist, 'index.html'), '<!doctype html><html><body><div id="root"></div>'
+      + '<script>document.getElementById("root").append(document.createElement("main"))</script></body></html>')
+    const bin = resolve(directory, 'bin')
+    makeDirectory(bin)
+    writeFileSync(resolve(bin, 'chromium'), `#!/bin/sh\nexec ${JSON.stringify(chromium.executablePath())} "$@"\n`)
+    chmodSync(resolve(bin, 'chromium'), 0o755)
+    const file = resolve(directory, 'smoke.mjs')
+    writeFileSync(file, script.replace(/const DIST_ROOT = "[^"]*"/, `const DIST_ROOT = ${JSON.stringify(dist)}`)
+      .replace(/const PROFILE = "[^"]*"/, `const PROFILE = ${JSON.stringify(resolve(directory, 'profile'))}`))
+    return new Promise((resolveRun, rejectRun) => {
+      const child = spawnAsync(process.execPath, [file], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } })
+      let stdout = ''
+      child.stdout.on('data', (chunk) => { stdout += chunk })
+      child.on('error', rejectRun)
+      child.on('close', () => resolveRun(stdout))
+    })
+  }
+
+  // Both instances listen on port 0 for the app server and the DevTools port alike, so nothing here
+  // pins them to the same number; a regression to a fixed literal would fail one side with EADDRINUSE.
+  const [first, second] = await Promise.all([runInstance('a'), runInstance('b')])
+  assert.deepEqual(JSON.parse(first), { ok: true, childCount: 1 })
+  assert.deepEqual(JSON.parse(second), { ok: true, childCount: 1 })
+})
+
 test('a build placed under a root-only directory runs, writes, smokes and reads there as root', async () => {
   const workRoot = '/var/lib/conexus-build/run-1'
   const { sandbox, calls } = fakeSandbox(new Map([[`${workRoot}/dist/index.html`, Buffer.from('<!doctype html>')]]))
