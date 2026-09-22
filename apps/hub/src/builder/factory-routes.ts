@@ -50,8 +50,8 @@ const conversationTitle = (request: string): string | null => {
 }
 
 // Mastra Code's observer renames a thread, in English and with no host option to turn it off or
-// instruct it, and the Factory copies that onto the session row (docs/reference/mastra-boundary.md,
-// item 5). So a conversation's title is derived here from its first request, never read from either.
+// instruct it (https://github.com/mastra-ai/mastra/issues/24688), and the Factory copies that onto the
+// session row. So a conversation's title is derived here from its first request, never read from either.
 const readTitle = async (controller: BuilderAgentController, conversationId: string): Promise<string | null> => {
   const { messages } = await controller.queryThreadMessages({
     threadId: conversationId, perPage: FIRST_MESSAGES, page: 0, orderBy: { field: 'createdAt', direction: 'ASC' },

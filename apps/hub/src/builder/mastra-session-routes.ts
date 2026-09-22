@@ -137,6 +137,40 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
   })
 }
 
+const PROVIDER = /^[a-z0-9][a-z0-9._-]{0,63}$/
+
+/**
+ * Serves the Factory's own routes, the ones `routes` names, at their own paths. Each handler names
+ * its caller through the Factory's auth provider, which reads the same Hub session; the Hub admits
+ * the request first (session, and origin plus CSRF on a write) and serves nothing else the Factory
+ * has.
+ */
+export const registerFactoryApiRoutes = async (app: FastifyInstance, { mastra, routes, origin, resolveCurrentSession }: Readonly<{
+  mastra: Mastra
+  routes: ReadonlySet<string>
+  origin: string
+  resolveCurrentSession: ResolveCurrentSession
+}>): Promise<void> => {
+  const served = (mastra.getServer()?.apiRoutes ?? []).filter((route) => routes.has(`${route.method} ${route.path}`))
+  if (served.length !== routes.size) throw new Error('FACTORY_ROUTE_MISSING')
+  await app.register(async (scope) => {
+    scope.addHook('preHandler', async (request, reply) => {
+      if (request.method !== 'GET') {
+        const csrf = header(request.headers['x-conexus-csrf'])
+        if (request.headers.origin !== origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
+          return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+        }
+      }
+      if (!await resolveCurrentSession(request, request.method !== 'GET')) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      const { provider } = request.params as Readonly<{ provider?: string }>
+      if (provider !== undefined && !PROVIDER.test(provider)) return sendProblem(reply, 404, 'model-provider-not-found', 'Model provider not found')
+    })
+    const server = new MastraServer({ app: scope, mastra, customApiRoutes: served })
+    server.registerContextMiddleware()
+    await server.registerCustomApiRoutes()
+  })
+}
+
 export const registerFactoryMastraRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, origin, orgId, resolveCurrentSession, admitConversation }: Readonly<{
   mastra: Mastra
   controllerId: string

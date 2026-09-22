@@ -70,19 +70,19 @@ test('Minhas contas de modelo connects by API key, and by device code', async (t
   await routeAccessContext(page, { accountId: 'a3', displayName: 'Pessoa', email: 'pessoa@example.com' })
   await routeInstallation(page, false)
   await routeBuilderModels(page)
-  await page.route('**/api/control/model-accounts', (route) =>
+  await page.route('**/web/config/providers', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: false }) }))
   await page.route('**/api/control/model-defaults', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
   let polls = 0
-  await page.route('**/api/control/model-accounts/*/key', (route) => {
+  await page.route('**/web/config/providers/*/key', (route) => {
     writes.push(['PUT', route.request().postDataJSON()])
     providers[1] = { ...providers[1], source: 'stored-user', userCredential: 'api_key' }
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
-  await page.route('**/api/control/model-accounts/*/oauth/start', (route) =>
+  await page.route('**/web/config/providers/*/oauth/start', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sessionId: 'session-1', kind: 'device-code', url: 'https://provider.example/device', userCode: 'ABCD-1234', nextPollMs: 50 }) }))
-  await page.route('**/api/control/model-accounts/*/oauth/poll', (route) => {
+  await page.route('**/web/config/providers/*/oauth/poll', (route) => {
     polls += 1
     if (polls < 2) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'pending', nextPollMs: 50 }) })
     providers[0] = { ...providers[0], source: 'stored-user', userCredential: 'oauth' }
@@ -113,7 +113,7 @@ test('Meus padrões saves my defaults and clears back to the company ones', asyn
   await routeAccessContext(page, { accountId: 'a4', displayName: 'Pessoa', email: 'pessoa@example.com' })
   await routeInstallation(page, false)
   await routeBuilderModels(page)
-  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
+  await page.route('**/web/config/providers', (route) => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ providers: [{ provider: 'anthropic', source: 'stored-user', userCredential: 'api_key' }], orgKeyAdmin: false }),
   }))
@@ -194,7 +194,7 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
   await routeAccessContext(page, { accountId: 'a9', displayName: 'Pessoa', email: 'pessoa@example.com' })
   await routeInstallation(page, false)
   await routeBuilderModels(page)
-  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
+  await page.route('**/web/config/providers', (route) => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ providers: [{ provider: 'google-ai-pro', source: 'none' }, { provider: 'google', source: 'none' }], orgKeyAdmin: false }),
   }))

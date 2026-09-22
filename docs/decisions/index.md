@@ -32,7 +32,7 @@ concept by concept.
 | Decision | Consequence |
 | --- | --- |
 | Every concept that Conexus and the Mastra Factory both touch has exactly one owner. | The other side holds only an explicit link to the owner's record, never a parallel copy. The single-owner map names the owner of each shared concept. |
-| Keycloak is the only sign-in door. | The Factory runs with `auth: null` behind the Hub. Conexus links identity by issuer plus subject. Keycloak says who a person is, and Conexus IAM says what they may do, so no Keycloak role or group authorizes anything. The sign-in pages get a Conexus theme later, with Keycloakify. This keeps C-015. |
+| Keycloak is the only sign-in door. | The Factory runs behind the Hub with an auth provider that only reads the existing Hub session, as the operator approved later on 2026-09-22 in place of `auth: null`. The provider signs nobody in, so it is not a second door. The Factory's own routes then name the caller themselves, and the Hub stops reimplementing their request context. Conexus links identity by issuer plus subject. Keycloak says who a person is, and Conexus IAM says what they may do, so no Keycloak role or group authorizes anything. The sign-in pages get a Conexus theme later, with Keycloakify. This keeps C-015. |
 | One installation is one Factory organization. | Workspaces, membership, roles and invitations are Conexus IAM only. The Factory holds no roster. |
 | Conexus IAM gains an installation administrator role, distinct from Workspace owner. | The role authorizes installation-wide actions, such as connecting the company's GitHub organization and sharing a model account with everyone. It does not grant access to every Project. This amends C-024, which said a Workspace owner connects GitHub. |
 | Model accounts follow C-025. | The Factory owns them with its two native sharing levels. Conexus builds no grant list and no parallel resolver. |
@@ -43,8 +43,9 @@ These are known technical follow-ups, not decisions:
 
 - Factory credentials must be encrypted, through the Factory's `secretEncryption`, before anyone
   connects a model account.
-- The per-person credential path must be qualified end to end with `auth: null`, because that
-  setting also skips the Factory's per-person credential resolver.
+- The per-person credential path runs through the Factory's own resolver, which the Factory registers
+  because the Hub-session auth provider is set. `builder-model-accounts-postgres.test.mjs` qualifies
+  it with two accounts.
 - Whether a Keycloak disable or logout must end an existing Hub session is an open question.
 
 ## Amended on 2026-09-20

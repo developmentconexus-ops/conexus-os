@@ -11,10 +11,11 @@ import type { PreviewAccess, PreviewRouteBinding } from './preview-access.js'
 import { registerIdentityAccessRoutes } from './routes.js'
 import { createIdentityAccessStore } from './store.js'
 import type { CurrentSession } from './store.js'
+import type { ResolveCurrentSession, SessionRequest } from './current-session.js'
 
 export type IdentityAccessModule = Readonly<{
   registerIdentityAccessRoutes(app: FastifyInstance): Promise<readonly S1OwnerId[]>
-  resolveCurrentSession(request: FastifyRequest, requireCsrf?: boolean): Promise<CurrentSession | null>
+  resolveCurrentSession: ResolveCurrentSession
   issuePreviewEntry(request: FastifyRequest, input: Readonly<{ accountId: string; route: PreviewRouteBinding }>): Promise<Readonly<{ entryGrant: string; expiresAt: number }>>
   previewAccess: PreviewAccess
   installationAdministration: InstallationAdministration
@@ -52,7 +53,7 @@ export const createIdentityAccessModule = async ({
     redirectUri: new URL('/protocol/oidc/callback', origin).href,
     allowInsecureForTest,
   })
-  const resolveCurrentSession = async (request: FastifyRequest, requireCsrf = false): Promise<CurrentSession | null> => {
+  const resolveCurrentSession = async (request: SessionRequest, requireCsrf = false): Promise<CurrentSession | null> => {
     const sessionToken = request.cookies['__Host-conexus_session']
     if (!sessionToken) return null
     const csrfHeader = request.headers['x-conexus-csrf']
