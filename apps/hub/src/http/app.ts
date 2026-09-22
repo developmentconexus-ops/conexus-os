@@ -3,6 +3,8 @@ import helmet from '@fastify/helmet'
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import addFormatsModule from 'ajv-formats'
 import Fastify from 'fastify'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { FastifyInstance } from 'fastify'
 import { sendProblem } from './problem.js'
 
@@ -57,12 +59,20 @@ export const createHttpApp = async ({
   validatorInstallCount += 1
   await app.register(cookie)
   await app.register(helmet, {
+    // CodeMirror keeps rewriting one <style> element, so no fixed hash covers it; the page hands
+    // CodeMirror this response's style nonce instead.
+    enableCSPNonces: true,
     contentSecurityPolicy: { directives: {
       defaultSrc: ["'self'"], scriptSrc: ["'self'"],
-      // The two hashes are the only <style> elements @mastra/playground-ui injects: an empty one and
-      // sonner's toaster sheet, which that library adds on import. Any other injected style stays
-      // refused, so a library upgrade that changes either shows up as a CSP violation, not silently.
-      styleSrc: ["'self'", "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='", "'sha256-StEaX+se6YS7pqjzrzMIA0KaX9zF/8zAhvQXZAe5epY='"],
+      // The hashes are the only <style> elements @mastra/playground-ui injects: an empty one, Base UI's
+      // scrollbar-hiding sheet written into it, and sonner's toaster sheet. Any other injected style
+      // stays refused, so a library upgrade that changes one shows up as a CSP violation, not silently.
+      styleSrc: [
+        "'self'",
+        "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='",
+        "'sha256-kLmvWqfziFavKtqHqRsb90f006UAK2Dmd0It5Iz2KFA='",
+        "'sha256-StEaX+se6YS7pqjzrzMIA0KaX9zF/8zAhvQXZAe5epY='",
+      ],
       // Style attributes only: syntax-highlight tokens and collapsible geometry are set per element.
       styleSrcAttr: ["'unsafe-inline'"],
       ...(previewCspSource ? { frameSrc: [previewCspSource] } : {}),
@@ -76,6 +86,7 @@ export const createHttpApp = async ({
   if (staticRoot) {
     const staticPlugin = (await import('@fastify/static')).default
     await app.register(staticPlugin, { root: staticRoot })
+    const indexHtml = readFileSync(join(staticRoot, 'index.html'), 'utf8')
     const spaRoutes = [
       '/',
       '/setup',
@@ -101,8 +112,9 @@ export const createHttpApp = async ({
       '/no-access',
     ] as const
     for (const route of spaRoutes) {
-      app.get(route, (_request, reply) =>
-        reply.sendFile('index.html', { cacheControl: false }),
+      app.get(route, (_request, reply) => reply
+        .type('text/html; charset=utf-8')
+        .send(indexHtml.replace('<head>', `<head><meta name="csp-nonce" content="${reply.cspNonce.style}">`)),
       )
     }
   }

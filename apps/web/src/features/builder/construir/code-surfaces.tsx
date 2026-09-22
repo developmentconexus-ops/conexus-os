@@ -23,7 +23,14 @@ const useLanguage = (path: string): LanguageSupport | null => {
   return support.path === path ? support.language : null
 }
 
-const readOnly: readonly Extension[] = [EditorState.readOnly.of(true), EditorView.editable.of(false), lineNumbers()]
+const cspNonce = document.querySelector<HTMLMetaElement>('meta[name="csp-nonce"]')?.content
+
+const readOnly: readonly Extension[] = [
+  EditorState.readOnly.of(true),
+  EditorView.editable.of(false),
+  lineNumbers(),
+  ...(cspNonce ? [EditorView.cspNonce.of(cspNonce)] : []),
+]
 
 export function CodeView({ path, content }: Readonly<{ path: string; content: string }>) {
   const theme = useCodemirrorTheme()
@@ -53,6 +60,7 @@ export function DiffView({ path, before, after }: Readonly<{ path: string; befor
     extensions={[
       ...readOnly,
       unifiedMergeView({ original: before, mergeControls: false, collapseUnchanged: { margin: 3, minSize: 6 } }),
+      EditorState.phrases.of({ '$ unchanged lines': '$ linhas sem alteração' }),
       ...(language ? [language] : []),
     ]}
     aria-label={`Alterações em ${path}`}
