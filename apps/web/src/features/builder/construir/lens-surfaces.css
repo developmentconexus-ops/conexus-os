@@ -22,18 +22,65 @@
 .cx-frame[data-viewport="mobile"] { display: grid; place-items: center; background: var(--cx-surface-3); }
 .cx-frame[data-viewport="mobile"] iframe { width: 390px; height: 100%; max-height: 44rem; border-radius: 10px; box-shadow: 0 .25rem 1rem rgb(0 0 0 / .15); }
 
-/* Alterações */
+/* Alterações: a stacked card per changed file (GitHub-style), each holding its own two-gutter
+   table. Add/remove tint comes straight from the app's own --cx-success/--cx-danger tokens, so
+   there is no third-party theme to fight and no !important anywhere in this file. */
 .cx-diff-lens { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.cx-diff-head { padding: .6rem 1rem; border-bottom: 1px solid var(--cx-line); background: var(--cx-surface); }
-.cx-diff-headrow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .35rem; }
-.cx-diff-summary { margin: 0; color: var(--cx-text-2); font-size: .8125rem; }
-.cx-diff-add { color: var(--cx-success); font-variant-numeric: tabular-nums; }
-.cx-diff-del { color: var(--cx-danger); font-variant-numeric: tabular-nums; }
-.cx-diff-lens .cx-lens-split { border-top: 0; }
-.cx-change-counts { display: inline-flex; gap: .4rem; margin-left: auto; font-size: .6875rem; }
-.cx-code-split .cm-mergeView { height: 100%; }
-.cx-code-split .cm-editor { height: 100%; background: transparent; }
-.cx-code-split .cm-scroller { font-family: var(--cx-font-mono); }
+.cx-diff-head { padding: .75rem 1rem .65rem; border-bottom: 1px solid var(--cx-line); background: var(--cx-surface); }
+.cx-diff-req { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .75rem; }
+.cx-diff-req h3 { flex: 1; min-width: 15rem; margin: 0; font: 600 .9375rem/1.4 var(--cx-font-body); }
+.cx-diff-when { color: var(--cx-text-2); font-weight: 500; }
+.cx-diff-sum { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: .4rem 0 0; color: var(--cx-text-2); font-size: .8125rem; }
+.cx-diff-add, .cx-diff-del { font: 500 .75rem/1 var(--cx-font-mono); font-variant-numeric: tabular-nums; }
+.cx-diff-add { color: var(--cx-success); }
+.cx-diff-del { color: var(--cx-danger); }
+
+.cx-diff-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr); }
+
+/* Left file list: icon, a path that wraps instead of truncating, the status chip and the counts. */
+.cx-diff-lens .cx-files { min-height: 0; overflow: auto; padding: .75rem .5rem; border-right: 1px solid var(--cx-line); background: var(--cx-surface); }
+.cx-diff-lens .cx-change { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: .5rem; row-gap: .3rem; align-items: start; width: 100%; padding: .5rem; border: 0; border-radius: 6px; background: transparent; color: var(--cx-text); font-size: .8125rem; text-align: left; }
+.cx-diff-lens .cx-change:hover { background: var(--cx-surface-3); }
+.cx-diff-lens .cx-change svg { grid-column: 1; grid-row: 1 / span 2; margin-top: .15rem; color: var(--cx-text-2); }
+.cx-diff-lens .cx-change-path { grid-column: 2; overflow: visible; overflow-wrap: anywhere; white-space: normal; text-overflow: clip; direction: ltr; font-family: var(--cx-font-mono); font-size: .75rem; }
+.cx-diff-lens .cx-change-meta { grid-column: 2; display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.cx-diff-lens .cx-change-counts { display: inline-flex; gap: .4rem; font: 500 .6875rem/1 var(--cx-font-mono); font-variant-numeric: tabular-nums; }
+
+/* Right pane: every changed file, stacked and scrollable. */
+.cx-diff-files { min-height: 0; overflow: auto; padding: 1rem; display: flex; flex-direction: column; gap: 1rem; background: var(--cx-canvas); }
+/* flex-shrink: 0 matters here: .cx-diff-files is a column flex container, and this card sets
+   overflow so its rounded corners clip the header's square background — but a non-visible overflow
+   also zeroes a flex item's automatic min-height, so without flex-shrink: 0 the card would shrink
+   below its own content height once the stack exceeds the pane, clipping the last lines instead of
+   letting the pane (and only the pane) scroll. */
+.cx-dfile { flex-shrink: 0; border: 1px solid var(--cx-line); border-radius: 10px; overflow: hidden; background: var(--cx-surface); scroll-margin-top: 1rem; }
+.cx-dfile-head { display: flex; align-items: center; gap: .6rem; padding: 0 .75rem; height: 2.5rem; border-bottom: 1px solid var(--cx-line); background: var(--cx-surface-3); font: 500 .8125rem var(--cx-font-mono); color: var(--cx-text-2); }
+.cx-dfile-path { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cx-text); }
+
+/* The diff table: two line-number columns (old, new), a +/− marker, then the code. Split mode
+   repeats that trio once per side, via colgroup below. */
+.cx-dt { width: 100%; border-collapse: collapse; table-layout: fixed; font: .8125rem/1.6 var(--cx-font-mono); }
+.cx-dt-num { width: 2.75rem; }
+.cx-dt-marker { width: 1.25rem; }
+.cx-dt td { padding: 0; vertical-align: top; }
+.cx-dt-n { padding-right: .5rem; text-align: right; color: var(--cx-line-strong); user-select: none; }
+.cx-dt-g { text-align: center; color: var(--cx-text-2); user-select: none; }
+.cx-dt-t { padding-right: .75rem; overflow-wrap: anywhere; white-space: pre-wrap; }
+.cx-dt-empty { background: var(--cx-surface-3); }
+/* Unified mode tints the whole row via a class on <tr>; split mode tints per side via a class
+   suffix on each <td>, since one row can hold an add cell and a del cell side by side. */
+.cx-dt tr.cx-dt-add td, .cx-dt-t.cx-dt-add { background: color-mix(in srgb, var(--cx-success) 12%, var(--cx-surface)); }
+.cx-dt tr.cx-dt-add td.cx-dt-n, .cx-dt tr.cx-dt-add td.cx-dt-g, .cx-dt-n.cx-dt-add, .cx-dt-g.cx-dt-add { background: color-mix(in srgb, var(--cx-success) 22%, var(--cx-surface)); color: var(--cx-success); font-weight: 600; }
+.cx-dt tr.cx-dt-del td, .cx-dt-t.cx-dt-del { background: color-mix(in srgb, var(--cx-danger) 10%, var(--cx-surface)); }
+.cx-dt tr.cx-dt-del td.cx-dt-n, .cx-dt tr.cx-dt-del td.cx-dt-g, .cx-dt-n.cx-dt-del, .cx-dt-g.cx-dt-del { background: color-mix(in srgb, var(--cx-danger) 20%, var(--cx-surface)); color: var(--cx-danger); font-weight: 600; }
+.cx-dt-gap td { padding: 0; background: var(--cx-surface-3); }
+.cx-gap { display: flex; align-items: center; gap: .5rem; width: 100%; height: 1.9rem; padding: 0 .75rem; border: 0; background: transparent; color: var(--cx-text-2); font: 500 .75rem var(--cx-font-body); cursor: pointer; }
+.cx-gap:hover { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
+
+@media (max-width: 767px) {
+  .cx-diff-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .cx-diff-lens .cx-files { max-height: 10rem; border-right: 0; border-bottom: 1px solid var(--cx-line); }
+}
 
 /* Sobre */
 .cx-tech { margin-top: .25rem; padding-top: .5rem; border-top: 1px solid var(--cx-line); }

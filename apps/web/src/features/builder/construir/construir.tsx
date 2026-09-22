@@ -217,6 +217,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   // conversation ran them: the version belongs to the app, not to the chat that produced it.
   const codeChangingRunsAsc = [...runs].filter(showsResultCard).sort((left, right) => left.createdAt.localeCompare(right.createdAt))
   const resultVersion = runHere ? codeChangingRunsAsc.findIndex((entry) => entry.builderRunId === runHere.builderRunId) + 1 : 0
+  const diffVersion = diffRun ? codeChangingRunsAsc.findIndex((entry) => entry.builderRunId === diffRun.builderRunId) + 1 : 0
   const resultCardShown = Boolean(settledHere && runHere && showsResultCard(runHere))
 
   const stage = <section className="cx-stage" aria-label="Palco">
@@ -242,7 +243,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           }}
         >
           <span>{tab.label}</span>
-          {tab.lens === 'diff' && diffCount.data && <span className="cx-lens-count">{diffCount.data.files.length}</span>}
+          {tab.lens === 'diff' && Boolean(diffCount.data?.files.length) && <span className="cx-lens-count">+{diffCount.data?.files.length}</span>}
         </button>)}
       </div>
     </div>
@@ -253,7 +254,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           <LensPreview preview={preview} view={view} history={runs} lastGoodSourceRevision={preview_?.lastGoodSourceRevision ?? null} sourceAhead={sourceAhead} />
         </div>
         {lens === 'code' && <LensCode projectId={projectId} sourceRevision={preview_?.workingSourceRevision ?? null} />}
-        {lens === 'diff' && <LensDiff projectId={projectId} basis={diffBasis} runLabel={diffRun ? `Pedido das ${clockLabel(diffRun.createdAt)}: ${diffRun.requestText ?? 'sem texto'}` : null} />}
+        {lens === 'diff' && <LensDiff projectId={projectId} basis={diffBasis} requestText={diffRun?.requestText ?? null} requestTime={diffRun ? clockLabel(diffRun.createdAt) : null} version={diffVersion} />}
         {lens === 'details' && <LensDetails projectId={projectId} runs={runs} selected={selectedRun} onSelect={setSelectedRunId} preview={{ workingSourceRevision: preview_?.workingSourceRevision ?? null, lastGoodSourceRevision: preview_?.lastGoodSourceRevision ?? null }} onRetry={setDraft} />}
       </>}
     </div>
