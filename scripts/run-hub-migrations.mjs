@@ -30,6 +30,7 @@ const installationAdministratorDigest = '8f089db3a396dedb23f15fd9b4336dfd7360c33
 const projectFactoryCreationDigest = 'c93bcaf16b850a41780446af60ef84277b41d42a90a020072470a247953938dc'
 const projectSummariesWithActivityDigest = '3e94164b4bae49923a2b19f7eb109250dc057d3d689f91ce32ba893eddf20c85'
 const installationAdministratorListDigest = '70071c23e385ecd843db32d57446f94c9e3c7983ea98fe8c32054f8dbb8f2ec6'
+const firstAccountInstallationAdministratorDigest = '0671c33652ea96da8cfad3437f79c9d4124ba84af7f1f9e0cae2ca6f356b519b'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -52,6 +53,7 @@ const migrationDigests = new Map([
   ['0018_project_factory_creation.sql', projectFactoryCreationDigest],
   ['0019_project_summaries_with_activity.sql', projectSummariesWithActivityDigest],
   ['0020_installation_administrator_list.sql', installationAdministratorListDigest],
+  ['0021_first_account_installation_administrator.sql', firstAccountInstallationAdministratorDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

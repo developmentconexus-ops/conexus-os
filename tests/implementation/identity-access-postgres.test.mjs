@@ -69,6 +69,9 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   // The first account is minted, so no further unknown identity is admitted without an invitation.
   const installedAdmin = new Client(installed)
   await installedAdmin.connect()
+  const administrators = async () => (await installedAdmin.query('SELECT account_id, granted_via FROM iam.installation_administrator')).rows
+  assert.deepEqual(await administrators(), [{ account_id: replacement.accountId, granted_via: 'OPERATOR_BOOTSTRAP' }])
+  await installedAdmin.query('DELETE FROM iam.installation_administrator')
   await installedAdmin.query('DELETE FROM iam.session')
   await installedAdmin.query('DELETE FROM iam.account')
   await installedAdmin.end()
@@ -77,6 +80,19 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   const replay = await store.provisionBootstrap({ bootstrapToken, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1', idempotencyKey: 'same-key', displayName: 'Leandro', email: 'leandro@example.test' })
   assert.equal(first.accountId, replay.accountId)
   assert.equal(replay.replayed, true)
+  const verifyAdmin = new Client(installed)
+  await verifyAdmin.connect()
+  assert.deepEqual((await verifyAdmin.query('SELECT account_id FROM iam.installation_administrator')).rows, [{ account_id: first.accountId }])
+  const later = randomUUID()
+  await verifyAdmin.query("INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', $2, 'Later')", [later, `later-${later}`])
+  const runtimeClient = new Client(runtimeConnection)
+  await runtimeClient.connect()
+  const secondGrant = await runtimeClient.query('SELECT iam.grant_first_installation_administrator($1) AS granted', [later])
+  await runtimeClient.end()
+  assert.equal(secondGrant.rows[0].granted, false)
+  assert.deepEqual((await verifyAdmin.query('SELECT account_id FROM iam.installation_administrator')).rows, [{ account_id: first.accountId }])
+  await verifyAdmin.query('DELETE FROM iam.account WHERE account_id = $1', [later])
+  await verifyAdmin.end()
   await assert.rejects(
     store.provisionBootstrap({ bootstrapToken, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1', idempotencyKey: 'same-key', displayName: 'Changed' }),
     (error) => error.code === 'IDEMPOTENCY_CONFLICT',
