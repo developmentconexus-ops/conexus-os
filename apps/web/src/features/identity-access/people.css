@@ -1,0 +1,28 @@
+.cx-people { display: grid; gap: .5rem; }
+.cx-people > section:first-of-type .cx-section-title, .cx-people > .cx-people-message + section .cx-section-title { margin-top: 0; }
+.cx-count { margin-left: .35rem; color: var(--cx-text-2); font: 500 .875rem/1 var(--cx-font-body); font-variant-numeric: tabular-nums; }
+.cx-people-message { margin: 0 0 1rem; padding: .75rem 1rem; border: 1px solid color-mix(in srgb, var(--cx-danger) 35%, var(--cx-line)); border-radius: 12px; background: color-mix(in srgb, var(--cx-danger) 7%, var(--cx-surface)); color: var(--cx-danger); }
+.cx-people-empty { margin: 0; padding: 1rem; border: 1px dashed var(--cx-line); border-radius: 12px; color: var(--cx-text-2); }
+.cx-person-list { display: grid; margin: 0; padding: 0; list-style: none; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-surface); overflow: hidden; }
+.cx-person { display: grid; grid-template-columns: auto minmax(0, 1fr) auto 2.25rem; align-items: center; gap: .5rem .85rem; min-height: 4rem; padding: .7rem .85rem; }
+.cx-person-list .cx-person + .cx-person { border-top: 1px solid var(--cx-line); }
+.cx-people[aria-busy] .cx-person { border: 1px solid var(--cx-line); border-radius: 12px; grid-template-columns: auto 1fr; }
+.cx-person-avatar-skeleton { width: 2.25rem; height: 2.25rem; border-radius: 50%; }
+.cx-person-who { display: grid; min-width: 0; gap: .1rem; }
+.cx-person-who strong { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.cx-person-who span { overflow: hidden; color: var(--cx-text-2); font-size: .8125rem; text-overflow: ellipsis; white-space: nowrap; }
+.cx-person-you { color: var(--cx-text-2); font-weight: 400; }
+.cx-row-menu { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--cx-text-2); cursor: pointer; }
+.cx-row-menu:hover, .cx-row-menu[data-popup-open] { background: var(--cx-surface-3); color: var(--cx-text); }
+.cx-row-menu-placeholder { width: 2.25rem; }
+.cx-person > button { justify-self: end; }
+@media (max-width: 30rem) {
+  .cx-person { grid-template-columns: auto minmax(0, 1fr) 2.25rem; }
+  .cx-person > .cx-chip { grid-column: 2; grid-row: 2; justify-self: start; }
+}
+
+.cx-invite { margin-top: 2rem; }
+.cx-invite .cx-section-title { margin-top: 0; margin-bottom: .35rem; }
+.cx-invite-form { display: grid; grid-template-columns: minmax(0, 1fr) 9rem auto; align-items: end; gap: .75rem; margin: 1rem 0 .5rem; }
+.cx-invite-role { width: 100%; }
+@media (max-width: 36rem) { .cx-invite-form { grid-template-columns: 1fr; } }

@@ -4,12 +4,14 @@ import type { PostgresPool } from '../platform/postgres.js'
 import type { ProjectRuntimeConfig } from '../platform/config.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { registerProjectRoutes } from './routes.js'
+import { registerProjectSummaryRoutes } from './summary-routes.js'
+import type { ProjectSummaryOperationId } from './summary-routes.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { createProjectStore } from './store.js'
 import type { ProjectRepositoryPort } from './store.js'
 
 export type ProjectModule = Readonly<{
-  registerProjectRoutes(app: FastifyInstance): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03')[]>
+  registerProjectRoutes(app: FastifyInstance): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03' | ProjectSummaryOperationId)[]>
   close(): Promise<void>
 }>
 
@@ -28,9 +30,10 @@ export const createProjectModule = ({
 }>): ProjectModule => {
   const store = createProjectStore({ commandPool, readPool, repository })
   return Object.freeze({
-    registerProjectRoutes: (app: FastifyInstance) => registerProjectRoutes(app, {
-      store, resolveCurrentSession, origin,
-    }),
+    registerProjectRoutes: async (app: FastifyInstance) => [
+      ...await registerProjectRoutes(app, { store, resolveCurrentSession, origin }),
+      ...await registerProjectSummaryRoutes(app, { store, resolveCurrentSession }),
+    ],
     close: async () => {
       await Promise.all([commandPool.end(), readPool.end()])
     },

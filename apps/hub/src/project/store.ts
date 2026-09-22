@@ -47,11 +47,29 @@ type ProjectSummaryRow = QueryResultRow & Readonly<{
   archived: boolean
 }>
 type ProjectRepresentationRow = ProjectSummaryRow & Readonly<{ project_revision: string }>
+type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
+
+// The Projects home's card row: a Project's name and archived flag next to its latest Builder
+// activity, so the Hub answers one read instead of the browser paging one builder-session call
+// per Project.
+export type ProjectLatestRunSummary = Readonly<{
+  state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
+  resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
+}>
+export type ProjectSummaryWithActivity = Readonly<{
+  projectId: string
+  name: string
+  archived: boolean
+  lastActivityAt: string
+  latestRun: ProjectLatestRunSummary | null
+  hasPreview: boolean
+}>
 
 export type ProjectStore = Readonly<{
   createProject(input: CreateProjectInput): Promise<CreateProjectResult>
   listProjects(input: Readonly<{ accountId: string; workspaceId: string }>): Promise<Prj01Response>
   getProject(input: Readonly<{ accountId: string; projectId: string }>): Promise<Prj02Response | null>
+  listProjectSummariesWithActivity(input: Readonly<{ accountId: string; workspaceId: string }>): Promise<readonly ProjectSummaryWithActivity[]>
 }>
 
 const digestText = (value: string): string => sha256(Buffer.from(value, 'utf8'))
@@ -140,6 +158,25 @@ export const createProjectStore = ({
         projectRevision: row.project_revision,
         archived: row.archived,
       } : null
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+  const listProjectSummariesWithActivity = async ({ accountId, workspaceId }: Readonly<{
+    accountId: string
+    workspaceId: string
+  }>): Promise<readonly ProjectSummaryWithActivity[]> => {
+    const client = await requireReadPool().connect()
+    try {
+      await client.query('BEGIN READ ONLY')
+      const result = await client.query<JsonRow<readonly ProjectSummaryWithActivity[]>>(
+        'SELECT project.list_project_summaries_with_activity($1, $2) AS value', [accountId, workspaceId],
+      )
+      await client.query('COMMIT')
+      return result.rows[0]?.value ?? []
     } catch (error) {
       await client.query('ROLLBACK')
       throw error
@@ -245,5 +282,6 @@ export const createProjectStore = ({
     createProject,
     listProjects,
     getProject,
+    listProjectSummariesWithActivity,
   })
 }

@@ -64,9 +64,9 @@ export async function cancelWorkspaceInvitation(
 
 export function membershipMessage(error: unknown): string {
   if (!(error instanceof IdentityAccessRequestError)) return 'A alteração não foi confirmada.'
-  if (error.status === 403) return 'A autoridade atual não permite administrar os membros deste Workspace.'
-  if (error.status === 409) return 'O Workspace ficaria sem nenhuma pessoa responsável. Defina outra antes.'
+  if (error.status === 403) return 'Só owners podem fazer isso neste Workspace.'
+  if (error.status === 409) return 'O Workspace ficaria sem owner. Torne outra pessoa owner antes.'
   if (error.status === 422) return 'Informe um email válido e um papel válido.'
-  if (error.status === 404) return 'Este item não existe mais no Workspace.'
+  if (error.status === 404) return 'Esta pessoa ou convite não está mais no Workspace.'
   return 'A alteração não foi confirmada.'
 }
