@@ -27,7 +27,9 @@ still exists on trunk and goes.
 ## Where a row is not yet true
 
 - Model credentials. Custom providers, such as a local proxy, are organization rows in the Factory,
-  so one is installation-wide. The Factory has no per-person custom provider.
+  so one is installation-wide. The Factory has no per-person custom provider. Google AI Pro works
+  around that under C-027: its provider row is installation-wide with no key, and each person's
+  Factory credential is the bearer a Hub router turns into that person's own CLIProxyAPI process.
 - Identity. Conexus owns its own Hub session and validates it without Keycloak. Whether a Keycloak
   disable or logout must end an existing Hub session is an open question.
 - Conversation storage. Until unit 3, a Project's conversations are on exactly one of the two paths,
