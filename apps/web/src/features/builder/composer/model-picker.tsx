@@ -1,23 +1,24 @@
 import { Input } from '@mastra/playground-ui/components/Input'
 import { Check, Search } from 'lucide-react'
-import type { KeyboardEvent } from 'react'
+import type { CSSProperties, KeyboardEvent, PointerEvent } from 'react'
 import { useMemo, useRef, useState } from 'react'
 import type { BuilderModel, ReasoningLevel } from '../mastra-session'
 import { reasoningLevels } from '../mastra-session'
 import { groupModelsByProvider, providerIcon, providerLabel } from './model-order'
+import { humanizeModelName, parseReasoningSuffix } from './model-display-name'
 import { reasoningLabels } from './reasoning-labels'
 
 const matches = (model: BuilderModel, query: string): boolean => {
   const needle = query.trim().toLowerCase()
   if (!needle) return true
-  return model.modelName.toLowerCase().includes(needle) || providerLabel(model.provider).toLowerCase().includes(needle)
+  return humanizeModelName(model.modelName).toLowerCase().includes(needle) || providerLabel(model.provider).toLowerCase().includes(needle)
 }
 
 /**
  * One popover, one step: search the model, pick it, and set how hard it thinks, without opening a
  * second floating layer for either.
  */
-export function ModelPicker({ models, modelId, onModelChange, disabled, reasoning, onReasoningChange, reasoningDisabled }: Readonly<{
+export function ModelPicker({ models, modelId, onModelChange, disabled, reasoning, onReasoningChange, reasoningDisabled, reasoningLocked = false }: Readonly<{
   models: readonly BuilderModel[]
   modelId: string
   onModelChange: (modelId: string) => void
@@ -25,6 +26,8 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
   reasoning: ReasoningLevel
   onReasoningChange: (level: ReasoningLevel) => void
   reasoningDisabled: boolean
+  /** The selected model's id encodes its reasoning level (google-ai-pro's `-low`/`-high` suffix): no independent choice exists. */
+  reasoningLocked?: boolean
 }>) {
   const [query, setQuery] = useState('')
   const listRef = useRef<HTMLDivElement>(null)
@@ -53,6 +56,15 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
     const next = reasoningLevels[Math.min(reasoningLevels.length - 1, Math.max(0, levelIndex + step))]
     if (next && next !== reasoning) onReasoningChange(next)
   }
+  // Stop centers run from one thumb radius inside the pill to one thumb radius from its far end.
+  const onSliderPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (reasoningDisabled) return
+    const box = event.currentTarget.getBoundingClientRect()
+    const inset = box.height / 2
+    const fraction = Math.min(1, Math.max(0, (event.clientX - box.left - inset) / (box.width - 2 * inset)))
+    const next = reasoningLevels[Math.round(fraction * (reasoningLevels.length - 1))]
+    if (next && next !== reasoning) onReasoningChange(next)
+  }
 
   return <div className="cx-model-popover">
     <p className="cx-popover-title">Modelo desta conversa</p>
@@ -63,7 +75,7 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
       </div>
       : <>
         <div className="cx-model-search">
-          <Search size={15} aria-hidden="true" />
+          <span className="cx-model-search-icon" aria-hidden="true"><Search size={15} /></span>
           <Input
             aria-label="Buscar modelo"
             placeholder="Buscar modelo"
@@ -93,7 +105,8 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
                 onClick={() => onModelChange(model.id)}
               >
                 <Icon width={15} height={15} aria-hidden="true" />
-                <span className="cx-model-option-name">{model.modelName}</span>
+                <span className="cx-model-option-name">{humanizeModelName(model.modelName)}</span>
+                {(() => { const suffix = parseReasoningSuffix(model.modelName); return suffix && <span className="cx-model-option-level">{reasoningLabels[suffix.level]}</span> })()}
                 {model.id === modelId && <Check size={14} aria-hidden="true" />}
               </button>)}
             </div>
@@ -101,7 +114,8 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
         </div>
       </>}
     <div className="cx-effort">
-      <div className="cx-effort-head"><span id="cx-effort-label">Raciocínio</span><b>{reasoningLabels[reasoning]}</b></div>
+      <span id="cx-effort-label" className="cx-effort-title">Raciocínio</span>
+      <b className="cx-effort-value" aria-hidden="true">{reasoningLabels[reasoning]}</b>
       <div
         className="cx-effort-slider"
         role="slider"
@@ -112,12 +126,22 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
         aria-valuenow={levelIndex}
         aria-valuetext={reasoningLabels[reasoning]}
         aria-disabled={reasoningDisabled || undefined}
+        data-locked={reasoningLocked || undefined}
+        style={{ '--cx-effort-at': levelIndex / (reasoningLevels.length - 1) } as CSSProperties}
         onKeyDown={onSliderKeyDown}
+        onPointerDown={onSliderPointerDown}
       >
-        <div className="cx-effort-track"><div className="cx-effort-fill" style={{ width: `${(levelIndex / (reasoningLevels.length - 1)) * 100}%` }} /></div>
-        <div className="cx-effort-thumb" style={{ left: `${(levelIndex / (reasoningLevels.length - 1)) * 100}%` }} />
+        <span className="cx-effort-fill" aria-hidden="true" />
+        {reasoningLevels.map((level, index) => <span
+          key={level}
+          className="cx-effort-dot"
+          aria-hidden="true"
+          data-filled={index < levelIndex || undefined}
+          style={{ '--cx-effort-stop': index / (reasoningLevels.length - 1) } as CSSProperties}
+        />)}
+        <span className="cx-effort-thumb" aria-hidden="true" />
       </div>
-      <div className="cx-effort-stops" aria-hidden="true">{reasoningLevels.map((level) => <span key={level} data-on={level === reasoning || undefined}>{reasoningLabels[level]}</span>)}</div>
+      {reasoningLocked && <p className="cx-effort-locked">Nível fixo neste modelo</p>}
     </div>
   </div>
 }

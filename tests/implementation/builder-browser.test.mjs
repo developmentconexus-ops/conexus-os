@@ -2,7 +2,30 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
 import { startWebServer } from './web-dev-server.mjs'
+import { humanizeModelName, parseReasoningSuffix } from '../../apps/web/src/features/builder/composer/model-display-name.ts'
 
+// The formatter has no Mastra field to read a display name from (see model-display-name.ts's own
+// comment and the PR description for the file:line citations), so its output is pinned here against
+// literal expected values, not just checked for some non-empty string.
+test('humanizeModelName turns a bare catalog id into the name a person reads', () => {
+  assert.equal(humanizeModelName('claude-opus-4-5'), 'Claude Opus 4.5')
+  assert.equal(humanizeModelName('claude-sonnet-4-5'), 'Claude Sonnet 4.5')
+  assert.equal(humanizeModelName('llama-4'), 'Llama 4')
+  assert.equal(humanizeModelName('gpt-5.1'), 'GPT 5.1')
+  assert.equal(humanizeModelName('o1'), 'o1')
+  assert.equal(humanizeModelName('gemini-3-flash'), 'Gemini 3 Flash')
+  assert.equal(humanizeModelName('gemini-pro-agent'), 'Gemini Pro Agent')
+  // The trailing reasoning suffix google-ai-pro/CLIProxy bakes into the id is not part of the name.
+  assert.equal(humanizeModelName('gemini-3.8-flash-high'), 'Gemini 3.8 Flash')
+  assert.equal(humanizeModelName('gemini-3.1-pro-low'), 'Gemini 3.1 Pro')
+})
+
+test('parseReasoningSuffix reads the level google-ai-pro/CLIProxy ids bake into the id, and nothing for everyone else', () => {
+  assert.deepEqual(parseReasoningSuffix('gemini-3.8-flash-high'), { base: 'gemini-3.8-flash', level: 'high' })
+  assert.deepEqual(parseReasoningSuffix('gemini-3.1-pro-low'), { base: 'gemini-3.1-pro', level: 'low' })
+  assert.equal(parseReasoningSuffix('claude-opus-4-5'), null)
+  assert.equal(parseReasoningSuffix('gemini-pro-agent'), null)
+})
 
 const FACTORY_CONTROLLER = '**/api/mastra-factory/agent-controller/code'
 // The model and a conversation's own state are the controller's, so the screen reads both from
@@ -13,7 +36,7 @@ const BUILDER_MODELS = [
   { id: 'groq/llama-4', provider: 'groq', modelName: 'llama-4', hasApiKey: false },
 ]
 const SELECTED_MODEL = BUILDER_MODELS[0].id
-const SELECTED_MODEL_NAME = BUILDER_MODELS[0].modelName
+const SELECTED_MODEL_NAME = humanizeModelName(BUILDER_MODELS[0].modelName)
 const conversation = (conversationId, title, createdAt = '2026-09-20T12:00:00.000Z') => ({ conversationId, title, createdAt })
 
 const threadIdOf = (url, offsetFromEnd) => decodeURIComponent(new URL(url).pathname.split('/').at(offsetFromEnd))
@@ -471,8 +494,8 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   // The model the next run uses is the controller's own selection, and the composer shows it.
   await page.getByRole('button', { name: new RegExp(`^Modelo ${SELECTED_MODEL_NAME}, `) }).waitFor()
   await openModelPicker(page)
-  await page.getByRole('option', { name: 'claude-opus-4-5' }).waitFor()
-  await page.getByRole('option', { name: 'claude-sonnet-4-5' }).waitFor()
+  await page.getByRole('option', { name: 'Claude Opus 4.5' }).waitFor()
+  await page.getByRole('option', { name: 'Claude Sonnet 4.5' }).waitFor()
   assert.equal(await page.getByRole('option').count(), 2, 'a model the controller has no key for is never offered')
   await page.keyboard.press('Escape')
 
