@@ -71,13 +71,31 @@ export const useBuilderModels = () => useQuery({
   queryFn: () => factoryController.listModels(),
 })
 
+export const reasoningLevels = ['low', 'medium', 'high', 'xhigh'] as const
+export type ReasoningLevel = typeof reasoningLevels[number]
+const asReasoningLevel = (value: unknown): ReasoningLevel | null =>
+  reasoningLevels.find((level) => level === value) ?? null
+
 export const useSessionModel = (projectId: string, conversationId: string | null) => {
   const queryClient = useQueryClient()
-  // A session arrives with no model selected, and an empty id is how the controller says so.
-  const selected = useQuery({
+  // A session arrives with no model selected, and an empty id is how the controller says so. An
+  // absent thinking level means the controller's configured default applies.
+  const state = useQuery({
     queryKey: [...sessionModelKey(projectId), conversationId],
-    queryFn: async () => (await factoryController.session(conversationId ?? '').state()).modelId,
+    queryFn: async () => {
+      const current = await factoryController.session(conversationId ?? '').state()
+      return { modelId: current.modelId, reasoning: asReasoningLevel(current.settings?.thinkingLevel) }
+    },
     enabled: Boolean(conversationId),
+  })
+  // The Hub admits exactly this one key on the state route, and the controller persists it on the
+  // conversation's thread, so the run opened from this conversation reasons at this level.
+  const chooseReasoning = useMutation({
+    mutationFn: (level: ReasoningLevel) => {
+      if (!conversationId) throw new Error('BUILDER_CONVERSATION_NOT_READY')
+      return factoryController.session(conversationId).setState({ thinkingLevel: level })
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
   })
   // Thread scope is the only one the controller persists, and it is the right one: the choice is
   // saved on the conversation, which is what a run opened from it will read.
@@ -88,7 +106,7 @@ export const useSessionModel = (projectId: string, conversationId: string | null
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
   })
-  return { selected, choose }
+  return { state, modelId: state.data?.modelId ?? '', reasoning: state.data?.reasoning ?? null, choose, chooseReasoning }
 }
 
 export const useBuilderThreadMessages = (projectId: string, threadId: string | undefined) => useQuery({
@@ -102,10 +120,17 @@ export type LiveTurn = Readonly<{
   status: 'CONNECTING' | 'LIVE' | 'ENDED' | 'LOST'
   messages: readonly MastraDBMessage[]
   tools: Readonly<Record<string, ActiveTool>>
+  // Tool calls parked on the person, keyed by call id: an approval or a question from the agent.
+  waiting: Readonly<Record<string, PendingAnswer>>
   error: string | null
 }>
 
-const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, error: null }
+export type PendingAnswer = Readonly<{ kind: 'APPROVAL' | 'QUESTION'; toolCallId: string; toolName: string; args: unknown; prompt: unknown }>
+
+const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, error: null }
+
+const without = (waiting: LiveTurn['waiting'], toolCallId: string): LiveTurn['waiting'] =>
+  Object.fromEntries(Object.entries(waiting).filter(([id]) => id !== toolCallId))
 
 type TurnAction = Readonly<{ runId: string }> & (
   | Readonly<{ kind: 'connected' }>
@@ -133,10 +158,17 @@ const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => {
       return { ...turn, messages: upsertMessage(turn.messages, event.message) }
     case 'display_state_changed':
       return { ...turn, tools: { ...turn.tools, ...event.displayState.activeTools } }
+    case 'tool_approval_required':
+      return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: 'APPROVAL', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: null } } }
+    case 'tool_suspended':
+      return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: 'QUESTION', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: event.suspendPayload } } }
+    case 'tool_end':
+    case 'tool_suspension_cancelled':
+      return { ...turn, waiting: without(turn.waiting, event.toolCallId) }
     case 'error':
       return { ...turn, error: event.error.message }
     case 'agent_end':
-      return { ...turn, status: 'ENDED' }
+      return { ...turn, status: 'ENDED', waiting: {} }
     default:
       return turn
   }
@@ -185,4 +217,15 @@ export const useBuilderLiveTurn = (
     }
   }, [agentActive, builderRunId, conversationId, projectId, queryClient])
   return turn.runId === builderRunId ? turn : idleTurn
+}
+
+/**
+ * Answers a call the run parked on the person. The answer goes to the run's own session, and the
+ * Hub refuses anything but approve or decline there, so there is no "always allow" to send.
+ */
+export const answerPendingCall = (conversationId: string, builderRunId: string, pending: PendingAnswer, answer: Readonly<{ approved: boolean } | { text: string }>): Promise<void> => {
+  const session = factoryController.session(conversationId, builderRunScope(builderRunId))
+  return 'approved' in answer
+    ? session.approveTool(pending.toolCallId, answer.approved)
+    : session.respondToToolSuspension(pending.toolCallId, answer.text)
 }

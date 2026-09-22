@@ -12,7 +12,7 @@ test('S3-P6 browser routes remain preserved beside the bounded S4 candidate rout
   const expected = [
     'apps/web/src/routes/workspace-projects.tsx',
     'apps/web/src/routes/workspace-project-new.tsx',
-    'apps/web/src/routes/project-detail.tsx',
+    'apps/web/src/routes/construir.tsx',
     'apps/web/src/features/project/api.ts',
     'apps/web/src/features/project/components/project-list.tsx',
     'apps/web/src/features/project/components/project-create-form.tsx',
@@ -22,7 +22,7 @@ test('S3-P6 browser routes remain preserved beside the bounded S4 candidate rout
   const router = readFileSync(path('apps/web/src/app/router.tsx'), 'utf8')
   assert.match(router, /workspaceProjectsRoute/)
   assert.match(router, /workspaceProjectNewRoute/)
-  assert.match(router, /projectDetailRoute/)
+  assert.match(router, /projectRoute/)
   assert.doesNotMatch(router, /inception/i)
 })
 
@@ -106,6 +106,11 @@ test('S3-P6 real Chromium proves browse, filters, create navigation and narrow r
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(project) })
   })
 
+  // Opening a Project lands in Construir on its most recent conversation.
+  await page.route('**/api/control/projects/*/conversations', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ conversations: [{ conversationId: `conversation-of-${route.request().url().split('/').at(-2)}`, title: null, createdAt: '2026-09-22T12:00:00.000Z' }] }),
+  }))
   await page.goto(`${origin}/workspaces/${workspaceId}/projects`)
   await page.getByRole('heading', { name: 'Projects', exact: true }).waitFor()
   assert.equal(await page.locator('.project-card').count(), 1)
@@ -115,14 +120,14 @@ test('S3-P6 real Chromium proves browse, filters, create navigation and narrow r
   assert.equal(await page.locator('.project-card').count(), 1)
   await page.getByLabel('Nome do Project').fill('Active')
   await page.getByRole('link', { name: 'Abrir' }).click()
-  await page.getByRole('heading', { name: 'Active Project' }).waitFor()
+  await page.waitForURL(`${origin}/projects/${projectId}/c/conversation-of-${projectId}`)
+  await page.getByLabel('Contexto atual').getByText('Active Project').waitFor()
 
   await page.goto(`${origin}/workspaces/${workspaceId}/projects/new`)
   await page.getByLabel('Nome do Project').fill('Imported Project')
   await page.getByRole('button', { name: 'Criar Project' }).click()
-  await page.getByRole('heading', { name: 'Construir com o Conexus' }).waitFor()
-  await page.getByText('Imported Project / Build').waitFor()
-  assert.equal(page.url(), `${origin}/projects/${createdId}/build`)
+  await page.waitForURL(`${origin}/projects/${createdId}/c/conversation-of-${createdId}`)
+  await page.getByLabel('Contexto atual').getByText('Imported Project').waitFor()
   assert.notEqual(createKey, '')
   assert.deepEqual(createBody, { name: 'Imported Project', sourceBootstrap: { mode: 'NEW' } })
 

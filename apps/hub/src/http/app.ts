@@ -76,6 +76,7 @@ export const createHttpApp = async ({
       '/workspaces/:workspaceId/members',
       '/projects/:projectId',
       '/projects/:projectId/build',
+      '/projects/:projectId/c/:conversationId',
       '/settings',
     ] as const
     for (const route of spaRoutes) {
