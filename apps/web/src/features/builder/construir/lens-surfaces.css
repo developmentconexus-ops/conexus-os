@@ -24,16 +24,42 @@
 
 /* Alterações */
 .cx-diff-lens { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.cx-diff-head { padding: .6rem 1rem; border-bottom: 1px solid var(--cx-line); background: var(--cx-surface); }
-.cx-diff-headrow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .35rem; }
+.cx-diff-head { padding: .7rem 1rem; border-bottom: 1px solid var(--cx-line); background: var(--cx-surface); }
+.cx-diff-headrow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .4rem; }
 .cx-diff-summary { margin: 0; color: var(--cx-text-2); font-size: .8125rem; }
-.cx-diff-add { color: var(--cx-success); font-variant-numeric: tabular-nums; }
-.cx-diff-del { color: var(--cx-danger); font-variant-numeric: tabular-nums; }
+.cx-diff-add, .cx-diff-del { font: 500 .75rem/1 var(--cx-font-mono); font-variant-numeric: tabular-nums; }
+.cx-diff-add { color: var(--cx-success); }
+.cx-diff-del { color: var(--cx-danger); }
 .cx-diff-lens .cx-lens-split { border-top: 0; }
-.cx-change-counts { display: inline-flex; gap: .4rem; margin-left: auto; font-size: .6875rem; }
+
+/* The file list row is path + per-file counts + status label; give each its own column instead of
+   letting the third span wrap onto its own row under the two-column base rule from construir.css. */
+.cx-diff-lens .cx-change { grid-template-columns: minmax(0, 1fr) auto auto; }
+.cx-diff-lens .cx-change-counts { display: inline-flex; gap: .4rem; font: 500 .6875rem/1 var(--cx-font-mono); font-variant-numeric: tabular-nums; }
+.cx-diff-lens .cx-change-kind { flex: none; }
+
 .cx-code-split .cm-mergeView { height: 100%; }
 .cx-code-split .cm-editor { height: 100%; background: transparent; }
 .cx-code-split .cm-scroller { font-family: var(--cx-font-mono); }
+
+/* @codemirror/merge ships its own hardcoded tint (brownish/greenish rgba, and a flat purple for the
+   unified view's insert gutter) injected as a runtime <style>; !important is the only reliable way
+   to override a third-party CSS-in-JS theme whose own selectors already stack several classes. Reuse
+   the same success/danger tokens as the rest of the app instead of a one-off diff palette. */
+.cx-diff-lens .cm-deletedChunk,
+.cx-diff-lens .cm-merge-a .cm-changedLine { background: color-mix(in srgb, var(--cx-danger) 12%, var(--cx-surface)) !important; }
+.cx-diff-lens .cm-inlineChangedLine,
+.cx-diff-lens .cm-merge-b .cm-changedLine { background: color-mix(in srgb, var(--cx-success) 12%, var(--cx-surface)) !important; }
+.cx-diff-lens .cm-deletedChunk .cm-deletedText,
+.cx-diff-lens .cm-merge-a .cm-changedText { background: color-mix(in srgb, var(--cx-danger) 32%, transparent) !important; background-image: none !important; border-radius: 2px; }
+.cx-diff-lens .cm-merge-b .cm-changedText { background: color-mix(in srgb, var(--cx-success) 32%, transparent) !important; background-image: none !important; border-radius: 2px; }
+.cx-diff-lens .cm-deletedLineGutter,
+.cx-diff-lens .cm-merge-a .cm-changedLineGutter { background: var(--cx-danger) !important; }
+.cx-diff-lens .cm-inlineChangedLineGutter,
+.cx-diff-lens .cm-merge-b .cm-changedLineGutter { background: var(--cx-success) !important; }
+.cx-diff-lens .cm-gutters { background: var(--cx-surface); border-right: 1px solid var(--cx-line); color: var(--cx-line-strong); }
+.cx-diff-lens .cm-collapsedLines { padding: .4rem .75rem .4rem 1rem; background: var(--cx-surface-3) !important; color: var(--cx-text-2) !important; font-size: .75rem; }
+.cx-diff-lens .cm-collapsedLines:hover { background: var(--cx-surface-4) !important; color: var(--cx-accent-text) !important; }
 
 /* Sobre */
 .cx-tech { margin-top: .25rem; padding-top: .5rem; border-top: 1px solid var(--cx-line); }

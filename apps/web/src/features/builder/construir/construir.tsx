@@ -242,7 +242,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           }}
         >
           <span>{tab.label}</span>
-          {tab.lens === 'diff' && diffCount.data && <span className="cx-lens-count">{diffCount.data.files.length}</span>}
+          {tab.lens === 'diff' && Boolean(diffCount.data?.files.length) && <span className="cx-lens-count">+{diffCount.data?.files.length}</span>}
         </button>)}
       </div>
     </div>

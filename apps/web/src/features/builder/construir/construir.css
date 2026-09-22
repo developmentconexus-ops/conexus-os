@@ -16,7 +16,9 @@
 .cx-lens { display: inline-flex; align-items: baseline; gap: .35rem; padding: .5rem 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--cx-text-2); font: 500 .875rem/1 var(--cx-font-body); white-space: nowrap; cursor: pointer; transition: color .15s, border-color .15s; }
 .cx-lens:hover:not([aria-selected="true"]) { color: var(--cx-text); }
 .cx-lens[aria-selected="true"] { color: var(--cx-text); border-bottom-color: var(--cx-accent); font-weight: 600; box-shadow: none; }
-.cx-lens-count { color: var(--cx-text-2); font-weight: 400; }
+/* The diff tab's own badge: exclusive to the Alterações count, so it reads as changed files rather
+   than borrowing the ipê accent other lens badges would use. */
+.cx-lens-count { padding: .05rem .35rem; border-radius: 999px; background: color-mix(in srgb, var(--cx-success) 16%, var(--cx-surface)); color: var(--cx-success); font: 600 .6875rem/1.3 var(--cx-font-mono); font-variant-numeric: tabular-nums; }
 .cx-lens-panel { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
 .cx-lens-layer { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .cx-lens-layer[hidden] { display: none; }
