@@ -186,6 +186,7 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
     clientSecret: readSecretFile(factory.githubClientSecretFile),
   }
   const stateSecret = readSecretFile(factory.stateSecretFile)
+  const secretKey = readSecretFile(factory.secretKeyFile)
   const observability = createBuilderObservability('conexus-builder-factory')
   const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
   const githubApp = createGithubApp({ appId: factory.githubAppId, privateKey: github.privateKey })
@@ -201,7 +202,7 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
     throw new Error('BUILDER_FACTORY_UNAVAILABLE')
   }
   const ready = composeFactory({
-    pool, github, stateSecret, publicUrl: origin, observability,
+    pool, github, stateSecret, secretKey, publicUrl: origin, observability,
     sandbox: createFactorySandbox({ apiKey: e2bApiKey, templateId: e2bTemplateId, readCheckout }),
   })
   ready.catch(() => undefined)

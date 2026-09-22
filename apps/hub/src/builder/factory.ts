@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { Mastra } from '@mastra/core/mastra'
 import type { CommandResult, SandboxStartHook } from '@mastra/core/workspace'
 import { E2BSandbox } from '@mastra/e2b'
-import { MastraFactory } from '@mastra/factory'
+import { createFactorySecretEncryption, MastraFactory } from '@mastra/factory'
+import type { FactorySecretEncryption } from '@mastra/factory/secret-encryption'
 import { GithubIntegration } from '@mastra/factory/integrations/github/integration'
 import type { FactorySandboxContext } from '@mastra/factory/sandbox/session-sandbox'
 import { repoDirUnder } from '@mastra/factory/sandbox/workdir'
@@ -169,10 +171,29 @@ export type FactoryComposition = Readonly<{
   close(): Promise<void>
 }>
 
-export const composeFactory = async ({ pool, github, stateSecret, publicUrl, sandbox, observability }: Readonly<{
+const ENVELOPE_PREFIX = 'mastra:factory-secret:v1:'
+
+// The Factory encrypts model credentials, custom-provider keys and integration secrets with this
+// key. Rows written before it existed hold the plaintext encryptor's JSON text, which the Factory's
+// decryptor returns as a string and its startup migration would re-encrypt as one; they are parsed
+// here, so that migration encrypts the credential itself.
+export const createFactorySecretKeyEncryption = (hexKey: string): FactorySecretEncryption => {
+  if (!/^[0-9a-f]{64}$/.test(hexKey)) throw new Error('FACTORY_SECRET_KEY_REFUSED')
+  const key = Buffer.from(hexKey, 'hex')
+  const encryption = createFactorySecretEncryption({ primary: { id: createHash('sha256').update(key).digest('hex').slice(0, 16), key } })
+  return {
+    encrypt: (value) => encryption.encrypt(value),
+    decrypt: async (value) => typeof value === 'string' && !value.startsWith(ENVELOPE_PREFIX)
+      ? { value: JSON.parse(value), needsReencryption: true }
+      : encryption.decrypt(value),
+  }
+}
+
+export const composeFactory = async ({ pool, github, stateSecret, secretKey, publicUrl, sandbox, observability }: Readonly<{
   pool: PostgresPool
   github: FactoryGithubApp
   stateSecret: string
+  secretKey: string
   publicUrl: string
   sandbox: (context: FactorySandboxContext) => E2BSandbox
   observability?: Observability
@@ -193,6 +214,7 @@ export const composeFactory = async ({ pool, github, stateSecret, publicUrl, san
     integrations: [integration],
     sandbox,
     stateSecret,
+    secretEncryption: createFactorySecretKeyEncryption(secretKey),
     includeDefaultBoards: false,
     publicUrl,
   })

@@ -42,6 +42,8 @@ export type FactoryRuntimeConfig = Readonly<{
   githubPrivateKeyFile: string
   githubClientSecretFile: string
   stateSecretFile: string
+  // 64 hex characters: the AES-256 key the Factory encrypts stored credentials with.
+  secretKeyFile: string
   databasePasswordFile: string
 }>
 
@@ -188,6 +190,7 @@ const FACTORY_VARIABLES = {
   githubPrivateKeyFile: 'CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE',
   githubClientSecretFile: 'CONEXUS_FACTORY_GITHUB_CLIENT_SECRET_FILE',
   stateSecretFile: 'CONEXUS_FACTORY_STATE_SECRET_FILE',
+  secretKeyFile: 'CONEXUS_FACTORY_SECRET_KEY_FILE',
   databasePasswordFile: 'CONEXUS_DB_FACTORY_PASSWORD_FILE',
 } as const satisfies Record<keyof FactoryRuntimeConfig, string>
 

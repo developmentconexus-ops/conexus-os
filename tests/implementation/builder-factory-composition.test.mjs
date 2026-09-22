@@ -22,7 +22,8 @@ const compiled = spawnSync(process.execPath, [
 ], { encoding: 'utf8' })
 if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
 const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
-const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, SANDBOX_CREDENTIAL } = await import(built('builder/factory.js'))
+const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, createFactoryStorage, createFactorySecretKeyEncryption, SANDBOX_CREDENTIAL } = await import(built('builder/factory.js'))
+const { ModelCredentialsStorage } = await import('@mastra/factory/storage/domains/credentials/base')
 const { createBuilderMountOptions } = await import(built('builder/module.js'))
 const { createMastraFactoryRunPorts } = await import(built('builder/factory-runtime.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
@@ -58,6 +59,7 @@ const factoryEnvironment = {
   CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE: '/secrets/factory-app.pem',
   CONEXUS_FACTORY_GITHUB_CLIENT_SECRET_FILE: '/secrets/factory-app-client-secret',
   CONEXUS_FACTORY_STATE_SECRET_FILE: '/secrets/factory-state-secret',
+  CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/factory-secret-key',
   CONEXUS_DB_FACTORY_PASSWORD_FILE: '/secrets/factory-db',
 }
 
@@ -198,10 +200,19 @@ test('a complete Factory configuration is read, and a partial one names the miss
     githubPrivateKeyFile: '/secrets/factory-app.pem',
     githubClientSecretFile: '/secrets/factory-app-client-secret',
     stateSecretFile: '/secrets/factory-state-secret',
+    secretKeyFile: '/secrets/factory-secret-key',
     databasePasswordFile: '/secrets/factory-db',
   })
   const { CONEXUS_FACTORY_STATE_SECRET_FILE: _omitted, ...partial } = factoryEnvironment
   assert.throws(() => readHubConfig({ ...baseEnvironment, ...partial }), /^Error: MISSING_CONFIG_CONEXUS_FACTORY_STATE_SECRET_FILE$/)
+  const { CONEXUS_FACTORY_SECRET_KEY_FILE: _key, ...keyless } = factoryEnvironment
+  assert.throws(() => readHubConfig({ ...baseEnvironment, ...keyless }), /^Error: MISSING_CONFIG_CONEXUS_FACTORY_SECRET_KEY_FILE$/)
+})
+
+test('a secret key that is not 64 hex characters is refused before the Factory stores anything', () => {
+  for (const key of ['', 'f'.repeat(63), 'F'.repeat(64), 'g'.repeat(64), 'f'.repeat(65)]) {
+    assert.throws(() => createFactorySecretKeyEncryption(key), /^Error: FACTORY_SECRET_KEY_REFUSED$/)
+  }
 })
 
 test('a Hub composing the Factory refuses Mastra Platform credentials', () => {
@@ -264,10 +275,18 @@ test('prepare() registers the controller as code, lands every table in factory, 
 
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
   const pool = new pg.Pool({ ...connection, user: role, password, options: '-c search_path=factory', max: 4 })
+  // A credential a Hub stored before it had a key, through the Factory's plaintext default.
+  const beforePool = new pg.Pool({ ...connection, user: role, password, options: '-c search_path=factory', max: 1 })
+  const before = createFactoryStorage(beforePool)
+  const plaintextCredentials = before.registerDomain(new ModelCredentialsStorage())
+  await before.init()
+  await plaintextCredentials.setCredential({ orgId: 'conexus-installation', userId: null }, 'anthropic', { type: 'api_key', key: 'sk-ant-before-the-key' })
+  await beforePool.end()
   const composition = await composeFactory({
     pool,
     github: { appId: '1', clientId: 'client', clientSecret: 'secret', slug: 'conexus-probe', privateKey: privateKey.export({ type: 'pkcs1', format: 'pem' }) },
     stateSecret: 'state-secret-for-the-probe-only-0123456789',
+    secretKey: 'a1'.repeat(32),
     publicUrl: 'https://hub.test',
     sandbox: createFactorySandbox({ apiKey: 'unused', templateId: 'conexus:tpl' }),
   })
@@ -301,4 +320,15 @@ test('prepare() registers the controller as code, lands every table in factory, 
   }
   const publicTables = await inspector.query("SELECT count(*)::int AS count FROM pg_tables WHERE schemaname = 'public'")
   assert.equal(publicTables.rows[0].count, 0)
+
+  // Stored credentials are the Factory's AES-256-GCM envelope, the one stored before the key included,
+  // and each reads back as the credential it was.
+  const credentials = composition.storage.getDomain('model-credentials')
+  await credentials.setCredential({ orgId: 'conexus-installation', userId: 'conexus-operator' }, 'openai', { type: 'api_key', key: 'sk-probe-at-rest' })
+  const stored = (await inspector.query('SELECT provider, data::text AS data FROM factory.model_provider_credentials ORDER BY provider')).rows
+  assert.deepEqual(stored.map(({ provider, data }) => [provider, data.startsWith('"mastra:factory-secret:v1:'), /sk-|api_key/.test(data)]), [
+    ['anthropic', true, false], ['openai', true, false],
+  ])
+  assert.deepEqual(await credentials.getCredential({ orgId: 'conexus-installation', userId: 'conexus-operator' }, 'openai'), { type: 'api_key', key: 'sk-probe-at-rest' })
+  assert.deepEqual(await credentials.getCredential({ orgId: 'conexus-installation', userId: null }, 'anthropic'), { type: 'api_key', key: 'sk-ant-before-the-key' })
 })
