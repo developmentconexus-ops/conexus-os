@@ -20,6 +20,7 @@ import { openFactoryRecords, prepareFactoryRepository } from './factory-provisio
 import type { FactoryBinding } from './factory-provisioning.js'
 import { createFactoryCodingWorkerRuntime, createMastraFactoryRunPorts, recoverFactoryAdmissions } from './factory-runtime.js'
 import { createFactorySourceReads } from './factory-source.js'
+import { createProjectRepositoryPort, registerProjectRepositoryRoutes } from './repository-routes.js'
 import type { FactoryRunDependencies, RunNote } from './service.js'
 import type { BuilderStore } from './store.js'
 
@@ -172,6 +173,11 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
   records.catch(() => undefined)
   const prepareRepository = async ({ projectId, projectName }: Readonly<{ projectId: string; projectName: string }>): Promise<FactoryBinding> =>
     prepareFactoryRepository({ github: githubApp, records: await records, orgId: factory.orgId, projectId, projectName })
+  const repository = createProjectRepositoryPort({
+    readFactoryBinding: store.readFactoryBinding,
+    resolveRepository: (binding) => portsReady.then((ports) => ports.resolveRepository(binding)),
+    github: githubApp,
+  })
   const run: FactoryRunDependencies = Object.freeze({
     runtime: { execute: async (input) => (await runtime).execute(input) },
     readBindingForRun: store.readFactoryBindingForRun,
@@ -191,6 +197,7 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
     portsReady,
     run,
     prepareRepository,
+    repository,
     observabilityLifecycle,
     close: async () => {
       try {
@@ -279,7 +286,11 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, appl
         resolveCurrentSession,
         admitConversation: admitFactoryConversation({ sessions, resolveFactoryProject: store.resolveFactoryProject }),
       })
-      return [...builderOperations, ...await registerFactoryConversationRoutes(app, {
+      const repositoryOperations = await registerProjectRepositoryRoutes(app, {
+        repository: factoryComposition.repository,
+        resolveCurrentSession,
+      })
+      return [...builderOperations, ...repositoryOperations, ...await registerFactoryConversationRoutes(app, {
         readFactoryBinding: store.readFactoryBinding, sessions, orgId: factoryComposition.orgId, origin, resolveCurrentSession,
         defaultBranchOf: async (binding) => (await (await factoryComposition.portsReady).resolveRepository(binding)).defaultBranch,
         openThread: openFactoryConversationThread({ controller: composition.controller, orgId: factoryComposition.orgId }),
