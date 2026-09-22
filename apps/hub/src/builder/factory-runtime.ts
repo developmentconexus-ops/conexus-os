@@ -25,7 +25,8 @@ export type FactoryRunSandbox = Readonly<{
   executeCommand(command: string, args?: string[], options?: ExecuteCommandOptions): Promise<CommandResult>
   writeFiles(files: SandboxFileInput[]): Promise<void>
   runAsRoot(script: string, env: Record<string, string>): Promise<CommandResult>
-  buildApplication(appRoot: string, signal?: AbortSignal): Promise<CompiledApplication['files']>
+  // Builds <buildRoot>/app as root, writing only under buildRoot.
+  buildApplication(buildRoot: string, signal?: AbortSignal): Promise<CompiledApplication['files']>
 }>
 
 export type FactoryAgentTurn = Readonly<{
@@ -100,6 +101,7 @@ const repositoryUrl = (slug: string): string => `https://github.com/${slug}.git`
 const AGENT_USER = 'conexus-agent'
 const HUB_GIT_ROOT = '/var/lib/conexus-git'
 const RESULT_BUNDLE = `${FACTORY_WORKING_DIRECTORY}/.conexus-result.bundle`
+const BUILD_ROOT = '/var/lib/conexus-build'
 const tokenEnvironment = (token: string): Record<string, string> => ({
   GIT_CONFIG_COUNT: '1',
   GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
@@ -155,6 +157,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
         onIncarnation(() => sandbox.executeCommand(command, args, { ...options, env: {} }))
       const sh = (script: string): Promise<CommandResult> => direct('sh', ['-c', script])
       const withToken = (token: string, script: string): Promise<CommandResult> => onIncarnation(() => sandbox.runAsRoot(script, tokenEnvironment(token)))
+      const asRoot = (script: string): Promise<CommandResult> => onIncarnation(() => sandbox.runAsRoot(script, {}))
       // A VM from an older template, adopted after a Hub restart, would still run the agent as root.
       if ((await direct('id', ['-un'])).stdout.trim() !== AGENT_USER) throw new Error('BUILDER_SANDBOX_AGENT_USER_REQUIRED')
       await scrubCheckoutCredentials({ executeCommand: direct }, workdir, slug)
@@ -240,10 +243,24 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       await input.setPhase('COMPILING')
       let applicationBuild: ApplicationBuildOutcome
       try {
-        const listed = await direct('git', ['-C', workdir, 'ls-tree', '-r', '-l', 'HEAD', 'app/'])
+        // The agent's processes can outlive its turn and keep writing the checkout, so the build
+        // takes the result's own tree from the mirror into a directory only root can enter, once
+        // every process of the agent's user is gone.
+        const listed = await asRoot(`${hubGit} ls-tree -r -l '${result}' app/`)
         if (listed.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
         admitApplicationTree(listed.stdout)
-        const files = await sandbox.buildApplication(`${workdir}/app`, input.signal)
+        await sh('kill -KILL -1 2>/dev/null; true')
+        const buildRoot = `${BUILD_ROOT}/${input.executionId}`
+        const snapshot = await asRoot([
+          `rm -rf '${BUILD_ROOT}'`,
+          `mkdir -p -m 700 '${BUILD_ROOT}'`,
+          `mkdir -m 700 '${buildRoot}'`,
+          `${hubGit} archive --format=tar '${result}' app | tar -x -C '${buildRoot}'`,
+          // The recipe's cache directory is in the agent's workspace; root must not follow what it left there.
+          `rm -rf '${FACTORY_WORKING_DIRECTORY}/.vite'`,
+        ].join(' && '))
+        if (snapshot.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+        const files = await sandbox.buildApplication(buildRoot, input.signal)
         applicationBuild = { kind: 'BUILT', compiledApplication: {
           projectId: input.projectId, executionId: input.executionId, sourceRevision: result,
           templateRef: TEMPLATE_REF, recipeSha256: RECIPE_SHA256, files,
@@ -345,7 +362,8 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
             execute(command, args, { ...options, cwd: options.cwd ?? FACTORY_WORKING_DIRECTORY, timeout: options.timeout ?? 120_000 }),
           writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
           runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
-          buildApplication: (appRoot: string, signal?: AbortSignal) => buildApplicationInSandbox(sandbox.e2b, { appRoot, ...(signal ? { signal } : {}) }),
+          buildApplication: (buildRoot: string, signal?: AbortSignal) =>
+            buildApplicationInSandbox(sandbox.e2b, { workRoot: buildRoot, appRoot: `${buildRoot}/app`, user: 'root', ...(signal ? { signal } : {}) }),
         }),
         configure: async ({ mode, instructions }) => {
           await session.state.set({ yolo: true, permissionRules: { categories: {}, tools }, pluginInstructions: [instructions] })

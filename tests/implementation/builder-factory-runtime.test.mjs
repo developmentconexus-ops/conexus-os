@@ -47,6 +47,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const logs = []
   const invocations = []
   const rootInvocations = []
+  const builtFrom = []
   let buildStarted
   const buildRunning = new Promise((started) => { buildStarted = started })
   const sandbox = {
@@ -58,7 +59,8 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
       rootInvocations.push({ script, env })
       const admitted = github.leasedPush(script)
       if (admitted) return admitted
-      const exitCode = script.includes(' push ') ? pushExit : pinExit
+      if (script.includes(' ls-tree ')) return { exitCode: 0, success: true, stdout: listing, stderr: '' }
+      const exitCode = script.includes(' push ') ? pushExit : script.includes(' fetch ') ? pinExit : 0
       return { exitCode, success: exitCode === 0, stdout: '', stderr: exitCode ? `fatal: https://x-access-token:${github.state.tokens.at(-1)?.token}@github.com refused` : '' }
     },
     executeCommand: async (command, args = [], options = {}) => {
@@ -67,12 +69,12 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
       events.push(line)
       invocations.push({ argv: [command, ...args], env: options.env })
       if (line.includes('add --all')) return { exitCode: 0, success: true, stdout: `${result}\n`, stderr: '' }
-      if (line.includes('ls-tree')) return { exitCode: 0, success: true, stdout: listing, stderr: '' }
       if (line === 'id -un') return { exitCode: 0, success: true, stdout: `${agentUser}\n`, stderr: '' }
       return { exitCode: 0, success: true, stdout: '', stderr: '' }
     },
-    buildApplication: async (_appRoot, signal) => {
+    buildApplication: async (buildRoot, signal) => {
       events.push('build')
+      builtFrom.push(buildRoot)
       buildStarted()
       if (build) return build(signal)
       return [{ path: 'index.html', mediaType: 'text/html', sha256: 'f'.repeat(64), bytes: 'PGh0bWw+' }]
@@ -135,7 +137,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const rootScripts = () => rootInvocations.map(({ script }) => script)
   const pushed = () => rootScripts().some((script) => script.includes(' push '))
   const admissions = () => rootScripts().filter((script) => script.includes('--force-with-lease'))
-  return { github, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, commands, rootScripts, pushed, admissions, buildRunning }
+  return { github, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, commands, rootScripts, pushed, admissions, buildRunning, builtFrom }
 }
 
 test('a writer that moves main between the read and the update, even to an ancestor of the result, is refused and keeps its move', async (t) => {
@@ -284,6 +286,27 @@ test('an admission that finds the default branch already at the result counts it
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild'), [['advance', RESULT], ['settleBuild', RESULT, 'APPLICATION_COMPILATION_FAILED']])
 })
 
+test('the build reads the result from the mirror into a root-only directory after the agent user\'s processes are killed, never the checkout', async (t) => {
+  const run = await harness(t)
+  await run.start()
+  await run.service.close()
+  const buildRoot = `/var/lib/conexus-build/${runId}`
+  assert.deepEqual(run.builtFrom, [buildRoot])
+  const mirror = "git --git-dir='/var/lib/conexus-git/app.git'"
+  const listed = run.events.findIndex((event) => Array.isArray(event) && event[1] === `${mirror} ls-tree -r -l '${RESULT}' app/`)
+  const killed = run.events.indexOf('sh -c kill -KILL -1 2>/dev/null; true')
+  const snapshot = run.events.findIndex((event) => Array.isArray(event) && event[1] === [
+    "rm -rf '/var/lib/conexus-build'",
+    "mkdir -p -m 700 '/var/lib/conexus-build'",
+    `mkdir -m 700 '${buildRoot}'`,
+    `${mirror} archive --format=tar '${RESULT}' app | tar -x -C '${buildRoot}'`,
+    "rm -rf '/workspace/.vite'",
+  ].join(' && '))
+  assert.ok(run.events.indexOf('turn') < listed && listed < killed && killed < snapshot && snapshot < run.events.indexOf('build'), JSON.stringify([listed, killed, snapshot]))
+  assert.equal(run.commands().some((line) => line.includes('ls-tree')), false, 'no agent-user command lists the tree the build is admitted by')
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance'), [['advance', RESULT]])
+})
+
 test('a PLAN run that changed files is refused before anything is pushed', async (t) => {
   const run = await harness(t, { mode: 'PLAN' })
   await run.start()
@@ -321,8 +344,8 @@ test('a token rides only in the environment of root commands on the Hub mirror, 
     GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from('x-access-token:ghs_fake_1').toString('base64')}`,
     GIT_TERMINAL_PROMPT: '0',
   }
-  assert.deepEqual(run.rootInvocations.map(({ script, env }) => [/--force-with-lease/.test(script) ? 'admit' : / push /.test(script) ? 'push' : / fetch /.test(script) ? 'fetch' : script, env]), [
-    ['fetch', header], ['push', header], ['admit', header],
+  assert.deepEqual(run.rootInvocations.map(({ script, env }) => [/--force-with-lease/.test(script) ? 'admit' : / push /.test(script) ? 'push' : / fetch /.test(script) ? 'fetch' : / ls-tree /.test(script) ? 'list' : / archive /.test(script) ? 'snapshot' : script, env]), [
+    ['fetch', header], ['push', header], ['list', {}], ['snapshot', {}], ['admit', header],
   ])
   assert.ok(run.rootScripts().every((script) => script.includes("--git-dir='/var/lib/conexus-git/app.git'") && !script.includes("-C '/workspace/app'")), 'root git never reads the agent checkout')
   assert.deepEqual(run.invocations.filter(({ env }) => env === undefined || Object.keys(env).length > 0), [], 'every agent-user command states an empty environment')

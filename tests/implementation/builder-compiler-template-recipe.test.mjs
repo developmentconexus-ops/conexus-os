@@ -28,7 +28,8 @@ test('the template recipe carries every committed compiler file verbatim and ins
 test('the committed vite config builds the directories the compile step writes and reads', () => {
   assert.equal(viteConfig.root, '/workspace/app')
   assert.equal(viteConfig.build.outDir, '/workspace/dist')
-  assert.match(runtime, /const DIST_ROOT = '\/workspace\/dist'/)
+  assert.match(runtime, /const DEFAULT_WORK_ROOT = '\/workspace'/)
+  assert.match(runtime, /const distRoot = \(place: BuildPlace\): string => `\$\{place\.workRoot\}\/dist`/)
 })
 
 test('the vite root follows CONEXUS_COMPILE_ROOT, so the agent sandbox can build its own checkout', async () => {

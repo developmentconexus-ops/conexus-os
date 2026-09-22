@@ -4,7 +4,7 @@ import type { CommandResult, EntryInfo, Sandbox } from 'e2b'
 
 export const TEMPLATE_REF = '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440'
 export const RECIPE_SHA256 = 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4'
-const DIST_ROOT = '/workspace/dist'
+const DEFAULT_WORK_ROOT = '/workspace'
 export const BUILD_COMMAND ='node /opt/conexus/compiler/node_modules/vite/bin/vite.js build --config /opt/conexus/compiler/vite.config.mjs --configLoader native'
 const MAX_FILES = 256
 const MAX_TOTAL_BYTES = 12 * 1024 * 1024
@@ -20,7 +20,7 @@ const SMOKE_BUDGET_MS = 20_000
 // script's internal budget does not cover, so the command-level bound still fires before it would
 // ever look like a hang to the caller.
 const SMOKE_TIMEOUT_MS = SMOKE_BUDGET_MS + 10_000
-const SMOKE_SCRIPT_PATH = '/workspace/.conexus-smoke.mjs'
+const SMOKE_SCRIPT_FILE = '.conexus-smoke.mjs'
 const SMOKE_HEREDOC = 'CONEXUS_SMOKE_SCRIPT_EOF'
 
 export type CompiledApplicationFile = Readonly<{
@@ -76,8 +76,13 @@ const mediaTypeForPath = (path: string): string => {
   return mediaType
 }
 
-const outputPath = (path: string): string => {
-  const prefix = `${DIST_ROOT}/`
+// Where a build writes and who it runs as: the compile, its output, the smoke script and its
+// browser profile all live under workRoot.
+type BuildPlace = Readonly<{ workRoot: string; user?: 'root' }>
+const distRoot = (place: BuildPlace): string => `${place.workRoot}/dist`
+
+const outputPath = (place: BuildPlace, path: string): string => {
+  const prefix = `${distRoot(place)}/`
   if (!path.startsWith(prefix)) throw new Error('APPLICATION_COMPILER_OUTPUT_PATH_REFUSED')
   const relative = path.slice(prefix.length)
   if (!safeRelativePath(relative) || relative.split('/').length > MAX_OUTPUT_DEPTH) throw new Error('APPLICATION_COMPILER_OUTPUT_PATH_REFUSED')
@@ -90,12 +95,14 @@ const assertNotAborted = (signal: AbortSignal | undefined): void => {
   if (signal?.aborted) throw cancellation()
 }
 
-const requestOptions = (signal: AbortSignal | undefined): Readonly<{ requestTimeoutMs: number; signal?: AbortSignal }> => signal
-  ? { requestTimeoutMs: REQUEST_TIMEOUT_MS, signal }
-  : { requestTimeoutMs: REQUEST_TIMEOUT_MS }
+const requestOptions = (signal: AbortSignal | undefined, place?: BuildPlace): Readonly<{ requestTimeoutMs: number; signal?: AbortSignal; user?: 'root' }> => ({
+  requestTimeoutMs: REQUEST_TIMEOUT_MS,
+  ...(signal ? { signal } : {}),
+  ...(place?.user ? { user: place.user } : {}),
+})
 
-const readBoundedOutput = async (sandbox: Sandbox, entry: EntryInfo, signal: AbortSignal | undefined): Promise<Uint8Array> => {
-  const stream = await sandbox.files.read(entry.path, { format: 'stream', ...requestOptions(signal) })
+const readBoundedOutput = async (sandbox: Sandbox, place: BuildPlace, entry: EntryInfo, signal: AbortSignal | undefined): Promise<Uint8Array> => {
+  const stream = await sandbox.files.read(entry.path, { format: 'stream', ...requestOptions(signal, place) })
   const reader = stream.getReader()
   const chunks: Uint8Array[] = []
   let totalBytes = 0
@@ -128,15 +135,15 @@ const readBoundedOutput = async (sandbox: Sandbox, entry: EntryInfo, signal: Abo
   return bytes
 }
 
-const collectOutput = async (sandbox: Sandbox, signal: AbortSignal | undefined): Promise<readonly CompiledApplicationFile[]> => {
+const collectOutput = async (sandbox: Sandbox, place: BuildPlace, signal: AbortSignal | undefined): Promise<readonly CompiledApplicationFile[]> => {
   assertNotAborted(signal)
-  const entries = await sandbox.files.list(DIST_ROOT, { depth: MAX_FILES, ...requestOptions(signal) })
+  const entries = await sandbox.files.list(distRoot(place), { depth: MAX_FILES, ...requestOptions(signal, place) })
   if (entries.length > MAX_LIST_ENTRIES) throw new Error('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
   const files = new Map<string, EntryInfo>()
   let listedTotalBytes = 0
   for (const entry of entries) {
-    if (entry.path === DIST_ROOT && entry.type === FileType.DIR) continue
-    const path = outputPath(entry.path)
+    if (entry.path === distRoot(place) && entry.type === FileType.DIR) continue
+    const path = outputPath(place, entry.path)
     if (entry.type === FileType.DIR) continue
     if (entry.type !== FileType.FILE) throw new Error(entry.type === FileType.SYMLINK
       ? 'APPLICATION_COMPILER_OUTPUT_SYMLINK_REFUSED'
@@ -158,7 +165,7 @@ const collectOutput = async (sandbox: Sandbox, signal: AbortSignal | undefined):
     assertNotAborted(signal)
     const entry = files.get(path)
     if (!entry) throw new Error('APPLICATION_COMPILER_OUTPUT_PATH_REFUSED')
-    const bytes = await readBoundedOutput(sandbox, entry, signal)
+    const bytes = await readBoundedOutput(sandbox, place, entry, signal)
     assertNotAborted(signal)
     if (bytes.byteLength > MAX_TOTAL_BYTES || totalBytes + bytes.byteLength > MAX_TOTAL_BYTES) {
       throw new Error('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
@@ -184,13 +191,14 @@ const collectOutput = async (sandbox: Sandbox, signal: AbortSignal | undefined):
 // own uncaught-error signal. A second, in-script timer is the first line of defense against a hang
 // (chromium/devtools never answering); the caller's own commands.run timeout is the backstop that
 // still holds if the script itself wedges.
-const smokeScriptSource = (): string => `
+const smokeScriptSource = (place: BuildPlace): string => `
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { extname, join, normalize, sep } from 'node:path'
 import { spawn } from 'node:child_process'
 
-const DIST_ROOT = ${JSON.stringify(DIST_ROOT)}
+const DIST_ROOT = ${JSON.stringify(distRoot(place))}
+const PROFILE = ${JSON.stringify(`${place.workRoot}/.conexus-smoke-profile`)}
 const PORT = ${SMOKE_PORT}
 const DEVTOOLS_PORT = ${SMOKE_DEVTOOLS_PORT}
 const ROOT_ID = ${JSON.stringify(SMOKE_ROOT_ID)}
@@ -231,7 +239,7 @@ try {
   const chromium = spawn('chromium', [
     '--headless=new', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage',
     \`--remote-debugging-port=\${DEVTOOLS_PORT}\`, '--remote-debugging-address=127.0.0.1',
-    '--user-data-dir=/tmp/conexus-smoke-profile', 'about:blank',
+    \`--user-data-dir=\${PROFILE}\`, 'about:blank',
   ], { stdio: 'ignore' })
   chromium.once('error', () => output({ ok: false, reason: 'APPLICATION_SMOKE_CHROMIUM_UNAVAILABLE' }))
 
@@ -339,18 +347,19 @@ const parseSmokeVerdict = (result: CommandResult): Readonly<{ ok: boolean; reaso
 }
 
 /** Serves the compiled output inside `sandbox` and drives headless Chromium at it before the sandbox dies. */
-const smokeApplicationInSandbox = async (sandbox: Sandbox, signal: AbortSignal | undefined): Promise<void> => {
+const smokeApplicationInSandbox = async (sandbox: Sandbox, place: BuildPlace, signal: AbortSignal | undefined): Promise<void> => {
   assertNotAborted(signal)
+  const script = `${place.workRoot}/${SMOKE_SCRIPT_FILE}`
   const command = [
-    `cat > ${SMOKE_SCRIPT_PATH} <<'${SMOKE_HEREDOC}'`,
-    smokeScriptSource(),
+    `cat > ${script} <<'${SMOKE_HEREDOC}'`,
+    smokeScriptSource(place),
     SMOKE_HEREDOC,
-    `node ${SMOKE_SCRIPT_PATH}`,
+    `node ${script}`,
   ].join('\n')
   let result: CommandResult
   try {
     result = await sandbox.commands.run(command, {
-      cwd: '/workspace', timeoutMs: SMOKE_TIMEOUT_MS, ...requestOptions(signal),
+      cwd: place.workRoot, timeoutMs: SMOKE_TIMEOUT_MS, ...requestOptions(signal, place),
     })
   } catch (error) {
     if (signal?.aborted) throw cancellation()
@@ -368,22 +377,24 @@ const smokeApplicationInSandbox = async (sandbox: Sandbox, signal: AbortSignal |
   if (!verdict.ok) throw new Error(verdict.reason ?? 'APPLICATION_SMOKE_FAILED')
 }
 
-/** Builds an application tree already checked out inside `sandbox`, sharing the agent sandbox instead of a second one. */
+/** Builds an application tree already inside `sandbox`, sharing the agent sandbox instead of a second one. */
 export const buildApplicationInSandbox = async (
   sandbox: Sandbox,
-  input: Readonly<{ appRoot: string; signal?: AbortSignal }>,
+  input: Readonly<{ appRoot: string; workRoot?: string; user?: 'root'; signal?: AbortSignal }>,
 ): Promise<readonly CompiledApplicationFile[]> => {
+  const place: BuildPlace = { workRoot: input.workRoot ?? DEFAULT_WORK_ROOT, ...(input.user ? { user: input.user } : {}) }
   assertNotAborted(input.signal)
   const dependencyLink = await sandbox.commands.run(`ln -sfn /opt/conexus/compiler/node_modules ${input.appRoot}/node_modules`, {
-    cwd: '/workspace', timeoutMs: 10_000, ...requestOptions(input.signal),
+    cwd: place.workRoot, timeoutMs: 10_000, ...requestOptions(input.signal, place),
   })
   if (dependencyLink.exitCode !== 0) throw new Error('APPLICATION_COMPILER_WORKSPACE_REFUSED')
   assertNotAborted(input.signal)
   let result: CommandResult
   try {
-    result = await sandbox.commands.run(BUILD_COMMAND, {
+    result = await sandbox.commands.run(`${BUILD_COMMAND} --outDir '${distRoot(place)}'`, {
       cwd: input.appRoot, timeoutMs: BUILD_TIMEOUT_MS, envs: { CONEXUS_COMPILE_ROOT: input.appRoot },
       ...(input.signal ? { signal: input.signal } : {}),
+      ...(place.user ? { user: place.user } : {}),
     })
   } catch (error) {
     if (input.signal?.aborted) throw error
@@ -391,9 +402,9 @@ export const buildApplicationInSandbox = async (
   }
   if (result.exitCode !== 0) throw new Error('APPLICATION_COMPILATION_FAILED')
   assertNotAborted(input.signal)
-  const output = await collectOutput(sandbox, input.signal)
+  const output = await collectOutput(sandbox, place, input.signal)
   assertNotAborted(input.signal)
-  await smokeApplicationInSandbox(sandbox, input.signal)
+  await smokeApplicationInSandbox(sandbox, place, input.signal)
   assertNotAborted(input.signal)
   return output
 }

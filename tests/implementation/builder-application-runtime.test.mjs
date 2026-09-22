@@ -77,7 +77,7 @@ test('the smoke script the sandbox is handed parses as the module Node will load
   // The sandbox writes it to a .mjs path, so Node parses it as an ES module, where a top-level
   // return is a syntax error. node --check on the same extension runs the same parser.
   const runtimeSource = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/application-artifact-runtime.ts'), 'utf8')
-  const scriptPath = /const SMOKE_SCRIPT_PATH = '([^']+)'/.exec(runtimeSource)?.[1]
+  const scriptPath = /const SMOKE_SCRIPT_FILE = '([^']+)'/.exec(runtimeSource)?.[1]
   const heredoc = /const SMOKE_HEREDOC = '([^']+)'/.exec(runtimeSource)?.[1]
   assert.ok(scriptPath?.endsWith('.mjs'), 'the smoke script path moved; this test must follow its extension')
   assert.ok(heredoc, 'the smoke heredoc marker moved; this test must follow it')
@@ -126,12 +126,25 @@ test('an app that imports a web font from an unreachable host still passes the s
   writeFileSync(resolve(bin, 'chromium'), `#!/bin/sh\nexec ${JSON.stringify(chromium.executablePath())} "$@"\n`)
   chmodSync(resolve(bin, 'chromium'), 0o755)
   const file = resolve(directory, 'smoke.mjs')
-  writeFileSync(file, script.replace(/const DIST_ROOT = "[^"]*"/, `const DIST_ROOT = ${JSON.stringify(dist)}`))
+  writeFileSync(file, script.replace(/const DIST_ROOT = "[^"]*"/, `const DIST_ROOT = ${JSON.stringify(dist)}`)
+    .replace(/const PROFILE = "[^"]*"/, `const PROFILE = ${JSON.stringify(resolve(directory, 'profile'))}`))
 
   const started = Date.now()
   const ran = spawnSync(process.execPath, [file], { encoding: 'utf8', timeout: 60_000, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } })
   assert.deepEqual(JSON.parse(ran.stdout), { ok: true, childCount: 1 })
   assert.ok(Date.now() - started < 15_000, `the smoke waited on the unreachable font for ${Date.now() - started} ms`)
+})
+
+test('a build placed under a root-only directory runs, writes, smokes and reads there as root', async () => {
+  const workRoot = '/var/lib/conexus-build/run-1'
+  const { sandbox, calls } = fakeSandbox(new Map([[`${workRoot}/dist/index.html`, Buffer.from('<!doctype html>')]]))
+  const files = await buildApplicationInSandbox(sandbox, { workRoot, appRoot: `${workRoot}/app`, user: 'root' })
+  assert.deepEqual(files.map(({ path }) => path), ['index.html'])
+  assert.deepEqual(calls.map(({ kind, options }) => [kind, options?.user]), [['run', 'root'], ['run', 'root'], ['list', 'root'], ['read', 'root'], ['run', 'root']])
+  const commands = calls.filter(({ kind }) => kind === 'run').map(({ command }) => String(command))
+  assert.ok(commands[1].endsWith(`--outDir '${workRoot}/dist'`), commands[1])
+  assert.ok(commands[2].startsWith(`cat > ${workRoot}/.conexus-smoke.mjs `) && commands[2].includes(`const DIST_ROOT = "${workRoot}/dist"`) && commands[2].includes(`const PROFILE = "${workRoot}/.conexus-smoke-profile"`))
+  assert.equal(commands.some((command) => command.includes('/workspace')), false)
 })
 
 test('buildApplicationInSandbox exports the fixed template identity', () => {
@@ -153,7 +166,7 @@ test('buildApplicationInSandbox symlinks the compiler dependencies into the give
   const linkCall = calls.find(call => call.kind === 'run' && call.command.startsWith('ln '))
   assert.equal(linkCall.command, `ln -sfn /opt/conexus/compiler/node_modules ${appRoot}/node_modules`)
   const buildCall = calls.find(call => call.kind === 'run' && call.command.startsWith('node '))
-  assert.equal(buildCall.command, 'node /opt/conexus/compiler/node_modules/vite/bin/vite.js build --config /opt/conexus/compiler/vite.config.mjs --configLoader native')
+  assert.equal(buildCall.command, "node /opt/conexus/compiler/node_modules/vite/bin/vite.js build --config /opt/conexus/compiler/vite.config.mjs --configLoader native --outDir '/workspace/dist'")
   assert.equal(buildCall.options.cwd, appRoot)
   assert.equal(buildCall.options.envs.CONEXUS_COMPILE_ROOT, appRoot)
 })
