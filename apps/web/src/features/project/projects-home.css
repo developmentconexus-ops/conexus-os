@@ -27,10 +27,11 @@
 .cx-prompt-examples button:hover { border-color: var(--cx-accent); background: var(--cx-accent-soft); }
 
 .cx-home-projects .cx-section-title { margin-top: 0; }
-.cx-project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr)); gap: 1rem; margin: 0; padding: 0; list-style: none; }
+/* One uniform grid: every cell the same size, so every card is the same height in its row. */
+.cx-project-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 0; padding: 0; list-style: none; }
 .cx-project-cell { display: grid; min-width: 0; }
 
-.cx-project-card { display: grid; grid-template-rows: 1fr auto; min-width: 0; overflow: hidden; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-surface); color: var(--cx-text); text-decoration: none; transition: transform .2s var(--cx-ease-arrive), box-shadow .2s, border-color .2s; }
+.cx-project-card { display: grid; grid-template-rows: 1fr auto; min-width: 0; height: 100%; overflow: hidden; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-surface); color: var(--cx-text); text-decoration: none; transition: transform .2s var(--cx-ease-arrive), box-shadow .2s, border-color .2s; }
 a.cx-project-card:hover { transform: translateY(-2px); border-color: var(--cx-line-strong); box-shadow: 0 .6rem 1.6rem rgb(0 0 0 / .08); }
 a.cx-project-card:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 3px; }
 
@@ -50,11 +51,11 @@ a.cx-project-card:focus-visible { outline: 2px solid var(--cx-accent); outline-o
 .cx-skeleton-line { height: .9rem; width: 70%; border-radius: 4px; }
 .cx-skeleton-line--short { width: 45%; }
 
-/* The most recent Project leads: two columns and two rows on a wide screen. */
-@media (min-width: 60rem) {
-  .cx-project-grid > .cx-project-cell:first-child { grid-column: span 2; grid-row: span 2; }
-  .cx-project-cell:first-child .cx-thumb { aspect-ratio: auto; }
-  .cx-project-cell:first-child .cx-project-body h3 { font-size: 1.2rem; }
+@media (max-width: 60rem) {
+  .cx-project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 34rem) {
+  .cx-project-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {

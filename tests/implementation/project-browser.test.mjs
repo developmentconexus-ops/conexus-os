@@ -217,7 +217,10 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.locator('.cx-thumb[data-loaded]').first().waitFor()
     assert.equal(await page.locator('.cx-thumb iframe').first().getAttribute('tabindex'), '-1')
     assert.match(await page.frameLocator(`iframe[name="cx-thumb-${ids.vacation}"]`).locator('body').innerText(), /Pedidos de férias/)
-    assert.equal(await page.locator('.cx-project-cell').first().evaluate((element) => getComputedStyle(element).gridColumnStart), 'span 2')
+    assert.equal(await page.locator('.cx-project-grid').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length), 3,
+      'the grid is a uniform 3-column layout, with no card spanning more than one')
+    const cardHeights = await page.locator('.cx-project-card').evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height))
+    assert.equal(new Set(cardHeights).size, 1, 'every card in the uniform grid has the same height')
     await shoot(page, '06-projects-home', { settle: () => page.locator('.cx-thumb[data-loaded]').first().waitFor() })
     await page.setViewportSize({ width: 390, height: 844 })
     assert.deepEqual(await overflowing(page), [])

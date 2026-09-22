@@ -37,7 +37,7 @@ const lensTabs: readonly Readonly<{ lens: Lens; label: string; icon: ReactNode }
   { lens: 'preview', label: 'Prévia', icon: <Eye size={15} aria-hidden="true" /> },
   { lens: 'code', label: 'Código', icon: <Code2 size={15} aria-hidden="true" /> },
   { lens: 'diff', label: 'Alterações', icon: <FileDiff size={15} aria-hidden="true" /> },
-  { lens: 'details', label: 'Detalhes', icon: <Info size={15} aria-hidden="true" /> },
+  { lens: 'details', label: 'Sobre', icon: <Info size={15} aria-hidden="true" /> },
 ]
 
 const conversationTitle = (conversation: Conversation): string => conversation.title?.trim() || 'Conversa sem título'
@@ -242,7 +242,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
         </div>
         {lens === 'code' && <LensCode projectId={projectId} sourceRevision={preview_?.workingSourceRevision ?? null} />}
         {lens === 'diff' && <LensDiff projectId={projectId} basis={changeBasisOf(diffRun)} runLabel={diffRun ? `Pedido das ${clockLabel(diffRun.createdAt)}: ${diffRun.requestText ?? 'sem texto'}` : null} />}
-        {lens === 'details' && <LensDetails projectId={projectId} runs={runs} selected={selectedRun} onSelect={setSelectedRunId} preview={{ workingSourceRevision: preview_?.workingSourceRevision ?? null, lastGoodSourceRevision: preview_?.lastGoodSourceRevision ?? null }} />}
+        {lens === 'details' && <LensDetails projectId={projectId} runs={runs} selected={selectedRun} onSelect={setSelectedRunId} preview={{ workingSourceRevision: preview_?.workingSourceRevision ?? null, lastGoodSourceRevision: preview_?.lastGoodSourceRevision ?? null }} onRetry={setDraft} />}
       </>}
     </div>
   </section>

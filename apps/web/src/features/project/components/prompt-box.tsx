@@ -108,6 +108,8 @@ export function PromptBox({ workspaceId, showExamples }: Readonly<{ workspaceId:
 
   return <section className="cx-prompt" aria-labelledby={`${promptId}-title`}>
     <h1 id={`${promptId}-title`} className="cx-prompt-title">O que vamos construir?</h1>
+    {/* SEAM: this composer duplicates the one in features/builder/construir/composer.tsx. Once the
+        shared composer component lands there, mount it here instead of these primitives. */}
     <Composer className="cx-prompt-composer" onSubmit={submitPrompt} aria-labelledby={`${promptId}-title`}>
       <ComposerRing busy={mutation.isPending} className="cx-prompt-ring">
         <ComposerBox>
