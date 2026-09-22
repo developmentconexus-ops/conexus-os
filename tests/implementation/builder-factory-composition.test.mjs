@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
@@ -171,6 +172,15 @@ test('every start seeds root\'s mirror with a read token in root\'s environment 
 
 
 const { CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: _ingress, CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: _executor, CONEXUS_BUILDER_E2B_API_KEY_FILE: _e2bKey, CONEXUS_BUILDER_E2B_TEMPLATE_ID: _e2bTemplate, ...environmentWithoutBuilder } = baseEnvironment
+
+// The Hub's placeholder credential is mintInstallationToken's answer, which is safe only while the
+// Factory's repository access is that method's one caller.
+test('the installed Factory calls mintInstallationToken only from the GitHub integration\'s repository access', () => {
+  const dist = join(dirname(createRequire(import.meta.url).resolve('@mastra/factory/package.json')), 'dist')
+  const callers = readdirSync(dist, { recursive: true }).filter((file) => file.endsWith('.js'))
+    .flatMap((file) => readFileSync(join(dist, file), 'utf8').split('\n').filter((line) => /\.mintInstallationToken\(/.test(line)).map((line) => `${file}: ${line.trim()}`))
+  assert.deepEqual(callers, ['integrations/github/integration.js: token: await this.mintInstallationToken(installationId)'])
+})
 
 test('with no Builder and no Factory variable the Hub boots as it did before', () => {
   assert.equal(readHubConfig(environmentWithoutBuilder).factory, undefined)
