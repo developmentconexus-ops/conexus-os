@@ -105,8 +105,8 @@ function ScopeRail({ scope }: Readonly<{ scope: ShellScope | undefined }>) {
   }
   if (workspace) {
     const params = { workspaceId: workspace.workspaceId }
+    // The Workspace's own name is already the rail's top switcher; this section repeats nothing.
     return <MainSidebar.NavSection>
-      <MainSidebar.NavHeader><span className="cx-rail-scope">{workspace.name}</span></MainSidebar.NavHeader>
       <MainSidebar.NavList>
         <NavItem active={Boolean(matchRoute({ to: '/workspaces/$workspaceId/projects', params, fuzzy: true }))} label="Projetos">
           <Link to="/workspaces/$workspaceId/projects" params={params}><NavText icon={<LayoutGrid size={16} aria-hidden />}>Projetos</NavText></Link>
