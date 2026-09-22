@@ -332,7 +332,7 @@ const creationSetup = async (t, fakeOptions) => {
   const { connectionString, workspaceId, onCleanup, app, records } = fixture
   await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'creator', 'Creator')", [ACCOUNT])
   await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [ACCOUNT, workspaceId])
-  const commandPool = new pg.Pool({ ...fixture.connection, max: 2, options: '-c role=hub_project_command' })
+  const commandPool = testPool({ ...fixture.connection, max: 2, options: '-c role=hub_project_command' })
   onCleanup(() => commandPool.end())
   const prepared = []
   const factoryRepository = {

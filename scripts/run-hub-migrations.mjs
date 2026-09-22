@@ -44,7 +44,7 @@ const migrationDigests = new Map([
   ['0014_agent_user_template.sql', agentUserTemplateDigest],
   ['0015_factory_admission_candidate.sql', factoryAdmissionCandidateDigest],
   ['0016_factory_candidate_pending.sql', factoryCandidatePendingDigest],
-  ['0017_project_factory_creation.sql', projectFactoryCreationDigest],
+  ['0018_project_factory_creation.sql', projectFactoryCreationDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n
