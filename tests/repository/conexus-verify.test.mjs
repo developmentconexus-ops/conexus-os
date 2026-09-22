@@ -41,14 +41,13 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'hub-baseline',
   'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-installation-administrator', 'installation-settings-routes', 'iam-grant-surface-excision',
   'hub-call-site-privileges',
-  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'factory-binding-postgres', 'c020-mastra-lifecycle', 'factory-dependency-tree', 'factory-composition', 'model-accounts-postgres', 'google-ai-pro', 'factory-runtime', 'factory-recovery-postgres', 'factory-routes', 'factory-provisioning',
+  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'factory-binding-postgres', 'factory-dependency-tree', 'factory-composition', 'model-accounts-postgres', 'google-ai-pro', 'factory-runtime', 'factory-recovery-postgres', 'factory-routes', 'factory-provisioning',
   'foundation-postgres', 'project-summary-activity-postgres', 'project-summary-routes',
   'c020-registry', 'c020-source-runtime', 'c020-failure-vocabulary', 'c020-compiler-runtime',
   'c020-browser', 'settings-browser', 'c020-e2b-template', 'c020-web-typecheck', 'c020-web-build',
   'db-catalog-snapshot', 'db-baseline-file', 'db-role-register', 'db-role-provision-postgres',
   'repository-check', 'repository-import-law',
   'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project',
-  'repository-hygiene', 'repository-doc-index',
   'repository-contract-checks', 'biome-current',
   'identity-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure',
   'project-command-postgres', 'project-browser', 'project-name', 'shell-browser-boundary', 'brand-tokens', 'preview-form-policy',
@@ -178,7 +177,8 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.deepEqual(scopes, EXPECTED_CANDIDATE_SCOPES)
 
   const commands = CANDIDATE_GRAPH.map(entry => entry.command)
-  assert.equal(commands.filter(command => command.includes('qualification/4d/mastra-builder-capability')).length, 1)
+  assert.equal(commands.some(command => command.includes('qualification/')), false,
+    'the qualification/ probe suite is an explicit audit, not current MVP blocker')
   assert.equal(commands.filter(command => command.includes('tests/implementation/builder-run-invariants-postgres.test.mjs') && command.includes('tests/implementation/builder-run-execution-postgres.test.mjs')).length, 1)
   assert.equal(commands.filter(command => command === 'node --test --test-concurrency=1 tests/implementation/builder-brain-context.test.mjs').length, 0)
   assert.equal(commands.some(command => command.includes('tests/implementation/rb-builder-first-vertical.test.mjs')), false,
@@ -298,4 +298,40 @@ test('candidate graph labels execution environments and passes shell argv correc
     () => executionEnvironment(c020Postgres, { CONEXUS_TEST_DB_HOST: 'db.internal' }),
     /requires either all CONEXUS_TEST_DB_\* values or none/,
   )
+})
+
+test('CONEXUS_VERIFY_SKIP_BROWSER skips only browser-tagged candidate steps', () => {
+  const browserScopes = CANDIDATE_GRAPH.filter(entry => entry.environmentClass === 'browser').map(entry => entry.scope)
+  assert.ok(browserScopes.length > 0, 'fixture assumption: the candidate graph still has browser steps')
+
+  const calls = []
+  const result = runVerification({
+    scopes: ['candidate'],
+    packageScripts,
+    platform: 'linux',
+    processEnvironment: { CONEXUS_VERIFY_SKIP_BROWSER: '1' },
+    runCommand: entry => { calls.push(entry.scope); return { status: 0 } },
+  })
+
+  assert.deepEqual(calls.filter(scope => browserScopes.includes(scope)), [])
+  assert.equal(calls.length, CANDIDATE_GRAPH.length - browserScopes.length)
+  const skipped = result.records.filter(record => record.status === 'skipped')
+  assert.deepEqual(skipped.map(record => record.scope), browserScopes)
+  assert.ok(skipped.every(record => record.exitCode === null && record.reason === 'no web change'))
+  assert.equal(result.exitCode, 0)
+})
+
+test('without CONEXUS_VERIFY_SKIP_BROWSER, browser-tagged candidate steps run like any other', () => {
+  const browserScopes = CANDIDATE_GRAPH.filter(entry => entry.environmentClass === 'browser').map(entry => entry.scope)
+  const calls = []
+  const result = runVerification({
+    scopes: ['candidate'],
+    packageScripts,
+    platform: 'linux',
+    processEnvironment: {},
+    runCommand: entry => { calls.push(entry.scope); return { status: 0 } },
+  })
+
+  assert.deepEqual(calls.filter(scope => browserScopes.includes(scope)), browserScopes)
+  assert.equal(result.records.some(record => record.status === 'skipped'), false)
 })
