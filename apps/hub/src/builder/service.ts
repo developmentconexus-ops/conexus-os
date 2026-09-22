@@ -36,6 +36,8 @@ export type FactoryRunDependencies = Readonly<{
   readBindingForRun(builderRunId: string): Promise<FactoryBindingRecord | null>
   // The head of the bound repository's default branch, which is the Project's current source.
   readSourceHead(binding: FactoryBindingRecord): Promise<string | null>
+  // The Factory project repository a conversation was opened on, or null for no such conversation.
+  readConversationRepository(conversationId: string): Promise<string | null>
   appendDiagnostic?: DiagnosticAppender
   recoverAdmissions(): Promise<unknown>
 }>
@@ -204,6 +206,10 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
   return Object.freeze({
     createBuilderRun: async (input) => {
       const binding = factory ? await store.readFactoryBinding({ accountId: input.accountId, projectId: input.projectId }) : null
+      // The Factory opens a conversation for any member of the organization; Project authority is ours.
+      if (binding && await factory?.readConversationRepository(input.conversationId) !== binding.projectRepositoryId) {
+        throw new Error('BUILDER_CONVERSATION_INPUT_REFUSED')
+      }
       const sourceHead = binding && factory ? await factory.readSourceHead(binding) : null
       if (binding && !sourceHead) throw new Error('BUILDER_SOURCE_HEAD_UNAVAILABLE')
       const run = await store.createBuilderRun({ ...input, sourceHead })

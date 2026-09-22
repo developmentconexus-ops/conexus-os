@@ -31,7 +31,7 @@ const conversationId = '44444444-4444-4444-8444-444444444444'
 const privateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' })
 const listing = `100644 blob ${'d'.repeat(40)}      120\tapp/index.html\n`
 
-const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand } = {}) => {
+const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository' } = {}) => {
   const github = await startFakeGithub()
   t.after(() => github.close())
   const repository = github.addRepository({ owner: 'acme-org', name: 'app', head })
@@ -96,7 +96,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   })
   const claimed = { builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'PREPARING', mode, baseSourceRevision: BASE, resultSourceRevision: null, resultKind: null, failureCode: null }
   const store = {
-    createBuilderRun: async () => ({ ...claimed, state: 'QUEUED', phase: null }),
+    createBuilderRun: async () => { calls.push(['create']); return { ...claimed, state: 'QUEUED', phase: null } },
     readFactoryBinding: async () => binding,
     claimBuilderRun: async () => claimed,
     setBuilderRunPhase: async (_id, phase) => { calls.push(['phase', phase]) },
@@ -119,6 +119,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
       runtime,
       readBindingForRun: async () => binding,
       readSourceHead: async () => BASE,
+      readConversationRepository: async () => conversationRepository,
       appendDiagnostic: async (input) => { diagnostics.push({ ...input, from: 'service' }) },
       recoverAdmissions: async () => [],
     },
@@ -204,6 +205,15 @@ test('a stop that lands while the default head is read is still refused the PATC
   assert.equal(run.main(), BASE)
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
   assert.equal(run.calls.some(([kind]) => kind === 'advance'), false)
+})
+
+test('a conversation of another Project is refused before a run is created or its sandbox opened', async (t) => {
+  for (const conversationRepository of ['other-project-repository', null]) {
+    const run = await harness(t, { conversationRepository })
+    await assert.rejects(run.start(), /^Error: BUILDER_CONVERSATION_INPUT_REFUSED$/)
+    await run.service.close()
+    assert.deepEqual([run.calls, run.events], [[], []])
+  }
 })
 
 test('a replaced sandbox incarnation fails the run with BUILDER_SANDBOX_INCARNATION_CHANGED', async (t) => {

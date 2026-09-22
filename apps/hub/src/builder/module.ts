@@ -208,6 +208,8 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
       const repository = await (await portsReady).resolveRepository(binding)
       return githubApp.readBranchHead(repository.installation, repository, repository.defaultBranch)
     },
+    readConversationRepository: async (conversationId) =>
+      (await (await ready).github.sourceControlStorage.sessions.getBySessionId(conversationId))?.projectRepositoryId ?? null,
     appendDiagnostic,
     recoverAdmissions: async () => recoverFactoryAdmissions({ store, github: githubApp, resolveRepository: (await portsReady).resolveRepository }),
   })

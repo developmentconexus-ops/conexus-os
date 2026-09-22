@@ -108,6 +108,7 @@ const pilot = async (t) => {
         const bound = await resolveRepository(binding)
         return app.readBranchHead(bound.installation, bound, bound.defaultBranch)
       },
+      readConversationRepository: async () => 'pr-pilot',
       appendDiagnostic: async (note) => { notes.push(note) },
       recoverAdmissions: async () => [],
     },
