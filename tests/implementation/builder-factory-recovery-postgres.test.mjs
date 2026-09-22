@@ -42,12 +42,14 @@ test('recovery admits a run the Hub lost after its compare-and-swap, and leaves 
   const store = createBuilderStore({ ingressPool, executorPool })
   onCleanup(() => store.close())
 
+  const repositories = new Map()
   const boundRun = async (name) => {
     const projectId = randomUUID()
     const repository = github.addRepository({ owner: 'acme-org', name, head: BASE })
     await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, $3, 'NEW', $4, $3)", [projectId, workspaceId, name, STARTER])
     await query(connectionString, 'INSERT INTO builder.project_working_state(project_id, working_source_revision, working_version) VALUES ($1, $2, 0)', [projectId, STARTER])
-    await executorPool.query('SELECT builder.bind_factory_project($1,$2,$3,$4,$5,$6,$7,$8)', [projectId, `fp-${name}`, `pr-${name}`, `r-${name}`, repository.id, `acme-org/${name}`, 'main', BASE])
+    repositories.set(`r-${name}`, { installation: 163574754, externalId: repository.id, slug: `acme-org/${name}`, defaultBranch: 'main' })
+    await executorPool.query('SELECT builder.bind_factory_project($1,$2,$3,$4,$5)', [projectId, `fp-${name}`, `pr-${name}`, `r-${name}`, BASE])
     const builderRunId = randomUUID()
     const conversationId = randomUUID()
     await query(connectionString, `
@@ -71,7 +73,7 @@ test('recovery admits a run the Hub lost after its compare-and-swap, and leaves 
     factory: {
       runtime: { execute: async () => { throw new Error('not reached') } },
       readBindingForRun: store.readFactoryBindingForRun,
-      recoverAdmissions: () => recoverFactoryAdmissions({ store, github: app, installationFor: async () => 163574754 }),
+      recoverAdmissions: () => recoverFactoryAdmissions({ store, github: app, resolveRepository: async (binding) => repositories.get(binding.repositoryId) }),
     },
   })
   await service.recover()

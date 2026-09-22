@@ -37,7 +37,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const repository = github.addRepository({ owner: 'acme-org', name: 'app', head })
   const binding = {
     projectId, factoryProjectId: 'factory-project', projectRepositoryId: 'project-repository', repositoryId: 'repository-row',
-    repositoryExternalId: repository.id, repositorySlug: 'acme-org/app', defaultBranch: 'main', boundAt: '2026-09-21T12:00:00.000Z',
+    boundAt: '2026-09-21T12:00:00.000Z',
   }
   const events = []
   const calls = []
@@ -87,7 +87,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
       }
     },
     github: createGithubApp({ appId: '5015512', privateKey, baseUrl: github.baseUrl }),
-    installationFor: async () => 163574754,
+    resolveRepository: async () => ({ installation: 163574754, externalId: repository.id, slug: 'acme-org/app', defaultBranch: 'main' }),
     materializeStarter: async () => { events.push('starter'); await starter?.() },
     log: (line) => { logs.push(line) },
   })

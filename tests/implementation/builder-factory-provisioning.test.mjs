@@ -125,11 +125,12 @@ test('provision creates a private auto_init repository under the installation ac
   const headToken = github.state.tokens.find((token) => token.repositoryIds !== null)
   assert.deepEqual({ repositoryIds: headToken.repositoryIds, permissions: headToken.permissions }, { repositoryIds: [700001], permissions: { contents: 'read' } })
 
-  const stored = (await query(connectionString, 'SELECT project_id, factory_project_id, project_repository_id, repository_id, repository_external_id, repository_slug, default_branch FROM builder.factory_binding')).rows
-  assert.deepEqual(stored, [{
-    project_id: projectId, factory_project_id: binding.factoryProjectId, project_repository_id: binding.projectRepositoryId,
-    repository_id: binding.repositoryId, repository_external_id: '700001', repository_slug: 'acme-org/unit1-app', default_branch: 'main',
-  }])
+  const { bound_at: _boundAt, ...stored } = (await query(connectionString, 'SELECT * FROM builder.factory_binding')).rows[0]
+  assert.deepEqual(stored, {
+    project_id: projectId, factory_project_id: binding.factoryProjectId, project_repository_id: binding.projectRepositoryId, repository_id: binding.repositoryId,
+  })
+  const repositoryRow = (await query(connectionString, 'SELECT external_id, slug, default_branch FROM factory.source_control_repositories WHERE id::text = $1', [binding.repositoryId])).rows
+  assert.deepEqual(repositoryRow, [{ external_id: '700001', slug: 'acme-org/unit1-app', default_branch: 'main' }])
   assert.equal((await query(connectionString, 'SELECT working_source_revision FROM builder.project_working_state WHERE project_id = $1', [projectId])).rows[0].working_source_revision, 'c'.repeat(40))
   const link = (await query(connectionString, 'SELECT r.slug, r.external_id, p.name FROM factory.factory_project_repositories pr JOIN factory.source_control_repositories r ON r.id::text = pr.repository_id JOIN factory.factory_project_source_control_connections c ON c.id::text = pr.connection_id JOIN factory.factory_projects p ON p.id::text = c.factory_project_id')).rows
   assert.deepEqual(link, [{ slug: 'acme-org/unit1-app', external_id: '700001', name: `conexus-project:${projectId}` }])
@@ -146,6 +147,17 @@ test('a taken name adopts the existing repository only when it is private and no
   github.addRepository({ owner: 'acme-org', name: 'public-app', private: false })
   await assert.rejects(provision(await newProject(), 'public-app'), { message: 'FACTORY_REPOSITORY_PUBLIC_REFUSED' })
   await assert.rejects(provision(await newProject(), 'existing-app'), { message: 'FACTORY_REPOSITORY_BOUND_ELSEWHERE' })
+})
+
+test('a bound Project reaches its Factory project by the bound id, even after that project row is renamed', async (t) => {
+  const { connectionString, connect, provision, newProject, snapshot } = await setup(t)
+  await connect()
+  const projectId = await newProject()
+  const first = await provision(projectId, 'renamed-app')
+  await query(connectionString, "UPDATE factory.factory_projects SET name = 'renamed by someone' WHERE id::text = $1", [first.factoryProjectId])
+  const before = await snapshot()
+  assert.deepEqual(await provision(projectId, 'renamed-app'), first)
+  assert.deepEqual(await snapshot(), before)
 })
 
 test('a second full run of connect and provision changes nothing', async (t) => {

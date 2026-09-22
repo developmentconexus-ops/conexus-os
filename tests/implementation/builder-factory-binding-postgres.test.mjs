@@ -33,16 +33,10 @@ const bindingFor = (projectId, suffix) => ({
   factoryProjectId: `factory-project-${suffix}`,
   projectRepositoryId: `project-repository-${suffix}`,
   repositoryId: `repository-${suffix}`,
-  repositoryExternalId: 900000 + suffix,
-  repositorySlug: `acme-org/app-${suffix}`,
-  defaultBranch: 'main',
 })
 
-const BIND = 'SELECT builder.bind_factory_project($1,$2,$3,$4,$5,$6,$7,$8) AS bound'
-const bindArguments = (binding, head = HEAD) => [
-  binding.projectId, binding.factoryProjectId, binding.projectRepositoryId, binding.repositoryId,
-  binding.repositoryExternalId, binding.repositorySlug, binding.defaultBranch, head,
-]
+const BIND = 'SELECT builder.bind_factory_project($1,$2,$3,$4,$5) AS bound'
+const bindArguments = (binding, head = HEAD) => [binding.projectId, binding.factoryProjectId, binding.projectRepositoryId, binding.repositoryId, head]
 const bind = (connectionString, binding, head) => callAs(connectionString, 'hub_builder_executor', BIND, bindArguments(binding, head))
 const bindRefusal = (connectionString, binding, head) => refusalAs(connectionString, 'hub_builder_executor', BIND, bindArguments(binding, head))
 
@@ -98,9 +92,6 @@ test('a Project binds to its Factory repository once, and only while it has neve
       factory_project_id: 'factory-project-1',
       project_repository_id: 'project-repository-1',
       repository_id: 'repository-1',
-      repository_external_id: '900001',
-      repository_slug: 'acme-org/app-1',
-      default_branch: 'main',
     })
     assert.ok(boundAt instanceof Date)
     const working = await workingState(projects.fresh)
@@ -123,13 +114,13 @@ test('a Project binds to its Factory repository once, and only while it has neve
   })
 
   await t.test('binding a bound Project to anything different is refused by name', async () => {
-    assert.match(await bindRefusal(connectionString, { ...fresh, defaultBranch: 'trunk' }), /^FACTORY_BINDING_CONFLICT$/)
-    assert.match(await bindRefusal(connectionString, { ...fresh, repositoryExternalId: 123 }), /^FACTORY_BINDING_CONFLICT$/)
-    assert.equal((await storedBinding(projects.fresh)).default_branch, 'main')
+    assert.match(await bindRefusal(connectionString, { ...fresh, factoryProjectId: 'factory-project-other' }), /^FACTORY_BINDING_CONFLICT$/)
+    assert.match(await bindRefusal(connectionString, { ...fresh, repositoryId: 'repository-other' }), /^FACTORY_BINDING_CONFLICT$/)
+    assert.equal((await storedBinding(projects.fresh)).repository_id, 'repository-1')
   })
 
   await t.test('a repository already bound to another Project is refused by name', async () => {
-    assert.match(await bindRefusal(connectionString, { ...bindingFor(projects.rival, 4), repositoryExternalId: fresh.repositoryExternalId }), /^FACTORY_BINDING_REPOSITORY_BOUND$/)
+    assert.match(await bindRefusal(connectionString, { ...bindingFor(projects.rival, 4), repositoryId: fresh.repositoryId }), /^FACTORY_BINDING_REPOSITORY_BOUND$/)
     assert.match(await bindRefusal(connectionString, { ...bindingFor(projects.rival, 4), projectRepositoryId: fresh.projectRepositoryId }), /^FACTORY_BINDING_REPOSITORY_BOUND$/)
     assert.equal(await storedBinding(projects.rival), undefined)
   })
@@ -139,9 +130,6 @@ test('a Project binds to its Factory repository once, and only while it has neve
     factoryProjectId: 'factory-project-1',
     projectRepositoryId: 'project-repository-1',
     repositoryId: 'repository-1',
-    repositoryExternalId: 900001,
-    repositorySlug: 'acme-org/app-1',
-    defaultBranch: 'main',
   }
   const withoutBoundAt = (document) => {
     if (document === null) return null
@@ -196,6 +184,13 @@ test('a Project binds to its Factory repository once, and only while it has neve
     assert.deepEqual(await callAs(connectionString, 'hub_builder_executor', READ, [randomUUID()]), [{ binding: null }])
   })
 
+  await t.test('read_factory_binding_for_project answers the Project\'s binding for provisioning and null when it is unbound', async () => {
+    const READ = 'SELECT builder.read_factory_binding_for_project($1) AS binding'
+    const [{ binding }] = await callAs(connectionString, 'hub_builder_executor', READ, [projects.fresh])
+    assert.deepEqual(withoutBoundAt(binding), expectedDocument)
+    assert.deepEqual(await callAs(connectionString, 'hub_builder_executor', READ, [projects.unbound]), [{ binding: null }])
+  })
+
   await t.test('each function is executable by exactly the one login role that calls it', async () => {
     const { rows } = await query(connectionString, `
       SELECT p.proname AS name, array_agg(r.rolname::text ORDER BY r.rolname) AS roles
@@ -208,6 +203,7 @@ test('a Project binds to its Factory repository once, and only while it has neve
       { name: 'bind_factory_project', roles: ['hub_builder_executor'] },
       { name: 'list_factory_admission_runs', roles: ['hub_builder_executor'] },
       { name: 'read_factory_binding', roles: ['hub_builder_ingress'] },
+      { name: 'read_factory_binding_for_project', roles: ['hub_builder_executor'] },
       { name: 'read_factory_binding_for_run', roles: ['hub_builder_executor'] },
       { name: 'resolve_factory_project', roles: ['hub_builder_ingress'] },
     ])

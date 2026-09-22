@@ -58,8 +58,9 @@ export const openFactoryConversationThread = ({ controller, orgId }: Readonly<{ 
     await controller.createSession({ resourceId: conversationId, ownerId: conversationId, threadId: conversationId, requestContext })
   }
 
-export const registerFactoryConversationRoutes = async (app: FastifyInstance, { readFactoryBinding, sessions, orgId, origin, resolveCurrentSession, openThread }: Readonly<{
+export const registerFactoryConversationRoutes = async (app: FastifyInstance, { readFactoryBinding, defaultBranchOf, sessions, orgId, origin, resolveCurrentSession, openThread }: Readonly<{
   readFactoryBinding(input: Readonly<{ accountId: string; projectId: string }>): Promise<FactoryBindingRecord | null>
+  defaultBranchOf(binding: FactoryBindingRecord): Promise<string>
   sessions: FactoryConversationSessions
   orgId: string
   origin: string
@@ -113,7 +114,7 @@ export const registerFactoryConversationRoutes = async (app: FastifyInstance, { 
       orgId,
       userId: session.account.accountId,
       branch: conversationBranch(conversationId),
-      baseBranch: binding.defaultBranch,
+      baseBranch: await defaultBranchOf(binding),
       ...(title ? { title } : {}),
       visibility: 'org',
     })

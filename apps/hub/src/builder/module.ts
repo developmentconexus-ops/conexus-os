@@ -204,17 +204,17 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
   const run: FactoryRunDependencies = Object.freeze({
     runtime: { execute: async (input) => (await runtime).execute(input) },
     readBindingForRun: store.readFactoryBindingForRun,
-    readSourceHead: async (binding) => githubApp.readBranchHead(
-      await (await portsReady).installationFor(binding),
-      { externalId: binding.repositoryExternalId, slug: binding.repositorySlug },
-      binding.defaultBranch,
-    ),
+    readSourceHead: async (binding) => {
+      const repository = await (await portsReady).resolveRepository(binding)
+      return githubApp.readBranchHead(repository.installation, repository, repository.defaultBranch)
+    },
     appendDiagnostic,
-    recoverAdmissions: async () => recoverFactoryAdmissions({ store, github: githubApp, installationFor: (await portsReady).installationFor }),
+    recoverAdmissions: async () => recoverFactoryAdmissions({ store, github: githubApp, resolveRepository: (await portsReady).resolveRepository }),
   })
   return Object.freeze({
     orgId: factory.orgId,
     ready,
+    portsReady,
     run,
     observabilityLifecycle,
     close: async () => {
@@ -373,6 +373,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, proj
       })
       return [...builderOperations, ...await registerFactoryConversationRoutes(app, {
         readFactoryBinding: store.readFactoryBinding, sessions, orgId: factoryComposition.orgId, origin, resolveCurrentSession,
+        defaultBranchOf: async (binding) => (await (await factoryComposition.portsReady).resolveRepository(binding)).defaultBranch,
         openThread: openFactoryConversationThread({ controller: composition.controller, orgId: factoryComposition.orgId }),
       })]
     },

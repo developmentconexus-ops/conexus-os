@@ -74,7 +74,7 @@ const createFactoryApp = async (t, { accountId = accountA } = {}) => {
   }
   const readFactoryBinding = async ({ accountId: caller, projectId }) => {
     if (!admittedProjects[caller]?.includes(projectId)) throw new Error('NOT_AUTHORIZED')
-    return { projectId, projectRepositoryId: repositoryOf[projectId], defaultBranch: 'main' }
+    return { projectId, projectRepositoryId: repositoryOf[projectId], repositoryId: `repository-of-${projectId}` }
   }
   const reachedContexts = []
   const resolveCurrentSession = async (request) => request.cookies['__Host-conexus_session']
@@ -91,6 +91,7 @@ const createFactoryApp = async (t, { accountId = accountA } = {}) => {
       })
       return registerFactoryConversationRoutes(instance, {
         readFactoryBinding, sessions, orgId: ORG, origin, resolveCurrentSession, openThread: openFactoryConversationThread({ controller, orgId: ORG }),
+        defaultBranchOf: async (binding) => binding.repositoryId === `repository-of-${projectA}` ? 'main' : 'trunk',
       })
     },
     staticRoot: null,

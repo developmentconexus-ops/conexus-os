@@ -114,19 +114,23 @@ export const provisionFactoryProject = async ({ github, records, executorPool, o
   const repository: GithubRepository = created ?? await github.readRepository(installationExternalId, `${owner}/${name}`)
   if (!repository.private) throw new Error('FACTORY_REPOSITORY_PUBLIC_REFUSED')
 
+  // A bound Project reaches its Factory project by the id it was bound with. The name only finds
+  // the one an earlier attempt created before it failed to bind.
+  const bound = (await executorPool.query<{ binding: Readonly<{ factoryProjectId: string }> | null }>(
+    'SELECT builder.read_factory_binding_for_project($1) AS binding', [projectId])).rows[0]?.binding ?? null
   const ownName = factoryProjectName(projectId)
+  const existingProject = bound
+    ? await records.projects.get({ orgId, id: bound.factoryProjectId })
+    : (await records.projects.list({ orgId })).find((project) => project.name === ownName)
+  if (bound && !existingProject) throw new Error('FACTORY_PROJECT_MISSING')
   const externalId = String(repository.id)
   const knownRepository = await records.sourceControl.repositories.findByExternalId({ orgId, externalId })
   if (knownRepository) {
     const links = await records.sourceControl.projectRepositories.listByExternalRepository({ installationExternalId: installation.externalId, repositoryExternalId: externalId })
-    for (const link of links) {
-      const holder = await records.projects.get({ orgId: link.orgId, id: link.factoryProjectId })
-      if (holder?.name !== ownName) throw new Error('FACTORY_REPOSITORY_BOUND_ELSEWHERE')
-    }
+    if (links.some((link) => link.factoryProjectId !== existingProject?.id)) throw new Error('FACTORY_REPOSITORY_BOUND_ELSEWHERE')
   }
 
-  const factoryProject = (await records.projects.list({ orgId })).find((project) => project.name === ownName)
-    ?? await records.projects.create({ orgId, userId: FACTORY_OPERATOR_ID, input: { name: ownName } })
+  const factoryProject = existingProject ?? await records.projects.create({ orgId, userId: FACTORY_OPERATOR_ID, input: { name: ownName } })
   const repositoryRow = knownRepository && knownRepository.installationId === installation.id &&
     knownRepository.slug === repository.fullName && knownRepository.defaultBranch === repository.defaultBranch
     ? knownRepository
@@ -167,11 +171,10 @@ export const provisionFactoryProject = async ({ github, records, executorPool, o
     defaultBranch: repository.defaultBranch,
     headRevision,
   })
-  const bound = await executorPool.query<{ bound: boolean }>(
-    'SELECT builder.bind_factory_project($1,$2,$3,$4,$5,$6,$7,$8) AS bound',
-    [binding.projectId, binding.factoryProjectId, binding.projectRepositoryId, binding.repositoryId,
-      binding.repositoryExternalId, binding.repositorySlug, binding.defaultBranch, binding.headRevision],
+  const bind = await executorPool.query<{ bound: boolean }>(
+    'SELECT builder.bind_factory_project($1,$2,$3,$4,$5) AS bound',
+    [binding.projectId, binding.factoryProjectId, binding.projectRepositoryId, binding.repositoryId, binding.headRevision],
   )
-  if (bound.rows[0]?.bound !== true) throw new Error('FACTORY_BINDING_REFUSED')
+  if (bind.rows[0]?.bound !== true) throw new Error('FACTORY_BINDING_REFUSED')
   return binding
 }

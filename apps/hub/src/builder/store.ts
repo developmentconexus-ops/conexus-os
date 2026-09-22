@@ -40,9 +40,6 @@ export type FactoryBindingRecord = Readonly<{
   factoryProjectId: string
   projectRepositoryId: string
   repositoryId: string
-  repositoryExternalId: number
-  repositorySlug: string
-  defaultBranch: string
   boundAt: string
 }>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>

@@ -44,10 +44,13 @@ export type FactoryRunSession = Readonly<{
   close(): Promise<void>
 }>
 
+/** The bound repository as the Factory's repositories row has it when the run reads it. */
+export type FactoryRepository = Readonly<{ installation: number; externalId: number; slug: string; defaultBranch: string }>
+
 export type FactoryRunPorts = Readonly<{
   openSession(input: Readonly<{ conversationId: string; builderRunId: string; projectId: string; accountId: string }>): Promise<FactoryRunSession>
   github: Pick<GithubApp, 'repositoryToken' | 'readBranchHead' | 'updateBranch'>
-  installationFor(binding: FactoryBindingRecord): Promise<number>
+  resolveRepository(binding: FactoryBindingRecord): Promise<FactoryRepository>
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
   log(line: string): void
 }>
@@ -108,18 +111,15 @@ const tokenEnvironment = (token: string): Record<string, string> => ({
 
 export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): FactoryCodingWorkerRuntime => Object.freeze({
   execute: async (input) => {
-    const { binding } = input
     if (!UUID.test(input.executionId) || !UUID.test(input.projectId) || !UUID.test(input.conversationId) ||
-      !OID.test(input.baseSourceRevision) || !SLUG.test(binding.repositorySlug) || !BRANCH.test(binding.defaultBranch) ||
-      !input.intent.trim()) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
+      !OID.test(input.baseSourceRevision) || !input.intent.trim()) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
     const base = input.baseSourceRevision
-    const slug = binding.repositorySlug
+    const repository = await ports.resolveRepository(input.binding)
+    const { installation, slug } = repository
     const branch = conversationBranch(input.conversationId)
     const workdir = factoryWorkdir(slug)
     const git = `git -C '${workdir}'`
-    const repository = { externalId: binding.repositoryExternalId, slug }
     const cancelled = (): boolean => input.signal?.aborted === true
-    const installation = await ports.installationFor(binding)
 
     const session = await ports.openSession({
       conversationId: input.conversationId, builderRunId: input.executionId, projectId: input.projectId, accountId: input.accountId,
@@ -164,7 +164,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       // discards whatever a stopped or stale run left in the checkout. The token is inline in the
       // command and never becomes a remote.
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
-      const pinToken = await ports.github.repositoryToken(installation, binding.repositoryExternalId, 'write')
+      const pinToken = await ports.github.repositoryToken(installation, repository.externalId, 'write')
       const pinned = await withToken(pinToken, [
         `${git} fetch --quiet --no-tags '${repositoryUrl(slug)}' '${base}'`,
         `${git} reset --quiet --hard`,
@@ -221,7 +221,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
 
       // Force applies only to the conversation's own scratch branch, which the base pin rewinds.
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
-      const pushToken = await ports.github.repositoryToken(installation, binding.repositoryExternalId, 'write')
+      const pushToken = await ports.github.repositoryToken(installation, repository.externalId, 'write')
       const pushed = await withToken(pushToken, `${git} push --quiet --force '${repositoryUrl(slug)}' '${result}:refs/heads/${branch}'`)
       if (pushed.exitCode !== 0) throw new Error('BUILDER_SOURCE_PUSH_FAILED')
       await scrubCheckoutCredentials(hub, workdir, slug)
@@ -249,13 +249,13 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       await input.setPhase('SOURCE_ADMISSION')
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
-      const head = await ports.github.readBranchHead(installation, repository, binding.defaultBranch)
+      const head = await ports.github.readBranchHead(installation, repository, repository.defaultBranch)
       // A retry after a lost response finds its own result already admitted.
       if (head !== result) {
         // R descends only from base, so a fast-forward is the compare-and-swap. The read catches the
         // one case GitHub's own check would not: a default branch rewound to an ancestor of R.
         if (head === base && cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
-        const admitted = head === base && await ports.github.updateBranch(installation, repository, binding.defaultBranch, result) === 'UPDATED'
+        const admitted = head === base && await ports.github.updateBranch(installation, repository, repository.defaultBranch, result) === 'UPDATED'
         if (!admitted) throw new Error('BUILDER_SOURCE_BASE_MOVED')
       }
       return Object.freeze({ ...scope, kind: 'SOURCE_ADMITTED' as const, resultSourceRevision: result, applicationBuild })
@@ -291,13 +291,14 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
   const tools = deniedTools(composition.github, orgId)
   const memorySettings = composition.storage.getDomain<MemorySettingsStorage>('memory-settings')
   return Object.freeze({
-  installationFor: async (binding: FactoryBindingRecord) => {
+  resolveRepository: async (binding: FactoryBindingRecord) => {
     const sourceControl = composition.github.sourceControlStorage
-    const repository = await sourceControl.repositories.get({ orgId, id: binding.repositoryId })
-    const installation = repository ? await sourceControl.installations.get({ orgId, id: repository.installationId }) : null
-    const externalId = Number(installation?.externalId)
-    if (!Number.isSafeInteger(externalId) || externalId <= 0) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
-    return externalId
+    const row = await sourceControl.repositories.get({ orgId, id: binding.repositoryId })
+    const installation = row ? await sourceControl.installations.get({ orgId, id: row.installationId }) : null
+    const repository = { installation: Number(installation?.externalId), externalId: Number(row?.externalId), slug: row?.slug ?? '', defaultBranch: row?.defaultBranch ?? '' }
+    if (![repository.installation, repository.externalId].every((id) => Number.isSafeInteger(id) && id > 0) ||
+      !SLUG.test(repository.slug) || !BRANCH.test(repository.defaultBranch)) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
+    return Object.freeze(repository)
   },
   log,
   openSession: async ({ conversationId, builderRunId, projectId, accountId }) => {
@@ -371,19 +372,18 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
  * conversation branch; that run is admitted, with the last good Preview kept. Anything else is
  * left for the ordinary interrupt.
  */
-export const recoverFactoryAdmissions = async ({ store, github, installationFor }: Readonly<{
+export const recoverFactoryAdmissions = async ({ store, github, resolveRepository }: Readonly<{
   store: Pick<BuilderStore, 'listFactoryAdmissionRuns' | 'advanceBuilderRunSource' | 'settleBuilderRunBuild'>
   github: Pick<GithubApp, 'readBranchHead'>
-  installationFor(binding: FactoryBindingRecord): Promise<number>
+  resolveRepository: FactoryRunPorts['resolveRepository']
 }>): Promise<readonly string[]> => {
   const recovered: string[] = []
   for (const run of await store.listFactoryAdmissionRuns()) {
     try {
-      const installation = await installationFor(run.binding)
-      const repository = { externalId: run.binding.repositoryExternalId, slug: run.binding.repositorySlug }
+      const repository = await resolveRepository(run.binding)
       const [head, conversation] = await Promise.all([
-        github.readBranchHead(installation, repository, run.binding.defaultBranch),
-        github.readBranchHead(installation, repository, conversationBranch(run.conversationId)),
+        github.readBranchHead(repository.installation, repository, repository.defaultBranch),
+        github.readBranchHead(repository.installation, repository, conversationBranch(run.conversationId)),
       ])
       if (!head || head !== conversation || head === run.baseSourceRevision) continue
       await store.advanceBuilderRunSource(run.builderRunId, head)

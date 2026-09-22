@@ -52,7 +52,7 @@ const pilot = async (t) => {
   const store = createBuilderStore({ ingressPool, executorPool })
   let closed = false
   onCleanup(async () => { if (!closed) await store.close() })
-  await executorPool.query('SELECT builder.bind_factory_project($1,$2,$3,$4,$5,$6,$7,$8)', [projectId, 'fp-pilot', 'pr-pilot', 'r-pilot', repository.id, 'acme-org/pilot', 'main', OLD])
+  await executorPool.query('SELECT builder.bind_factory_project($1,$2,$3,$4,$5)', [projectId, 'fp-pilot', 'pr-pilot', 'r-pilot', OLD])
   await query(connectionString, "UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY', last_preview_source_revision = $2, last_preview_artifact_revision_id = $3, last_preview_artifact_digest = $4 WHERE project_id = $1", [projectId, OLD, PREVIEW_ARTIFACT, PREVIEW_DIGEST])
 
   const app = createGithubApp({ appId: '5015512', privateKey, baseUrl: github.baseUrl })
@@ -79,7 +79,7 @@ const pilot = async (t) => {
       throw new Error('APPLICATION_COMPILATION_FAILED')
     },
   }
-  const installationFor = async () => 163574754
+  const resolveRepository = async () => ({ installation: 163574754, externalId: repository.id, slug: 'acme-org/pilot', defaultBranch: 'main' })
   const runtime = createFactoryCodingWorkerRuntime({
     openSession: async () => ({
       sandbox,
@@ -89,7 +89,7 @@ const pilot = async (t) => {
       close: async () => {},
     }),
     github: app,
-    installationFor,
+    resolveRepository,
     materializeStarter: async () => {},
     log: () => {},
   })
@@ -101,7 +101,10 @@ const pilot = async (t) => {
     factory: {
       runtime,
       readBindingForRun: store.readFactoryBindingForRun,
-      readSourceHead: async (binding) => app.readBranchHead(await installationFor(binding), { externalId: binding.repositoryExternalId, slug: binding.repositorySlug }, binding.defaultBranch),
+      readSourceHead: async (binding) => {
+        const bound = await resolveRepository(binding)
+        return app.readBranchHead(bound.installation, bound, bound.defaultBranch)
+      },
       appendDiagnostic: async (note) => { notes.push(note) },
       recoverAdmissions: async () => [],
     },
