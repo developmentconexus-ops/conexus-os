@@ -18,9 +18,10 @@ first real call site is exactly what section 4 forbids.
 
 ## 1. The model
 
-Authority is membership of the Workspace that owns the resource, plus the role held in
-that membership. There is nothing else. There is no per-Project grant table, no
-independently revocable capability fact and no role editor.
+Current enforced **Control Plane** authority is membership of the Workspace that owns the
+resource, plus the role held in that membership. There is no current per-Project grant table,
+independently revocable capability fact or role editor. C-028 adds future application/runtime
+authority requirements in section 5; those are not silently projected onto this current model.
 
 ```text
 iam.workspace_role = owner | member
@@ -168,22 +169,28 @@ lifecycle surface introduces its own action at its first real call site.
 
 ## 5. Target requirements not yet enforced
 
-[C-021](../decisions/index.md) approved a direction that will need authority this model
-does not express. Each line below is a requirement on a future call site. None of them
-is an action today, and none may be added to `iam.action` before the operation that
-needs it exists. [Section 12 of the product contract](contract.md#12-approved-destination)
-owns what each one means.
+[C-021](../decisions/index.md) and [C-028](../decisions/index.md) approved direction that
+will need authority this model does not express. Each line below is a requirement on a
+future call site. None of them is an action today, and none may be added to `iam.action`
+before the operation that needs it exists. [Section 12 of the product contract](contract.md#12-approved-destination)
+owns what each one means; the [Stage 2 application reference](../reference/stage2-managed-application-platform.md)
+owns the qualification sequence.
 
 | Requirement | What it must decide | Why the current model does not answer it |
 | --- | --- | --- |
 | Conversation privacy | who may read a conversation of a Project whose policy is `PER_USER` | containment answers Project reads, and every member sees every Project read today; a conversation private to its author is a narrower question than membership |
 | Privacy of everything a conversation carries | the same answer applied to persisted requests, diagnostics, recovered memory and delegated work | hiding a conversation from a list is not the same as withholding what it wrote elsewhere |
 | Continuing somebody else's conversation | that continuing it grants neither the author's credentials nor the author's permissions | the actor is the one asking; nothing today can be tempted to read authority from a conversation's author |
+| Application audience | who may use a published application without becoming a Workspace member | Workspace containment currently equates Project visibility with development membership; app use must be narrower and independent |
+| Control Plane eligibility | whether an authenticated Account may create/administer Workspaces or enter development surfaces | Account existence currently implies eligibility to create a Workspace; an app-only Account must not gain that authority |
 | Project capabilities | what a conversation, an application or an automation may call on the Project's behalf, and what it may never reach | `project.build` gates starting a run; it says nothing about a capability a generated application invokes at runtime |
+| Connector grants | which operations of a Workspace Connection a Project/environment may invoke | Workspace membership and installation administration do not express runtime authority over an enterprise credential |
 | Publication | that publishing is explicit, authorized and separate from editing and from a run settling | nothing publishes today, so no action gates it |
 | Work applied to a Project | that a reviewed candidate reaches the source only through the Project's own reconciliation and authorization | source advances inside a run the actor already holds `project.build` for; delegated work arrives from elsewhere |
 
 Two rules from section 4 govern all of them. An action exists only when a real call
-site needs the distinction, and an action is necessary without being sufficient: the
-operation still rechecks the exact subject, the current membership and the current
-owner state.
+site needs the distinction, and an action is necessary without being sufficient. Runtime
+application authority must recheck the exact app/Project/environment subject at bounded
+request or Connector admission; it must not pretend a Hub database transaction spans an
+external runner or provider. Q3 and Q4 qualify those boundaries before their first actions
+or grant tables are added.
