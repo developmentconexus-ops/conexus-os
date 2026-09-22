@@ -168,10 +168,6 @@ try {
         await page.waitForTimeout(1200)
         await scenario.act?.(page)
         await page.waitForTimeout(400)
-        // The global frame is rebuilt on feat/screens-entry-workspace. On trunk its top bar cannot
-        // shrink and pushes a 390 px page sideways, so the capture lets it clip and truncate; nothing
-        // inside Construir is restyled, and the overflow check below still covers every element.
-        await page.addStyleTag({ content: '.topbar { min-width: 0; overflow: hidden } .account > button { max-width: 7.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }' })
         if (process.env.PROBE_UP) console.log(await page.evaluate((selector) => {
           const lines = []
           for (let element = document.querySelector(selector); element; element = element.parentElement) {
