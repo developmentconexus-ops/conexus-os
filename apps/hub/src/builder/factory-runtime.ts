@@ -1,6 +1,7 @@
 import { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput } from '@mastra/core/workspace'
 import { applyStoredMemorySettings } from '@mastra/factory/session/memory-settings-hydration'
+import { repoDirUnder } from '@mastra/factory/sandbox/workdir'
 import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import { buildApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { CompiledApplication } from './application-artifact-runtime.js'
@@ -78,11 +79,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const SLUG = /^[\w.-]+\/[\w.-]+$/
 const BRANCH = /^[A-Za-z0-9_./-]+$/
 
-// The Factory clones into <workingDirectory>/<repository name>, sanitized the same way.
-const repositoryName = (repositorySlug: string): string =>
-  (repositorySlug.split('/')[1] ?? '').replace(/[^A-Za-z0-9._-]/g, '-').replace(/^\.+/, '') || 'repo'
-export const factoryWorkdir = (repositorySlug: string): string => `${FACTORY_WORKING_DIRECTORY}/${repositoryName(repositorySlug)}`
-
 export const factoryAgentInstructions = (workdir: string): string => [
   ...BUILDER_SHARED_AGENT_INSTRUCTIONS.map((line) => line.replaceAll('/workspace/repo', workdir)),
   'The conversation history can describe edits from earlier turns that were discarded; trust the files in the workspace over the history.',
@@ -118,11 +114,12 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
     const repository = await ports.resolveRepository(input.binding)
     const { installation, slug } = repository
     const branch = conversationBranch(input.conversationId)
-    const workdir = factoryWorkdir(slug)
+    const workdir = repoDirUnder(FACTORY_WORKING_DIRECTORY, slug)
     const git = `git -C '${workdir}'`
-    const mirror = `${HUB_GIT_ROOT}/${repositoryName(slug)}.git`
+    const hubRepository = repoDirUnder(HUB_GIT_ROOT, slug)
+    const mirror = `${hubRepository}.git`
     const hubGit = `git --git-dir='${mirror}'`
-    const baseBundle = `${HUB_GIT_ROOT}/${repositoryName(slug)}.base.bundle`
+    const baseBundle = `${hubRepository}.base.bundle`
     const cancelled = (): boolean => input.signal?.aborted === true
 
     const session = await ports.openSession({
