@@ -155,7 +155,7 @@ test('the hub build step publishes its directory to the steps after it, and only
     scopes: ['candidate'],
     packageScripts,
     platform: 'linux',
-    runCommand: (entry, { processEnvironment }) => {
+    runCommand: (_entry, { processEnvironment }) => {
       failedBuild.push(processEnvironment.CONEXUS_HUB_BUILD ?? null)
       return { status: 1 }
     },
