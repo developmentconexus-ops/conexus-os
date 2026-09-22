@@ -14,7 +14,6 @@ import type { ProjectRepositoryPort } from './store.js'
 
 export type ProjectModule = Readonly<{
   registerProjectRoutes(app: FastifyInstance): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03')[]>
-  sourceGit: OciGitExecution
   warmGitImage(): ReturnType<OciGitExecution['verifyAdmittedImage']>
   close(): Promise<void>
 }>
@@ -39,7 +38,6 @@ export const createProjectModule = ({
     registerProjectRoutes: (app: FastifyInstance) => registerProjectRoutes(app, {
       store, resolveCurrentSession, origin,
     }),
-    sourceGit: oci,
     warmGitImage: () => oci.verifyAdmittedImage(),
     close: async () => {
       await Promise.all([commandPool.end(), readPool.end()])
@@ -64,9 +62,6 @@ export const composeProjectSourceOwnership = (input: unknown): Readonly<Record<s
 
 export const readProjectSourceOwnership = (path: string): Readonly<Record<string, string>> =>
   composeProjectSourceOwnership(readJsonFile(path))
-
-export const createBuilderProjectGitCapability = (_storageRoot: string): OciGitExecution =>
-  createOciGitExecution(R1C14_GIT_IDENTITY)
 
 export const createConfiguredProjectModule = ({
   database,

@@ -1,6 +1,5 @@
-import type { BuilderSourceFile, BuilderSourcePort, BuilderSourceTree } from './source.js'
 import type { FactoryCodingWorkerRuntime } from './factory-runtime.js'
-import type { FactorySourceReads } from './factory-source.js'
+import type { BuilderSourceFile, BuilderSourceTree, FactorySourceReads } from './factory-source.js'
 import type { BuilderRunningPhase, BuilderRunSummary, BuilderStore, FactoryBindingRecord } from './store.js'
 import { prepareBuilderRunApplicationArtifact } from './application-build.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, BuilderApplicationArtifacts } from './application-build.js'
@@ -42,16 +41,15 @@ export type FactoryRunDependencies = Readonly<{
   // Settles the candidate runs no run in `active` owns and answers the ones it could not settle yet.
   recoverAdmissions(active: ReadonlySet<string>): Promise<readonly string[]>
   reconcileEveryMs?: number
-  // A bound Project's source is its repository on GitHub; the local repository serves unbound ones.
+  // A Project's source is its repository on GitHub.
   source: FactorySourceReads
 }>
 
 // Only these end a run with a recorded candidate knowing its source is not on main.
 const NOT_ADMITTED = new Set(['BUILDER_SOURCE_BASE_MOVED', 'BUILDER_SOURCE_ADMISSION_FAILED', 'BUILDER_RUN_CANCELLED'])
 
-export const createBuilderService = ({ store, source, applicationArtifacts, factory }: Readonly<{
+export const createBuilderService = ({ store, applicationArtifacts, factory }: Readonly<{
   store: BuilderStore
-  source: BuilderSourcePort
   applicationArtifacts: BuilderApplicationArtifacts
   factory: FactoryRunDependencies
 }>): BuilderService => {
@@ -224,16 +222,14 @@ export const createBuilderService = ({ store, source, applicationArtifacts, fact
     listSourceTree: async (input) => {
       if (!await store.admitSourceRevision(input)) throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND')
       const binding = await store.readFactoryBinding(input)
-      if (binding) return factory.source.listSourceTree(binding, input.sourceRevision)
-      return source.listSourceTree({ projectId: input.projectId, sourceRevision: input.sourceRevision })
+      if (!binding) throw new Error('BUILDER_FACTORY_PROJECT_UNBOUND')
+      return factory.source.listSourceTree(binding, input.sourceRevision)
     },
     getSourceFile: async (input) => {
       if (!await store.admitSourceRevision(input)) throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND')
       const binding = await store.readFactoryBinding(input)
-      if (binding) return factory.source.readSourceFile(binding, input.sourceRevision, input.path)
-      return source.readSourceFile({
-        projectId: input.projectId, sourceRevision: input.sourceRevision, path: input.path,
-      })
+      if (!binding) throw new Error('BUILDER_FACTORY_PROJECT_UNBOUND')
+      return factory.source.readSourceFile(binding, input.sourceRevision, input.path)
     },
     getApplicationBySource,
     readApplicationFileBySource,

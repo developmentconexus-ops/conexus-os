@@ -1,7 +1,17 @@
 import { type GithubApp, GithubRequestError } from './factory-github.js'
 import type { FactoryRepository } from './factory-runtime.js'
-import type { BuilderSourceFile, BuilderSourceTree } from './source.js'
 import type { FactoryBindingRecord } from './store.js'
+
+export type BuilderSourceTree = Readonly<{
+  sourceRevision: string
+  entries: readonly Readonly<{ path: string; kind: 'FILE' | 'DIRECTORY' }>[]
+}>
+
+export type BuilderSourceFile = Readonly<{
+  sourceRevision: string
+  path: string
+  content: string
+}>
 
 /** A bound Project's source is its GitHub repository, read at one exact revision. */
 export type FactorySourceReads = Readonly<{
@@ -14,7 +24,7 @@ const MAX_ENTRIES = 10_000
 const MAX_FILE_BYTES = 1_048_576
 const REGULAR_FILE = new Set(['100644', '100755'])
 
-// The rules the local source read enforces inside its Git container, applied to GitHub's answer.
+// A path the Preview and the source view may show: relative, no empty, dot or dot-dot part.
 const safePath = (path: unknown): path is string => typeof path === 'string' && path.length > 0 && path.length <= 4096 &&
   !path.startsWith('/') && !path.includes('\\') && !path.includes('\0') && path.split('/').every((part) => part !== '' && part !== '.' && part !== '..')
 

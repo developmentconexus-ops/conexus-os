@@ -33,12 +33,6 @@ const makeFactory = ({ binding, execute, appendDiagnostic }) => ({
   },
 })
 
-// The local BuilderSourcePort only ever serves an unbound Project; none of these runs are unbound.
-const unreachableSource = {
-  listSourceTree: async () => { throw new Error('not reached') },
-  readSourceFile: async () => { throw new Error('not reached') },
-}
-
 test('BuilderRun message dispatch claims, executes and settles without Change pipeline', async () => {
   const runId = '11111111-1111-4111-8111-111111111111'
   const projectId = '22222222-2222-4222-8222-222222222222'
@@ -59,7 +53,6 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
   }
   const service = createBuilderService({
     store,
-    source: unreachableSource,
     factory: makeFactory({
       binding,
       execute: async (input) => {
@@ -88,7 +81,6 @@ test('createBuilderRun refuses an unbound Project before a run is created or dis
   }
   const service = createBuilderService({
     store,
-    source: unreachableSource,
     factory: makeFactory({
       binding: makeBinding(projectId),
       execute: async () => { throw new Error('must not execute') },
@@ -126,9 +118,8 @@ test('a run whose binding disappeared between create and claim fails outright wi
     readConversationRepository: async () => binding.projectRepositoryId,
     appendDiagnostic: async () => {},
     recoverAdmissions: async () => [],
-    source: unreachableSource,
   }
-  const service = createBuilderService({ store, source: unreachableSource, factory, applicationArtifacts: {} })
+  const service = createBuilderService({ store, factory, applicationArtifacts: {} })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', mode: 'PLAN' })
   await service.close()
   assert.deepEqual(calls, ['claim', ['fail', 'BUILDER_FACTORY_PROJECT_UNBOUND']])
@@ -157,7 +148,6 @@ test('a failure before the agent keeps the operator request on the run and names
   }
   const service = createBuilderService({
     store,
-    source: unreachableSource,
     factory: makeFactory({
       binding,
       // Materializing the base revision on the Factory's mirror still fails before the agent
@@ -199,7 +189,6 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
   }
   const service = createBuilderService({
     store,
-    source: unreachableSource,
     factory: makeFactory({
       binding,
       execute: async (input) => {
@@ -240,7 +229,6 @@ test('a run cancelled mid phase change is interrupted, not failed, whatever erro
       interruptBuilderRun: async (_id, reason) => calls.push(['interrupt', reason]),
       bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
     },
-    source: unreachableSource,
     factory: makeFactory({
       binding,
       execute: async (input) => {
@@ -278,7 +266,6 @@ test('BUILD source result is admitted by the runtime, compiled, settles Preview 
   }
   const service = createBuilderService({
     store,
-    source: unreachableSource,
     factory: makeFactory({
       binding,
       // The Factory's own compare-and-swap admits the source; the sandbox that ran the agent
@@ -327,7 +314,6 @@ test('a build or smoke failure still admits and advances the source, and settles
   // sandbox reports a build or smoke failure, only the code that names it.
   const service = createBuilderService({
     store,
-    source: unreachableSource,
     factory: makeFactory({
       binding,
       execute: async (input) => {
@@ -372,7 +358,6 @@ test('a runtime failure that is not a build or smoke failure still fails the run
   }
   const service = createBuilderService({
     store,
-    source: unreachableSource,
     factory: makeFactory({
       binding,
       execute: async () => { throw new Error('APPLICATION_COMPILER_WORKSPACE_REFUSED') },

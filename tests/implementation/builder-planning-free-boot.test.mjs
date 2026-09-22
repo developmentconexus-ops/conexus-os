@@ -87,9 +87,6 @@ test('Builder boot needs no deployment model catalog and no pinned admission id'
   assert.equal(Object.hasOwn(config.builder, 'modelAdmissionId'), false)
   assert.equal(Object.hasOwn(config.project, 'modelCatalogFile'), false)
   assert.equal(Object.hasOwn(config.project, 'planning'), false)
-
-  const { createBuilderProjectGitCapability } = await import(built('project/module.js'))
-  assert.equal(typeof createBuilderProjectGitCapability(config.project.storageRoot).verifyAdmittedImage, 'function')
 })
 
 test('a retired Inception or Baseline password variable is refused, not ignored', async (t) => {

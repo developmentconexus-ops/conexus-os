@@ -10,8 +10,6 @@ import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapsh
 import { BUILDER_TRACE_REQUEST_CONTEXT_KEYS } from './runtime.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
-import { createBuilderSourcePort } from './source.js'
-import type { BuilderGitSourceCapability } from './source.js'
 import { createBuilderStore } from './store.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig } from '../platform/config.js'
@@ -204,7 +202,7 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
   })
 }
 
-export const createConfiguredBuilderModule = ({ database, builder, factory, projectSource, applicationArtifacts, launchPreview, origin, resolveCurrentSession }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, factory, applicationArtifacts, launchPreview, origin, resolveCurrentSession }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
@@ -213,7 +211,6 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, proj
   factory: FactoryRuntimeConfig
   applicationArtifacts: UnboundBuilderApplicationArtifacts
   launchPreview?: BuilderLaunchPreviewPort
-  projectSource: Readonly<{ storageRoot: string; git: BuilderGitSourceCapability }>
   origin: string
   resolveCurrentSession: ResolveCurrentSession
 }>) => {
@@ -229,14 +226,10 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, proj
     retainApplication: (input) => applicationArtifacts.retainApplication(executorPool, input),
     ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(executorPool, input) } : {}),
   })
-  const source = createBuilderSourcePort({
-    git: projectSource.git,
-    storageRoot: projectSource.storageRoot,
-  })
   const factoryComposition = startFactoryComposition({
     database, factory, store, e2bApiKey: readSecretFile(builder.e2bApiKeyFile), e2bTemplateId: builder.e2bTemplateId, origin,
   })
-  const service = createBuilderService({ store, source, applicationArtifacts: boundApplicationArtifacts, factory: factoryComposition.run })
+  const service = createBuilderService({ store, applicationArtifacts: boundApplicationArtifacts, factory: factoryComposition.run })
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })

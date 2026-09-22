@@ -73,7 +73,6 @@ const recoveryHarness = async (t, name, crashes) => {
   const app = createGithubApp({ appId: '5015512', privateKey, baseUrl: github.baseUrl })
   const service = createBuilderService({
     store,
-    source: {},
     applicationArtifacts: {},
     factory: {
       runtime: { execute: async () => { throw new Error('not reached') } },

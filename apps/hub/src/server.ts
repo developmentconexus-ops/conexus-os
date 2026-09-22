@@ -13,10 +13,7 @@ import { createWorkspaceModule } from './workspace/module.js'
 // Mastra is loaded only after the production entrypoint has disabled its
 // optional telemetry. Keep this before the dynamic Project-module import.
 process.env.MASTRA_TELEMETRY_DISABLED = '1'
-const {
-  createConfiguredProjectModule,
-  createBuilderProjectGitCapability,
-} = await import('./project/module.js')
+const { createConfiguredProjectModule } = await import('./project/module.js')
 const { createConfiguredBuilderModule } = await import('./builder/module.js')
 
 const config = readHubConfig()
@@ -128,10 +125,6 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   factory: config.factory,
   applicationArtifacts: createApplicationArtifactStore(),
   ...(launchPreview ? { launchPreview } : {}),
-  projectSource: {
-    storageRoot: config.project.storageRoot,
-    git: project?.sourceGit ?? createBuilderProjectGitCapability(config.project.storageRoot),
-  },
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
