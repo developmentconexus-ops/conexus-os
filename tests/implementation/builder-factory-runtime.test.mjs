@@ -123,7 +123,14 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   }
   const service = createBuilderService({
     store,
-    applicationArtifacts: {},
+    applicationArtifacts: {
+      retainApplication: async ({ compiled }) => ({
+        artifactRevisionId: 'artifact-1', artifactDigest: 'g'.repeat(64),
+        projectId: compiled.projectId, sourceRevision: compiled.sourceRevision,
+        profile: 'REACT_VITE_V1', templateRef: compiled.templateRef, recipeSha256: compiled.recipeSha256,
+        entryPath: 'index.html', files: [],
+      }),
+    },
     factory: {
       runtime,
       readBindingForRun: async () => binding,
