@@ -95,7 +95,6 @@ const createFakeRecords = () => {
         list: async ({ installationId }) => repositoriesByInstallation.get(installationId) ?? [],
       },
     },
-    reattachRepository: async () => true,
     // Test setup only: seeds one recorded installation and its repository rows directly.
     seedInstallation: (row, repositories = []) => {
       installations.push(row)
