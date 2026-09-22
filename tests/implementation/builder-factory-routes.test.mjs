@@ -86,7 +86,7 @@ const createFactoryApp = async (t, { accountId = accountA } = {}) => {
         if (request.requestContext) reachedContexts.push({ url: request.url, user: request.requestContext.get('user') })
       })
       await registerFactoryMastraRoutes(instance, {
-        mastra, controller, origin, orgId: ORG, resolveCurrentSession,
+        mastra, controllerId: 'code', controller, origin, orgId: ORG, resolveCurrentSession,
         admitConversation: admitFactoryConversation({ sessions, resolveFactoryProject }),
       })
       return registerFactoryConversationRoutes(instance, {

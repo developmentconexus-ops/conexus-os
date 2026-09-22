@@ -364,6 +364,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, proj
       const sessions = composition.github.sourceControlStorage.sessions
       await registerFactoryMastraRoutes(app, {
         mastra: composition.mastra,
+        controllerId: composition.controllerId,
         controller: composition.controller,
         origin,
         orgId: factoryComposition.orgId,

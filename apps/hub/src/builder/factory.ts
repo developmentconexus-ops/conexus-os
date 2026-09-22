@@ -12,8 +12,6 @@ import { createPostgresPool } from '../platform/postgres.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { BuilderAgentController } from './runtime.js'
 
-// prepare() fixes the controller id; the browser addresses it by this name on the Factory mount.
-export const FACTORY_CONTROLLER_ID = 'code'
 export const FACTORY_SCHEMA = 'factory'
 export const FACTORY_WORKING_DIRECTORY = '/workspace'
 export const FACTORY_INTEGRATION_ID = 'github'
@@ -192,6 +190,7 @@ export type FactoryGithubApp = Readonly<{
 
 export type FactoryComposition = Readonly<{
   mastra: Mastra
+  controllerId: string
   controller: BuilderAgentController
   github: GithubIntegration
   storage: PgFactoryStorage
@@ -222,10 +221,12 @@ export const composeFactory = async ({ pool, github, stateSecret, publicUrl, san
   const { workers: _workers, ...args } = await factory.prepare()
   const mastra = new Mastra({ ...args, ...(observability ? { observability } : {}), logger: false })
   await factory.finalize()
-  const controller = args.agentControllers?.[FACTORY_CONTROLLER_ID] as BuilderAgentController | undefined
-  if (!controller) throw new Error('FACTORY_CONTROLLER_UNAVAILABLE')
+  const controllers = Object.entries(args.agentControllers ?? {})
+  if (controllers.length !== 1) throw new Error('FACTORY_CONTROLLER_UNAVAILABLE')
+  const [[controllerId, controller]] = controllers as [[string, BuilderAgentController]]
   return Object.freeze({
     mastra,
+    controllerId,
     controller,
     github: integration,
     storage,

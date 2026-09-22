@@ -262,6 +262,7 @@ test('prepare() registers the controller as code, lands every table in factory, 
   onCleanup(() => composition.close())
 
   assert.deepEqual(Object.keys(composition.mastra.listAgentControllers()), ['code'])
+  assert.equal(composition.controllerId, 'code')
   assert.equal(composition.mastra.getAgentController('code'), composition.controller)
   assert.deepEqual(await legacy.base.controller.listAvailableModels(), legacyModelsBefore)
 

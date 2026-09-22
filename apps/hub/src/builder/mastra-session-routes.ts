@@ -5,7 +5,6 @@ import { SERVER_ROUTES } from '@mastra/server/server-adapter'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
-import { FACTORY_CONTROLLER_ID } from './factory.js'
 
 export const BUILDER_MASTRA_PREFIX = '/api/mastra'
 export const FACTORY_MASTRA_PREFIX = '/api/mastra-factory'
@@ -124,8 +123,9 @@ export const registerBuilderMastraRoutes = async (app: FastifyInstance, { mastra
   admitResource: ({ accountId, resourceId }) => admitProjectBuild({ accountId, projectId: resourceId }),
 })
 
-export const registerFactoryMastraRoutes = async (app: FastifyInstance, { mastra, controller, origin, orgId, resolveCurrentSession, admitConversation }: Readonly<{
+export const registerFactoryMastraRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, origin, orgId, resolveCurrentSession, admitConversation }: Readonly<{
   mastra: Mastra
+  controllerId: string
   controller: BuilderAgentController
   origin: string
   orgId: string
@@ -136,7 +136,7 @@ export const registerFactoryMastraRoutes = async (app: FastifyInstance, { mastra
 }>): Promise<void> => registerGuardedMastraMount(app, {
   mastra, controller, origin, resolveCurrentSession,
   prefix: FACTORY_MASTRA_PREFIX,
-  controllerId: FACTORY_CONTROLLER_ID,
+  controllerId,
   routes: FACTORY_BROWSER_ROUTES,
   admitResource: ({ accountId, resourceId }) => admitConversation({ accountId, conversationId: resourceId }),
   shapeContext: (request, accountId) => {
