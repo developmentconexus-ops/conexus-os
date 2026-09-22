@@ -348,7 +348,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, goog
         resolveCurrentSession,
       })
       return [...builderOperations, ...repositoryOperations, ...await registerFactoryConversationRoutes(app, {
-        readFactoryBinding: store.readFactoryBinding, sessions, orgId: factoryComposition.orgId, origin, resolveCurrentSession,
+        readFactoryBinding: store.readFactoryBinding, sessions, controller: composition.controller, orgId: factoryComposition.orgId, origin, resolveCurrentSession,
         defaultBranchOf: async (binding) => (await (await factoryComposition.portsReady).resolveRepository(binding)).defaultBranch,
         openThread: openFactoryConversationThread({ controller: composition.controller, orgId: factoryComposition.orgId, applyDefaults: applyModelDefaults({ modelPacks, orgId: factoryComposition.orgId }) }),
       })]
