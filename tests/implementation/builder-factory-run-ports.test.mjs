@@ -102,18 +102,31 @@ test('every tool the Factory GitHub integration contributes is denied, including
   })
 })
 
-test('the organization memory row sets the observer and reflector models of a run', async () => {
+const memoryRow = (userId, modelId) => ({ orgId: ORG, userId, observerModelId: modelId, reflectorModelId: modelId, observationThreshold: null, reflectionThreshold: null, observeAttachments: null })
+const runner = '33333333-3333-4333-8333-333333333333'
+
+test('the memory row of the person who started the run sets its observer and reflector models', async () => {
+  const session = fakeSession()
+  const run = await openPorts({
+    session,
+    memory: ({ userId }) => ({ [runner]: memoryRow(runner, 'anthropic/claude-haiku-5'), 'conexus-operator': memoryRow('conexus-operator', 'openai/gpt-5.6-luna') })[userId],
+  })
+  await run.configure({ mode: 'BUILD', instructions: 'Edit the checkout.' })
+  assert.deepEqual(session.models, { observer: 'anthropic/claude-haiku-5', reflector: 'anthropic/claude-haiku-5' })
+})
+
+test('a person with no memory row gets the organization memory row', async () => {
   const session = fakeSession()
   const asked = []
   const run = await openPorts({
     session,
     memory: (key) => {
       asked.push(key)
-      return { orgId: ORG, userId: key.userId, observerModelId: 'openai/gpt-5.6-luna', reflectorModelId: 'openai/gpt-5.6-luna', observationThreshold: null, reflectionThreshold: null, observeAttachments: null }
+      return key.userId === 'conexus-operator' ? memoryRow('conexus-operator', 'openai/gpt-5.6-luna') : null
     },
   })
   await run.configure({ mode: 'BUILD', instructions: 'Edit the checkout.' })
-  assert.deepEqual(asked, [{ orgId: ORG, userId: 'conexus-operator' }])
+  assert.deepEqual(asked, [{ orgId: ORG, userId: runner }, { orgId: ORG, userId: 'conexus-operator' }])
   assert.deepEqual(session.models, { observer: 'openai/gpt-5.6-luna', reflector: 'openai/gpt-5.6-luna' })
 })
 

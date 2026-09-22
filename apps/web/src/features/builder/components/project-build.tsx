@@ -24,11 +24,10 @@ const failureStatusByCategory: Record<BuilderFailureCategory, string> = {
   INTERNAL_ERROR: 'Execução falhou por um erro interno',
 }
 
-// These three share one public category but have always been separate outcomes on screen, and an
+// These two share one public category but have always been separate outcomes on screen, and an
 // operator acts on each differently.
 const failureStatusByCode: Record<string, string> = {
-  BUILDER_MODEL_AUTH_FAILED: 'O provedor recusou a credencial do modelo',
-  BUILDER_MODEL_CREDENTIAL_UNRESOLVABLE: 'A credencial do modelo não pôde ser resolvida',
+  BUILDER_MODEL_AUTH_FAILED: 'Sem conta de modelo que atenda este modelo, ou o provedor a recusou',
   BUILDER_MODEL_RATE_LIMITED: 'Modelo temporariamente limitado; tente novamente mais tarde',
 }
 
