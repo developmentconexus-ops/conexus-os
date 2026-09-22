@@ -71,6 +71,70 @@ test('S5-P0 realizes one adaptive server-oriented shell and recoverable focus', 
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/)
 })
 
+test('S5-P0 sidebar collapses to a 56px icon rail with a top toggle, ⌘B/Ctrl+B, and a phone drawer', () => {
+  const shell = read('apps/web/src/app/shell.tsx')
+  assert.match(shell, /collapsedWidth=\{56\}/)
+  assert.match(shell, /disableKeyboardShortcut=\{false\}/)
+  assert.match(shell, /mobileBreakpoint=\{768\}/)
+  // The toggle sits in the header row above <MainSidebar.Nav>, never in a footer, and its label
+  // reflects the real state (SidebarCollapseTrigger reads useMainSidebar()), not a static string.
+  assert.match(shell, /function SidebarCollapseTrigger\(\) \{[\s\S]*?<MainSidebar\.Trigger className="cx-rail-collapse" aria-label=\{collapsed \? 'Expandir barra lateral' : 'Recolher barra lateral'\}/)
+  const rootIndex = shell.indexOf('<MainSidebar className="shell-sidebar">')
+  const triggerIndex = shell.indexOf('<SidebarCollapseTrigger />')
+  const navIndex = shell.indexOf('<MainSidebar.Nav aria-label="Navegação principal">')
+  assert.ok(rootIndex >= 0 && triggerIndex > rootIndex && triggerIndex < navIndex, 'the collapse toggle is above the nav, at the top of the sidebar')
+})
+
+test('S5-P0 top bar spans the full width, above the sidebar, not inside AppShell\'s own frame', () => {
+  const shell = read('apps/web/src/app/shell.tsx')
+  const styles = read('apps/web/src/styles.css')
+  // AppShell's routeHeader slot renders inside its content frame, to the right of an outer
+  // sidebar, so it can't reach full width above the sidebar; the shell composes its own two rows
+  // instead (topbar row, then a sidebar+main row) around the library's components.
+  assert.doesNotMatch(shell, /routeHeader=/)
+  const frameIndex = shell.indexOf('<div className="shell-frame">')
+  const topBarIndex = shell.indexOf('<TopBar ')
+  const bodyIndex = shell.indexOf('<div className="shell">')
+  assert.ok(frameIndex >= 0 && topBarIndex > frameIndex && topBarIndex < bodyIndex, 'TopBar renders before the sidebar+main row, both inside shell-frame')
+  assert.match(styles, /\.shell-frame \{ display: flex; flex-direction: column; height: 100dvh;/)
+})
+
+test('S5-P0 sidebar is contextual: a Configurações link at the bottom, and disabled "Em breve" capabilities inside a Project', () => {
+  const shell = read('apps/web/src/app/shell.tsx')
+  assert.match(shell, /<MainSidebar\.Bottom className="cx-rail-bottom">/)
+  assert.match(shell, /Configurações do projeto/)
+  // Configurações do projeto links to the existing Project settings route, not the account one.
+  assert.match(shell, /project\s*\n\s*\? <Link to="\/projects\/\$projectId\/settings" params=\{\{ projectId: project\.projectId \}\}>/)
+  assert.match(shell, /: <Link to="\/settings\/account">/)
+  assert.match(shell, /aria-disabled="true"/)
+  assert.match(shell, /tooltipMsg: 'Em breve'/)
+  for (const label of ['Dados', 'Capacidades', 'Integrações']) assert.match(shell, new RegExp(`label="${label}"`))
+})
+
+test('S5-P0 carries a remembered light/dark toggle, built on the component library\'s own ThemeProvider', () => {
+  const main = read('apps/web/src/main.tsx')
+  const shell = read('apps/web/src/app/shell.tsx')
+  const toggle = read('apps/web/src/app/theme-toggle.tsx')
+  assert.match(main, /<ThemeProvider defaultTheme="system" storageKey="conexus-theme">/)
+  assert.match(shell, /<ThemeToggle \/>/)
+  assert.doesNotMatch(shell, /localStorage/)
+  assert.match(toggle, /from '@mastra\/playground-ui\/components\/ThemeProvider'/)
+  assert.match(toggle, /useTheme\(\)/)
+  assert.doesNotMatch(toggle, /localStorage/)
+})
+
+test('S5-P0 drops the floating rounded content card; the frame runs edge to edge under the top bar and sidebar', () => {
+  const frame = read('apps/web/src/app/frame.css')
+  assert.match(frame, /\[data-slot="app-shell-frame"\] \{ margin: 0; border: 0; border-radius: 0;/)
+})
+
+test('S5-P0 brand tokens carry the one radius scale: controls, real objects, and the composer', () => {
+  const tokens = read('packages/brand/src/tokens.css')
+  assert.match(tokens, /--cx-radius-control: 6px;/)
+  assert.match(tokens, /--cx-radius-object: 10px;/)
+  assert.match(tokens, /--cx-radius-composer: 16px;/)
+})
+
 test('S5-P0 preserves the four-state/no-client-authority boundary', () => {
   const sources = [
     'apps/web/src/app/query-client.tsx',

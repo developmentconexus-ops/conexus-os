@@ -241,42 +241,32 @@ test('reconnecting as another installation of the organization keeps the binding
   assert.equal(creations(github), 1, 'a bound Project never asks GitHub to create a repository')
 })
 
-test('reconnecting to an installation that already holds a row for the same repository keeps the binding, its link and its conversations', async (t) => {
+test('reconnecting to an installation that already holds a row for the same repository is refused and keeps the old installation', async (t) => {
   const { connectionString, github, records, connect, provision, newProject } = await setup(t)
   await connect()
   const projectId = await newProject()
   const first = await provision(projectId)
-  const conversationId = randomUUID()
-  await records.sourceControl.sessions.create({
-    sessionId: conversationId, projectRepositoryId: first.projectRepositoryId, orgId: ORG, userId: 'conexus-operator',
-    branch: `conexus/${conversationId}`, baseBranch: 'main', title: 'Contador', visibility: 'org',
-  })
+  const [old] = await records.sourceControl.installations.list({ orgId: ORG })
   const incoming = await records.sourceControl.installations.upsert({ orgId: ORG, connectedByUserId: 'conexus-operator', externalId: String(INSTALLATION_B.id), accountName: 'acme-org', accountType: 'Organization' })
-  const duplicate = await records.sourceControl.repositories.upsert({ orgId: ORG, input: { installationId: incoming.id, externalId: String(first.repositoryExternalId), slug: first.repositorySlug, defaultBranch: 'main' } })
-  assert.notEqual(duplicate.id, first.repositoryId)
+  await records.sourceControl.repositories.upsert({ orgId: ORG, input: { installationId: incoming.id, externalId: String(first.repositoryExternalId), slug: first.repositorySlug, defaultBranch: 'main' } })
   github.state.installations = [INSTALLATION_B]
-  await connect()
-  assert.deepEqual(await provision(projectId), first)
-  const repositories = (await query(connectionString, 'SELECT id::text, installation_id FROM factory.source_control_repositories')).rows
-  assert.deepEqual(repositories, [{ id: first.repositoryId, installation_id: incoming.id }])
-  assert.equal((await records.sourceControl.sessions.getBySessionId(conversationId))?.projectRepositoryId, first.projectRepositoryId)
-  const links = (await query(connectionString, 'SELECT pr.id::text, pr.repository_id, c.installation_id FROM factory.factory_project_repositories pr JOIN factory.factory_project_source_control_connections c ON c.id::text = pr.connection_id')).rows
-  assert.deepEqual(links, [{ id: first.projectRepositoryId, repository_id: first.repositoryId, installation_id: incoming.id }])
+  await assert.rejects(connect(), /source_control_repositories_installation_external_unique/)
+  const installations = (await query(connectionString, 'SELECT id::text FROM factory.source_control_installations ORDER BY id')).rows.map((row) => row.id)
+  assert.deepEqual(installations, [old.id, incoming.id].sort())
+  const bound = (await query(connectionString, 'SELECT installation_id FROM factory.source_control_repositories WHERE id::text = $1', [first.repositoryId])).rows
+  assert.deepEqual(bound, [{ installation_id: old.id }])
 })
 
-test('an installation the Factory pruned before reconnect still rebinds the Project by its GitHub id', async (t) => {
-  const { connectionString, github, records, connect, provision, newProject } = await setup(t)
+test('an installation removed outside connect leaves its Project refused by name, never given a new repository', async (t) => {
+  const { github, records, connect, provision, newProject } = await setup(t)
   await connect()
   const projectId = await newProject()
-  const first = await provision(projectId)
+  await provision(projectId)
   const [stale] = await records.sourceControl.installations.list({ orgId: ORG })
   assert.equal(await records.sourceControl.installations.delete({ orgId: ORG, id: stale.id }), true)
   github.state.installations = [INSTALLATION_B]
   await connect()
-  assert.deepEqual(await provision(projectId), first)
-  const [live] = await records.sourceControl.installations.list({ orgId: ORG })
-  const repositories = (await query(connectionString, 'SELECT id::text, installation_id FROM factory.source_control_repositories')).rows
-  assert.deepEqual(repositories, [{ id: first.repositoryId, installation_id: live.id }])
+  await assert.rejects(provision(projectId), { message: 'FACTORY_REPOSITORY_MISSING' })
   assert.equal(creations(github), 1)
 })
 

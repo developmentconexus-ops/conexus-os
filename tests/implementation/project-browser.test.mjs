@@ -229,15 +229,41 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.getByRole('navigation', { name: 'Contexto atual' }).getByText('Operações').waitFor()
     await page.getByRole('link', { name: 'Pessoas' }).waitFor()
-    await page.getByRole('button', { name: 'Trocar de Workspace' }).click()
+    // Two switchers open the same Workspace menu: the trail's and the sidebar rail's own.
+    await page.getByRole('navigation', { name: 'Contexto atual' }).getByRole('button', { name: 'Trocar de Workspace' }).click()
     await page.getByRole('menuitem', { name: 'Comercial' }).waitFor()
     await shoot(page, '07-workspace-switcher')
+    await page.keyboard.press('Escape')
+    await page.locator('.shell-sidebar').getByRole('button', { name: 'Trocar de Workspace' }).click()
+    await page.getByRole('menuitem', { name: 'Comercial' }).waitFor()
     await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Conta de Marina Alves' }).click()
     await page.getByRole('menuitem', { name: 'Sair do Conexus' }).waitFor()
     await page.getByText('marina@empresa.com.br').waitFor()
     await shoot(page, '08-account-menu')
     await page.keyboard.press('Escape')
+
+    // The collapse toggle sits at the top of the sidebar and shrinks it to a 56px icon rail.
+    // The width change animates (220ms), so the check waits past the transition.
+    const sidebarWidth = () => page.locator('.shell-sidebar').evaluate((element) => Math.round(element.getBoundingClientRect().width))
+    await page.locator('.shell-sidebar').getByRole('button', { name: /Recolher barra lateral/ }).click()
+    await page.waitForTimeout(300)
+    assert.equal(await sidebarWidth(), 56)
+    await page.keyboard.press('Control+b')
+    await page.waitForTimeout(300)
+    assert.ok((await sidebarWidth()) > 56)
+    await page.getByRole('link', { name: 'Pessoas' }).waitFor()
+
+    // The theme toggle remembers an explicit choice across reloads (ThemeProvider's own class).
+    const rootTheme = () => page.evaluate(() => document.documentElement.classList.contains('dark') ? 'dark' : 'light')
+    await page.getByRole('button', { name: 'Usar tema escuro' }).click()
+    assert.equal(await rootTheme(), 'dark')
+    await page.reload()
+    await page.getByRole('navigation', { name: 'Contexto atual' }).getByText('Operações').waitFor()
+    assert.equal(await rootTheme(), 'dark')
+    await page.getByRole('button', { name: 'Usar tema claro' }).click()
+    assert.equal(await rootTheme(), 'light')
+
     await page.setViewportSize({ width: 390, height: 844 })
     await page.getByRole('button', { name: 'Abrir navegação' }).click()
     await page.getByRole('link', { name: 'Pessoas' }).waitFor()
@@ -338,6 +364,8 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.getByText('O agente executa comandos sozinho num ambiente isolado com acesso à internet.').waitFor()
     await page.getByRole('link', { name: 'Construir' }).waitFor()
     await page.getByRole('link', { name: 'Voltar para Projetos' }).waitFor()
+    // In Project context, Configurações do projeto links to this same Project settings route.
+    assert.equal(await page.getByRole('link', { name: 'Configurações do projeto' }).getAttribute('href'), `/projects/${ids.vacation}/settings`)
     await shoot(page, '16-project-about')
     await reset({ repository: { state: 'UNREACHABLE' } })
     await page.reload()

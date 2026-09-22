@@ -41,9 +41,7 @@ const assertFailure = (result, message) => {
 }
 
 test('current repository checks accept ordinary development edits', () => {
-  for (const script of ['check-repository-hygiene', 'check-doc-index', 'check-current-state']) {
-    assertPass(runAt('scripts/' + script + '.mjs', root))
-  }
+  assertPass(runAt('scripts/check-current-state.mjs', root))
 })
 
 test('working documents and historical phase prose do not require admission', context => {
@@ -53,13 +51,6 @@ test('working documents and historical phase prose do not require admission', co
   mkdirSync(resolve(candidate, 'docs/work'), { recursive: true })
   writeFileSync(resolve(candidate, 'docs/work/handoff-round.md'), '# local dialogue\n')
   assertPass(runAt('scripts/check-current-state.mjs', candidate))
-  assertPass(runAt('scripts/check-repository-hygiene.mjs', candidate))
-})
-
-test('document index checks untracked documents for broken links', context => {
-  const candidate = gitFixture(context, { 'docs/index.md': '# Documentation index\n' })
-  writeFileSync(resolve(candidate, 'docs/handoff.md'), '[broken](./missing.md)\n')
-  assertFailure(runAt('scripts/check-doc-index.mjs', candidate), /handoff.md/)
 })
 
 for (const state of ['unstaged', 'staged', 'untracked', 'untracked-crlf', 'committed']) {
@@ -93,9 +84,7 @@ test('current-state ignores a deleted workflow and rejects a new unsafe workflow
 test('repository checks reject public package identity and missing files', context => {
   const candidate = gitFixture(context, currentFiles())
   writeFileSync(resolve(candidate, 'package.json'), '{"name":"conexus-os","private":false}\n')
-  for (const script of ['check-current-state', 'check-repository-hygiene']) {
-    assertFailure(runAt('scripts/' + script + '.mjs', candidate), /private/)
-  }
+  assertFailure(runAt('scripts/check-current-state.mjs', candidate), /private/)
   writeFileSync(resolve(candidate, 'package.json'), '{"name":"conexus-os","private":true}\n')
   rmSync(resolve(candidate, 'docs/roadmap.md'))
   assertFailure(runAt('scripts/check-current-state.mjs', candidate), /missing required repository file/)

@@ -3,10 +3,8 @@ name: Verify
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
-  # A pull request restores dependency caches only from its own branch, its base branch and the
-  # default branch. Pull requests target the trunk, so the trunk has to run here to write them.
   push:
-    branches: [main, analysis/internal-mvp-2026-09-12]
+    branches: [main]
 
 # A newer push to the same pull request makes the older run moot.
 concurrency:
@@ -41,7 +39,24 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx --no-install playwright install --with-deps chromium
+      # A pull request diffs against its base branch to decide whether the browser suites (Playwright
+      # install plus the browser-tagged verify steps) have anything to prove. A push to main always
+      # runs them: there is no base branch to diff against, and main is where the signal has to hold.
+      - name: Decide whether browser suites are needed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          changed="$(git diff --name-only "origin/$BASE_REF...HEAD")"
+          if echo "$changed" | grep -Eq '^(apps/web/|packages/brand/|apps/hub/src/builder/application-|tests/implementation/builder-application-|tests/implementation/[^/]*browser[^/]*$|tests/implementation/web-dev-server\.mjs$|package-lock\.json$|scripts/conexus-verify\.mjs$)'; then
+            echo "browser-relevant change detected; browser suites will run"
+          else
+            echo "CONEXUS_VERIFY_SKIP_BROWSER=1" >> "$GITHUB_ENV"
+            echo "no browser-relevant change; browser suites will be skipped"
+          fi
+      - name: Install Playwright Chromium
+        if: env.CONEXUS_VERIFY_SKIP_BROWSER != '1'
+        run: npx --no-install playwright install --with-deps chromium
       # The baseline check reads the schema back with pg_dump, which must be at least the server's
       # version. The service container's own pg_dump always is, so no client is installed here.
       - run: npm run verify
