@@ -1,6 +1,7 @@
 import { resolve } from 'node:path'
 import { readFileSync } from 'node:fs'
 import { createHttpApp } from './http/app.js'
+import type { AccountId } from './identity-access/current-session.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
 import { createMarModule } from './mar/module.js'
 import { readHubConfig } from './platform/config.js'
@@ -127,6 +128,7 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   ...(launchPreview ? { launchPreview } : {}),
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
+  isInstallationAdministrator: (accountId) => identityAccess.installationAdministration.isInstallationAdministrator(accountId as AccountId),
 }) : undefined
 const app = await createHttpApp({
   registerRoutes: async (server) => [

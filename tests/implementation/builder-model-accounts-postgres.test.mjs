@@ -72,6 +72,7 @@ const openConversation = async (composition) => {
   requestContext.set('user', { id: alice, organizationId: ORG })
   const thread = await composition.controller.createSession({ resourceId: conversationId, ownerId: conversationId, threadId: conversationId, requestContext })
   await thread.model.switch({ modelId: 'openai/gpt-5-mini' })
+  return link.id
 }
 
 // Every model request leaves the process through fetch; the probe answers each with a refusal and
@@ -125,4 +126,114 @@ test('a run uses the credential of the person who started it, else the installat
   seen.length = 0
   assert.equal(await runAs(composition, bob), 'BUILDER_MODEL_AUTH_FAILED')
   assert.deepEqual(openAiCredentialsSent(seen), [])
+})
+
+const origin = 'https://hub.test'
+const { createHttpApp } = await import(built('http/app.js'))
+const { registerModelAccountRoutes, applyModelDefaults } = await import(built('builder/model-accounts.js'))
+const { openFactoryConversationThread } = await import(built('builder/factory-routes.js'))
+
+const openAccountsApp = async (t, composition, administrators) => {
+  const app = await createHttpApp({
+    registerRoutes: async (instance) => {
+      await registerModelAccountRoutes(instance, {
+        domains: {
+          credentials: composition.storage.getDomain('model-credentials'),
+          modelPacks: composition.storage.getDomain('model-packs'),
+          memorySettings: composition.storage.getDomain('memory-settings'),
+        },
+        controller: composition.controller,
+        orgId: ORG,
+        origin,
+        resolveCurrentSession: async (request) => {
+          const accountId = request.cookies['__Host-conexus_session']
+          return accountId ? { account: { accountId, displayName: accountId }, issuer: 'https://issuer.test', subject: accountId } : null
+        },
+        isInstallationAdministrator: async (accountId) => administrators.includes(accountId),
+      })
+      return []
+    },
+    staticRoot: null,
+  })
+  t.after(() => app.close())
+  const as = (accountId) => async (method, url, payload) => {
+    const response = await app.inject({
+      method, url, ...(payload ? { payload } : {}),
+      headers: { origin, 'x-conexus-csrf': 'csrf-1', ...(payload ? { 'content-type': 'application/json' } : {}) },
+      cookies: { '__Host-conexus_session': accountId, '__Host-conexus_csrf': 'csrf-1' },
+    })
+    return { status: response.statusCode, body: response.body ? response.json() : null }
+  }
+  return { app, as }
+}
+
+const sourceOf = (listing, provider) => listing.body.providers.find((entry) => entry.provider === provider)?.source
+
+test('each person connects their own accounts, and only an installation administrator shares one with everyone', async (t) => {
+  const composition = await composeOnPostgres(t)
+  const { app, as } = await openAccountsApp(t, composition, [alice])
+  const asAlice = as(alice)
+  const asBob = as(bob)
+
+  assert.equal((await asBob('PUT', '/api/control/model-accounts/anthropic/key', { key: 'sk-ant-bob' })).status, 200)
+  assert.equal(sourceOf(await asBob('GET', '/api/control/model-accounts'), 'anthropic'), 'stored-user')
+  assert.equal(sourceOf(await asAlice('GET', '/api/control/model-accounts'), 'anthropic'), 'none')
+  assert.equal((await asBob('GET', '/api/control/model-accounts')).body.orgKeyAdmin, false)
+  assert.equal((await asAlice('GET', '/api/control/model-accounts')).body.orgKeyAdmin, true)
+
+  // Anything that writes the installation's shared row needs the administrator role.
+  assert.equal((await asBob('POST', '/api/control/model-accounts/anthropic/share')).status, 403)
+  assert.equal((await asBob('PUT', '/api/control/model-accounts/openai/key', { key: 'sk-bob', scope: 'org' })).status, 403)
+  assert.equal((await asBob('DELETE', '/api/control/model-accounts/openai/key?scope=org')).status, 403)
+
+  assert.equal((await asAlice('PUT', '/api/control/model-accounts/openai/key', { key: 'sk-alice' })).status, 200)
+  assert.equal((await asAlice('POST', '/api/control/model-accounts/openai/share')).status, 204)
+  assert.equal(sourceOf(await asBob('GET', '/api/control/model-accounts'), 'openai'), 'stored-org')
+  assert.equal(sourceOf(await asAlice('GET', '/api/control/model-accounts'), 'openai'), 'stored-org')
+  assert.equal((await asAlice('POST', '/api/control/model-accounts/openai/share')).status, 404)
+
+  assert.equal((await asAlice('DELETE', '/api/control/model-accounts/openai/share')).status, 204)
+  assert.equal(sourceOf(await asAlice('GET', '/api/control/model-accounts'), 'openai'), 'stored-user')
+  assert.equal(sourceOf(await asBob('GET', '/api/control/model-accounts'), 'openai'), 'none')
+  const credentials = composition.storage.getDomain('model-credentials')
+  assert.deepEqual(await credentials.getCredential({ orgId: ORG, userId: alice }, 'openai-codex'), { type: 'api_key', key: 'sk-alice' })
+
+  assert.equal((await asBob('DELETE', '/api/control/model-accounts/anthropic/key')).status, 200)
+  assert.equal(sourceOf(await asBob('GET', '/api/control/model-accounts'), 'anthropic'), 'none')
+
+  const forged = await app.inject({ method: 'PUT', url: '/api/control/model-accounts/anthropic/key', payload: { key: 'sk-x' }, cookies: { '__Host-conexus_session': bob } })
+  assert.equal(forged.statusCode, 403)
+  const anonymous = await app.inject({ method: 'GET', url: '/api/control/model-accounts' })
+  assert.equal(anonymous.statusCode, 401)
+})
+
+test('a new conversation starts from the person\'s own defaults, else the installation\'s, and only an administrator sets the installation\'s', async (t) => {
+  const composition = await composeOnPostgres(t)
+  const projectRepositoryId = await openConversation(composition)
+  const { as } = await openAccountsApp(t, composition, [alice])
+  const asAlice = as(alice)
+  const asBob = as(bob)
+  const installation = { build: 'anthropic/claude-sonnet-4-6', fast: 'anthropic/claude-haiku-4-5' }
+  const bobs = { build: 'openai/gpt-5.5', fast: 'openai/gpt-5-mini' }
+
+  assert.equal((await asBob('PUT', '/api/control/model-defaults/installation', installation)).status, 403)
+  assert.equal((await asAlice('PUT', '/api/control/model-defaults/installation', installation)).status, 200)
+  assert.equal((await asBob('PUT', '/api/control/model-defaults/mine', bobs)).status, 200)
+  assert.deepEqual((await asBob('GET', '/api/control/model-defaults')).body, { installation, mine: bobs, administrator: false })
+  assert.deepEqual((await asAlice('GET', '/api/control/model-defaults')).body, { installation, mine: null, administrator: true })
+
+  const records = await openFactoryRecords(composition.storage)
+  const openThread = openFactoryConversationThread({ controller: composition.controller, orgId: ORG, applyDefaults: applyModelDefaults({ modelPacks: composition.storage.getDomain('model-packs'), orgId: ORG }) })
+  const modelsOf = async (accountId) => {
+    const conversation = randomUUID()
+    await records.sourceControl.sessions.create({ sessionId: conversation, projectRepositoryId, orgId: ORG, userId: accountId, branch: `conexus/${conversation}`, baseBranch: 'main', visibility: 'org' })
+    await openThread({ conversationId: conversation, accountId })
+    const session = await composition.controller.getSessionByResource(conversation)
+    return { build: await session.thread.getSetting({ key: 'modeModelId_build' }), fast: await session.thread.getSetting({ key: 'modeModelId_fast' }) }
+  }
+  assert.deepEqual(await modelsOf(bob), bobs)
+  assert.deepEqual(await modelsOf(alice), installation)
+
+  assert.equal((await asBob('DELETE', '/api/control/model-defaults/mine')).status, 204)
+  assert.deepEqual(await modelsOf(bob), installation)
 })
