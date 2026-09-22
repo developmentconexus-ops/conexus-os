@@ -1,4 +1,4 @@
-:root { font-family: var(--cx-font-body); color: var(--cx-text); background: var(--cx-canvas); scrollbar-color: var(--cx-line-strong) transparent; }
+:root { font-family: var(--cx-font-body); color: var(--cx-text); background: var(--cx-canvas); scrollbar-color: var(--cx-line-strong) transparent; accent-color: var(--cx-accent); }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; background: var(--cx-canvas); color: var(--cx-text); font: 400 1rem/1.5 var(--cx-font-body); caret-color: var(--cx-accent); }
 ::selection { background: var(--cx-accent-soft); color: var(--cx-text); }
