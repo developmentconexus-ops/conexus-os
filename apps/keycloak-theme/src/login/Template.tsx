@@ -31,7 +31,7 @@ export default function Template(props: TemplateProps<KcContext, I18n>) {
     <div className="kc-stage">
       <div className="kc-column">
         <div className="kc-lockup">
-          <ConexusWordmark size={32} arrive />
+          <ConexusWordmark size="lg" arrive />
         </div>
 
         {headerNode && <h1 className="kc-heading">{headerNode}</h1>}

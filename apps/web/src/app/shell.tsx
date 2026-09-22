@@ -189,7 +189,7 @@ function TopBar({ context, scope, place, arrive }: Readonly<{ context: AccessCon
     <MainSidebar.MobileTrigger aria-label="Abrir navegação" className="cx-drawer-trigger" />
     <Breadcrumb label="Contexto atual" className="cx-trail">
       <Crumb as={Link} to="/" className="cx-home-crumb" aria-label="Conexus, início">
-        <span className="cx-lockup-wide"><ConexusWordmark size={18} arrive={arrive} /></span>
+        <span className="cx-lockup-wide"><ConexusWordmark size="xs" arrive={arrive} /></span>
         <span className="cx-lockup-narrow"><ConexusMark size={18} /></span>
       </Crumb>
       {workspace && (
@@ -237,7 +237,7 @@ export function Shell({
     <MainSidebarProvider storageKey="conexus-shell" mobileBreakpoint={768} disableKeyboardShortcut>
       <div className="shell">
         <MainSidebar className="shell-sidebar">
-          <div className="cx-rail-lockup"><ConexusWordmark size={20} /></div>
+          <div className="cx-rail-lockup"><ConexusWordmark /></div>
           <MainSidebar.Nav aria-label="Navegação principal">
             {rail ?? <ScopeRail scope={scope} />}
           </MainSidebar.Nav>
