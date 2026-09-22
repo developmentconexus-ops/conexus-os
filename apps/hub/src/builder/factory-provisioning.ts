@@ -2,7 +2,7 @@ import { FactoryProjectsStorage } from '@mastra/factory'
 import { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import { SourceControlStorage } from '@mastra/factory/storage/domains/source-control/base'
 import type { PgFactoryStorage } from '@mastra/pg'
-import { APPLICATION_CHECK_SETUP_COMMAND } from './application-starter.js'
+import { APPLICATION_CHECK_FILES, APPLICATION_CHECK_SETUP_COMMAND, FIXED_APPLICATION_STARTER_FILES } from './application-starter.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { FACTORY_INTEGRATION_ID, FACTORY_OPERATOR_ID, FACTORY_WORKING_DIRECTORY } from './factory.js'
 import { type GithubApp, GithubRequestError, type GithubRepository } from './factory-github.js'
@@ -16,13 +16,21 @@ export type FactoryRecords = Readonly<{
   reattachRepository(input: Readonly<{ id: string; installationId: string }>): Promise<boolean>
 }>
 
-// The same storage API the Factory uses at runtime, registered here without prepare() so a
-// one-shot command never loads Mastra Code.
+const domainOf = <T extends Readonly<{ name: string }>>(storage: PgFactoryStorage, domain: T): Readonly<{ domain: T; fresh: boolean }> =>
+  storage.hasDomain(domain.name)
+    ? { domain: storage.getDomain(domain.name) as unknown as T, fresh: false }
+    : { domain: storage.registerDomain(domain as never) as unknown as T, fresh: true }
+
+// The same storage API the Factory uses at runtime. A one-shot command registers it without
+// prepare(), so it never loads Mastra Code; the Hub reads the domains its prepared Factory holds.
 export const openFactoryRecords = async (storage: PgFactoryStorage): Promise<FactoryRecords> => {
-  const sourceControl = storage.registerDomain(new SourceControlStorage())
-  const projects = storage.registerDomain(new FactoryProjectsStorage())
-  const memorySettings = storage.registerDomain(new MemorySettingsStorage())
-  await storage.init()
+  const opened = [
+    domainOf(storage, new SourceControlStorage()),
+    domainOf(storage, new FactoryProjectsStorage()),
+    domainOf(storage, new MemorySettingsStorage()),
+  ] as const
+  const [{ domain: sourceControl }, { domain: projects }, { domain: memorySettings }] = opened
+  if (opened.some(({ fresh }) => fresh)) await storage.init()
   // The same move as migrateInstallation(), which reaches only a row whose installation still exists
   // (the Factory deletes an installation GitHub answers 404 for without touching its rows) and fails
   // when the target installation already holds a row for the same GitHub repository. That row's links
@@ -110,8 +118,45 @@ export const connectFactoryInstallation = async ({ github, records, orgId, write
 }
 
 const factoryProjectName = (projectId: string): string => `conexus-project:${projectId}`
-const REPOSITORY_NAME = /^[A-Za-z0-9._-]{1,100}$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+// The Project's name, reduced to what GitHub accepts, and the head of its id. The same Project
+// always names the same repository, so a retry finds the one an earlier attempt created.
+export const factoryRepositoryName = (projectName: string, projectId: string): string => {
+  const slug = projectName.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/, '')
+  return `${slug || 'project'}-${projectId.slice(0, 8)}`
+}
+
+const TEMPLATE_MESSAGE = 'Start the Conexus application'
+
+type TreeEntry = Readonly<{ path: string }>
+const parseTree = (tree: Record<string, unknown>): Readonly<{ sha: string; paths: ReadonlySet<string> }> => {
+  if (typeof tree.sha !== 'string' || !/^[0-9a-f]{40}$/.test(tree.sha) || tree.truncated !== false || !Array.isArray(tree.tree) ||
+    !tree.tree.every((entry: unknown) => typeof (entry as Partial<TreeEntry> | null)?.path === 'string')) throw new Error('FACTORY_GITHUB_RESPONSE_REFUSED')
+  return { sha: tree.sha, paths: new Set((tree.tree as TreeEntry[]).map((entry) => entry.path)) }
+}
+
+// The files a run would write when its checkout lacks them, committed once so the repository
+// passes conexus/check.sh from its first revision. A file already there is the repository's.
+const seedTemplate = async ({ github, installationId, repository, head }: Readonly<{
+  github: GithubApp
+  installationId: number
+  repository: GithubRepository
+  head: string
+}>): Promise<string> => {
+  const target = { externalId: repository.id, slug: repository.fullName }
+  const tree = parseTree(await github.readTree(installationId, target, head))
+  const { paths } = tree
+  const files = [
+    ...(paths.has('app') ? [] : FIXED_APPLICATION_STARTER_FILES),
+    ...APPLICATION_CHECK_FILES.filter((file) => !paths.has(file.path)),
+  ].map((file) => ({ path: file.path, mode: file.path.endsWith('.sh') ? '100755' as const : '100644' as const, content: file.content }))
+  if (files.length === 0) return head
+  return github.commitFiles(installationId, target, {
+    branch: repository.defaultBranch, parent: head, baseTree: tree.sha, message: TEMPLATE_MESSAGE, files,
+  })
+}
 
 const waitForHead = async (read: () => Promise<string | null>, attempts: number, delayMs: number): Promise<string> => {
   for (let attempt = 1; ; attempt += 1) {
@@ -146,18 +191,24 @@ const boundRepository = async ({ github, records, orgId, installation, repositor
   return repository
 }
 
-export const provisionFactoryProject = async ({ github, records, executorPool, orgId, projectId, name, headAttempts = 10, headDelayMs = 1_000 }: Readonly<{
+export type FactoryRepositoryRequest = Readonly<{
   github: GithubApp
   records: FactoryRecords
-  executorPool: PostgresPool
   orgId: string
   projectId: string
-  name: string
+  projectName: string
   headAttempts?: number
   headDelayMs?: number
+}>
+
+type BoundIds = Readonly<{ factoryProjectId: string; repositoryId: string }>
+
+const prepare = async ({ github, records, orgId, projectId, projectName, bound, headAttempts = 10, headDelayMs = 1_000 }: FactoryRepositoryRequest & Readonly<{
+  bound: BoundIds | null
 }>): Promise<FactoryBinding> => {
   if (!UUID.test(projectId)) throw new Error('FACTORY_PROVISION_PROJECT_REFUSED')
-  if (!REPOSITORY_NAME.test(name)) throw new Error('FACTORY_PROVISION_NAME_REFUSED')
+  if (typeof projectName !== 'string' || !/\S/.test(projectName)) throw new Error('FACTORY_PROVISION_NAME_REFUSED')
+  const name = factoryRepositoryName(projectName, projectId)
   const installations = await records.sourceControl.installations.list({ orgId })
   if (installations.length === 0) throw new Error('FACTORY_INSTALLATION_MISSING: run connect first.')
   if (installations.length > 1) throw new Error('FACTORY_INSTALLATION_AMBIGUOUS: more than one installation is connected.')
@@ -168,8 +219,6 @@ export const provisionFactoryProject = async ({ github, records, executorPool, o
 
   // A bound Project reaches its Factory project and repository by the ids it was bound with. The
   // name only finds what an earlier attempt created before it failed to bind.
-  const bound = (await executorPool.query<{ binding: Readonly<{ factoryProjectId: string; repositoryId: string }> | null }>(
-    'SELECT builder.read_factory_binding_for_project($1) AS binding', [projectId])).rows[0]?.binding ?? null
   const repository = bound
     ? await boundRepository({ github, records, orgId, installation, repositoryId: bound.repositoryId })
     : await github.createOrganizationRepository(installationExternalId, owner, name) ?? await github.readRepository(installationExternalId, `${owner}/${name}`)
@@ -220,10 +269,12 @@ export const provisionFactoryProject = async ({ github, records, executorPool, o
     : await records.sourceControl.projectRepositories.update({ orgId, id: linked.id, input: { setupCommand: APPLICATION_CHECK_SETUP_COMMAND } })
   if (!projectRepository) throw new Error('FACTORY_PROJECT_REPOSITORY_MISSING')
 
-  const headRevision = await waitForHead(
+  const head = await waitForHead(
     () => github.readBranchHead(installationExternalId, { externalId: repository.id, slug: repository.fullName }, repository.defaultBranch),
     headAttempts, headDelayMs,
   )
+  // A bound repository is the Project's source, which provisioning never writes.
+  const headRevision = bound ? head : await seedTemplate({ github, installationId: installationExternalId, repository, head })
   const binding: FactoryBinding = Object.freeze({
     projectId,
     factoryProjectId: factoryProject.id,
@@ -234,6 +285,23 @@ export const provisionFactoryProject = async ({ github, records, executorPool, o
     defaultBranch: repository.defaultBranch,
     headRevision,
   })
+  return binding
+}
+
+/**
+ * The Project's private repository in the connected organization, seeded with the application
+ * template, and its Factory project and project repository rows, without the binding. It creates
+ * nothing twice: a retry after any failure finds the repository by the name the Project always
+ * derives, and the Factory rows by the Project's id.
+ */
+export const prepareFactoryRepository = (request: FactoryRepositoryRequest): Promise<FactoryBinding> => prepare({ ...request, bound: null })
+
+/** Gives an existing Project its repository and binds it; a bound Project converges to its binding. */
+export const provisionFactoryProject = async ({ executorPool, ...request }: FactoryRepositoryRequest & Readonly<{ executorPool: PostgresPool }>): Promise<FactoryBinding> => {
+  if (!UUID.test(request.projectId)) throw new Error('FACTORY_PROVISION_PROJECT_REFUSED')
+  const bound = (await executorPool.query<{ binding: BoundIds | null }>(
+    'SELECT builder.read_factory_binding_for_project($1) AS binding', [request.projectId])).rows[0]?.binding ?? null
+  const binding = await prepare({ ...request, bound })
   const bind = await executorPool.query<{ bound: boolean }>(
     'SELECT builder.bind_factory_project($1,$2,$3,$4,$5) AS bound',
     [binding.projectId, binding.factoryProjectId, binding.projectRepositoryId, binding.repositoryId, binding.headRevision],

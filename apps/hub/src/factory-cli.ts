@@ -7,7 +7,7 @@ const { createFactoryPool, createFactoryStorage } = await import('./builder/fact
 const { createGithubApp } = await import('./builder/factory-github.js')
 const { connectFactoryInstallation, openFactoryRecords, provisionFactoryProject, setFactoryMemoryModel } = await import('./builder/factory-provisioning.js')
 
-const USAGE = 'usage: factory-cli connect | factory-cli memory --model <provider/model> | factory-cli provision --project <conexusProjectId> --name <repositoryName>'
+const USAGE = 'usage: factory-cli connect | factory-cli memory --model <provider/model> | factory-cli provision --project <conexusProjectId> --name <projectName>'
 
 const required = (name: string): string => {
   const value = process.env[name]
@@ -49,7 +49,7 @@ const main = async (): Promise<void> => {
     }
     const executorPool = createPostgresPool({ ...database, user: 'hub_builder_executor', password: readSecretFile(required('CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE')) })
     try {
-      const binding = await provisionFactoryProject({ github, records, executorPool, orgId, projectId: values.project as string, name: values.name as string })
+      const binding = await provisionFactoryProject({ github, records, executorPool, orgId, projectId: values.project as string, projectName: values.name as string })
       write(JSON.stringify(binding, null, 2))
     } finally {
       await executorPool.end()

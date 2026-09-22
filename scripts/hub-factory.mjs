@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 // Hub, the same way scripts/build-hub-local.mjs runs the server. Run it with the Hub's env file:
 //   node --env-file=<hub.env> scripts/hub-factory.mjs connect
 //   node --env-file=<hub.env> scripts/hub-factory.mjs memory --model <provider/model>
-//   node --env-file=<hub.env> scripts/hub-factory.mjs provision --project <projectId> --name <repo>
+//   node --env-file=<hub.env> scripts/hub-factory.mjs provision --project <projectId> --name <projectName>
 const repositoryRoot = resolve(import.meta.dirname, '..')
 
 const buildRoot = await mkdtemp(join(repositoryRoot, 'apps/hub/.conexus-build-factory-'))

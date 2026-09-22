@@ -1,18 +1,14 @@
 import assert from 'node:assert/strict'
-import { randomUUID } from 'node:crypto'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
-import pg from 'pg'
-import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const identityPath = resolve(repositoryRoot, 'apps/hub/src/project/identity.ts')
 const generatedRoutePath = resolve(repositoryRoot, 'apps/hub/src/generated/s3-routes.ts')
-const projectStorePath = resolve(repositoryRoot, 'apps/hub/src/project/store.ts')
 
 const compileHub = (t) => {
   const build = mkdtempSync(resolve(repositoryRoot, 'apps/hub/r1-s3-project-build-'))
@@ -54,56 +50,35 @@ test('S3-P5 preserves generated PRJ-03 inside the bounded S3 projection', () => 
   assert.doesNotMatch(source, /workspace-client/)
 })
 
-test('S3-P5 store binds recovery claims, fixed cutoff and source-complete settlement', () => {
-  assert.equal(existsSync(projectStorePath), true)
-  const source = readFileSync(projectStorePath, 'utf8')
-  assert.match(source, /const ABANDONED_ATTEMPT_AGE_MS = 60 \* 60 \* 1_000/)
-  assert.match(source, /claim_abandoned_create_project_attempt\(\$1, \$2\)/)
-  assert.match(source, /cleanupClaimedProjectSource/)
-  assert.match(source, /lock_create_project_receipt/)
-  assert.match(source, /verifyCanonicalProjectSource/)
-  assert.match(source, /create_project_with_source/)
-  assert.doesNotMatch(source, /iam\./)
-  assert.match(source, /complete_create_project_receipt/)
-})
-
-test('S3-P5 store composes recovery, Git custody and one atomic terminal response', async (t) => {
+test('S3-P5 store prepares the repository after the reservation and creates the Project bound to it in one transaction', async (t) => {
   const built = compileHub(t)
   const { createProjectStore } = await import(built('project/store.js'))
   const projectId = '30000000-0000-8000-8000-000000000061'
-  const attemptId = '40000000-0000-8000-8000-000000000061'
   const projectRevision = '50000000-0000-8000-8000-000000000061'
-  const sourceRevision = '1'.repeat(40)
+  const reservationState = 'RESERVED'
+  const settlementFailure = null
   const statements = []
   const client = {
     async query(statement, values = []) {
       statements.push({ statement, values })
-      if (statement.includes('claim_abandoned_create_project_attempt')) return { rows: [] }
       if (statement.includes('reserve_or_replay_create_project')) {
-        return { rows: [{ state: 'RESERVED', project_id: projectId, response_status: null, response_body: null }] }
+        return { rows: [{ state: reservationState, project_id: projectId, response_status: null, response_body: null }] }
       }
       if (statement.includes('lock_create_project_receipt')) return { rows: [{ outcome: 'RESERVED', project_id: projectId }] }
+      if (settlementFailure && statement.includes('create_project_with_repository')) throw settlementFailure
       return { rows: [] }
     },
     release() {},
   }
-  const commandPool = { connect: async () => client }
-  const gitCalls = []
-  const git = {
-    verifyAdmittedImage: async () => ({ status: 'VERIFIED' }),
-    stageNewProjectSource: async (input) => { gitCalls.push(['stage', input]); return { status: 'STAGED', sourceRevision, tree: '2'.repeat(40), appOwnedPathCount: 0 } },
-    stageExistingGitProjectSource: async () => { throw new Error('UNEXPECTED_EXISTING') },
-    promoteStagedProjectSource: async (input) => { gitCalls.push(['promote', input]); return { status: 'PROMOTED', sourceRevision } },
-    verifyCanonicalProjectSource: async (input) => { gitCalls.push(['verify', input]); return { status: 'VERIFIED', sourceRevision } },
-    createProjectSourceBundle: async () => { throw new Error('UNEXPECTED_BUNDLE') },
-    restoreProjectSourceBundle: async () => { throw new Error('UNEXPECTED_RESTORE') },
+  const binding = {
+    projectId, factoryProjectId: 'factory-project-61', projectRepositoryId: 'project-repository-61', repositoryId: 'repository-61',
+    repositoryExternalId: 700061, repositorySlug: 'acme-org/project-p5-30000000', defaultBranch: 'main', headRevision: '1'.repeat(40),
   }
-  const identities = [projectId, attemptId, projectRevision]
+  const prepared = []
+  const identities = [projectId, projectRevision]
   const store = createProjectStore({
-    commandPool,
-    git,
-    recovery: { cleanupClaimedProjectSource: async () => { throw new Error('UNCLAIMED_CLEANUP') } },
-    now: () => Date.parse('2026-09-01T12:00:00.000Z'),
+    commandPool: { connect: async () => client },
+    repository: { prepare: async (input) => { prepared.push({ input, statementsBefore: statements.length }); return binding } },
     mintIdentity: () => identities.shift(),
   })
   assert.deepEqual(await store.createProject({
@@ -119,14 +94,21 @@ test('S3-P5 store composes recovery, Git custody and one atomic terminal respons
     archived: false,
     replayed: false,
   })
-  assert.deepEqual(gitCalls.map(([name]) => name), ['stage', 'promote', 'verify'])
-  assert.equal(statements.some(({ statement }) => statement.includes('create_project_with_source')), true)
+  assert.deepEqual(prepared.map(({ input }) => input), [{ projectId, projectName: 'Project P5' }])
+  assert.deepEqual(statements.slice(0, prepared[0].statementsBefore).map(({ statement }) => statement.trim().split('(')[0]), [
+    'BEGIN', 'SELECT * FROM project.reserve_or_replay_create_project', 'COMMIT',
+  ])
+  const created = statements.find(({ statement }) => statement.includes('create_project_with_repository'))
+  assert.deepEqual(created.values, [
+    '10000000-0000-4000-8000-000000000061', '20000000-0000-4000-8000-000000000061', created.values[2], created.values[3], projectId,
+    'Project P5', projectRevision, 'factory-project-61', 'project-repository-61', 'repository-61', '1'.repeat(40),
+  ])
+  assert.equal(statements.some(({ statement }) => statement.includes('create_project_with_source')), false)
   // Creating a Project no longer manufactures a grant: membership in the Workspace is the whole
   // of the creator's access.
   assert.equal(statements.some(({ statement }) => statement.includes('iam.')), false)
   assert.equal(statements.some(({ statement }) => statement.includes('complete_create_project_receipt')), true)
-  const commits = statements.filter(({ statement }) => statement === 'COMMIT').length
-  assert.equal(commits, 3)
+  assert.equal(statements.filter(({ statement }) => statement === 'COMMIT').length, 2)
 })
 
 test('S3-P0 Project module exposes non-blocking OCI image warmup without changing route composition', async (t) => {
@@ -147,9 +129,8 @@ test('S3-P0 Project module exposes non-blocking OCI image warmup without changin
   const project = createProjectModule({
     commandPool: pool,
     readPool: pool,
-    git: { verifyAdmittedImage: oci.verifyAdmittedImage },
+    repository: { prepare: async () => { throw new Error('UNEXPECTED_REPOSITORY') } },
     oci,
-    recovery: { cleanupClaimedProjectSource: async () => { throw new Error('UNEXPECTED_RECOVERY') } },
     origin: 'https://control.example.test',
     resolveCurrentSession: async () => null,
   })
@@ -158,85 +139,56 @@ test('S3-P0 Project module exposes non-blocking OCI image warmup without changin
   assert.equal(imageChecks, 1)
 })
 
-test('S3-P5 recovery refusal rolls back the open claim and blocks intake', async (t) => {
-  const built = compileHub(t)
-  const { createProjectStore } = await import(built('project/store.js'))
-  const projectId = '30000000-0000-8000-8000-000000000062'
-  const statements = []
-  const client = {
-    async query(statement) {
-      statements.push(statement)
-      if (statement.includes('claim_abandoned_create_project_attempt')) return { rows: [{ project_id: projectId }] }
-      if (statement.includes('reserve_or_replay_create_project')) throw new Error('INTAKE_MUST_BE_BLOCKED')
-      return { rows: [] }
-    },
-    release() {},
-  }
-  const store = createProjectStore({
-    commandPool: { connect: async () => client },
-    git: {},
-    recovery: { cleanupClaimedProjectSource: async () => ({ status: 'REFUSED', code: 'CLEANUP_FAILED' }) },
-  })
-  await assert.rejects(store.createProject({
-    accountId: '10000000-0000-4000-8000-000000000062',
-    workspaceId: '20000000-0000-4000-8000-000000000062',
-    idempotencyKey: 'blocked',
-    body: { name: 'Blocked', sourceBootstrap: { mode: 'NEW' } },
-  }), /RECOVERY_REFUSED/)
-  assert.equal(statements.includes('ROLLBACK'), true)
-  assert.equal(statements.some((statement) => statement.includes('reserve_or_replay_create_project')), false)
-})
-
 test('S3-P5 command failure matrix never reaches a false terminal receipt', async (t) => {
   const built = compileHub(t)
   const { createProjectStore } = await import(built('project/store.js'))
   const projectId = '30000000-0000-8000-8000-000000000065'
-  const attemptId = '40000000-0000-8000-8000-000000000065'
   const projectRevision = '50000000-0000-8000-8000-000000000065'
-  const sourceRevision = '1'.repeat(40)
   const input = {
     accountId: '10000000-0000-4000-8000-000000000065',
     workspaceId: '20000000-0000-4000-8000-000000000065',
     idempotencyKey: 'failure-key',
     body: { name: 'Failure Matrix', sourceBootstrap: { mode: 'NEW' } },
   }
-  const scenario = async ({ reservationState = 'RESERVED', stage, promote, verify, databaseFailure }, expected) => {
+  const binding = {
+    projectId, factoryProjectId: 'factory-project-65', projectRepositoryId: 'project-repository-65', repositoryId: 'repository-65',
+    repositoryExternalId: 700065, repositorySlug: 'acme-org/failure-matrix-30000000', defaultBranch: 'main', headRevision: '1'.repeat(40),
+  }
+  const scenario = async ({ reservationState = 'RESERVED', prepare = async () => binding, settlementFailure = null, body = input.body }, expected) => {
     const statements = []
     const client = {
-      async query(statement) {
-        statements.push(statement)
-        if (statement.includes('claim_abandoned_create_project_attempt')) return { rows: [] }
+      async query(statement, values = []) {
+        statements.push({ statement, values })
         if (statement.includes('reserve_or_replay_create_project')) {
           return { rows: [{ state: reservationState, project_id: projectId, response_status: null, response_body: null }] }
         }
         if (statement.includes('lock_create_project_receipt')) return { rows: [{ outcome: 'RESERVED', project_id: projectId }] }
-        if (databaseFailure && statement.includes('create_project_with_source')) throw new Error('SYNTHETIC_SETTLEMENT_FAILURE')
+        if (settlementFailure && statement.includes('create_project_with_repository')) throw settlementFailure
         return { rows: [] }
       },
       release() {},
     }
-    const identities = [projectId, attemptId, projectRevision]
+    const identities = [projectId, projectRevision]
     const store = createProjectStore({
       commandPool: { connect: async () => client },
-      recovery: { cleanupClaimedProjectSource: async () => { throw new Error('UNCLAIMED_CLEANUP') } },
+      repository: { prepare },
       mintIdentity: () => identities.shift(),
-      git: {
-        stageNewProjectSource: async () => stage ?? ({ status: 'STAGED', sourceRevision, tree: '2'.repeat(40), appOwnedPathCount: 0 }),
-        stageExistingGitProjectSource: async () => { throw new Error('UNEXPECTED_EXISTING') },
-        promoteStagedProjectSource: async () => promote ?? ({ status: 'PROMOTED', sourceRevision }),
-        verifyCanonicalProjectSource: async () => verify ?? ({ status: 'VERIFIED', sourceRevision }),
-      },
     })
-    await assert.rejects(store.createProject(input), expected)
-    assert.equal(statements.some((statement) => statement.includes('complete_create_project_receipt')), false)
-    return statements
+    await assert.rejects(store.createProject({ ...input, body }), expected)
+    assert.equal(statements.some(({ statement }) => statement.includes('complete_create_project_receipt')), false)
+    return statements.map(({ statement }) => statement)
   }
 
-  await scenario({ reservationState: 'CONFLICT' }, /IDEMPOTENCY_CONFLICT/)
-  await scenario({ stage: { status: 'REFUSED', code: 'LOCATOR_REFUSED' } }, /SOURCE_INPUT_REFUSED/)
-  await scenario({ promote: { status: 'REFUSED', code: 'CANDIDATE_QUARANTINED' } }, /SOURCE_CONFLICT/)
-  await scenario({ verify: { status: 'REFUSED', code: 'CANONICAL_SOURCE_REFUSED' } }, /SOURCE_DEPENDENCY_REFUSED/)
-  const settlement = await scenario({ databaseFailure: true }, /SYNTHETIC_SETTLEMENT_FAILURE/)
+  await scenario({ reservationState: 'CONFLICT' }, { code: 'IDEMPOTENCY_CONFLICT' })
+  const imported = await scenario({ body: { name: 'Imported', sourceBootstrap: { mode: 'EXISTING_GIT', repositoryLocator: 'https://example.test/app.git' } } }, { code: 'SOURCE_INPUT_REFUSED' })
+  assert.deepEqual(imported, [])
+  await scenario({ prepare: async () => { throw new Error('FACTORY_GITHUB_REQUEST_FAILED:502') } }, { code: 'REPOSITORY_REFUSED', reason: 'FACTORY_GITHUB_REQUEST_FAILED:502' })
+  await scenario({ prepare: async () => { throw new Error('FACTORY_INSTALLATION_ORGANIZATION_REQUIRED: GitHub does not let an App create repositories in a personal account.') } }, { code: 'REPOSITORY_REFUSED', reason: 'FACTORY_INSTALLATION_ORGANIZATION_REQUIRED' })
+  await scenario({ prepare: async () => { throw new Error('connect ECONNREFUSED 10.0.0.1:443 token=ghs_secret') } }, { code: 'REPOSITORY_REFUSED', reason: 'FACTORY_REPOSITORY_FAILED' })
+  await scenario({ prepare: async () => ({ ...binding, projectId: '30000000-0000-8000-8000-000000000066' }) }, { code: 'OUTCOME_UNKNOWN' })
+  const bound = await scenario({ settlementFailure: new Error('FACTORY_BINDING_REPOSITORY_BOUND') }, { code: 'REPOSITORY_REFUSED', reason: 'FACTORY_BINDING_REPOSITORY_BOUND' })
+  assert.equal(bound.includes('ROLLBACK'), true)
+  const settlement = await scenario({ settlementFailure: new Error('SYNTHETIC_SETTLEMENT_FAILURE') }, /SYNTHETIC_SETTLEMENT_FAILURE/)
   assert.equal(settlement.includes('ROLLBACK'), true)
 })
 
@@ -244,6 +196,7 @@ test('S3-P5 generated HTTP route enforces authenticity/session and returns only 
   const built = compileHub(t)
   const { createHttpApp } = await import(built('http/app.js'))
   const { registerProjectRoutes } = await import(built('project/routes.js'))
+  const { ProjectError } = await import(built('project/errors.js'))
   const response = {
     projectId: '30000000-0000-8000-8000-000000000063',
     workspaceId: '20000000-0000-4000-8000-000000000063',
@@ -253,12 +206,13 @@ test('S3-P5 generated HTTP route enforces authenticity/session and returns only 
     replayed: false,
   }
   let authenticated = true
+  let refusal = null
   const app = await createHttpApp({
     staticRoot: null,
     registerRoutes: (server) => registerProjectRoutes(server, {
       origin: 'https://conexus.test',
       resolveCurrentSession: async () => authenticated ? { account: { accountId: 'account-63' } } : null,
-      store: { createProject: async () => response },
+      store: { createProject: async () => { if (refusal) throw refusal; return response } },
     }),
   })
   t.after(() => app.close())
@@ -286,248 +240,10 @@ test('S3-P5 generated HTTP route enforces authenticity/session and returns only 
   authenticated = true
   const malformed = await request({ payload: { name: 'Missing source' } })
   assert.equal(malformed.statusCode, 400)
+  refusal = new ProjectError('REPOSITORY_REFUSED', 'FACTORY_INSTALLATION_ORGANIZATION_REQUIRED')
+  const refused = await request()
+  assert.deepEqual([refused.statusCode, refused.json()], [503, {
+    type: 'urn:conexus:problem:project-repository-unavailable', title: 'Project repository unavailable', status: 503, detail: 'FACTORY_INSTALLATION_ORGANIZATION_REQUIRED',
+  }])
 })
 
-test('S3-P5 real NEW and EXISTING_GIT HTTP compose PostgreSQL and exact-image Git through terminal replay', {
-  skip: process.env.CONEXUS_S3_P5_LIVE !== 'true' ? 'set CONEXUS_S3_P5_LIVE=true for isolated deciding proof' : false,
-}, async (t) => {
-  await refuseProtectedCluster()
-  const required = (name) => {
-    const value = process.env[name]
-    if (!value) throw new Error(`MISSING_TEST_CONFIG_${name}`)
-    return value
-  }
-  const adminConnection = {
-    host: required('CONEXUS_TEST_DB_HOST'),
-    port: Number(required('CONEXUS_TEST_DB_PORT')),
-    database: required('CONEXUS_TEST_DB_NAME'),
-    user: required('CONEXUS_TEST_DB_USER'),
-    password: required('CONEXUS_TEST_DB_PASSWORD'),
-  }
-  const database = `conexus_s3_p5_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 10)}`
-  const ownerRoot = mkdtempSync('/tmp/conexus-s3-p5-live-')
-  const fixtureRoot = mkdtempSync('/tmp/conexus-s3-p5-fixture-')
-  const suffix = fixtureRoot.split('-').at(-1).replace(/[^a-zA-Z0-9]/g, '').slice(0, 10)
-  const networkName = `conexus-s3-p5-${suffix}`
-  const fixtureName = `conexus-s3-p5-fixture-${suffix}`
-  let networkCreated = false
-  let fixtureCreated = false
-  const quote = (value) => {
-    if (!/^[a-z_][a-z0-9_]*$/.test(value)) throw new Error('UNSAFE_DATABASE_NAME')
-    return `"${value}"`
-  }
-  const connectionString = (connection) => {
-    const url = new URL('postgresql://localhost')
-    url.hostname = connection.host
-    url.port = String(connection.port)
-    url.pathname = `/${connection.database}`
-    url.username = connection.user
-    url.password = connection.password
-    return url.toString()
-  }
-  const query = async (connection, statement, values = []) => {
-    const client = new pg.Client(connection)
-    await client.connect()
-    try { return await client.query(statement, values) } finally { await client.end() }
-  }
-  const admin = new pg.Client(adminConnection)
-  await admin.connect()
-  await admin.query(`CREATE DATABASE ${quote(database)}`)
-  await admin.end()
-  const fresh = { ...adminConnection, database }
-  let app
-  let commandPool
-  let readPool
-  t.after(async () => {
-    await app?.close().catch(() => {})
-    await commandPool?.end().catch(() => {})
-    await readPool?.end().catch(() => {})
-    if (fixtureCreated) spawnSync('docker', ['rm', '-f', fixtureName])
-    if (networkCreated) spawnSync('docker', ['network', 'rm', networkName])
-    rmSync(ownerRoot, { recursive: true, force: true })
-    rmSync(fixtureRoot, { recursive: true, force: true })
-    const cleanup = new pg.Client(adminConnection)
-    await cleanup.connect()
-    try {
-      await cleanup.query('ALTER ROLE hub_project_command PASSWORD NULL').catch(() => {})
-      await cleanup.query('ALTER ROLE hub_project_read PASSWORD NULL').catch(() => {})
-      await cleanup.query(`DROP DATABASE ${quote(database)} WITH (FORCE)`)
-    } finally {
-      await cleanup.end()
-    }
-  })
-
-  await runHubMigrations({ connectionString: connectionString(fresh) })
-  const accountId = '10000000-0000-4000-8000-000000000064'
-  const workspaceId = '20000000-0000-4000-8000-000000000064'
-  await query(fresh, `
-    INSERT INTO iam.account(account_id, issuer, external_subject, display_name)
-    VALUES ($1, 'https://issuer.test', 's3-p5-subject', 'S3 P5 Account')
-  `, [accountId])
-  await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'S3 P5 Workspace')`, [workspaceId])
-  await query(fresh, `
-    INSERT INTO iam.workspace_membership(account_id, workspace_id, role)
-    VALUES ($1, $2, 'owner')
-  `, [accountId, workspaceId])
-  const commandPassword = 's3-p5-command-synthetic-only'
-  const readPassword = 's3-p6-read-synthetic-only'
-  await query(fresh, `ALTER ROLE hub_project_command PASSWORD '${commandPassword}'`)
-  await query(fresh, `ALTER ROLE hub_project_read PASSWORD '${readPassword}'`)
-
-  const built = compileHub(t)
-  const { createHttpApp } = await import(built('http/app.js'))
-  const { R1C14_GIT_IDENTITY } = await import(built('generated/r1c14-git-identity.js'))
-  const { createPostgresPool } = await import(built('platform/postgres.js'))
-  const { createOciGitExecutionPort } = await import(built('project/git-execution.js'))
-  const { createGitImportAdmissionCatalog } = await import(built('project/git-import-admission.js'))
-  const { registerProjectRoutes } = await import(built('project/routes.js'))
-  const { createProjectSourceRecovery } = await import(built('project/source-recovery.js'))
-  const { createProjectStore } = await import(built('project/store.js'))
-  const run = (command, args) => {
-    const outcome = spawnSync(command, args, { encoding: 'utf8' })
-    if (outcome.status !== 0 || outcome.signal !== null) {
-      throw new Error(`S3_P5_COMMAND_FAILED:${command}:${outcome.status}:${outcome.signal}\n${outcome.stdout}\n${outcome.stderr}`)
-    }
-    return outcome.stdout.trim()
-  }
-  const waitFor = async (path) => {
-    for (let index = 0; index < 200; index += 1) {
-      if (existsSync(path)) return
-      await new Promise((complete) => setTimeout(complete, 25))
-    }
-    throw new Error(`S3_P5_FIXTURE_NOT_READY:${path}`)
-  }
-  const secret = `S3-P5-${suffix}-credential-canary`
-  const credentialPath = resolve(fixtureRoot, 'credential')
-  const certPath = resolve(fixtureRoot, 'ca.pem')
-  const keyPath = resolve(fixtureRoot, 'ca-key.pem')
-  const readyPath = resolve(fixtureRoot, 'ready.json')
-  const sourceRoot = resolve(fixtureRoot, 'source')
-  mkdirSync(sourceRoot, { mode: 0o700 })
-  writeFileSync(resolve(sourceRoot, 'README.md'), 'S3-P5 admitted source\n')
-  writeFileSync(credentialPath, `fixture-user\n${secret}\n`, { mode: 0o600 })
-  chmodSync(credentialPath, 0o600)
-  const opensslConfig = resolve(fixtureRoot, 'openssl.cnf')
-  writeFileSync(opensslConfig, '[req]\ndistinguished_name=dn\nx509_extensions=ext\nprompt=no\n[dn]\nCN=git.allowed.test\n[ext]\nsubjectAltName=DNS:git.allowed.test\n')
-  run('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-config', opensslConfig, '-keyout', keyPath, '-out', certPath])
-  const sourceProgram = `
-const { spawnSync } = require('node:child_process')
-const env = { GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HOME: '/tmp', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@conexus.invalid', GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@conexus.invalid', GIT_AUTHOR_DATE: '2000-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2000-01-01T00:00:00Z' }
-const git = (args) => { const r = spawnSync('/usr/local/bin/git', args, { env, encoding: 'utf8' }); if (r.status !== 0 || r.signal) process.exit(91); return r.stdout.trim() }
-git(['init', '--initial-branch=main', '/fixture/source'])
-git(['-C', '/fixture/source', 'add', '--all'])
-git(['-C', '/fixture/source', 'commit', '-m', 'fixture'])
-git(['clone', '--bare', '/fixture/source', '/fixture/repo.git'])
-git(['--git-dir=/fixture/repo.git', 'update-server-info'])
-`
-  run('docker', [
-    'run', '--rm', '--pull', 'never', '--network', 'none', '--cap-drop', 'ALL',
-    '--security-opt', 'no-new-privileges', '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=16m',
-    '--user', `${process.getuid()}:${process.getgid()}`, '--mount', `type=bind,src=${fixtureRoot},dst=/fixture`,
-    '--entrypoint', '/usr/local/bin/node', R1C14_GIT_IDENTITY.ociIndexDigest, '-e', sourceProgram,
-  ])
-  run('docker', ['network', 'create', networkName])
-  networkCreated = true
-  const fixtureScript = resolve(repositoryRoot, 'tests/fixtures/r1-s3-git-import-https-fixture.mjs')
-  run('docker', [
-    'run', '-d', '--pull', 'never', '--network', networkName, '--network-alias', 'git.allowed.test',
-    '--name', fixtureName, '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--read-only',
-    '--tmpfs', '/tmp:rw,noexec,nosuid,size=16m', '--user', `${process.getuid()}:${process.getgid()}`,
-    '--mount', `type=bind,src=${fixtureRoot},dst=/fixture`,
-    '--mount', `type=bind,src=${fixtureScript},dst=/fixture-server.mjs,readonly`, '--entrypoint', '/usr/local/bin/node',
-    R1C14_GIT_IDENTITY.ociIndexDigest, '/fixture-server.mjs', '/fixture/repo.git', '/fixture/ca.pem',
-    '/fixture/ca-key.pem', '/fixture/credential', '/fixture/ready.json', '/fixture/requests.json',
-  ])
-  fixtureCreated = true
-  await waitFor(readyPath)
-  const catalog = createGitImportAdmissionCatalog([{
-    id: 'p5-live',
-    host: 'git.allowed.test',
-    port: 8443,
-    pathPrefix: '/admitted/',
-    defaultRef: 'refs/heads/main',
-    tls: { mode: 'EXTERNAL_CA_FILE', caFileSlot: 'p5-ca' },
-    credentialSlot: 'p5-credential',
-    networkName,
-    timeoutMs: 60_000,
-    maxFetchedBytes: 10_000_000,
-    maxObjectCount: 10_000,
-    enabled: true,
-  }])
-  assert.ok(catalog)
-  commandPool = createPostgresPool({ ...fresh, user: 'hub_project_command', password: commandPassword })
-  readPool = createPostgresPool({ ...fresh, user: 'hub_project_read', password: readPassword })
-  const store = createProjectStore({
-    commandPool,
-    readPool,
-    git: createOciGitExecutionPort({
-      projectStorageRoot: ownerRoot,
-      gitImportCatalog: catalog,
-      externalFileSlots: { 'p5-credential': credentialPath, 'p5-ca': certPath },
-    }),
-    recovery: createProjectSourceRecovery(ownerRoot),
-  })
-  app = await createHttpApp({
-    staticRoot: null,
-    registerRoutes: (server) => registerProjectRoutes(server, {
-      origin: 'https://conexus.test',
-      resolveCurrentSession: async () => ({ account: { accountId } }),
-      store,
-    }),
-  })
-  const request = (idempotencyKey, name, sourceBootstrap) => app.inject({
-    method: 'POST',
-    url: `/api/control/workspaces/${workspaceId}/projects`,
-    headers: {
-      origin: 'https://conexus.test',
-      cookie: '__Host-conexus_csrf=token',
-      'x-conexus-csrf': 'token',
-      'idempotency-key': idempotencyKey,
-      'content-type': 'application/json',
-    },
-    payload: { name, sourceBootstrap },
-  })
-  const created = await request('s3-p5-live-new', 'Exact Image Project', { mode: 'NEW' })
-  assert.equal(created.statusCode, 201, created.body)
-  const body = created.json()
-  assert.equal(body.workspaceId, workspaceId)
-  assert.equal(body.name, 'Exact Image Project')
-  assert.equal(body.archived, false)
-  assert.equal(existsSync(resolve(ownerRoot, 'projects', body.projectId)), true)
-  const listed = await app.inject({ method: 'GET', url: `/api/control/workspaces/${workspaceId}/projects` })
-  assert.equal(listed.statusCode, 200, listed.body)
-  assert.deepEqual(listed.json(), [{
-    projectId: body.projectId,
-    workspaceId,
-    name: 'Exact Image Project',
-    archived: false,
-  }])
-  const detail = await app.inject({ method: 'GET', url: `/api/control/projects/${body.projectId}` })
-  assert.equal(detail.statusCode, 200, detail.body)
-  assert.deepEqual(detail.json(), body)
-  const replay = await request('s3-p5-live-new', 'Exact Image Project', { mode: 'NEW' })
-  assert.equal(replay.statusCode, 201, replay.body)
-  assert.deepEqual(replay.json(), body)
-  const imported = await request('s3-p5-live-existing', 'Imported Project', {
-    mode: 'EXISTING_GIT',
-    repositoryLocator: 'https://git.allowed.test:8443/admitted/repo.git',
-  })
-  assert.equal(imported.statusCode, 201, imported.body)
-  const importedBody = imported.json()
-  assert.equal(importedBody.name, 'Imported Project')
-  assert.equal(existsSync(resolve(ownerRoot, 'projects', importedBody.projectId)), true)
-  const importedReplay = await request('s3-p5-live-existing', 'Imported Project', {
-    mode: 'EXISTING_GIT',
-    repositoryLocator: 'https://git.allowed.test:8443/admitted/repo.git',
-  })
-  assert.equal(importedReplay.statusCode, 201, importedReplay.body)
-  assert.deepEqual(importedReplay.json(), importedBody)
-  assert.equal(JSON.stringify([body, importedBody]).includes(secret), false)
-  // Two Projects, still one membership row: creating a Project stores no new authority.
-  const durable = await query(fresh, `
-    SELECT (SELECT count(*)::integer FROM project.project) AS projects,
-      (SELECT count(*)::integer FROM iam.workspace_membership) AS memberships,
-      (SELECT count(*)::integer FROM project.operation_idempotency WHERE outcome = 'SUCCEEDED') AS receipts
-  `)
-  assert.deepEqual(durable.rows, [{ projects: 2, memberships: 1, receipts: 2 }])
-})

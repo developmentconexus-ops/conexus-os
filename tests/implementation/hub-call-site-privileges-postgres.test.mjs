@@ -92,10 +92,9 @@ const ROLE_BY_CALL_SITE = Object.freeze({
   'project/store.ts': Object.freeze({
     'project.list_project_summaries': 'hub_project_read',
     'project.get_project': 'hub_project_read',
-    'project.claim_abandoned_create_project_attempt': 'hub_project_command',
     'project.reserve_or_replay_create_project': 'hub_project_command',
     'project.lock_create_project_receipt': 'hub_project_command',
-    'project.create_project_with_source': 'hub_project_command',
+    'project.create_project_with_repository': 'hub_project_command',
     'project.complete_create_project_receipt': 'hub_project_command',
   }),
   'registry/application-artifact-store.ts': Object.freeze({

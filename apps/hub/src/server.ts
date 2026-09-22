@@ -64,6 +64,14 @@ const project = config.project ? createConfiguredProjectModule({
     database: config.database.database,
   },
   project: config.project,
+  // The builder module owns the Factory and is composed below; creation reaches it at request time.
+  repository: {
+    prepare: async (input) => {
+      const prepare = builder?.prepareProjectRepository
+      if (!prepare) throw new Error('FACTORY_NOT_CONFIGURED')
+      return prepare(input)
+    },
+  },
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined

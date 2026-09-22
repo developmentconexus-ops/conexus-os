@@ -8,13 +8,20 @@ import type {
   Prj03Response,
 } from '../generated/s3-routes.js'
 import type { PostgresPool } from '../platform/postgres.js'
-import { projectError } from './errors.js'
-import type { GitExecutionPort } from './git-execution.js'
+import { projectError, repositoryRefused } from './errors.js'
 import { isProjectIdentity } from './identity.js'
-import type { ProjectSourceRecovery } from './source-recovery.js'
 
-const ABANDONED_ATTEMPT_AGE_MS = 60 * 60 * 1_000
-const RECOVERY_SCAN_LIMIT = 16
+// Gives a Project that does not exist yet its repository and Factory rows, and nothing else. The
+// same Project id always reaches the same repository, so calling it again converges.
+export type ProjectRepositoryPort = Readonly<{
+  prepare(input: Readonly<{ projectId: string; projectName: string }>): Promise<Readonly<{
+    projectId: string
+    factoryProjectId: string
+    projectRepositoryId: string
+    repositoryId: string
+    headRevision: string
+  }>>
+}>
 
 type CreateProjectInput = Readonly<{
   accountId: string
@@ -33,7 +40,6 @@ type ReservationRow = QueryResultRow & Readonly<{
 }>
 
 type LockRow = QueryResultRow & Readonly<{ outcome: 'RESERVED' | 'SUCCEEDED'; project_id: string }>
-type RecoveryRow = QueryResultRow & Readonly<{ project_id: string }>
 type ProjectSummaryRow = QueryResultRow & Readonly<{
   project_id: string
   workspace_id: string
@@ -55,6 +61,7 @@ const isNotAdmitted = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501'
 const mapDatabaseError = (error: unknown): never => {
   if (isNotAdmitted(error)) throw projectError('AUTHORIZATION_DENIED')
+  if (errorText(error).startsWith('FACTORY_BINDING_')) throw repositoryRefused(error)
   throw error
 }
 
@@ -73,16 +80,12 @@ const validReplay = (
 export const createProjectStore = ({
   commandPool,
   readPool,
-  git,
-  recovery,
-  now = () => Date.now(),
+  repository,
   mintIdentity = randomUUID,
 }: Readonly<{
   commandPool: PostgresPool
   readPool?: PostgresPool
-  git: GitExecutionPort
-  recovery: ProjectSourceRecovery
-  now?: () => number
+  repository: ProjectRepositoryPort
   mintIdentity?: () => string
 }>): ProjectStore => {
   const requireReadPool = (): PostgresPool => {
@@ -144,32 +147,6 @@ export const createProjectStore = ({
       client.release()
     }
   }
-  const recoverBeforeIntake = async (): Promise<void> => {
-    const client = await commandPool.connect()
-    try {
-      await client.query('BEGIN')
-      const cutoff = new Date(now() - ABANDONED_ATTEMPT_AGE_MS).toISOString()
-      const claimed = await client.query<RecoveryRow>(
-        'SELECT * FROM project.claim_abandoned_create_project_attempt($1, $2)',
-        [cutoff, RECOVERY_SCAN_LIMIT],
-      )
-      for (const row of claimed.rows) {
-        if (!isProjectIdentity(row.project_id)) throw projectError('RECOVERY_REFUSED')
-        const cleaned = await recovery.cleanupClaimedProjectSource(row.project_id)
-        if (cleaned.status !== 'CLEANED' || cleaned.projectId !== row.project_id) {
-          throw projectError('RECOVERY_REFUSED')
-        }
-      }
-      await client.query('COMMIT')
-    } catch (error) {
-      await client.query('ROLLBACK')
-      if (errorText(error).includes('PRJ03_')) throw projectError('RECOVERY_REFUSED')
-      throw error
-    } finally {
-      client.release()
-    }
-  }
-
   const reserve = async (
     input: CreateProjectInput,
     keyDigest: string,
@@ -198,11 +175,11 @@ export const createProjectStore = ({
   }
 
   const createProject = async (input: CreateProjectInput): Promise<CreateProjectResult> => {
-    await recoverBeforeIntake()
+    // Starting from an existing repository is not offered yet, and never from the host Git path.
+    if (input.body.sourceBootstrap.mode !== 'NEW') throw projectError('SOURCE_INPUT_REFUSED')
     const candidateProjectId = mintIdentity()
-    const attemptId = mintIdentity()
     const projectRevision = mintIdentity()
-    if (![candidateProjectId, attemptId, projectRevision].every(isProjectIdentity)) throw projectError('OUTCOME_UNKNOWN')
+    if (![candidateProjectId, projectRevision].every(isProjectIdentity)) throw projectError('OUTCOME_UNKNOWN')
     const keyDigest = digestText(input.idempotencyKey)
     const requestDigest = digestBody(input.body)
     const reservation = await reserve(input, keyDigest, requestDigest, candidateProjectId)
@@ -212,26 +189,13 @@ export const createProjectStore = ({
     }
     if (reservation.state !== 'RESERVED') throw projectError('OUTCOME_UNKNOWN')
 
+    // The reserved receipt is the intent: a retry with the same key reaches the same Project id, and
+    // so the repository this call may already have created.
     const projectId = reservation.project_id
-    const staged = input.body.sourceBootstrap.mode === 'NEW'
-      ? await git.stageNewProjectSource({ projectId, attemptId })
-      : await git.stageExistingGitProjectSource({
-        projectId,
-        attemptId,
-        locator: input.body.sourceBootstrap.repositoryLocator,
-      })
-    if (staged.status === 'REFUSED') {
-      if (['CATALOG_REFUSED', 'LOCATOR_REFUSED', 'DESTINATION_NOT_ADMITTED'].includes(staged.code)) {
-        throw projectError('SOURCE_INPUT_REFUSED')
-      }
-      throw projectError('SOURCE_DEPENDENCY_REFUSED')
-    }
-    const sourceRevision = staged.sourceRevision
-    const promoted = await git.promoteStagedProjectSource({ projectId, attemptId, sourceRevision })
-    if (promoted.status === 'REFUSED') {
-      if (promoted.code === 'CANDIDATE_QUARANTINED') throw projectError('SOURCE_CONFLICT')
-      throw projectError('SOURCE_DEPENDENCY_REFUSED')
-    }
+    const binding = await repository.prepare({ projectId, projectName: input.body.name }).catch((error: unknown) => {
+      throw repositoryRefused(error)
+    })
+    if (binding.projectId !== projectId) throw projectError('OUTCOME_UNKNOWN')
 
     const client = await commandPool.connect()
     try {
@@ -251,10 +215,6 @@ export const createProjectStore = ({
         return { ...row.response_body, replayed: true }
       }
       if (lock.outcome !== 'RESERVED') throw projectError('OUTCOME_UNKNOWN')
-      const canonical = await git.verifyCanonicalProjectSource({ projectId, attemptId, sourceRevision })
-      if (canonical.status !== 'VERIFIED' || canonical.sourceRevision !== sourceRevision) {
-        throw projectError('SOURCE_DEPENDENCY_REFUSED')
-      }
 
       const response: Prj03Response = {
         projectId,
@@ -263,9 +223,9 @@ export const createProjectStore = ({
         projectRevision,
         archived: false,
       }
-      await client.query('SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)', [
-        input.accountId, input.workspaceId, keyDigest, requestDigest, projectId,
-        input.body.name, input.body.sourceBootstrap.mode, sourceRevision, projectRevision,
+      await client.query('SELECT project.create_project_with_repository($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)', [
+        input.accountId, input.workspaceId, keyDigest, requestDigest, projectId, input.body.name, projectRevision,
+        binding.factoryProjectId, binding.projectRepositoryId, binding.repositoryId, binding.headRevision,
       ])
       await client.query('SELECT project.complete_create_project_receipt($1, $2, $3, $4, $5, $6, $7, $8)', [
         input.accountId, input.workspaceId, keyDigest, requestDigest, projectId,

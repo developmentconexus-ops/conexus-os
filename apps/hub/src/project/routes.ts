@@ -8,7 +8,7 @@ import type {
 } from '../generated/s3-routes.js'
 import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
-import { projectErrorCode } from './errors.js'
+import { type ProjectError, projectErrorCode } from './errors.js'
 import type { ProjectStore } from './store.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
@@ -85,10 +85,10 @@ export const registerProjectRoutes = async (
         const code = projectErrorCode(error)
         if (code === 'AUTHORIZATION_DENIED') return sendProblem(reply, 403, 'project-create-denied', 'Project creation denied')
         if (code === 'SOURCE_INPUT_REFUSED') return sendProblem(reply, 422, 'project-source-refused', 'Project source refused')
-        if (code === 'RECOVERY_REFUSED' || code === 'SOURCE_DEPENDENCY_REFUSED') {
-          return sendProblem(reply, 503, 'project-source-unavailable', 'Project source unavailable')
+        if (code === 'REPOSITORY_REFUSED') {
+          return sendProblem(reply, 503, 'project-repository-unavailable', 'Project repository unavailable', (error as ProjectError).reason ?? undefined)
         }
-        if (code === 'IDEMPOTENCY_CONFLICT' || code === 'OUTCOME_UNKNOWN' || code === 'SOURCE_CONFLICT') {
+        if (code === 'IDEMPOTENCY_CONFLICT' || code === 'OUTCOME_UNKNOWN') {
           return sendProblem(reply, 409, 'project-create-conflict', 'Project creation conflict')
         }
         if (driverCode(error) === '22P02') return sendProblem(reply, 404, 'workspace-not-found', 'Workspace not found')

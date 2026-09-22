@@ -19,6 +19,10 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
     pushResponseLost: false,
     // `${slug}@${commit}` -> Map(path -> { mode, content }), the files of a commit GitHub holds.
     commits: new Map(),
+    pendingTrees: new Map(),
+    createdCommits: [],
+    // Answers repository creation with this status instead of creating it.
+    creationStatus: null,
   }
   const descends = (sha, ancestor) => {
     for (let at = sha; at; at = state.parents.get(at)) if (at === ancestor) return true
@@ -53,11 +57,15 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
       const creation = at('POST', /^\/orgs\/([^/]+)\/repos$/)
       if (creation) {
         const match = creation
+        if (state.creationStatus) return send(response, state.creationStatus, { message: 'Repository creation failed.' })
         const fullName = `${match[1]}/${body.name}`
         if (state.repositories.has(fullName)) return send(response, 422, { message: 'Repository creation failed.', errors: [{ message: 'name already exists on this account' }] })
         const repository = { id: state.nextRepositoryId++, name: body.name, fullName, owner: match[1], defaultBranch: 'main', private: body.private === true }
         state.repositories.set(fullName, repository)
-        if (body.auto_init) state.refs.set(`${fullName}:main`, 'c'.repeat(40))
+        if (body.auto_init) {
+          state.refs.set(`${fullName}:main`, 'c'.repeat(40))
+          state.commits.set(`${fullName}@${'c'.repeat(40)}`, new Map([['README.md', { mode: '100644', content: `# ${body.name}\n` }]]))
+        }
         return send(response, 201, repositoryJson(repository))
       }
       const repositoryRead = at('GET', /^\/repos\/([^/]+)\/([^/]+)$/)
@@ -91,12 +99,40 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
         const bytes = Buffer.from(file.content)
         return send(response, 200, { type: file.mode === '120000' ? 'symlink' : 'file', path: contents[3], size: bytes.byteLength, encoding: 'base64', content: bytes.toString('base64') })
       }
+      const treeCreation = at('POST', /^\/repos\/([^/]+)\/([^/]+)\/git\/trees$/)
+      if (treeCreation) {
+        const base = state.commits.get(`${treeCreation[1]}/${treeCreation[2]}@${body.base_tree}`)
+        if (!base) return send(response, 422, { message: 'base_tree not found' })
+        const files = new Map(base)
+        for (const entry of body.tree) files.set(entry.path, { mode: entry.mode, content: entry.content })
+        const sha = (state.pendingTrees.size + 1).toString(16).padStart(40, '7')
+        state.pendingTrees.set(sha, files)
+        return send(response, 201, { sha })
+      }
+      const commitCreation = at('POST', /^\/repos\/([^/]+)\/([^/]+)\/git\/commits$/)
+      if (commitCreation) {
+        const files = state.pendingTrees.get(body.tree)
+        if (!files) return send(response, 422, { message: 'tree not found' })
+        const slug = `${commitCreation[1]}/${commitCreation[2]}`
+        const sha = (state.createdCommits.length + 1).toString(16).padStart(40, '8')
+        state.parents.set(sha, body.parents[0])
+        state.commits.set(`${slug}@${sha}`, files)
+        state.createdCommits.push({ slug, sha, message: body.message, parents: body.parents })
+        return send(response, 201, { sha })
+      }
       const match = /^\/repos\/([^/]+)\/([^/]+)\/git\/refs?\/heads\/(.+)$/.exec(path)
       if (match) {
         const key = `${match[1]}/${match[2]}:${match[3]}`
         if (request.method === 'GET') {
           const sha = state.refs.get(key)
           return sha ? send(response, 200, { ref: `refs/heads/${match[3]}`, object: { sha, type: 'commit' } }) : send(response, 404, { message: 'Not Found' })
+        }
+        if (request.method === 'PATCH') {
+          const current = state.refs.get(key)
+          if (!current) return send(response, 422, { message: 'Reference does not exist' })
+          if (body.force !== false || !descends(body.sha, current)) return send(response, 422, { message: 'Update is not a fast forward' })
+          state.refs.set(key, body.sha)
+          return send(response, 200, { ref: `refs/heads/${match[3]}`, object: { sha: body.sha, type: 'commit' } })
         }
       }
       return send(response, 404, { message: `no fake route for ${request.method} ${path}` })
@@ -107,10 +143,11 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
   return {
     baseUrl: `http://127.0.0.1:${port}`,
     state,
-    addRepository: ({ owner, name, private: isPrivate = true, head = 'd'.repeat(40) }) => {
+    addRepository: ({ owner, name, private: isPrivate = true, head = 'd'.repeat(40), files = { 'README.md': '# existing\n' } }) => {
       const repository = { id: state.nextRepositoryId++, name, fullName: `${owner}/${name}`, owner, defaultBranch: 'main', private: isPrivate }
       state.repositories.set(repository.fullName, repository)
       state.refs.set(`${repository.fullName}:main`, head)
+      state.commits.set(`${repository.fullName}@${head}`, new Map(Object.entries(files).map(([file, content]) => [file, { mode: '100644', content }])))
       return repository
     },
     // Answers a root script that is one leased `git push --porcelain` the way git and receive-pack

@@ -38,16 +38,13 @@ test('S3-P6 browse states and filters remain honest and local', () => {
   assert.doesNotMatch(source, /\bfetch\(|workspace\.access\.manage/)
 })
 
-test('S3-P6 create form exposes both source modes and conditional locator', () => {
+test('S3-P6 create form asks only for a name and names a repository GitHub refused', () => {
   const source = readFileSync(path('apps/web/src/features/project/components/project-create-form.tsx'), 'utf8')
-  assert.match(source, /type="radio"/)
-  assert.match(source, /value="NEW"/)
-  assert.match(source, /value="EXISTING_GIT"/)
-  assert.match(source, /Localizador do repositório/)
+  assert.doesNotMatch(source, /EXISTING_GIT|repositoryLocator|type="radio"/)
+  assert.match(source, /sourceBootstrap: \{ mode: 'NEW' \}/)
   assert.match(source, /crypto\.randomUUID\(\)/)
   assert.match(source, /status === 409/)
-  assert.match(source, /status === 422/)
-  assert.match(source, /status === 503/)
+  assert.match(source, /status === 503\) \{\n\s+setMessage\('O repositório do Project não pôde ser criado no GitHub/)
 })
 
 test('S3-P6 responsive contract includes a one-column Project card reflow', () => {
@@ -79,6 +76,7 @@ test('S3-P6 real Chromium proves browse, filters, create navigation and narrow r
     { projectId: archivedId, workspaceId, name: 'Archived Project', archived: true },
   ]
   let createKey = ''
+  let createBody = null
   await page.route('**/api/control/access-context', (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -91,6 +89,7 @@ test('S3-P6 real Chromium proves browse, filters, create navigation and narrow r
   await page.route(`**/api/control/workspaces/${workspaceId}/projects`, async (route) => {
     if (route.request().method() === 'POST') {
       createKey = await route.request().headerValue('idempotency-key') ?? ''
+      createBody = route.request().postDataJSON()
       return route.fulfill({
         status: 201,
         contentType: 'application/json',
@@ -120,13 +119,12 @@ test('S3-P6 real Chromium proves browse, filters, create navigation and narrow r
 
   await page.goto(`${origin}/workspaces/${workspaceId}/projects/new`)
   await page.getByLabel('Nome do Project').fill('Imported Project')
-  await page.getByLabel('Repositório Git existente').check()
-  await page.getByLabel('Localizador do repositório').fill('catalog://admitted/project')
   await page.getByRole('button', { name: 'Criar Project' }).click()
   await page.getByRole('heading', { name: 'Construir com o Conexus' }).waitFor()
   await page.getByText('Imported Project / Build').waitFor()
   assert.equal(page.url(), `${origin}/projects/${createdId}/build`)
   assert.notEqual(createKey, '')
+  assert.deepEqual(createBody, { name: 'Imported Project', sourceBootstrap: { mode: 'NEW' } })
 
   projects = []
   await page.setViewportSize({ width: 360, height: 800 })

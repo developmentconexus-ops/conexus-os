@@ -148,6 +148,28 @@ export const createGithubApp = ({ appId, privateKey, baseUrl = GITHUB_API_URL }:
       // Each segment is encoded here so its '/' separators survive and a '?' or '#' in a name cannot end the path.
       return call('GET /repos/{owner}/{repo}/contents/{+path}', token, { owner, repo, path: path.split('/').map(encodeURIComponent).join('/'), ref: sha })
     },
+    // One commit of `files` on top of `parent`, and the branch moved to it only if it is still at
+    // `parent`. Answers the new commit.
+    commitFiles: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, change: Readonly<{
+      branch: string
+      parent: string
+      baseTree: string
+      message: string
+      files: readonly Readonly<{ path: string; mode: '100644' | '100755'; content: string }>[]
+    }>): Promise<string> => {
+      if (!REPOSITORY_SLUG.test(repository.slug) || !BRANCH.test(change.branch) || !OID.test(change.parent) || !OID.test(change.baseTree)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
+      const [owner, repo] = repository.slug.split('/') as [string, string]
+      const token = await repositoryToken(installationId, repository.externalId, 'write')
+      const tree = await call('POST /repos/{owner}/{repo}/git/trees', token, {
+        owner, repo, base_tree: change.baseTree,
+        tree: change.files.map((file) => ({ path: file.path, mode: file.mode, type: 'blob', content: file.content })),
+      })
+      if (typeof tree.sha !== 'string' || !OID.test(tree.sha)) throw new Error('FACTORY_GITHUB_RESPONSE_REFUSED')
+      const commit = await call('POST /repos/{owner}/{repo}/git/commits', token, { owner, repo, message: change.message, tree: tree.sha, parents: [change.parent] })
+      if (typeof commit.sha !== 'string' || !OID.test(commit.sha)) throw new Error('FACTORY_GITHUB_RESPONSE_REFUSED')
+      await call('PATCH /repos/{owner}/{repo}/git/refs/{ref}', token, { owner, repo, ref: `heads/${change.branch}`, sha: commit.sha, force: false })
+      return commit.sha
+    },
     // Whether `sha` is in the branch's history: the branch is at it or ahead of it.
     branchContains: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, branch: string, sha: string): Promise<boolean> => {
       if (!REPOSITORY_SLUG.test(repository.slug) || !BRANCH.test(branch) || !OID.test(sha)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
