@@ -87,7 +87,7 @@ const createFactoryApp = async (t, { accountId = accountA } = {}) => {
         admitConversation: admitFactoryConversation({ sessions, resolveFactoryProject }),
       })
       return registerFactoryConversationRoutes(instance, {
-        readFactoryBinding, sessions, orgId: ORG, origin, resolveCurrentSession, openThread: openFactoryConversationThread({ controller, orgId: ORG }),
+        readFactoryBinding, sessions, controller, orgId: ORG, origin, resolveCurrentSession, openThread: openFactoryConversationThread({ controller, orgId: ORG }),
         defaultBranchOf: async (binding) => binding.repositoryId === `repository-of-${projectA}` ? 'main' : 'trunk',
       })
     },
@@ -99,7 +99,7 @@ const createFactoryApp = async (t, { accountId = accountA } = {}) => {
     await storage.close()
     rmSync(root, { recursive: true, force: true })
   })
-  return { app, controller, sessions, reachedContexts }
+  return { app, controller, sessions, storage, reachedContexts }
 }
 
 const authentic = {
@@ -200,20 +200,58 @@ test('a state-changing request without CSRF is refused on both the mount and the
 test('a conversation is a Factory session row on its own branch, and a retry returns the same row', async (t) => {
   const { app, sessions } = await createFactoryApp(t)
   const conversationId = randomUUID()
-  const first = await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/conversations`, ...authentic, payload: { conversationId, title: 'Contador' } })
+  const first = await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/conversations`, ...authentic, payload: { conversationId } })
   assert.equal(first.statusCode, 201)
-  assert.deepEqual(first.json(), { conversation: { conversationId, title: 'Contador', createdAt: '2026-09-21T12:00:00.000Z' } })
+  assert.deepEqual(first.json(), { conversation: { conversationId, title: null, createdAt: '2026-09-21T12:00:00.000Z' } })
   assert.deepEqual(sessions.created, [{
     sessionId: conversationId, projectRepositoryId: 'project-repository-a', orgId: ORG, userId: accountA,
-    branch: `conexus/${conversationId}`, baseBranch: 'main', title: 'Contador', visibility: 'org',
+    branch: `conexus/${conversationId}`, baseBranch: 'main', visibility: 'org',
   }])
-  const retried = await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/conversations`, ...authentic, payload: { conversationId, title: 'Contador' } })
+  const retried = await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/conversations`, ...authentic, payload: { conversationId } })
   assert.equal(retried.statusCode, 200)
   assert.deepEqual(retried.json(), first.json())
   assert.equal(sessions.created.length, 1)
 
   const listed = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/conversations`, ...authentic })
   assert.deepEqual(listed.json().conversations.map((entry) => entry.conversationId), [conversationId, conversationA])
+})
+
+// Mastra Code's observer renames threads in English on its own ("Page text update" on the pilot) and
+// the Factory copies that onto the session row, so the list reads neither.
+test('a conversation is titled by its first request, not by the title Mastra gave its thread or session row', async (t) => {
+  const { app, sessions, storage } = await createFactoryApp(t)
+  const conversationId = randomUUID()
+  await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/conversations`, ...authentic, payload: { conversationId } })
+  const untitled = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/conversations`, ...authentic })
+  assert.equal(untitled.json().conversations.find((entry) => entry.conversationId === conversationId).title, null)
+
+  const memoryStore = await storage.getStore('memory')
+  const message = (id, role, text, at) => ({ id, role, threadId: conversationId, resourceId: conversationId, createdAt: new Date(at), content: { format: 2, parts: [{ type: 'text', text }] } })
+  await memoryStore.saveMessages({ messages: [
+    message(randomUUID(), 'user', 'Troque o texto em destaque no topo da página para LIVE-MUCS7P6I', '2026-09-22T14:41:15.000Z'),
+    message(randomUUID(), 'assistant', 'Pronto.', '2026-09-22T14:43:10.000Z'),
+    message(randomUUID(), 'user', 'Agora mude a cor do botão', '2026-09-22T14:50:00.000Z'),
+  ] })
+  const thread = await memoryStore.getThreadById({ threadId: conversationId })
+  await memoryStore.saveThread({ thread: { ...thread, title: 'Page text update' } })
+  sessions.rows.set(conversationId, { ...sessions.rows.get(conversationId), title: 'Page text update' })
+
+  const listed = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/conversations`, ...authentic })
+  assert.equal(listed.json().conversations.find((entry) => entry.conversationId === conversationId).title, 'Troque o texto em destaque no topo da página para…')
+  const retried = await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/conversations`, ...authentic, payload: { conversationId } })
+  assert.equal(retried.json().conversation.title, 'Troque o texto em destaque no topo da página para…')
+})
+
+test('a conversation title is the first line of the request, whitespace collapsed', async (t) => {
+  const { app, storage } = await createFactoryApp(t)
+  const memoryStore = await storage.getStore('memory')
+  await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/conversations`, ...authentic, payload: { conversationId: conversationA } })
+  await memoryStore.saveMessages({ messages: [{
+    id: randomUUID(), role: 'user', threadId: conversationA, resourceId: conversationA, createdAt: new Date('2026-09-22T10:00:00.000Z'),
+    content: { format: 2, parts: [{ type: 'text', text: '\n  Crie um contador   de visitas\ncom botão de reiniciar' }] },
+  }] })
+  const listed = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/conversations`, ...authentic })
+  assert.equal(listed.json().conversations.find((entry) => entry.conversationId === conversationA).title, 'Crie um contador de visitas')
 })
 
 test('the conversation routes refuse a Project the Account may not build, and an id another Project holds', async (t) => {
