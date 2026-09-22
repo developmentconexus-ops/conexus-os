@@ -42,8 +42,16 @@ Inside a Workspace an Account holds one of two roles.
 | `owner` | everything a member may do, plus administer the roster |
 | `member` | everything except administer the roster |
 
-There are no other roles, no per-Project grants and no separate application audience.
-Authority over a Project is membership of the Workspace that owns it.
+There are no other Workspace roles, no per-Project grants and no separate application
+audience. Authority over a Project is membership of the Workspace that owns it.
+
+Outside every Workspace, an Account may also be an installation administrator. An
+administrator may take installation-wide actions, such as connecting or replacing the company
+GitHub organization and sharing a model account with everyone in the installation. The operator
+sets the first administrator from the shell. After that an administrator grants and revokes the
+role, and the last active administrator cannot be removed. Each grant and revocation records
+who acted and when. Being an administrator grants nothing inside any Workspace or Project.
+[The permission contract](permission-contract.md#11-installation-administration) owns the rule.
 
 ---
 

@@ -12,7 +12,7 @@ const fail = (code, detail) => {
 
 // Same 0600 rule apps/hub/src/platform/secrets.ts enforces. A provisioning step that accepted
 // a world-readable secret would undo the property the Hub maintains.
-const readSecretFile = (path) => {
+export const readSecretFile = (path) => {
   const stat = statSync(path)
   if (!stat.isFile() || (stat.mode & 0o077) !== 0) fail('SECRET_FILE_PERMISSIONS', path)
   const value = readFileSync(path, 'utf8').trim()
