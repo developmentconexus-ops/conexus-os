@@ -1,0 +1,28 @@
+{
+  "name": "@conexus/keycloak-theme",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "storybook": "keycloakify storybook",
+    "build": "vite build",
+    "build-keycloak-theme": "keycloakify build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "keycloakify": "11.16.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.4",
+    "typescript": "5.7.2",
+    "vite": "6.0.7"
+  },
+  "allowScripts": {
+    "esbuild@0.24.2": true
+  }
+}
