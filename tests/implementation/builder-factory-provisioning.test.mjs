@@ -5,8 +5,7 @@ import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
-import pg from 'pg'
-import { buildHubDatabase, query } from './hub-database.mjs'
+import { buildHubDatabase, query, testPool } from './hub-database.mjs'
 import { startFakeGithub } from './builder-factory-fake-github.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -31,12 +30,12 @@ const setup = async (t, fakeOptions) => {
   const { connectionString, connection, onCleanup } = await buildHubDatabase(t, 'conexus_factory_provisioning')
   const github = await startFakeGithub(fakeOptions)
   onCleanup(() => github.close())
-  const factoryPool = new pg.Pool({ connectionString, options: '-c search_path=factory', max: 4 })
+  const factoryPool = testPool({ connectionString, options: '-c search_path=factory', max: 4 })
   const storage = createFactoryStorage(factoryPool)
   onCleanup(async () => { await storage.close().catch(() => {}); await factoryPool.end().catch(() => {}) })
   const records = await openFactoryRecords(storage)
   // Assuming the role at connection start exercises its grants without writing a cluster-global password.
-  const executorPool = new pg.Pool({ ...connection, max: 2, options: '-c role=hub_builder_executor' })
+  const executorPool = testPool({ ...connection, max: 2, options: '-c role=hub_builder_executor' })
   onCleanup(() => executorPool.end())
   const app = createGithubApp({ appId: '5015512', privateKey: privateKeyPem, baseUrl: github.baseUrl })
   const workspaceId = randomUUID()

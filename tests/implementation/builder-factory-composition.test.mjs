@@ -10,7 +10,7 @@ import pg from 'pg'
 import { prepareAgentControllerMount } from '@mastra/code-sdk'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
-import { createEmptyDatabase } from './hub-database.mjs'
+import { createEmptyDatabase, testPool } from './hub-database.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/builder-factory-composition-build-'))
@@ -274,9 +274,9 @@ test('prepare() registers the controller as code, lands every table in factory, 
   const legacyModelsBefore = await legacy.base.controller.listAvailableModels()
 
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
-  const pool = new pg.Pool({ ...connection, user: role, password, options: '-c search_path=factory', max: 4 })
+  const pool = testPool({ ...connection, user: role, password, options: '-c search_path=factory', max: 4 })
   // A credential a Hub stored before it had a key, through the Factory's plaintext default.
-  const beforePool = new pg.Pool({ ...connection, user: role, password, options: '-c search_path=factory', max: 1 })
+  const beforePool = testPool({ ...connection, user: role, password, options: '-c search_path=factory', max: 1 })
   const before = createFactoryStorage(beforePool)
   const plaintextCredentials = before.registerDomain(new ModelCredentialsStorage())
   await before.init()
@@ -340,7 +340,7 @@ test('prepare() registers the controller as code, lands every table in factory, 
   // Without the Hub's key the same rows give back no credential: another key is refused, and the
   // Factory's plaintext default hands back only the envelope.
   const readWith = async (encryption) => {
-    const readerPool = new pg.Pool({ ...connection, user: role, password, options: '-c search_path=factory', max: 1 })
+    const readerPool = testPool({ ...connection, user: role, password, options: '-c search_path=factory', max: 1 })
     onCleanup(() => readerPool.end())
     const reader = createFactoryStorage(readerPool)
     const domain = reader.registerDomain(new ModelCredentialsStorage(encryption))

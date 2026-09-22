@@ -5,8 +5,7 @@ import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
-import pg from 'pg'
-import { buildHubDatabase, query } from './hub-database.mjs'
+import { buildHubDatabase, query, testPool } from './hub-database.mjs'
 import { startFakeGithub } from './builder-factory-fake-github.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -47,8 +46,8 @@ const pilot = async (t) => {
   await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'pilot', 'NEW', $3, 'pilot')", [projectId, workspaceId, STARTER])
   await query(connectionString, 'INSERT INTO builder.project_working_state(project_id, working_source_revision, working_version) VALUES ($1, $2, 0)', [projectId, STARTER])
   const repository = github.addRepository({ owner: 'acme-org', name: 'pilot', head: OLD })
-  const executorPool = new pg.Pool({ ...connection, max: 2, options: '-c role=hub_builder_executor' })
-  const ingressPool = new pg.Pool({ ...connection, max: 2, options: '-c role=hub_builder_ingress' })
+  const executorPool = testPool({ ...connection, max: 2, options: '-c role=hub_builder_executor' })
+  const ingressPool = testPool({ ...connection, max: 2, options: '-c role=hub_builder_ingress' })
   const store = createBuilderStore({ ingressPool, executorPool })
   let closed = false
   onCleanup(async () => { if (!closed) await store.close() })

@@ -5,8 +5,7 @@ import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
-import pg from 'pg'
-import { buildHubDatabase, query } from './hub-database.mjs'
+import { buildHubDatabase, query, testPool } from './hub-database.mjs'
 import { startFakeGithub } from './builder-factory-fake-github.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -45,8 +44,8 @@ const recoveryHarness = async (t, name, crashes) => {
   const workspaceId = randomUUID()
   await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://factory.test', $2, 'Owner')", [owner, owner])
   await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Factory')", [workspaceId])
-  const executorPool = new pg.Pool({ ...connection, max: 2, options: '-c role=hub_builder_executor' })
-  const ingressPool = new pg.Pool({ ...connection, max: 2, options: '-c role=hub_builder_ingress' })
+  const executorPool = testPool({ ...connection, max: 2, options: '-c role=hub_builder_executor' })
+  const ingressPool = testPool({ ...connection, max: 2, options: '-c role=hub_builder_ingress' })
   const store = createBuilderStore({ ingressPool, executorPool })
   const repositories = new Map()
   const runs = []

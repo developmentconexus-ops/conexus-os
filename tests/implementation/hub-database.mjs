@@ -74,6 +74,19 @@ export const withClient = async (connectionString, body) => {
 
 export const catalogOf = (connectionString) => withClient(connectionString, readCatalog)
 
+// node-postgres requires every Pool to carry an 'error' listener: a client the pool already
+// considers idle can still report a connection drop later (for example, our own DROP DATABASE
+// WITH (FORCE) above racing pool.end(), which resolves once its bookkeeping empties rather than
+// once every socket finishes closing). With no listener, that later 'error' event has nothing to
+// throw into but the pool itself, which throws, and node:test then charges the failure to
+// whichever test happens to be running at that moment. Every pool a Postgres test builds directly
+// goes through this helper instead of `new pg.Pool(...)` so that race stays inert.
+export const testPool = (config) => {
+  const pool = new pg.Pool(config)
+  pool.on('error', () => {})
+  return pool
+}
+
 export const query = async (connection, statement, values = []) => {
   const client = new pg.Client(typeof connection === 'string' ? { connectionString: connection } : connection)
   await client.connect()
