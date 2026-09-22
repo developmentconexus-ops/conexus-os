@@ -60,6 +60,7 @@ export function DiffView({ path, before, after }: Readonly<{ path: string; befor
     extensions={[
       ...readOnly,
       unifiedMergeView({ original: before, mergeControls: false, collapseUnchanged: { margin: 3, minSize: 6 } }),
+      EditorState.phrases.of({ '$ unchanged lines': '$ linhas sem alteração' }),
       ...(language ? [language] : []),
     ]}
     aria-label={`Alterações em ${path}`}
