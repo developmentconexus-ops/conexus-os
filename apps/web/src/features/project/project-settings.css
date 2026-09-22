@@ -1,0 +1,15 @@
+.cx-facts { display: grid; margin: 0; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-surface); }
+.cx-facts > div { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: .35rem 1rem; padding: 1rem 1.15rem; }
+.cx-facts > div + div { border-top: 1px solid var(--cx-line); }
+.cx-facts dt { color: var(--cx-text-2); font-size: .875rem; }
+.cx-facts dd { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0; line-height: 1.5; }
+@media (max-width: 30rem) { .cx-facts > div { grid-template-columns: 1fr; } }
+.cx-repo { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; width: 100%; }
+.cx-repo .cx-skeleton-line { width: 12rem; }
+.cx-repo-link { display: inline-flex; align-items: center; gap: .3rem; font-family: var(--cx-font-mono); font-size: .875rem; overflow-wrap: anywhere; }
+.cx-repo-note { flex-basis: 100%; color: var(--cx-text-2); font-size: .875rem; }
+.cx-technical { margin-top: 1.5rem; color: var(--cx-text-2); font-size: .875rem; }
+.cx-technical summary { cursor: pointer; width: max-content; border-radius: 4px; }
+.cx-technical dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .4rem 1rem; margin: .75rem 0 0; }
+.cx-technical dd { margin: 0; }
+.cx-technical code { font-size: .8125rem; overflow-wrap: anywhere; }
