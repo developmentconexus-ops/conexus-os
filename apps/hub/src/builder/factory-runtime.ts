@@ -355,6 +355,12 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
         }),
         configure: async ({ mode, instructions }) => {
           await session.state.set({ yolo: true, permissionRules: { categories: {}, tools }, pluginInstructions: [instructions] })
+          // The model gateway reads a credential and a custom provider synchronously from snapshots,
+          // which only an awaited hydration fills. A stored memory row can name a custom-provider
+          // model (the Google AI Pro gateway's `mastracode/<provider>/<model>` ids); switching the
+          // observer or reflector onto one before this hydration runs resolves it against an empty
+          // snapshot and fails the first time observation actually calls it, later in the run.
+          await Promise.all([primeTenantCredentials({ tenant: { orgId, userId: accountId }, credentials }), primeCustomProviders()])
           // Memory calls resolve credentials from this run's request context, so the person who
           // started the run pays for them. Their own row (the Factory fills it from the first provider
           // they connect) names a model they can reach; the installation's row, which
