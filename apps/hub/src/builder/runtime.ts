@@ -48,9 +48,14 @@ const isRateLimitError = (error: unknown): boolean => {
   return statusCode === 429 || /rate.?limit|too many requests/i.test(messageText)
 }
 
+// Mastra Code's words when the person has no account of their own for the model's provider and none
+// is shared with the installation. It carries no status code, so its text is the only signal.
+const NO_MODEL_ACCOUNT = /^No usable \S+ credential is configured/
+const isMissingModelAccount = (error: unknown): boolean => error instanceof Error && NO_MODEL_ACCOUNT.test(error.message)
+
 const classifyAgentError = (error: Error): string => {
   const statusCode = 'statusCode' in error && typeof error.statusCode === 'number' ? error.statusCode : undefined
-  if (statusCode === 401 || statusCode === 403) return 'BUILDER_MODEL_AUTH_FAILED'
+  if (statusCode === 401 || statusCode === 403 || isMissingModelAccount(error)) return 'BUILDER_MODEL_AUTH_FAILED'
   return 'BUILDER_MODEL_STREAM_FAILED'
 }
 
@@ -70,6 +75,7 @@ export const sendBuilderSessionMessage = async (
       await session.sendMessage({ ...message, ...(requestContext ? { requestContext } : {}) })
     } catch (error) {
       if (isRateLimitError(error)) throw new Error('BUILDER_MODEL_RATE_LIMITED')
+      if (isMissingModelAccount(error)) throw new Error('BUILDER_MODEL_AUTH_FAILED')
       throw error
     }
     if (!terminalReason) throw new Error('BUILDER_AGENT_COMPLETION_UNAVAILABLE')

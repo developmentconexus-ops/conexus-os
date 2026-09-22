@@ -38,9 +38,9 @@ const packageScripts = Object.freeze({
 
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'hub-baseline',
-  'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-grant-surface-excision',
+  'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-installation-administrator', 'iam-grant-surface-excision',
   'hub-call-site-privileges',
-  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'factory-binding-postgres', 'c020-mastra-lifecycle', 'factory-dependency-tree', 'factory-composition', 'factory-runtime', 'factory-recovery-postgres', 'factory-routes', 'factory-provisioning',
+  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'factory-binding-postgres', 'c020-mastra-lifecycle', 'factory-dependency-tree', 'factory-composition', 'model-accounts-postgres', 'factory-runtime', 'factory-recovery-postgres', 'factory-routes', 'factory-provisioning',
   'foundation-postgres', 'c020-registry', 'c020-source-runtime', 'c020-failure-vocabulary', 'c020-compiler-runtime',
   'c020-browser', 'c020-e2b-template', 'c020-hub-typecheck', 'c020-web-typecheck', 'c020-web-build',
   'db-catalog-snapshot', 'db-baseline-file', 'db-role-register', 'db-role-provision-postgres',

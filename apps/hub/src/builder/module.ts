@@ -1,4 +1,7 @@
 import type { FastifyInstance } from 'fastify'
+import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/credentials/base'
+import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
+import type { ModelPacksStorage } from '@mastra/factory/storage/domains/model-packs/base'
 import { createHash } from 'node:crypto'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
 import { createPostgresPool } from '../platform/postgres.js'
@@ -11,7 +14,7 @@ import { BUILDER_TRACE_REQUEST_CONTEXT_KEYS } from './runtime.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderStore } from './store.js'
-import type { ResolveCurrentSession } from '../identity-access/current-session.js'
+import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig } from '../platform/config.js'
 import { assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox } from './factory.js'
 import type { FactoryComposition } from './factory.js'
@@ -20,6 +23,7 @@ import { openFactoryRecords, prepareFactoryRepository } from './factory-provisio
 import type { FactoryBinding } from './factory-provisioning.js'
 import { createFactoryCodingWorkerRuntime, createMastraFactoryRunPorts, recoverFactoryAdmissions } from './factory-runtime.js'
 import { createFactorySourceReads } from './factory-source.js'
+import { applyModelDefaults, registerModelAccountRoutes } from './model-accounts.js'
 import type { FactoryRunDependencies, RunNote } from './service.js'
 import type { BuilderStore } from './store.js'
 
@@ -202,7 +206,7 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
   })
 }
 
-export const createConfiguredBuilderModule = ({ database, builder, factory, applicationArtifacts, launchPreview, origin, resolveCurrentSession }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, factory, applicationArtifacts, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
@@ -213,6 +217,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, appl
   launchPreview?: BuilderLaunchPreviewPort
   origin: string
   resolveCurrentSession: ResolveCurrentSession
+  isInstallationAdministrator(account: AccountId): Promise<boolean>
 }>) => {
   const executorPool = createPostgresPool({ ...database, user: 'hub_builder_executor', password: readSecretFile(builder.executorPasswordFile) })
   const store = createBuilderStore({
@@ -270,6 +275,19 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, appl
       const builderOperations = await registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) })
       const composition = await factoryComposition.ready
       const sessions = composition.github.sourceControlStorage.sessions
+      const modelPacks = composition.storage.getDomain<ModelPacksStorage>('model-packs')
+      await registerModelAccountRoutes(app, {
+        domains: {
+          credentials: composition.storage.getDomain<ModelCredentialsStorage>('model-credentials'),
+          modelPacks,
+          memorySettings: composition.storage.getDomain<MemorySettingsStorage>('memory-settings'),
+        },
+        controller: composition.controller,
+        orgId: factoryComposition.orgId,
+        origin,
+        resolveCurrentSession,
+        isInstallationAdministrator,
+      })
       await registerFactoryMastraRoutes(app, {
         mastra: composition.mastra,
         controllerId: composition.controllerId,
@@ -282,7 +300,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, appl
       return [...builderOperations, ...await registerFactoryConversationRoutes(app, {
         readFactoryBinding: store.readFactoryBinding, sessions, orgId: factoryComposition.orgId, origin, resolveCurrentSession,
         defaultBranchOf: async (binding) => (await (await factoryComposition.portsReady).resolveRepository(binding)).defaultBranch,
-        openThread: openFactoryConversationThread({ controller: composition.controller, orgId: factoryComposition.orgId }),
+        openThread: openFactoryConversationThread({ controller: composition.controller, orgId: factoryComposition.orgId, applyDefaults: applyModelDefaults({ modelPacks, orgId: factoryComposition.orgId }) }),
       })]
     },
     // Absent without the Factory, and then no Project can be created.
