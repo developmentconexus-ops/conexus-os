@@ -145,11 +145,13 @@ const PROVIDER = /^[a-z0-9][a-z0-9._-]{0,63}$/
  * the request first (session, and origin plus CSRF on a write) and serves nothing else the Factory
  * has.
  */
-export const registerFactoryApiRoutes = async (app: FastifyInstance, { mastra, routes, origin, resolveCurrentSession }: Readonly<{
+export const registerFactoryApiRoutes = async (app: FastifyInstance, { mastra, routes, origin, resolveCurrentSession, admit }: Readonly<{
   mastra: Mastra
   routes: ReadonlySet<string>
   origin: string
   resolveCurrentSession: ResolveCurrentSession
+  // The Conexus authority a route needs beyond the session, such as building the Project it names.
+  admit?(input: Readonly<{ accountId: string; params: Readonly<Record<string, string>> }>): Promise<boolean>
 }>): Promise<void> => {
   const served = (mastra.getServer()?.apiRoutes ?? []).filter((route) => routes.has(`${route.method} ${route.path}`))
   if (served.length !== routes.size) throw new Error('FACTORY_ROUTE_MISSING')
@@ -161,9 +163,11 @@ export const registerFactoryApiRoutes = async (app: FastifyInstance, { mastra, r
           return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
         }
       }
-      if (!await resolveCurrentSession(request, request.method !== 'GET')) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      const { provider } = request.params as Readonly<{ provider?: string }>
-      if (provider !== undefined && !PROVIDER.test(provider)) return sendProblem(reply, 404, 'model-provider-not-found', 'Model provider not found')
+      const session = await resolveCurrentSession(request, request.method !== 'GET')
+      if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      const params = request.params as Readonly<Record<string, string>>
+      if (params.provider !== undefined && !PROVIDER.test(params.provider)) return sendProblem(reply, 404, 'model-provider-not-found', 'Model provider not found')
+      if (admit && !await admit({ accountId: session.account.accountId, params })) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
     })
     const server = new MastraServer({ app: scope, mastra, customApiRoutes: served })
     server.registerContextMiddleware()

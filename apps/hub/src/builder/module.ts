@@ -8,7 +8,7 @@ import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
 import { registerFactoryApiRoutes, registerFactoryMastraRoutes } from './mastra-session-routes.js'
-import { admitFactoryConversation, openFactoryConversationThread, registerFactoryConversationRoutes } from './factory-routes.js'
+import { admitFactoryConversation, FACTORY_SESSION_ROUTE, openFactoryConversationThread, registerFactoryConversationRoutes } from './factory-routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
 import { BUILDER_TRACE_REQUEST_CONTEXT_KEYS } from './runtime.js'
 import { createBuilderService } from './service.js'
@@ -318,6 +318,10 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, goog
       const sessions = composition.github.sourceControlStorage.sessions
       const modelPacks = composition.storage.getDomain<ModelPacksStorage>('model-packs')
       await registerFactoryApiRoutes(app, { mastra: composition.mastra, routes: FACTORY_CREDENTIAL_ROUTES, origin, resolveCurrentSession })
+      await registerFactoryApiRoutes(app, {
+        mastra: composition.mastra, routes: new Set([FACTORY_SESSION_ROUTE]), origin, resolveCurrentSession,
+        admit: async ({ accountId, params }) => typeof params.id === 'string' && await store.resolveFactoryProject({ accountId, projectRepositoryId: params.id }) !== null,
+      })
       await registerModelAccountRoutes(app, {
         domains: {
           credentials: composition.storage.getDomain<ModelCredentialsStorage>('model-credentials'),
@@ -353,8 +357,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, goog
         resolveCurrentSession,
       })
       return [...builderOperations, ...repositoryOperations, ...await registerFactoryConversationRoutes(app, {
-        readFactoryBinding: store.readFactoryBinding, sessions, controller: composition.controller, orgId: factoryComposition.orgId, origin, resolveCurrentSession,
-        defaultBranchOf: async (binding) => (await (await factoryComposition.portsReady).resolveRepository(binding)).defaultBranch,
+        readFactoryBinding: store.readFactoryBinding, sessions, controller: composition.controller, origin, resolveCurrentSession,
         openThread: openFactoryConversationThread({ controller: composition.controller, orgId: factoryComposition.orgId, applyDefaults: applyModelDefaults({ modelPacks, orgId: factoryComposition.orgId }) }),
       })]
     },

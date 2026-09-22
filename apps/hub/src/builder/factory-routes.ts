@@ -25,16 +25,12 @@ type FactorySessionRow = Readonly<{
 export type FactoryConversationSessions = Readonly<{
   getBySessionId(sessionId: string): Promise<FactorySessionRow | null>
   list(input: Readonly<{ projectRepositoryId: string; viewerUserId: string }>): Promise<readonly FactorySessionRow[]>
-  create(input: Readonly<{
-    sessionId: string
-    projectRepositoryId: string
-    orgId: string
-    userId: string
-    branch: string
-    baseBranch: string
-    visibility: 'org'
-  }>): Promise<FactorySessionRow>
 }>
+
+// The Factory's own session route, which creates a conversation. Its visibility is the Factory's
+// `org` until https://github.com/mastra-ai/mastra/issues/24689 lets the host choose; the operator's
+// default is private, and Conexus enforces Project authority on every read meanwhile.
+export const FACTORY_SESSION_ROUTE = 'POST /web/github/projects/:id/sessions'
 
 const TITLE_LENGTH = 60
 // The first request is among a conversation's first messages; a run note never precedes it.
@@ -86,12 +82,10 @@ export const openFactoryConversationThread = ({ controller, orgId, applyDefaults
     await applyDefaults?.(session, accountId)
   }
 
-export const registerFactoryConversationRoutes = async (app: FastifyInstance, { readFactoryBinding, defaultBranchOf, sessions, controller, orgId, origin, resolveCurrentSession, openThread }: Readonly<{
+export const registerFactoryConversationRoutes = async (app: FastifyInstance, { readFactoryBinding, sessions, controller, origin, resolveCurrentSession, openThread }: Readonly<{
   readFactoryBinding(input: Readonly<{ accountId: string; projectId: string }>): Promise<FactoryBindingRecord | null>
-  defaultBranchOf(binding: FactoryBindingRecord): Promise<string>
   sessions: FactoryConversationSessions
   controller: BuilderAgentController
-  orgId: string
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   openThread: OpenThread
@@ -130,25 +124,20 @@ export const registerFactoryConversationRoutes = async (app: FastifyInstance, { 
     if (binding === 'DENIED') return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
     if (binding === 'UNBOUND') return sendProblem(reply, 404, 'factory-project-not-bound', 'Project is not developed through the Factory')
     const { conversationId } = request.body
-    // The client chooses the id, so a retry lands on the row the first attempt wrote.
-    const existing = await sessions.getBySessionId(conversationId)
-    if (existing) {
-      if (existing.projectRepositoryId !== binding.projectRepositoryId) return sendProblem(reply, 409, 'conversation-conflict', 'Conversation id already in use')
-      await openThread({ conversationId, accountId: session.account.accountId })
-      return reply.code(200).send({ conversation: projectConversation(existing, await readTitle(controller, conversationId)) })
-    }
-    // The shape the Factory's own session route writes, so its workspace resolver reads it unchanged.
-    const created = await sessions.create({
-      sessionId: conversationId,
-      projectRepositoryId: binding.projectRepositoryId,
-      orgId,
-      userId: session.account.accountId,
-      branch: conversationBranch(conversationId),
-      baseBranch: await defaultBranchOf(binding),
-      visibility: 'org',
+    // The client chooses the id, so a retry lands on the session the first attempt created; the
+    // Factory's route decides that, and a row read first only tells a retry from a creation.
+    const existed = await sessions.getBySessionId(conversationId) !== null
+    const answer = await app.inject({
+      method: 'POST',
+      url: `/web/github/projects/${encodeURIComponent(binding.projectRepositoryId)}/sessions`,
+      headers: { cookie: request.headers.cookie ?? '', origin, 'x-conexus-csrf': csrf, 'content-type': 'application/json' },
+      payload: { sessionId: conversationId, branch: conversationBranch(conversationId) },
     })
+    if (answer.statusCode === 409) return sendProblem(reply, 409, 'conversation-conflict', 'Conversation id already in use')
+    if (answer.statusCode !== 200) throw new Error(`FACTORY_SESSION_REFUSED:${answer.statusCode}`)
+    const { session: row } = answer.json() as Readonly<{ session: FactorySessionRow }>
     await openThread({ conversationId, accountId: session.account.accountId })
-    return reply.code(201).send({ conversation: projectConversation(created, null) })
+    return reply.code(existed ? 200 : 201).send({ conversation: projectConversation(row, existed ? await readTitle(controller, conversationId) : null) })
   })
   return ['BLD-27', 'BLD-28']
 }

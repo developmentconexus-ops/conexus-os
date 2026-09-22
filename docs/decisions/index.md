@@ -37,7 +37,7 @@ concept by concept.
 | Conexus IAM gains an installation administrator role, distinct from Workspace owner. | The role authorizes installation-wide actions, such as connecting the company's GitHub organization and sharing a model account with everyone. It does not grant access to every Project. This amends C-024, which said a Workspace owner connects GitHub. |
 | Model accounts follow C-025. | The Factory owns them with its two native sharing levels. Conexus builds no grant list and no parallel resolver. |
 | The Hub is the single writer of tool policy. | The browser may only approve or decline a pending call. The agent runs with `yolo` inside the sandbox, with the GitHub tools denied. One honest line tells the person that the agent has internet access in its sandbox, as C-023 accepts. |
-| Conversation visibility is a Conexus Project policy. | Its default and its transitions are still to decide. Conexus enforces the policy on every read. Any Factory visibility field is derived from it and never edited on its own. |
+| Conversation visibility is a Conexus Project policy. | Its default is private, only the person who created it, as the operator decided later on 2026-09-22; its transitions are still to decide. Conexus enforces Project authority on every read. Any Factory visibility field is derived from the policy and never edited on its own. Conversations are created through the Factory's own session route, which writes `org` until [mastra-ai/mastra#24689](https://github.com/mastra-ai/mastra/issues/24689) lets the Hub pass `private`; `org` is the interim. |
 
 These are known technical follow-ups, not decisions:
 

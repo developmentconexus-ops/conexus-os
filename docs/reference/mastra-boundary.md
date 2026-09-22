@@ -27,7 +27,7 @@ embedded doc page.
 | 1 | Moving repositories to a new GitHub App installation | A | Implemented |
 | 2 | Keeping GitHub tokens out of the sandbox | A | Implemented |
 | 3 | Serving the Factory's credential routes | A, after the operator's amendment | Implemented |
-| 4 | Creating a conversation | A for creation, B for visibility | Planned, needs item 3 and a visibility decision |
+| 4 | Creating a conversation | A for creation, B for visibility | Implemented; visibility waits on mastra-ai/mastra#24689 |
 | 5 | Conversation titles in Portuguese | B for the title Mastra writes, A for the one Conexus shows | Implemented |
 | 6a | Classifying model errors | A, plus B for one message | Implemented |
 | 6b | Writing run diagnostics into a conversation | A, experimental API | Planned |
@@ -167,18 +167,25 @@ accepts no visibility. The storage handle's `sessions.create` does accept one
 (`factory/dist/storage/domains/source-control/base.d.ts:132`), and the Slack integration sets it
 (`factory/dist/integrations/slack/slack.js:213`).
 
-**Decision.** A for creation, after item 3. B for visibility ([mastra-ai/mastra#24689](https://github.com/mastra-ai/mastra/issues/24689)). Conversation visibility is
-a Conexus Project policy whose default is still open in the decision register. No value derived from a
-decided policy exists yet, so no code change can make the field follow the single-owner map today.
+**Decision.** A for creation. B for visibility
+([mastra-ai/mastra#24689](https://github.com/mastra-ai/mastra/issues/24689)). No public way makes a
+session private through the Factory. Its route takes no visibility, no `MastraFactory` option sets
+one, and session storage has no way to change visibility after creation. On 2026-09-22 the operator
+chose creation through the Factory's own route. The preferred default is private ("só quem criou"),
+and `org` is the interim value until the issue lands. Conexus enforces Project authority on every read
+meanwhile.
 
-**Plan.**
+**Implemented.**
 
-1. The operator decides the visibility default and its transitions.
-2. After item 3, the Hub creates a conversation by calling the Factory's session route with the
-   conversation id, the Conexus branch and the title. The Hub's DTO, idempotency code and storage write
-   are deleted.
-3. Until U3 lands, the Factory decides visibility. Conexus enforces Project authority on every read, as
-   it does today. When U3 lands, the Hub passes the value its policy derives.
+1. The Hub mounts the Factory's session route with `registerFactoryApiRoutes`. Its guard also requires
+   the Account to build the Project bound to the route's project repository, so the route cannot open
+   a session on a Project the person may not build.
+2. `POST /api/control/projects/:projectId/conversations` keeps Conexus admission: the session, CSRF and
+   the Project binding. It then calls the Factory's route with the conversation id and the Conexus
+   branch, and opens the conversation's thread with the person's model defaults. The Factory decides
+   idempotency and writes the row. The Hub's DTO and storage write are deleted. The Hub reads the row
+   first only to tell a retry (200) from a creation (201).
+3. When the issue lands, the Hub passes `private`, the value the operator's policy derives.
 
 ## 5. Conversation titles in Portuguese
 
