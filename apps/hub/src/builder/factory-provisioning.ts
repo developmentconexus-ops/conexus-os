@@ -296,17 +296,16 @@ const prepare = async ({ github, records, orgId, projectId, projectName, bound, 
  */
 export const prepareFactoryRepository = (request: FactoryRepositoryRequest): Promise<FactoryBinding> => prepare({ ...request, bound: null })
 
-export const BIND_FACTORY_PROJECT = 'SELECT builder.bind_factory_project($1,$2,$3,$4,$5) AS bound'
-export const bindFactoryProjectValues = (binding: FactoryBinding): readonly string[] =>
-  [binding.projectId, binding.factoryProjectId, binding.projectRepositoryId, binding.repositoryId, binding.headRevision]
-
 /** Gives an existing Project its repository and binds it; a bound Project converges to its binding. */
 export const provisionFactoryProject = async ({ executorPool, ...request }: FactoryRepositoryRequest & Readonly<{ executorPool: PostgresPool }>): Promise<FactoryBinding> => {
   if (!UUID.test(request.projectId)) throw new Error('FACTORY_PROVISION_PROJECT_REFUSED')
   const bound = (await executorPool.query<{ binding: BoundIds | null }>(
     'SELECT builder.read_factory_binding_for_project($1) AS binding', [request.projectId])).rows[0]?.binding ?? null
   const binding = await prepare({ ...request, bound })
-  const bind = await executorPool.query<{ bound: boolean }>(BIND_FACTORY_PROJECT, [...bindFactoryProjectValues(binding)])
+  const bind = await executorPool.query<{ bound: boolean }>(
+    'SELECT builder.bind_factory_project($1,$2,$3,$4,$5) AS bound',
+    [binding.projectId, binding.factoryProjectId, binding.projectRepositoryId, binding.repositoryId, binding.headRevision],
+  )
   if (bind.rows[0]?.bound !== true) throw new Error('FACTORY_BINDING_REFUSED')
   return binding
 }

@@ -16,15 +16,10 @@ export function ProjectCreateForm({
   onAuthenticationRequired: () => void
 }) {
   const nameId = useId()
-  const newId = useId()
-  const existingId = useId()
-  const locatorId = useId()
   const queryClient = useQueryClient()
   const attempt = useRef<Attempt | undefined>(undefined)
   const createInFlight = useRef(false)
   const nameInput = useRef<HTMLInputElement>(null)
-  const locatorInput = useRef<HTMLInputElement>(null)
-  const [sourceMode, setSourceMode] = useState<'NEW' | 'EXISTING_GIT'>('NEW')
   const [message, setMessage] = useState('')
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const mutation = useMutation({
@@ -41,10 +36,8 @@ export function ProjectCreateForm({
         setMessage('A autoridade atual não permite criar um Project neste Workspace.')
       } else if (error instanceof ProjectRequestError && error.status === 409) {
         setMessage('A criação ainda não pôde ser confirmada. Reenvie os mesmos dados para consultar o resultado.')
-      } else if (error instanceof ProjectRequestError && error.status === 422) {
-        setMessage('O localizador não foi admitido. Revise a origem informada.')
       } else if (error instanceof ProjectRequestError && error.status === 503) {
-        setMessage('A origem está indisponível. Nenhum sucesso foi confirmado; tente novamente com os mesmos dados.')
+        setMessage('O repositório do Project não pôde ser criado no GitHub. Nenhum Project foi criado; tente novamente com os mesmos dados.')
       } else {
         setMessage('A criação não foi confirmada. Tente novamente com os mesmos dados.')
       }
@@ -71,20 +64,12 @@ export function ProjectCreateForm({
     if (createInFlight.current) return
     const data = new FormData(event.currentTarget)
     const name = String(data.get('name') ?? '').trim()
-    const repositoryLocator = String(data.get('repositoryLocator') ?? '').trim()
     if (!name) {
       setMessage('Informe o nome do Project.')
       nameInput.current?.focus()
       return
     }
-    if (sourceMode === 'EXISTING_GIT' && !repositoryLocator) {
-      setMessage('Informe o localizador do repositório admitido.')
-      locatorInput.current?.focus()
-      return
-    }
-    const input: CreateProjectInput = sourceMode === 'NEW'
-      ? { name, sourceBootstrap: { mode: 'NEW' } }
-      : { name, sourceBootstrap: { mode: 'EXISTING_GIT', repositoryLocator } }
+    const input: CreateProjectInput = { name, sourceBootstrap: { mode: 'NEW' } }
     const fingerprint = JSON.stringify(input)
     if (attempt.current?.fingerprint !== fingerprint) {
       attempt.current = { input, fingerprint, idempotencyKey: crypto.randomUUID() }
@@ -98,32 +83,13 @@ export function ProjectCreateForm({
     <form onSubmit={submit}>
       <label htmlFor={nameId}>Nome do Project</label>
       <input id={nameId} name="name" required ref={nameInput} />
-      <fieldset>
-        <legend>Origem inicial</legend>
-        <label htmlFor={newId}>
-          <input id={newId} type="radio" name="sourceMode" value="NEW" checked={sourceMode === 'NEW'} onChange={() => setSourceMode('NEW')} />
-          Novo repositório
-        </label>
-        <label htmlFor={existingId}>
-          <input id={existingId} type="radio" name="sourceMode" value="EXISTING_GIT" checked={sourceMode === 'EXISTING_GIT'} onChange={() => setSourceMode('EXISTING_GIT')} />
-          Repositório Git existente
-        </label>
-      </fieldset>
-      {sourceMode === 'EXISTING_GIT' && (
-        <>
-          <label htmlFor={locatorId}>Localizador do repositório</label>
-          <input id={locatorId} name="repositoryLocator" required ref={locatorInput} />
-        </>
-      )}
       <button className="primary" type="submit" disabled={mutation.isPending}>
-        {mutation.isPending ? elapsedSeconds < 8 ? 'Criando…' : 'Validando…' : 'Criar Project'}
+        {mutation.isPending ? 'Criando…' : 'Criar Project'}
       </button>
       <p role="status" aria-live="polite">{mutation.isPending
         ? elapsedSeconds < 8
           ? 'Criando o Project…'
-          : elapsedSeconds < 30
-            ? `Validando a origem com segurança… ${elapsedSeconds}s`
-            : `A validação está demorando mais que o esperado, mas continua ativa… ${elapsedSeconds}s`
+          : `Criando o repositório do Project no GitHub… ${elapsedSeconds}s`
         : message}</p>
     </form>
   )

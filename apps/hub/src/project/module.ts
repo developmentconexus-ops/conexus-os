@@ -7,41 +7,34 @@ import { R1C14_GIT_IDENTITY } from '../generated/r1c14-git-identity.js'
 import type { ProjectRuntimeConfig } from '../platform/config.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { readJsonFile } from '../platform/json-file.js'
-import { createOciGitExecutionPort } from './git-execution.js'
-import type { GitExecutionPort } from './git-execution.js'
-import { createGitImportAdmissionCatalog } from './git-import-admission.js'
-import type { GitImportAdmissionEntry } from './git-import-admission.js'
 import { registerProjectRoutes } from './routes.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
-import type { ProjectSourceRecovery } from './source-recovery.js'
-import { createProjectSourceRecovery } from './source-recovery.js'
 import { createProjectStore } from './store.js'
+import type { ProjectRepositoryPort } from './store.js'
 
 export type ProjectModule = Readonly<{
   registerProjectRoutes(app: FastifyInstance): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03')[]>
   sourceGit: OciGitExecution
-  warmGitImage(): ReturnType<GitExecutionPort['verifyAdmittedImage']>
+  warmGitImage(): ReturnType<OciGitExecution['verifyAdmittedImage']>
   close(): Promise<void>
 }>
 
 export const createProjectModule = ({
   commandPool,
   readPool,
-  git,
+  repository,
   oci,
-  recovery,
   origin,
   resolveCurrentSession,
 }: Readonly<{
   commandPool: PostgresPool
   readPool: PostgresPool
-  git: GitExecutionPort
+  repository: ProjectRepositoryPort
   oci: OciGitExecution
-  recovery: ProjectSourceRecovery
   origin: string
   resolveCurrentSession: ResolveCurrentSession
 }>): ProjectModule => {
-  const store = createProjectStore({ commandPool, readPool, git, recovery })
+  const store = createProjectStore({ commandPool, readPool, repository })
   return Object.freeze({
     registerProjectRoutes: (app: FastifyInstance) => registerProjectRoutes(app, {
       store, resolveCurrentSession, origin,
@@ -78,44 +71,28 @@ export const createBuilderProjectGitCapability = (_storageRoot: string): OciGitE
 export const createConfiguredProjectModule = ({
   database,
   project,
+  repository,
   origin,
   resolveCurrentSession,
 }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   project: ProjectRuntimeConfig
+  repository: ProjectRepositoryPort
   origin: string
   resolveCurrentSession: ResolveCurrentSession
-}>): ProjectModule => {
-  const catalogInput = readJsonFile(project.gitImportCatalogFile)
-  const slotInput = readJsonFile(project.externalFileSlotsFile)
-  if (!catalogInput || typeof catalogInput !== 'object' || !('entries' in catalogInput) || !Array.isArray(catalogInput.entries)) {
-    throw new Error('PROJECT_GIT_CATALOG_REFUSED')
-  }
-  if (!slotInput || typeof slotInput !== 'object' || Array.isArray(slotInput) ||
-    Object.values(slotInput).some((value) => typeof value !== 'string')) throw new Error('PROJECT_EXTERNAL_SLOTS_REFUSED')
-  const externalSlots = slotInput as Readonly<Record<string, string>>
-  const catalog = createGitImportAdmissionCatalog(catalogInput.entries as GitImportAdmissionEntry[])
-  if (!catalog) throw new Error('PROJECT_GIT_CATALOG_REFUSED')
-  const oci = createOciGitExecution(R1C14_GIT_IDENTITY)
-  return createProjectModule({
-    commandPool: createPostgresPool({
-      ...database,
-      user: 'hub_project_command',
-      password: readSecretFile(project.commandPasswordFile),
-    }),
-    readPool: createPostgresPool({
-      ...database,
-      user: 'hub_project_read',
-      password: readSecretFile(project.readPasswordFile),
-    }),
-    git: createOciGitExecutionPort({
-      projectStorageRoot: project.storageRoot,
-      gitImportCatalog: catalog,
-      externalFileSlots: externalSlots,
-    }, oci),
-    oci,
-    recovery: createProjectSourceRecovery(project.storageRoot),
-    origin,
-    resolveCurrentSession,
-  })
-}
+}>): ProjectModule => createProjectModule({
+  commandPool: createPostgresPool({
+    ...database,
+    user: 'hub_project_command',
+    password: readSecretFile(project.commandPasswordFile),
+  }),
+  readPool: createPostgresPool({
+    ...database,
+    user: 'hub_project_read',
+    password: readSecretFile(project.readPasswordFile),
+  }),
+  repository,
+  oci: createOciGitExecution(R1C14_GIT_IDENTITY),
+  origin,
+  resolveCurrentSession,
+})

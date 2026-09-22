@@ -63,8 +63,7 @@ test('S3-P6 store composes read-only current admission before Project disclosure
   const store = createProjectStore({
     commandPool: { connect: async () => { throw new Error('COMMAND_POOL_NOT_ADMITTED_FOR_READ') } },
     readPool: { connect: async () => readClient },
-    git: {},
-    recovery: {},
+    repository: {},
   })
   assert.deepEqual(await store.listProjects({
     accountId: '10000000-0000-4000-8000-000000000071',

@@ -29,6 +29,8 @@ import type { FactoryRuntimeConfig } from '../platform/config.js'
 import { assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox } from './factory.js'
 import type { FactoryComposition } from './factory.js'
 import { createGithubApp } from './factory-github.js'
+import { openFactoryRecords, prepareFactoryRepository } from './factory-provisioning.js'
+import type { FactoryBinding } from './factory-provisioning.js'
 import { createFactoryCodingWorkerRuntime, createMastraFactoryRunPorts, recoverFactoryAdmissions } from './factory-runtime.js'
 import { createFactorySourceReads } from './factory-source.js'
 import type { FactoryRunDependencies, RunNote } from './service.js'
@@ -214,6 +216,10 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
   portsReady.catch(() => undefined)
   const runtime = portsReady.then((ports) => createFactoryCodingWorkerRuntime({ ...ports, github: githubApp }))
   runtime.catch(() => undefined)
+  const records = ready.then((composition) => openFactoryRecords(composition.storage))
+  records.catch(() => undefined)
+  const prepareRepository = async ({ projectId, projectName }: Readonly<{ projectId: string; projectName: string }>): Promise<FactoryBinding> =>
+    prepareFactoryRepository({ github: githubApp, records: await records, orgId: factory.orgId, projectId, projectName })
   const run: FactoryRunDependencies = Object.freeze({
     runtime: { execute: async (input) => (await runtime).execute(input) },
     readBindingForRun: store.readFactoryBindingForRun,
@@ -232,6 +238,7 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
     ready,
     portsReady,
     run,
+    prepareRepository,
     observabilityLifecycle,
     close: async () => {
       try {
@@ -393,6 +400,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, proj
         openThread: openFactoryConversationThread({ controller: composition.controller, orgId: factoryComposition.orgId }),
       })]
     },
+    // Absent without the Factory, and then no Project can be created.
+    prepareProjectRepository: factoryComposition?.prepareRepository,
     readApplicationFileBySource: service.readApplicationFileBySource,
     getApplicationBySource: service.getApplicationBySource,
     recover: service.recover,

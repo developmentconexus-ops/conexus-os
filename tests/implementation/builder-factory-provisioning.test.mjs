@@ -22,6 +22,7 @@ const { createFactoryStorage } = await import(built('builder/factory.js'))
 const { createGithubApp } = await import(built('builder/factory-github.js'))
 const { connectFactoryInstallation, factoryRepositoryName, openFactoryRecords, prepareFactoryRepository, provisionFactoryProject, setFactoryMemoryModel } = await import(built('builder/factory-provisioning.js'))
 const { APPLICATION_CHECK_FILES, FIXED_APPLICATION_STARTER_FILES } = await import(built('builder/application-starter.js'))
+const { createProjectStore } = await import(built('project/store.js'))
 
 const ORG = 'conexus-installation'
 const STARTER = 'a'.repeat(40)
@@ -59,7 +60,7 @@ const setup = async (t, fakeOptions) => {
     result.working = (await query(connectionString, 'SELECT project_id, working_source_revision, working_version FROM builder.project_working_state ORDER BY project_id')).rows
     return result
   }
-  return { connectionString, github, app, records, lines, connect, memory, provision, prepareOnly, newProject, snapshot }
+  return { connectionString, connection, onCleanup, workspaceId, github, app, records, lines, connect, memory, provision, prepareOnly, newProject, snapshot }
 }
 
 const PROJECT_NAME = 'Contador de Visitas'
@@ -323,4 +324,88 @@ test('a second full run of connect and provision changes nothing', async (t) => 
   const second = await provision(projectId)
   assert.deepEqual(second, first)
   assert.deepEqual(await snapshot(), before)
+})
+
+const ACCOUNT = '10000000-0000-4000-8000-0000000000c1'
+const creationSetup = async (t, fakeOptions) => {
+  const fixture = await setup(t, fakeOptions)
+  const { connectionString, workspaceId, onCleanup, app, records } = fixture
+  await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'creator', 'Creator')", [ACCOUNT])
+  await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [ACCOUNT, workspaceId])
+  const commandPool = new pg.Pool({ ...fixture.connection, max: 2, options: '-c role=hub_project_command' })
+  onCleanup(() => commandPool.end())
+  const prepared = []
+  const factoryRepository = {
+    prepare: async (input) => {
+      prepared.push(input)
+      return prepareFactoryRepository({ github: app, records, orgId: ORG, ...input, headAttempts: 2, headDelayMs: 10 })
+    },
+  }
+  const storeWith = (repository) => createProjectStore({ commandPool, repository })
+  const create = (store, idempotencyKey, body = { name: PROJECT_NAME, sourceBootstrap: { mode: 'NEW' } }) =>
+    store.createProject({ accountId: ACCOUNT, workspaceId, idempotencyKey, body })
+  return { ...fixture, prepared, factoryRepository, storeWith, create }
+}
+
+test('creating a Project makes its private repository in the organization and binds the Project to its seeded revision, with no step on GitHub', async (t) => {
+  const { connectionString, workspaceId, github, connect, factoryRepository, storeWith, create } = await creationSetup(t)
+  await connect()
+  const created = await create(storeWith(factoryRepository), 'first')
+  const name = repositoryName(created.projectId)
+  assert.deepEqual([created.workspaceId, created.name, created.archived, created.replayed], [workspaceId, PROJECT_NAME, false, false])
+  assert.deepEqual(github.state.requests.filter((request) => request.method !== 'GET' && !request.path.endsWith('/access_tokens')).map((request) => `${request.method} ${request.path}`), [
+    'POST /orgs/acme-org/repos',
+    `POST /repos/acme-org/${name}/git/trees`,
+    `POST /repos/acme-org/${name}/git/commits`,
+    `PATCH /repos/acme-org/${name}/git/refs/heads/main`,
+  ])
+  const [seed] = github.state.createdCommits
+  const project = (await query(connectionString, 'SELECT source_mode, source_revision FROM project.project WHERE project_id = $1', [created.projectId])).rows
+  assert.deepEqual(project, [{ source_mode: 'NEW', source_revision: seed.sha }])
+  const working = (await query(connectionString, 'SELECT working_source_revision, working_version FROM builder.project_working_state WHERE project_id = $1', [created.projectId])).rows
+  assert.deepEqual(working, [{ working_source_revision: seed.sha, working_version: '0' }])
+  const bound = (await query(connectionString, 'SELECT r.slug, r.external_id FROM builder.factory_binding b JOIN factory.source_control_repositories r ON r.id::text = b.repository_id WHERE b.project_id = $1', [created.projectId])).rows
+  assert.deepEqual(bound, [{ slug: `acme-org/${name}`, external_id: '700001' }])
+})
+
+test('a creation retried after a crash between the repository and the binding converges to one repository, one binding and one Project', async (t) => {
+  const { connectionString, github, connect, prepared, factoryRepository, storeWith, create } = await creationSetup(t)
+  await connect()
+  const crashing = { prepare: async (input) => { await factoryRepository.prepare(input); throw new Error('process killed') } }
+  await assert.rejects(create(storeWith(crashing), 'retry'), { code: 'REPOSITORY_REFUSED', reason: 'FACTORY_REPOSITORY_FAILED' })
+  assert.equal((await query(connectionString, 'SELECT count(*)::int AS n FROM project.project')).rows[0].n, 0)
+  const store = storeWith(factoryRepository)
+  const created = await create(store, 'retry')
+  assert.deepEqual(prepared.map((input) => input.projectId), [created.projectId, created.projectId])
+  assert.equal(github.state.repositories.size, 1)
+  assert.equal(github.state.createdCommits.length, 1)
+  assert.equal((await query(connectionString, 'SELECT count(*)::int AS n FROM builder.factory_binding')).rows[0].n, 1)
+  const requests = github.state.requests.length
+  assert.deepEqual(await create(store, 'retry'), { ...created, replayed: true })
+  assert.equal(github.state.requests.length, requests, 'a replay never reaches GitHub')
+})
+
+test('GitHub refusing the repository leaves the Project refused with a named code, not half created', async (t) => {
+  const { connectionString, github, connect, factoryRepository, storeWith, create } = await creationSetup(t)
+  await connect()
+  github.state.creationStatus = 403
+  await assert.rejects(create(storeWith(factoryRepository), 'refused'), { code: 'REPOSITORY_REFUSED', reason: 'FACTORY_GITHUB_REQUEST_FAILED:403' })
+  const counts = (await query(connectionString, 'SELECT (SELECT count(*)::int FROM project.project) AS projects, (SELECT count(*)::int FROM builder.project_working_state) AS working, (SELECT count(*)::int FROM builder.factory_binding) AS bindings, (SELECT count(*)::int FROM factory.factory_projects) AS factory_projects')).rows
+  assert.deepEqual(counts, [{ projects: 0, working: 0, bindings: 0, factory_projects: 0 }])
+})
+
+test('a personal-account installation refuses Project creation before GitHub is asked for a repository', async (t) => {
+  const { github, records, factoryRepository, storeWith, create } = await creationSetup(t)
+  await records.sourceControl.installations.upsert({ orgId: ORG, connectedByUserId: 'conexus-operator', externalId: '1', accountName: 'leandro', accountType: 'User' })
+  await assert.rejects(create(storeWith(factoryRepository), 'personal'), { code: 'REPOSITORY_REFUSED', reason: 'FACTORY_INSTALLATION_ORGANIZATION_REQUIRED' })
+  assert.equal(creations(github), 0)
+})
+
+test('starting a Project from an existing Git repository is refused and reaches neither GitHub nor the database', async (t) => {
+  const { connectionString, github, connect, prepared, factoryRepository, storeWith, create } = await creationSetup(t)
+  await connect()
+  const requests = github.state.requests.length
+  await assert.rejects(create(storeWith(factoryRepository), 'import', { name: 'Imported', sourceBootstrap: { mode: 'EXISTING_GIT', repositoryLocator: 'https://github.com/acme-org/app.git' } }), { code: 'SOURCE_INPUT_REFUSED' })
+  assert.deepEqual([prepared.length, github.state.requests.length], [0, requests])
+  assert.equal((await query(connectionString, 'SELECT count(*)::int AS n FROM project.operation_idempotency')).rows[0].n, 0)
 })
