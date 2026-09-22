@@ -43,6 +43,13 @@
       "capability": "builder-run-execution",
       "passwordFileVariable": "CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE",
       "connectsFrom": ["apps/hub/src/builder/module.ts"]
+    },
+    {
+      "role": "hub_factory",
+      "capability": "factory-storage",
+      "passwordFileVariable": "CONEXUS_DB_FACTORY_PASSWORD_FILE",
+      "optional": true,
+      "connectsFrom": ["apps/hub/src/builder/factory.ts"]
     }
   ]
 }

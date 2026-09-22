@@ -26,6 +26,10 @@ test('C-020 Builder E2B template is a source-free exact Node recipe with require
   assert.equal(parsed.steps.some((step) => step.type === 'RUN' && JSON.stringify(step.args).includes('chromium')), true)
   assert.match(parsed.readyCmd, /command -v chromium/)
   assert.equal(parsed.steps.some((step) => step.type === 'USER' && step.args[0] === 'root'), true)
+  // The agent's commands and files belong to an unprivileged user; root is left to the Hub.
+  assert.deepEqual(parsed.steps.filter((step) => step.type === 'USER').map((step) => step.args[0]), ['root', 'conexus-agent'])
+  assert.equal(parsed.steps.some((step) => step.type === 'RUN' && JSON.stringify(step.args).includes('useradd --create-home --uid 1500 --shell /bin/sh conexus-agent')), true)
+  assert.match(parsed.readyCmd, /^test "\$\(id -un\)" = "conexus-agent"/)
   assert.equal(parsed.steps.some((step) => step.type === 'COPY'), false)
   assert.equal(JSON.stringify(parsed).includes('E2B_API_KEY'), false)
   assert.match(checked.buildName, /^conexus-builder-c020:recipe-[0-9a-f]{16}$/)

@@ -10,6 +10,10 @@ are its contents, read back out of the running template and committed so it can 
 template also carries Node 24.20.0 and npm 12.0.2 on Debian 12 bookworm, the same Node the agent
 template pins in `scripts/builder-e2b-template.mjs`.
 
+The template runs commands and file writes as the unprivileged `conexus-agent` user (uid 1500),
+which owns `/workspace`. The compiler stays root-owned, and the Hub runs its token-bearing Git as
+root.
+
 The template lays them out under `/opt/conexus/compiler`, and the compile step symlinks
 `/opt/conexus/compiler/node_modules` into `/workspace/app/node_modules` before running vite.
 

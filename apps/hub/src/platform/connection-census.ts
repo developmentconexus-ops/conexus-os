@@ -50,6 +50,7 @@ export const censusConnections = async (
     const role = (registered.roleVariable ? environment[registered.roleVariable] : undefined) ?? registered.role
     const passwordFile = environment[registered.passwordFileVariable]
     if (!passwordFile) {
+      if (registered.optional) continue
       rows.push({ role, capability: registered.capability, state: 'unconfigured' })
       continue
     }

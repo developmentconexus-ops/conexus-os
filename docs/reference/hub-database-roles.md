@@ -25,10 +25,11 @@ defect in this table. Adding a role means adding a row to the register and regen
 | `hub_project_command` | `project-command` | `project/module.ts` | `CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE` |
 | `hub_builder_ingress` | `builder-request` | `builder/module.ts` | `CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE` |
 | `hub_builder_executor` | `builder-run-execution` | `builder/module.ts` | `CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE` |
+| `hub_factory` | `factory-storage` | `builder/factory.ts` | `CONEXUS_DB_FACTORY_PASSWORD_FILE` |
 
-These seven and the five owner roles `iam_owner`, `workspace_owner`, `project_owner`,
+These eight and the five owner roles `iam_owner`, `workspace_owner`, `project_owner`,
 `registry_owner` and `builder_owner` are every role the product has. A cluster built from
-`apps/hub/migrations/` holds exactly those twelve. `0009_remove_model_connections.sql` dropped
+`apps/hub/migrations/` holds exactly those thirteen. `0009_remove_model_connections.sql` dropped
 `hub_model_connection` and `model_connection_owner` with the model connection subsystem, and leaves
 either one in place while another database on the cluster still grants to it.
 
@@ -43,9 +44,39 @@ the background execution loop reaches the executor side. A request path holding
 The separation bounds a logic bug, not an attacker. Both pools live in the same process,
 declared three lines apart, so code execution in the Hub reaches either one. The property
 that does hold against a wider class of failure is that no Hub role has table grants at
-all: every one of the 49 functions is `SECURITY DEFINER` and `REVOKE ALL ON ALL TABLES` is applied.
+all: every one of the 55 functions is `SECURITY DEFINER` and `REVOKE ALL ON ALL TABLES` is applied.
 `hub_iam_runtime` is the exception, holding direct `SELECT`, `INSERT` and `UPDATE` on the
 `iam` tables.
+
+## `hub_factory`, the one role that owns its schema
+
+`0011_factory_binding.sql` creates `hub_factory` and the schema `factory`, owned by it. This is
+the one exception to the rule that an owner role holds each schema and login roles reach it only
+through granted functions. The Mastra Factory keeps its storage in `factory` through `@mastra/pg`'s
+`PgFactoryStorage`, which creates and migrates its own tables at runtime. So the role that connects
+for it must be able to run DDL there, and no Hub migration describes what it creates.
+
+The exception is bounded in both directions:
+
+- `hub_factory` holds `CREATE` and `USAGE` on `factory`, as its owner, and no grant on any other
+  schema, table or Hub function. Like every role, it can name `public`, which is empty.
+- No other role holds any grant on `factory`. The Hub reads a Project's binding to the Factory
+  through `builder.factory_binding`, owned by `builder_owner` like the rest of `builder`, never
+  from Factory tables.
+
+`scripts/hub-catalog.mjs` leaves the objects inside `factory` out of the catalog snapshot, because
+they are the package's, not the migrations'. The `factory` schema line itself stays, with its owner
+and grants, so a grant on it to any other role is catalog drift and refuses the next migration run.
+`tests/implementation/builder-factory-binding-postgres.test.mjs` asserts both bounds.
+
+Its register row is `"optional": true`, so a Hub without `CONEXUS_DB_FACTORY_PASSWORD_FILE` leaves it
+out of the startup census instead of reporting it `unconfigured`. With the file, it is censused like
+any other role.
+
+The Hub connects as `hub_factory` only when the Factory is configured, and its pool pins
+`search_path` to `factory` on every connection, because `PgFactoryStorage` creates its tables under
+unqualified names. `tests/implementation/builder-factory-composition.test.mjs` runs `prepare()` as
+a throwaway role owning a throwaway `factory` schema and asserts every table lands there.
 
 ## Roles the replaced history left behind
 

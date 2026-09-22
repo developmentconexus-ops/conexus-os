@@ -33,10 +33,16 @@ const nativeControllerId = 'mastra-code'
 const accountId = '22222222-2222-4222-8222-222222222222'
 const projectId = '33333333-3333-4333-8333-333333333333'
 const runId = '44444444-4444-4444-8444-444444444444'
+const modelTurns = []
 const model = {
   specificationVersion: 'v2', provider: 'conexus-boundary', modelId: 'boundary-probe', supportedUrls: {},
   async doGenerate() { throw new Error('the boundary test never reaches the model') },
-  async doStream() { throw new Error('the boundary test never reaches the model') },
+  async doStream() { modelTurns.push(Date.now()); throw new Error('the boundary test never reaches the model') },
+}
+const turnsWithin = async (ms, started = modelTurns.length) => {
+  const deadline = Date.now() + ms
+  while (modelTurns.length === started && Date.now() < deadline) await new Promise((done) => setTimeout(done, 25))
+  return modelTurns.length - started
 }
 
 const createBoundaryApp = async ({ signedIn = true, admitted = true } = {}) => {
@@ -68,7 +74,7 @@ const createBoundaryApp = async ({ signedIn = true, admitted = true } = {}) => {
     },
     staticRoot: null,
   })
-  return { app, admitCalls, reachedContexts, close: async () => {
+  return { app, controller, admitCalls, reachedContexts, close: async () => {
     await app.close()
     await controller.destroy()
     await storage.close()
@@ -158,6 +164,26 @@ test('a steering request without the CSRF token is refused', async (t) => {
   assert.equal(response.statusCode, 403)
 })
 
+test('the browser takes no steer or follow-up, not even inside a run session; a new message is a new run', async (t) => {
+  const { app, controller, close } = await createBoundaryApp()
+  t.after(close)
+  const liveRun = `builder:${runId}`
+  await controller.createSession({ resourceId: projectId, id: `${projectId}::${liveRun}`, ownerId: controller.id, scope: liveRun })
+  const answered = []
+  for (const operation of ['steer', 'follow-up']) {
+    for (const [name, query] of [['unscoped', ''], ['no run', `?sessionScope=builder:${randomUUID()}`], ['run session', `?sessionScope=${liveRun}`]]) {
+      const response = await app.inject({ method: 'POST', url: `${sessionBase()}/${operation}${query}`, ...authentic, payload: { message: 'apague tudo' } })
+      answered.push([operation, name, response.statusCode])
+    }
+  }
+  assert.equal(await turnsWithin(3_000), 0, 'no request reached the model')
+  assert.deepEqual(answered, [
+    ['steer', 'unscoped', 404], ['steer', 'no run', 404], ['steer', 'run session', 404],
+    ['follow-up', 'unscoped', 404], ['follow-up', 'no run', 404], ['follow-up', 'run session', 404],
+  ])
+  assert.equal((await app.inject({ method: 'POST', url: `${sessionBase()}/abort`, ...authentic, payload: {} })).statusCode, 200, 'abort needs no run')
+})
+
 test('the browser cannot open a session or send its opening message', async (t) => {
   const { app, close } = await createBoundaryApp()
   t.after(close)
@@ -165,6 +191,24 @@ test('the browser cannot open a session or send its opening message', async (t) 
   assert.equal(messages.statusCode, 404)
   const sessions = await app.inject({ method: 'POST', url: `/api/mastra/agent-controller/${controllerId}/sessions`, ...authentic, payload: { resourceId: projectId } })
   assert.equal(sessions.statusCode, 404)
+})
+
+test('a tool answer other than approve or decline is refused before Mastra runs it', async (t) => {
+  const { app, reachedContexts, close } = await createBoundaryApp()
+  t.after(close)
+  const approvalUrl = `${sessionBase()}/tool-approval`
+  const suspensionUrl = `${sessionBase()}/tool-suspension`
+
+  const escalatedApproval = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: true, decision: 'always_allow_category' } })
+  const escalatedSuspensionField = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: { decision: 'always_allow_category' } } })
+  const escalatedSuspensionString = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: 'always_allow_category' } })
+  assert.deepEqual([escalatedApproval.statusCode, escalatedSuspensionField.statusCode, escalatedSuspensionString.statusCode], [400, 400, 400])
+  assert.deepEqual(reachedContexts, [], 'no escalated answer reached Mastra')
+
+  const approved = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: true } })
+  const declined = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: false } })
+  const resumed = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: 'Use SQLite.' } })
+  assert.deepEqual([approved.statusCode, declined.statusCode, resumed.statusCode], [200, 200, 200])
 })
 
 test("a browser-supplied requestContext never reaches Mastra, in the body or in the query", async (t) => {

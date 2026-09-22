@@ -117,6 +117,7 @@ builder = config.builder && config.project ? createConfiguredBuilderModule({
     database: config.database.database,
   },
   builder: config.builder,
+  ...(config.factory ? { factory: config.factory } : {}),
   applicationArtifacts: createApplicationArtifactStore(),
   ...(launchPreview ? { launchPreview } : {}),
   projectSource: {

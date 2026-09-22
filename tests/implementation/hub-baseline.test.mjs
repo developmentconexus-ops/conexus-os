@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { assertRoleInvariants, catalogDigest, describeCatalogDrift, readCommittedSnapshot } from '../../scripts/hub-catalog.mjs'
@@ -22,15 +22,21 @@ test('the baseline names none of the roles or schemas the history left behind', 
 // Roles are cluster-global, so a shared cluster already holds names an earlier database created and
 // pg_roles cannot answer "what does a fresh install create". The file can, and it is the only
 // writer of roles in the product.
-test('the baseline creates the eight login roles and six owners it was cut with, and every register role among them', () => {
-  const created = [...baselineSource.matchAll(/CREATE ROLE "([a-z0-9_]+)"/g)].map(([, role]) => role)
+const createdRoles = (source) => [...source.matchAll(/CREATE ROLE "([a-z0-9_]+)"/g)].map(([, role]) => role)
+
+test('the baseline creates the eight login roles and six owners it was cut with, and a migration creates every register role', () => {
+  const created = createdRoles(baselineSource)
   assert.deepEqual(created, [
     'hub_iam_runtime', 'hub_workspace_read', 'hub_workspace_command', 'hub_project_read', 'hub_project_command',
     'hub_model_connection', 'hub_builder_ingress', 'hub_builder_executor',
     'iam_owner', 'workspace_owner', 'project_owner', 'registry_owner', 'builder_owner', 'model_connection_owner',
   ])
+  const migrationsRoot = resolve(repositoryRoot, 'apps/hub/migrations')
+  const forward = readdirSync(migrationsRoot).filter((name) => name.endsWith('.sql') && name !== '0001_baseline.sql').sort()
+  const createdForward = forward.flatMap((name) => createdRoles(readFileSync(resolve(migrationsRoot, name), 'utf8')))
+  assert.deepEqual(createdForward, ['hub_factory'])
   const register = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8')).roles
-  for (const { role } of register) assert.ok(created.includes(role), `the baseline creates the register role ${role}`)
+  for (const { role } of register) assert.ok([...created, ...createdForward].includes(role), `a migration creates the register role ${role}`)
 })
 
 test('a database built from the baseline and forward migrations is exactly the committed catalog', async (t) => {

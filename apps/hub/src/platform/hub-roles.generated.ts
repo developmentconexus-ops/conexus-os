@@ -1,12 +1,14 @@
 // GENERATED from contracts/technical/hub-database-roles.json by scripts/generate-hub-role-register.mjs. Do not edit.
 
-export const HUB_ROLE_REGISTER_DIGEST = "8ae5388aa19b47b2c42a4adf71d9e8a1ea8d73c37b4522c2c4d322577cf102e2"
+export const HUB_ROLE_REGISTER_DIGEST = "bed8dca31ecadb3ffeceeaafe0f1fe5fe2a825ab87e798302eb61e904082f007"
 
 export type HubRoleRow = Readonly<{
   role: string
   capability: string
   passwordFileVariable: string
   roleVariable?: string
+  // Connects only when its feature is configured, so its absence is not a census finding.
+  optional?: true
   connectsFrom: readonly string[]
 }>
 
@@ -18,6 +20,7 @@ export const HUB_ROLES: readonly HubRoleRow[] = Object.freeze([
   Object.freeze({ role: "hub_project_command", capability: "project-command", passwordFileVariable: "CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE", connectsFrom: ["apps/hub/src/project/module.ts"] }),
   Object.freeze({ role: "hub_builder_ingress", capability: "builder-request", passwordFileVariable: "CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE", connectsFrom: ["apps/hub/src/builder/module.ts"] }),
   Object.freeze({ role: "hub_builder_executor", capability: "builder-run-execution", passwordFileVariable: "CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE", connectsFrom: ["apps/hub/src/builder/module.ts"] }),
+  Object.freeze({ role: "hub_factory", capability: "factory-storage", passwordFileVariable: "CONEXUS_DB_FACTORY_PASSWORD_FILE", optional: true, connectsFrom: ["apps/hub/src/builder/factory.ts"] }),
 ])
 
 export const CAPABILITY_BY_ROLE: Readonly<Record<string, string>> = Object.freeze({
@@ -28,4 +31,5 @@ export const CAPABILITY_BY_ROLE: Readonly<Record<string, string>> = Object.freez
   hub_project_command: "project-command",
   hub_builder_ingress: "builder-request",
   hub_builder_executor: "builder-run-execution",
+  hub_factory: "factory-storage",
 })

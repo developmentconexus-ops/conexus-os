@@ -52,7 +52,7 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
   assert.equal((await setup.query('SELECT builder.admit_verified_application_source($1,$2,$3,$4) AS admitted', [accountId, projectId, builderRunId, sourceRevision])).rows[0].admitted, false)
   await setup.query('UPDATE builder.project_working_state SET working_source_revision = $1 WHERE project_id = $2', [sourceRevision, projectId])
   const bytes = Buffer.from('<!doctype html><title>C020</title>')
-  const application = { projectId, executionId: builderRunId, sourceRevision, templateRef: '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189', recipeSha256: '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }
+  const application = { projectId, executionId: builderRunId, sourceRevision, templateRef: '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440', recipeSha256: 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }
   const retained = await store.retainApplication(runtime, { accountId, compiled: application })
   assert.equal(retained.projectId, projectId)
   assert.equal((await store.getApplicationBySource(runtime, { accountId, projectId, sourceRevision })).artifactRevisionId, retained.artifactRevisionId)
@@ -122,7 +122,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   const store = createApplicationArtifactStore()
   assert.equal((await runtime.query('SELECT builder.advance_builder_run_source($1,$2) AS advanced', [builderRunId, sourceB])).rows[0].advanced, true)
   const bytes = Buffer.from('<!doctype html><title>Settlement</title>')
-  const application = { projectId, executionId: builderRunId, sourceRevision: sourceB, templateRef: '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189', recipeSha256: '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }
+  const application = { projectId, executionId: builderRunId, sourceRevision: sourceB, templateRef: '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440', recipeSha256: 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }
   const retained = await store.retainApplication(runtime, { accountId, compiled: application })
   // Settlement records work the run already performed, so it does not ask for authority. A
   // refusal here would leave a run that ran and cannot say so.

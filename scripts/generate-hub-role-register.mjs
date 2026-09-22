@@ -39,6 +39,7 @@ const refuseIncompleteRow = (roles) => {
     if (!row.capability) fail('ROLE_REGISTER_CAPABILITY_MISSING', row.role)
     if (!row.passwordFileVariable?.startsWith('CONEXUS_DB_')) fail('ROLE_REGISTER_PASSWORD_FILE_REFUSED', row.role)
     if (!Array.isArray(row.connectsFrom) || row.connectsFrom.length === 0) fail('ROLE_REGISTER_CONNECTS_FROM_MISSING', row.role)
+    if (row.optional !== undefined && row.optional !== true) fail('ROLE_REGISTER_OPTIONAL_REFUSED', row.role)
   }
 }
 
@@ -48,6 +49,7 @@ const renderRow = (row) => {
     `capability: ${JSON.stringify(row.capability)}`,
     `passwordFileVariable: ${JSON.stringify(row.passwordFileVariable)}`,
     ...(row.roleVariable ? [`roleVariable: ${JSON.stringify(row.roleVariable)}`] : []),
+    ...(row.optional ? ['optional: true'] : []),
     `connectsFrom: ${JSON.stringify(row.connectsFrom)}`,
   ]
   return `  Object.freeze({ ${members.join(', ')} }),`
@@ -67,6 +69,8 @@ export const renderRegister = ({ digest, roles }) => {
     '  capability: string',
     '  passwordFileVariable: string',
     '  roleVariable?: string',
+    '  // Connects only when its feature is configured, so its absence is not a census finding.',
+    '  optional?: true',
     '  connectsFrom: readonly string[]',
     '}>',
     '',

@@ -4,6 +4,8 @@ export type BuilderFailureCategory =
   | 'MODEL_RATE_LIMITED'
   | 'MODEL_REQUEST_REFUSED'
   | 'SOURCE_RESULT_REJECTED'
+  | 'SOURCE_BASE_MOVED'
+  | 'PREVIEW_NOT_BUILT'
   | 'APPLICATION_BUILD_FAILED'
   | 'RUN_CANCELLED'
   | 'RUN_INTERRUPTED'
@@ -15,6 +17,8 @@ export const failureReasons: Readonly<Record<BuilderFailureCategory, string>> = 
   MODEL_RATE_LIMITED: 'O provedor do modelo está limitando as requisições. Tente novamente em alguns minutos.',
   MODEL_REQUEST_REFUSED: 'O provedor do modelo recusou ou interrompeu o pedido. Tente novamente ou escolha outro modelo.',
   SOURCE_RESULT_REJECTED: 'A nova fonte proposta foi recusada. O Project continua na fonte anterior.',
+  SOURCE_BASE_MOVED: 'A fonte do Project mudou enquanto esta execução trabalhava, então o resultado não foi aplicado e nada foi sobrescrito. Envie o pedido novamente sobre a versão atual.',
+  PREVIEW_NOT_BUILT: 'A nova fonte foi aceita, mas o Conexus reiniciou antes de gerar a prévia. A última prévia boa continua disponível. Envie um novo pedido para gerá-la.',
   APPLICATION_BUILD_FAILED: 'O aplicativo não compilou. Peça um ajuste no código.',
   RUN_CANCELLED: 'Execução interrompida por você.',
   RUN_INTERRUPTED: 'O Conexus reiniciou durante a execução. Envie o pedido novamente.',

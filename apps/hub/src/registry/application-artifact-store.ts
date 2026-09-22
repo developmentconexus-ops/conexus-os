@@ -2,8 +2,11 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import type { RegistryQueryClient } from './store.js'
 
-const TEMPLATE_REF = '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189'
-const RECIPE_SHA256 = '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf'
+const TEMPLATE_REF = '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440'
+const RECIPE_SHA256 = 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4'
+// Applications retained before the agent-user template (0014) still read back.
+const READABLE_TEMPLATE_REFS = [TEMPLATE_REF, '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189'] as const
+const READABLE_RECIPE_SHA256S = [RECIPE_SHA256, '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf'] as const
 const MAX_FILES = 256
 const MAX_TOTAL_BYTES = 12 * 1024 * 1024
 const SHA256 = /^[a-f0-9]{64}$/
@@ -80,8 +83,8 @@ const metadataRowSchema = z.object({
   project_id: uuidSchema,
   source_revision: sourceRevisionSchema,
   profile: z.literal('REACT_VITE_V1'),
-  template_ref: z.literal(TEMPLATE_REF),
-  recipe_sha256: z.literal(RECIPE_SHA256),
+  template_ref: z.enum(READABLE_TEMPLATE_REFS),
+  recipe_sha256: z.enum(READABLE_RECIPE_SHA256S),
   entry_path: z.literal('index.html'),
   files: z.array(metadataFileSchema).min(1).max(MAX_FILES),
 }).strict()

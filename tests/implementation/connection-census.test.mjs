@@ -24,9 +24,25 @@ test.after(() => {
   rmSync(secretRoot, { recursive: true, force: true })
 })
 
+test('a Hub without the Factory configured leaves hub_factory out of the census instead of reporting it unconfigured', async () => {
+  const rows = await censusConnections({ host: '127.0.0.1', port: 1, database: 'unreachable' }, {})
+  assert.deepEqual(register.roles.filter(row => row.optional).map(row => row.role), ['hub_factory'])
+  assert.equal(rows.some(row => row.role === 'hub_factory'), false)
+})
+
+test('a Hub with the Factory configured censuses hub_factory like any other role', async () => {
+  const rows = await censusConnections(
+    { host: '127.0.0.1', port: 1, database: 'unreachable' },
+    { CONEXUS_DB_FACTORY_PASSWORD_FILE: secretFile },
+  )
+  const factory = rows.find(row => row.role === 'hub_factory')
+  assert.equal(factory.state, 'unreachable')
+  assert.equal(factory.capability, 'factory-storage')
+})
+
 test('a role with no password file is unconfigured, not invalid', async () => {
   const rows = await censusConnections({ host: '127.0.0.1', port: 1, database: 'unreachable' }, {})
-  assert.equal(rows.length, register.roles.length)
+  assert.equal(rows.length, register.roles.length - 1)
   assert.deepEqual([...new Set(rows.map(row => row.state))], ['unconfigured'])
   assert.deepEqual(rows[0], { role: 'hub_iam_runtime', capability: 'identity-and-access', state: 'unconfigured' })
 })
@@ -52,7 +68,7 @@ test('an unreadable password file is reported as unreadable, without aborting th
       { host: '127.0.0.1', port: 1, database: 'unreachable' },
       { CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: emptyFile },
     )
-    assert.equal(rows.length, register.roles.length)
+    assert.equal(rows.length, register.roles.length - 1)
     const executor = rows.find(row => row.role === 'hub_builder_executor')
     assert.deepEqual(executor, { role: 'hub_builder_executor', capability: 'builder-run-execution', state: 'unreadable' })
   } finally {

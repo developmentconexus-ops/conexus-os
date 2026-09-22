@@ -15,6 +15,8 @@ const failureStatusByCategory: Record<BuilderFailureCategory, string> = {
   MODEL_RATE_LIMITED: 'Modelo temporariamente limitado; tente novamente mais tarde',
   MODEL_REQUEST_REFUSED: 'O provedor do modelo recusou o pedido',
   SOURCE_RESULT_REJECTED: 'A nova fonte proposta foi recusada',
+  SOURCE_BASE_MOVED: 'A fonte do Project mudou durante a execução; nada foi sobrescrito',
+  PREVIEW_NOT_BUILT: 'Fonte aceita; a prévia não foi gerada',
   APPLICATION_BUILD_FAILED: 'O aplicativo não compilou',
   RUN_CANCELLED: 'Execução interrompida',
   RUN_INTERRUPTED: 'Execução interrompida por reinício do Conexus',
@@ -155,15 +157,16 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     queryKey: ['builder-session', projectId], queryFn: () => getBuilderSession(projectId),
     refetchInterval: (query) => query.state.data?.latestBuilderRun?.state === 'RUNNING' ? 1_000 : 2_000,
   })
-  const conversations = useProjectConversations(projectId)
-  const conversationActions = useConversationActions(projectId)
+  const sourceHost = session.data?.sourceHost
+  const conversations = useProjectConversations(projectId, sourceHost)
+  const conversationActions = useConversationActions(projectId, sourceHost)
   // Opening a Project binds a conversation, so the newest entry is the one to land on until the
   // operator picks another; a selection that disappears falls back to it rather than to nothing.
   const conversationList = conversations.data ?? []
   const conversation = conversationList.find((entry) => entry.id === selectedConversationId) ?? conversationList.at(0) ?? null
   const conversationId = conversation?.id ?? null
-  const models = useBuilderModels()
-  const sessionModel = useSessionModel(projectId)
+  const models = useBuilderModels(sourceHost)
+  const sessionModel = useSessionModel(projectId, sourceHost, conversationId)
   // A model without a key on the controller would fail the run, so it is never offered, and a
   // selection that lost its key counts as no selection rather than as a model the operator can use.
   const offeredModels = (models.data ?? []).filter((model) => model.hasApiKey)
@@ -214,8 +217,8 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
     onSuccess: async () => { setMessage('Solicitação de interrupção enviada.'); await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] }) },
     onError: () => setMessage('Não foi possível interromper a execução atual.'),
   })
-  const history = useBuilderThreadMessages(projectId, conversationId ?? undefined)
-  const turn = useBuilderLiveTurn(projectId, runId, runActive && run?.phase === 'AGENT')
+  const history = useBuilderThreadMessages(projectId, sourceHost, conversationId ?? undefined)
+  const turn = useBuilderLiveTurn(projectId, sourceHost, run ?? undefined, runActive && run?.phase === 'AGENT')
   const previousRunState = useRef<string | undefined>(undefined)
   useEffect(() => {
     const wasActive = previousRunState.current === 'QUEUED' || previousRunState.current === 'RUNNING'
@@ -436,6 +439,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
         </div>
         {!previewReady && !previewLaunch && <div className="preview-empty"><div className="preview-empty-mark" aria-hidden="true">⌁</div><strong>Seu aplicativo aparecerá aqui</strong><span>Envie uma solicitação pelo chat para criar o primeiro Preview real.</span></div>}
         {previewReady && !previewLaunch && <p className="preview-last-good"><strong>Último Preview bom disponível.</strong><span>Ainda não há uma sessão de Preview aberta.</span></p>}
+        {previewReady && workingSourceRevision && workingSourceRevision !== lastGoodSourceRevision && <p className="preview-last-good">A fonte atual do Project está à frente deste Preview. Ele mostra a última versão que compilou e muda quando uma execução compilar a fonte atual.</p>}
         {run?.resultKind === 'SOURCE_CHANGED_BUILD_FAILED' && <p className="preview-warning" role="alert"><strong>A nova fonte não compilou.</strong><span>O Preview anterior continua disponível para você.</span>{run.failureCode && <code>{run.failureCode}</code>}</p>}
         {previewLaunch && <><div className="preview-frame-stack"><div className="preview-frame-bar"><span aria-hidden="true" /><span>Aplicativo autorizado</span><button type="button" onClick={() => { if (previewKey) launchPreviewForKey(previewKey) }}>Reabrir</button></div><iframe title="Preview do aplicativo" name={frameName} src="about:blank" onLoad={onFrameLoad} /></div><form ref={entryForm} hidden method="post" action={previewLaunch.entryUrl} target={frameName}><input type="hidden" name="entryGrant" value={previewLaunch.entryGrant} /></form>{/* Only what the browser can observe. A cross-origin load fires for a refusal as readily as for
              a working app, so navigation is the furthest this can honestly claim. */}
@@ -499,10 +503,10 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
             setSelectedConversationId(created.id)
             // A new conversation starts with no model of its own. Carrying the one the operator
             // already chose is their decision applied, not a default invented for them.
-            if (modelReady) sessionModel.choose.mutate(selectedModelId)
+            if (modelReady) conversationActions.select.mutate({ conversationId: created.id, carryModelId: selectedModelId })
           } })}
-          onRename={(title) => { if (conversationId) conversationActions.rename.mutate({ conversationId, title }) }}
-          pending={conversationActions.create.isPending || conversationActions.rename.isPending}
+          onRename={conversationActions.rename ? (title) => { if (conversationId) conversationActions.rename?.mutate({ conversationId, title }) } : undefined}
+          pending={conversationActions.create.isPending || Boolean(conversationActions.rename?.isPending)}
         />
         <section ref={conversationRef} onScroll={onConversationScroll} className="builder-conversation" aria-label="Mensagens do Builder" aria-live="polite">
           <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={conversationRunActive && liveRequest && liveRequest.runId === conversationRun?.builderRunId ? liveRequest.text : null} persistedRequests={persistedRequests} failureCategory={conversationRun?.failureCategory ?? null} />

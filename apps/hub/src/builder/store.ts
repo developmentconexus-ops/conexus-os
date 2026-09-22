@@ -35,15 +35,31 @@ export type BuilderWorkingPreviewSubject = BuilderPreviewSubject & Readonly<{
   workingSourceRevision: string
   lastPreviewSourceRevision: string | null
 }>
+export type FactoryBindingRecord = Readonly<{
+  projectId: string
+  factoryProjectId: string
+  projectRepositoryId: string
+  repositoryId: string
+  boundAt: string
+}>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
+const refusedAsNotAuthorized = (error: unknown): never => {
+  if (typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501') throw new Error('NOT_AUTHORIZED')
+  throw error
+}
+
 export type BuilderStore = Readonly<{
-  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN' }>): Promise<BuilderRunSummary>
+  // sourceHead is the bound repository's default-branch head, which a Factory-backed Project adopts
+  // as its working revision; it is null for a Project with no binding.
+  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN'; sourceHead: string | null }>): Promise<BuilderRunSummary>
   readBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderRunSummary | null>
   listBuilderRuns(input: Readonly<{ accountId: string; projectId: string; limit?: number }>): Promise<readonly BuilderRunSummary[]>
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderCodeChangingRun | null>
   claimBuilderRun(builderRunId: string): Promise<BuilderRunSummary>
   setBuilderRunPhase(builderRunId: string, phase: BuilderRunPhase): Promise<void>
+  // Enters SOURCE_ADMISSION with the result about to be offered to the default branch; refused once a stop is requested.
+  recordBuilderRunCandidate(builderRunId: string, sourceRevision: string): Promise<void>
   bindBuilderRunMessage(builderRunId: string, messageId: string): Promise<void>
   bindBuilderRunSandbox(builderRunId: string, sandboxId: string): Promise<void>
   settleBuilderRun(input: Readonly<{ builderRunId: string; resultSourceRevision: null; resultKind: 'RESPONSE_ONLY'; failureCode: null }>): Promise<void>
@@ -55,7 +71,22 @@ export type BuilderStore = Readonly<{
   readPreviewSubject(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderWorkingPreviewSubject | null>
   admitSourceRevision(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<boolean>
   recoverAndListQueuedBuilderRuns(): Promise<readonly string[]>
+  readFactoryBinding(input: Readonly<{ accountId: string; projectId: string }>): Promise<FactoryBindingRecord | null>
+  resolveFactoryProject(input: Readonly<{ accountId: string; projectRepositoryId: string }>): Promise<string | null>
+  readFactoryBindingForRun(builderRunId: string): Promise<FactoryBindingRecord | null>
+  listFactoryAdmissionRuns(): Promise<readonly FactoryAdmissionRun[]>
   close(): Promise<void>
+}>
+
+export type FactoryAdmissionRun = Readonly<{
+  builderRunId: string
+  projectId: string
+  conversationId: string
+  baseSourceRevision: string
+  candidateSourceRevision: string
+  // Equal to the candidate once the advance is recorded.
+  resultSourceRevision: string | null
+  binding: FactoryBindingRecord
 }>
 
 export const createBuilderStore = ({
@@ -67,11 +98,11 @@ export const createBuilderStore = ({
   executorPool: PostgresPool
   mintIdentity?: () => string
 }>): BuilderStore => Object.freeze({
-  createBuilderRun: async ({ accountId, projectId, conversationId, idempotencyKey, content, mode }) => {
+  createBuilderRun: async ({ accountId, projectId, conversationId, idempotencyKey, content, mode, sourceHead }) => {
     const request = { mode, content }
     const result = await ingressPool.query<JsonRow<BuilderRunSummary>>(
-      'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9) AS value',
-      [accountId, projectId, conversationId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), content, null, mode, mintIdentity()],
+      'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value',
+      [accountId, projectId, conversationId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), content, null, mode, mintIdentity(), sourceHead],
     )
     const value = result.rows[0]?.value
     if (!value) throw new Error('BUILDER_RUN_CREATE_FAILED')
@@ -115,6 +146,12 @@ export const createBuilderStore = ({
       'SELECT builder.set_builder_run_phase($1,$2) AS value', [builderRunId, phase],
     )
     if (result.rows[0]?.value !== true) throw new Error('BUILDER_RUN_PHASE_UPDATE_REFUSED')
+  },
+  recordBuilderRunCandidate: async (builderRunId, sourceRevision) => {
+    const result = await executorPool.query<{ value: boolean }>(
+      'SELECT builder.record_builder_run_candidate($1,$2) AS value', [builderRunId, sourceRevision],
+    )
+    if (result.rows[0]?.value !== true) throw new Error('BUILDER_RUN_CANDIDATE_REFUSED')
   },
   bindBuilderRunMessage: async (builderRunId, messageId) => {
     const result = await executorPool.query<{ value: boolean }>(
@@ -184,6 +221,28 @@ export const createBuilderStore = ({
       'SELECT builder.recover_builder_runs() AS builder_run_id',
     )
     return result.rows.map((row) => row.builder_run_id)
+  },
+  readFactoryBinding: async ({ accountId, projectId }) => {
+    const result = await ingressPool.query<JsonRow<FactoryBindingRecord | null>>(
+      'SELECT builder.read_factory_binding($1,$2) AS value', [accountId, projectId],
+    ).catch(refusedAsNotAuthorized)
+    return result.rows[0]?.value ?? null
+  },
+  resolveFactoryProject: async ({ accountId, projectRepositoryId }) => {
+    const result = await ingressPool.query<QueryResultRow & Readonly<{ value: string | null }>>(
+      'SELECT builder.resolve_factory_project($1,$2) AS value', [accountId, projectRepositoryId],
+    )
+    return result.rows[0]?.value ?? null
+  },
+  readFactoryBindingForRun: async (builderRunId) => {
+    const result = await executorPool.query<JsonRow<FactoryBindingRecord | null>>(
+      'SELECT builder.read_factory_binding_for_run($1) AS value', [builderRunId],
+    )
+    return result.rows[0]?.value ?? null
+  },
+  listFactoryAdmissionRuns: async () => {
+    const result = await executorPool.query<JsonRow<readonly FactoryAdmissionRun[]>>('SELECT builder.list_factory_admission_runs() AS value')
+    return result.rows[0]?.value ?? []
   },
   close: async () => { await Promise.all([ingressPool.end(), executorPool.end()]) },
 })

@@ -20,6 +20,12 @@ const bootSmokeTemplateDigest = '4e29eb4b9372180428d9e02c3f85b3ab08fa4b1faa6959b
 const builderRunConversationDigest = '071d758f040764d99122e7ff013b0075fe0e497adc423176871887705fa0c2c8'
 const removeModelConnectionsDigest = 'eb802f15571f536b60c1218426a983c38365d5c07bb519fce50c484e1b613d08'
 const dropModelConnectionRolesDigest = '435eac1ee965f3e11a6e0d69869be1c57a781ed72ff17e7f8a975fd41c13a534'
+const factoryBindingDigest = 'd70c3ead2d7d9634927e6cd7d22ee65f8228524b477524a0cde3a212cfcd8191'
+const factorySourceHeadDigest = 'c0902c5e58c9b1a41c28cc1e5286409d7ecd78d7466a4aec983a33d50ddc6d96'
+const factoryBindingRepositoryDigest = 'f7a7fb9a43ef315d12e41374983e451348d8fb13fca747591191740acc66cf16'
+const agentUserTemplateDigest = 'f306150fc474049aeae2c1a5c2d78f53ea07ab5185f9bb14506b7e72b03789e7'
+const factoryAdmissionCandidateDigest = 'caff6732157047bb45c2dd0898b272eecd5f0babb0d3c7a5520b4bc3c4707c56'
+const factoryCandidatePendingDigest = 'ebd57cef7033753bf3bf01664279b6e445da29bce12f9c7c1107175ed7173829'
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
   ['0002_prune_dead_iam_actions.sql', pruneDeadIamActionsDigest],
@@ -31,6 +37,12 @@ const migrationDigests = new Map([
   ['0008_builder_run_conversation.sql', builderRunConversationDigest],
   ['0009_remove_model_connections.sql', removeModelConnectionsDigest],
   ['0010_drop_model_connection_roles.sql', dropModelConnectionRolesDigest],
+  ['0011_factory_binding.sql', factoryBindingDigest],
+  ['0012_factory_source_head.sql', factorySourceHeadDigest],
+  ['0013_factory_binding_repository.sql', factoryBindingRepositoryDigest],
+  ['0014_agent_user_template.sql', agentUserTemplateDigest],
+  ['0015_factory_admission_candidate.sql', factoryAdmissionCandidateDigest],
+  ['0016_factory_candidate_pending.sql', factoryCandidatePendingDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

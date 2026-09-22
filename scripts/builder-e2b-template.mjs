@@ -9,6 +9,7 @@ export const BUILDER_TEMPLATE_NODE_VERSION = '24.20.0'
 export const BUILDER_TEMPLATE_BASE_IMAGE = 'node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e'
 export const BUILDER_TEMPLATE_CPU_COUNT = 2
 export const BUILDER_TEMPLATE_MEMORY_MB = 2_048
+export const BUILDER_TEMPLATE_AGENT_USER = 'conexus-agent'
 
 export const BUILDER_TEMPLATE_COMPILER_ROOT = '/opt/conexus/compiler'
 export const BUILDER_TEMPLATE_COMPILER_FILES = Object.freeze(['package.json', 'package-lock.json', 'vite.config.mjs'])
@@ -46,9 +47,15 @@ export const createBuilderTemplate = (Template) => {
       'npm ci --no-audit --no-fund',
       'npm cache clean --force',
     ].join(' && '))
+    // Commands and file writes run as this user unless one names root. The Hub runs its
+    // token-bearing git as root, where nothing this user leaves running can read its environment.
+    .runCmd(`useradd --create-home --uid 1500 --shell /bin/sh ${BUILDER_TEMPLATE_AGENT_USER}`)
     .makeDir('/workspace', { mode: 0o700 })
+    .runCmd(`chown ${BUILDER_TEMPLATE_AGENT_USER}:${BUILDER_TEMPLATE_AGENT_USER} /workspace`)
     .setWorkdir('/workspace')
+    .setUser(BUILDER_TEMPLATE_AGENT_USER)
     .setReadyCmd([
+      `test "$(id -un)" = "${BUILDER_TEMPLATE_AGENT_USER}"`,
       `test "$(node --version)" = "v${BUILDER_TEMPLATE_NODE_VERSION}"`,
       'git --version',
       `test -f ${BUILDER_TEMPLATE_COMPILER_ROOT}/vite.config.mjs`,
