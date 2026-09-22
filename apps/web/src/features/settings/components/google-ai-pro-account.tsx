@@ -19,8 +19,19 @@ const OUTCOME: Readonly<Record<Exclude<LoginState, 'waiting'>, string>> = {
   failed: 'O Google recusou a entrada. Tente de novo.',
   expired: 'A entrada expirou. Tente de novo.',
 }
-const START_FAILURE: Readonly<Record<number, string>> = {
-  409: 'Outra pessoa está conectando agora. Tente em alguns minutos.',
+
+const minutesUntil = (iso: string | null): number | null => {
+  if (!iso) return null
+  const ms = new Date(iso).getTime() - Date.now()
+  return ms > 0 ? Math.ceil(ms / 60_000) : null
+}
+
+const startFailureText = (error: unknown): string => {
+  if (statusOf(error) !== 409) return 'Não foi possível iniciar a entrada agora.'
+  const minutes = error instanceof ModelAccountsRequestError ? minutesUntil(error.expiresAt) : null
+  return minutes
+    ? `Outra entrada do Google está em andamento nesta instalação. Tente de novo em ${minutes} min.`
+    : 'Outra entrada do Google está em andamento nesta instalação; tente de novo em até 5 minutos.'
 }
 
 const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
@@ -32,13 +43,16 @@ const call = async <T,>(method: 'GET' | 'POST', url: string, body?: unknown): Pr
     headers: method === 'GET' ? {} : { 'content-type': 'application/json', 'x-conexus-csrf': csrf() },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
-  if (!response.ok) throw new ModelAccountsRequestError(response.status)
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { expiresAt?: string } | null
+    throw new ModelAccountsRequestError(response.status, null, null, body?.expiresAt ?? null)
+  }
   return await response.json() as T
 }
 
 const statusOf = (error: unknown): number | undefined => error instanceof ModelAccountsRequestError ? error.status : undefined
 
-function SignIn({ login, onDone }: Readonly<{ login: Login; onDone: (state: Exclude<LoginState, 'waiting'>) => void }>) {
+function SignIn({ login, autoOpened, onDone }: Readonly<{ login: Login; autoOpened: boolean; onDone: (state: Exclude<LoginState, 'waiting'>) => void }>) {
   const [pasted, setPasted] = useState('')
   const [refused, setRefused] = useState(false)
   const pastedId = useId()
@@ -60,8 +74,13 @@ function SignIn({ login, onDone }: Readonly<{ login: Login; onDone: (state: Excl
     onError: () => setRefused(true),
   })
   return <div className="cxs-connect">
-    <p><a href={login.url} target="_blank" rel="noreferrer">Abrir a entrada do Google</a></p>
-    <p className="cxs-hint">Depois de entrar, esta página conclui sozinha. Se a aba terminar em uma página que não abre, copie o endereço dela e cole aqui.</p>
+    <p><Button as="a" href={login.url} target="_blank" rel="noreferrer" variant={autoOpened ? 'outline' : 'primary'}>Abrir a entrada do Google</Button></p>
+    <p className="cxs-hint">
+      {autoOpened
+        ? 'Abrimos uma nova aba para você entrar com a sua conta Google. '
+        : 'Não conseguimos abrir a aba automaticamente; use o botão acima. '}
+      Depois de entrar, esta página conclui sozinha. Se a aba terminar em uma página que não abre, copie o endereço dela e cole aqui.
+    </p>
     <form className="cxs-connect-step" onSubmit={(event: FormEvent) => { event.preventDefault(); setRefused(false); complete.mutate() }}>
       <label htmlFor={pastedId}>Endereço da aba que não abriu</label>
       <Input id={pastedId} value={pasted} onChange={(event) => setPasted(event.target.value)} autoComplete="off" placeholder="http://localhost:51121/oauth-callback?…" />
@@ -77,6 +96,7 @@ export function GoogleAiProAccount() {
   const titleId = useId()
   const connection = useQuery({ queryKey: connectionQueryKey, queryFn: () => call<Connection>('GET', `${base}/connection`), retry: false })
   const [login, setLogin] = useState<Login | null>(null)
+  const [autoOpened, setAutoOpened] = useState(true)
   const [message, setMessage] = useState<Readonly<{ text: string; failed: boolean }> | null>(null)
   const fail = (text: string) => setMessage({ text, failed: true })
   // Connecting or disconnecting changes which models this person's pickers offer.
@@ -85,9 +105,26 @@ export function GoogleAiProAccount() {
     queryClient.invalidateQueries({ queryKey: ['builder-models'] }),
   ])
   const start = useMutation({
-    mutationFn: () => call<Login>('POST', `${base}/login/start`, {}),
-    onSuccess: (started) => { setMessage(null); setLogin(started) },
-    onError: (error) => fail(START_FAILURE[statusOf(error) ?? 0] ?? 'Não foi possível iniciar a entrada agora.'),
+    // Opened before the login/start request resolves, so the click's user-activation still
+    // covers the popup; a blocker that would refuse a post-await window.open lets this one through.
+    mutationFn: async (): Promise<Readonly<{ started: Login; tab: Window | null }>> => {
+      const tab = window.open('about:blank', '_blank')
+      if (tab) tab.opener = null
+      try {
+        const started = await call<Login>('POST', `${base}/login/start`, {})
+        return { started, tab }
+      } catch (error) {
+        tab?.close()
+        throw error
+      }
+    },
+    onSuccess: ({ started, tab }) => {
+      setMessage(null)
+      setAutoOpened(tab !== null)
+      if (tab) tab.location.href = started.url
+      setLogin(started)
+    },
+    onError: (error) => fail(startFailureText(error)),
   })
   const act = useMutation({
     mutationFn: (action: () => Promise<unknown>) => action(),
@@ -106,9 +143,11 @@ export function GoogleAiProAccount() {
     {mine && <div><Chip tone="positive">Conectado com a sua conta Google.</Chip></div>}
     {!mine && shared && <div><Chip tone="neutral">Você usa a conta compartilhada com todos.</Chip></div>}
     {login
-      ? <SignIn login={login} onDone={(state) => { setLogin(null); setMessage({ text: OUTCOME[state], failed: state !== 'succeeded' }); void refresh() }} />
+      ? <SignIn login={login} autoOpened={autoOpened} onDone={(state) => { setLogin(null); setMessage({ text: OUTCOME[state], failed: state !== 'succeeded' }); void refresh() }} />
       : <div className="cxs-row-actions cxs-actions-start">
-        <Button type="button" variant={mine ? 'outline' : 'primary'} disabled={start.isPending} onClick={() => start.mutate()}>{mine ? 'Reconectar' : 'Conectar com o Google'}</Button>
+        <Button type="button" variant={mine ? 'outline' : 'primary'} disabled={start.isPending} onClick={() => start.mutate()}>
+          {start.isPending ? 'Preparando a entrada do Google…' : (mine ? 'Reconectar' : 'Conectar com o Google')}
+        </Button>
         {mine && <Button type="button" variant="outline" disabled={act.isPending} onClick={() => act.mutate(() => removeApiKey(PROVIDER))}>Desconectar</Button>}
         {administrator && mine && !shared && <Button type="button" disabled={act.isPending} onClick={() => act.mutate(() => shareWithEveryone(PROVIDER))}>Compartilhar com todos</Button>}
         {administrator && shared && <Button type="button" variant="outline" disabled={act.isPending} onClick={() => act.mutate(() => stopSharing(PROVIDER))}>Parar de compartilhar</Button>}

@@ -200,14 +200,15 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
   }))
   await page.route('**/api/control/model-defaults', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
-  await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => {
+  await page.route('**/api/control/model-accounts/google-ai-pro/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
     if (!enabled) return json(404, { type: 'not-found' })
     writes.push([request.method(), path, 'x-conexus-csrf' in request.headers(), request.postDataJSON?.() ?? null])
     if (path === '/connection') return json(200, { mine: connected, shared: false, administrator: false })
-    if (path === '/login/start') return json(200, { loginId, url: signIn })
+    // Held open briefly so the test can observe the "Preparando…" label before the tab navigates.
+    if (path === '/login/start') { await new Promise((resolve) => setTimeout(resolve, 200)); return json(200, { loginId, url: signIn }) }
     if (path === '/login/complete') {
       if (!request.postDataJSON().callbackUrl.includes('state=issued-state')) return json(400, { type: 'model-login-callback-refused' })
       connected = true
@@ -216,6 +217,8 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
     if (path === `/login/${loginId}`) return json(200, { state: 'waiting' })
     return json(404, {})
   })
+  // The popup navigates the real Google URL; answer it instead of letting the test hit the network.
+  await page.context().route('https://accounts.google.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<html></html>' }))
 
   await page.goto(`${origin}/settings/models`)
   await page.getByRole('heading', { name: 'Google AI Pro' }).waitFor()
@@ -223,7 +226,14 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
   await generic.getByRole('button', { name: 'Google (Gemini)' }).waitFor()
   assert.equal(await generic.getByRole('button', { name: 'Google AI Pro' }).count(), 0)
 
-  await page.getByRole('button', { name: 'Conectar com o Google' }).click()
+  const [popup] = await Promise.all([
+    page.context().waitForEvent('page'),
+    page.getByRole('button', { name: 'Conectar com o Google' }).click(),
+  ])
+  await page.getByText('Preparando a entrada do Google…').waitFor()
+  await popup.waitForURL(signIn)
+  assert.equal(popup.url(), signIn)
+  await page.getByText('Abrimos uma nova aba para você entrar com a sua conta Google.', { exact: false }).waitFor()
   assert.equal(await page.getByRole('link', { name: 'Abrir a entrada do Google' }).getAttribute('href'), signIn)
   const pasted = page.getByLabel('Endereço da aba que não abriu')
   await pasted.fill('http://localhost:51121/oauth-callback?state=other&code=x')
@@ -245,4 +255,38 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
   await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
   await page.getByRole('heading', { name: 'Meus padrões' }).waitFor()
   assert.equal(await page.getByRole('heading', { name: 'Google AI Pro' }).count(), 0)
+})
+
+test('Minhas contas de modelo falls back to the primary sign-in link when the popup is blocked', async (t) => {
+  const { page, origin } = await withServer(t)
+  const loginId = '0f0f0f0f-0000-4000-8000-000000000002'
+  const signIn = 'https://accounts.google.com/o/oauth2/v2/auth?state=blocked-state'
+  await routeAccessContext(page, { accountId: 'a10', displayName: 'Pessoa Bloqueada', email: 'bloqueada@example.com' })
+  await routeInstallation(page, false)
+  await routeBuilderModels(page)
+  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ providers: [{ provider: 'google-ai-pro', source: 'none' }], orgKeyAdmin: false }),
+  }))
+  await page.route('**/api/control/model-defaults', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
+  await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => {
+    const path = new URL(route.request().url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
+    const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
+    if (path === '/connection') return json(200, { mine: false, shared: false, administrator: false })
+    if (path === '/login/start') return json(200, { loginId, url: signIn })
+    if (path === `/login/${loginId}`) return json(200, { state: 'waiting' })
+    return json(404, {})
+  })
+  // Simulates a browser popup blocker: window.open runs but returns no handle.
+  await page.addInitScript(() => { window.open = () => null })
+
+  await page.goto(`${origin}/settings/models`)
+  await page.getByRole('heading', { name: 'Google AI Pro' }).waitFor()
+  await page.getByRole('button', { name: 'Conectar com o Google' }).click()
+  const link = page.getByRole('link', { name: 'Abrir a entrada do Google' })
+  await link.waitFor()
+  assert.equal(await link.getAttribute('href'), signIn)
+  assert.equal(await link.getAttribute('data-variant'), 'primary')
+  await page.getByText('Não conseguimos abrir a aba automaticamente', { exact: false }).waitFor()
 })

@@ -8,7 +8,7 @@ export type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
 export type LoginProblem = 'model-login-busy' | 'model-login-unavailable' | 'model-login-callback-refused'
 
 export class GoogleAiProLoginError extends Error {
-  constructor(readonly problem: LoginProblem) {
+  constructor(readonly problem: LoginProblem, readonly expiresAt?: number) {
     super(problem)
   }
 }
@@ -20,6 +20,7 @@ type Attempt<C extends Caller> = {
   readonly state: string
   readonly instance: LoginInstance
   readonly timer: ReturnType<typeof setTimeout>
+  readonly expiresAt: number
   outcome: LoginState
   settling: Promise<LoginState> | undefined
 }
@@ -102,7 +103,7 @@ export const createGoogleAiProLogin = <C extends Caller>({ pool, writeCredential
   const start = async (caller: C): Promise<Readonly<{ loginId: string; url: string }>> => {
     if (starting) throw new GoogleAiProLoginError('model-login-busy')
     if (current?.outcome === 'waiting') {
-      if (current.caller.accountId !== caller.accountId) throw new GoogleAiProLoginError('model-login-busy')
+      if (current.caller.accountId !== caller.accountId) throw new GoogleAiProLoginError('model-login-busy', current.expiresAt)
       await finish(current, 'expired')
     }
     starting = true
@@ -121,6 +122,7 @@ export const createGoogleAiProLogin = <C extends Caller>({ pool, writeCredential
         state,
         instance,
         timer: setTimeout(() => { void finish(attempt, 'expired') }, timeoutMs),
+        expiresAt: Date.now() + timeoutMs,
         outcome: 'waiting',
         settling: undefined,
       }

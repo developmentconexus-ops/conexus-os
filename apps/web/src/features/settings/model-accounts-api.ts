@@ -15,7 +15,7 @@ export type ModelDefaults = Readonly<{ build: string; fast: string }>
 export type ModelDefaultsView = Readonly<{ installation: ModelDefaults | null; mine: ModelDefaults | null; administrator: boolean }>
 
 export class ModelAccountsRequestError extends Error {
-  constructor(readonly status: number, readonly type: string | null = null, readonly reason: string | null = null) {
+  constructor(readonly status: number, readonly type: string | null = null, readonly reason: string | null = null, readonly expiresAt: string | null = null) {
     super(`Model accounts request failed with ${status}`)
   }
 }
@@ -33,8 +33,8 @@ const request = async <T>(method: 'GET' | 'PUT' | 'POST' | 'DELETE', url: string
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
   if (!response.ok) {
-    const problem = await response.json().catch(() => null) as { type?: string; detail?: string; reason?: string } | null
-    throw new ModelAccountsRequestError(response.status, problem?.type ?? null, problem?.detail ?? problem?.reason ?? null)
+    const problem = await response.json().catch(() => null) as { type?: string; detail?: string; reason?: string; expiresAt?: string } | null
+    throw new ModelAccountsRequestError(response.status, problem?.type ?? null, problem?.detail ?? problem?.reason ?? null, problem?.expiresAt ?? null)
   }
   return (response.status === 204 ? undefined : await response.json()) as T
 }
