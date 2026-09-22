@@ -9,7 +9,6 @@ import { refuseProtectedCluster } from './protected-cluster.mjs'
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const identityPath = resolve(repositoryRoot, 'apps/hub/src/project/identity.ts')
 const generatedRoutePath = resolve(repositoryRoot, 'apps/hub/src/generated/s3-routes.ts')
-const projectStorePath = resolve(repositoryRoot, 'apps/hub/src/project/store.ts')
 
 const compileHub = (t) => {
   const build = mkdtempSync(resolve(repositoryRoot, 'apps/hub/r1-s3-project-build-'))
