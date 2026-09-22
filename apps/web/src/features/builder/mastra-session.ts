@@ -34,10 +34,15 @@ export type Conversation = Readonly<{ id: string; title?: string | null | undefi
 const conversationsKey = (projectId: string) => ['project-conversations', projectId] as const
 const sessionModelKey = (projectId: string) => ['builder-session-model', projectId] as const
 
-export const useProjectConversations = (projectId: string) => useQuery({
+/**
+ * The Project's conversations. The Hub titles a conversation from its first request once a run has
+ * saved it, so while `awaitingTitleOf` has a run working and no title yet, the list is read again.
+ */
+export const useProjectConversations = (projectId: string, awaitingTitleOf?: string | null) => useQuery({
   queryKey: conversationsKey(projectId),
   queryFn: (): Promise<readonly Conversation[]> => listFactoryConversations(projectId),
   enabled: Boolean(projectId),
+  refetchInterval: (query) => awaitingTitleOf && !query.state.data?.find((entry) => entry.id === awaitingTitleOf)?.title?.trim() ? 1_000 : false,
 })
 
 export const useConversationActions = (projectId: string) => {

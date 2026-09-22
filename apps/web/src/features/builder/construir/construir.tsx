@@ -107,7 +107,8 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     queryFn: () => getBuilderSession(projectId),
     refetchInterval: (query) => query.state.data?.latestBuilderRun?.state === 'RUNNING' ? 1_000 : 2_000,
   })
-  const conversations = useProjectConversations(projectId)
+  const latestRun = session.data?.latestBuilderRun
+  const conversations = useProjectConversations(projectId, latestRun?.conversationId === conversationId && isActive(latestRun) ? conversationId : null)
   const conversationActions = useConversationActions(projectId)
   const conversation = conversations.data?.find((entry) => entry.id === conversationId) ?? null
   const models = useBuilderModels()
