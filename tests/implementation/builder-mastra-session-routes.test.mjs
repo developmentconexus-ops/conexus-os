@@ -195,6 +195,24 @@ test('the browser cannot open a session or send its opening message', async (t) 
   assert.equal(sessions.statusCode, 404)
 })
 
+test('a tool answer other than approve or decline is refused before Mastra runs it', async (t) => {
+  const { app, reachedContexts, close } = await createBoundaryApp()
+  t.after(close)
+  const approvalUrl = `${sessionBase()}/tool-approval`
+  const suspensionUrl = `${sessionBase()}/tool-suspension`
+
+  const escalatedApproval = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: true, decision: 'always_allow_category' } })
+  const escalatedSuspensionField = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: { decision: 'always_allow_category' } } })
+  const escalatedSuspensionString = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: 'always_allow_category' } })
+  assert.deepEqual([escalatedApproval.statusCode, escalatedSuspensionField.statusCode, escalatedSuspensionString.statusCode], [400, 400, 400])
+  assert.deepEqual(reachedContexts, [], 'no escalated answer reached Mastra')
+
+  const approved = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: true } })
+  const declined = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: false } })
+  const resumed = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: 'Use SQLite.' } })
+  assert.deepEqual([approved.statusCode, declined.statusCode, resumed.statusCode], [200, 200, 200])
+})
+
 test("a browser-supplied requestContext never reaches Mastra, in the body or in the query", async (t) => {
   const { app, reachedContexts, close } = await createBoundaryApp()
   t.after(close)

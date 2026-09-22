@@ -169,6 +169,21 @@ test('steer and follow-up on a Factory conversation start a turn only inside a l
   assert.equal(await turnsWithin(5_000, started), 1, "the run's own session takes the follow-up")
 })
 
+test('a tool answer other than approve or decline is refused on the Factory mount before Mastra runs it', async (t) => {
+  const { app, reachedContexts } = await createFactoryApp(t)
+  const approvalUrl = `${sessionBase()}/tool-approval`
+  const suspensionUrl = `${sessionBase()}/tool-suspension`
+
+  const escalatedApproval = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: true, decision: 'always_allow_category' } })
+  const escalatedSuspension = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: { decision: 'always_allow_category' } } })
+  assert.deepEqual([escalatedApproval.statusCode, escalatedSuspension.statusCode], [400, 400])
+  assert.deepEqual(reachedContexts.filter((entry) => entry.url.includes('/tool-')), [])
+
+  const approved = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: true } })
+  const declined = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: false } })
+  assert.deepEqual([approved.statusCode, declined.statusCode], [200, 200])
+})
+
 test('a state-changing request without CSRF is refused on both the mount and the conversation route', async (t) => {
   const { app, sessions } = await createFactoryApp(t)
   const withoutCsrf = { headers: { origin, 'content-type': 'application/json' }, cookies: { '__Host-conexus_session': 'session-1' } }
