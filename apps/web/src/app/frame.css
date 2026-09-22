@@ -39,8 +39,6 @@
 .cx-account-error { position: absolute; right: 0; top: calc(100% + .5rem); width: max-content; max-width: 16rem; margin: 0; padding: .5rem .7rem; border: 1px solid var(--cx-line); border-radius: .6rem; background: var(--cx-surface); color: var(--cx-danger); font-size: .8125rem; box-shadow: 0 .5rem 1.5rem rgb(0 0 0 / .12); z-index: 30; }
 .cx-menu [aria-current="true"] { font-weight: 600; }
 
-.cx-rail-scope { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cx-text); font-weight: 600; }
-
 /* Sidebar top row: the workspace switch (or the plain Conexus mark, above any workspace) and the
    collapse toggle. Sits above MainSidebar's own scroll region so both stay put while nav scrolls. */
 .cx-rail-top { display: flex; align-items: center; gap: .25rem; padding: .5rem; }

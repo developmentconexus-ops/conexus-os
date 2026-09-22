@@ -131,7 +131,10 @@
 .cx-tool-group summary { display: flex; align-items: center; gap: .45rem; height: 34px; padding: 0 .65rem; border-radius: 999px; background: var(--cx-surface); color: var(--cx-text-2); font: 500 .8125rem/1 var(--cx-font-body); cursor: pointer; list-style: none; }
 .cx-tool-group summary::-webkit-details-marker { display: none; }
 .cx-tool-group summary:hover { background: var(--cx-surface-3); }
-.cx-tool-group summary span { flex: 1; }
+/* The label only: a bare selector on every summary span also caught the spinner (also a span),
+   stretching its 12px circle into a flattened ellipse whose rotating border-top arc read as a
+   stray diagonal ipê line sweeping across the row while the agent worked. */
+.cx-tool-group summary span:not(.cx-tool-group-spinner) { flex: 1; }
 .cx-tool-group-check { flex: none; color: var(--cx-success); }
 .cx-tool-group-spinner { flex: none; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--cx-surface-4); border-top-color: var(--cx-accent); animation: cx-tool-spin .7s linear infinite; }
 @keyframes cx-tool-spin { to { transform: rotate(360deg); } }

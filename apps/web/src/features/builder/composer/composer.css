@@ -7,13 +7,64 @@
 .cx-composer [data-slot="composer-input"]::placeholder { color: var(--cx-text-2); }
 .cx-composer .composer-ring { border-radius: 16px; }
 
-/* At rest the border carries a slow ipê arc, brighter and faster once the agent is working. */
-.cx-composer .composer-ring { --composer-ring-strength: .45; animation: cx-ring-idle 10s linear infinite; }
-.cx-composer .composer-ring:hover { --composer-ring-strength: .4; }
-.cx-composer .composer-ring[data-busy="false"]:focus-within { --composer-ring-strength: .4; }
-@keyframes cx-ring-idle { from { --composer-ring-spin: 0deg; } to { --composer-ring-spin: 360deg; } }
+/* The prototype's glow, owned here rather than left to the vendor ring: a continuous ipê conic
+   sweep (11s), faster and brighter while the agent works (2.8s), never the cursor. The vendor
+   ComposerRing aims its own arc at the pointer (see its `useComposerPointerAngle`, a global
+   `window` `pointermove` listener); we don't patch vendor code, so instead we out-specificity
+   its background-image/animation/box-shadow with our own custom property and never reference
+   the vendor's --composer-ring-angle, leaving its writes visually inert (Leandro, 2026-09-22:
+   no cursor-following glow, ever; match the prototype exactly).
+   This also removes the vendor's per-pointermove repaint of an animated conic-gradient, which
+   is the likely source of the stray diagonal beam seen sweeping across chat rows while running. */
+@property --cx-glow-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.cx-composer .composer-ring {
+  position: relative;
+  isolation: isolate;
+  background-image: conic-gradient(
+    from var(--cx-glow-angle),
+    var(--cx-line) 0deg, var(--cx-line) 209deg,
+    color-mix(in srgb, var(--cx-accent) 45%, var(--cx-line)) 266deg,
+    var(--cx-accent) 302deg,
+    color-mix(in srgb, var(--cx-accent) 45%, var(--cx-line)) 331deg,
+    var(--cx-line) 360deg
+  ) !important;
+  box-shadow: none !important;
+  animation: cx-glow-spin 11s linear infinite;
+}
+.cx-composer .composer-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background: conic-gradient(from var(--cx-glow-angle), transparent 0deg, transparent 238deg, var(--cx-accent) 302deg, transparent 360deg);
+  filter: blur(10px);
+  opacity: .28;
+  transition: opacity .4s;
+}
+.cx-composer .composer-ring:focus-within::after { opacity: .45; }
+.cx-composer .composer-ring[data-busy="true"] {
+  animation: cx-glow-spin 2.8s linear infinite;
+  box-shadow: none !important;
+  background-image: conic-gradient(
+    from var(--cx-glow-angle),
+    var(--cx-line) 0deg,
+    color-mix(in srgb, var(--cx-accent) 40%, var(--cx-line)) 72deg,
+    var(--cx-accent) 119deg,
+    var(--cx-line) 162deg, var(--cx-line) 198deg,
+    color-mix(in srgb, var(--cx-accent) 40%, var(--cx-line)) 252deg,
+    var(--cx-accent) 299deg,
+    var(--cx-line) 342deg
+  ) !important;
+}
+.cx-composer .composer-ring[data-busy="true"]::after {
+  opacity: .6;
+  background: conic-gradient(from var(--cx-glow-angle), transparent 0deg, var(--cx-accent) 119deg, transparent 180deg, var(--cx-accent) 299deg, transparent 360deg);
+}
+@keyframes cx-glow-spin { to { --cx-glow-angle: 360deg; } }
 @media (prefers-reduced-motion: reduce) {
-  .cx-composer .composer-ring { animation: none; --composer-ring-strength: .3; }
+  .cx-composer .composer-ring, .cx-composer .composer-ring[data-busy="true"] { animation: none; }
 }
 
 .cx-composer-actions { flex-wrap: nowrap; }
