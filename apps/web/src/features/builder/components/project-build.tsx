@@ -497,13 +497,10 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
         <BuilderConversationList
           conversations={conversationList}
           selectedId={conversationId}
-          onSelect={(id) => { setSelectedConversationId(id); conversationActions.select.mutate({ conversationId: id, carryModelId: modelReady ? selectedModelId : '' }) }}
-          onCreate={() => conversationActions.create.mutate(undefined, { onSuccess: (created) => {
-            setSelectedConversationId(created.id)
-            // A new conversation starts with no model of its own. Carrying the one the operator
-            // already chose is their decision applied, not a default invented for them.
-            if (modelReady) conversationActions.select.mutate({ conversationId: created.id, carryModelId: selectedModelId })
-          } })}
+          onSelect={setSelectedConversationId}
+          // The Hub starts a new conversation from the person's defaults, else the installation's,
+          // and a model chosen in one conversation stays with that conversation.
+          onCreate={() => conversationActions.create.mutate(undefined, { onSuccess: (created) => { setSelectedConversationId(created.id) } })}
           pending={conversationActions.create.isPending}
         />
         <section ref={conversationRef} onScroll={onConversationScroll} className="builder-conversation" aria-label="Mensagens do Builder" aria-live="polite">
