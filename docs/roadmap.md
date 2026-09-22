@@ -209,6 +209,24 @@ Do not start Q2 automatically.
 - A second Keycloak user with a verified email address, for multi-account and for Q3's app-only user.
 - The Sankhya business input for Q4.
 
+## Before a production installation
+
+The pilot runs the Hub on the operator's laptop as the operator's own OS user, with its secrets in
+files only that user can read (mode `600`). That is sound for a pilot, where only the operator and
+the Hub run as that user. It is not the shape of a production installation, and none of this blocks
+Stage 2. Before Conexus runs anywhere other than the pilot:
+
+- **A dedicated OS user for the Hub.** Anything else the operator runs, such as a script or a
+  compromised `npm` package, must not hold the company's GitHub App key, the Factory secret key or
+  the E2B key.
+- **Secrets delivered by the service manager or a secret store,** not files in a home directory.
+- **The Factory secret key held apart from the database it encrypts,** so one host compromise does
+  not yield both. Encrypting model credentials today protects a leaked database dump, not a
+  compromised host.
+
+The Stage 2 application runner is a separate question: generated code never runs as the Hub's
+user, wherever the Hub's secrets live (see the Q1 task).
+
 ## Merge gate
 
 A pull request is ready only when CI `verify` is green on its exact head SHA and the coordinator has read the diff.
