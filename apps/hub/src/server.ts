@@ -123,6 +123,7 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   },
   builder: config.builder,
   factory: config.factory,
+  ...(config.googleAiPro ? { googleAiPro: config.googleAiPro } : {}),
   applicationArtifacts: createApplicationArtifactStore(),
   ...(launchPreview ? { launchPreview } : {}),
   origin: config.origin,

@@ -203,6 +203,46 @@ The following holds on the pilot, through the product, and is recorded in this t
 - Stopping is measured in its three parts, and a late result is not admitted.
 - The host Git path is deleted.
 
+## Google AI Pro on the pilot
+
+C-027 lets each person drive the Builder with their own Google AI Pro subscription through
+CLIProxyAPI v7.3.12. The Hub runs the binary; it never reads `~/cliproxy/config.yaml` or
+`~/.cli-proxy-api`.
+
+1. Add two lines to the Hub's environment. Both are required together, and the Hub refuses to start
+   when the binary's sha256 differs:
+
+   ```
+   CONEXUS_CLIPROXY_BIN=/home/leandrotheodoro/cliproxy/cli-proxy-api
+   CONEXUS_CLIPROXY_SHA256=3a82a4db2b7264d9e744865b39e888def222ba19dd3156113efaa50d406530e6
+   ```
+
+2. Restart the Hub. At boot it kills any proxy a crashed Hub left under
+   `~/.local/state/conexus/cliproxy`, starts its loopback router, and writes the installation's
+   `Google AI Pro` custom provider. Without the two variables it removes that provider instead.
+3. Sign in. Open Configurações, then Contas de modelo, then Google AI Pro, and select Conectar com o
+   Google. Open the Google link in the same browser and sign in. When the browser runs on the Hub's
+   machine, Google's redirect to `localhost:51121` reaches the Hub and the card completes by itself.
+   On another machine the tab ends on a page that does not open: copy its address, paste it into the
+   card, and select Concluir.
+4. Choose a model such as `mastracode/google-ai-pro/gemini-3.1-pro-low` in a conversation or in
+   Meus padrões. The sign-in also fills your memory model with
+   `mastracode/google-ai-pro/gemini-3.5-flash-lite` when you have not chosen one.
+
+Without a browser, the operator can store an existing CLIProxyAPI login file instead. The command
+writes the same Factory row and memory seed as the sign-in, prints one line, and never prints the
+token:
+`node --env-file=<hub.env> scripts/hub-factory.mjs import-google-ai-pro-login --auth-file <path to antigravity-*.json> (--shared | --account-id <accountId>)`.
+
+Only one person can sign in at a time, because Google's redirect port is fixed; a sign-in expires
+after 5 minutes. A proxy stops after 10 minutes without calls and starts again on the next call.
+Disconnecting removes the Factory row, and the next call fails with the Factory's own missing
+credential error.
+
+To rerun the check against the real binary:
+`CONEXUS_CLIPROXY_LIVE_BIN=/home/leandrotheodoro/cliproxy/cli-proxy-api node --test tests/implementation/builder-google-ai-pro.test.mjs`.
+It binds port 51121 while it runs.
+
 ## Known gaps
 
 - The observational memory model is the organization's row in the Factory `memory-settings`

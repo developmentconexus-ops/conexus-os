@@ -7,7 +7,10 @@ import { E2BSandbox } from '@mastra/e2b'
 import { createFactorySecretEncryption, MastraFactory } from '@mastra/factory'
 import type { FactorySecretEncryption } from '@mastra/factory/secret-encryption'
 import { GithubIntegration } from '@mastra/factory/integrations/github/integration'
+import { createCustomProvidersPrimer, invalidateCustomProvidersSnapshots } from '@mastra/factory/routes/custom-provider-source'
+import type { RouteAuth } from '@mastra/factory/routes/route'
 import { registerTenantCredentialResolver } from '@mastra/factory/routes/tenant-credentials'
+import type { CustomProvidersStorage } from '@mastra/factory/storage/domains/custom-providers/base'
 import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/credentials/base'
 import type { FactorySandboxContext } from '@mastra/factory/sandbox/session-sandbox'
 import { repoDirUnder } from '@mastra/factory/sandbox/workdir'
@@ -15,6 +18,7 @@ import type { Observability } from '@mastra/observability'
 import { PgFactoryStorage, PostgresStore } from '@mastra/pg'
 import { createPostgresPool } from '../platform/postgres.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_NAME, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
 import type { BuilderAgentController } from './runtime.js'
 
 // Rows the Hub writes into Factory storage carry this as their author, and the organization's
@@ -191,7 +195,44 @@ export const createFactorySecretKeyEncryption = (hexKey: string): FactorySecretE
   }
 }
 
-export const composeFactory = async ({ pool, github, stateSecret, secretKey, publicUrl, sandbox, observability }: Readonly<{
+// With auth: null the Factory keeps one custom-provider list for the whole installation, under this org.
+const CUSTOM_PROVIDERS_ORG = 'local'
+const NO_TENANT: RouteAuth = {
+  enabled: () => false,
+  ensureUser: async () => undefined,
+  tenant: () => undefined,
+  isOrganizationAdmin: async () => false,
+}
+
+/**
+ * Fills the installation's custom-provider snapshot. The gateway reads it synchronously, and it
+ * starts empty and hydrates in the background, so a model call right after boot would not know the
+ * provider. The primer is the Factory's own awaited hydration; it reads nothing from the request.
+ */
+export const customProvidersPrimer = (storage: CustomProvidersStorage): () => Promise<void> => {
+  const primer = createCustomProvidersPrimer({ auth: NO_TENANT, storage, authEnabled: false })
+  return async () => { await primer(undefined as never, async () => undefined) }
+}
+
+// Google AI Pro is one installation-wide custom provider with no key of its own: each person's
+// credential is the bearer the router receives. Without a router the row is removed, so the picker
+// never offers a provider nobody can reach.
+export const syncGoogleAiProProvider = async (storage: CustomProvidersStorage, routerUrl: string | undefined): Promise<void> => {
+  await storage.ensureReady()
+  if (routerUrl) {
+    await storage.upsert({
+      orgId: CUSTOM_PROVIDERS_ORG,
+      userId: FACTORY_OPERATOR_ID,
+      input: { providerId: GOOGLE_AI_PRO_PROVIDER, name: GOOGLE_AI_PRO_NAME, url: `${routerUrl}/v1`, models: [...GOOGLE_AI_PRO_MODELS] },
+    })
+  } else {
+    await storage.delete({ orgId: CUSTOM_PROVIDERS_ORG, providerId: GOOGLE_AI_PRO_PROVIDER })
+  }
+  invalidateCustomProvidersSnapshots({ orgId: CUSTOM_PROVIDERS_ORG })
+  await customProvidersPrimer(storage)()
+}
+
+export const composeFactory = async ({ pool, github, stateSecret, secretKey, publicUrl, sandbox, observability, googleAiProUrl }: Readonly<{
   pool: PostgresPool
   github: FactoryGithubApp
   stateSecret: string
@@ -199,6 +240,7 @@ export const composeFactory = async ({ pool, github, stateSecret, secretKey, pub
   publicUrl: string
   sandbox: (context: FactorySandboxContext) => E2BSandbox
   observability?: Observability
+  googleAiProUrl?: string
 }>): Promise<FactoryComposition> => {
   const storage = createFactoryStorage(pool)
   const integration = new GithubIntegration(github)
@@ -229,6 +271,7 @@ export const composeFactory = async ({ pool, github, stateSecret, secretKey, pub
   // would read the host's own credentials. The Hub names the person on every request context, so the
   // Factory's resolver answers with that person's row, else the installation's shared row, else none.
   registerTenantCredentialResolver(storage.getDomain<ModelCredentialsStorage>('model-credentials'))
+  await syncGoogleAiProProvider(storage.getDomain<CustomProvidersStorage>('custom-providers'), googleAiProUrl)
   const controllers = Object.entries(args.agentControllers ?? {})
   if (controllers.length !== 1) throw new Error('FACTORY_CONTROLLER_UNAVAILABLE')
   const [[controllerId, controller]] = controllers as [[string, BuilderAgentController]]

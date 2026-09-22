@@ -8,10 +8,11 @@ process.env.MASTRA_TELEMETRY_DISABLED = '1'
 const { createFactoryPool, createFactorySecretKeyEncryption, createFactoryStorage } = await import('./builder/factory.js')
 const { ModelCredentialsStorage } = await import('@mastra/factory/storage/domains/credentials/base')
 const { createGithubApp } = await import('./builder/factory-github.js')
-const { connectFactoryInstallation, importHostCredential, openFactoryRecords, provisionFactoryProject, setFactoryMemoryModel } = await import('./builder/factory-provisioning.js')
+const { MemorySettingsStorage } = await import('@mastra/factory/storage/domains/memory-settings/base')
+const { connectFactoryInstallation, importGoogleAiProLogin, importHostCredential, openFactoryRecords, provisionFactoryProject, setFactoryMemoryModel } = await import('./builder/factory-provisioning.js')
 
-const USAGE = 'usage: factory-cli connect | factory-cli memory --model <provider/model> | factory-cli provision --project <conexusProjectId> --name <projectName> | factory-cli import-host-credential --provider <id> (--shared | --account-id <accountId>) [--auth-file <path>]'
-const COMMANDS = new Set(['connect', 'memory', 'provision', 'import-host-credential'])
+const USAGE = 'usage: factory-cli connect | factory-cli memory --model <provider/model> | factory-cli provision --project <conexusProjectId> --name <projectName> | factory-cli import-host-credential --provider <id> (--shared | --account-id <accountId>) [--auth-file <path>] | factory-cli import-google-ai-pro-login --auth-file <antigravity-*.json> (--shared | --account-id <accountId>)'
+const COMMANDS = new Set(['connect', 'memory', 'provision', 'import-host-credential', 'import-google-ai-pro-login'])
 
 const required = (name: string): string => {
   const value = process.env[name]
@@ -31,7 +32,8 @@ const main = async (): Promise<void> => {
   if (positionals.length !== 1 || !command || !COMMANDS.has(command)) throw new Error(USAGE)
   if (command === 'provision' && (!values.project || !values.name)) throw new Error(USAGE)
   if (command === 'memory' && !values.model) throw new Error(USAGE)
-  if (command === 'import-host-credential' && (!values.provider || values.shared === Boolean(values['account-id']))) throw new Error(USAGE)
+  if (command === 'import-host-credential' && (!values.provider || Boolean(values.shared) === Boolean(values['account-id']))) throw new Error(USAGE)
+  if (command === 'import-google-ai-pro-login' && (!values['auth-file'] || Boolean(values.shared) === Boolean(values['account-id']))) throw new Error(USAGE)
 
   const database = { host: required('CONEXUS_DB_HOST'), port: Number(required('CONEXUS_DB_PORT')), database: required('CONEXUS_DB_NAME') }
   const orgId = required('CONEXUS_FACTORY_ORG_ID')
@@ -48,6 +50,17 @@ const main = async (): Promise<void> => {
         provider: values.provider as string,
         accountId: values.shared ? null : values['account-id'] as string,
         authFile: values['auth-file'] ?? join(homedir(), '.local/share/mastracode/auth.json'),
+      })
+      return
+    }
+    if (command === 'import-google-ai-pro-login') {
+      const credentials = storage.registerDomain(new ModelCredentialsStorage(createFactorySecretKeyEncryption(readSecretFile(required('CONEXUS_FACTORY_SECRET_KEY_FILE')))))
+      const memorySettings = storage.registerDomain(new MemorySettingsStorage())
+      await storage.init()
+      await importGoogleAiProLogin({
+        credentials, memorySettings, orgId, write,
+        accountId: values.shared ? null : values['account-id'] as string,
+        authFile: values['auth-file'] as string,
       })
       return
     }

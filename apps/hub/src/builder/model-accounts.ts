@@ -11,6 +11,9 @@ import type { ModelPacksStorage } from '@mastra/factory/storage/domains/model-pa
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
+import { GOOGLE_AI_PRO_CATALOG_PROVIDER, GOOGLE_AI_PRO_PROVIDER, seedGoogleAiProMemory } from './google-ai-pro/credential.js'
+import { createGoogleAiProLogin, GoogleAiProLoginError, type LoginProblem } from './google-ai-pro/login.js'
+import type { CliproxyPool } from './google-ai-pro/pool.js'
 import type { BuilderAgentController } from './runtime.js'
 
 // The installation's defaults are one Factory model pack; a person's own defaults are their active
@@ -24,6 +27,12 @@ const CSRF_COOKIE = '__Host-conexus_csrf'
 const MODEL_ID = /^[\w.-]+\/[\w./:-]+$/
 const PROVIDER = /^[a-z0-9][a-z0-9._-]{0,63}$/
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
+const LOGIN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+const LOGIN_PROBLEMS: Readonly<Record<LoginProblem, readonly [number, string]>> = {
+  'model-login-busy': [409, 'Another sign-in is in progress'],
+  'model-login-unavailable': [503, 'Sign-in is unavailable'],
+  'model-login-callback-refused': [400, 'Sign-in address refused'],
+}
 
 type ModelAccountDomains = Readonly<{
   credentials: ModelCredentialsStorage
@@ -32,6 +41,7 @@ type ModelAccountDomains = Readonly<{
 }>
 
 type Caller = Readonly<{ accountId: AccountId }>
+type OfferedModel = Readonly<{ id: string; provider: string; modelName: string; hasApiKey: boolean }>
 
 // The slice of Hono's Context the Factory's provider and sign-in handlers read. The Hub builds one
 // per request, so the Factory's own handler decides every credential write, and the caller it sees
@@ -68,13 +78,15 @@ export const applyModelDefaults = ({ modelPacks, orgId }: Readonly<{ modelPacks:
     if (pack) await applyActiveModelPack(session, pack as Parameters<typeof applyActiveModelPack>[1])
   }
 
-export const registerModelAccountRoutes = async (app: FastifyInstance, { domains, controller, orgId, origin, resolveCurrentSession, isInstallationAdministrator }: Readonly<{
+export const registerModelAccountRoutes = async (app: FastifyInstance, { domains, controller, orgId, origin, resolveCurrentSession, isInstallationAdministrator, googleAiPro }: Readonly<{
   domains: ModelAccountDomains
   controller: BuilderAgentController
   orgId: string
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
+  // Present when the Hub runs CLIProxyAPI; then a person signs in to Google AI Pro from Settings.
+  googleAiPro?: Pick<CliproxyPool, 'startLogin'>
 }>): Promise<void> => {
   const { credentials, modelPacks, memorySettings } = domains
   const callers = new WeakMap<object, Caller>()
@@ -130,6 +142,25 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
     return false
   }
 
+  const callFactory = (handler: FactoryHandler, caller: Caller, { params, query, body, headers }: Readonly<{
+    params: Readonly<Record<string, string>>
+    query: Readonly<Record<string, unknown>>
+    body: unknown
+    headers: FastifyRequest['headers']
+  }>) => {
+    const context: FactoryHandlerContext = {
+      req: {
+        param: (name) => params[name] ?? '',
+        query: (name) => typeof query[name] === 'string' ? query[name] as string : undefined,
+        json: async () => body ?? {},
+        header: (name) => header(headers[name.toLowerCase()]),
+      },
+      json: (answer, status = 200) => ({ body: answer, status }),
+    }
+    callers.set(context, caller)
+    return handler(context)
+  }
+
   // The Factory's own handler answers; the Hub only authenticates and names the caller.
   const forward = (method: 'GET' | 'PUT' | 'POST' | 'DELETE', hubPath: string, factoryPath: string): void => {
     const handler = factoryHandler(method, factoryPath)
@@ -139,25 +170,39 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
       handler: async (request, reply) => {
         const caller = await admit(request, reply)
         if (!caller) return reply
-        const params = (request.params ?? {}) as Readonly<Record<string, string>>
-        const query = (request.query ?? {}) as Readonly<Record<string, unknown>>
-        const context: FactoryHandlerContext = {
-          req: {
-            param: (name) => params[name] ?? '',
-            query: (name) => typeof query[name] === 'string' ? query[name] as string : undefined,
-            json: async () => request.body ?? {},
-            header: (name) => header(request.headers[name.toLowerCase()]),
-          },
-          json: (body, status = 200) => ({ body, status }),
-        }
-        callers.set(context, caller)
-        const answer = await handler(context)
+        const answer = await callFactory(handler, caller, {
+          params: (request.params ?? {}) as Readonly<Record<string, string>>,
+          query: (request.query ?? {}) as Readonly<Record<string, unknown>>,
+          body: request.body,
+          headers: request.headers,
+        })
         return reply.code(answer.status).send(answer.body)
       },
     })
   }
 
   forward('GET', '', '/web/config/providers')
+
+  // The Factory's own answer for the caller's credentials, user over org. The controller's model
+  // list only knows the host's keys, the same for everyone. Google AI Pro's credential id is not its
+  // catalog id, so the Factory leaves it out, and the Hub, which hosts it (C-027), adds it for a
+  // caller who has that credential.
+  const listModels = factoryHandler('GET', '/web/config/models')
+  app.get('/api/control/model-accounts/models', async (request, reply) => {
+    const caller = await admit(request, reply)
+    if (!caller) return reply
+    const answer = await callFactory(listModels, caller, { params: {}, query: {}, body: undefined, headers: request.headers })
+    if (answer.status !== 200) return reply.code(answer.status).send(answer.body)
+    const { models } = answer.body as Readonly<{ models: readonly OfferedModel[] }>
+    const connected = await credentials.getCredential({ orgId, userId: caller.accountId }, GOOGLE_AI_PRO_PROVIDER) ??
+      await credentials.getCredential({ orgId }, GOOGLE_AI_PRO_PROVIDER)
+    if (!connected) return { models: models.filter((model) => model.provider !== GOOGLE_AI_PRO_CATALOG_PROVIDER) }
+    const known = new Set(models.map((model) => model.id))
+    const googleAiPro = (await controller.listAvailableModels())
+      .filter((model) => model.provider === GOOGLE_AI_PRO_CATALOG_PROVIDER && !known.has(model.id))
+      .map(({ id, provider, modelName }) => ({ id, provider, modelName, hasApiKey: true }))
+    return { models: [...models, ...googleAiPro] }
+  })
   forward('PUT', '/:provider/key', '/web/config/providers/:provider/key')
   forward('DELETE', '/:provider/key', '/web/config/providers/:provider/key')
   forward('POST', '/:provider/oauth/start', '/web/config/providers/:provider/oauth/start')
@@ -193,6 +238,61 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
     invalidateTenantCredentialSnapshots({ orgId })
     return reply.code(204).send()
   })
+
+  if (googleAiPro) {
+    const putKey = factoryHandler('PUT', '/web/config/providers/:provider/key')
+    const login = createGoogleAiProLogin<Caller>({
+      pool: googleAiPro,
+      // The Factory's own key handler stores the person's row, so the Factory decides the write.
+      writeCredential: async (caller, key) => {
+        const answer = await callFactory(putKey, caller, { params: { provider: GOOGLE_AI_PRO_PROVIDER }, query: {}, body: { key }, headers: {} })
+        if (answer.status !== 200) throw new Error('GOOGLE_AI_PRO_CREDENTIAL_WRITE_FAILED')
+      },
+      seedMemory: ({ accountId }) => seedGoogleAiProMemory(memorySettings, { orgId, userId: accountId }),
+    })
+    const loginProblem = (reply: FastifyReply, error: unknown) => {
+      if (!(error instanceof GoogleAiProLoginError)) throw error
+      const [status, title] = LOGIN_PROBLEMS[error.problem]
+      return sendProblem(reply, status, error.problem, title)
+    }
+    // The Factory's provider listing names this provider by its catalog id, which is not the
+    // credential's id, so the Settings card reads the person's connection here.
+    app.get(`/api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/connection`, async (request, reply) => {
+      const caller = await admit(request, reply)
+      if (!caller) return reply
+      const [mine, shared, administrator] = await Promise.all([
+        credentials.getCredential({ orgId, userId: caller.accountId }, GOOGLE_AI_PRO_PROVIDER),
+        credentials.getCredential({ orgId }, GOOGLE_AI_PRO_PROVIDER),
+        isInstallationAdministrator(caller.accountId),
+      ])
+      return { mine: Boolean(mine), shared: Boolean(shared), administrator }
+    })
+    const base = `/api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/login`
+    app.post(`${base}/start`, async (request, reply) => {
+      const caller = await admit(request, reply)
+      if (!caller) return reply
+      return login.start(caller).catch((error: unknown) => loginProblem(reply, error))
+    })
+    app.post<{ Body: { loginId: string; callbackUrl: string } }>(`${base}/complete`, {
+      schema: {
+        body: {
+          type: 'object', additionalProperties: false, required: ['loginId', 'callbackUrl'],
+          properties: { loginId: { type: 'string', pattern: LOGIN_ID.source }, callbackUrl: { type: 'string', maxLength: 4096 } },
+        },
+      },
+    }, async (request, reply) => {
+      const caller = await admit(request, reply)
+      if (!caller) return reply
+      return login.complete(caller, request.body.loginId, request.body.callbackUrl)
+        .then((state) => ({ state }), (error: unknown) => loginProblem(reply, error))
+    })
+    app.get<{ Params: { loginId: string } }>(`${base}/:loginId`, async (request, reply) => {
+      const caller = await admit(request, reply)
+      if (!caller) return reply
+      if (!LOGIN_ID.test(request.params.loginId)) return { state: 'expired' }
+      return { state: await login.status(caller, request.params.loginId) }
+    })
+  }
 
   const defaultsBody = {
     type: 'object', additionalProperties: false, required: ['build', 'fast'],
