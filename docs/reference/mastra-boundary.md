@@ -28,7 +28,7 @@ embedded doc page.
 | 2 | Keeping GitHub tokens out of the sandbox | A | Implemented |
 | 3 | Serving the Factory's credential routes | A, after a decision amendment | Planned, needs the operator |
 | 4 | Creating a conversation | A for creation, B for visibility | Planned, needs item 3 and a visibility decision |
-| 5 | Conversation titles in Portuguese | A, plus an upstream proposal | Implemented |
+| 5 | Conversation titles in Portuguese | B for the title Mastra writes, A for the one Conexus shows | Implemented |
 | 6a | Classifying model errors | A, plus B for one message | Implemented |
 | 6b | Writing run diagnostics into a conversation | A, experimental API | Planned |
 
@@ -170,32 +170,40 @@ decided policy exists yet, so no code change can make the field follow the singl
 
 ## 5. Conversation titles in Portuguese
 
-**Current code.** The Hub never sets a title. Mastra Code's memory generates one with
-`generateTitle: { model }` and no instructions (`code-sdk/dist/agents/memory.js:129`). Core's default
-title instructions name no language (`core/dist/agent-Dk0N0Nlg.js:39163`), so titles often come back in
-English. Mastra Code also turns on the observer's title updates (`code-sdk/dist/agents/memory.js:150`).
-The web client sends only `conversationId` when it creates a conversation
-(`apps/web/src/features/builder/api.ts:151`).
+**Current code.** The conversation list shows the Factory session row's title
+(`apps/hub/src/builder/factory-routes.ts`). #176 renamed the thread from the first request before the
+run's first turn.
 
-**What Mastra offers.** Core generates a first-turn title only when the thread has none
-(`core/dist/agent-Dk0N0Nlg.js:37903`). `Session.thread.rename({ title })` is the public way to set one
-(`core/dist/agent-controller/session.d.ts:342`). The Factory mirrors every thread title, including an
-explicit rename, onto the conversation's session row (`factory/dist/session/thread-title-mirror.d.ts:20`,
-wired at `factory/dist/factory.js:626`), which is what the conversation list reads. `generateTitle`
-takes `instructions` (`memory/dist/docs/references/reference-memory-memory-class.md:52`), but Mastra
-Code builds its own `Memory` and exposes no way to pass them.
+**What happened on the pilot.** On 2026-09-22 the request "Troque o texto em destaque no topo da
+página para LIVE-MUCS7P6I" produced the title "Page text update". The thread's metadata holds
+`mastra.om.threadTitle = "Page text update"`, and the thread and session row were both written at
+14:43:15, five seconds after the run's last message and two minutes after the request. That is
+Mastra Code's observer, not first-turn title generation.
 
-**Decision.** A for the title Conexus sets. B for the language of titles Mastra generates (proposal
-U2).
+**What Mastra does.** Mastra Code turns on the observer's thread titles unconditionally
+(`code-sdk/dist/agents/memory.js:150`, `threadTitle: true`). The observer's title guidance is
+English noun phrases with English examples and no language rule
+(`memory/dist/src-Dt8oPiQN.js:23420`). Its prior-title hint reads only its own metadata, not the
+thread's title (`memory/dist/src-Dt8oPiQN.js:19244`), so its first observation always proposes a
+title. It then overwrites the thread title whenever its suggestion differs
+(`memory/dist/src-Dt8oPiQN.js:24598-24624`). The Factory copies that onto the session row
+(`factory/dist/session/thread-title-mirror.js:40`). An explicit `Session.thread.rename`, as #176 did,
+is overwritten at the first observation.
 
-**Plan.** The title is set when the first request reaches the thread, not when the conversation is
-created. Two of the three web paths create a conversation before anyone has typed a request: opening a
-Project with no conversation, and the new-conversation button. Only the new-Project path knows the
-request at creation. So the run, which always has the request, sets the title: before its first turn
-on a thread with no title, it calls `session.thread.rename` with the request's first line, cut to 60
-characters on a word boundary. No model call is made. Core then skips title generation, and the
-Factory mirrors the title to the list. The observer's later title updates are Mastra Code's and are
-covered by U2.
+**What Mastra offers.** No public option turns the observer's titles off or gives them instructions.
+Mastra Code builds its own `Memory`, and neither `generateTitle.instructions` nor
+`observation.threadTitle` is reachable from the host. The first request itself is public: the
+controller's `queryThreadMessages` reads a thread's messages without starting a session or sandbox
+(`core/dist/agent-controller/agent-controller.d.ts:269`).
+
+**Decision.** B for the title Mastra writes (proposal U2). The thread title and the session row title
+belong to Mastra, and Conexus stops reading them. A for the fact Conexus shows: the title is derived
+from the first request, which the message store already owns, so Conexus stores no second copy.
+
+**Plan, implemented.** The conversation list and the create route read each conversation's first
+user-authored message through `controller.queryThreadMessages` and answer its first line, whitespace
+collapsed, cut to 60 characters on a word. A conversation with no request yet has no title. The
+rename before the first turn is deleted, and the create route no longer takes a title.
 
 ## 6a. Classifying model errors
 
@@ -270,10 +278,15 @@ users cannot fix the language without replacing Mastra Code's memory.
 
 Proposal, two parts.
 
-1. Core: add "write the title in the language of the user's messages" to the default title
+1. Core and memory: add "write the title in the language of the user's messages" to the default title
    instructions, and to the observer's `thread-title` guidance.
 2. Mastra Code: accept title instructions from the host, for example a `titleInstructions` option or a
-   setting that Mastra Code passes to both `generateTitle.instructions` and the observer.
+   setting that Mastra Code passes to both `generateTitle.instructions` and the observer, and let the
+   host turn `observation.threadTitle` off.
+3. Memory: the observer overwrites a title the host set with `Session.thread.rename`, because its
+   prior-title hint reads only its own metadata (`memory` 1.30.0, `dist/src-Dt8oPiQN.js:19244`) and it
+   replaces any differing title (`dist/src-Dt8oPiQN.js:24598`). Seed the hint from the thread's title,
+   and leave a title set by an explicit rename alone.
 
 ### U3. Accept `visibility` when a host creates a Factory session
 
