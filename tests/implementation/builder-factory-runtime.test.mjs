@@ -20,6 +20,7 @@ const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
 const { createBuilderService } = await import(built('builder/service.js'))
 const { createFactoryCodingWorkerRuntime, factoryAgentInstructions, recoverFactoryAdmissions } = await import(built('builder/factory-runtime.js'))
 const { createGithubApp } = await import(built('builder/factory-github.js'))
+const { createFactorySourceReads } = await import(built('builder/factory-source.js'))
 
 const BASE = 'b'.repeat(40)
 const RESULT = 'c'.repeat(40)
@@ -33,7 +34,7 @@ const conversationId = '44444444-4444-4444-8444-444444444444'
 const privateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' })
 const listing = `100644 blob ${'d'.repeat(40)}      120\tapp/index.html\n`
 
-const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository', lostAdvances = 0 } = {}) => {
+const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository', lostAdvances = 0, bound = true } = {}) => {
   const github = await startFakeGithub()
   t.after(() => github.close())
   const repository = github.addRepository({ owner: 'acme-org', name: 'app', head })
@@ -48,6 +49,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const invocations = []
   const rootInvocations = []
   const builtFrom = []
+  const localReads = []
   let buildStarted
   const buildRunning = new Promise((started) => { buildStarted = started })
   const sandbox = {
@@ -107,7 +109,8 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const row = { running: true, candidate: null, result: null }
   const store = {
     createBuilderRun: async () => { calls.push(['create']); return { ...claimed, state: 'QUEUED', phase: null } },
-    readFactoryBinding: async () => binding,
+    readFactoryBinding: async () => bound ? binding : null,
+    admitSourceRevision: async () => true,
     claimBuilderRun: async () => claimed,
     setBuilderRunPhase: async (_id, phase) => { calls.push(['phase', phase]) },
     recordBuilderRunCandidate: async (_id, revision) => { calls.push(['candidate', revision]); row.candidate = revision },
@@ -133,7 +136,12 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   }
   const service = createBuilderService({
     store,
-    source: { prepareProjectSource: () => { throw new Error('a Factory run never exports a source bundle') } },
+    source: {
+      prepareProjectSource: () => { throw new Error('a Factory run never exports a source bundle') },
+      // The Hub's local repository never saw a Factory commit.
+      listSourceTree: async () => { localReads.push('tree'); throw new Error('BUILDER_SOURCE_READ_REVISION_NOT_FOUND') },
+      readSourceFile: async () => { localReads.push('file'); throw new Error('BUILDER_SOURCE_READ_REVISION_NOT_FOUND') },
+    },
     runtime: { kind: 'REMOTE_E2B', execute: async () => { throw new Error('a Factory run never reaches the legacy runtime') } },
     applicationArtifacts: {},
     factory: {
@@ -144,6 +152,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
       appendDiagnostic: async (input) => { diagnostics.push({ ...input, from: 'service' }) },
       recoverAdmissions: (active) => recoverFactoryAdmissions({ store, github: app, resolveRepository, active }),
       reconcileEveryMs: 5,
+      source: createFactorySourceReads({ github: app, resolveRepository }),
     },
   })
   const start = () => service.createBuilderRun({ accountId, projectId, conversationId, idempotencyKey: 'key', content: 'Mostre UNIT1-nonce', mode })
@@ -156,7 +165,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
     for (let attempt = 0; row.running && attempt < 400; attempt++) await new Promise((wake) => { setTimeout(wake, 5) })
     return !row.running
   }
-  return { github, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, commands, rootScripts, pushed, admissions, buildRunning, builtFrom, settled }
+  return { github, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, commands, rootScripts, pushed, admissions, buildRunning, builtFrom, settled, localReads }
 }
 
 test('a writer that moves main between the read and the update, even to an ancestor of the result, is refused and keeps its move', async (t) => {
@@ -469,6 +478,37 @@ test('a starter inspection that fails writes its command evidence to the Hub log
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_STARTER_ENTRY_INSPECTION_FAILED'])
   assert.deepEqual(run.logs, [`BUILDER_FACTORY_RUN_FAILED:${runId}:BUILDER_STARTER_ENTRY_INSPECTION_FAILED {"exitCode":1,"stdout":"","stderr":"Error: sandbox not found"}`])
+})
+
+test('a bound Project reads its tree and files from its GitHub repository at the exact revision, never the local repository', async (t) => {
+  const run = await harness(t)
+  run.github.state.commits.set(`acme-org/app@${RESULT}`, new Map([
+    ['app/index.html', { mode: '100644', content: '<h1>UNIT1</h1>\n' }],
+    ['README.md', { mode: '100644', content: '# App\n' }],
+  ]))
+  assert.deepEqual(await run.service.listSourceTree({ accountId, projectId, sourceRevision: RESULT }), {
+    sourceRevision: RESULT,
+    entries: [{ path: 'app', kind: 'DIRECTORY' }, { path: 'app/index.html', kind: 'FILE' }, { path: 'README.md', kind: 'FILE' }],
+  })
+  assert.deepEqual(await run.service.getSourceFile({ accountId, projectId, sourceRevision: RESULT, path: 'app/index.html' }), {
+    sourceRevision: RESULT, path: 'app/index.html', content: '<h1>UNIT1</h1>\n',
+  })
+  await assert.rejects(run.service.getSourceFile({ accountId, projectId, sourceRevision: BASE, path: 'app/index.html' }), { message: 'BUILDER_SOURCE_READ_FILE_NOT_FOUND' })
+  run.github.state.commits.set(`acme-org/app@${MIDDLE}`, new Map([['app/link', { mode: '120000', content: '/etc/passwd' }]]))
+  await assert.rejects(run.service.listSourceTree({ accountId, projectId, sourceRevision: MIDDLE }), { message: 'BUILDER_SOURCE_READ_UNSAFE_ENTRY' })
+  await assert.rejects(run.service.getSourceFile({ accountId, projectId, sourceRevision: MIDDLE, path: 'app/link' }), { message: 'BUILDER_SOURCE_READ_FILE_NOT_FOUND' })
+  await run.service.close()
+  assert.deepEqual(run.localReads, [])
+  assert.deepEqual([...new Set(run.github.state.tokens.map(({ repositoryIds, permissions }) => JSON.stringify({ repositoryIds, permissions })))], [JSON.stringify({ repositoryIds: [700001], permissions: { contents: 'read' } })])
+})
+
+test('an unbound Project still reads the local repository', async (t) => {
+  const run = await harness(t, { bound: false })
+  await assert.rejects(run.service.listSourceTree({ accountId, projectId, sourceRevision: RESULT }), { message: 'BUILDER_SOURCE_READ_REVISION_NOT_FOUND' })
+  await assert.rejects(run.service.getSourceFile({ accountId, projectId, sourceRevision: RESULT, path: 'app/index.html' }), { message: 'BUILDER_SOURCE_READ_REVISION_NOT_FOUND' })
+  await run.service.close()
+  assert.deepEqual(run.localReads, ['tree', 'file'])
+  assert.deepEqual(run.github.state.requests, [])
 })
 
 test('the Factory agent is told to run the application check, and not that the compiler runs elsewhere', () => {

@@ -1,0 +1,60 @@
+import { type GithubApp, GithubRequestError } from './factory-github.js'
+import type { FactoryRepository } from './factory-runtime.js'
+import type { BuilderSourceFile, BuilderSourceTree } from './source.js'
+import type { FactoryBindingRecord } from './store.js'
+
+/** A bound Project's source is its GitHub repository, read at one exact revision. */
+export type FactorySourceReads = Readonly<{
+  listSourceTree(binding: FactoryBindingRecord, sourceRevision: string): Promise<BuilderSourceTree>
+  readSourceFile(binding: FactoryBindingRecord, sourceRevision: string, path: string): Promise<BuilderSourceFile>
+}>
+
+const OID = /^[0-9a-f]{40}$/
+const MAX_ENTRIES = 10_000
+const MAX_FILE_BYTES = 1_048_576
+const REGULAR_FILE = new Set(['100644', '100755'])
+
+// The rules the local source read enforces inside its Git container, applied to GitHub's answer.
+const safePath = (path: unknown): path is string => typeof path === 'string' && path.length > 0 && path.length <= 4096 &&
+  !path.startsWith('/') && !path.includes('\\') && !path.includes('\0') && path.split('/').every((part) => part !== '' && part !== '.' && part !== '..')
+
+const refused = (code: string) => (error: unknown): never => {
+  throw error instanceof GithubRequestError && error.status === 404 ? new Error(`BUILDER_SOURCE_READ_${code}`) : error
+}
+
+export const createFactorySourceReads = ({ github, resolveRepository }: Readonly<{
+  github: Pick<GithubApp, 'readTree' | 'readContents'>
+  resolveRepository(binding: FactoryBindingRecord): Promise<FactoryRepository>
+}>): FactorySourceReads => Object.freeze({
+  listSourceTree: async (binding, sourceRevision) => {
+    if (!OID.test(sourceRevision)) throw new Error('BUILDER_SOURCE_READ_REFUSED')
+    const repository = await resolveRepository(binding)
+    const tree = await github.readTree(repository.installation, repository, sourceRevision).catch(refused('REVISION_NOT_FOUND'))
+    if (tree.truncated !== false || !Array.isArray(tree.tree)) throw new Error('BUILDER_SOURCE_READ_TREE_TOO_LARGE')
+    const entries: { path: string; kind: 'FILE' | 'DIRECTORY' }[] = []
+    for (const entry of tree.tree as readonly Readonly<Record<string, unknown>>[]) {
+      if (!safePath(entry.path)) throw new Error('BUILDER_SOURCE_READ_UNSAFE_ENTRY')
+      if (entry.type === 'tree') entries.push({ path: entry.path, kind: 'DIRECTORY' })
+      else if (entry.type === 'blob' && REGULAR_FILE.has(String(entry.mode))) entries.push({ path: entry.path, kind: 'FILE' })
+      else throw new Error('BUILDER_SOURCE_READ_UNSAFE_ENTRY')
+    }
+    if (entries.length > MAX_ENTRIES) throw new Error('BUILDER_SOURCE_READ_TREE_TOO_LARGE')
+    entries.sort((left, right) => left.path.localeCompare(right.path) || left.kind.localeCompare(right.kind))
+    return Object.freeze({ sourceRevision, entries: Object.freeze(entries.map((entry) => Object.freeze(entry))) })
+  },
+  readSourceFile: async (binding, sourceRevision, path) => {
+    if (!OID.test(sourceRevision) || !safePath(path)) throw new Error('BUILDER_SOURCE_READ_PATH_REFUSED')
+    const repository = await resolveRepository(binding)
+    const file = await github.readContents(repository.installation, repository, sourceRevision, path).catch(refused('FILE_NOT_FOUND'))
+    if (Array.isArray(file) || file.type !== 'file' || file.path !== path) throw new Error('BUILDER_SOURCE_READ_FILE_NOT_FOUND')
+    if (file.encoding !== 'base64' || typeof file.content !== 'string' || typeof file.size !== 'number' || file.size > MAX_FILE_BYTES) {
+      throw new Error('BUILDER_SOURCE_READ_FILE_NOT_DISCLOSABLE')
+    }
+    const bytes = Buffer.from(file.content, 'base64')
+    const content = bytes.toString('utf8')
+    if (bytes.byteLength !== file.size || bytes.includes(0) || !Buffer.from(content, 'utf8').equals(bytes)) {
+      throw new Error('BUILDER_SOURCE_READ_FILE_NOT_DISCLOSABLE')
+    }
+    return Object.freeze({ sourceRevision, path, content })
+  },
+})

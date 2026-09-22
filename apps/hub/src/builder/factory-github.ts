@@ -134,6 +134,20 @@ export const createGithubApp = ({ appId, privateKey, baseUrl = GITHUB_API_URL }:
         throw error
       }
     },
+    // The commit's whole tree, as GitHub lists it, read with a token for this one repository.
+    readTree: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, sha: string): Promise<Json> => {
+      if (!REPOSITORY_SLUG.test(repository.slug) || !OID.test(sha)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
+      const [owner, repo] = repository.slug.split('/') as [string, string]
+      const token = await repositoryToken(installationId, repository.externalId, 'read')
+      return call('GET /repos/{owner}/{repo}/git/trees/{tree_sha}', token, { owner, repo, tree_sha: sha, recursive: '1' })
+    },
+    readContents: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, sha: string, path: string): Promise<Json> => {
+      if (!REPOSITORY_SLUG.test(repository.slug) || !OID.test(sha)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
+      const [owner, repo] = repository.slug.split('/') as [string, string]
+      const token = await repositoryToken(installationId, repository.externalId, 'read')
+      // Each segment is encoded here so its '/' separators survive and a '?' or '#' in a name cannot end the path.
+      return call('GET /repos/{owner}/{repo}/contents/{+path}', token, { owner, repo, path: path.split('/').map(encodeURIComponent).join('/'), ref: sha })
+    },
     // Whether `sha` is in the branch's history: the branch is at it or ahead of it.
     branchContains: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, branch: string, sha: string): Promise<boolean> => {
       if (!REPOSITORY_SLUG.test(repository.slug) || !BRANCH.test(branch) || !OID.test(sha)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')

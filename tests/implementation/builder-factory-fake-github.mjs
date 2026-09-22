@@ -17,6 +17,8 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
     compareStatus: null,
     // A leased push applies, and its client then sees only a transport failure.
     pushResponseLost: false,
+    // `${slug}@${commit}` -> Map(path -> { mode, content }), the files of a commit GitHub holds.
+    commits: new Map(),
   }
   const descends = (sha, ancestor) => {
     for (let at = sha; at; at = state.parents.get(at)) if (at === ancestor) return true
@@ -71,6 +73,23 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
         if (!head) return send(response, 404, { message: 'Not Found' })
         const status = head === base ? 'identical' : descends(head, base) ? 'ahead' : descends(base, head) ? 'behind' : 'diverged'
         return send(response, 200, { status })
+      }
+      const tree = at('GET', /^\/repos\/([^/]+)\/([^/]+)\/git\/trees\/([0-9a-f]{40})$/)
+      if (tree) {
+        const files = state.commits.get(`${tree[1]}/${tree[2]}@${tree[3]}`)
+        if (!files || url.searchParams.get('recursive') !== '1') return send(response, 404, { message: 'Not Found' })
+        const directories = new Set([...files.keys()].flatMap((file) => file.split('/').slice(0, -1).map((_, index, parts) => parts.slice(0, index + 1).join('/'))))
+        return send(response, 200, { sha: tree[3], truncated: false, tree: [
+          ...[...directories].map((directory) => ({ path: directory, mode: '040000', type: 'tree', sha: 'e'.repeat(40) })),
+          ...[...files].map(([file, { mode, content }]) => ({ path: file, mode, type: mode === '160000' ? 'commit' : 'blob', sha: 'f'.repeat(40), size: Buffer.byteLength(content) })),
+        ] })
+      }
+      const contents = at('GET', /^\/repos\/([^/]+)\/([^/]+)\/contents\/(.+)$/)
+      if (contents) {
+        const file = state.commits.get(`${contents[1]}/${contents[2]}@${url.searchParams.get('ref')}`)?.get(contents[3])
+        if (!file) return send(response, 404, { message: 'Not Found' })
+        const bytes = Buffer.from(file.content)
+        return send(response, 200, { type: file.mode === '120000' ? 'symlink' : 'file', path: contents[3], size: bytes.byteLength, encoding: 'base64', content: bytes.toString('base64') })
       }
       const match = /^\/repos\/([^/]+)\/([^/]+)\/git\/refs?\/heads\/(.+)$/.exec(path)
       if (match) {

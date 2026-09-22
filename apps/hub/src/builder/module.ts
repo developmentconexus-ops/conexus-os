@@ -30,6 +30,7 @@ import { assertFactoryHost, composeFactory, createFactoryPool, createFactorySand
 import type { FactoryComposition } from './factory.js'
 import { createGithubApp } from './factory-github.js'
 import { createFactoryCodingWorkerRuntime, createMastraFactoryRunPorts, recoverFactoryAdmissions } from './factory-runtime.js'
+import { createFactorySourceReads } from './factory-source.js'
 import type { FactoryRunDependencies, RunNote } from './service.js'
 import type { BuilderStore } from './store.js'
 
@@ -224,6 +225,7 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
       (await (await ready).github.sourceControlStorage.sessions.getBySessionId(conversationId))?.projectRepositoryId ?? null,
     appendDiagnostic,
     recoverAdmissions: async (active) => recoverFactoryAdmissions({ store, github: githubApp, resolveRepository: (await portsReady).resolveRepository, active }),
+    source: createFactorySourceReads({ github: githubApp, resolveRepository: async (binding) => (await portsReady).resolveRepository(binding) }),
   })
   return Object.freeze({
     orgId: factory.orgId,
