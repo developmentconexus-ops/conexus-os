@@ -46,11 +46,15 @@ const createSessions = () => {
     created,
     getBySessionId: async (sessionId) => rows.get(sessionId) ?? null,
     list: async ({ projectRepositoryId }) => [...rows.values()].filter((row) => row.projectRepositoryId === projectRepositoryId),
-    create: async (input) => {
-      created.push(input)
-      const row = { ...input, id: randomUUID(), title: input.title ?? null, createdAt: new Date('2026-09-21T12:00:00.000Z') }
-      rows.set(input.sessionId, row)
-      return row
+    // The Factory's own session route: a retried id with the same repository answers its row.
+    route: async (request, reply) => {
+      const { sessionId, branch } = request.body
+      created.push({ projectRepositoryId: request.params.id, sessionId, branch })
+      const existing = rows.get(sessionId)
+      if (existing) return existing.projectRepositoryId === request.params.id ? { session: existing } : reply.code(409).send({ error: 'Session ID conflict' })
+      const row = { sessionId, projectRepositoryId: request.params.id, orgId: ORG, branch, baseBranch: 'main', visibility: 'org', title: null, createdAt: new Date('2026-09-21T12:00:00.000Z') }
+      rows.set(sessionId, row)
+      return { session: row }
     },
   }
 }
@@ -86,9 +90,9 @@ const createFactoryApp = async (t, { accountId = accountA } = {}) => {
         mastra, controllerId: 'code', controller, origin, orgId: ORG, resolveCurrentSession,
         admitConversation: admitFactoryConversation({ sessions, resolveFactoryProject }),
       })
+      instance.post('/web/github/projects/:id/sessions', sessions.route)
       return registerFactoryConversationRoutes(instance, {
-        readFactoryBinding, sessions, controller, orgId: ORG, origin, resolveCurrentSession, openThread: openFactoryConversationThread({ controller, orgId: ORG }),
-        defaultBranchOf: async (binding) => binding.repositoryId === `repository-of-${projectA}` ? 'main' : 'trunk',
+        readFactoryBinding, sessions, controller, origin, resolveCurrentSession, openThread: openFactoryConversationThread({ controller, orgId: ORG }),
       })
     },
     staticRoot: null,
@@ -197,20 +201,17 @@ test('a state-changing request without CSRF is refused on both the mount and the
   assert.deepEqual(sessions.created, [])
 })
 
-test('a conversation is a Factory session row on its own branch, and a retry returns the same row', async (t) => {
+test('a conversation is created by the Factory\'s own session route on its own branch, and a retry returns the same one', async (t) => {
   const { app, sessions } = await createFactoryApp(t)
   const conversationId = randomUUID()
   const first = await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/conversations`, ...authentic, payload: { conversationId } })
   assert.equal(first.statusCode, 201)
   assert.deepEqual(first.json(), { conversation: { conversationId, title: null, createdAt: '2026-09-21T12:00:00.000Z' } })
-  assert.deepEqual(sessions.created, [{
-    sessionId: conversationId, projectRepositoryId: 'project-repository-a', orgId: ORG, userId: accountA,
-    branch: `conexus/${conversationId}`, baseBranch: 'main', visibility: 'org',
-  }])
+  assert.deepEqual(sessions.created, [{ projectRepositoryId: 'project-repository-a', sessionId: conversationId, branch: `conexus/${conversationId}` }])
   const retried = await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/conversations`, ...authentic, payload: { conversationId } })
   assert.equal(retried.statusCode, 200)
   assert.deepEqual(retried.json(), first.json())
-  assert.equal(sessions.created.length, 1)
+  assert.equal(sessions.rows.size, 2)
 
   const listed = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/conversations`, ...authentic })
   assert.deepEqual(listed.json().conversations.map((entry) => entry.conversationId), [conversationId, conversationA])

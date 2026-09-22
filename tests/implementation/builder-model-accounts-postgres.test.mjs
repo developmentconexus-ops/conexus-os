@@ -351,6 +351,51 @@ test('with the Factory reading the Hub session, the browser\'s Mastra session ro
   assert.deepEqual(threads.json().threads.map((thread) => thread.id), [conversationId])
 })
 
+test('a conversation is created by the Factory\'s own session route, only for a person who may build its Project', async (t) => {
+  const composition = await composeOnPostgres(t)
+  const projectRepositoryId = await openConversation(composition)
+  const { registerFactoryConversationRoutes, openFactoryConversationThread: openThread, FACTORY_SESSION_ROUTE } = await import(built('builder/factory-routes.js'))
+  const builders = new Set([alice])
+  const app = await createHttpApp({
+    registerRoutes: async (instance) => {
+      await registerFactoryApiRoutes(instance, {
+        mastra: composition.mastra, routes: new Set([FACTORY_SESSION_ROUTE]), origin, resolveCurrentSession,
+        admit: async ({ accountId, params }) => builders.has(accountId) && params.id === projectRepositoryId,
+      })
+      return registerFactoryConversationRoutes(instance, {
+        readFactoryBinding: async ({ accountId }) => {
+          if (!builders.has(accountId)) throw new Error('NOT_AUTHORIZED')
+          return { projectId, projectRepositoryId, repositoryId: 'unused' }
+        },
+        sessions: composition.github.sourceControlStorage.sessions,
+        controller: composition.controller,
+        origin, resolveCurrentSession,
+        openThread: openThread({ controller: composition.controller, orgId: ORG }),
+      })
+    },
+    staticRoot: null,
+  })
+  t.after(() => app.close())
+  const as = (accountId) => ({
+    headers: { origin, 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' },
+    cookies: { '__Host-conexus_session': accountId, '__Host-conexus_csrf': 'csrf-1' },
+  })
+  const conversation = randomUUID()
+  const first = await app.inject({ method: 'POST', url: `/api/control/projects/${projectId}/conversations`, ...as(alice), payload: { conversationId: conversation } })
+  assert.equal(first.statusCode, 201, first.body)
+  const row = await composition.github.sourceControlStorage.sessions.getBySessionId(conversation)
+  assert.deepEqual(
+    { projectRepositoryId: row.projectRepositoryId, userId: row.userId, branch: row.branch, baseBranch: row.baseBranch, visibility: row.visibility },
+    { projectRepositoryId, userId: alice, branch: `conexus/${conversation}`, baseBranch: 'main', visibility: 'org' },
+  )
+  const retried = await app.inject({ method: 'POST', url: `/api/control/projects/${projectId}/conversations`, ...as(alice), payload: { conversationId: conversation } })
+  assert.equal(retried.statusCode, 200)
+  assert.deepEqual(retried.json(), first.json())
+
+  const direct = await app.inject({ method: 'POST', url: `/web/github/projects/${projectRepositoryId}/sessions`, ...as(bob), payload: { sessionId: randomUUID() } })
+  assert.equal(direct.statusCode, 403, 'the Factory route is reachable only with the Project\'s build authority')
+})
+
 test('a new conversation starts from the person\'s own defaults, else the installation\'s, and only an administrator sets the installation\'s', async (t) => {
   const composition = await composeOnPostgres(t, { administrators: [alice] })
   const projectRepositoryId = await openConversation(composition)
