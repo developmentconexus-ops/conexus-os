@@ -34,10 +34,15 @@ export type Conversation = Readonly<{ id: string; title?: string | null | undefi
 const conversationsKey = (projectId: string) => ['project-conversations', projectId] as const
 const sessionModelKey = (projectId: string) => ['builder-session-model', projectId] as const
 
-export const useProjectConversations = (projectId: string) => useQuery({
+/**
+ * The Project's conversations. The Hub titles a conversation from its first request once a run has
+ * saved it, so while `awaitingTitleOf` has a run working and no title yet, the list is read again.
+ */
+export const useProjectConversations = (projectId: string, awaitingTitleOf?: string | null) => useQuery({
   queryKey: conversationsKey(projectId),
   queryFn: (): Promise<readonly Conversation[]> => listFactoryConversations(projectId),
   enabled: Boolean(projectId),
+  refetchInterval: (query) => awaitingTitleOf && !query.state.data?.find((entry) => entry.id === awaitingTitleOf)?.title?.trim() ? 1_000 : false,
 })
 
 export const useConversationActions = (projectId: string) => {
@@ -70,6 +75,15 @@ export const reasoningLevels = ['low', 'medium', 'high', 'xhigh'] as const
 export type ReasoningLevel = typeof reasoningLevels[number]
 const asReasoningLevel = (value: unknown): ReasoningLevel | null =>
   reasoningLevels.find((level) => level === value) ?? null
+
+// The model chosen before a Project exists has nowhere to live yet: the controller only persists a
+// choice on a conversation's own thread. Once the home prompt creates that first conversation, this
+// applies the choice to it, the same write useSessionModel's own mutations make.
+export const applyThreadModel = async (conversationId: string, modelId: string, reasoning: ReasoningLevel | null): Promise<void> => {
+  const session = factoryController.session(conversationId)
+  await session.switchModel(modelId, { scope: 'thread' })
+  if (reasoning) await session.setState({ thinkingLevel: reasoning })
+}
 
 export const useSessionModel = (projectId: string, conversationId: string | null) => {
   const queryClient = useQueryClient()

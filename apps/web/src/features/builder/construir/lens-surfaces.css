@@ -1,0 +1,57 @@
+/* Styles owned by the SURFACES agent: the Prévia toolbar and the Alterações / Sobre lenses. Reuses
+   construir.css's tokens and existing classes (.cx-note, .cx-lens-split, .cx-files, .cx-change,
+   .cx-details-card, .cx-run-facts, .cx-history-time, .cx-history-text, .cx-trace) and only adds the
+   rules those lenses' new elements need. */
+
+/* Shared bits: a segmented toggle and a status chip with a tone-colored dot, used by both lenses. */
+.cx-seg { display: inline-flex; gap: 2px; margin: 0; padding: 2px; border: 0; border-radius: 8px; background: var(--cx-surface-3); }
+.cx-seg button { padding: .3rem .6rem; border: 0; border-radius: 6px; background: transparent; color: var(--cx-text-2); font: 500 .75rem/1 var(--cx-font-body); cursor: pointer; }
+.cx-seg button[aria-pressed="true"] { background: var(--cx-surface); color: var(--cx-text); box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
+.cx-seg-icons button { display: grid; place-items: center; padding: .35rem; }
+
+.cx-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .55rem; border-radius: 999px; background: var(--cx-surface-3); color: var(--cx-text-2); font-size: .75rem; font-weight: 500; white-space: nowrap; }
+.cx-chip::before { content: ""; width: .4rem; height: .4rem; border-radius: 50%; background: currentcolor; }
+.cx-chip[data-tone="ok"] { background: color-mix(in srgb, var(--cx-success) 14%, var(--cx-surface)); color: var(--cx-success); }
+.cx-chip[data-tone="fail"] { background: color-mix(in srgb, var(--cx-danger) 12%, var(--cx-surface)); color: var(--cx-danger); }
+.cx-chip[data-tone="active"] { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
+.cx-chip[data-tone="neutral"] { background: var(--cx-surface-3); color: var(--cx-text-2); }
+
+/* Prévia toolbar */
+.cx-preview-toolbar { display: flex; align-items: center; gap: .5rem; min-height: 2.25rem; }
+.cx-preview-address { display: flex; align-items: center; min-width: 0; margin-right: auto; padding: .3rem .6rem; overflow: hidden; border: 1px solid var(--cx-line); border-radius: 6px; background: var(--cx-surface); color: var(--cx-text-2); font: 400 .75rem/1 var(--cx-font-mono); text-overflow: ellipsis; white-space: nowrap; }
+.cx-frame[data-viewport="mobile"] { display: grid; place-items: center; background: var(--cx-surface-3); }
+.cx-frame[data-viewport="mobile"] iframe { width: 390px; height: 100%; max-height: 44rem; border-radius: 10px; box-shadow: 0 .25rem 1rem rgb(0 0 0 / .15); }
+
+/* Alterações */
+.cx-diff-lens { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cx-diff-head { padding: .6rem 1rem; border-bottom: 1px solid var(--cx-line); background: var(--cx-surface); }
+.cx-diff-headrow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .35rem; }
+.cx-diff-summary { margin: 0; color: var(--cx-text-2); font-size: .8125rem; }
+.cx-diff-add { color: var(--cx-success); font-variant-numeric: tabular-nums; }
+.cx-diff-del { color: var(--cx-danger); font-variant-numeric: tabular-nums; }
+.cx-diff-lens .cx-lens-split { border-top: 0; }
+.cx-change-counts { display: inline-flex; gap: .4rem; margin-left: auto; font-size: .6875rem; }
+.cx-code-split .cm-mergeView { height: 100%; }
+.cx-code-split .cm-editor { height: 100%; background: transparent; }
+.cx-code-split .cm-scroller { font-family: var(--cx-font-mono); }
+
+/* Sobre */
+.cx-tech { margin-top: .25rem; padding-top: .5rem; border-top: 1px solid var(--cx-line); }
+.cx-hash-table { width: 100%; margin-top: .5rem; border-collapse: collapse; font-size: .8125rem; }
+.cx-hash-table td { padding: .3rem 0; }
+.cx-hash-table td:first-child { color: var(--cx-text-2); }
+.cx-hash { display: flex; align-items: center; gap: .3rem; justify-content: flex-end; }
+.cx-hash code { font-size: .75rem; }
+.cx-run-timeline { display: grid; gap: .35rem; margin: 0; padding: 0; list-style: none; }
+.cx-run-entry { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: .75rem; width: 100%; padding: .55rem .6rem; border: 0; border-radius: 6px; background: transparent; color: var(--cx-text); text-align: left; }
+.cx-run-entry[aria-pressed="true"] { background: var(--cx-surface-3); }
+.cx-run-entry-body { display: grid; gap: .25rem; min-width: 0; }
+.cx-run-reason { margin: 0; color: var(--cx-text-2); font-size: .8125rem; }
+li[data-selected] { background: color-mix(in srgb, var(--cx-accent) 5%, transparent); border-radius: 6px; }
+.cx-run-retry { margin: .1rem .6rem .35rem; }
+
+@media (max-width: 767px) {
+  .cx-diff-headrow { flex-direction: column; align-items: flex-start; gap: .4rem; }
+  .cx-preview-address { display: none; }
+  .cx-run-entry { grid-template-columns: minmax(0, 1fr); }
+}

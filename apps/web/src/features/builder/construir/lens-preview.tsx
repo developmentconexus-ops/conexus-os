@@ -1,15 +1,25 @@
 import { Button } from '@mastra/playground-ui/components/Button'
-import { RotateCw } from 'lucide-react'
+import { Monitor, RotateCw, Smartphone } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import type { BuilderRun } from '../api'
 import { failureReason } from '../failure-reasons'
-import { clockLabel, nextVersionLine, type RunView } from './run-state'
+import './lens-surfaces.css'
+import type { RunView } from './run-state'
 import type { Preview } from './use-preview'
 
-const inUseSince = (history: readonly BuilderRun[], sourceRevision: string | null): string | null => {
-  const run = history.find((entry) => entry.resultSourceRevision === sourceRevision && entry.resultKind === 'SOURCE_CHANGED')
-  return run ? clockLabel(run.createdAt) : null
+const changedRuns = (history: readonly BuilderRun[]): readonly BuilderRun[] =>
+  [...history].filter((entry) => entry.resultKind === 'SOURCE_CHANGED').sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+
+/** The version's 1-based ordinal among every change this Project has published, oldest first. */
+const versionNumber = (history: readonly BuilderRun[], sourceRevision: string | null): number | null => {
+  if (!sourceRevision) return null
+  const index = changedRuns(history).findIndex((entry) => entry.resultSourceRevision === sourceRevision)
+  return index === -1 ? null : index + 1
+}
+
+const addressOf = (url: string): string => {
+  try { return new URL(url).host } catch { return url }
 }
 
 export function LensPreview({ preview, view, history, lastGoodSourceRevision, sourceAhead }: Readonly<{
@@ -21,6 +31,7 @@ export function LensPreview({ preview, view, history, lastGoodSourceRevision, so
 }>) {
   const frameName = `cx-preview-${useId().replaceAll(':', '')}`
   const entryForm = useRef<HTMLFormElement>(null)
+  const [viewport, setViewport] = useState<'desktop' | 'mobile'>('desktop')
   const lease = preview.lease
   const leaseKeyId = lease?.keyId ?? null
   // The frame starts at about:blank, whose own load fires before any grant exists, so a load only
@@ -37,7 +48,7 @@ export function LensPreview({ preview, view, history, lastGoodSourceRevision, so
     queueMicrotask(() => entryForm.current?.requestSubmit())
   }, [lease, leaseKeyId])
   const frameOpen = navigated !== null && navigated === leaseKeyId
-  const since = inUseSince(history, lastGoodSourceRevision)
+  const version = versionNumber(history, lastGoodSourceRevision)
   const failedRun = view.kind === 'SETTLED' && (view.outcome === 'BUILD_FAILED' || view.outcome === 'FAILED') ? view.run : null
 
   if (!preview.ready && !lease) {
@@ -49,14 +60,24 @@ export function LensPreview({ preview, view, history, lastGoodSourceRevision, so
   }
 
   return <div className="cx-preview">
-    <div className="cx-inuse">
-      <span className="cx-inuse-dot" data-state={view.kind === 'ACTIVE' ? 'building' : 'live'} aria-hidden="true" />
-      <p role="status" aria-live="polite">
-        <span>Em uso: {since ? `versão das ${since}` : 'última versão boa'}</span>
-        <span className="cx-inuse-sep" aria-hidden="true"> · </span>
-        <span>Próxima: {nextVersionLine(view, sourceAhead)}</span>
-      </p>
-      {lease && <Button className="cx-inuse-action" variant="ghost" size="xs" icon={<RotateCw size={13} aria-hidden="true" />} onClick={preview.retry}>Reabrir</Button>}
+    <div className="cx-preview-toolbar" role="toolbar" aria-label="Janela da prévia">
+      <fieldset className="cx-seg cx-seg-icons">
+        <legend className="cx-sr">Dispositivo</legend>
+        <button type="button" aria-pressed={viewport === 'desktop'} aria-label="Computador" title="Computador" onClick={() => setViewport('desktop')}>
+          <Monitor size={14} aria-hidden="true" />
+        </button>
+        <button type="button" aria-pressed={viewport === 'mobile'} aria-label="Celular" title="Celular" onClick={() => setViewport('mobile')}>
+          <Smartphone size={14} aria-hidden="true" />
+        </button>
+      </fieldset>
+      <button type="button" className="cx-icon-button" aria-label="Recarregar prévia" title="Recarregar" onClick={preview.retry}>
+        <RotateCw size={14} aria-hidden="true" />
+      </button>
+      {lease && <span className="cx-preview-address">{addressOf(lease.launch.previewUrl)}</span>}
+      <span className="cx-chip" data-tone={view.kind === 'ACTIVE' ? 'active' : sourceAhead ? 'neutral' : 'ok'}>
+        {version !== null ? `Versão ${version} · em uso` : 'Em uso'}
+        {view.kind !== 'ACTIVE' && sourceAhead ? ' · código sem prévia ainda' : ''}
+      </span>
     </div>
     {failedRun && <FailureNote run={failedRun} />}
     {preview.failed && <div className="cx-note" role="alert">
@@ -64,7 +85,7 @@ export function LensPreview({ preview, view, history, lastGoodSourceRevision, so
       <Button size="sm" onClick={preview.retry}>Tentar novamente</Button>
     </div>}
     {lease && <>
-      <div className="cx-frame">
+      <div className="cx-frame" data-viewport={viewport}>
         <iframe title="Prévia do aplicativo" name={frameName} src="about:blank" onLoad={() => {
           if (submitted.current !== leaseKeyId) return
           setNavigated(leaseKeyId)

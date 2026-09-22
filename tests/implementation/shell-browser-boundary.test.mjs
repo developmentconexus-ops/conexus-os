@@ -111,6 +111,50 @@ test('S5-P0 sidebar is contextual: a Configurações link at the bottom, and dis
   for (const label of ['Dados', 'Capacidades', 'Integrações']) assert.match(shell, new RegExp(`label="${label}"`))
 })
 
+test('S5-P0 matches the prototype\'s sidebar typography: 34px/14px/500 nav rows with 18px icons, 15px/600 switcher, 24px badge', () => {
+  const frame = read('apps/web/src/app/frame.css')
+  assert.match(frame, /\.shell-sidebar li > a, \.shell-sidebar li > span\[aria-disabled\] \{ height: 34px; \}/)
+  assert.match(frame, /\.cx-nav-label \{ font: 500 14px\/1 var\(--cx-font-body\); \}/)
+  assert.match(frame, /\.shell-sidebar li svg \{ width: 18px; height: 18px; \}/)
+  assert.match(frame, /\.cx-rail-switch \{[^}]*font: 600 \.9375rem\/1\.2/)
+  assert.match(frame, /\.cx-rail-badge \{[^}]*width: 1\.5rem; height: 1\.5rem;/)
+})
+
+test('S5-P0 collapsed rail leads with the toggle, then the badge; expanded keeps the switch first', () => {
+  const frame = read('apps/web/src/app/frame.css')
+  assert.match(frame, /\[data-sidebar-state="collapsed"\] \.cx-rail-collapse \{ order: -1; \}/)
+  const shell = read('apps/web/src/app/shell.tsx')
+  // DOM order is switch-then-toggle in both states; only the collapsed column visually reorders it.
+  const switchIndex = shell.indexOf('<ProjectSwitcher')
+  const collapseIndex = shell.indexOf('<SidebarCollapseTrigger />')
+  assert.ok(switchIndex > 0 && switchIndex < collapseIndex)
+})
+
+test('S5-P0 the top of the Project sidebar switches the Project itself, not the Workspace, and the back item names the Workspace', () => {
+  const shell = read('apps/web/src/app/shell.tsx')
+  assert.match(shell, /project && workspace\s*\n\s*\? <ProjectSwitcher workspaceId=\{workspace\.workspaceId\} current=\{project\.projectId\}/)
+  assert.match(shell, /<span className="cx-rail-badge" aria-hidden>\{initials\(project\.name\)\}<\/span>/)
+  // No redundant "the Project's own name" section header; the switcher already names it.
+  assert.doesNotMatch(shell, /<span className="cx-rail-scope">\{project\.name\}<\/span>/)
+  assert.match(shell, /label=\{`Voltar para \$\{workspace\.name\}`\}/)
+  assert.match(shell, /<NavText icon=\{<ArrowLeft size=\{16\} aria-hidden \/>\}>\{workspace\.name\}<\/NavText>/)
+})
+
+test('S5-P0 the top bar\'s lockup sits before a 1px divider, outside the breadcrumb trail, at the prototype\'s size (19px text, 22px mark)', () => {
+  const shell = read('apps/web/src/app/shell.tsx')
+  assert.match(shell, /<Link to="\/" className="cx-lockup" aria-label="Conexus, início">/)
+  assert.match(shell, /<span className="cx-topbar-divider" aria-hidden \/>/)
+  assert.match(shell, /<ConexusWordmark size=\{19\} markSize=\{22\} arrive=\{arrive\} \/>/)
+  assert.match(shell, /<ConexusMark size=\{22\} \/>/)
+  // The lockup is a sibling of <Breadcrumb>, not one of its <Crumb> children.
+  const lockupIndex = shell.indexOf('className="cx-lockup"')
+  const breadcrumbIndex = shell.indexOf('<Breadcrumb label="Contexto atual"')
+  assert.ok(lockupIndex > 0 && lockupIndex < breadcrumbIndex)
+  const frame = read('apps/web/src/app/frame.css')
+  assert.match(frame, /\.cx-topbar-divider \{ width: 1px;/)
+  assert.match(frame, /\.cx-crumb \{ height: 2rem; font-size: \.875rem; font-weight: 500; \}/)
+})
+
 test('S5-P0 carries a remembered light/dark toggle, built on the component library\'s own ThemeProvider', () => {
   const main = read('apps/web/src/main.tsx')
   const shell = read('apps/web/src/app/shell.tsx')

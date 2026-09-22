@@ -4,12 +4,13 @@ import {
 } from '@mastra/playground-ui/components/Composer'
 import { Popover, PopoverContent, PopoverTrigger } from '@mastra/playground-ui/components/Popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip'
-import { ArrowUp, ChevronDown, Mic, Plus, Square } from 'lucide-react'
+import { ArrowUp, ChevronDown, Mic, Paperclip, Square } from 'lucide-react'
 import type { FormEvent, KeyboardEvent, ReactNode } from 'react'
 import { useRef, useState } from 'react'
 import { type BuilderModel, type ReasoningLevel, reasoningLevels } from '../mastra-session'
 import { useDictation } from './use-dictation'
 import { ModelPicker } from './model-picker'
+import { providerIcon } from './model-order'
 import { reasoningLabels } from './reasoning-labels'
 
 export type ComposerMode =
@@ -121,12 +122,12 @@ export function BuilderComposer({
         />
         <ComposerActions className="cx-composer-actions">
           <div className="cx-composer-tools">
-            <Soon label="Anexar arquivo"><Plus size={18} aria-hidden="true" /></Soon>
+            <Soon label="Anexar arquivo"><Paperclip size={17} aria-hidden="true" /></Soon>
           </div>
           <div className="cx-composer-tools">
             <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
               <PopoverTrigger render={<button type="button" className="cx-model-button" aria-label={`Modelo ${modelName(selected)}, raciocínio ${reasoningLabels[level]}`} />}>
-                {selected && <i className="cx-level-dot" aria-hidden="true" />}
+                {selected && (() => { const Icon = providerIcon(selected.provider); return <Icon width={14} height={14} aria-hidden="true" /> })()}
                 <span className="cx-model-name">{modelName(selected)}</span>
                 {selected && <span className="cx-model-level">· {reasoningLabels[level]}</span>}
                 <ChevronDown size={14} aria-hidden="true" />

@@ -3,10 +3,13 @@ import {
   ToolCall, ToolCallCommand, ToolCallContent, ToolCallEdit, ToolCallMono, ToolCallPresentedHeader, ToolCallTrigger,
   presentTool, stringifyToolValue, stripAnsi, toolEdit,
 } from '@mastra/playground-ui/components/ai/tool-call'
-import { Brain, ChevronRight } from 'lucide-react'
+import { Brain, Check, ChevronDown } from 'lucide-react'
 import type { ReactNode } from 'react'
-import type { ActiveTool, LiveTurn, MastraDBMessage } from '../mastra-session'
+import { ConexusMark } from '../../../../../../packages/brand/src/index'
+import { providerIcon, providerLabel } from '../composer/model-order'
+import type { ActiveTool, BuilderModel, LiveTurn, MastraDBMessage } from '../mastra-session'
 import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
+import { clockLabel } from '../construir/run-state'
 import { toolSentence } from '../construir/tool-sentences'
 
 export type PersistedRequest = Readonly<{ runId: string; text: string; createdAt: string; reason: string | null }>
@@ -61,14 +64,25 @@ function Reasoning({ part, streaming }: Readonly<{ part: ReasoningPart; streamin
 const userText = (message: MastraDBMessage): string =>
   message.content.parts.flatMap((part) => part.type === 'text' ? [part.text] : []).join('')
 
+/** An assistant message's own text, empty for anything else (a tool-only step has none to match on). */
+const assistantReplyText = (message: MastraDBMessage): string =>
+  message.role === 'assistant' ? userText(message) : ''
+
 const messageTime = (message: MastraDBMessage): number => {
   const at = new Date(message.createdAt).getTime()
   return Number.isNaN(at) ? 0 : at
 }
 
+function UserBubble({ text, at }: Readonly<{ text: string; at: number | null }>) {
+  return <div className="builder-turn builder-turn-user-row">
+    <div className="builder-turn builder-turn-user"><MarkdownRenderer>{text}</MarkdownRenderer></div>
+    {at !== null && <span className="builder-turn-time">{clockLabel(new Date(at).toISOString())}</span>}
+  </div>
+}
+
 function RequestTurn({ entry }: Readonly<{ entry: PersistedRequest }>) {
   return <>
-    <div className="builder-turn builder-turn-user"><MarkdownRenderer>{entry.text}</MarkdownRenderer></div>
+    <UserBubble text={entry.text} at={new Date(entry.createdAt).getTime()} />
     {entry.reason && <p className="builder-turn-reason" role="note">{entry.reason}</p>}
   </>
 }
@@ -78,61 +92,125 @@ const isRunningInvocation = (part: ToolInvocationPart, tools: LiveTurn['tools'])
   return part.toolInvocation.state !== 'result' && live?.status !== 'completed' && live?.status !== 'error'
 }
 
-// Consecutive tool calls read as one action, not a scroll of individual steps: a single disclosure
-// named by how many ran and whether any of them is still going.
+// Every tool call the agent ran for this turn reads as one action, not a scroll of individual
+// steps or one disclosure per message the Factory happened to split the turn across.
 function ToolGroup({ parts, tools }: Readonly<{ parts: readonly ToolInvocationPart[]; tools: LiveTurn['tools'] }>) {
-  const only = parts.length === 1 ? parts[0] : undefined
-  if (only) return <ToolInvocation part={only} live={tools[only.toolInvocation.toolCallId]} />
   const running = parts.filter((part) => isRunningInvocation(part, tools)).length
-  const label = running > 0 ? `Executando ${parts.length} ações` : `${parts.length} ações concluídas`
+  const label = running > 0 ? `Executando ${parts.length} ${parts.length === 1 ? 'ação' : 'ações'}` : `${parts.length} ${parts.length === 1 ? 'ação concluída' : 'ações concluídas'}`
   return <details className="cx-tool-group">
-    <summary><ChevronRight size={13} aria-hidden="true" />{label}</summary>
+    <summary>
+      {running > 0 ? <span className="cx-tool-group-spinner" aria-hidden="true" /> : <Check size={13} className="cx-tool-group-check" aria-hidden="true" />}
+      <span>{label}</span>
+      <ChevronDown size={13} aria-hidden="true" />
+    </summary>
     <div className="cx-tool-group-body">
       {parts.map((part) => <ToolInvocation key={part.toolInvocation.toolCallId} part={part} live={tools[part.toolInvocation.toolCallId]} />)}
     </div>
   </details>
 }
 
-function Message({ message, tools, streaming, reason }: Readonly<{ message: MastraDBMessage; tools: LiveTurn['tools']; streaming: boolean; reason: string }>) {
-  const parts = message.content.parts
-  if (isUserAuthored(message)) {
-    const text = userText(message)
-    return text ? <div className="builder-turn builder-turn-user"><MarkdownRenderer>{text}</MarkdownRenderer></div> : null
-  }
-  if (message.role !== 'assistant') return null
-  // Runs of tool-invocation parts are rendered as one group; anything else renders on its own.
-  const rendered: ReactNode[] = []
-  let toolRun: ToolInvocationPart[] = []
-  const flushTools = (key: string) => {
-    if (!toolRun.length) return
-    rendered.push(<ToolGroup key={key} parts={toolRun} tools={tools} />)
-    toolRun = []
-  }
-  parts.forEach((part, index) => {
-    const last = streaming && index === parts.length - 1
-    const key = `${message.id}-${index}`
-    if (part.type === 'tool-invocation') { toolRun.push(part); return }
-    flushTools(`${key}-tools`)
-    if (part.type === 'text') { if (part.text) rendered.push(<MarkdownRenderer key={key} streaming={last}>{part.text}</MarkdownRenderer>) }
-    else if (part.type === 'reasoning') rendered.push(<Reasoning key={key} part={part} streaming={last} />)
-    // The provider's own words name sandboxes, ids and stack frames. The category is what the
-    // operator is told.
-    else if (part.type === 'error') rendered.push(<p key={key} className="builder-turn-reason" role="note">{reason}</p>)
-  })
-  flushTools(`${message.id}-tools-tail`)
-  return <div className="builder-turn builder-turn-assistant">{rendered}</div>
+function ModelChip({ model }: Readonly<{ model: BuilderModel | null }>) {
+  if (!model) return null
+  const Icon = providerIcon(model.provider)
+  return <span className="builder-turn-model" title={`${providerLabel(model.provider)} · ${model.modelName}`}>
+    <Icon width={12} height={12} aria-hidden="true" />
+    {model.modelName}
+  </span>
 }
 
-export function BuilderConversation({ history, turn, pendingRequest, persistedRequests, failureCategory }: Readonly<{
+function AssistantTurn({ model, children }: Readonly<{ model: BuilderModel | null; children: readonly ReactNode[] }>) {
+  return <div className="builder-turn builder-turn-assistant">
+    <div className="builder-turn-head">
+      <ConexusMark size={20} />
+      <span className="builder-turn-author">Conexus</span>
+      <ModelChip model={model} />
+    </div>
+    <div className="builder-turn-body">{children}</div>
+  </div>
+}
+
+// One flat sequence of pieces, built once from settled history, orphan requests and the live turn
+// in order, so a run of tool calls groups across whatever message ids the Factory split it into.
+type Piece =
+  | Readonly<{ kind: 'user'; key: string; text: string; at: number | null }>
+  | Readonly<{ kind: 'request'; key: string; entry: PersistedRequest }>
+  | Readonly<{ kind: 'tool'; key: string; part: ToolInvocationPart }>
+  | Readonly<{ kind: 'text'; key: string; text: string; streaming: boolean }>
+  | Readonly<{ kind: 'reasoning'; key: string; part: ReasoningPart; streaming: boolean }>
+  | Readonly<{ kind: 'error'; key: string; text: string }>
+
+const flattenMessage = (message: MastraDBMessage, streamingId: string | undefined, reason: string): readonly Piece[] => {
+  if (isUserAuthored(message)) {
+    const text = userText(message)
+    return text ? [{ kind: 'user', key: message.id, text, at: messageTime(message) || null }] : []
+  }
+  if (message.role !== 'assistant') return []
+  const parts = message.content.parts
+  const streaming = message.id === streamingId
+  return parts.flatMap((part, index): Piece[] => {
+    const key = `${message.id}-${index}`
+    const last = streaming && index === parts.length - 1
+    if (part.type === 'tool-invocation') return [{ kind: 'tool', key, part }]
+    if (part.type === 'text') return part.text ? [{ kind: 'text', key, text: part.text, streaming: last }] : []
+    if (part.type === 'reasoning') return [{ kind: 'reasoning', key, part, streaming: last }]
+    // The provider's own words name sandboxes, ids and stack frames. The category is what the
+    // operator is told.
+    if (part.type === 'error') return [{ kind: 'error', key, text: reason }]
+    return []
+  })
+}
+
+function renderPieces(pieces: readonly Piece[], tools: LiveTurn['tools'], model: BuilderModel | null): ReactNode[] {
+  const out: ReactNode[] = []
+  let turnBuffer: ReactNode[] = []
+  let toolBuffer: ToolInvocationPart[] = []
+  let turnKey = ''
+  const flushTools = () => {
+    if (!toolBuffer.length) return
+    turnBuffer.push(<ToolGroup key={`${turnKey}-tools-${turnBuffer.length}`} parts={toolBuffer} tools={tools} />)
+    toolBuffer = []
+  }
+  const flushTurn = () => {
+    flushTools()
+    if (turnBuffer.length) out.push(<AssistantTurn key={turnKey} model={model}>{turnBuffer}</AssistantTurn>)
+    turnBuffer = []
+  }
+  for (const piece of pieces) {
+    if (piece.kind === 'user') { flushTurn(); out.push(<UserBubble key={piece.key} text={piece.text} at={piece.at} />); continue }
+    if (piece.kind === 'request') { flushTurn(); out.push(<RequestTurn key={piece.key} entry={piece.entry} />); continue }
+    if (!turnBuffer.length && !toolBuffer.length) turnKey = piece.key
+    if (piece.kind === 'tool') { toolBuffer.push(piece.part); continue }
+    flushTools()
+    if (piece.kind === 'text') turnBuffer.push(<MarkdownRenderer key={piece.key} streaming={piece.streaming}>{piece.text}</MarkdownRenderer>)
+    else if (piece.kind === 'reasoning') turnBuffer.push(<Reasoning key={piece.key} part={piece.part} streaming={piece.streaming} />)
+    else turnBuffer.push(<p key={piece.key} className="builder-turn-reason" role="note">{piece.text}</p>)
+  }
+  flushTurn()
+  return out
+}
+
+export function BuilderConversation({ history, turn, pendingRequest, persistedRequests, failureCategory, model }: Readonly<{
   history: readonly MastraDBMessage[]
   turn: LiveTurn
   pendingRequest: string | null
   persistedRequests: readonly PersistedRequest[]
   failureCategory: BuilderFailureCategory | null
+  model: BuilderModel | null
 }>) {
   const liveIds = new Set(turn.messages.map((message) => message.id))
   const settled = history.filter((message) => !liveIds.has(message.id))
-  const spoken = new Set([...settled, ...turn.messages].filter(isUserAuthored).map(userText))
+  // Once a run's turn has ended, the Factory may have finalized its reply under a different message
+  // id than the one the live stream used (it can persist the whole tool loop under its own id, with
+  // more tool steps than the live copy had captured). Id matching alone then misses the duplicate,
+  // so a live assistant reply whose own text already showed up in the settled history is dropped
+  // too: the settled copy is the authoritative, complete one.
+  const settledReplies = new Set(settled.map(assistantReplyText).filter(Boolean))
+  const liveMessages = turn.status !== 'ENDED' ? turn.messages
+    : turn.messages.filter((message) => {
+      const text = assistantReplyText(message)
+      return !text || !settledReplies.has(text)
+    })
+  const spoken = new Set([...settled, ...liveMessages].filter(isUserAuthored).map(userText))
   const requestVisible = pendingRequest !== null && spoken.has(pendingRequest)
   const orphans = persistedRequests.filter((entry) => !spoken.has(entry.text) && entry.text !== pendingRequest)
   const timeline = [
@@ -141,13 +219,19 @@ export function BuilderConversation({ history, turn, pendingRequest, persistedRe
   ].sort((left, right) => left.at - right.at)
   const reason = failureReason(failureCategory)
   const streamingId = turn.status === 'LIVE' ? turn.messages.at(-1)?.id : undefined
+
+  const pieces: Piece[] = []
+  for (const item of timeline) {
+    if (item.entry) pieces.push({ kind: 'request', key: item.key, entry: item.entry })
+    else if (item.message) pieces.push(...flattenMessage(item.message, undefined, reason))
+  }
+  if (pendingRequest !== null && !requestVisible) pieces.push({ kind: 'user', key: 'pending-request', text: pendingRequest, at: null })
+  for (const message of liveMessages) pieces.push(...flattenMessage(message, streamingId, reason))
+
+  const rendered = renderPieces(pieces, turn.tools, model)
   return <>
-    {timeline.map((item) => item.message
-      ? <Message key={item.key} message={item.message} tools={turn.tools} streaming={false} reason={reason} />
-      : item.entry && <RequestTurn key={item.key} entry={item.entry} />)}
-    {pendingRequest !== null && !requestVisible && <div className="builder-turn builder-turn-user"><MarkdownRenderer>{pendingRequest}</MarkdownRenderer></div>}
-    {turn.messages.map((message) => <Message key={message.id} message={message} tools={turn.tools} streaming={message.id === streamingId} reason={reason} />)}
+    {rendered}
     {turn.error && <p className="builder-turn-error" role="alert">{reason}</p>}
-    {!timeline.length && !turn.messages.length && pendingRequest === null && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}
+    {!rendered.length && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}
   </>
 }
