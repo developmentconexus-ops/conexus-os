@@ -493,6 +493,30 @@ test('a bound Project reads its tree and files from its GitHub repository at the
   assert.deepEqual([...new Set(run.github.state.tokens.map(({ repositoryIds, permissions }) => JSON.stringify({ repositoryIds, permissions })))], [JSON.stringify({ repositoryIds: [700001], permissions: { contents: 'read' } })])
 })
 
+test('a bound Project compares two admitted source revisions via GitHub, scoped to one repository, refusing an unsafe path', async (t) => {
+  const run = await harness(t)
+  run.github.state.commits.set(`acme-org/app@${BASE}`, new Map([
+    ['README.md', { mode: '100644', content: '# App\n' }],
+    ['app/old.html', { mode: '100644', content: '<h1>OLD</h1>\n' }],
+  ]))
+  run.github.state.commits.set(`acme-org/app@${RESULT}`, new Map([
+    ['README.md', { mode: '100644', content: '# App v2\n' }],
+    ['app/index.html', { mode: '100644', content: '<h1>UNIT1</h1>\n' }],
+  ]))
+  assert.deepEqual(await run.service.compareSourceRevisions({ accountId, projectId, baseSourceRevision: BASE, resultSourceRevision: RESULT }), {
+    baseSourceRevision: BASE, resultSourceRevision: RESULT,
+    files: [
+      { path: 'app/index.html', status: 'ADDED', previousPath: null },
+      { path: 'app/old.html', status: 'REMOVED', previousPath: null },
+      { path: 'README.md', status: 'MODIFIED', previousPath: null },
+    ],
+  })
+  run.github.state.commits.set(`acme-org/app@${MIDDLE}`, new Map([['../etc/passwd', { mode: '100644', content: 'x' }]]))
+  await assert.rejects(run.service.compareSourceRevisions({ accountId, projectId, baseSourceRevision: BASE, resultSourceRevision: MIDDLE }), { message: 'BUILDER_SOURCE_READ_UNSAFE_ENTRY' })
+  await run.service.close()
+  assert.deepEqual([...new Set(run.github.state.tokens.map(({ repositoryIds, permissions }) => JSON.stringify({ repositoryIds, permissions })))], [JSON.stringify({ repositoryIds: [700001], permissions: { contents: 'read' } })])
+})
+
 test('an unbound Project has no source to read: there is no local repository any more', async (t) => {
   const run = await harness(t, { bound: false })
   await assert.rejects(run.service.listSourceTree({ accountId, projectId, sourceRevision: RESULT }), { message: 'BUILDER_FACTORY_PROJECT_UNBOUND' })

@@ -14,6 +14,7 @@ test('S5-P0 serves every realized browser route through the same-origin SPA host
     '/workspaces/:workspaceId/projects/new',
     '/projects/:projectId',
     '/projects/:projectId/build',
+    '/projects/:projectId/c/:conversationId',
     '/workspaces',
     '/signed-out',
     '/no-access',
@@ -50,7 +51,6 @@ test('S5-P0 preserves the four-state/no-client-authority boundary', () => {
     'apps/web/src/features/project/components/project-create-form.tsx',
     'apps/web/src/features/project/start-project.ts',
     'apps/web/src/app/access-gate.tsx',
-    'apps/web/src/features/project/components/project-detail.tsx',
   ].map(read).join('\n')
   assert.doesNotMatch(sources, /localStorage|sessionStorage|indexedDB/)
   assert.doesNotMatch(sources, /isAuthorized|hasPermission|canApprove|role(s)?\s*===/i)

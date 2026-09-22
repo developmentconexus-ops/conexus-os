@@ -29,6 +29,7 @@ const BROWSER_ROUTES: ReadonlySet<string> = new Set([
   `POST ${SESSION_BASE}/model`,
   `POST ${SESSION_BASE}/tool-approval`,
   `POST ${SESSION_BASE}/tool-suspension`,
+  `PUT ${SESSION_BASE}/state`,
 ])
 
 // The Hub is the single writer of tool policy; the browser may only answer for the one pending
@@ -43,6 +44,22 @@ const carriesPolicyChangingAnswer = (value: unknown): boolean => {
   if (Array.isArray(value)) return value.some(carriesPolicyChangingAnswer)
   if (value && typeof value === 'object') return Object.values(value as Readonly<Record<string, unknown>>).some(carriesPolicyChangingAnswer)
   return false
+}
+
+// The browser's only session-state write is its own reasoning level; yolo, notifications, and
+// smartEditing stay under the Hub's or the operator's own settings surface, never this route.
+const STATE_ROUTES: readonly string[] = [`PUT ${SESSION_BASE}/state`]
+const ALLOWED_THINKING_LEVELS: ReadonlySet<string> = new Set(['low', 'medium', 'high', 'xhigh'])
+const isReasoningLevelOnlyState = (body: unknown): boolean => {
+  if (typeof body !== 'object' || body === null) return false
+  const bodyKeys = Object.keys(body as Readonly<Record<string, unknown>>)
+  if (bodyKeys.length !== 1 || bodyKeys[0] !== 'state') return false
+  const state = (body as Readonly<{ state: unknown }>).state
+  if (typeof state !== 'object' || state === null) return false
+  const stateKeys = Object.keys(state as Readonly<Record<string, unknown>>)
+  if (stateKeys.length !== 1 || stateKeys[0] !== 'thinkingLevel') return false
+  const level = (state as Readonly<{ thinkingLevel: unknown }>).thinkingLevel
+  return typeof level === 'string' && ALLOWED_THINKING_LEVELS.has(level)
 }
 
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
@@ -66,6 +83,7 @@ type GuardedMount = Readonly<{
 const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMount): Promise<void> => {
   const accounts = new WeakMap<FastifyRequest, string>()
   const approvalAnswers = new Set(APPROVAL_ANSWER_ROUTES.map((route) => route.replace(' ', ` ${mount.prefix}`)))
+  const stateRoutes = new Set(STATE_ROUTES.map((route) => route.replace(' ', ` ${mount.prefix}`)))
   await app.register(async (scope) => {
     scope.addHook('preHandler', async (request, reply) => {
       const session = await mount.resolveCurrentSession(request)
@@ -82,6 +100,9 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       }
       if (approvalAnswers.has(`${request.method} ${request.routeOptions.url}`) && carriesPolicyChangingAnswer(body)) {
         return sendProblem(reply, 400, 'tool-answer-refused', 'Only approve or decline is accepted for a pending tool call')
+      }
+      if (stateRoutes.has(`${request.method} ${request.routeOptions.url}`) && !isReasoningLevelOnlyState(body)) {
+        return sendProblem(reply, 400, 'session-state-refused', 'Only the reasoning level may be set')
       }
       const params = request.params as Readonly<{ controllerId?: string; resourceId?: string }>
       // Mastra Code names its own controller; the id the browser addresses is the one this module

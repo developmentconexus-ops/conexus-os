@@ -13,16 +13,33 @@ export type BuilderSourceFile = Readonly<{
   content: string
 }>
 
+export type BuilderSourceChange = Readonly<{
+  path: string
+  status: 'ADDED' | 'REMOVED' | 'MODIFIED' | 'RENAMED'
+  previousPath: string | null
+}>
+
+export type BuilderSourceComparison = Readonly<{
+  baseSourceRevision: string
+  resultSourceRevision: string
+  files: readonly BuilderSourceChange[]
+}>
+
 /** A bound Project's source is its GitHub repository, read at one exact revision. */
 export type FactorySourceReads = Readonly<{
   listSourceTree(binding: FactoryBindingRecord, sourceRevision: string): Promise<BuilderSourceTree>
   readSourceFile(binding: FactoryBindingRecord, sourceRevision: string, path: string): Promise<BuilderSourceFile>
+  compareRevisions(binding: FactoryBindingRecord, baseSourceRevision: string, resultSourceRevision: string): Promise<BuilderSourceComparison>
 }>
 
 const OID = /^[0-9a-f]{40}$/
 const MAX_ENTRIES = 10_000
+const MAX_COMPARE_FILES = 3_000
 const MAX_FILE_BYTES = 1_048_576
 const REGULAR_FILE = new Set(['100644', '100755'])
+const COMPARE_STATUS: Readonly<Record<string, BuilderSourceChange['status']>> = {
+  added: 'ADDED', removed: 'REMOVED', renamed: 'RENAMED', modified: 'MODIFIED', changed: 'MODIFIED', copied: 'MODIFIED',
+}
 
 // A path the Preview and the source view may show: relative, no empty, dot or dot-dot part.
 const safePath = (path: unknown): path is string => typeof path === 'string' && path.length > 0 && path.length <= 4096 &&
@@ -33,7 +50,7 @@ const refused = (code: string) => (error: unknown): never => {
 }
 
 export const createFactorySourceReads = ({ github, resolveRepository }: Readonly<{
-  github: Pick<GithubApp, 'readTree' | 'readContents'>
+  github: Pick<GithubApp, 'readTree' | 'readContents' | 'compareCommits'>
   resolveRepository(binding: FactoryBindingRecord): Promise<FactoryRepository>
 }>): FactorySourceReads => Object.freeze({
   listSourceTree: async (binding, sourceRevision) => {
@@ -66,5 +83,29 @@ export const createFactorySourceReads = ({ github, resolveRepository }: Readonly
       throw new Error('BUILDER_SOURCE_READ_FILE_NOT_DISCLOSABLE')
     }
     return Object.freeze({ sourceRevision, path, content })
+  },
+  compareRevisions: async (binding, baseSourceRevision, resultSourceRevision) => {
+    if (!OID.test(baseSourceRevision) || !OID.test(resultSourceRevision)) throw new Error('BUILDER_SOURCE_READ_REFUSED')
+    const repository = await resolveRepository(binding)
+    const files: BuilderSourceChange[] = []
+    for (let page = 1; ; page += 1) {
+      const response = await github.compareCommits(repository.installation, repository, baseSourceRevision, resultSourceRevision, page).catch(refused('REVISION_NOT_FOUND'))
+      const pageFiles = Array.isArray(response.files) ? response.files as readonly Readonly<Record<string, unknown>>[] : []
+      for (const entry of pageFiles) {
+        const status = typeof entry.status === 'string' ? COMPARE_STATUS[entry.status] : undefined
+        if (entry.status === 'unchanged' || !status) continue
+        if (!safePath(entry.filename)) throw new Error('BUILDER_SOURCE_READ_UNSAFE_ENTRY')
+        let previousPath: string | null = null
+        if (status === 'RENAMED') {
+          if (!safePath(entry.previous_filename)) throw new Error('BUILDER_SOURCE_READ_UNSAFE_ENTRY')
+          previousPath = entry.previous_filename
+        }
+        files.push({ path: entry.filename, status, previousPath })
+      }
+      if (files.length > MAX_COMPARE_FILES) throw new Error('BUILDER_SOURCE_READ_TREE_TOO_LARGE')
+      if (pageFiles.length < 100) break
+    }
+    files.sort((left, right) => left.path.localeCompare(right.path))
+    return Object.freeze({ baseSourceRevision, resultSourceRevision, files: Object.freeze(files.map((file) => Object.freeze(file))) })
   },
 })

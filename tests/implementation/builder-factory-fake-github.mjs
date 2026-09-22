@@ -76,8 +76,35 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
       const compare = at('GET', /^\/repos\/([^/]+)\/([^/]+)\/compare\/([0-9a-f]{40})\.\.\.(.+)$/)
       if (compare) {
         if (state.compareStatus) return send(response, state.compareStatus, { message: 'Server Error' })
-        const head = state.refs.get(`${compare[1]}/${compare[2]}:${compare[4]}`)
+        const slug = `${compare[1]}/${compare[2]}`
         const base = compare[3]
+        const headRaw = compare[4]
+        // A 40-hex head naming a known commit compares two exact commits by their file maps; a
+        // branch name (the existing behavior) still resolves through the ref and answers status only.
+        if (/^[0-9a-f]{40}$/.test(headRaw) && state.commits.has(`${slug}@${headRaw}`)) {
+          const baseFiles = state.commits.get(`${slug}@${base}`)
+          const headFiles = state.commits.get(`${slug}@${headRaw}`)
+          if (!baseFiles || !headFiles) return send(response, 404, { message: 'Not Found' })
+          const paths = new Set([...baseFiles.keys(), ...headFiles.keys()])
+          const files = []
+          for (const path of paths) {
+            const before = baseFiles.get(path)
+            const after = headFiles.get(path)
+            if (before && after) {
+              if (before.content !== after.content || before.mode !== after.mode) files.push({ filename: path, status: 'modified' })
+            } else if (after) {
+              files.push({ filename: path, status: 'added' })
+            } else {
+              files.push({ filename: path, status: 'removed' })
+            }
+          }
+          files.sort((left, right) => left.filename.localeCompare(right.filename))
+          const page = Number(url.searchParams.get('page') ?? '1')
+          const perPage = Number(url.searchParams.get('per_page') ?? '100')
+          const status = base === headRaw ? 'identical' : 'diverged'
+          return send(response, 200, { status, files: files.slice((page - 1) * perPage, page * perPage) })
+        }
+        const head = state.refs.get(`${slug}:${headRaw}`)
         if (!head) return send(response, 404, { message: 'Not Found' })
         const status = head === base ? 'identical' : descends(head, base) ? 'ahead' : descends(base, head) ? 'behind' : 'diverged'
         return send(response, 200, { status })

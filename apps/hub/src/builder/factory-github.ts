@@ -170,6 +170,13 @@ export const createGithubApp = ({ appId, privateKey, baseUrl = GITHUB_API_URL }:
       await call('PATCH /repos/{owner}/{repo}/git/refs/{ref}', token, { owner, repo, ref: `heads/${change.branch}`, sha: commit.sha, force: false })
       return commit.sha
     },
+    // The changed files between two exact commits, one page at a time (GitHub's own page size).
+    compareCommits: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, base: string, head: string, page: number): Promise<Json> => {
+      if (!REPOSITORY_SLUG.test(repository.slug) || !OID.test(base) || !OID.test(head)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
+      const [owner, repo] = repository.slug.split('/') as [string, string]
+      const token = await repositoryToken(installationId, repository.externalId, 'read')
+      return call('GET /repos/{owner}/{repo}/compare/{basehead}', token, { owner, repo, basehead: `${base}...${head}`, per_page: 100, page })
+    },
     // Whether `sha` is in the branch's history: the branch is at it or ahead of it.
     branchContains: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, branch: string, sha: string): Promise<boolean> => {
       if (!REPOSITORY_SLUG.test(repository.slug) || !BRANCH.test(branch) || !OID.test(sha)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
