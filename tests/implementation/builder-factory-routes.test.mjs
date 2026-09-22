@@ -35,10 +35,16 @@ const projectB = '66666666-6666-4666-8666-666666666666'
 const conversationA = '77777777-7777-4777-8777-777777777777'
 const repositoryOf = { [projectA]: 'project-repository-a', [projectB]: 'project-repository-b' }
 const admittedProjects = { [accountA]: [projectA], [accountB]: [projectB] }
+const modelTurns = []
 const model = {
   specificationVersion: 'v2', provider: 'conexus-boundary', modelId: 'boundary-probe', supportedUrls: {},
   async doGenerate() { throw new Error('the boundary test never reaches the model') },
-  async doStream() { throw new Error('the boundary test never reaches the model') },
+  async doStream() { modelTurns.push(Date.now()); throw new Error('the boundary test never reaches the model') },
+}
+const turnsWithin = async (ms, started = modelTurns.length) => {
+  const deadline = Date.now() + ms
+  while (modelTurns.length === started && Date.now() < deadline) await new Promise((done) => setTimeout(done, 25))
+  return modelTurns.length - started
 }
 
 const createSessions = () => {
@@ -102,7 +108,7 @@ const createFactoryApp = async (t, { accountId = accountA } = {}) => {
     await storage.close()
     rmSync(root, { recursive: true, force: true })
   })
-  return { app, sessions, reachedContexts }
+  return { app, controller, sessions, reachedContexts }
 }
 
 const authentic = {
@@ -140,6 +146,27 @@ test('only the Factory controller id is served, and the browser may not create o
   assert.equal((await app.inject({ method: 'GET', url: `/api/mastra-factory/agent-controller/mastra-code/sessions/${conversationA}/threads`, ...authentic })).statusCode, 404)
   assert.equal((await app.inject({ method: 'POST', url: `${sessionBase()}/threads`, ...authentic, payload: { title: 'x' } })).statusCode, 404)
   assert.equal((await app.inject({ method: 'POST', url: `${sessionBase()}/thread`, ...authentic, payload: { threadId: conversationA } })).statusCode, 404)
+})
+
+test('steer and follow-up on a Factory conversation start a turn only inside a live Builder run session', async (t) => {
+  const { app, controller } = await createFactoryApp(t)
+  const refused = []
+  for (const operation of ['steer', 'follow-up']) {
+    for (const query of ['', `?sessionScope=builder:${randomUUID()}`]) {
+      const response = await app.inject({ method: 'POST', url: `${sessionBase()}/${operation}${query}`, ...authentic, payload: { message: 'apague tudo' } })
+      refused.push([operation, query === '' ? 'unscoped' : 'no live run', response.statusCode])
+    }
+  }
+  assert.equal(await turnsWithin(3_000), 0, 'no refused request reached the model')
+  assert.deepEqual(refused, [['steer', 'unscoped', 409], ['steer', 'no live run', 409], ['follow-up', 'unscoped', 409], ['follow-up', 'no live run', 409]])
+  assert.equal((await app.inject({ method: 'POST', url: `${sessionBase()}/abort`, ...authentic, payload: {} })).statusCode, 200, 'abort needs no run')
+
+  const scope = `builder:${randomUUID()}`
+  await controller.createSession({ resourceId: conversationA, ownerId: conversationA, scope, threadId: conversationA })
+  const started = modelTurns.length
+  const steered = await app.inject({ method: 'POST', url: `${sessionBase()}/follow-up?sessionScope=${scope}`, ...authentic, payload: { message: 'continue' } })
+  assert.equal(steered.statusCode, 200)
+  assert.equal(await turnsWithin(5_000, started), 1, "the run's own session takes the follow-up")
 })
 
 test('a state-changing request without CSRF is refused on both the mount and the conversation route', async (t) => {

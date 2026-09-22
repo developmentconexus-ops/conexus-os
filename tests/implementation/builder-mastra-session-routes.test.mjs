@@ -33,10 +33,16 @@ const nativeControllerId = 'mastra-code'
 const accountId = '22222222-2222-4222-8222-222222222222'
 const projectId = '33333333-3333-4333-8333-333333333333'
 const runId = '44444444-4444-4444-8444-444444444444'
+const modelTurns = []
 const model = {
   specificationVersion: 'v2', provider: 'conexus-boundary', modelId: 'boundary-probe', supportedUrls: {},
   async doGenerate() { throw new Error('the boundary test never reaches the model') },
-  async doStream() { throw new Error('the boundary test never reaches the model') },
+  async doStream() { modelTurns.push(Date.now()); throw new Error('the boundary test never reaches the model') },
+}
+const turnsWithin = async (ms, started = modelTurns.length) => {
+  const deadline = Date.now() + ms
+  while (modelTurns.length === started && Date.now() < deadline) await new Promise((done) => setTimeout(done, 25))
+  return modelTurns.length - started
 }
 
 const createBoundaryApp = async ({ signedIn = true, admitted = true } = {}) => {
@@ -68,7 +74,7 @@ const createBoundaryApp = async ({ signedIn = true, admitted = true } = {}) => {
     },
     staticRoot: null,
   })
-  return { app, admitCalls, reachedContexts, close: async () => {
+  return { app, controller, admitCalls, reachedContexts, close: async () => {
     await app.close()
     await controller.destroy()
     await storage.close()
@@ -156,6 +162,28 @@ test('a steering request without the CSRF token is refused', async (t) => {
     cookies: authentic.cookies, payload: {},
   })
   assert.equal(response.statusCode, 403)
+})
+
+test('steer and follow-up start a turn only inside a live Builder run session', async (t) => {
+  const { app, controller, close } = await createBoundaryApp()
+  t.after(close)
+  const refused = []
+  for (const operation of ['steer', 'follow-up']) {
+    for (const query of ['', `?sessionScope=builder:${randomUUID()}`]) {
+      const response = await app.inject({ method: 'POST', url: `${sessionBase()}/${operation}${query}`, ...authentic, payload: { message: 'apague tudo' } })
+      refused.push([operation, query === '' ? 'unscoped' : 'no live run', response.statusCode])
+    }
+  }
+  assert.equal(await turnsWithin(3_000), 0, 'no refused request reached the model')
+  assert.deepEqual(refused, [['steer', 'unscoped', 409], ['steer', 'no live run', 409], ['follow-up', 'unscoped', 409], ['follow-up', 'no live run', 409]])
+  assert.equal((await app.inject({ method: 'POST', url: `${sessionBase()}/abort`, ...authentic, payload: {} })).statusCode, 200, 'abort needs no run')
+
+  const scope = `builder:${runId}`
+  await controller.createSession({ resourceId: projectId, id: `${projectId}::${scope}`, ownerId: controller.id, scope })
+  const started = modelTurns.length
+  const steered = await app.inject({ method: 'POST', url: `${sessionBase()}/follow-up?sessionScope=${scope}`, ...authentic, payload: { message: 'continue' } })
+  assert.equal(steered.statusCode, 200)
+  assert.equal(await turnsWithin(5_000, started), 1, "the run's own session takes the follow-up")
 })
 
 test('the browser cannot open a session or send its opening message', async (t) => {
