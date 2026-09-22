@@ -8,10 +8,17 @@ import { workspaceMembersRoute } from '../routes/workspace-members'
 import { workspaceNewRoute } from '../routes/workspace-new'
 import { workspaceProjectNewRoute } from '../routes/workspace-project-new'
 import { workspaceProjectsRoute } from '../routes/workspace-projects'
+import { noAccessRoute, signedOutRoute } from '../routes/entry-pages'
+import { projectSettingsRoute } from '../routes/project-settings'
+import { workspacesRoute } from '../routes/workspaces'
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
   setupRoute,
+  signedOutRoute,
+  noAccessRoute,
+  workspacesRoute,
+  projectSettingsRoute,
   settingsRoute,
   workspaceNewRoute,
   workspaceProjectsRoute,

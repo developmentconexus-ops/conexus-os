@@ -23,7 +23,7 @@ export function LensDetails({ projectId, runs, selected, onSelect, preview }: Re
   return <div className="cx-details">
     <section aria-labelledby="cx-run-heading" className="cx-details-card">
       <h3 id="cx-run-heading">Execução selecionada</h3>
-      <dl className="cx-facts">
+      <dl className="cx-run-facts">
         <div><dt>Pedido</dt><dd>{selected.requestText ?? 'Sem texto registrado'}</dd></div>
         <div><dt>Resultado</dt><dd>{statusLine(viewRun(selected))}</dd></div>
         <div><dt>Início</dt><dd>{dateTime.format(new Date(selected.createdAt))}</dd></div>

@@ -1,0 +1,184 @@
+/* Conexus sign-in theme. Grafite e Ipê, Hanken Grotesk body, Bricolage
+   Grotesque display. Values and structure adapted from the approved
+   design page's "Entrada (Keycloak)" section (conexus-marca.html). The
+   mark, wordmark, and their fit-together animation come from
+   packages/brand (ConexusWordmark, .cx-mark / .cx-wordmark); this file
+   only adds the sign-in page's own layout and form chrome. */
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--cx-canvas);
+  color: var(--cx-text);
+  font: 400 16px/1.5 var(--cx-font-body);
+}
+
+a {
+  color: var(--cx-text);
+  text-underline-offset: 3px;
+  text-decoration-color: var(--cx-accent);
+}
+
+button, input {
+  font-family: inherit;
+}
+
+.kc-stage {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 2.5rem 1rem;
+}
+
+.kc-column {
+  width: min(22rem, 100%);
+  display: grid;
+  gap: 0.5rem;
+}
+
+.kc-lockup {
+  margin-bottom: 1.5rem;
+}
+
+/* ConexusWordmark sets its size via an inline `style` attribute
+   (packages/brand/src/conexus-mark.tsx). Keycloak's default CSP sends a
+   `style-src` with specific hashes and no `unsafe-inline`, so that inline
+   style gets blocked and silently never applies. A stylesheet rule isn't
+   subject to that directive, so this reproduces the intended size without
+   needing an inline style or a CSP change on the Keycloak side. */
+.kc-lockup .cx-wordmark {
+  font-size: 32px;
+}
+
+.kc-heading {
+  font: 600 1.625rem/1.2 var(--cx-font-display);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.kc-sub {
+  color: var(--cx-text-2);
+  font-size: 0.9375rem;
+  margin: 0 0 0.75rem;
+}
+
+.kc-alert {
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.875rem;
+  border: 1px solid var(--cx-line);
+  background: var(--cx-surface-3);
+  color: var(--cx-text);
+}
+.kc-alert-error { border-color: var(--cx-danger); color: var(--cx-danger); background: color-mix(in srgb, var(--cx-danger) 12%, var(--cx-surface)); }
+.kc-alert-success { border-color: var(--cx-success); color: var(--cx-success); background: color-mix(in srgb, var(--cx-success) 12%, var(--cx-surface)); }
+.kc-alert-warning { border-color: var(--cx-warning); color: var(--cx-warning); background: color-mix(in srgb, var(--cx-warning) 12%, var(--cx-surface)); }
+
+.kc-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.kc-field {
+  display: grid;
+  gap: 0.35rem;
+}
+.kc-field label {
+  font: 500 0.875rem/1.2 var(--cx-font-body);
+  margin-top: 0.35rem;
+}
+.kc-field input {
+  height: 44px;
+  border: 1px solid var(--cx-line);
+  border-radius: 10px;
+  padding: 0 0.85rem;
+  font: 400 1rem var(--cx-font-body);
+  background: var(--cx-surface);
+  color: var(--cx-text);
+}
+.kc-field input:hover {
+  border-color: var(--cx-line-strong);
+}
+.kc-field input:focus-visible {
+  outline: 2px solid var(--cx-accent);
+  outline-offset: 2px;
+}
+.kc-field-error {
+  font-size: 0.8125rem;
+  color: var(--cx-danger);
+}
+
+.kc-button {
+  margin-top: 1rem;
+  height: 44px;
+  border-radius: 10px;
+  border: 0;
+  background: var(--cx-ink);
+  color: var(--cx-on-ink);
+  font: 600 0.9375rem/1 var(--cx-font-body);
+  cursor: pointer;
+}
+.kc-button:hover {
+  opacity: 0.92;
+}
+.kc-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.kc-button:focus-visible {
+  outline: 2px solid var(--cx-accent);
+  outline-offset: 2px;
+}
+.kc-button-secondary {
+  margin-top: 0.5rem;
+  background: var(--cx-surface);
+  color: var(--cx-text);
+  border: 1px solid var(--cx-line);
+}
+
+.kc-forgot {
+  font-size: 0.875rem;
+  justify-self: start;
+  margin-top: 0.6rem;
+}
+
+.kc-social {
+  margin-top: 1.5rem;
+}
+.kc-social hr {
+  border: 0;
+  border-top: 1px solid var(--cx-line);
+  margin: 0 0 1rem;
+}
+.kc-social-label {
+  font-size: 0.8125rem;
+  color: var(--cx-text-2);
+  margin: 0 0 0.5rem;
+}
+.kc-social ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.kc-social-button {
+  display: block;
+  text-align: center;
+  height: 40px;
+  line-height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--cx-line);
+  background: var(--cx-surface);
+  color: var(--cx-text);
+  text-decoration: none;
+  font: 500 0.875rem/1 var(--cx-font-body);
+}
+.kc-social-button:hover {
+  background: var(--cx-surface-4);
+}

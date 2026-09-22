@@ -27,6 +27,7 @@
     "repository:candidate-census": "node --test --test-concurrency=1 tests/repository/repository-contract.test.mjs",
     "repository:check:extended": "node scripts/check-repository-hygiene.mjs && node scripts/check-doc-index.mjs",
     "r1:a0:web:typecheck": "node node_modules/typescript/bin/tsc --project apps/web/tsconfig.json --pretty false",
+    "keycloak-theme:check": "cd apps/keycloak-theme && npm run typecheck && npm run build",
     "r1:s3:p1:check": "node --check scripts/run-hub-migrations.mjs && node --check tests/implementation/workspace-postgres.test.mjs && node --check tests/implementation/project-postgres.test.mjs",
     "r1:s3:p1:postgres": "node --test --test-concurrency=1 tests/implementation/project-postgres.test.mjs",
     "r1:s3:p4b:check": "node --check scripts/run-hub-migrations.mjs && node --check tests/implementation/project-postgres.test.mjs",

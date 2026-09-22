@@ -3,6 +3,7 @@ import { createRoute } from '@tanstack/react-router'
 import { useAuthorityLost } from '../app/query-client'
 import { Shell } from '../app/shell'
 import { AccountSettings } from '../features/settings/components/account-settings'
+import { ModelAccountSettings } from '../features/settings/components/model-accounts'
 import { accessContextQueryKey, getAccessContext, isAuthenticationRequired } from '../features/identity-access/api'
 import { rootRoute } from './__root'
 
@@ -17,5 +18,6 @@ function SettingsRoute() {
   return <Shell context={access.data}><main className="control-plane-page settings-page">
     <div className="page-heading"><div><p className="eyebrow">Conta</p><h1>Configurações</h1></div></div>
     <AccountSettings account={access.data.account} workspaces={access.data.workspaces} />
+    <ModelAccountSettings />
   </main></Shell>
 }

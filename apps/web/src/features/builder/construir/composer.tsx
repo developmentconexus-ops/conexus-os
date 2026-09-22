@@ -17,6 +17,7 @@ export type ComposerMode =
   | Readonly<{ kind: 'RUNNING'; stopping: boolean }>
   | Readonly<{ kind: 'BUSY_ELSEWHERE' }>
   | Readonly<{ kind: 'SENDING' }>
+  | Readonly<{ kind: 'BLOCKED' }>
 
 const commands: readonly ComposerCommand[] = [
   { name: 'nova', description: 'Abrir uma conversa nova neste Project' },
@@ -89,7 +90,11 @@ export function ConstruirComposer({
   const selected = models.find((model) => model.id === modelId)
   const level = reasoning ?? 'medium'
   const levelIndex = reasoningLevels.indexOf(level)
-  const placeholder = mode.kind === 'NO_MODEL' ? 'Escolha um modelo para começar' : mode.kind === 'BUSY_ELSEWHERE' ? 'Outra conversa está construindo este Project' : 'Peça uma mudança ou descreva o app…'
+  const placeholder = {
+    NO_MODEL: 'Escolha um modelo para começar',
+    BUSY_ELSEWHERE: 'Outra conversa está construindo este Projeto',
+    BLOCKED: 'O repositório está inacessível',
+  }[mode.kind as string] ?? 'Peça uma mudança ou descreva o app…'
 
   return <Composer className="cx-composer" onSubmit={onFormSubmit} aria-label="Enviar pedido ao agente">
     <ComposerRing busy={working}>
@@ -176,11 +181,11 @@ export function ConstruirComposer({
 
 function SendButton({ mode, empty }: Readonly<{ mode: ComposerMode; empty: boolean }>) {
   if (mode.kind === 'RUNNING') {
-    return <button type="submit" className="cx-send" data-stop aria-label={mode.stopping ? 'Parando' : 'Parar'} disabled={mode.stopping}>
+    return <button type="submit" className="cx-send-button" data-stop aria-label={mode.stopping ? 'Parando' : 'Parar'} disabled={mode.stopping}>
       <Square size={13} fill="currentColor" aria-hidden="true" />
     </button>
   }
-  return <button type="submit" className="cx-send" aria-label={mode.kind === 'SENDING' ? 'Enviando' : 'Enviar'} disabled={mode.kind !== 'READY' || empty}>
+  return <button type="submit" className="cx-send-button" aria-label={mode.kind === 'SENDING' ? 'Enviando' : 'Enviar'} disabled={mode.kind !== 'READY' || empty}>
     <ArrowUp size={17} aria-hidden="true" />
   </button>
 }

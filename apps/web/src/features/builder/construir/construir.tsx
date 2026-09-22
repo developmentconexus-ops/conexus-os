@@ -14,6 +14,7 @@ import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { BuilderRequestError, type BuilderRun, cancelBuilderRun, getBuilderSession, sendBuilderMessage } from '../api'
 import { BuilderConversation, type PersistedRequest } from '../components/builder-conversation'
 import { failureReason } from '../failure-reasons'
+import { getProjectRepository, projectRepositoryQueryKey } from '../../project/api'
 import {
   answerPendingCall, type Conversation, type LiveTurn, useBuilderLiveTurn, useBuilderModels, useBuilderThreadMessages, useConversationActions,
   useProjectConversations, useSessionModel,
@@ -168,21 +169,14 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   })
 
   const preview = usePreview(projectId, session.data?.preview)
+  const repository = useQuery({ queryKey: projectRepositoryQueryKey(projectId), queryFn: () => getProjectRepository(projectId) })
+  const blocked = repository.data?.state === 'UNREACHABLE'
   const working = view.kind === 'ACTIVE'
   const now = useNow(working)
-  const newConversation = () => conversationActions.create.mutate(undefined, {
-    onSuccess: (created) => {
-      // A new conversation starts with no model of its own. Carrying the one the person already
-      // chose is their decision applied, not a default invented for them.
-      if (modelReady) conversationActions.select.mutate({ conversationId: created.id, carryModelId: sessionModel.modelId })
-      onConversationChange(created.id)
-    },
-  })
-  const switchConversation = (id: string) => {
-    if (id === conversationId) return
-    conversationActions.select.mutate({ conversationId: id, carryModelId: modelReady ? sessionModel.modelId : '' })
-    onConversationChange(id)
-  }
+  // The Hub starts a new conversation from the person's defaults, else the installation's, and a
+  // model chosen in one conversation stays with that conversation.
+  const newConversation = () => conversationActions.create.mutate(undefined, { onSuccess: (created) => onConversationChange(created.id) })
+  const switchConversation = (id: string) => { if (id !== conversationId) onConversationChange(id) }
 
   if (session.isError) {
     const denied = session.error instanceof BuilderRequestError && session.error.status === 403
@@ -196,6 +190,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
 
   const composerMode: ComposerMode = runHere && isActive(runHere)
     ? { kind: 'RUNNING', stopping: cancel.isPending || runHere.cancellationRequested === true }
+    : blocked ? { kind: 'BLOCKED' }
     : isActive(run) ? { kind: 'BUSY_ELSEWHERE' }
       : send.isPending ? { kind: 'SENDING' }
         : modelReady ? { kind: 'READY' } : { kind: 'NO_MODEL' }
@@ -295,6 +290,9 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
         <ChatShell.Dock className="cx-dock">
       <ChatShell.ScrollButton aria-label="Ir para o fim da conversa" />
       <ChatShell.Column>
+        {blocked && <div className="cx-note" data-tone="warning" role="alert">
+          <p>O Conexus não consegue alcançar o repositório deste Projeto no GitHub, então novos pedidos ficam parados. A prévia continua na última versão boa. Um administrador da instalação pode reconectar o GitHub em Configurações.</p>
+        </div>}
         {sendError && <p className="cx-composer-note" role="alert">{sendError}</p>}
         {!models.isPending && offeredModels.length > 0 && !modelReady && <p className="cx-composer-note">Escolha o modelo desta conversa para enviar pedidos.</p>}
         <ConstruirComposer
@@ -333,8 +331,8 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   }
 
   return <PanelGroup className="cx-construir" orientation="horizontal" defaultLayout={layout.defaultLayout} onLayoutChanged={layout.onLayoutChanged}>
-    <Panel id="stage" minSize="360px" className="cx-panel">{stage}</Panel>
+    <Panel id="stage" minSize="360px" className="cx-split-panel">{stage}</Panel>
     <PanelSeparator />
-    <Panel id="chat" defaultSize="380px" minSize="320px" maxSize="60%" groupResizeBehavior="preserve-pixel-size" className="cx-panel">{chat}</Panel>
+    <Panel id="chat" defaultSize="380px" minSize="320px" maxSize="60%" groupResizeBehavior="preserve-pixel-size" className="cx-split-panel">{chat}</Panel>
   </PanelGroup>
 }

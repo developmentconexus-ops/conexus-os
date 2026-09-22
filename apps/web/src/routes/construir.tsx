@@ -3,10 +3,9 @@ import { createRoute, Navigate, useNavigate } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { lazy, Suspense, useEffect, useRef } from 'react'
 import { ConexusMark } from '../../../../packages/brand/src/index'
-import { useAuthorityLost } from '../app/query-client'
+import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
 import { createFactoryConversation, listFactoryConversations } from '../features/builder/api'
-import { accessContextQueryKey, getAccessContext, isAuthenticationRequired } from '../features/identity-access/api'
 import { getProject, ProjectRequestError, projectQueryKey } from '../features/project/api'
 import type { AccessContext } from '../generated/iam-client'
 import { rootRoute } from './__root'
@@ -22,25 +21,22 @@ function Status({ title, children, working = false }: Readonly<{ title: string; 
   return <div className="cx-route-status" role="status"><ConexusMark size={32} working={working} /><h1>{title}</h1>{children}</div>
 }
 
-/** Access and Project reads every Construir route shares, with their loading and refusal states. */
+/** The Project read every Construir route shares, inside the app's own access gate. */
 function ProjectFrame({ projectId, children }: Readonly<{ projectId: string; children: (context: AccessContext) => ReactNode }>) {
-  const authorityLost = useAuthorityLost()
-  const access = useQuery({ queryKey: accessContextQueryKey, queryFn: getAccessContext })
+  return <AccessGate>{(context) => <ProjectScope context={context} projectId={projectId}>{children(context)}</ProjectScope>}</AccessGate>
+}
+
+function ProjectScope({ context, projectId, children }: Readonly<{ context: AccessContext; projectId: string; children: ReactNode }>) {
   const project = useQuery({ queryKey: projectQueryKey(projectId), queryFn: () => getProject(projectId) })
-  if (authorityLost || (access.isError && isAuthenticationRequired(access.error))) {
-    return <main className="status"><h1>Entre no Conexus</h1><a className="primary" href="/protocol/oidc/login">Entrar</a></main>
-  }
-  if (access.isPending) return <Status title="Abrindo o Construir" working />
-  if (access.isError) return <Status title="Não foi possível consultar seu acesso"><button type="button" onClick={() => void access.refetch()}>Tentar novamente</button></Status>
   if (project.isError) {
     const hidden = project.error instanceof ProjectRequestError && [403, 404].includes(project.error.status ?? 0)
-    return <Shell context={access.data}><Status title={hidden ? 'Project indisponível' : 'Não foi possível abrir o Project'}>
-      {hidden ? <p>Este Project não existe ou não está disponível para você.</p> : <button type="button" onClick={() => void project.refetch()}>Tentar novamente</button>}
+    return <Shell context={context}><Status title={hidden ? 'Projeto indisponível' : 'Não foi possível abrir o Projeto'}>
+      {hidden ? <p>Este Projeto não existe ou não está disponível para você.</p> : <button type="button" onClick={() => void project.refetch()}>Tentar novamente</button>}
     </Status></Shell>
   }
-  const workspace = project.data ? access.data.workspaces.find((candidate) => candidate.workspaceId === project.data.workspaceId) : undefined
-  return <Shell context={access.data} scope={project.data && workspace ? { workspace, project: project.data } : undefined}>
-    {project.isPending ? <Status title="Abrindo o Project" working /> : children(access.data)}
+  const workspace = project.data ? context.workspaces.find((candidate) => candidate.workspaceId === project.data.workspaceId) : undefined
+  return <Shell context={context} scope={project.data && workspace ? { workspace, project: project.data } : undefined}>
+    {project.isPending ? <Status title="Abrindo o Projeto" working /> : children}
   </Shell>
 }
 

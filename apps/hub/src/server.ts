@@ -127,6 +127,7 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   ...(launchPreview ? { launchPreview } : {}),
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
+  isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
 }) : undefined
 const app = await createHttpApp({
   registerRoutes: async (server) => [

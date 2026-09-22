@@ -2,6 +2,8 @@ import { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput } from '@mastra/core/workspace'
 import { applyStoredMemorySettings } from '@mastra/factory/session/memory-settings-hydration'
 import { repoDirUnder } from '@mastra/factory/sandbox/workdir'
+import { primeTenantCredentials } from '@mastra/factory/routes/tenant-credentials'
+import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/credentials/base'
 import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import { buildApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { CompiledApplication } from './application-artifact-runtime.js'
@@ -308,6 +310,7 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
 }>): Omit<FactoryRunPorts, 'github'> => {
   const tools = deniedTools(composition.github, orgId)
   const memorySettings = composition.storage.getDomain<MemorySettingsStorage>('memory-settings')
+  const credentials = composition.storage.getDomain<ModelCredentialsStorage>('model-credentials')
   return Object.freeze({
     resolveRepository: async (binding: FactoryBindingRecord) => {
       const sourceControl = composition.github.sourceControlStorage
@@ -350,9 +353,12 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
         }),
         configure: async ({ mode, instructions }) => {
           await session.state.set({ yolo: true, permissionRules: { categories: {}, tools }, pluginInstructions: [instructions] })
-          // The Factory seeded this session from the conversation owner's row; the organization's row,
-          // which `hub-factory memory` writes, decides the memory model of every run.
-          const memory = await memorySettings.get({ orgId, userId: FACTORY_OPERATOR_ID })
+          // Memory calls resolve credentials from this run's request context, so the person who
+          // started the run pays for them. Their own row (the Factory fills it from the first provider
+          // they connect) names a model they can reach; the installation's row, which
+          // `hub-factory memory` writes, is the fallback. The Factory seeded this session from the
+          // conversation owner's row, who may be someone else.
+          const memory = await memorySettings.get({ orgId, userId: accountId }) ?? await memorySettings.get({ orgId, userId: FACTORY_OPERATOR_ID })
           if (memory) await applyStoredMemorySettings(session, memory)
           await session.mode.switch({ modeId: mode.toLowerCase() })
         },
@@ -364,6 +370,9 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
             if (event.type === 'agent_end') endedAt = new Date()
             if (event.type === 'message_end' && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
           })
+          // The model gateway reads a credential synchronously from the person's snapshot, which only
+          // an awaited hydration fills.
+          await primeTenantCredentials({ tenant: { orgId, userId: accountId }, credentials })
           const abort = (): void => { session.abort() }
           if (signal?.aborted) abort()
           else signal?.addEventListener('abort', abort, { once: true })

@@ -70,14 +70,19 @@ export const createHttpApp = async ({
     const spaRoutes = [
       '/',
       '/setup',
+      '/workspaces',
       '/workspaces/new',
       '/workspaces/:workspaceId/projects',
       '/workspaces/:workspaceId/projects/new',
       '/workspaces/:workspaceId/members',
+      '/workspaces/:workspaceId/settings/people',
       '/projects/:projectId',
       '/projects/:projectId/build',
       '/projects/:projectId/c/:conversationId',
+      '/projects/:projectId/settings',
       '/settings',
+      '/signed-out',
+      '/no-access',
     ] as const
     for (const route of spaRoutes) {
       app.get(route, (_request, reply) =>
