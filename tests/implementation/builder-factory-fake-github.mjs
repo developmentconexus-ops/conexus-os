@@ -12,6 +12,15 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
     nextRepositoryId: 700001,
     // Runs inside an update, after any earlier read and before the ref moves: a concurrent writer.
     beforeRefUpdate: null,
+    // child -> parent, the commit graph compare answers from.
+    parents: new Map(),
+    compareStatus: null,
+    // A leased push applies, and its client then sees only a transport failure.
+    pushResponseLost: false,
+  }
+  const descends = (sha, ancestor) => {
+    for (let at = sha; at; at = state.parents.get(at)) if (at === ancestor) return true
+    return false
   }
   const send = (response, status, body) => {
     response.writeHead(status, { 'content-type': 'application/json' })
@@ -54,6 +63,15 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
         const repository = state.repositories.get(`${repositoryRead[1]}/${repositoryRead[2]}`)
         return repository ? send(response, 200, repositoryJson(repository)) : send(response, 404, { message: 'Not Found' })
       }
+      const compare = at('GET', /^\/repos\/([^/]+)\/([^/]+)\/compare\/([0-9a-f]{40})\.\.\.(.+)$/)
+      if (compare) {
+        if (state.compareStatus) return send(response, state.compareStatus, { message: 'Server Error' })
+        const head = state.refs.get(`${compare[1]}/${compare[2]}:${compare[4]}`)
+        const base = compare[3]
+        if (!head) return send(response, 404, { message: 'Not Found' })
+        const status = head === base ? 'identical' : descends(head, base) ? 'ahead' : descends(base, head) ? 'behind' : 'diverged'
+        return send(response, 200, { status })
+      }
       const match = /^\/repos\/([^/]+)\/([^/]+)\/git\/refs?\/heads\/(.+)$/.exec(path)
       if (match) {
         const key = `${match[1]}/${match[2]}:${match[3]}`
@@ -87,6 +105,7 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
       const current = state.refs.get(key)
       const flag = current === sha ? '=' : current === expected ? ' ' : '!'
       if (flag === ' ') state.refs.set(key, sha)
+      if (state.pushResponseLost) return { exitCode: 128, success: false, stdout: '', stderr: 'error: RPC failed; HTTP 502 curl 22 The requested URL returned error: 502\nfatal: the remote end hung up unexpectedly' }
       const summary = { '=': '[up to date]', ' ': `${expected.slice(0, 7)}..${sha.slice(0, 7)}`, '!': '[rejected] (stale info)' }[flag]
       return { exitCode: flag === '!' ? 1 : 0, success: flag !== '!', stdout: `To https://github.com/${slug}.git\n${flag}\t${sha}:refs/heads/${branch}\t${summary}\nDone\n`, stderr: '' }
     },

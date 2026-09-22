@@ -153,15 +153,17 @@ test('a Project binds to its Factory repository once, and only while it has neve
     assert.deepEqual(await callAs(connectionString, 'hub_builder_ingress', RESOLVE, [owner, 'project-repository-unknown']), [{ project_id: null }])
   })
 
-  await t.test('list_factory_admission_runs names only RUNNING runs in SOURCE_ADMISSION on bound Projects', async () => {
+  await t.test('list_factory_admission_runs names only RUNNING runs with a candidate on bound Projects', async () => {
     const agent = bindingFor(projects.agent, 5)
     const settled = bindingFor(projects.settled, 6)
     assert.deepEqual(await bind(connectionString, agent), [{ bound: true }])
     assert.deepEqual(await bind(connectionString, settled), [{ bound: true }])
+    const candidate = (builderRunId) => query(connectionString, 'UPDATE builder.builder_run SET candidate_source_revision = $2 WHERE builder_run_id = $1', [builderRunId, 'c'.repeat(40)])
     const admitting = await insertRun(projects.fresh, 'RUNNING', 'SOURCE_ADMISSION')
-    await insertRun(projects.agent, 'RUNNING', 'AGENT')
-    await insertRun(projects.settled, 'FAILED')
-    await insertRun(projects.unbound, 'RUNNING', 'SOURCE_ADMISSION')
+    await candidate(admitting)
+    await insertRun(projects.agent, 'RUNNING', 'SOURCE_ADMISSION')
+    await candidate(await insertRun(projects.settled, 'FAILED'))
+    await candidate(await insertRun(projects.unbound, 'RUNNING', 'SOURCE_ADMISSION'))
     const conversationId = (await query(connectionString, 'SELECT conversation_id FROM builder.builder_run WHERE builder_run_id = $1', [admitting])).rows[0].conversation_id
 
     const [{ runs }] = await callAs(connectionString, 'hub_builder_executor', 'SELECT builder.list_factory_admission_runs() AS runs')
@@ -170,6 +172,8 @@ test('a Project binds to its Factory repository once, and only while it has neve
       projectId: projects.fresh,
       conversationId,
       baseSourceRevision: STARTER,
+      candidateSourceRevision: 'c'.repeat(40),
+      resultSourceRevision: null,
       binding: expectedDocument,
     }])
   })

@@ -134,5 +134,18 @@ export const createGithubApp = ({ appId, privateKey, baseUrl = GITHUB_API_URL }:
         throw error
       }
     },
+    // Whether `sha` is in the branch's history: the branch is at it or ahead of it.
+    branchContains: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, branch: string, sha: string): Promise<boolean> => {
+      if (!REPOSITORY_SLUG.test(repository.slug) || !BRANCH.test(branch) || !OID.test(sha)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
+      const [owner, repo] = repository.slug.split('/') as [string, string]
+      const token = await repositoryToken(installationId, repository.externalId, 'read')
+      try {
+        const { status } = await call('GET /repos/{owner}/{repo}/compare/{basehead}', token, { owner, repo, basehead: `${sha}...${branch}`, per_page: 1 })
+        return status === 'identical' || status === 'ahead'
+      } catch (error) {
+        if (error instanceof GithubRequestError && error.status === 404) return false
+        throw error
+      }
+    },
   })
 }

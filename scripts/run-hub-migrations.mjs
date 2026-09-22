@@ -24,6 +24,7 @@ const factoryBindingDigest = 'd70c3ead2d7d9634927e6cd7d22ee65f8228524b477524a0cd
 const factorySourceHeadDigest = 'c0902c5e58c9b1a41c28cc1e5286409d7ecd78d7466a4aec983a33d50ddc6d96'
 const factoryBindingRepositoryDigest = 'f7a7fb9a43ef315d12e41374983e451348d8fb13fca747591191740acc66cf16'
 const agentUserTemplateDigest = 'f306150fc474049aeae2c1a5c2d78f53ea07ab5185f9bb14506b7e72b03789e7'
+const factoryAdmissionCandidateDigest = 'caff6732157047bb45c2dd0898b272eecd5f0babb0d3c7a5520b4bc3c4707c56'
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
   ['0002_prune_dead_iam_actions.sql', pruneDeadIamActionsDigest],
@@ -39,6 +40,7 @@ const migrationDigests = new Map([
   ['0012_factory_source_head.sql', factorySourceHeadDigest],
   ['0013_factory_binding_repository.sql', factoryBindingRepositoryDigest],
   ['0014_agent_user_template.sql', agentUserTemplateDigest],
+  ['0015_factory_admission_candidate.sql', factoryAdmissionCandidateDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

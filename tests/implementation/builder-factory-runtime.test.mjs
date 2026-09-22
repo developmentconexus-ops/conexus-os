@@ -104,6 +104,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
     readFactoryBinding: async () => binding,
     claimBuilderRun: async () => claimed,
     setBuilderRunPhase: async (_id, phase) => { calls.push(['phase', phase]) },
+    recordBuilderRunCandidate: async (_id, revision) => { calls.push(['candidate', revision]) },
     bindBuilderRunMessage: async (_id, messageId) => { calls.push(['message', messageId]) },
     bindBuilderRunSandbox: async (_id, sandboxId) => { calls.push(['sandbox', sandboxId]) },
     settleBuilderRun: async (input) => { calls.push(['settle', input.resultKind]) },
@@ -179,7 +180,41 @@ test('a stop that lands after the compile is still refused the admission', async
   assert.deepEqual(run.admissions(), [])
   assert.equal(run.main(), BASE)
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
-  assert.equal(run.calls.some(([kind, phase]) => kind === 'phase' && phase === 'SOURCE_ADMISSION'), false)
+  assert.equal(run.calls.some(([kind, phase]) => kind === 'candidate' || (kind === 'phase' && phase === 'SOURCE_ADMISSION')), false)
+})
+
+const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))
+
+test('a push whose response is lost after GitHub applied it is admitted, never failed or disowned', async (t) => {
+  const run = await harness(t, { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } })
+  run.github.state.pushResponseLost = true
+  await run.start()
+  await run.service.close()
+  assert.equal(run.main(), RESULT)
+  assert.deepEqual(admissionCalls(run), [['candidate', RESULT], ['advance', RESULT], ['settleBuild', RESULT, 'APPLICATION_COMPILATION_FAILED']])
+  assert.deepEqual(run.diagnostics.map(({ outcome }) => outcome), ['BUILD_FAILED'])
+})
+
+test('a push that lost its response and never reached main fails with the discarded note', async (t) => {
+  const run = await harness(t)
+  run.github.state.pushResponseLost = true
+  run.github.state.beforeRefUpdate = (key) => { run.github.state.refs.set(key, OUTSIDE) }
+  await run.start()
+  await run.service.close()
+  assert.equal(run.main(), OUTSIDE)
+  assert.deepEqual(admissionCalls(run), [['candidate', RESULT], ['fail', 'BUILDER_SOURCE_ADMISSION_FAILED']])
+  assert.deepEqual(run.diagnostics.map(({ code, outcome, sourceRevision }) => [code, outcome, sourceRevision]), [['BUILDER_SOURCE_ADMISSION_FAILED', 'RUN_NOT_FINISHED', BASE]])
+})
+
+test('a push that lost its response while GitHub cannot say where main is stays running for recovery, candidate recorded', async (t) => {
+  const run = await harness(t)
+  run.github.state.pushResponseLost = true
+  run.github.state.compareStatus = 502
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(admissionCalls(run), [['candidate', RESULT]])
+  assert.deepEqual(run.diagnostics, [])
+  assert.ok(run.logs.some((line) => line.startsWith(`BUILDER_FACTORY_RUN_FAILED:${runId}:BUILDER_SOURCE_ADMISSION_UNKNOWN `)), run.logs.join('\n'))
 })
 
 test('a conversation of another Project is refused before a run is created or its sandbox opened', async (t) => {

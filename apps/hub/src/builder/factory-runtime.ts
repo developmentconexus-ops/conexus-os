@@ -49,7 +49,7 @@ export type FactoryRepository = Readonly<{ installation: number; externalId: num
 
 export type FactoryRunPorts = Readonly<{
   openSession(input: Readonly<{ conversationId: string; builderRunId: string; projectId: string; accountId: string }>): Promise<FactoryRunSession>
-  github: Pick<GithubApp, 'repositoryToken'>
+  github: Pick<GithubApp, 'repositoryToken' | 'branchContains'>
   resolveRepository(binding: FactoryBindingRecord): Promise<FactoryRepository>
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
   log(line: string): void
@@ -67,6 +67,7 @@ export type FactoryCodingWorkerInput = Readonly<{
   bindPhysicalSandbox(sandboxId: string): Promise<void>
   bindMessage(messageId: string): Promise<void>
   setPhase(phase: BuilderRunningPhase): Promise<void>
+  recordCandidate(sourceRevision: string): Promise<void>
   signal?: AbortSignal
 }>
 
@@ -254,10 +255,10 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
         applicationBuild = { kind: 'BUILD_FAILED', code }
       }
 
-      // The last step a stop can prevent. Recovery reads runs in SOURCE_ADMISSION, so the phase is
-      // recorded before GitHub hears anything; a cancelled run is refused the phase and stops here.
+      // The last step a stop can prevent. The result is recorded before GitHub hears anything, so a
+      // restart or a lost answer finds what may be on main; a stopped run is refused and stops here.
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
-      await input.setPhase('SOURCE_ADMISSION')
+      await input.recordCandidate(result)
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       // The compare-and-swap: receive-pack moves the default branch only while it still holds base,
       // under its own ref lock. The result descends from base (checked on the mirror before the
@@ -269,7 +270,11 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       const flag = admission.stdout.split('\n').map((line) => line.split('\t')).find(([, refs]) => refs === `${result}:${defaultRef}`)?.[0]
       if (flag === '!') throw new Error('BUILDER_SOURCE_BASE_MOVED')
       if (admission.exitCode !== 0 || (flag !== ' ' && flag !== '=')) {
-        throw new Error('BUILDER_SOURCE_ADMISSION_FAILED', { cause: { exitCode: admission.exitCode, stderr: commandEvidence(admission.stderr) } })
+        // GitHub may have applied the push and lost the answer; main's history says which.
+        const cause = { exitCode: admission.exitCode, stderr: commandEvidence(admission.stderr) }
+        const landed = await ports.github.branchContains(installation, repository, repository.defaultBranch, result)
+          .catch(() => { throw new Error('BUILDER_SOURCE_ADMISSION_UNKNOWN', { cause }) })
+        if (!landed) throw new Error('BUILDER_SOURCE_ADMISSION_FAILED', { cause })
       }
       return Object.freeze({ ...scope, kind: 'SOURCE_ADMITTED' as const, resultSourceRevision: result, applicationBuild })
     } catch (error) {
@@ -380,30 +385,29 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
 }
 
 /**
- * Runs before builder.recover_builder_runs interrupts every RUNNING run. A run the Hub lost between
- * the compare-and-swap and recording it has its result on both the default branch and its
- * conversation branch; that run is admitted, with the last good Preview kept. Anything else is
- * left for the ordinary interrupt.
+ * Runs before builder.recover_builder_runs interrupts every RUNNING run. A run that recorded a
+ * candidate may have it on the default branch, whatever phase it stopped in. When the run already
+ * recorded its advance, or main's history holds the candidate, the run is admitted with the last good
+ * Preview kept; both writes converge when repeated. Anything else is left for the ordinary interrupt.
  */
 export const recoverFactoryAdmissions = async ({ store, github, resolveRepository }: Readonly<{
   store: Pick<BuilderStore, 'listFactoryAdmissionRuns' | 'advanceBuilderRunSource' | 'settleBuilderRunBuild'>
-  github: Pick<GithubApp, 'readBranchHead'>
+  github: Pick<GithubApp, 'branchContains'>
   resolveRepository: FactoryRunPorts['resolveRepository']
 }>): Promise<readonly string[]> => {
   const recovered: string[] = []
   for (const run of await store.listFactoryAdmissionRuns()) {
+    const candidate = run.candidateSourceRevision
     try {
-      const repository = await resolveRepository(run.binding)
-      const [head, conversation] = await Promise.all([
-        github.readBranchHead(repository.installation, repository, repository.defaultBranch),
-        github.readBranchHead(repository.installation, repository, conversationBranch(run.conversationId)),
-      ])
-      if (!head || head !== conversation || head === run.baseSourceRevision) continue
-      await store.advanceBuilderRunSource(run.builderRunId, head)
-      await store.settleBuilderRunBuild({ builderRunId: run.builderRunId, sourceRevision: head, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
+      if (run.resultSourceRevision !== candidate) {
+        const repository = await resolveRepository(run.binding)
+        if (!await github.branchContains(repository.installation, repository, repository.defaultBranch, candidate)) continue
+      }
+      await store.advanceBuilderRunSource(run.builderRunId, candidate)
+      await store.settleBuilderRunBuild({ builderRunId: run.builderRunId, sourceRevision: candidate, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
       recovered.push(run.builderRunId)
     } catch {
-      // GitHub unreachable or the run already moved: the normal interrupt settles it.
+      // GitHub unreachable: the normal interrupt settles it.
     }
   }
   return recovered

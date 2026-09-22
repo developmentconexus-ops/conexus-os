@@ -58,6 +58,8 @@ export type BuilderStore = Readonly<{
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderCodeChangingRun | null>
   claimBuilderRun(builderRunId: string): Promise<BuilderRunSummary>
   setBuilderRunPhase(builderRunId: string, phase: BuilderRunPhase): Promise<void>
+  // Enters SOURCE_ADMISSION with the result about to be offered to the default branch; refused once a stop is requested.
+  recordBuilderRunCandidate(builderRunId: string, sourceRevision: string): Promise<void>
   bindBuilderRunMessage(builderRunId: string, messageId: string): Promise<void>
   bindBuilderRunSandbox(builderRunId: string, sandboxId: string): Promise<void>
   settleBuilderRun(input: Readonly<{ builderRunId: string; resultSourceRevision: null; resultKind: 'RESPONSE_ONLY'; failureCode: null }>): Promise<void>
@@ -81,6 +83,9 @@ export type FactoryAdmissionRun = Readonly<{
   projectId: string
   conversationId: string
   baseSourceRevision: string
+  candidateSourceRevision: string
+  // Equal to the candidate once the advance is recorded.
+  resultSourceRevision: string | null
   binding: FactoryBindingRecord
 }>
 
@@ -141,6 +146,12 @@ export const createBuilderStore = ({
       'SELECT builder.set_builder_run_phase($1,$2) AS value', [builderRunId, phase],
     )
     if (result.rows[0]?.value !== true) throw new Error('BUILDER_RUN_PHASE_UPDATE_REFUSED')
+  },
+  recordBuilderRunCandidate: async (builderRunId, sourceRevision) => {
+    const result = await executorPool.query<{ value: boolean }>(
+      'SELECT builder.record_builder_run_candidate($1,$2) AS value', [builderRunId, sourceRevision],
+    )
+    if (result.rows[0]?.value !== true) throw new Error('BUILDER_RUN_CANDIDATE_REFUSED')
   },
   bindBuilderRunMessage: async (builderRunId, messageId) => {
     const result = await executorPool.query<{ value: boolean }>(

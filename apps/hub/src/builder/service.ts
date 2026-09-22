@@ -84,6 +84,7 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
         },
         bindPhysicalSandbox: (sandboxId: string) => store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId),
         bindMessage: (messageId: string) => store.bindBuilderRunMessage(claimed.builderRunId, messageId),
+        recordCandidate: (sourceRevision: string) => store.recordBuilderRunCandidate(claimed.builderRunId, sourceRevision),
       }
       const execute = async (): Promise<CodingWorkerResult | SourceAdmittedResult> => {
         if (runSource.kind === 'FACTORY') {
@@ -166,6 +167,8 @@ export const createBuilderService = ({ store, source, runtime, applicationArtifa
       }
     })().catch(async (error) => {
       const code = failureCode(error)
+      // Its source may be on main: the run stays running with its candidate until recovery settles it.
+      if (code === 'BUILDER_SOURCE_ADMISSION_UNKNOWN') return
       const discarded: BuilderRunSummary | null = unadmittedAgentRun
       if (discarded && factory?.appendDiagnostic) {
         await factory.appendDiagnostic({
