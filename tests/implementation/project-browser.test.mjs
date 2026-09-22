@@ -97,7 +97,16 @@ async function mockHub(page, hub) {
 }
 
 // The frame scrolls inside itself, so its main area and the top bar must fit as well as the page.
-const noHorizontalScroll = (page) => page.evaluate(() => [document.documentElement, ...document.querySelectorAll('[data-slot="app-shell-main"], .cx-topbar')].every((element) => element.scrollWidth <= element.clientWidth + 1))
+const measureOverflow = (page) => page.evaluate(() => [document.documentElement, ...document.querySelectorAll('[data-slot="app-shell-main"], .cx-topbar')].filter((element) => element.scrollWidth > element.clientWidth + 1).map((element) => `${element.className || element.tagName} ${element.scrollWidth}>${element.clientWidth}`))
+// A resize animates the rail into its drawer, so the check waits for the layout to settle.
+async function overflowing(page) {
+  let found = await measureOverflow(page)
+  for (let attempt = 0; attempt < 20 && found.length > 0; attempt += 1) {
+    await page.waitForTimeout(100)
+    found = await measureOverflow(page)
+  }
+  return found
+}
 
 async function shoot(page, name, { settle } = {}) {
   if (!shotDirectory) return
@@ -137,6 +146,7 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
   await mockHub(page, hub)
   const reset = async (changes = {}) => {
     Object.assign(hub, hubFixture(), changes)
+    await page.setViewportSize({ width: 1440, height: 900 })
   }
 
   await t.test('a signed-out visit to / goes straight to sign-in', async () => {
@@ -213,12 +223,13 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     assert.equal(await page.locator('.cx-project-cell').first().evaluate((element) => getComputedStyle(element).gridColumnStart), 'span 2')
     await shoot(page, '06-projects-home', { settle: () => page.locator('.cx-thumb[data-loaded]').first().waitFor() })
     await page.setViewportSize({ width: 390, height: 844 })
-    assert.equal(await noHorizontalScroll(page), true)
+    assert.deepEqual(await overflowing(page), [])
     assert.equal(await page.locator('.cx-project-grid').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length), 1)
     await page.setViewportSize({ width: 1440, height: 900 })
   })
 
   await t.test('the frame shows the trail, the Workspace rail and the account menu', async () => {
+    await page.setViewportSize({ width: 1440, height: 900 })
     await page.getByRole('navigation', { name: 'Contexto atual' }).getByText('Operações').waitFor()
     await page.getByRole('link', { name: 'Pessoas' }).waitFor()
     await page.getByRole('button', { name: 'Trocar de Workspace' }).click()
@@ -352,7 +363,7 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     for (const route of ['/workspaces', '/workspaces/new', `/workspaces/${ids.operations}/projects`, `/workspaces/${ids.operations}/projects/new`, `/workspaces/${ids.operations}/settings/people`, `/projects/${ids.vacation}/settings`, '/signed-out', '/no-access']) {
       await page.goto(`${origin}${route}`)
       await page.locator('h1').first().waitFor()
-      assert.equal(await noHorizontalScroll(page), true, route)
+      assert.deepEqual(await overflowing(page), [], route)
     }
   })
 })
