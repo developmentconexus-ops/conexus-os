@@ -99,10 +99,10 @@ The sequence is a commitment order, not a dependency chain. Q3 does not depend o
 - a spike that settles a gate's hypothesis runs on its own branch and worktree, is never merged, and ends in a report the gate's task cites;
 - only the current gate's task changes `main`.
 
-Running now alongside Q1:
+Alongside Q1:
 
-- the runner arena (`spike/q1-runner-arena`), which selects Q1's runner realization before Q1 implementation;
-- a rerunnable Builder eval (`scripts/builder-eval/`), the measuring tool every Builder proof in Stage 2 reuses, delivered as its own pull request;
+- the runner arena (`spike/q1-runner-arena`) is done: both isolation mechanisms passed its 24-case suite, and the Q1 task records the selection;
+- a rerunnable Builder eval (`scripts/builder-eval/`), the measuring tool every Builder proof in Stage 2 reuses, is delivered as its own pull request;
 - the Sankhya business input for Q4: gateway, read-only credential, the open-purchase-order read and its fields, owned by the operator.
 
 ## Technology qualification rule
@@ -183,7 +183,7 @@ These return only through a named real consumer and their own qualification.
 
 ## Exact next action
 
-**Execute only Stage 2 Q1, after the runner arena selects its runner realization.**
+**Execute only Stage 2 Q1, on the rootless bubblewrap runner the arena selected.**
 
 [Stage 2 Q1 — Handler runtime + persistent Preview data qualification](tasks/stage2-q1-handler-runtime-data-qualification.md)
 

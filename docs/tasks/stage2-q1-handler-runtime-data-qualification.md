@@ -82,18 +82,24 @@ Initial platform baseline:
 - Ajv/Zod only where platform validation needs them; do not expose a framework merely to justify its presence;
 - pg 8.23.0;
 - parameterized SQL for the probe;
-- one shared runner outside the Hub: a supervisor plus one worker process per Project, never several Projects' generated code in one process.
+- one runner outside the Hub: a supervisor that executes each invocation in its own isolated worker, never several Projects' generated code in one process.
 
-"A separate process" is not by itself a boundary. On the pilot the Hub's secrets are files readable by the operator's OS user (`~/.config/conexus/secrets/`, the Hub environment file), so a worker running as that user fails falsifier 4 by construction, and Projects sharing one process share memory and fail falsifier 2. The worker therefore runs under an identity that cannot read Hub secret files or the Hub environment, with network egress limited to the application database. Two realizations are candidates:
+"A separate process" is not by itself a boundary. On the pilot the Hub's secrets are files readable by the operator's OS user (`~/.config/conexus/secrets/`, the Hub environment file), so a worker running as that user fails falsifier 4 by construction, and Projects sharing one process share memory and fail falsifier 2.
 
-- a dedicated unprivileged OS user per worker, with an egress filter by user;
-- one shared hardened container holding the supervisor and its per-Project workers.
+The throwaway runner arena (branch `spike/q1-runner-arena`, `spike/q1-runner/REPORT.md`, never merged) ran one 24-case adversarial suite, including migration attacks, against two isolation mechanisms on the pilot host. Both blocked every case.
 
-The throwaway runner arena (branch `spike/q1-runner-arena`, never merged) runs both against one adversarial suite. Its report selects the realization before Q1 implementation starts. Neither is a per-Project permanent container.
+- **Selected. Rootless bubblewrap worker per invocation.** Unprivileged user, pid, net, ipc and uts namespaces; an allowlist root filesystem that never binds the operator's home; an empty network namespace, with the Project database reached only through a bound-in unix socket; a heap cap and a supervisor wall-clock kill. No root, no dedicated OS user, no firewall rule. Handler p50 49 ms, p95 60 ms.
+- **Fallback. Per-Project hardened container** (`--cap-drop ALL`, no-new-privileges, read-only root, internal network reaching only Postgres). Also passed, at about twice the latency (p50 91 ms). It is a long-lived container per Project, which C-028 does not grant, so selecting it requires amending C-028 first.
+
+The bubblewrap realization carries two durable conditions. The runner asserts at startup that unprivileged user namespaces are enabled and refuses to serve otherwise. The Project database credential reaches the worker through a pipe or a bound file, never through process arguments, because `bwrap --setenv` places it in `/proc/<pid>/cmdline` on the host.
+
+The migration role must stay unprivileged and confined to its own Project schema. The arena observed that an owning migration role can still create a `SECURITY DEFINER` function and grant `USAGE` on its schema to another Project's role; both were inert only because the role holds nothing more. Cross-Project grants belong to the platform, never to generated SQL.
+
+Q1.0 adds one fact to verify: how the application database's unix socket reaches the worker on the pilot, where Postgres runs in a container.
 
 The generated handler contract in Q1 is **qualification-only**. Keep it deliberately small. Q2 owns the durable programming-model decision.
 
-If neither realization satisfies the falsifiers, STOP with evidence and return to planning. Do not silently escalate to per-Project containers inside this task.
+If the selected realization fails a falsifier on the real Builder path, STOP with evidence and return to planning. Do not silently escalate to per-Project containers inside this task.
 
 ## 6. Application used by the probe
 
