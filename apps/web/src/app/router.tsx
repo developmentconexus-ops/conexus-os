@@ -1,8 +1,7 @@
 import { createRouter } from '@tanstack/react-router'
 import { rootRoute } from '../routes/__root'
 import { indexRoute } from '../routes/index'
-import { projectDetailRoute } from '../routes/project-detail'
-import { projectBuildRoute } from '../routes/project-build'
+import { construirRoute, projectBuildRoute, projectRoute } from '../routes/construir'
 import { setupRoute } from '../routes/setup'
 import { settingsRoute } from '../routes/settings'
 import { workspaceMembersRoute } from '../routes/workspace-members'
@@ -25,8 +24,9 @@ const routeTree = rootRoute.addChildren([
   workspaceProjectsRoute,
   workspaceProjectNewRoute,
   workspaceMembersRoute,
-  projectDetailRoute,
+  projectRoute,
   projectBuildRoute,
+  construirRoute,
 ])
 
 export const router = createRouter({ routeTree })

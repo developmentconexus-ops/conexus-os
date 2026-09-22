@@ -1,5 +1,5 @@
 import type { FactoryCodingWorkerRuntime } from './factory-runtime.js'
-import type { BuilderSourceFile, BuilderSourceTree, FactorySourceReads } from './factory-source.js'
+import type { BuilderSourceComparison, BuilderSourceFile, BuilderSourceTree, FactorySourceReads } from './factory-source.js'
 import type { BuilderRunningPhase, BuilderRunSummary, BuilderStore, FactoryBindingRecord } from './store.js'
 import { prepareBuilderRunApplicationArtifact } from './application-build.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, BuilderApplicationArtifacts } from './application-build.js'
@@ -9,6 +9,7 @@ export type BuilderService = Readonly<{
   cancelBuilderRun(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderRunSummary>
   listSourceTree(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<BuilderSourceTree>
   getSourceFile(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
+  compareSourceRevisions(input: Readonly<{ accountId: string; projectId: string; baseSourceRevision: string; resultSourceRevision: string }>): Promise<BuilderSourceComparison>
   getApplicationBySource(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null>
   readApplicationFileBySource(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
   recover(): Promise<void>
@@ -230,6 +231,16 @@ export const createBuilderService = ({ store, applicationArtifacts, factory }: R
       const binding = await store.readFactoryBinding(input)
       if (!binding) throw new Error('BUILDER_FACTORY_PROJECT_UNBOUND')
       return factory.source.readSourceFile(binding, input.sourceRevision, input.path)
+    },
+    compareSourceRevisions: async (input) => {
+      const admitted = await Promise.all([
+        store.admitSourceRevision({ accountId: input.accountId, projectId: input.projectId, sourceRevision: input.baseSourceRevision }),
+        store.admitSourceRevision({ accountId: input.accountId, projectId: input.projectId, sourceRevision: input.resultSourceRevision }),
+      ])
+      if (!admitted[0] || !admitted[1]) throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND')
+      const binding = await store.readFactoryBinding(input)
+      if (!binding) throw new Error('BUILDER_FACTORY_PROJECT_UNBOUND')
+      return factory.source.compareRevisions(binding, input.baseSourceRevision, input.resultSourceRevision)
     },
     getApplicationBySource,
     readApplicationFileBySource,

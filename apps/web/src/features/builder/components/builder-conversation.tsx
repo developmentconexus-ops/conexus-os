@@ -1,4 +1,3 @@
-import '@mastra/playground-ui/style.css'
 import { MarkdownRenderer } from '@mastra/playground-ui/components/MarkdownRenderer'
 import {
   ToolCall, ToolCallCommand, ToolCallContent, ToolCallEdit, ToolCallMono, ToolCallPresentedHeader, ToolCallTrigger,
@@ -7,6 +6,7 @@ import {
 import { Brain } from 'lucide-react'
 import type { ActiveTool, LiveTurn, MastraDBMessage } from '../mastra-session'
 import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
+import { toolSentence } from '../construir/tool-sentences'
 
 export type PersistedRequest = Readonly<{ runId: string; text: string; createdAt: string; reason: string | null }>
 type MessagePart = MastraDBMessage['content']['parts'][number]
@@ -35,7 +35,7 @@ function ToolInvocation({ part, live }: Readonly<{ part: ToolInvocationPart; liv
   const resultText = result === undefined ? '' : stringifyToolValue(result)
   return <ToolCall status={failed ? 'error' : running ? 'running' : 'idle'}>
     <ToolCallTrigger>
-      <ToolCallPresentedHeader icon={presentation.icon} label={presentation.label} {...(presentation.detail ? { detail: presentation.detail } : {})} disclosure />
+      <ToolCallPresentedHeader icon={presentation.icon} label={toolSentence(toolName, running)} {...(presentation.detail ? { detail: presentation.detail } : {})} disclosure />
     </ToolCallTrigger>
     <ToolCallContent>
       {presentation.command && <ToolCallCommand command={presentation.command} />}

@@ -113,7 +113,15 @@ export const getProjectSourceFile = async (projectId: string, sourceRevision: st
   if (!response.ok) await reject(response)
   return response.json() as Promise<SourceFile>
 }
-export const launchBuilderPreview = async (projectId: string): Promise<PreviewLaunch> => {
+export type SourceChange = Readonly<{ path: string; status: 'ADDED' | 'REMOVED' | 'MODIFIED' | 'RENAMED'; previousPath: string | null }>
+export type SourceComparison = Readonly<{ baseSourceRevision: string; resultSourceRevision: string; files: readonly SourceChange[] }>
+export const compareProjectSource = async (projectId: string, baseSourceRevision: string, resultSourceRevision: string): Promise<SourceComparison> => {
+  const query = new URLSearchParams({ baseSourceRevision, resultSourceRevision })
+  const response = await request(`${sourceBase(projectId)}/compare?${query}`)
+  if (!response.ok) await reject(response)
+  return response.json() as Promise<SourceComparison>
+}
+export const launchBuilderPreview =async (projectId: string): Promise<PreviewLaunch> => {
   const response = await request(`${sessionBase(projectId)}/preview`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
   })

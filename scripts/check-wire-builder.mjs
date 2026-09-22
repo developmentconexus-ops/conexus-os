@@ -12,6 +12,7 @@ for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
 const expected = {
   'BLD-08': ['/source/tree', 'get'],
   'BLD-09': ['/source/file', 'get'],
+  'BLD-29': ['/source/compare', 'get'],
   'BLD-23': ['/builder-session', 'get'],
   'BLD-24': ['/builder-session/messages', 'post'],
   'BLD-25': ['/builder-session/runs/{builderRunId}/cancel', 'post'],
