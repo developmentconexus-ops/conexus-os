@@ -1,0 +1,69 @@
+# Builder eval
+
+The one rerunnable proof every Stage 2 Builder gate needs: send a normal product-language
+request to the real Builder, on a fresh Project, through the product UI exactly as a person
+would, and record whether a usable Preview came out the other end. Guidance, starter and skill
+changes become measurements instead of opinions.
+
+## Run
+
+```bash
+export CONEXUS_STATE=$(~/conexus-test-session.sh)   # or let run.mjs call the helper itself
+node scripts/builder-eval/run.mjs \
+  --case scripts/builder-eval/cases/todo-basic.json \
+  --out /tmp/builder-eval/run-1
+```
+
+Options (`--help` prints the same list):
+
+- `--case <file>` (required): a case JSON, see below.
+- `--out <dir>` (required): where `result.json` and, on a usable Preview, `preview.png` land.
+- `--project <id>`: reuse an existing Project (a fresh conversation is opened on it) instead of
+  creating one.
+- `--model <id>`: a model id from `GET /api/control/model-accounts/models`; default is the first
+  model the signed-in account can actually use.
+- `--project-name <name>`: name for a newly created Project; default `eval-<date>-<time>`.
+- `--max-repairs <n>`: repair messages ("o build falhou, corrija") to send after a failed build
+  before giving up and reading whatever Preview exists; default 2.
+- `--base-url <url>`: Hub origin; default `https://hub.conexus.localhost:3443`.
+- `--headed`: visible browser instead of headless, for debugging a run.
+
+The run needs a live Hub and a signed-in test-operator session (`~/conexus-test-session.sh`); see
+`conexus-live-hub-runbook` and `conexus-test-operator-login` in project memory. It never writes to
+the database or Mastra storage directly, only the Hub's own HTTP API and the product UI.
+
+## Case file
+
+```json
+{
+  "request": "Portuguese, product-language request sent to the Builder as the first message.",
+  "checks": [
+    { "action": "fill", "selector": "input", "value": "Lavar o carro" },
+    { "action": "click", "selector": "text=Adicionar" },
+    { "action": "expectText", "selector": "body", "text": "Lavar o carro" }
+  ],
+  "reload": false
+}
+```
+
+`checks` run in order against the Preview iframe once the run settles. `selector` is any
+Playwright locator string (CSS, `text=`, `role=...`). `fill` needs `value`; `expectText` needs
+`text` and passes when the element's text contains it. A failing step is recorded, not thrown, so
+every step still runs. `reload` (optional, default `false`): once every initial check passes,
+reload the Preview iframe in place and rerun the `expectText` checks against it, to prove the
+result persists across a refresh.
+
+## Output
+
+`result.json` in `--out`:
+
+- `projectId`, `conversationId`, `modelId`, `request`.
+- `sourceRevisionBefore` / `sourceRevisionAfter`, `filesChanged` (from
+  `GET .../source/compare`).
+- `runs`: one entry per BuilderRun sent (the first request plus each repair), with
+  `builderRunId`, `state`, `resultKind`, `failureCode`, `failureCategory`.
+- `repairIterations`: how many repair messages were actually sent.
+- `wallTimeToUsablePreviewMs`: from the request landing to the Preview's loading veil lifting.
+- `previewUrl`, `screenshotPath` (relative to `--out`), `checks.initial`, `checks.afterReload`.
+- `outcome`: `PASS`, `FAIL` (a check failed, or no Preview ever became usable), or `ERROR` (the
+  tool itself broke; see `error` and `failure.png`).

@@ -1,0 +1,9 @@
+{
+  "request": "Crie uma lista de tarefas simples: eu digito uma tarefa, clico em Adicionar e ela aparece na lista.",
+  "checks": [
+    { "action": "fill", "selector": "input", "value": "Lavar o carro" },
+    { "action": "click", "selector": "text=Adicionar" },
+    { "action": "expectText", "selector": "body", "text": "Lavar o carro" }
+  ],
+  "reload": false
+}
