@@ -192,6 +192,9 @@ test('a person signs in to Google AI Pro from Settings, and their runs then carr
   const asAlice = as(alice)
   const connection = '/api/control/model-accounts/google-ai-pro/connection'
   assert.deepEqual((await asAlice('GET', connection)).body, { mine: false, shared: false, administrator: false })
+  const offered = async (accountId) => (await as(accountId)('GET', '/api/control/model-accounts/models')).body.models
+    .filter((model) => model.provider === 'mastracode/google-ai-pro').map((model) => model.id)
+  assert.deepEqual(await offered(alice), [], 'a person without the connection is offered none of its models')
   const { loginId, url } = (await asAlice('POST', '/api/control/model-accounts/google-ai-pro/login/start', {})).body
   const callbackUrl = `http://localhost:51121/oauth-callback?state=${new URL(url).searchParams.get('state')}&code=good`
   assert.equal((await asAlice('POST', '/api/control/model-accounts/google-ai-pro/login/complete', { loginId, callbackUrl })).status, 200)
@@ -200,6 +203,11 @@ test('a person signs in to Google AI Pro from Settings, and their runs then carr
   assert.equal(state, 'succeeded')
   assert.deepEqual((await asAlice('GET', connection)).body, { mine: true, shared: false, administrator: false })
   assert.deepEqual((await as(bob)('GET', connection)).body, { mine: false, shared: false, administrator: false })
+  assert.deepEqual((await offered(alice)).sort(), [
+    'gemini-3-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-low', 'gemini-3.5-flash-lite',
+    'gemini-3.6-flash-high', 'gemini-3.7-flash-high', 'gemini-3.8-flash-high', 'gemini-pro-agent',
+  ].map((model) => `mastracode/google-ai-pro/${model}`).sort())
+  assert.deepEqual(await offered(bob), [])
   const memory = await composition.storage.getDomain('memory-settings').get({ orgId: ORG, userId: alice })
   assert.deepEqual([memory.observerModelId, memory.reflectorModelId], ['mastracode/google-ai-pro/gemini-3.5-flash-lite', 'mastracode/google-ai-pro/gemini-3.5-flash-lite'])
   const stored = await composition.storage.getDomain('model-credentials').getCredential({ orgId: ORG, userId: alice }, 'google-ai-pro')
@@ -287,6 +295,9 @@ test('each person connects their own accounts, and only an installation administ
 
   assert.equal((await asBob('PUT', '/api/control/model-accounts/anthropic/key', { key: 'sk-ant-bob' })).status, 200)
   assert.equal(sourceOf(await asBob('GET', '/api/control/model-accounts'), 'anthropic'), 'stored-user')
+  const offersAnthropic = async (ask) => (await ask('GET', '/api/control/model-accounts/models')).body.models.some((model) => model.provider === 'anthropic')
+  assert.equal(await offersAnthropic(asBob), true, 'the picker offers what the person connected')
+  assert.equal(await offersAnthropic(asAlice), false, 'and not what someone else connected')
   assert.equal(sourceOf(await asAlice('GET', '/api/control/model-accounts'), 'anthropic'), 'none')
   assert.equal((await asBob('GET', '/api/control/model-accounts')).body.orgKeyAdmin, false)
   assert.equal((await asAlice('GET', '/api/control/model-accounts')).body.orgKeyAdmin, true)
@@ -320,7 +331,7 @@ test('each person connects their own accounts, and only an installation administ
 test('a new conversation starts from the person\'s own defaults, else the installation\'s, and only an administrator sets the installation\'s', async (t) => {
   const composition = await composeOnPostgres(t)
   const projectRepositoryId = await openConversation(composition)
-  const { as } = await openAccountsApp(t, composition, [alice])
+  const { app, as } = await openAccountsApp(t, composition, [alice])
   const asAlice = as(alice)
   const asBob = as(bob)
   const installation = { build: 'anthropic/claude-sonnet-4-6', fast: 'anthropic/claude-haiku-4-5' }
@@ -344,7 +355,12 @@ test('a new conversation starts from the person\'s own defaults, else the instal
   assert.deepEqual(await modelsOf(bob), bobs)
   assert.deepEqual(await modelsOf(alice), installation)
 
-  assert.equal((await asBob('DELETE', '/api/control/model-defaults/mine')).status, 204)
+  const labelled = await app.inject({
+    method: 'DELETE', url: '/api/control/model-defaults/mine',
+    headers: { origin, 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' },
+    cookies: { '__Host-conexus_session': bob, '__Host-conexus_csrf': 'csrf-1' },
+  })
+  assert.equal(labelled.statusCode, 204, 'a DELETE labelled JSON with no body is accepted')
   assert.deepEqual(await modelsOf(bob), installation)
 })
 

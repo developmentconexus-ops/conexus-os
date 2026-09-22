@@ -36,7 +36,7 @@ const routeFactory = async (page, projectId, state) => {
     state.conversations = [created, ...state.conversations]
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ conversation: created }) })
   })
-  await page.route(`${FACTORY_CONTROLLER}/models`, (route) =>
+  await page.route('**/api/control/model-accounts/models', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
   await page.route(`${FACTORY_CONTROLLER}/sessions/*`, (route) => {
     const id = threadIdOf(route.request().url(), -1)
@@ -851,7 +851,7 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
     run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', mode: body.mode, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
-  await page.route(`${FACTORY_CONTROLLER}/models`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
+  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
   await page.route(`${FACTORY_CONTROLLER}/sessions/*`, (route) => {
     const id = threadIdOf(route.request().url(), -1)
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: models[id] ?? '', modeId: 'build', threadId: id }) })
@@ -921,7 +921,7 @@ test('Configurações lets a person connect and disconnect model accounts, an ad
   const writes = []
   let mine = null
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Administradora' }, workspaces: [], projects: [] }) }))
-  await page.route(`${FACTORY_CONTROLLER}/models`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
+  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers: Object.values(providers), orgKeyAdmin: true }) }))
   await page.route('**/api/control/model-accounts/*/*', (route) => {
     const request = route.request()
@@ -986,7 +986,7 @@ test('Configurações signs a person in to Google AI Pro through a pasted Google
   let enabled = true
   const writes = []
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Pessoa' }, workspaces: [], projects: [] }) }))
-  await page.route(`${FACTORY_CONTROLLER}/models`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
+  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers: [], orgKeyAdmin: false }) }))
   await page.route('**/api/control/model-defaults', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
   await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => {

@@ -19,7 +19,8 @@ export const GOOGLE_AI_PRO_MODELS: readonly string[] = Object.freeze([
 ])
 // The Factory seeds a memory model only for providers it knows, and a custom provider is not one.
 // The catalog lists a custom provider under the Mastra Code gateway, and pickers store that id.
-export const GOOGLE_AI_PRO_MEMORY_MODEL = `mastracode/${GOOGLE_AI_PRO_PROVIDER}/gemini-3.5-flash-lite`
+export const GOOGLE_AI_PRO_CATALOG_PROVIDER = `mastracode/${GOOGLE_AI_PRO_PROVIDER}`
+export const GOOGLE_AI_PRO_MEMORY_MODEL = `${GOOGLE_AI_PRO_CATALOG_PROVIDER}/gemini-3.5-flash-lite`
 
 // The Factory's own seed call (om-seed): it never overwrites a model the person already chose.
 export const seedGoogleAiProMemory = async (memorySettings: Pick<MemorySettingsStorage, 'ensureReady' | 'patch'>, tenant: Readonly<{ orgId: string; userId: string }>): Promise<void> => {

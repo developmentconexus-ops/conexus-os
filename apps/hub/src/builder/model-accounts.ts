@@ -11,7 +11,7 @@ import type { ModelPacksStorage } from '@mastra/factory/storage/domains/model-pa
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
-import { GOOGLE_AI_PRO_PROVIDER, seedGoogleAiProMemory } from './google-ai-pro/credential.js'
+import { GOOGLE_AI_PRO_CATALOG_PROVIDER, GOOGLE_AI_PRO_PROVIDER, seedGoogleAiProMemory } from './google-ai-pro/credential.js'
 import { createGoogleAiProLogin, GoogleAiProLoginError, type LoginProblem } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
 import type { BuilderAgentController } from './runtime.js'
@@ -41,6 +41,7 @@ type ModelAccountDomains = Readonly<{
 }>
 
 type Caller = Readonly<{ accountId: AccountId }>
+type OfferedModel = Readonly<{ id: string; provider: string; modelName: string; hasApiKey: boolean }>
 
 // The slice of Hono's Context the Factory's provider and sign-in handlers read. The Hub builds one
 // per request, so the Factory's own handler decides every credential write, and the caller it sees
@@ -181,6 +182,27 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
   }
 
   forward('GET', '', '/web/config/providers')
+
+  // The Factory's own answer for the caller's credentials, user over org. The controller's model
+  // list only knows the host's keys, the same for everyone. Google AI Pro's credential id is not its
+  // catalog id, so the Factory leaves it out, and the Hub, which hosts it (C-027), adds it for a
+  // caller who has that credential.
+  const listModels = factoryHandler('GET', '/web/config/models')
+  app.get('/api/control/model-accounts/models', async (request, reply) => {
+    const caller = await admit(request, reply)
+    if (!caller) return reply
+    const answer = await callFactory(listModels, caller, { params: {}, query: {}, body: undefined, headers: request.headers })
+    if (answer.status !== 200) return reply.code(answer.status).send(answer.body)
+    const { models } = answer.body as Readonly<{ models: readonly OfferedModel[] }>
+    const connected = await credentials.getCredential({ orgId, userId: caller.accountId }, GOOGLE_AI_PRO_PROVIDER) ??
+      await credentials.getCredential({ orgId }, GOOGLE_AI_PRO_PROVIDER)
+    if (!connected) return { models: models.filter((model) => model.provider !== GOOGLE_AI_PRO_CATALOG_PROVIDER) }
+    const known = new Set(models.map((model) => model.id))
+    const googleAiPro = (await controller.listAvailableModels())
+      .filter((model) => model.provider === GOOGLE_AI_PRO_CATALOG_PROVIDER && !known.has(model.id))
+      .map(({ id, provider, modelName }) => ({ id, provider, modelName, hasApiKey: true }))
+    return { models: [...models, ...googleAiPro] }
+  })
   forward('PUT', '/:provider/key', '/web/config/providers/:provider/key')
   forward('DELETE', '/:provider/key', '/web/config/providers/:provider/key')
   forward('POST', '/:provider/oauth/start', '/web/config/providers/:provider/oauth/start')

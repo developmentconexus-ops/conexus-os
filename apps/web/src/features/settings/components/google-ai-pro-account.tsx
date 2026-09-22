@@ -77,7 +77,11 @@ export function GoogleAiProAccount() {
   const connection = useQuery({ queryKey: connectionQueryKey, queryFn: () => call<Connection>('GET', `${base}/connection`), retry: false })
   const [login, setLogin] = useState<Login | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const refresh = () => queryClient.invalidateQueries({ queryKey: modelAccountsQueryKey })
+  // Connecting or disconnecting changes which models this person's pickers offer.
+  const refresh = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: modelAccountsQueryKey }),
+    queryClient.invalidateQueries({ queryKey: ['builder-models'] }),
+  ])
   const start = useMutation({
     mutationFn: () => call<Login>('POST', `${base}/login/start`, {}),
     onSuccess: (started) => { setMessage(null); setLogin(started) },
