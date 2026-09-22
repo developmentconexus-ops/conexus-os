@@ -9,7 +9,7 @@ import { MyDefaultsSection } from './my-defaults-section'
 import { OwnAccountRow, SharedAccountRow } from './model-account-row'
 import { PageHeader } from './page-header'
 import { ReconnectAccount } from './reconnect-account'
-import { SectionEmpty, SectionError, SectionLoading } from './states'
+import { SectionEmpty, SectionError, SectionLoading, StatusLine } from './states'
 
 // Each card below is a standalone component reading its own data; the page body (bottom of this
 // file) is a flat list of them, so a new card (the Google AI Pro connection, PR #157) mounts as
@@ -40,14 +40,16 @@ function OwnAccountsBody({ data, connecting, setConnecting, reconnecting, setRec
   refresh: () => void
 }>) {
   const own = ownRows(data.providers)
+  const [notice, setNotice] = useState<string | null>(null)
   return <>
     {own.length === 0
       ? <SectionEmpty>Nenhuma conta conectada</SectionEmpty>
       : <ul className="cxs-list">{own.map((row) => <OwnAccountRow key={row.provider} row={row} onReconnect={setReconnecting} />)}</ul>}
     {reconnecting && <ReconnectAccount provider={reconnecting} onDone={() => { setReconnecting(null); refresh() }} />}
     {connecting || own.length === 0
-      ? <ConnectAccount providers={data.providers} onConnected={() => { setConnecting(false); refresh() }} />
-      : <Button type="button" variant="primary" onClick={() => setConnecting(true)}>Conectar conta</Button>}
+      ? <ConnectAccount providers={data.providers} onConnected={() => { setNotice('Conta conectada.'); setConnecting(false); refresh() }} />
+      : <Button type="button" variant="primary" onClick={() => { setNotice(null); setConnecting(true) }}>Conectar conta</Button>}
+    {notice && <StatusLine>{notice}</StatusLine>}
   </>
 }
 

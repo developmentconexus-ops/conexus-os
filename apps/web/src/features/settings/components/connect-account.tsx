@@ -89,7 +89,6 @@ function ApiKeyStep({ provider, onDone }: Readonly<{ provider: string; onDone: (
 
 export function ConnectAccount({ providers, onConnected }: Readonly<{ providers: readonly ModelProvider[]; onConnected: () => void }>) {
   const [state, dispatch] = useReducer(connectFlowReducer, initialConnectState)
-  const [message, setMessage] = useState<string | null>(null)
   const start = useMutation({
     mutationFn: (provider: string) => startOAuth(provider),
     onSuccess: (flow) => dispatch(flow.kind === 'device-code'
@@ -98,12 +97,11 @@ export function ConnectAccount({ providers, onConnected }: Readonly<{ providers:
     onError: () => dispatch({ type: 'failed', message: 'Não foi possível iniciar a entrada com este provedor.' }),
   })
   const onDone = (error?: string) => {
-    if (error) { setMessage(null); dispatch({ type: 'failed', message: error }); return }
-    setMessage('Conta conectada.')
+    if (error) { dispatch({ type: 'failed', message: error }); return }
     dispatch({ type: 'succeeded' })
     onConnected()
   }
-  const restart = () => { setMessage(null); dispatch({ type: 'reset' }) }
+  const restart = () => dispatch({ type: 'reset' })
 
   // A provider with no subscription login skips the method choice; advancing state belongs in an
   // effect, not in the render that reads it.
@@ -167,7 +165,6 @@ export function ConnectAccount({ providers, onConnected }: Readonly<{ providers:
     </section>
   }
 
-  // 'done': the flow closes itself; the row above now shows the connected account.
-  if (message) return <StatusLine>{message}</StatusLine>
+  // 'done': the parent closes the flow and announces the connected account.
   return null
 }
