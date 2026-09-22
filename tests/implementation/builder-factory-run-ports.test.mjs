@@ -17,14 +17,8 @@ const githubApp = {
 const assistant = (id, text) => ({ id, role: 'assistant', content: { parts: [{ type: 'text', text }] } })
 const user = (id, text) => ({ id, role: 'user', content: { parts: [{ type: 'text', text }] } })
 
-const fakeSession = ({ messages = [], turnUserMessageId = 'user-2', title = null } = {}) => {
+const fakeSession = ({ messages = [], turnUserMessageId = 'user-2' } = {}) => {
   const listeners = new Set()
-  const thread = {
-    title,
-    listActiveMessages: async () => messages,
-    getById: async ({ threadId }) => threadId === conversationId ? { id: conversationId, resourceId: conversationId, title: thread.title } : null,
-    rename: async ({ title: next }) => { thread.title = next },
-  }
   const models = { observer: 'google/gemini-3.5-flash', reflector: 'google/gemini-3.5-flash' }
   const role = (name) => ({ modelId: () => models[name], switchModel: async ({ modelId }) => { models[name] = modelId } })
   const stateWrites = []
@@ -43,7 +37,7 @@ const fakeSession = ({ messages = [], turnUserMessageId = 'user-2', title = null
       for (const listener of listeners) listener({ type: 'message_end', message: { id: turnUserMessageId, role: 'user' } })
       for (const listener of listeners) listener({ type: 'agent_end', reason: 'complete' })
     },
-    thread,
+    thread: { listActiveMessages: async () => messages },
   }
 }
 
@@ -71,22 +65,6 @@ test('a turn summary holds only what the assistant said after this turn\'s own m
   const run = await openPorts({ session })
   const turn = await run.sendTurn('Segundo pedido')
   assert.deepEqual({ userMessageId: turn.userMessageId, summary: turn.summary }, { userMessageId: 'user-2', summary: 'Resposta nova.' })
-})
-
-test('the first request names an untitled conversation, in its own words, before the model runs', async () => {
-  const short = fakeSession()
-  await (await openPorts({ session: short })).sendTurn('  Crie um contador   de visitas\ncom botão de reiniciar')
-  assert.equal(short.thread.title, 'Crie um contador de visitas')
-
-  const long = fakeSession()
-  await (await openPorts({ session: long })).sendTurn('Quero uma página de inscrição para o evento de sábado, com nome, e-mail e telefone obrigatórios')
-  assert.equal(long.thread.title, 'Quero uma página de inscrição para o evento de sábado, com…')
-})
-
-test('a conversation that already has a title keeps it', async () => {
-  const session = fakeSession({ title: 'Contador de visitas' })
-  await (await openPorts({ session })).sendTurn('Agora mude a cor do botão')
-  assert.equal(session.thread.title, 'Contador de visitas')
 })
 
 test('every tool the Factory GitHub integration contributes is denied, including one it adds later', async () => {

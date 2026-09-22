@@ -2,7 +2,7 @@ import { RequestContext } from '@mastra/core/request-context'
 import type { FastifyInstance } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
-import type { BuilderAgentController } from './runtime.js'
+import { type BuilderAgentController, isUserAuthoredMessage, messageText } from './runtime.js'
 import type { FactoryBindingRecord } from './store.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
@@ -32,14 +32,37 @@ export type FactoryConversationSessions = Readonly<{
     userId: string
     branch: string
     baseBranch: string
-    title?: string
     visibility: 'org'
   }>): Promise<FactorySessionRow>
 }>
 
-const projectConversation = (row: FactorySessionRow) => ({
+const TITLE_LENGTH = 60
+// The first request is among a conversation's first messages; a run note never precedes it.
+const FIRST_MESSAGES = 10
+
+// The request's first line, cut on a word so the ellipsis still fits.
+const conversationTitle = (request: string): string | null => {
+  const line = request.split('\n').map((text) => text.replace(/\s+/g, ' ').trim()).find(Boolean)
+  if (!line || line.length <= TITLE_LENGTH) return line ?? null
+  const head = line.slice(0, TITLE_LENGTH - 1)
+  const space = head.lastIndexOf(' ')
+  return `${(space > 0 ? head.slice(0, space) : head).trimEnd()}…`
+}
+
+// Mastra Code's observer renames a thread, in English and with no host option to turn it off or
+// instruct it, and the Factory copies that onto the session row (docs/reference/mastra-boundary.md,
+// item 5). So a conversation's title is derived here from its first request, never read from either.
+const readTitle = async (controller: BuilderAgentController, conversationId: string): Promise<string | null> => {
+  const { messages } = await controller.queryThreadMessages({
+    threadId: conversationId, perPage: FIRST_MESSAGES, page: 0, orderBy: { field: 'createdAt', direction: 'ASC' },
+  })
+  const first = messages.find(isUserAuthoredMessage)
+  return first ? conversationTitle(messageText(first)) : null
+}
+
+const projectConversation = (row: FactorySessionRow, title: string | null) => ({
   conversationId: row.sessionId,
-  title: row.title,
+  title,
   createdAt: new Date(row.createdAt).toISOString(),
 })
 
@@ -63,10 +86,11 @@ export const openFactoryConversationThread = ({ controller, orgId, applyDefaults
     await applyDefaults?.(session, accountId)
   }
 
-export const registerFactoryConversationRoutes = async (app: FastifyInstance, { readFactoryBinding, defaultBranchOf, sessions, orgId, origin, resolveCurrentSession, openThread }: Readonly<{
+export const registerFactoryConversationRoutes = async (app: FastifyInstance, { readFactoryBinding, defaultBranchOf, sessions, controller, orgId, origin, resolveCurrentSession, openThread }: Readonly<{
   readFactoryBinding(input: Readonly<{ accountId: string; projectId: string }>): Promise<FactoryBindingRecord | null>
   defaultBranchOf(binding: FactoryBindingRecord): Promise<string>
   sessions: FactoryConversationSessions
+  controller: BuilderAgentController
   orgId: string
   origin: string
   resolveCurrentSession: ResolveCurrentSession
@@ -88,13 +112,14 @@ export const registerFactoryConversationRoutes = async (app: FastifyInstance, { 
     if (binding === 'DENIED') return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
     if (binding === 'UNBOUND') return sendProblem(reply, 404, 'factory-project-not-bound', 'Project is not developed through the Factory')
     const rows = await sessions.list({ projectRepositoryId: binding.projectRepositoryId, viewerUserId: session.account.accountId })
-    return { conversations: [...rows].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()).map(projectConversation) }
+    const sorted = [...rows].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+    return { conversations: await Promise.all(sorted.map(async (row) => projectConversation(row, await readTitle(controller, row.sessionId)))) }
   })
 
-  app.post<{ Params: { projectId: string }; Body: { conversationId: string; title?: string } }>('/api/control/projects/:projectId/conversations', {
+  app.post<{ Params: { projectId: string }; Body: { conversationId: string } }>('/api/control/projects/:projectId/conversations', {
     schema: {
       params,
-      body: { type: 'object', additionalProperties: false, required: ['conversationId'], properties: { conversationId: uuid, title: { type: 'string', minLength: 1, maxLength: 200 } } },
+      body: { type: 'object', additionalProperties: false, required: ['conversationId'], properties: { conversationId: uuid } },
     },
   }, async (request, reply) => {
     const csrf = header(request.headers['x-conexus-csrf'])
@@ -104,13 +129,13 @@ export const registerFactoryConversationRoutes = async (app: FastifyInstance, { 
     const binding = await boundProject(session.account.accountId, request.params.projectId)
     if (binding === 'DENIED') return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
     if (binding === 'UNBOUND') return sendProblem(reply, 404, 'factory-project-not-bound', 'Project is not developed through the Factory')
-    const { conversationId, title } = request.body
+    const { conversationId } = request.body
     // The client chooses the id, so a retry lands on the row the first attempt wrote.
     const existing = await sessions.getBySessionId(conversationId)
     if (existing) {
       if (existing.projectRepositoryId !== binding.projectRepositoryId) return sendProblem(reply, 409, 'conversation-conflict', 'Conversation id already in use')
       await openThread({ conversationId, accountId: session.account.accountId })
-      return reply.code(200).send({ conversation: projectConversation(existing) })
+      return reply.code(200).send({ conversation: projectConversation(existing, await readTitle(controller, conversationId)) })
     }
     // The shape the Factory's own session route writes, so its workspace resolver reads it unchanged.
     const created = await sessions.create({
@@ -120,11 +145,10 @@ export const registerFactoryConversationRoutes = async (app: FastifyInstance, { 
       userId: session.account.accountId,
       branch: conversationBranch(conversationId),
       baseBranch: await defaultBranchOf(binding),
-      ...(title ? { title } : {}),
       visibility: 'org',
     })
     await openThread({ conversationId, accountId: session.account.accountId })
-    return reply.code(201).send({ conversation: projectConversation(created) })
+    return reply.code(201).send({ conversation: projectConversation(created, null) })
   })
   return ['BLD-27', 'BLD-28']
 }
