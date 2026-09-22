@@ -299,3 +299,39 @@ test('candidate graph labels execution environments and passes shell argv correc
     /requires either all CONEXUS_TEST_DB_\* values or none/,
   )
 })
+
+test('CONEXUS_VERIFY_SKIP_BROWSER skips only browser-tagged candidate steps', () => {
+  const browserScopes = CANDIDATE_GRAPH.filter(entry => entry.environmentClass === 'browser').map(entry => entry.scope)
+  assert.ok(browserScopes.length > 0, 'fixture assumption: the candidate graph still has browser steps')
+
+  const calls = []
+  const result = runVerification({
+    scopes: ['candidate'],
+    packageScripts,
+    platform: 'linux',
+    processEnvironment: { CONEXUS_VERIFY_SKIP_BROWSER: '1' },
+    runCommand: entry => { calls.push(entry.scope); return { status: 0 } },
+  })
+
+  assert.deepEqual(calls.filter(scope => browserScopes.includes(scope)), [])
+  assert.equal(calls.length, CANDIDATE_GRAPH.length - browserScopes.length)
+  const skipped = result.records.filter(record => record.status === 'skipped')
+  assert.deepEqual(skipped.map(record => record.scope), browserScopes)
+  assert.ok(skipped.every(record => record.exitCode === null && record.reason === 'no web change'))
+  assert.equal(result.exitCode, 0)
+})
+
+test('without CONEXUS_VERIFY_SKIP_BROWSER, browser-tagged candidate steps run like any other', () => {
+  const browserScopes = CANDIDATE_GRAPH.filter(entry => entry.environmentClass === 'browser').map(entry => entry.scope)
+  const calls = []
+  const result = runVerification({
+    scopes: ['candidate'],
+    packageScripts,
+    platform: 'linux',
+    processEnvironment: {},
+    runCommand: entry => { calls.push(entry.scope); return { status: 0 } },
+  })
+
+  assert.deepEqual(calls.filter(scope => browserScopes.includes(scope)), browserScopes)
+  assert.equal(result.records.some(record => record.status === 'skipped'), false)
+})

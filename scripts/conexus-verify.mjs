@@ -353,6 +353,7 @@ export function runVerification({
   platform = process.platform,
   runCommand = runNpmScript,
   clock = defaultClock,
+  processEnvironment = process.env,
   } = {}) {
   const scripts = packageScripts ?? loadPackageScripts(root)
   const requestedEntries = resolveScopes(scopes, scripts)
@@ -360,9 +361,25 @@ export function runVerification({
   const entries = requestedEntries.flatMap(entry => entry.graph === 'candidate' ? CANDIDATE_GRAPH : [entry])
   const records = []
   const published = {}
+  const skipBrowser = Boolean(processEnvironment.CONEXUS_VERIFY_SKIP_BROWSER)
 
   for (const entry of entries) {
     const command = formatCommand(entry)
+    // A PR that never touches the web app or its browser fixtures gets no signal from
+    // re-running Playwright against unchanged code; CONEXUS_VERIFY_SKIP_BROWSER records that
+    // decision instead of silently dropping the step.
+    if (skipBrowser && entry.environmentClass === 'browser') {
+      records.push({
+        scope: entry.scope,
+        command,
+        environmentClass: entry.environmentClass,
+        status: 'skipped',
+        exitCode: null,
+        durationMs: 0,
+        reason: 'no web change',
+      })
+      continue
+    }
     if (dryRun) {
       records.push({
         scope: entry.scope,
@@ -425,6 +442,10 @@ function printResult(result, json) {
     return
   }
   for (const record of result.records) {
+    if (record.status === 'skipped') {
+      console.log(`skipped: ${record.command} (${record.reason})`)
+      continue
+    }
     const exitCode = record.exitCode === null ? 'n/a' : String(record.exitCode)
     console.log(`${record.status}: ${record.command} (exit=${exitCode}, durationMs=${record.durationMs})`)
   }
