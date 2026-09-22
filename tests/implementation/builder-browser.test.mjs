@@ -308,6 +308,43 @@ test('new Project lands directly in Build and can send its first Builder message
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
+test('an untitled conversation shows the title its first request gives it while the run is still working', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000021'
+  const projectId = '70000000-0000-4000-8000-000000000023'
+  const runId = '70000000-0000-4000-8000-000000000024'
+  const conversationId = '70000000-0000-4000-8000-000000000025'
+  const sourceRevision = 'e'.repeat(40)
+  let run = null
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const state = factoryState([conversation(conversationId, null)], { [conversationId]: [] })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeFactory(page, projectId, state)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Counter', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, latestBuilderRun: run, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    mode: 'BUILD', runHistory: [],
+  }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
+    const body = route.request().postDataJSON()
+    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', mode: body.mode, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
+    // The Hub titles a conversation from its first request once the run has saved it.
+    state.conversations = [conversation(conversationId, 'Crie um contador de visitas')]
+    return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
+  })
+  await page.goto(`${origin}/projects/${projectId}/c/${conversationId}`)
+  const switcher = page.getByRole('combobox', { name: 'Conversa', exact: true })
+  await page.getByLabel('Mensagem para o agente').waitFor()
+  assert.equal((await switcher.innerText()).trim(), 'Conversa sem título')
+  await page.getByLabel('Mensagem para o agente').fill('Crie um contador de visitas')
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  await page.waitForFunction(() => document.querySelector('[aria-label="Conversa"][role="combobox"]')?.textContent?.includes('Crie um contador de visitas'), null, { timeout: 8_000 })
+  assert.equal(run.state, 'RUNNING', 'the title arrived before the run settled')
+})
+
 test('a Project holds several conversations, and switching between them leaves the source and the last good Preview alone', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000081'
   const projectId = '70000000-0000-4000-8000-000000000082'
