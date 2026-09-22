@@ -44,7 +44,7 @@ export default function Login(props: PageProps<Extract<KcContext, { pageId: "log
               <input
                 id="username"
                 name="username"
-                type={realm.loginWithEmailAllowed ? "email" : "text"}
+                type={realm.registrationEmailAsUsername ? "email" : "text"}
                 autoFocus
                 autoComplete="username"
                 defaultValue={login.username ?? ""}
