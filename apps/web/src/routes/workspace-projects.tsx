@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { createRoute } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { createRoute, Link } from '@tanstack/react-router'
+import { Plus } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
-import { rememberWorkspace } from '../features/entry/entry-destination'
+import { readLastWorkspace, rememberWorkspace } from '../features/entry/entry-destination'
 import { listProjectSummaries, projectSummariesQueryKey } from '../features/project/api'
 import { ProjectGrid, ProjectGridFailure, ProjectGridSkeleton, projectActivity } from '../features/project/components/project-grid'
 import { PromptBox } from '../features/project/components/prompt-box'
@@ -22,11 +23,14 @@ function WorkspaceProjectsRoute() {
   return <AccessGate>{(context) => {
     const workspace = context.workspaces.find((candidate) => candidate.workspaceId === workspaceId)
     if (!workspace) return <Shell context={context}><WorkspaceUnavailable /></Shell>
-    return <Shell context={context} scope={{ workspace }}><ProjectsHome workspaceId={workspaceId} /></Shell>
+    return <Shell context={context} scope={{ workspace }}><ProjectsHome workspaceId={workspaceId} workspaceName={workspace.name} /></Shell>
   }}</AccessGate>
 }
 
-function ProjectsHome({ workspaceId }: Readonly<{ workspaceId: string }>) {
+function ProjectsHome({ workspaceId, workspaceName }: Readonly<{ workspaceId: string; workspaceName: string }>) {
+  // Captured once, before the effect below overwrites it: this is where the person's last visit
+  // left off, and it may already be this very Workspace.
+  const [returning] = useState(() => readLastWorkspace() === workspaceId)
   useEffect(() => rememberWorkspace(workspaceId), [workspaceId])
   const summaries = useQuery({
     queryKey: projectSummariesQueryKey(workspaceId),
@@ -37,10 +41,13 @@ function ProjectsHome({ workspaceId }: Readonly<{ workspaceId: string }>) {
   const active = summaries.data?.filter((summary) => !summary.archived) ?? []
   const empty = summaries.isSuccess && active.length === 0
   return <div className="cx-page cx-home" data-empty={empty || undefined}>
-    <PromptBox workspaceId={workspaceId} showExamples={empty} />
+    <PromptBox workspaceId={workspaceId} workspaceName={workspaceName} returning={returning} />
     {!empty && (
       <section className="cx-home-projects" aria-labelledby="home-projects">
-        <h2 id="home-projects" className="cx-section-title">Projetos</h2>
+        <div className="cx-home-projects-head">
+          <h2 id="home-projects" className="cx-section-title">Projetos <span className="cx-home-projects-count">{active.length} em {workspaceName}</span></h2>
+          <Link to="/workspaces/$workspaceId/projects/new" params={{ workspaceId }} className="cx-new-project"><Plus size={15} aria-hidden="true" />Novo projeto</Link>
+        </div>
         {summaries.isPending && <ProjectGridSkeleton />}
         {summaries.isError && <ProjectGridFailure onRetry={() => void summaries.refetch()} />}
         {summaries.isSuccess && <ProjectGrid projects={active} />}
