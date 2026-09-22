@@ -65,26 +65,48 @@ function useThumbnailFrame<T extends HTMLElement>() {
 function PreviewThumbnail({ projectId, name, hasPreview }: Readonly<{ projectId: string; name: string; hasPreview: boolean }>) {
   const [ref, visible] = useThumbnailFrame<HTMLDivElement>()
   const [loaded, setLoaded] = useState(false)
+  const entered = useRef(false)
+  const entryForm = useRef<HTMLFormElement>(null)
+  const frameName = `cx-thumb-${projectId}`
+  // The entry grant is spent by its first use, so every mounted card launches its own and the
+  // result is never served from the cache to a later mount.
   const preview = useQuery({
     queryKey: ['project-thumbnail', projectId],
     queryFn: () => launchBuilderPreview(projectId),
     enabled: hasPreview && visible,
-    staleTime: 5 * 60_000,
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
   })
+  // The Preview host only admits a POST carrying the grant, the same entry the Construir Preview
+  // uses. The blank frame's own load fires on insertion, before React listens, so the first load
+  // observed after the post is the Preview.
+  useEffect(() => {
+    if (!preview.data || entered.current) return
+    entered.current = true
+    entryForm.current?.submit()
+  }, [preview.data])
+  const onFrameLoad = () => {
+    if (entered.current) setLoaded(true)
+  }
   return <div className="cx-thumb" ref={ref} data-loaded={loaded || undefined}>
     <div className="cx-thumb-placeholder" aria-hidden>
       <ConexusMark size={28} />
     </div>
-    {preview.data && (
+    {preview.data && <>
       <iframe
         title={`Prévia de ${name}`}
+        name={frameName}
         aria-hidden
         tabIndex={-1}
-        loading="lazy"
-        src={preview.data.entryUrl}
-        onLoad={() => setLoaded(true)}
+        src="about:blank"
+        onLoad={onFrameLoad}
       />
-    )}
+      <form ref={entryForm} hidden method="post" action={preview.data.entryUrl} target={frameName}>
+        <input type="hidden" name="entryGrant" value={preview.data.entryGrant} />
+      </form>
+    </>}
   </div>
 }
 

@@ -8,7 +8,8 @@ import { ArrowUp } from 'lucide-react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
-import { suggestProjectName, useStartProject } from '../start-project'
+import { suggestProjectName } from '../project-name'
+import { useStartProject } from '../start-project'
 import type { StartedProject } from '../start-project'
 
 export const EXAMPLE_IDEAS = [

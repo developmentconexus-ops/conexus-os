@@ -92,6 +92,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('project-disclosure', 'node --test tests/implementation/project-disclosure.test.mjs'),
   candidateStep('project-command-postgres', 'node --test --test-concurrency=1 tests/implementation/project-command.test.mjs', 'postgres'),
   candidateStep('project-browser', 'node --test --test-concurrency=1 tests/implementation/project-browser.test.mjs', 'browser'),
+  candidateStep('project-name', 'node --test tests/implementation/project-name.test.mjs && npx --no-install biome check tests/implementation/project-name.test.mjs'),
   candidateStep('shell-browser-boundary', 'node --test tests/implementation/shell-browser-boundary.test.mjs'),
   candidateStep('brand-tokens', 'node --test tests/implementation/brand-tokens.test.mjs'),
   candidateStep('preview-form-policy', 'node --test tests/implementation/preview-form-policy.test.mjs', 'browser'),

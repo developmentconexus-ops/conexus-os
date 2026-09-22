@@ -55,7 +55,8 @@ const projectOf = (projectId) => ({ projectId, workspaceId: ids.operations, name
 
 async function mockHub(page, hub) {
   await page.route('**/protocol/oidc/login', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Keycloak</title><h1>Keycloak</h1>' }))
-  await page.route('**/__preview/**', (route) => route.fulfill({
+  // Like the real Preview host, the entry refuses a plain GET and admits only a POST of the grant.
+  await page.route('**/__preview/**', (route) => route.request().method() !== 'POST' || route.request().postData() !== 'entryGrant=grant' ? route.fulfill({ status: 403, body: '' }) : route.fulfill({
     status: 200,
     contentType: 'text/html',
     body: `<!doctype html><body style="margin:0;font:16px system-ui;background:#fff;color:#1b2230"><header style="display:flex;justify-content:space-between;padding:28px 40px;border-bottom:1px solid #e7eaf0"><b style="font-size:26px">${decodeURIComponent(route.request().url().split('/').at(-1))}</b><span style="color:#6b7384">3 aguardando decisão</span></header>${['Marina Alves', 'Diego Souza', 'Carla Mendes', 'Rafael Lima'].map((name) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:22px 40px;border-bottom:1px solid #eef0f4;font-size:20px"><span>${name}</span><span style="padding:10px 18px;border-radius:8px;background:#2563eb;color:#fff">Aprovar</span></div>`).join('')}</body>`,
@@ -220,6 +221,7 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     assert.equal(await page.locator('.cx-project-card').first().getAttribute('href'), `/projects/${ids.vacation}`)
     await page.locator('.cx-thumb[data-loaded]').first().waitFor()
     assert.equal(await page.locator('.cx-thumb iframe').first().getAttribute('tabindex'), '-1')
+    assert.match(await page.frameLocator(`iframe[name="cx-thumb-${ids.vacation}"]`).locator('body').innerText(), /Pedidos de férias/)
     assert.equal(await page.locator('.cx-project-cell').first().evaluate((element) => getComputedStyle(element).gridColumnStart), 'span 2')
     await shoot(page, '06-projects-home', { settle: () => page.locator('.cx-thumb[data-loaded]').first().waitFor() })
     await page.setViewportSize({ width: 390, height: 844 })
