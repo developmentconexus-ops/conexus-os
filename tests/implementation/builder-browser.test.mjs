@@ -215,6 +215,12 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   // that the build passed, and how many files it touched.
   await page.locator('.cx-result-card').getByText('Counter · versão 1 · Build passou', { exact: true }).waitFor()
   await page.locator('.cx-result-card').getByText('1 arquivo', { exact: true }).waitFor()
+  // Every agent turn is headed by the Encaixe mark and "Conexus", named apart from the model chip.
+  assert.equal(await page.locator('.cx-messages .builder-turn-author').first().innerText(), 'Conexus')
+  // The result card already names the outcome; a settled working-state row underneath it would
+  // just repeat "Alterou o app" a second time.
+  assert.equal(await page.locator('.cx-working').count(), 0,
+    'a code-changing run that settled shows only the result card, not a redundant working-state line too')
   assert.deepEqual(forbiddenRequests, [])
   assert.deepEqual([...new Set(state.messageReads)], [conversationId],
     'the messages read are the selected conversation\'s own thread, never a name derived from the Project')
@@ -907,6 +913,84 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
   await sendResponse
   await page.getByText('Trabalhando no repositório', { exact: true }).waitFor()
   assert.deepEqual(streams.at(0), [counterId, `builder:${runId}`])
+  assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
+})
+
+test('a reply the Factory finalizes under a different id than its live stream is not shown twice', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000101'
+  const projectId = '70000000-0000-4000-8000-000000000102'
+  const runId = '70000000-0000-4000-8000-000000000103'
+  const conversationId = 'conversation-dedup'
+  const sourceRevision = 'e'.repeat(40)
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const legacyRequests = trackLegacyRequests(page)
+
+  // The live stream and the persisted thread can name the same reply under different message ids
+  // (the Factory finalizes the tool loop under its own id once the run settles), and the persisted
+  // copy carries the run's full tool history, not just what the live stream had captured so far.
+  const finalText = 'Concluído: atualizei o texto em destaque.'
+  const toolPart = (id, toolName) => ({ type: 'tool-invocation', toolInvocation: { toolCallId: id, toolName, state: 'result', args: {}, result: 'ok' } })
+  const liveReply = {
+    id: 'live-1', role: 'assistant', createdAt: new Date().toISOString(),
+    content: { format: 2, parts: [
+      toolPart('live-tool-0', 'read_file'), toolPart('live-tool-1', 'edit_file'), toolPart('live-tool-2', 'execute_command'),
+      { type: 'text', text: finalText },
+    ] },
+  }
+  const persistedReply = {
+    id: 'persisted-1', role: 'assistant', createdAt: new Date().toISOString(),
+    content: { format: 2, parts: [
+      toolPart('persisted-tool-0', 'read_file'), toolPart('persisted-tool-1', 'edit_file'), toolPart('persisted-tool-2', 'execute_command'),
+      toolPart('persisted-tool-3', 'read_file'), toolPart('persisted-tool-4', 'edit_file'), toolPart('persisted-tool-5', 'execute_command'),
+      { type: 'text', text: finalText },
+    ] },
+  }
+
+  let runFinished = false
+  const threadMessages = [userMessage('user-1', 'Atualize o texto em destaque')]
+  const state = factoryState([conversation(conversationId, 'Destaque')], { [conversationId]: threadMessages })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeFactory(page, projectId, state)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Destaque', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId,
+    latestBuilderRun: {
+      builderRunId: runId, projectId, conversationId, state: runFinished ? 'SUCCEEDED' : 'RUNNING', phase: runFinished ? null : 'AGENT', mode: 'BUILD',
+      baseSourceRevision: sourceRevision, resultSourceRevision: runFinished ? sourceRevision : null, resultKind: runFinished ? 'SOURCE_CHANGED' : null,
+      failureCode: null, failureCategory: null, requestText: 'Atualize o texto em destaque', createdAt: new Date().toISOString(),
+    },
+    latestCodeChangingRun: runFinished ? { baseSourceRevision: sourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: runFinished ? sourceRevision : null, lastGoodArtifactRevisionId: runFinished ? 'artifact' : null, lastGoodArtifactDigest: runFinished ? 'd'.repeat(64) : null },
+    mode: 'BUILD', runHistory: [],
+  }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ entryUrl: `${origin}/preview-entry`, previewUrl: `${origin}/preview`, entryGrant: 'grant', artifactRevisionId: 'artifact', artifactDigest: 'd'.repeat(64), expiresAt: new Date(Date.now() + 60_000).toISOString() }) }))
+  await page.route(`${origin}/preview-entry`, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>app</title><main>ok</main>' }))
+  await page.route(`**/api/control/projects/${projectId}/source/compare*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ baseSourceRevision: sourceRevision, resultSourceRevision: sourceRevision, files: [{ path: 'app/main.tsx', status: 'MODIFIED', previousPath: null }] }) }))
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/stream*`, (route) => {
+    setTimeout(() => {
+      threadMessages.length = 1
+      threadMessages.push(persistedReply)
+      runFinished = true
+    }, 300)
+    return route.fulfill(sse(
+      { type: 'message_start', message: liveReply },
+      { type: 'agent_end', reason: 'complete' },
+    ))
+  })
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.locator('.cx-messages').getByText('Atualize o texto em destaque', { exact: true }).waitFor()
+  await page.getByTitle('Prévia do aplicativo').waitFor()
+  await page.waitForTimeout(600)
+
+  assert.equal(await page.locator('.cx-messages').getByText(finalText, { exact: true }).count(), 1,
+    'the persisted reply renders once, not once per message id it happened to carry')
+  assert.equal(await page.locator('.cx-tool-group summary').count(), 1,
+    'the stale live-stream copy of the reply is dropped once the persisted, fuller copy of the same reply arrives')
+  await page.locator('.cx-tool-group summary').getByText('6 ações concluídas', { exact: true }).waitFor()
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 

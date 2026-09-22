@@ -216,6 +216,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   // conversation ran them: the version belongs to the app, not to the chat that produced it.
   const codeChangingRunsAsc = [...runs].filter(showsResultCard).sort((left, right) => left.createdAt.localeCompare(right.createdAt))
   const resultVersion = runHere ? codeChangingRunsAsc.findIndex((entry) => entry.builderRunId === runHere.builderRunId) + 1 : 0
+  const resultCardShown = Boolean(settledHere && runHere && showsResultCard(runHere))
 
   const stage = <section className="cx-stage" aria-label="Palco">
     <div className="cx-stagebar">
@@ -282,13 +283,13 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
             <MessageScrollerItem messageId="conversation">
               {history.isPending ? <p className="cx-lens-empty">Carregando a conversa…</p>
                 : history.isError ? <div className="cx-note" role="alert"><p>Não foi possível ler esta conversa.</p><Button size="sm" onClick={() => void history.refetch()}>Tentar novamente</Button></div>
-                  : <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={pendingRequest} persistedRequests={persisted} failureCategory={runHere?.failureCategory ?? null} />}
+                  : <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={pendingRequest} persistedRequests={persisted} failureCategory={runHere?.failureCategory ?? null} model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null} />}
               {runHere && pending.map((entry) => <PendingCard
                 key={entry.toolCallId}
                 pending={entry}
                 onAnswer={(answer) => answerPendingCall(conversationId, runHere.builderRunId, entry, answer)}
               />)}
-              {settledHere && runHere && showsResultCard(runHere) && <ResultCard
+              {resultCardShown && runHere && <ResultCard
                 projectId={projectId}
                 run={runHere}
                 versionNumber={resultVersion}
@@ -310,7 +311,9 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           <p>O Conexus não consegue alcançar o repositório deste Projeto no GitHub, então novos pedidos ficam parados. A prévia continua na última versão boa. Um administrador da instalação pode reconectar o GitHub em Configurações.</p>
         </div>}
         {sendError && <p className="cx-composer-note" role="alert">{sendError}</p>}
-        {headerLine !== null && <WorkingState line={headerLine} working={working} elapsedMs={working && run ? now - new Date(run.createdAt).getTime() : null} />}
+        {/* The result card already names a code-changing run's outcome; a settled working-state row
+            underneath would just repeat "Alterou o app" a second time. */}
+        {headerLine !== null && !resultCardShown && <WorkingState line={headerLine} working={working} elapsedMs={working && run ? now - new Date(run.createdAt).getTime() : null} />}
         <BuilderComposer
           draft={draft}
           onDraftChange={setDraft}
