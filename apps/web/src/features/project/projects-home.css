@@ -7,11 +7,16 @@
 .cx-prompt { display: grid; justify-items: start; gap: .75rem; width: 100%; }
 .cx-prompt-note { margin: 0; color: var(--cx-text-2); font-size: .8125rem; }
 .cx-prompt-title { margin: 0 0 .25rem; font: 600 clamp(1.75rem, 4.2vw, 2.6rem)/1.1 var(--cx-font-display); letter-spacing: -0.03em; text-wrap: balance; }
-/* The shared composer (features/builder/composer/composer.css) is sized for Construir's narrower
-   dock; the home prompt gives it the full width and a taller first line instead. */
+/* The shared composer (features/builder/composer/composer.css) ships a 48rem cap and mx-auto,
+   sized for Construir's narrower dock. The home prompt spans the full content column instead,
+   so the ring and box caps come off here and the hint line reads left, under the composer,
+   not centered under Construir's narrower one. */
 .cx-prompt .cx-composer { width: 100%; }
+.cx-prompt .cx-composer [data-slot="composer-ring"],
+.cx-prompt .cx-composer [data-slot="composer-box"] { max-width: none; margin-inline: 0; }
 .cx-prompt .cx-composer [data-slot="composer-box"] { box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 .5rem 1.5rem rgb(0 0 0 / .05); }
 .cx-prompt .cx-composer [data-slot="composer-input"] { min-height: 4.5rem; font-size: 1rem; }
+.cx-prompt .cx-composer-hint { text-align: left; }
 
 .cx-prompt-confirm { display: grid; gap: 1rem; width: min(46rem, 100%); margin: 0; padding: 1.1rem 1.25rem; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-surface); animation: cx-rise .35s var(--cx-ease-arrive) both; }
 .cx-prompt-confirm button[type="submit"] { gap: .5rem; }
