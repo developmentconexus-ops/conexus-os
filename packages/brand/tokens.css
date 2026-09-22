@@ -1,0 +1,37 @@
+/* Conexus brand tokens: Grafite e Ipê. Values copied verbatim from the
+   approved design page's :root and dark blocks (conexus-marca.html,
+   section "Cor: Grafite e Ipê" / "Entrada (Keycloak)"). Keep this file's
+   name and shape stable across worktrees so the coordinator can reconcile
+   with feat/brand-foundation at merge. */
+:root {
+  --canvas: #F6F7F8; --surface: #FFFFFF; --s3: #EFF1F3; --s4: #E6E9EC;
+  --line: #DDE1E5; --line-strong: #8A939C;
+  --text: #121518; --text2: #59616A;
+  --ink: #121518; --on-ink: #FFFFFF;
+  --accent: #B07A0C; --accent-text: #9A6A08; --accent-soft: #FBF1D9; --mark: #C08A12;
+  --success: #1A7F4B; --warning: #B54708; --danger: #C0283D;
+  --f-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --f-body: "Hanken Grotesk", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #0E1012; --surface: #16191C; --s3: #1D2125; --s4: #262B30;
+    --line: #2C3237; --line-strong: #6E7780;
+    --text: #EEF0F2; --text2: #A3ABB3;
+    --ink: #EEF0F2; --on-ink: #121518;
+    --accent: #F2B53A; --accent-text: #F2B53A; --accent-soft: #3A2E12; --mark: #F2B53A;
+    --success: #6FD39A; --warning: #F5A25B; --danger: #F28B9A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --canvas: #0E1012; --surface: #16191C; --s3: #1D2125; --s4: #262B30;
+  --line: #2C3237; --line-strong: #6E7780;
+  --text: #EEF0F2; --text2: #A3ABB3;
+  --ink: #EEF0F2; --on-ink: #121518;
+  --accent: #F2B53A; --accent-text: #F2B53A; --accent-soft: #3A2E12; --mark: #F2B53A;
+  --success: #6FD39A; --warning: #F5A25B; --danger: #F28B9A;
+  color-scheme: dark;
+}
