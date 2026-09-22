@@ -1,17 +1,15 @@
 import { FactoryProjectsStorage } from '@mastra/factory'
+import { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import { SourceControlStorage } from '@mastra/factory/storage/domains/source-control/base'
 import type { PgFactoryStorage } from '@mastra/pg'
 import type { PostgresPool } from '../platform/postgres.js'
-import { FACTORY_INTEGRATION_ID, FACTORY_WORKING_DIRECTORY } from './factory.js'
+import { FACTORY_INTEGRATION_ID, FACTORY_OPERATOR_ID, FACTORY_WORKING_DIRECTORY } from './factory.js'
 import type { GithubApp, GithubRepository } from './factory-github.js'
-
-// Rows the Hub writes into Factory storage carry this as their author. No person is behind them:
-// the operator runs provisioning once, from the Hub's own checkout.
-export const FACTORY_OPERATOR_ID = 'conexus-operator'
 
 export type FactoryRecords = Readonly<{
   sourceControl: ReturnType<SourceControlStorage['forIntegration']>
   projects: FactoryProjectsStorage
+  memorySettings: MemorySettingsStorage
 }>
 
 // The same storage API the Factory uses at runtime, registered here without prepare() so a
@@ -19,8 +17,22 @@ export type FactoryRecords = Readonly<{
 export const openFactoryRecords = async (storage: PgFactoryStorage): Promise<FactoryRecords> => {
   const sourceControl = storage.registerDomain(new SourceControlStorage())
   const projects = storage.registerDomain(new FactoryProjectsStorage())
+  const memorySettings = storage.registerDomain(new MemorySettingsStorage())
   await storage.init()
-  return Object.freeze({ sourceControl: sourceControl.forIntegration(FACTORY_INTEGRATION_ID), projects })
+  return Object.freeze({ sourceControl: sourceControl.forIntegration(FACTORY_INTEGRATION_ID), projects, memorySettings })
+}
+
+const MODEL_ID = /^[\w.-]+\/[\w.:-]+$/
+
+export const setFactoryMemoryModel = async ({ records, orgId, modelId, write }: Readonly<{
+  records: FactoryRecords
+  orgId: string
+  modelId: string
+  write(line: string): void
+}>): Promise<void> => {
+  if (!MODEL_ID.test(modelId)) throw new Error('FACTORY_MEMORY_MODEL_REFUSED')
+  await records.memorySettings.patch({ orgId, userId: FACTORY_OPERATOR_ID, patch: { observerModelId: modelId, reflectorModelId: modelId } })
+  write(`FACTORY_MEMORY_MODEL=${modelId}`)
 }
 
 export type FactoryBinding = Readonly<{

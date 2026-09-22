@@ -21,7 +21,7 @@ if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdou
 const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
 const { createFactoryStorage } = await import(built('builder/factory.js'))
 const { createGithubApp } = await import(built('builder/factory-github.js'))
-const { connectFactoryInstallation, openFactoryRecords, provisionFactoryProject } = await import(built('builder/factory-provisioning.js'))
+const { connectFactoryInstallation, openFactoryRecords, provisionFactoryProject, setFactoryMemoryModel } = await import(built('builder/factory-provisioning.js'))
 
 const ORG = 'conexus-installation'
 const STARTER = 'a'.repeat(40)
@@ -49,6 +49,7 @@ const setup = async (t, fakeOptions) => {
   }
   const lines = []
   const connect = () => connectFactoryInstallation({ github: app, records, orgId: ORG, write: (line) => lines.push(line) })
+  const memory = (modelId) => setFactoryMemoryModel({ records, orgId: ORG, modelId, write: (line) => lines.push(line) })
   const provision = (projectId, name) => provisionFactoryProject({ github: app, records, executorPool, orgId: ORG, projectId, name, headAttempts: 2, headDelayMs: 10 })
   const snapshot = async () => {
     const tables = ['source_control_installations', 'source_control_repositories', 'factory_projects', 'factory_project_source_control_connections', 'factory_project_repositories']
@@ -58,7 +59,7 @@ const setup = async (t, fakeOptions) => {
     result.working = (await query(connectionString, 'SELECT project_id, working_source_revision, working_version FROM builder.project_working_state ORDER BY project_id')).rows
     return result
   }
-  return { connectionString, github, lines, connect, provision, newProject, snapshot }
+  return { connectionString, github, lines, connect, memory, provision, newProject, snapshot }
 }
 
 test('connect prints the App identity for the operator and records the organization installation once', async (t) => {
@@ -81,6 +82,16 @@ test('connect prints the App identity for the operator and records the organizat
   assert.deepEqual(appCalls.map((request) => [request.path, request.authorization?.split(' ')[0].toLowerCase()]), [
     ['/app', 'bearer'], ['/app/installations', 'bearer'], ['/app', 'bearer'], ['/app/installations', 'bearer'],
   ])
+})
+
+test('memory records one observer and reflector model for the organization, and a rerun converges', async (t) => {
+  const { connectionString, lines, memory } = await setup(t)
+  await memory('openai/gpt-5.6-luna')
+  await memory('openai/gpt-5.6-luna')
+  const rows = (await query(connectionString, 'SELECT org_id, user_id, observer_model_id, reflector_model_id FROM factory.memory_settings')).rows
+  assert.deepEqual(rows, [{ org_id: ORG, user_id: 'conexus-operator', observer_model_id: 'openai/gpt-5.6-luna', reflector_model_id: 'openai/gpt-5.6-luna' }])
+  assert.deepEqual(lines, ['FACTORY_MEMORY_MODEL=openai/gpt-5.6-luna', 'FACTORY_MEMORY_MODEL=openai/gpt-5.6-luna'])
+  await assert.rejects(memory('gpt 5; rm -rf'), { message: 'FACTORY_MEMORY_MODEL_REFUSED' })
 })
 
 test('a personal-account installation is refused with the organization message', async (t) => {

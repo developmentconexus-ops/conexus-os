@@ -1,9 +1,11 @@
 import { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput } from '@mastra/core/workspace'
+import { applyStoredMemorySettings } from '@mastra/factory/session/memory-settings-hydration'
+import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import { buildApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { CompiledApplication } from './application-artifact-runtime.js'
 import { APPLICATION_CHECK_INSTRUCTION, BUILDER_SHARED_AGENT_INSTRUCTIONS, materializeApplicationCheck, materializeFixedApplicationStarter } from './application-starter.js'
-import { ConexusFactoryE2BSandbox, FACTORY_WORKING_DIRECTORY, scrubCheckoutCredentials } from './factory.js'
+import { ConexusFactoryE2BSandbox, FACTORY_OPERATOR_ID, FACTORY_WORKING_DIRECTORY, scrubCheckoutCredentials } from './factory.js'
 import type { FactoryComposition } from './factory.js'
 import type { GithubApp } from './factory-github.js'
 import { conversationBranch } from './factory-routes.js'
@@ -267,12 +269,17 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
   },
 })
 
-// The Factory's own tools reach GitHub with installation tokens, and web tools reach anything; the
-// agent's work is the checkout in front of it.
-const DENIED_TOOLS = Object.freeze([
-  'github_refresh_token', 'github_upsert_factory_triage_comment', 'github_subscribe_pr', 'github_unsubscribe_pr',
-  'web_search', 'web_extract',
-])
+// Every tool the Factory's GitHub integration contributes reaches GitHub with an installation token,
+// and web tools reach anything; the agent's work is the checkout in front of it. The integration
+// contributes its tools only to a session on a repository thread, so they are listed against one.
+const deniedTools = (github: FactoryComposition['github'], orgId: string): Record<string, 'deny'> => {
+  const listing = new RequestContext()
+  listing.set('user', { id: FACTORY_OPERATOR_ID, organizationId: orgId })
+  listing.set('controller', { threadId: 'conexus-tool-listing', getState: () => ({ projectRepositoryId: 'conexus-tool-listing' }) })
+  const githubTools = Object.keys(github.sessionTools({ requestContext: listing }))
+  if (githubTools.length === 0) throw new Error('FACTORY_GITHUB_TOOLS_UNLISTED')
+  return Object.fromEntries([...githubTools, 'web_search', 'web_extract'].map((name) => [name, 'deny' as const]))
+}
 
 type RecordedMessage = Readonly<{ id: string; role?: string; content?: unknown }>
 
@@ -280,7 +287,10 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
   composition: FactoryComposition
   orgId: string
   log(line: string): void
-}>): Omit<FactoryRunPorts, 'github'> => Object.freeze({
+}>): Omit<FactoryRunPorts, 'github'> => {
+  const tools = deniedTools(composition.github, orgId)
+  const memorySettings = composition.storage.getDomain<MemorySettingsStorage>('memory-settings')
+  return Object.freeze({
   installationFor: async (binding: FactoryBindingRecord) => {
     const sourceControl = composition.github.sourceControlStorage
     const repository = await sourceControl.repositories.get({ orgId, id: binding.repositoryId })
@@ -319,11 +329,11 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
         buildApplication: (appRoot: string, signal?: AbortSignal) => buildApplicationInSandbox(sandbox.e2b, { appRoot, ...(signal ? { signal } : {}) }),
       }),
       configure: async ({ mode, instructions }) => {
-        await session.state.set({
-          yolo: true,
-          permissionRules: { categories: {}, tools: Object.fromEntries(DENIED_TOOLS.map((name) => [name, 'deny' as const])) },
-          pluginInstructions: [instructions],
-        })
+        await session.state.set({ yolo: true, permissionRules: { categories: {}, tools }, pluginInstructions: [instructions] })
+        // The Factory seeded this session from the conversation owner's row; the organization's row,
+        // which `hub-factory memory` writes, decides the memory model of every run.
+        const memory = await memorySettings.get({ orgId, userId: FACTORY_OPERATOR_ID })
+        if (memory) await applyStoredMemorySettings(session, memory)
         await session.mode.switch({ modeId: mode.toLowerCase() })
       },
       hasModelSelection: () => session.model.hasSelection(),
@@ -341,7 +351,8 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
           const reason = await sendBuilderSessionMessage(session, { content }, requestContext)
           const messages = await session.thread.listActiveMessages() as readonly RecordedMessage[]
           userMessageId ??= [...messages].reverse().find(isUserAuthoredMessage)?.id
-          const summary = messages.filter((message) => message.role === 'assistant').map((message) => messageText(message as Parameters<typeof messageText>[0])).filter(Boolean).join('\n')
+          const summary = messages.slice(messages.findIndex((message) => message.id === userMessageId) + 1)
+            .filter((message) => message.role === 'assistant').map((message) => messageText(message as Parameters<typeof messageText>[0])).filter(Boolean).join('\n')
           return { reason: reason ?? 'unknown', endedAt, userMessageId, summary }
         } finally {
           detach()
@@ -351,7 +362,8 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
       close,
     })
   },
-})
+  })
+}
 
 /**
  * Runs before builder.recover_builder_runs interrupts every RUNNING run. A run the Hub lost between

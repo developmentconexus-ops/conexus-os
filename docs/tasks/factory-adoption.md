@@ -189,6 +189,7 @@ The following holds on the pilot, through the product, and is recorded in this t
 
 ## Known gaps
 
-- Observational memory defaults to `google/gemini-3.5-flash`. The pilot sets
-  `DEFAULT_OM_MODEL_ID=openai/gpt-5.6-luna` in `hub.env` for now. Choosing the memory model belongs
-  to the frontend refactor.
+- The observational memory model is the organization's row in the Factory `memory-settings`
+  domain. `scripts/hub-factory.mjs memory --model openai/gpt-5.6-luna` writes it once, and every run
+  applies it. Without that row a run uses the Factory default, `google/gemini-3.5-flash`. Choosing
+  the memory model in the product belongs to the frontend refactor.

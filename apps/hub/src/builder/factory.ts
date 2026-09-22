@@ -12,6 +12,10 @@ import { createPostgresPool } from '../platform/postgres.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { BuilderAgentController } from './runtime.js'
 
+// Rows the Hub writes into Factory storage carry this as their author, and the organization's
+// memory settings are this user's row. No person is behind it: the operator runs the one-shot
+// commands from the Hub's own checkout.
+export const FACTORY_OPERATOR_ID = 'conexus-operator'
 export const FACTORY_SCHEMA = 'factory'
 export const FACTORY_WORKING_DIRECTORY = '/workspace'
 export const FACTORY_INTEGRATION_ID = 'github'

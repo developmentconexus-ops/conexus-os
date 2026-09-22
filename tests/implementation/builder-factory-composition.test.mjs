@@ -24,6 +24,7 @@ if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdou
 const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
 const { ConexusFactoryE2BSandbox, PROCESS_BASELINE_SCRIPT, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, scrubCheckoutCredentials } = await import(built('builder/factory.js'))
 const { createBuilderMountOptions } = await import(built('builder/module.js'))
+const { createMastraFactoryRunPorts } = await import(built('builder/factory-runtime.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
 
 const baseEnvironment = {
@@ -264,6 +265,8 @@ test('prepare() registers the controller as code, lands every table in factory, 
   assert.deepEqual(Object.keys(composition.mastra.listAgentControllers()), ['code'])
   assert.equal(composition.controllerId, 'code')
   assert.equal(composition.mastra.getAgentController('code'), composition.controller)
+  // The run ports list the GitHub integration's tools and read the memory-settings domain prepare() registered.
+  assert.equal(typeof createMastraFactoryRunPorts({ composition, orgId: 'conexus-installation', log: () => undefined }).openSession, 'function')
   assert.deepEqual(await legacy.base.controller.listAvailableModels(), legacyModelsBefore)
 
   const inspector = new pg.Client(connection)

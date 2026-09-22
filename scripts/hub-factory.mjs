@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process'
 // Runs the Hub's one-shot Factory command (apps/hub/src/factory-cli.ts) from a fresh build of the
 // Hub, the same way scripts/build-hub-local.mjs runs the server. Run it with the Hub's env file:
 //   node --env-file=<hub.env> scripts/hub-factory.mjs connect
+//   node --env-file=<hub.env> scripts/hub-factory.mjs memory --model <provider/model>
 //   node --env-file=<hub.env> scripts/hub-factory.mjs provision --project <projectId> --name <repo>
 const repositoryRoot = resolve(import.meta.dirname, '..')
 

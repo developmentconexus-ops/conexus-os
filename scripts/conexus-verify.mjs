@@ -52,7 +52,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('c020-mastra-lifecycle', 'node --test --test-concurrency=1 tests/implementation/builder-plan-starter.test.mjs tests/implementation/builder-mastra-session-routes.test.mjs tests/implementation/builder-workspace-tools.test.mjs qualification/4d/mastra-builder-capability/probe.test.mjs && npx --no-install biome check tests/implementation/builder-mastra-session-routes.test.mjs tests/implementation/builder-workspace-tools.test.mjs'),
   candidateStep('factory-dependency-tree', 'node --test tests/implementation/builder-factory-dependency-tree.test.mjs'),
   candidateStep('factory-composition', 'node --test --test-concurrency=1 tests/implementation/builder-factory-composition.test.mjs', 'postgres'),
-  candidateStep('factory-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-factory-runtime.test.mjs tests/implementation/builder-diagnostic-appender.test.mjs'),
+  candidateStep('factory-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-factory-runtime.test.mjs tests/implementation/builder-factory-run-ports.test.mjs tests/implementation/builder-diagnostic-appender.test.mjs'),
   candidateStep('factory-recovery-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-factory-recovery-postgres.test.mjs tests/implementation/builder-factory-source-head-postgres.test.mjs', 'postgres'),
   candidateStep('factory-routes', 'node --test --test-concurrency=1 tests/implementation/builder-factory-routes.test.mjs'),
   candidateStep('factory-provisioning', 'node --test --test-concurrency=1 tests/implementation/builder-factory-provisioning.test.mjs && npx --no-install biome check scripts/hub-factory.mjs', 'postgres'),
