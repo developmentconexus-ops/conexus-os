@@ -1,5 +1,3 @@
-import '../tokens.css'
-
 const MARK_PIECES = ['M4 4H18V14H10V28H4Z', 'M28 28H14V18H22V4H28Z'] as const
 
 type MarkMotion = 'still' | 'working' | 'fit-once'

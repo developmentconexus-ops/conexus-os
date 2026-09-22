@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ConexusWordmark } from '../../../../packages/brand/src/conexus-mark'
+import { ConexusWordmark } from '../../../../packages/brand/src/index'
 import { endCurrentSession } from '../features/identity-access/api'
 import type { AccessContext } from '../generated/iam-client'
 

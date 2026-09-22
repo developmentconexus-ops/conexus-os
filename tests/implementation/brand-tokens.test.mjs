@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
-const tokensPath = resolve(repositoryRoot, 'packages/brand/tokens.css')
+const tokensPath = resolve(repositoryRoot, 'packages/brand/src/tokens.css')
 const tokens = readFileSync(tokensPath, 'utf8')
 
 const declarations = (body) => Object.fromEntries([...body.matchAll(/(--cx-[\w-]+)\s*:\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]))
@@ -45,7 +45,7 @@ test('brand tokens carry the approved Grafite e Ipê values', () => {
 
 test('brand fonts are self-hosted files next to the tokens', () => {
   const sources = [...tokens.matchAll(/url\("([^"]+)"\)/g)].map(([, source]) => source)
-  assert.deepEqual(sources, ['./fonts/BricolageGrotesque-latin.woff2', './fonts/HankenGrotesk-latin.woff2', './fonts/JetBrainsMono-latin.woff2'])
+  assert.deepEqual(sources, ['../fonts/BricolageGrotesque-latin.woff2', '../fonts/HankenGrotesk-latin.woff2', '../fonts/JetBrainsMono-latin.woff2'])
   for (const source of sources) assert.ok(existsSync(resolve(dirname(tokensPath), source)), source)
   assert.doesNotMatch(tokens, /fonts\.googleapis|fonts\.gstatic/)
 })

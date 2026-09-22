@@ -8,7 +8,7 @@ import { BuilderConversation, type PersistedRequest } from './builder-conversati
 import { BuilderConversationList } from './builder-conversation-list'
 import { BuilderModelSelect } from './builder-model-select'
 import { BuilderRunStatus, phaseLabels } from './builder-run-status'
-import { ConexusMark } from '../../../../../../packages/brand/src/conexus-mark'
+import { ConexusMark } from '../../../../../../packages/brand/src/index'
 
 const failureStatusByCategory: Record<BuilderFailureCategory, string> = {
   ENVIRONMENT_PREPARATION_FAILED: 'Falha ao preparar o ambiente de código',
