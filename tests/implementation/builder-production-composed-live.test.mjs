@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { join } from 'node:path'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
 import { SpanType } from '@mastra/core/observability'
-import { LibSQLStore } from '@mastra/libsql'
 
 const live = process.env.CONEXUS_RB_COMPOSED_LIVE === 'true'
 const required = [
@@ -18,8 +16,12 @@ const readSession = (page, projectId) => page.evaluate(async (id) => {
   const response = await fetch(`/api/control/projects/${encodeURIComponent(id)}/builder-session`, { credentials: 'same-origin' })
   return response.ok ? response.json() : { status: response.status }
 }, projectId)
+const readTrace = (page, projectId, builderRunId) => page.evaluate(async ({ id, run }) => {
+  const response = await fetch(`/api/control/projects/${encodeURIComponent(id)}/builder-session/runs/${encodeURIComponent(run)}/trace`, { credentials: 'same-origin' })
+  return response.ok ? response.json() : { status: response.status }
+}, { id: projectId, run: builderRunId })
 
-test('RB composed production journey uses server.ts, Preview, and native local traces', {
+test('RB composed production journey uses server.ts, Preview, and native persisted traces', {
   skip: live ? false : 'requires explicit CONEXUS_RB_COMPOSED_LIVE=true',
   timeout: 20 * 60_000,
 }, async (t) => {
@@ -28,9 +30,7 @@ test('RB composed production journey uses server.ts, Preview, and native local t
   const workspaceId = process.env.CONEXUS_RB_COMPOSED_WORKSPACE_ID
   const operatorState = process.env.CONEXUS_RB_COMPOSED_OPERATOR_STORAGE_STATE
   const deniedState = process.env.CONEXUS_RB_COMPOSED_DENIED_STORAGE_STATE
-  const traceStorePath = process.env.CONEXUS_RB_COMPOSED_TRACE_STORE_PATH ??
-    (process.env.CONEXUS_PROJECT_STORAGE_ROOT ? join(process.env.CONEXUS_PROJECT_STORAGE_ROOT, 'builder-session.db') : undefined)
-  if (!origin || !workspaceId || !operatorState || !deniedState || !traceStorePath || missing.length > 0) {
+  if (!origin || !workspaceId || !operatorState || !deniedState || missing.length > 0) {
     throw new Error(`CONEXUS_RB_COMPOSED_LIVE_CONFIG_REFUSED: ${missing.join(',') || 'references'}`)
   }
   const parsedOrigin = new URL(origin)
@@ -120,26 +120,11 @@ test('RB composed production journey uses server.ts, Preview, and native local t
   }, { id: projectId, run: builderRunId })
   assert.ok([401, 403, 404].includes(deniedStreamStatus))
 
-  const storage = new LibSQLStore({ id: 'conexus-builder-session-trace-read', url: traceStorePath.startsWith('file:') ? traceStorePath : `file:${traceStorePath}` })
-  await storage.init()
-  try {
-    const observability = await storage.getStore('observability')
-    assert.ok(observability, 'native observability storage must be available')
-    const traces = await observability.listTraces({
-      filters: { resourceId: projectId, serviceName: 'conexus-builder' },
-      pagination: { page: 0, perPage: 50 },
-    })
-    const trace = traces.spans.find((span) =>
-      span.requestContext?.conexusBuilderProjectId === projectId && span.requestContext?.conexusBuilderRunId === builderRunId)
-    assert.ok(trace, 'the exact Builder run trace must persist after its fresh Session was deleted')
-    const fullTrace = await observability.getTrace({ traceId: trace.traceId })
-    const spans = fullTrace?.spans ?? []
-    assert.ok(spans.some((span) => span.spanType === SpanType.AGENT_RUN))
-    assert.ok(spans.some((span) => [SpanType.MODEL_GENERATION, SpanType.MODEL_INFERENCE].includes(span.spanType)))
-    assert.ok(spans.some((span) => span.spanType === SpanType.TOOL_CALL))
-    assert.ok(spans.some((span) => span.requestContext?.conexusBuilderProjectId === projectId && span.requestContext?.conexusBuilderRunId === builderRunId))
-    t.diagnostic(JSON.stringify({ projectId, traceId: trace.traceId, builderRunId, spanTypes: [...new Set(spans.map((span) => span.spanType))] }))
-  } finally {
-    await storage.close()
-  }
+  const trace = await readTrace(page, projectId, builderRunId)
+  assert.equal(trace.available, true, 'the exact Builder run trace must be available')
+  assert.match(trace.traceId ?? '', /.+/, 'a persisted trace carries its own traceId')
+  assert.ok(trace.spans.some((span) => span.spanType === SpanType.AGENT_RUN))
+  assert.ok(trace.spans.some((span) => [SpanType.MODEL_GENERATION, SpanType.MODEL_INFERENCE].includes(span.spanType)))
+  assert.ok(trace.spans.some((span) => span.spanType === SpanType.TOOL_CALL))
+  t.diagnostic(JSON.stringify({ projectId, traceId: trace.traceId, builderRunId, spanTypes: [...new Set(trace.spans.map((span) => span.spanType))] }))
 })

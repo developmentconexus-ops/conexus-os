@@ -20,14 +20,11 @@ const readComposedProofConfig = async () => {
   }
   const configuredOrigin = process.env.CONEXUS_ORIGIN ? new URL(process.env.CONEXUS_ORIGIN) : undefined
   if (!configuredOrigin || origin.href !== configuredOrigin.href) throw new Error('CONEXUS_RB_COMPOSED_ORIGIN_MISMATCH')
-  const traceStorePath = process.env.CONEXUS_RB_COMPOSED_TRACE_STORE_PATH ??
-    (process.env.CONEXUS_PROJECT_STORAGE_ROOT ? resolve(process.env.CONEXUS_PROJECT_STORAGE_ROOT, 'builder-session.db') : undefined)
-  if (!traceStorePath) missing.push('CONEXUS_PROJECT_STORAGE_ROOT')
   if (missing.length > 0) throw new Error(`CONEXUS_RB_COMPOSED_LIVE_CONFIG_REFUSED: ${missing.join(',')}`)
-  for (const path of [process.env.CONEXUS_RB_COMPOSED_OPERATOR_STORAGE_STATE, process.env.CONEXUS_RB_COMPOSED_DENIED_STORAGE_STATE, traceStorePath]) {
+  for (const path of [process.env.CONEXUS_RB_COMPOSED_OPERATOR_STORAGE_STATE, process.env.CONEXUS_RB_COMPOSED_DENIED_STORAGE_STATE]) {
     try { await access(path, constants.R_OK) } catch { throw new Error('CONEXUS_RB_COMPOSED_REFERENCE_UNREADABLE') }
   }
-  return Object.freeze({ origin, workspaceId: process.env.CONEXUS_RB_COMPOSED_WORKSPACE_ID, traceStorePath })
+  return Object.freeze({ origin, workspaceId: process.env.CONEXUS_RB_COMPOSED_WORKSPACE_ID })
 }
 
 const READINESS_REQUEST_TIMEOUT_MS = 5_000

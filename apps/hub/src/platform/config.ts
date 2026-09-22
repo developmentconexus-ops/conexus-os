@@ -1,10 +1,6 @@
 export type ProjectRuntimeConfig = Readonly<{
   commandPasswordFile: string
   readPasswordFile: string
-  storageRoot: string
-  gitImportCatalogFile: string
-  externalFileSlotsFile: string
-  sourceOwnershipManifestFile: string
 }>
 
 export type HubConfig = Readonly<{
@@ -128,10 +124,6 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
   const ordinaryValues = {
     commandPasswordFile: environment.CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE,
     readPasswordFile: environment.CONEXUS_DB_PROJECT_READ_PASSWORD_FILE,
-    storageRoot: environment.CONEXUS_PROJECT_STORAGE_ROOT,
-    gitImportCatalogFile: environment.CONEXUS_GIT_IMPORT_CATALOG_FILE,
-    externalFileSlotsFile: environment.CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE,
-    sourceOwnershipManifestFile: environment.CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE,
   }
   const hasOrdinaryValues = Object.values(ordinaryValues).some(Boolean)
   const ordinaryComplete = Object.values(ordinaryValues).every(Boolean)
@@ -140,20 +132,12 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
     for (const [name, value] of Object.entries({
       CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE: ordinaryValues.commandPasswordFile,
       CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: ordinaryValues.readPasswordFile,
-      CONEXUS_PROJECT_STORAGE_ROOT: ordinaryValues.storageRoot,
-      CONEXUS_GIT_IMPORT_CATALOG_FILE: ordinaryValues.gitImportCatalogFile,
-      CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE: ordinaryValues.externalFileSlotsFile,
-      CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE: ordinaryValues.sourceOwnershipManifestFile,
     })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
   }
   if (!ordinaryComplete) return undefined
   const ordinary: ProjectRuntimeConfig = {
     commandPasswordFile: required(environment, 'CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE'),
     readPasswordFile: required(environment, 'CONEXUS_DB_PROJECT_READ_PASSWORD_FILE'),
-    storageRoot: required(environment, 'CONEXUS_PROJECT_STORAGE_ROOT'),
-    gitImportCatalogFile: required(environment, 'CONEXUS_GIT_IMPORT_CATALOG_FILE'),
-    externalFileSlotsFile: required(environment, 'CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE'),
-    sourceOwnershipManifestFile: required(environment, 'CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE'),
   }
   return ordinary
 }
@@ -262,5 +246,7 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
   }
   if (config.builder && !config.project) throw new Error('BUILDER_PROJECT_RUNTIME_REQUIRED')
   if (config.factory && !config.builder) throw new Error('FACTORY_BUILDER_RUNTIME_REQUIRED')
+  // A Builder runs every Project through the Factory; there is no second agent runtime to fall back to.
+  if (config.builder && !config.factory) throw new Error('BUILDER_FACTORY_RUNTIME_REQUIRED')
   return config
 }

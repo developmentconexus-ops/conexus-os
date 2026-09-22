@@ -98,7 +98,6 @@ const pilot = async (t) => {
   const service = createBuilderService({
     store,
     source: {},
-    runtime: { kind: 'REMOTE_E2B', execute: async () => { throw new Error('a Factory run never reaches the legacy runtime') } },
     applicationArtifacts: {},
     factory: {
       runtime,

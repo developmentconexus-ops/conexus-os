@@ -6,9 +6,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 
-export const BUILDER_MASTRA_PREFIX = '/api/mastra'
 export const FACTORY_MASTRA_PREFIX = '/api/mastra-factory'
-export const BUILDER_CONTROLLER_ID = 'conexus-builder-controller'
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const SESSION_BASE = '/agent-controller/:controllerId/sessions/:resourceId'
 const RUN_SCOPE = /^builder:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -16,19 +14,17 @@ const RUN_SCOPE = /^builder:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 // The run owns every turn: its session exists before its checkout is pinned and its policy set, and
 // its settlement awaits the one turn it sent. So the browser never sends a message here, not even a
 // steer or a follow-up (both open a turn in core); a new message is a new run. Everything that
-// observes or answers a session that already exists is Mastra's own route, unmodified. A Project's
-// conversations are that session's own threads, so creating, listing, renaming and switching them
-// are Mastra's routes too and Conexus keeps no conversation store of its own.
+// observes or answers a session that already exists is Mastra's own route, unmodified. A
+// conversation is a source-control session row the Hub creates, so the browser may not create or
+// switch threads here either.
 const BROWSER_ROUTES: ReadonlySet<string> = new Set([
   'GET /agent-controller/:controllerId/models',
   'GET /agent-controller/:controllerId/modes',
   `GET ${SESSION_BASE}`,
   `GET ${SESSION_BASE}/stream`,
   `GET ${SESSION_BASE}/threads`,
-  `POST ${SESSION_BASE}/threads`,
   `PUT ${SESSION_BASE}/threads/:threadId`,
   `GET ${SESSION_BASE}/threads/:threadId/messages`,
-  `POST ${SESSION_BASE}/thread`,
   `POST ${SESSION_BASE}/abort`,
   `POST ${SESSION_BASE}/model`,
   `POST ${SESSION_BASE}/tool-approval`,
@@ -48,12 +44,6 @@ const carriesPolicyChangingAnswer = (value: unknown): boolean => {
   if (value && typeof value === 'object') return Object.values(value as Readonly<Record<string, unknown>>).some(carriesPolicyChangingAnswer)
   return false
 }
-
-// On the Factory a conversation is a source-control session row the Hub creates, so the browser
-// may not create or switch threads there.
-const FACTORY_BROWSER_ROUTES: ReadonlySet<string> = new Set(
-  [...BROWSER_ROUTES].filter((route) => route !== `POST ${SESSION_BASE}/threads` && route !== `POST ${SESSION_BASE}/thread`),
-)
 
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 
@@ -126,20 +116,6 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
   })
 }
 
-export const registerBuilderMastraRoutes = async (app: FastifyInstance, { mastra, controller, origin, resolveCurrentSession, admitProjectBuild }: Readonly<{
-  mastra: Mastra
-  controller: BuilderAgentController
-  origin: string
-  resolveCurrentSession: ResolveCurrentSession
-  admitProjectBuild(input: Readonly<{ accountId: string; projectId: string }>): Promise<boolean>
-}>): Promise<void> => registerGuardedMastraMount(app, {
-  mastra, controller, origin, resolveCurrentSession,
-  prefix: BUILDER_MASTRA_PREFIX,
-  controllerId: BUILDER_CONTROLLER_ID,
-  routes: BROWSER_ROUTES,
-  admitResource: ({ accountId, resourceId }) => admitProjectBuild({ accountId, projectId: resourceId }),
-})
-
 export const registerFactoryMastraRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, origin, orgId, resolveCurrentSession, admitConversation }: Readonly<{
   mastra: Mastra
   controllerId: string
@@ -154,7 +130,7 @@ export const registerFactoryMastraRoutes = async (app: FastifyInstance, { mastra
   mastra, controller, origin, resolveCurrentSession,
   prefix: FACTORY_MASTRA_PREFIX,
   controllerId,
-  routes: FACTORY_BROWSER_ROUTES,
+  routes: BROWSER_ROUTES,
   admitResource: ({ accountId, resourceId }) => admitConversation({ accountId, conversationId: resourceId }),
   shapeContext: (request, accountId) => {
     request.requestContext?.set('user', { id: accountId, organizationId: orgId })

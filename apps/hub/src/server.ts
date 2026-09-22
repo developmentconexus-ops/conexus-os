@@ -13,10 +13,7 @@ import { createWorkspaceModule } from './workspace/module.js'
 // Mastra is loaded only after the production entrypoint has disabled its
 // optional telemetry. Keep this before the dynamic Project-module import.
 process.env.MASTRA_TELEMETRY_DISABLED = '1'
-const {
-  createConfiguredProjectModule,
-  createBuilderProjectGitCapability,
-} = await import('./project/module.js')
+const { createConfiguredProjectModule } = await import('./project/module.js')
 const { createConfiguredBuilderModule } = await import('./builder/module.js')
 
 const config = readHubConfig()
@@ -118,20 +115,16 @@ const launchPreview = mar ? async (request: import('fastify').FastifyRequest, in
     throw error
   }
 } : undefined
-builder = config.builder && config.project ? createConfiguredBuilderModule({
+builder = config.builder && config.project && config.factory ? createConfiguredBuilderModule({
   database: {
     host: config.database.host,
     port: config.database.port,
     database: config.database.database,
   },
   builder: config.builder,
-  ...(config.factory ? { factory: config.factory } : {}),
+  factory: config.factory,
   applicationArtifacts: createApplicationArtifactStore(),
   ...(launchPreview ? { launchPreview } : {}),
-  projectSource: {
-    storageRoot: config.project.storageRoot,
-    git: project?.sourceGit ?? createBuilderProjectGitCapability(config.project.storageRoot),
-  },
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
@@ -171,18 +164,6 @@ reportConnectionCensus(
 
 await app.listen({ host: '127.0.0.1', port: config.port })
 if (previewApp && config.preview) await previewApp.listen({ host: '127.0.0.1', port: config.preview.port })
-
-if (project) {
-  const startedAt = performance.now()
-  void project.warmGitImage().then((result) => {
-    const durationMs = Math.round(performance.now() - startedAt)
-    const outcome = result.status === 'VERIFIED' ? 'VERIFIED' : `REFUSED:${result.code}`
-    process.stderr.write(`PROJECT_GIT_IMAGE_WARMUP:${outcome}:${durationMs}ms\n`)
-  }, () => {
-    const durationMs = Math.round(performance.now() - startedAt)
-    process.stderr.write(`PROJECT_GIT_IMAGE_WARMUP:FAILED:${durationMs}ms\n`)
-  })
-}
 
 let closed = false
 const close = async (): Promise<void> => {

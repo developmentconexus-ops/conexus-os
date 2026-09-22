@@ -73,12 +73,13 @@ const recoveryHarness = async (t, name, crashes) => {
   const app = createGithubApp({ appId: '5015512', privateKey, baseUrl: github.baseUrl })
   const service = createBuilderService({
     store,
-    source: {},
-    runtime: { kind: 'REMOTE_E2B', execute: async () => { throw new Error('not reached') } },
     applicationArtifacts: {},
     factory: {
       runtime: { execute: async () => { throw new Error('not reached') } },
       readBindingForRun: store.readFactoryBindingForRun,
+      readSourceHead: async () => { throw new Error('not reached') },
+      readConversationRepository: async () => { throw new Error('not reached') },
+      appendDiagnostic: async () => { throw new Error('not reached') },
       recoverAdmissions: (active) => recoverFactoryAdmissions({ store, github: app, resolveRepository: async (binding) => repositories.get(binding.repositoryId), active }),
       reconcileEveryMs: 10,
     },

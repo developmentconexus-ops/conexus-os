@@ -6,53 +6,55 @@ import { createServer } from 'vite'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
-const MASTRA_CONTROLLER = '**/api/mastra/agent-controller/conexus-builder-controller'
-const MASTRA_SESSIONS = (projectId) => `${MASTRA_CONTROLLER}/sessions/${projectId}`
-// The model and the Project's conversations are the controller's, so the screen reads both from
-// Mastra and holds neither. A model with no key on the controller is never offered.
+const FACTORY_CONTROLLER = '**/api/mastra-factory/agent-controller/code'
+// The model and a conversation's own state are the controller's, so the screen reads both from
+// the Factory and holds neither. A model with no key on the controller is never offered.
 const BUILDER_MODELS = [
   { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true },
   { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', modelName: 'claude-sonnet-4-5', hasApiKey: true },
   { id: 'groq/llama-4', provider: 'groq', modelName: 'llama-4', hasApiKey: false },
 ]
 const SELECTED_MODEL = BUILDER_MODELS[0].id
-const conversation = (id, title) => ({ id, title, resourceId: null, createdAt: '2026-09-20T12:00:00.000Z', updatedAt: '2026-09-20T12:00:00.000Z' })
+const conversation = (conversationId, title, createdAt = '2026-09-20T12:00:00.000Z') => ({ conversationId, title, createdAt })
 
 const threadIdOf = (url, offsetFromEnd) => decodeURIComponent(new URL(url).pathname.split('/').at(offsetFromEnd))
 
-const routeBuilderController = async (page, projectId, state) => {
-  await page.route(`${MASTRA_CONTROLLER}/models`, (route) =>
+const trackLegacyRequests = (page) => {
+  const legacyRequests = []
+  page.on('request', (request) => { if (new URL(request.url()).pathname.startsWith('/api/mastra/')) legacyRequests.push(request.url()) })
+  return legacyRequests
+}
+
+// Every Project is developed through the Factory mount: the Hub lists and creates its
+// conversations, and each conversation is its own session on the Factory's mount, keyed by the
+// conversation id and holding one thread of that id.
+const routeFactory = async (page, projectId, state) => {
+  await page.route(`**/api/control/projects/${projectId}/conversations`, (route) => {
+    if (route.request().method() !== 'POST') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversations: state.conversations }) })
+    const { conversationId } = route.request().postDataJSON()
+    const created = conversation(conversationId, null, new Date().toISOString())
+    state.conversations = [created, ...state.conversations]
+    return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ conversation: created }) })
+  })
+  await page.route(`${FACTORY_CONTROLLER}/models`, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
-  await page.route(MASTRA_SESSIONS(projectId), (route) => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({ modelId: state.modelId, modeId: 'build', threadId: state.conversations.at(0)?.id ?? null }),
-  }))
-  await page.route(`${MASTRA_SESSIONS(projectId)}/model`, (route) => {
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*`, (route) => {
+    const id = threadIdOf(route.request().url(), -1)
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: state.modelId, modeId: 'build', threadId: id }) })
+  })
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/model`, (route) => {
     state.modelId = route.request().postDataJSON().modelId
     state.modelSwitches.push(state.modelId)
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
-  await page.route(`${MASTRA_SESSIONS(projectId)}/threads*`, (route) => {
-    if (route.request().method() !== 'POST') {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ threads: state.conversations }) })
-    }
-    const created = conversation(`conversation-${state.conversations.length + 1}`, route.request().postDataJSON().title)
-    state.conversations = [created, ...state.conversations]
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(created) })
-  })
-  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*`, (route) => {
-    const id = threadIdOf(route.request().url(), -1)
-    state.conversations = state.conversations.map((entry) => entry.id === id ? { ...entry, title: route.request().postDataJSON().title } : entry)
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
-  })
-  await page.route(`${MASTRA_SESSIONS(projectId)}/threads/*/messages*`, (route) => {
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/threads/*/messages*`, (route) => {
     const id = threadIdOf(route.request().url(), -2)
     state.messageReads.push(id)
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: state.messages[id] ?? [] }) })
   })
 }
 
-const controllerState = (conversations, messages = {}, modelId = SELECTED_MODEL) =>
+const factoryState = (conversations, messages = {}, modelId = SELECTED_MODEL) =>
   ({ conversations, messages, modelId, modelSwitches: [], messageReads: [] })
 const assistantMessage = (id, text) => ({ id, role: 'assistant', createdAt: new Date().toISOString(), content: { format: 2, parts: [{ type: 'text', text }] } })
 const userMessage = (id, text) => ({ id, role: 'user', createdAt: new Date().toISOString(), content: { format: 2, parts: [{ type: 'text', text }] } })
@@ -85,6 +87,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const legacyRequests = trackLegacyRequests(page)
   const session = () => ({
     projectId,
     latestBuilderRun: run && runFinished
@@ -92,11 +95,11 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
       : run,
     latestCodeChangingRun: buildCount > 0 ? { baseSourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: buildCount > 0 ? sourceRevision : null, lastGoodArtifactRevisionId: buildCount > 0 ? artifactRevisionId : null, lastGoodArtifactDigest: buildCount > 0 ? artifactDigest : null },
-    mode: run?.mode ?? 'BUILD', sourceHost: 'CONEXUS', runHistory: [],
+    mode: run?.mode ?? 'BUILD', runHistory: [],
   })
-  const controller = controllerState([conversation(conversationId, 'Contador')], { [conversationId]: threadMessages })
+  const state = factoryState([conversation(conversationId, 'Contador')], { [conversationId]: threadMessages })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilderController(page, projectId, controller)
+  await routeFactory(page, projectId, state)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Counter', projectRevision: 'revision', archived: false }) }))
   const previewRequests = []
   const forbiddenRequests = []
@@ -129,7 +132,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision: revision, path: 'app/index.html', content: revision === baseSourceRevision ? '<main>Counter</main>' : '<main>Counter v2</main>' }) })
   })
   const streamScopes = []
-  await page.route(`${MASTRA_SESSIONS(projectId)}/stream*`, (route) => {
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/stream*`, (route) => {
     streamScopes.push(new URL(route.request().url()).searchParams.get('sessionScope'))
     const live = assistantMessage('assistant-live-1', 'Aplicando a alteração')
     setTimeout(() => {
@@ -165,7 +168,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   assert.equal(await page.locator('.builder-conversation .builder-turn-reason').count(), 0,
     'a run that succeeded is given no failure reason')
   assert.deepEqual(forbiddenRequests, [])
-  assert.deepEqual([...new Set(controller.messageReads)], [conversationId],
+  assert.deepEqual([...new Set(state.messageReads)], [conversationId],
     'the messages read are the selected conversation\'s own thread, never a name derived from the Project')
   const previewBox = await page.locator('.build-preview-surface').boundingBox()
   const panelBox = await page.locator('.conexus-panel').boundingBox()
@@ -194,6 +197,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   await page.getByText('Crie um contador até 100 interativo', { exact: true }).first().waitFor()
   await page.getByTitle('Preview do aplicativo').waitFor()
   assert.equal(await page.getByText('BuilderRun', { exact: true }).count(), 0)
+  assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
 test('new Project lands directly in Build and can send its first Builder message', async (t) => {
@@ -213,15 +217,16 @@ test('new Project lands directly in Build and can send its first Builder message
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const legacyRequests = trackLegacyRequests(page)
   const conversationId = 'conversation-new-project'
   const session = () => ({
     projectId,
     latestBuilderRun: run, latestCodeChangingRun: null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    mode: 'BUILD', sourceHost: 'CONEXUS', runHistory: [],
+    mode: 'BUILD', runHistory: [],
   })
   const conversationMessages = []
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [{ workspaceId, name: 'New Workspace' }], projects: [] }) }))
-  await routeBuilderController(page, projectId, controllerState([conversation(conversationId, 'Primeira conversa')], { [conversationId]: conversationMessages }))
+  await routeFactory(page, projectId, factoryState([conversation(conversationId, 'Primeira conversa')], { [conversationId]: conversationMessages }))
   await page.route(`**/api/control/workspaces/${workspaceId}/projects`, async (route) => {
     if (route.request().method() === 'POST') return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId, name: 'New Counter', projectRevision: 'created', archived: false }) })
     return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
@@ -243,6 +248,7 @@ test('new Project lands directly in Build and can send its first Builder message
   await page.getByLabel('O que o Project precisa fazer?').fill('texto digitado depois')
   await page.getByText('Mensagem enviada ao Builder.').waitFor()
   assert.equal((await page.getByLabel('O que o Project precisa fazer?').inputValue()), 'texto digitado depois')
+  assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
 test('a Project holds several conversations, and switching between them leaves the source and the last good Preview alone', async (t) => {
@@ -254,9 +260,9 @@ test('a Project holds several conversations, and switching between them leaves t
   const counter = conversation('conversation-counter', 'Contador')
   const clock = conversation('conversation-clock', 'Relógio')
   // The session arrives with no model chosen, which is the state a Project that has never built is in.
-  const controller = controllerState([counter, clock], {
-    [counter.id]: [userMessage('counter-1', 'Crie um contador'), assistantMessage('counter-2', 'Contador pronto')],
-    [clock.id]: [userMessage('clock-1', 'Crie um relógio'), assistantMessage('clock-2', 'Relógio pronto')],
+  const state = factoryState([counter, clock], {
+    [counter.conversationId]: [userMessage('counter-1', 'Crie um contador'), assistantMessage('counter-2', 'Contador pronto')],
+    [clock.conversationId]: [userMessage('clock-1', 'Crie um relógio'), assistantMessage('clock-2', 'Relógio pronto')],
   }, '')
   const server = await createServer({
     configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
@@ -267,16 +273,17 @@ test('a Project holds several conversations, and switching between them leaves t
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const legacyRequests = trackLegacyRequests(page)
 
   const previewRequests = []
   const sourceReads = []
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilderController(page, projectId, controller)
+  await routeFactory(page, projectId, state)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Conversas', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: sourceRevision, lastGoodArtifactRevisionId: artifactRevisionId, lastGoodArtifactDigest: 'f'.repeat(64) },
-    mode: 'BUILD', sourceHost: 'CONEXUS', runHistory: [],
+    mode: 'BUILD', runHistory: [],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => {
     previewRequests.push(route.request().url())
@@ -299,7 +306,7 @@ test('a Project holds several conversations, and switching between them leaves t
   assert.equal(await page.getByRole('button', { name: 'Enviar mensagem' }).isDisabled(), true)
   await page.locator('.builder-model-select select').selectOption(SELECTED_MODEL)
   await page.waitForFunction(() => document.querySelector('.builder-send-button')?.disabled === false)
-  assert.deepEqual(controller.modelSwitches, [SELECTED_MODEL])
+  assert.deepEqual(state.modelSwitches, [SELECTED_MODEL])
 
   assert.deepEqual(await page.locator('.builder-conversations-list button').allTextContents(), ['Contador', 'Relógio'])
   await page.locator('.builder-conversation').getByText('Contador pronto', { exact: true }).waitFor()
@@ -321,6 +328,7 @@ test('a Project holds several conversations, and switching between them leaves t
   assert.equal(await page.getByText('<main>Contador</main>', { exact: true }).count(), 1)
   assert.deepEqual(sourceReads, readsBeforeSwitch,
     'switching conversation re-read the source, which belongs to the Project and not to the conversation')
+  assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
 test('selecting a past run moves Details and Diff onto that run, and the composer names the chosen model', async (t) => {
@@ -342,6 +350,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const legacyRequests = trackLegacyRequests(page)
 
   const conversationId = 'conversation-history'
   const settled = (builderRunId, baseSourceRevision, resultSourceRevision) => ({
@@ -352,7 +361,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   const tracedRuns = []
   const diffed = []
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilderController(page, projectId, controllerState([conversation(conversationId, 'Histórico')]))
+  await routeFactory(page, projectId, factoryState([conversation(conversationId, 'Histórico')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'History', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
@@ -360,7 +369,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
     latestCodeChangingRun: { baseSourceRevision: latestBase, resultSourceRevision: latestResult, resultKind: 'SOURCE_CHANGED' },
     preview: { workingSourceRevision: latestResult, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
     mode: 'BUILD',
-    sourceHost: 'CONEXUS', runHistory: [settled(latestRunId, latestBase, latestResult), settled(olderRunId, olderBase, olderResult)],
+    runHistory: [settled(latestRunId, latestBase, latestResult), settled(olderRunId, olderBase, olderResult)],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/runs/*/trace`, (route) => {
     tracedRuns.push(route.request().url().split('/runs/')[1].split('/')[0])
@@ -391,6 +400,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   await page.waitForTimeout(800)
   assert.deepEqual([...diffed].sort(), [olderBase, olderResult].sort(),
     `the Diff read ${diffed.join(', ')} instead of the selected run's own revisions`)
+  assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
 test('a send whose outcome is unknown reuses its idempotency key on an identical resend', async (t) => {
@@ -406,15 +416,16 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const legacyRequests = trackLegacyRequests(page)
 
   const keys = []
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilderController(page, projectId, controllerState([conversation('conversation-idempotency', 'Conversa')]))
+  await routeFactory(page, projectId, factoryState([conversation('conversation-idempotency', 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Idempotency', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
     preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    mode: 'BUILD', sourceHost: 'CONEXUS', runHistory: [],
+    mode: 'BUILD', runHistory: [],
   }) }))
   // The first attempt dies on the wire, so the browser never learns whether the server acted.
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
@@ -433,6 +444,7 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
   await page.getByText('Mensagem enviada ao Builder.', { exact: true }).waitFor()
   assert.equal(keys.length, 2)
   assert.equal(keys[0], keys[1], `a resend of the same text issued a second key: ${keys.join(' vs ')}`)
+  assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
 test('Preview launch failure is terminal for its key until explicit retry and keeps the last good frame', async (t) => {
@@ -456,13 +468,14 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const legacyRequests = trackLegacyRequests(page)
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilderController(page, projectId, controllerState([conversation('conversation-preview-continuity', 'Conversa')]))
+  await routeFactory(page, projectId, factoryState([conversation('conversation-preview-continuity', 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview continuity', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
     const useB = phase === 'B'
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-      projectId, latestBuilderRun: null, latestCodeChangingRun: null, mode: 'BUILD', sourceHost: 'CONEXUS', runHistory: [],
+      projectId, latestBuilderRun: null, latestCodeChangingRun: null, mode: 'BUILD', runHistory: [],
       preview: {
         workingSourceRevision: useB ? sourceB : sourceA,
         lastGoodSourceRevision: useB ? sourceB : sourceA,
@@ -511,6 +524,7 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
   await page.getByRole('button', { name: 'Reabrir' }).click()
   await reopenRequest
   assert.equal(previewRequests, 5)
+  assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
 test('a run that failed before the agent still shows the request and names why it failed', async (t) => {
@@ -528,6 +542,7 @@ test('a run that failed before the agent still shows the request and names why i
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const legacyRequests = trackLegacyRequests(page)
   // Nothing reached Mastra: the run failed while the sandbox was being prepared, so the thread is
   // empty and the row is the only record of what the operator asked for.
   const conversationId = 'conversation-pre-agent-failure'
@@ -538,12 +553,12 @@ test('a run that failed before the agent still shows the request and names why i
     requestText: 'Crie um contador até 100 interativo', createdAt: '2026-09-20T12:00:00.000Z',
   }
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilderController(page, projectId, controllerState([conversation(conversationId, 'Conversa')]))
+  await routeFactory(page, projectId, factoryState([conversation(conversationId, 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Pre-agent failure', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: failedRun, latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    mode: 'BUILD', sourceHost: 'CONEXUS', runHistory: [failedRun],
+    mode: 'BUILD', runHistory: [failedRun],
   }) }))
   await page.goto(`${origin}/projects/${projectId}/build`)
   await page.locator('.builder-conversation').getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
@@ -553,6 +568,7 @@ test('a run that failed before the agent still shows the request and names why i
   assert.equal(await page.locator('.builder-conversation .builder-turn-reason').count(), 1)
   assert.equal(await page.getByText('BUILDER_SOURCE_MATERIALIZATION_REFUSED', { exact: true }).count(), 0,
     'the internal code is never the sentence the operator reads')
+  assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
 test('an agent that spoke once and then works in silence still reads as working, with its elapsed time and a way to stop', async (t) => {
@@ -570,6 +586,7 @@ test('an agent that spoke once and then works in silence still reads as working,
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const legacyRequests = trackLegacyRequests(page)
   const working = 'conversation-working'
   const other = 'conversation-other'
   const run = {
@@ -579,7 +596,7 @@ test('an agent that spoke once and then works in silence still reads as working,
   }
   const cancels = []
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilderController(page, projectId, controllerState(
+  await routeFactory(page, projectId, factoryState(
     [conversation(working, 'Cadastro'), conversation(other, 'Outra')],
     { [working]: [userMessage('request', 'Crie um cadastro de clientes')] },
   ))
@@ -587,14 +604,14 @@ test('an agent that spoke once and then works in silence still reads as working,
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: run, latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    mode: 'BUILD', sourceHost: 'CONEXUS', runHistory: [run],
+    mode: 'BUILD', runHistory: [run],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/runs/${runId}/cancel`, (route) => {
     cancels.push(runId)
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ builderRun: { ...run, cancellationRequested: true } }) })
   })
   // The agent says what it is about to do, then works through tools without saying anything else.
-  await page.route(`${MASTRA_SESSIONS(projectId)}/stream*`, (route) => route.fulfill(sse(
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
     { type: 'message_start', message: assistantMessage('assistant-plan', 'Vou estruturar a interface de cadastro.') },
   )))
 
@@ -610,6 +627,7 @@ test('an agent that spoke once and then works in silence still reads as working,
 
   await page.locator('.builder-conversations-list button').filter({ hasText: 'Outra' }).click()
   assert.match(await status.innerText(), /em outra conversa/, 'the Project stays busy while another conversation is shown')
+  assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
 test('the Preview names the grant and the navigation, and never claims the application loaded', async (t) => {
@@ -627,16 +645,17 @@ test('the Preview names the grant and the navigation, and never claims the appli
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const legacyRequests = trackLegacyRequests(page)
 
   let releaseEntry
   const entryHeld = new Promise((resolve) => { releaseEntry = resolve })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilderController(page, projectId, controllerState([conversation('conversation-preview-truth', 'Conversa')]))
+  await routeFactory(page, projectId, factoryState([conversation('conversation-preview-truth', 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview truth', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: sourceRevision, lastGoodArtifactRevisionId: artifactRevisionId, lastGoodArtifactDigest: 'd'.repeat(64) },
-    mode: 'BUILD', sourceHost: 'CONEXUS', runHistory: [],
+    mode: 'BUILD', runHistory: [],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({
     status: 201, contentType: 'application/json',
@@ -658,6 +677,7 @@ test('the Preview names the grant and the navigation, and never claims the appli
   await page.getByText('Aplicativo aberto abaixo. Se a área ficar vazia, ele não desenhou nada.', { exact: true }).waitFor()
   const text = await page.locator('.build-preview-surface').innerText()
   assert.equal(/carregad|funcionando|pronto para uso/i.test(text), false, `the Preview claimed more than it observed: ${text}`)
+  assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
 const SOURCE_AHEAD_OF_PREVIEW = 'A fonte atual do Project está à frente deste Preview. Ele mostra a última versão que compilou e muda quando uma execução compilar a fonte atual.'
@@ -676,18 +696,20 @@ test('the Build screen says when the current source is ahead of the last good Pr
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const legacyRequests = trackLegacyRequests(page)
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilderController(page, projectId, controllerState([conversation('conversation-source-ahead', 'Conversa')]))
+  await routeFactory(page, projectId, factoryState([conversation('conversation-source-ahead', 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Source ahead', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
     preview: { workingSourceRevision: 'e'.repeat(40), lastGoodSourceRevision: 'd'.repeat(40), lastGoodArtifactRevisionId: artifactRevisionId, lastGoodArtifactDigest: 'd'.repeat(64) },
-    mode: 'BUILD', sourceHost: 'FACTORY', runHistory: [],
+    mode: 'BUILD', runHistory: [],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }))
 
   await page.goto(`${origin}/projects/${projectId}/build`)
   await page.getByText(SOURCE_AHEAD_OF_PREVIEW, { exact: true }).waitFor()
+  assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
 test('Preview ignores an older launch completion after the artifact key changes', async (t) => {
@@ -720,13 +742,14 @@ test('Preview ignores an older launch completion after the artifact key changes'
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const legacyRequests = trackLegacyRequests(page)
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilderController(page, projectId, controllerState([conversation('conversation-preview-race', 'Conversa')]))
+  await routeFactory(page, projectId, factoryState([conversation('conversation-preview-race', 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview race', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
     const useB = phase === 'B'
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-      projectId, latestBuilderRun: null, latestCodeChangingRun: null, mode: 'BUILD', sourceHost: 'CONEXUS', runHistory: [],
+      projectId, latestBuilderRun: null, latestCodeChangingRun: null, mode: 'BUILD', runHistory: [],
       preview: {
         workingSourceRevision: useB ? sourceB : sourceA,
         lastGoodSourceRevision: useB ? sourceB : sourceA,
@@ -771,6 +794,7 @@ test('Preview ignores an older launch completion after the artifact key changes'
   launchA.resolve()
   await firstPreviewResponse
   assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/entry-b`)
+  assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
 test('a Factory-hosted Project reads its conversations from the Hub and each conversation from its own session on the Factory mount', async (t) => {
@@ -781,7 +805,6 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
   const clockId = '70000000-0000-4000-8000-000000000095'
   const origin = 'http://127.0.0.1:41761'
   const sourceRevision = '7'.repeat(40)
-  const factory = '**/api/mastra-factory/agent-controller/code'
   const server = await createServer({
     configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
     server: { host: '127.0.0.1', port: 41761, strictPort: true },
@@ -802,14 +825,13 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
   const messageReads = []
   const streams = []
   const created = []
-  const legacyRequests = []
-  page.on('request', (request) => { if (new URL(request.url()).pathname.startsWith('/api/mastra/')) legacyRequests.push(request.url()) })
+  const legacyRequests = trackLegacyRequests(page)
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Factory', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: run, latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    mode: 'BUILD', sourceHost: 'FACTORY', runHistory: [],
+    mode: 'BUILD', runHistory: [],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/conversations`, (route) => {
     if (route.request().method() !== 'POST') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversations }) })
@@ -824,24 +846,24 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
     run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', mode: body.mode, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
-  await page.route(`${factory}/models`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
-  await page.route(`${factory}/sessions/*`, (route) => {
+  await page.route(`${FACTORY_CONTROLLER}/models`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*`, (route) => {
     const id = threadIdOf(route.request().url(), -1)
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: models[id] ?? '', modeId: 'build', threadId: id }) })
   })
-  await page.route(`${factory}/sessions/*/model`, (route) => {
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/model`, (route) => {
     const id = threadIdOf(route.request().url(), -2)
     models[id] = route.request().postDataJSON().modelId
     modelWrites.push([id, models[id]])
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
-  await page.route(`${factory}/sessions/*/threads/*/messages*`, (route) => {
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/threads/*/messages*`, (route) => {
     const segments = new URL(route.request().url()).pathname.split('/')
     const [resourceId, threadId] = [decodeURIComponent(segments.at(-4)), decodeURIComponent(segments.at(-2))]
     messageReads.push([resourceId, threadId])
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: threadId === counterId ? [assistantMessage('counter-1', 'Contador pronto')] : [] }) })
   })
-  await page.route(`${factory}/sessions/*/stream*`, (route) => {
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/stream*`, (route) => {
     const url = new URL(route.request().url())
     streams.push([decodeURIComponent(url.pathname.split('/').at(-2)), url.searchParams.get('sessionScope')])
     return route.fulfill(sse({ type: 'message_start', message: assistantMessage('live-1', 'Trabalhando no repositório') }))
@@ -850,7 +872,7 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
   await page.goto(`${origin}/projects/${projectId}/build`)
   await page.locator('.builder-conversation').getByText('Contador pronto', { exact: true }).waitFor()
   assert.deepEqual(await page.locator('.builder-conversations-list button').allTextContents(), ['Contador', 'Relógio'])
-  assert.equal(await page.getByRole('button', { name: 'Renomear' }).count(), 0, 'a Factory conversation has no rename route yet')
+  assert.equal(await page.getByRole('button', { name: 'Renomear' }).count(), 0, 'the Builder has no conversation rename feature')
   assert.deepEqual(messageReads.at(0), [counterId, counterId], 'the messages come from the conversation session and thread of the same id')
 
   await page.locator('.builder-model-select select').selectOption(SELECTED_MODEL)

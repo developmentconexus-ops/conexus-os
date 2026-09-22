@@ -49,7 +49,6 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const invocations = []
   const rootInvocations = []
   const builtFrom = []
-  const localReads = []
   let buildStarted
   const buildRunning = new Promise((started) => { buildStarted = started })
   const sandbox = {
@@ -136,13 +135,6 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   }
   const service = createBuilderService({
     store,
-    source: {
-      prepareProjectSource: () => { throw new Error('a Factory run never exports a source bundle') },
-      // The Hub's local repository never saw a Factory commit.
-      listSourceTree: async () => { localReads.push('tree'); throw new Error('BUILDER_SOURCE_READ_REVISION_NOT_FOUND') },
-      readSourceFile: async () => { localReads.push('file'); throw new Error('BUILDER_SOURCE_READ_REVISION_NOT_FOUND') },
-    },
-    runtime: { kind: 'REMOTE_E2B', execute: async () => { throw new Error('a Factory run never reaches the legacy runtime') } },
     applicationArtifacts: {},
     factory: {
       runtime,
@@ -165,7 +157,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
     for (let attempt = 0; row.running && attempt < 400; attempt++) await new Promise((wake) => { setTimeout(wake, 5) })
     return !row.running
   }
-  return { github, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, commands, rootScripts, pushed, admissions, buildRunning, builtFrom, settled, localReads }
+  return { github, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, commands, rootScripts, pushed, admissions, buildRunning, builtFrom, settled }
 }
 
 test('a writer that moves main between the read and the update, even to an ancestor of the result, is refused and keeps its move', async (t) => {
@@ -498,17 +490,22 @@ test('a bound Project reads its tree and files from its GitHub repository at the
   await assert.rejects(run.service.listSourceTree({ accountId, projectId, sourceRevision: MIDDLE }), { message: 'BUILDER_SOURCE_READ_UNSAFE_ENTRY' })
   await assert.rejects(run.service.getSourceFile({ accountId, projectId, sourceRevision: MIDDLE, path: 'app/link' }), { message: 'BUILDER_SOURCE_READ_FILE_NOT_FOUND' })
   await run.service.close()
-  assert.deepEqual(run.localReads, [])
   assert.deepEqual([...new Set(run.github.state.tokens.map(({ repositoryIds, permissions }) => JSON.stringify({ repositoryIds, permissions })))], [JSON.stringify({ repositoryIds: [700001], permissions: { contents: 'read' } })])
 })
 
-test('an unbound Project still reads the local repository', async (t) => {
+test('an unbound Project has no source to read: there is no local repository any more', async (t) => {
   const run = await harness(t, { bound: false })
-  await assert.rejects(run.service.listSourceTree({ accountId, projectId, sourceRevision: RESULT }), { message: 'BUILDER_SOURCE_READ_REVISION_NOT_FOUND' })
-  await assert.rejects(run.service.getSourceFile({ accountId, projectId, sourceRevision: RESULT, path: 'app/index.html' }), { message: 'BUILDER_SOURCE_READ_REVISION_NOT_FOUND' })
+  await assert.rejects(run.service.listSourceTree({ accountId, projectId, sourceRevision: RESULT }), { message: 'BUILDER_FACTORY_PROJECT_UNBOUND' })
+  await assert.rejects(run.service.getSourceFile({ accountId, projectId, sourceRevision: RESULT, path: 'app/index.html' }), { message: 'BUILDER_FACTORY_PROJECT_UNBOUND' })
   await run.service.close()
-  assert.deepEqual(run.localReads, ['tree', 'file'])
   assert.deepEqual(run.github.state.requests, [])
+})
+
+test('an unbound Project is refused a run before a sandbox is opened', async (t) => {
+  const run = await harness(t, { bound: false })
+  await assert.rejects(run.start(), /^Error: BUILDER_FACTORY_PROJECT_UNBOUND$/)
+  await run.service.close()
+  assert.deepEqual([run.calls, run.events], [[], []])
 })
 
 test('the Factory agent is told to run the application check, and not that the compiler runs elsewhere', () => {

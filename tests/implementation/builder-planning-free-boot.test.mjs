@@ -43,10 +43,6 @@ const hubEnvironment = (root) => ({
   CONEXUS_DB_PASSWORD_FILE: resolve(root, 'db-password'),
   CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE: resolve(root, 'prj03-password'),
   CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: resolve(root, 's3-read-password'),
-  CONEXUS_PROJECT_STORAGE_ROOT: resolve(root, 'storage'),
-  CONEXUS_GIT_IMPORT_CATALOG_FILE: resolve(root, 'git-import-catalog.json'),
-  CONEXUS_GIT_EXTERNAL_FILE_SLOTS_FILE: resolve(root, 'external-file-slots.json'),
-  CONEXUS_PROJECT_SOURCE_OWNERSHIP_MANIFEST_FILE: resolve(root, 'source-ownership.json'),
   CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: resolve(root, 'rb-ingress-password'),
   CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: resolve(root, 'rb-executor-password'),
   CONEXUS_BUILDER_E2B_API_KEY_FILE: resolve(root, 'e2b-api-key'),
@@ -54,6 +50,24 @@ const hubEnvironment = (root) => ({
   CONEXUS_OIDC_ISSUER: 'https://issuer.conexus.localhost',
   CONEXUS_OIDC_CLIENT_ID: 'conexus-hub',
   CONEXUS_OIDC_CLIENT_SECRET_FILE: resolve(root, 'oidc-client-secret'),
+  CONEXUS_FACTORY_ORG_ID: 'conexus-installation',
+  CONEXUS_FACTORY_GITHUB_APP_ID: '5015512',
+  CONEXUS_FACTORY_GITHUB_CLIENT_ID: 'Iv23-client',
+  CONEXUS_FACTORY_GITHUB_APP_SLUG: 'conexus-app',
+  CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE: resolve(root, 'factory-app.pem'),
+  CONEXUS_FACTORY_GITHUB_CLIENT_SECRET_FILE: resolve(root, 'factory-client-secret'),
+  CONEXUS_FACTORY_STATE_SECRET_FILE: resolve(root, 'factory-state-secret'),
+  CONEXUS_FACTORY_SECRET_KEY_FILE: resolve(root, 'factory-secret-key'),
+  CONEXUS_DB_FACTORY_PASSWORD_FILE: resolve(root, 'factory-password'),
+})
+
+test('a Builder without the Factory is refused: there is no second agent runtime', async (t) => {
+  const built = compileHub(t)
+  const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-factory-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const { readHubConfig } = await import(built('platform/config.js'))
+  const environment = Object.fromEntries(Object.entries(hubEnvironment(root)).filter(([name]) => !name.includes('_FACTORY_')))
+  assert.throws(() => readHubConfig(environment), { message: 'BUILDER_FACTORY_RUNTIME_REQUIRED' })
 })
 
 test('Builder boot needs no deployment model catalog and no pinned admission id', async (t) => {
@@ -69,9 +83,6 @@ test('Builder boot needs no deployment model catalog and no pinned admission id'
   assert.equal(Object.hasOwn(config.builder, 'modelAdmissionId'), false)
   assert.equal(Object.hasOwn(config.project, 'modelCatalogFile'), false)
   assert.equal(Object.hasOwn(config.project, 'planning'), false)
-
-  const { createBuilderProjectGitCapability } = await import(built('project/module.js'))
-  assert.equal(typeof createBuilderProjectGitCapability(config.project.storageRoot).verifyAdmittedImage, 'function')
 })
 
 test('a retired Inception or Baseline password variable is refused, not ignored', async (t) => {

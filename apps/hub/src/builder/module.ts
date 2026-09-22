@@ -1,29 +1,16 @@
 import type { FastifyInstance } from 'fastify'
 import { createHash } from 'node:crypto'
-import { join } from 'node:path'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
-import { LibSQLStore } from '@mastra/libsql'
-import { Memory } from '@mastra/memory'
-import { prepareAgentControllerMount } from '@mastra/code-sdk'
-import { Mastra } from '@mastra/core/mastra'
 import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
-import { BUILDER_CONTROLLER_ID, registerBuilderMastraRoutes, registerFactoryMastraRoutes } from './mastra-session-routes.js'
+import { registerFactoryMastraRoutes } from './mastra-session-routes.js'
 import { admitFactoryConversation, openFactoryConversationThread, registerFactoryConversationRoutes } from './factory-routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
-import {
-  BUILDER_REPOSITORY_ROOT,
-  BUILDER_TRACE_REQUEST_CONTEXT_KEYS,
-  createMastraE2BCodingWorkerRuntime,
-  resolveBuilderWorkspace,
-} from './runtime.js'
+import { BUILDER_TRACE_REQUEST_CONTEXT_KEYS } from './runtime.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
-import { createBuilderSourcePort } from './source.js'
-import type { BuilderGitSourceCapability } from './source.js'
 import { createBuilderStore } from './store.js'
-import { BUILDER_BASE_AGENT_INSTRUCTIONS, BUILDER_MODE_DEFINITIONS } from './application-starter.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig } from '../platform/config.js'
 import { assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox } from './factory.js'
@@ -115,14 +102,6 @@ const noteMessage = (note: RunNote, resourceId: string) => ({
   content: { format: 2 as const, parts: [{ type: 'text' as const, text: NOTE_TEXT[note.outcome](note) }] },
 })
 
-export const createDiagnosticAppender = ({ sessionMemory, ensureSessionStorage }: Readonly<{
-  sessionMemory: Pick<Memory, 'saveMessages'>
-  ensureSessionStorage: () => Promise<void>
-}>) => async (note: RunNote): Promise<void> => {
-  await ensureSessionStorage()
-  await sessionMemory.saveMessages({ messages: [noteMessage(note, note.projectId)] })
-}
-
 // A Factory conversation's thread lives under the conversation's own resourceId in Factory storage.
 export const createFactoryDiagnosticAppender = (ready: Promise<Pick<FactoryComposition, 'mastra'>>) =>
   async (note: RunNote): Promise<void> => {
@@ -130,32 +109,6 @@ export const createFactoryDiagnosticAppender = (ready: Promise<Pick<FactoryCompo
     if (!memory) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
     await memory.saveMessages({ messages: [noteMessage(note, note.conversationId)] })
   }
-
-export const createBuilderMountOptions = ({ storage, memory, storageRoot }: Readonly<{
-  storage: LibSQLStore
-  memory: Memory
-  storageRoot: string
-}>) => ({
-  controllerId: BUILDER_CONTROLLER_ID,
-  storage,
-  storageBackend: 'libsql' as const,
-  memory,
-  cwd: storageRoot,
-  configDir: '.conexus-builder',
-  disableMcp: true,
-  disableHooks: true,
-  disablePlugins: true,
-  disableGithubSignals: true,
-  disableSettingsOmSeed: true,
-  // Mastra Code tells the model its working directory is the project it detected at cwd, which on
-  // the Hub is the storage root. The agent then refused to edit the sandbox it was actually given.
-  // The Project's source lives at the sandbox's repository root, so that is the project it is told.
-  initialState: { yolo: true, projectPath: BUILDER_REPOSITORY_ROOT, projectName: 'Conexus Project' },
-  modes: BUILDER_MODE_DEFINITIONS.map((mode) => ({ ...mode, availableTools: [...mode.availableTools] })),
-  hostInstructions: BUILDER_BASE_AGENT_INSTRUCTIONS,
-  // Nothing local is ever the workspace: a run acts only in the E2B sandbox it was given.
-  workspace: resolveBuilderWorkspace,
-})
 
 const createBuilderObservability = (serviceName: string): Observability => new Observability({
   sensitiveDataFilter: true,
@@ -168,9 +121,8 @@ const createBuilderObservability = (serviceName: string): Observability => new O
   },
 })
 
-// Two Mastra instances until the legacy conversations move into Factory storage: a controller reads
-// and writes through its own Mastra's storage, so the legacy controller on the Factory's Postgres
-// would hide every existing Project's conversations.
+// The Factory's Mastra is the Hub's only one: it holds every conversation, its model selection and
+// the Builder's traces.
 const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTemplateId, origin }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   factory: FactoryRuntimeConfig
@@ -250,16 +202,15 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
   })
 }
 
-export const createConfiguredBuilderModule = ({ database, builder, factory, projectSource, applicationArtifacts, launchPreview, origin, resolveCurrentSession }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, factory, applicationArtifacts, launchPreview, origin, resolveCurrentSession }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
     e2bTemplateId: string
   }>
-  factory?: FactoryRuntimeConfig
+  factory: FactoryRuntimeConfig
   applicationArtifacts: UnboundBuilderApplicationArtifacts
   launchPreview?: BuilderLaunchPreviewPort
-  projectSource: Readonly<{ storageRoot: string; git: BuilderGitSourceCapability }>
   origin: string
   resolveCurrentSession: ResolveCurrentSession
 }>) => {
@@ -275,87 +226,30 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, proj
     retainApplication: (input) => applicationArtifacts.retainApplication(executorPool, input),
     ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(executorPool, input) } : {}),
   })
-  const source = createBuilderSourcePort({
-    git: projectSource.git,
-    storageRoot: projectSource.storageRoot,
+  const factoryComposition = startFactoryComposition({
+    database, factory, store, e2bApiKey: readSecretFile(builder.e2bApiKeyFile), e2bTemplateId: builder.e2bTemplateId, origin,
   })
-  // Mastra owns the Project conversation/thread records. The file is kept
-  // beside the project custody root so controller recreation does not erase
-  // the session, while Conexus remains the owner of authorization and Turns.
-  const sessionStorage = new LibSQLStore({
-    id: 'conexus-builder-session',
-    url: `file:${join(projectSource.storageRoot, 'builder-session.db')}`,
-  })
-  const sessionMemory = new Memory({
-    storage: sessionStorage,
-    options: { lastMessages: 20 },
-  })
-  const observability = createBuilderObservability('conexus-builder')
-  const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
-  // The coding agent, its tools, its model credentials and its model selection are Mastra Code's,
-  // which is the composition the Factory itself mounts (C-022). Conexus supplies only what is its
-  // own: the storage the Project's conversations live in, the per-run Workspace, the Builder's
-  // modes and host instructions, and the authorization that decides which resourceId a caller
-  // may act under. The mount is prepared rather than booted so the Mastra that owns it is the
-  // one this module constructs, carrying the Builder's observability with it.
-  const harness = (async () => {
-    const prepared = await prepareAgentControllerMount(createBuilderMountOptions({
-      storage: sessionStorage, memory: sessionMemory, storageRoot: projectSource.storageRoot,
-    }))
-    const mastra = new Mastra({ ...prepared.mastraArgs, observability, logger: false })
-    await prepared.finalize()
-    return Object.freeze({ controller: prepared.base.controller, mastra })
-  })()
-  harness.catch(() => undefined)
-  const e2bApiKey = readSecretFile(builder.e2bApiKeyFile)
-  const factoryComposition = factory
-    ? startFactoryComposition({ database, factory, store, e2bApiKey, e2bTemplateId: builder.e2bTemplateId, origin })
-    : undefined
-  let sessionStorageInit: Promise<void> | undefined
-  const ensureSessionStorage = async (): Promise<void> => {
-    sessionStorageInit ??= sessionStorage.init()
-    await sessionStorageInit
-  }
-  const runtime = createMastraE2BCodingWorkerRuntime({
-    apiKey: e2bApiKey,
-    templateId: builder.e2bTemplateId,
-    sharedHarness: {
-      ready: harness,
-      flushObservability: observabilityLifecycle.flush,
-    },
-  })
-  const appendDiagnostic = createDiagnosticAppender({ sessionMemory, ensureSessionStorage })
-  const service = createBuilderService({
-    store, source, runtime, applicationArtifacts: boundApplicationArtifacts, appendDiagnostic,
-    ...(factoryComposition ? { factory: factoryComposition.run } : {}),
-  })
+  const service = createBuilderService({ store, applicationArtifacts: boundApplicationArtifacts, factory: factoryComposition.run })
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
       if (!preview) throw new Error('NOT_AUTHORIZED')
-      await ensureSessionStorage()
-      const [runHistory, binding] = await Promise.all([
-        store.listBuilderRuns({ accountId, projectId }),
-        store.readFactoryBinding({ accountId, projectId }),
-      ])
       return Object.freeze({
-        sourceHost: binding ? 'FACTORY' as const : 'CONEXUS' as const,
         projectId,
         workingSourceRevision: preview.workingSourceRevision,
         lastPreviewSourceRevision: preview.lastPreviewSourceRevision ?? null,
         lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId ?? null,
         lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest ?? null,
-        runHistory,
+        runHistory: await store.listBuilderRuns({ accountId, projectId }),
       })
     },
     readTrace: async ({ accountId, projectId, builderRunId }): Promise<BuilderTraceSummary> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
       if (!preview) throw new Error('NOT_AUTHORIZED')
-      await ensureSessionStorage()
-      const observabilityStore = await sessionStorage.getStore('observability')
+      const observabilityStore = await (await factoryComposition.ready).mastra.getStorage()?.getStore('observability')
       if (!observabilityStore) return { available: false, traceId: null, spans: [] }
       const traces = await observabilityStore.listTraces({
-        filters: { resourceId: projectId, metadata: { conexusBuilderProjectId: projectId, conexusBuilderRunId: builderRunId } },
+        filters: { metadata: { conexusBuilderProjectId: projectId, conexusBuilderRunId: builderRunId } },
         pagination: { page: 0, perPage: 1 },
       })
       const root = traces.spans.at(0)
@@ -373,16 +267,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, proj
   })
   return Object.freeze({
     registerBuilderRoutes: async (app: FastifyInstance) => {
-      const { mastra, controller } = await harness
-      await registerBuilderMastraRoutes(app, {
-        mastra,
-        controller,
-        origin,
-        resolveCurrentSession,
-        admitProjectBuild: async (input) => Boolean(await store.readPreviewSubject(input)),
-      })
       const builderOperations = await registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) })
-      if (!factoryComposition) return builderOperations
       const composition = await factoryComposition.ready
       const sessions = composition.github.sourceControlStorage.sessions
       await registerFactoryMastraRoutes(app, {
@@ -409,15 +294,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, proj
       try {
         await service.close()
       } finally {
-        await harness.then(({ controller }) => controller.destroy(), () => undefined)
-        try {
-          await observabilityLifecycle.close()
-        } catch {
-          process.emitWarning('BUILDER_PREPARATION_FAILED', { code: 'BUILDER_PREPARATION_FAILED' })
-        } finally {
-          await sessionStorage.close()
-          await factoryComposition?.close()
-        }
+        await factoryComposition.close()
       }
     },
   })

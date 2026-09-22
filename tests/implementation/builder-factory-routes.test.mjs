@@ -148,6 +148,19 @@ test('only the Factory controller id is served, and the browser may not create o
   assert.equal((await app.inject({ method: 'POST', url: `${sessionBase()}/thread`, ...authentic, payload: { threadId: conversationA } })).statusCode, 404)
 })
 
+test('the legacy /api/mastra mount is gone; only /api/mastra-factory is served', async (t) => {
+  const { app } = await createFactoryApp(t)
+  assert.equal((await app.inject({ method: 'GET', url: `/api/mastra/agent-controller/code/sessions/${conversationA}/threads`, ...authentic })).statusCode, 404)
+  assert.equal((await app.inject({ method: 'POST', url: `/api/mastra/agent-controller/code/sessions/${conversationA}/threads`, ...authentic, payload: { title: 'x' } })).statusCode, 404)
+  assert.equal((await app.inject({ method: 'POST', url: `${sessionBase()}/threads`, ...authentic, payload: { title: 'x' } })).statusCode, 404)
+})
+
+test('a run whose session does not exist yet is a conflict, never a fresh empty session', async (t) => {
+  const { app } = await createFactoryApp(t)
+  const response = await app.inject({ method: 'GET', url: `${sessionBase()}/stream?sessionScope=builder:${randomUUID()}`, ...authentic })
+  assert.equal(response.statusCode, 409)
+})
+
 test('a Factory conversation takes no steer or follow-up, not even inside a run session; a new message is a new run', async (t) => {
   const { app, controller } = await createFactoryApp(t)
   const liveRun = `builder:${randomUUID()}`
@@ -173,13 +186,15 @@ test('a tool answer other than approve or decline is refused on the Factory moun
   const suspensionUrl = `${sessionBase()}/tool-suspension`
 
   const escalatedApproval = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: true, decision: 'always_allow_category' } })
-  const escalatedSuspension = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: { decision: 'always_allow_category' } } })
-  assert.deepEqual([escalatedApproval.statusCode, escalatedSuspension.statusCode], [400, 400])
+  const escalatedSuspensionField = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: { decision: 'always_allow_category' } } })
+  const escalatedSuspensionString = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: 'always_allow_category' } })
+  assert.deepEqual([escalatedApproval.statusCode, escalatedSuspensionField.statusCode, escalatedSuspensionString.statusCode], [400, 400, 400])
   assert.deepEqual(reachedContexts.filter((entry) => entry.url.includes('/tool-')), [])
 
   const approved = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: true } })
   const declined = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: false } })
-  assert.deepEqual([approved.statusCode, declined.statusCode], [200, 200])
+  const resumed = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: 'Use SQLite.' } })
+  assert.deepEqual([approved.statusCode, declined.statusCode, resumed.statusCode], [200, 200, 200])
 })
 
 test('a state-changing request without CSRF is refused on both the mount and the conversation route', async (t) => {
