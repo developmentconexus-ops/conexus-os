@@ -23,14 +23,16 @@ test('S5-P0 serves every realized browser route through the same-origin SPA host
 test('S5-P0 realizes one adaptive server-oriented shell and recoverable focus', () => {
   const shell = read('apps/web/src/app/shell.tsx')
   const styles = read('apps/web/src/styles.css')
-  assert.match(shell, /aria-label="Navegação principal"/)
-  assert.match(shell, /aria-label="Contexto atual"/)
-  assert.match(shell, /aria-controls="primary-navigation"/)
+  // The frame, the sidebar and its narrow-screen drawer (which owns its own focus return) are the
+  // component library's; the shell supplies the labels and the account menu.
+  assert.match(shell, /<MainSidebarProvider /)
+  assert.match(shell, /<MainSidebar\.Nav aria-label="Navegação principal">/)
+  assert.match(shell, /<MainSidebar\.MobileTrigger aria-label="Abrir navegação"/)
+  assert.match(shell, /<Breadcrumb label="Contexto atual"/)
+  assert.match(shell, /<AppShell/)
   assert.match(shell, /accountTrigger\.current\?\.focus\(\)/)
-  assert.match(shell, /navigationTrigger\.current\?\.focus\(\)/)
   assert.match(shell, /pointerdown/)
-  assert.match(styles, /\.shell-body/)
-  assert.match(styles, /\.navigation-drawer/)
+  assert.match(styles, /\.shell-mobile-header/)
   assert.match(styles, /@media \(max-width: 48rem\)/)
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/)
 })
