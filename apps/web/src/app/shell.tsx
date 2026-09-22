@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { ConexusWordmark } from '../../../../packages/brand/src/conexus-mark'
 import { endCurrentSession } from '../features/identity-access/api'
 import type { AccessContext } from '../generated/iam-client'
 
@@ -9,6 +10,14 @@ export type ShellScope = Readonly<{
   workspace?: Readonly<{ workspaceId: string; name: string }> | undefined
   project?: Readonly<{ projectId: string; name: string; workspaceId: string }> | undefined
 }>
+
+// The mark fits together once per page load, not on every route that remounts the shell.
+let shellArrived = false
+const firstShellMount = (): boolean => {
+  const first = !shellArrived
+  shellArrived = true
+  return first
+}
 
 export function Shell({
   context,
@@ -19,6 +28,7 @@ export function Shell({
   scope?: ShellScope | undefined
   children: ReactNode
 }) {
+  const [arrival] = useState(firstShellMount)
   const [menuOpen, setMenuOpen] = useState(false)
   const [navigationOpen, setNavigationOpen] = useState(false)
   const menu = useRef<HTMLDivElement>(null)
@@ -78,7 +88,7 @@ export function Shell({
   return (
     <div className="shell">
       <header className="topbar">
-        <Link className="brand" to="/" search={{ workspaceId: undefined }}>Conexus</Link>
+        <Link className="brand" to="/" search={{ workspaceId: undefined }}><ConexusWordmark size={22} arrive={arrival} /></Link>
         <nav className="context-trail" aria-label="Contexto atual">
           <Link to="/" search={{ workspaceId: undefined }}>Workspaces</Link>
           {workspace && (

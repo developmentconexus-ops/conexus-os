@@ -8,6 +8,7 @@ import { BuilderConversation, type PersistedRequest } from './builder-conversati
 import { BuilderConversationList } from './builder-conversation-list'
 import { BuilderModelSelect } from './builder-model-select'
 import { BuilderRunStatus, phaseLabels } from './builder-run-status'
+import { ConexusMark } from '../../../../../../packages/brand/src/conexus-mark'
 
 const failureStatusByCategory: Record<BuilderFailureCategory, string> = {
   ENVIRONMENT_PREPARATION_FAILED: 'Falha ao preparar o ambiente de código',
@@ -493,7 +494,7 @@ export function ProjectBuild({ projectId }: { projectId: string }) {
         </section>}
       </section>
       {!chatCollapsed && <aside data-mobile-pane={mobilePane} className="conexus-panel" aria-labelledby="conexus-panel-title">
-        <div className="builder-panel-heading"><div><p className="eyebrow">Conexus Builder</p><h2 id="conexus-panel-title">Converse com o Conexus</h2><p className="builder-surface-caption">Peça alterações e acompanhe o que está acontecendo.</p></div></div>
+        <div className="builder-panel-heading"><ConexusMark size={22} working={run?.state === 'RUNNING'} /><div><p className="eyebrow">Conexus Builder</p><h2 id="conexus-panel-title">Converse com o Conexus</h2><p className="builder-surface-caption">Peça alterações e acompanhe o que está acontecendo.</p></div></div>
         <BuilderConversationList
           conversations={conversationList}
           selectedId={conversationId}
