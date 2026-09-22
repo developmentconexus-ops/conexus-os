@@ -8,7 +8,7 @@
 .cx-composer .composer-ring { border-radius: 16px; }
 
 /* At rest the border carries a slow ipê arc, brighter and faster once the agent is working. */
-.cx-composer .composer-ring { --composer-ring-strength: .22; animation: cx-ring-idle 10s linear infinite; }
+.cx-composer .composer-ring { --composer-ring-strength: .45; animation: cx-ring-idle 10s linear infinite; }
 .cx-composer .composer-ring:hover { --composer-ring-strength: .4; }
 .cx-composer .composer-ring[data-busy="false"]:focus-within { --composer-ring-strength: .4; }
 @keyframes cx-ring-idle { from { --composer-ring-spin: 0deg; } to { --composer-ring-spin: 360deg; } }
