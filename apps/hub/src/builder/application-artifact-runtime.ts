@@ -12,8 +12,6 @@ const MAX_LIST_ENTRIES = MAX_FILES * 8
 const MAX_OUTPUT_DEPTH = MAX_FILES
 const BUILD_TIMEOUT_MS = 120_000
 const REQUEST_TIMEOUT_MS = 30_000
-const SMOKE_PORT = 41200
-const SMOKE_DEVTOOLS_PORT = 41201
 const SMOKE_ROOT_ID = 'root'
 const SMOKE_BUDGET_MS = 20_000
 // E2B's own command timeout is the hard backstop; this is slack for the shell/node startup the
@@ -199,8 +197,6 @@ import { spawn } from 'node:child_process'
 
 const DIST_ROOT = ${JSON.stringify(distRoot(place))}
 const PROFILE = ${JSON.stringify(`${place.workRoot}/.conexus-smoke-profile`)}
-const PORT = ${SMOKE_PORT}
-const DEVTOOLS_PORT = ${SMOKE_DEVTOOLS_PORT}
 const ROOT_ID = ${JSON.stringify(SMOKE_ROOT_ID)}
 const BUDGET_MS = ${SMOKE_BUDGET_MS}
 const MEDIA_TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' }
@@ -231,28 +227,39 @@ const server = createServer(async (req, res) => {
 })
 
 try {
+  // A fixed literal port here would collide the instant two smokes land on the same sandbox host,
+  // or on any outgoing connection the OS happened to assign it to; port 0 lets the kernel hand back
+  // one that is free right now, for both the app server and Chromium's own DevTools listener.
+  let port
   await new Promise((resolveListen, rejectListen) => {
     server.once('error', rejectListen)
-    server.listen(PORT, '127.0.0.1', resolveListen)
+    server.listen(0, '127.0.0.1', () => { port = server.address().port; resolveListen() })
   })
 
   const chromium = spawn('chromium', [
     '--headless=new', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage',
-    \`--remote-debugging-port=\${DEVTOOLS_PORT}\`, '--remote-debugging-address=127.0.0.1',
+    '--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1',
     \`--user-data-dir=\${PROFILE}\`, 'about:blank',
   ], { stdio: 'ignore' })
   chromium.once('error', () => output({ ok: false, reason: 'APPLICATION_SMOKE_CHROMIUM_UNAVAILABLE' }))
 
-  // Runtime and Page live on a page target. The browser-level endpoint from /json/version answers
-  // the handshake and then refuses those domains, so the page target's own socket is the one to use.
+  // Chromium can't be asked its own DevTools port; with --remote-debugging-port=0 it writes the one
+  // it bound to this file inside its profile dir once the listener is up. Runtime and Page live on a
+  // page target: the browser-level endpoint from /json/version answers the handshake and then
+  // refuses those domains, so the page target's own socket is the one to use.
+  let devtoolsPort
   let webSocketDebuggerUrl
   const deadline = Date.now() + BUDGET_MS
   while (Date.now() < deadline && !webSocketDebuggerUrl) {
     try {
-      const targets = await (await fetch(\`http://127.0.0.1:\${DEVTOOLS_PORT}/json/list\`)).json()
+      if (devtoolsPort === undefined) {
+        const activePort = await readFile(join(PROFILE, 'DevToolsActivePort'), 'utf8')
+        devtoolsPort = Number.parseInt(activePort.split('\\n')[0], 10)
+      }
+      const targets = await (await fetch(\`http://127.0.0.1:\${devtoolsPort}/json/list\`)).json()
       webSocketDebuggerUrl = targets.find((target) => target.type === 'page')?.webSocketDebuggerUrl
     } catch {
-      // the browser is not listening yet
+      // the profile port file or the browser is not ready yet
     }
     if (!webSocketDebuggerUrl) await new Promise((resolveWait) => setTimeout(resolveWait, 100))
   }
@@ -293,7 +300,7 @@ try {
     const message = JSON.parse(event.data)
     if (message.method !== 'Fetch.requestPaused') return
     const { requestId, request } = message.params
-    const local = new URL(request.url).host === \`127.0.0.1:\${PORT}\`
+    const local = new URL(request.url).host === \`127.0.0.1:\${port}\`
     socket.send(JSON.stringify(local
       ? { id: nextRequestId++, method: 'Fetch.continueRequest', params: { requestId } }
       : { id: nextRequestId++, method: 'Fetch.failRequest', params: { requestId, errorReason: 'BlockedByClient' } }))
@@ -309,7 +316,7 @@ try {
     }
     socket.addEventListener('message', handler)
   })
-  await send('Page.navigate', { url: \`http://127.0.0.1:\${PORT}/\` })
+  await send('Page.navigate', { url: \`http://127.0.0.1:\${port}/\` })
   await loaded
   // First paint can still be followed by an effect that mounts or throws a beat later; a fixed
   // settle window catches that without turning the whole smoke into an open-ended wait.
