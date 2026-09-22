@@ -29,7 +29,7 @@ const minutesAgo = (minutes) => new Date(Date.now() - minutes * 60_000).toISOStr
 const models = [
   { id: 'openai/gpt-5.5', provider: 'openai', modelName: 'GPT-5.5', hasApiKey: true, useCount: 3 },
   { id: 'anthropic/claude-sonnet-5', provider: 'anthropic', modelName: 'Claude Sonnet 5', hasApiKey: true, useCount: 1 },
-  { id: 'google/gemini-3.1-pro', provider: 'google', modelName: 'Gemini 3.1 Pro', hasApiKey: true, useCount: 0 },
+  { id: 'mastracode/google-ai-pro/gemini-3.1-pro-low', provider: 'mastracode/google-ai-pro', modelName: 'gemini-3.1-pro-low', hasApiKey: true, useCount: 0 },
 ]
 const message = (id, role, parts, minutes) => ({ id, role, createdAt: minutesAgo(minutes), content: { format: 2, parts } })
 const text = (value) => ({ type: 'text', text: value })
@@ -138,7 +138,7 @@ const mock = async (page, scenario) => {
       { path: 'src/Requests.tsx', status: 'MODIFIED', previousPath: null },
     ] })
   })
-  await page.route(`${controller}/models`, (route) => json(route, { models }))
+  await page.route('**/api/control/model-accounts/models', (route) => json(route, { models }))
   await page.route(`${controller}/sessions/*`, (route) => json(route, { modelId: models[0].id, modeId: 'build', threadId: conversationId, settings: { yolo: false, thinkingLevel: 'medium', notifications: 'off', smartEditing: true } }))
   await page.route(`${controller}/sessions/*/threads/*/messages*`, (route) => json(route, { messages: scenario.thread ?? thread }))
   await page.route(`${controller}/sessions/*/stream*`, (route) => route.fulfill({

@@ -38,7 +38,7 @@ const routeFactory = async (page, projectId, state) => {
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ conversation: created }) })
   })
   await page.route('**/api/control/model-accounts/models', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: state.models ?? BUILDER_MODELS }) }))
   await page.route(`${FACTORY_CONTROLLER}/sessions/*`, (route) => {
     const id = threadIdOf(route.request().url(), -1)
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: state.modelId, modeId: 'build', threadId: id }) })
@@ -1107,4 +1107,50 @@ test('Configurações signs a person in to Google AI Pro through a pasted Google
   await page.getByRole('heading', { name: 'Contas de modelo' }).waitFor()
   await page.getByText('Nenhuma conta conectada. Conecte a sua para usar o Builder.').waitFor()
   assert.equal(await page.getByRole('heading', { name: 'Google AI Pro' }).count(), 0)
+})
+
+// The eight models the pilot Hub offered a person with a Google AI Pro connection on 2026-09-22.
+const GOOGLE_AI_PRO_MODELS = [
+  'gemini-3.1-pro-low', 'gemini-pro-agent', 'gemini-3.8-flash-high', 'gemini-3.7-flash-high',
+  'gemini-3.6-flash-high', 'gemini-3-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite',
+].map((modelName) => ({ id: `mastracode/google-ai-pro/${modelName}`, provider: 'mastracode/google-ai-pro', modelName, hasApiKey: true }))
+
+test('the model picker offers the models the Hub lists for this person, Google AI Pro included, and switches this conversation only', async (t) => {
+  const accountId = '70000000-0000-4000-8000-0000000000c1'
+  const projectId = '70000000-0000-4000-8000-0000000000c2'
+  const conversationId = 'conversation-google-ai-pro'
+  const origin = 'http://127.0.0.1:41771'
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41771, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const controllerModelReads = []
+  page.on('request', (request) => { if (new URL(request.url()).pathname.endsWith('/agent-controller/code/models')) controllerModelReads.push(request.url()) })
+  const state = { ...factoryState([conversation(conversationId, 'Gemini')], {}, ''), models: [BUILDER_MODELS[0], ...GOOGLE_AI_PRO_MODELS] }
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeFactory(page, projectId, state)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Gemini', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, latestBuilderRun: null, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    mode: 'BUILD', runHistory: [],
+  }) }))
+
+  await page.goto(`${origin}/projects/${projectId}/c/${conversationId}`)
+  await page.getByText('Escolha o modelo desta conversa para enviar pedidos.', { exact: true }).waitFor()
+  await openModelPicker(page)
+  await page.getByRole('option', { name: 'gemini-3.1-flash-lite' }).waitFor()
+  const offered = await page.getByRole('option').allTextContents()
+  assert.equal(offered.length, 9)
+  for (const model of GOOGLE_AI_PRO_MODELS) assert.ok(offered.some((text) => text.startsWith(model.modelName) && text.includes('Google AI Pro')), `${model.modelName} is offered as a Google AI Pro model`)
+  await page.getByRole('option', { name: /^gemini-pro-agent/ }).click()
+  await page.keyboard.press('Escape')
+  await page.getByText('Escolha o modelo desta conversa para enviar pedidos.', { exact: true }).waitFor({ state: 'detached' })
+  assert.deepEqual(state.modelSwitches, ['mastracode/google-ai-pro/gemini-pro-agent'], 'the choice goes through the conversation\'s own model route')
+  assert.deepEqual(controllerModelReads, [], 'the controller\'s host-key list is never what the person is offered')
 })

@@ -26,6 +26,15 @@ const commands: readonly ComposerCommand[] = [
 
 const modelName = (model: BuilderModel | undefined): string => model?.modelName ?? 'Escolha um modelo'
 
+// The Hub lists a model by its catalog provider; the person knows the account by its product name.
+const providerNames: Readonly<Record<string, string>> = {
+  'mastracode/google-ai-pro': 'Google AI Pro',
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  google: 'Google',
+}
+const providerName = (provider: string): string => providerNames[provider] ?? provider
+
 // Not built yet, and said so: focusable for its tooltip, inert to clicks, never a fake action.
 function Soon({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return <Tooltip>
@@ -132,7 +141,7 @@ export function ConstruirComposer({
                   </div>
                   : <Combobox
                     aria-label="Modelo desta conversa"
-                    options={models.map((model) => ({ value: model.id, label: model.modelName, description: model.provider }))}
+                    options={models.map((model) => ({ value: model.id, label: model.modelName, description: providerName(model.provider) }))}
                     value={selected ? modelId : ''}
                     onValueChange={onModelChange}
                     placeholder="Escolha um modelo"
