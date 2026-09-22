@@ -237,3 +237,35 @@ test('a new conversation starts from the person\'s own defaults, else the instal
   assert.equal((await asBob('DELETE', '/api/control/model-defaults/mine')).status, 204)
   assert.deepEqual(await modelsOf(bob), installation)
 })
+
+test('the operator imports a host Mastra Code login into the Factory, as the shared row or one person\'s, idempotently and without printing it', async (t) => {
+  const { writeFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { importHostCredential } = await import(built('builder/factory-provisioning.js'))
+  const composition = await composeOnPostgres(t)
+  const credentials = composition.storage.getDomain('model-credentials')
+  const directory = mkdtempSync(resolve(tmpdir(), 'conexus-host-auth-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const authFile = resolve(directory, 'auth.json')
+  const login = { type: 'oauth', access: 'host-access-token', refresh: 'host-refresh-token', expires: 4102444800000, accountId: 'chatgpt-account' }
+  writeFileSync(authFile, JSON.stringify({ 'openai-codex': login, anthropic: { type: 'api_key', key: 'sk-ant-host' } }))
+  const lines = []
+  const importAs = (provider, accountId) => importHostCredential({ credentials, orgId: ORG, provider, accountId, authFile, write: (line) => lines.push(line) })
+
+  await importAs('openai-codex', null)
+  await importAs('openai', null)
+  await importAs('anthropic', bob)
+  assert.deepEqual(lines, [
+    'FACTORY_HOST_CREDENTIAL_IMPORTED=openai-codex:oauth:shared',
+    'FACTORY_HOST_CREDENTIAL_IMPORTED=openai-codex:oauth:shared',
+    `FACTORY_HOST_CREDENTIAL_IMPORTED=anthropic:api_key:${bob}`,
+  ])
+  assert.deepEqual(await credentials.getCredential({ orgId: ORG }, 'openai-codex'), login)
+  assert.deepEqual(await credentials.getCredential({ orgId: ORG, userId: bob }, 'anthropic'), { type: 'api_key', key: 'sk-ant-host' })
+  assert.deepEqual((await credentials.listCredentials(ORG, alice)).map(({ provider, scope }) => [provider, scope]), [['openai-codex', 'org']])
+
+  await assert.rejects(importAs('xai', null), { message: 'FACTORY_HOST_CREDENTIAL_MISSING:xai' })
+  await assert.rejects(importAs('openai', 'not-an-account'), { message: 'FACTORY_HOST_CREDENTIAL_ACCOUNT_REFUSED' })
+  await assert.rejects(importHostCredential({ credentials, orgId: ORG, provider: 'openai', accountId: null, authFile: resolve(directory, 'absent.json'), write: () => undefined }), { message: 'FACTORY_HOST_AUTH_FILE_UNREADABLE' })
+  assert.equal(lines.some((line) => /host-access|host-refresh|sk-ant/.test(line)), false)
+})
