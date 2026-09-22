@@ -5,14 +5,11 @@ import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import type { BuilderRun } from '../api'
 import { failureReason } from '../failure-reasons'
 import './lens-surfaces.css'
-import { clockLabel, nextVersionLine, type RunView } from './run-state'
+import type { RunView } from './run-state'
 import type { Preview } from './use-preview'
 
 const changedRuns = (history: readonly BuilderRun[]): readonly BuilderRun[] =>
   [...history].filter((entry) => entry.resultKind === 'SOURCE_CHANGED').sort((left, right) => left.createdAt.localeCompare(right.createdAt))
-
-const inUseRun = (history: readonly BuilderRun[], sourceRevision: string | null): BuilderRun | null =>
-  sourceRevision ? history.find((entry) => entry.resultSourceRevision === sourceRevision && entry.resultKind === 'SOURCE_CHANGED') ?? null : null
 
 /** The version's 1-based ordinal among every change this Project has published, oldest first. */
 const versionNumber = (history: readonly BuilderRun[], sourceRevision: string | null): number | null => {
@@ -51,8 +48,6 @@ export function LensPreview({ preview, view, history, lastGoodSourceRevision, so
     queueMicrotask(() => entryForm.current?.requestSubmit())
   }, [lease, leaseKeyId])
   const frameOpen = navigated !== null && navigated === leaseKeyId
-  const inUse = inUseRun(history, lastGoodSourceRevision)
-  const since = inUse ? clockLabel(inUse.createdAt) : null
   const version = versionNumber(history, lastGoodSourceRevision)
   const failedRun = view.kind === 'SETTLED' && (view.outcome === 'BUILD_FAILED' || view.outcome === 'FAILED') ? view.run : null
 
@@ -65,7 +60,7 @@ export function LensPreview({ preview, view, history, lastGoodSourceRevision, so
   }
 
   return <div className="cx-preview">
-    {lease && <div className="cx-preview-toolbar" role="toolbar" aria-label="Janela da prévia">
+    <div className="cx-preview-toolbar" role="toolbar" aria-label="Janela da prévia">
       <fieldset className="cx-seg cx-seg-icons">
         <legend className="cx-sr">Dispositivo</legend>
         <button type="button" aria-pressed={viewport === 'desktop'} aria-label="Computador" title="Computador" onClick={() => setViewport('desktop')}>
@@ -78,18 +73,11 @@ export function LensPreview({ preview, view, history, lastGoodSourceRevision, so
       <button type="button" className="cx-icon-button" aria-label="Recarregar prévia" title="Recarregar" onClick={preview.retry}>
         <RotateCw size={14} aria-hidden="true" />
       </button>
-      <span className="cx-preview-address">{addressOf(lease.launch.previewUrl)}</span>
-      <span className="cx-chip" data-tone={view.kind === 'ACTIVE' ? 'active' : 'ok'}>
+      {lease && <span className="cx-preview-address">{addressOf(lease.launch.previewUrl)}</span>}
+      <span className="cx-chip" data-tone={view.kind === 'ACTIVE' ? 'active' : sourceAhead ? 'neutral' : 'ok'}>
         {version !== null ? `Versão ${version} · em uso` : 'Em uso'}
+        {view.kind !== 'ACTIVE' && sourceAhead ? ' · código sem prévia ainda' : ''}
       </span>
-    </div>}
-    <div className="cx-inuse">
-      <span className="cx-inuse-dot" data-state={view.kind === 'ACTIVE' ? 'building' : 'live'} aria-hidden="true" />
-      <p role="status" aria-live="polite">
-        <span>Em uso: {since ? `versão das ${since}` : 'última versão boa'}</span>
-        <span className="cx-inuse-sep" aria-hidden="true"> · </span>
-        <span>Próxima: {nextVersionLine(view, sourceAhead)}</span>
-      </p>
     </div>
     {failedRun && <FailureNote run={failedRun} />}
     {preview.failed && <div className="cx-note" role="alert">

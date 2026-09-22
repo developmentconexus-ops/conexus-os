@@ -660,7 +660,7 @@ test('an agent that spoke once and then works in silence still reads as working,
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
-const NEXT_SOURCE_UNCOMPILED = 'Próxima: código atual ainda sem prévia'
+const NEXT_SOURCE_UNCOMPILED = 'código sem prévia ainda'
 
 test('the Preview names the grant and the navigation, and never claims the application loaded', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000051'
@@ -697,7 +697,7 @@ test('the Preview names the grant and the navigation, and never claims the appli
   await page.getByText('Acesso autorizado. Abrindo a prévia…', { exact: true }).waitFor()
   assert.equal(await page.getByText('Prévia aberta. Se a área ficar vazia, o aplicativo não desenhou nada.', { exact: true }).count(), 0,
     'about:blank fires its own load, which must not count as the application navigating')
-  assert.equal((await page.locator('.cx-inuse').innerText()).includes(NEXT_SOURCE_UNCOMPILED), false, 'a Preview built from the current source is not behind it')
+  assert.equal((await page.locator('.cx-preview-toolbar').innerText()).includes(NEXT_SOURCE_UNCOMPILED), false, 'a Preview built from the current source is not behind it')
 
   releaseEntry()
   await page.getByText('Prévia aberta. Se a área ficar vazia, o aplicativo não desenhou nada.', { exact: true }).waitFor()
@@ -726,7 +726,7 @@ test('the Build screen says when the current source is ahead of the last good Pr
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }))
 
   await page.goto(`${origin}/projects/${projectId}/build`)
-  await page.locator('.cx-inuse').getByText(NEXT_SOURCE_UNCOMPILED, { exact: true }).waitFor()
+  await page.locator('.cx-preview-toolbar .cx-chip').getByText(NEXT_SOURCE_UNCOMPILED).waitFor()
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 

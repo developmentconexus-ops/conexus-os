@@ -4,38 +4,39 @@
 .cx-home { display: grid; gap: 2.5rem; }
 .cx-home[data-empty] { min-height: calc(100dvh - 12rem); align-content: center; }
 
-.cx-prompt { display: grid; justify-items: center; gap: 1rem; width: min(46rem, 100%); margin-inline: auto; }
-.cx-prompt-title { margin: 0 0 .25rem; font: 600 clamp(1.75rem, 4.2vw, 2.6rem)/1.1 var(--cx-font-display); letter-spacing: -0.03em; text-align: center; text-wrap: balance; }
-.cx-prompt-composer { width: 100%; margin: 0; }
-.cx-prompt-ring { --composer-ring-edge: var(--cx-line); max-width: none; box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 .5rem 1.5rem rgb(0 0 0 / .05); }
-.cx-prompt-ring [data-slot="composer-box"] { max-width: none; background: var(--cx-surface); }
-.cx-prompt-ring [data-slot="composer-input"] { min-height: 4.5rem; border: 0; border-radius: 0; font-size: 1rem; }
-.cx-prompt-hint { padding-left: .6rem; color: var(--cx-text-2); font-size: .75rem; }
-.cx-send { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; padding: 0; border: 0; border-radius: 50%; background: var(--cx-ink); color: var(--cx-on-ink); cursor: pointer; transition: opacity .15s; }
-.cx-send:hover:not(:disabled) { opacity: .88; }
-.cx-send:disabled { opacity: .35; cursor: not-allowed; }
-.cx-send:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 2px; }
+.cx-prompt { display: grid; justify-items: start; gap: .75rem; width: 100%; }
+.cx-prompt-note { margin: 0; color: var(--cx-text-2); font-size: .8125rem; }
+.cx-prompt-title { margin: 0 0 .25rem; font: 600 clamp(1.75rem, 4.2vw, 2.6rem)/1.1 var(--cx-font-display); letter-spacing: -0.03em; text-wrap: balance; }
+/* The shared composer (features/builder/composer/composer.css) is sized for Construir's narrower
+   dock; the home prompt gives it the full width and a taller first line instead. */
+.cx-prompt .cx-composer { width: 100%; }
+.cx-prompt .cx-composer [data-slot="composer-box"] { box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 .5rem 1.5rem rgb(0 0 0 / .05); }
+.cx-prompt .cx-composer [data-slot="composer-input"] { min-height: 4.5rem; font-size: 1rem; }
 
-.cx-prompt-confirm { display: grid; gap: 1rem; width: 100%; margin: 0; padding: 1.1rem 1.25rem; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-surface); animation: cx-rise .35s var(--cx-ease-arrive) both; }
+.cx-prompt-confirm { display: grid; gap: 1rem; width: min(46rem, 100%); margin: 0; padding: 1.1rem 1.25rem; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-surface); animation: cx-rise .35s var(--cx-ease-arrive) both; }
 .cx-prompt-confirm button[type="submit"] { gap: .5rem; }
-.cx-prompt-status { width: 100%; text-align: center; }
+.cx-prompt-status { width: 100%; }
 @keyframes cx-rise { from { opacity: 0; transform: translateY(6px); } }
 
-.cx-prompt-examples { display: grid; justify-items: center; gap: .6rem; color: var(--cx-text-2); font-size: .875rem; }
-.cx-prompt-examples ul { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.cx-prompt-examples { display: grid; gap: .6rem; color: var(--cx-text-2); font-size: .875rem; }
+.cx-prompt-examples ul { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0; padding: 0; list-style: none; }
 .cx-prompt-examples button { padding: .5rem .85rem; border: 1px solid var(--cx-line); border-radius: 999px; background: var(--cx-surface); color: var(--cx-text); font-size: .875rem; cursor: pointer; transition: background .15s, border-color .15s; }
 .cx-prompt-examples button:hover { border-color: var(--cx-accent); background: var(--cx-accent-soft); }
 
-.cx-home-projects .cx-section-title { margin-top: 0; }
+.cx-home-projects-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: .85rem; }
+.cx-home-projects .cx-section-title { margin: 0; }
+.cx-home-projects-count { margin-left: .5rem; color: var(--cx-text-2); font-size: .875rem; font-weight: 400; }
+.cx-new-project { display: inline-flex; align-items: center; gap: .4rem; padding: .5rem .9rem; border: 1px solid var(--cx-line); border-radius: 6px; background: var(--cx-surface); color: var(--cx-text); font: 500 .8125rem/1 var(--cx-font-body); text-decoration: none; }
+.cx-new-project:hover { border-color: var(--cx-line-strong); background: var(--cx-surface-3); }
 /* One uniform grid: every cell the same size, so every card is the same height in its row. */
 .cx-project-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 0; padding: 0; list-style: none; }
 .cx-project-cell { display: grid; min-width: 0; }
 
-.cx-project-card { display: grid; grid-template-rows: 1fr auto; min-width: 0; height: 100%; overflow: hidden; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-surface); color: var(--cx-text); text-decoration: none; transition: transform .2s var(--cx-ease-arrive), box-shadow .2s, border-color .2s; }
+.cx-project-card { display: grid; grid-template-rows: 136px auto; min-width: 0; height: 100%; overflow: hidden; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-surface); color: var(--cx-text); text-decoration: none; transition: transform .2s var(--cx-ease-arrive), box-shadow .2s, border-color .2s; }
 a.cx-project-card:hover { transform: translateY(-2px); border-color: var(--cx-line-strong); box-shadow: 0 .6rem 1.6rem rgb(0 0 0 / .08); }
 a.cx-project-card:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 3px; }
 
-.cx-thumb { position: relative; min-height: 9rem; aspect-ratio: 16 / 10; overflow: hidden; border-bottom: 1px solid var(--cx-line); background: var(--cx-surface-3); }
+.cx-thumb { position: relative; height: 136px; overflow: hidden; border-bottom: 1px solid var(--cx-line); background: var(--cx-surface-3); }
 .cx-thumb-placeholder { position: absolute; inset: 0; display: grid; place-items: center; background: repeating-linear-gradient(135deg, transparent 0 14px, color-mix(in srgb, var(--cx-line) 45%, transparent) 14px 15px), var(--cx-surface-3); transition: opacity .3s; }
 .cx-thumb-placeholder .cx-mark { opacity: .7; }
 /* The live Preview renders at desktop width and is scaled down; it never takes focus or clicks. */
