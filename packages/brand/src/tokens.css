@@ -36,6 +36,12 @@
   --cx-font-mono: "JetBrains Mono", ui-monospace, monospace;
   --cx-ease-fit: cubic-bezier(.65, 0, .35, 1);
   --cx-ease-arrive: cubic-bezier(.22, 1, .36, 1);
+  /* The one radius scale for the app: controls, real objects (windows, popovers, cards), and the
+     composer, which is rounder than either. App regions and panes (top bar, sidebar, panes) take
+     no radius at all and stay at the implicit 0. */
+  --cx-radius-control: 6px;
+  --cx-radius-object: 10px;
+  --cx-radius-composer: 16px;
 }
 
 :root {

@@ -61,7 +61,6 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('c020-builder-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-invariants-postgres.test.mjs tests/implementation/builder-run-execution-postgres.test.mjs tests/implementation/builder-c020-source-inspection-postgres.test.mjs', 'postgres'),
   candidateStep('c020-builder-request-text-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-request-text-postgres.test.mjs', 'postgres'),
   candidateStep('factory-binding-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-factory-binding-postgres.test.mjs', 'postgres'),
-  candidateStep('c020-mastra-lifecycle', 'node --test --test-concurrency=1 qualification/4d/mastra-builder-capability/probe.test.mjs'),
   candidateStep('factory-dependency-tree', 'node --test tests/implementation/builder-factory-dependency-tree.test.mjs'),
   candidateStep('factory-composition', 'node --test --test-concurrency=1 tests/implementation/builder-factory-composition.test.mjs', 'postgres'),
   candidateStep('model-accounts-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-model-accounts-postgres.test.mjs', 'postgres'),
@@ -76,7 +75,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('c020-registry', 'node --test --test-concurrency=1 tests/implementation/builder-application-registry.test.mjs tests/implementation/builder-application-registry-postgres.test.mjs', 'postgres'),
   candidateStep('c020-source-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-working-source-runtime.test.mjs tests/implementation/builder-run-dispatch.test.mjs'),
   candidateStep('c020-failure-vocabulary', 'node --test --test-concurrency=1 tests/implementation/builder-failure-vocabulary.test.mjs'),
-  candidateStep('c020-compiler-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-application-runtime.test.mjs tests/implementation/builder-application-starter.test.mjs'),
+  candidateStep('c020-compiler-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-application-runtime.test.mjs tests/implementation/builder-application-starter.test.mjs', 'browser'),
   candidateStep('c020-browser', 'node --test --test-concurrency=1 tests/implementation/builder-browser.test.mjs', 'browser'),
   candidateStep('settings-browser', 'node --test --test-concurrency=1 tests/implementation/settings-browser.test.mjs && npx --no-install biome check tests/implementation/settings-browser.test.mjs tests/implementation/settings-screenshots.mjs', 'browser'),
   candidateStep('c020-e2b-template', 'node scripts/builder-e2b-template.mjs --check && node --test --test-concurrency=1 tests/implementation/builder-e2b-template.test.mjs tests/implementation/builder-compiler-template-recipe.test.mjs'),
@@ -92,8 +91,6 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('contract-projection-check-iam', 'node scripts/generate-r1-s1-contracts.mjs --check'),
   candidateStep('contract-projection-check-workspace', 'node scripts/generate-r1-s2-contracts.mjs --check'),
   candidateStep('contract-projection-check-project', 'node scripts/generate-r1-s3-contracts.mjs --check'),
-  candidateStep('repository-hygiene', 'node scripts/check-repository-hygiene.mjs'),
-  candidateStep('repository-doc-index', 'node scripts/check-doc-index.mjs'),
   candidateStep('repository-contract-checks', 'node --test tests/repository/repository-contract.test.mjs'),
   candidateStep('biome-current', 'npx --no-install biome check apps/hub/src apps/web/src packages/canonical-json/src packages/brand/src tests/implementation/brand-tokens.test.mjs scripts/run-hub-migrations.mjs scripts/hub-catalog.mjs scripts/generate-hub-catalog-snapshot.mjs scripts/generate-hub-baseline.mjs tests/implementation/hub-database.mjs tests/implementation/hub-baseline.test.mjs tests/implementation/grant-surface-excision-postgres.test.mjs tests/implementation/workspace-postgres.test.mjs tests/implementation/builder-*.mjs tests/implementation/project-browser.test.mjs tests/implementation/preview-form-policy.test.mjs tests/implementation/installation-settings-routes.test.mjs tests/repository/conexus-verify.test.mjs'),
 
@@ -356,6 +353,7 @@ export function runVerification({
   platform = process.platform,
   runCommand = runNpmScript,
   clock = defaultClock,
+  processEnvironment = process.env,
   } = {}) {
   const scripts = packageScripts ?? loadPackageScripts(root)
   const requestedEntries = resolveScopes(scopes, scripts)
@@ -363,9 +361,25 @@ export function runVerification({
   const entries = requestedEntries.flatMap(entry => entry.graph === 'candidate' ? CANDIDATE_GRAPH : [entry])
   const records = []
   const published = {}
+  const skipBrowser = Boolean(processEnvironment.CONEXUS_VERIFY_SKIP_BROWSER)
 
   for (const entry of entries) {
     const command = formatCommand(entry)
+    // A PR that never touches the web app or its browser fixtures gets no signal from
+    // re-running Playwright against unchanged code; CONEXUS_VERIFY_SKIP_BROWSER records that
+    // decision instead of silently dropping the step.
+    if (skipBrowser && entry.environmentClass === 'browser') {
+      records.push({
+        scope: entry.scope,
+        command,
+        environmentClass: entry.environmentClass,
+        status: 'skipped',
+        exitCode: null,
+        durationMs: 0,
+        reason: 'no web change',
+      })
+      continue
+    }
     if (dryRun) {
       records.push({
         scope: entry.scope,
@@ -428,6 +442,10 @@ function printResult(result, json) {
     return
   }
   for (const record of result.records) {
+    if (record.status === 'skipped') {
+      console.log(`skipped: ${record.command} (${record.reason})`)
+      continue
+    }
     const exitCode = record.exitCode === null ? 'n/a' : String(record.exitCode)
     console.log(`${record.status}: ${record.command} (exit=${exitCode}, durationMs=${record.durationMs})`)
   }

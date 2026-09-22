@@ -37,6 +37,7 @@ owns status and the next action. Start there.
 | Database roles and their capabilities | [Role register](reference/hub-database-roles.md) |
 | Security and authority | [Security reference](reference/security-and-authority.md) |
 | Which side owns a concept Conexus and the Factory share | [Single-owner map](reference/single-owner-map.md) |
+| Which Mastra API Conexus uses where it once reached past Mastra | [Mastra boundary](reference/mastra-boundary.md) |
 | Frontend surfaces | [Frontend reference](reference/frontend-and-product-surfaces.md) |
 | Exact Mastra lookup | [Mastra reference](reference/mastra/index.md) and the repository Mastra skill |
 
