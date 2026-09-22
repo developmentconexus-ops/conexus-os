@@ -15,6 +15,13 @@ export type ModelAccountRow = Readonly<{
   state: ModelAccountState
 }>
 
+// Google AI Pro connects through its own card (a Google sign-in on the Hub's CLIProxyAPI), so the
+// generic connect flow and the own-accounts list leave it to that card.
+const OWN_CARD_PROVIDERS: ReadonlySet<string> = new Set(['google-ai-pro'])
+
+export const connectableProviders = (providers: readonly ModelProvider[]): ModelProvider[] =>
+  providers.filter((provider) => !OWN_CARD_PROVIDERS.has(provider.provider))
+
 export const toRows = (providers: readonly ModelProvider[]): ModelAccountRow[] =>
   providers.map((provider) => {
     const own = provider.userCredential ?? null
@@ -29,7 +36,7 @@ export const toRows = (providers: readonly ModelProvider[]): ModelAccountRow[] =
   })
 
 export const ownRows = (providers: readonly ModelProvider[]): ModelAccountRow[] =>
-  toRows(providers).filter((row) => row.own !== null)
+  toRows(connectableProviders(providers)).filter((row) => row.own !== null)
 
 export const sharedRows = (providers: readonly ModelProvider[]): ModelAccountRow[] =>
   toRows(providers).filter((row) => row.shared !== null)

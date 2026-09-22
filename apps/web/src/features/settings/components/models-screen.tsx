@@ -3,17 +3,14 @@ import { Link } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { listModelAccounts, type ModelAccounts, modelAccountsQueryKey } from '../model-accounts-api'
-import { ownRows, sharedRows } from '../model-account-rows'
+import { connectableProviders, ownRows, sharedRows } from '../model-account-rows'
 import { ConnectAccount } from './connect-account'
+import { GoogleAiProAccount } from './google-ai-pro-account'
 import { MyDefaultsSection } from './my-defaults-section'
 import { OwnAccountRow, SharedAccountRow } from './model-account-row'
 import { PageHeader } from './page-header'
 import { ReconnectAccount } from './reconnect-account'
 import { SectionEmpty, SectionError, SectionLoading, StatusLine } from './states'
-
-// Each card below is a standalone component reading its own data; the page body (bottom of this
-// file) is a flat list of them, so a new card (the Google AI Pro connection, PR #157) mounts as
-// one added line, not a rewrite of this screen.
 
 function OwnAccountsCard({ connecting, setConnecting, reconnecting, setReconnecting, refresh }: Readonly<{
   connecting: boolean
@@ -47,7 +44,7 @@ function OwnAccountsBody({ data, connecting, setConnecting, reconnecting, setRec
       : <ul className="cxs-list">{own.map((row) => <OwnAccountRow key={row.provider} row={row} onReconnect={setReconnecting} />)}</ul>}
     {reconnecting && <ReconnectAccount provider={reconnecting} onDone={() => { setReconnecting(null); refresh() }} />}
     {connecting || own.length === 0
-      ? <ConnectAccount providers={data.providers} onConnected={() => { setNotice('Conta conectada.'); setConnecting(false); refresh() }} />
+      ? <ConnectAccount providers={connectableProviders(data.providers)} onConnected={() => { setNotice('Conta conectada.'); setConnecting(false); refresh() }} />
       : <Button type="button" variant="primary" onClick={() => { setNotice(null); setConnecting(true) }}>Conectar conta</Button>}
     {notice && <StatusLine>{notice}</StatusLine>}
   </>
@@ -84,7 +81,7 @@ export function ModelsScreen({ administrator }: Readonly<{ administrator: boolea
     <PageHeader title="Minhas contas de modelo" lead="Cada pessoa usa a própria conta. Uma conta compartilhada pela instalação atende quem não conectou a sua." />
     <OwnAccountsCard connecting={connecting} setConnecting={setConnecting} reconnecting={reconnecting} setReconnecting={setReconnecting} refresh={refresh} />
     <SharedAccountsCard administrator={administrator} />
-    {/* PR #157 mounts its Google AI Pro connection card here, as one more line. */}
+    <GoogleAiProAccount />
     <MyDefaultsCard />
   </main>
 }

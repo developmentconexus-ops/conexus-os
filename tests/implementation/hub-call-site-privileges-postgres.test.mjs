@@ -98,6 +98,7 @@ const ROLE_BY_CALL_SITE = Object.freeze({
   }),
   'project/store.ts': Object.freeze({
     'project.list_project_summaries': 'hub_project_read',
+    'project.list_project_summaries_with_activity': 'hub_project_read',
     'project.get_project': 'hub_project_read',
     'project.reserve_or_replay_create_project': 'hub_project_command',
     'project.lock_create_project_receipt': 'hub_project_command',

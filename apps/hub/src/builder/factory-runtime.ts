@@ -4,11 +4,12 @@ import { applyStoredMemorySettings } from '@mastra/factory/session/memory-settin
 import { repoDirUnder } from '@mastra/factory/sandbox/workdir'
 import { primeTenantCredentials } from '@mastra/factory/routes/tenant-credentials'
 import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/credentials/base'
+import type { CustomProvidersStorage } from '@mastra/factory/storage/domains/custom-providers/base'
 import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import { buildApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { CompiledApplication } from './application-artifact-runtime.js'
 import { APPLICATION_CHECK_INSTRUCTION, BUILDER_SHARED_AGENT_INSTRUCTIONS, commandEvidence, materializeApplicationCheck, materializeFixedApplicationStarter } from './application-starter.js'
-import { ConexusFactoryE2BSandbox, FACTORY_OPERATOR_ID, FACTORY_WORKING_DIRECTORY, HUB_GIT_ROOT, tokenEnvironment } from './factory.js'
+import { ConexusFactoryE2BSandbox, customProvidersPrimer, FACTORY_OPERATOR_ID, FACTORY_WORKING_DIRECTORY, HUB_GIT_ROOT, tokenEnvironment } from './factory.js'
 import type { FactoryComposition } from './factory.js'
 import type { GithubApp } from './factory-github.js'
 import { conversationBranch } from './factory-routes.js'
@@ -311,6 +312,7 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
   const tools = deniedTools(composition.github, orgId)
   const memorySettings = composition.storage.getDomain<MemorySettingsStorage>('memory-settings')
   const credentials = composition.storage.getDomain<ModelCredentialsStorage>('model-credentials')
+  const primeCustomProviders = customProvidersPrimer(composition.storage.getDomain<CustomProvidersStorage>('custom-providers'))
   return Object.freeze({
     resolveRepository: async (binding: FactoryBindingRecord) => {
       const sourceControl = composition.github.sourceControlStorage
@@ -370,9 +372,9 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
             if (event.type === 'agent_end') endedAt = new Date()
             if (event.type === 'message_end' && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
           })
-          // The model gateway reads a credential synchronously from the person's snapshot, which only
-          // an awaited hydration fills.
-          await primeTenantCredentials({ tenant: { orgId, userId: accountId }, credentials })
+          // The model gateway reads a credential and a custom provider synchronously from snapshots,
+          // which only an awaited hydration fills.
+          await Promise.all([primeTenantCredentials({ tenant: { orgId, userId: accountId }, credentials }), primeCustomProviders()])
           const abort = (): void => { session.abort() }
           if (signal?.aborted) abort()
           else signal?.addEventListener('abort', abort, { once: true })

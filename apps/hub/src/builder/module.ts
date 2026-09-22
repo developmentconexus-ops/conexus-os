@@ -15,7 +15,7 @@ import { createBuilderService } from './service.js'
 import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderStore } from './store.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
-import type { FactoryRuntimeConfig } from '../platform/config.js'
+import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig } from '../platform/config.js'
 import { assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox } from './factory.js'
 import type { FactoryComposition } from './factory.js'
 import { createGithubApp } from './factory-github.js'
@@ -24,7 +24,10 @@ import { openFactoryRecords, prepareFactoryRepository } from './factory-provisio
 import type { FactoryBinding } from './factory-provisioning.js'
 import { createFactoryCodingWorkerRuntime, createMastraFactoryRunPorts, recoverFactoryAdmissions } from './factory-runtime.js'
 import { createFactorySourceReads } from './factory-source.js'
+import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
+import { startModelRouter } from './google-ai-pro/router.js'
 import { applyModelDefaults, registerModelAccountRoutes } from './model-accounts.js'
+import { createProjectRepositoryPort, registerProjectRepositoryRoutes } from './repository-routes.js'
 import type { FactoryRunDependencies, RunNote } from './service.js'
 import type { BuilderStore } from './store.js'
 
@@ -126,11 +129,27 @@ const createBuilderObservability = (serviceName: string): Observability => new O
   },
 })
 
+// Kills what a crashed Hub left running before the router takes calls.
+const startGoogleAiPro = async ({ binary, sha256 }: GoogleAiProRuntimeConfig) => {
+  await verifyCliproxyBinary(binary, sha256)
+  const pool = createCliproxyPool({ binary, stateDir: defaultCliproxyStateDir() })
+  await pool.sweepOrphans()
+  const router = await startModelRouter(pool)
+  return Object.freeze({
+    pool,
+    url: router.url,
+    close: async () => {
+      try { await router.close() } finally { await pool.close() }
+    },
+  })
+}
+
 // The Factory's Mastra is the Hub's only one: it holds every conversation, its model selection and
 // the Builder's traces.
-const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTemplateId, origin }: Readonly<{
+const startFactoryComposition = ({ database, factory, googleAiPro: googleAiProConfig, store, e2bApiKey, e2bTemplateId, origin }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   factory: FactoryRuntimeConfig
+  googleAiPro: GoogleAiProRuntimeConfig | undefined
   store: BuilderStore
   e2bApiKey: string
   e2bTemplateId: string
@@ -161,10 +180,13 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
     }
     throw new Error('BUILDER_FACTORY_UNAVAILABLE')
   }
-  const ready = composeFactory({
+  const googleAiPro = googleAiProConfig ? startGoogleAiPro(googleAiProConfig) : Promise.resolve(undefined)
+  googleAiPro.catch(() => undefined)
+  const ready: Promise<FactoryComposition> = googleAiPro.then((started) => composeFactory({
     pool, github, stateSecret, secretKey, publicUrl: origin, observability,
     sandbox: createFactorySandbox({ apiKey: e2bApiKey, templateId: e2bTemplateId, readCheckout }),
-  })
+    ...(started ? { googleAiProUrl: started.url } : {}),
+  }))
   ready.catch(() => undefined)
   const appendDiagnostic = createFactoryDiagnosticAppender(ready)
   const portsReady = ready.then((composition) => createMastraFactoryRunPorts({
@@ -177,6 +199,11 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
   records.catch(() => undefined)
   const prepareRepository = async ({ projectId, projectName }: Readonly<{ projectId: string; projectName: string }>): Promise<FactoryBinding> =>
     prepareFactoryRepository({ github: githubApp, records: await records, orgId: factory.orgId, projectId, projectName })
+  const repository = createProjectRepositoryPort({
+    readFactoryBinding: store.readFactoryBinding,
+    resolveRepository: (binding) => portsReady.then((ports) => ports.resolveRepository(binding)),
+    github: githubApp,
+  })
   const run: FactoryRunDependencies = Object.freeze({
     runtime: { execute: async (input) => (await runtime).execute(input) },
     readBindingForRun: store.readFactoryBindingForRun,
@@ -194,8 +221,10 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
     orgId: factory.orgId,
     ready,
     portsReady,
+    googleAiPro,
     run,
     prepareRepository,
+    repository,
     githubApp,
     githubAppSlug: factory.githubAppSlug,
     records,
@@ -204,19 +233,21 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
       try {
         await ready.then((composition) => composition.close(), () => pool.end())
       } finally {
+        await googleAiPro.then((started) => started?.close(), () => undefined)
         await observabilityLifecycle.close()
       }
     },
   })
 }
 
-export const createConfiguredBuilderModule = ({ database, builder, factory, applicationArtifacts, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, factory, googleAiPro, applicationArtifacts, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
     e2bTemplateId: string
   }>
   factory: FactoryRuntimeConfig
+  googleAiPro?: GoogleAiProRuntimeConfig
   applicationArtifacts: UnboundBuilderApplicationArtifacts
   launchPreview?: BuilderLaunchPreviewPort
   origin: string
@@ -236,7 +267,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, appl
     ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(executorPool, input) } : {}),
   })
   const factoryComposition = startFactoryComposition({
-    database, factory, store, e2bApiKey: readSecretFile(builder.e2bApiKeyFile), e2bTemplateId: builder.e2bTemplateId, origin,
+    database, factory, googleAiPro, store, e2bApiKey: readSecretFile(builder.e2bApiKeyFile), e2bTemplateId: builder.e2bTemplateId, origin,
   })
   const service = createBuilderService({ store, applicationArtifacts: boundApplicationArtifacts, factory: factoryComposition.run })
   const session: BuilderSessionPort = Object.freeze({
@@ -278,6 +309,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, appl
     registerBuilderRoutes: async (app: FastifyInstance) => {
       const builderOperations = await registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) })
       const composition = await factoryComposition.ready
+      const googleAiProPool = (await factoryComposition.googleAiPro)?.pool
       const sessions = composition.github.sourceControlStorage.sessions
       const modelPacks = composition.storage.getDomain<ModelPacksStorage>('model-packs')
       await registerModelAccountRoutes(app, {
@@ -291,6 +323,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, appl
         origin,
         resolveCurrentSession,
         isInstallationAdministrator,
+        ...(googleAiProPool ? { googleAiPro: googleAiProPool } : {}),
       })
       await registerInstallationGithubRoutes(app, {
         origin,
@@ -310,7 +343,11 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, appl
         resolveCurrentSession,
         admitConversation: admitFactoryConversation({ sessions, resolveFactoryProject: store.resolveFactoryProject }),
       })
-      return [...builderOperations, ...await registerFactoryConversationRoutes(app, {
+      const repositoryOperations = await registerProjectRepositoryRoutes(app, {
+        repository: factoryComposition.repository,
+        resolveCurrentSession,
+      })
+      return [...builderOperations, ...repositoryOperations, ...await registerFactoryConversationRoutes(app, {
         readFactoryBinding: store.readFactoryBinding, sessions, orgId: factoryComposition.orgId, origin, resolveCurrentSession,
         defaultBranchOf: async (binding) => (await (await factoryComposition.portsReady).resolveRepository(binding)).defaultBranch,
         openThread: openFactoryConversationThread({ controller: composition.controller, orgId: factoryComposition.orgId, applyDefaults: applyModelDefaults({ modelPacks, orgId: factoryComposition.orgId }) }),

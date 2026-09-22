@@ -4,6 +4,7 @@ const providerNames: Readonly<Record<string, string>> = {
   openai: 'OpenAI (ChatGPT)',
   'openai-codex': 'OpenAI (ChatGPT)',
   google: 'Google (Gemini)',
+  'google-ai-pro': 'Google AI Pro',
   xai: 'xAI (Grok)',
   'github-copilot': 'GitHub Copilot',
   groq: 'Groq',

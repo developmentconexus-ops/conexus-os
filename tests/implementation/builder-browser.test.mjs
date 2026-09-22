@@ -36,7 +36,7 @@ const routeFactory = async (page, projectId, state) => {
     state.conversations = [created, ...state.conversations]
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ conversation: created }) })
   })
-  await page.route(`${FACTORY_CONTROLLER}/models`, (route) =>
+  await page.route('**/api/control/model-accounts/models', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
   await page.route(`${FACTORY_CONTROLLER}/sessions/*`, (route) => {
     const id = threadIdOf(route.request().url(), -1)
@@ -240,8 +240,11 @@ test('new Project lands directly in Build and can send its first Builder message
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
   await page.goto(`${origin}/workspaces/${workspaceId}/projects/new`)
-  await page.getByLabel('Nome do Project').fill('New Counter')
-  await page.getByRole('button', { name: 'Criar Project' }).click()
+  await page.getByLabel('Nome do Projeto').fill('New Counter')
+  await page.getByRole('button', { name: 'Criar Projeto' }).click()
+  // Creation opens /projects/:p, which the Construir screen owns; this test drives Build itself.
+  await page.waitForURL(`${origin}/projects/${projectId}`)
+  await page.goto(`${origin}/projects/${projectId}/build`)
   await page.getByRole('heading', { name: 'Converse com o Conexus' }).waitFor()
   await page.getByLabel('O que o Project precisa fazer?').fill('Crie um contador')
   await page.getByRole('button', { name: 'Enviar mensagem' }).click()
@@ -848,7 +851,7 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
     run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', mode: body.mode, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
-  await page.route(`${FACTORY_CONTROLLER}/models`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
+  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
   await page.route(`${FACTORY_CONTROLLER}/sessions/*`, (route) => {
     const id = threadIdOf(route.request().url(), -1)
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: models[id] ?? '', modeId: 'build', threadId: id }) })

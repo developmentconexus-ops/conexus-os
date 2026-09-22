@@ -5,7 +5,6 @@ import { chromium } from '@playwright/test'
 import { createServer } from 'vite'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
-const FACTORY_CONTROLLER = '**/api/mastra-factory/agent-controller/code'
 const BUILDER_MODELS = [
   { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true, useCount: 0 },
   { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', modelName: 'claude-sonnet-4-5', hasApiKey: true, useCount: 0 },
@@ -25,6 +24,8 @@ const withServer = async (t) => {
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1200, height: 900 } })
+  // This Hub runs no CLIProxyAPI unless a test says otherwise.
+  await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => route.fulfill({ status: 404 }))
   return { page, origin }
 }
 
@@ -34,7 +35,7 @@ const routeAccessContext = (page, account) =>
   }))
 
 const routeBuilderModels = (page) =>
-  page.route(`${FACTORY_CONTROLLER}/models`, (route) =>
+  page.route('**/api/control/model-accounts/models', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
 
 const routeInstallation = (page, administrator) =>
@@ -190,4 +191,67 @@ test('Administradores refuses to revoke the last administrator and to grant an u
   await page.getByLabel('E-mail').fill('ninguem@example.com')
   await page.getByRole('button', { name: 'Tornar administrador' }).click()
   await page.getByText('Nenhuma conta ativa usa este e-mail. A pessoa precisa entrar no Conexus uma vez antes.').waitFor()
+})
+
+test('Minhas contas de modelo signs a person in to Google AI Pro through a pasted Google address, and hides the card where the Hub runs no CLIProxyAPI', async (t) => {
+  const { page, origin } = await withServer(t)
+  const loginId = '0f0f0f0f-0000-4000-8000-000000000001'
+  const signIn = 'https://accounts.google.com/o/oauth2/v2/auth?state=issued-state'
+  let connected = false
+  let enabled = true
+  const writes = []
+  await routeAccessContext(page, { accountId: 'a9', displayName: 'Pessoa', email: 'pessoa@example.com' })
+  await routeInstallation(page, false)
+  await routeBuilderModels(page)
+  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ providers: [{ provider: 'google-ai-pro', source: 'none' }, { provider: 'google', source: 'none' }], orgKeyAdmin: false }),
+  }))
+  await page.route('**/api/control/model-defaults', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
+  await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
+    const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
+    if (!enabled) return json(404, { type: 'not-found' })
+    writes.push([request.method(), path, 'x-conexus-csrf' in request.headers(), request.postDataJSON?.() ?? null])
+    if (path === '/connection') return json(200, { mine: connected, shared: false, administrator: false })
+    if (path === '/login/start') return json(200, { loginId, url: signIn })
+    if (path === '/login/complete') {
+      if (!request.postDataJSON().callbackUrl.includes('state=issued-state')) return json(400, { type: 'model-login-callback-refused' })
+      connected = true
+      return json(200, { state: 'succeeded' })
+    }
+    if (path === `/login/${loginId}`) return json(200, { state: 'waiting' })
+    return json(404, {})
+  })
+
+  await page.goto(`${origin}/settings/models`)
+  await page.getByRole('heading', { name: 'Google AI Pro' }).waitFor()
+  const generic = page.getByRole('region', { name: 'Conectar uma conta' })
+  await generic.getByRole('button', { name: 'Google (Gemini)' }).waitFor()
+  assert.equal(await generic.getByRole('button', { name: 'Google AI Pro' }).count(), 0)
+
+  await page.getByRole('button', { name: 'Conectar com o Google' }).click()
+  assert.equal(await page.getByRole('link', { name: 'Abrir a entrada do Google' }).getAttribute('href'), signIn)
+  const pasted = page.getByLabel('Endereço da aba que não abriu')
+  await pasted.fill('http://localhost:51121/oauth-callback?state=other&code=x')
+  await page.getByRole('button', { name: 'Concluir' }).click()
+  await page.getByText('Esse endereço não é o da entrada do Google iniciada aqui.').waitFor()
+  await pasted.fill('http://localhost:51121/oauth-callback?state=issued-state&code=good')
+  await page.getByRole('button', { name: 'Concluir' }).click()
+  await page.getByText('Google AI Pro conectado.').waitFor()
+  await page.getByText('Conectado com a sua conta Google.').waitFor()
+  assert.deepEqual(writes.filter(([method]) => method === 'POST'), [
+    ['POST', '/login/start', true, {}],
+    ['POST', '/login/complete', true, { loginId, callbackUrl: 'http://localhost:51121/oauth-callback?state=other&code=x' }],
+    ['POST', '/login/complete', true, { loginId, callbackUrl: 'http://localhost:51121/oauth-callback?state=issued-state&code=good' }],
+  ])
+  await page.getByRole('button', { name: 'Desconectar' }).waitFor()
+
+  enabled = false
+  await page.reload()
+  await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
+  await page.getByRole('heading', { name: 'Meus padrões' }).waitFor()
+  assert.equal(await page.getByRole('heading', { name: 'Google AI Pro' }).count(), 0)
 })

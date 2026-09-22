@@ -1,0 +1,8 @@
+.cx-entry { display: grid; place-items: center; width: auto; min-height: 100dvh; margin: 0; padding: 1.5rem 1rem; background: var(--cx-canvas); }
+.cx-entry-column { display: grid; justify-items: start; gap: 1rem; width: min(26rem, 100%); }
+.cx-entry-column h1 { margin: 1.25rem 0 0; font: 600 1.75rem/1.2 var(--cx-font-display); letter-spacing: -0.02em; }
+.cx-entry-column p { margin: 0; color: var(--cx-text-2); line-height: 1.55; }
+.cx-entry-column form { display: grid; gap: 1rem; width: 100%; margin: .5rem 0 0; }
+.cx-entry-column .cx-form-actions > * { flex: 1 1 auto; }
+.cx-entry-list { display: grid; gap: .5rem; margin: 0; padding-left: 1.1rem; color: var(--cx-text-2); line-height: 1.5; }
+.cx-entry-wait { display: grid; justify-items: center; gap: .9rem; color: var(--cx-text-2); font-size: .9rem; }

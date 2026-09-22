@@ -5,7 +5,6 @@ import { createServer } from 'vite'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const outDir = resolve(repositoryRoot, 'docs/evidence/screens/feat-screens-settings')
-const FACTORY_CONTROLLER = '**/api/mastra-factory/agent-controller/code'
 const BUILDER_MODELS = [
   { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true, useCount: 0 },
   { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', modelName: 'claude-sonnet-4-5', hasApiKey: true, useCount: 0 },
@@ -23,8 +22,11 @@ async function mockRoutes(page) {
     body: JSON.stringify({ account: { accountId: 'shot-1', displayName: 'Ana Beatriz Cardoso', email: 'ana.cardoso@example.com' }, workspaces: [{ workspaceId: 'w1', name: 'Operações' }], projects: [] }),
   }))
   await page.route('**/api/control/installation', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: true }) }))
-  await page.route(`${FACTORY_CONTROLLER}/models`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
+  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: true }) }))
+  await page.route('**/api/control/model-accounts/google-ai-pro/connection', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ mine: true, shared: false, administrator: true }),
+  }))
   await page.route('**/api/control/model-accounts/*/oauth/start', (route) => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ sessionId: 'shot-session', kind: 'device-code', url: 'https://provider.example/device', userCode: 'WXYZ-7890', nextPollMs: 60000 }),

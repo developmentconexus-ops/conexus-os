@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { basename } from 'node:path'
 import { FactoryProjectsStorage } from '@mastra/factory'
 import { getAuthProviderId } from '@mastra/factory/routes/provider-credentials'
 import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/credentials/base'
@@ -9,6 +10,7 @@ import { APPLICATION_CHECK_FILES, APPLICATION_CHECK_SETUP_COMMAND, FIXED_APPLICA
 import type { PostgresPool } from '../platform/postgres.js'
 import { FACTORY_INTEGRATION_ID, FACTORY_OPERATOR_ID, FACTORY_WORKING_DIRECTORY } from './factory.js'
 import { type GithubApp, GithubRequestError, type GithubRepository } from './factory-github.js'
+import { encodeKey, GOOGLE_AI_PRO_PROVIDER, type GoogleAiProKey, isAuthFileName, parseKey, seedGoogleAiProMemory } from './google-ai-pro/credential.js'
 
 export type FactoryRecords = Readonly<{
   sourceControl: ReturnType<SourceControlStorage['forIntegration']>
@@ -108,6 +110,35 @@ export const importHostCredential = async ({ credentials, orgId, provider, accou
   if (!credential) throw new Error(`FACTORY_HOST_CREDENTIAL_MISSING:${provider}`)
   await credentials.setCredential(accountId === null ? { orgId } : { orgId, userId: accountId }, storedAs, credential)
   write(`FACTORY_HOST_CREDENTIAL_IMPORTED=${storedAs}:${credential.type}:${accountId ?? 'shared'}`)
+}
+
+/**
+ * Stores a CLIProxyAPI Antigravity auth file as a Google AI Pro credential, the row the Settings
+ * sign-in writes, for when nobody can sign in through a browser. A person's row also gets the
+ * sign-in's memory seed. Rerunning replaces the row. The credential is never printed.
+ */
+export const importGoogleAiProLogin = async ({ credentials, memorySettings, orgId, accountId, authFile, write }: Readonly<{
+  credentials: Pick<ModelCredentialsStorage, 'setCredential'>
+  memorySettings: Pick<MemorySettingsStorage, 'ensureReady' | 'patch'>
+  orgId: string
+  // null is the installation's shared row.
+  accountId: string | null
+  authFile: string
+  write(line: string): void
+}>): Promise<void> => {
+  if (accountId !== null && !ACCOUNT_ID.test(accountId)) throw new Error('GOOGLE_AI_PRO_LOGIN_ACCOUNT_REFUSED')
+  const fileName = basename(authFile)
+  if (!isAuthFileName(fileName)) throw new Error('GOOGLE_AI_PRO_LOGIN_FILE_REFUSED')
+  let key: GoogleAiProKey | null
+  try {
+    key = parseKey(encodeKey({ fileName, bytes: new Uint8Array(await readFile(authFile)) }))
+  } catch {
+    key = null
+  }
+  if (!key) throw new Error('GOOGLE_AI_PRO_LOGIN_UNREADABLE')
+  await credentials.setCredential(accountId === null ? { orgId } : { orgId, userId: accountId }, GOOGLE_AI_PRO_PROVIDER, { type: 'api_key', key })
+  if (accountId !== null) await seedGoogleAiProMemory(memorySettings, { orgId, userId: accountId })
+  write(`GOOGLE_AI_PRO_LOGIN_IMPORTED=${GOOGLE_AI_PRO_PROVIDER}:api_key:${accountId ?? 'shared'}`)
 }
 
 export type FactoryBinding = Readonly<{

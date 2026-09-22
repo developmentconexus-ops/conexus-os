@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process'
 //   node --env-file=<hub.env> scripts/hub-factory.mjs memory --model <provider/model>
 //   node --env-file=<hub.env> scripts/hub-factory.mjs provision --project <projectId> --name <projectName>
 //   node --env-file=<hub.env> scripts/hub-factory.mjs import-host-credential --provider <id> (--shared | --account-id <accountId>) [--auth-file <path>]
+//   node --env-file=<hub.env> scripts/hub-factory.mjs import-google-ai-pro-login --auth-file <antigravity-*.json> (--shared | --account-id <accountId>)
 const repositoryRoot = resolve(import.meta.dirname, '..')
 
 const buildRoot = await mkdtemp(join(repositoryRoot, 'apps/hub/.conexus-build-factory-'))

@@ -27,27 +27,22 @@
 label span { color: var(--cx-text-2); }
 .shell { display: flex; height: 100dvh; min-height: 0; background: var(--cx-canvas); }
 .shell-sidebar { border-right: 0; }
-.shell-lockup { display: flex; align-items: center; min-height: 3.25rem; padding: .5rem .75rem .25rem; }
 .shell-main { flex: 1; min-width: 0; }
-.shell-mobile-header { display: flex; align-items: center; gap: .5rem; padding: .5rem .75rem; }
-@media (min-width: 768px) { .shell-mobile-header { display: none; } }
-.brand { display: inline-flex; border-radius: .4rem; text-decoration: none; }
-.topbar { position: relative; display: flex; align-items: center; gap: 1rem; min-height: 3rem; padding: .35rem .75rem .35rem .5rem; border-bottom: 1px solid var(--cx-line); }
-.context-trail { min-width: 0; margin-right: auto; }
-.account > button { padding: .4rem .8rem; border: 1px solid var(--cx-line); border-radius: 999px; background: transparent; color: var(--cx-text); font-size: .875rem; font-weight: 500; }
-.account > button:hover { background: var(--cx-surface-3); }
-.account-menu { position: absolute; right: .75rem; top: calc(100% + .35rem); width: min(24rem, calc(100vw - 2rem)); padding: 1rem; background: var(--cx-surface); color: var(--cx-text); border: 1px solid var(--cx-line); border-radius: .75rem; box-shadow: 0 12px 32px rgb(0 0 0 / .14); display: grid; gap: .7rem; z-index: 20; }
-main { width: min(48rem, calc(100% - 2rem)); margin: clamp(3rem, 10vh, 7rem) auto; }
+/* Legacy element defaults stay beneath the component library's own styling, so a library input or
+   composer inside a form is not given a second border, padding or margin. */
+@layer base {
+  main { width: min(48rem, calc(100% - 2rem)); margin: clamp(3rem, 10vh, 7rem) auto; }
+  h1 { font-size: clamp(2rem, 7vw, 3.5rem); line-height: 1.05; margin: .5rem 0 1rem; }
+  form { display: grid; gap: .55rem; margin-top: 2rem; }
+  input { padding: .8rem; border: 1px solid var(--cx-line-strong); border-radius: .5rem; margin-bottom: .7rem; }
+  textarea { padding: .8rem; border: 1px solid var(--cx-line-strong); border-radius: .5rem; }
+  select { padding: .8rem; border: 1px solid var(--cx-line-strong); border-radius: .5rem; background: var(--cx-surface); }
+  fieldset { display: grid; gap: .6rem; border: 1px solid var(--cx-line); border-radius: .7rem; padding: 1rem; }
+  fieldset label { display: flex; align-items: center; gap: .6rem; }
+  fieldset input { margin: 0; }
+}
 .setup, .status { width: min(34rem, calc(100% - 2rem)); padding: clamp(1.5rem, 5vw, 3rem); background: var(--cx-surface); border: 1px solid var(--cx-line); border-radius: 1rem; }
 .eyebrow { color: var(--cx-text-2); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; font-size: .78rem; }
-h1 { font-size: clamp(2rem, 7vw, 3.5rem); line-height: 1.05; margin: .5rem 0 1rem; }
-form { display: grid; gap: .55rem; margin-top: 2rem; }
-input { padding: .8rem; border: 1px solid var(--cx-line-strong); border-radius: .5rem; margin-bottom: .7rem; }
-textarea { padding: .8rem; border: 1px solid var(--cx-line-strong); border-radius: .5rem; }
-select { padding: .8rem; border: 1px solid var(--cx-line-strong); border-radius: .5rem; background: var(--cx-surface); }
-fieldset { display: grid; gap: .6rem; border: 1px solid var(--cx-line); border-radius: .7rem; padding: 1rem; }
-fieldset label { display: flex; align-items: center; gap: .6rem; }
-fieldset input { margin: 0; }
 .empty { margin-top: 3rem; padding: 1.5rem; border: 1px dashed var(--cx-line-strong); border-radius: .8rem; background: var(--cx-surface); }
 .control-plane-page { padding-bottom: 4rem; }
 .builder-route { width: min(84rem, calc(100% - 2rem)); margin: 1rem auto; padding-bottom: 1rem; }

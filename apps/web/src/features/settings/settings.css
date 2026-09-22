@@ -42,6 +42,8 @@
 .cxs-loading-row { height: 3.2rem; border-radius: .6rem; }
 
 .cxs-status { margin: 0; color: var(--cx-success); font-size: .88rem; }
+.cxs-alert { margin: 0; color: var(--cx-danger); font-size: .88rem; }
+.cxs-actions-start { margin-left: 0; }
 
 .cxs-notice { margin: 0; }
 

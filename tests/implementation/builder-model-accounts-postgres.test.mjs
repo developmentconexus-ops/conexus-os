@@ -29,7 +29,7 @@ const bob = '22222222-2222-4222-8222-222222222222'
 const projectId = '33333333-3333-4333-8333-333333333333'
 const conversationId = '44444444-4444-4444-8444-444444444444'
 
-const composeOnPostgres = async (t) => {
+const composeOnPostgres = async (t, options = {}) => {
   const { admin, connection, onCleanup } = await createEmptyDatabase(t, 'conexus_model_accounts')
   const role = `factory_accounts_${randomUUID().replaceAll('-', '').slice(0, 12)}`
   const password = randomUUID()
@@ -53,13 +53,14 @@ const composeOnPostgres = async (t) => {
     secretKey: 'a1'.repeat(32),
     publicUrl: 'https://hub.test',
     sandbox: createFactorySandbox({ apiKey: 'unused', templateId: 'conexus:tpl' }),
+    ...options,
   })
   onCleanup(() => composition.close())
   return composition
 }
 
 // The rows a Project bound to a repository has, and the conversation a person opened on it.
-const openConversation = async (composition) => {
+const openConversation = async (composition, modelId = 'openai/gpt-5-mini') => {
   const records = await openFactoryRecords(composition.storage)
   const { sourceControl } = records
   const installation = await sourceControl.installations.upsert({ orgId: ORG, connectedByUserId: FACTORY_OPERATOR_ID, externalId: '163574754', accountName: 'acme-org', accountType: 'Organization', providerMetadata: {} })
@@ -71,7 +72,7 @@ const openConversation = async (composition) => {
   const requestContext = new RequestContext()
   requestContext.set('user', { id: alice, organizationId: ORG })
   const thread = await composition.controller.createSession({ resourceId: conversationId, ownerId: conversationId, threadId: conversationId, requestContext })
-  await thread.model.switch({ modelId: 'openai/gpt-5-mini' })
+  await thread.model.switch({ modelId })
   return link.id
 }
 
@@ -133,7 +134,7 @@ const { createHttpApp } = await import(built('http/app.js'))
 const { registerModelAccountRoutes, applyModelDefaults } = await import(built('builder/model-accounts.js'))
 const { openFactoryConversationThread } = await import(built('builder/factory-routes.js'))
 
-const openAccountsApp = async (t, composition, administrators) => {
+const openAccountsApp = async (t, composition, administrators, googleAiPro) => {
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
       await registerModelAccountRoutes(instance, {
@@ -150,6 +151,7 @@ const openAccountsApp = async (t, composition, administrators) => {
           return accountId ? { account: { accountId, displayName: accountId }, issuer: 'https://issuer.test', subject: accountId } : null
         },
         isInstallationAdministrator: async (accountId) => administrators.includes(accountId),
+        ...(googleAiPro ? { googleAiPro } : {}),
       })
       return []
     },
@@ -167,6 +169,122 @@ const openAccountsApp = async (t, composition, administrators) => {
   return { app, as }
 }
 
+test('a person signs in to Google AI Pro from Settings, and their runs then carry their own record to the router', async (t) => {
+  const { chmodSync, copyFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { createCliproxyPool } = await import(built('builder/google-ai-pro/pool.js'))
+  const { syncGoogleAiProProvider } = await import(built('builder/factory.js'))
+  const scratch = mkdtempSync(resolve(tmpdir(), 'conexus-google-ai-pro-'))
+  t.after(() => rmSync(scratch, { recursive: true, force: true }))
+  const binary = resolve(scratch, 'cli-proxy-api')
+  copyFileSync(resolve(import.meta.dirname, 'builder-google-ai-pro-fake-cliproxy.mjs'), binary)
+  chmodSync(binary, 0o755)
+  const pool = createCliproxyPool({ binary, stateDir: resolve(scratch, 'state') })
+  t.after(() => pool.close())
+
+  const router = 'http://127.0.0.1:59999'
+  const composition = await composeOnPostgres(t, { googleAiProUrl: router })
+  const catalog = async () => (await composition.controller.listAvailableModels()).filter((model) => model.provider === 'mastracode/google-ai-pro').map((model) => model.id)
+  assert.equal((await catalog()).includes('mastracode/google-ai-pro/gemini-3.1-pro-low'), true, 'the picker offers the provider right after boot')
+  await openConversation(composition, 'mastracode/google-ai-pro/gemini-3.1-pro-low')
+
+  const { as } = await openAccountsApp(t, composition, [], pool)
+  const asAlice = as(alice)
+  const connection = '/api/control/model-accounts/google-ai-pro/connection'
+  assert.deepEqual((await asAlice('GET', connection)).body, { mine: false, shared: false, administrator: false })
+  const offered = async (accountId) => (await as(accountId)('GET', '/api/control/model-accounts/models')).body.models
+    .filter((model) => model.provider === 'mastracode/google-ai-pro').map((model) => model.id)
+  assert.deepEqual(await offered(alice), [], 'a person without the connection is offered none of its models')
+  const { loginId, url } = (await asAlice('POST', '/api/control/model-accounts/google-ai-pro/login/start', {})).body
+  const callbackUrl = `http://localhost:51121/oauth-callback?state=${new URL(url).searchParams.get('state')}&code=good`
+  assert.equal((await asAlice('POST', '/api/control/model-accounts/google-ai-pro/login/complete', { loginId, callbackUrl })).status, 200)
+  let state = 'waiting'
+  for (let polls = 0; state === 'waiting' && polls < 100; polls++) state = (await asAlice('GET', `/api/control/model-accounts/google-ai-pro/login/${loginId}`)).body.state
+  assert.equal(state, 'succeeded')
+  assert.deepEqual((await asAlice('GET', connection)).body, { mine: true, shared: false, administrator: false })
+  assert.deepEqual((await as(bob)('GET', connection)).body, { mine: false, shared: false, administrator: false })
+  assert.deepEqual((await offered(alice)).sort(), [
+    'gemini-3-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-low', 'gemini-3.5-flash-lite',
+    'gemini-3.6-flash-high', 'gemini-3.7-flash-high', 'gemini-3.8-flash-high', 'gemini-pro-agent',
+  ].map((model) => `mastracode/google-ai-pro/${model}`).sort())
+  assert.deepEqual(await offered(bob), [])
+  const memory = await composition.storage.getDomain('memory-settings').get({ orgId: ORG, userId: alice })
+  assert.deepEqual([memory.observerModelId, memory.reflectorModelId], ['mastracode/google-ai-pro/gemini-3.5-flash-lite', 'mastracode/google-ai-pro/gemini-3.5-flash-lite'])
+  const stored = await composition.storage.getDomain('model-credentials').getCredential({ orgId: ORG, userId: alice }, 'google-ai-pro')
+  assert.equal(stored.type, 'api_key')
+
+  const seen = captureModelRequests(t)
+  const routed = () => seen.filter(({ url: requested }) => requested.startsWith(`${router}/v1/`)).map(({ authorization }) => authorization)
+  await runAs(composition, alice)
+  assert.deepEqual([...new Set(routed())], [`Bearer ${stored.key}`])
+
+  seen.length = 0
+  assert.equal(await runAs(composition, bob), 'BUILDER_MODEL_AUTH_FAILED')
+  assert.deepEqual(routed(), [])
+
+  await syncGoogleAiProProvider(composition.storage.getDomain('custom-providers'), undefined)
+  // A boot runs this before anything lists models; here the controller has cached a listing.
+  composition.controller.invalidateAvailableModelsCache()
+  assert.deepEqual(await catalog(), [], 'without a router the provider leaves the picker')
+})
+
+test('the operator imports a CLIProxyAPI Antigravity file as a person\'s or the shared Google AI Pro row, idempotently and without printing it', async (t) => {
+  const { writeFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { importGoogleAiProLogin } = await import(built('builder/factory-provisioning.js'))
+  const { decodeKey, parseKey } = await import(built('builder/google-ai-pro/credential.js'))
+  const composition = await composeOnPostgres(t)
+  const credentials = composition.storage.getDomain('model-credentials')
+  const memorySettings = composition.storage.getDomain('memory-settings')
+  const directory = mkdtempSync(resolve(tmpdir(), 'conexus-agy-import-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const record = { type: 'antigravity', email: 'person@example.com', refresh_token: 'refresh-secret-value', access_token: 'access-secret-value' }
+  const authFile = resolve(directory, 'antigravity-person@example.com.json')
+  writeFileSync(authFile, JSON.stringify(record))
+  const lines = []
+  const importAs = (accountId, file = authFile) => importGoogleAiProLogin({ credentials, memorySettings, orgId: ORG, accountId, authFile: file, write: (line) => lines.push(line) })
+
+  await importAs(alice)
+  await importAs(alice)
+  await importAs(null)
+  assert.deepEqual(lines, [
+    `GOOGLE_AI_PRO_LOGIN_IMPORTED=google-ai-pro:api_key:${alice}`,
+    `GOOGLE_AI_PRO_LOGIN_IMPORTED=google-ai-pro:api_key:${alice}`,
+    'GOOGLE_AI_PRO_LOGIN_IMPORTED=google-ai-pro:api_key:shared',
+  ])
+  for (const tenant of [{ orgId: ORG, userId: alice }, { orgId: ORG }]) {
+    const row = await credentials.getCredential(tenant, 'google-ai-pro')
+    assert.equal(row.type, 'api_key')
+    const stored = decodeKey(parseKey(row.key))
+    assert.equal(stored.fileName, 'antigravity-person@example.com.json')
+    assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), record)
+  }
+  const memory = await memorySettings.get({ orgId: ORG, userId: alice })
+  assert.deepEqual([memory.observerModelId, memory.reflectorModelId], ['mastracode/google-ai-pro/gemini-3.5-flash-lite', 'mastracode/google-ai-pro/gemini-3.5-flash-lite'])
+  await memorySettings.patch({ orgId: ORG, userId: bob, patch: { observerModelId: 'openai/gpt-5-mini' } })
+  await importAs(bob)
+  assert.equal((await memorySettings.get({ orgId: ORG, userId: bob })).observerModelId, 'openai/gpt-5-mini', 'a model the person chose is kept')
+  assert.equal(lines.some((line) => /secret-value|cxagy1/.test(line)), false)
+
+  const renamed = resolve(directory, 'credentials.json')
+  writeFileSync(renamed, JSON.stringify(record))
+  await assert.rejects(importAs(alice, renamed), { message: 'GOOGLE_AI_PRO_LOGIN_FILE_REFUSED' })
+  const codex = resolve(directory, 'antigravity-codex@example.com.json')
+  writeFileSync(codex, JSON.stringify({ type: 'codex' }))
+  await assert.rejects(importAs(alice, codex), { message: 'GOOGLE_AI_PRO_LOGIN_UNREADABLE' })
+  const garbled = resolve(directory, 'antigravity-garbled@example.com.json')
+  writeFileSync(garbled, 'not json')
+  await assert.rejects(importAs(alice, garbled), { message: 'GOOGLE_AI_PRO_LOGIN_UNREADABLE' })
+  await assert.rejects(importAs(alice, resolve(directory, 'antigravity-absent@example.com.json')), { message: 'GOOGLE_AI_PRO_LOGIN_UNREADABLE' })
+  await assert.rejects(importAs('not-an-account'), { message: 'GOOGLE_AI_PRO_LOGIN_ACCOUNT_REFUSED' })
+
+  for (const args of [['--shared'], ['--auth-file', authFile], ['--auth-file', authFile, '--shared', '--account-id', alice]]) {
+    const ran = spawnSync(process.execPath, [resolve(hubBuild, 'factory-cli.js'), 'import-google-ai-pro-login', ...args], { encoding: 'utf8', env: { PATH: process.env.PATH } })
+    assert.equal(ran.status, 1, `${args}: ${ran.stdout}${ran.stderr}${ran.error ?? ''}`)
+    assert.match(ran.stderr, /^usage: factory-cli /, `${args}: ${ran.stdout}${ran.stderr}${ran.error ?? ''}`)
+  }
+})
+
 const sourceOf = (listing, provider) => listing.body.providers.find((entry) => entry.provider === provider)?.source
 
 test('each person connects their own accounts, and only an installation administrator shares one with everyone', async (t) => {
@@ -177,6 +295,9 @@ test('each person connects their own accounts, and only an installation administ
 
   assert.equal((await asBob('PUT', '/api/control/model-accounts/anthropic/key', { key: 'sk-ant-bob' })).status, 200)
   assert.equal(sourceOf(await asBob('GET', '/api/control/model-accounts'), 'anthropic'), 'stored-user')
+  const offersAnthropic = async (ask) => (await ask('GET', '/api/control/model-accounts/models')).body.models.some((model) => model.provider === 'anthropic')
+  assert.equal(await offersAnthropic(asBob), true, 'the picker offers what the person connected')
+  assert.equal(await offersAnthropic(asAlice), false, 'and not what someone else connected')
   assert.equal(sourceOf(await asAlice('GET', '/api/control/model-accounts'), 'anthropic'), 'none')
   assert.equal((await asBob('GET', '/api/control/model-accounts')).body.orgKeyAdmin, false)
   assert.equal((await asAlice('GET', '/api/control/model-accounts')).body.orgKeyAdmin, true)
@@ -210,7 +331,7 @@ test('each person connects their own accounts, and only an installation administ
 test('a new conversation starts from the person\'s own defaults, else the installation\'s, and only an administrator sets the installation\'s', async (t) => {
   const composition = await composeOnPostgres(t)
   const projectRepositoryId = await openConversation(composition)
-  const { as } = await openAccountsApp(t, composition, [alice])
+  const { app, as } = await openAccountsApp(t, composition, [alice])
   const asAlice = as(alice)
   const asBob = as(bob)
   const installation = { build: 'anthropic/claude-sonnet-4-6', fast: 'anthropic/claude-haiku-4-5' }
@@ -234,7 +355,12 @@ test('a new conversation starts from the person\'s own defaults, else the instal
   assert.deepEqual(await modelsOf(bob), bobs)
   assert.deepEqual(await modelsOf(alice), installation)
 
-  assert.equal((await asBob('DELETE', '/api/control/model-defaults/mine')).status, 204)
+  const labelled = await app.inject({
+    method: 'DELETE', url: '/api/control/model-defaults/mine',
+    headers: { origin, 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' },
+    cookies: { '__Host-conexus_session': bob, '__Host-conexus_csrf': 'csrf-1' },
+  })
+  assert.equal(labelled.statusCode, 204, 'a DELETE labelled JSON with no body is accepted')
   assert.deepEqual(await modelsOf(bob), installation)
 })
 
