@@ -43,8 +43,8 @@ export const BUILDER_TRACE_REQUEST_CONTEXT_KEYS = Object.freeze([
 ])
 
 // Mastra Code throws a plain Error, not its ProviderAuthRequiredError, when the person has no account
-// for the model's provider and none is shared, so its text is the only signal. Upstream proposal U1
-// in docs/reference/mastra-boundary.md removes this check.
+// for the model's provider and none is shared, so its text is the only signal, until
+// https://github.com/mastra-ai/mastra/issues/24687 lands.
 const NO_MODEL_ACCOUNT = /^No usable \S+ credential is configured/
 
 const modelFailure = (error: unknown): 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILED' | null => {

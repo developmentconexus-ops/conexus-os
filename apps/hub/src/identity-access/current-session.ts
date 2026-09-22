@@ -1,5 +1,3 @@
-import type { FastifyRequest } from 'fastify'
-
 export type AccountId = string & { readonly __brand: 'AccountId' }
 export type WorkspaceId = string & { readonly __brand: 'WorkspaceId' }
 export type InvitationId = string & { readonly __brand: 'InvitationId' }
@@ -9,7 +7,9 @@ export type AccountSummary = Readonly<{ accountId: AccountId; displayName: strin
 // `issuer` and `subject` are the provider identity this session was established from.
 // Preview entry binds its cookie to them. No route reads them to decide authority.
 export type CurrentSession = Readonly<{ account: AccountSummary; issuer: string; subject: string }>
-export type ResolveCurrentSession = (request: FastifyRequest, requireCsrf?: boolean) => Promise<CurrentSession | null>
+// What a session is read from: the Hub's own requests, and a Factory route's request.
+export type SessionRequest = Readonly<{ cookies: Readonly<Record<string, string | undefined>>; headers: Readonly<Record<string, string | string[] | undefined>> }>
+export type ResolveCurrentSession = (request: SessionRequest, requireCsrf?: boolean) => Promise<CurrentSession | null>
 
 export const accountId = (value: string): AccountId => value as AccountId
 export const workspaceId = (value: string): WorkspaceId => value as WorkspaceId

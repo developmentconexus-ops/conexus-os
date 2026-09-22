@@ -318,7 +318,7 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
   const tools = deniedTools(composition.github, orgId)
   const memorySettings = composition.storage.getDomain<MemorySettingsStorage>('memory-settings')
   const credentials = composition.storage.getDomain<ModelCredentialsStorage>('model-credentials')
-  const primeCustomProviders = customProvidersPrimer(composition.storage.getDomain<CustomProvidersStorage>('custom-providers'))
+  const primeCustomProviders = customProvidersPrimer(composition.storage.getDomain<CustomProvidersStorage>('custom-providers'), orgId)
   return Object.freeze({
     resolveRepository: async (binding: FactoryBindingRecord) => {
       const sourceControl = composition.github.sourceControlStorage

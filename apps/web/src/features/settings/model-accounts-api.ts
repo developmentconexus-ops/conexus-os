@@ -1,5 +1,5 @@
-// The Factory owns every model account; the Hub answers with the Factory's own provider listing,
-// for the person signed in.
+// The Factory owns every model account. Its own routes answer at their own paths, for the person
+// signed in; sharing with everyone is the Hub's, behind the installation administrator role.
 export type ModelAccountSource = 'none' | 'stored-user' | 'oauth-user' | 'stored-org' | 'oauth-org' | 'env' | 'stored' | 'oauth'
 export type ModelProvider = Readonly<{
   provider: string
@@ -39,12 +39,13 @@ const request = async <T>(method: 'GET' | 'PUT' | 'POST' | 'DELETE', url: string
   return (response.status === 204 ? undefined : await response.json()) as T
 }
 
-const account = (provider: string) => `/api/control/model-accounts/${encodeURIComponent(provider)}`
+const account = (provider: string) => `/web/config/providers/${encodeURIComponent(provider)}`
+const sharing = (provider: string) => `/api/control/model-accounts/${encodeURIComponent(provider)}/share`
 
 export const modelAccountsQueryKey = ['model-accounts'] as const
 export const modelDefaultsQueryKey = ['model-defaults'] as const
 
-export const listModelAccounts = () => request<ModelAccounts>('GET', '/api/control/model-accounts')
+export const listModelAccounts = () => request<ModelAccounts>('GET', '/web/config/providers')
 export const saveApiKey = (provider: string, key: string) => request<unknown>('PUT', `${account(provider)}/key`, { key })
 export const removeApiKey = (provider: string) => request<unknown>('DELETE', `${account(provider)}/key`)
 export const signOut = (provider: string) => request<unknown>('DELETE', `${account(provider)}/oauth`)
@@ -52,8 +53,8 @@ export const startOAuth = (provider: string) => request<OAuthStart>('POST', `${a
 export const completeOAuth = (provider: string, sessionId: string, code: string) => request<OAuthStep>('POST', `${account(provider)}/oauth/complete`, { sessionId, code })
 export const pollOAuth = (provider: string, sessionId: string) => request<OAuthStep>('POST', `${account(provider)}/oauth/poll`, { sessionId })
 export const cancelOAuth = (provider: string, sessionId: string) => request<unknown>('DELETE', `${account(provider)}/oauth/session/${encodeURIComponent(sessionId)}`)
-export const shareWithEveryone = (provider: string) => request<void>('POST', `${account(provider)}/share`)
-export const stopSharing = (provider: string) => request<void>('DELETE', `${account(provider)}/share`)
+export const shareWithEveryone = (provider: string) => request<void>('POST', sharing(provider))
+export const stopSharing = (provider: string) => request<void>('DELETE', sharing(provider))
 
 export const readModelDefaults = () => request<ModelDefaultsView>('GET', '/api/control/model-defaults')
 export const saveInstallationDefaults = (defaults: ModelDefaults) => request<unknown>('PUT', '/api/control/model-defaults/installation', defaults)

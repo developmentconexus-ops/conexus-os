@@ -7,7 +7,7 @@ import { Observability, MastraStorageExporter } from '@mastra/observability'
 import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
-import { registerFactoryMastraRoutes } from './mastra-session-routes.js'
+import { registerFactoryApiRoutes, registerFactoryMastraRoutes } from './mastra-session-routes.js'
 import { admitFactoryConversation, openFactoryConversationThread, registerFactoryConversationRoutes } from './factory-routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
 import { BUILDER_TRACE_REQUEST_CONTEXT_KEYS } from './runtime.js'
@@ -19,6 +19,7 @@ import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig } from '../platform
 import { assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox } from './factory.js'
 import type { FactoryComposition } from './factory.js'
 import { createGithubApp } from './factory-github.js'
+import { HubSessionAuthProvider } from './hub-session-auth.js'
 import { registerInstallationGithubRoutes } from './installation-github-routes.js'
 import { openFactoryRecords, prepareFactoryRepository } from './factory-provisioning.js'
 import type { FactoryBinding } from './factory-provisioning.js'
@@ -26,7 +27,7 @@ import { createFactoryCodingWorkerRuntime, createMastraFactoryRunPorts, recoverF
 import { createFactorySourceReads } from './factory-source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
 import { startModelRouter } from './google-ai-pro/router.js'
-import { applyModelDefaults, registerModelAccountRoutes } from './model-accounts.js'
+import { applyModelDefaults, FACTORY_CREDENTIAL_ROUTES, registerModelAccountRoutes } from './model-accounts.js'
 import { createProjectRepositoryPort, registerProjectRepositoryRoutes } from './repository-routes.js'
 import type { FactoryRunDependencies, RunNote } from './service.js'
 import type { BuilderStore } from './store.js'
@@ -146,7 +147,7 @@ const startGoogleAiPro = async ({ binary, sha256 }: GoogleAiProRuntimeConfig) =>
 
 // The Factory's Mastra is the Hub's only one: it holds every conversation, its model selection and
 // the Builder's traces.
-const startFactoryComposition = ({ database, factory, googleAiPro: googleAiProConfig, store, e2bApiKey, e2bTemplateId, origin }: Readonly<{
+const startFactoryComposition = ({ database, factory, googleAiPro: googleAiProConfig, store, e2bApiKey, e2bTemplateId, origin, resolveCurrentSession, isInstallationAdministrator }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   factory: FactoryRuntimeConfig
   googleAiPro: GoogleAiProRuntimeConfig | undefined
@@ -154,6 +155,8 @@ const startFactoryComposition = ({ database, factory, googleAiPro: googleAiProCo
   e2bApiKey: string
   e2bTemplateId: string
   origin: string
+  resolveCurrentSession: ResolveCurrentSession
+  isInstallationAdministrator(account: AccountId): Promise<boolean>
 }>) => {
   assertFactoryHost({ cwd: process.cwd(), home: process.env.HOME })
   const pool = createFactoryPool(database, readSecretFile(factory.databasePasswordFile))
@@ -182,8 +185,9 @@ const startFactoryComposition = ({ database, factory, googleAiPro: googleAiProCo
   }
   const googleAiPro = googleAiProConfig ? startGoogleAiPro(googleAiProConfig) : Promise.resolve(undefined)
   googleAiPro.catch(() => undefined)
+  const auth = new HubSessionAuthProvider({ orgId: factory.orgId, resolveCurrentSession, isInstallationAdministrator })
   const ready: Promise<FactoryComposition> = googleAiPro.then((started) => composeFactory({
-    pool, github, stateSecret, secretKey, publicUrl: origin, observability,
+    pool, orgId: factory.orgId, auth, github, stateSecret, secretKey, publicUrl: origin, observability,
     sandbox: createFactorySandbox({ apiKey: e2bApiKey, templateId: e2bTemplateId, readCheckout }),
     ...(started ? { googleAiProUrl: started.url } : {}),
   }))
@@ -268,6 +272,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, goog
   })
   const factoryComposition = startFactoryComposition({
     database, factory, googleAiPro, store, e2bApiKey: readSecretFile(builder.e2bApiKeyFile), e2bTemplateId: builder.e2bTemplateId, origin,
+    resolveCurrentSession, isInstallationAdministrator,
   })
   const service = createBuilderService({ store, applicationArtifacts: boundApplicationArtifacts, factory: factoryComposition.run })
   const session: BuilderSessionPort = Object.freeze({
@@ -312,13 +317,13 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, goog
       const googleAiProPool = (await factoryComposition.googleAiPro)?.pool
       const sessions = composition.github.sourceControlStorage.sessions
       const modelPacks = composition.storage.getDomain<ModelPacksStorage>('model-packs')
+      await registerFactoryApiRoutes(app, { mastra: composition.mastra, routes: FACTORY_CREDENTIAL_ROUTES, origin, resolveCurrentSession })
       await registerModelAccountRoutes(app, {
         domains: {
           credentials: composition.storage.getDomain<ModelCredentialsStorage>('model-credentials'),
           modelPacks,
           memorySettings: composition.storage.getDomain<MemorySettingsStorage>('memory-settings'),
         },
-        controller: composition.controller,
         orgId: factoryComposition.orgId,
         origin,
         resolveCurrentSession,

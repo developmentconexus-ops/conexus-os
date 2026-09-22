@@ -114,7 +114,6 @@ const buildApp = async (t, { administration = createFakeAdministration(), memory
       await registerInstallationRoutes(instance, { origin, resolveCurrentSession, installationAdministration: administration })
       await registerModelAccountRoutes(instance, {
         domains: { credentials: {}, modelPacks: {}, memorySettings },
-        controller: {},
         orgId: ORG,
         origin,
         resolveCurrentSession,

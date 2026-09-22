@@ -26,7 +26,7 @@ embedded doc page.
 | --- | --- | --- | --- |
 | 1 | Moving repositories to a new GitHub App installation | A | Implemented |
 | 2 | Keeping GitHub tokens out of the sandbox | A | Implemented |
-| 3 | Serving the Factory's credential routes | A, after a decision amendment | Planned, needs the operator |
+| 3 | Serving the Factory's credential routes | A, after the operator's amendment | Implemented |
 | 4 | Creating a conversation | A for creation, B for visibility | Planned, needs item 3 and a visibility decision |
 | 5 | Conversation titles in Portuguese | B for the title Mastra writes, A for the one Conexus shows | Implemented |
 | 6a | Classifying model errors | A, plus B for one message | Implemented |
@@ -97,7 +97,7 @@ The behavior the sandbox sees does not change.
 
 **Upgrade check.** The override relies on `mintInstallationToken` having `getRepositoryAccess` as its
 only caller. On each Factory upgrade, search the new `dist/` for `mintInstallationToken(` before
-bumping. Proposal U4 would replace this check with a named option.
+bumping. [mastra-ai/mastra#24690](https://github.com/mastra-ai/mastra/issues/24690) would replace this check with a named option.
 
 ## 3. Serving the Factory's credential routes
 
@@ -121,25 +121,37 @@ hand.
   (`fastify/dist/index.d.ts:38`) registers them as Fastify routes. A scope `preHandler` can allow only
   the credential routes, the way `mastra-session-routes.ts` allows only its browser routes.
 
-**Decision.** A, but it amends a recorded decision. The single-owner map states that the Factory runs
-with `auth: null` behind the Hub. A Hub-session provider is not a second sign-in door. It validates
-the existing Hub session and has no login, callback or credential capability. It still changes the
-recorded shape, so the operator amends the identity row before any code changes.
+**Decision.** A. The single-owner map recorded that the Factory runs with `auth: null` behind the Hub.
+A Hub-session provider is not a second sign-in door: it validates the existing Hub session and has no
+login, callback or credential capability. The operator approved the amendment on 2026-09-22, and the
+single-owner map and the decision register record it.
 
-**Plan, after the amendment.**
+**Implemented.**
 
-1. Write a `HubSessionAuthProvider` implementing `IMastraAuthProvider`. `authenticateToken` resolves
-   the Hub session from the request and answers `{ id: accountId, organizationId: orgId }`. The
-   organizations capability answers administrator from `isInstallationAdministrator`.
-2. Pass it as `MastraFactory({ auth })`. Delete the manual `registerTenantCredentialResolver` call,
-   `NO_TENANT`, and the `local` custom-provider organization, which becomes the installation's
-   organization id.
-3. Mount the Factory's credential routes through `server.registerCustomApiRoutes()` in the guarded
-   Fastify scope, allowing only the `/web/config/providers*` and `/web/config/models` routes. Delete
-   the fake context, the handler lookup and the casts. The Conexus-only routes (sharing, Google AI Pro,
-   model defaults, memory model) stay as Hub routes.
-4. Verify on the pilot. A person connects a provider, the installation administrator shares it, and a
-   run uses it.
+1. `HubSessionAuthProvider` (`apps/hub/src/builder/hub-session-auth.ts`) extends core's
+   `MastraAuthProvider` and implements `IOrganizationsProvider`. `authenticateToken` reads the Hub
+   session cookie from the request through the same resolver the Hub's routes use and answers
+   `{ id: accountId, organizationId: orgId }`. `isOrganizationAdmin` answers from
+   `isInstallationAdministrator`.
+2. `composeFactory` passes it as `MastraFactory({ auth })`. The manual
+   `registerTenantCredentialResolver` call is deleted, because the Factory now registers its own. The
+   installation's custom providers, Google AI Pro among them, live under the installation's
+   organization id instead of the `local` sentinel.
+3. `registerFactoryApiRoutes` (`apps/hub/src/builder/mastra-session-routes.ts`) gives a
+   `MastraServer` only the Factory's credential routes through its `customApiRoutes` constructor
+   option, then calls `registerCustomApiRoutes()`. A scope `preHandler` requires the Hub session and,
+   on a write, origin plus CSRF. The browser calls the routes at their own paths
+   (`/web/config/providers…`), and no other Factory route is reachable. The fake context, the handler
+   lookup and the casts are deleted.
+4. The Hub keeps only what the Factory does not own: sharing with everyone, Google AI Pro (C-027),
+   model defaults and the memory model. `/api/control/model-accounts/models` reads the Factory's
+   `/web/config/models` through the Hub's own HTTP surface. It then adds Google AI Pro's models from the
+   Hub's own list when the router runs and the caller has the credential. A Google AI Pro sign-in
+   writes the person's row through the Factory's credential storage, because it settles on a later
+   poll that carries no write's CSRF.
+
+**Still to verify on the pilot.** A person connects a provider, the installation administrator shares
+it, and a run uses it.
 
 ## 4. Creating a conversation
 
@@ -155,7 +167,7 @@ accepts no visibility. The storage handle's `sessions.create` does accept one
 (`factory/dist/storage/domains/source-control/base.d.ts:132`), and the Slack integration sets it
 (`factory/dist/integrations/slack/slack.js:213`).
 
-**Decision.** A for creation, after item 3. B for visibility (proposal U3). Conversation visibility is
+**Decision.** A for creation, after item 3. B for visibility ([mastra-ai/mastra#24689](https://github.com/mastra-ai/mastra/issues/24689)). Conversation visibility is
 a Conexus Project policy whose default is still open in the decision register. No value derived from a
 decided policy exists yet, so no code change can make the field follow the single-owner map today.
 
@@ -196,7 +208,7 @@ Mastra Code builds its own `Memory`, and neither `generateTitle.instructions` no
 controller's `queryThreadMessages` reads a thread's messages without starting a session or sandbox
 (`core/dist/agent-controller/agent-controller.d.ts:269`).
 
-**Decision.** B for the title Mastra writes (proposal U2). The thread title and the session row title
+**Decision.** B for the title Mastra writes ([mastra-ai/mastra#24688](https://github.com/mastra-ai/mastra/issues/24688)). The thread title and the session row title
 belong to Mastra, and Conexus stops reading them. A for the fact Conexus shows: the title is derived
 from the first request, which the message store already owns, so Conexus stores no second copy.
 
@@ -218,12 +230,12 @@ expression for rate limits, and another for Mastra Code's missing-credential mes
 (`code-sdk/dist/agents/model.js:86`), so no typed signal carries it.
 
 **Decision.** A for classification through `parseError`. B for the missing-credential throw
-(proposal U1).
+([mastra-ai/mastra#24687](https://github.com/mastra-ai/mastra/issues/24687)).
 
 **Plan.** `runtime.ts` maps `parseError(error).type` to the Builder's codes: `rate_limit` to
 `BUILDER_MODEL_RATE_LIMITED`, `auth` to `BUILDER_MODEL_AUTH_FAILED`, anything else to
 `BUILDER_MODEL_STREAM_FAILED`. The missing-credential message check stays as the one text seam, with a
-comment that names U1, until Mastra Code throws `ProviderAuthRequiredError` there.
+comment that names [mastra-ai/mastra#24687](https://github.com/mastra-ai/mastra/issues/24687), until Mastra Code throws `ProviderAuthRequiredError` there.
 
 ## 6b. Writing run diagnostics into a conversation
 
@@ -249,10 +261,10 @@ stays.
 
 ## Upstream proposals
 
-These are drafts for issues on `mastra-ai/mastra`. Each names the installed version it was checked
-against.
+These are the texts of the issues opened on `mastra-ai/mastra` on 2026-09-22. Each names the installed
+version it was checked against.
 
-### U1. Throw `ProviderAuthRequiredError` when no credential is configured
+### U1 ([mastra-ai/mastra#24687](https://github.com/mastra-ai/mastra/issues/24687)). Throw `ProviderAuthRequiredError` when no credential is configured
 
 **Package.** `@mastra/code-sdk` 1.7.2, `dist/agents/model.js:86`.
 
@@ -266,7 +278,7 @@ only recognize this failure by its message text.
 Proposal: throw `ProviderAuthRequiredError` at this site, with the same message. Hosts and `parseError`
 then classify it as `auth` with no text matching.
 
-### U2. Let hosts give title instructions, and name the language by default
+### U2 ([mastra-ai/mastra#24688](https://github.com/mastra-ai/mastra/issues/24688)). Let hosts give title instructions, and name the language by default
 
 **Packages.** `@mastra/core` 1.67.0 and `@mastra/code-sdk` 1.7.2.
 
@@ -288,7 +300,7 @@ Proposal, two parts.
    replaces any differing title (`dist/src-Dt8oPiQN.js:24598`). Seed the hint from the thread's title,
    and leave a title set by an explicit rename alone.
 
-### U3. Accept `visibility` when a host creates a Factory session
+### U3 ([mastra-ai/mastra#24689](https://github.com/mastra-ai/mastra/issues/24689)). Accept `visibility` when a host creates a Factory session
 
 **Package.** `@mastra/factory` 0.15.0.
 
@@ -302,7 +314,7 @@ Proposal: accept an optional `visibility` of `'org' | 'private'` in the route's 
 `org`. Include it in the id-conflict comparison, so a retry that asks for a different visibility is
 answered with 409.
 
-### U4. A named option for the sandbox repository credential
+### U4 ([mastra-ai/mastra#24690](https://github.com/mastra-ai/mastra/issues/24690)). A named option for the sandbox repository credential
 
 **Package.** `@mastra/factory` 0.15.0.
 

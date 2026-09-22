@@ -228,7 +228,6 @@ const createLoginApp = async (t) => {
     registerRoutes: async (instance) => {
       await registerModelAccountRoutes(instance, {
         domains: { credentials, modelPacks: {}, memorySettings },
-        controller: { listAvailableModels: async () => [] },
         orgId: ORG,
         origin,
         resolveCurrentSession: async (request) => request.cookies['__Host-conexus_session'] ? { account: { accountId: caller } } : null,

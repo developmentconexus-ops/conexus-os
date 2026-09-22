@@ -23,15 +23,15 @@ async function mockRoutes(page) {
   }))
   await page.route('**/api/control/installation', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: true }) }))
   await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
-  await page.route('**/api/control/model-accounts', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: true }) }))
+  await page.route('**/web/config/providers', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: true }) }))
   await page.route('**/api/control/model-accounts/google-ai-pro/connection', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ mine: true, shared: false, administrator: true }),
   }))
-  await page.route('**/api/control/model-accounts/*/oauth/start', (route) => route.fulfill({
+  await page.route('**/web/config/providers/*/oauth/start', (route) => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ sessionId: 'shot-session', kind: 'device-code', url: 'https://provider.example/device', userCode: 'WXYZ-7890', nextPollMs: 60000 }),
   }))
-  await page.route('**/api/control/model-accounts/*/oauth/poll', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'pending', nextPollMs: 60000 }) }))
+  await page.route('**/web/config/providers/*/oauth/poll', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'pending', nextPollMs: 60000 }) }))
   await page.route('**/api/control/model-defaults', (route) => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ installation: { build: BUILDER_MODELS[0].id, fast: BUILDER_MODELS[1].id }, mine: null, administrator: true }),

@@ -9,9 +9,7 @@ import type { FactorySecretEncryption } from '@mastra/factory/secret-encryption'
 import { GithubIntegration } from '@mastra/factory/integrations/github/integration'
 import { createCustomProvidersPrimer, invalidateCustomProvidersSnapshots } from '@mastra/factory/routes/custom-provider-source'
 import type { RouteAuth } from '@mastra/factory/routes/route'
-import { registerTenantCredentialResolver } from '@mastra/factory/routes/tenant-credentials'
 import type { CustomProvidersStorage } from '@mastra/factory/storage/domains/custom-providers/base'
-import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/credentials/base'
 import type { FactorySandboxContext } from '@mastra/factory/sandbox/session-sandbox'
 import { repoDirUnder } from '@mastra/factory/sandbox/workdir'
 import type { Observability } from '@mastra/observability'
@@ -19,6 +17,7 @@ import { PgFactoryStorage, PostgresStore } from '@mastra/pg'
 import { createPostgresPool } from '../platform/postgres.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_NAME, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
+import type { HubSessionAuthProvider } from './hub-session-auth.js'
 import type { BuilderAgentController } from './runtime.js'
 
 // Rows the Hub writes into Factory storage carry this as their author, and the organization's
@@ -195,41 +194,39 @@ export const createFactorySecretKeyEncryption = (hexKey: string): FactorySecretE
   }
 }
 
-// With auth: null the Factory keeps one custom-provider list for the whole installation, under this org.
-const CUSTOM_PROVIDERS_ORG = 'local'
-const NO_TENANT: RouteAuth = {
-  enabled: () => false,
-  ensureUser: async () => undefined,
-  tenant: () => undefined,
-  isOrganizationAdmin: async () => false,
-}
-
 /**
  * Fills the installation's custom-provider snapshot. The gateway reads it synchronously, and it
  * starts empty and hydrates in the background, so a model call right after boot would not know the
- * provider. The primer is the Factory's own awaited hydration; it reads nothing from the request.
+ * provider. The primer is the Factory's own awaited hydration of the organization's rows; it reads
+ * nothing from the request.
  */
-export const customProvidersPrimer = (storage: CustomProvidersStorage): () => Promise<void> => {
-  const primer = createCustomProvidersPrimer({ auth: NO_TENANT, storage, authEnabled: false })
+export const customProvidersPrimer = (storage: CustomProvidersStorage, orgId: string): () => Promise<void> => {
+  const installation: RouteAuth = {
+    enabled: () => true,
+    ensureUser: async () => undefined,
+    tenant: () => ({ orgId, userId: FACTORY_OPERATOR_ID }),
+    isOrganizationAdmin: async () => false,
+  }
+  const primer = createCustomProvidersPrimer({ auth: installation, storage, authEnabled: true })
   return async () => { await primer(undefined as never, async () => undefined) }
 }
 
 // Google AI Pro is one installation-wide custom provider with no key of its own: each person's
 // credential is the bearer the router receives. Without a router the row is removed, so the picker
 // never offers a provider nobody can reach.
-export const syncGoogleAiProProvider = async (storage: CustomProvidersStorage, routerUrl: string | undefined): Promise<void> => {
+export const syncGoogleAiProProvider = async (storage: CustomProvidersStorage, orgId: string, routerUrl: string | undefined): Promise<void> => {
   await storage.ensureReady()
   if (routerUrl) {
     await storage.upsert({
-      orgId: CUSTOM_PROVIDERS_ORG,
+      orgId,
       userId: FACTORY_OPERATOR_ID,
       input: { providerId: GOOGLE_AI_PRO_PROVIDER, name: GOOGLE_AI_PRO_NAME, url: `${routerUrl}/v1`, models: [...GOOGLE_AI_PRO_MODELS] },
     })
   } else {
-    await storage.delete({ orgId: CUSTOM_PROVIDERS_ORG, providerId: GOOGLE_AI_PRO_PROVIDER })
+    await storage.delete({ orgId, providerId: GOOGLE_AI_PRO_PROVIDER })
   }
-  invalidateCustomProvidersSnapshots({ orgId: CUSTOM_PROVIDERS_ORG })
-  await customProvidersPrimer(storage)()
+  invalidateCustomProvidersSnapshots({ orgId })
+  await customProvidersPrimer(storage, orgId)()
 }
 
 // The Factory's repository credential is this method's answer, and getRepositoryAccess is its only
@@ -243,8 +240,11 @@ class ConexusGithubIntegration extends GithubIntegration {
   }
 }
 
-export const composeFactory = async ({ pool, github, stateSecret, secretKey, publicUrl, sandbox, observability, googleAiProUrl }: Readonly<{
+export const composeFactory = async ({ pool, orgId, auth, github, stateSecret, secretKey, publicUrl, sandbox, observability, googleAiProUrl }: Readonly<{
   pool: PostgresPool
+  orgId: string
+  // The Hub session, the only sign-in (docs/reference/single-owner-map.md).
+  auth: HubSessionAuthProvider
   github: FactoryGithubApp
   stateSecret: string
   secretKey: string
@@ -257,7 +257,7 @@ export const composeFactory = async ({ pool, github, stateSecret, secretKey, pub
   const integration = new ConexusGithubIntegration(github)
   const factory = new MastraFactory({
     storage,
-    auth: null,
+    auth,
     integrations: [integration],
     sandbox,
     stateSecret,
@@ -270,11 +270,7 @@ export const composeFactory = async ({ pool, github, stateSecret, secretKey, pub
   const { workers: _workers, ...args } = await factory.prepare()
   const mastra = new Mastra({ ...args, ...(observability ? { observability } : {}), logger: false })
   await factory.finalize()
-  // With auth: null the Factory never registers its tenant credential resolver, and every model call
-  // would read the host's own credentials. The Hub names the person on every request context, so the
-  // Factory's resolver answers with that person's row, else the installation's shared row, else none.
-  registerTenantCredentialResolver(storage.getDomain<ModelCredentialsStorage>('model-credentials'))
-  await syncGoogleAiProProvider(storage.getDomain<CustomProvidersStorage>('custom-providers'), googleAiProUrl)
+  await syncGoogleAiProProvider(storage.getDomain<CustomProvidersStorage>('custom-providers'), orgId, googleAiProUrl)
   const controllers = Object.entries(args.agentControllers ?? {})
   if (controllers.length !== 1) throw new Error('FACTORY_CONTROLLER_UNAVAILABLE')
   const [[controllerId, controller]] = controllers as [[string, BuilderAgentController]]

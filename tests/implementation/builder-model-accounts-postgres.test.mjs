@@ -13,6 +13,7 @@ const { composeFactory, createFactorySandbox, FACTORY_OPERATOR_ID } = await impo
 const { createMastraFactoryRunPorts } = await import(built('builder/factory-runtime.js'))
 const { openFactoryRecords } = await import(built('builder/factory-provisioning.js'))
 const { filterChatModels } = await import(built('builder/chat-models.js'))
+const { HubSessionAuthProvider } = await import(built('builder/hub-session-auth.js'))
 
 const ORG = 'conexus-installation'
 const alice = '11111111-1111-4111-8111-111111111111'
@@ -20,7 +21,14 @@ const bob = '22222222-2222-4222-8222-222222222222'
 const projectId = '33333333-3333-4333-8333-333333333333'
 const conversationId = '44444444-4444-4444-8444-444444444444'
 
-const composeOnPostgres = async (t, options = {}) => {
+// The Hub session is the account id in the session cookie; the Factory reads it through the same
+// resolver the Hub's own routes use.
+const resolveCurrentSession = async (request) => {
+  const accountId = request.cookies['__Host-conexus_session']
+  return accountId ? { account: { accountId, displayName: accountId }, issuer: 'https://issuer.test', subject: accountId } : null
+}
+
+const composeOnPostgres = async (t, { administrators = [], ...options } = {}) => {
   const { admin, connection, onCleanup } = await createEmptyDatabase(t, 'conexus_model_accounts')
   const role = `factory_accounts_${randomUUID().replaceAll('-', '').slice(0, 12)}`
   const password = randomUUID()
@@ -39,6 +47,8 @@ const composeOnPostgres = async (t, options = {}) => {
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
   const composition = await composeFactory({
     pool: testPool({ ...connection, user: role, password, options: '-c search_path=factory', max: 4 }),
+    orgId: ORG,
+    auth: new HubSessionAuthProvider({ orgId: ORG, resolveCurrentSession, isInstallationAdministrator: async (accountId) => administrators.includes(accountId) }),
     github: { appId: '1', clientId: 'client', clientSecret: 'secret', slug: 'conexus-probe', privateKey: privateKey.export({ type: 'pkcs1', format: 'pem' }) },
     stateSecret: 'state-secret-for-the-probe-only-0123456789',
     secretKey: 'a1'.repeat(32),
@@ -122,25 +132,23 @@ test('a run uses the credential of the person who started it, else the installat
 
 const origin = 'https://hub.test'
 const { createHttpApp } = await import(built('http/app.js'))
-const { registerModelAccountRoutes, applyModelDefaults } = await import(built('builder/model-accounts.js'))
+const { FACTORY_CREDENTIAL_ROUTES, registerModelAccountRoutes, applyModelDefaults } = await import(built('builder/model-accounts.js'))
+const { registerFactoryApiRoutes } = await import(built('builder/mastra-session-routes.js'))
 const { openFactoryConversationThread } = await import(built('builder/factory-routes.js'))
 
 const openAccountsApp = async (t, composition, administrators, googleAiPro) => {
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
+      await registerFactoryApiRoutes(instance, { mastra: composition.mastra, routes: FACTORY_CREDENTIAL_ROUTES, origin, resolveCurrentSession })
       await registerModelAccountRoutes(instance, {
         domains: {
           credentials: composition.storage.getDomain('model-credentials'),
           modelPacks: composition.storage.getDomain('model-packs'),
           memorySettings: composition.storage.getDomain('memory-settings'),
         },
-        controller: composition.controller,
         orgId: ORG,
         origin,
-        resolveCurrentSession: async (request) => {
-          const accountId = request.cookies['__Host-conexus_session']
-          return accountId ? { account: { accountId, displayName: accountId }, issuer: 'https://issuer.test', subject: accountId } : null
-        },
+        resolveCurrentSession,
         isInstallationAdministrator: async (accountId) => administrators.includes(accountId),
         ...(googleAiPro ? { googleAiPro } : {}),
       })
@@ -175,8 +183,9 @@ test('a person signs in to Google AI Pro from Settings, and their runs then carr
 
   const router = 'http://127.0.0.1:59999'
   const composition = await composeOnPostgres(t, { googleAiProUrl: router })
-  const catalog = async () => (await composition.controller.listAvailableModels()).filter((model) => model.provider === 'mastracode/google-ai-pro').map((model) => model.id)
-  assert.equal((await catalog()).includes('mastracode/google-ai-pro/gemini-3.1-pro-low'), true, 'the picker offers the provider right after boot')
+  const customProviders = composition.storage.getDomain('custom-providers')
+  const providerUrls = async () => (await customProviders.list({ orgId: ORG })).map((row) => row.url)
+  assert.deepEqual(await providerUrls(), [`${router}/v1`], 'the installation routes the provider right after boot')
   await openConversation(composition, 'mastracode/google-ai-pro/gemini-3.1-pro-low')
 
   const { as } = await openAccountsApp(t, composition, [], pool)
@@ -213,10 +222,8 @@ test('a person signs in to Google AI Pro from Settings, and their runs then carr
   assert.equal(await runAs(composition, bob), 'BUILDER_MODEL_AUTH_FAILED')
   assert.deepEqual(routed(), [])
 
-  await syncGoogleAiProProvider(composition.storage.getDomain('custom-providers'), undefined)
-  // A boot runs this before anything lists models; here the controller has cached a listing.
-  composition.controller.invalidateAvailableModelsCache()
-  assert.deepEqual(await catalog(), [], 'without a router the provider leaves the picker')
+  await syncGoogleAiProProvider(customProviders, ORG, undefined)
+  assert.deepEqual(await providerUrls(), [], 'without a router the installation has no such provider')
 })
 
 test('the operator imports a CLIProxyAPI Antigravity file as a person\'s or the shared Google AI Pro row, idempotently and without printing it', async (t) => {
@@ -279,48 +286,73 @@ test('the operator imports a CLIProxyAPI Antigravity file as a person\'s or the 
 const sourceOf = (listing, provider) => listing.body.providers.find((entry) => entry.provider === provider)?.source
 
 test('each person connects their own accounts, and only an installation administrator shares one with everyone', async (t) => {
-  const composition = await composeOnPostgres(t)
+  const composition = await composeOnPostgres(t, { administrators: [alice] })
   const { app, as } = await openAccountsApp(t, composition, [alice])
   const asAlice = as(alice)
   const asBob = as(bob)
 
-  assert.equal((await asBob('PUT', '/api/control/model-accounts/anthropic/key', { key: 'sk-ant-bob' })).status, 200)
-  assert.equal(sourceOf(await asBob('GET', '/api/control/model-accounts'), 'anthropic'), 'stored-user')
+  assert.equal((await asBob('PUT', '/web/config/providers/anthropic/key', { key: 'sk-ant-bob' })).status, 200)
+  assert.equal(sourceOf(await asBob('GET', '/web/config/providers'), 'anthropic'), 'stored-user')
   const offersAnthropic = async (ask) => (await ask('GET', '/api/control/model-accounts/models')).body.models.some((model) => model.provider === 'anthropic')
   assert.equal(await offersAnthropic(asBob), true, 'the picker offers what the person connected')
   assert.equal(await offersAnthropic(asAlice), false, 'and not what someone else connected')
-  assert.equal(sourceOf(await asAlice('GET', '/api/control/model-accounts'), 'anthropic'), 'none')
-  assert.equal((await asBob('GET', '/api/control/model-accounts')).body.orgKeyAdmin, false)
-  assert.equal((await asAlice('GET', '/api/control/model-accounts')).body.orgKeyAdmin, true)
+  assert.equal(sourceOf(await asAlice('GET', '/web/config/providers'), 'anthropic'), 'none')
+  assert.equal((await asBob('GET', '/web/config/providers')).body.orgKeyAdmin, false)
+  assert.equal((await asAlice('GET', '/web/config/providers')).body.orgKeyAdmin, true)
 
   // Anything that writes the installation's shared row needs the administrator role.
   assert.equal((await asBob('POST', '/api/control/model-accounts/anthropic/share')).status, 403)
-  assert.equal((await asBob('PUT', '/api/control/model-accounts/openai/key', { key: 'sk-bob', scope: 'org' })).status, 403)
-  assert.equal((await asBob('DELETE', '/api/control/model-accounts/openai/key?scope=org')).status, 403)
+  assert.equal((await asBob('PUT', '/web/config/providers/openai/key', { key: 'sk-bob', scope: 'org' })).status, 403)
+  assert.equal((await asBob('DELETE', '/web/config/providers/openai/key?scope=org')).status, 403)
 
-  assert.equal((await asAlice('PUT', '/api/control/model-accounts/openai/key', { key: 'sk-alice' })).status, 200)
+  assert.equal((await asAlice('PUT', '/web/config/providers/openai/key', { key: 'sk-alice' })).status, 200)
   assert.equal((await asAlice('POST', '/api/control/model-accounts/openai/share')).status, 204)
-  assert.equal(sourceOf(await asBob('GET', '/api/control/model-accounts'), 'openai'), 'stored-org')
-  assert.equal(sourceOf(await asAlice('GET', '/api/control/model-accounts'), 'openai'), 'stored-org')
+  assert.equal(sourceOf(await asBob('GET', '/web/config/providers'), 'openai'), 'stored-org')
+  assert.equal(sourceOf(await asAlice('GET', '/web/config/providers'), 'openai'), 'stored-org')
   assert.equal((await asAlice('POST', '/api/control/model-accounts/openai/share')).status, 404)
 
   assert.equal((await asAlice('DELETE', '/api/control/model-accounts/openai/share')).status, 204)
-  assert.equal(sourceOf(await asAlice('GET', '/api/control/model-accounts'), 'openai'), 'stored-user')
-  assert.equal(sourceOf(await asBob('GET', '/api/control/model-accounts'), 'openai'), 'none')
+  assert.equal(sourceOf(await asAlice('GET', '/web/config/providers'), 'openai'), 'stored-user')
+  assert.equal(sourceOf(await asBob('GET', '/web/config/providers'), 'openai'), 'none')
   const credentials = composition.storage.getDomain('model-credentials')
   assert.deepEqual(await credentials.getCredential({ orgId: ORG, userId: alice }, 'openai-codex'), { type: 'api_key', key: 'sk-alice' })
 
-  assert.equal((await asBob('DELETE', '/api/control/model-accounts/anthropic/key')).status, 200)
-  assert.equal(sourceOf(await asBob('GET', '/api/control/model-accounts'), 'anthropic'), 'none')
+  assert.equal((await asBob('DELETE', '/web/config/providers/anthropic/key')).status, 200)
+  assert.equal(sourceOf(await asBob('GET', '/web/config/providers'), 'anthropic'), 'none')
 
-  const forged = await app.inject({ method: 'PUT', url: '/api/control/model-accounts/anthropic/key', payload: { key: 'sk-x' }, cookies: { '__Host-conexus_session': bob } })
+  const forged = await app.inject({ method: 'PUT', url: '/web/config/providers/anthropic/key', payload: { key: 'sk-x' }, cookies: { '__Host-conexus_session': bob } })
   assert.equal(forged.statusCode, 403)
-  const anonymous = await app.inject({ method: 'GET', url: '/api/control/model-accounts' })
+  const anonymous = await app.inject({ method: 'GET', url: '/web/config/providers' })
   assert.equal(anonymous.statusCode, 401)
+  // The Hub serves only the Factory's credential routes; the rest of its surface is not reachable.
+  for (const url of ['/auth/me', '/web/intake/label-routes', '/web/config/memory']) assert.equal((await asAlice('GET', url)).status, 404, url)
+})
+
+test('with the Factory reading the Hub session, the browser\'s Mastra session routes still answer the admitted person', async (t) => {
+  const composition = await composeOnPostgres(t)
+  await openConversation(composition)
+  const { registerFactoryMastraRoutes } = await import(built('builder/mastra-session-routes.js'))
+  const app = await createHttpApp({
+    registerRoutes: async (instance) => {
+      await registerFactoryMastraRoutes(instance, {
+        mastra: composition.mastra, controllerId: composition.controllerId, controller: composition.controller, origin, orgId: ORG,
+        resolveCurrentSession, admitConversation: async () => true,
+      })
+      return []
+    },
+    staticRoot: null,
+  })
+  t.after(() => app.close())
+  const threads = await app.inject({
+    method: 'GET', url: `/api/mastra-factory/agent-controller/${composition.controllerId}/sessions/${conversationId}/threads`,
+    cookies: { '__Host-conexus_session': alice },
+  })
+  assert.equal(threads.statusCode, 200, threads.body)
+  assert.deepEqual(threads.json().threads.map((thread) => thread.id), [conversationId])
 })
 
 test('a new conversation starts from the person\'s own defaults, else the installation\'s, and only an administrator sets the installation\'s', async (t) => {
-  const composition = await composeOnPostgres(t)
+  const composition = await composeOnPostgres(t, { administrators: [alice] })
   const projectRepositoryId = await openConversation(composition)
   const { app, as } = await openAccountsApp(t, composition, [alice])
   const asAlice = as(alice)
