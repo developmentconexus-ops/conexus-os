@@ -14,7 +14,7 @@ import { BUILDER_TRACE_REQUEST_CONTEXT_KEYS } from './runtime.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderStore } from './store.js'
-import type { ResolveCurrentSession } from '../identity-access/current-session.js'
+import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig } from '../platform/config.js'
 import { assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox } from './factory.js'
 import type { FactoryComposition } from './factory.js'
@@ -217,7 +217,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, appl
   launchPreview?: BuilderLaunchPreviewPort
   origin: string
   resolveCurrentSession: ResolveCurrentSession
-  isInstallationAdministrator(accountId: string): Promise<boolean>
+  isInstallationAdministrator(account: AccountId): Promise<boolean>
 }>) => {
   const executorPool = createPostgresPool({ ...database, user: 'hub_builder_executor', password: readSecretFile(builder.executorPasswordFile) })
   const store = createBuilderStore({

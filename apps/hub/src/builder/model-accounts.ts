@@ -10,7 +10,7 @@ import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memo
 import type { ModelPacksStorage } from '@mastra/factory/storage/domains/model-packs/base'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
-import type { ResolveCurrentSession } from '../identity-access/current-session.js'
+import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { BuilderAgentController } from './runtime.js'
 
 // The installation's defaults are one Factory model pack; a person's own defaults are their active
@@ -31,7 +31,7 @@ type ModelAccountDomains = Readonly<{
   memorySettings: MemorySettingsStorage
 }>
 
-type Caller = Readonly<{ accountId: string }>
+type Caller = Readonly<{ accountId: AccountId }>
 
 // The slice of Hono's Context the Factory's provider and sign-in handlers read. The Hub builds one
 // per request, so the Factory's own handler decides every credential write, and the caller it sees
@@ -74,7 +74,7 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
   orgId: string
   origin: string
   resolveCurrentSession: ResolveCurrentSession
-  isInstallationAdministrator(accountId: string): Promise<boolean>
+  isInstallationAdministrator(account: AccountId): Promise<boolean>
 }>): Promise<void> => {
   const { credentials, modelPacks, memorySettings } = domains
   const callers = new WeakMap<object, Caller>()
@@ -90,7 +90,7 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
     // installation-wide action (C-025, C-026).
     isOrganizationAdmin: async (context, organizationId) => {
       const caller = callerOf(context)
-      return Boolean(caller) && organizationId === orgId && await isInstallationAdministrator(caller?.accountId ?? '')
+      return caller !== undefined && organizationId === orgId && await isInstallationAdministrator(caller.accountId)
     },
   }
   const onCredentialsChanged = (tenant: Readonly<{ orgId: string; userId?: string }>): void => { invalidateTenantCredentialSnapshots(tenant) }
