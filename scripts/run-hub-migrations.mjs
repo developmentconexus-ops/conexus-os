@@ -28,6 +28,7 @@ const factoryAdmissionCandidateDigest = 'caff6732157047bb45c2dd0898b272eecd5f0ba
 const factoryCandidatePendingDigest = 'ebd57cef7033753bf3bf01664279b6e445da29bce12f9c7c1107175ed7173829'
 const installationAdministratorDigest = '8f089db3a396dedb23f15fd9b4336dfd7360c336f27b9ecf9ae87e25f1005491'
 const projectFactoryCreationDigest = 'c93bcaf16b850a41780446af60ef84277b41d42a90a020072470a247953938dc'
+const installationAdministratorListDigest = '70071c23e385ecd843db32d57446f94c9e3c7983ea98fe8c32054f8dbb8f2ec6'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -48,6 +49,7 @@ const migrationDigests = new Map([
   ['0016_factory_candidate_pending.sql', factoryCandidatePendingDigest],
   ['0017_installation_administrator.sql', installationAdministratorDigest],
   ['0018_project_factory_creation.sql', projectFactoryCreationDigest],
+  ['0020_installation_administrator_list.sql', installationAdministratorListDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

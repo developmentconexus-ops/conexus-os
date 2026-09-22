@@ -38,7 +38,7 @@ const packageScripts = Object.freeze({
 
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'hub-baseline',
-  'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-installation-administrator', 'iam-grant-surface-excision',
+  'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-installation-administrator', 'installation-settings-routes', 'iam-grant-surface-excision',
   'hub-call-site-privileges',
   'c020-builder-postgres', 'c020-builder-request-text-postgres', 'factory-binding-postgres', 'c020-mastra-lifecycle', 'factory-dependency-tree', 'factory-composition', 'model-accounts-postgres', 'factory-runtime', 'factory-recovery-postgres', 'factory-routes', 'factory-provisioning',
   'foundation-postgres', 'c020-registry', 'c020-source-runtime', 'c020-failure-vocabulary', 'c020-compiler-runtime',
@@ -49,7 +49,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'repository-hygiene', 'repository-doc-index',
   'repository-contract-checks', 'biome-current',
   'identity-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure',
-  'project-command-postgres', 'project-browser', 'shell-browser-boundary', 'preview-form-policy',
+  'project-command-postgres', 'project-browser', 'shell-browser-boundary', 'brand-tokens', 'preview-form-policy',
   'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
   'protected-cluster-coverage',
   'wire-openapi-lint', 'wire-openapi-bundle',

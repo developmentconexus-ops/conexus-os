@@ -15,7 +15,7 @@ export type ModelDefaults = Readonly<{ build: string; fast: string }>
 export type ModelDefaultsView = Readonly<{ installation: ModelDefaults | null; mine: ModelDefaults | null; administrator: boolean }>
 
 export class ModelAccountsRequestError extends Error {
-  constructor(readonly status: number) {
+  constructor(readonly status: number, readonly type: string | null = null, readonly reason: string | null = null) {
     super(`Model accounts request failed with ${status}`)
   }
 }
@@ -32,7 +32,10 @@ const request = async <T>(method: 'GET' | 'PUT' | 'POST' | 'DELETE', url: string
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
-  if (!response.ok) throw new ModelAccountsRequestError(response.status)
+  if (!response.ok) {
+    const problem = await response.json().catch(() => null) as { type?: string; detail?: string; reason?: string } | null
+    throw new ModelAccountsRequestError(response.status, problem?.type ?? null, problem?.detail ?? problem?.reason ?? null)
+  }
   return (response.status === 204 ? undefined : await response.json()) as T
 }
 
@@ -48,6 +51,7 @@ export const signOut = (provider: string) => request<unknown>('DELETE', `${accou
 export const startOAuth = (provider: string) => request<OAuthStart>('POST', `${account(provider)}/oauth/start`, {})
 export const completeOAuth = (provider: string, sessionId: string, code: string) => request<OAuthStep>('POST', `${account(provider)}/oauth/complete`, { sessionId, code })
 export const pollOAuth = (provider: string, sessionId: string) => request<OAuthStep>('POST', `${account(provider)}/oauth/poll`, { sessionId })
+export const cancelOAuth = (provider: string, sessionId: string) => request<unknown>('DELETE', `${account(provider)}/oauth/session/${encodeURIComponent(sessionId)}`)
 export const shareWithEveryone = (provider: string) => request<void>('POST', `${account(provider)}/share`)
 export const stopSharing = (provider: string) => request<void>('DELETE', `${account(provider)}/share`)
 

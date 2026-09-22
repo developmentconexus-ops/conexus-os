@@ -209,6 +209,62 @@ test('installation administration is its own fact, bootstrapped by the operator 
     assert.deepEqual(observed, ACTIONS.flatMap(action => [`${action} workspace NOT_ADMITTED`, `${action} project NOT_ADMITTED`]))
   })
 
+  await t.test('list is refused for a non-administrator', async () => {
+    const plain = await account('list-plain')
+    assert.deepEqual(await refusal(() => administration.list(plain)), { code: '42501', message: 'NOT_ADMITTED' })
+  })
+
+  await t.test('list orders open tenures by grant time and names each tenure\'s kind and grantor', async () => {
+    const before = await administration.list(first)
+    assert.deepEqual(before.map((row) => row.accountId), [first])
+
+    const third = await account('third-admin')
+    await administration.grant({ actor: first, account: third })
+    const afterGrant = await administration.list(first)
+    assert.deepEqual(afterGrant.map((row) => row.accountId), [first, third])
+    const granted = afterGrant[1]
+    assert.equal(granted.grantedVia, 'ADMINISTRATOR')
+    assert.deepEqual(granted.grantedBy, { accountId: first, displayName: 'first-admin' })
+    assert.ok(granted.grantedAt >= before[0].grantedAt)
+    await administration.revoke({ actor: first, account: third })
+    assert.deepEqual((await administration.list(first)).map((row) => row.accountId), [first])
+  })
+
+  await t.test('grant by email is case- and whitespace-insensitive, and refuses an unknown, ambiguous, or inactive address', async () => {
+    const targetEmail = `  Grant-Target@Install-Admin.TEST  `
+    const target = await account('grant-target', { email: 'grant-target@install-admin.test' })
+    const grantedId = await administration.grantByEmail({ actor: first, email: targetEmail })
+    assert.equal(grantedId, target)
+    assert.equal(await administration.isInstallationAdministrator(target), true)
+    const again = await administration.grantByEmail({ actor: first, email: targetEmail })
+    assert.equal(again, target)
+    await administration.revoke({ actor: first, account: target })
+    assert.equal(await administration.isInstallationAdministrator(target), false)
+
+    assert.deepEqual(await refusal(() => administration.grantByEmail({ actor: first, email: 'nobody@install-admin.test' })),
+      { code: 'P0002', message: 'ACCOUNT_NOT_FOUND' })
+
+    const inactiveEmail = 'grant-inactive@install-admin.test'
+    await account('grant-inactive-target', { email: inactiveEmail, active: false })
+    assert.deepEqual(await refusal(() => administration.grantByEmail({ actor: first, email: inactiveEmail })),
+      { code: 'P0002', message: 'ACCOUNT_NOT_FOUND' })
+
+    const sharedEmail = 'grant-shared@install-admin.test'
+    await account('grant-shared-a', { email: sharedEmail })
+    await account('grant-shared-b', { email: sharedEmail })
+    assert.deepEqual(await refusal(() => administration.grantByEmail({ actor: first, email: sharedEmail })),
+      { code: 'P0003', message: 'ACCOUNT_EMAIL_AMBIGUOUS' })
+
+    assert.deepEqual(await refusal(() => administration.grantByEmail({ actor: target, email: sharedEmail })),
+      { code: '42501', message: 'NOT_ADMITTED' })
+  })
+
+  await t.test('the last-administrator refusal still holds after list and grant-by-email were added', async () => {
+    const refused = await refusal(() => administration.revoke({ actor: first, account: first }))
+    assert.deepEqual(refused, { code: '42501', message: 'LAST_INSTALLATION_ADMINISTRATOR' })
+    assert.deepEqual((await administration.list(first)).map((row) => row.accountId), [first])
+  })
+
   await t.test('the tenure table refuses a record that does not say who acted', async () => {
     const nobody = await account('shape-probe')
     const unattributedGrant = await refusal(() => owner.query(

@@ -19,6 +19,7 @@ import type { FactoryRuntimeConfig } from '../platform/config.js'
 import { assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox } from './factory.js'
 import type { FactoryComposition } from './factory.js'
 import { createGithubApp } from './factory-github.js'
+import { registerInstallationGithubRoutes } from './installation-github-routes.js'
 import { openFactoryRecords, prepareFactoryRepository } from './factory-provisioning.js'
 import type { FactoryBinding } from './factory-provisioning.js'
 import { createFactoryCodingWorkerRuntime, createMastraFactoryRunPorts, recoverFactoryAdmissions } from './factory-runtime.js'
@@ -195,6 +196,9 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
     portsReady,
     run,
     prepareRepository,
+    githubApp,
+    githubAppSlug: factory.githubAppSlug,
+    records,
     observabilityLifecycle,
     close: async () => {
       try {
@@ -287,6 +291,15 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, appl
         origin,
         resolveCurrentSession,
         isInstallationAdministrator,
+      })
+      await registerInstallationGithubRoutes(app, {
+        origin,
+        resolveCurrentSession,
+        isInstallationAdministrator,
+        github: factoryComposition.githubApp,
+        records: await factoryComposition.records,
+        orgId: factoryComposition.orgId,
+        appSlug: factoryComposition.githubAppSlug,
       })
       await registerFactoryMastraRoutes(app, {
         mastra: composition.mastra,

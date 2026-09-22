@@ -162,10 +162,12 @@ function AccountMenu({ context }: Readonly<{ context: AccessContext }>) {
 export function Shell({
   context,
   scope,
+  rail,
   children,
 }: {
   context: AccessContext
   scope?: ShellScope | undefined
+  rail?: ReactNode
   children: ReactNode
 }) {
   const [arrive] = useState(firstShellMount)
@@ -178,7 +180,7 @@ export function Shell({
         <MainSidebar className="shell-sidebar">
           <div className="shell-lockup"><Lockup arrive={arrive} /></div>
           <MainSidebar.Nav aria-label="Navegação principal">
-            <Navigation scope={scope} />
+            {rail ?? <Navigation scope={scope} />}
           </MainSidebar.Nav>
         </MainSidebar>
         <AppShell

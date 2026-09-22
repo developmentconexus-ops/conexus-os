@@ -53,10 +53,11 @@ export const openFactoryRecords = async (storage: PgFactoryStorage): Promise<Fac
   return Object.freeze({ sourceControl: sourceControl.forIntegration(FACTORY_INTEGRATION_ID), projects, memorySettings, reattachRepository })
 }
 
-const MODEL_ID = /^[\w.-]+\/[\w.:-]+$/
+export const FACTORY_MEMORY_MODEL_ID = /^[\w.-]+\/[\w.:-]+$/
+const MODEL_ID = FACTORY_MEMORY_MODEL_ID
 
 export const setFactoryMemoryModel = async ({ records, orgId, modelId, write }: Readonly<{
-  records: FactoryRecords
+  records: Pick<FactoryRecords, 'memorySettings'>
   orgId: string
   modelId: string
   write(line: string): void

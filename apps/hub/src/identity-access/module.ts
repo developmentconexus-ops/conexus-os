@@ -3,6 +3,7 @@ import type { S1OwnerId } from '../generated/s1-routes.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { createInstallationAdministration } from './installation-administration.js'
 import type { InstallationAdministration } from './installation-administration.js'
+import { registerInstallationRoutes } from './installation-routes.js'
 import { createMembershipStore, registerMembershipRoutes } from './membership.js'
 import { createOidcAdapter } from './oidc.js'
 import { createPreviewAccess } from './preview-access.js'
@@ -58,21 +59,26 @@ export const createIdentityAccessModule = async ({
     const csrfToken = Array.isArray(csrfHeader) ? csrfHeader[0] : csrfHeader
     return store.validateSession({ sessionToken, ...(csrfToken ? { csrfToken } : {}), requireCsrf })
   }
+  const installationAdministration = createInstallationAdministration({ pool })
   return Object.freeze({
-    registerIdentityAccessRoutes: async (app: FastifyInstance) => [
-      ...await registerIdentityAccessRoutes(app, {
-        store,
-        workspaceReader: store,
-        oidc,
-        config: { origin, bootstrapIssuer: issuer, bootstrapSubject },
-        resolveCurrentSession,
-      }),
-      ...await registerMembershipRoutes(app, {
-        store: membership,
-        resolveCurrentSession,
-        config: { origin },
-      }),
-    ],
+    registerIdentityAccessRoutes: async (app: FastifyInstance) => {
+      const owners = [
+        ...await registerIdentityAccessRoutes(app, {
+          store,
+          workspaceReader: store,
+          oidc,
+          config: { origin, bootstrapIssuer: issuer, bootstrapSubject },
+          resolveCurrentSession,
+        }),
+        ...await registerMembershipRoutes(app, {
+          store: membership,
+          resolveCurrentSession,
+          config: { origin },
+        }),
+      ]
+      await registerInstallationRoutes(app, { origin, resolveCurrentSession, installationAdministration })
+      return owners
+    },
     resolveCurrentSession,
     issuePreviewEntry: async (request, input) => {
       const sessionToken = request.cookies['__Host-conexus_session']
@@ -80,7 +86,7 @@ export const createIdentityAccessModule = async ({
       return previewAccess.issueEntryGrant({ sessionToken, route: input.route })
     },
     previewAccess,
-    installationAdministration: createInstallationAdministration({ pool }),
+    installationAdministration,
     close: async () => {
       await Promise.all([previewAccess.close(), oidc.close(), store.close()])
     },

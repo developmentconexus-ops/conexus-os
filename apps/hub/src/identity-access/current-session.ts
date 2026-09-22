@@ -23,10 +23,12 @@ export const parseEmailAddress = (value: unknown): EmailAddress | null => {
   return EMAIL.test(normalized) ? (normalized as EmailAddress) : null
 }
 
-const refusal = (error: unknown): string | null => {
-  if (typeof error !== 'object' || error === null || !('code' in error) || error.code !== '42501') return null
+const refusalWithCode = (error: unknown, code: string): string | null => {
+  if (typeof error !== 'object' || error === null || !('code' in error) || error.code !== code) return null
   return 'message' in error && typeof error.message === 'string' ? error.message : ''
 }
+
+const refusal = (error: unknown): string | null => refusalWithCode(error, '42501')
 
 // Every refused effect in `iam` raises SQLSTATE 42501. The message separates the meanings: the
 // caller may not do this at all, or the effect would leave a Workspace without an owner or the
@@ -42,3 +44,7 @@ export const isLastOwner = (error: unknown): boolean => refusal(error) === 'LAST
 
 export const isLastInstallationAdministrator = (error: unknown): boolean =>
   refusal(error) === 'LAST_INSTALLATION_ADMINISTRATOR'
+
+export const isAccountNotFound = (error: unknown): boolean => refusalWithCode(error, 'P0002') === 'ACCOUNT_NOT_FOUND'
+
+export const isAccountEmailAmbiguous = (error: unknown): boolean => refusalWithCode(error, 'P0003') === 'ACCOUNT_EMAIL_AMBIGUOUS'

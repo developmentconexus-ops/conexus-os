@@ -81,6 +81,8 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'iam.is_installation_administrator': 'hub_iam_runtime',
     'iam.grant_installation_administrator': 'hub_iam_runtime',
     'iam.revoke_installation_administrator': 'hub_iam_runtime',
+    'iam.list_installation_administrators': 'hub_iam_runtime',
+    'iam.grant_installation_administrator_by_email': 'hub_iam_runtime',
   }),
   'identity-access/membership.ts': Object.freeze({
     'iam.invite_workspace_member': 'hub_iam_runtime',
