@@ -1,29 +1,16 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import { setTimeout as sleep } from 'node:timers/promises'
 import test from 'node:test'
 import { readBuilderE2BApiKey } from '../../scripts/builder-e2b-template.mjs'
+import { hubModuleUrl } from './hub-build.mjs'
 
 // Paid: each test creates short-lived sandboxes on the Builder's real E2B template and kills them
 // before it ends. Run with `npm run rb:builder:live`, which reads the Hub env file.
 const live = process.env.CONEXUS_FACTORY_LIVE === 'true'
 const skip = !live && 'opt-in: CONEXUS_FACTORY_LIVE=true with CONEXUS_BUILDER_E2B_API_KEY_FILE and CONEXUS_BUILDER_E2B_TEMPLATE_ID'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-const loadHub = () => {
-  const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/builder-factory-e2b-live-build-'))
-  process.once('exit', () => rmSync(hubBuild, { recursive: true, force: true }))
-  const compiled = spawnSync(process.execPath, [
-    resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'), '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-    '--noEmit', 'false', '--outDir', hubBuild,
-  ], { encoding: 'utf8' })
-  if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
-  return (path) => import(pathToFileURL(resolve(hubBuild, path)).href)
-}
+const loadHub = () => (path) => import(hubModuleUrl(path))
 
 const liveConfig = () => {
   const templateId = process.env.CONEXUS_BUILDER_E2B_TEMPLATE_ID

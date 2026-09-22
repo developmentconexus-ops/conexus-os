@@ -2,20 +2,12 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import test from 'node:test'
+import { hubModuleUrl } from './hub-build.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const cacheRoot = resolve(repositoryRoot, 'node_modules/.cache')
 mkdirSync(cacheRoot, { recursive: true })
-const buildRoot = mkdtempSync(resolve(cacheRoot, 'builder-application-starter-'))
-test.after(() => rmSync(buildRoot, { recursive: true, force: true }))
-
-const compiled = spawnSync(process.execPath, [
-  resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'), '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-  '--noEmit', 'false', '--outDir', buildRoot,
-], { cwd: repositoryRoot, encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
 
 const {
   APPLICATION_CHECK_FILES,
@@ -23,7 +15,7 @@ const {
   materializeApplicationCheck,
   FIXED_APPLICATION_STARTER_FILES,
   materializeFixedApplicationStarter,
-} = await import(pathToFileURL(resolve(buildRoot, 'builder/application-starter.js')).href)
+} = await import(hubModuleUrl('builder/application-starter.js'))
 
 const commandResult = (result) => ({
   success: result.status === 0,

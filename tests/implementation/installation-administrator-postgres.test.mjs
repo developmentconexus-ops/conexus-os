@@ -1,27 +1,15 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
-import { pathToFileURL } from 'node:url'
 import pg from 'pg'
 import { bootstrapInstallationAdministrator } from '../../scripts/bootstrap-installation-administrator.mjs'
+import { hubModuleUrl } from './hub-build.mjs'
 import { buildHubDatabase } from './hub-database.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/installation-administrator-build-'))
-process.once('exit', () => rmSync(hubBuild, { recursive: true, force: true }))
-const compiled = spawnSync(process.execPath, [
-  resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
-  '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-  '--noEmit', 'false', '--outDir', hubBuild,
-], { encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
-const { createInstallationAdministration } = await import(pathToFileURL(resolve(hubBuild, 'identity-access/installation-administration.js')).href)
-const { isLastInstallationAdministrator, isNotAdmitted } = await import(pathToFileURL(resolve(hubBuild, 'identity-access/current-session.js')).href)
+const { createInstallationAdministration } = await import(hubModuleUrl('identity-access/installation-administration.js'))
+const { isLastInstallationAdministrator, isNotAdmitted } = await import(hubModuleUrl('identity-access/current-session.js'))
 
 const ACTIONS = ['workspace.read', 'members.manage', 'project.create', 'project.build']
 

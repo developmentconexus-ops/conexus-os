@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict'
-import { resolve } from 'node:path'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
-import { createServer } from 'vite'
+import { startWebServer } from './web-dev-server.mjs'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
 
 const FACTORY_CONTROLLER = '**/api/mastra-factory/agent-controller/code'
 // The model and a conversation's own state are the controller's, so the screen reads both from
@@ -108,18 +106,12 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   const sourceRevision = 'b'.repeat(40)
   const artifactRevisionId = '70000000-0000-4000-8000-000000000004'
   const artifactDigest = 'c'.repeat(64)
-  const origin = 'http://127.0.0.1:41749'
   let run = null
   let buildCount = 0
   let runFinished = false
   const threadMessages = []
   const requests = []
-  const server = await createServer({
-    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
-    server: { host: '127.0.0.1', port: 41749, strictPort: true },
-  })
-  await server.listen()
-  t.after(() => server.close())
+  const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
@@ -260,14 +252,8 @@ test('new Project lands directly in Build and can send its first Builder message
   const projectId = '70000000-0000-4000-8000-000000000013'
   const runId = '70000000-0000-4000-8000-000000000014'
   const sourceRevision = 'd'.repeat(40)
-  const origin = 'http://127.0.0.1:41750'
   let run = null
-  const server = await createServer({
-    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
-    server: { host: '127.0.0.1', port: 41750, strictPort: true },
-  })
-  await server.listen()
-  t.after(() => server.close())
+  const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
@@ -313,7 +299,6 @@ test('new Project lands directly in Build and can send its first Builder message
 test('a Project holds several conversations, and switching between them leaves the source and the last good Preview alone', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000081'
   const projectId = '70000000-0000-4000-8000-000000000082'
-  const origin = 'http://127.0.0.1:41759'
   const sourceRevision = '8'.repeat(40)
   const artifactRevisionId = '70000000-0000-4000-8000-000000000083'
   const counter = conversation('conversation-counter', 'Contador')
@@ -323,12 +308,7 @@ test('a Project holds several conversations, and switching between them leaves t
     [counter.conversationId]: [userMessage('counter-1', 'Crie um contador'), assistantMessage('counter-2', 'Contador pronto')],
     [clock.conversationId]: [userMessage('clock-1', 'Crie um relógio'), assistantMessage('clock-2', 'Relógio pronto')],
   }, '')
-  const server = await createServer({
-    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
-    server: { host: '127.0.0.1', port: 41759, strictPort: true },
-  })
-  await server.listen()
-  t.after(() => server.close())
+  const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
@@ -397,17 +377,11 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   const projectId = '70000000-0000-4000-8000-000000000062'
   const olderRunId = '70000000-0000-4000-8000-000000000063'
   const latestRunId = '70000000-0000-4000-8000-000000000064'
-  const origin = 'http://127.0.0.1:41757'
   const olderBase = '1'.repeat(40)
   const olderResult = '2'.repeat(40)
   const latestBase = '3'.repeat(40)
   const latestResult = '4'.repeat(40)
-  const server = await createServer({
-    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
-    server: { host: '127.0.0.1', port: 41757, strictPort: true },
-  })
-  await server.listen()
-  t.after(() => server.close())
+  const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
@@ -469,13 +443,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
 test('a send whose outcome is unknown reuses its idempotency key on an identical resend', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000071'
   const projectId = '70000000-0000-4000-8000-000000000072'
-  const origin = 'http://127.0.0.1:41758'
-  const server = await createServer({
-    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
-    server: { host: '127.0.0.1', port: 41758, strictPort: true },
-  })
-  await server.listen()
-  t.after(() => server.close())
+  const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
@@ -514,7 +482,6 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
 test('Preview launch failure is terminal for its key until explicit retry and keeps the last good frame', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000021'
   const projectId = '70000000-0000-4000-8000-000000000022'
-  const origin = 'http://127.0.0.1:41751'
   const sourceA = 'a'.repeat(40)
   const sourceB = 'b'.repeat(40)
   const artifactA = '70000000-0000-4000-8000-000000000023'
@@ -523,12 +490,7 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
   const digestB = 'd'.repeat(64)
   let phase = 'A'
   let previewRequests = 0
-  const server = await createServer({
-    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
-    server: { host: '127.0.0.1', port: 41751, strictPort: true },
-  })
-  await server.listen()
-  t.after(() => server.close())
+  const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
@@ -595,14 +557,8 @@ test('a run that failed before the agent still shows the request and names why i
   const accountId = '70000000-0000-4000-8000-000000000041'
   const projectId = '70000000-0000-4000-8000-000000000042'
   const runId = '70000000-0000-4000-8000-000000000043'
-  const origin = 'http://127.0.0.1:41753'
   const sourceRevision = '9'.repeat(40)
-  const server = await createServer({
-    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
-    server: { host: '127.0.0.1', port: 41753, strictPort: true },
-  })
-  await server.listen()
-  t.after(() => server.close())
+  const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
@@ -641,14 +597,8 @@ test('an agent that spoke once and then works in silence still reads as working,
   const accountId = '70000000-0000-4000-8000-000000000071'
   const projectId = '70000000-0000-4000-8000-000000000072'
   const runId = '70000000-0000-4000-8000-000000000073'
-  const origin = 'http://127.0.0.1:41759'
   const sourceRevision = '7'.repeat(40)
-  const server = await createServer({
-    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
-    server: { host: '127.0.0.1', port: 41759, strictPort: true },
-  })
-  await server.listen()
-  t.after(() => server.close())
+  const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
@@ -708,15 +658,9 @@ const NEXT_SOURCE_UNCOMPILED = 'Próxima: código atual ainda sem prévia'
 test('the Preview names the grant and the navigation, and never claims the application loaded', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000051'
   const projectId = '70000000-0000-4000-8000-000000000052'
-  const origin = 'http://127.0.0.1:41755'
   const sourceRevision = '7'.repeat(40)
   const artifactRevisionId = '70000000-0000-4000-8000-000000000053'
-  const server = await createServer({
-    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
-    server: { host: '127.0.0.1', port: 41755, strictPort: true },
-  })
-  await server.listen()
-  t.after(() => server.close())
+  const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
@@ -759,13 +703,7 @@ test('the Build screen says when the current source is ahead of the last good Pr
   const accountId = '70000000-0000-4000-8000-000000000061'
   const projectId = '70000000-0000-4000-8000-000000000062'
   const artifactRevisionId = '70000000-0000-4000-8000-000000000063'
-  const origin = 'http://127.0.0.1:41762'
-  const server = await createServer({
-    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
-    server: { host: '127.0.0.1', port: 41762, strictPort: true },
-  })
-  await server.listen()
-  t.after(() => server.close())
+  const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
@@ -788,7 +726,6 @@ test('the Build screen says when the current source is ahead of the last good Pr
 test('Preview ignores an older launch completion after the artifact key changes', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000031'
   const projectId = '70000000-0000-4000-8000-000000000032'
-  const origin = 'http://127.0.0.1:41752'
   const sourceA = 'e'.repeat(40)
   const sourceB = 'f'.repeat(40)
   const artifactA = '70000000-0000-4000-8000-000000000033'
@@ -806,12 +743,7 @@ test('Preview ignores an older launch completion after the artifact key changes'
   const launchB = deferred()
   const firstLaunchStarted = deferred()
   const secondLaunchStarted = deferred()
-  const server = await createServer({
-    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
-    server: { host: '127.0.0.1', port: 41752, strictPort: true },
-  })
-  await server.listen()
-  t.after(() => server.close())
+  const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
@@ -876,14 +808,8 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
   const runId = '70000000-0000-4000-8000-000000000093'
   const counterId = '70000000-0000-4000-8000-000000000094'
   const clockId = '70000000-0000-4000-8000-000000000095'
-  const origin = 'http://127.0.0.1:41761'
   const sourceRevision = '7'.repeat(40)
-  const server = await createServer({
-    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
-    server: { host: '127.0.0.1', port: 41761, strictPort: true },
-  })
-  await server.listen()
-  t.after(() => server.close())
+  const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })

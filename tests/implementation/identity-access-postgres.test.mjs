@@ -1,26 +1,14 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
 import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const { Client } = pg
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/identity-access-postgres-build-'))
-process.once('exit', () => rmSync(hubBuild, { recursive: true, force: true }))
-const compiled = spawnSync(process.execPath, [
-  resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
-  '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-  '--noEmit', 'false', '--outDir', hubBuild,
-], { encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(`S1_HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
-const { createIdentityAccessStore } = await import(pathToFileURL(resolve(hubBuild, 'identity-access/store.js')).href)
-const { createPostgresPool } = await import(pathToFileURL(resolve(hubBuild, 'platform/postgres.js')).href)
+const { createIdentityAccessStore } = await import(hubModuleUrl('identity-access/store.js'))
+const { createPostgresPool } = await import(hubModuleUrl('platform/postgres.js'))
 const required = (name) => {
   const value = process.env[name]
   if (!value) throw new Error(`MISSING_TEST_CONFIG_${name}`)

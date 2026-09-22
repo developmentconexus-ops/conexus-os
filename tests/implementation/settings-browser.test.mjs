@@ -1,26 +1,16 @@
 import assert from 'node:assert/strict'
-import { resolve } from 'node:path'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
-import { createServer } from 'vite'
+import { startWebServer } from './web-dev-server.mjs'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
 const BUILDER_MODELS = [
   { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true, useCount: 0 },
   { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', modelName: 'claude-sonnet-4-5', hasApiKey: true, useCount: 0 },
   { id: 'groq/llama-4', provider: 'groq', modelName: 'llama-4', hasApiKey: false, useCount: 0 },
 ]
 
-let nextPort = 41800
 const withServer = async (t) => {
-  const port = nextPort++
-  const origin = `http://127.0.0.1:${port}`
-  const server = await createServer({
-    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
-    server: { host: '127.0.0.1', port, strictPort: true },
-  })
-  await server.listen()
-  t.after(() => server.close())
+  const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1200, height: 900 } })

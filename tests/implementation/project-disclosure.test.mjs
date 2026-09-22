@@ -1,25 +1,12 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import test from 'node:test'
+import { hubModuleUrl } from './hub-build.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const generatedRoutePath = resolve(repositoryRoot, 'apps/hub/src/generated/s3-routes.ts')
 const generatedClientPath = resolve(repositoryRoot, 'apps/web/src/generated/project-client.ts')
-
-const compileHub = (t) => {
-  const build = mkdtempSync(resolve(repositoryRoot, 'apps/hub/r1-s3-project-disclosure-build-'))
-  t.after(() => rmSync(build, { recursive: true, force: true }))
-  const compiled = spawnSync(process.execPath, [
-    resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
-    '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-    '--noEmit', 'false', '--outDir', build,
-  ], { encoding: 'utf8' })
-  assert.equal(compiled.status, 0, `${compiled.stdout}\n${compiled.stderr}`)
-  return (path) => pathToFileURL(resolve(build, path)).href
-}
 
 test('S3-P6 closed routes remain projected', () => {
   assert.equal(existsSync(generatedRoutePath), true)
@@ -36,9 +23,8 @@ test('S3-P6 closed routes remain projected', () => {
   assert.match(client, /createProject/)
 })
 
-test('S3-P6 store composes read-only current admission before Project disclosure', async (t) => {
-  const built = compileHub(t)
-  const { createProjectStore } = await import(built('project/store.js'))
+test('S3-P6 store composes read-only current admission before Project disclosure', async () => {
+  const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
   const statements = []
   const readClient = {
     async query(statement, values = []) {
@@ -92,9 +78,8 @@ test('S3-P6 store composes read-only current admission before Project disclosure
 })
 
 test('S3-P6 HTTP reads separate authentication, empty list, exact detail and non-disclosure', async (t) => {
-  const built = compileHub(t)
-  const { createHttpApp } = await import(built('http/app.js'))
-  const { registerProjectRoutes } = await import(built('project/routes.js'))
+  const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
+  const { registerProjectRoutes } = await import(hubModuleUrl('project/routes.js'))
   const summary = {
     projectId: '30000000-0000-4000-8000-000000000072',
     workspaceId: '20000000-0000-4000-8000-000000000072',

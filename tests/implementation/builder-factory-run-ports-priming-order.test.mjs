@@ -1,11 +1,8 @@
 import assert from 'node:assert/strict'
 import { generateKeyPairSync } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import { GithubIntegration } from '@mastra/factory/integrations/github/integration'
+import { hubModuleUrl } from './hub-build.mjs'
 
 // Kept in its own process (its own file): the vendored custom-providers primer caches one
 // snapshot per org for the process's lifetime, bound to whatever storage first primed it — a
@@ -13,16 +10,7 @@ import { GithubIntegration } from '@mastra/factory/integrations/github/integrati
 // (usually absent) custom-providers storage, not this file's. See builder-factory-run-ports.test.mjs
 // for the rest of createMastraFactoryRunPorts' coverage.
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/builder-factory-run-ports-priming-build-'))
-process.once('exit', () => rmSync(hubBuild, { recursive: true, force: true }))
-const compiled = spawnSync(process.execPath, [
-  resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
-  '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-  '--noEmit', 'false', '--outDir', hubBuild,
-], { encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
-const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
+const built = hubModuleUrl
 const { createMastraFactoryRunPorts } = await import(built('builder/factory-runtime.js'))
 const { createFactorySandbox } = await import(built('builder/factory.js'))
 

@@ -1,17 +1,9 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import test from 'node:test'
+import { hubModuleUrl } from './hub-build.mjs'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-const buildRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/builder-application-registry-build-'))
-process.once('exit', () => rmSync(buildRoot, { recursive: true, force: true }))
-const compiled = spawnSync(process.execPath, [resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'), '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'), '--noEmit', 'false', '--outDir', buildRoot], { cwd: repositoryRoot, encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(`BUILDER_APPLICATION_REGISTRY_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
-const { createApplicationArtifactStore } = await import(pathToFileURL(resolve(buildRoot, 'registry/application-artifact-store.js')).href)
+const { createApplicationArtifactStore } = await import(hubModuleUrl('registry/application-artifact-store.js'))
 
 const accountId = '11111111-1111-4111-8111-111111111111'
 const projectId = '22222222-2222-4222-8222-222222222222'

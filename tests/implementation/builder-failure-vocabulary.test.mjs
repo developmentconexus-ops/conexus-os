@@ -1,16 +1,8 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import test from 'node:test'
+import { hubModuleUrl } from './hub-build.mjs'
 
-const root = resolve(import.meta.dirname, '../..')
-const output = mkdtempSync(resolve(root, 'apps/hub/builder-failure-vocabulary-build-'))
-const compiled = spawnSync(process.execPath, [resolve(root, 'node_modules/typescript/bin/tsc'), '--project', resolve(root, 'apps/hub/tsconfig.json'), '--noEmit', 'false', '--outDir', output], { cwd: root, encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(compiled.stdout || compiled.stderr)
-test.after(() => rmSync(output, { recursive: true, force: true }))
-const { builderFailureCategory, projectBuilderRun } = await import(pathToFileURL(resolve(output, 'builder/failure-vocabulary.js')).href)
+const { builderFailureCategory, projectBuilderRun } = await import(hubModuleUrl('builder/failure-vocabulary.js'))
 
 const run = (state, failureCode) => ({
   builderRunId: '90000000-0000-4000-8000-000000000001',

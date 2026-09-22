@@ -2,12 +2,10 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { tmpdir } from 'node:os'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import test from 'node:test'
+import { hubModuleUrl } from './hub-build.mjs'
 
 process.env.MASTRA_TELEMETRY_DISABLED = '1'
-const repositoryRoot = resolve(import.meta.dirname, '../..')
 
 const RETIRED_MODEL_CATALOG_VARIABLES = [
   'CONEXUS_PROJECT_MODEL_CATALOG_FILE',
@@ -19,17 +17,6 @@ const RETIRED_PLANNING_VARIABLES = [
   'CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE',
   'CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE',
 ]
-
-const compileHub = (t) => {
-  const build = mkdtempSync(resolve(repositoryRoot, 'apps/hub/f05-planning-free-build-'))
-  t.after(() => rmSync(build, { recursive: true, force: true }))
-  const compiled = spawnSync(process.execPath, [
-    resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'), '--project',
-    resolve(repositoryRoot, 'apps/hub/tsconfig.json'), '--noEmit', 'false', '--outDir', build,
-  ], { encoding: 'utf8' })
-  assert.equal(compiled.status, 0, `${compiled.stdout}\n${compiled.stderr}`)
-  return (path) => pathToFileURL(resolve(build, path)).href
-}
 
 const hubEnvironment = (root) => ({
   NODE_ENV: 'test',
@@ -62,21 +49,19 @@ const hubEnvironment = (root) => ({
 })
 
 test('a Builder without the Factory is refused: there is no second agent runtime', async (t) => {
-  const built = compileHub(t)
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-factory-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
-  const { readHubConfig } = await import(built('platform/config.js'))
+  const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
   const environment = Object.fromEntries(Object.entries(hubEnvironment(root)).filter(([name]) => !name.includes('_FACTORY_')))
   assert.throws(() => readHubConfig(environment), { message: 'BUILDER_FACTORY_RUNTIME_REQUIRED' })
 })
 
 test('Builder boot needs no deployment model catalog and no pinned admission id', async (t) => {
-  const built = compileHub(t)
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const environment = hubEnvironment(root)
 
-  const { readHubConfig } = await import(built('platform/config.js'))
+  const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
 
   const config = readHubConfig(environment)
   assert.equal(config.builder.e2bTemplateId, 'conexusbuilder:0f9a1c2d-3e4b-4a5c-8d9e-0f1a2b3c4d5e')
@@ -86,12 +71,11 @@ test('Builder boot needs no deployment model catalog and no pinned admission id'
 })
 
 test('a retired Inception or Baseline password variable is refused, not ignored', async (t) => {
-  const built = compileHub(t)
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-retired-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const environment = hubEnvironment(root)
 
-  const { readHubConfig } = await import(built('platform/config.js'))
+  const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
 
   for (const name of RETIRED_PLANNING_VARIABLES) {
     assert.throws(
@@ -102,12 +86,11 @@ test('a retired Inception or Baseline password variable is refused, not ignored'
 })
 
 test('a deployment still carrying the model catalog variables is refused, not silently ignored', async (t) => {
-  const built = compileHub(t)
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-catalog-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const environment = hubEnvironment(root)
 
-  const { readHubConfig } = await import(built('platform/config.js'))
+  const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
 
   for (const name of RETIRED_MODEL_CATALOG_VARIABLES) {
     assert.throws(
@@ -118,12 +101,11 @@ test('a deployment still carrying the model catalog variables is refused, not si
 })
 
 test('a deployment still carrying the model-connection variables is refused, not silently ignored', async (t) => {
-  const built = compileHub(t)
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-model-connection-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const environment = hubEnvironment(root)
 
-  const { readHubConfig } = await import(built('platform/config.js'))
+  const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
 
   for (const name of [
     'CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE',

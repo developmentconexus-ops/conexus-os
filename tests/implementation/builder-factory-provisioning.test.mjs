@@ -1,23 +1,11 @@
 import assert from 'node:assert/strict'
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import { buildHubDatabase, query, testPool } from './hub-database.mjs'
 import { startFakeGithub } from './builder-factory-fake-github.mjs'
+import { hubModuleUrl } from './hub-build.mjs'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-const hubBuild = mkdtempSync(resolve(repositoryRoot, 'apps/hub/builder-factory-provisioning-build-'))
-process.once('exit', () => rmSync(hubBuild, { recursive: true, force: true }))
-const compiled = spawnSync(process.execPath, [
-  resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'),
-  '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
-  '--noEmit', 'false', '--outDir', hubBuild,
-], { encoding: 'utf8' })
-if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
-const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
+const built = hubModuleUrl
 const { createFactoryStorage } = await import(built('builder/factory.js'))
 const { createGithubApp } = await import(built('builder/factory-github.js'))
 const { connectFactoryInstallation, factoryRepositoryName, openFactoryRecords, prepareFactoryRepository, provisionFactoryProject, setFactoryMemoryModel } = await import(built('builder/factory-provisioning.js'))
