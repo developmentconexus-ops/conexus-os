@@ -1,5 +1,6 @@
 import type { AgentController, AgentControllerEvent } from '@mastra/core/agent-controller'
 import type { MastraCodeState } from '@mastra/code-sdk/schema'
+import { parseError } from '@mastra/code-sdk/utils/errors'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { CompiledApplication } from './application-artifact-runtime.js'
 
@@ -41,22 +42,17 @@ export const BUILDER_TRACE_REQUEST_CONTEXT_KEYS = Object.freeze([
   'conexusBuilderRunId',
 ])
 
-const isRateLimitError = (error: unknown): boolean => {
-  if (typeof error !== 'object' || error === null) return false
-  const statusCode = 'statusCode' in error && typeof error.statusCode === 'number' ? error.statusCode : undefined
-  const messageText = 'message' in error && typeof error.message === 'string' ? error.message : ''
-  return statusCode === 429 || /rate.?limit|too many requests/i.test(messageText)
-}
-
-// Mastra Code's words when the person has no account of their own for the model's provider and none
-// is shared with the installation. It carries no status code, so its text is the only signal.
+// Mastra Code throws a plain Error, not its ProviderAuthRequiredError, when the person has no account
+// for the model's provider and none is shared, so its text is the only signal. Upstream proposal U1
+// in docs/reference/mastra-boundary.md removes this check.
 const NO_MODEL_ACCOUNT = /^No usable \S+ credential is configured/
-const isMissingModelAccount = (error: unknown): boolean => error instanceof Error && NO_MODEL_ACCOUNT.test(error.message)
 
-const classifyAgentError = (error: Error): string => {
-  const statusCode = 'statusCode' in error && typeof error.statusCode === 'number' ? error.statusCode : undefined
-  if (statusCode === 401 || statusCode === 403 || isMissingModelAccount(error)) return 'BUILDER_MODEL_AUTH_FAILED'
-  return 'BUILDER_MODEL_STREAM_FAILED'
+const modelFailure = (error: unknown): 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILED' | null => {
+  if (error instanceof Error && NO_MODEL_ACCOUNT.test(error.message)) return 'BUILDER_MODEL_AUTH_FAILED'
+  const { type } = parseError(error)
+  if (type === 'rate_limit') return 'BUILDER_MODEL_RATE_LIMITED'
+  if (type === 'auth') return 'BUILDER_MODEL_AUTH_FAILED'
+  return null
 }
 
 export const sendBuilderSessionMessage = async (
@@ -74,15 +70,11 @@ export const sendBuilderSessionMessage = async (
     try {
       await session.sendMessage({ ...message, ...(requestContext ? { requestContext } : {}) })
     } catch (error) {
-      if (isRateLimitError(error)) throw new Error('BUILDER_MODEL_RATE_LIMITED')
-      if (isMissingModelAccount(error)) throw new Error('BUILDER_MODEL_AUTH_FAILED')
-      throw error
+      const failure = modelFailure(error)
+      throw failure ? new Error(failure) : error
     }
     if (!terminalReason) throw new Error('BUILDER_AGENT_COMPLETION_UNAVAILABLE')
-    if (terminalReason === 'error') {
-      if (agentError && isRateLimitError(agentError)) throw new Error('BUILDER_MODEL_RATE_LIMITED')
-      throw new Error(agentError ? classifyAgentError(agentError) : 'BUILDER_MODEL_STREAM_FAILED')
-    }
+    if (terminalReason === 'error') throw new Error((agentError && modelFailure(agentError)) || 'BUILDER_MODEL_STREAM_FAILED')
     return terminalReason
   } finally {
     unsubscribe()
