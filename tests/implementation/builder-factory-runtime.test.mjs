@@ -274,7 +274,7 @@ test('root fetches the base into its own mirror, and the checkout takes it from 
   const checkout = run.events.findIndex((event) => typeof event === 'string' && event.includes('app.base.bundle'))
   assert.equal(run.events[checkout], `sh -c ${git} fetch --quiet --no-tags '/var/lib/conexus-git/app.base.bundle' refs/conexus/base && ${git} reset --quiet --hard && ${git} clean -fdq && ${git} checkout --quiet -B 'conexus/${conversationId}' '${BASE}' && test "$(${git} rev-parse HEAD)" = '${BASE}'`)
   assert.ok(run.events.indexOf('start') < rootPin && rootPin < checkout && checkout < run.events.indexOf('turn'), 'start hook, root pin, checkout, then the agent')
-  assert.equal(run.commands().filter((line) => line.includes('remote set-url origin')).length, 1)
+  assert.equal(run.commands().some((line) => line.includes('remote set-url origin')), false)
 })
 
 test('an admission that finds the default branch already at the result counts it admitted', async (t) => {
@@ -324,7 +324,7 @@ test('Git tokens are scoped to the one repository, used inline, and never reach 
   const minted = run.github.state.tokens.map(({ repositoryIds, permissions }) => ({ repositoryIds, permissions }))
   // @octokit/auth-app reuses a live token minted for the same repository and permissions.
   assert.deepEqual(minted, [{ repositoryIds: [700001], permissions: { contents: 'write' } }])
-  assert.equal([...run.commands(), ...run.rootScripts()].some((line) => /remote add|credential\.helper [^-]|config --global/.test(line.replace('--unset-all credential.helper', ''))), false)
+  assert.equal([...run.commands(), ...run.rootScripts()].some((line) => /remote add|credential\.helper|config --global/.test(line)), false)
   assert.doesNotMatch(JSON.stringify([run.calls, run.logs, run.diagnostics]), /ghs_/)
 })
 

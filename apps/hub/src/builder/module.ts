@@ -188,12 +188,23 @@ const startFactoryComposition = ({ database, factory, store, e2bApiKey, e2bTempl
   const stateSecret = readSecretFile(factory.stateSecretFile)
   const observability = createBuilderObservability('conexus-builder-factory')
   const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
+  const githubApp = createGithubApp({ appId: factory.githubAppId, privateKey: github.privateKey })
+  // A sandbox starts only after the composition is ready, so its seed reads the Factory's rows then.
+  const readCheckout = async (slug: string) => {
+    const sourceControl = (await ready).github.sourceControlStorage
+    for (const installation of await sourceControl.installations.list({ orgId: factory.orgId })) {
+      const repository = await sourceControl.repositories.findBySlug({ orgId: factory.orgId, installationId: installation.id, slug })
+      if (repository) {
+        return { token: await githubApp.repositoryToken(Number(installation.externalId), Number(repository.externalId), 'read'), defaultBranch: repository.defaultBranch }
+      }
+    }
+    throw new Error('BUILDER_FACTORY_UNAVAILABLE')
+  }
   const ready = composeFactory({
     pool, github, stateSecret, publicUrl: origin, observability,
-    sandbox: createFactorySandbox({ apiKey: e2bApiKey, templateId: e2bTemplateId }),
+    sandbox: createFactorySandbox({ apiKey: e2bApiKey, templateId: e2bTemplateId, readCheckout }),
   })
   ready.catch(() => undefined)
-  const githubApp = createGithubApp({ appId: factory.githubAppId, privateKey: github.privateKey })
   const appendDiagnostic = createFactoryDiagnosticAppender(ready)
   const portsReady = ready.then((composition) => createMastraFactoryRunPorts({
     composition, orgId: factory.orgId, log: (line) => { process.stderr.write(`${line}\n`) },

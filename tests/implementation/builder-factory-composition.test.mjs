@@ -22,7 +22,7 @@ const compiled = spawnSync(process.execPath, [
 ], { encoding: 'utf8' })
 if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
 const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
-const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, scrubCheckoutCredentials } = await import(built('builder/factory.js'))
+const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, SANDBOX_CREDENTIAL } = await import(built('builder/factory.js'))
 const { createBuilderMountOptions } = await import(built('builder/module.js'))
 const { createMastraFactoryRunPorts } = await import(built('builder/factory-runtime.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
@@ -117,41 +117,73 @@ test('the Factory sandbox callback builds one E2B sandbox per session row in /wo
   assert.deepEqual(sandbox.getEnv(), {})
 })
 
-const localShellSandbox = {
+
+// A host shell standing in for the sandbox, running the Factory's own git code as it would in the VM.
+const localShellSandbox = (env) => ({
   executeCommand: async (command, args = []) => {
-    const result = spawnSync(command, args, { encoding: 'utf8' })
+    const result = spawnSync(command, args, { encoding: 'utf8', env: { ...process.env, ...env } })
     return { exitCode: result.status ?? 1, success: result.status === 0, stdout: result.stdout, stderr: result.stderr }
   },
-}
+})
 const git = (cwd, ...args) => {
   const result = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8' })
   if (result.status !== 0) throw new Error(result.stderr)
   return result.stdout.trim()
 }
 
-test('after the Factory start hook the Hub leaves no GitHub token in the checkout', async (t) => {
-  const workdir = mkdtempSync(join(tmpdir(), 'conexus-factory-checkout-'))
-  t.after(() => rmSync(workdir, { recursive: true, force: true }))
-  git(workdir, 'init', '--quiet')
-  git(workdir, 'remote', 'add', 'origin', 'https://x-access-token:ghs_leaked@github.com/acme-org/app.git')
-  git(workdir, 'config', 'credential.helper', '!gh auth git-credential')
-
-  await scrubCheckoutCredentials(localShellSandbox, workdir, 'acme-org/app')
-
-  assert.equal(git(workdir, 'remote', 'get-url', 'origin'), 'https://github.com/acme-org/app.git')
-  assert.equal(spawnSync('git', ['-C', workdir, 'config', '--get', 'credential.helper']).status, 1)
-  assert.doesNotMatch(readFileSync(join(workdir, '.git/config'), 'utf8'), /x-access-token|ghs_/)
+test('the Factory\'s own clone and branch checkout, holding the credential that opens nothing, read the seed bundle and leave a clean checkout', async (t) => {
+  const { materializeRepo, checkoutSessionBranch } = await import('@mastra/factory/integrations/github/sandbox')
+  const root = mkdtempSync(join(tmpdir(), 'conexus-factory-seed-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const upstream = join(root, 'upstream')
+  mkdirSync(upstream)
+  git(upstream, 'init', '--quiet', '-b', 'main')
+  git(upstream, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '--allow-empty', '-m', 'base')
+  const base = git(upstream, 'rev-parse', 'HEAD')
+  // What root's seed leaves: a bundle of the default branch, and a system rule sending the
+  // credential-free clone URL to it.
+  const bundle = join(root, 'app.seed.bundle')
+  git(upstream, 'bundle', 'create', '--quiet', bundle, 'refs/heads/main')
+  const systemConfig = join(root, 'gitconfig')
+  writeFileSync(systemConfig, `[url "${bundle}"]\n\tinsteadOf = https://x-access-token:${SANDBOX_CREDENTIAL}@github.com/acme-org/app.git\n`)
+  const sandbox = localShellSandbox({ GIT_CONFIG_SYSTEM: systemConfig, GIT_CONFIG_GLOBAL: '/dev/null', GIT_TERMINAL_PROMPT: '0' })
+  const workdir = join(root, 'workspace', 'app')
+  const marked = []
+  await materializeRepo({
+    row: { id: 'row-1', sandboxWorkdir: workdir, materializedAt: null },
+    repoInfo: { repoFullName: 'acme-org/app', defaultBranch: 'main' },
+    sandbox, token: SANDBOX_CREDENTIAL, storage: { markMaterialized: async (row) => { marked.push(row.id) } },
+  })
+  await checkoutSessionBranch(sandbox, workdir, { branch: 'conexus/conversation-1', baseBranch: 'main', token: SANDBOX_CREDENTIAL, repoFullName: 'acme-org/app' })
+  assert.deepEqual(marked, ['row-1'])
+  assert.equal(git(workdir, 'branch', '--show-current'), 'conexus/conversation-1')
+  assert.equal(git(workdir, 'rev-parse', 'HEAD'), base)
+  assert.equal(git(workdir, 'config', '--get', 'remote.origin.url'), 'https://github.com/acme-org/app.git')
 })
 
-test('a token left anywhere else in .git refuses the sandbox', async (t) => {
-  const workdir = mkdtempSync(join(tmpdir(), 'conexus-factory-checkout-'))
-  t.after(() => rmSync(workdir, { recursive: true, force: true }))
-  git(workdir, 'init', '--quiet')
-  git(workdir, 'remote', 'add', 'origin', 'https://github.com/acme-org/app.git')
-  writeFileSync(join(workdir, '.git/FETCH_HEAD'), "abc\t\tbranch 'main' of https://x-access-token:ghs_leaked@github.com/acme-org/app\n")
-  await assert.rejects(scrubCheckoutCredentials(localShellSandbox, workdir, 'acme-org/app'), { message: 'FACTORY_CHECKOUT_CREDENTIAL_REFUSED' })
-  await assert.rejects(scrubCheckoutCredentials(localShellSandbox, workdir, "acme-org/app'; rm -rf /"), { message: 'FACTORY_CHECKOUT_REFUSED' })
+test('every start seeds root\'s mirror with a read token in root\'s environment before the Factory\'s start hook runs', async () => {
+  const created = fakeVm('vm-fresh')
+  const sandbox = new ConexusFactoryE2BSandbox({ id: 'conexus-factory-row', template: 'conexus:template', apiKey: 'e2b-test' }, {
+    repositorySlug: 'acme-org/app', read: async () => ({ token: 'ghs_seed', defaultBranch: 'main' }),
+  })
+  sandbox.findExistingSandbox = async () => undefined
+  sandbox.createSdkSandbox = async () => created
+  const order = []
+  sandbox.setOnStart((previous) => async (args) => { order.push(['factory', args.outcome]); await previous?.(args) })
+  await sandbox.start()
+  const seed = created.runs.find(({ options }) => options?.user === 'root')
+  assert.deepEqual(seed.script, [
+    "mkdir -p '/var/lib/conexus-git'",
+    "{ test -d '/var/lib/conexus-git/app.git' || git init --quiet --bare '/var/lib/conexus-git/app.git'; }",
+    "git --git-dir='/var/lib/conexus-git/app.git' fetch --quiet --no-tags 'https://github.com/acme-org/app.git' '+refs/heads/main:refs/heads/main'",
+    "git --git-dir='/var/lib/conexus-git/app.git' bundle create --quiet '/var/lib/conexus-git/app.seed.bundle' 'refs/heads/main'",
+    `git config --system --replace-all 'url./var/lib/conexus-git/app.seed.bundle.insteadOf' 'https://x-access-token:${SANDBOX_CREDENTIAL}@github.com/acme-org/app.git'`,
+  ].join(' && '))
+  assert.equal(seed.options.envs.GIT_CONFIG_VALUE_0, `AUTHORIZATION: basic ${Buffer.from('x-access-token:ghs_seed').toString('base64')}`)
+  assert.deepEqual(order, [['factory', 'created']])
+  assert.equal(created.runs.indexOf(seed), 0, 'the seed is the first command of the start')
 })
+
 
 test('with no Factory variable the Hub boots as it did before', () => {
   assert.equal(readHubConfig(baseEnvironment).factory, undefined)
@@ -247,6 +279,14 @@ test('prepare() registers the controller as code, lands every table in factory, 
   // The run ports list the GitHub integration's tools and read the memory-settings domain prepare() registered.
   assert.equal(typeof createMastraFactoryRunPorts({ composition, orgId: 'conexus-installation', log: () => undefined }).openSession, 'function')
   assert.deepEqual(await legacy.base.controller.listAvailableModels(), legacyModelsBefore)
+
+  // Every Factory path that would hand the sandbox a repository token gets the one that opens nothing.
+  const sourceControl = composition.github.sourceControlStorage
+  const installation = await sourceControl.installations.upsert({ orgId: 'conexus-installation', connectedByUserId: 'conexus-operator', externalId: '163574754', accountName: 'acme-org', accountType: 'Organization', providerMetadata: {} })
+  const repository = await sourceControl.repositories.upsert({ orgId: 'conexus-installation', input: { installationId: installation.id, externalId: '700001', slug: 'acme-org/app', defaultBranch: 'main', providerMetadata: {} } })
+  assert.deepEqual(await composition.github.versionControl.getRepositoryAccess({ orgId: 'conexus-installation', repositoryId: repository.id }), {
+    cloneUrl: 'https://github.com/acme-org/app.git', authorization: { scheme: 'bearer', token: 'conexus-no-credential' },
+  })
 
   const inspector = new pg.Client(connection)
   await inspector.connect()

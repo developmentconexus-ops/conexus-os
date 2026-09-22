@@ -6,7 +6,7 @@ import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memo
 import { buildApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { CompiledApplication } from './application-artifact-runtime.js'
 import { APPLICATION_CHECK_INSTRUCTION, BUILDER_SHARED_AGENT_INSTRUCTIONS, commandEvidence, materializeApplicationCheck, materializeFixedApplicationStarter } from './application-starter.js'
-import { ConexusFactoryE2BSandbox, FACTORY_OPERATOR_ID, FACTORY_WORKING_DIRECTORY, scrubCheckoutCredentials } from './factory.js'
+import { ConexusFactoryE2BSandbox, FACTORY_OPERATOR_ID, FACTORY_WORKING_DIRECTORY, HUB_GIT_ROOT, tokenEnvironment } from './factory.js'
 import type { FactoryComposition } from './factory.js'
 import type { GithubApp } from './factory-github.js'
 import { conversationBranch } from './factory-routes.js'
@@ -94,20 +94,9 @@ const materializeFactoryStarter: NonNullable<FactoryRunPorts['materializeStarter
 
 const repositoryUrl = (slug: string): string => `https://github.com/${slug}.git`
 
-// The token rides in the git process's environment as a one-command http header, never in argv,
-// a URL, a remote or a config file. Only root git on the Hub's own mirror carries it: the agent's
-// user cannot read a root process's environment, and root git never reads the agent's checkout,
-// whose config and hooks the agent writes. Commits cross between the two as bundles.
 const AGENT_USER = 'conexus-agent'
-const HUB_GIT_ROOT = '/var/lib/conexus-git'
 const RESULT_BUNDLE = `${FACTORY_WORKING_DIRECTORY}/.conexus-result.bundle`
 const BUILD_ROOT = '/var/lib/conexus-build'
-const tokenEnvironment = (token: string): Record<string, string> => ({
-  GIT_CONFIG_COUNT: '1',
-  GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
-  GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
-  GIT_TERMINAL_PROMPT: '0',
-})
 
 export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): FactoryCodingWorkerRuntime => Object.freeze({
   execute: async (input) => {
@@ -160,7 +149,6 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       const asRoot = (script: string): Promise<CommandResult> => onIncarnation(() => sandbox.runAsRoot(script, {}))
       // A VM from an older template, adopted after a Hub restart, would still run the agent as root.
       if ((await direct('id', ['-un'])).stdout.trim() !== AGENT_USER) throw new Error('BUILDER_SANDBOX_AGENT_USER_REQUIRED')
-      await scrubCheckoutCredentials({ executeCommand: direct }, workdir, slug)
 
       // The Factory fetches the base branch once per branch, so each run pins its own base. This also
       // discards whatever a stopped or stale run left in the checkout.
