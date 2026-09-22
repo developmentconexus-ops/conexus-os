@@ -123,7 +123,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // The Project's name, reduced to what GitHub accepts, and the head of its id. The same Project
 // always names the same repository, so a retry finds the one an earlier attempt created.
 export const factoryRepositoryName = (projectName: string, projectId: string): string => {
-  const slug = projectName.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const slug = projectName.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/, '')
   return `${slug || 'project'}-${projectId.slice(0, 8)}`
 }

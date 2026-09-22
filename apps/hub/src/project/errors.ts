@@ -23,6 +23,6 @@ export const projectErrorCode = (error: unknown): ProjectErrorCode | null => err
 
 // Factory and GitHub failures are named codes, some followed by a sentence for the operator; only
 // the code leaves, and anything else is reported as a failure with no name.
-const NAMED = /^((?:FACTORY|BUILDER)_[A-Z_]+(?::\d{3})?)(?::\s|$)/
+const NAMED = /^(FACTORY_[A-Z_]+(?::\d{3})?)(?::\s|$)/
 export const repositoryRefused = (error: unknown): ProjectError =>
   new ProjectError('REPOSITORY_REFUSED', NAMED.exec(error instanceof Error ? error.message : '')?.[1] ?? 'FACTORY_REPOSITORY_FAILED')
