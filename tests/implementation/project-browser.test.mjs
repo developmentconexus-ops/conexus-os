@@ -70,6 +70,7 @@ async function mockHub(page, hub) {
       return json(route, 200, { account: { accountId: ids.account, displayName: 'Marina Alves', email: 'marina@empresa.com.br' }, workspaces: hub.workspaces, projects: [] })
     }
     if (p === '/api/session' && method === 'DELETE') return route.fulfill({ status: 204 })
+    if (p === '/api/control/model-accounts/models') return json(route, 200, { models: [{ id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true }] })
     if (p === '/api/control/accounts' && method === 'POST') return json(route, 201, { accountId: ids.account, displayName: body.displayName })
     if (p === '/api/control/workspaces' && method === 'POST') return json(route, 201, { workspaceId: ids.sales, name: body.name, initialAccessEstablished: true, creatorAccountId: ids.account })
     const summaries = p.match(/^\/api\/control\/workspaces\/([^/]+)\/project-summaries$/)
@@ -211,13 +212,16 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.goto(`${origin}/workspaces/${ids.operations}/projects`)
     await page.locator('.cx-project-card').first().waitFor()
     assert.deepEqual(await page.locator('.cx-project-card h3').allTextContents(), ['Pedidos de férias', 'Visitas a clientes', 'Checklist de abertura da loja', 'Estoque do almoxarifado'])
-    assert.deepEqual(await page.locator('.cx-project-card .cx-chip').allTextContents(), ['Em uso', 'Construindo', 'Falhou', 'Sem prévia ainda'])
-    assert.equal(await page.locator('.cx-project-card').first().locator('.cx-project-time').textContent(), 'Última alteração há 5 min.')
+    assert.deepEqual(await page.locator('.cx-project-card .cx-chip').allTextContents(), ['Em uso', 'Construindo', 'Falhou: build do aplicativo', 'Sem prévia ainda'])
+    assert.equal(await page.locator('.cx-project-card').first().locator('.cx-project-time').textContent(), 'Alterado há 5 min.')
     assert.equal(await page.locator('.cx-project-card').first().getAttribute('href'), `/projects/${ids.vacation}`)
     await page.locator('.cx-thumb[data-loaded]').first().waitFor()
     assert.equal(await page.locator('.cx-thumb iframe').first().getAttribute('tabindex'), '-1')
     assert.match(await page.frameLocator(`iframe[name="cx-thumb-${ids.vacation}"]`).locator('body').innerText(), /Pedidos de férias/)
-    assert.equal(await page.locator('.cx-project-cell').first().evaluate((element) => getComputedStyle(element).gridColumnStart), 'span 2')
+    assert.equal(await page.locator('.cx-project-grid').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length), 3,
+      'the grid is a uniform 3-column layout, with no card spanning more than one')
+    const cardHeights = await page.locator('.cx-project-card').evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height))
+    assert.equal(new Set(cardHeights).size, 1, 'every card in the uniform grid has the same height')
     await shoot(page, '06-projects-home', { settle: () => page.locator('.cx-thumb[data-loaded]').first().waitFor() })
     await page.setViewportSize({ width: 390, height: 844 })
     assert.deepEqual(await overflowing(page), [])
@@ -275,7 +279,7 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
   await t.test('describing an app creates the Project and sends the description as its first request', async () => {
     await reset()
     await page.goto(`${origin}/workspaces/${ids.operations}/projects`)
-    const prompt = page.getByLabel('Descreva o aplicativo')
+    const prompt = page.getByLabel('Mensagem para o agente')
     await prompt.fill('controle de pedidos de férias, com aprovação do gestor e motivo na recusa')
     await prompt.press('Enter')
     const name = page.getByLabel('Nome do Projeto')
@@ -291,15 +295,15 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     assert.ok(message.idempotencyKey)
   })
 
-  await t.test('an empty Workspace shows only the prompt with three example ideas', async () => {
+  await t.test('an empty Workspace shows only the prompt with four example ideas', async () => {
     await reset({ summaries: [] })
     await page.goto(`${origin}/workspaces/${ids.operations}/projects`)
-    await page.getByRole('button', { name: 'Checklist de abertura da loja' }).waitFor()
-    assert.equal(await page.locator('.cx-prompt-examples button').count(), 3)
+    await page.getByRole('button', { name: 'Checklist de abertura de loja com fotos' }).waitFor()
+    assert.equal(await page.locator('.cx-prompt-examples button').count(), 4)
     assert.equal(await page.locator('.cx-project-grid').count(), 0)
     await shoot(page, '11-projects-home-empty')
     await page.getByRole('button', { name: 'Cadastro de visitas a clientes' }).click()
-    assert.equal(await page.getByLabel('Descreva o aplicativo').inputValue(), 'Cadastro de visitas a clientes')
+    assert.equal(await page.getByLabel('Mensagem para o agente').inputValue(), 'Cadastro de visitas a clientes')
   })
 
   await t.test('a failed Projects read says so and retries', async () => {

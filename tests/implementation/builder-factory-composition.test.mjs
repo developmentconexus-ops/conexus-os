@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict'
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
@@ -173,15 +172,6 @@ test('every start seeds root\'s mirror with a read token in root\'s environment 
 
 const { CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: _ingress, CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: _executor, CONEXUS_BUILDER_E2B_API_KEY_FILE: _e2bKey, CONEXUS_BUILDER_E2B_TEMPLATE_ID: _e2bTemplate, ...environmentWithoutBuilder } = baseEnvironment
 
-// The Hub's placeholder credential is mintInstallationToken's answer, which is safe only while the
-// Factory's repository access is that method's one caller.
-test('the installed Factory calls mintInstallationToken only from the GitHub integration\'s repository access', () => {
-  const dist = join(dirname(createRequire(import.meta.url).resolve('@mastra/factory/package.json')), 'dist')
-  const callers = readdirSync(dist, { recursive: true }).filter((file) => file.endsWith('.js'))
-    .flatMap((file) => readFileSync(join(dist, file), 'utf8').split('\n').filter((line) => /\.mintInstallationToken\(/.test(line)).map((line) => `${file}: ${line.trim()}`))
-  assert.deepEqual(callers, ['integrations/github/integration.js: token: await this.mintInstallationToken(installationId)'])
-})
-
 test('with no Builder and no Factory variable the Hub boots as it did before', () => {
   assert.equal(readHubConfig(environmentWithoutBuilder).factory, undefined)
 })
@@ -306,6 +296,20 @@ test('prepare() registers the controller as code and lands every table in factor
   assert.deepEqual(await composition.github.versionControl.getRepositoryAccess({ orgId: 'conexus-installation', repositoryId: repository.id }), {
     cloneUrl: 'https://github.com/acme-org/app.git', authorization: { scheme: 'bearer', token: 'conexus-no-credential' },
   })
+  // The placeholder is the sandbox's alone: an installation token is still a real one from GitHub.
+  const original = globalThis.fetch
+  const asked = []
+  globalThis.fetch = async (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    asked.push(`${init?.method ?? input.method ?? 'GET'} ${url}`)
+    return new Response(JSON.stringify({ token: 'ghs_installation_token', expires_at: '2099-01-01T00:00:00Z', permissions: {}, repository_selection: 'all' }), { status: 201, headers: { 'content-type': 'application/json' } })
+  }
+  try {
+    assert.equal(await composition.github.mintInstallationToken(163574754), 'ghs_installation_token')
+  } finally {
+    globalThis.fetch = original
+  }
+  assert.deepEqual(asked, ['POST https://api.github.com/app/installations/163574754/access_tokens'])
 
   const inspector = new pg.Client(connection)
   await inspector.connect()

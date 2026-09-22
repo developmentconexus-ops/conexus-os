@@ -6,6 +6,7 @@ import type { CommandResult, SandboxStartHook } from '@mastra/core/workspace'
 import { E2BSandbox } from '@mastra/e2b'
 import { createFactorySecretEncryption, MastraFactory } from '@mastra/factory'
 import type { FactorySecretEncryption } from '@mastra/factory/secret-encryption'
+import type { VersionControl } from '@mastra/factory/capabilities/version-control'
 import { GithubIntegration } from '@mastra/factory/integrations/github/integration'
 import { createCustomProvidersPrimer, invalidateCustomProvidersSnapshots } from '@mastra/factory/routes/custom-provider-source'
 import type { RouteAuth } from '@mastra/factory/routes/route'
@@ -229,14 +230,25 @@ export const syncGoogleAiProProvider = async (storage: CustomProvidersStorage, o
   await customProvidersPrimer(storage, orgId)()
 }
 
-// The Factory's repository credential is this method's answer, and getRepositoryAccess is its only
-// caller: it lands in clone and checkout command lines, the checkout's remote URL and GH_TOKEN. The
-// Hub makes its own GitHub calls with its own App client, so every Factory caller gets the
-// credential that opens nothing. Subclassing is the integration's documented extension point; a
-// Factory upgrade must still have no other caller (docs/reference/mastra-boundary.md, item 2).
+// Every Factory reader of a repository credential goes through getRepositoryAccess: the clone and
+// checkout command lines, the checkout's remote URL, GH_TOKEN and its refresh. The Hub makes its own
+// GitHub calls with its own App client, so the Factory gets the real clone URL with the credential
+// that opens nothing, and mintInstallationToken keeps answering a real token. The Factory has no
+// named hook for this (https://github.com/mastra-ai/mastra/issues/24690); a subclass overriding one
+// member is the integration's documented extension point.
 class ConexusGithubIntegration extends GithubIntegration {
-  override async mintInstallationToken(): Promise<string> {
-    return SANDBOX_CREDENTIAL
+  // Runs after the parent's constructor, so it reads the parent's own versionControl.
+  override readonly versionControl: VersionControl = ConexusGithubIntegration.#withPlaceholder(this)
+
+  static #withPlaceholder(integration: GithubIntegration): VersionControl {
+    return {
+      ...integration.versionControl,
+      getRepositoryAccess: async ({ orgId, repositoryId }) => {
+        const repository = await integration.sourceControlStorage.repositories.get({ orgId, id: repositoryId })
+        if (!repository) throw new Error('Version-control repository not found.')
+        return { cloneUrl: `https://github.com/${repository.slug}.git`, authorization: { scheme: 'bearer', token: SANDBOX_CREDENTIAL } }
+      },
+    }
   }
 }
 

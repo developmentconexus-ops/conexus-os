@@ -1,5 +1,5 @@
-import { Button } from '@mastra/playground-ui/components/Button'
 import { useQuery } from '@tanstack/react-query'
+import { Check } from 'lucide-react'
 import type { BuilderRun } from '../api'
 import { compareProjectSource } from '../api'
 import { getProject, projectQueryKey } from '../../project/api'
@@ -30,12 +30,13 @@ export function ResultCard({ projectId, run, versionNumber, onOpenPreview, onOpe
 
   return <div className="cx-result-card">
     <p className="cx-result-card-title" data-tone={built ? undefined : 'danger'}>
+      {built && <Check size={15} className="cx-result-card-check" aria-hidden="true" />}
       {projectName} · versão {versionNumber} · {built ? 'Build passou' : 'Build falhou'}
     </p>
     <div className="cx-result-card-actions">
-      <Button size="sm" variant="outline" onClick={onOpenPreview}>Ver aplicativo</Button>
+      <button type="button" className="cx-result-card-link" onClick={onOpenPreview}>Ver aplicativo</button>
       <span className="cx-result-card-count">{fileCount === null ? '…' : `${fileCount} ${fileCount === 1 ? 'arquivo' : 'arquivos'}`}</span>
-      <Button size="sm" variant="ghost" onClick={onOpenDiff}>Alterações</Button>
+      <button type="button" className="cx-result-card-link" onClick={onOpenDiff}>Alterações</button>
     </div>
   </div>
 }

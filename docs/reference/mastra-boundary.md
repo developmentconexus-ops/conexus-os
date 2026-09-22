@@ -89,15 +89,20 @@ helper) goes through `getRepositoryAccess`. The Factory's own GitHub API calls u
 `getInstallationOctokit`, which does not call `mintInstallationToken`. The Hub starts no Factory
 worker and mounts no Factory GitHub route, so it makes none of those calls.
 
-**Decision.** A.
+**Decision.** A, with no named hook in the Factory
+([mastra-ai/mastra#24690](https://github.com/mastra-ai/mastra/issues/24690)). Mastra's docs
+assistant confirmed on 2026-09-22 that no official hook exists and recommended overriding
+`getRepositoryAccess` in a subclass rather than `mintInstallationToken`. That is the narrower
+override: only the repository-credential path changes, and a future caller of
+`mintInstallationToken` still gets a real token.
 
-**Plan.** `ConexusGithubIntegration extends GithubIntegration` and overrides `mintInstallationToken`
-to answer `conexus-no-credential`. The assignment to `versionControl.getRepositoryAccess` is deleted.
-The behavior the sandbox sees does not change.
-
-**Upgrade check.** The override relies on `mintInstallationToken` having `getRepositoryAccess` as its
-only caller. On each Factory upgrade, search the new `dist/` for `mintInstallationToken(` before
-bumping. [mastra-ai/mastra#24690](https://github.com/mastra-ai/mastra/issues/24690) would replace this check with a named option.
+**Implemented.** `ConexusGithubIntegration extends GithubIntegration` overrides its `versionControl`
+field, a class field in 0.15.0 (`factory/dist/integrations/github/integration.js:156`). The field
+keeps every parent member and replaces only `getRepositoryAccess`. That method answers the repository's
+real clone URL with the credential `conexus-no-credential`. `mintInstallationToken` is untouched.
+`tests/implementation/builder-factory-composition.test.mjs` checks both behaviors. The sandbox's
+repository access carries the placeholder, and `mintInstallationToken` still answers the token GitHub
+returns.
 
 ## 3. Serving the Factory's credential routes
 

@@ -8,7 +8,7 @@
 .cx-composer .composer-ring { border-radius: 16px; }
 
 /* At rest the border carries a slow ipê arc, brighter and faster once the agent is working. */
-.cx-composer .composer-ring { --composer-ring-strength: .22; animation: cx-ring-idle 10s linear infinite; }
+.cx-composer .composer-ring { --composer-ring-strength: .45; animation: cx-ring-idle 10s linear infinite; }
 .cx-composer .composer-ring:hover { --composer-ring-strength: .4; }
 .cx-composer .composer-ring[data-busy="false"]:focus-within { --composer-ring-strength: .4; }
 @keyframes cx-ring-idle { from { --composer-ring-spin: 0deg; } to { --composer-ring-spin: 360deg; } }
@@ -24,7 +24,9 @@
 .cx-icon-button[aria-disabled="true"] { opacity: .45; cursor: default; }
 .cx-icon-button[data-listening] { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
 .cx-model-button { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; height: 32px; padding: 0 .55rem 0 .65rem; border: 0; border-radius: 999px; background: transparent; color: var(--cx-text); font: 500 .8125rem/1 var(--cx-font-body); }
-.cx-model-button:hover, .cx-model-button:focus-visible { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
+/* Hover/focus lights the pill, never the label: the model name stays full-contrast text, not the
+   muted accent color, so an open picker never reads as a disabled control. */
+.cx-model-button:hover, .cx-model-button:focus-visible { background: var(--cx-accent-soft); }
 .cx-model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 10rem; }
 .cx-model-button[title] .cx-model-name { max-width: none; }
 .cx-model-level { flex: none; color: var(--cx-text-2); font: 400 .75rem/1 var(--cx-font-mono); }
@@ -39,7 +41,7 @@
 .cx-composer-note[role="alert"] { color: var(--cx-danger); }
 
 /* Model picker: one popover, no nested combobox. Search, a provider-grouped list, then Raciocínio. */
-.cx-model-popover { width: min(22rem, calc(100vw - 2rem)); padding: .5rem; display: grid; gap: .5rem; }
+.cx-model-popover { width: min(22rem, calc(100vw - 2rem)); padding: .5rem; display: grid; gap: .5rem; background: var(--cx-surface); border: 1px solid var(--cx-line); border-radius: 10px; box-shadow: 0 12px 32px -8px rgb(0 0 0 / .35); }
 .cx-popover-title { margin: .25rem .5rem 0; color: var(--cx-text-2); font: 500 .75rem/1 var(--cx-font-body); }
 .cx-model-empty { display: grid; gap: .35rem; padding: .25rem .5rem; font-size: .875rem; }
 .cx-model-empty p { margin: 0; color: var(--cx-text-2); }

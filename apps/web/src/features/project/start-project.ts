@@ -1,10 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRef } from 'react'
 import { BuilderRequestError, createFactoryConversation, sendBuilderMessage } from '../builder/api'
+import { applyThreadModel, type ReasoningLevel } from '../builder/mastra-session'
 import type { CreateProjectResponse } from '../../generated/project-client'
 import { createProject, ProjectRequestError, projectListQueryKey, projectSummariesQueryKey } from './api'
 
-export type StartProjectInput = Readonly<{ name: string; description: string }>
+export type StartProjectInput = Readonly<{ name: string; description: string; modelId: string | undefined; reasoning: ReasoningLevel | null | undefined }>
 export type StartedProject = Readonly<{ project: CreateProjectResponse; firstRequest: 'SENT' | 'NONE' | 'REFUSED' }>
 
 // Every id is chosen once per distinct input, so a retry after a lost response lands on the
@@ -29,6 +30,11 @@ export function useStartProject(workspaceId: string) {
       if (!input.description) return { project, firstRequest: 'NONE' }
       try {
         await createFactoryConversation(project.projectId, current.conversationId)
+        // Best-effort: a model chosen before the Project existed follows the first request onto its
+        // new conversation. Losing this write is not worth losing the Project or the first request
+        // over, so it never turns a started build into a refusal; the run falls back to the
+        // installation's default model instead.
+        if (input.modelId) await applyThreadModel(current.conversationId, input.modelId, input.reasoning ?? null).catch(() => {})
         await sendBuilderMessage(project.projectId, current.conversationId, input.description, 'BUILD', current.requestKey)
         return { project, firstRequest: 'SENT' }
       } catch (error) {

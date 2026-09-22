@@ -2,7 +2,7 @@ name: Verify
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
 
@@ -16,6 +16,9 @@ permissions:
 
 jobs:
   verify:
+    # A draft is work in progress: its author runs the touched suites locally and pushes as often as
+    # needed. CI runs once, when the pull request is marked ready for review, and on every push after.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-24.04
     services:
       postgres:

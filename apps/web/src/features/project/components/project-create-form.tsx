@@ -31,7 +31,7 @@ export function ProjectCreateForm({ workspaceId }: Readonly<{ workspaceId: strin
       return
     }
     setMessage('')
-    start({ name, description }, { onStarted: openStarted, onRefused: setMessage })
+    start({ name, description, modelId: undefined, reasoning: undefined }, { onStarted: openStarted, onRefused: setMessage })
   }
 
   return (
