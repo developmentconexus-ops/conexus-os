@@ -25,8 +25,13 @@
 .primary { display: inline-block; border: 1px solid var(--cx-ink); border-radius: .55rem; padding: .7rem 1rem; background: var(--cx-ink); color: var(--cx-on-ink); text-decoration: none; cursor: pointer; }
 .primary:hover:not(:disabled) { background: var(--cx-ink); opacity: .88; }
 label span { color: var(--cx-text-2); }
-.shell { display: flex; height: 100dvh; min-height: 0; background: var(--cx-canvas); }
-.shell-sidebar { border-right: 0; }
+/* The top bar spans the full width, above everything; the sidebar and the main column sit in the
+   row below it, side by side. AppShell's own header slot renders inside its content frame (to the
+   right of any outer sidebar), so it can't produce a full-width bar above the sidebar; the shell
+   composes the two rows itself around AppShell and MainSidebar instead of forking either. */
+.shell-frame { display: flex; flex-direction: column; height: 100dvh; min-height: 0; background: var(--cx-canvas); }
+.shell { display: flex; flex: 1; min-height: 0; background: var(--cx-canvas); }
+.shell-sidebar { border-right: 1px solid var(--cx-line); }
 .shell-main { flex: 1; min-width: 0; }
 /* Legacy element defaults stay beneath the component library's own styling, so a library input or
    composer inside a form is not given a second border, padding or margin. */
