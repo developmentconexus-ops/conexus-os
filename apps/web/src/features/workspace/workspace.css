@@ -1,0 +1,6 @@
+.cx-workspace-list { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.cx-workspace-list a { display: flex; align-items: center; gap: .85rem; min-height: 3.75rem; padding: .7rem .9rem; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-surface); color: var(--cx-text); text-decoration: none; transition: border-color .15s, box-shadow .15s, transform .15s var(--cx-ease-arrive); }
+.cx-workspace-list a:hover { border-color: var(--cx-line-strong); box-shadow: 0 .35rem 1rem rgb(0 0 0 / .06); transform: translateY(-1px); }
+.cx-workspace-list a svg { margin-left: auto; color: var(--cx-text-2); flex: none; }
+.cx-workspace-initial { display: grid; place-items: center; flex: none; width: 2.25rem; height: 2.25rem; border-radius: 9px; background: var(--cx-surface-3); color: var(--cx-text); font: 600 1rem/1 var(--cx-font-display); }
+.cx-workspace-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }

@@ -240,8 +240,11 @@ test('new Project lands directly in Build and can send its first Builder message
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
   await page.goto(`${origin}/workspaces/${workspaceId}/projects/new`)
-  await page.getByLabel('Nome do Project').fill('New Counter')
-  await page.getByRole('button', { name: 'Criar Project' }).click()
+  await page.getByLabel('Nome do Projeto').fill('New Counter')
+  await page.getByRole('button', { name: 'Criar Projeto' }).click()
+  // Creation opens /projects/:p, which the Construir screen owns; this test drives Build itself.
+  await page.waitForURL(`${origin}/projects/${projectId}`)
+  await page.goto(`${origin}/projects/${projectId}/build`)
   await page.getByRole('heading', { name: 'Converse com o Conexus' }).waitFor()
   await page.getByLabel('O que o Project precisa fazer?').fill('Crie um contador')
   await page.getByRole('button', { name: 'Enviar mensagem' }).click()

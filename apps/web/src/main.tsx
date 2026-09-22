@@ -1,4 +1,5 @@
 import { ThemeProvider } from '@mastra/playground-ui/components/ThemeProvider'
+import { Toaster } from '@mastra/playground-ui/components/Toaster'
 import { RouterProvider } from '@tanstack/react-router'
 import { createRoot } from 'react-dom/client'
 import { AppQueryClientProvider } from './app/query-client'
@@ -17,6 +18,7 @@ createRoot(root).render(
   <ThemeProvider defaultTheme="system" storageKey="conexus-theme">
     <AppQueryClientProvider>
       <RouterProvider router={router} />
+      <Toaster position="bottom-right" />
     </AppQueryClientProvider>
   </ThemeProvider>,
 )

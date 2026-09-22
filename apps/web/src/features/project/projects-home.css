@@ -1,0 +1,63 @@
+/* Projects home: the prompt leads, the Project cards follow. With no Projects the prompt sits in
+   the optical center of the page. */
+
+.cx-home { display: grid; gap: 2.5rem; }
+.cx-home[data-empty] { min-height: calc(100dvh - 12rem); align-content: center; }
+
+.cx-prompt { display: grid; justify-items: center; gap: 1rem; width: min(46rem, 100%); margin-inline: auto; }
+.cx-prompt-title { margin: 0 0 .25rem; font: 600 clamp(1.75rem, 4.2vw, 2.6rem)/1.1 var(--cx-font-display); letter-spacing: -0.03em; text-align: center; text-wrap: balance; }
+.cx-prompt-composer { width: 100%; margin: 0; }
+.cx-prompt-ring { --composer-ring-edge: var(--cx-line); max-width: none; box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 .5rem 1.5rem rgb(0 0 0 / .05); }
+.cx-prompt-ring [data-slot="composer-box"] { max-width: none; background: var(--cx-surface); }
+.cx-prompt-ring [data-slot="composer-input"] { min-height: 4.5rem; border: 0; border-radius: 0; font-size: 1rem; }
+.cx-prompt-hint { padding-left: .6rem; color: var(--cx-text-2); font-size: .75rem; }
+.cx-send { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; padding: 0; border: 0; border-radius: 50%; background: var(--cx-ink); color: var(--cx-on-ink); cursor: pointer; transition: opacity .15s; }
+.cx-send:hover:not(:disabled) { opacity: .88; }
+.cx-send:disabled { opacity: .35; cursor: not-allowed; }
+.cx-send:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 2px; }
+
+.cx-prompt-confirm { display: grid; gap: 1rem; width: 100%; margin: 0; padding: 1.1rem 1.25rem; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-surface); animation: cx-rise .35s var(--cx-ease-arrive) both; }
+.cx-prompt-confirm button[type="submit"] { gap: .5rem; }
+.cx-prompt-status { width: 100%; text-align: center; }
+@keyframes cx-rise { from { opacity: 0; transform: translateY(6px); } }
+
+.cx-prompt-examples { display: grid; justify-items: center; gap: .6rem; color: var(--cx-text-2); font-size: .875rem; }
+.cx-prompt-examples ul { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.cx-prompt-examples button { padding: .5rem .85rem; border: 1px solid var(--cx-line); border-radius: 999px; background: var(--cx-surface); color: var(--cx-text); font-size: .875rem; cursor: pointer; transition: background .15s, border-color .15s; }
+.cx-prompt-examples button:hover { border-color: var(--cx-accent); background: var(--cx-accent-soft); }
+
+.cx-home-projects .cx-section-title { margin-top: 0; }
+.cx-project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr)); gap: 1rem; margin: 0; padding: 0; list-style: none; }
+.cx-project-cell { display: grid; min-width: 0; }
+
+.cx-project-card { display: grid; grid-template-rows: 1fr auto; min-width: 0; overflow: hidden; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-surface); color: var(--cx-text); text-decoration: none; transition: transform .2s var(--cx-ease-arrive), box-shadow .2s, border-color .2s; }
+a.cx-project-card:hover { transform: translateY(-2px); border-color: var(--cx-line-strong); box-shadow: 0 .6rem 1.6rem rgb(0 0 0 / .08); }
+a.cx-project-card:focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 3px; }
+
+.cx-thumb { position: relative; min-height: 9rem; aspect-ratio: 16 / 10; overflow: hidden; border-bottom: 1px solid var(--cx-line); background: var(--cx-surface-3); }
+.cx-thumb-placeholder { position: absolute; inset: 0; display: grid; place-items: center; background: repeating-linear-gradient(135deg, transparent 0 14px, color-mix(in srgb, var(--cx-line) 45%, transparent) 14px 15px), var(--cx-surface-3); transition: opacity .3s; }
+.cx-thumb-placeholder .cx-mark { opacity: .7; }
+/* The live Preview renders at desktop width and is scaled down; it never takes focus or clicks. */
+.cx-thumb iframe { position: absolute; top: 0; left: 0; width: 1280px; height: 1600px; border: 0; transform: scale(var(--cx-thumb-scale, .25)); transform-origin: 0 0; pointer-events: none; opacity: 0; transition: opacity .4s; color-scheme: light; }
+.cx-thumb[data-loaded] iframe { opacity: 1; }
+.cx-thumb[data-loaded] .cx-thumb-placeholder { opacity: 0; }
+
+.cx-project-body { display: grid; gap: .5rem; padding: .85rem 1rem 1rem; }
+.cx-project-body h3 { margin: 0; overflow: hidden; font: 600 1rem/1.3 var(--cx-font-display); letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.cx-project-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; }
+.cx-project-time { color: var(--cx-text-2); font-size: .8125rem; font-variant-numeric: tabular-nums; }
+
+.cx-skeleton-line { height: .9rem; width: 70%; border-radius: 4px; }
+.cx-skeleton-line--short { width: 45%; }
+
+/* The most recent Project leads: two columns and two rows on a wide screen. */
+@media (min-width: 60rem) {
+  .cx-project-grid > .cx-project-cell:first-child { grid-column: span 2; grid-row: span 2; }
+  .cx-project-cell:first-child .cx-thumb { aspect-ratio: auto; }
+  .cx-project-cell:first-child .cx-project-body h3 { font-size: 1.2rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cx-project-card, .cx-prompt-confirm { transition: none; animation: none; }
+  a.cx-project-card:hover { transform: none; }
+}
