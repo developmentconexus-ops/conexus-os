@@ -193,6 +193,29 @@ test('reconnecting as another installation of the organization keeps the binding
   assert.equal(creations(github), 1, 'a bound Project never asks GitHub to create a repository')
 })
 
+test('reconnecting to an installation that already holds a row for the same repository keeps the binding, its link and its conversations', async (t) => {
+  const { connectionString, github, records, connect, provision, newProject } = await setup(t)
+  await connect()
+  const projectId = await newProject()
+  const first = await provision(projectId, 'twice-app')
+  const conversationId = randomUUID()
+  await records.sourceControl.sessions.create({
+    sessionId: conversationId, projectRepositoryId: first.projectRepositoryId, orgId: ORG, userId: 'conexus-operator',
+    branch: `conexus/${conversationId}`, baseBranch: 'main', title: 'Contador', visibility: 'org',
+  })
+  const incoming = await records.sourceControl.installations.upsert({ orgId: ORG, connectedByUserId: 'conexus-operator', externalId: String(INSTALLATION_B.id), accountName: 'acme-org', accountType: 'Organization' })
+  const duplicate = await records.sourceControl.repositories.upsert({ orgId: ORG, input: { installationId: incoming.id, externalId: String(first.repositoryExternalId), slug: first.repositorySlug, defaultBranch: 'main' } })
+  assert.notEqual(duplicate.id, first.repositoryId)
+  github.state.installations = [INSTALLATION_B]
+  await connect()
+  assert.deepEqual(await provision(projectId, 'twice-app'), first)
+  const repositories = (await query(connectionString, 'SELECT id::text, installation_id FROM factory.source_control_repositories')).rows
+  assert.deepEqual(repositories, [{ id: first.repositoryId, installation_id: incoming.id }])
+  assert.equal((await records.sourceControl.sessions.getBySessionId(conversationId))?.projectRepositoryId, first.projectRepositoryId)
+  const links = (await query(connectionString, 'SELECT pr.id::text, pr.repository_id, c.installation_id FROM factory.factory_project_repositories pr JOIN factory.factory_project_source_control_connections c ON c.id::text = pr.connection_id')).rows
+  assert.deepEqual(links, [{ id: first.projectRepositoryId, repository_id: first.repositoryId, installation_id: incoming.id }])
+})
+
 test('an installation the Factory pruned before reconnect still rebinds the Project by its GitHub id', async (t) => {
   const { connectionString, github, records, connect, provision, newProject } = await setup(t)
   await connect()

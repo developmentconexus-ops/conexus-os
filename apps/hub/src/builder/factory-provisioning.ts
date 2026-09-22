@@ -11,8 +11,8 @@ export type FactoryRecords = Readonly<{
   sourceControl: ReturnType<SourceControlStorage['forIntegration']>
   projects: FactoryProjectsStorage
   memorySettings: MemorySettingsStorage
-  // Moves a repositories row, and the connections of its installation, to another installation
-  // after the Factory deleted the old one. Answers false when the row itself is gone.
+  // Moves a repositories row, and the connections of its installation, to another installation,
+  // whether or not the old one still exists. Answers false when the row itself is gone.
   reattachRepository(input: Readonly<{ id: string; installationId: string }>): Promise<boolean>
 }>
 
@@ -23,12 +23,18 @@ export const openFactoryRecords = async (storage: PgFactoryStorage): Promise<Fac
   const projects = storage.registerDomain(new FactoryProjectsStorage())
   const memorySettings = storage.registerDomain(new MemorySettingsStorage())
   await storage.init()
-  // migrateInstallation() only reaches a row whose installation still exists, and the Factory
-  // deletes an installation GitHub answers 404 for without touching its rows. This is the same
-  // move on the same collections.
+  // The same move as migrateInstallation(), which reaches only a row whose installation still exists
+  // (the Factory deletes an installation GitHub answers 404 for without touching its rows) and fails
+  // when the target installation already holds a row for the same GitHub repository. That row's links
+  // come onto this one, whose id the binding and every conversation's link name, and it is dropped.
   const reattachRepository: FactoryRecords['reattachRepository'] = ({ id, installationId }) => storage.withTransaction(async (ops) => {
-    const row = await ops.findOne<{ installation_id: string }>('source_control_repositories', { id })
+    const row = await ops.findOne<{ installation_id: string; external_id: string }>('source_control_repositories', { id })
     if (!row) return false
+    if (row.installation_id === installationId) return true
+    for (const duplicate of await ops.findMany<{ id: string }>('source_control_repositories', { installation_id: installationId, external_id: row.external_id })) {
+      await ops.updateMany('factory_project_repositories', { repository_id: duplicate.id }, { repository_id: id })
+      await ops.deleteMany('source_control_repositories', { id: duplicate.id })
+    }
     await ops.updateMany('source_control_repositories', { id }, { installation_id: installationId, updated_at: new Date() })
     await ops.updateMany('factory_project_source_control_connections', { installation_id: row.installation_id, integration_id: FACTORY_INTEGRATION_ID }, { installation_id: installationId })
     return true
@@ -97,7 +103,7 @@ export const connectFactoryInstallation = async ({ github, records, orgId, write
       accountType: installation.accountType,
     })
   for (const { old, held } of gone) {
-    for (const repository of held) await repositories.migrateInstallation({ orgId, id: repository.id, newInstallationId: live.id })
+    for (const repository of held) await records.reattachRepository({ id: repository.id, installationId: live.id })
     await recorded.delete({ orgId, id: old.id })
   }
   write(`FACTORY_INSTALLATION=${externalId} ACCOUNT=${installation.accountLogin} TYPE=${installation.accountType}`)
@@ -130,12 +136,7 @@ const boundRepository = async ({ github, records, orgId, installation, repositor
   repositoryId: string
 }>): Promise<GithubRepository> => {
   const { repositories } = records.sourceControl
-  const recorded = await repositories.get({ orgId, id: repositoryId })
-  if (recorded && recorded.installationId !== installation.id) {
-    await repositories.migrateInstallation({ orgId, id: repositoryId, newInstallationId: installation.id })
-  } else if (!recorded && !await records.reattachRepository({ id: repositoryId, installationId: installation.id })) {
-    throw new Error('FACTORY_REPOSITORY_MISSING')
-  }
+  if (!await records.reattachRepository({ id: repositoryId, installationId: installation.id })) throw new Error('FACTORY_REPOSITORY_MISSING')
   const row = await repositories.get({ orgId, id: repositoryId })
   if (!row) throw new Error('FACTORY_REPOSITORY_MISSING')
   const repository = await github.readRepository(Number(installation.externalId), row.slug).catch((error: unknown) => {
