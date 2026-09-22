@@ -42,8 +42,11 @@ Inside a Workspace an Account holds one of two roles.
 | `owner` | everything a member may do, plus administer the roster |
 | `member` | everything except administer the roster |
 
-There are no other Workspace roles, no per-Project grants and no separate application
-audience. Authority over a Project is membership of the Workspace that owns it.
+There are no other Workspace roles. Workspace membership owns development-plane authority over
+the Project. A published application's audience and its runtime grants are separate Project-scoped
+authority: using an application does not make a person a Workspace member or grant Builder access.
+Connector grants are also Project-scoped runtime authority, not Workspace roles. These Stage 2
+surfaces are direction under C-028 until their qualification lands.
 
 Outside every Workspace, an Account may also be an installation administrator. An
 administrator may take installation-wide actions, such as connecting or replacing the company
@@ -63,12 +66,15 @@ One human identity. Conexus reads `email_verified` from the validated ID token a
 accepts only the boolean `true`. An unverified address is refused.
 
 The first Account self-provisions from a preconfigured bootstrap identity. Every later
-Account arrives by invitation.
+Account arrives through an authorized invitation path. A Workspace invitation may grant
+development membership; a future application invitation may create an app-only Account without
+granting Workspace membership.
 
 ### 3.2 Workspace
 
-The isolation root. Any authenticated Account may create one, and the creator becomes
-its owner. A Workspace owns Projects and a roster.
+The isolation root. Creating a Workspace is a Control Plane capability, not a consequence of
+merely possessing an Account. A control-plane-eligible Account may create one and becomes its
+owner. A Workspace owns Projects and a roster.
 
 ### 3.3 Membership and invitation
 
@@ -92,8 +98,8 @@ The current state of a Project's authored source, owned by Conexus and held in P
 Git.
 
 Each Builder request starts from the current working source, including source that
-failed to compile. A request that changes source advances the working revision. The
-last-good Preview only advances when a revision compiles.
+failed to compile. A request that changes source advances the working revision. Only a
+revision that passed its checks is offered as a Preview.
 
 There is no approved statement of intent the Builder reads before coding. Intent lives
 in the conversation and in the source.
@@ -114,14 +120,16 @@ result = RESPONSE_ONLY | SOURCE_CHANGED | SOURCE_CHANGED_BUILD_FAILED
 
 `RESPONSE_ONLY` means the agent answered without changing source. A response-only turn
 keeps its answer without a commit or a compilation. `SOURCE_CHANGED_BUILD_FAILED` still
-advances the working source, so the next request continues from it, and it never
-replaces the last-good Preview with an artifact that does not compile.
+advances the working source, so the next request continues from it, and an artifact that
+does not compile is never offered as a Preview.
 
 ### 3.7 Preview
 
-The last artifact that compiled, served back to the person who asked for it. Each
-launch binds its own immutable route. A newer candidate does not mutate an older route,
-so a Preview stays usable while the next run works.
+An artifact that passed its checks, served back to the person who asked for it. Each
+launch binds its own immutable route. A newer candidate does not mutate an older route.
+Today the Hub keeps offering the last artifact that compiled while a later candidate
+fails; that is implementation behaviour, not a Product guarantee (see
+[12.4](#124-source-preview-and-publication)).
 
 A grant issued or an iframe that loaded is not proof that the application works.
 
@@ -187,7 +195,7 @@ Workspace
 → the agent reads and edits files
 → Conexus admits the resulting revision and advances the working source
 → compile
-→ on success the artifact becomes the last-good Preview
+→ on success the artifact becomes the Preview
 → the person uses the Preview and writes the next request
 ```
 
@@ -246,7 +254,7 @@ Workspaces with owner and member roles
 a Workspace roster of members and pending invitations
 Projects, created new or imported from an existing repository
 read-only inspection of Project source at an exact revision
-the Builder: conversation, run, compile and last-good Preview
+the Builder: conversation, run, compile and Preview
 run cancellation and a safe native run trace
 ```
 
@@ -298,8 +306,14 @@ agents, knowledge, data, integrations and automations, each as it is delivered.
 
 Administration happens inside Conexus. The people who use the published application
 reach it by URL without administering the Project. A reachable URL does not mean an
-application without authentication. This chooses no domain, hosting, topology or
-access mechanism.
+application without authentication.
+
+C-028 selects the first application profile as a managed Conexus application: Project Git
+keeps browser source, server business handlers, Project migrations and an application
+manifest; Conexus supplies the trusted runtime boundary, Project data authority, application
+access and Connector mediation. The first profile does not give each Project an independent
+permanent backend/container/cloud deployment. Exact runner, data programming model and
+ingress mechanics are qualified incrementally by the Stage 2 program rather than fixed here.
 
 ### 12.3 Conversations
 
@@ -333,21 +347,23 @@ authorities over it. In ordinary interactive use an admitted change advances the
 automatically, without imposing visible branches or pull requests, and a change built on
 an older revision never silently overwrites later work.
 
-Source admission and artifact health are different questions. An admitted source may be
-kept when the build or the boot fails, so the next interaction can repair it, and the
-last healthy Preview stays. The Preview advances automatically only when the checks that
-apply have allowed it.
+Source admission and artifact health are different questions. An admitted source remains
+repairable when its build, boot or application checks fail. Preview is a development surface,
+not an availability guarantee: a failed candidate may leave no usable Preview while the next
+interaction repairs the source. A Preview is offered only for a candidate that passed the checks
+that apply.
 
-Those two paragraphs are mostly kept today, by [3.5](#35-working-source) and
-[3.6](#36-builder-run), and the destination widens them rather than introducing them.
-What is already true: source advances automatically, a stale base is refused, a failed
-build keeps the source and the last-good Preview. What is not yet true: the same
-guarantee under several conversations and under delegated work, and a boot check that
-gates the Preview, which is merged with a correction still open.
+This preserves the important current truths from [3.5](#35-working-source) and
+[3.6](#36-builder-run): source advances deliberately, a stale base is refused, and build
+failure is reported as build failure. It explicitly removes previous-Preview continuity as a
+Product invariant. Published application stability is a separate rule below.
 
 Publishing is a separate, explicit, authorized capability. Editing, an agent finishing,
-or a Work item completing never publishes production. A Release names an immutable
-source and artifact, and publishing records who did it and when. Hosting is unchosen.
+or a Work item completing never publishes production. A Release names immutable verified
+application material and the source revision that produced it; publishing records who did it
+and when, and only Publish changes what employee users receive. The first profile is hosted as
+a managed Conexus application. Q5 qualifies the smallest stable ingress/publication mechanism;
+it does not pre-authorize a cloud deployment platform.
 
 Separating Preview from Published does not make it safe to edit production data while
 developing, and rolling an artifact back does not undo data, migrations or effects that
@@ -356,21 +372,26 @@ environment and rollback platform designed in advance.
 
 ### 12.5 Data
 
-Each Project owns a logical data space of its own, isolated from Conexus's internal
-data. Which physical database, schema or namespace carries it is decided in the
-increment that delivers it.
+Each Project owns a logical application data space of its own, isolated from Conexus's
+internal data and from every other Project. Server business logic and data migrations that
+define that application stay in Project Git. Q1 qualifies the smallest physical runtime/data
+boundary and Q2 qualifies the programming model; neither question authorizes browser database
+credentials or direct access to Hub-owned data.
 
-A conversation and an application act through authorized capabilities. Evolving a
-Project's structure grants no arbitrary access to the system database or to production.
-A product's own data and data that belongs to an external system stay distinct.
+A conversation and an application act only through authority admitted for that Project and
+environment. Evolving a Project's structure grants no arbitrary access to the system database
+or to production. A product's own data and data that belongs to an external system stay distinct.
 
 ### 12.6 Integrations
 
-Enterprise connections belong to the Workspace. A Project receives authorized
-capabilities that conversations, the application and automations reuse. The consumers
-never receive the secret and never reimplement the same integration on their own.
+Enterprise connections belong to the Workspace. Stage 2 realizes them through the
+Connector boundary: a reusable Connector defines the external system contract, a Workspace
+Connection is one configured instance, and a Project Grant selects the operations the Project
+may invoke. Conversations, applications and later automations may reuse the same admitted
+operation. Consumers never receive the underlying secret or arbitrary authenticated transport.
 
-This authorizes nobody to share an account or work around a provider's rules.
+Q4 qualifies this shape first with the smallest real read-only Sankhya operation. This
+authorizes nobody to share an account or work around a provider's rules.
 
 ### 12.7 Brain
 
@@ -418,17 +439,14 @@ These are unanswered on purpose. None has an answer hidden in this file, and non
 placeholder task.
 
 ```text
-the Factory and Controller composition
-which APIs and versions are adequate
-how conversations map onto Threads and Sessions
-the physical sandbox lifecycle
-what becomes of BuilderRun
-the admission and reconciliation protocol
-migration of existing history
-the privacy default and its transition
-the physical data schema
-application authentication
-hosting
+Q1 generated-handler runtime/isolation realization
+Q2 application data programming model
+Q3 application-session/grant realization
+Q4 exact first Sankhya Connector contract
+Q5 exact Release/Publish ingress realization
+what becomes of BuilderRun beyond the current Builder path
+conversation privacy transitions
+admission and reconciliation of delegated Work
 the scheduler
 the Brain mechanism
 ```
@@ -436,8 +454,8 @@ the Brain mechanism
 ### 12.12 Removed, not deferred
 
 Project Inception, the Project Baseline, AnalyticQuery, Product Agents, connection
-bindings, the capability gateway and the Managed Application Runtime were removed from
-the product on 2026-09-19. They are not paused and no seam waits for them. Brain,
-Releases, publication, integrations and automations appear above as destination because
-the operator approved them as direction, not because the removed implementations are
-returning; each arrives as a new feature on this base, with its own plan.
+bindings, the capability gateway and the old Managed Application Runtime were removed from
+the product on 2026-09-19. They are not paused and no seam waits for them. C-028's managed
+application profile is a new realization on the Factory-centered base, not revival of that
+removed runtime or its authority model. Brain, Releases, publication, integrations and
+automations arrive only through their current owners and qualification.

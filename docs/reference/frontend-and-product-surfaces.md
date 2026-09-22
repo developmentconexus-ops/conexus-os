@@ -81,7 +81,7 @@ ask for another color review.
 | Progress | Preparation, agent work, compilation and Preview opening reflect actual facts. Missing facts are not fabricated percentages or timers. |
 | Preview | The actual authorized application remains usable while new work runs. Old launch responses cannot replace newer identity. A grant or iframe load is not proof of a working app. |
 | Second request | Uses current source and the same Project conversation. Changing model does not reset the code or Thread. |
-| Failure and correction | Failed admitted source stays current; last-good Preview remains. Safe diagnostic is available to the user and the next explicit correction. No automatic repair loop. |
+| Failure and correction | Failed admitted source stays current. The last good Preview remains today, as implementation rather than a guarantee (C-020 amended 2026-09-22). Safe diagnostic is available to the user and the next explicit correction. No automatic repair loop. |
 | Stop | User requests actual run cancellation; UI waits for confirmed outcome. Detaching observation or closing chat is not cancellation. |
 | Code and Changes | Authorized, read-only content. Diff uses a run's base/result, not working source versus equal last-good. No second editor authority. |
 | Run history/details | Actual runs and measured/redacted native traces. Show missing metrics as unavailable. Never fake token counts or internal reasoning time. |
@@ -116,8 +116,8 @@ cross-origin and its load event fires for a refusal as readily as for a working 
 Whether the application actually boots is answered before the artifact is retained, not
 by the client.
 
-A run whose build or boot failed keeps its source and says so, and the last good Preview
-stays on screen beside it.
+A run whose build or boot failed keeps its source and says so. Today the last good Preview
+stays on screen beside it; that is implementation, not a guarantee.
 
 ### 33.7.1 Several conversations, not yet built
 

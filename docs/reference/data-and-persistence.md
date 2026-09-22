@@ -72,7 +72,7 @@ Project-owned migrations
 
 Project DB is not Hub control authority, Brain semantic authority or proof that an external source was synchronized correctly.
 
-Persistent DEV/PROD databases exist where the Project needs them. Validation databases are ephemeral proof fixtures, not a permanent third business environment by default.
+A Project has at most two application data environments, named after the surfaces that use them: Preview, the development surface, and Published, what employees use after an explicit Publish. Validation databases are ephemeral proof fixtures, not a third business environment. The Stage 2 qualifications decide the physical realization.
 
 ### 5.4.1 Approved destination
 
