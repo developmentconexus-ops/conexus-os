@@ -170,7 +170,7 @@ async function createProjectAndSend(page, { request, modelId, projectName }) {
   const requestSentAt = Date.now()
   await page.getByRole('button', { name: 'Criar e começar' }).click()
   await page.waitForURL(/\/projects\/[^/]+\/c\/[^/]+/, { timeout: 180_000 })
-  const [, projectId, , conversationId] = new URL(page.url()).pathname.split('/')
+  const [, , projectId, , conversationId] = new URL(page.url()).pathname.split('/')
   return { projectId, conversationId, requestSentAt }
 }
 
