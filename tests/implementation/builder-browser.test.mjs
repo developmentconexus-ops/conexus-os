@@ -15,6 +15,7 @@ const BUILDER_MODELS = [
   { id: 'groq/llama-4', provider: 'groq', modelName: 'llama-4', hasApiKey: false },
 ]
 const SELECTED_MODEL = BUILDER_MODELS[0].id
+const SELECTED_MODEL_NAME = BUILDER_MODELS[0].modelName
 const conversation = (conversationId, title, createdAt = '2026-09-20T12:00:00.000Z') => ({ conversationId, title, createdAt })
 
 const threadIdOf = (url, offsetFromEnd) => decodeURIComponent(new URL(url).pathname.split('/').at(offsetFromEnd))
@@ -63,6 +64,33 @@ const sse = (...events) => ({
   body: events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''),
 })
 
+// The composer names the chosen model on a button whose accessible name starts with "Modelo ",
+// which opens a popover holding a PUI Combobox of the models on offer.
+const openModelPicker = async (page) => {
+  await page.getByRole('button', { name: /^Modelo /, exact: false }).click()
+  await page.getByRole('combobox', { name: 'Modelo desta conversa' }).click()
+}
+const chooseModel = async (page, modelName) => {
+  await openModelPicker(page)
+  await page.getByRole('option', { name: modelName }).click()
+  await page.keyboard.press('Escape')
+}
+// The chat header's Combobox names the current conversation and lists the others as options.
+const readConversationTitles = async (page) => {
+  await page.getByRole('combobox', { name: 'Conversa', exact: true }).click()
+  const titles = await page.getByRole('option').allTextContents()
+  await page.keyboard.press('Escape')
+  return titles
+}
+const switchConversationTo = async (page, title) => {
+  await page.getByRole('combobox', { name: 'Conversa', exact: true }).click()
+  await page.getByRole('option', { name: title }).click()
+}
+// CodeMirror splits a line across syntax-highlighting spans, so the file's content is read from
+// the whole .cm-content container rather than matched as one exact text node.
+const codeContentIncludes = (page, needle) =>
+  page.waitForFunction((text) => document.querySelector('.cx-code .cm-content')?.textContent?.includes(text) ?? false, needle)
+
 test('Project Build uses the Project session, the BuilderRun API and the native Mastra turn', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000001'
   const projectId = '70000000-0000-4000-8000-000000000002'
@@ -88,10 +116,12 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
+  // The second send settles as RESPONSE_ONLY: Plan mode is gone, so a response-only outcome is
+  // reached by an ordinary BUILD send that changes nothing, not by a separate mode.
   const session = () => ({
     projectId,
     latestBuilderRun: run && runFinished
-      ? { ...run, state: 'SUCCEEDED', phase: null, resultSourceRevision: run.mode === 'PLAN' ? null : sourceRevision, resultKind: run.mode === 'PLAN' ? 'RESPONSE_ONLY' : 'SOURCE_CHANGED' }
+      ? { ...run, state: 'SUCCEEDED', phase: null, resultSourceRevision: requests.length >= 2 ? null : sourceRevision, resultKind: requests.length >= 2 ? 'RESPONSE_ONLY' : 'SOURCE_CHANGED' }
       : run,
     latestCodeChangingRun: buildCount > 0 ? { baseSourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: buildCount > 0 ? sourceRevision : null, lastGoodArtifactRevisionId: buildCount > 0 ? artifactRevisionId : null, lastGoodArtifactDigest: buildCount > 0 ? artifactDigest : null },
@@ -125,11 +155,20 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   })
   await page.route(`**/api/control/projects/${projectId}/source/tree*`, (route) => {
     const revision = new URL(route.request().url()).searchParams.get('sourceRevision')
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision: revision, entries: [{ path: 'app/index.html', kind: 'FILE' }] }) })
+    // The tree lists a directory entry too: nest() drops a file whose parent folder was never
+    // listed, and the file tree lens is asserted by the treeitem it renders under that folder.
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision: revision, entries: [{ path: 'app', kind: 'DIRECTORY' }, { path: 'app/index.html', kind: 'FILE' }] }) })
   })
   await page.route(`**/api/control/projects/${projectId}/source/file*`, (route) => {
     const revision = new URL(route.request().url()).searchParams.get('sourceRevision')
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision: revision, path: 'app/index.html', content: revision === baseSourceRevision ? '<main>Counter</main>' : '<main>Counter v2</main>' }) })
+  })
+  await page.route(`**/api/control/projects/${projectId}/source/compare*`, (route) => {
+    const url = new URL(route.request().url())
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      baseSourceRevision: url.searchParams.get('baseSourceRevision'), resultSourceRevision: url.searchParams.get('resultSourceRevision'),
+      files: [{ path: 'app/index.html', status: 'MODIFIED', previousPath: null }],
+    }) })
   })
   const streamScopes = []
   await page.route(`${FACTORY_CONTROLLER}/sessions/*/stream*`, (route) => {
@@ -146,56 +185,63 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
     ))
   })
 
+  // The old project-detail page and its "Construir com o Conexus" link are gone: a Project opens
+  // straight onto its most recent conversation.
   await page.goto(`${origin}/projects/${projectId}`)
-  await page.getByRole('link', { name: 'Construir com o Conexus' }).click()
-  await page.getByRole('heading', { name: 'Converse com o Conexus' }).waitFor()
-  await page.getByLabel('O que o Project precisa fazer?').fill('Crie um contador até 100 interativo')
-  await page.getByRole('button', { name: 'Enviar mensagem' }).click()
-  await page.getByText('Mensagem enviada ao Builder.').waitFor()
+  await page.getByLabel('Mensagem para o agente').waitFor()
+  const firstSend = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 201)
+  await page.getByLabel('Mensagem para o agente').fill('Crie um contador até 100 interativo')
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  await firstSend
   assert.equal(requests.length, 1)
   assert.deepEqual(requests[0].body, { content: 'Crie um contador até 100 interativo', mode: 'BUILD', conversationId })
   assert.ok(requests[0].key)
+  await page.locator('.cx-messages').getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
   await page.getByText('Aplicando a alteração', { exact: true }).waitFor()
   assert.deepEqual(streamScopes.slice(0, 1), [`builder:${runId}`])
-  await page.getByTitle('Preview do aplicativo').waitFor()
+  await page.getByTitle('Prévia do aplicativo').waitFor()
   assert.deepEqual(previewRequests, [{}])
-  await page.locator('.builder-conversation').getByText('Build concluído', { exact: true }).waitFor()
+  await page.locator('.cx-messages').getByText('Build concluído', { exact: true }).waitFor()
   await page.waitForTimeout(400)
-  assert.equal(await page.locator('.builder-conversation').getByText('Aplicando a alteração', { exact: true }).count(), 1,
+  assert.equal(await page.locator('.cx-messages').getByText('Aplicando a alteração', { exact: true }).count(), 1,
     'the live message and its persisted twin share an id and render once')
-  assert.equal(await page.locator('.builder-conversation .builder-turn-user').count(), 1,
+  assert.equal(await page.locator('.cx-messages .builder-turn-user').count(), 1,
     'a run whose request is already a Mastra message renders one user bubble, not two')
-  assert.equal(await page.locator('.builder-conversation .builder-turn-reason').count(), 0,
+  assert.equal(await page.locator('.cx-messages .builder-turn-reason').count(), 0,
     'a run that succeeded is given no failure reason')
   assert.deepEqual(forbiddenRequests, [])
   assert.deepEqual([...new Set(state.messageReads)], [conversationId],
     'the messages read are the selected conversation\'s own thread, never a name derived from the Project')
-  const previewBox = await page.locator('.build-preview-surface').boundingBox()
-  const panelBox = await page.locator('.conexus-panel').boundingBox()
+  const previewBox = await page.locator('.cx-stage').boundingBox()
+  const panelBox = await page.locator('.cx-chat').boundingBox()
   assert.ok(previewBox && panelBox && previewBox.width > panelBox.width)
-  const frameBox = await page.locator('.preview-frame-stack iframe').boundingBox()
-  const frameStackBox = await page.locator('.preview-frame-stack').boundingBox()
+  const frameBox = await page.locator('.cx-frame iframe').boundingBox()
+  const frameStackBox = await page.locator('.cx-frame').boundingBox()
   assert.ok(frameBox && frameStackBox && frameBox.width >= frameStackBox.width * 0.95 && frameBox.height >= 384)
 
-  await page.getByRole('button', { name: 'Código' }).click()
-  await page.getByRole('button', { name: 'app/index.html' }).waitFor()
-  await page.getByText('<main>Counter v2</main>', { exact: true }).waitFor()
-  await page.getByRole('button', { name: 'Detalhes' }).click()
-  await page.getByRole('heading', { name: 'Detalhes do Build' }).waitFor()
-  await page.getByRole('button', { name: 'Diff' }).click()
-  await page.getByText('MODIFIED', { exact: true }).waitFor()
+  await page.getByRole('tab', { name: 'Código' }).click()
+  await page.getByRole('treeitem', { name: 'index.html' }).waitFor()
+  await codeContentIncludes(page, '<main>Counter v2</main>')
+  await page.getByRole('tab', { name: 'Detalhes' }).click()
+  await page.getByRole('heading', { name: 'Execução selecionada' }).waitFor()
+  await page.getByRole('tab', { name: 'Alterações' }).click()
+  await page.getByText('Alterado', { exact: true }).waitFor()
 
-  await page.getByRole('button', { name: 'Plan' }).click()
-  await page.getByRole('button', { name: 'Plan' }).evaluate((button) => { if (button.getAttribute('aria-pressed') !== 'true' || !button.classList.contains('builder-mode-selected')) throw new Error('Plan selection is not visible') })
-  await page.getByRole('button', { name: 'Build', exact: true }).evaluate((button) => { if (button.getAttribute('aria-pressed') !== 'false') throw new Error('Build remained selected') })
-  await page.getByLabel('O que o Project precisa fazer?').fill('Explique o contador')
-  await page.getByRole('button', { name: 'Enviar mensagem' }).click()
-  await page.getByText('Mensagem enviada ao Builder.').waitFor()
-  await page.getByText('Resposta somente', { exact: true }).waitFor()
+  // Plan mode is removed from the product: a second BUILD send that settles RESPONSE_ONLY is what
+  // used to be exercised by switching into Plan.
+  const secondSend = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 201)
+  await page.getByLabel('Mensagem para o agente').fill('Explique o contador')
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  await secondSend
+  await page.locator('.cx-messages').getByText('Explique o contador', { exact: true }).waitFor()
+  await page.locator('.cx-chat-step', { hasText: 'Respondeu' }).waitFor()
 
+  // The lens is carried in the URL, and the test last selected Alterações; go back to Prévia
+  // before reloading so the reload is checked against the lens the assertion actually cares about.
+  await page.getByRole('tab', { name: 'Prévia' }).click()
   await page.reload()
   await page.getByText('Crie um contador até 100 interativo', { exact: true }).first().waitFor()
-  await page.getByTitle('Preview do aplicativo').waitFor()
+  await page.getByTitle('Prévia do aplicativo').waitFor()
   assert.equal(await page.getByText('BuilderRun', { exact: true }).count(), 0)
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
@@ -242,12 +288,15 @@ test('new Project lands directly in Build and can send its first Builder message
   await page.goto(`${origin}/workspaces/${workspaceId}/projects/new`)
   await page.getByLabel('Nome do Project').fill('New Counter')
   await page.getByRole('button', { name: 'Criar Project' }).click()
-  await page.getByRole('heading', { name: 'Converse com o Conexus' }).waitFor()
-  await page.getByLabel('O que o Project precisa fazer?').fill('Crie um contador')
-  await page.getByRole('button', { name: 'Enviar mensagem' }).click()
-  await page.getByLabel('O que o Project precisa fazer?').fill('texto digitado depois')
-  await page.getByText('Mensagem enviada ao Builder.').waitFor()
-  assert.equal((await page.getByLabel('O que o Project precisa fazer?').inputValue()), 'texto digitado depois')
+  await page.getByLabel('Mensagem para o agente').waitFor()
+  const firstSend = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 201)
+  await page.getByLabel('Mensagem para o agente').fill('Crie um contador')
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  // Typed while the send is still in flight: there is no success toast any more, so the request
+  // reaching the route is what proves the draft field was free to keep taking input.
+  await page.getByLabel('Mensagem para o agente').fill('texto digitado depois')
+  await firstSend
+  assert.equal((await page.getByLabel('Mensagem para o agente').inputValue()), 'texto digitado depois')
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
@@ -299,32 +348,34 @@ test('a Project holds several conversations, and switching between them leaves t
   })
 
   await page.goto(`${origin}/projects/${projectId}/build`)
-  await page.getByTitle('Preview do aplicativo').waitFor()
+  await page.getByTitle('Prévia do aplicativo').waitFor()
   assert.equal(previewRequests.length, 1)
 
-  await page.getByText('Escolha o modelo do Builder para poder enviar mensagens.', { exact: true }).waitFor()
-  assert.equal(await page.getByRole('button', { name: 'Enviar mensagem' }).isDisabled(), true)
-  await page.locator('.builder-model-select select').selectOption(SELECTED_MODEL)
-  await page.waitForFunction(() => document.querySelector('.builder-send-button')?.disabled === false)
+  await page.getByText('Escolha o modelo desta conversa para enviar pedidos.', { exact: true }).waitFor()
+  assert.equal(await page.getByRole('button', { name: 'Enviar' }).isDisabled(), true)
+  await chooseModel(page, SELECTED_MODEL_NAME)
+  // The send button also stays disabled on an empty draft, so a chosen model is proven by the
+  // "choose a model" note going away, not by the button alone.
+  await page.getByText('Escolha o modelo desta conversa para enviar pedidos.', { exact: true }).waitFor({ state: 'detached' })
   assert.deepEqual(state.modelSwitches, [SELECTED_MODEL])
 
-  assert.deepEqual(await page.locator('.builder-conversations-list button').allTextContents(), ['Contador', 'Relógio'])
-  await page.locator('.builder-conversation').getByText('Contador pronto', { exact: true }).waitFor()
-  assert.equal(await page.locator('.builder-conversation').getByText('Relógio pronto', { exact: true }).count(), 0)
+  assert.deepEqual(await readConversationTitles(page), ['Contador', 'Relógio'])
+  await page.locator('.cx-messages').getByText('Contador pronto', { exact: true }).waitFor()
+  assert.equal(await page.locator('.cx-messages').getByText('Relógio pronto', { exact: true }).count(), 0)
 
-  await page.locator('.builder-conversations-list button', { hasText: 'Relógio' }).click()
-  await page.locator('.builder-conversation').getByText('Relógio pronto', { exact: true }).waitFor()
-  assert.equal(await page.locator('.builder-conversation').getByText('Contador pronto', { exact: true }).count(), 0)
-  assert.equal(await page.locator('.builder-conversations-list button[aria-pressed="true"]').innerText(), 'Relógio')
+  await switchConversationTo(page, 'Relógio')
+  await page.locator('.cx-messages').getByText('Relógio pronto', { exact: true }).waitFor()
+  assert.equal(await page.locator('.cx-messages').getByText('Contador pronto', { exact: true }).count(), 0)
+  assert.equal((await page.getByRole('combobox', { name: 'Conversa', exact: true }).innerText()).trim(), 'Relógio')
   // The conversation is the chat's. The Preview belongs to the Project and is not relaunched.
   assert.equal(previewRequests.length, 1)
   assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/preview-entry`)
 
-  await page.getByRole('button', { name: 'Código' }).click()
+  await page.getByRole('tab', { name: 'Código' }).click()
   await page.getByText('<main>Contador</main>', { exact: true }).waitFor()
   const readsBeforeSwitch = [...sourceReads]
-  await page.locator('.builder-conversations-list button', { hasText: 'Contador' }).click()
-  await page.locator('.builder-conversation').getByText('Contador pronto', { exact: true }).waitFor()
+  await switchConversationTo(page, 'Contador')
+  await page.locator('.cx-messages').getByText('Contador pronto', { exact: true }).waitFor()
   assert.equal(await page.getByText('<main>Contador</main>', { exact: true }).count(), 1)
   assert.deepEqual(sourceReads, readsBeforeSwitch,
     'switching conversation re-read the source, which belongs to the Project and not to the conversation')
@@ -359,7 +410,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
     requestText: `pedido ${builderRunId}`, createdAt: '2026-09-20T12:00:00.000Z',
   })
   const tracedRuns = []
-  const diffed = []
+  let compareQuery = null
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeFactory(page, projectId, factoryState([conversation(conversationId, 'Histórico')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'History', projectRevision: 'revision', archived: false }) }))
@@ -375,31 +426,33 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
     tracedRuns.push(route.request().url().split('/runs/')[1].split('/')[0])
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ inferences: [], sandboxCommands: [] }) })
   })
-  await page.route(`**/api/control/projects/${projectId}/source/tree*`, (route) => {
-    const revision = new URL(route.request().url()).searchParams.get('sourceRevision')
-    diffed.push(revision)
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision: revision, entries: [] }) })
+  // The compare route belongs to the Diff lens now (source/tree was the pre-Diff mechanism); the
+  // query it receives is what proves Diff followed the selected run, not the latest one.
+  await page.route(`**/api/control/projects/${projectId}/source/compare*`, (route) => {
+    const url = new URL(route.request().url())
+    compareQuery = { baseSourceRevision: url.searchParams.get('baseSourceRevision'), resultSourceRevision: url.searchParams.get('resultSourceRevision') }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...compareQuery, files: [] }) })
   })
 
   await page.goto(`${origin}/projects/${projectId}/build`)
   // The model the next run uses is the controller's own selection, and the composer shows it.
-  await page.waitForFunction((expected) => document.querySelector('.builder-model-select select')?.value === expected, SELECTED_MODEL)
-  assert.deepEqual(await page.getByLabel('Modelo do Builder').locator('option:not([disabled])').allTextContents(),
-    ['anthropic · claude-opus-4-5', 'anthropic · claude-sonnet-4-5'],
-    'a model the controller has no key for is never offered')
+  await page.getByRole('button', { name: new RegExp(`^Modelo ${SELECTED_MODEL_NAME}, `) }).waitFor()
+  await openModelPicker(page)
+  await page.getByRole('option', { name: 'claude-opus-4-5' }).waitFor()
+  await page.getByRole('option', { name: 'claude-sonnet-4-5' }).waitFor()
+  assert.equal(await page.getByRole('option').count(), 2, 'a model the controller has no key for is never offered')
+  await page.keyboard.press('Escape')
 
-  await page.getByRole('button', { name: 'Detalhes' }).click()
-  await page.locator('.build-inspection dl').getByText(latestRunId, { exact: true }).waitFor()
-  await page.locator('.builder-run-history button').nth(1).click()
-  await page.locator('.build-inspection dl').getByText(olderRunId, { exact: true }).waitFor()
+  await page.getByRole('tab', { name: 'Detalhes' }).click()
+  await page.locator('.cx-facts').getByText(latestRunId, { exact: true }).waitFor()
+  await page.locator('.cx-history button').nth(1).click()
+  await page.locator('.cx-facts').getByText(olderRunId, { exact: true }).waitFor()
   assert.equal(tracedRuns.at(-1), olderRunId, `the trace followed ${tracedRuns.at(-1)} instead of the selected run`)
 
-  diffed.length = 0
-  await page.getByRole('button', { name: 'Diff' }).click()
-  await page.waitForFunction(() => document.querySelectorAll('.build-inspection').length > 0)
-  await page.waitForTimeout(800)
-  assert.deepEqual([...diffed].sort(), [olderBase, olderResult].sort(),
-    `the Diff read ${diffed.join(', ')} instead of the selected run's own revisions`)
+  await page.getByRole('tab', { name: 'Alterações' }).click()
+  await page.getByText('Esta execução não mudou nenhum arquivo.', { exact: true }).waitFor()
+  assert.deepEqual(compareQuery, { baseSourceRevision: olderBase, resultSourceRevision: olderResult },
+    `the Diff read ${JSON.stringify(compareQuery)} instead of the selected run's own revisions`)
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
@@ -437,11 +490,12 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
   })
 
   await page.goto(`${origin}/projects/${projectId}/build`)
-  await page.getByLabel('O que o Project precisa fazer?').fill('Crie um contador')
-  await page.getByRole('button', { name: 'Enviar mensagem' }).click()
-  await page.getByText('Não foi possível enviar a mensagem ao Builder.', { exact: true }).waitFor()
-  await page.getByRole('button', { name: 'Enviar mensagem' }).click()
-  await page.getByText('Mensagem enviada ao Builder.', { exact: true }).waitFor()
+  await page.getByLabel('Mensagem para o agente').fill('Crie um contador')
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  await page.getByText('Não foi possível enviar o pedido. Tente de novo.', { exact: true }).waitFor()
+  const retry = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 201)
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  await retry
   assert.equal(keys.length, 2)
   assert.equal(keys[0], keys[1], `a resend of the same text issued a second key: ${keys.join(' vs ')}`)
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
@@ -502,19 +556,19 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
     }) })
   })
   await page.goto(`${origin}/projects/${projectId}/build`)
-  await page.getByTitle('Preview do aplicativo').waitFor()
+  await page.getByTitle('Prévia do aplicativo').waitFor()
   assert.equal(previewRequests, 1)
   assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/entry-a`)
 
-  await page.getByLabel('O que o Project precisa fazer?').fill('Atualize o contador')
-  await page.getByRole('button', { name: 'Enviar mensagem' }).click()
-  await page.getByText('Não foi possível abrir o Preview atual.', { exact: true }).waitFor()
+  await page.getByLabel('Mensagem para o agente').fill('Atualize o contador')
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  await page.getByText('Não foi possível abrir a prévia atual.', { exact: true }).waitFor()
   assert.equal(previewRequests, 2)
-  assert.equal(await page.getByTitle('Preview do aplicativo').count(), 1)
+  assert.equal(await page.getByTitle('Prévia do aplicativo').count(), 1)
   assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/entry-a`)
   await page.getByRole('button', { name: 'Tentar novamente' }).click()
   assert.equal(previewRequests, 3)
-  await page.getByText('Não foi possível abrir o Preview atual.', { exact: true }).waitFor()
+  await page.getByText('Não foi possível abrir a prévia atual.', { exact: true }).waitFor()
   assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/entry-a`)
   await page.getByRole('button', { name: 'Tentar novamente' }).click()
   await page.locator(`form[method="post"][action="${origin}/entry-b"]`).waitFor({ state: 'attached' })
@@ -561,12 +615,14 @@ test('a run that failed before the agent still shows the request and names why i
     mode: 'BUILD', runHistory: [failedRun],
   }) }))
   await page.goto(`${origin}/projects/${projectId}/build`)
-  await page.locator('.builder-conversation').getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
-  await page.getByText('Não foi possível preparar o ambiente de código. Tente enviar o pedido novamente.', { exact: true }).waitFor()
-  assert.equal(await page.locator('.builder-conversation .builder-turn-user').count(), 1,
+  await page.locator('.cx-messages').getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
+  await page.locator('.cx-messages .builder-turn-reason').getByText('Não foi possível preparar o ambiente de código. Tente enviar o pedido novamente.', { exact: true }).waitFor()
+  assert.equal(await page.locator('.cx-messages .builder-turn-user').count(), 1,
     'the run appears once although it is both the latest run and a history entry')
-  assert.equal(await page.locator('.builder-conversation .builder-turn-reason').count(), 1)
-  assert.equal(await page.getByText('BUILDER_SOURCE_MATERIALIZATION_REFUSED', { exact: true }).count(), 0,
+  assert.equal(await page.locator('.cx-messages .builder-turn-reason').count(), 1)
+  // The failure code may now live only inside a closed <details>, so it must not be visible rather
+  // than simply absent.
+  assert.equal(await page.getByText('BUILDER_SOURCE_MATERIALIZATION_REFUSED', { exact: true }).isVisible(), false,
     'the internal code is never the sentence the operator reads')
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
@@ -589,26 +645,31 @@ test('an agent that spoke once and then works in silence still reads as working,
   const legacyRequests = trackLegacyRequests(page)
   const working = 'conversation-working'
   const other = 'conversation-other'
-  const run = {
+  const baseRun = {
     builderRunId: runId, projectId, conversationId: working, state: 'RUNNING', phase: 'AGENT', mode: 'BUILD',
     baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null,
     requestText: 'Crie um cadastro de clientes', createdAt: new Date(Date.now() - 75_000).toISOString(),
   }
   const cancels = []
+  let cancelled = false
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeFactory(page, projectId, factoryState(
     [conversation(working, 'Cadastro'), conversation(other, 'Outra')],
     { [working]: [userMessage('request', 'Crie um cadastro de clientes')] },
   ))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Clientes', projectRevision: 'revision', archived: false }) }))
-  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-    projectId, latestBuilderRun: run, latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    mode: 'BUILD', runHistory: [run],
-  }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
+    const run = { ...baseRun, cancellationRequested: cancelled }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      projectId, latestBuilderRun: run, latestCodeChangingRun: null,
+      preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+      mode: 'BUILD', runHistory: [run],
+    }) })
+  })
   await page.route(`**/api/control/projects/${projectId}/builder-session/runs/${runId}/cancel`, (route) => {
+    cancelled = true
     cancels.push(runId)
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ builderRun: { ...run, cancellationRequested: true } }) })
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ builderRun: { ...baseRun, cancellationRequested: true } }) })
   })
   // The agent says what it is about to do, then works through tools without saying anything else.
   await page.route(`${FACTORY_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
@@ -616,19 +677,23 @@ test('an agent that spoke once and then works in silence still reads as working,
   )))
 
   await page.goto(`${origin}/projects/${projectId}/build`)
-  await page.locator('.builder-conversation').getByText('Vou estruturar a interface de cadastro.', { exact: true }).waitFor()
-  const status = page.locator('.builder-run-status')
+  await page.locator('.cx-messages').getByText('Vou estruturar a interface de cadastro.', { exact: true }).waitFor()
+  const status = page.locator('.cx-chat-step')
   await status.waitFor()
-  assert.match(await status.innerText(), /Conexus está trabalhando/)
+  assert.match(await status.innerText(), /Agente trabalhando/)
   assert.match(await status.innerText(), /há 1 min \d\d s/)
-  await status.getByRole('button', { name: 'Parar' }).click()
-  await page.getByText('Solicitação de interrupção enviada.').waitFor()
+  const cancelRequest = page.waitForRequest((request) => request.url().endsWith(`/runs/${runId}/cancel`) && request.method() === 'POST')
+  await page.getByRole('button', { name: 'Parar' }).click()
+  await cancelRequest
+  await page.getByRole('button', { name: 'Parando' }).waitFor()
   assert.deepEqual(cancels, [runId])
 
-  await page.locator('.builder-conversations-list button').filter({ hasText: 'Outra' }).click()
+  await switchConversationTo(page, 'Outra')
   assert.match(await status.innerText(), /em outra conversa/, 'the Project stays busy while another conversation is shown')
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
+
+const NEXT_SOURCE_UNCOMPILED = 'Próxima: código atual ainda sem prévia'
 
 test('the Preview names the grant and the navigation, and never claims the application loaded', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000051'
@@ -668,19 +733,17 @@ test('the Preview names the grant and the navigation, and never claims the appli
   })
 
   await page.goto(`${origin}/projects/${projectId}/build`)
-  await page.getByText('Acesso autorizado. Abrindo o aplicativo…', { exact: true }).waitFor()
-  assert.equal(await page.getByText('Aplicativo aberto abaixo. Se a área ficar vazia, ele não desenhou nada.', { exact: true }).count(), 0,
+  await page.getByText('Acesso autorizado. Abrindo a prévia…', { exact: true }).waitFor()
+  assert.equal(await page.getByText('Prévia aberta. Se a área ficar vazia, o aplicativo não desenhou nada.', { exact: true }).count(), 0,
     'about:blank fires its own load, which must not count as the application navigating')
-  assert.equal(await page.getByText(SOURCE_AHEAD_OF_PREVIEW, { exact: true }).count(), 0, 'a Preview built from the current source is not behind it')
+  assert.equal((await page.locator('.cx-inuse').innerText()).includes(NEXT_SOURCE_UNCOMPILED), false, 'a Preview built from the current source is not behind it')
 
   releaseEntry()
-  await page.getByText('Aplicativo aberto abaixo. Se a área ficar vazia, ele não desenhou nada.', { exact: true }).waitFor()
-  const text = await page.locator('.build-preview-surface').innerText()
+  await page.getByText('Prévia aberta. Se a área ficar vazia, o aplicativo não desenhou nada.', { exact: true }).waitFor()
+  const text = await page.locator('.cx-stage').innerText()
   assert.equal(/carregad|funcionando|pronto para uso/i.test(text), false, `the Preview claimed more than it observed: ${text}`)
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
-
-const SOURCE_AHEAD_OF_PREVIEW = 'A fonte atual do Project está à frente deste Preview. Ele mostra a última versão que compilou e muda quando uma execução compilar a fonte atual.'
 
 test('the Build screen says when the current source is ahead of the last good Preview', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000061'
@@ -708,7 +771,7 @@ test('the Build screen says when the current source is ahead of the last good Pr
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }))
 
   await page.goto(`${origin}/projects/${projectId}/build`)
-  await page.getByText(SOURCE_AHEAD_OF_PREVIEW, { exact: true }).waitFor()
+  await page.locator('.cx-inuse').getByText(NEXT_SOURCE_UNCOMPILED, { exact: true }).waitFor()
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
@@ -780,15 +843,15 @@ test('Preview ignores an older launch completion after the artifact key changes'
   await page.goto(`${origin}/projects/${projectId}/build`)
   await firstLaunchStarted.promise
   assert.equal(previewRequests, 1)
-  assert.equal(await page.getByTitle('Preview do aplicativo').count(), 0)
-  await page.getByLabel('O que o Project precisa fazer?').fill('Troque o contador')
-  await page.getByRole('button', { name: 'Enviar mensagem' }).click()
+  assert.equal(await page.getByTitle('Prévia do aplicativo').count(), 0)
+  await page.getByLabel('Mensagem para o agente').fill('Troque o contador')
+  await page.getByRole('button', { name: 'Enviar' }).click()
   await secondLaunchStarted.promise
   assert.equal(previewRequests, 2)
   const secondPreviewResponse = page.waitForResponse((response) => response.url().endsWith('/builder-session/preview') && response.status() === 201)
   launchB.resolve()
   await secondPreviewResponse
-  await page.getByTitle('Preview do aplicativo').waitFor()
+  await page.getByTitle('Prévia do aplicativo').waitFor()
   assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/entry-b`)
   const firstPreviewResponse = page.waitForResponse((response) => response.url().endsWith('/builder-session/preview') && response.status() === 201)
   launchA.resolve()
@@ -870,26 +933,32 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
   })
 
   await page.goto(`${origin}/projects/${projectId}/build`)
-  await page.locator('.builder-conversation').getByText('Contador pronto', { exact: true }).waitFor()
-  assert.deepEqual(await page.locator('.builder-conversations-list button').allTextContents(), ['Contador', 'Relógio'])
+  await page.locator('.cx-messages').getByText('Contador pronto', { exact: true }).waitFor()
+  assert.deepEqual(await readConversationTitles(page), ['Contador', 'Relógio'])
   assert.equal(await page.getByRole('button', { name: 'Renomear' }).count(), 0, 'the Builder has no conversation rename feature')
   assert.deepEqual(messageReads.at(0), [counterId, counterId], 'the messages come from the conversation session and thread of the same id')
 
-  await page.locator('.builder-model-select select').selectOption(SELECTED_MODEL)
-  await page.waitForFunction(() => document.querySelector('.builder-send-button')?.disabled === false)
+  await chooseModel(page, SELECTED_MODEL_NAME)
+  // The send button also stays disabled on an empty draft, so a chosen model is proven by the
+  // "choose a model" note going away, not by the button alone.
+  await page.getByText('Escolha o modelo desta conversa para enviar pedidos.', { exact: true }).waitFor({ state: 'detached' })
   assert.deepEqual(modelWrites, [[counterId, SELECTED_MODEL]])
 
+  const createConversation = page.waitForResponse((response) => response.url().endsWith(`/api/control/projects/${projectId}/conversations`) && response.request().method() === 'POST')
   await page.getByRole('button', { name: 'Nova conversa' }).click()
-  await page.waitForFunction(() => document.querySelectorAll('.builder-conversations-list button').length === 3)
+  await createConversation
   assert.equal(created.length, 1)
   assert.match(created[0], /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
-  await page.waitForFunction(() => document.querySelector('.builder-send-button')?.disabled === false)
+  assert.equal((await readConversationTitles(page)).length, 3)
+  await page.getByText('Escolha o modelo desta conversa para enviar pedidos.', { exact: true }).waitFor({ state: 'detached' })
   assert.deepEqual(modelWrites.at(-1), [created[0], SELECTED_MODEL], 'the chosen model is carried onto the thread of the new conversation')
 
-  await page.locator('.builder-conversations-list button', { hasText: 'Contador' }).click()
-  await page.locator('.builder-conversation').getByText('Contador pronto', { exact: true }).waitFor()
-  await page.getByLabel('O que o Project precisa fazer?').fill('Mostre UNIT1-browser')
-  await page.getByRole('button', { name: 'Enviar mensagem' }).click()
+  await switchConversationTo(page, 'Contador')
+  await page.locator('.cx-messages').getByText('Contador pronto', { exact: true }).waitFor()
+  await page.getByLabel('Mensagem para o agente').fill('Mostre UNIT1-browser')
+  const sendResponse = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 201)
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  await sendResponse
   await page.getByText('Trabalhando no repositório', { exact: true }).waitFor()
   assert.deepEqual(streams.at(0), [counterId, `builder:${runId}`])
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
