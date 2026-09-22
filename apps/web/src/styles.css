@@ -26,7 +26,7 @@
 .primary:hover:not(:disabled) { background: var(--cx-ink); opacity: .88; }
 label span { color: var(--cx-text-2); }
 .shell { display: flex; height: 100dvh; min-height: 0; background: var(--cx-canvas); }
-.shell-sidebar { border-right: 0; }
+.shell-sidebar { border-right: 1px solid var(--cx-line); }
 .shell-main { flex: 1; min-width: 0; }
 /* Legacy element defaults stay beneath the component library's own styling, so a library input or
    composer inside a form is not given a second border, padding or margin. */

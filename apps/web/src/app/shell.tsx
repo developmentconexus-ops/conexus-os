@@ -5,13 +5,16 @@ import { MainSidebar, MainSidebarProvider } from '@mastra/playground-ui/componen
 import { AppShell } from '@mastra/playground-ui/new/layout/app-shell'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useMatchRoute, useNavigate } from '@tanstack/react-router'
-import { ArrowLeft, ChevronDown, Hammer, Info, LayoutGrid, Plus, Users } from 'lucide-react'
+import {
+  ArrowLeft, ChevronDown, ChevronsUpDown, Database, Hammer, Info, LayoutGrid, Plug, Plus, Settings, Sparkles, Users,
+} from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import { ConexusMark, ConexusWordmark } from '../../../../packages/brand/src/index'
 import { endCurrentSession } from '../features/identity-access/api'
 import { listProjects, projectListQueryKey } from '../features/project/api'
 import type { AccessContext } from '../generated/iam-client'
+import { ThemeToggle } from './theme-toggle'
 import './frame.css'
 
 export type ShellScope = Readonly<{
@@ -27,12 +30,27 @@ const firstShellMount = (): boolean => {
   return first
 }
 
-function NavItem({ active, children }: Readonly<{ active: boolean; children: ReactElement<{ className?: string }> }>) {
-  return <MainSidebar.NavLink isActive={active} render={children} />
+// `label` only feeds the tooltip the collapsed 56px rail shows on hover; the visible label lives
+// in the `children` Link via NavText.
+function NavItem({ active, label, children }: Readonly<{ active: boolean; label: string; children: ReactElement<{ className?: string }> }>) {
+  return <MainSidebar.NavLink isActive={active} link={{ name: label, url: '#' }} render={children} />
 }
 
 function NavText({ icon, children }: Readonly<{ icon: ReactNode; children: string }>) {
   return <>{icon}<MainSidebar.NavLabel>{children}</MainSidebar.NavLabel></>
+}
+
+/** A capability the Project doesn't have yet. Shows "em breve" inline, and as the tooltip when the
+ *  rail is collapsed to icons. */
+function ComingSoonNavItem({ icon, label }: Readonly<{ icon: ReactNode; label: string }>) {
+  return <MainSidebar.NavLink
+    link={{ name: label, tooltipMsg: 'Em breve', url: '#' }}
+    render={<span aria-disabled="true">
+      {icon}
+      <MainSidebar.NavLabel>{label}</MainSidebar.NavLabel>
+      <span className="cx-nav-soon" aria-hidden>em breve</span>
+    </span>}
+  />
 }
 
 function ScopeRail({ scope }: Readonly<{ scope: ShellScope | undefined }>) {
@@ -44,17 +62,23 @@ function ScopeRail({ scope }: Readonly<{ scope: ShellScope | undefined }>) {
     return <MainSidebar.NavSection>
       <MainSidebar.NavHeader><span className="cx-rail-scope">{project.name}</span></MainSidebar.NavHeader>
       <MainSidebar.NavList>
-        <NavItem active={false}>
+        <NavItem active={false} label="Voltar para Projetos">
           <Link to="/workspaces/$workspaceId/projects" params={{ workspaceId: workspace.workspaceId }}>
             <NavText icon={<ArrowLeft size={16} aria-hidden />}>Voltar para Projetos</NavText>
           </Link>
         </NavItem>
-        <NavItem active={Boolean(matchRoute({ to: '/projects/$projectId', params, fuzzy: true })) && !matchRoute({ to: '/projects/$projectId/settings', params })}>
+        <NavItem active={Boolean(matchRoute({ to: '/projects/$projectId', params, fuzzy: true })) && !matchRoute({ to: '/projects/$projectId/settings', params })} label="Construir">
           <Link to="/projects/$projectId" params={params}><NavText icon={<Hammer size={16} aria-hidden />}>Construir</NavText></Link>
         </NavItem>
-        <NavItem active={Boolean(matchRoute({ to: '/projects/$projectId/settings', params }))}>
+        <NavItem active={Boolean(matchRoute({ to: '/projects/$projectId/settings', params }))} label="Sobre">
           <Link to="/projects/$projectId/settings" params={params}><NavText icon={<Info size={16} aria-hidden />}>Sobre</NavText></Link>
         </NavItem>
+      </MainSidebar.NavList>
+      <MainSidebar.NavHeader>Em breve</MainSidebar.NavHeader>
+      <MainSidebar.NavList>
+        <ComingSoonNavItem icon={<Database size={16} aria-hidden />} label="Dados" />
+        <ComingSoonNavItem icon={<Sparkles size={16} aria-hidden />} label="Capacidades" />
+        <ComingSoonNavItem icon={<Plug size={16} aria-hidden />} label="Integrações" />
       </MainSidebar.NavList>
     </MainSidebar.NavSection>
   }
@@ -63,10 +87,10 @@ function ScopeRail({ scope }: Readonly<{ scope: ShellScope | undefined }>) {
     return <MainSidebar.NavSection>
       <MainSidebar.NavHeader><span className="cx-rail-scope">{workspace.name}</span></MainSidebar.NavHeader>
       <MainSidebar.NavList>
-        <NavItem active={Boolean(matchRoute({ to: '/workspaces/$workspaceId/projects', params, fuzzy: true }))}>
+        <NavItem active={Boolean(matchRoute({ to: '/workspaces/$workspaceId/projects', params, fuzzy: true }))} label="Projetos">
           <Link to="/workspaces/$workspaceId/projects" params={params}><NavText icon={<LayoutGrid size={16} aria-hidden />}>Projetos</NavText></Link>
         </NavItem>
-        <NavItem active={Boolean(matchRoute({ to: '/workspaces/$workspaceId/settings/people', params }))}>
+        <NavItem active={Boolean(matchRoute({ to: '/workspaces/$workspaceId/settings/people', params }))} label="Pessoas">
           <Link to="/workspaces/$workspaceId/settings/people" params={params}><NavText icon={<Users size={16} aria-hidden />}>Pessoas</NavText></Link>
         </NavItem>
       </MainSidebar.NavList>
@@ -75,26 +99,26 @@ function ScopeRail({ scope }: Readonly<{ scope: ShellScope | undefined }>) {
   return <MainSidebar.NavSection>
     <MainSidebar.NavHeader>Conexus</MainSidebar.NavHeader>
     <MainSidebar.NavList>
-      <NavItem active={Boolean(matchRoute({ to: '/workspaces' }))}>
+      <NavItem active={Boolean(matchRoute({ to: '/workspaces' }))} label="Workspaces">
         <Link to="/workspaces"><NavText icon={<LayoutGrid size={16} aria-hidden />}>Workspaces</NavText></Link>
       </NavItem>
-      <NavItem active={Boolean(matchRoute({ to: '/workspaces/new' }))}>
+      <NavItem active={Boolean(matchRoute({ to: '/workspaces/new' }))} label="Novo Workspace">
         <Link to="/workspaces/new"><NavText icon={<Plus size={16} aria-hidden />}>Novo Workspace</NavText></Link>
       </NavItem>
     </MainSidebar.NavList>
   </MainSidebar.NavSection>
 }
 
-function SwitcherTrigger({ label }: Readonly<{ label: string }>) {
-  return <DropdownMenu.Trigger className="cx-switcher" aria-label={label}>
-    <ChevronDown size={14} aria-hidden />
+function SwitcherTrigger({ label, className, children }: Readonly<{ label: string; className?: string; children?: ReactNode }>) {
+  return <DropdownMenu.Trigger className={className ?? 'cx-switcher'} aria-label={label}>
+    {children ?? <ChevronDown size={14} aria-hidden />}
   </DropdownMenu.Trigger>
 }
 
-function WorkspaceSwitcher({ context, current }: Readonly<{ context: AccessContext; current: string }>) {
+function WorkspaceSwitcher({ context, current, trigger }: Readonly<{ context: AccessContext; current: string; trigger?: ReactNode }>) {
   const navigate = useNavigate()
   return <DropdownMenu>
-    <SwitcherTrigger label="Trocar de Workspace" />
+    {trigger ?? <SwitcherTrigger label="Trocar de Workspace" />}
     <DropdownMenu.Content align="start" className="cx-menu">
       <DropdownMenu.Label>Workspaces</DropdownMenu.Label>
       {context.workspaces.map((workspace) => (
@@ -214,6 +238,7 @@ function TopBar({ context, scope, place, arrive }: Readonly<{ context: AccessCon
       )}
       {place && <Crumb as="span" isCurrent>{place}</Crumb>}
     </Breadcrumb>
+    <ThemeToggle />
     <AccountMenu context={context} />
   </header>
 }
@@ -233,14 +258,37 @@ export function Shell({
   children: ReactNode
 }) {
   const [arrive] = useState(firstShellMount)
+  const workspace = scope?.workspace
+  const project = scope?.project
+  const settingsLabel = project ? 'Configurações do projeto' : 'Configurações'
   return (
-    <MainSidebarProvider storageKey="conexus-shell" mobileBreakpoint={768} disableKeyboardShortcut>
+    <MainSidebarProvider storageKey="conexus-shell" mobileBreakpoint={768} collapsedWidth={56} disableKeyboardShortcut={false}>
       <div className="shell">
         <MainSidebar className="shell-sidebar">
-          <div className="cx-rail-lockup"><ConexusWordmark size={20} /></div>
+          <div className="cx-rail-top">
+            {workspace
+              ? <WorkspaceSwitcher context={context} current={workspace.workspaceId} trigger={
+                <SwitcherTrigger label="Trocar de Workspace" className="cx-rail-switch">
+                  <span className="cx-rail-badge" aria-hidden>{workspace.name.trim().charAt(0).toLocaleUpperCase('pt-BR')}</span>
+                  <span className="cx-rail-name">{workspace.name}</span>
+                  <ChevronsUpDown size={14} aria-hidden className="cx-rail-switch-icon" />
+                </SwitcherTrigger>
+              } />
+              : <span className="cx-rail-switch cx-rail-switch--static"><ConexusMark size={18} /><span className="cx-rail-name">Conexus</span></span>}
+            <MainSidebar.Trigger aria-label="Recolher barra lateral (Ctrl+B)" />
+          </div>
           <MainSidebar.Nav aria-label="Navegação principal">
             {rail ?? <ScopeRail scope={scope} />}
           </MainSidebar.Nav>
+          {workspace && (
+            <MainSidebar.Bottom className="cx-rail-bottom">
+              <MainSidebar.NavList>
+                <NavItem active={false} label={settingsLabel}>
+                  <Link to="/settings/account"><NavText icon={<Settings size={16} aria-hidden />}>{settingsLabel}</NavText></Link>
+                </NavItem>
+              </MainSidebar.NavList>
+            </MainSidebar.Bottom>
+          )}
         </MainSidebar>
         <AppShell className="shell-main" mainLabel="Conteúdo" routeHeader={<TopBar context={context} scope={scope} place={place} arrive={arrive} />}>
           {children}
