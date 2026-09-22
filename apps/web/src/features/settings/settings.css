@@ -3,6 +3,7 @@
 
 .cxs-page { width: min(46rem, calc(100% - 2rem)); margin: clamp(2rem, 6vh, 4rem) auto 5rem; display: grid; gap: 2.5rem; }
 .cxs-page > section { display: grid; gap: .9rem; }
+.cxs-page :is(section, form) > :is(button, a) { justify-self: start; }
 .cxs-page-header { display: grid; gap: .4rem; margin-bottom: .5rem; }
 .cxs-page-header h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.25rem); }
 .cxs-page-header p { margin: 0; color: var(--cx-text-2); max-width: 65ch; }

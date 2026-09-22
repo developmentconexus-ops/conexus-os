@@ -141,6 +141,7 @@ test('Meus padrões saves my defaults and clears back to the company ones', asyn
   await page.getByRole('button', { name: 'Escolher os meus' }).click()
   await page.getByRole('combobox', { name: 'Construção' }).click()
   await page.getByRole('option', { name: /claude-opus-4-5/ }).click()
+  await page.getByRole('listbox').waitFor({ state: 'detached' })
   await page.getByRole('combobox', { name: 'Rápido' }).click()
   await page.getByRole('option', { name: /claude-sonnet-4-5/ }).click()
   await page.getByRole('button', { name: 'Salvar meus padrões' }).click()

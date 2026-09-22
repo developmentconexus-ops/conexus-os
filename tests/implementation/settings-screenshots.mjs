@@ -70,6 +70,22 @@ const viewports = [
 ]
 const schemes = ['light', 'dark']
 
+// The shell scrolls inside its main pane, so a full-page capture stops at the viewport; grow the
+// viewport by whatever that pane hides instead.
+async function showWholePage(page, viewport) {
+  await page.setViewportSize({ width: viewport.width, height: viewport.height })
+  const hidden = await page.evaluate(() => {
+    let element = document.querySelector('main.cxs-page')
+    let most = 0
+    while (element) {
+      most = Math.max(most, element.scrollHeight - element.clientHeight)
+      element = element.parentElement
+    }
+    return most
+  })
+  if (hidden > 0) await page.setViewportSize({ width: viewport.width, height: viewport.height + hidden })
+}
+
 async function main() {
   await mkdir(outDir, { recursive: true })
   const server = await createServer({ configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'), server: { host: '127.0.0.1', port: 41830, strictPort: true } })
@@ -86,6 +102,7 @@ async function main() {
           await page.goto(`${origin}${target.path}`)
           await page.locator('main.cxs-page').waitFor()
           await page.waitForTimeout(150)
+          await showWholePage(page, viewport)
           await page.screenshot({ path: resolve(outDir, `${target.name}-${viewport.name}-${scheme}.png`), fullPage: true })
         }
         if (viewport.name === 'desktop' && scheme === 'light') {
@@ -95,6 +112,7 @@ async function main() {
           await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
           await page.getByText('WXYZ-7890').waitFor()
           await page.waitForTimeout(150)
+          await showWholePage(page, viewport)
           await page.screenshot({ path: resolve(outDir, 'models-device-code-desktop-light.png'), fullPage: true })
         }
         await context.close()

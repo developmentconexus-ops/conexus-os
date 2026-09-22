@@ -19,7 +19,7 @@ function SettingsLayoutRoute() {
   if (authorityLost || (access.isError && isAuthenticationRequired(access.error))) return <main className="status"><h1>Entre no Conexus</h1><a className="primary" href="/protocol/oidc/login">Entrar</a></main>
   if (access.isPending) return <main className="status"><h1>Carregando suas configurações</h1></main>
   if (access.isError) return <main className="status"><h1>Não foi possível consultar suas configurações</h1><button type="button" onClick={() => void access.refetch()}>Tentar novamente</button></main>
-  return <Shell context={access.data} rail={<SettingsRail administrator={installation.data?.administrator === true} />}>
+  return <Shell context={access.data} place="Configurações" rail={<SettingsRail administrator={installation.data?.administrator === true} />}>
     <Outlet />
   </Shell>
 }
