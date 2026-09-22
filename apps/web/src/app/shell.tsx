@@ -37,7 +37,18 @@ function NavItem({ active, label, children }: Readonly<{ active: boolean; label:
 }
 
 function NavText({ icon, children }: Readonly<{ icon: ReactNode; children: string }>) {
-  return <>{icon}<MainSidebar.NavLabel>{children}</MainSidebar.NavLabel></>
+  return <>{icon}<MainSidebar.NavLabel className="cx-nav-label">{children}</MainSidebar.NavLabel></>
+}
+
+/** "Operações" -> "OP"; "Pedidos de férias" -> "PF" (first word, last word). Matches the
+ *  prototype's rail badges, which are two letters even for a single-word name. */
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  const first = words.at(0)
+  if (!first) return ''
+  const last = words.at(-1) ?? first
+  const letters = words.length === 1 ? first.slice(0, 2) : (first[0] ?? '') + (last[0] ?? '')
+  return letters.toLocaleUpperCase('pt-BR')
 }
 
 /** The library's own default button carries no border/padding reset, so our global `button` base
@@ -57,7 +68,7 @@ function ComingSoonNavItem({ icon, label }: Readonly<{ icon: ReactNode; label: s
     link={{ name: label, tooltipMsg: 'Em breve', url: '#' }}
     render={<span aria-disabled="true">
       {icon}
-      <MainSidebar.NavLabel>{label}</MainSidebar.NavLabel>
+      <MainSidebar.NavLabel className="cx-nav-label">{label}</MainSidebar.NavLabel>
       <span className="cx-nav-soon" aria-hidden>em breve</span>
     </span>}
   />
@@ -69,12 +80,12 @@ function ScopeRail({ scope }: Readonly<{ scope: ShellScope | undefined }>) {
   const project = scope?.project
   if (project && workspace) {
     const params = { projectId: project.projectId }
+    // The Project's own name is already the rail's top switcher; this section repeats nothing.
     return <MainSidebar.NavSection>
-      <MainSidebar.NavHeader><span className="cx-rail-scope">{project.name}</span></MainSidebar.NavHeader>
       <MainSidebar.NavList>
-        <NavItem active={false} label="Voltar para Projetos">
+        <NavItem active={false} label={`Voltar para ${workspace.name}`}>
           <Link to="/workspaces/$workspaceId/projects" params={{ workspaceId: workspace.workspaceId }}>
-            <NavText icon={<ArrowLeft size={16} aria-hidden />}>Voltar para Projetos</NavText>
+            <NavText icon={<ArrowLeft size={16} aria-hidden />}>{workspace.name}</NavText>
           </Link>
         </NavItem>
         <NavItem active={Boolean(matchRoute({ to: '/projects/$projectId', params, fuzzy: true })) && !matchRoute({ to: '/projects/$projectId/settings', params })} label="Construir">
@@ -148,12 +159,12 @@ function WorkspaceSwitcher({ context, current, trigger }: Readonly<{ context: Ac
   </DropdownMenu>
 }
 
-function ProjectSwitcher({ workspaceId, current }: Readonly<{ workspaceId: string; current: string }>) {
+function ProjectSwitcher({ workspaceId, current, trigger }: Readonly<{ workspaceId: string; current: string; trigger?: ReactNode }>) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const projects = useQuery({ queryKey: projectListQueryKey(workspaceId), queryFn: () => listProjects(workspaceId), enabled: open })
   return <DropdownMenu open={open} onOpenChange={setOpen}>
-    <SwitcherTrigger label="Trocar de Projeto" />
+    {trigger ?? <SwitcherTrigger label="Trocar de Projeto" />}
     <DropdownMenu.Content align="start" className="cx-menu">
       <DropdownMenu.Label>Projetos</DropdownMenu.Label>
       {projects.isPending && <DropdownMenu.Item disabled>Carregando…</DropdownMenu.Item>}
@@ -221,15 +232,19 @@ function TopBar({ context, scope, place, arrive }: Readonly<{ context: AccessCon
   const project = scope?.project
   return <header className="cx-topbar">
     <MainSidebar.MobileTrigger aria-label="Abrir navegação" className="cx-drawer-trigger" />
+    {/* The lockup and the breadcrumb trail are two separate top-bar regions, split by a plain
+        1px divider, not a breadcrumb crumb of their own (the prototype: .lockup + .tb-div + .crumbs). */}
+    <Link to="/" className="cx-lockup" aria-label="Conexus, início">
+      <span className="cx-lockup-wide"><ConexusWordmark size={19} markSize={22} arrive={arrive} /></span>
+      <span className="cx-lockup-narrow"><ConexusMark size={22} /></span>
+    </Link>
+    <span className="cx-topbar-divider" aria-hidden />
     <Breadcrumb label="Contexto atual" className="cx-trail">
-      <Crumb as={Link} to="/" className="cx-home-crumb" aria-label="Conexus, início">
-        <span className="cx-lockup-wide"><ConexusWordmark size={18} arrive={arrive} /></span>
-        <span className="cx-lockup-narrow"><ConexusMark size={18} /></span>
-      </Crumb>
       {workspace && (
         <Crumb
           as={Link}
           to={`/workspaces/${workspace.workspaceId}/projects`}
+          className="cx-crumb"
           isCurrent={!project}
           action={<WorkspaceSwitcher context={context} current={workspace.workspaceId} />}
         >
@@ -240,13 +255,14 @@ function TopBar({ context, scope, place, arrive }: Readonly<{ context: AccessCon
         <Crumb
           as={Link}
           to={`/projects/${project.projectId}`}
+          className="cx-crumb"
           isCurrent
           action={<ProjectSwitcher workspaceId={workspace.workspaceId} current={project.projectId} />}
         >
           {project.name}
         </Crumb>
       )}
-      {place && <Crumb as="span" isCurrent>{place}</Crumb>}
+      {place && <Crumb as="span" className="cx-crumb" isCurrent>{place}</Crumb>}
     </Breadcrumb>
     <ThemeToggle />
     <AccountMenu context={context} />
@@ -277,16 +293,26 @@ export function Shell({
         <TopBar context={context} scope={scope} place={place} arrive={arrive} />
         <div className="shell">
           <MainSidebar className="shell-sidebar">
+            {/* Inside a Project, the rail's own switch shows the Project (it's what the person is
+                looking at); the Workspace switch stays one click away, at the back-item below. */}
             <div className="cx-rail-top">
-              {workspace
-                ? <WorkspaceSwitcher context={context} current={workspace.workspaceId} trigger={
-                  <SwitcherTrigger label="Trocar de Workspace" className="cx-rail-switch">
-                    <span className="cx-rail-badge" aria-hidden>{workspace.name.trim().charAt(0).toLocaleUpperCase('pt-BR')}</span>
-                    <span className="cx-rail-name">{workspace.name}</span>
+              {project && workspace
+                ? <ProjectSwitcher workspaceId={workspace.workspaceId} current={project.projectId} trigger={
+                  <SwitcherTrigger label="Trocar de Projeto" className="cx-rail-switch">
+                    <span className="cx-rail-badge" aria-hidden>{initials(project.name)}</span>
+                    <span className="cx-rail-name">{project.name}</span>
                     <ChevronsUpDown size={14} aria-hidden className="cx-rail-switch-icon" />
                   </SwitcherTrigger>
                 } />
-                : <span className="cx-rail-switch cx-rail-switch--static"><ConexusMark size={18} /><span className="cx-rail-name">Conexus</span></span>}
+                : workspace
+                  ? <WorkspaceSwitcher context={context} current={workspace.workspaceId} trigger={
+                    <SwitcherTrigger label="Trocar de Workspace" className="cx-rail-switch">
+                      <span className="cx-rail-badge" aria-hidden>{initials(workspace.name)}</span>
+                      <span className="cx-rail-name">{workspace.name}</span>
+                      <ChevronsUpDown size={14} aria-hidden className="cx-rail-switch-icon" />
+                    </SwitcherTrigger>
+                  } />
+                  : <span className="cx-rail-switch cx-rail-switch--static"><ConexusMark size={18} /><span className="cx-rail-name">Conexus</span></span>}
               <SidebarCollapseTrigger />
             </div>
             <MainSidebar.Nav aria-label="Navegação principal">

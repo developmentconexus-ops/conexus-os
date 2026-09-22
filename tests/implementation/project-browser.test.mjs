@@ -363,7 +363,9 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     assert.equal(await link.getAttribute('href'), 'https://github.com/empresa-exemplo/pedidos-de-ferias')
     await page.getByText('O agente executa comandos sozinho num ambiente isolado com acesso à internet.').waitFor()
     await page.getByRole('link', { name: 'Construir' }).waitFor()
-    await page.getByRole('link', { name: 'Voltar para Projetos' }).waitFor()
+    // The back item names the Workspace itself, not a generic "Voltar para Projetos". The trail
+    // also shows "Operações" (as the current Workspace crumb), so this scopes to the sidebar.
+    await page.locator('.shell-sidebar').getByRole('link', { name: 'Operações' }).waitFor()
     // In Project context, Configurações do projeto links to this same Project settings route.
     assert.equal(await page.getByRole('link', { name: 'Configurações do projeto' }).getAttribute('href'), `/projects/${ids.vacation}/settings`)
     await shoot(page, '16-project-about')
