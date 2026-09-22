@@ -113,7 +113,7 @@ export function BuilderConversation({ history, turn, pendingRequest, persistedRe
   ].sort((left, right) => left.at - right.at)
   const reason = failureReason(failureCategory)
   const streamingId = turn.status === 'LIVE' ? turn.messages.at(-1)?.id : undefined
-  return <ThemeProvider defaultTheme="light" storageKey="conexus-builder-theme">
+  return <ThemeProvider defaultTheme="system" storageKey="conexus-builder-theme">
     {timeline.map((item) => item.message
       ? <Message key={item.key} message={item.message} tools={turn.tools} streaming={false} reason={reason} />
       : item.entry && <RequestTurn key={item.key} entry={item.entry} />)}

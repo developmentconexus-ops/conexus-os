@@ -49,3 +49,18 @@ test('brand fonts are self-hosted files next to the tokens', () => {
   for (const source of sources) assert.ok(existsSync(resolve(dirname(tokensPath), source)), source)
   assert.doesNotMatch(tokens, /fonts\.googleapis|fonts\.gstatic/)
 })
+
+test('the web app uses only tokens the brand defines and no Mastra green survives', () => {
+  const defined = new Set([...tokens.matchAll(/(--cx-[\w-]+)\s*:/g)].map(([, name]) => name))
+  for (const file of ['apps/web/src/styles.css', 'apps/web/src/mastra-theme.css']) {
+    const css = readFileSync(resolve(repositoryRoot, file), 'utf8')
+    for (const [, name] of css.matchAll(/var\((--cx-[\w-]+)/g)) assert.ok(defined.has(name), `${file} uses undefined ${name}`)
+  }
+  const theme = readFileSync(resolve(repositoryRoot, 'apps/web/src/mastra-theme.css'), 'utf8')
+  for (const step of [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]) {
+    assert.match(theme, new RegExp(`--brand-green-${step}:\\s*[^;]*--cx-`), `brand-green-${step} is re-pointed`)
+  }
+  for (const name of ['--accent1', '--positive1', '--notice-success', '--badge-green', '--color-emerald-400']) {
+    assert.match(theme, new RegExp(`${name}:\\s*[^;]*--cx-`), `${name} is re-pointed`)
+  }
+})

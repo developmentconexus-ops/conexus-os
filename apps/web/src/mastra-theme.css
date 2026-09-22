@@ -1,0 +1,114 @@
+/* Mastra's component library paints itself from its own custom properties: dark on :root and
+   light under html.light. Re-pointing every one of them at the brand tokens makes Mastra follow
+   the brand's light and dark instead of its own class, and :root:root outranks both of its
+   selectors whichever stylesheet loads last. Portals render into body and inherit the same values. */
+:root:root {
+  --font-body: var(--cx-font-body);
+  --font-display: var(--cx-font-display);
+  --font-mono: var(--cx-font-mono);
+
+  --surface1: var(--cx-canvas);
+  --surface2: var(--cx-surface);
+  --surface3: var(--cx-surface);
+  --surface4: var(--cx-surface-3);
+  --surface5: var(--cx-surface-3);
+  --surface6: var(--cx-surface-4);
+  --surface-header: var(--cx-surface-3);
+  --surface-header-hover: var(--cx-surface-4);
+  --surface-row-featured: var(--cx-accent-soft);
+  --surface-overlay-soft: color-mix(in srgb, var(--cx-text) 4%, transparent);
+  --surface-overlay-strong: color-mix(in srgb, var(--cx-text) 7%, transparent);
+  --sidebar-nav-hover: var(--cx-accent-soft);
+  --sidebar-nav-active: var(--cx-surface-3);
+
+  --neutral1: var(--cx-line-strong);
+  --neutral2: var(--cx-text-2);
+  --neutral3: var(--cx-text-2);
+  --neutral4: var(--cx-text);
+  --neutral5: var(--cx-text);
+  --neutral6: var(--cx-text);
+  --text1: var(--cx-text);
+
+  --border1: var(--cx-line);
+  --border2: color-mix(in srgb, var(--cx-line) 70%, var(--cx-line-strong));
+  --overlay: rgb(14 16 18 / .5);
+
+  --button-default-bg: var(--cx-surface);
+  --button-default-bg-hover: var(--cx-surface-3);
+  --button-default-bg-active: var(--cx-surface-4);
+  --button-default-border: var(--cx-line);
+
+  /* accent1 is Mastra's green, used as its brand color; ipê takes that role. Its blues (3, 5)
+     become ipê text, because the brand keeps one color. */
+  --accent1: var(--cx-accent);
+  --accent1Dark: var(--cx-accent-soft);
+  --accent1Darker: var(--cx-accent-soft);
+  --accent2: var(--cx-danger);
+  --accent2Dark: color-mix(in srgb, var(--cx-danger) 14%, var(--cx-surface));
+  --accent2Darker: color-mix(in srgb, var(--cx-danger) 22%, var(--cx-surface));
+  --accent3: var(--cx-accent-text);
+  --accent3Dark: var(--cx-accent-soft);
+  --accent3Darker: var(--cx-accent-soft);
+  --accent5: var(--cx-accent-text);
+  --accent5Dark: var(--cx-accent-soft);
+  --accent5Darker: var(--cx-accent-soft);
+  --accent6: var(--cx-warning);
+  --accent6Dark: color-mix(in srgb, var(--cx-warning) 14%, var(--cx-surface));
+  --accent6Darker: color-mix(in srgb, var(--cx-warning) 22%, var(--cx-surface));
+  --error: var(--cx-danger);
+  --positive1: var(--cx-success);
+  --warning1: var(--cx-warning);
+  --negative1: var(--cx-danger);
+
+  --notice-success: var(--cx-success);
+  --notice-success-fg: var(--cx-success);
+  --notice-destructive: var(--cx-danger);
+  --notice-destructive-fg: var(--cx-danger);
+  --notice-warning: var(--cx-warning);
+  --notice-warning-fg: var(--cx-warning);
+  --notice-info: var(--cx-accent);
+  --notice-info-fg: var(--cx-text);
+  --notice-note: var(--cx-surface-3);
+  --notice-note-fg: var(--cx-text);
+
+  --badge-neutral-fg: var(--cx-text-2);
+  --badge-green: var(--cx-success);
+  --badge-green-fg: var(--cx-success);
+  --badge-red: var(--cx-danger);
+  --badge-red-fg: var(--cx-danger);
+  --badge-yellow: var(--cx-accent);
+  --badge-yellow-fg: var(--cx-accent-text);
+  --badge-orange: var(--cx-warning);
+  --badge-orange-fg: var(--cx-warning);
+  --badge-blue: var(--cx-text-2);
+  --badge-blue-fg: var(--cx-text-2);
+  --badge-purple: var(--cx-text-2);
+  --badge-purple-fg: var(--cx-text-2);
+  --badge-cyan: var(--cx-text-2);
+  --badge-cyan-fg: var(--cx-text-2);
+  --badge-pink: var(--cx-text-2);
+  --badge-pink-fg: var(--cx-text-2);
+
+  --brand-green-50: color-mix(in srgb, var(--cx-accent) 6%, var(--cx-surface));
+  --brand-green-100: color-mix(in srgb, var(--cx-accent) 12%, var(--cx-surface));
+  --brand-green-200: var(--cx-accent-soft);
+  --brand-green-300: color-mix(in srgb, var(--cx-accent) 45%, var(--cx-surface));
+  --brand-green-400: var(--cx-accent);
+  --brand-green-500: var(--cx-accent);
+  --brand-green-600: var(--cx-accent-text);
+  --brand-green-700: color-mix(in srgb, var(--cx-accent-text) 85%, var(--cx-text));
+  --brand-green-800: color-mix(in srgb, var(--cx-accent-text) 70%, var(--cx-text));
+  --brand-green-900: color-mix(in srgb, var(--cx-accent-text) 55%, var(--cx-text));
+  --brand-green-950: color-mix(in srgb, var(--cx-accent-text) 40%, var(--cx-text));
+  --brand-green-badge-bg: var(--cx-accent-soft);
+  --brand-green-badge-fg: var(--cx-accent-text);
+  --color-emerald-200: var(--cx-accent-soft);
+  --color-emerald-400: var(--cx-success);
+  --color-emerald-500: var(--cx-success);
+}
+
+/* Two utilities bake Mastra's green in as a literal fallback instead of reading a property. */
+.shadow-focus-ring, .focus\:shadow-focus-ring:focus, .focus-visible\:shadow-focus-ring:focus-visible {
+  --tw-shadow: 0 0 0 3px color-mix(in srgb, var(--cx-accent) 28%, transparent);
+}
+.shadow-glow-accent1 { --tw-shadow: 0 0 20px color-mix(in srgb, var(--cx-accent) 25%, transparent); }

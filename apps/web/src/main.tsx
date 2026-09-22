@@ -6,6 +6,8 @@ import { router } from './app/router'
 // page that first uses it, it changed paragraph margins and line height on every other page from
 // that moment on, so it loads once, up front, and the application looks the same everywhere.
 import '@mastra/playground-ui/style.css'
+import '../../../packages/brand/tokens.css'
+import './mastra-theme.css'
 import './styles.css'
 
 const root = document.getElementById('root')
