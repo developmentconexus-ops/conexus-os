@@ -219,7 +219,7 @@ export async function runCase(options) {
     conversationId: null, modelId: options.model ?? null,
     sourceRevisionBefore: null, sourceRevisionAfter: null, filesChanged: [],
     runs: [], repairIterations: 0, wallTimeToUsablePreviewMs: null, previewUrl: null,
-    checks: { initial: [], afterReload: null }, screenshotPath: null,
+    checks: { initial: [], afterReload: null }, screenshotPath: null, failure: null,
   }
   try {
     await page.goto(`${options.baseUrl}/`, { waitUntil: 'domcontentloaded' })
@@ -255,13 +255,23 @@ export async function runCase(options) {
       result.runs.push(recordOf(settled.run, true))
     }
 
-    result.sourceRevisionAfter = settled.session.preview.lastGoodSourceRevision ?? result.sourceRevisionBefore
+    const finalRun = settled.run
+    result.sourceRevisionAfter = finalRun.resultSourceRevision ?? finalRun.baseSourceRevision
     if (result.sourceRevisionAfter && result.sourceRevisionAfter !== result.sourceRevisionBefore) {
       result.filesChanged = await readDiff(page, result.projectId, result.sourceRevisionBefore, result.sourceRevisionAfter)
     }
 
+    // The Hub may still offer an older build's Preview after the final run failed; checking that
+    // one would grade a result the request did not produce.
+    const previewRevision = settled.session.preview.lastGoodSourceRevision
+    if (finalRun.state !== 'SUCCEEDED' || finalRun.resultKind === 'SOURCE_CHANGED_BUILD_FAILED') {
+      result.failure = 'FINAL_RUN_NOT_BUILT'
+    } else if (!settled.session.preview.lastGoodArtifactRevisionId || previewRevision !== result.sourceRevisionAfter) {
+      result.failure = 'PREVIEW_NOT_FROM_FINAL_RUN'
+    }
+
     mkdirSync(options.out, { recursive: true })
-    if (settled.session.preview.lastGoodArtifactRevisionId) {
+    if (!result.failure) {
       const usablePreviewAt = await waitForUsablePreview(page)
       result.wallTimeToUsablePreviewMs = usablePreviewAt - requestSentAt
       result.previewUrl = await readPreviewUrl(page, result.projectId).catch(() => null)
@@ -273,8 +283,11 @@ export async function runCase(options) {
       const frame = page.frameLocator(`iframe[title="${PREVIEW_IFRAME_TITLE}"]`)
       result.checks.initial = await runChecks(frame, caseFile.checks)
       if (caseFile.reload && checksPassed(result.checks.initial)) {
-        await iframe.evaluate((element) => element.contentWindow?.location.reload())
-        await page.waitForTimeout(2_000)
+        // The Preview is cross-origin, so its window cannot be reloaded from the Hub page; the
+        // frame is navigated to its own URL instead, which reuses the Preview cookie.
+        const previewFrame = await (await iframe.elementHandle()).contentFrame()
+        await previewFrame.goto(previewFrame.url(), { waitUntil: 'load' })
+        await previewFrame.waitForFunction(() => (document.getElementById('root')?.children.length ?? 0) > 0, undefined, { timeout: 15_000 })
         const frameAfterReload = page.frameLocator(`iframe[title="${PREVIEW_IFRAME_TITLE}"]`)
         result.checks.afterReload = await runChecks(frameAfterReload, caseFile.checks.filter((step) => step.action === 'expectText'))
       }

@@ -65,5 +65,8 @@ result persists across a refresh.
 - `repairIterations`: how many repair messages were actually sent.
 - `wallTimeToUsablePreviewMs`: from the request landing to the Preview's loading veil lifting.
 - `previewUrl`, `screenshotPath` (relative to `--out`), `checks.initial`, `checks.afterReload`.
-- `outcome`: `PASS`, `FAIL` (a check failed, or no Preview ever became usable), or `ERROR` (the
-  tool itself broke; see `error` and `failure.png`).
+- `failure`: why no checks ran, when they did not. `FINAL_RUN_NOT_BUILT` means the last run did not
+  produce a built source; `PREVIEW_NOT_FROM_FINAL_RUN` means the Preview on offer came from an
+  earlier build. Checks never grade a Preview the request did not produce.
+- `outcome`: `PASS`, `FAIL` (a check failed, `failure` is set, or no Preview became usable), or
+  `ERROR` (the tool itself broke; see `error` and `failure.png`).
