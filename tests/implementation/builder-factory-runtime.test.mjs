@@ -352,6 +352,7 @@ test('a root fetch that fails refuses the pin with BUILDER_SOURCE_BASE_PIN_REFUS
   await run.start()
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_SOURCE_BASE_PIN_REFUSED'])
+  assert.deepEqual(run.logs, [`BUILDER_FACTORY_RUN_FAILED:${runId}:BUILDER_SOURCE_BASE_PIN_REFUSED {"step":"fetch","exitCode":128,"stderr":"fatal: https://x-access-token:[redacted]@github.com refused"}`])
   assert.deepEqual(run.diagnostics, [], 'a run that never reached the agent has no edits to disown')
   assert.equal(run.commands().some((line) => line.includes('app.base.bundle')), false)
   assert.equal(run.events.includes('turn'), false)

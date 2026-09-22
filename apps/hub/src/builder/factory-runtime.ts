@@ -4,7 +4,7 @@ import { applyStoredMemorySettings } from '@mastra/factory/session/memory-settin
 import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import { buildApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { CompiledApplication } from './application-artifact-runtime.js'
-import { APPLICATION_CHECK_INSTRUCTION, BUILDER_SHARED_AGENT_INSTRUCTIONS, materializeApplicationCheck, materializeFixedApplicationStarter } from './application-starter.js'
+import { APPLICATION_CHECK_INSTRUCTION, BUILDER_SHARED_AGENT_INSTRUCTIONS, commandEvidence, materializeApplicationCheck, materializeFixedApplicationStarter } from './application-starter.js'
 import { ConexusFactoryE2BSandbox, FACTORY_OPERATOR_ID, FACTORY_WORKING_DIRECTORY, scrubCheckoutCredentials } from './factory.js'
 import type { FactoryComposition } from './factory.js'
 import type { GithubApp } from './factory-github.js'
@@ -172,7 +172,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
         `${hubGit} update-ref refs/conexus/base '${base}'`,
         `${hubGit} bundle create --quiet '${baseBundle}' refs/conexus/base`,
       ].join(' && '))
-      if (fetched.exitCode !== 0) throw new Error('BUILDER_SOURCE_BASE_PIN_REFUSED')
+      if (fetched.exitCode !== 0) throw new Error('BUILDER_SOURCE_BASE_PIN_REFUSED', { cause: { step: 'fetch', exitCode: fetched.exitCode, stderr: commandEvidence(fetched.stderr) } })
       const pinned = await sh([
         `${git} fetch --quiet --no-tags '${baseBundle}' refs/conexus/base`,
         `${git} reset --quiet --hard`,
@@ -180,7 +180,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
         `${git} checkout --quiet -B '${branch}' '${base}'`,
         `test "$(${git} rev-parse HEAD)" = '${base}'`,
       ].join(' && '))
-      if (pinned.exitCode !== 0) throw new Error('BUILDER_SOURCE_BASE_PIN_REFUSED')
+      if (pinned.exitCode !== 0) throw new Error('BUILDER_SOURCE_BASE_PIN_REFUSED', { cause: { step: 'checkout', exitCode: pinned.exitCode, stderr: commandEvidence(pinned.stderr) } })
 
       if (input.mode === 'BUILD') {
         await (ports.materializeStarter ?? materializeFactoryStarter)({
