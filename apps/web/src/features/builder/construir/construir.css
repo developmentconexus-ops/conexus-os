@@ -88,11 +88,8 @@
 
 /* Conversation */
 .cx-chat { flex: 1; height: 100%; border-left: 1px solid var(--cx-line); --chat-surface: var(--cx-surface); --chat-column: 44rem; }
-.cx-chat-head { display: flex; align-items: center; gap: .6rem; min-height: 3.5rem; padding: .4rem .5rem .4rem 1rem; border-bottom: 1px solid var(--cx-line); }
-.cx-chat-title { min-width: 0; flex: 1; display: grid; }
-.cx-conversation-switch { justify-self: start; max-width: 100%; margin-left: -.5rem; font-weight: 600; }
-.cx-chat-step { margin: 0; overflow: hidden; color: var(--cx-text-2); font-size: .8125rem; text-overflow: ellipsis; white-space: nowrap; }
-.cx-elapsed { font-variant-numeric: tabular-nums; }
+.cx-chat-head { display: flex; align-items: center; gap: .6rem; min-height: 3.5rem; padding: .4rem .5rem .4rem .5rem; border-bottom: 1px solid var(--cx-line); }
+.cx-conversation-switch { flex: 1; min-width: 0; max-width: 100%; font-weight: 600; }
 .cx-messages { gap: 1rem; padding-block: 1rem; }
 .cx-messages .builder-turn { display: grid; gap: .6rem; min-width: 0; font-size: .9375rem; line-height: 1.55; overflow-wrap: anywhere; }
 .cx-messages .builder-turn-user { justify-self: end; max-width: 88%; margin-left: auto; padding: .6rem .8rem; border-radius: 14px 14px 4px 14px; background: var(--cx-surface-3); }
@@ -113,49 +110,28 @@
 .cx-button-ink { background: var(--cx-ink); border-color: var(--cx-ink); color: var(--cx-on-ink); }
 .cx-button-ink:hover:not(:disabled) { opacity: .88; }
 
-/* Composer */
+/* Composer: the shared component's own styles live in features/builder/composer/composer.css. */
 .cx-dock { padding-top: .25rem; }
-.cx-composer { display: grid; gap: .4rem; margin: 0; }
-.cx-composer [data-slot="composer-box"] { background: var(--cx-surface); }
-/* The app's element defaults give every textarea a frame; inside the composer the ring is the only edge. */
-.cx-composer [data-slot="composer-input"] { margin: 0; padding: .7rem .8rem .4rem; border: 0; border-radius: 0; background: transparent; font: 400 .9375rem/1.45 var(--cx-font-body); color: var(--cx-text); }
-.cx-composer [data-slot="composer-input"]::placeholder { color: var(--cx-text-2); }
-/* The ipê arc belongs to the working agent only, so the ring's hover light stays off at rest. */
-.cx-composer .composer-ring[data-busy="false"]:hover { --composer-ring-strength: 0; }
-.cx-composer-actions { flex-wrap: nowrap; }
-.cx-composer-tools { display: flex; align-items: center; gap: .15rem; min-width: 0; }
-.cx-icon-button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--cx-text-2); }
-.cx-icon-button:hover:not(:disabled) { background: var(--cx-surface-3); color: var(--cx-text); }
-.cx-icon-button[aria-disabled="true"] { opacity: .45; cursor: default; }
-.cx-icon-button[data-listening] { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
-.cx-model-button { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; height: 32px; padding: 0 .55rem 0 .65rem; border: 0; border-radius: 999px; background: transparent; color: var(--cx-text); font: 500 .8125rem/1 var(--cx-font-body); }
-.cx-model-button:hover { background: var(--cx-surface-3); }
-.cx-model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 10rem; }
-.cx-model-level { color: var(--cx-text-2); font: 400 .75rem/1 var(--cx-font-mono); }
-.cx-model-button svg { flex: none; color: var(--cx-text-2); }
-.cx-level-dot { flex: none; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--cx-accent); }
-.cx-send-button { display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: var(--cx-ink); color: var(--cx-on-ink); }
-.cx-send-button:hover:not(:disabled) { background: var(--cx-ink); opacity: .88; }
-.cx-send-button:disabled { background: var(--cx-surface-4); color: var(--cx-text-2); cursor: default; }
-.cx-send-button[data-stop] { background: var(--cx-ink); color: var(--cx-on-ink); }
-.cx-composer-hint { margin: 0; color: var(--cx-text-2); font-size: .75rem; text-align: center; text-wrap: balance; }
-.cx-composer-note { margin: 0 0 .4rem; color: var(--cx-text-2); font-size: .8125rem; }
-.cx-composer-note[role="alert"] { color: var(--cx-danger); }
 
-.cx-model-popover { width: min(20rem, calc(100vw - 2rem)); padding: .5rem; display: grid; gap: .5rem; }
-.cx-popover-title { margin: .25rem .5rem 0; color: var(--cx-text-2); font: 500 .75rem/1 var(--cx-font-body); }
-.cx-model-combobox { width: 100%; }
-.cx-model-empty { display: grid; gap: .35rem; padding: .25rem .5rem; font-size: .875rem; }
-.cx-model-empty p { margin: 0; color: var(--cx-text-2); }
-.cx-effort { display: grid; gap: .25rem; padding: .5rem .5rem .35rem; border-top: 1px solid var(--cx-line); }
-.cx-effort-head { display: flex; justify-content: space-between; font-size: .875rem; }
-.cx-effort-head b { color: var(--cx-accent-text); font: 600 .8125rem/1 var(--cx-font-mono); }
-.cx-effort-stops { display: flex; justify-content: space-between; color: var(--cx-text-2); font: 400 .75rem/1 var(--cx-font-mono); }
-.cx-effort-stops [data-on] { color: var(--cx-accent-text); font-weight: 600; }
-/* The slider in the brand: an ipê fill and a square thumb, like the pieces of the mark. */
-.cx-effort-slider > div > div:first-child { height: 8px; border-radius: 4px; background: var(--cx-surface-3); }
-.cx-effort-slider > div > div:first-child > div { background: var(--cx-accent); }
-.cx-effort-slider > div > div:not(:first-child) { width: 18px; height: 18px; border-radius: 6px; border: 2px solid var(--cx-accent); background: var(--cx-surface); box-shadow: 0 1px 3px rgb(0 0 0 / .2); }
+/* Working state: replaces the header subtitle, shown above the composer while a run is live or
+   just settled, so the header stays just the conversation and a way to start a new one. */
+.cx-working { display: flex; align-items: center; gap: .5rem; margin: 0 0 .4rem; padding: .5rem .7rem; border-radius: 10px; background: var(--cx-surface); font-size: .8125rem; color: var(--cx-text-2); }
+.cx-working[data-active] { color: var(--cx-text); }
+.cx-chat-step { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-elapsed { font-variant-numeric: tabular-nums; }
+.cx-working-stop { flex: none; }
+
+/* Grouped tool actions and the result card that closes out a code-changing turn. */
+.cx-tool-group summary { display: flex; align-items: center; gap: .4rem; padding: .3rem 0; color: var(--cx-text-2); font: 500 .8125rem/1 var(--cx-font-body); cursor: pointer; list-style: none; }
+.cx-tool-group summary::-webkit-details-marker { display: none; }
+.cx-tool-group summary svg { flex: none; transition: transform .15s; }
+.cx-tool-group[open] summary svg { transform: rotate(90deg); }
+.cx-tool-group-body { display: grid; gap: .3rem; padding-left: .2rem; }
+.cx-result-card { display: grid; gap: .5rem; padding: .8rem .9rem; border: 1px solid var(--cx-line); border-radius: 10px; background: var(--cx-surface); }
+.cx-result-card-title { margin: 0; font: 600 .875rem/1.3 var(--cx-font-body); }
+.cx-result-card-title[data-tone="danger"] { color: var(--cx-danger); }
+.cx-result-card-actions { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.cx-result-card-count { color: var(--cx-text-2); font: 400 .8125rem/1 var(--cx-font-mono); }
 
 /* Narrow screens: one pane at a time */
 .cx-pane-switch { display: flex; gap: 2px; margin: .5rem 1rem; padding: 3px; border-radius: 8px; background: var(--cx-surface-3); }

@@ -1,15 +1,16 @@
-import { Combobox } from '@mastra/playground-ui/components/Combobox'
+import './composer.css'
 import {
   Composer, ComposerActions, ComposerBox, ComposerInput, ComposerRing, ComposerSuggestions, type ComposerCommand, useComposerCommands,
 } from '@mastra/playground-ui/components/Composer'
 import { Popover, PopoverContent, PopoverTrigger } from '@mastra/playground-ui/components/Popover'
-import { Slider } from '@mastra/playground-ui/components/Slider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip'
-import { ArrowUp, ChevronDown, Crosshair, Mic, Plus, Square } from 'lucide-react'
+import { ArrowUp, ChevronDown, Mic, Plus, Square } from 'lucide-react'
 import type { FormEvent, KeyboardEvent, ReactNode } from 'react'
 import { useRef, useState } from 'react'
 import { type BuilderModel, type ReasoningLevel, reasoningLevels } from '../mastra-session'
 import { useDictation } from './use-dictation'
+import { ModelPicker } from './model-picker'
+import { reasoningLabels } from './reasoning-labels'
 
 export type ComposerMode =
   | Readonly<{ kind: 'READY' }>
@@ -21,19 +22,10 @@ export type ComposerMode =
 
 const commands: readonly ComposerCommand[] = [
   { name: 'nova', description: 'Abrir uma conversa nova neste Project' },
-  { name: 'raciocinio', description: 'Mudar o nível de raciocínio', options: reasoningLevels.map((level) => ({ value: level, label: level })) },
+  { name: 'raciocinio', description: 'Mudar o nível de raciocínio', options: reasoningLevels.map((level) => ({ value: level, label: reasoningLabels[level] })) },
 ]
 
 const modelName = (model: BuilderModel | undefined): string => model?.modelName ?? 'Escolha um modelo'
-
-// The Hub lists a model by its catalog provider; the person knows the account by its product name.
-const providerNames: Readonly<Record<string, string>> = {
-  'mastracode/google-ai-pro': 'Google AI Pro',
-  anthropic: 'Anthropic',
-  openai: 'OpenAI',
-  google: 'Google',
-}
-const providerName = (provider: string): string => providerNames[provider] ?? provider
 
 // Not built yet, and said so: focusable for its tooltip, inert to clicks, never a fake action.
 function Soon({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
@@ -43,8 +35,14 @@ function Soon({ label, children }: Readonly<{ label: string; children: ReactNode
   </Tooltip>
 }
 
-export function ConstruirComposer({
+/**
+ * The chat composer shared by the home prompt and Construir: describe the app or the next change,
+ * pick the model and how hard it should think, dictate by voice, send. Identical component, so the
+ * two surfaces never drift into two different boxes with the same job.
+ */
+export function BuilderComposer({
   draft, onDraftChange, onSend, onStop, onNewConversation, mode, working, models, modelsPending, modelId, onModelChange, reasoning, onReasoningChange,
+  placeholder = 'O que vamos construir ou melhorar?',
 }: Readonly<{
   draft: string
   onDraftChange: (value: string) => void
@@ -59,10 +57,12 @@ export function ConstruirComposer({
   onModelChange: (modelId: string) => void
   reasoning: ReasoningLevel | null
   onReasoningChange: (level: ReasoningLevel) => void
+  placeholder?: string
 }>) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [interim, setInterim] = useState('')
   const [pulse, setPulse] = useState(0)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const dictation = useDictation(
     (text) => onDraftChange(draft.trim() ? `${draft.trimEnd()} ${text}` : text),
     setInterim,
@@ -98,12 +98,12 @@ export function ConstruirComposer({
   }
   const selected = models.find((model) => model.id === modelId)
   const level = reasoning ?? 'medium'
-  const levelIndex = reasoningLevels.indexOf(level)
-  const placeholder = {
+  const placeholderByMode: Readonly<Record<string, string>> = {
     NO_MODEL: 'Escolha um modelo para começar',
     BUSY_ELSEWHERE: 'Outra conversa está construindo este Projeto',
     BLOCKED: 'O repositório está inacessível',
-  }[mode.kind as string] ?? 'Peça uma mudança ou descreva o app…'
+  }
+  const activePlaceholder = placeholderByMode[mode.kind] ?? placeholder
 
   return <Composer className="cx-composer" onSubmit={onFormSubmit} aria-label="Enviar pedido ao agente">
     <ComposerRing busy={working}>
@@ -114,7 +114,7 @@ export function ConstruirComposer({
           {...slash.inputProps}
           value={interim ? `${draft}${draft && !draft.endsWith(' ') ? ' ' : ''}${interim}` : draft}
           aria-label="Mensagem para o agente"
-          placeholder={placeholder}
+          placeholder={activePlaceholder}
           rows={2}
           maxHeight="40vh"
           onKeyDown={onKeyDown}
@@ -122,51 +122,25 @@ export function ConstruirComposer({
         <ComposerActions className="cx-composer-actions">
           <div className="cx-composer-tools">
             <Soon label="Anexar arquivo"><Plus size={18} aria-hidden="true" /></Soon>
-            <Soon label="Escolher um elemento na prévia"><Crosshair size={17} aria-hidden="true" /></Soon>
           </div>
           <div className="cx-composer-tools">
-            <Popover>
-              <PopoverTrigger render={<button type="button" className="cx-model-button" aria-label={`Modelo ${modelName(selected)}, raciocínio ${level}`} />}>
+            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+              <PopoverTrigger render={<button type="button" className="cx-model-button" aria-label={`Modelo ${modelName(selected)}, raciocínio ${reasoningLabels[level]}`} />}>
                 {selected && <i className="cx-level-dot" aria-hidden="true" />}
                 <span className="cx-model-name">{modelName(selected)}</span>
-                {selected && <span className="cx-model-level">{level}</span>}
+                {selected && <span className="cx-model-level">· {reasoningLabels[level]}</span>}
                 <ChevronDown size={14} aria-hidden="true" />
               </PopoverTrigger>
-              <PopoverContent className="cx-model-popover" side="top" align="end" sideOffset={8}>
-                <p className="cx-popover-title">Modelo desta conversa</p>
-                {!modelsPending && models.length === 0
-                  ? <div className="cx-model-empty">
-                    <p>Nenhum modelo disponível para você.</p>
-                    <a href="/settings/models">Conecte uma conta de modelo</a>
-                  </div>
-                  : <Combobox
-                    aria-label="Modelo desta conversa"
-                    options={models.map((model) => ({ value: model.id, label: model.modelName, description: providerName(model.provider) }))}
-                    value={selected ? modelId : ''}
-                    onValueChange={onModelChange}
-                    placeholder="Escolha um modelo"
-                    searchPlaceholder="Buscar modelo"
-                    emptyText="Nenhum modelo encontrado"
-                    disabled={modelsPending || mode.kind === 'RUNNING'}
-                    className="cx-model-combobox"
-                  />}
-                <div className="cx-effort">
-                  <div className="cx-effort-head"><span id="cx-effort-label">Raciocínio</span><b>{level}</b></div>
-                  <Slider
-                    className="cx-effort-slider"
-                    aria-labelledby="cx-effort-label"
-                    min={0}
-                    max={reasoningLevels.length - 1}
-                    step={1}
-                    value={[levelIndex]}
-                    disabled={!selected || mode.kind === 'RUNNING'}
-                    onValueChange={([index]) => {
-                      const next = reasoningLevels[index ?? 0]
-                      if (next && next !== level) onReasoningChange(next)
-                    }}
-                  />
-                  <div className="cx-effort-stops" aria-hidden="true">{reasoningLevels.map((stop) => <span key={stop} data-on={stop === level || undefined}>{stop}</span>)}</div>
-                </div>
+              <PopoverContent side="top" align="end" sideOffset={8}>
+                <ModelPicker
+                  models={models}
+                  modelId={selected ? modelId : ''}
+                  onModelChange={(next) => { onModelChange(next); setPickerOpen(false) }}
+                  disabled={modelsPending || mode.kind === 'RUNNING'}
+                  reasoning={level}
+                  onReasoningChange={onReasoningChange}
+                  reasoningDisabled={!selected || mode.kind === 'RUNNING'}
+                />
               </PopoverContent>
             </Popover>
             {dictation.supported && <button
@@ -183,8 +157,7 @@ export function ConstruirComposer({
       </ComposerBox>
     </ComposerRing>
     {dictation.error && <p className="cx-composer-note" role="alert">{dictation.error}</p>}
-    <p className="cx-composer-hint">Enter envia · Shift+Enter quebra linha · / para comandos</p>
-    <p className="cx-composer-hint">O agente executa comandos sozinho num ambiente isolado com acesso à internet.</p>
+    <p className="cx-composer-hint">Enter envia · Shift+Enter quebra linha · / comandos</p>
   </Composer>
 }
 

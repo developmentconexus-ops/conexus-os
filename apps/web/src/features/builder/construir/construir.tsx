@@ -13,20 +13,22 @@ import { Panel, useDefaultLayout } from 'react-resizable-panels'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { BuilderRequestError, type BuilderRun, cancelBuilderRun, getBuilderSession, sendBuilderMessage } from '../api'
 import { BuilderConversation, type PersistedRequest } from '../components/builder-conversation'
+import { BuilderComposer, type ComposerMode } from '../composer/composer'
 import { failureReason } from '../failure-reasons'
 import { getProjectRepository, projectRepositoryQueryKey } from '../../project/api'
 import {
   answerPendingCall, type Conversation, type LiveTurn, useBuilderLiveTurn, useBuilderModels, useBuilderThreadMessages, useConversationActions,
   useProjectConversations, useSessionModel,
 } from '../mastra-session'
-import { ConstruirComposer, type ComposerMode } from './composer'
 import { LensCode } from './lens-code'
 import { changeBasisOf, LensDiff } from './lens-diff'
 import { LensDetails } from './lens-details'
 import { LensPreview } from './lens-preview'
 import { PendingCard } from './pending-card'
-import { clockLabel, elapsedLabel, isActive, statusLine, viewRun } from './run-state'
+import { ResultCard, showsResultCard } from './result-card'
+import { clockLabel, isActive, statusLine, viewRun } from './run-state'
 import { usePreview } from './use-preview'
+import { WorkingState } from './working-state'
 
 export const lenses = ['preview', 'code', 'diff', 'details'] as const
 export type Lens = typeof lenses[number]
@@ -203,6 +205,10 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const pendingRequest = runHere && isActive(runHere) && liveRequest?.runId === runHere.builderRunId ? liveRequest.text : null
   const preview_ = session.data?.preview
   const sourceAhead = Boolean(preview_?.lastGoodSourceRevision && preview_.workingSourceRevision && preview_.workingSourceRevision !== preview_.lastGoodSourceRevision)
+  // "Versão N" counts the Project's own code-changing runs, oldest first, regardless of which
+  // conversation ran them: the version belongs to the app, not to the chat that produced it.
+  const codeChangingRunsAsc = [...runs].filter(showsResultCard).sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+  const resultVersion = runHere ? codeChangingRunsAsc.findIndex((entry) => entry.builderRunId === runHere.builderRunId) + 1 : 0
 
   const stage = <section className="cx-stage" aria-label="Palco">
     <div className="cx-stagebar">
@@ -243,25 +249,18 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
 
   const chat = <ChatShell className="cx-chat" aria-label="Conversa" scroller={{ autoScroll: true, defaultScrollPosition: 'end' }}>
     <ChatShell.Bar className="cx-chat-head">
-      <ConexusMark size={20} working={working} />
-      <div className="cx-chat-title">
-        <Combobox
-          aria-label="Conversa"
-          variant="ghost"
-          size="sm"
-          className="cx-conversation-switch"
-          options={(conversations.data ?? []).map((entry) => ({ value: entry.id, label: conversationTitle(entry) }))}
-          value={conversationId}
-          onValueChange={switchConversation}
-          placeholder={conversation ? conversationTitle(conversation) : 'Conversa'}
-          searchPlaceholder="Buscar conversa"
-          emptyText="Nenhuma conversa com esse nome"
-        />
-        <p className="cx-chat-step" role="status" aria-live="polite">
-          {headerLine ?? 'Pronto para o próximo pedido'}
-          {working && run && <span className="cx-elapsed"> · há {elapsedLabel(now - new Date(run.createdAt).getTime())}</span>}
-        </p>
-      </div>
+      <Combobox
+        aria-label="Conversa"
+        variant="ghost"
+        size="sm"
+        className="cx-conversation-switch"
+        options={(conversations.data ?? []).map((entry) => ({ value: entry.id, label: conversationTitle(entry) }))}
+        value={conversationId}
+        onValueChange={switchConversation}
+        placeholder={conversation ? conversationTitle(conversation) : 'Conversa'}
+        searchPlaceholder="Buscar conversa"
+        emptyText="Nenhuma conversa com esse nome"
+      />
       <Button variant="ghost" size="icon-sm" tooltip="Nova conversa" aria-label="Nova conversa" disabled={conversationActions.create.isPending} onClick={newConversation}>
         <SquarePen size={16} aria-hidden="true" />
       </Button>
@@ -279,6 +278,13 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
                 pending={entry}
                 onAnswer={(answer) => answerPendingCall(conversationId, runHere.builderRunId, entry, answer)}
               />)}
+              {settledHere && runHere && showsResultCard(runHere) && <ResultCard
+                projectId={projectId}
+                run={runHere}
+                versionNumber={resultVersion}
+                onOpenPreview={() => onLensChange('preview')}
+                onOpenDiff={() => onLensChange('diff')}
+              />}
               {settledHere?.outcome === 'BASE_MOVED' && runHere?.requestText && <div className="cx-note">
                 <p>Outra conversa mudou o app antes. Nada foi sobrescrito.</p>
                 <Button size="sm" onClick={() => setDraft(runHere.requestText ?? '')}>Enviar de novo sobre a versão atual</Button>
@@ -294,8 +300,8 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           <p>O Conexus não consegue alcançar o repositório deste Projeto no GitHub, então novos pedidos ficam parados. A prévia continua na última versão boa. Um administrador da instalação pode reconectar o GitHub em Configurações.</p>
         </div>}
         {sendError && <p className="cx-composer-note" role="alert">{sendError}</p>}
-        {!models.isPending && offeredModels.length > 0 && !modelReady && <p className="cx-composer-note">Escolha o modelo desta conversa para enviar pedidos.</p>}
-        <ConstruirComposer
+        {headerLine !== null && <WorkingState line={headerLine} working={working} elapsedMs={working && run ? now - new Date(run.createdAt).getTime() : null} />}
+        <BuilderComposer
           draft={draft}
           onDraftChange={setDraft}
           onSend={(text) => send.mutate(text)}
