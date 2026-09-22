@@ -52,6 +52,37 @@ paths:
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
+  /api/control/projects/{projectId}/source/compare:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      summary: CompareProjectSourceRevisions
+      operationId: CompareProjectSourceRevisions
+      x-conexus-4a-id: BLD-29
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      parameters:
+        - name: baseSourceRevision
+          in: query
+          required: true
+          description: Exact immutable Project-Git source revision the comparison starts from.
+          schema: { type: string, pattern: '^[0-9a-f]{40}$' }
+        - name: resultSourceRevision
+          in: query
+          required: true
+          description: Exact immutable Project-Git source revision the comparison ends at.
+          schema: { type: string, pattern: '^[0-9a-f]{40}$' }
+      responses:
+        '200':
+          description: Changed paths between two admitted source revisions; file content is read separately via GetProjectSourceFile.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SourceComparison' }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+
   /api/control/projects/{projectId}/builder-session:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
@@ -397,3 +428,21 @@ components:
         sourceRevision: { type: string, minLength: 1 }
         path: { type: string, minLength: 1 }
         content: { type: string }
+    SourceChange:
+      type: object
+      additionalProperties: false
+      required: [path, status, previousPath]
+      properties:
+        path: { type: string, minLength: 1 }
+        status: { type: string, enum: [ADDED, REMOVED, MODIFIED, RENAMED] }
+        previousPath: { type: [string, 'null'], minLength: 1 }
+    SourceComparison:
+      type: object
+      additionalProperties: false
+      required: [baseSourceRevision, resultSourceRevision, files]
+      properties:
+        baseSourceRevision: { type: string, minLength: 1 }
+        resultSourceRevision: { type: string, minLength: 1 }
+        files:
+          type: array
+          items: { $ref: '#/components/schemas/SourceChange' }

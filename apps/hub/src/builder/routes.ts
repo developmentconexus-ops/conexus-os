@@ -14,8 +14,9 @@ const header = (value: string | string[] | undefined): string | undefined => Arr
 const message = (error: unknown): string => error instanceof Error ? error.message : ''
 const sourceQuery = { type: 'object', additionalProperties: false, required: ['sourceRevision'], properties: { sourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' } } } as const
 const sourceFileQuery = { type: 'object', additionalProperties: false, required: ['sourceRevision', 'path'], properties: { sourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' }, path: { type: 'string', minLength: 1, maxLength: 4096 } } } as const
+const sourceCompareQuery = { type: 'object', additionalProperties: false, required: ['baseSourceRevision', 'resultSourceRevision'], properties: { baseSourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' }, resultSourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' } } } as const
 
-export type BuilderOperationId = 'BLD-08' | 'BLD-09' | 'BLD-23' | 'BLD-24' | 'BLD-25' | 'BLD-26'
+export type BuilderOperationId = 'BLD-08' | 'BLD-09' | 'BLD-23' | 'BLD-24' | 'BLD-25' | 'BLD-26' | 'BLD-29'
 export type BuilderSessionSnapshot = Readonly<{
   projectId: string
   workingSourceRevision: string | null
@@ -223,5 +224,24 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     },
   )
 
-  return ['BLD-08', 'BLD-09', 'BLD-23', 'BLD-24', 'BLD-25', 'BLD-26']
+  app.get<{ Params: { projectId: string }; Querystring: { baseSourceRevision: string; resultSourceRevision: string } }>(
+    '/api/control/projects/:projectId/source/compare', { schema: { params, querystring: sourceCompareQuery } }, async (request, reply) => {
+      const session = await dependencies.resolveCurrentSession(request)
+      if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      try {
+        return await dependencies.service.compareSourceRevisions({
+          accountId: session.account.accountId, projectId: request.params.projectId,
+          baseSourceRevision: request.query.baseSourceRevision, resultSourceRevision: request.query.resultSourceRevision,
+        })
+      } catch (error) {
+        const detail = message(error)
+        if (detail.includes('SUBJECT_NOT_FOUND') || detail.includes('REVISION_NOT_FOUND')) {
+          return sendProblem(reply, 404, 'source-revision-not-found', 'Source revision not found')
+        }
+        return sendProblem(reply, 503, 'builder-source-unavailable', 'Builder source unavailable')
+      }
+    },
+  )
+
+  return ['BLD-08', 'BLD-09', 'BLD-23', 'BLD-24', 'BLD-25', 'BLD-26', 'BLD-29']
 }

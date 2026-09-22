@@ -25,6 +25,7 @@ const built = (path) => pathToFileURL(resolve(hubBuild, path)).href
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerFactoryMastraRoutes } = await import(built('builder/mastra-session-routes.js'))
 const { admitFactoryConversation, openFactoryConversationThread, registerFactoryConversationRoutes } = await import(built('builder/factory-routes.js'))
+const { registerBuilderRoutes } = await import(built('builder/routes.js'))
 
 const origin = 'https://conexus.test'
 const ORG = 'conexus-installation'
@@ -244,4 +245,79 @@ test('creating a conversation opens its Mastra thread, so the browser session re
   assert.equal(retried.statusCode, 200)
   const again = await app.inject({ method: 'GET', url: `${sessionBase(conversationId)}/threads`, ...authentic })
   assert.deepEqual(again.json().threads.map((thread) => thread.id), [conversationId])
+})
+
+test('the browser sets its own reasoning level through the session state route, and nothing else', async (t) => {
+  const { app } = await createFactoryApp(t)
+  const write = await app.inject({ method: 'PUT', url: `${sessionBase()}/state`, ...authentic, payload: { state: { thinkingLevel: 'high' } } })
+  assert.equal(write.statusCode, 200)
+  const read = await app.inject({ method: 'GET', url: sessionBase(), ...authentic })
+  assert.equal(read.statusCode, 200)
+  assert.equal(read.json().settings?.thinkingLevel, 'high')
+})
+
+test('a session-state write outside the reasoning level is refused before it reaches Mastra', async (t) => {
+  const { app, reachedContexts } = await createFactoryApp(t)
+  const stateUrl = `${sessionBase()}/state`
+  const yolo = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { yolo: true } } })
+  const badLevel = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'max' } } })
+  const mixed = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'low', yolo: true } } })
+  const extraTopLevel = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'low' }, extra: 1 } })
+  assert.deepEqual([yolo.statusCode, badLevel.statusCode, mixed.statusCode, extraTopLevel.statusCode], [400, 400, 400, 400])
+  for (const response of [yolo, badLevel, mixed, extraTopLevel]) assert.equal(response.json().type.endsWith('session-state-refused'), true)
+  assert.deepEqual(reachedContexts.filter((entry) => entry.url.endsWith('/state')), [])
+})
+
+const createBuilderRoutesApp = async (t, { compareSourceRevisions } = {}) => {
+  const resolveCurrentSession = async (request) => request.cookies['__Host-conexus_session']
+    ? { account: { accountId: accountA, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' }
+    : null
+  const service = { compareSourceRevisions: compareSourceRevisions ?? (async () => { throw new Error('unused in this test') }) }
+  const app = await createHttpApp({
+    registerRoutes: (instance) => registerBuilderRoutes(instance, { store: {}, service, resolveCurrentSession, origin }),
+    staticRoot: null,
+  })
+  t.after(() => app.close())
+  return { app }
+}
+
+test('the source compare route returns the changed files between two admitted revisions', async (t) => {
+  const base = 'b'.repeat(40)
+  const result = 'c'.repeat(40)
+  let received
+  const { app } = await createBuilderRoutesApp(t, {
+    compareSourceRevisions: async (input) => {
+      received = input
+      return { baseSourceRevision: base, resultSourceRevision: result, files: [{ path: 'app/index.html', status: 'ADDED', previousPath: null }] }
+    },
+  })
+  const response = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/source/compare?baseSourceRevision=${base}&resultSourceRevision=${result}`, ...authentic })
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(response.json(), { baseSourceRevision: base, resultSourceRevision: result, files: [{ path: 'app/index.html', status: 'ADDED', previousPath: null }] })
+  assert.deepEqual(received, { accountId: accountA, projectId: projectA, baseSourceRevision: base, resultSourceRevision: result })
+})
+
+test('the source compare route maps a not-found revision to 404 and any other failure to 503', async (t) => {
+  const base = 'b'.repeat(40)
+  const result = 'c'.repeat(40)
+  const url = `/api/control/projects/${projectA}/source/compare?baseSourceRevision=${base}&resultSourceRevision=${result}`
+  const { app: notFoundApp } = await createBuilderRoutesApp(t, { compareSourceRevisions: async () => { throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND') } })
+  const notFound = await notFoundApp.inject({ method: 'GET', url, ...authentic })
+  assert.equal(notFound.statusCode, 404)
+  assert.equal(notFound.json().type.endsWith('source-revision-not-found'), true)
+
+  const { app: unavailableApp } = await createBuilderRoutesApp(t, { compareSourceRevisions: async () => { throw new Error('BUILDER_FACTORY_PROJECT_UNBOUND') } })
+  const unavailable = await unavailableApp.inject({ method: 'GET', url, ...authentic })
+  assert.equal(unavailable.statusCode, 503)
+  assert.equal(unavailable.json().type.endsWith('builder-source-unavailable'), true)
+})
+
+test('the source compare route requires authentication and 40-hex revisions', async (t) => {
+  const { app } = await createBuilderRoutesApp(t)
+  const base = 'b'.repeat(40)
+  const result = 'c'.repeat(40)
+  const unauthenticated = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/source/compare?baseSourceRevision=${base}&resultSourceRevision=${result}` })
+  assert.equal(unauthenticated.statusCode, 401)
+  const malformed = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/source/compare?baseSourceRevision=not-a-sha&resultSourceRevision=${result}`, ...authentic })
+  assert.equal(malformed.statusCode, 400)
 })
