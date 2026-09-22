@@ -237,7 +237,10 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   await page.getByRole('tab', { name: 'Sobre' }).click()
   await page.getByRole('heading', { name: 'Sobre este pedido' }).waitFor()
   await page.getByRole('tab', { name: 'Alterações' }).click()
-  await page.getByText('Alterado', { exact: true }).waitFor()
+  // Stacked file cards, GitHub-style: a MODIFIED file gets no status chip (only ADDED/REMOVED/
+  // RENAMED do), so the card header showing its path is the assertion that the lens rendered it.
+  await page.locator('.cx-dfile-head .cx-dfile-path', { hasText: 'app/index.html' }).waitFor()
+  await page.locator('.cx-dt tr.cx-dt-add .cx-dt-t', { hasText: 'Counter v2' }).waitFor()
 
   // Plan mode is removed from the product: a second BUILD send that settles RESPONSE_ONLY is what
   // used to be exercised by switching into Plan.
