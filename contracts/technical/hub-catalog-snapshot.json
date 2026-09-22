@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0020",
+ "head": "0021",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -347,6 +347,7 @@
    "function iam.claim_invitations(p_account_id uuid, p_verified_email text) returns integer kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=ad60e34430b82bd13e15be73c6cbbbcb",
    "function iam.email_has_open_invitation(p_verified_email text) returns boolean kind=f owner=iam_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=05b749c56aa6323a48c968ac384f025b",
    "function iam.establish_workspace_creator_access(p_account_id uuid, p_workspace_id uuid) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_workspace_command:EXECUTE:false,iam_owner:EXECUTE:false,workspace_owner:EXECUTE:false body=48167b502a780d7942c024180298f489",
+   "function iam.grant_first_installation_administrator(p_account_id uuid) returns boolean kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=4c7bcddfa5ea46f07923da9de9bb2a4d",
    "function iam.grant_installation_administrator(p_actor uuid, p_account_id uuid) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=13ac2c59aa920e04cd95d3c77c533594",
    "function iam.grant_installation_administrator_by_email(p_actor uuid, p_email text) returns uuid kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=c96d4106dcbbd9110f75477f89bd7380",
    "function iam.invite_workspace_member(p_actor uuid, p_workspace_id uuid, p_invitation_id uuid, p_email text, p_role iam.workspace_role, p_expires_at timestamp with time zone) returns uuid kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=0550b939968d810a5cf9582ec0f283f9",

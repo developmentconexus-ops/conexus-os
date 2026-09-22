@@ -205,6 +205,7 @@ export const createIdentityAccessStore = ({
         // The invitation could have been cancelled between the callback and this form.
         // Aborting here is what keeps an invited Account from existing with no membership.
         if (invited && (claimed.rows[0]?.claimed ?? 0) === 0) throw identityAccessError('IDENTITY_NOT_ELIGIBLE')
+        if (!invited) await client.query('SELECT iam.grant_first_installation_administrator($1)', [account.accountId])
         await client.query('UPDATE iam.bootstrap_context SET consumed_at = $2 WHERE token_digest = $1', [digest(bootstrapToken), now])
         await complete(client, authorityScope, idempotencyKey, account, now)
         return { ...account, replayed: false }

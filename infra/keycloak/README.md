@@ -32,6 +32,22 @@ Building the jar needs a JDK and Maven on `PATH` (`keycloakify build` shells out
 the coordinator's machine doesn't already have them. Everything else the script needs
 (Node, the theme's own npm dependencies) follows the repo's normal `npm ci` flow.
 
+## The first person of a new installation
+
+`create-first-user.sh` creates the first person in realm `r1f` and makes them the Hub's
+bootstrap identity:
+
+```
+infra/keycloak/create-first-user.sh --email you@company.com --name "Your Name" --hub-env path/to/hub.env
+```
+
+It prompts for a password without echoing it and marks it temporary, so Keycloak asks for a new
+one at the first sign-in; the password is never an argument, a log line or a file. The email is
+marked verified. With `--hub-env`, the new user's id replaces `CONEXUS_BOOTSTRAP_SUBJECT`;
+restart the Hub. That person's first sign-in lands on `/setup`, which creates their Account and
+makes it the installation administrator, once per installation. It refuses an email the realm
+already has.
+
 ## Realm export: r1f
 
 `realm-r1f.json` is a read-only export of the pilot realm `r1f` from the running
