@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { S1OwnerId } from '../generated/s1-routes.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import { createInstallationAdministration } from './installation-administration.js'
+import type { InstallationAdministration } from './installation-administration.js'
 import { createMembershipStore, registerMembershipRoutes } from './membership.js'
 import { createOidcAdapter } from './oidc.js'
 import { createPreviewAccess } from './preview-access.js'
@@ -14,6 +16,7 @@ export type IdentityAccessModule = Readonly<{
   resolveCurrentSession(request: FastifyRequest, requireCsrf?: boolean): Promise<CurrentSession | null>
   issuePreviewEntry(request: FastifyRequest, input: Readonly<{ accountId: string; route: PreviewRouteBinding }>): Promise<Readonly<{ entryGrant: string; expiresAt: number }>>
   previewAccess: PreviewAccess
+  installationAdministration: InstallationAdministration
   close(): Promise<void>
 }>
 
@@ -77,6 +80,7 @@ export const createIdentityAccessModule = async ({
       return previewAccess.issueEntryGrant({ sessionToken, route: input.route })
     },
     previewAccess,
+    installationAdministration: createInstallationAdministration({ pool }),
     close: async () => {
       await Promise.all([previewAccess.close(), oidc.close(), store.close()])
     },

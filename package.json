@@ -17,6 +17,7 @@
     "db:roles:check": "node scripts/generate-hub-role-register.mjs --check && node --test tests/implementation/hub-role-register.test.mjs tests/implementation/connection-census.test.mjs && npx --no-install biome check scripts/generate-hub-role-register.mjs scripts/provision-hub-roles.mjs tests/implementation/hub-role-register.test.mjs tests/implementation/connection-census.test.mjs tests/implementation/provision-hub-roles.test.mjs apps/hub/src/platform/hub-roles.generated.ts apps/hub/src/platform/connection-census.ts",
     "db:roles:census": "node scripts/provision-hub-roles.mjs --check",
     "db:roles:provision": "node scripts/provision-hub-roles.mjs",
+    "iam:bootstrap-installation-administrator": "node scripts/bootstrap-installation-administrator.mjs",
     "db:roles:postgres": "node --test --test-concurrency=1 tests/implementation/provision-hub-roles.test.mjs tests/implementation/protected-cluster-coverage.test.mjs",
     "db:baseline:generate": "node scripts/generate-hub-baseline.mjs",
     "db:baseline:check": "node scripts/generate-hub-baseline.mjs --check",

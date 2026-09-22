@@ -4,9 +4,10 @@ This file owns who may do what. [The operation ledger](operation-ledger.md) owns
 operation census, [the product contract](contract.md) owns product meaning, and
 [the roadmap](../roadmap.md) owns status.
 
-The authority model lives in `apps/hub/migrations/`, which
-`0009_remove_model_connections.sql` last rewrote. Sections 1 to 4
-describe that code. If the two disagree, the code is right.
+The authority model lives in `apps/hub/migrations/`. `0009_remove_model_connections.sql` last
+rewrote the Workspace model, and `0017_installation_administrator.sql` added installation
+administration beside it. Sections 1 to 4 describe that code. If the two disagree, the code is
+right.
 
 [Section 5](#5-target-requirements-not-yet-enforced) is different. It holds the
 authorization requirements the approved destination creates, which nothing enforces
@@ -43,6 +44,47 @@ with SQLSTATE `42501` and both take a `FOR SHARE` lock, so authority is rechecke
 inside the same transaction that does the work.
 
 A Project has no authority of its own. It inherits the Workspace that owns it.
+
+### 1.1 Installation administration
+
+An installation administrator may act on the whole installation. The actions it exists for
+are connecting or replacing the company GitHub organization and sharing a model account with
+everyone in the installation ([C-026](../decisions/index.md)). It is a fact about an Account,
+held in `iam.installation_administrator`. It is not a Workspace role and not an `iam.action`.
+
+Being an administrator grants nothing inside a Workspace or a Project. `iam.admit_workspace`,
+`iam.admit_project`, `iam.visible_workspaces` and `iam.visible_projects` never read the table,
+so an administrator with no membership sees and may do nothing in any Workspace.
+
+The role lives only in Conexus IAM. The Factory never holds a copy of the administrator list.
+The Hub calls `isInstallationAdministrator` on the identity-access module before it performs a
+Factory administration change on the actor's behalf.
+
+| Function | Who may call it | Effect |
+| --- | --- | --- |
+| `iam.is_installation_administrator(account)` | `hub_iam_runtime` | true while the Account is active and holds an open tenure |
+| `iam.grant_installation_administrator(actor, account)` | `hub_iam_runtime` | the actor must be an administrator and the Account must be active; granting a current administrator changes nothing |
+| `iam.revoke_installation_administrator(actor, account)` | `hub_iam_runtime` | the actor must be an administrator; revoking somebody who is not one changes nothing |
+| `iam.bootstrap_installation_administrator(account)` | no Hub role | the operator shell sets the first administrator |
+
+Each row of the table is one tenure. It records how it was granted (`OPERATOR_BOOTSTRAP` or
+`ADMINISTRATOR`), who granted it and when, and, once closed, who revoked it and when. Closed
+tenures are kept, so the table is also the record of every grant and revocation. Check
+constraints refuse a grant by an administrator that does not name one, and a revocation that
+does not name who revoked. Hub roles have no grant on the table itself.
+
+The last active administrator cannot be revoked, even by themselves. The refusal is
+`LAST_INSTALLATION_ADMINISTRATOR`, SQLSTATE `42501`. An actor who is not an administrator is
+refused with `NOT_ADMITTED`. Every change to the set takes one table lock first, so two
+administrators revoking each other at the same moment leave exactly one.
+
+The bootstrap is `npm run iam:bootstrap-installation-administrator -- --email <address>` (or
+`--account-id <uuid>`). It connects with the operator's provisioning credential
+(`CONEXUS_PROVISION_USER` and `CONEXUS_PROVISION_PASSWORD_FILE`), because no Hub role may
+execute the function. It answers `GRANTED`, or `ALREADY_ADMINISTRATOR` when run again for the
+same Account. It refuses with `INSTALLATION_ADMINISTRATOR_EXISTS` while any other active
+administrator exists, so it cannot be used to add administrators. It does work again once
+every administrator's Account is inactive, which is how an installation recovers.
 
 ---
 
@@ -93,6 +135,7 @@ and `iam.remove_workspace_member` both check that another owner remains.
 | verified email | `email_verified` is the boolean `true` in the validated ID token; anything else is refused |
 | bootstrap context | the transient pre-Account context for the one preconfigured OIDC subject; it may provision only its own Account and is invalid afterwards |
 | Workspace membership | the containment root for every read |
+| installation administrator | an open tenure in `iam.installation_administrator` for an active Account; it gates installation-wide actions only ([section 1.1](#11-installation-administration)) |
 
 None of these is a Permission and none may be inferred from a Keycloak role, group or
 organization, or from a provider, model, Mastra or E2B identity.

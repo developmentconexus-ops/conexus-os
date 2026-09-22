@@ -28,11 +28,17 @@ const refusal = (error: unknown): string | null => {
   return 'message' in error && typeof error.message === 'string' ? error.message : ''
 }
 
-// Every refused effect in `iam` raises SQLSTATE 42501. The message separates the two
-// meanings: the caller may not do this at all, or the Workspace would be left ownerless.
+// Every refused effect in `iam` raises SQLSTATE 42501. The message separates the meanings: the
+// caller may not do this at all, or the effect would leave a Workspace without an owner or the
+// installation without an administrator.
+const LAST_HOLDER_REFUSALS: ReadonlySet<string> = new Set(['LAST_OWNER', 'LAST_INSTALLATION_ADMINISTRATOR'])
+
 export const isNotAdmitted = (error: unknown): boolean => {
   const message = refusal(error)
-  return message !== null && message !== 'LAST_OWNER'
+  return message !== null && !LAST_HOLDER_REFUSALS.has(message)
 }
 
 export const isLastOwner = (error: unknown): boolean => refusal(error) === 'LAST_OWNER'
+
+export const isLastInstallationAdministrator = (error: unknown): boolean =>
+  refusal(error) === 'LAST_INSTALLATION_ADMINISTRATOR'

@@ -53,6 +53,11 @@ An OIDC callback, a provider token refresh, a model provider call, an E2B call, 
 transport and static byte transport are mechanics. They are not Product operations
 because they exist.
 
+Setting the first installation administrator is an operator shell step,
+`npm run iam:bootstrap-installation-administrator`, not a Product operation. Granting and
+revoking installation administration exist as `iam` functions with no route yet. Each earns a
+row here when its first Control Plane consumer does.
+
 ---
 
 # 3. Current fixed Product census
