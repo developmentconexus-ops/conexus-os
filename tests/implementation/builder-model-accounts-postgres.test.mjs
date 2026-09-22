@@ -12,6 +12,7 @@ import { createEmptyDatabase, testPool } from './hub-database.mjs'
 const { composeFactory, createFactorySandbox, FACTORY_OPERATOR_ID } = await import(built('builder/factory.js'))
 const { createMastraFactoryRunPorts } = await import(built('builder/factory-runtime.js'))
 const { openFactoryRecords } = await import(built('builder/factory-provisioning.js'))
+const { filterChatModels } = await import(built('builder/chat-models.js'))
 
 const ORG = 'conexus-installation'
 const alice = '11111111-1111-4111-8111-111111111111'
@@ -384,4 +385,19 @@ test('the operator imports a host Mastra Code login into the Factory, as the sha
   await assert.rejects(importAs('openai', 'not-an-account'), { message: 'FACTORY_HOST_CREDENTIAL_ACCOUNT_REFUSED' })
   await assert.rejects(importHostCredential({ credentials, orgId: ORG, provider: 'openai', accountId: null, authFile: resolve(directory, 'absent.json'), write: () => undefined }), { message: 'FACTORY_HOST_AUTH_FILE_UNREADABLE' })
   assert.equal(lines.some((line) => /host-access|host-refresh|sk-ant/.test(line)), false)
+})
+
+test('GET /api/control/model-accounts/models keeps chat models and drops image, embedding, and speech ones', () => {
+  const catalog = [
+    { id: 'openai/gpt-5-mini', provider: 'openai', modelName: 'gpt-5-mini', hasApiKey: true },
+    { id: 'anthropic/claude-sonnet-5', provider: 'anthropic', modelName: 'claude-sonnet-5', hasApiKey: true },
+    { id: 'openai/dall-e-3', provider: 'openai', modelName: 'dall-e-3', hasApiKey: true },
+    { id: 'openai/text-embedding-3-small', provider: 'openai', modelName: 'text-embedding-3-small', hasApiKey: true },
+    { id: 'openai/tts-1-hd', provider: 'openai', modelName: 'tts-1-hd', hasApiKey: true },
+  ]
+
+  assert.deepEqual(filterChatModels(catalog).map((model) => model.id), [
+    'openai/gpt-5-mini',
+    'anthropic/claude-sonnet-5',
+  ])
 })
