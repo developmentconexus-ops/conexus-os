@@ -7,6 +7,8 @@ import { E2BSandbox } from '@mastra/e2b'
 import { createFactorySecretEncryption, MastraFactory } from '@mastra/factory'
 import type { FactorySecretEncryption } from '@mastra/factory/secret-encryption'
 import { GithubIntegration } from '@mastra/factory/integrations/github/integration'
+import { registerTenantCredentialResolver } from '@mastra/factory/routes/tenant-credentials'
+import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/credentials/base'
 import type { FactorySandboxContext } from '@mastra/factory/sandbox/session-sandbox'
 import { repoDirUnder } from '@mastra/factory/sandbox/workdir'
 import type { Observability } from '@mastra/observability'
@@ -223,6 +225,10 @@ export const composeFactory = async ({ pool, github, stateSecret, secretKey, pub
   const { workers: _workers, ...args } = await factory.prepare()
   const mastra = new Mastra({ ...args, ...(observability ? { observability } : {}), logger: false })
   await factory.finalize()
+  // With auth: null the Factory never registers its tenant credential resolver, and every model call
+  // would read the host's own credentials. The Hub names the person on every request context, so the
+  // Factory's resolver answers with that person's row, else the installation's shared row, else none.
+  registerTenantCredentialResolver(storage.getDomain<ModelCredentialsStorage>('model-credentials'))
   const controllers = Object.entries(args.agentControllers ?? {})
   if (controllers.length !== 1) throw new Error('FACTORY_CONTROLLER_UNAVAILABLE')
   const [[controllerId, controller]] = controllers as [[string, BuilderAgentController]]

@@ -47,20 +47,7 @@ export const useConversationActions = (projectId: string) => {
     mutationFn: (): Promise<Conversation> => createFactoryConversation(projectId, crypto.randomUUID()),
     onSuccess: refresh,
   })
-  // The controller persists a conversation's model on the conversation itself, and a run binds the
-  // conversation it was sent from. So the session has to stand on the conversation the operator is
-  // looking at, or the model they see is not the one their next message would run with.
-  const select = useMutation({
-    mutationFn: async ({ conversationId, carryModelId }: Readonly<{ conversationId: string; carryModelId: string }>) => {
-      // The controller persists a model per conversation, and switching keeps the previous
-      // selection in memory without writing it, so a conversation the operator has not chosen for
-      // would look ready and then refuse the run. Writing their current choice onto the
-      // conversation they just opened is that choice applied, not a default invented for them.
-      if (carryModelId) await factoryController.session(conversationId).switchModel(carryModelId, { scope: 'thread' })
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
-  })
-  return { create, select }
+  return { create }
 }
 
 export type BuilderModel = AgentControllerAvailableModel

@@ -840,6 +840,8 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
     if (route.request().method() !== 'POST') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversations }) })
     const { conversationId } = route.request().postDataJSON()
     created.push(conversationId)
+    // The Hub opens a new conversation's thread on the person's default models.
+    models[conversationId] = SELECTED_MODEL
     const conversation = { conversationId, title: null, createdAt: '2026-09-21T12:02:00.000Z' }
     conversations.unshift(conversation)
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ conversation }) })
@@ -887,7 +889,7 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
   assert.equal(created.length, 1)
   assert.match(created[0], /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   await page.waitForFunction(() => document.querySelector('.builder-send-button')?.disabled === false)
-  assert.deepEqual(modelWrites.at(-1), [created[0], SELECTED_MODEL], 'the chosen model is carried onto the thread of the new conversation')
+  assert.deepEqual(modelWrites, [[counterId, SELECTED_MODEL]], 'a model chosen in one conversation is not written onto another')
 
   await page.locator('.builder-conversations-list button', { hasText: 'Contador' }).click()
   await page.locator('.builder-conversation').getByText('Contador pronto', { exact: true }).waitFor()
@@ -896,4 +898,69 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
   await page.getByText('Trabalhando no repositório', { exact: true }).waitFor()
   assert.deepEqual(streams.at(0), [counterId, `builder:${runId}`])
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
+})
+
+test('Configurações lets a person connect and disconnect model accounts, an administrator share one with everyone, and both set default models', async (t) => {
+  const accountId = '70000000-0000-4000-8000-0000000000a1'
+  const origin = 'http://127.0.0.1:41762'
+  const server = await createServer({
+    configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'), root: resolve(repositoryRoot, 'apps/web'),
+    server: { host: '127.0.0.1', port: 41762, strictPort: true },
+  })
+  await server.listen()
+  t.after(() => server.close())
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+
+  const providers = {
+    anthropic: { provider: 'anthropic', source: 'stored-user', userCredential: 'api_key', oauth: { supported: true, modes: ['paste-code'] } },
+    openai: { provider: 'openai', source: 'none', oauth: { supported: true, modes: ['device-code'] } },
+    google: { provider: 'google', source: 'none' },
+  }
+  const writes = []
+  let mine = null
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Administradora' }, workspaces: [], projects: [] }) }))
+  await page.route(`${FACTORY_CONTROLLER}/models`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
+  await page.route('**/api/control/model-accounts', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers: Object.values(providers), orgKeyAdmin: true }) }))
+  await page.route('**/api/control/model-accounts/*/*', (route) => {
+    const request = route.request()
+    const [provider, action] = new URL(request.url()).pathname.split('/').slice(-2)
+    writes.push([request.method(), provider, action, 'x-conexus-csrf' in request.headers(), request.postDataJSON?.() ?? null])
+    if (action === 'share') providers[provider] = { ...providers[provider], source: 'stored-org', userCredential: undefined, orgCredential: 'api_key' }
+    if (action === 'key' && request.method() === 'PUT') providers[provider] = { ...providers[provider], source: 'stored-user', userCredential: 'api_key' }
+    return route.fulfill(action === 'share' ? { status: 204 } : { status: 200, contentType: 'application/json', body: '{"ok":true}' })
+  })
+  await page.route('**/api/control/model-defaults', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine, administrator: true }) }))
+  await page.route('**/api/control/model-defaults/mine', (route) => {
+    mine = route.request().postDataJSON()
+    writes.push(['PUT', 'defaults', 'mine', 'x-conexus-csrf' in route.request().headers(), mine])
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ mine }) })
+  })
+
+  await page.goto(`${origin}/settings`)
+  await page.getByRole('heading', { name: 'Contas de modelo' }).waitFor()
+  await page.locator('li.model-account', { hasText: 'Sua conta (chave de API)' }).getByText('anthropic', { exact: true }).waitFor()
+  await page.getByText('Os termos de uma assinatura podem proibir o uso por outras pessoas; confira antes de compartilhar.').waitFor()
+  await page.getByRole('button', { name: 'Compartilhar com todos' }).click()
+  await page.getByRole('button', { name: 'Parar de compartilhar' }).waitFor()
+  assert.deepEqual(writes.at(-1), ['POST', 'anthropic', 'share', true, null])
+
+  await page.getByLabel('Provedor').selectOption('google')
+  await page.getByLabel('Chave de API').fill('AIza-own-key')
+  await page.getByRole('button', { name: 'Salvar chave' }).click()
+  await page.getByText('Conta conectada.').waitFor()
+  assert.deepEqual(writes.at(-1), ['PUT', 'google', 'key', true, { key: 'AIza-own-key' }])
+  const removal = page.waitForResponse((response) => response.request().method() === 'DELETE' && response.url().endsWith('/model-accounts/google/key'))
+  await page.locator('li.model-account', { hasText: 'google' }).getByRole('button', { name: 'Desconectar' }).click()
+  await removal
+  assert.deepEqual(writes.at(-1), ['DELETE', 'google', 'key', true, null])
+
+  const myDefaults = page.locator('form.model-defaults', { hasText: 'Meus padrões' })
+  await myDefaults.getByLabel('Modelo de construção').selectOption(BUILDER_MODELS[0].id)
+  await myDefaults.getByLabel('Modelo rápido').selectOption(BUILDER_MODELS[1].id)
+  await myDefaults.getByRole('button', { name: 'Salvar' }).click()
+  await page.getByText('Padrões salvos.').waitFor()
+  assert.deepEqual(mine, { build: BUILDER_MODELS[0].id, fast: BUILDER_MODELS[1].id })
+  await page.getByRole('heading', { name: 'Modelos padrão' }).waitFor()
 })

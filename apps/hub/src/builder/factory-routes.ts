@@ -51,11 +51,16 @@ type OpenThread = (input: Readonly<{ conversationId: string; accountId: string }
 // random id. The browser's session on a new conversation would then hold its model on a thread no
 // run ever reads, so the Hub opens the conversation's own thread, id and resource both the
 // conversation id, before the browser asks for it.
-export const openFactoryConversationThread = ({ controller, orgId }: Readonly<{ controller: BuilderAgentController; orgId: string }>): OpenThread =>
+export const openFactoryConversationThread = ({ controller, orgId, applyDefaults }: Readonly<{
+  controller: BuilderAgentController
+  orgId: string
+  applyDefaults?(session: Awaited<ReturnType<BuilderAgentController['createSession']>>, accountId: string): Promise<void>
+}>): OpenThread =>
   async ({ conversationId, accountId }) => {
     const requestContext = new RequestContext()
     requestContext.set('user', { id: accountId, organizationId: orgId })
-    await controller.createSession({ resourceId: conversationId, ownerId: conversationId, threadId: conversationId, requestContext })
+    const session = await controller.createSession({ resourceId: conversationId, ownerId: conversationId, threadId: conversationId, requestContext })
+    await applyDefaults?.(session, accountId)
   }
 
 export const registerFactoryConversationRoutes = async (app: FastifyInstance, { readFactoryBinding, defaultBranchOf, sessions, orgId, origin, resolveCurrentSession, openThread }: Readonly<{

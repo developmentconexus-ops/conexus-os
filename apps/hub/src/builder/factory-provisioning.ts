@@ -1,4 +1,7 @@
+import { readFile } from 'node:fs/promises'
 import { FactoryProjectsStorage } from '@mastra/factory'
+import { getAuthProviderId } from '@mastra/factory/routes/provider-credentials'
+import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/credentials/base'
 import { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import { SourceControlStorage } from '@mastra/factory/storage/domains/source-control/base'
 import type { PgFactoryStorage } from '@mastra/pg'
@@ -61,6 +64,49 @@ export const setFactoryMemoryModel = async ({ records, orgId, modelId, write }: 
   if (!MODEL_ID.test(modelId)) throw new Error('FACTORY_MEMORY_MODEL_REFUSED')
   await records.memorySettings.patch({ orgId, userId: FACTORY_OPERATOR_ID, patch: { observerModelId: modelId, reflectorModelId: modelId } })
   write(`FACTORY_MEMORY_MODEL=${modelId}`)
+}
+
+const PROVIDER = /^[a-z0-9][a-z0-9._-]{0,63}$/
+const ACCOUNT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+type HostCredential = Readonly<{ type: 'oauth'; access: string; refresh: string; expires: number }> | Readonly<{ type: 'api_key'; key: string }>
+
+const hostCredential = (entry: unknown): HostCredential | null => {
+  if (typeof entry !== 'object' || entry === null) return null
+  const value = entry as Readonly<Record<string, unknown>>
+  if (value.type === 'oauth' && typeof value.access === 'string' && typeof value.refresh === 'string' && typeof value.expires === 'number') return value as HostCredential
+  if (value.type === 'api_key' && typeof value.key === 'string' && value.key.trim()) return value as HostCredential
+  return null
+}
+
+/**
+ * Copies one provider's login from a Mastra Code auth.json into the Factory's credentials domain,
+ * as the installation's shared row or one person's row. Rerunning replaces that row. Only the
+ * provider and the row are printed, never the credential.
+ */
+export const importHostCredential = async ({ credentials, orgId, provider, accountId, authFile, write }: Readonly<{
+  credentials: Pick<ModelCredentialsStorage, 'setCredential'>
+  orgId: string
+  provider: string
+  // null is the installation's shared row.
+  accountId: string | null
+  authFile: string
+  write(line: string): void
+}>): Promise<void> => {
+  if (!PROVIDER.test(provider)) throw new Error('FACTORY_HOST_CREDENTIAL_PROVIDER_REFUSED')
+  if (accountId !== null && !ACCOUNT_ID.test(accountId)) throw new Error('FACTORY_HOST_CREDENTIAL_ACCOUNT_REFUSED')
+  let entries: Readonly<Record<string, unknown>>
+  try {
+    entries = JSON.parse(await readFile(authFile, 'utf8'))
+  } catch {
+    throw new Error('FACTORY_HOST_AUTH_FILE_UNREADABLE')
+  }
+  // The Factory keys a row by the auth provider id, which for OpenAI is openai-codex.
+  const storedAs = getAuthProviderId(provider)
+  const credential = hostCredential(entries[provider] ?? entries[storedAs])
+  if (!credential) throw new Error(`FACTORY_HOST_CREDENTIAL_MISSING:${provider}`)
+  await credentials.setCredential(accountId === null ? { orgId } : { orgId, userId: accountId }, storedAs, credential)
+  write(`FACTORY_HOST_CREDENTIAL_IMPORTED=${storedAs}:${credential.type}:${accountId ?? 'shared'}`)
 }
 
 export type FactoryBinding = Readonly<{

@@ -119,10 +119,11 @@ touches. Three of its consequences land in these units:
 
 - **Installation administrator.** Connecting GitHub needs the new installation administrator role in
   Conexus IAM, as amended C-024 says. The role does not exist yet, and unit 4 depends on it.
-- **Model credentials.** Nobody connects a model account until the Hub configures the Factory's
-  `secretEncryption`, because the Factory stores credentials in plaintext without it. The per-person
-  credential path is also qualified end to end with `auth: null`, which skips the Factory's
-  per-person credential resolver. C-025 keeps credential sharing with the Factory.
+- **Model credentials.** The Factory encrypts credentials with the Hub's key. The Hub registers the
+  Factory's per-person resolver, which `auth: null` skips, so a run uses its starter's own account,
+  else the installation's shared one, else none. `builder-model-accounts-postgres.test.mjs` qualifies
+  this with two accounts. The starter also pays for observational memory. C-025 keeps credential
+  sharing with the Factory.
 - **Tool policy.** The browser answers a pending call with approve or decline only. An answer that
   changes effective policy for the session is refused.
 
