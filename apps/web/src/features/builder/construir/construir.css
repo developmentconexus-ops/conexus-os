@@ -174,6 +174,7 @@
   .cx-lenses { width: 100%; }
   .cx-lens { flex: 1; justify-content: center; padding-inline: .4rem; }
   .cx-lens svg { display: none; }
+  .cx-inuse p { white-space: normal; }
 }
 
 .cx-unavailable { display: grid; justify-items: center; gap: .75rem; max-width: 32rem; margin: 4rem auto; padding: 2rem 1.5rem; text-align: center; }

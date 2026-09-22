@@ -74,17 +74,25 @@ const chooseModel = async (page, modelName) => {
   await openModelPicker(page)
   await page.getByRole('option', { name: modelName }).click()
   await page.keyboard.press('Escape')
+  await page.locator('.cx-model-popover').waitFor({ state: 'detached' })
 }
-// The chat header's Combobox names the current conversation and lists the others as options.
-const readConversationTitles = async (page) => {
+// The chat header's Combobox names the current conversation and lists the others as options. A
+// closing popup stays mounted through its exit, so the switcher opens only once no other list is
+// on screen, and the titles are read once the expected number of options arrived.
+const conversationOptions = async (page) => {
+  await page.waitForFunction(() => !document.querySelector('[role="option"]'))
   await page.getByRole('combobox', { name: 'Conversa', exact: true }).click()
-  const titles = await page.getByRole('option').allTextContents()
+  return page.getByRole('option')
+}
+const readConversationTitles = async (page, expected = 1) => {
+  const options = await conversationOptions(page)
+  await options.nth(expected - 1).waitFor()
+  const titles = await options.allTextContents()
   await page.keyboard.press('Escape')
   return titles
 }
 const switchConversationTo = async (page, title) => {
-  await page.getByRole('combobox', { name: 'Conversa', exact: true }).click()
-  await page.getByRole('option', { name: title }).click()
+  await (await conversationOptions(page)).filter({ hasText: title }).click()
 }
 // CodeMirror splits a line across syntax-highlighting spans, so the file's content is read from
 // the whole .cm-content container rather than matched as one exact text node.
@@ -359,7 +367,7 @@ test('a Project holds several conversations, and switching between them leaves t
   await page.getByText('Escolha o modelo desta conversa para enviar pedidos.', { exact: true }).waitFor({ state: 'detached' })
   assert.deepEqual(state.modelSwitches, [SELECTED_MODEL])
 
-  assert.deepEqual(await readConversationTitles(page), ['Contador', 'Relógio'])
+  assert.deepEqual(await readConversationTitles(page, 2), ['Contador', 'Relógio'])
   await page.locator('.cx-messages').getByText('Contador pronto', { exact: true }).waitFor()
   assert.equal(await page.locator('.cx-messages').getByText('Relógio pronto', { exact: true }).count(), 0)
 
@@ -934,7 +942,7 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
 
   await page.goto(`${origin}/projects/${projectId}/build`)
   await page.locator('.cx-messages').getByText('Contador pronto', { exact: true }).waitFor()
-  assert.deepEqual(await readConversationTitles(page), ['Contador', 'Relógio'])
+  assert.deepEqual(await readConversationTitles(page, 2), ['Contador', 'Relógio'])
   assert.equal(await page.getByRole('button', { name: 'Renomear' }).count(), 0, 'the Builder has no conversation rename feature')
   assert.deepEqual(messageReads.at(0), [counterId, counterId], 'the messages come from the conversation session and thread of the same id')
 
@@ -949,7 +957,7 @@ test('a Factory-hosted Project reads its conversations from the Hub and each con
   await createConversation
   assert.equal(created.length, 1)
   assert.match(created[0], /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
-  assert.equal((await readConversationTitles(page)).length, 3)
+  assert.equal((await readConversationTitles(page, 3)).length, 3)
   await page.getByText('Escolha o modelo desta conversa para enviar pedidos.', { exact: true }).waitFor({ state: 'detached' })
   assert.deepEqual(modelWrites.at(-1), [created[0], SELECTED_MODEL], 'the chosen model is carried onto the thread of the new conversation')
 
