@@ -1,0 +1,90 @@
+import { DEFAULT_LIMITS } from '../app-runner/supervisor.js'
+
+/** One file of the admitted artifact's `conexus-server/` tree, exactly as the runner expects it. */
+export type ServerFile = Readonly<{ path: string; sha256: string; content: string }>
+
+export type ApplicationFileReader = (input: Readonly<{
+  accountId: string
+  projectId: string
+  sourceRevision: string
+  artifactRevisionId: string
+  path: string
+}>) => Promise<Readonly<{ path: string; sha256: string; bytes: Uint8Array }> | null>
+
+export type ApplicationRunnerInvoke = (input: Readonly<{
+  projectId: string
+  operation: string
+  input: unknown
+  files: readonly ServerFile[]
+}>) => Promise<Readonly<{ status: number; body: unknown }>>
+
+export type ApplicationInvoker = (input: Readonly<{
+  accountId: string
+  projectId: string
+  sourceRevision: string
+  artifactRevisionId: string
+  serverFiles: readonly string[]
+  operation: string
+  input: unknown
+}>) => Promise<Readonly<{ status: number; body: unknown }>>
+
+export type ApplicationAdmissionLimits = Readonly<{
+  globalConcurrency: number
+  perProjectConcurrency: number
+  maxServerTreeBytes: number
+}>
+
+export const DEFAULT_ADMISSION_LIMITS: ApplicationAdmissionLimits = Object.freeze({
+  // Matches the runner's own DEFAULT_LIMITS.concurrency (main.ts starts it with no override), so the
+  // Hub never admits more work than the runner could ever service at once.
+  globalConcurrency: DEFAULT_LIMITS.concurrency,
+  // Half the global bound: one flooding Preview cannot occupy the whole shared admission budget.
+  perProjectConcurrency: Math.max(1, Math.ceil(DEFAULT_LIMITS.concurrency / 2)),
+  // Generous for source code, far under the runner's own worst case (128 files * 4 MiB = 512 MiB).
+  maxServerTreeBytes: 8 * 1024 * 1024,
+})
+
+const refusal = (status: number, code: string): Readonly<{ status: number; body: unknown }> =>
+  Object.freeze({ status, body: { error: { code } } })
+
+export const createApplicationInvoker = (dependencies: Readonly<{
+  readFile: ApplicationFileReader
+  invoke: ApplicationRunnerInvoke
+  limits?: ApplicationAdmissionLimits
+}>): ApplicationInvoker => {
+  const limits = dependencies.limits ?? DEFAULT_ADMISSION_LIMITS
+  let globalInFlight = 0
+  const perProjectInFlight = new Map<string, number>()
+
+  return async (input) => {
+    if (globalInFlight >= limits.globalConcurrency) return refusal(429, 'APPLICATION_RUNNER_BUSY')
+    const projectInFlight = perProjectInFlight.get(input.projectId) ?? 0
+    if (projectInFlight >= limits.perProjectConcurrency) return refusal(429, 'APPLICATION_PROJECT_BUSY')
+    globalInFlight += 1
+    perProjectInFlight.set(input.projectId, projectInFlight + 1)
+    try {
+      // Sequential, not Promise.all: an oversized tree is refused as soon as the running total crosses
+      // the limit, so memory per request is bounded by the limit plus at most one file, not the whole
+      // tree.
+      let totalBytes = 0
+      const reads: { path: string; sha256: string; bytes: Uint8Array }[] = []
+      for (const path of input.serverFiles) {
+        const file = await dependencies.readFile({
+          accountId: input.accountId, projectId: input.projectId, sourceRevision: input.sourceRevision,
+          artifactRevisionId: input.artifactRevisionId, path,
+        })
+        if (!file) throw new Error('APPLICATION_SERVER_FILE_MISSING')
+        totalBytes += file.bytes.byteLength
+        if (totalBytes > limits.maxServerTreeBytes) return refusal(413, 'SERVER_TREE_TOO_LARGE')
+        reads.push({ path, sha256: file.sha256, bytes: file.bytes })
+      }
+      const files = reads.map((file) => ({ path: file.path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') }))
+      return await dependencies.invoke({ projectId: input.projectId, operation: input.operation, input: input.input, files })
+    } finally {
+      globalInFlight -= 1
+      const remaining = (perProjectInFlight.get(input.projectId) ?? 1) - 1
+      if (remaining <= 0) perProjectInFlight.delete(input.projectId)
+      else perProjectInFlight.set(input.projectId, remaining)
+    }
+  }
+}
