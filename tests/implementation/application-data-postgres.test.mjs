@@ -158,6 +158,11 @@ test('Project Preview data is confined to its own schema, roles and database', a
         connectionLimit: 2, ...userSettable, ...refusals,
       },
     })
+    // Postgres admits a session into the reserved slots only for a role that holds the privileges of
+    // pg_use_reserved_connections; the provisioner is NOINHERIT, so its grant must say INHERIT.
+    const { rows } = await provisioner.query("SELECT rolname, pg_has_role(oid, 'pg_use_reserved_connections', 'USAGE') AS reserved FROM pg_roles WHERE rolname = ANY($1)",
+      [['app_provisioner', a.runtimeRole, a.migrationRole]])
+    assert.deepEqual(Object.fromEntries(rows.map((row) => [row.rolname, row.reserved])), { app_provisioner: true, [a.runtimeRole]: false, [a.migrationRole]: false })
   })
 
   await t.test('Project A runtime reaches nothing of Project B and cannot change schema or roles', async (st) => {

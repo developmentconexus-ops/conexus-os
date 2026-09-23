@@ -85,8 +85,9 @@ export const provisionApplicationDatabase = async (config) => {
     }
     // Lets the provisioner set temp_file_limit on the Project roles it creates; they cannot change it.
     await installation.query(`GRANT SET ON PARAMETER temp_file_limit TO ${PROVISIONER}`)
-    // Project sessions filling every ordinary connection slot still leave the runner a way in.
-    await installation.query(`GRANT pg_use_reserved_connections TO ${PROVISIONER}`)
+    // Project sessions filling every ordinary connection slot still leave the runner a way in. The
+    // provisioner is NOINHERIT, and Postgres reserves the slots for roles that inherit the privilege.
+    await installation.query(`GRANT pg_use_reserved_connections TO ${PROVISIONER} WITH INHERIT TRUE`)
     // Diagnosis only: cluster-wide statement statistics, readable from `postgres`, never from the
     // application database where a Project role would see other Projects' statements.
     await installation.query('CREATE EXTENSION IF NOT EXISTS pg_stat_statements')
