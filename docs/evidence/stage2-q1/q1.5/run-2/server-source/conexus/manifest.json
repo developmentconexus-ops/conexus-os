@@ -1,0 +1,55 @@
+{
+  "operations": {
+    "listNotes": {
+      "handler": "handlers/notes.ts",
+      "export": "listNotes",
+      "input": {
+        "type": "object",
+        "properties": {
+          "orderNumber": { "type": "string", "minLength": 0, "maxLength": 100 }
+        },
+        "required": ["orderNumber"],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "array",
+        "maxItems": 500,
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "integer" },
+            "orderNumber": { "type": "string" },
+            "content": { "type": "string" },
+            "createdAt": { "type": "string" }
+          },
+          "required": ["id", "orderNumber", "content", "createdAt"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "addNote": {
+      "handler": "handlers/notes.ts",
+      "export": "addNote",
+      "input": {
+        "type": "object",
+        "properties": {
+          "orderNumber": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "content": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        },
+        "required": ["orderNumber", "content"],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "orderNumber": { "type": "string" },
+          "content": { "type": "string" },
+          "createdAt": { "type": "string" }
+        },
+        "required": ["id", "orderNumber", "content", "createdAt"],
+        "additionalProperties": false
+      }
+    }
+  }
+}

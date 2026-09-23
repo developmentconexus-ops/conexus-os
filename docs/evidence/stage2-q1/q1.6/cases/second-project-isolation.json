@@ -1,0 +1,8 @@
+{
+  "request": "grade-only: the run-1 Project's Preview lists its own note and not the run-2 Project's marked note",
+  "checks": [
+    { "action": "expectText", "selector": "body", "text": "PC-4521" },
+    { "action": "expectNoText", "selector": "body", "text": "Q1.6 nota antes do reinicio do runner" }
+  ],
+  "reload": true
+}

@@ -1,0 +1,66 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T12:51:32.833Z",
+  "finishedAt": "2026-09-23T12:57:00.323Z",
+  "outcome": "FAIL",
+  "error": null,
+  "case": "scripts/builder-eval/cases/follow-up-notes.json",
+  "request": "Adicione notas de acompanhamento a um pedido de compra. Eu informo o número do pedido, escrevo uma nota, salvo e vejo as notas salvas depois de recarregar a página. Mantenha a interface simples.",
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": "840c8630-eb50-435e-9adf-a6084930d2ae",
+  "projectId": "a700a0f2-883b-427f-9f52-89c1eb476be3",
+  "projectName": "eval-q1-followup-2",
+  "conversationId": "04c3f62f-3084-45c0-84ab-c16bb8f04ae1",
+  "modelId": "google-ai-pro/gemini-3-flash",
+  "sourceRevisionBefore": "1190d2df27877d27bbafafa32b472836cde9cb8d",
+  "sourceRevisionAfter": "c6ae737eb891699cad6507888fef10e7ccaf6b80",
+  "filesChanged": [
+    {
+      "path": "app/src/main.tsx",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "app/src/style.css",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/handlers/notes.ts",
+      "status": "ADDED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/manifest.json",
+      "status": "ADDED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/migrations/001_create_purchase_order_notes.sql",
+      "status": "ADDED",
+      "previousPath": null
+    }
+  ],
+  "runs": [
+    {
+      "builderRunId": "2cc192a3-d922-4aa3-92fa-65f61c2bbdaf",
+      "isRepair": false,
+      "state": "SUCCEEDED",
+      "resultKind": "SOURCE_CHANGED",
+      "failureCode": null,
+      "failureCategory": null,
+      "baseSourceRevision": "1190d2df27877d27bbafafa32b472836cde9cb8d",
+      "resultSourceRevision": "c6ae737eb891699cad6507888fef10e7ccaf6b80",
+      "requestText": "Adicione notas de acompanhamento a um pedido de compra. Eu informo o número do pedido, escrevo uma nota, salvo e vejo as notas salvas depois de recarregar a página. Mantenha a interface simples."
+    }
+  ],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": null,
+  "previewUrl": null,
+  "checks": {
+    "initial": [],
+    "afterReload": null
+  },
+  "screenshotPath": null,
+  "failure": "PREVIEW_NOT_FROM_FINAL_RUN"
+}
