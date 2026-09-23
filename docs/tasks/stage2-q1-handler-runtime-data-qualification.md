@@ -30,6 +30,17 @@ hypothesis. Evidence that does not depend on where the data lives, such as the B
 Q1.5, stays valid. The proofs that depend on it, Q1.1, Q1.6 and the database cases of Q1.7, run
 again against the Applications cluster.
 
+## Amendment, 2026-09-23: Q1.8 is proven structurally in the first version
+
+The operator decided on 2026-09-23 that, for the first version, Q1.8 proves the containment
+statement structurally rather than by active capacity and failure runs. Q1 still owes that
+statement. The evidence changes: the topology, the storage bound, the memory bound and the
+settings must be shown to hold on the pilot, and one ordinary stop of the Applications cluster
+must leave the Hub serving. Active capacity and failure runs return through the trigger in
+section 17.
+
+This amendment changes section 9 (Q1.8), section 10, section 12, section 16 and section 17.
+
 ## 1. Authority route
 
 ```text
@@ -341,35 +352,18 @@ Each protected path must visibly refuse or terminate.
 
 If the boundary cannot credibly prevent one of these with the proposed shared runner, Q1 verdict is REJECT/REPLAN. Do not hide it behind lint or Builder instructions.
 
-### Q1.8 — Data Plane containment probe
+### Q1.8 — Data Plane containment, structural proof
 
-Prove the containment statement of section 2.
+Prove the containment statement of section 2 structurally. Record evidence from the pilot for each of these:
 
-Before the first attack, back up the Hub database and record the host's free space. If the storage bound fails, the disk attack can fill the host disk.
+1. the Hub PostgreSQL and the Applications PostgreSQL run as separate clusters, in separate containers;
+2. the Hub cluster holds no application database, application schema or Project role;
+3. the Applications cluster's PGDATA, `pg_wal`, server logs and temporary files all live on its own fixed-size, fully preallocated filesystem, apart from the Hub's storage (mount, image size and allocated bytes);
+4. the Applications container refuses to start when that filesystem is not mounted, instead of writing to the host's root filesystem;
+5. the container runtime enforces a memory limit on the Applications container;
+6. one ordinary stop of the Applications container leaves the Hub serving: while it is stopped, the Hub writes real data, reads it back and answers IAM, Workspace and Project requests, and the Hub PostgreSQL does not restart; after a start, the Applications cluster serves again.
 
-Throughout every attack, the Hub performs continuous real reads and writes: it writes real data through its own paths, reads that data back, and runs IAM, Workspace and Project operations.
-
-Attack the Applications cluster with each of these, one at a time, until the attack takes effect on that cluster:
-
-1. disk and storage exhaustion;
-2. WAL exhaustion;
-3. memory and `work_mem` pressure;
-4. connection exhaustion;
-5. CPU saturation;
-6. heavy I/O and checkpoint pressure;
-7. an Applications PostgreSQL stop, crash and OOM kill;
-8. a relay failure.
-
-During and after each attack, prove that:
-
-1. the Hub process stays alive;
-2. the Hub PostgreSQL does not restart;
-3. the Hub can write real data;
-4. the Hub can read the written data back;
-5. IAM, Workspace and Project operations keep working;
-6. the Applications cluster does not exhaust critical host storage.
-
-Configure these settings on the Applications cluster and its Project roles, and qualify each one against the attacks:
+Configure these settings on the Applications cluster and its Project roles:
 
 - `transaction_timeout`;
 - `lock_timeout`;
@@ -380,7 +374,7 @@ Configure these settings on the Applications cluster and its Project roles, and 
 
 Record each value, where it is set (cluster, database or role), and whether a Project session can change it.
 
-Use `pg_stat_statements` to measure and diagnose the attacks. It is not enforcement, and no bound in Q1 depends on it.
+Load `pg_stat_statements` on the Applications cluster for measurement and diagnosis. It is not enforcement, and no bound in Q1 depends on it.
 
 The isolation proofs of Q1.7 stay required and run against the Applications cluster:
 
@@ -400,7 +394,7 @@ Collect only decision-relevant measurements:
 - handler p50/p95 for the local note flow over a bounded sample;
 - Postgres connections used by one Preview;
 - every adversarial falsifier result;
-- for each Q1.8 attack, the Hub's write and read-back results and the host's free space before, during and after it.
+- for Q1.8, the structural evidence of each item, and the Hub's write, read-back and request results while the Applications container is stopped.
 
 Do not establish performance SLOs in Q1. Measurements decide whether the baseline is usable and whether a later warm/container strategy needs qualification.
 
@@ -438,7 +432,7 @@ natural-language Builder request
 -> runner restart still reads it
 -> second Project cannot read it
 -> adversarial handler cannot acquire forbidden authority
--> Applications PostgreSQL exhaustion and failure stay in the Data Plane
+-> Applications PostgreSQL separated and bounded; stopping it leaves the Hub serving
 ```
 
 Capture source revision, exact build/artifact identity, runner version/config used, database role/schema identities, browser evidence and negative-probe output.
@@ -499,7 +493,7 @@ STOP and return to planner on:
 - a requirement for a new package whose role changes the programming model rather than mechanically supporting this probe;
 - evidence that the Builder cannot use the proposed source shape without a different application programming model;
 - any production/external effect not explicitly authorized by this task;
-- a Q1.8 attack whose effect reaches the Control Plane. The separation then does not protect the Hub. Return with the evidence. Do not patch silently.
+- Q1.8 evidence that the clusters share storage or memory, that the Hub cluster holds application data or a Project role, or that the Hub stops serving while the Applications container is stopped. The separation then does not protect the Hub. Return with the evidence. Do not patch silently.
 
 After verification, commit, push and STOP. Do not begin Q2.
 
@@ -510,5 +504,7 @@ Reopen fairness between Projects inside the Applications PostgreSQL on the first
 - a second Project with real users;
 - a Project that consumes a material part of the Applications cluster's storage;
 - evidence of a noisy neighbour.
+
+Run active capacity and failure tests of the Applications cluster, with the Hub under continuous real reads and writes, on the first of: a second Project with real users, the first Publish, or evidence of a noisy neighbour.
 
 Reopen Preview and Published placement at the first Publish. Q5 decides whether Published data may share the Applications cluster with Preview data. Nothing assumes a Published schema on the same server before that decision.
