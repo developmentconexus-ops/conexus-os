@@ -1,6 +1,7 @@
 import { isAbsolute, join } from 'node:path'
 import type { CommandResult, SandboxFileInput } from '@mastra/core/workspace'
 import { BUILD_COMMAND } from './application-artifact-runtime.js'
+import { SERVER_BUILD_SCRIPT_PATH } from './application-server-build.js'
 
 export type FixedApplicationStarterResult = 'MATERIALIZED' | 'PRESERVED'
 
@@ -57,6 +58,98 @@ body {
   }),
 ] as const)
 
+// The paved road for server logic and saved data, kept in the Project's own source so the Builder
+// reads it when the request needs it and the check enforces the same shape.
+const SERVER_GUIDE = `# Server logic and saved data
+
+Read this only when the app must save data or run logic on the server. The browser app stays in \`app/\`.
+
+Everything server-side lives under \`conexus/\`:
+
+- \`manifest.json\` declares each operation the browser may call.
+- \`handlers/*.ts\` implement them.
+- \`migrations/NNN_name.sql\` create and change tables, applied in name order before the Preview opens.
+  Never edit a migration that has already run; add the next one. Editing one erases this Project's
+  Preview data and replays every migration.
+
+## manifest.json
+
+\`\`\`json
+{
+  "operations": {
+    "listItems": {
+      "handler": "handlers/items.ts",
+      "export": "listItems",
+      "input": { "type": "object", "properties": { "category": { "type": "string", "maxLength": 80 } }, "required": ["category"], "additionalProperties": false },
+      "output": { "type": "array", "maxItems": 500, "items": { "type": "object", "properties": { "id": { "type": "integer" }, "name": { "type": "string" } }, "required": ["id", "name"], "additionalProperties": false } }
+    }
+  }
+}
+\`\`\`
+
+A schema uses only these types: \`string\` (\`minLength\`, \`maxLength\`), \`integer\` and \`number\`
+(\`minimum\`, \`maximum\`), \`boolean\`, \`object\` (\`properties\`, \`required\`, and \`"additionalProperties": false\`,
+which is mandatory) and \`array\` (\`items\`, \`maxItems\`). Input is always an object. A value that does
+not match its schema exactly, including an undeclared field, is refused.
+
+## Handlers
+
+\`\`\`ts
+type Db = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> }
+
+export async function listItems(input: { category: string }, { db }: { db: Db }) {
+  const { rows } = await db.query('SELECT id, name FROM item WHERE category = $1 ORDER BY id', [input.category])
+  return rows
+}
+\`\`\`
+
+- Always pass values as parameters (\`$1\`, \`$2\`). Tables live in this Project's own schema: do not
+  prefix them with a schema name.
+- A handler may import only files inside \`conexus/\` and \`node:\` built-ins. There are no npm packages,
+  no network, no file system and no environment variables. Each call runs isolated for at most 5
+  seconds and answers at most 1 MiB.
+- Postgres \`integer\` arrives as a number; \`bigint\` and \`numeric\` arrive as strings; \`timestamptz\`
+  arrives as an ISO string. Alias columns to the names the output schema declares, for example
+  \`created_at AS "createdAt"\`.
+
+## Migrations
+
+\`conexus/migrations/001_create_item.sql\`:
+
+\`\`\`sql
+CREATE TABLE item (
+  id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+\`\`\`
+
+A migration may create and alter objects in this Project's schema only: no extensions, roles, grants
+or other schemas.
+
+## Calling an operation from the browser
+
+\`\`\`ts
+const response = await fetch('/__conexus/api/listItems', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ category: 'a' }),
+})
+if (!response.ok) {
+  const { error } = await response.json() // { code, detail? }
+  // show the failure; the app must keep rendering
+} else {
+  const items = await response.json()
+}
+\`\`\`
+
+The build check answers every operation with the smallest value its output schema admits, so the
+app must render with empty data as well as when a call fails.
+
+\`sh conexus/check.sh\` builds \`app/\`, then validates \`manifest.json\`, bundles the handlers and lists
+the migrations. Fix whatever it reports.
+`
+
 // A repository-hosted Project carries its own check: the template's compiler, bound in place, with
 // its output kept out of /workspace/dist, where Conexus's own compile writes the Preview.
 export const APPLICATION_CHECK_FILES = Object.freeze([
@@ -65,15 +158,17 @@ export const APPLICATION_CHECK_FILES = Object.freeze([
     path: 'conexus/check.sh',
     content: [
       '#!/bin/sh',
-      '# Builds app/ the way Conexus builds it before a Preview. Run it from the repository root.',
+      '# Builds app/ and the conexus/ server half the way Conexus builds them before a Preview. Run it from the repository root.',
       'set -eu',
       'root=$(cd "$(dirname "$0")/.." && pwd)',
       'ln -sfn /opt/conexus/compiler/node_modules "$root/app/node_modules"',
       'cd "$root/app"',
-      `CONEXUS_COMPILE_ROOT="$root/app" exec ${BUILD_COMMAND} --outDir /tmp/conexus-check-dist --emptyOutDir`,
+      `CONEXUS_COMPILE_ROOT="$root/app" ${BUILD_COMMAND} --outDir /tmp/conexus-check-dist --emptyOutDir`,
+      `node ${SERVER_BUILD_SCRIPT_PATH} "$root" /tmp/conexus-check-dist`,
       '',
     ].join('\n'),
   }),
+  Object.freeze({ path: 'conexus/SERVER.md', content: SERVER_GUIDE }),
 ] as const)
 
 // The check links the compiler's dependencies into app/, and that link must never reach the tree.
@@ -84,7 +179,7 @@ export const APPLICATION_CHECK_INSTRUCTION = 'Before finishing a BUILD, run `sh 
 
 export const BUILDER_SHARED_AGENT_INSTRUCTIONS = Object.freeze([
   'Work only in the exact Session Workspace at /workspace/repo.',
-  'For ordinary Builder work, keep application edits under /workspace/repo/app/**.',
+  'Keep application edits under /workspace/repo/app/**, except server logic and saved data, which follow /workspace/repo/conexus/SERVER.md.',
   'Use the fixed REACT_VITE_V1 application shape.',
   'Do not install or add package dependencies.',
   'Do not mutate Conexus platform or generated owner files.',

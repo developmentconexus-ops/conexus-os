@@ -156,3 +156,77 @@ Rerun on the pilot host: `bash ~/q1/run.sh node --test --test-concurrency=1
 tests/implementation/application-runner-sandbox.test.mjs`. CI runs it as the
 `application-runner-sandbox` step. The workflow installs `bubblewrap` and lifts ubuntu-24.04's
 AppArmor restriction on unprivileged user namespaces for that job.
+
+## Q1.3 same-origin Preview API and the build pipeline
+
+**Preview API.** The Preview listener adds `POST /__conexus/api/<operation>` (`mar/preview-routes.ts`).
+The request needs the same Preview cookie binding as a page request. It also needs `Origin` equal to
+that Preview's own origin (`https://preview-<artifact>.conexus.localhost:3444`),
+`content-type: application/json` and a body of at most 64 KiB. The operation must match
+`^[a-z][A-Za-z0-9]{0,63}$`, and the artifact must retain a `conexus-server/` tree. The Hub passes the
+runner only the binding's Project, the artifact's retained server files read from the registry, the
+operation name and the parsed body. Project, artifact, role and module all come from the binding and
+the admitted artifact, never from the page. The listener never serves `conexus-server/` to the
+browser. A runner that is unreachable or not configured answers
+`503 APPLICATION_RUNNER_UNAVAILABLE`, and the Hub stays up.
+
+**CSP.** `connect-src 'none'` became `connect-src 'self'`, the smallest rule for a same-origin API.
+Every other directive is unchanged. In a real Chromium, `preview-form-policy.test.mjs` proves the
+page's `fetch` to its own `/__conexus/api/listNotes` reaches the server. A `fetch` to another origin
+is blocked and never arrives.
+
+**Build pipeline.** The Conexus build snapshot now takes `app/` plus the server half of the admitted
+source: `conexus/manifest.json`, `conexus/handlers/**` and `conexus/migrations/**`
+(`admitApplicationTree`). After the app's own vite build, the build writes the Hub-owned server build
+script (`builder/application-server-build.ts`) into the root-only build directory and runs it. The
+script admits the manifest with the same `admitManifest` the runner uses, serialized into the script.
+It bundles only the declared handlers with the pinned compiler's vite (SSR, `noExternal`, target
+node24). It confines imports to `.ts`/`.js`/`.json` inside `conexus/` and `node:` built-ins, and
+inlines `conexus/migrations/*.sql` in name order with their sha256. It writes
+`dist/conexus-server/manifest.json` and `dist/conexus-server/handlers/*.mjs`, which the registry
+retains with the artifact. It needs no registry migration and no template rebuild.
+
+**Migrations before Preview.** After the artifact is retained, `prepareApplicationServer` sends its
+server tree to the runner, and the run settles with the artifact only after the migrations apply.
+A failed migration settles `APPLICATION_MIGRATION_FAILED`, offers no Preview, and appends a note to
+the conversation with the database's own error, so the Builder's next turn reads it. A reset says so
+in the conversation (`APPLICATION_PREVIEW_DATA_RESET`). An artifact with a server tree on a Hub
+without a runner settles `APPLICATION_RUNNER_UNAVAILABLE`.
+
+**Smoke.** The smoke serves a local fixture for `POST /__conexus/api/<operation>`. It answers each
+declared operation with the smallest value its output schema admits (`[]`, or an object of its
+required fields at their minimums). Any other operation gets 404, and `conexus-server/` stays
+unserved. The smoke still fails every non-local request, so it depends on no external host.
+
+Proven by:
+
+- `tests/implementation/preview-application-api.test.mjs` covers identity from the binding, refusals
+  before the runner, the unavailable runner, and the unserved tree.
+- `tests/implementation/application-server-build.test.mjs` runs the real script. It bundles a
+  TypeScript handler with an `enum` and a sibling import, and the bundle runs. It refuses, with a
+  message the Builder can act on, a missing manifest, invalid JSON, an unknown schema keyword, an
+  open object, a handler path outside `conexus/`, an import of `react`, an import of
+  `../../app/src/secret`, a misnamed migration and a missing handler file.
+- `builder-application-runtime.test.mjs` runs the smoke fixture in a real browser.
+- `builder-factory-runtime.test.mjs` covers migration gating: READY, MIGRATION_FAILED with its
+  detail, reset, and no runner.
+- `builder-working-source-runtime.test.mjs` covers tree admission.
+
+## Q1.4 Builder guidance
+
+The guidance is source-owned, in the order the task prefers:
+
+1. **Starter and check contract.** Every BUILD run writes `conexus/SERVER.md` into a checkout that
+   lacks it, beside `conexus/check.sh`. It is about 80 lines: the three locations, one manifest
+   example, the schema subset, a handler signature, the Postgres type mapping, a migration example
+   and the browser `fetch` call. `conexus/check.sh` now runs the same server build as the Conexus
+   build, from a root-owned copy the run installs at `/opt/conexus/server-build.mjs`. The agent's
+   check therefore refuses exactly what the build refuses.
+2. **Compiler feedback.** The check prints `conexus server check: <what is wrong>`, naming the file
+   and the rule. `builder-application-starter.test.mjs` parses the guide's example manifest.
+3. **No Builder Skill was added.** Preferences 1 and 2 are in place, and Q1.5 measures whether
+   they suffice. A skill would add a second copy of the same contract outside the Project source.
+4. **Host instruction.** One existing line changed. "Keep application edits under app/**" became
+   "Keep application edits under /workspace/repo/app/**, except server logic and saved data, which
+   follow /workspace/repo/conexus/SERVER.md." That line is the invariant that would otherwise forbid
+   the server source.
