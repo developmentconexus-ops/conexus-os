@@ -203,12 +203,12 @@ test('a person signs in to Google AI Pro from Settings, and their runs then carr
   const catalog = modelNames.map((model) => `google-ai-pro/${model}`)
   const offeredModelNames = async (accountId) => (await as(accountId)('GET', '/api/control/model-accounts/models')).body.models
     .filter((model) => model.provider.endsWith('google-ai-pro')).map((model) => model.modelName).sort()
-  // The Factory appends the installation-wide custom provider to everyone's catalog once it is
-  // routed; connecting a personal credential only decides whose bearer a call carries, not what the
-  // picker lists.
-  assert.deepEqual((await offered(alice)).sort(), catalog, 'the picker offers Google AI Pro before anyone connects')
-  assert.deepEqual((await offered(bob)).sort(), catalog)
-  assert.deepEqual(await offeredModelNames(alice), modelNames, 'each model name is offered once, not once per catalog id')
+  // The Factory lists this installation-wide provider to everyone once it is routed, but the Hub
+  // still drops it from the answer for a caller with no usable credential of their own or the
+  // installation's, so nobody is offered a model that would fail on the first message.
+  assert.deepEqual(await offered(alice), [], 'nobody has connected yet, so the picker offers none of its models')
+  assert.deepEqual(await offered(bob), [])
+  assert.deepEqual(await offeredModelNames(alice), [])
   const { loginId, url } = (await asAlice('POST', '/api/control/model-accounts/google-ai-pro/login/start', {})).body
   const callbackUrl = `http://localhost:51121/oauth-callback?state=${new URL(url).searchParams.get('state')}&code=good`
   assert.equal((await asAlice('POST', '/api/control/model-accounts/google-ai-pro/login/complete', { loginId, callbackUrl })).status, 200)
@@ -217,10 +217,10 @@ test('a person signs in to Google AI Pro from Settings, and their runs then carr
   assert.equal(state, 'succeeded')
   assert.deepEqual((await asAlice('GET', connection)).body, { mine: true, shared: false, administrator: false })
   assert.deepEqual((await as(bob)('GET', connection)).body, { mine: false, shared: false, administrator: false })
-  assert.deepEqual((await offered(alice)).sort(), catalog, 'signing in does not change what the picker offers')
-  assert.deepEqual((await offered(bob)).sort(), catalog)
+  assert.deepEqual((await offered(alice)).sort(), catalog, 'alice connected, so the picker offers her the full catalog')
+  assert.deepEqual(await offered(bob), [], 'bob still has no credential of his own or the installation\'s')
   // Signing in is exactly when the old Hub code minted the second, `mastracode/`-prefixed copy.
-  assert.deepEqual(await offeredModelNames(alice), modelNames, 'signing in does not mint a second copy under the old alias id')
+  assert.deepEqual(await offeredModelNames(alice), modelNames, 'each model name is offered once, not once per catalog id')
   const memory = await composition.storage.getDomain('memory-settings').get({ orgId: ORG, userId: alice })
   assert.deepEqual([memory.observerModelId, memory.reflectorModelId], ['google-ai-pro/gemini-3.5-flash-lite', 'google-ai-pro/gemini-3.5-flash-lite'])
   const stored = await composition.storage.getDomain('model-credentials').getCredential({ orgId: ORG, userId: alice }, 'google-ai-pro')

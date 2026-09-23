@@ -85,15 +85,6 @@ export const applyThreadModel = async (conversationId: string, modelId: string, 
   if (reasoning) await session.setState({ thinkingLevel: reasoning })
 }
 
-// Before the Google AI Pro catalog fix, the composer's picker offered a second entry under the
-// Mastra Code gateway's alias id (`mastracode/google-ai-pro/<model>`); a thread that chose that
-// copy still names it in its thread state. The alias still resolves at call time, but the picker
-// matches a thread's modelId against the catalog's own bare ids, so it is normalized here to keep
-// showing the right model selected instead of falling back to "no model selected."
-const GOOGLE_AI_PRO_LEGACY_PREFIX = 'mastracode/google-ai-pro/'
-const canonicalModelId = (modelId: string): string =>
-  modelId.startsWith(GOOGLE_AI_PRO_LEGACY_PREFIX) ? `google-ai-pro/${modelId.slice(GOOGLE_AI_PRO_LEGACY_PREFIX.length)}` : modelId
-
 export const useSessionModel = (projectId: string, conversationId: string | null) => {
   const queryClient = useQueryClient()
   // A session arrives with no model selected, and an empty id is how the controller says so. An
@@ -102,7 +93,7 @@ export const useSessionModel = (projectId: string, conversationId: string | null
     queryKey: [...sessionModelKey(projectId), conversationId],
     queryFn: async () => {
       const current = await factoryController.session(conversationId ?? '').state()
-      return { modelId: canonicalModelId(current.modelId), reasoning: asReasoningLevel(current.settings?.thinkingLevel) }
+      return { modelId: current.modelId, reasoning: asReasoningLevel(current.settings?.thinkingLevel) }
     },
     enabled: Boolean(conversationId),
   })

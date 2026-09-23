@@ -18,22 +18,13 @@ export const GOOGLE_AI_PRO_MODELS: readonly string[] = Object.freeze([
   'gemini-3-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite',
 ])
 // The Factory's custom-provider catalog (`/web/config/models`) now lists this provider itself, by
-// its own providerId, so this is also the id a picker offers and a selection stores.
+// its own providerId, so this is also the id a picker offers and a selection stores. A selection
+// made before this fix can still carry the old Mastra Code gateway alias id
+// (`mastracode/google-ai-pro/<model>`); it still resolves at call time
+// (`stripMastraCodeCustomProviderPrefix` treats it and the bare id as the same provider), so it only
+// shows as unselected in a picker until the person re-picks it once. This installation is a
+// single-operator pilot, so that one-time re-pick costs less than a permanent id-rewrite layer.
 export const GOOGLE_AI_PRO_MEMORY_MODEL = `${GOOGLE_AI_PRO_PROVIDER}/gemini-3.5-flash-lite`
-
-// Before the Factory appended custom-provider records to `/web/config/models` itself, the Hub
-// minted its own Google AI Pro catalog entries under the Mastra Code gateway's alias id
-// (`mastracode/google-ai-pro/<model>`), and a stored selection from that time can still carry it.
-// The alias still resolves at call time (`stripMastraCodeCustomProviderPrefix` treats it and the
-// bare id as the same provider), so this only matters for display: a picker compares a stored id
-// against the catalog's own bare ids and would show nothing selected for the alias form. None of
-// the three places that could hold it (a model pack's stored build/fast, a person's memory-settings
-// model, a thread's own model choice) exposes a list-all read across every org, user, or thread, so
-// there is no enumerable set to rewrite once at Hub start; this normalizes the alias back to the
-// canonical id wherever a stored value re-enters a comparison or a display.
-const LEGACY_GATEWAY_PREFIX = `mastracode/${GOOGLE_AI_PRO_PROVIDER}/`
-export const canonicalizeGoogleAiProModelId = (modelId: string): string =>
-  modelId.startsWith(LEGACY_GATEWAY_PREFIX) ? `${GOOGLE_AI_PRO_PROVIDER}/${modelId.slice(LEGACY_GATEWAY_PREFIX.length)}` : modelId
 
 // The Factory's own seed call (om-seed): it never overwrites a model the person already chose.
 export const seedGoogleAiProMemory = async (memorySettings: Pick<MemorySettingsStorage, 'ensureReady' | 'patch'>, tenant: Readonly<{ orgId: string; userId: string }>): Promise<void> => {
