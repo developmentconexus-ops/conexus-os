@@ -154,7 +154,8 @@ The public Project programming model must remain smaller than the hosting framew
 
 ### Q1 result
 
-Proposed verdict ACCEPT_WITH_BOUNDARY, pending the independent review. The evidence and its
+Proposed verdict ACCEPT_WITH_BOUNDARY. Two independent reviews rejected the first candidate
+(`8ad7d5bf`); the fixes and the re-review are recorded in the evidence. The evidence and its
 conditions live in [`docs/evidence/stage2-q1/README.md`](../evidence/stage2-q1/README.md). What Q1
 showed on the pilot:
 
@@ -170,7 +171,10 @@ showed on the pilot:
   reaches only its own Project's role on the application database, through a per-invocation relay
   that authenticates upstream itself.
 - **Data.** Each Project has its own Preview schema, a migration role and a runtime role, all derived
-  from the Project id. Preview data survives a runner restart.
+  from the Project id. Preview data survives a runner restart. Project roles have no usable password
+  and the cluster admits them only with the runner's client certificate, only to the application
+  database. Migrations cannot create functions, procedures, triggers or `DO` blocks, and Project
+  sessions cannot lift their temporary-file bound.
 - **Programming model signal for Q2.** Four Builder runs wrote parameterized SQL through `pg`. Every
   invocation the runner logged during the live proof answered 200, or 429 at its concurrency cap.
   One run's manifest was refused by the check and repaired by the Builder in the same run. Q1

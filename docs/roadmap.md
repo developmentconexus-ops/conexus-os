@@ -86,7 +86,7 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 
 | Gate | Protected question | Status |
 | --- | --- | --- |
-| **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY proposed, independent review pending** ([evidence](evidence/stage2-q1/README.md)) |
+| **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY proposed; both independent reviews rejected `8ad7d5bf`, fixes landed, re-review pending** ([evidence](evidence/stage2-q1/README.md)) |
 | **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured Q1 evidence justify Kysely or a typed Data API? | WAITING FOR Q1 |
 | **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | WAITING FOR Q2 |
 | **Q4 Sankhya Connector** | Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only Sankhya capability without leaking credentials or generic provider authority? | WAITING FOR Q3 |

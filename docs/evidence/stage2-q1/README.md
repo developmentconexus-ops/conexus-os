@@ -62,32 +62,45 @@ what PUBLIC holds there (`CONNECT`, `TEMPORARY`, the `public` schema). Per Proje
 | Object | Name | Authority |
 | --- | --- | --- |
 | Preview schema | `p_<projectHex>_preview` | Owned by `app_provisioner`, so no Project role can grant it away or drop it |
-| Migration role | `app_<projectHex>_preview_mig` | `USAGE, CREATE` on its schema, `SELECT, INSERT` on the ledger, connection limit 2 |
-| Runtime role | `app_<projectHex>_preview_rt` | `USAGE` on its schema, DML on what the migration role creates (default privileges), connection limit 8 |
-| Ledger | `<schema>.conexus_migration` | Owned by `app_provisioner`; the migration role appends inside its own transaction |
+| Migration role | `app_<projectHex>_preview_mig` | `USAGE, CREATE` on its schema, `SELECT, INSERT` on the ledger, connection limit 2, `temp_file_limit` 1GB |
+| Runtime role | `app_<projectHex>_preview_rt` | `USAGE` on its schema, DML on what the migration role creates (default privileges), connection limit 8, `temp_file_limit` 256MB |
+| Ledger | `<schema>.conexus_migration` | Owned by `app_provisioner`; row-level policy admits the migration role only in a session that logged in as it |
 
-Role passwords are `HMAC-SHA256(runner key, role name)`, so provisioning converges after a restart
-without storing a secret per Project. Migrations run in one transaction as the migration role. The
+A Project role has no usable password: `PASSWORD NULL VALID UNTIL '-infinity'`. The cluster admits
+Project role names only over TLS, only to the application database and only with the runner's client
+certificate (`scripts/confine-application-cluster.mjs`, see "Independent review at 8ad7d5bf" below).
+PUBLIC holds no `USAGE` on `LANGUAGE sql` or `plpgsql` in the application database, and no `CONNECT`
+on the Hub database or `postgres`. Migrations run in one transaction as the migration role. The
 applied history must be an exact prefix of the artifact's migrations; otherwise the Preview schema is
 dropped, every migration replays, and the caller says so.
 
-`tests/implementation/application-data-postgres.test.mjs` logs in as each Project role with its real
-derived password and proves, on a throwaway application database plus a throwaway Hub database:
+`tests/implementation/application-data-postgres.test.mjs` logs in as each Project role through the
+runner's relay with its client certificate and proves, on a throwaway application database plus a
+throwaway Hub database:
 
 - Project A's runtime role reads and writes its own table. It gets `42501` for Project B's table,
   `SET ROLE` to B, to its own migration role or to the provisioner, any DDL, `TRUNCATE`, the ledger,
   `public`, `TEMP` and `CREATE SCHEMA`. Its `GRANT USAGE` on its own schema to B only warns and grants
   nothing.
-- Neither Project role holds usage on any Hub schema, any Hub table privilege or any executable Hub
-  function (counts 0, 0, 0). A role with no grant cannot connect to the application database.
+- A Project role that sets its own password (Postgres allows it) still logs in only through the
+  relay. A password login to the application, Hub or `postgres` database and a direct certificate
+  login to the Hub or `postgres` database each get `28000` from `pg_hba`. With the role renamed
+  outside the `pg_hba` rules, the self-set password gets `28P01`, because it expired before it was
+  set. The role cannot change its own `VALID UNTIL` (`42501`).
+- A role with no grant cannot connect to the application, Hub or `postgres` database (`42501`).
+- A Project session reads its `temp_file_limit` and cannot lift it with `SET` or `ALTER ROLE ... SET`
+  (`42501`). It can lift `statement_timeout`, so the relay's wall-clock cancel is the bound there.
 - The migration role gets `42501` for `CREATE EXTENSION dblink` and `postgres_fdw`, `COPY ... TO
   PROGRAM`, `COPY ... TO '<file>'`, `pg_read_file`, `lo_import`, `ALTER ROLE` on its runtime role or on
   a foreign role, `CREATE ROLE`, `CREATE SCHEMA`, creating in `public` or in B's schema, reading B's
   table, writing `pg_authid`, dropping its own schema or ledger, rewriting the ledger and
-  `SET ROLE app_provisioner`. Three owner-only statements succeed and carry nothing: `GRANT USAGE ON
-  SCHEMA` to B (it is not the owner, so nothing is granted), `GRANT SELECT` on its table to B (B still
-  lacks schema usage and reads `42501`), and a `SECURITY DEFINER` function, which runs as the
-  unprivileged migration role.
+  `SET ROLE app_provisioner`. It also gets `42501` for a `SECURITY DEFINER` function, a PL/pgSQL
+  function that runs DDL, a SQL-standard function body, a procedure and a `DO` block. A runtime call
+  finds no such routine (`42883`). Two owner-only statements succeed and carry nothing: `GRANT USAGE
+  ON SCHEMA` to B (it is not the owner, so nothing is granted) and `GRANT SELECT` on its table to B (B
+  still lacks schema usage and reads `42501`).
+- An owner-rights view over the ledger and a rule that appends to it both run with the migration
+  role's rights, and a runtime session still reads 0 ledger rows and gets `42501` on each append.
 - A failing second migration rolls back: no new column, one ledger row. An edited applied migration
   plans a reset; after it the table is empty and the ledger holds the new digest.
 
@@ -99,8 +112,9 @@ as the `application-data-postgres` step.
 
 The application runner is its own process (`apps/hub/src/app-runner/main.ts`), outside the Hub. The
 Hub reaches it only over a unix socket with mode 600 in a 700 state directory. The runner owns the
-whole application data plane. It connects as `app_provisioner`, derives each Project's role
-credentials, applies migrations and runs invocations. It runs no generated code itself.
+whole application data plane. It connects as `app_provisioner`, applies migrations and runs
+invocations, and its relay logs Project roles in with its client certificate. It runs no generated
+code itself.
 
 Each migration and each invocation runs in a fresh worker (`sandbox.ts`, `worker.ts`), built like this:
 
@@ -114,7 +128,8 @@ Each migration and each invocation runs in a fresh worker (`sandbox.ts`, `worker
   (only the admitted artifact's `conexus-server/*.mjs`). The operator's home, `/etc` and `/sys` are
   absent.
 - Node runs with `--permission --allow-fs-read=/runner/* --allow-fs-read=/app/*` and
-  `--max-old-space-size=128`. This is defense in depth only.
+  `--max-old-space-size=128`. This is defense in depth only. `SandboxConfig.nodePermission: false`
+  turns it off for the namespace tests and the pilot probe.
 - The job, including the database login, arrives on stdin. The result leaves on fd 3. Nothing
   reaches the process arguments or the environment. Measured: the handler's `process.env` is
   `{"PWD":"/"}`.
@@ -122,18 +137,21 @@ Each migration and each invocation runs in a fresh worker (`sandbox.ts`, `worker
   `pg-relay.ts` reads the startup packet and admits only the pinned role on the application
   database, and only `user`, `database`, `application_name` and `client_encoding` parameters. It
   answers `N` to SSL and GSS negotiation, refuses a CancelRequest, and admits two sessions per
-  invocation. It records each BackendKeyData and cancels the backend when the invocation ends.
+  invocation. Upstream it opens TLS, verifies the cluster's certificate against its CA, and logs in
+  with its client certificate; the worker holds no credential. It records each BackendKeyData and
+  cancels the backend when the invocation ends.
 - The supervisor kills the worker at 5 s (30 s for a migration). It caps the input at 64 KiB and the
   result at 1 MiB, runs at most 4 invocations at once, and validates input and output against the
   manifest's schemas. It projects failures as `{ error: { code, detail? } }` with a status per code.
 
 The runner asserts at startup that an unprivileged process can build the sandbox (a real `bwrap`
 probe plus `max_user_namespaces` and `unprivileged_userns_clone`). It also checks its own
-provisioner credential. It refuses to serve if either fails.
+provisioner credential and brings every Preview allocation in its database under the current rules.
+It refuses to serve if either check fails.
 
-Measured facts that set the numbers. V8 does not start at 1 GiB of address space. A SCRAM login
-aborts the worker at 1.25 GiB (exit 134, found by the suite). 1.75 GiB serves the flow and still
-refuses a 2 GiB `Buffer`.
+Measured facts that set the numbers. V8 does not start at 1 GiB of address space. When the worker
+still ran a SCRAM login, it aborted at 1.25 GiB (exit 134, found by the suite). 1.75 GiB serves the
+flow and still refuses a 2 GiB `Buffer`.
 
 `tests/implementation/application-runner-sandbox.test.mjs` drives the real supervisor against a
 throwaway application database. It proves each of these:
@@ -144,14 +162,21 @@ throwaway application database. It proves each of these:
 - An undeclared operation returns `404`.
 - A wrong output shape returns `502 HANDLER_OUTPUT_REFUSED /id: expected integer`.
 - A 2 MiB result returns `502 RESPONSE_TOO_LARGE`.
-- `SELECT pg_sleep(60)` returns `504` within 8 s. No `pg_sleep` backend of the runtime role is left
-  active afterwards. A busy loop also returns `504`.
+- A handler that sets `statement_timeout = 0` and runs `SELECT pg_sleep(60)` gets `504` within 8 s.
+  No `pg_sleep` backend of the runtime role is left active afterwards, so the relay's cancel ended
+  it. A busy loop also returns `504`.
 - `process.abort()` and heap exhaustion return `HANDLER_CRASHED`. A 256 MiB `Buffer` loop is refused
   by the address-space limit. The next request is served.
 - A migration that fails midway applies nothing and returns `42P01 relation "missing_table" does not
   exist`.
 - The relay refuses Project B's role, A's migration role and A's role on the `postgres` database.
   It admits A's runtime role on the application database.
+- With Node's permission layer off, the arena's reviewed cases (`tests/implementation/sandbox-probe/`)
+  find the host home, `/home`, `/root`, `/etc`, `/etc/passwd`, `/etc/shadow`, the test process's
+  `/proc/<pid>/environ` and `cmdline`, the relay's private key, the runner state directory and the
+  docker socket all `ENOENT`. At most 3 pids are visible. A listener the test starts on `0.0.0.0`,
+  which the host reaches on `127.0.0.1` and on its non-loopback address, and the Postgres cluster
+  all refuse the sandbox, and `https://example.com` does not resolve.
 - A runner whose `bwrap` cannot run refuses to start with `RUNNER_USER_NAMESPACES_UNAVAILABLE`.
 
 Rerun on the pilot host: `bash ~/q1/run.sh node --test --test-concurrency=1
@@ -367,35 +392,28 @@ Every forbidden capability in the task's section 9 is exercised as generated han
 code and refused. The proofs live in two rerunnable suites, not a one-off script:
 
 - Database authority and migration attacks: `application-data-postgres.test.mjs`, logging in as each
-  Project role with its real derived password. A runtime role reading or writing Project B, `SET ROLE`
+  Project role through the relay. A runtime role reading or writing Project B, `SET ROLE`
   to B, its own migration role or the provisioner, any DDL, `TRUNCATE`, the ledger, `public`, `TEMP`,
   `CREATE SCHEMA` and `ALTER ROLE` all get `42501`; its `GRANT USAGE` on its own schema to B grants
   nothing. Neither Project role holds any Hub schema, table or function grant (counts 0, 0, 0). A
   generated migration is refused `CREATE EXTENSION dblink`/`postgres_fdw`, `COPY ... TO PROGRAM`,
   `COPY ... TO '<file>'`, `pg_read_file`, `lo_import`, `ALTER ROLE`, `CREATE ROLE`, `CREATE SCHEMA`,
   writing another schema, reading B's table, writing `pg_authid`, dropping its schema or ledger and
-  `SET ROLE app_provisioner`. The three owner-only statements that succeed carry nothing (a
-  `SECURITY DEFINER` function runs as the unprivileged migration role; a `GRANT` by a non-owner grants
-  nothing).
+  `SET ROLE app_provisioner`, and cannot create any routine (`SECURITY DEFINER`, PL/pgSQL, SQL
+  body, procedure, `DO`). A `GRANT` by a non-owner grants nothing. A self-set password opens no
+  login outside the relay.
 - Runner isolation and resource bounds: `application-runner-sandbox.test.mjs`. A handler that reads
   `/etc/passwd`, reads `/proc/1/environ`, writes `/tmp` or `/app`, spawns a child, or lists `/` gets
-  `ERR_ACCESS_DENIED`; a TCP connect to the database port gets `ECONNREFUSED` (the empty network
-  namespace). `process.env` is `{"PWD":"/"}`. Another Project's data is empty across the boundary.
+  `ERR_ACCESS_DENIED` from Node's permission layer. With that layer off, the namespaces alone hide
+  every host path, process and listener the suite probes (Q1.2 above). `process.env` is `{"PWD":"/"}`. Another Project's data is empty across the boundary.
   A wall-clock overrun is killed and its live SQL cancelled; a busy loop, a crash, heap and Buffer
   exhaustion each end the one worker and the next request is served. The relay admits only the pinned
   role on the pinned database and refuses every other identity.
-- Network egress: Q1.0 recorded that a TCP connect to `127.0.0.1:<postgres>` inside the sandbox
-  answers `ECONNREFUSED`, because the loopback is the namespace's own.
+- Pilot secret paths: `tests/implementation/sandbox-probe/pilot-probe.mjs` runs the same cases
+  through the real runner path on the pilot host, with the permission layer off. See
+  [`review-fixes/pilot-namespace-probe.json`](review-fixes/pilot-namespace-probe.json).
 
-Falsifier results: 1 not observed (handler runs in a worker outside the Hub), 2 not observed
-(cross-Project reads refused), 3 not observed (runtime DML cannot alter schema or roles), 4 not
-observed (no credential in env, files or `/proc`, and the worker is handed no database password at
-all), 5 not observed (Project, role, module and operation all come from the binding and
-the admitted manifest), 6 not observed (empty network namespace), 7 not observed (a worker failure
-ends the worker, not the runner or Hub), 8 not observed (data is in Postgres, not the worker
-filesystem; Q1.6 above), 9 not observed (Q1.5: four runs on two models with no file or
-implementation hints, every one reaching a working Preview with no operator repair message), 10 not observed (server source is in Project Git), 11
-not observed (a migration gains no authority beyond its own schema).
+The falsifier table after the review fixes is in "Independent review at 8ad7d5bf" below.
 
 Adversarial review by GPT-6 Sol (`scratchpad/q1-sol-runner-boundary-out.md`) found three shared-runner
 weaknesses, all fixed. The relay now honors backpressure so a large query result cannot buffer in the
@@ -405,22 +423,74 @@ many at once; and the worker no longer holds any credential (see the section bel
 ## The worker holds no credential (Sol blocking finding 1, resolved)
 
 Sol's first finding was that the worker held its own Project's runtime-role password, so a value
-leaked out of the sandbox would open a session directly against Postgres on `0.0.0.0:5433`, outside
-the relay. Recording "Postgres must be unreachable" was not enough, because the pilot publishes 5433
-today. The relay now terminates authentication instead. The worker connects to the relay socket with
-no password (`WorkerLogin` has no password field). The relay, in the supervisor process outside the
-sandbox, runs the SCRAM-SHA-256 client itself with the Project role's derived credential, keeps its
-role and database pin, and presents the worker an immediate `AuthenticationOk`. The credential never
-enters the sandbox, so a leaked value opens nothing. `application-runner-sandbox.test.mjs` proves a
-client that sends no password is admitted, a client that sends a wrong password is still admitted
-(the relay never asks), and every non-pinned identity is refused. This closes the finding
-structurally rather than as an operational condition. The runner still connects to the pilot cluster
-over TCP 5433; binding that cluster to loopback or a private interface remains good practice but is
-no longer what the boundary rests on.
+leaked out of the sandbox would open a session directly against Postgres, outside the relay. The
+relay terminates authentication instead. The worker connects to the relay socket with no credential
+(`WorkerLogin` has no password field). The relay, in the supervisor process outside the sandbox,
+logs in upstream and presents the worker an immediate `AuthenticationOk`. Since the review fixes it
+logs in with a TLS client certificate, and Project roles have no usable password at all.
+`application-runner-sandbox.test.mjs` proves a client that sends no password is admitted, a client
+that sends a wrong password is still admitted (the relay never asks), and every non-pinned identity
+is refused.
+
+## Independent review at 8ad7d5bf and how each finding closed
+
+Two independent reviews read `8ad7d5bf`: one by Claude (strongest-judgment role) and one by GPT-6
+Sol. Both returned **REJECT**. Each fix below landed with a test that fails when the protection is
+removed. The mutation runs removed one protection each, ran the suite, and restored the file
+(`~/q1/mutate.sh`, `~/q1/mutate-hba.sh` on the pilot host).
+
+| Finding | Closed by | Test, and the mutation that fails it |
+| --- | --- | --- |
+| Claude B1: a Project role sets its own password and logs in directly to the application, Hub or `postgres` database, outside the relay pin (falsifiers 3, 5, 11) | `64b70033`. Project roles are `PASSWORD NULL VALID UNTIL '-infinity'`; a role may change its password but not its `VALID UNTIL`. `confine-application-cluster.mjs` turns on TLS and puts a `pg_hba` block first: Project role names log in by certificate only (`pg_ident` maps CN `conexus-app-relay`), only to the application database, and are rejected on every other line. The relay logs in with that certificate; the SCRAM client and the per-Project derived password are deleted. PUBLIC loses `CONNECT` on the Hub database and `postgres` after explicit grants to the registered Hub roles. | `application-data-postgres`: self-set password then `28000` on every direct login, `28P01` with `pg_hba` out of the way, `42501` for PUBLIC `CONNECT`, relay still admits. Fails without `VALID UNTIL`, without the `pg_hba` reject line, and without the PUBLIC revoke. |
+| Both reviews: a generated `SECURITY DEFINER` function gives runtime code migration-role DDL (falsifier 3) | `385ff4b6`. PUBLIC loses `USAGE` on `LANGUAGE sql` and `plpgsql` in the application database. Chosen over an event trigger that refuses `SECURITY DEFINER`, because an invoker function also runs with owner rights through an owner-rights view, a rule or a foreign-key action, a `DO` block needs `plpgsql`, and none of the four Q1.5 migrations used a routine. Ownership stays with the migration role: without routines, an owner-rights path runs only DML and built-in functions, and the ledger, the one thing the migration role may write that the runtime may not, admits it only when `session_user` is the migration role. | `application-data-postgres`: every routine form `42501`, runtime call `42883`, owner-rights view and rule get 0 ledger rows and `42501`. Fails without the language revoke and without the ledger policy. |
+| Claude condition: shared-cluster exhaustion; `statement_timeout` is user-settable | `5501a6df`. `temp_file_limit` per Project role (runtime 256MB, migration 1GB), set by the provisioner through `GRANT SET ON PARAMETER`; a session cannot lift it. `statement_timeout`, `work_mem` and the other session settings stay settable, and the relay's cancel at the wall clock is the bound. | `application-data-postgres` reads the limit and gets `42501` lifting it; `application-runner-sandbox` lifts `statement_timeout` before `pg_sleep(60)` and still finds no active backend. Fails without the limit and without the relay's cancel. |
+| Claude N4 and Sol blocking 2: the namespace root and the pilot's real secret paths had no committed proof (falsifier 4) | `78964517`. `SandboxConfig.nodePermission`; the arena's reviewed cases vendored with only their paths made inputs; a permission-off suite; `pilot-probe.mjs` on the pilot. | `application-runner-sandbox` permission-off test. Fails with `--unshare-pid` removed, with `--unshare-net` removed, and with `/home` bound. Pilot: 50 secret paths, the runner's and Hub's `/proc` entries and the operator home all `ENOENT`, 2 pids visible, 12 listener probes refused ([`review-fixes/pilot-namespace-probe.json`](review-fixes/pilot-namespace-probe.json)). |
+| Claude N3: the network test hit `127.0.0.1:5432`, where nothing listens on the pilot | `78964517`. The test starts a listener on `0.0.0.0`, proves the host reaches it on loopback and on the non-loopback address, adds the Postgres cluster, and requires the sandbox to reach none. | Fails with `--unshare-net` removed: all three targets `CONNECTED`. |
+| Claude B1 fix item 4: the pilot cluster was published on `0.0.0.0:5433` | Operator-approved rebind, 2026-09-23. Backup `before-loopback-20260923T143503Z.sql` (`pg_dumpall`) and `.inspect.json`. The data lives in a Docker volume. The old container is kept stopped as `conexus-s7-postgres-old` with restart policy `no`. The new one has the same image digest, environment, volume, network and restart policy, published on `127.0.0.1:5433` only. | `ss -ltn` shows only `127.0.0.1:5433`. Accounts 2 = 2, Preview schemas 4 = 4, run-2 notes 3 = 3. TCP to the host's non-loopback address on 5433 gets `ECONNREFUSED`. Hub `200`, census `ok=8`, test operator session valid, run-2 Preview read `PASS`. |
+
+Findings not fixed in this round, with their scope:
+
+- **Claude N2: a migration containing `COMMIT` escapes the migration transaction.** The damage stays
+  in the Project's own Preview schema, which is disposable. A migration must remain multi-statement,
+  so the extended protocol does not fit. Owed before Published data (Q5).
+- **Claude N5: no memory cgroup.** Each worker is capped at 1792 MiB of address space, with up to
+  4 invocations and 1 migration live. The kernel's OOM killer could choose the Hub or Postgres.
+- **Claude N6: no seccomp filter.** Acceptable for Preview; required before other use.
+- **Claude N7: catalogs are shared across Projects.** Any Project role can read other Projects'
+  schema, table and column names in the one application database. Row data stays refused.
+- **Claude N8: the Hub sends and the runner stores the whole server tree before the cap check.**
+- **Sol: the adversarial cases did not run as Builder-generated code behind the live Preview.** The
+  pilot probe runs them through the real supervisor, relay and sandbox on the pilot host, not
+  through the Hub's ingress.
+
+The runner on the pilot runs `5501a6df` code (the probe and test changes after it touch no runner
+behaviour). After each pilot change, run-2's Preview read passed through the certificate relay
+(`~/q1/fix1-live-read`, `~/q1/rebind-live-read`, `~/q1/fix3-live-read`). Pilot changes, each after a
+backup: `backups/q1-confine-20260923T143118Z` (TLS, `pg_hba`, `pg_ident`, PUBLIC `CONNECT`),
+`backups/before-loopback-20260923T143503Z.*` (rebind), `backups/q1-provision-20260923T144129Z`
+(language revoke, `SET` on `temp_file_limit`). The probe allocated one fixed Project,
+`00000000-0000-4000-8000-0000000000be`, in `conexus_apps`.
+
+Falsifiers after the fixes:
+
+| # | Result | Evidence |
+| --- | --- | --- |
+| 1 | not observed | Handlers run only in the sandboxed worker, outside the Hub. |
+| 2 | not observed | Cross-Project reads and writes `42501`; Q1.6 on the live path. |
+| 3 | not observed | Runtime DDL `42501`; no routine can exist to lend it migration authority; the self-set password opens nothing. |
+| 4 | not observed | Permission-off suite and the pilot probe: no secret path, `/proc` entry or home reachable; the worker holds no credential. |
+| 5 | not observed | Project, operation and module come from the binding and manifest; the database identity is pinned by the relay and cannot be re-minted by a password. |
+| 6 | not observed | Empty network namespace; the test now targets listeners that accept the host. |
+| 7 | not observed | A worker crash or kill ends only that worker; runner `SIGKILL` left the Hub at `200`. |
+| 8 | not observed | Data in Postgres; Q1.6. |
+| 9 | not observed | Q1.5, four runs, no implementation hints. |
+| 10 | not observed | Server source in Project Git. |
+| 11 | not observed | Migration attacks `42501`, including every routine form; a self-set password opens nothing. |
 
 ## Verdict
 
-**Proposed: ACCEPT_WITH_BOUNDARY.** The protected result held on the pilot path. A normal Builder
+**Proposed: ACCEPT_WITH_BOUNDARY, after the fixes for the two REJECT reviews at `8ad7d5bf`.** The
+protected result held on the pilot path. A normal Builder
 request produced a server-backed Preview whose generated handler runs outside the Hub, persists
 Preview data for exactly one Project, and could not acquire another Project's data or privileged
 platform or network authority in any probe. The claim rests on conditions that must stay durable,
@@ -437,7 +507,7 @@ The positive completion proof of task section 12, step by step:
 | Reload reads the persisted note | run-2 regrade, run-3, Q1.6 step 1, all with reload; run-4 on a fresh page load |
 | Runner restart still reads it | Q1.6 steps 2 to 4, after `SIGKILL` |
 | Second Project cannot read it | Q1.6 step 5 on the live path; `application-data-postgres` and `application-runner-sandbox` at the database and runner |
-| Adversarial handler cannot acquire forbidden authority | Q1.7 suites; no falsifier observed |
+| Adversarial handler cannot acquire forbidden authority | Q1.7 suites, the permission-off suite and the pilot probe; no falsifier observed after the review fixes |
 
 Identities captured for run-2, the Project used for Q1.6: source `c6ae737eb891699cad6507888fef10e7ccaf6b80`,
 artifact revision `65804464-bfb1-40fb-b06a-134cd822b0f8`, digest
@@ -459,20 +529,27 @@ Boundaries that must become durable:
    Its root holds only `dev`, `lib`, `lib64`, `proc`, `runtime`, `tmp` and `usr` (with only
    `/usr/lib` and `/usr/lib64`), plus `/runner`, `/app` and the database socket. It has an empty
    network namespace, its own pid namespace, no capabilities, a cleared environment and no
-   credential. The Node permission flag is defense in depth. The committed suite asserts the
-   filesystem refusals at that permission layer. The namespace root was observed by the Q1.2 root
-   probe (`~/q1/probe/q12-rootfs.sh`, kept outside the repository). A committed assertion of the
-   namespace root with the permission layer off is owed before the runner serves anything but a
-   Preview.
+   credential. The Node permission flag is defense in depth. The committed permission-off suite
+   and the pilot probe assert the namespace root itself. `/usr/lib` holds helper executables
+   (git-core, ssh-keysign); `no_new_privs` keeps any setuid one inert, and a seccomp filter and a
+   memory cgroup are owed before anything but Preview.
 3. **The runner process is in the Hub's trust domain on the pilot.** It runs as the operator's user
-   and holds the provisioner credential and the runner key. Generated code never runs in it. Before a
+   and holds the provisioner credential and the relay's client key. Generated code never runs in it. Before a
    production installation, the runner needs its own OS user, apart from the Hub's secrets, beside
    the dedicated Hub user the roadmap already requires.
 4. **One runner cap is shared by every Project.** Four invocations in flight, then `429`. One
    Project's burst therefore slows or refuses another's. That is acceptable for Preview. Published
    applications (Q5) need a per-Project share.
 5. **Preview data is disposable.** An edited applied migration resets the Preview schema, and the
-   conversation says so. Published data needs its own migration rule.
+   conversation says so. A migration with `COMMIT` can escape its transaction inside its own schema.
+   Published data needs its own migration rule.
+6. **Project roles log in only through the relay, and the cluster must keep that rule.**
+   `confine-application-cluster.mjs` owns the TLS files and the `pg_hba`/`pg_ident` blocks; a cluster
+   without them refuses the relay rather than admitting a password. The application database grants
+   no routine language to PUBLIC; a future profile that needs triggers must reopen this.
+7. **One application database shares its catalogs.** Project roles see other Projects' object names,
+   not their rows. Per-Project databases or catalog hiding are owed before names are sensitive.
+8. **The pilot cluster listens on loopback only** since the operator-approved rebind.
 
 What Q1 did not prove. The Q1.7 probes ran through the committed suites against the real
 supervisor, sandbox and relay on the pilot host, with probe handlers and migrations. They did not

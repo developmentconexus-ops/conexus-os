@@ -26,8 +26,9 @@ export const DEFAULT_SANDBOX: SandboxConfig = Object.freeze({
   prlimit: '/usr/bin/prlimit',
   node: process.execPath,
   heapMb: 128,
-  // Measured on the pilot host: V8 does not start at 1 GiB of address space and a SCRAM login aborts at
-  // 1.25 GiB; 1.75 GiB serves the note flow and still refuses a 2 GiB Buffer.
+  // Measured on the pilot host: V8 does not start at 1 GiB of address space, and a worker SCRAM login
+  // (before the relay took over authentication) aborted at 1.25 GiB; 1.75 GiB serves the note flow and
+  // still refuses a 2 GiB Buffer.
   addressSpaceMb: 1792,
   nodePermission: true,
 })
