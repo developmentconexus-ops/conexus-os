@@ -9,8 +9,6 @@ export const builderCopy = {
     placeholder: 'Digite sua resposta…',
     submit: 'Enviar resposta',
     pending: 'Enviando…',
-    answered: 'Respondida',
-    error: 'Erro',
   },
   taskList: {
     listLabel: 'Lista de tarefas',

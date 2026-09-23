@@ -1,6 +1,6 @@
 import './construir.css'
 import { Button } from '@mastra/playground-ui/components/Button'
-import { TaskListPt as TaskList } from './task-list-pt'
+import { TaskListPt } from './task-list-pt'
 import { ChatShell } from '@mastra/playground-ui/components/ChatShell'
 import { Combobox } from '@mastra/playground-ui/components/Combobox'
 import { MessageScrollerItem } from '@mastra/playground-ui/components/MessageScroller'
@@ -326,7 +326,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
             task_write/task_update/task_check/task_complete calls, never the settled result of a
             run that has ended (hideWhenComplete, the primitive's own default) or a run with no
             list yet (hideWhenEmpty). */}
-        {runHere && <TaskList className="cx-task-list" tasks={[...conversationTurn.tasks]} title={taskListTitle(conversationTurn.tasks)} />}
+        {runHere && <TaskListPt className="cx-task-list" tasks={[...conversationTurn.tasks]} title={taskListTitle(conversationTurn.tasks)} />}
         {/* The result card already names a code-changing run's outcome; a settled working-state row
             underneath would just repeat "Alterou o app" a second time. */}
         {headerLine !== null && !resultCardShown && <WorkingState line={headerLine} working={working} elapsedMs={working && run ? now - new Date(run.createdAt).getTime() : null} />}

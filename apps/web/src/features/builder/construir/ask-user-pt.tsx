@@ -2,9 +2,8 @@ import { useId, useState } from 'react'
 import type { ComponentProps, ReactNode } from 'react'
 import {
   AskUserContainer, AskUserOptionControl, AskUserPending, AskUserQuestion, AskUserSubmit,
-  type AskUserAnswer, type AskUserOption, type AskUserPayload, type AskUserResult,
+  type AskUserAnswer, type AskUserOption, type AskUserPayload,
 } from '@mastra/playground-ui/components/ai/ask-user'
-import { Badge } from '@mastra/playground-ui/components/Badge'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { builderCopy } from './builder-copy'
 
@@ -15,31 +14,18 @@ const validOptions = (options?: readonly AskUserOption[]): AskUserOption[] =>
 
 export interface AskUserPtProps extends Omit<ComponentProps<typeof AskUserContainer>, 'children' | 'onSubmit'> {
   payload: AskUserPayload
-  result?: AskUserResult
-  isAnswered?: boolean
   isSubmitting?: boolean
   onSubmit: (answer: AskUserAnswer) => void
   footer?: ReactNode
 }
 
 function AskUserPtInput({
-  payload, options, result, isAnswered = false, isSubmitting = false, onSubmit, footer, ...props
+  payload, options, isSubmitting = false, onSubmit, footer, ...props
 }: AskUserPtProps & { options: AskUserOption[] }) {
   const inputId = useId()
   const [text, setText] = useState('')
   const [selected, setSelected] = useState<string[]>([])
 
-  if (result || isAnswered) {
-    return <AskUserContainer data-testid="ask-user" {...props}>
-      <p className="text-neutral6 mb-2 font-medium">{payload.question}</p>
-      {result
-        ? <div role={result.isError ? 'alert' : 'status'} className={`space-y-2 rounded-md bg-surface3 p-3 text-neutral5${result.isError ? ' text-error' : ''}`}>
-            <Badge size="xs" variant={result.isError ? 'red' : 'green'}>{result.isError ? copy.error : copy.answered}</Badge>
-            <p>{result.content}</p>
-          </div>
-        : <Badge variant="green">{copy.answered}</Badge>}
-    </AskUserContainer>
-  }
 
   const submitText = () => {
     const answer = text.trim()

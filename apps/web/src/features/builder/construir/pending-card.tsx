@@ -1,6 +1,6 @@
 import { Button } from '@mastra/playground-ui/components/Button'
 import { type AskUserAnswer, type AskUserOption, type AskUserPayload } from '@mastra/playground-ui/components/ai/ask-user'
-import { AskUserPt as AskUser } from './ask-user-pt'
+import { AskUserPt } from './ask-user-pt'
 import { presentTool, stringifyToolValue } from '@mastra/playground-ui/components/ai/tool-call'
 import { useState } from 'react'
 import type { PendingAnswer } from '../mastra-session'
@@ -31,7 +31,7 @@ const askUserPayload = (pending: PendingAnswer): AskUserPayload => {
 
 /**
  * A call the run parked on the person. An approval offers Permitir and Recusar and nothing that
- * widens the policy; a question renders through playground-ui's own AskUser (free text, or the
+ * widens the policy; a question renders through AskUserPt, playground-ui's AskUser parts in pt-BR (free text, or the
  * agent's options as radio/checkbox controls for single_select/multi_select).
  */
 export function PendingCard({ pending, onAnswer }: Readonly<{
@@ -48,7 +48,7 @@ export function PendingCard({ pending, onAnswer }: Readonly<{
 
   if (pending.kind === 'QUESTION') {
     const submit = (value: AskUserAnswer) => answer({ text: value })
-    return <AskUser
+    return <AskUserPt
       aria-label="Pergunta do agente"
       payload={askUserPayload(pending)}
       isSubmitting={state === 'SENDING'}
