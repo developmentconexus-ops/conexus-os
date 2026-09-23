@@ -1,7 +1,8 @@
-import { chmodSync, mkdirSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import Fastify from 'fastify'
 import { z } from 'zod'
+import { readRelayTls } from './pg-relay.js'
 import { assertUserNamespaces, stageWorkerRuntime } from './sandbox.js'
 import { createSupervisor } from './supervisor.js'
 
@@ -17,11 +18,6 @@ const required = (name: string): string => {
   return value
 }
 const secret = (name: string): string => readFileSync(required(name), 'utf8').trim()
-// The relay's client certificate, its key and the CA that signed it and the cluster's server certificate.
-const relayTls = (directory: string) => {
-  if ((statSync(join(directory, 'relay-key.pem')).mode & 0o077) !== 0) throw new Error('RUNNER_RELAY_KEY_PERMISSIONS')
-  return { ca: readFileSync(join(directory, 'ca.pem'), 'utf8'), cert: readFileSync(join(directory, 'relay.pem'), 'utf8'), key: readFileSync(join(directory, 'relay-key.pem'), 'utf8') }
-}
 
 assertUserNamespaces()
 const stateDir = required('CONEXUS_APP_RUNNER_STATE_DIR')
@@ -36,7 +32,7 @@ const supervisor = createSupervisor({
   cluster: { host: required('CONEXUS_APP_DB_HOST'), port: Number(required('CONEXUS_APP_DB_PORT')) },
   database: required('CONEXUS_APP_DB_NAME'),
   provisionerPassword: secret('CONEXUS_DB_APP_PROVISIONER_PASSWORD_FILE'),
-  relayTls: relayTls(required('CONEXUS_APP_RELAY_TLS_DIR')),
+  relayTls: readRelayTls(required('CONEXUS_APP_RELAY_TLS_DIR')),
 })
 
 await supervisor.checkProvisioner()

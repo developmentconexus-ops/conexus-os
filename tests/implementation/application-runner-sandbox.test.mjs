@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { chmodSync, copyFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import net from 'node:net'
 import { homedir, networkInterfaces, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import pg from 'pg'
-import { provisionApplicationDatabase } from '../../scripts/provision-application-database.mjs'
-import { relayTls } from './application-cluster.mjs'
-import { adminConnection, createEmptyDatabase } from './hub-database.mjs'
+import { hubRoleNames, provisionApplicationDatabase } from '../../scripts/provision-application-database.mjs'
+import { applicationClusterAdmin, refuseProtectedApplicationCluster, relayTls } from './application-cluster.mjs'
+import { adminConnection } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 import { probeOperations, probeServerTree } from './sandbox-probe/server-tree.mjs'
@@ -18,7 +18,7 @@ import { probeOperations, probeServerTree } from './sandbox-probe/server-tree.mj
 // namespaces and /usr/bin/bwrap on the host.
 const { createSupervisor } = await import(hubModuleUrl('app-runner/supervisor.js'))
 const { assertUserNamespaces, stageWorkerRuntime, DEFAULT_SANDBOX } = await import(hubModuleUrl('app-runner/sandbox.js'))
-const { openPgRelay } = await import(hubModuleUrl('app-runner/pg-relay.js'))
+const { openPgRelay, readRelayTls } = await import(hubModuleUrl('app-runner/pg-relay.js'))
 const { previewAllocation } = await import(hubModuleUrl('app-runner/data-plane.js'))
 
 const sha = (text) => createHash('sha256').update(text).digest('hex')
@@ -40,7 +40,7 @@ export async function listNotes(input, { db }) {
   return rows
 }
 `
-const PROBE_HANDLER = `export const sleepInDatabase = async (input, { db }) => { await db.query('SET statement_timeout = 0'); await db.query('SELECT pg_sleep(60)'); return {} }
+const PROBE_HANDLER = `export const sleepInDatabase = async (input, { db }) => { await db.query('SET statement_timeout = 0'); await db.query('SET transaction_timeout = 0'); await db.query('SELECT pg_sleep(60)'); return {} }
 export const spin = async () => { for (;;) {} }
 export const crash = async () => { process.abort() }
 export const huge = async () => ({ text: 'x'.repeat(2 * 1024 * 1024) })
@@ -90,13 +90,13 @@ const serverTree = (migrations) => {
 
 const setup = async (t, sandbox) => {
   await refuseProtectedCluster()
+  await refuseProtectedApplicationCluster()
   assertUserNamespaces()
-  const admin = adminConnection()
+  const admin = applicationClusterAdmin()
   const database = `conexus_apps_${randomUUID().replaceAll('-', '').slice(0, 12)}`
   const provisionerPassword = randomBytes(24).toString('base64url')
-  const hub = await createEmptyDatabase(t, 'conexus_q1_hub')
   await provisionApplicationDatabase({
-    cluster: { host: admin.host, port: admin.port }, database, hubDatabase: hub.database, hubRoles: [],
+    cluster: { host: admin.host, port: admin.port }, database, hubRoles: hubRoleNames({}),
     installation: { user: admin.user, password: admin.password }, provisionerPassword,
   })
   const stateDir = mkdtempSync(join(tmpdir(), 'conexus-runner-'))
@@ -142,8 +142,8 @@ test('the runner migrates and serves each Project through its own sandboxed work
   assert.deepEqual(await invoke(a, 'huge'), { status: 502, body: { error: { code: 'RESPONSE_TOO_LARGE' } } })
   assert.deepEqual(await invoke(a, 'environment'), { status: 200, body: { text: '{"PWD":"/"}' } })
 
-  // The handler first lifts its own statement_timeout, which any session may do, so only the
-  // relay's cancel at the invocation's wall clock can end the statement.
+  // The handler first lifts its own statement_timeout and transaction_timeout, which any session may
+  // do, so only the relay's cancel at the invocation's wall clock can end the statement.
   await t.test('a worker past its wall clock is killed and its database statement cancelled', async () => {
     const started = Date.now()
     assert.deepEqual(await invoke(a, 'sleepInDatabase'), { status: 504, body: { error: { code: 'HANDLER_TIMEOUT' } } })
@@ -208,6 +208,42 @@ test('the runner migrates and serves each Project through its own sandboxed work
     assert.equal(await withPassword.connect().then(() => { withPassword.end(); return 'connected' }, (error) => error.message), 'connected')
     await relay.close()
   })
+
+  await t.test('the runner does not serve while a routine language is usable by PUBLIC or a Project role', async () => {
+    const converged = [a, b].sort()
+    assert.deepEqual([...await supervisor.checkProvisioner()], converged)
+    const migrationB = previewAllocation(b).migrationRole
+    const superuser = new pg.Client({ ...admin, database })
+    await superuser.connect()
+    try {
+      await superuser.query('GRANT USAGE ON LANGUAGE plpgsql TO PUBLIC')
+      await assert.rejects(supervisor.checkProvisioner(), { message: 'RUNNER_ROUTINE_LANGUAGE_USABLE: plpgsql' })
+      await superuser.query('REVOKE USAGE ON LANGUAGE plpgsql FROM PUBLIC')
+      await superuser.query(`GRANT USAGE ON LANGUAGE sql TO ${migrationB}`)
+      await assert.rejects(supervisor.checkProvisioner(), { message: 'RUNNER_ROUTINE_LANGUAGE_USABLE: sql' })
+    } finally {
+      await superuser.query(`REVOKE USAGE ON LANGUAGE sql FROM ${migrationB}`)
+      await superuser.end()
+    }
+    assert.deepEqual([...await supervisor.checkProvisioner()], converged)
+  })
+})
+
+test('the runner reads relay TLS only from a private directory holding exactly its three files', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'conexus-relay-tls-'))
+  try {
+    for (const name of ['ca.pem', 'relay.pem', 'relay-key.pem']) copyFileSync(join(process.env.CONEXUS_TEST_APP_TLS_DIR, name), join(directory, name))
+    chmodSync(join(directory, 'relay-key.pem'), 0o600)
+    chmodSync(directory, 0o700)
+    assert.deepEqual(Object.keys(readRelayTls(directory)), ['ca', 'cert', 'key'])
+    writeFileSync(join(directory, 'ca-key.pem'), 'authority', { mode: 0o600 })
+    assert.throws(() => readRelayTls(directory), { message: 'RUNNER_RELAY_TLS_DIR_REFUSED: ca-key.pem,ca.pem,relay-key.pem,relay.pem' })
+    rmSync(join(directory, 'ca-key.pem'))
+    chmodSync(directory, 0o750)
+    assert.throws(() => readRelayTls(directory), { message: 'RUNNER_RELAY_TLS_DIR_PERMISSIONS' })
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
 })
 
 // The arena's reviewed cases, run with Node's permission layer off, so what they report is what the
@@ -228,17 +264,19 @@ test('with the Node permission layer off, the namespaces alone hide host files, 
   const port = listener.address().port
   const hostAddress = Object.values(networkInterfaces()).flat().find((entry) => entry?.family === 'IPv4' && !entry.internal)?.address
   assert.ok(hostAddress, 'the host has a non-loopback IPv4 address')
-  const targets = [{ host: '127.0.0.1', port }, { host: hostAddress, port }, { host: admin.host === 'localhost' ? '127.0.0.1' : admin.host, port: admin.port }]
+  const loopback = (host) => (host === 'localhost' ? '127.0.0.1' : host)
+  const hubCluster = adminConnection()
+  const targets = [{ host: '127.0.0.1', port }, { host: hostAddress, port }, { host: loopback(admin.host), port: admin.port }, { host: loopback(hubCluster.host), port: hubCluster.port }]
   const fromHost = (target) => new Promise((resolve) => {
     const socket = net.connect(target)
     socket.once('connect', () => { socket.destroy(); resolve('CONNECTED') })
     socket.once('error', (error) => resolve(error.code))
   })
-  assert.deepEqual(await Promise.all(targets.map(fromHost)), ['CONNECTED', 'CONNECTED', 'CONNECTED'], 'every target accepts the host')
+  assert.deepEqual(await Promise.all(targets.map(fromHost)), ['CONNECTED', 'CONNECTED', 'CONNECTED', 'CONNECTED'], 'every target, the Applications and the Hub cluster included, accepts the host')
 
   const egress = await run('network_egress', { targets })
   assert.equal(egress.BREACH, false, JSON.stringify(egress))
-  assert.deepEqual(Object.values(egress.results).map((result) => result.ok), [false, false, false, false, false])
+  assert.deepEqual(Object.values(egress.results).map((result) => result.ok), [false, false, false, false, false, false])
 
   const walk = await run('walk_fs', { home: homedir() })
   assert.equal(typeof walk.probes['/'], 'number', 'the permission layer is off: the root lists')

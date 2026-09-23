@@ -3,20 +3,23 @@ import { resolve } from 'node:path'
 import pg from 'pg'
 import { readRegister, readSecretFile } from './provision-hub-roles.mjs'
 
-// The application database and the one role that may provision Project roles in it. An
-// installation step run with the cluster's installation credential, never a power the Hub or the
-// application runner holds: the runner connects as `app_provisioner`, which may create Project roles
-// and schemas but holds no superuser, database-creation, replication or Hub authority.
+// The application database on the Applications PostgreSQL, and the one role that may provision
+// Project roles in it. The Applications PostgreSQL is a cluster of its own, apart from the Hub's
+// (scripts/run-application-cluster.sh); this step refuses a cluster that holds any Hub role, so it
+// cannot put application data or Project roles back into the Hub's cluster. An installation step run
+// with the Applications cluster's superuser, never a power the Hub or the application runner holds:
+// the runner connects as `app_provisioner`, which may create Project roles and schemas but holds no
+// superuser, database-creation or replication authority.
 //
 // pg_hba admits Project roles only with the runner's certificate and only to this database
-// (scripts/confine-application-cluster.mjs). This step also takes PUBLIC's CONNECT off the Hub
-// database and `postgres`, so no role reaches them by default.
+// (scripts/confine-application-cluster.mjs). This step also takes PUBLIC's CONNECT off `postgres`.
 //
-// In the application database PUBLIC loses USAGE on LANGUAGE sql and plpgsql, the only languages
-// a non-superuser could write a routine in. A generated migration then cannot create a function,
+// In the application database PUBLIC loses USAGE on every trusted language, the only languages a
+// non-superuser could write a routine in. A generated migration then cannot create a function,
 // procedure, trigger function or DO block, so nothing it leaves behind can run later with the
 // migration role's authority, whether a runtime handler calls it through SECURITY DEFINER or an
-// owner-rights view, rule or foreign-key action invokes it as the table owner.
+// owner-rights view, rule or foreign-key action invokes it as the table owner. The runner refuses to
+// start while any trusted language is usable (apps/hub/src/app-runner/supervisor.ts).
 
 const PROVISIONER = 'app_provisioner'
 const ATTRIBUTES = 'LOGIN CREATEROLE NOINHERIT NOSUPERUSER NOCREATEDB NOREPLICATION NOBYPASSRLS'
@@ -26,19 +29,19 @@ const fail = (code, detail) => {
 }
 const required = (environment, name) => environment[name] ?? fail(`MISSING_CONFIG_${name}`)
 
+export const hubRoleNames = (environment) =>
+  readRegister().map((entry) => (entry.roleVariable ? environment[entry.roleVariable] : undefined) ?? entry.role)
+
 export const readApplicationDatabaseConfig = (environment) => {
   const database = required(environment, 'CONEXUS_APP_DB_NAME')
   if (!/^[a-z_][a-z0-9_]{0,62}$/.test(database)) fail('APPLICATION_DATABASE_NAME_REFUSED', database)
-  const hubDatabase = required(environment, 'CONEXUS_DB_NAME')
-  if (database === hubDatabase) fail('APPLICATION_DATABASE_IS_HUB_DATABASE', database)
   return {
-    cluster: { host: required(environment, 'CONEXUS_DB_HOST'), port: Number(required(environment, 'CONEXUS_DB_PORT')) },
+    cluster: { host: required(environment, 'CONEXUS_APP_DB_HOST'), port: Number(required(environment, 'CONEXUS_APP_DB_PORT')) },
     database,
-    hubDatabase,
-    hubRoles: readRegister().map((entry) => (entry.roleVariable ? environment[entry.roleVariable] : undefined) ?? entry.role),
+    hubRoles: hubRoleNames(environment),
     installation: {
-      user: required(environment, 'CONEXUS_PROVISION_USER'),
-      password: readSecretFile(required(environment, 'CONEXUS_PROVISION_PASSWORD_FILE')),
+      user: required(environment, 'CONEXUS_APP_DB_INSTALL_USER'),
+      password: readSecretFile(required(environment, 'CONEXUS_APP_DB_INSTALL_PASSWORD_FILE')),
     },
     provisionerPassword: readSecretFile(required(environment, 'CONEXUS_DB_APP_PROVISIONER_PASSWORD_FILE')),
   }
@@ -51,10 +54,8 @@ const connect = async (config) => {
 }
 
 // Before PUBLIC loses CONNECT on a database, every role that connects there today must hold it
-// explicitly, so this step can never cut off a live Hub.
-const closeDatabaseToPublic = async (installation, database, keep) => {
-  const { rows: existing } = await installation.query('SELECT rolname FROM pg_roles WHERE rolname = ANY($1)', [keep])
-  for (const { rolname } of existing) await installation.query(`GRANT CONNECT ON DATABASE ${installation.escapeIdentifier(database)} TO ${installation.escapeIdentifier(rolname)}`)
+// explicitly, so this step never cuts off a live session's role unannounced.
+const closeDatabaseToPublic = async (installation, database) => {
   const { rows: stranded } = await installation.query(`SELECT DISTINCT a.usename FROM pg_stat_activity a
     JOIN pg_roles r ON r.oid = a.usesysid JOIN pg_database d ON d.oid = a.datid
     WHERE d.datname = $1 AND NOT r.rolsuper AND d.datdba <> r.oid AND NOT EXISTS (
@@ -69,6 +70,8 @@ export const provisionApplicationDatabase = async (config) => {
   const installation = await connect({ ...config.cluster, ...config.installation, database: 'postgres' })
   const changed = []
   try {
+    const { rows: hubRoles } = await installation.query('SELECT rolname FROM pg_roles WHERE rolname = ANY($1) ORDER BY rolname', [config.hubRoles])
+    if (hubRoles.length > 0) fail('APPLICATION_CLUSTER_HOLDS_HUB_ROLES', hubRoles.map((row) => row.rolname).join(','))
     const role = await installation.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [PROVISIONER])
     const password = installation.escapeLiteral(config.provisionerPassword)
     await installation.query(`${role.rowCount === 0 ? 'CREATE' : 'ALTER'} ROLE ${PROVISIONER} WITH ${ATTRIBUTES} PASSWORD ${password}`)
@@ -82,14 +85,19 @@ export const provisionApplicationDatabase = async (config) => {
     }
     // Lets the provisioner set temp_file_limit on the Project roles it creates; they cannot change it.
     await installation.query(`GRANT SET ON PARAMETER temp_file_limit TO ${PROVISIONER}`)
-    await closeDatabaseToPublic(installation, config.hubDatabase, config.hubRoles)
-    await closeDatabaseToPublic(installation, 'postgres', [])
+    // Project sessions filling every ordinary connection slot still leave the runner a way in.
+    await installation.query(`GRANT pg_use_reserved_connections TO ${PROVISIONER}`)
+    // Diagnosis only: cluster-wide statement statistics, readable from `postgres`, never from the
+    // application database where a Project role would see other Projects' statements.
+    await installation.query('CREATE EXTENSION IF NOT EXISTS pg_stat_statements')
+    await closeDatabaseToPublic(installation, 'postgres')
   } finally {
     await installation.end().catch(() => {})
   }
   const languages = await connect({ ...config.cluster, ...config.installation, database: config.database })
   try {
-    await languages.query('REVOKE USAGE ON LANGUAGE sql, plpgsql FROM PUBLIC')
+    const { rows } = await languages.query('SELECT lanname FROM pg_language WHERE lanpltrusted ORDER BY lanname')
+    for (const { lanname } of rows) await languages.query(`REVOKE USAGE ON LANGUAGE ${languages.escapeIdentifier(lanname)} FROM PUBLIC`)
   } finally {
     await languages.end().catch(() => {})
   }

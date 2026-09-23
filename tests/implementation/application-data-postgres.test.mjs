@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict'
 import { randomBytes, randomUUID, createHash } from 'node:crypto'
+import { copyFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 import pg from 'pg'
-import { provisionApplicationDatabase } from '../../scripts/provision-application-database.mjs'
-import { loginThroughRelay, relayTls } from './application-cluster.mjs'
+import { assertServerMaterial, ensureTlsMaterial } from '../../scripts/confine-application-cluster.mjs'
+import { hubRoleNames, provisionApplicationDatabase } from '../../scripts/provision-application-database.mjs'
+import { applicationClusterAdmin, loginThroughRelay, refuseProtectedApplicationCluster, relayTls } from './application-cluster.mjs'
 import { adminConnection, buildHubDatabase } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
@@ -13,8 +17,10 @@ const { applyPendingMigrations, convergePreviewAllocations, ensurePreviewAllocat
 
 // Every Project role here logs in through the runner's relay with its client certificate, as the
 // worker does, so CONNECT, pg_hba and PUBLIC grants are exercised for real rather than through SET
-// ROLE from a superuser.
-const admin = adminConnection()
+// ROLE from a superuser. Application data lives on the Applications cluster and the Hub's database on
+// the Hub's own cluster, as on an installation.
+const admin = applicationClusterAdmin()
+const hubCluster = adminConnection()
 const sha = (text) => createHash('sha256').update(text).digest('hex')
 const migration = (name, sql) => ({ name, sql, sha256: sha(sql) })
 const NOTES = migration('001_follow_up_note.sql', `CREATE TABLE follow_up_note (
@@ -36,8 +42,8 @@ const loginAs = (t, role, database) => loginThroughRelay(t, { host: admin.host, 
 
 // A login that does not go through the relay: a password, or the runner's certificate presented
 // directly. Answers the SQLSTATE of the refusal.
-const loginDirectly = (options) => {
-  const client = new pg.Client({ host: admin.host, port: admin.port, connectionTimeoutMillis: 5000, ...options })
+const loginDirectly = (options, cluster = admin) => {
+  const client = new pg.Client({ host: cluster.host, port: cluster.port, connectionTimeoutMillis: 5000, ...options })
   return client.connect().then(async () => { await client.end(); return 'connected' }, (error) => error.code ?? error.message)
 }
 
@@ -58,14 +64,14 @@ const loginWithoutPgHbaRules = async (role, password, database) => {
 
 const setup = async (t) => {
   await refuseProtectedCluster()
+  await refuseProtectedApplicationCluster()
   const database = `conexus_apps_${randomUUID().replaceAll('-', '').slice(0, 12)}`
   const provisionerPassword = randomBytes(24).toString('base64url')
   const hub = await buildHubDatabase(t, 'conexus_q1_hub')
   await provisionApplicationDatabase({
     cluster: { host: admin.host, port: admin.port },
     database,
-    hubDatabase: hub.database,
-    hubRoles: [],
+    hubRoles: hubRoleNames({}),
     installation: { user: admin.user, password: admin.password },
     provisionerPassword,
   })
@@ -114,6 +120,46 @@ test('Project Preview data is confined to its own schema, roles and database', a
     }
   })
 
+  // Where each Applications cluster bound is set, and what a Project session can do to it. Cluster
+  // values come from scripts/run-application-cluster.sh, role values from data-plane.ts.
+  await t.test('the Applications cluster bounds: where each is set and what a Project session can change', async (st) => {
+    const bounds = ['statement_timeout', 'transaction_timeout', 'lock_timeout', 'idle_in_transaction_session_timeout', 'temp_file_limit', 'max_connections', 'reserved_connections', 'max_wal_size']
+    const observed = {}
+    for (const role of [a.runtimeRole, a.migrationRole]) {
+      const session = await loginAs(st, role, database)
+      const { rows } = await session.query('SELECT name, setting, source FROM pg_settings WHERE name = ANY($1) ORDER BY name', [bounds])
+      const connectionLimit = (await session.query('SELECT rolconnlimit FROM pg_roles WHERE rolname = current_user')).rows[0].rolconnlimit
+      observed[role] = {
+        settings: Object.fromEntries(rows.map((row) => [row.name, `${row.setting} ${row.source}`])),
+        connectionLimit,
+        setStatementTimeout: await attempt(session, 'SET statement_timeout = 0'),
+        setTransactionTimeout: await attempt(session, 'SET transaction_timeout = 0'),
+        setLockTimeout: await attempt(session, 'SET lock_timeout = 0'),
+        setIdleTimeout: await attempt(session, 'SET idle_in_transaction_session_timeout = 0'),
+        setTempFileLimit: await attempt(session, "SET temp_file_limit = '-1'"),
+        alterSystem: await attempt(session, "ALTER SYSTEM SET statement_timeout = '0'"),
+        alterDatabase: await attempt(session, `ALTER DATABASE ${database} SET statement_timeout = 0`),
+        alterOwnRole: await attempt(session, `ALTER ROLE ${role} IN DATABASE ${database} SET transaction_timeout = 0`),
+        alterConnectionLimit: await attempt(session, `ALTER ROLE ${role} CONNECTION LIMIT -1`),
+      }
+    }
+    const cluster = { max_connections: '60 command line', max_wal_size: '512 command line', reserved_connections: '4 command line' }
+    const refusals = { setTempFileLimit: '42501', alterSystem: '42501', alterDatabase: '42501', alterConnectionLimit: '42501' }
+    // A role may even store its own default for a user-settable timeout; the invocation wall clock,
+    // not these defaults, is the bound, and the next prepare restores them.
+    const userSettable = { setStatementTimeout: 'ok', setTransactionTimeout: 'ok', setLockTimeout: 'ok', setIdleTimeout: 'ok', alterOwnRole: 'ok' }
+    assert.deepEqual(observed, {
+      [a.runtimeRole]: {
+        settings: { ...cluster, idle_in_transaction_session_timeout: '10000 database user', lock_timeout: '2000 database user', statement_timeout: '5000 database user', temp_file_limit: '262144 database user', transaction_timeout: '6000 database user' },
+        connectionLimit: 8, ...userSettable, ...refusals,
+      },
+      [a.migrationRole]: {
+        settings: { ...cluster, idle_in_transaction_session_timeout: '10000 database user', lock_timeout: '5000 database user', statement_timeout: '30000 database user', temp_file_limit: '1048576 database user', transaction_timeout: '30000 database user' },
+        connectionLimit: 2, ...userSettable, ...refusals,
+      },
+    })
+  })
+
   await t.test('Project A runtime reaches nothing of Project B and cannot change schema or roles', async (st) => {
     const runtimeA = await loginAs(st, a.runtimeRole, database)
     assert.deepEqual({
@@ -153,21 +199,39 @@ test('Project Preview data is confined to its own schema, roles and database', a
       assert.equal(await attempt(session, `ALTER ROLE ${role} VALID UNTIL 'infinity'`), '42501')
       assert.deepEqual({
         passwordToApplicationDatabase: await loginDirectly({ user: role, password: chosen, database }),
-        passwordToHubDatabase: await loginDirectly({ user: role, password: chosen, database: hubDatabase }),
         passwordToPostgres: await loginDirectly({ user: role, password: chosen, database: 'postgres' }),
-        certificateToHubDatabase: await loginDirectly({ user: role, database: hubDatabase, ssl: certificate }),
         certificateToPostgres: await loginDirectly({ user: role, database: 'postgres', ssl: certificate }),
       }, {
-        passwordToApplicationDatabase: '28000', passwordToHubDatabase: '28000', passwordToPostgres: '28000',
-        certificateToHubDatabase: '28000', certificateToPostgres: '28000',
-      }, `pg_hba rejects ${role} everywhere but the relay path`)
+        passwordToApplicationDatabase: '28000', passwordToPostgres: '28000', certificateToPostgres: '28000',
+      }, `pg_hba rejects ${role} everywhere on the Applications cluster but the relay path`)
+      // The Hub's cluster does not know the role at all, so neither credential opens the Hub database.
+      assert.equal(await loginDirectly({ user: role, password: chosen, database: hubDatabase }, hubCluster), '28P01', `${role} has no Hub cluster login`)
       // Without those pg_hba rules the password is still dead: it expired before it was set.
       assert.equal(await loginWithoutPgHbaRules(role, chosen, database), '28P01', `${role} password is expired`)
       assert.deepEqual((await (await loginAs(st, role, database)).query('SELECT current_user AS who')).rows, [{ who: role }], 'the relay path still admits it')
     }
   })
 
-  await t.test('PUBLIC holds no CONNECT on the application, Hub or postgres database', async () => {
+  await t.test('the Hub cluster holds no Project role and provisioning refuses to create one there', async () => {
+    const onHub = new pg.Client({ ...hubCluster, database: hubDatabase })
+    await onHub.connect()
+    try {
+      const projectRoles = [a.runtimeRole, a.migrationRole, b.runtimeRole, b.migrationRole]
+      assert.deepEqual((await onHub.query('SELECT rolname FROM pg_roles WHERE rolname = ANY($1)', [projectRoles])).rows, [])
+      const hubRoles = hubRoleNames({})
+      const present = (await onHub.query('SELECT rolname FROM pg_roles WHERE rolname = ANY($1) ORDER BY rolname', [hubRoles])).rows.map((row) => row.rolname)
+      assert.ok(present.length > 0, 'the Hub cluster holds the Hub roles')
+      await assert.rejects(provisionApplicationDatabase({
+        cluster: { host: hubCluster.host, port: hubCluster.port }, database: `conexus_apps_${randomUUID().replaceAll('-', '').slice(0, 12)}`, hubRoles,
+        installation: { user: hubCluster.user, password: hubCluster.password }, provisionerPassword: randomBytes(18).toString('base64url'),
+      }), { message: `APPLICATION_CLUSTER_HOLDS_HUB_ROLES: ${present.join(',')}` })
+      assert.deepEqual((await onHub.query("SELECT rolname FROM pg_roles WHERE rolname = 'app_provisioner'")).rows, [])
+    } finally {
+      await onHub.end()
+    }
+  })
+
+  await t.test('PUBLIC holds no CONNECT on the application or postgres database', async () => {
     const stranger = `app_stranger_${randomUUID().replaceAll('-', '').slice(0, 8)}`
     const password = randomBytes(18).toString('base64url')
     const superuser = new pg.Client({ ...admin, database: 'postgres' })
@@ -176,9 +240,8 @@ test('Project Preview data is confined to its own schema, roles and database', a
       await superuser.query(`CREATE ROLE ${stranger} LOGIN PASSWORD '${password}'`)
       assert.deepEqual({
         application: await loginDirectly({ user: stranger, password, database }),
-        hub: await loginDirectly({ user: stranger, password, database: hubDatabase }),
         postgres: await loginDirectly({ user: stranger, password, database: 'postgres' }),
-      }, { application: '42501', hub: '42501', postgres: '42501' })
+      }, { application: '42501', postgres: '42501' })
     } finally {
       await superuser.query(`DROP ROLE IF EXISTS ${stranger}`)
       await superuser.end()
@@ -302,6 +365,25 @@ test('the migration plan applies only an exact continuation of the applied histo
   assert.deepEqual(planMigrations(applied, [two]).reset, true)
   assert.deepEqual(planMigrations(applied, [{ ...one, sha256: 'c'.repeat(64) }, two]).pending.map((entry) => entry.position), [1, 2])
   assert.deepEqual(planMigrations(applied, []).reset, true)
+})
+
+// Postgres keeps serving after a reload with server TLS it cannot load, then refuses to start on the
+// next restart. Confinement refuses such material before it changes the cluster.
+test('confinement refuses server TLS material the cluster could not restart with', () => {
+  const base = mkdtempSync(join(tmpdir(), 'conexus-confine-'))
+  try {
+    const authorityDir = join(base, 'authority')
+    ensureTlsMaterial({ authorityDir, relayDir: join(base, 'relay') })
+    assert.equal(assertServerMaterial(authorityDir), undefined)
+    copyFileSync(join(authorityDir, 'server-key.pem'), join(base, 'server-key.pem'))
+    copyFileSync(join(authorityDir, 'ca-key.pem'), join(authorityDir, 'server-key.pem'))
+    assert.throws(() => assertServerMaterial(authorityDir), { message: 'CONFINE_TLS_MATERIAL_REFUSED: server-key.pem is not the key of server.pem' })
+    copyFileSync(join(base, 'server-key.pem'), join(authorityDir, 'server-key.pem'))
+    copyFileSync(join(base, 'relay', 'relay.pem'), join(authorityDir, 'ca.pem'))
+    assert.throws(() => assertServerMaterial(authorityDir), { message: 'CONFINE_TLS_MATERIAL_REFUSED: server.pem is not signed by ca.pem' })
+  } finally {
+    rmSync(base, { recursive: true, force: true })
+  }
 })
 
 test('allocation names derive from the Project id alone and refuse anything else', () => {

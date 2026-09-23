@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createPrivateKey, X509Certificate } from 'node:crypto'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
@@ -10,8 +11,12 @@ import { parseArgs } from 'node:util'
 // installation step run through the container's local superuser: it writes the server TLS files and
 // the pg_hba and pg_ident blocks in the data directory, then reloads.
 //
-// The TLS directory on the host holds the CA, the server certificate and the relay's client
-// certificate. They are issued once and reused, so reruns converge without rotating anything.
+// Two host directories hold the TLS material. The authority directory keeps the CA key and the
+// server key, which only this step reads. The relay directory holds exactly what the application
+// runner reads: the CA certificate, the relay's client certificate and its key. Whoever holds the CA
+// key can mint a relay certificate or impersonate the cluster, so it never sits where the runner
+// reads. Both are issued once and reused, so reruns converge without rotating anything; a partial
+// set is refused rather than silently reissued.
 
 // The names apps/hub/src/app-runner/data-plane.ts gives Project roles. Matched by name, not by a
 // group: pg_hba counts the provisioner's ADMIN membership in a group as membership, which would
@@ -35,12 +40,23 @@ const run = (command, args, options = {}) => {
 
 const openssl = (args, cwd) => run('openssl', args, { cwd })
 
-/** Issues the CA, server and relay certificates into `directory` unless they are already there. */
-export const ensureTlsMaterial = (directory, serverNames = ['IP:127.0.0.1', 'DNS:localhost']) => {
-  mkdirSync(directory, { recursive: true, mode: 0o700 })
-  chmodSync(directory, 0o700)
-  const files = ['ca.pem', 'ca-key.pem', 'server.pem', 'server-key.pem', 'relay.pem', 'relay-key.pem']
-  if (files.every((file) => existsSync(join(directory, file)))) return directory
+export const AUTHORITY_FILES = ['ca.pem', 'ca-key.pem', 'server.pem', 'server-key.pem']
+export const RELAY_FILES = ['ca.pem', 'relay.pem', 'relay-key.pem']
+
+/**
+ * Issues the CA, server and relay certificates unless they are already there: the CA key and the
+ * server key into `authorityDir`, what the runner reads into `relayDir`.
+ */
+export const ensureTlsMaterial = ({ authorityDir, relayDir }, serverNames = ['IP:127.0.0.1', 'DNS:localhost']) => {
+  if (resolve(authorityDir) === resolve(relayDir)) fail('CONFINE_TLS_DIRECTORIES_SHARED')
+  for (const directory of [authorityDir, relayDir]) {
+    mkdirSync(directory, { recursive: true, mode: 0o700 })
+    chmodSync(directory, 0o700)
+  }
+  const present = [...AUTHORITY_FILES.map((file) => join(authorityDir, file)), ...RELAY_FILES.map((file) => join(relayDir, file))].filter((path) => existsSync(path))
+  if (present.length === AUTHORITY_FILES.length + RELAY_FILES.length) return { authorityDir, relayDir }
+  if (present.length > 0) fail('CONFINE_TLS_INCOMPLETE', `present: ${present.join(', ')}`)
+  const directory = authorityDir
   const days = '3650'
   openssl(['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-days', days,
     '-subj', '/CN=conexus-application-cluster-ca', '-keyout', 'ca-key.pem', '-out', 'ca.pem',
@@ -55,8 +71,12 @@ export const ensureTlsMaterial = (directory, serverNames = ['IP:127.0.0.1', 'DNS
   }
   issue('server', 'conexus-application-cluster', `basicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth\nsubjectAltName=${serverNames.join(',')}\n`)
   issue('relay', RELAY_CERTIFICATE_NAME, 'basicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nextendedKeyUsage=clientAuth\n')
-  for (const file of files) chmodSync(join(directory, file), 0o600)
-  return directory
+  rmSync(join(directory, 'ca.srl'), { force: true })
+  for (const file of ['relay.pem', 'relay-key.pem']) renameSync(join(directory, file), join(relayDir, file))
+  copyFileSync(join(directory, 'ca.pem'), join(relayDir, 'ca.pem'))
+  for (const file of AUTHORITY_FILES) chmodSync(join(authorityDir, file), 0o600)
+  for (const file of RELAY_FILES) chmodSync(join(relayDir, file), 0o600)
+  return { authorityDir, relayDir }
 }
 
 const DATABASE_FIELD = /^(?:[a-z_][a-z0-9_]{0,62}|\/[^\s,"#]+)$/
@@ -91,8 +111,23 @@ const inContainer = (container) => {
   return { exec, sql, write }
 }
 
-export const confineApplicationCluster = ({ container, tlsDir, database }) => {
-  const tls = ensureTlsMaterial(tlsDir)
+// libpq's refusals that come only after a TLS session is up: the handshake itself succeeded.
+const AUTHENTICATION_AFTER_TLS = /no password supplied|password authentication failed|pg_hba\.conf/
+
+/**
+ * Refuses server material Postgres could not load: a key that is not the certificate's, or a
+ * certificate the CA did not sign. Postgres would start with neither.
+ */
+export const assertServerMaterial = (authorityDir) => {
+  const read = (file) => readFileSync(join(authorityDir, file), 'utf8')
+  const server = new X509Certificate(read('server.pem'))
+  if (!server.checkPrivateKey(createPrivateKey(read('server-key.pem')))) fail('CONFINE_TLS_MATERIAL_REFUSED', 'server-key.pem is not the key of server.pem')
+  if (!server.verify(new X509Certificate(read('ca.pem')).publicKey)) fail('CONFINE_TLS_MATERIAL_REFUSED', 'server.pem is not signed by ca.pem')
+}
+
+export const confineApplicationCluster = ({ container, authorityDir, tlsDir, database }) => {
+  const tls = ensureTlsMaterial({ authorityDir, relayDir: tlsDir }).authorityDir
+  assertServerMaterial(tls)
   const { exec, sql, write } = inContainer(container)
   const dataDirectory = sql('SHOW data_directory')
   const hbaFile = sql('SHOW hba_file')
@@ -116,10 +151,25 @@ export const confineApplicationCluster = ({ container, tlsDir, database }) => {
     changed.push(name)
   }
   // TLS loads first: until it does, Postgres reports every hostssl line as one that cannot match.
+  // A reload survives TLS that fails to load, but a restart does not, so settings that did not load
+  // are taken back out of postgresql.auto.conf before this step gives up. SHOW ssl cannot tell: it
+  // reports the setting, which stays on when the reload could not load the certificate. A session
+  // that completes a TLS handshake verified against the CA can.
+  const caInCluster = join(dataDirectory, SERVER_TLS_DIR, 'ca.pem')
+  const tlsServed = () => {
+    const probe = spawnSync('docker', ['exec', '-u', 'postgres', '-e', 'PGPASSFILE=/nonexistent', container, 'psql', '-X', '-w', '-Atc', 'SELECT 1',
+      `host=127.0.0.1 dbname=postgres user=postgres sslmode=verify-full sslrootcert=${caInCluster} connect_timeout=5`], { encoding: 'utf8' })
+    return probe.status === 0 || AUTHENTICATION_AFTER_TLS.test(probe.stderr)
+  }
   const reload = () => {
     sql('SELECT pg_reload_conf()')
-    for (let attempt = 0; attempt < 50 && sql('SHOW ssl') !== 'on'; attempt += 1) spawnSync('sleep', ['0.1'])
-    if (sql('SHOW ssl') !== 'on') fail('CONFINE_TLS_NOT_LOADED', 'check the server log for the certificate error')
+    for (let attempt = 0; attempt < 25; attempt += 1) {
+      if (tlsServed()) return
+      spawnSync('sleep', ['0.2'])
+    }
+    for (const name of Object.keys(settings)) sql(`ALTER SYSTEM RESET ${name}`)
+    sql('SELECT pg_reload_conf()')
+    fail('CONFINE_TLS_NOT_LOADED', 'the ssl settings were reset; check the server log for the certificate error')
   }
   reload()
 
@@ -138,12 +188,12 @@ export const confineApplicationCluster = ({ container, tlsDir, database }) => {
     fail('CONFINE_RULES_REFUSED', errors)
   }
   reload()
-  return { verdict: changed.length === 0 ? 'CURRENT' : 'CONFINED', container, database, tlsDir: tls, changed }
+  return { verdict: changed.length === 0 ? 'CURRENT' : 'CONFINED', container, database, authorityDir, tlsDir, changed }
 }
 
 const isEntrypoint = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 if (isEntrypoint) {
-  const { values } = parseArgs({ options: { container: { type: 'string' }, 'tls-dir': { type: 'string' }, database: { type: 'string' } } })
-  if (!values.container || !values['tls-dir'] || !values.database) fail('USAGE', '--container <name> --tls-dir <dir> --database <name|/regex>')
-  process.stdout.write(`${JSON.stringify(confineApplicationCluster({ container: values.container, tlsDir: resolve(values['tls-dir']), database: values.database }), null, 2)}\n`)
+  const { values } = parseArgs({ options: { container: { type: 'string' }, 'authority-dir': { type: 'string' }, 'tls-dir': { type: 'string' }, database: { type: 'string' } } })
+  if (!values.container || !values['authority-dir'] || !values['tls-dir'] || !values.database) fail('USAGE', '--container <name> --authority-dir <dir> --tls-dir <runner dir> --database <name|/regex>')
+  process.stdout.write(`${JSON.stringify(confineApplicationCluster({ container: values.container, authorityDir: resolve(values['authority-dir']), tlsDir: resolve(values['tls-dir']), database: values.database }), null, 2)}\n`)
 }

@@ -21,6 +21,8 @@ export type MigrationPlan = Readonly<{ reset: boolean; pending: readonly (Migrat
 export const PROVISIONER_ROLE = 'app_provisioner'
 export const LEDGER_TABLE = 'conexus_migration'
 const PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+/** Every Project role name previewAllocation derives; pg_hba confines exactly these names. */
+export const PROJECT_ROLE_NAME = /^app_[0-9a-f]{32}_preview_(rt|mig)$/
 const RUNTIME_CONNECTION_LIMIT = 8
 const MIGRATION_CONNECTION_LIMIT = 2
 const RUNTIME_TEMP_FILE_LIMIT = '256MB'
@@ -60,8 +62,9 @@ const ensureRole = async (provisioner: Sql, role: string, connectionLimit: numbe
 
 /**
  * Creates or repairs one Project's Preview allocation. The provisioner owns the schema; the migration
- * role may create objects in it but, not owning it, cannot grant it to anyone; the runtime role gets
- * DML on what the migration role creates and nothing else.
+ * role may create objects in it but, not owning the schema, cannot grant USAGE on it, so a grant it
+ * makes on its own tables reaches no other Project. The runtime role gets DML on what the migration
+ * role creates; a migration may grant it more on its own tables, never beyond its own schema.
  */
 export const ensurePreviewAllocation = async (
   provisioner: Sql,
@@ -74,12 +77,14 @@ export const ensurePreviewAllocation = async (
   await ensureRole(provisioner, allocation.runtimeRole, RUNTIME_CONNECTION_LIMIT)
   await ensureRole(provisioner, allocation.migrationRole, MIGRATION_CONNECTION_LIMIT)
   // temp_file_limit is the one bound here a session cannot lift: only a role granted SET on it may
-  // change it, so a spilling sort or hash stops before it fills the shared cluster's disk. The others
-  // are defaults a session may change; the relay's wall-clock cancel, not statement_timeout, is
-  // what ends a runaway statement.
+  // change it. The timeouts are defaults a session may change; the invocation's wall clock (the
+  // worker kill and the relay's cancel) is what ends a runaway statement or transaction. None of
+  // these bounds bytes a session writes to tables or WAL, or memory it takes by raising work_mem:
+  // the Applications cluster's fixed-size filesystem and its container memory limit do, and they
+  // contain that failure in the Data Plane rather than prevent it.
   for (const [role, settings] of [
-    [runtime, [['search_path', allocation.schema], ['statement_timeout', '5s'], ['idle_in_transaction_session_timeout', '10s'], ['temp_file_limit', RUNTIME_TEMP_FILE_LIMIT]]],
-    [migration, [['search_path', allocation.schema], ['statement_timeout', '30s'], ['lock_timeout', '5s'], ['idle_in_transaction_session_timeout', '10s'], ['temp_file_limit', MIGRATION_TEMP_FILE_LIMIT]]],
+    [runtime, [['search_path', allocation.schema], ['statement_timeout', '5s'], ['transaction_timeout', '6s'], ['lock_timeout', '2s'], ['idle_in_transaction_session_timeout', '10s'], ['temp_file_limit', RUNTIME_TEMP_FILE_LIMIT]]],
+    [migration, [['search_path', allocation.schema], ['statement_timeout', '30s'], ['transaction_timeout', '30s'], ['lock_timeout', '5s'], ['idle_in_transaction_session_timeout', '10s'], ['temp_file_limit', MIGRATION_TEMP_FILE_LIMIT]]],
   ] as const) {
     for (const [name, value] of settings) await provisioner.query(`ALTER ROLE ${role} IN DATABASE ${identifier(database)} SET ${name} = ${literal(value)}`)
   }
