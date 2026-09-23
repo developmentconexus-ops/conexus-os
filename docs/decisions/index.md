@@ -37,6 +37,7 @@ qualifies it. C-028 is unchanged, because Conexus still allocates Project applic
 | The Applications cluster has storage that is bounded and separate from the Hub's critical storage. | The bound covers PGDATA, `pg_wal`, the server logs and the temporary files. Two container volumes on one filesystem without a size limit do not qualify. |
 | Inside the Applications cluster, one database `conexus_apps` holds one schema per Project × environment, each with a migration role and a runtime DML role. | No PostgreSQL server, database or container per Project. |
 | Q1 proves containment, not resistance. | Exhaustion or total failure of the Applications PostgreSQL must stay in the Data Plane and must neither take down nor corrupt the Control Plane. If the separation does not protect the Hub, Q1 stops with the evidence. |
+| In the first version, Q1.8 proves containment structurally. | The pilot shows separate clusters, no application data or Project role in the Hub cluster, a fixed-size preallocated filesystem for all of the Applications cluster's storage, an enforced memory limit, and the Hub serving while the Applications container is stopped. Active capacity and failure tests return on the first of: a second Project with real users, the first Publish, or evidence of a noisy neighbour. |
 | A periodic per-Project quota does not replace the separation. | A quota does not protect the Hub from memory, WAL, I/O or bursts. It may return for fairness between Projects. |
 
 Reopen fairness between Projects inside the Applications cluster on the first of: a second
