@@ -32,7 +32,7 @@ const sentences: Readonly<Record<string, Sentence>> = {
   task_complete: { running: 'Concluindo uma tarefa', done: 'Concluiu uma tarefa', ask: 'concluir uma tarefa' },
 }
 
-// The Mastra Code task tools (@mastra/core's built-in task-tools): task-checklist.tsx drives the
+// The Mastra Code task tools (@mastra/core's built-in task-tools): construir.tsx drives the
 // pinned checklist from their calls instead of the conversation rendering one row per call.
 export const TASK_TOOL_NAMES: ReadonlySet<string> = new Set(['task_write', 'task_update', 'task_check', 'task_complete'])
 
