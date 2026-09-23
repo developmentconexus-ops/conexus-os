@@ -3,18 +3,18 @@ import { randomBytes, randomUUID, createHash } from 'node:crypto'
 import test from 'node:test'
 import pg from 'pg'
 import { provisionApplicationDatabase } from '../../scripts/provision-application-database.mjs'
+import { loginThroughRelay, relayTls } from './application-cluster.mjs'
 import { adminConnection, buildHubDatabase } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
-const { applyPendingMigrations, ensurePreviewAllocation, planMigrations, previewAllocation, readLedger, resetPreviewSchema, roleCredential } =
+const { applyPendingMigrations, confineProjectRoles, ensurePreviewAllocation, planMigrations, previewAllocation, readLedger, resetPreviewSchema } =
   await import(hubModuleUrl('app-runner/data-plane.js'))
 
-// Every Project role here logs in with its own derived password, as the runner's worker does, so
-// CONNECT and PUBLIC grants are exercised for real rather than through SET ROLE from a superuser.
+// Every Project role here logs in through the runner's relay with its client certificate, as the
+// worker does, so CONNECT, pg_hba and PUBLIC grants are exercised for real rather than through SET
+// ROLE from a superuser.
 const admin = adminConnection()
-const key = randomBytes(32)
-const credential = (role) => roleCredential(key, role)
 const sha = (text) => createHash('sha256').update(text).digest('hex')
 const migration = (name, sql) => ({ name, sql, sha256: sha(sql) })
 const NOTES = migration('001_follow_up_note.sql', `CREATE TABLE follow_up_note (
@@ -32,11 +32,28 @@ const attempt = async (client, sql, values) => {
   }
 }
 
-const loginAs = async (t, role, database) => {
-  const client = new pg.Client({ ...admin, database, user: role, password: credential(role) })
-  await client.connect()
-  t.after(() => client.end().catch(() => {}))
-  return client
+const loginAs = (t, role, database) => loginThroughRelay(t, { host: admin.host, port: admin.port }, role, database)
+
+// A login that does not go through the relay: a password, or the runner's certificate presented
+// directly. Answers the SQLSTATE of the refusal.
+const loginDirectly = (options) => {
+  const client = new pg.Client({ host: admin.host, port: admin.port, connectionTimeoutMillis: 5000, ...options })
+  return client.connect().then(async () => { await client.end(); return 'connected' }, (error) => error.code ?? error.message)
+}
+
+// The same password login, on a cluster where pg_hba does not confine the role: the role is renamed
+// outside the Project naming the rules match, tried, and renamed back.
+const loginWithoutPgHbaRules = async (role, password, database) => {
+  const outside = `outside_${randomUUID().replaceAll('-', '').slice(0, 12)}`
+  const superuser = new pg.Client({ ...admin, database: 'postgres' })
+  await superuser.connect()
+  try {
+    await superuser.query(`ALTER ROLE ${role} RENAME TO ${outside}`)
+    return await loginDirectly({ user: outside, password, database })
+  } finally {
+    await superuser.query(`ALTER ROLE ${outside} RENAME TO ${role}`)
+    await superuser.end()
+  }
 }
 
 const setup = async (t) => {
@@ -47,6 +64,8 @@ const setup = async (t) => {
   await provisionApplicationDatabase({
     cluster: { host: admin.host, port: admin.port },
     database,
+    hubDatabase: hub.database,
+    hubRoles: [],
     installation: { user: admin.user, password: admin.password },
     provisionerPassword,
   })
@@ -64,7 +83,7 @@ const setup = async (t) => {
     }
     await superuser.end()
   })
-  for (const allocation of projects) await ensurePreviewAllocation(provisioner, { allocation, database, credential })
+  for (const allocation of projects) await ensurePreviewAllocation(provisioner, { allocation, database })
   return { database, hubDatabase: hub.database, provisioner, projects }
 }
 
@@ -113,29 +132,56 @@ test('Project Preview data is confined to its own schema, roles and database', a
     assert.deepEqual((await runtimeB.query('SELECT note FROM follow_up_note')).rows, [])
   })
 
-  await t.test('a Project role holds no authority in the Hub database and no grant a default hands out', async (st) => {
+  await t.test('a Project role logs in only through the relay, even with a password it set itself', async (st) => {
+    const chosen = 'chosen-by-generated-code-4f9d2c'
+    const certificate = { ...relayTls(), rejectUnauthorized: true }
     for (const role of [a.runtimeRole, a.migrationRole]) {
-      const client = await loginAs(st, role, hubDatabase)
-      const { rows } = await client.query(`SELECT
-        (SELECT count(*) FROM pg_namespace n WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'public') AND n.nspname NOT LIKE 'pg_%'
-          AND (has_schema_privilege(n.oid, 'USAGE') OR has_schema_privilege(n.oid, 'CREATE')))::int AS schemas,
-        (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND n.nspname NOT LIKE 'pg_%' AND has_table_privilege(c.oid, 'SELECT,INSERT,UPDATE,DELETE'))::int AS tables,
-        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND has_function_privilege(p.oid, 'EXECUTE'))::int AS functions`)
-      assert.deepEqual(rows[0], { schemas: 0, tables: 0, functions: 0 }, `${role} in the Hub database`)
+      const session = await loginAs(st, role, database)
+      assert.equal(await attempt(session, `ALTER ROLE ${role} PASSWORD '${chosen}'`), 'ok', 'Postgres lets any role change its own password')
+      assert.equal(await attempt(session, `ALTER ROLE ${role} VALID UNTIL 'infinity'`), '42501')
+      assert.deepEqual({
+        passwordToApplicationDatabase: await loginDirectly({ user: role, password: chosen, database }),
+        passwordToHubDatabase: await loginDirectly({ user: role, password: chosen, database: hubDatabase }),
+        passwordToPostgres: await loginDirectly({ user: role, password: chosen, database: 'postgres' }),
+        certificateToHubDatabase: await loginDirectly({ user: role, database: hubDatabase, ssl: certificate }),
+        certificateToPostgres: await loginDirectly({ user: role, database: 'postgres', ssl: certificate }),
+      }, {
+        passwordToApplicationDatabase: '28000', passwordToHubDatabase: '28000', passwordToPostgres: '28000',
+        certificateToHubDatabase: '28000', certificateToPostgres: '28000',
+      }, `pg_hba rejects ${role} everywhere but the relay path`)
+      // Without those pg_hba rules the password is still dead: it expired before it was set.
+      assert.equal(await loginWithoutPgHbaRules(role, chosen, database), '28P01', `${role} password is expired`)
+      assert.deepEqual((await (await loginAs(st, role, database)).query('SELECT current_user AS who')).rows, [{ who: role }], 'the relay path still admits it')
     }
+  })
+
+  await t.test('PUBLIC holds no CONNECT on the application, Hub or postgres database', async () => {
     const stranger = `app_stranger_${randomUUID().replaceAll('-', '').slice(0, 8)}`
+    const password = randomBytes(18).toString('base64url')
     const superuser = new pg.Client({ ...admin, database: 'postgres' })
     await superuser.connect()
     try {
-      await superuser.query(`CREATE ROLE ${stranger} LOGIN PASSWORD '${credential(stranger)}'`)
-      const refused = await new pg.Client({ ...admin, database, user: stranger, password: credential(stranger) }).connect().then(() => 'connected', (error) => error.code)
-      assert.equal(refused, '42501', 'PUBLIC holds no CONNECT on the application database')
+      await superuser.query(`CREATE ROLE ${stranger} LOGIN PASSWORD '${password}'`)
+      assert.deepEqual({
+        application: await loginDirectly({ user: stranger, password, database }),
+        hub: await loginDirectly({ user: stranger, password, database: hubDatabase }),
+        postgres: await loginDirectly({ user: stranger, password, database: 'postgres' }),
+      }, { application: '42501', hub: '42501', postgres: '42501' })
     } finally {
       await superuser.query(`DROP ROLE IF EXISTS ${stranger}`)
       await superuser.end()
     }
+  })
+
+  await t.test('roles an earlier runner created with a password are brought under the same rules', async (st) => {
+    const superuser = new pg.Client({ ...admin, database: 'postgres' })
+    await superuser.connect()
+    st.after(() => superuser.end())
+    const legacy = 'legacy-derived-password-8c1e'
+    await superuser.query(`ALTER ROLE ${b.runtimeRole} PASSWORD '${legacy}' VALID UNTIL 'infinity'`)
+    assert.equal(await loginWithoutPgHbaRules(b.runtimeRole, legacy, database), 'connected', 'the legacy password works wherever pg_hba allows passwords')
+    assert.ok((await confineProjectRoles(provisioner)).includes(b.runtimeRole))
+    assert.equal(await loginWithoutPgHbaRules(b.runtimeRole, legacy, database), '28P01')
   })
 
   await t.test('a generated migration gains nothing beyond its own Project schema', async (st) => {
@@ -196,7 +242,7 @@ test('Project Preview data is confined to its own schema, roles and database', a
     const plan = planMigrations(await readLedger(provisioner, a), edited)
     assert.equal(plan.reset, true)
     await resetPreviewSchema(provisioner, a)
-    await ensurePreviewAllocation(provisioner, { allocation: a, database, credential })
+    await ensurePreviewAllocation(provisioner, { allocation: a, database })
     const migratorA = await loginAs(st, a.migrationRole, database)
     await applyPendingMigrations(migratorA, a.schema, plan.pending)
     const runtimeA = await loginAs(st, a.runtimeRole, database)
@@ -226,5 +272,4 @@ test('allocation names derive from the Project id alone and refuse anything else
   for (const refused of ['', 'x', '0F5E1C2A-3B4D-4E5F-8A9B-0C1D2E3F4A5B', "0f5e1c2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b'; drop"]) {
     assert.throws(() => previewAllocation(refused), /APPLICATION_PROJECT_ID_REFUSED/)
   }
-  assert.throws(() => roleCredential(new Uint8Array(16), 'r'), /APPLICATION_CREDENTIAL_KEY_REFUSED/)
 })

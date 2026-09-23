@@ -68,9 +68,14 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       # The baseline check reads the schema back with pg_dump, which must be at least the server's
       # version. The service container's own pg_dump always is, so no client is installed here.
+      # Project roles log in only with the application runner's certificate. The test cluster gets the
+      # TLS files and pg_hba rules an installation gets; the Project role suites prove them.
+      - name: Confine application roles on the test cluster
+        run: node scripts/confine-application-cluster.mjs --container "${{ job.services.postgres.id }}" --tls-dir "$RUNNER_TEMP/conexus-app-tls" --database '/^conexus_apps_[0-9a-f]{12}$'
       - run: npm run verify
         env:
           CONEXUS_TEST_DB_CONTAINER: ${{ job.services.postgres.id }}
+          CONEXUS_TEST_APP_TLS_DIR: ${{ runner.temp }}/conexus-app-tls
       - run: git diff --check
       # A guard that fails without naming what it found costs a whole CI cycle to diagnose.
       - name: The working tree is unchanged by verification

@@ -2,9 +2,10 @@ import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import pg from 'pg'
-import { ensurePreviewAllocation, planMigrations, previewAllocation, PROVISIONER_ROLE, readLedger, resetPreviewSchema, roleCredential } from './data-plane.js'
+import { confineProjectRoles, ensurePreviewAllocation, planMigrations, previewAllocation, PROVISIONER_ROLE, readLedger, resetPreviewSchema } from './data-plane.js'
 import type { PreviewAllocation } from './data-plane.js'
 import { openPgRelay } from './pg-relay.js'
+import type { RelayTls } from './pg-relay.js'
 import { runWorker, SANDBOX_DATABASE_HOST } from './sandbox.js'
 import type { SandboxConfig, WorkerOutcome } from './sandbox.js'
 import { admitManifest, SERVER_MANIFEST_PATH, SERVER_ROOT, schemaViolation } from './server-manifest.js'
@@ -38,7 +39,7 @@ export type SupervisorConfig = Readonly<{
   cluster: Readonly<{ host: string; port: number }>
   database: string
   provisionerPassword: string
-  credentialKey: Uint8Array
+  relayTls: RelayTls
   limits?: RunnerLimits
   sandbox?: SandboxConfig
 }>
@@ -98,7 +99,6 @@ export const createSupervisor = (config: SupervisorConfig) => {
     max: 2, application_name: 'conexus-app-runner', connectionTimeoutMillis: 5000,
   })
   provisioner.on('error', () => undefined)
-  const credential = (role: string): string => roleCredential(config.credentialKey, role)
   const preparing = new Map<string, Promise<unknown>>()
   // Every Project's migrations run through one chain, so a build storm cannot start many expensive
   // migrations against the shared cluster at once. Invocations have their own bound below.
@@ -126,7 +126,7 @@ export const createSupervisor = (config: SupervisorConfig) => {
       }
       const relay = await openPgRelay({
         socketPath: socket, upstream: config.cluster, pin: { user: input.role, database: config.database },
-        password: credential(input.role), maxSessions: limits.sessionsPerInvocation,
+        tls: config.relayTls, maxSessions: limits.sessionsPerInvocation,
       })
       try {
         const outcome = await runWorker({
@@ -154,7 +154,7 @@ export const createSupervisor = (config: SupervisorConfig) => {
 
   const migrate = async (allocation: PreviewAllocation, manifest: ServerManifest): Promise<PrepareResult> => {
     const plan = await withProvisioner(async (client) => {
-      const allocate = () => ensurePreviewAllocation(client, { allocation, database: config.database, credential })
+      const allocate = () => ensurePreviewAllocation(client, { allocation, database: config.database })
       await allocate()
       const first = planMigrations(await readLedger(client, allocation), manifest.migrations)
       if (!first.reset) return first
@@ -233,6 +233,7 @@ export const createSupervisor = (config: SupervisorConfig) => {
     checkProvisioner: () => withProvisioner(async (client) => {
       const { rows } = await client.query('SELECT current_user AS role, current_database() AS database')
       if (rows[0]?.role !== PROVISIONER_ROLE || rows[0]?.database !== config.database) throw new Error('RUNNER_PROVISIONER_REFUSED')
+      return confineProjectRoles(client)
     }),
     prepare,
     invoke,

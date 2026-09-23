@@ -1,5 +1,3 @@
-import { createHmac } from 'node:crypto'
-
 /** A Postgres session the data plane issues statements on; pg's Client and PoolClient both fit. */
 export type Sql = Readonly<{
   query(text: string, values?: readonly unknown[]): Promise<{ rows: Record<string, unknown>[] }>
@@ -37,21 +35,18 @@ export const previewAllocation = (projectId: string): PreviewAllocation => {
   })
 }
 
-// A Project role's password is a function of the runner's key and the role name, so provisioning
-// converges on the same credential after a restart without a stored secret per Project.
-export const roleCredential = (key: Uint8Array, role: string): string => {
-  if (key.byteLength < 32) throw new Error('APPLICATION_CREDENTIAL_KEY_REFUSED')
-  return createHmac('sha256', key).update(`conexus-application-role:${role}`).digest('base64url')
-}
-
 const identifier = (value: string): string => {
   if (!/^[a-z_][a-z0-9_]{0,62}$/.test(value)) throw new Error('APPLICATION_IDENTIFIER_REFUSED')
   return `"${value}"`
 }
 const literal = (value: string): string => `'${value.replaceAll("'", "''")}'`
 
-const ensureRole = async (provisioner: Sql, role: string, password: string, connectionLimit: number): Promise<void> => {
-  const repeatable = `LOGIN NOINHERIT CONNECTION LIMIT ${connectionLimit} PASSWORD ${literal(password)}`
+// A Project role authenticates only with the runner's client certificate: the cluster's pg_hba
+// admits Project role names with nothing else (scripts/confine-application-cluster.mjs). Its password
+// is NULL and already expired; Postgres lets a role change its own password but never its VALID
+// UNTIL, so a password it sets for itself fails even on a path that would accept a password.
+const ensureRole = async (provisioner: Sql, role: string, connectionLimit: number): Promise<void> => {
+  const repeatable = `LOGIN NOINHERIT CONNECTION LIMIT ${connectionLimit} PASSWORD NULL VALID UNTIL '-infinity'`
   const { rows } = await provisioner.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [role])
   // Restating an attribute the provisioner itself lacks (SUPERUSER, CREATEDB, REPLICATION, BYPASSRLS)
   // is refused even when nothing changes, and the provisioner could never have granted one, so they are
@@ -61,6 +56,20 @@ const ensureRole = async (provisioner: Sql, role: string, password: string, conn
     : `ALTER ROLE ${identifier(role)} WITH ${repeatable} NOCREATEROLE`)
 }
 
+const PROJECT_ROLE = /^app_[0-9a-f]{32}_preview_(rt|mig)$/
+
+/**
+ * Brings every Project role this provisioner administers onto the current login rules, including
+ * roles an earlier runner created with a password. Returns the roles it converged.
+ */
+export const confineProjectRoles = async (provisioner: Sql): Promise<readonly string[]> => {
+  const { rows } = await provisioner.query(`SELECT r.rolname FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.roleid
+    WHERE m.member = (SELECT oid FROM pg_roles WHERE rolname = current_user) AND m.admin_option AND r.rolcanlogin ORDER BY r.rolname`)
+  const roles = rows.map((row) => String(row.rolname)).filter((role) => PROJECT_ROLE.test(role))
+  for (const role of roles) await ensureRole(provisioner, role, role.endsWith('_rt') ? RUNTIME_CONNECTION_LIMIT : MIGRATION_CONNECTION_LIMIT)
+  return roles
+}
+
 /**
  * Creates or repairs one Project's Preview allocation. The provisioner owns the schema; the migration
  * role may create objects in it but, not owning it, cannot grant it to anyone; the runtime role gets
@@ -68,14 +77,14 @@ const ensureRole = async (provisioner: Sql, role: string, password: string, conn
  */
 export const ensurePreviewAllocation = async (
   provisioner: Sql,
-  input: Readonly<{ allocation: PreviewAllocation; database: string; credential(role: string): string }>,
+  input: Readonly<{ allocation: PreviewAllocation; database: string }>,
 ): Promise<void> => {
   const { allocation, database } = input
   const schema = identifier(allocation.schema)
   const runtime = identifier(allocation.runtimeRole)
   const migration = identifier(allocation.migrationRole)
-  await ensureRole(provisioner, allocation.runtimeRole, input.credential(allocation.runtimeRole), RUNTIME_CONNECTION_LIMIT)
-  await ensureRole(provisioner, allocation.migrationRole, input.credential(allocation.migrationRole), MIGRATION_CONNECTION_LIMIT)
+  await ensureRole(provisioner, allocation.runtimeRole, RUNTIME_CONNECTION_LIMIT)
+  await ensureRole(provisioner, allocation.migrationRole, MIGRATION_CONNECTION_LIMIT)
   for (const [role, settings] of [
     [runtime, [['search_path', allocation.schema], ['statement_timeout', '5s'], ['idle_in_transaction_session_timeout', '10s']]],
     [migration, [['search_path', allocation.schema], ['statement_timeout', '30s'], ['lock_timeout', '5s'], ['idle_in_transaction_session_timeout', '10s']]],

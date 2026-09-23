@@ -1,12 +1,16 @@
 import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 import pg from 'pg'
-import { readSecretFile } from './provision-hub-roles.mjs'
+import { readRegister, readSecretFile } from './provision-hub-roles.mjs'
 
 // The application database and the one role that may provision Project roles in it. An
 // installation step run with the cluster's installation credential, never a power the Hub or the
 // application runner holds: the runner connects as `app_provisioner`, which may create Project roles
 // and schemas but holds no superuser, database-creation, replication or Hub authority.
+//
+// pg_hba admits Project roles only with the runner's certificate and only to this database
+// (scripts/confine-application-cluster.mjs). This step also takes PUBLIC's CONNECT off the Hub
+// database and `postgres`, so no role reaches them by default.
 
 const PROVISIONER = 'app_provisioner'
 const ATTRIBUTES = 'LOGIN CREATEROLE NOINHERIT NOSUPERUSER NOCREATEDB NOREPLICATION NOBYPASSRLS'
@@ -19,10 +23,13 @@ const required = (environment, name) => environment[name] ?? fail(`MISSING_CONFI
 export const readApplicationDatabaseConfig = (environment) => {
   const database = required(environment, 'CONEXUS_APP_DB_NAME')
   if (!/^[a-z_][a-z0-9_]{0,62}$/.test(database)) fail('APPLICATION_DATABASE_NAME_REFUSED', database)
-  if (database === environment.CONEXUS_DB_NAME) fail('APPLICATION_DATABASE_IS_HUB_DATABASE', database)
+  const hubDatabase = required(environment, 'CONEXUS_DB_NAME')
+  if (database === hubDatabase) fail('APPLICATION_DATABASE_IS_HUB_DATABASE', database)
   return {
     cluster: { host: required(environment, 'CONEXUS_DB_HOST'), port: Number(required(environment, 'CONEXUS_DB_PORT')) },
     database,
+    hubDatabase,
+    hubRoles: readRegister().map((entry) => (entry.roleVariable ? environment[entry.roleVariable] : undefined) ?? entry.role),
     installation: {
       user: required(environment, 'CONEXUS_PROVISION_USER'),
       password: readSecretFile(required(environment, 'CONEXUS_PROVISION_PASSWORD_FILE')),
@@ -35,6 +42,20 @@ const connect = async (config) => {
   const client = new pg.Client({ ...config, application_name: 'conexus-provision:application-database', connectionTimeoutMillis: 5000 })
   await client.connect()
   return client
+}
+
+// Before PUBLIC loses CONNECT on a database, every role that connects there today must hold it
+// explicitly, so this step can never cut off a live Hub.
+const closeDatabaseToPublic = async (installation, database, keep) => {
+  const { rows: existing } = await installation.query('SELECT rolname FROM pg_roles WHERE rolname = ANY($1)', [keep])
+  for (const { rolname } of existing) await installation.query(`GRANT CONNECT ON DATABASE ${installation.escapeIdentifier(database)} TO ${installation.escapeIdentifier(rolname)}`)
+  const { rows: stranded } = await installation.query(`SELECT DISTINCT a.usename FROM pg_stat_activity a
+    JOIN pg_roles r ON r.oid = a.usesysid JOIN pg_database d ON d.oid = a.datid
+    WHERE d.datname = $1 AND NOT r.rolsuper AND d.datdba <> r.oid AND NOT EXISTS (
+      SELECT 1 FROM aclexplode(coalesce(d.datacl, acldefault('d', d.datdba))) acl
+      WHERE acl.privilege_type = 'CONNECT' AND acl.grantee <> 0 AND pg_has_role(r.oid, acl.grantee, 'USAGE'))`, [database])
+  if (stranded.length > 0) fail('APPLICATION_PUBLIC_CONNECT_IN_USE', `${database}: ${stranded.map((row) => row.usename).join(',')}`)
+  await installation.query(`REVOKE CONNECT ON DATABASE ${installation.escapeIdentifier(database)} FROM PUBLIC`)
 }
 
 /** Converges on: the provisioner role with exactly its attributes, the database it owns, PUBLIC closed. */
@@ -53,6 +74,8 @@ export const provisionApplicationDatabase = async (config) => {
     } else if (database.rows[0].owner !== PROVISIONER) {
       fail('APPLICATION_DATABASE_OWNER_REFUSED', database.rows[0].owner)
     }
+    await closeDatabaseToPublic(installation, config.hubDatabase, config.hubRoles)
+    await closeDatabaseToPublic(installation, 'postgres', [])
   } finally {
     await installation.end().catch(() => {})
   }

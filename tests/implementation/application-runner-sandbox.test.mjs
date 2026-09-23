@@ -6,7 +6,8 @@ import { join } from 'node:path'
 import test from 'node:test'
 import pg from 'pg'
 import { provisionApplicationDatabase } from '../../scripts/provision-application-database.mjs'
-import { adminConnection } from './hub-database.mjs'
+import { relayTls } from './application-cluster.mjs'
+import { adminConnection, createEmptyDatabase } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
@@ -16,7 +17,7 @@ import { refuseProtectedCluster } from './protected-cluster.mjs'
 const { createSupervisor } = await import(hubModuleUrl('app-runner/supervisor.js'))
 const { assertUserNamespaces, stageWorkerRuntime, DEFAULT_SANDBOX } = await import(hubModuleUrl('app-runner/sandbox.js'))
 const { openPgRelay } = await import(hubModuleUrl('app-runner/pg-relay.js'))
-const { previewAllocation, roleCredential } = await import(hubModuleUrl('app-runner/data-plane.js'))
+const { previewAllocation } = await import(hubModuleUrl('app-runner/data-plane.js'))
 
 const sha = (text) => createHash('sha256').update(text).digest('hex')
 const file = (path, text) => ({ path: `conexus-server/${path}`, sha256: sha(text), content: Buffer.from(text).toString('base64') })
@@ -97,12 +98,15 @@ const setup = async (t) => {
   const admin = adminConnection()
   const database = `conexus_apps_${randomUUID().replaceAll('-', '').slice(0, 12)}`
   const provisionerPassword = randomBytes(24).toString('base64url')
-  await provisionApplicationDatabase({ cluster: { host: admin.host, port: admin.port }, database, installation: { user: admin.user, password: admin.password }, provisionerPassword })
+  const hub = await createEmptyDatabase(t, 'conexus_q1_hub')
+  await provisionApplicationDatabase({
+    cluster: { host: admin.host, port: admin.port }, database, hubDatabase: hub.database, hubRoles: [],
+    installation: { user: admin.user, password: admin.password }, provisionerPassword,
+  })
   const stateDir = mkdtempSync(join(tmpdir(), 'conexus-runner-'))
-  const credentialKey = randomBytes(32)
   const supervisor = createSupervisor({
     stateDir, runtimeDir: stageWorkerRuntime(join(stateDir, 'runtime')), cluster: { host: admin.host, port: admin.port },
-    database, provisionerPassword, credentialKey,
+    database, provisionerPassword, relayTls: relayTls(),
   })
   const projects = [randomUUID(), randomUUID()]
   t.after(async () => {
@@ -117,11 +121,11 @@ const setup = async (t) => {
     }
     await superuser.end()
   })
-  return { admin, database, supervisor, projects, credentialKey }
+  return { admin, database, supervisor, projects }
 }
 
 test('the runner migrates and serves each Project through its own sandboxed worker', async (t) => {
-  const { admin, database, supervisor, projects: [a, b], credentialKey } = await setup(t)
+  const { admin, database, supervisor, projects: [a, b] } = await setup(t)
   const files = serverTree([['001_follow_up_note.sql', NOTE_SQL]])
   const invoke = (projectId, operation, input = {}) => supervisor.invoke({ projectId, operation, input, files })
 
@@ -191,8 +195,8 @@ test('the runner migrates and serves each Project through its own sandboxed work
     const socketDir = mkdtempSync(join(tmpdir(), 'conexus-relay-'))
     t.after(() => rmSync(socketDir, { recursive: true, force: true }))
     const runtimeRole = previewAllocation(a).runtimeRole
-    const relay = await openPgRelay({ socketPath: join(socketDir, '.s.PGSQL.5432'), upstream: { host: admin.host, port: admin.port }, pin: { user: runtimeRole, database }, password: roleCredential(credentialKey, runtimeRole), maxSessions: 2 })
-    // The client sends no password at all; the relay completes SCRAM upstream with the credential.
+    const relay = await openPgRelay({ socketPath: join(socketDir, '.s.PGSQL.5432'), upstream: { host: admin.host, port: admin.port }, pin: { user: runtimeRole, database }, tls: relayTls(), maxSessions: 2 })
+    // The client sends no credential at all; the relay logs in upstream with the runner certificate.
     const login = (user, target) => {
       const client = new pg.Client({ host: socketDir, user, database: target, connectionTimeoutMillis: 3000 })
       return client.connect().then(() => client.query('SELECT current_user AS who').then((result) => { client.end(); return result.rows[0].who }), (error) => error.message)

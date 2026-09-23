@@ -168,6 +168,16 @@ Hub database on the same cluster.
 | `app_<project>_preview_mig` | `app_provisioner`, per Project | the runner's sandboxed worker, through its pinned relay | `USAGE, CREATE` on its own Preview schema only |
 | `app_<project>_preview_rt` | `app_provisioner`, per Project | the runner's sandboxed worker, through its pinned relay | `USAGE` on its own Preview schema and DML on what its migration role created |
 
-A Project role's password is `HMAC-SHA256(runner key, role name)` with the key in
-`CONEXUS_APP_RUNNER_KEY_FILE`, so the runner never stores a secret per Project. The runner checks
-its own credential at startup and refuses to serve without it.
+A Project role has no usable password. Its password is `NULL` and its `VALID UNTIL` is
+`-infinity`. Postgres lets a role change its own password but not its `VALID UNTIL`, so a password
+that generated code sets for its own role is already expired. The cluster's `pg_hba.conf` admits a
+Project role name only over TLS, only to the application database, and only with the runner's
+client certificate (CN `conexus-app-relay`, mapped in `pg_ident.conf`). It rejects that name on
+every other line. `scripts/confine-application-cluster.mjs` installs those rules and the server's TLS
+files. The runner reads its certificate from `CONEXUS_APP_RELAY_TLS_DIR` and presents it only from
+the per-invocation relay, outside the sandbox. At startup the runner checks its provisioner
+credential and brings every Project role it administers under these rules.
+
+The installation step also revokes PUBLIC's `CONNECT` on the Hub database and on `postgres`. It first
+grants `CONNECT` on the Hub database to every registered Hub role that exists. It refuses to revoke
+while a role that holds `CONNECT` only through PUBLIC is connected.
