@@ -270,13 +270,16 @@ async function sendAndSettle(page, options, caseFile, result) {
   }
   result.modelId = options.model ?? usable.models[0].id
 
+  const previousRunId = options.project
+    ? (await readSession(page, options.project)).latestBuilderRun?.builderRunId ?? null
+    : null
   const started = options.project
     ? await openConversationAndSend(page, { baseUrl: options.baseUrl, projectId: options.project, request: caseFile.request, modelId: options.model })
     : await createProjectAndSend(page, { request: caseFile.request, modelId: options.model, projectName: result.projectName })
   result.projectId = started.projectId
   result.conversationId = started.conversationId
 
-  let settled = await pollForSettledRun(page, result.projectId, null)
+  let settled = await pollForSettledRun(page, result.projectId, previousRunId)
   result.runs.push(recordOf(settled.run, false))
   result.sourceRevisionBefore = settled.run.baseSourceRevision
   while (needsRepair(settled.run) && result.repairIterations < options.maxRepairs) {
