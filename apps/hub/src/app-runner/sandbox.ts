@@ -6,7 +6,8 @@ import type { WorkerJob, WorkerResult } from './worker.js'
 /**
  * The per-invocation boundary: a rootless bubblewrap sandbox with unprivileged user, pid, network,
  * ipc, uts and cgroup namespaces, no capabilities, an empty environment, an allowlisted root that
- * never contains the operator's home, and one unix socket as its only way to the database. Node's
+ * never contains the operator's home, and one unix socket as its only way to the database. The root
+ * holds the shared libraries Node links against and no other executable than Node itself. Node's
  * permission model inside it refuses child processes, workers, addons and file writes; that is
  * defense in depth, not the boundary.
  */
@@ -38,10 +39,10 @@ export type WorkerOutcome =
   | Readonly<{ kind: 'CRASHED'; exitCode: number | null; signal: string | null; ms: number; logs: string }>
 
 const rootFilesystem = (config: SandboxConfig): string[] => [
-  '--ro-bind', '/usr', '/usr',
+  '--ro-bind', '/usr/lib', '/usr/lib',
+  '--ro-bind-try', '/usr/lib64', '/usr/lib64',
   '--symlink', 'usr/lib', '/lib',
   '--symlink', 'usr/lib64', '/lib64',
-  '--symlink', 'usr/bin', '/bin',
   '--proc', '/proc',
   '--dev', '/dev',
   '--size', String(1024 * 1024), '--tmpfs', '/tmp',
