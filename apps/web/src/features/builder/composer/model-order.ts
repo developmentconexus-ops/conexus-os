@@ -14,7 +14,7 @@ export type ProviderIcon = ComponentType<SVGProps<SVGSVGElement>>
 
 // The Hub lists a model by its catalog provider; the person knows the account by its product name.
 const providerNames: Readonly<Record<string, string>> = {
-  'mastracode/google-ai-pro': 'Google AI Pro',
+  'google-ai-pro': 'Google AI Pro',
   anthropic: 'Anthropic',
   openai: 'OpenAI',
   google: 'Google',

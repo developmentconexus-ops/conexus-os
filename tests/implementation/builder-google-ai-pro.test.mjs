@@ -277,7 +277,7 @@ test('signing in from Settings stores the record as the person\'s own Factory cr
   assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), { type: 'antigravity', refresh_token: 'refresh-from-google' })
   assert.deepEqual(patches, [{
     orgId: ORG, userId: ana, patch: {},
-    fillIfUnset: { observerModelId: 'mastracode/google-ai-pro/gemini-3.5-flash-lite', reflectorModelId: 'mastracode/google-ai-pro/gemini-3.5-flash-lite' },
+    fillIfUnset: { observerModelId: 'google-ai-pro/gemini-3.5-flash-lite', reflectorModelId: 'google-ai-pro/gemini-3.5-flash-lite' },
   }])
   assert.deepEqual(readdirSync(stateDir), [], 'the sign-in proxy and its copy of the record are gone')
 })

@@ -17,10 +17,14 @@ export const GOOGLE_AI_PRO_MODELS: readonly string[] = Object.freeze([
   'gemini-3.1-pro-low', 'gemini-pro-agent', 'gemini-3.8-flash-high', 'gemini-3.7-flash-high', 'gemini-3.6-flash-high',
   'gemini-3-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite',
 ])
-// The Factory seeds a memory model only for providers it knows, and a custom provider is not one.
-// The catalog lists a custom provider under the Mastra Code gateway, and pickers store that id.
-export const GOOGLE_AI_PRO_CATALOG_PROVIDER = `mastracode/${GOOGLE_AI_PRO_PROVIDER}`
-export const GOOGLE_AI_PRO_MEMORY_MODEL = `${GOOGLE_AI_PRO_CATALOG_PROVIDER}/gemini-3.5-flash-lite`
+// The Factory's custom-provider catalog (`/web/config/models`) now lists this provider itself, by
+// its own providerId, so this is also the id a picker offers and a selection stores. A selection
+// made before this fix can still carry the old Mastra Code gateway alias id
+// (`mastracode/google-ai-pro/<model>`); it still resolves at call time
+// (`stripMastraCodeCustomProviderPrefix` treats it and the bare id as the same provider), so it only
+// shows as unselected in a picker until the person re-picks it once. This installation is a
+// single-operator pilot, so that one-time re-pick costs less than a permanent id-rewrite layer.
+export const GOOGLE_AI_PRO_MEMORY_MODEL = `${GOOGLE_AI_PRO_PROVIDER}/gemini-3.5-flash-lite`
 
 // The Factory's own seed call (om-seed): it never overwrites a model the person already chose.
 export const seedGoogleAiProMemory = async (memorySettings: Pick<MemorySettingsStorage, 'ensureReady' | 'patch'>, tenant: Readonly<{ orgId: string; userId: string }>): Promise<void> => {

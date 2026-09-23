@@ -225,9 +225,9 @@ CLIProxyAPI v7.3.12. The Hub runs the binary; it never reads `~/cliproxy/config.
    machine, Google's redirect to `localhost:51121` reaches the Hub and the card completes by itself.
    On another machine the tab ends on a page that does not open: copy its address, paste it into the
    card, and select Concluir.
-4. Choose a model such as `mastracode/google-ai-pro/gemini-3.1-pro-low` in a conversation or in
+4. Choose a model such as `google-ai-pro/gemini-3.1-pro-low` in a conversation or in
    Meus padrões. The sign-in also fills your memory model with
-   `mastracode/google-ai-pro/gemini-3.5-flash-lite` when you have not chosen one.
+   `google-ai-pro/gemini-3.5-flash-lite` when you have not chosen one.
 
 Without a browser, the operator can store an existing CLIProxyAPI login file instead. The command
 writes the same Factory row and memory seed as the sign-in, prints one line, and never prints the
