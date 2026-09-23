@@ -1,0 +1,47 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T17:14:05.791Z",
+  "finishedAt": "2026-09-23T17:14:07.315Z",
+  "outcome": "PASS",
+  "error": null,
+  "case": "docs/evidence/stage2-q1/q1.8/../q1.6-apps/cases/read-after-restart.json",
+  "gradeOnly": true,
+  "request": null,
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": null,
+  "projectId": "a700a0f2-883b-427f-9f52-89c1eb476be3",
+  "projectName": null,
+  "conversationId": null,
+  "modelId": null,
+  "sourceRevisionBefore": null,
+  "sourceRevisionAfter": "c6ae737eb891699cad6507888fef10e7ccaf6b80",
+  "filesChanged": [],
+  "runs": [],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": null,
+  "previewUrl": "https://preview-65804464-bfb1-40fb-b06a-134cd822b0f8.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Q1.6 nota no cluster de aplicacoes antes do reinicio",
+        "ok": true,
+        "error": null
+      }
+    ],
+    "afterReload": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Q1.6 nota no cluster de aplicacoes antes do reinicio",
+        "ok": true,
+        "error": null
+      }
+    ]
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}
