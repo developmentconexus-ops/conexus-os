@@ -1,0 +1,34 @@
+# Pilot: conexus-apps-postgres recreated from run-application-cluster.sh on the mounted 4 GiB image
+# backup first: ~/.local/share/conexus/pilot/slice7/backups/q1-r3-apps-20260923T180920Z (globals, conexus_apps 10 table-data entries, pg_hba, pg_ident, postgresql.auto.conf, inspect), dumped with PGOPTIONS transaction_timeout=0 statement_timeout=0
+== 2026-09-23T18:22:47Z head f52fe380
+hub cluster start: 2026-09-23 14:35:07.161635+00
+mount: /dev/loop2 ext4 rw,noatime
+marker: root 444 0
+image: /var/lib/conexus/applications-postgres.img blocks=8388616 x 512 size=4294967296
+fstrim.timer: enabled inactive
+127.0.0.1:5432 - accepting connections
+entrypoint: ["/bin/sh"] restart=unless-stopped
+mounts: /home/leandrotheodoro/.local/share/conexus/pilot/slice7/secrets/db-apps-root->/run/secrets/postgres-password:false /var/lib/conexus/applications-postgres->/var/lib/conexus-apps-storage:false /var/lib/conexus/applications-postgres/pgdata->/var/lib/postgresql/data:true 
+old: exited restart=no
+log_filename=postgresql-%H.log
+log_rotation_age=60
+log_rotation_size=0
+log_truncate_on_rotation=on
+ssl=on
+transaction_timeout=120000
+preview schemas=6
+== docker restart (guard passes on the mounted filesystem)
+127.0.0.1:5432 - accepting connections
+refusals in log: 0
+== write 400 MiB into the pilot image
+wsl root free before=969777856512 after=969777856512 delta=0 image blocks=8388616
+hub cluster start: 2026-09-23 14:35:07.161635+00
+== runner restarted on this head; Preview read through the certificate relay
+runner starting 2026-09-23T18:23:44Z head f52fe380 cluster 127.0.0.1:5434
+q1.6-apps/cases/read-after-restart.json, grade only: "outcome":"PASS"
+== grants a runtime role or PUBLIC holds on Preview relations, after the runner's startup convergence
+<runtime role> DELETE|4
+<runtime role> INSERT|4
+<runtime role> SELECT|8
+<runtime role> UPDATE|4
+<runtime role> USAGE|4

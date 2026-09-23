@@ -168,7 +168,7 @@ cluster holds none of them.
 | --- | --- | --- | --- |
 | `app_provisioner` | `scripts/provision-application-database.mjs`, an installation step | the application runner (`apps/hub/src/app-runner/main.ts`), password from `CONEXUS_DB_APP_PROVISIONER_PASSWORD_FILE` | `LOGIN CREATEROLE`, no superuser, database creation, replication or Hub authority; owns the application database and every Project Preview schema |
 | `app_<project>_preview_mig` | `app_provisioner`, per Project | the runner's sandboxed worker, through its pinned relay | `USAGE, CREATE` on its own Preview schema only |
-| `app_<project>_preview_rt` | `app_provisioner`, per Project | the runner's sandboxed worker, through its pinned relay | `USAGE` on its own Preview schema and DML on what its migration role created |
+| `app_<project>_preview_rt` | `app_provisioner`, per Project | the runner's sandboxed worker, through its pinned relay | `USAGE` on its own Preview schema and exactly DML on what its migration role created; the runner revokes anything more a migration grants it or PUBLIC, after every migration |
 
 A Project role has no usable password. Its password is `NULL` and its `VALID UNTIL` is
 `-infinity`. Postgres lets a role change its own password but not its `VALID UNTIL`, so a password

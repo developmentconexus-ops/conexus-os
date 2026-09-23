@@ -91,34 +91,63 @@ by numeric id.
 
 The storage bound was proven on the 1 GiB probe filesystem, never the pilot's:
 
-- **A missing filesystem stops the cluster.** With `pgdata` absent, `run-application-cluster.sh`
-  refuses (`APPLICATION_CLUSTER_STORAGE_MISSING`) and Docker itself refuses the `--mount` (`bind
-  source path does not exist`). Nothing was created on the root filesystem. Stopping the systemd
-  unit needs `sudo`, so the proof uses a source path that does not exist.
+- **An unmounted filesystem stops the cluster, on every start (round 3).** The round-2 proof used a
+  source path that did not exist, and the run script checked only that `pgdata` existed. An
+  unmounted mountpoint holding a stale `pgdata` would have passed that check, and Docker restarts
+  the container without the script. The install step now leaves a marker,
+  `.conexus-apps-storage`, at the filesystem's root. `run-application-cluster.sh` takes the storage
+  root and refuses without the marker (`APPLICATION_CLUSTER_STORAGE_MISSING`), without a mountpoint
+  there (`APPLICATION_CLUSTER_STORAGE_NOT_MOUNTED`), and, for a loop image, with any block of the
+  image unallocated (`APPLICATION_CLUSTER_STORAGE_SPARSE`). The container's entrypoint is a guard
+  around the image's own: on every start it requires the marker, bound read-only from the root, on
+  the same filesystem as PGDATA, and otherwise exits with `APPLICATION_CLUSTER_STORAGE_UNMOUNTED`.
+  `application-cluster-installation.test.mjs` proves it on an ordinary directory holding a stale,
+  initialized `pgdata`: the script refuses without the marker and without the mount, and with the
+  marker removed the restart policy's own restart, `docker start` and `docker restart` are each
+  refused and nothing serves ([`q1.8/start-guard-proof.txt`](q1.8/start-guard-proof.txt)). CI runs
+  it; CI's own cluster opts out of the mountpoint and allocation checks only
+  (`CONEXUS_APP_CLUSTER_UNMOUNTED_STORAGE=ci`), because its runner has no loop mount.
 - **Filling it stays inside it.** A session wrote incompressible rows until the probe filesystem was
   full (192 KiB left). That cluster then restarted in a loop, unable to write WAL. Throughout, the
   Hub PostgreSQL kept its start time and served a write and read-back
   ([`topology/storage-proof.txt`](topology/storage-proof.txt)).
-- **Writes into the image do not consume the host's root filesystem.** Writing 400 MiB into the probe
-  filesystem changed the WSL root filesystem's free space by 4 KiB
-  ([`topology/reserve-proof.txt`](topology/reserve-proof.txt)). The image's blocks are reserved when
-  it is allocated. On this Windows host the WSL disk file on D: still grows as the cluster writes, by
-  at most the image size (D: had about 100 GB free).
+- **Writes into an allocated image do not consume the host's root filesystem; the fill's own numbers
+  show a sparse image (corrected in round 3).** During the fill, the WSL root filesystem's free space
+  fell by about 1.04 GB in step with the probe filesystem, and D: fell by 1.71 GB
+  ([`topology/storage-proof.txt`](topology/storage-proof.txt)). The probe image was sparse while
+  that fill ran: it was created before the allocation fix. `reserve-proof.txt` ran after the fill had
+  allocated every block, so its 4 KiB delta for 400 MiB written shows only that writes into
+  allocated blocks take no new root space
+  ([`topology/reserve-proof.txt`](topology/reserve-proof.txt)). For the pilot image, Q1.8 item 3
+  rests on its allocation (8,388,616 × 512 bytes for 4,294,967,296) and on a write measured on it in
+  round 3: 400 MiB written into the pilot's PGDATA changed the WSL root filesystem's free space by 0
+  bytes ([`q1.8/pilot-start-guard.txt`](q1.8/pilot-start-guard.txt)). The run script now refuses
+  to start the cluster on an image with any block unallocated, since a trim punches holes even with
+  `nodiscard`. On the pilot `fstrim.timer` is enabled but inactive, with no next run scheduled. On
+  this Windows host the WSL disk file on D: still grows as the cluster writes: 1.71 GB for a 1 GiB
+  image in the fill above, so the image size is not a bound on D:.
 - **A full cluster recovers.** A full cluster restarted nine times in 60 seconds and could not
   recover alone. Deleting a 256 MiB root-owned `recovery-ballast` file beside `pgdata`, from a root
   container and with no `sudo`, let it start. It then dropped the filling table and wrote and read
   again ([`topology/recovery-proof.txt`](topology/recovery-proof.txt)). The install script now leaves
   that file, and the pilot volume has one.
 
-**Carry-over.** On a VPS, a separate block volume mounted at the same path replaces the image. The
-run script and its `--mount` stay the same. On a managed PostgreSQL plan, the plan's storage size is
+**Carry-over.** On a VPS, a separate block volume mounted at the same path replaces the image, with
+the same marker and `pgdata` at its root. The run script and the container's guard stay the same;
+the allocation check applies only to a loop image. Backups of this cluster pass
+`PGOPTIONS='-c transaction_timeout=0 -c statement_timeout=0'`: the cluster's 120 s
+`transaction_timeout` ends a longer `pg_dump`. No repository script dumps it; the round-3 pilot
+backup did so. On a managed PostgreSQL plan, the plan's storage size is
 the bound, and the settings below become the plan's parameters.
 
 **Container.** `postgres:17.10-bookworm` at the pinned digest. Published on 127.0.0.1:5434 only, with
 `--memory 1g --memory-swap 1g` (the container's cgroup reads `memory.max` 1073741824 and
 `memory.swap.max` 0 on cgroup v2), `--cpus 2`, `--pids-limit 512`, a read-only root, tmpfs
 `/var/run/postgresql` and `/tmp`, `no-new-privileges`, Docker logs capped at 2 × 10 MB, and restart
-`unless-stopped`. The host has 14.6 GB of memory and 10 CPUs. The Hub cluster's container has no
+`unless-stopped`. Its entrypoint is the storage guard above. Server logs rotate hourly into 24 files
+named by the hour inside PGDATA, each truncated when its hour comes round, with no size-driven
+rotation: PostgreSQL truncates only on a time-driven rotation, so round 2's 16 MB size rotation
+appended to the same file and bounded nothing (round-3 N6). The logs hold at most the last day. The host has 14.6 GB of memory and 10 CPUs. The Hub cluster's container has no
 memory limit.
 
 ### The settings
@@ -160,11 +189,21 @@ Every step followed a backup under `~/.local/share/conexus/pilot/slice7/backups/
    left `pg_hba.conf` and `pg_ident.conf`, and the four `ssl` settings were reset. That was a reload,
    not a restart. The Hub cluster is back to its configuration before Q1
    ([`q1.8/hub-cluster-unconfine.txt`](q1.8/hub-cluster-unconfine.txt)).
+5. Round 3, `q1-r3-apps-20260923T180920Z` (dumped with the timeouts lifted): the operator created
+   the storage marker, and `conexus-apps-postgres` was recreated from the round-3 run script on the
+   same mounted image. The round-2 container is kept stopped as `conexus-apps-postgres-r2` with
+   restart `no`. The new container passed the mountpoint and allocation checks and restarted
+   through its guard. The runner restarted on the round-3 code, its startup left every runtime role
+   exactly DML with nothing for PUBLIC, and run-2's Preview read passed through the relay
+   ([`q1.8/pilot-start-guard.txt`](q1.8/pilot-start-guard.txt)).
 
-The Hub PostgreSQL's start time stayed `2026-09-23 14:35:07.161635+00` through all four steps.
+The Hub PostgreSQL's start time stayed `2026-09-23 14:35:07.161635+00` through all five steps.
 
 CI runs the same shape. The verify job starts its own Applications cluster from
-`run-application-cluster.sh` on 5434, confines it, and runs the suites against both clusters.
+`run-application-cluster.sh` on 5434, confines it, and runs the suites against both clusters. Its
+storage is an ordinary directory carrying the marker, started with
+`CONEXUS_APP_CLUSTER_UNMOUNTED_STORAGE=ci`, so CI proves the guards but not the fixed-size mount;
+the pilot records carry that.
 
 ## Q1.1 data isolation substrate
 
@@ -200,7 +239,10 @@ Applications test cluster plus a throwaway Hub database on the separate Hub test
 - Project A's runtime role reads and writes its own table. It gets `42501` for Project B's table,
   `SET ROLE` to B, to its own migration role or to the provisioner, any DDL, `TRUNCATE`, the ledger,
   `public`, `TEMP` and `CREATE SCHEMA`. Its `GRANT USAGE` on its own schema to B only warns and grants
-  nothing.
+  nothing. `TRUNCATE` and `CREATE TRIGGER` stay refused after a migration grants the runtime role
+  `TRUNCATE, TRIGGER, REFERENCES, MAINTAIN` and grants PUBLIC everything: after every migration the
+  runner revokes all of it and grants DML again (`restoreRuntimePrivileges`, round 3;
+  `application-runner-sandbox`).
 - A Project role that sets its own password (Postgres allows it) still logs in only through the
   relay. On the Applications cluster, a password login to the application or `postgres` database
   and a direct certificate login to `postgres` each get `28000` from `pg_hba`. With the role renamed
@@ -537,7 +579,8 @@ code and refused. The proofs live in two rerunnable suites, not a one-off script
 
 - Database authority and migration attacks: `application-data-postgres.test.mjs`, logging in as each
   Project role through the relay. A runtime role reading or writing Project B, `SET ROLE`
-  to B, its own migration role or the provisioner, any DDL, `TRUNCATE`, the ledger, `public`, `TEMP`,
+  to B, its own migration role or the provisioner, any DDL, `TRUNCATE` (also after a migration grants
+  it, round 3), the ledger, `public`, `TEMP`,
   `CREATE SCHEMA` and `ALTER ROLE` all get `42501`; its `GRANT USAGE` on its own schema to B grants
   nothing. Neither Project role holds any Hub schema, table or function grant (counts 0, 0, 0). A
   generated migration is refused `CREATE EXTENSION dblink`/`postgres_fdw`, `COPY ... TO PROGRAM`,
@@ -682,7 +725,7 @@ Falsifiers after the fixes:
 | --- | --- | --- |
 | 1 | not observed | Handlers run only in the sandboxed worker, outside the Hub. |
 | 2 | not observed | Cross-Project reads and writes `42501`; Q1.6 on the live path. |
-| 3 | not observed | Runtime DDL `42501`; no routine can exist to lend it migration authority; the self-set password opens nothing. A migration may still grant its runtime role more on its own tables (`TRUNCATE`, `TRIGGER` with a built-in trigger function). That authority stays inside the Project's own schema and never reaches roles or Hub data (round-2 N2). |
+| 3 | not observed | Runtime DDL `42501`; no routine can exist to lend it migration authority; the self-set password opens nothing. A migration's extra grants to its runtime role or to PUBLIC (`TRUNCATE`, `TRIGGER`, `REFERENCES`, `MAINTAIN`) are revoked after every migration, so `TRUNCATE` and `CREATE TRIGGER` stay `42501` (round 3; round-2 N2). |
 | 4 | not observed | Permission-off suite and the pilot probe: no secret path, `/proc` entry or home reachable; the worker holds no credential. |
 | 5 | not observed | Project, operation and module come from the binding and manifest; the database identity is pinned by the relay and cannot be re-minted by a password. |
 | 6 | not observed | Empty network namespace; the test now targets listeners that accept the host. |
@@ -705,7 +748,7 @@ topology decision answers the first. Lane B's admission bound answers the second
 | Claude N3: the language revoke named `sql` and `plpgsql` only | Provisioning revokes every trusted language. `checkProvisioner` refuses to serve while PUBLIC or a Project role can use one (`RUNNER_ROUTINE_LANGUAGE_USABLE`). | `application-runner-sandbox`: granting `plpgsql` to PUBLIC, or `sql` to a Project's migration role, stops the runner's census |
 | Claude N4: the CA key and the server key sat in the directory the runner reads | `confine-application-cluster.mjs` keeps them in an authority directory. The runner's directory holds exactly `ca.pem`, `relay.pem` and `relay-key.pem`, and `readRelayTls` refuses anything else or a directory open to group or others. | `application-runner-sandbox` relay-directory test; the pilot uses `apps-cluster-authority` and `apps-relay-tls` |
 | Claude N5: a failed TLS load left `ssl = on` persisted, which kills the next restart | Round 2's own fix did not work: it polled `SHOW ssl`, which reports the setting, not whether the certificate loaded. The same mismatched-key run left four `ssl` lines and a container that did not start again. Confinement now refuses a key that is not the certificate's, or a certificate the CA did not sign, before it changes anything. After each reload it requires a TLS handshake verified against the CA, and resets the settings if there is none. | `application-data-postgres` material test; [`topology/n5-proof-2.txt`](topology/n5-proof-2.txt): refused, `ssl` off, restarts; then loads and restarts with `ssl` on |
-| Claude N2 and N7: a migration may grant the runtime role more on its own tables; a source comment said otherwise | The `data-plane.ts` comment now says so. The claim is reworded: a migration's grants reach no schema but its own. Owed before Q5: a catalog check after each migration. | Boundary 5 |
+| Claude N2 and N7: a migration may grant the runtime role more on its own tables; a source comment said otherwise | The `data-plane.ts` comment now says so. The claim is reworded: a migration's grants reach no schema but its own. Round 3 closed the rest (below). | Round 3 |
 | Claude N6: the PUBLIC `CONNECT` revoke checks only roles connected now | On the Applications cluster it closes only `postgres`, where nothing but the superuser connects. The Hub database is no longer touched. | provisioning code |
 | New in this round: `pg_use_reserved_connections` never applied | The provisioner is `NOINHERIT`, so a plain grant gave it membership without the privilege, and Project sessions could take the runner's last slots. The grant now says `WITH INHERIT TRUE`. | The bounds test asserts the privilege. It failed before the fix. |
 
@@ -713,11 +756,14 @@ topology decision answers the first. Lane B's admission bound answers the second
 removes one guard at a time, runs the suite that should catch it and restores the file. It ran on
 freshly created throwaway clusters:
 [`guard-mutations.txt`](guard-mutations.txt), driven by
-[`guard-mutations-fresh.sh`](guard-mutations-fresh.sh). All 16 mutations fail their suite, each
+[`guard-mutations-fresh.sh`](guard-mutations-fresh.sh). All 20 mutations fail their suite, each
 naming the test that caught it: the language revoke and its startup check, the PUBLIC `CONNECT`
 revoke, the reserved-connection grant, the TLS key check, `VALID UNTIL`, the ledger policy, the
 runtime role's schema grants, the role `temp_file_limit` and `transaction_timeout`, both relay
-directory checks, `--unshare-net`, the relay's cancel and the Hub-cluster refusal. Two guards leave
+directory checks, `--unshare-net`, the relay's cancel and the Hub-cluster refusal, plus round 3's
+four: the TLS reset, the storage mountpoint check, the storage entrypoint guard and the restore of
+runtime privileges after a migration. The driver now starts its own clusters from the repository's
+run script. Round 3 reran all 20 on fresh clusters at `f52fe380`. Two guards leave
 state in the cluster once any provisioning has run: PUBLIC's `CONNECT` on `postgres` and the
 provisioner's membership. Each of them only shows on a cluster nothing has provisioned yet, so each
 ran on its own fresh cluster. A first run on a shared cluster reported both as passing without their
@@ -729,11 +775,28 @@ Falsifier 12, added by the amendment:
 | --- | --- | --- |
 | 12 | not observed, structurally | Separate clusters and containers; no application data or Project role in the Hub cluster; bounded, preallocated storage and memory; the Hub wrote, read back and served IAM, Workspace and Project requests with the Applications container stopped, and the Hub PostgreSQL did not restart. The fill and recovery ran on the probe filesystem. |
 
+## Round-3 reviews at 8b79b11d and how each finding closed
+
+Sol returned REJECT on two findings; Claude proposed ACCEPT_WITH_BOUNDARY with conditions. Both
+agreed on the first two.
+
+| Finding | Closed by | Evidence |
+| --- | --- | --- |
+| Sol 1 and Claude N3/C3: Q1.8 item 4 was neither enforced nor shown. The run script checked only that `pgdata` existed, Docker's restart bypasses the script, and the proof used an absent path. | A marker at the storage root, a mountpoint and allocation check in the run script, and a guard entrypoint that requires the marker on PGDATA's filesystem at every start, restarts included (Q1.8 above). | `application-cluster-installation.test.mjs` in CI; mutations `no-storage-mountpoint-check` and `no-storage-entrypoint-guard`; [`q1.8/start-guard-proof.txt`](q1.8/start-guard-proof.txt); the pilot ([`q1.8/pilot-start-guard.txt`](q1.8/pilot-start-guard.txt)) |
+| Sol 2 and Claude round-2 N2: a migration could grant the runtime role `TRUNCATE`, `TRIGGER`, `REFERENCES` or `MAINTAIN`, or grant PUBLIC anything, so "the runtime role cannot run DDL" had an exception | `restoreRuntimePrivileges` in `data-plane.ts`. After every migration, whatever its outcome, and at every allocation repair, the provisioner acts as the migration role (the owner). It revokes everything from PUBLIC and the runtime role on the schema's tables, sequences and routines, with `CASCADE`, then grants DML on tables and `USAGE, SELECT` on sequences. Idempotent; startup converges existing Previews. Between a migration's commit and this step, a handler running at that moment holds the migration's grants for milliseconds. | `application-runner-sandbox`: a migration grants all four to the runtime role and everything to PUBLIC; the runtime role then gets `42501` for `TRUNCATE` and `CREATE TRIGGER` and can still insert. Failed before the fix (`truncate: 'ok', createTrigger: 'ok'`); mutation `no-runtime-privilege-restore` |
+| Claude C1/N1: the storage claims contradicted `storage-proof.txt`; `TRUNCATE` was listed as refused without qualification | Q1.8 storage bullets and the Q1.1 and Q1.7 lists corrected above. `TRUNCATE` is now refused after a granting migration too. | This file |
+| Claude C2/N2: preallocation can decay through a trim | The run script refuses an image with any block unallocated. `fstrim.timer` on the pilot: enabled, inactive, no next run. | Q1.8 above |
+| Claude C4/N4: confinement's TLS reset had no test | A server certificate the runner cannot verify (`DNS:elsewhere.invalid`) makes confinement fail with `CONFINE_TLS_NOT_LOADED`, and afterwards `ssl` is `off` with no `ssl` line in `postgresql.auto.conf`. | `application-cluster-installation.test.mjs`; mutation `no-tls-reset` |
+| Claude N6: a size rotation appended to the same log file | Hourly time-driven rotation into 24 files with truncation, no size rotation. | `run-application-cluster.sh` |
+| Claude N7: `transaction_timeout=120s` ends a longer `pg_dump` | The run script names the `PGOPTIONS` a dump needs; the round-3 pilot backup used them. No repository script dumps this cluster. | Carry-over above |
+| Claude N5, N8 | Boundary lines, not fixes: unsized `/dev` and `/dev/shm` tmpfs for workers (boundary 2); no I/O isolation on the shared physical disk (boundaries 9 and 10). | Boundaries |
+| Claude C7: the pilot's stale `app-relay-tls/` still holds `ca-key.pem` | Not done in round 3; inert, owed to the operator. | |
+
 ## Verdict
 
 **Proposed: ACCEPT_WITH_BOUNDARY on the task as amended on 2026-09-23.** The two REJECT reviews at
-`8ad7d5bf` and Sol's REJECT at `994a4fa0` each closed with a change and a test (above). Both
-protected statements held on the pilot path.
+`8ad7d5bf`, Sol's REJECT at `994a4fa0` and Sol's REJECT at `8b79b11d` each closed with a change and
+a test (above). Both protected statements held on the pilot path.
 
 - A normal Builder request produced a server-backed Preview. Its generated handler runs outside the
   Hub and persists Preview data for exactly one Project, on the Applications cluster. It could not
@@ -743,7 +806,7 @@ protected statements held on the pilot path.
   PostgreSQL did not restart. That holds structurally, as the amended Q1.8 requires. Active capacity
   and failure runs were not made.
 
-The claim rests on conditions that must stay durable, listed below. The third independent review
+The claim rests on conditions that must stay durable, listed below. The next independent review
 decides.
 
 The positive completion proof of task section 12, step by step:
@@ -787,7 +850,11 @@ Boundaries that must become durable:
    credential. The Node permission flag is defense in depth. The committed permission-off suite
    and the pilot probe assert the namespace root itself. `/usr/lib` holds helper executables
    (git-core, ssh-keysign); `no_new_privs` keeps any setuid one inert, and a seccomp filter and a
-   memory cgroup are owed before anything but Preview.
+   memory cgroup are owed before anything but Preview. The worker's memory bound is `RLIMIT_AS`,
+   which does not count tmpfs pages, and bubblewrap's `--dev` mounts `/dev` (with `/dev/shm`) as a
+   tmpfs of no fixed size. A worker that writes there takes host memory outside any limit. When the
+   memory cgroup lands, `/dev/shm` gets a sized tmpfs and the permission-off probe writes to it
+   (round-3 N5).
 3. **The runner process is in the Hub's trust domain on the pilot.** It runs as the operator's user
    and holds the provisioner credential and the relay's client key. Generated code never runs in it. Before a
    production installation, the runner needs its own OS user, apart from the Hub's secrets, beside
@@ -812,11 +879,16 @@ Boundaries that must become durable:
    filesystem, raise `work_mem` up to the container's 1 GiB, or hold connections up to its roles'
    limits. That takes every Preview down until an operator recovers it: a full cluster restarts in a
    loop until the `recovery-ballast` file is deleted. The Hub stays up. Fairness between Projects
-   returns on the triggers of the task's section 17.
-10. **The Applications storage must stay a separate, fixed-size volume.** On the pilot it is a
-    preallocated image on the WSL disk. That disk's file on D: still grows as the cluster writes, by
-    at most the image size. A production installation needs a separate volume or a managed plan
-    sized apart from the Hub's (already on the roadmap's production list). The Hub cluster's
+   returns on the triggers of the task's section 17. There is no I/O isolation: no
+   `--device-write-bps` or `io.max` is set, and the loop image shares the physical disk (the WSL
+   disk file on D:) with the Hub. A write storm can slow the Hub without stopping it (round-3 N8).
+10. **The Applications storage must stay a separate, fixed-size, preallocated volume.** On the pilot
+    it is a preallocated image on the WSL disk, and the cluster refuses to start on it if any block
+    is unallocated. That disk's file on D: still grows as the cluster writes: the probe fill grew
+    D: by 1.71 GB for a 1 GiB image, so the image size does not bound D:. The pilot's preflight must
+    keep D: headroom for the image and the Hub. It shares that physical disk's I/O with the Hub
+    (boundary 9). A production installation needs a separate volume or a managed plan sized apart
+    from the Hub's (already on the roadmap's production list). The Hub cluster's
     container has no memory limit. The Applications container is capped at 1 GiB of the host's
     14.6 GB.
 11. **Q1.8 is structural.** No active capacity or failure run was made against the pilot's
@@ -831,8 +903,9 @@ supervisor, sandbox and relay on the pilot host, with probe handlers and migrati
 run as Builder-generated code behind the live Preview. A standalone attack script for the live path
 was not authored, because a safety classifier stopped it. Only the existing reviewed suites were
 reused. Q1.8 proved containment by structure and by one ordinary stop, not by exhaustion runs against
-the pilot. The missing-filesystem refusal used a source path that does not exist: stopping the
-systemd mount unit needs `sudo`.
+the pilot. The unmounted-filesystem refusal is proven on an ordinary directory with a stale
+`pgdata` (the unmounted mountpoint's shape) and on the pilot's own container, not by stopping the
+pilot's systemd mount unit, which needs `sudo`.
 
 Found on the way, outside Q1's claim, each owed its own fix:
 
