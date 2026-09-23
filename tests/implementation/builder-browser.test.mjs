@@ -493,6 +493,13 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...compareQuery, files: [] }) })
   })
 
+  const thinkingLevels = []
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/state*`, (route) => {
+    const level = route.request().postDataJSON()?.state?.thinkingLevel
+    if (level) thinkingLevels.push(level)
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+
   await page.goto(`${origin}/projects/${projectId}/build`)
   // The model the next run uses is the controller's own selection, and the composer shows it.
   await page.getByRole('button', { name: new RegExp(`^Modelo ${SELECTED_MODEL_NAME}, `) }).waitFor()
@@ -500,6 +507,18 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   await page.getByRole('option', { name: 'Claude Opus 4.5' }).waitFor()
   await page.getByRole('option', { name: 'Claude Sonnet 4.5' }).waitFor()
   assert.equal(await page.getByRole('option').count(), 2, 'a model the controller has no key for is never offered')
+
+  // The reasoning slider follows a drag, not only a click, and names each level capitalized.
+  const slider = page.getByRole('slider', { name: 'Raciocínio' })
+  assert.equal(await slider.getAttribute('aria-valuetext'), 'Médio')
+  const box = await slider.boundingBox()
+  await page.mouse.move(box.x + 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width + 40, box.y + box.height / 2, { steps: 8 })
+  await page.mouse.up()
+  for (let wait = 0; wait < 50 && thinkingLevels.at(-1) !== 'xhigh'; wait += 1) await page.waitForTimeout(100)
+  assert.equal(thinkingLevels.at(-1), 'xhigh', `the drag ended at the high end: ${JSON.stringify(thinkingLevels)}`)
+  assert.ok(thinkingLevels.includes('low'), `the drag started at the low end: ${JSON.stringify(thinkingLevels)}`)
   await page.keyboard.press('Escape')
 
   await page.getByRole('tab', { name: 'Sobre' }).click()
