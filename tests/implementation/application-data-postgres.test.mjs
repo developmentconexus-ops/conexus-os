@@ -8,7 +8,7 @@ import { adminConnection, buildHubDatabase } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
-const { applyPendingMigrations, confineProjectRoles, ensurePreviewAllocation, planMigrations, previewAllocation, readLedger, resetPreviewSchema } =
+const { applyPendingMigrations, convergePreviewAllocations, ensurePreviewAllocation, planMigrations, previewAllocation, readLedger, resetPreviewSchema } =
   await import(hubModuleUrl('app-runner/data-plane.js'))
 
 // Every Project role here logs in through the runner's relay with its client certificate, as the
@@ -173,15 +173,18 @@ test('Project Preview data is confined to its own schema, roles and database', a
     }
   })
 
-  await t.test('roles an earlier runner created with a password are brought under the same rules', async (st) => {
+  await t.test('allocations an earlier runner created are brought under the current rules', async (st) => {
     const superuser = new pg.Client({ ...admin, database: 'postgres' })
     await superuser.connect()
     st.after(() => superuser.end())
     const legacy = 'legacy-derived-password-8c1e'
     await superuser.query(`ALTER ROLE ${b.runtimeRole} PASSWORD '${legacy}' VALID UNTIL 'infinity'`)
     assert.equal(await loginWithoutPgHbaRules(b.runtimeRole, legacy, database), 'connected', 'the legacy password works wherever pg_hba allows passwords')
-    assert.ok((await confineProjectRoles(provisioner)).includes(b.runtimeRole))
+    await provisioner.query(`DROP POLICY migration_session ON ${b.schema}.conexus_migration`)
+    assert.deepEqual([...await convergePreviewAllocations(provisioner, database)].sort(), [a.projectId, b.projectId].sort())
     assert.equal(await loginWithoutPgHbaRules(b.runtimeRole, legacy, database), '28P01')
+    const { rows } = await provisioner.query("SELECT count(*)::int AS n FROM pg_policies WHERE schemaname = $1 AND policyname = 'migration_session'", [b.schema])
+    assert.equal(rows[0].n, 1)
   })
 
   await t.test('a generated migration gains nothing beyond its own Project schema', async (st) => {
@@ -208,6 +211,10 @@ test('Project Preview data is confined to its own schema, roles and database', a
       grantSchemaToForeign: `GRANT USAGE ON SCHEMA ${a.schema} TO ${b.runtimeRole}`,
       grantTableToForeign: `GRANT SELECT ON follow_up_note TO ${b.runtimeRole}`,
       securityDefiner: 'CREATE FUNCTION whoami() RETURNS text LANGUAGE sql SECURITY DEFINER AS $$ SELECT current_user::text $$',
+      definerDdl: `CREATE FUNCTION add_column() RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN EXECUTE 'ALTER TABLE follow_up_note ADD COLUMN x int'; END $$`,
+      standardSqlBody: 'CREATE FUNCTION answer() RETURNS int LANGUAGE sql BEGIN ATOMIC SELECT 42; END',
+      procedure: "CREATE PROCEDURE sneak() LANGUAGE sql AS $$ CREATE TABLE sneaky (id int) $$",
+      doBlock: "DO $$ BEGIN EXECUTE format('ALTER ROLE %I PASSWORD %L', current_user, 'x'); END $$",
     }
     const observed = {}
     for (const [name, sql] of Object.entries(attacks)) observed[name] = await attempt(migratorA, sql)
@@ -216,14 +223,37 @@ test('Project Preview data is confined to its own schema, roles and database', a
       largeObjectImport: '42501', alterOwnRuntimeRole: '42501', alterForeignRole: '42501', createRole: '42501', createSchema: '42501',
       createInPublic: '42501', createInForeignSchema: '42501', readForeignTable: '42501', writeCatalog: '42501', dropOwnSchema: '42501',
       dropLedger: '42501', rewriteLedger: '42501', setProvisionerRole: '42501',
+      securityDefiner: '42501', definerDdl: '42501', standardSqlBody: '42501', procedure: '42501', doBlock: '42501',
       // Owner-only statements that succeed, and must carry nothing across the boundary.
-      grantSchemaToForeign: 'ok', grantTableToForeign: 'ok', securityDefiner: 'ok',
+      grantSchemaToForeign: 'ok', grantTableToForeign: 'ok',
     })
     const runtimeB = await loginAs(st, b.runtimeRole, database)
     assert.equal(await attempt(runtimeB, `SELECT * FROM ${a.schema}.follow_up_note`), '42501', 'a table grant without schema USAGE carries no rows')
     const runtimeA = await loginAs(st, a.runtimeRole, database)
-    assert.deepEqual((await runtimeA.query(`SELECT ${a.schema}.whoami() AS definer`)).rows, [{ definer: a.migrationRole }],
-      'a SECURITY DEFINER function runs as the unprivileged migration role, not above it')
+    assert.deepEqual({
+      callDefiner: await attempt(runtimeA, `SELECT ${a.schema}.whoami()`),
+      callDefinerDdl: await attempt(runtimeA, `SELECT ${a.schema}.add_column()`),
+      alterTable: await attempt(runtimeA, 'ALTER TABLE follow_up_note ADD COLUMN x int'),
+    }, { callDefiner: '42883', callDefinerDdl: '42883', alterTable: '42501' }, 'no routine exists for a runtime call to reach migration authority')
+  })
+
+  await t.test('owner-rights views and rules give a runtime handler nothing of the migration ledger', async (st) => {
+    const migratorA = await loginAs(st, a.migrationRole, database)
+    await migratorA.query('CREATE VIEW ledger_window AS SELECT * FROM conexus_migration')
+    await migratorA.query(`CREATE RULE ledger_echo AS ON INSERT TO follow_up_note DO ALSO
+      INSERT INTO conexus_migration (position, name, sha256) VALUES (97, 'echo.sql', '${'e'.repeat(64)}')`)
+    const runtimeA = await loginAs(st, a.runtimeRole, database)
+    try {
+      assert.deepEqual({
+        readThroughView: (await runtimeA.query('SELECT count(*)::int AS n FROM ledger_window')).rows[0].n,
+        appendThroughView: await attempt(runtimeA, `INSERT INTO ledger_window (position, name, sha256) VALUES (98, 'view.sql', '${'f'.repeat(64)}')`),
+        appendThroughRule: await attempt(runtimeA, "INSERT INTO follow_up_note (purchase_order_id, note) VALUES ('PO-R', 'rule')"),
+      }, { readThroughView: 0, appendThroughView: '42501', appendThroughRule: '42501' })
+      assert.equal((await readLedger(provisioner, a)).length, 1)
+    } finally {
+      await migratorA.query('DROP RULE ledger_echo ON follow_up_note')
+      await migratorA.query('DROP VIEW ledger_window')
+    }
   })
 
   await t.test('a failed migration leaves the schema and ledger as they were', async (st) => {

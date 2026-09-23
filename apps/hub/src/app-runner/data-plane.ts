@@ -56,20 +56,6 @@ const ensureRole = async (provisioner: Sql, role: string, connectionLimit: numbe
     : `ALTER ROLE ${identifier(role)} WITH ${repeatable} NOCREATEROLE`)
 }
 
-const PROJECT_ROLE = /^app_[0-9a-f]{32}_preview_(rt|mig)$/
-
-/**
- * Brings every Project role this provisioner administers onto the current login rules, including
- * roles an earlier runner created with a password. Returns the roles it converged.
- */
-export const confineProjectRoles = async (provisioner: Sql): Promise<readonly string[]> => {
-  const { rows } = await provisioner.query(`SELECT r.rolname FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.roleid
-    WHERE m.member = (SELECT oid FROM pg_roles WHERE rolname = current_user) AND m.admin_option AND r.rolcanlogin ORDER BY r.rolname`)
-  const roles = rows.map((row) => String(row.rolname)).filter((role) => PROJECT_ROLE.test(role))
-  for (const role of roles) await ensureRole(provisioner, role, role.endsWith('_rt') ? RUNTIME_CONNECTION_LIMIT : MIGRATION_CONNECTION_LIMIT)
-  return roles
-}
-
 /**
  * Creates or repairs one Project's Preview allocation. The provisioner owns the schema; the migration
  * role may create objects in it but, not owning it, cannot grant it to anyone; the runtime role gets
@@ -113,6 +99,29 @@ export const ensurePreviewAllocation = async (
     applied_at timestamptz NOT NULL DEFAULT now())`)
   await provisioner.query(`REVOKE ALL ON ${schema}.${LEDGER_TABLE} FROM PUBLIC`)
   await provisioner.query(`GRANT SELECT, INSERT ON ${schema}.${LEDGER_TABLE} TO ${migration}`)
+  // The migration role owns what its migrations create, so a view or rule it defines runs with its
+  // rights when a runtime handler touches it. The ledger is the one thing it may write that the
+  // runtime role may not; the policy admits it only in a session that logged in as the migration
+  // role, which a runtime session never is.
+  await provisioner.query(`ALTER TABLE ${schema}.${LEDGER_TABLE} ENABLE ROW LEVEL SECURITY`)
+  await provisioner.query(`DROP POLICY IF EXISTS migration_session ON ${schema}.${LEDGER_TABLE}`)
+  await provisioner.query(`CREATE POLICY migration_session ON ${schema}.${LEDGER_TABLE} TO ${migration}
+    USING (session_user = ${literal(allocation.migrationRole)}) WITH CHECK (session_user = ${literal(allocation.migrationRole)})`)
+}
+
+const PREVIEW_SCHEMA = /^p_([0-9a-f]{32})_preview$/
+
+/**
+ * Brings every Preview allocation in this database onto the current rules, including roles and
+ * ledgers an earlier runner created (a role with a password, a ledger without its policy). Returns
+ * the Project ids it converged.
+ */
+export const convergePreviewAllocations = async (provisioner: Sql, database: string): Promise<readonly string[]> => {
+  const { rows } = await provisioner.query("SELECT nspname FROM pg_namespace WHERE nspname LIKE 'p\\_%\\_preview'")
+  const hexes = rows.map((row) => PREVIEW_SCHEMA.exec(String(row.nspname))?.[1]).filter((hex): hex is string => hex !== undefined)
+  const projectIds = hexes.sort().map((hex) => `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`)
+  for (const projectId of projectIds) await ensurePreviewAllocation(provisioner, { allocation: previewAllocation(projectId), database })
+  return projectIds
 }
 
 export const readLedger = async (provisioner: Sql, allocation: PreviewAllocation): Promise<readonly LedgerRow[]> => {

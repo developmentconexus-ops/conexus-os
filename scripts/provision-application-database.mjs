@@ -11,6 +11,12 @@ import { readRegister, readSecretFile } from './provision-hub-roles.mjs'
 // pg_hba admits Project roles only with the runner's certificate and only to this database
 // (scripts/confine-application-cluster.mjs). This step also takes PUBLIC's CONNECT off the Hub
 // database and `postgres`, so no role reaches them by default.
+//
+// In the application database PUBLIC loses USAGE on LANGUAGE sql and plpgsql, the only languages
+// a non-superuser could write a routine in. A generated migration then cannot create a function,
+// procedure, trigger function or DO block, so nothing it leaves behind can run later with the
+// migration role's authority, whether a runtime handler calls it through SECURITY DEFINER or an
+// owner-rights view, rule or foreign-key action invokes it as the table owner.
 
 const PROVISIONER = 'app_provisioner'
 const ATTRIBUTES = 'LOGIN CREATEROLE NOINHERIT NOSUPERUSER NOCREATEDB NOREPLICATION NOBYPASSRLS'
@@ -78,6 +84,12 @@ export const provisionApplicationDatabase = async (config) => {
     await closeDatabaseToPublic(installation, 'postgres', [])
   } finally {
     await installation.end().catch(() => {})
+  }
+  const languages = await connect({ ...config.cluster, ...config.installation, database: config.database })
+  try {
+    await languages.query('REVOKE USAGE ON LANGUAGE sql, plpgsql FROM PUBLIC')
+  } finally {
+    await languages.end().catch(() => {})
   }
   const owner = await connect({ ...config.cluster, database: config.database, user: PROVISIONER, password: config.provisionerPassword })
   try {

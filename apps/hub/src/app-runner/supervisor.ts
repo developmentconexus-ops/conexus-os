@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import pg from 'pg'
-import { confineProjectRoles, ensurePreviewAllocation, planMigrations, previewAllocation, PROVISIONER_ROLE, readLedger, resetPreviewSchema } from './data-plane.js'
+import { convergePreviewAllocations, ensurePreviewAllocation, planMigrations, previewAllocation, PROVISIONER_ROLE, readLedger, resetPreviewSchema } from './data-plane.js'
 import type { PreviewAllocation } from './data-plane.js'
 import { openPgRelay } from './pg-relay.js'
 import type { RelayTls } from './pg-relay.js'
@@ -233,7 +233,7 @@ export const createSupervisor = (config: SupervisorConfig) => {
     checkProvisioner: () => withProvisioner(async (client) => {
       const { rows } = await client.query('SELECT current_user AS role, current_database() AS database')
       if (rows[0]?.role !== PROVISIONER_ROLE || rows[0]?.database !== config.database) throw new Error('RUNNER_PROVISIONER_REFUSED')
-      return confineProjectRoles(client)
+      return convergePreviewAllocations(client, config.database)
     }),
     prepare,
     invoke,

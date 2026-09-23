@@ -124,8 +124,8 @@ CREATE TABLE item (
 );
 \`\`\`
 
-A migration may create and alter objects in this Project's schema only: no extensions, roles, grants
-or other schemas.
+A migration may create and alter tables, indexes, constraints and views in this Project's schema
+only: no functions, procedures, triggers, DO blocks, extensions, roles, grants or other schemas.
 
 ## Calling an operation from the browser
 
