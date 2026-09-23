@@ -1,0 +1,67 @@
+== container
+name=/conexus-apps-postgres image=postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f restart=unless-stopped memory=1073741824 swap=1073741824 cpus=2000000000 pids=512 readonly=true ports={"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"5434"}]}
+bind /var/lib/conexus/applications-postgres/pgdata -> /var/lib/postgresql/data rw=true
+bind /home/leandrotheodoro/.local/share/conexus/pilot/slice7/secrets/db-apps-root -> /run/secrets/postgres-password rw=false
+
+memory.max=1073741824 cpu.max=200000 100000
+postgresql-Wed.log
+41M	/var/lib/postgresql/data
+== storage
+/dev/loop2 ext4 rw,noatime
+4143677440 43659264 3868495872
+/var/lib/conexus/applications-postgres.img size=4294967296 allocated=8388616*512
+/var/lib/conexus/q1-storage-probe.img size=1073741824 allocated=2097160*512
+== Applications cluster
+version | PostgreSQL 17.10 (Debian 17.10-1.pgdg12+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit
+setting | data_directory | /var/lib/postgresql/data |  | override | postmaster
+setting | idle_in_transaction_session_timeout | 30000 | ms | command line | user
+setting | listen_addresses | * |  | configuration file | postmaster
+setting | lock_timeout | 10000 | ms | command line | user
+setting | log_directory | log |  | command line | sighup
+setting | logging_collector | on |  | command line | postmaster
+setting | max_connections | 60 |  | command line | postmaster
+setting | max_wal_size | 512 | MB | command line | sighup
+setting | min_wal_size | 80 | MB | command line | sighup
+setting | reserved_connections | 4 |  | command line | postmaster
+setting | shared_buffers | 16384 | 8kB | command line | postmaster
+setting | shared_preload_libraries | pg_stat_statements |  | command line | postmaster
+setting | ssl | on |  | configuration file | sighup
+setting | statement_timeout | 60000 | ms | command line | user
+setting | superuser_reserved_connections | 3 |  | command line | postmaster
+setting | temp_file_limit | 1048576 | kB | command line | superuser
+setting | temp_tablespaces |  |  | default | user
+setting | transaction_timeout | 120000 | ms | command line | user
+setting | work_mem | 4096 | kB | default | user
+hba | 2 | hostssl | {conexus_apps} | {"/^app_[0-9a-f]{32}_preview_(rt|mig)$"} | cert |
+hba | 3 | host | {all} | {"/^app_[0-9a-f]{32}_preview_(rt|mig)$"} | reject |
+hba | 4 | local | {all} | {"/^app_[0-9a-f]{32}_preview_(rt|mig)$"} | reject |
+hba | 122 | local | {all} | {all} | trust |
+hba | 124 | host | {all} | {all} | scram-sha-256 |
+hba | 126 | host | {all} | {all} | scram-sha-256 |
+hba | 129 | local | {replication} | {all} | trust |
+hba | 130 | host | {replication} | {all} | scram-sha-256 |
+hba | 131 | host | {replication} | {all} | scram-sha-256 |
+hba | 133 | host | {all} | {all} | scram-sha-256 |
+role | app_provisioner | f | t | f | t | -1
+role | postgres | t | t | t | t | -1
+db | conexus_apps | app_provisioner | {app_provisioner=CTc/app_provisioner}
+db | postgres | postgres | {=T/postgres,postgres=CTc/postgres}
+db | template0 | postgres | {=c/postgres,postgres=CTc/postgres}
+db | template1 | postgres | {=c/postgres,postgres=CTc/postgres}
+ext | pg_stat_statements | 1.11
+ext | plpgsql | 1.0
+pg_stat_statements | 35
+== Hub cluster: application data left there
+conexus_apps
+app_000000000000400080000000000000be_preview_mig
+app_000000000000400080000000000000be_preview_rt
+app_0429fa8e34324ae593f1648b53cf07cf_preview_mig
+app_0429fa8e34324ae593f1648b53cf07cf_preview_rt
+app_a700a0f2883b427f9f5289c1eb476be3_preview_mig
+app_a700a0f2883b427f9f5289c1eb476be3_preview_rt
+app_e39250ac88e9490599ad7a9410ff90b1_preview_mig
+app_e39250ac88e9490599ad7a9410ff90b1_preview_rt
+app_f0d631f44684446d8d233057e3de154a_preview_mig
+app_f0d631f44684446d8d233057e3de154a_preview_rt
+app_provisioner
+2026-09-23 14:35:07.161635+00

@@ -1,0 +1,24 @@
+== 1. missing storage
+APPLICATION_CLUSTER_STORAGE_MISSING: /var/lib/conexus/q1-storage-probe/absent
+docker: Error response from daemon: invalid mount config for type "bind": bind source path does not exist: /var/lib/conexus/q1-storage-probe/absent
+absent after both: ls: cannot access '/var/lib/conexus/q1-storage-probe/absent': No such file or directory
+== 2. fill 2026-09-23T16:58:15Z
+before: probe=909885440 root=973337665536 d=107233288192
+hub before: 2026-09-23 14:35:07.161635+00 restarts=0 write/read=1
+round 1 status=0  | probe=706330624 root=973044137984 d=106897743872
+round 2 status=0 NOTICE:  relation "fill" already exists, skipping | probe=503066624 root=972753002496 d=106595753984
+round 3 status=0 NOTICE:  relation "fill" already exists, skipping | probe=283017216 root=972386263040 d=106394427392
+round 4 status=0 NOTICE:  relation "fill" already exists, skipping | probe=79745024 root=972293529600 d=105924665344
+round 5 status=2 connection to server was lost | probe=    0 root=972293525504 d=105891110912
+after: probe=196608 root=972293517312 d=105522012160
+fill container: running restarts=2 oom=false
+probe fs:  974M  907M  192K 100%
+hub after: 2026-09-23 14:35:07.161635+00 restarts=0 write/read=1
+2026-09-23 16:58:50.465 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2026-09-23 16:58:50.465 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2026-09-23 16:58:50.469 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-09-23 16:58:50.479 UTC [30] LOG:  database system was interrupted while in recovery at 2026-09-23 16:58:48 UTC
+2026-09-23 16:58:50.479 UTC [30] HINT:  This probably means that some data is corrupted and you will have to use the last backup for recovery.
+== cleanup
+0
+after cleanup: probe=949948416 root=972293619712 d=105522012160

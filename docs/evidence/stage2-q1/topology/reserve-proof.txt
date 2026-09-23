@@ -1,0 +1,5 @@
+idle-1 root=972293611520
+idle-2 root=972293607424
+-rw-r--r-- 1 root root 419430400 Sep 23 16:59 /p/reserve-test
+root before=972293607424 after=972293603328 delta=4096 img=2097160
+root after delete=972293595136

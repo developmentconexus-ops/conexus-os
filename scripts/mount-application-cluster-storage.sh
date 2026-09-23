@@ -20,6 +20,7 @@
 set -euo pipefail
 
 POSTGRES_UID=999
+BALLAST_BYTES=$((256 * 1024 * 1024))
 action="${1:-}"
 image="${2:-}"
 
@@ -75,6 +76,11 @@ UNIT
   # Numeric ids: the host has no user named after the postgres image's uid.
   install -d -m 700 "$mountpoint/pgdata"
   chown "$POSTGRES_UID:$POSTGRES_UID" "$mountpoint/pgdata"
+  # A cluster that filled this filesystem restarts in a loop, unable to write the WAL its recovery
+  # needs. Deleting this root-owned file gives it that room back:
+  #   docker run --rm --mount type=bind,source=<mountpoint>,target=/v <postgres image> rm /v/recovery-ballast
+  [ -e "$mountpoint/recovery-ballast" ] || fallocate -l "$BALLAST_BYTES" "$mountpoint/recovery-ballast"
+  chmod 600 "$mountpoint/recovery-ballast"
   df -B1 --output=size,avail "$mountpoint" | tail -1 | awk -v unit="$unit" -v bytes="$(allocated_bytes "$image")" \
     '{ printf "{\"verdict\":\"MOUNTED\",\"unit\":\"%s\",\"imageAllocatedBytes\":%s,\"filesystemBytes\":%s,\"availableBytes\":%s}\n", unit, bytes, $1, $2 }'
 elif [ "$action" = remove ]; then

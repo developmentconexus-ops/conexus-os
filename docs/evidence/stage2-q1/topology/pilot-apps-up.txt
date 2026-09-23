@@ -1,0 +1,40 @@
+backup /home/leandrotheodoro/.local/share/conexus/pilot/slice7/backups/q1-apps-cluster-20260923T170144Z
+conexus_s7 table-data entries: 95
+conexus_apps table-data entries: 9
+drwx------ 4096 .
+drwx------ 4096 ..
+-rw------- 46381 conexus_apps.dump
+-rw------- 6450491 conexus_s7.dump
+-rw------- 8570 hub-globals.sql
+-rw------- 6009 hub-pg_hba.conf
+-rw------- 2779 hub-pg_ident.conf
+-rw------- 219 hub-postgresql.auto.conf
+-rw------- 2658 hub.env.bak
+127.0.0.1:5432 - accepting connections
+{
+  "verdict": "CONFINED",
+  "container": "conexus-apps-postgres",
+  "database": "conexus_apps",
+  "authorityDir": "/home/leandrotheodoro/.local/share/conexus/pilot/slice7/secrets/apps-cluster-authority",
+  "tlsDir": "/home/leandrotheodoro/.local/share/conexus/pilot/slice7/secrets/apps-relay-tls",
+  "changed": [
+    "ca.pem",
+    "server.pem",
+    "server-key.pem",
+    "ssl",
+    "ssl_cert_file",
+    "ssl_key_file",
+    "ssl_ca_file",
+    "pg_hba",
+    "pg_ident"
+  ]
+}
+{
+  "verdict": "PROVISIONED",
+  "database": "conexus_apps",
+  "role": "app_provisioner",
+  "changed": [
+    "role",
+    "database"
+  ]
+}
