@@ -189,7 +189,7 @@ test('a taken name adopts the existing repository only when it is private and no
   const { github, connect, provision, newProject } = await setup(t)
   await connect()
   const first = await newProject()
-  const adopted = github.addRepository({ owner: 'acme-org', name: repositoryName(first), head: 'e'.repeat(40), files: { 'app/index.html': '<!doctype html>\n', 'conexus.json': '{}\n', 'conexus/check.sh': 'true\n', 'conexus/SERVER.md': 'guide\n' } })
+  const adopted = github.addRepository({ owner: 'acme-org', name: repositoryName(first), head: 'e'.repeat(40), files: { 'app/index.html': '<!doctype html>\n', 'conexus.json': '{}\n', 'conexus/check.sh': 'true\n', '.agents/skills/conexus-server/SKILL.md': 'guide\n' } })
   const binding = await provision(first)
   assert.deepEqual([binding.repositoryExternalId, binding.headRevision], [adopted.id, 'e'.repeat(40)], 'a repository that already has the template is not written')
 
