@@ -1,0 +1,52 @@
+{
+  "readBackViaHubSourceApi": true,
+  "projectId": "af3f2874-a8e6-451c-9016-cd74240d9c19",
+  "sourceRevision": "f1f473dec9f58632ed12137ec54a098091fe96e7",
+  "sourceTreePaths": [
+    ".agents",
+    ".agents/skills",
+    ".agents/skills/conexus-server",
+    ".agents/skills/conexus-server/SKILL.md",
+    "app",
+    "app/index.html",
+    "app/src",
+    "app/src/main.tsx",
+    "app/src/style.css",
+    "conexus",
+    "conexus.json",
+    "conexus/check.sh",
+    "README.md"
+  ],
+  "files": [
+    {
+      "path": ".agents/skills/conexus-server/SKILL.md",
+      "bytes": 3599
+    },
+    {
+      "path": "app/index.html",
+      "bytes": 298
+    },
+    {
+      "path": "app/src/main.tsx",
+      "bytes": 19110
+    },
+    {
+      "path": "app/src/style.css",
+      "bytes": 5738
+    },
+    {
+      "path": "conexus.json",
+      "bytes": 65
+    },
+    {
+      "path": "conexus/check.sh",
+      "bytes": 541
+    },
+    {
+      "path": "README.md",
+      "bytes": 31
+    }
+  ],
+  "serverSourceBytes": 0,
+  "serverFileCount": 0
+}
