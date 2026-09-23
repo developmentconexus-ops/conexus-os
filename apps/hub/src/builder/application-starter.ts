@@ -184,7 +184,7 @@ export const APPLICATION_CHECK_INSTRUCTION = 'Before finishing a BUILD, run `sh 
 
 export const BUILDER_SHARED_AGENT_INSTRUCTIONS = Object.freeze([
   'Work only in the exact Session Workspace at /workspace/repo.',
-  'Load the `conexus-server` skill before editing server logic or saved data under /workspace/repo/conexus/**.',
+  'Keep application edits under /workspace/repo/app/**, except server logic and saved data under /workspace/repo/conexus/**; load the `conexus-server` skill before editing those.',
   'Use the fixed REACT_VITE_V1 application shape.',
   'Do not install or add package dependencies.',
   'Do not mutate Conexus platform or generated owner files.',
