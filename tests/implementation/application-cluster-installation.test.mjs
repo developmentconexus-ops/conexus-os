@@ -125,7 +125,8 @@ test('the Applications cluster starts only on its own storage, and confinement u
     t2.after(() => {
       docker('rm', '-f', attackContainer)
       removeStorage(attackImage, attackRoot)
-      rmSync(stage, { recursive: true, force: true })
+      // sudo cp -a below preserves pgdata's postgres-uid ownership into stage.
+      sudo('rm', '-rf', stage)
     })
 
     mountStorage(attackImage, attackRoot)
