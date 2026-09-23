@@ -155,3 +155,19 @@ cluster that refuses the connection outright (`ECONNREFUSED`, a timeout, no SQLS
 `unreachable`. A role whose password file cannot be read, or reads empty, is `unreadable`; that
 role is skipped and the rest of the census still runs, and the report never repeats the file's
 content or path, only the role.
+
+## Roles outside the Hub database: the application runner
+
+Stage 2 Q1 adds roles the Hub never connects as, so they are not rows of the register above and the
+Hub's census does not probe them. They live in the application database, which is separate from the
+Hub database on the same cluster.
+
+| Role | Created by | Connects from | Authority |
+| --- | --- | --- | --- |
+| `app_provisioner` | `scripts/provision-application-database.mjs`, an installation step | the application runner (`apps/hub/src/app-runner/main.ts`), password from `CONEXUS_DB_APP_PROVISIONER_PASSWORD_FILE` | `LOGIN CREATEROLE`, no superuser, database creation, replication or Hub authority; owns the application database and every Project Preview schema |
+| `app_<project>_preview_mig` | `app_provisioner`, per Project | the runner's sandboxed worker, through its pinned relay | `USAGE, CREATE` on its own Preview schema only |
+| `app_<project>_preview_rt` | `app_provisioner`, per Project | the runner's sandboxed worker, through its pinned relay | `USAGE` on its own Preview schema and DML on what its migration role created |
+
+A Project role's password is `HMAC-SHA256(runner key, role name)` with the key in
+`CONEXUS_APP_RUNNER_KEY_FILE`, so the runner never stores a secret per Project. The runner checks
+its own credential at startup and refuses to serve without it.

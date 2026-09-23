@@ -42,7 +42,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-installation-administrator', 'installation-settings-routes', 'iam-grant-surface-excision',
   'hub-call-site-privileges',
   'c020-builder-postgres', 'c020-builder-request-text-postgres', 'factory-binding-postgres', 'factory-dependency-tree', 'factory-composition', 'model-accounts-postgres', 'google-ai-pro', 'factory-runtime', 'factory-recovery-postgres', 'factory-routes', 'factory-provisioning',
-  'application-data-postgres',
+  'application-data-postgres', 'application-runner-sandbox',
   'foundation-postgres', 'project-summary-activity-postgres', 'project-summary-routes',
   'c020-registry', 'c020-source-runtime', 'c020-failure-vocabulary', 'c020-compiler-runtime',
   'c020-browser', 'settings-browser', 'c020-e2b-template', 'c020-web-typecheck', 'c020-web-build',

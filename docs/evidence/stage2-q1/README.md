@@ -29,8 +29,8 @@ Material limitations recorded before the runner was written:
 - A worker killed on its wall-clock bound can leave its SQL statement running in its backend. The
   relay therefore records each session's `BackendKeyData` and sends a `CancelRequest` for it when the
   invocation ends.
-- GitHub's `ubuntu-24.04` runners restrict unprivileged user namespaces through AppArmor, so the
-  sandbox suites run on the pilot host and are recorded here; the database-privilege suites run in CI.
+- GitHub's `ubuntu-24.04` runners restrict unprivileged user namespaces through AppArmor. Q1.2
+  lifts that restriction in the verify job, so the sandbox suite also runs in CI.
 
 Rerun: `node ~/q1/probe/q10.mjs` and `node ~/q1/probe/vite-ssr.mjs` from `~/wt-q1` with the scratch
 cluster up (throwaway probes, kept outside the repository; the unit tests below encode the same facts).
@@ -93,3 +93,66 @@ derived password and proves, on a throwaway application database plus a throwawa
 Rerun with `CONEXUS_TEST_DB_*` pointing at a disposable cluster:
 `node --test --test-concurrency=1 tests/implementation/application-data-postgres.test.mjs`. CI runs it
 as the `application-data-postgres` step.
+
+## Q1.2 runner boundary
+
+The application runner is its own process (`apps/hub/src/app-runner/main.ts`), outside the Hub. The
+Hub reaches it only over a unix socket with mode 600 in a 700 state directory. The runner owns the
+whole application data plane. It connects as `app_provisioner`, derives each Project's role
+credentials, applies migrations and runs invocations. It runs no generated code itself.
+
+Each migration and each invocation runs in a fresh worker (`sandbox.ts`, `worker.ts`), built like this:
+
+- `prlimit --as=1792MiB --core=0 --nofile=256` around `bwrap` with `--unshare-user --unshare-pid
+  --unshare-net --unshare-ipc --unshare-uts --unshare-cgroup-try --disable-userns --cap-drop ALL
+  --die-with-parent --new-session --clearenv`.
+- Root filesystem: `/usr` read-only, the `lib`/`bin` symlinks, a new `/proc` for the sandbox's own
+  pid namespace, a minimal `/dev`, a 1 MiB `/tmp`, the Node binary at `/runtime/node`, `/runner`
+  (the worker, `data-plane.js` and a copy of pg's dependency closure) and, for an invocation, `/app`
+  (only the admitted artifact's `conexus-server/*.mjs`). The operator's home, `/etc` and `/sys` are
+  absent.
+- Node runs with `--permission --allow-fs-read=/runner/* --allow-fs-read=/app/*` and
+  `--max-old-space-size=128`. This is defense in depth only.
+- The job, including the database login, arrives on stdin. The result leaves on fd 3. Nothing
+  reaches the process arguments or the environment. Measured: the handler's `process.env` is
+  `{"PWD":"/"}`.
+- The only way to the database is a per-invocation unix socket at `/run/conexus/pg/.s.PGSQL.5432`.
+  `pg-relay.ts` reads the startup packet and admits only the pinned role on the application
+  database, and only `user`, `database`, `application_name` and `client_encoding` parameters. It
+  answers `N` to SSL and GSS negotiation, refuses a CancelRequest, and admits two sessions per
+  invocation. It records each BackendKeyData and cancels the backend when the invocation ends.
+- The supervisor kills the worker at 5 s (30 s for a migration). It caps the input at 64 KiB and the
+  result at 1 MiB, runs at most 4 invocations at once, and validates input and output against the
+  manifest's schemas. It projects failures as `{ error: { code, detail? } }` with a status per code.
+
+The runner asserts at startup that an unprivileged process can build the sandbox (a real `bwrap`
+probe plus `max_user_namespaces` and `unprivileged_userns_clone`). It also checks its own
+provisioner credential. It refuses to serve if either fails.
+
+Measured facts that set the numbers. V8 does not start at 1 GiB of address space. A SCRAM login
+aborts the worker at 1.25 GiB (exit 134, found by the suite). 1.75 GiB serves the flow and still
+refuses a 2 GiB `Buffer`.
+
+`tests/implementation/application-runner-sandbox.test.mjs` drives the real supervisor against a
+throwaway application database. It proves each of these:
+
+- Migrations apply once through the sandboxed migration role, and a second prepare applies nothing.
+- A note created in Project A lists in A. Project B lists nothing.
+- An input carrying `projectId` is refused with `400 INPUT_REFUSED /projectId: not declared`.
+- An undeclared operation returns `404`.
+- A wrong output shape returns `502 HANDLER_OUTPUT_REFUSED /id: expected integer`.
+- A 2 MiB result returns `502 RESPONSE_TOO_LARGE`.
+- `SELECT pg_sleep(60)` returns `504` within 8 s. No `pg_sleep` backend of the runtime role is left
+  active afterwards. A busy loop also returns `504`.
+- `process.abort()` and heap exhaustion return `HANDLER_CRASHED`. A 256 MiB `Buffer` loop is refused
+  by the address-space limit. The next request is served.
+- A migration that fails midway applies nothing and returns `42P01 relation "missing_table" does not
+  exist`.
+- The relay refuses Project B's role, A's migration role and A's role on the `postgres` database.
+  It admits A's runtime role on the application database.
+- A runner whose `bwrap` cannot run refuses to start with `RUNNER_USER_NAMESPACES_UNAVAILABLE`.
+
+Rerun on the pilot host: `bash ~/q1/run.sh node --test --test-concurrency=1
+tests/implementation/application-runner-sandbox.test.mjs`. CI runs it as the
+`application-runner-sandbox` step. The workflow installs `bubblewrap` and lifts ubuntu-24.04's
+AppArmor restriction on unprivileged user namespaces for that job.

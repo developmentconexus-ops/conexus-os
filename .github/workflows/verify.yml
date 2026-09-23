@@ -60,6 +60,12 @@ jobs:
       - name: Install Playwright Chromium
         if: env.CONEXUS_VERIFY_SKIP_BROWSER != '1'
         run: npx --no-install playwright install --with-deps chromium
+      # The application runner's worker is a rootless bubblewrap sandbox, and the runner refuses to
+      # start without unprivileged user namespaces. ubuntu-24.04 restricts them through AppArmor.
+      - name: Rootless sandbox for the application runner suite
+        run: |
+          command -v bwrap || { sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends bubblewrap; }
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       # The baseline check reads the schema back with pg_dump, which must be at least the server's
       # version. The service container's own pg_dump always is, so no client is installed here.
       - run: npm run verify

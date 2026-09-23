@@ -10,6 +10,9 @@ const TECHNICAL_HUB_LAYERS = new Set(['generated', 'http', 'platform'])
 // What a Conexus session is has one definition. Every owner needs it and none may fork it,
 // so it is admitted across owner boundaries the way the HTTP problem helper is.
 const SESSION_CONTRACT = 'apps/hub/src/identity-access/current-session.ts'
+// The application runner's worker loads the one admitted handler module whose path the supervisor
+// fixed for this invocation, inside its sandbox. It is the only computed import in production.
+const ADMITTED_HANDLER_LOADER = 'apps/hub/src/app-runner/worker.ts'
 const NODE_BUILTINS = new Set(builtinModules.flatMap((name) => [name, `node:${name}`]))
 
 function normalize(path) {
@@ -176,6 +179,7 @@ export function checkImportLaw(rootDirectory) {
     for (const imported of importsOf(sourcePath)) {
       const specifier = imported.specifier
       if (imported.computed) {
+        if (source === ADMITTED_HANDLER_LOADER) continue
         violations.push(violation('IMPORT_COMPUTED_DYNAMIC', source, specifier, 'production dynamic imports must use a string literal'))
         continue
       }
