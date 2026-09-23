@@ -7,6 +7,10 @@ import { createFactoryConversation, listFactoryConversations } from './api'
 export type { MastraDBMessage }
 type DisplayState = Extract<KnownAgentControllerEvent, { type: 'display_state_changed' }>['displayState']
 export type ActiveTool = DisplayState['activeTools'][string]
+// The AgentController's own task-list snapshot (from @mastra/core's task_write/task_update/
+// task_check/task_complete tools), already carried on every display_state_changed event: the
+// canonical source the checklist reads, not something rebuilt from parsing tool-call args here.
+export type TaskSnapshot = DisplayState['tasks'][number]
 
 const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
 
@@ -131,12 +135,14 @@ export type LiveTurn = Readonly<{
   tools: Readonly<Record<string, ActiveTool>>
   // Tool calls parked on the person, keyed by call id: an approval or a question from the agent.
   waiting: Readonly<Record<string, PendingAnswer>>
+  // The agent's own task list for this turn, from the AgentController's display state.
+  tasks: readonly TaskSnapshot[]
   error: string | null
 }>
 
 export type PendingAnswer = Readonly<{ kind: 'APPROVAL' | 'QUESTION'; toolCallId: string; toolName: string; args: unknown; prompt: unknown }>
 
-const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, error: null }
+const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], error: null }
 
 const without = (waiting: LiveTurn['waiting'], toolCallId: string): LiveTurn['waiting'] =>
   Object.fromEntries(Object.entries(waiting).filter(([id]) => id !== toolCallId))
@@ -166,7 +172,7 @@ const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => {
     case 'message_end':
       return { ...turn, messages: upsertMessage(turn.messages, event.message) }
     case 'display_state_changed':
-      return { ...turn, tools: { ...turn.tools, ...event.displayState.activeTools } }
+      return { ...turn, tools: { ...turn.tools, ...event.displayState.activeTools }, tasks: event.displayState.tasks }
     case 'tool_approval_required':
       return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: 'APPROVAL', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: null } } }
     case 'tool_suspended':
@@ -232,7 +238,10 @@ export const useBuilderLiveTurn = (
  * Answers a call the run parked on the person. The answer goes to the run's own session, and the
  * Hub refuses anything but approve or decline there, so there is no "always allow" to send.
  */
-export const answerPendingCall = (conversationId: string, builderRunId: string, pending: PendingAnswer, answer: Readonly<{ approved: boolean } | { text: string }>): Promise<void> => {
+// respondToToolSuspension accepts a single string (a free-text answer, or the one option chosen
+// from a single-select AskUser question) or a string array (the options chosen from a multi-select
+// question).
+export const answerPendingCall = (conversationId: string, builderRunId: string, pending: PendingAnswer, answer: Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }>): Promise<void> => {
   const session = factoryController.session(conversationId, builderRunScope(builderRunId))
   return 'approved' in answer
     ? session.approveTool(pending.toolCallId, answer.approved)
