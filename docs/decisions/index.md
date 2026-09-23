@@ -24,6 +24,26 @@ evidence that invalidates an assumption.
 | C-028 | Stage 2 realizes the first generated-application profile as a **managed application platform**. Project Git remains the source of truth for browser source, server business handlers, Project migrations and the application manifest. Mastra Factory remains the development harness; Conexus owns the managed application profile, Project application data allocation, app access, enterprise Connector grants, Release identity and Publish. Generated privileged code runs outside the Hub and receives only Project/environment-scoped authority. A Project does not initially receive its own permanent backend/container/cloud deployment. The broader standalone software-factory profile is deferred until a named application proves the managed profile insufficient. Q1-Q5 in the Stage 2 reference qualify the realization one material boundary at a time. | [Stage 2 managed application platform](../reference/stage2-managed-application-platform.md), [Product contract](../product/contract.md) | Q1 cannot establish a safe generated-code boundary; a real application requires a long-lived/custom server process or deployment ownership that the managed profile cannot express; or the operator changes the product direction |
 | C-OS-001 | The public ecosystem domain is `conexus.fun`, with the route convention `/<product>`. This repository owns Conexus OS only. Ingress mechanics are deferred. | Operator mission, [Product contract](../product/contract.md) | Ecosystem naming changes, or deployment realization needs ingress selected |
 
+## Decided on 2026-09-23
+
+The operator decided this on 2026-09-23, after the independent reviews of the first Stage 2 Q1
+candidate. The [Stage 2 reference](../reference/stage2-managed-application-platform.md#database-topology)
+records the topology, and the [Q1 task](../tasks/stage2-q1-handler-runtime-data-qualification.md)
+qualifies it. C-028 is unchanged, because Conexus still allocates Project application data.
+
+| Decision | Consequence |
+| --- | --- |
+| Application data lives in an Applications PostgreSQL cluster, independent of the Hub's. | The Hub and its cluster are the Control Plane. The generated application runtime and the Applications cluster are the Data Plane. The two clusters may share one host. |
+| The Applications cluster has storage that is bounded and separate from the Hub's critical storage. | The bound covers PGDATA, `pg_wal`, the server logs and the temporary files. Two container volumes on one filesystem without a size limit do not qualify. |
+| Inside the Applications cluster, one database `conexus_apps` holds one schema per Project × environment, each with a migration role and a runtime DML role. | No PostgreSQL server, database or container per Project. |
+| Q1 proves containment, not resistance. | Exhaustion or total failure of the Applications PostgreSQL must stay in the Data Plane and must neither take down nor corrupt the Control Plane. If the separation does not protect the Hub, Q1 stops with the evidence. |
+| A periodic per-Project quota does not replace the separation. | A quota does not protect the Hub from memory, WAL, I/O or bursts. It may return for fairness between Projects. |
+
+Reopen fairness between Projects inside the Applications cluster on the first of: a second
+Project with real users, a Project that consumes a material part of the cluster's storage, or
+evidence of a noisy neighbour. Reopen the placement of Preview and Published data at the first
+Publish.
+
 ## Decided on 2026-09-22
 
 The operator decided these on 2026-09-22, after an independent review of the study on sign-in,
