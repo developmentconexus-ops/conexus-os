@@ -21,7 +21,9 @@
 # The settings below are cluster-level: set on the server command line, so no Project role can
 # change them for the cluster. Roles get tighter per-role values from the application runner
 # (apps/hub/src/app-runner/data-plane.ts). Memory is bounded by the container, not by work_mem,
-# which any session may raise.
+# which any session may raise. Server logs rotate hourly into 24 files named by the hour, each
+# truncated when its hour comes round again, so they hold at most the last day, inside PGDATA. No
+# size-driven rotation: PostgreSQL truncates only on a time-driven one, and appends on the other.
 set -euo pipefail
 
 container="${1:?container}"
@@ -84,9 +86,9 @@ docker run -d --name "$container" \
   -c min_wal_size=80MB \
   -c logging_collector=on \
   -c log_directory=log \
-  -c log_filename=postgresql-%a.log \
-  -c log_rotation_age=1d \
-  -c log_rotation_size=16MB \
+  -c log_filename=postgresql-%H.log \
+  -c log_rotation_age=60 \
+  -c log_rotation_size=0 \
   -c log_truncate_on_rotation=on \
   -c log_temp_files=16MB \
   -c log_lock_waits=on \
