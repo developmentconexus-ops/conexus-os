@@ -32,6 +32,7 @@ const MUTATIONS = [
   ['no-role-temp-file-limit', DATA_PLANE, ", ['temp_file_limit', RUNTIME_TEMP_FILE_LIMIT]", '', DATA],
   ['no-role-transaction-timeout', DATA_PLANE, "['transaction_timeout', '6s'], ", '', DATA],
   ['no-language-startup-check', 'apps/hub/src/app-runner/supervisor.ts', /^ +if \(usable\.length > 0\) throw[^\n]*\n/m, '', SANDBOX],
+  ['no-runtime-privilege-restore', 'apps/hub/src/app-runner/supervisor.ts', '.finally(() => withProvisioner((client) => restoreRuntimePrivileges(client, allocation)))', '', SANDBOX],
   ['no-relay-dir-files-check', RELAY, /^ +if \(present\.join\(','\) !== RELAY_FILES[^\n]*\n/m, '', SANDBOX],
   ['no-relay-dir-mode-check', RELAY, /^ +if \(\(statSync\(directory\)\.mode[^\n]*\n/m, '', SANDBOX],
   ['no-unshare-net', 'apps/hub/src/app-runner/sandbox.ts', "'--unshare-net', ", '', SANDBOX],

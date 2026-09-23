@@ -64,7 +64,7 @@ const ensureRole = async (provisioner: Sql, role: string, connectionLimit: numbe
  * Creates or repairs one Project's Preview allocation. The provisioner owns the schema; the migration
  * role may create objects in it but, not owning the schema, cannot grant USAGE on it, so a grant it
  * makes on its own tables reaches no other Project. The runtime role gets DML on what the migration
- * role creates; a migration may grant it more on its own tables, never beyond its own schema.
+ * role creates, and restoreRuntimePrivileges takes back anything more a migration grants.
  */
 export const ensurePreviewAllocation = async (
   provisioner: Sql,
@@ -118,6 +118,37 @@ export const ensurePreviewAllocation = async (
   await provisioner.query(`DROP POLICY IF EXISTS migration_session ON ${schema}.${LEDGER_TABLE}`)
   await provisioner.query(`CREATE POLICY migration_session ON ${schema}.${LEDGER_TABLE} TO ${migration}
     USING (session_user = ${literal(allocation.migrationRole)}) WITH CHECK (session_user = ${literal(allocation.migrationRole)})`)
+  await restoreRuntimePrivileges(provisioner, allocation)
+}
+
+/**
+ * Leaves PUBLIC nothing and the runtime role exactly DML on what the migration role owns in the
+ * schema. A migration owns its objects, so it can grant the runtime role TRUNCATE, TRIGGER,
+ * REFERENCES or MAINTAIN, or grant PUBLIC anything; the runner calls this after every migration.
+ * Revoked as the owner with CASCADE, so grants the runtime role passed on go too.
+ */
+export const restoreRuntimePrivileges = async (provisioner: Sql, allocation: PreviewAllocation): Promise<void> => {
+  const schema = identifier(allocation.schema)
+  const runtime = identifier(allocation.runtimeRole)
+  const { rows } = await provisioner.query(`SELECT format('%I.%I', n.nspname, c.relname) AS name, c.relkind = 'S' AS sequence
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = $1 AND c.relowner = $2::regrole AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')`, [allocation.schema, allocation.migrationRole])
+  const tables = rows.filter((row) => row.sequence !== true).map((row) => String(row.name)).join(', ')
+  const sequences = rows.filter((row) => row.sequence === true).map((row) => String(row.name)).join(', ')
+  await provisioner.query(`SET ROLE ${identifier(allocation.migrationRole)}`)
+  try {
+    if (tables) {
+      await provisioner.query(`REVOKE ALL ON TABLE ${tables} FROM PUBLIC, ${runtime} CASCADE`)
+      await provisioner.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${tables} TO ${runtime}`)
+    }
+    if (sequences) {
+      await provisioner.query(`REVOKE ALL ON SEQUENCE ${sequences} FROM PUBLIC, ${runtime} CASCADE`)
+      await provisioner.query(`GRANT USAGE, SELECT ON SEQUENCE ${sequences} TO ${runtime}`)
+    }
+    await provisioner.query(`REVOKE ALL ON ALL ROUTINES IN SCHEMA ${schema} FROM PUBLIC, ${runtime} CASCADE`)
+  } finally {
+    await provisioner.query('RESET ROLE')
+  }
 }
 
 const PREVIEW_SCHEMA = /^p_([0-9a-f]{32})_preview$/

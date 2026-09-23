@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import pg from 'pg'
-import { convergePreviewAllocations, ensurePreviewAllocation, planMigrations, previewAllocation, PROJECT_ROLE_NAME, PROVISIONER_ROLE, readLedger, resetPreviewSchema } from './data-plane.js'
+import { convergePreviewAllocations, ensurePreviewAllocation, planMigrations, previewAllocation, PROJECT_ROLE_NAME, PROVISIONER_ROLE, readLedger, resetPreviewSchema, restoreRuntimePrivileges } from './data-plane.js'
 import type { PreviewAllocation } from './data-plane.js'
 import { openPgRelay } from './pg-relay.js'
 import type { RelayTls } from './pg-relay.js'
@@ -167,7 +167,7 @@ export const createSupervisor = (config: SupervisorConfig) => {
       role: allocation.migrationRole,
       job: (login) => ({ kind: 'migrate', login, schema: allocation.schema, plan: plan.pending }),
       timeoutMs: limits.migrateTimeoutMs,
-    })
+    }).finally(() => withProvisioner((client) => restoreRuntimePrivileges(client, allocation)))
     if (outcome.kind === 'RESULT' && outcome.result.ok) return { state: 'READY', reset: plan.reset, applied: plan.pending.map((migration) => migration.name) }
     // A migration runs no generated JavaScript, so the worker's own log is safe to hand back.
     const detail = outcome.kind === 'RESULT' && !outcome.result.ok ? outcome.result.detail ?? outcome.result.code : `${outcome.kind}${outcome.kind === 'CRASHED' ? ` ${outcome.signal ?? outcome.exitCode}` : ''} ${outcome.logs.slice(-300)}`.trim()
