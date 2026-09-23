@@ -128,7 +128,7 @@ test('provision creates a private repository in the organization, seeds the appl
   assert.deepEqual(github.state.createdCommits, [{ slug: `acme-org/${name}`, sha: binding.headRevision, message: 'Start the Conexus application', parents: ['c'.repeat(40)] }])
   assert.equal(github.state.refs.get(`acme-org/${name}:main`), binding.headRevision)
   const seeded = github.state.commits.get(`acme-org/${name}@${binding.headRevision}`)
-  assert.deepEqual([...seeded.keys()].sort(), ['README.md', 'app/index.html', 'app/src/main.tsx', 'app/src/style.css', 'conexus.json', 'conexus/SERVER.md', 'conexus/check.sh'])
+  assert.deepEqual([...seeded.keys()].sort(), ['.agents/skills/conexus-server/SKILL.md', 'README.md', 'app/index.html', 'app/src/main.tsx', 'app/src/style.css', 'conexus.json', 'conexus/check.sh'])
   for (const file of [...FIXED_APPLICATION_STARTER_FILES, ...APPLICATION_CHECK_FILES]) assert.equal(seeded.get(file.path).content, file.content)
   assert.equal(seeded.get('conexus/check.sh').mode, '100755')
   const headToken = github.state.tokens.find((token) => token.repositoryIds !== null)
