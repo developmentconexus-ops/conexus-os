@@ -47,6 +47,26 @@ stable application URL
 
 Mastra remains the Builder/coding-harness owner. Conexus owns the application profile, application runtime boundary, Project data allocation, application access, enterprise Connector grants, Release identity and Publish.
 
+### Database topology
+
+The operator decided this topology on 2026-09-23. It is the Stage 2 realization under qualification, and the [Q1 task](../tasks/stage2-q1-handler-runtime-data-qualification.md) qualifies it.
+
+```text
+CONTROL PLANE                         DATA PLANE
+Conexus Hub                           application runner + workers
+     |                                     |
+     v                                     v
+Hub PostgreSQL cluster                Applications PostgreSQL cluster
+```
+
+- The two clusters are independent. They may share one host.
+- The Applications cluster has storage that is bounded and separate from the Hub's critical storage. The bound covers PGDATA, `pg_wal`, the server logs and the temporary files.
+- The Applications cluster holds one database, `conexus_apps`, with one schema per Project × environment. Each schema has a migration role and a runtime DML role.
+- No PostgreSQL server, database or container per Project.
+- Exhaustion or total failure of the Applications cluster stays in the Data Plane. It neither takes down nor corrupts the Control Plane.
+
+Two questions stay open. Placement of Published data reopens at the first Publish, and Q5 answers it. Fairness between Projects inside the Applications cluster reopens on the first of: a second Project with real users, a Project that consumes a material part of the cluster's storage, or evidence of a noisy neighbour.
+
 ## 3. Generated Project shape
 
 The source of application behavior remains ordinary versioned code in the Project repository. Business logic must not exist only as opaque platform metadata.
@@ -114,11 +134,11 @@ Only one qualification task is actionable at a time. Later rows are roadmap gate
 
 | Gate | Question | Baseline / candidate | Deciding evidence |
 | --- | --- | --- | --- |
-| Q1 Handler runtime + persistent Preview data | Can Builder-generated server code run outside the Hub with Project-scoped data authority and no privileged platform authority? | Existing Node 24 + Fastify 5 + Zod 4 + pg 8; shared runner is the smallest hypothesis; stronger isolation if the adversarial probe falsifies it | Builder creates a real server-backed Preview; data survives runner restart; cross-Project, secret and forbidden-network probes fail |
+| Q1 Handler runtime + persistent Preview data | Can Builder-generated server code run outside the Hub with Project-scoped data authority and no privileged platform authority? | Existing Node 24 + Fastify 5 + Zod 4 + pg 8; shared runner is the smallest hypothesis; stronger isolation if the adversarial probe falsifies it | Builder creates a real server-backed Preview; data survives runner restart; cross-Project, secret and forbidden-network probes fail; exhaustion or failure of the Applications PostgreSQL does not reach the Hub |
 | Q2 Data programming model | What is the smallest data API the Builder needs to produce reliable apps? | Start SQL-first with parameterized `pg`; qualify Kysely or a typed Data API only against measured Q1 pain | Same application built/changed by the Builder; compare successful iterations, errors, generated code, duplication and platform complexity |
 | Q3 Application identity | Can an employee use an app without receiving Control Plane authority? | Existing Keycloak identity boundary + Conexus app-scoped session/grants | App-only user can use the app; cannot create Workspace, read Project, open Builder or gain authority by identifiers |
 | Q4 First Connector | Does Connector Definition -> Workspace Connection -> Project Grant work against a real enterprise system? | Direct narrow Sankhya read-only adapter first | Builder uses the authorized operation from the app; real Sankhya result; revoked grant fails; no credential or arbitrary URL reaches browser/handler |
-| Q5 Release + Publish | Can the verified application become a stable employee-facing product without introducing a deployment platform? | Existing artifact registry + immutable manifest + published pointer + stable app ingress | Fresh browser opens stable URL, auth/data/Connector work, broken later build does not change Published, retrying Publish converges |
+| Q5 Release + Publish | Can the verified application become a stable employee-facing product without introducing a deployment platform? Where does Published data live: in the Applications cluster beside Preview data, or apart from it? | Existing artifact registry + immutable manifest + published pointer + stable app ingress | Fresh browser opens stable URL, auth/data/Connector work, broken later build does not change Published, retrying Publish converges; the Published data placement is decided with evidence, not assumed |
 
 After Q5, Stage 2 is evaluated as a whole before any later capability is authorized.
 

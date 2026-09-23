@@ -86,7 +86,7 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 
 | Gate | Protected question | Status |
 | --- | --- | --- |
-| **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY proposed; both independent reviews rejected `8ad7d5bf`, fixes landed, re-review pending** ([evidence](evidence/stage2-q1/README.md)) |
+| **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **NEXT / task amended 2026-09-23: separate Applications PostgreSQL, containment probe owed** |
 | **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured Q1 evidence justify Kysely or a typed Data API? | WAITING FOR Q1 |
 | **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | WAITING FOR Q2 |
 | **Q4 Sankhya Connector** | Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only Sankhya capability without leaking credentials or generic provider authority? | WAITING FOR Q3 |
@@ -183,7 +183,7 @@ These return only through a named real consumer and their own qualification.
 
 ## Exact next action
 
-**Independently review the Stage 2 Q1 evidence and its proposed verdict, ACCEPT_WITH_BOUNDARY.**
+**Execute the amended Stage 2 Q1 Data Plane containment qualification on the candidate in pull request #196.**
 
 [Stage 2 Q1 — Handler runtime + persistent Preview data qualification](tasks/stage2-q1-handler-runtime-data-qualification.md)
 ([evidence and verdict](evidence/stage2-q1/README.md))
@@ -192,7 +192,7 @@ Protected result:
 
 > A normal Builder request produces a server-backed Preview whose generated handler runs outside the Hub, persists Preview data for exactly one Project, and cannot acquire another Project's data or privileged platform/network authority.
 
-Q1 must prove both the positive application flow and the adversarial boundary. A green unit suite alone cannot close it.
+Q1 must prove the positive application flow, the adversarial boundary and Data Plane containment. A green unit suite alone cannot close it.
 
 The implementation, the live Builder runs, restart persistence and the adversarial suites are
 committed and pushed. What remains:
@@ -224,6 +224,8 @@ Stage 2. Before Conexus runs anywhere other than the pilot:
 - **The Factory secret key held apart from the database it encrypts,** so one host compromise does
   not yield both. Encrypting model credentials today protects a leaked database dump, not a
   compromised host.
+- **Storage for the Applications PostgreSQL separate from the Hub's,** as a separate volume or disk
+  or a managed plan, sized independently.
 
 The Stage 2 application runner is a separate question. Generated code never runs in the Hub or in
 the runner process. It runs in a per-invocation worker under the runner's OS user, confined by

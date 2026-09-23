@@ -5,6 +5,31 @@
 **Execution owner:** executor named by the operator  
 **Review:** independent review is required because this slice creates a runtime/database trust boundary
 
+## Amendment, 2026-09-23: the Applications PostgreSQL is separate from the Hub's
+
+The operator decided the Stage 2 database topology on 2026-09-23, after the independent reviews of
+the first Q1 candidate. The [decision register](../decisions/index.md#decided-on-2026-09-23)
+records the decision and its reopen triggers.
+
+Application data moves out of the Hub's PostgreSQL. The Hub and its PostgreSQL cluster form the
+Control Plane. The generated application runtime and a second, independent PostgreSQL cluster
+with storage of its own form the Data Plane. Q1 gains a containment claim. It does not claim that
+the Applications PostgreSQL resists every abuse.
+
+This amendment changes:
+
+- section 2, which adds the containment claim;
+- section 5, which fixes the two-cluster topology and the storage requirement;
+- section 8, which adds the pilot's PostgreSQL service to the census;
+- section 9, which moves Q1.0 and Q1.1 to the Applications cluster and adds the Q1.8 containment probe;
+- sections 10 to 13 and 16, which add the matching measurement, falsifier, proof, non-goals and STOP rule;
+- section 17, which is new and holds the reopen triggers.
+
+A candidate that keeps application data in the Hub's cluster does not satisfy the amended
+hypothesis. Evidence that does not depend on where the data lives, such as the Builder runs of
+Q1.5, stays valid. The proofs that depend on it, Q1.1, Q1.6 and the database cases of Q1.7, run
+again against the Applications cluster.
+
 ## 1. Authority route
 
 ```text
@@ -26,6 +51,12 @@ Repository current authority beats this task when they conflict. Evidence that f
 Prove or falsify this statement:
 
 > The existing Builder can create a Preview whose frontend calls Builder-generated server logic running outside the Hub, with persistent Preview data scoped to exactly one Project, while that generated logic cannot acquire Hub/model/Connector credentials, another Project's data, or unauthorized network authority.
+
+Prove or falsify this second statement, added on 2026-09-23:
+
+> Resource exhaustion or total failure of the Applications PostgreSQL stays contained in the Data Plane, and neither takes down nor corrupts the Control Plane.
+
+Q1 does not claim that the Applications PostgreSQL resists any abuse. A generated application may exhaust or stop the Applications cluster. That failure must not reach the Hub.
 
 The result is not "a Fastify server starts". It is one Builder-generated application behavior and its negative boundaries on the pilot-equivalent runtime.
 
@@ -71,9 +102,33 @@ application runner process OUTSIDE Hub
       +-- Preview-only Project DB role
               |
               v
-dedicated application database
+Applications PostgreSQL cluster
+database conexus_apps
 Project × PREVIEW schema
 ```
+
+The database topology, fixed by the 2026-09-23 amendment:
+
+```text
+CONTROL PLANE                         DATA PLANE
+Conexus Hub                           application runner + workers
+     |                                     |
+     v                                     v
+Hub PostgreSQL cluster                Applications PostgreSQL cluster
+Hub storage                           bounded storage of its own
+                                      database conexus_apps
+                                        schema per Project × environment
+                                        migration role + runtime DML role
+```
+
+- Two independent PostgreSQL clusters. They may share one host.
+- The Hub cluster holds no application data and no Project role.
+- The Applications cluster holds one database, `conexus_apps`, with one schema per Project × environment. Each schema has a migration role and a runtime DML role. Q1 exercises only the Preview environment.
+- No PostgreSQL server, database or container per Project.
+
+The Applications cluster's storage is bounded and separate from the Hub's critical storage. The bound covers everything the cluster can grow: PGDATA, `pg_wal`, the server logs and the temporary files that queries write. Two container volumes on one filesystem without a size limit do not qualify, because either volume can still fill the disk the Hub needs.
+
+Q1.0 selects the pilot mechanism. One candidate is a preallocated, non-sparse, fixed-size filesystem image that holds the Applications cluster's data. The selected mechanism must carry over to a production installation, either as a separate volume or disk on a VPS or as a managed PostgreSQL plan.
 
 Initial platform baseline:
 
@@ -95,7 +150,7 @@ The bubblewrap realization carries two durable conditions. The runner asserts at
 
 The migration role must stay unprivileged and confined to its own Project schema. The arena observed that an owning migration role can still create a `SECURITY DEFINER` function and grant `USAGE` on its schema to another Project's role; both were inert only because the role holds nothing more. Cross-Project grants belong to the platform, never to generated SQL.
 
-Q1.0 adds one fact to verify: how the application database's unix socket reaches the worker on the pilot, where Postgres runs in a container.
+Q1.0 adds one fact to verify: how the Applications cluster's connection reaches the worker on the pilot, where Postgres runs in a container.
 
 The generated handler contract in Q1 is **qualification-only**. Keep it deliberately small. Q2 owns the durable programming-model decision.
 
@@ -160,6 +215,7 @@ Read and record KEEP / CHANGE / NEW / DELETE / MEASURE for at least:
 - `apps/hub/src/mar/preview-routes.ts`;
 - artifact registry/storage paths that retain application bytes;
 - current Postgres provisioning/migration helpers and role register;
+- the pilot's PostgreSQL service definition and the storage behind it;
 - `scripts/check-import-law.mjs`;
 - Builder tests that prove compile/smoke/Preview;
 - exact E2B template/runtime assumptions.
@@ -174,8 +230,9 @@ Before implementation:
 
 1. read the exact installed Fastify, pg, validation and Node APIs that the proposed runner needs;
 2. inspect whether Node's current runtime supplies any useful defense-in-depth control, but do not treat language/runtime permissions as the process boundary;
-3. verify the current Postgres cluster/provisioning path can create a dedicated application database and restricted Preview role without giving generated code Hub DB authority;
-4. record any material limitation before writing the runner.
+3. verify that the provisioning path can run the Applications cluster apart from the Hub cluster, create `conexus_apps` in it, and create restricted Preview roles there without giving generated code Hub DB authority;
+4. select the pilot storage mechanism for the Applications cluster (section 5). Record its size, that it is preallocated rather than sparse, that PGDATA, `pg_wal`, the server logs and the temporary files all live inside it, and how it carries over to a VPS volume or a managed PostgreSQL plan;
+5. record any material limitation before writing the runner.
 
 No package is added unless this step demonstrates a concrete missing primitive.
 
@@ -183,7 +240,7 @@ No package is added unless this step demonstrates a concrete missing primitive.
 
 Create the smallest Preview data allocation that proves:
 
-- dedicated application data is outside Hub-owned schemas;
+- application data lives in `conexus_apps` on the Applications cluster, never in the Hub cluster;
 - Project A Preview role can DML only its Preview schema;
 - Project B uses a different authority;
 - schema owner/migration authority is separate from runtime DML authority;
@@ -284,6 +341,54 @@ Each protected path must visibly refuse or terminate.
 
 If the boundary cannot credibly prevent one of these with the proposed shared runner, Q1 verdict is REJECT/REPLAN. Do not hide it behind lint or Builder instructions.
 
+### Q1.8 — Data Plane containment probe
+
+Prove the containment statement of section 2.
+
+Before the first attack, back up the Hub database and record the host's free space. If the storage bound fails, the disk attack can fill the host disk.
+
+Throughout every attack, the Hub performs continuous real reads and writes: it writes real data through its own paths, reads that data back, and runs IAM, Workspace and Project operations.
+
+Attack the Applications cluster with each of these, one at a time, until the attack takes effect on that cluster:
+
+1. disk and storage exhaustion;
+2. WAL exhaustion;
+3. memory and `work_mem` pressure;
+4. connection exhaustion;
+5. CPU saturation;
+6. heavy I/O and checkpoint pressure;
+7. an Applications PostgreSQL stop, crash and OOM kill;
+8. a relay failure.
+
+During and after each attack, prove that:
+
+1. the Hub process stays alive;
+2. the Hub PostgreSQL does not restart;
+3. the Hub can write real data;
+4. the Hub can read the written data back;
+5. IAM, Workspace and Project operations keep working;
+6. the Applications cluster does not exhaust critical host storage.
+
+Configure these settings on the Applications cluster and its Project roles, and qualify each one against the attacks:
+
+- `transaction_timeout`;
+- `lock_timeout`;
+- connection limits;
+- `statement_timeout`;
+- `idle_in_transaction_session_timeout`;
+- `temp_file_limit`.
+
+Record each value, where it is set (cluster, database or role), and whether a Project session can change it.
+
+Use `pg_stat_statements` to measure and diagnose the attacks. It is not enforcement, and no bound in Q1 depends on it.
+
+The isolation proofs of Q1.7 stay required and run against the Applications cluster:
+
+- Project A cannot reach Project B's schema;
+- an application cannot reach the Hub database;
+- the runtime role cannot run DDL or change roles;
+- an application cannot obtain platform credentials.
+
 ## 10. Measurements
 
 Collect only decision-relevant measurements:
@@ -294,7 +399,8 @@ Collect only decision-relevant measurements:
 - runner cold/start-to-first-handler latency;
 - handler p50/p95 for the local note flow over a bounded sample;
 - Postgres connections used by one Preview;
-- every adversarial falsifier result.
+- every adversarial falsifier result;
+- for each Q1.8 attack, the Hub's write and read-back results and the host's free space before, during and after it.
 
 Do not establish performance SLOs in Q1. Measurements decide whether the baseline is usable and whether a later warm/container strategy needs qualification.
 
@@ -312,7 +418,8 @@ Q1 fails or returns to planning if any of these is observed:
 8. persistence depends on runner-local filesystem;
 9. Builder can reach a green build only when given implementation/file instructions that an ordinary user would never provide;
 10. the source needed to reproduce server behavior exists only in platform metadata and not Project Git;
-11. a generated migration gains authority beyond its own Project's Preview schema.
+11. a generated migration gains authority beyond its own Project's Preview schema;
+12. Applications PostgreSQL exhaustion or failure reaches the Control Plane: the Hub process dies, the Hub PostgreSQL restarts, a Hub write, its read-back or an IAM, Workspace or Project operation fails, or critical host storage is exhausted.
 
 A falsifier is a result, not a request to patch indefinitely.
 
@@ -331,6 +438,7 @@ natural-language Builder request
 -> runner restart still reads it
 -> second Project cannot read it
 -> adversarial handler cannot acquire forbidden authority
+-> Applications PostgreSQL exhaustion and failure stay in the Data Plane
 ```
 
 Capture source revision, exact build/artifact identity, runner version/config used, database role/schema identities, browser evidence and negative-probe output.
@@ -353,7 +461,9 @@ Do not implement in Q1:
 - OpenTelemetry rollout;
 - per-Project production containers;
 - Cloud Run/Fly/Kubernetes;
-- standalone software profile.
+- standalone software profile;
+- a container, a database or a PostgreSQL server per Project;
+- a per-Project quota platform. A periodic quota does not protect the Hub from memory, WAL, I/O or bursts, so it cannot replace the separate cluster. It may return for fairness between Projects (section 17).
 
 ## 14. Expected verdict
 
@@ -388,6 +498,17 @@ STOP and return to planner on:
 - a material database topology/authority choice not covered here;
 - a requirement for a new package whose role changes the programming model rather than mechanically supporting this probe;
 - evidence that the Builder cannot use the proposed source shape without a different application programming model;
-- any production/external effect not explicitly authorized by this task.
+- any production/external effect not explicitly authorized by this task;
+- a Q1.8 attack whose effect reaches the Control Plane. The separation then does not protect the Hub. Return with the evidence. Do not patch silently.
 
 After verification, commit, push and STOP. Do not begin Q2.
+
+## 17. Reopen triggers
+
+Reopen fairness between Projects inside the Applications PostgreSQL on the first of:
+
+- a second Project with real users;
+- a Project that consumes a material part of the Applications cluster's storage;
+- evidence of a noisy neighbour.
+
+Reopen Preview and Published placement at the first Publish. Q5 decides whether Published data may share the Applications cluster with Preview data. Nothing assumes a Published schema on the same server before that decision.

@@ -82,8 +82,10 @@ authorized capabilities rather than through arbitrary access. Evolving a Project
 structure grants nothing on the system database or on production, and a product's own
 data stays distinct from data belonging to an external system.
 
-Which physical database, schema or namespace carries that space is unchosen, and is
-decided in the increment that delivers it. Nothing here describes an implemented
+The physical realization is under qualification. The
+[Stage 2 reference](stage2-managed-application-platform.md#database-topology) records the
+topology the operator decided on 2026-09-23. Application data lives in an Applications
+PostgreSQL cluster independent of the Hub's, with one schema per Project × environment. Nothing here describes an implemented
 isolation boundary. [Product contract section 12.5](../product/contract.md#125-data)
 owns the rule.
 

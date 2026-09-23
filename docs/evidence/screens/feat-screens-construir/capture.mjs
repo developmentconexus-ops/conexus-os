@@ -29,7 +29,7 @@ const minutesAgo = (minutes) => new Date(Date.now() - minutes * 60_000).toISOStr
 const models = [
   { id: 'openai/gpt-5.5', provider: 'openai', modelName: 'GPT-5.5', hasApiKey: true, useCount: 3 },
   { id: 'anthropic/claude-sonnet-5', provider: 'anthropic', modelName: 'Claude Sonnet 5', hasApiKey: true, useCount: 1 },
-  { id: 'mastracode/google-ai-pro/gemini-3.1-pro-low', provider: 'mastracode/google-ai-pro', modelName: 'gemini-3.1-pro-low', hasApiKey: true, useCount: 0 },
+  { id: 'google-ai-pro/gemini-3.1-pro-low', provider: 'google-ai-pro', modelName: 'gemini-3.1-pro-low', hasApiKey: true, useCount: 0 },
 ]
 const message = (id, role, parts, minutes) => ({ id, role, createdAt: minutesAgo(minutes), content: { format: 2, parts } })
 const text = (value) => ({ type: 'text', text: value })

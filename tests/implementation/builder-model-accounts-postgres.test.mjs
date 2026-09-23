@@ -193,8 +193,22 @@ test('a person signs in to Google AI Pro from Settings, and their runs then carr
   const connection = '/api/control/model-accounts/google-ai-pro/connection'
   assert.deepEqual((await asAlice('GET', connection)).body, { mine: false, shared: false, administrator: false })
   const offered = async (accountId) => (await as(accountId)('GET', '/api/control/model-accounts/models')).body.models
-    .filter((model) => model.provider === 'mastracode/google-ai-pro').map((model) => model.id)
-  assert.deepEqual(await offered(alice), [], 'a person without the connection is offered none of its models')
+    .filter((model) => model.provider === 'google-ai-pro').map((model) => model.id)
+  // Every model name this family ever offered under either id: the canonical `google-ai-pro/<model>`
+  // and the pre-fix Mastra Code gateway alias `mastracode/google-ai-pro/<model>`. Grouping by name
+  // rather than id is what catches the regression this fix closes: the two ids differ, so a picker
+  // that lists both shows the same model twice without any single id repeating.
+  const modelNames = ['gemini-3-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-low', 'gemini-3.5-flash-lite',
+    'gemini-3.6-flash-high', 'gemini-3.7-flash-high', 'gemini-3.8-flash-high', 'gemini-pro-agent'].sort()
+  const catalog = modelNames.map((model) => `google-ai-pro/${model}`)
+  const offeredModelNames = async (accountId) => (await as(accountId)('GET', '/api/control/model-accounts/models')).body.models
+    .filter((model) => model.provider.endsWith('google-ai-pro')).map((model) => model.modelName).sort()
+  // The Factory lists this installation-wide provider to everyone once it is routed, but the Hub
+  // still drops it from the answer for a caller with no usable credential of their own or the
+  // installation's, so nobody is offered a model that would fail on the first message.
+  assert.deepEqual(await offered(alice), [], 'nobody has connected yet, so the picker offers none of its models')
+  assert.deepEqual(await offered(bob), [])
+  assert.deepEqual(await offeredModelNames(alice), [])
   const { loginId, url } = (await asAlice('POST', '/api/control/model-accounts/google-ai-pro/login/start', {})).body
   const callbackUrl = `http://localhost:51121/oauth-callback?state=${new URL(url).searchParams.get('state')}&code=good`
   assert.equal((await asAlice('POST', '/api/control/model-accounts/google-ai-pro/login/complete', { loginId, callbackUrl })).status, 200)
@@ -203,13 +217,12 @@ test('a person signs in to Google AI Pro from Settings, and their runs then carr
   assert.equal(state, 'succeeded')
   assert.deepEqual((await asAlice('GET', connection)).body, { mine: true, shared: false, administrator: false })
   assert.deepEqual((await as(bob)('GET', connection)).body, { mine: false, shared: false, administrator: false })
-  assert.deepEqual((await offered(alice)).sort(), [
-    'gemini-3-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-low', 'gemini-3.5-flash-lite',
-    'gemini-3.6-flash-high', 'gemini-3.7-flash-high', 'gemini-3.8-flash-high', 'gemini-pro-agent',
-  ].map((model) => `mastracode/google-ai-pro/${model}`).sort())
-  assert.deepEqual(await offered(bob), [])
+  assert.deepEqual((await offered(alice)).sort(), catalog, 'alice connected, so the picker offers her the full catalog')
+  assert.deepEqual(await offered(bob), [], 'bob still has no credential of his own or the installation\'s')
+  // Signing in is exactly when the old Hub code minted the second, `mastracode/`-prefixed copy.
+  assert.deepEqual(await offeredModelNames(alice), modelNames, 'each model name is offered once, not once per catalog id')
   const memory = await composition.storage.getDomain('memory-settings').get({ orgId: ORG, userId: alice })
-  assert.deepEqual([memory.observerModelId, memory.reflectorModelId], ['mastracode/google-ai-pro/gemini-3.5-flash-lite', 'mastracode/google-ai-pro/gemini-3.5-flash-lite'])
+  assert.deepEqual([memory.observerModelId, memory.reflectorModelId], ['google-ai-pro/gemini-3.5-flash-lite', 'google-ai-pro/gemini-3.5-flash-lite'])
   const stored = await composition.storage.getDomain('model-credentials').getCredential({ orgId: ORG, userId: alice }, 'google-ai-pro')
   assert.equal(stored.type, 'api_key')
 
@@ -258,7 +271,7 @@ test('the operator imports a CLIProxyAPI Antigravity file as a person\'s or the 
     assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), record)
   }
   const memory = await memorySettings.get({ orgId: ORG, userId: alice })
-  assert.deepEqual([memory.observerModelId, memory.reflectorModelId], ['mastracode/google-ai-pro/gemini-3.5-flash-lite', 'mastracode/google-ai-pro/gemini-3.5-flash-lite'])
+  assert.deepEqual([memory.observerModelId, memory.reflectorModelId], ['google-ai-pro/gemini-3.5-flash-lite', 'google-ai-pro/gemini-3.5-flash-lite'])
   await memorySettings.patch({ orgId: ORG, userId: bob, patch: { observerModelId: 'openai/gpt-5-mini' } })
   await importAs(bob)
   assert.equal((await memorySettings.get({ orgId: ORG, userId: bob })).observerModelId, 'openai/gpt-5-mini', 'a model the person chose is kept')

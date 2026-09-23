@@ -116,6 +116,10 @@
 /* Composer: the shared component's own styles live in features/builder/composer/composer.css. */
 .cx-dock { padding-top: .25rem; }
 
+/* Task checklist: pinned above the working-state line, playground-ui's own TaskList; only the gap
+   below it is ours, matching the working-state row's own bottom margin. */
+.cx-task-list { margin: 0 0 .4rem; }
+
 /* Working state: replaces the header subtitle, shown above the composer while a run is live or
    just settled, so the header stays just the conversation and a way to start a new one. */
 .cx-working { display: flex; align-items: center; gap: .5rem; margin: 0 0 .4rem; padding: .5rem .7rem; border-radius: 10px; background: var(--cx-surface); font-size: .8125rem; color: var(--cx-text-2); }
